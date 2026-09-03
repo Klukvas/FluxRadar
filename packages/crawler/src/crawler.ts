@@ -139,9 +139,11 @@ class CrawlRun {
   private enqueue(rawUrl: string, depth: number): void {
     let normalized: string;
     let parsed: URL;
+    let discovered: URL;
     try {
-      normalized = normalizeUrl(rawUrl);
-      parsed = new URL(rawUrl);
+      discovered = new URL(rawUrl);
+      parsed = applyQueryPolicy(new URL(rawUrl), this.scope.queryPolicy);
+      normalized = normalizeUrl(parsed.href);
     } catch {
       return; // мусорные обнаруженные ссылки (userinfo и пр.) — не ошибка обхода
     }
@@ -151,7 +153,7 @@ class CrawlRun {
     if (!isPathnameAllowedByPatterns(parsed.pathname, this.scope)) {
       return;
     }
-    this.recordVariant(normalized, parsed.href);
+    this.recordVariant(normalized, discovered.href);
     if (this.seen.has(normalized)) {
       return;
     }
@@ -159,7 +161,7 @@ class CrawlRun {
     if (this.scope.maxDepth !== undefined && depth > this.scope.maxDepth) {
       return;
     }
-    this.queue.push({ rawUrl, normalized, parsed, depth });
+    this.queue.push({ rawUrl: parsed.href, normalized, parsed, depth });
   }
 
   /** Дубли не фетчатся, но их raw-формы копятся — вход SEO-TECH-007 (T-08). */
@@ -347,6 +349,14 @@ class CrawlRun {
       release();
     }
   }
+}
+
+function applyQueryPolicy(url: URL, policy: CrawlScope['queryPolicy']): URL {
+  if (policy !== 'ignore') {
+    return url;
+  }
+  url.search = '';
+  return url;
 }
 
 /** Только ключи с ≥2 raw-вариантами; варианты отсортированы для детерминизма. */

@@ -53,9 +53,12 @@ describe('loginInputSchema', () => {
 describe('siteProfileInputSchema', () => {
   const base = { name: 'My Site' };
 
-  it('accepts a plain https origin', () => {
-    const result = siteProfileInputSchema.safeParse({ ...base, domain: 'https://example.com' });
+  it.each(['https://example.com', 'https://example.com/'])('accepts a root https origin and normalizes it', (domain) => {
+    const result = siteProfileInputSchema.safeParse({ ...base, domain });
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.domain).toBe('https://example.com');
+    }
   });
 
   it('normalizes host case and default port to the canonical origin', () => {
@@ -68,7 +71,6 @@ describe('siteProfileInputSchema', () => {
 
   it.each([
     ['path', 'https://example.com/path'],
-    ['trailing slash', 'https://example.com/'],
     ['query', 'https://example.com?q=1'],
     ['fragment', 'https://example.com#top'],
     ['userinfo', 'https://user:pass@example.com'],
@@ -102,6 +104,36 @@ describe('scanRequestInputSchema', () => {
       scope: { includeSubdomains: false, maxPages: 50_000 },
     });
     expect(result.success).toBe(true);
+  });
+
+  it('normalizes the full crawl scope and requires an explicit robots override confirmation', () => {
+    const parsed = scanRequestInputSchema.safeParse({
+      plan: 'Complete',
+      scope: {
+        includeSubdomains: true,
+        maxPages: 100,
+        maxDepth: 4,
+        urlPatterns: ['/docs/*'],
+        excludePatterns: ['/docs/private/*'],
+        queryPolicy: 'include',
+        respectRobots: true,
+        userAgent: 'mobile',
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.scope.queryPolicy).toBe('include');
+      expect(parsed.data.scope.userAgent).toBe('mobile');
+      expect(parsed.data.scope.robotsOverrideConfirmed).toBe(false);
+    }
+    expect(scanRequestInputSchema.safeParse({
+      plan: 'Complete',
+      scope: { includeSubdomains: false, respectRobots: false },
+    }).success).toBe(false);
+    expect(scanRequestInputSchema.safeParse({
+      plan: 'Complete',
+      scope: { includeSubdomains: false, respectRobots: false, robotsOverrideConfirmed: true },
+    }).success).toBe(true);
   });
 
   it('rejects an unknown plan and a malformed scope', () => {

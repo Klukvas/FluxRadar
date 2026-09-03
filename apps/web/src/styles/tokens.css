@@ -1,0 +1,29 @@
+:root {
+  --plat-50: #efefef;
+  --plat-100: #dddddd;
+  --plat-200: #cccccc;
+  --plat-300: #aaaaaa;
+  --plat-400: #888888;
+  --plat-600: #555555;
+  --plat-900: #111111;
+  --desktop: #66799b;
+  --term-bg: #101410;
+  --term-green: #33ff66;
+  --term-amber: #ffb000;
+  --term-cyan: #4dd0e1;
+  --term-dim: #1d824a;
+  --term-red: #ff5544;
+  --selection: #333399;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 48px;
+  --r-0: 0;
+  --r-1: 2px;
+  --ui-font: Charcoal, Chicago, Geneva, "Helvetica Neue", system-ui, sans-serif;
+  --mono-font: Monaco, "SF Mono", Menlo, "Courier New", monospace;
+}

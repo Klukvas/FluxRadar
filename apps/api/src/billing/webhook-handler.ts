@@ -105,6 +105,8 @@ async function processEvent(
   await tx.webhookEvent.create({
     data: {
       paddleEventId: event.eventId,
+      accountId: event.accountId,
+      paddleTransactionId: event.transactionId,
       eventType: event.eventType,
       rawBody,
       signature,
@@ -113,7 +115,9 @@ async function processEvent(
   });
   return event.eventType === 'transaction.paid'
     ? processPaid(tx, event, now)
-    : processRefunded(tx, event);
+    : event.eventType === 'transaction.refunded'
+      ? processRefunded(tx, event, signature, now)
+      : processDisputed(tx, event);
 }
 
 async function processPaid(
@@ -152,12 +156,15 @@ async function processPaid(
       paddleTransactionId: event.transactionId,
       amountUsd: event.amountUsd,
       currency: event.currency,
+      priceId: event.priceId,
       status: PURCHASE_STATUSES.paid,
     },
   });
   const entitlement = await tx.entitlement.create({
     data: { purchaseId: purchase.id, expiresAt: addDays(now, ENTITLEMENT_DAYS) },
   });
+  // D-134 (завершение в T-12): реальный scope checkout-запроса приезжает в
+  // подписанном customData; события без него сохраняют дефолт T-06.
   const scan = await tx.scan.create({
     data: {
       purchaseId: purchase.id,
@@ -166,13 +173,29 @@ async function processPaid(
       plan: event.plan,
       domain: profile.domain,
       status: 'Pending',
-      scopeJson: DEFAULT_SCOPE_JSON,
+      scopeJson:
+        event.customData?.scope !== undefined
+          ? JSON.stringify(event.customData.scope)
+          : DEFAULT_SCOPE_JSON,
       rulesetVersion: RULESET_VERSION,
     },
   });
   await tx.job.create({
     data: { scanId: scan.id, type: JOB_TYPES.scan, status: JOB_STATUSES.pending },
   });
+  // Consent per-scan (§5): фиксируется атомарно с созданием скана; без записи
+  // AiConsent GEO-модуль уйдёт в Unavailable/ConsentMissing без обращения к AI.
+  const aiConsent = event.customData?.aiConsent;
+  if (aiConsent !== undefined) {
+    await tx.aiConsent.create({
+      data: {
+        accountId: event.accountId,
+        scanId: scan.id,
+        providersJson: JSON.stringify(aiConsent.providers),
+        noticeVersion: aiConsent.noticeVersion,
+      },
+    });
+  }
 
   return {
     deduplicated: false,
@@ -187,6 +210,8 @@ async function processPaid(
 async function processRefunded(
   tx: Prisma.TransactionClient,
   event: PaddleWebhookEvent,
+  signature: string,
+  now: Date,
 ): Promise<WebhookHandlingResult> {
   const purchase = await tx.purchase.findUnique({
     where: { paddleTransactionId: event.transactionId },
@@ -209,16 +234,83 @@ async function processRefunded(
     where: { id: purchase.id, NOT: { status: PURCHASE_STATUSES.refunded } },
     data: { status: PURCHASE_STATUSES.refunded },
   });
-  if (purchase.refund) {
-    await tx.refundRecord.updateMany({
-      where: {
-        id: purchase.refund.id,
-        status: { in: [REFUND_STATUSES.requested, REFUND_STATUSES.processing] },
+  const refund =
+    purchase.refund ??
+    (await tx.refundRecord.create({
+      data: {
+        purchaseId: purchase.id,
+        idempotencyKey: `refund:${purchase.id}`,
+        reasonCode: event.refundReasonCode ?? 'LEGAL_SUPPORT',
+        status: REFUND_STATUSES.paid,
+        amountUsd: event.amountUsd,
+        currency: event.currency,
+        taxAmountUsd: event.taxAmountUsd,
+        paddleTransactionId: event.transactionId,
+        paddleEventId: event.eventId,
+        paddleSignature: signature,
+        priceId: event.priceId,
+        refundRequestId: event.refundRequestId ?? `refund-request:${purchase.id}`,
+        refundReasonCode: event.refundReasonCode ?? 'LEGAL_SUPPORT',
+        requestedAt: now,
+        processedAt: now,
       },
-      data: { status: REFUND_STATUSES.paid },
+    }));
+  await tx.refundRecord.update({
+    where: { id: refund.id },
+    data: {
+      status: REFUND_STATUSES.paid,
+      amountUsd: event.amountUsd,
+      paddleTransactionId: event.transactionId,
+      paddleEventId: event.eventId,
+      paddleSignature: signature,
+      priceId: event.priceId,
+      currency: event.currency,
+      ...(event.taxAmountUsd !== undefined ? { taxAmountUsd: event.taxAmountUsd } : {}),
+      ...(event.refundRequestId !== undefined ? { refundRequestId: event.refundRequestId } : {}),
+      ...(event.refundReasonCode !== undefined ? { refundReasonCode: event.refundReasonCode } : {}),
+      processedAt: now,
+    },
+  });
+
+  return {
+    deduplicated: false,
+    eventId: event.eventId,
+    eventType: event.eventType,
+    purchaseId: purchase.id,
+    entitlementId: purchase.entitlement?.id ?? null,
+    scanId: purchase.scan?.id ?? null,
+  };
+}
+
+async function processDisputed(
+  tx: Prisma.TransactionClient,
+  event: PaddleWebhookEvent,
+): Promise<WebhookHandlingResult> {
+  const purchase = await tx.purchase.findUnique({
+    where: { paddleTransactionId: event.transactionId },
+    include: { entitlement: true, scan: true },
+  });
+  if (!purchase) {
+    // The paid event may arrive later; there is no entitlement to suspend yet.
+    return {
+      deduplicated: false,
+      eventId: event.eventId,
+      eventType: event.eventType,
+      purchaseId: null,
+      entitlementId: null,
+      scanId: null,
+    };
+  }
+  await tx.purchase.updateMany({
+    where: { id: purchase.id, status: { not: PURCHASE_STATUSES.refunded } },
+    data: { status: PURCHASE_STATUSES.disputed },
+  });
+  if (purchase.entitlement) {
+    await tx.entitlement.update({
+      where: { id: purchase.entitlement.id },
+      data: { suspended: true },
     });
   }
-
   return {
     deduplicated: false,
     eventId: event.eventId,

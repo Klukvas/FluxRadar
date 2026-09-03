@@ -11,19 +11,32 @@
   },
   "scripts": {
     "build": "prisma generate && tsc -p tsconfig.build.json",
-    "dev": "prisma generate && RUST_LOG=info prisma db push && node --watch src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "prisma generate && RUST_LOG=info prisma db push && node --env-file-if-exists=../../.env --watch src/index.ts",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
     "db:generate": "prisma generate",
     "db:push": "RUST_LOG=info prisma db push",
     "test": "prisma generate && vitest run",
     "typecheck": "prisma generate && tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1126.0",
+    "@fluxradar/ai": "workspace:*",
     "@fluxradar/contracts": "workspace:*",
+    "@fluxradar/crawler": "workspace:*",
+    "@fluxradar/export": "workspace:*",
+    "@fluxradar/fingerprint": "workspace:*",
+    "@fluxradar/rules": "workspace:*",
+    "@fluxradar/safe-fetch": "workspace:*",
+    "@fluxradar/scoring": "workspace:*",
     "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.2",
+    "express": "^5.1.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "prisma": "^6.19.3"
+    "@types/express": "^5.0.0",
+    "@types/supertest": "^6.0.2",
+    "prisma": "^6.19.3",
+    "supertest": "^7.1.0"
   }
 }

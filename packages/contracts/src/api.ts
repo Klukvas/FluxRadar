@@ -37,16 +37,14 @@ export const loginInputSchema = z.object({
 export type LoginInput = z.infer<typeof loginInputSchema>;
 
 const isHttpsOrigin = (value: string): boolean => {
-  // An origin has no path component at all, so even a trailing slash is rejected.
-  if (value.endsWith('/')) {
-    return false;
-  }
   let url: URL;
   try {
     url = new URL(value);
   } catch {
     return false;
   }
+  // A root slash is equivalent to the origin and is normalized away below;
+  // non-root paths, queries and fragments remain invalid.
   return (
     url.protocol === 'https:' &&
     url.username === '' &&
@@ -80,7 +78,24 @@ export type SiteProfileInput = z.infer<typeof siteProfileInputSchema>;
 export const scanScopeSchema = z.object({
   includeSubdomains: z.boolean(),
   maxPages: z.number().int().min(1).optional(),
+  maxDepth: z.number().int().min(0).max(100).optional(),
   urlPatterns: z.array(z.string().trim().min(1).max(CRAWL_LIMITS.maxUrlBytes)).max(100).optional(),
+  excludePatterns: z
+    .array(z.string().trim().min(1).max(CRAWL_LIMITS.maxUrlBytes))
+    .max(100)
+    .optional(),
+  queryPolicy: z.enum(['include', 'ignore']).default('ignore'),
+  respectRobots: z.boolean().default(true),
+  robotsOverrideConfirmed: z.boolean().default(false),
+  userAgent: z.enum(['desktop', 'mobile']).default('desktop'),
+}).superRefine((scope, ctx) => {
+  if (!scope.respectRobots && !scope.robotsOverrideConfirmed) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'robotsOverrideConfirmed is required when respectRobots is false',
+      path: ['robotsOverrideConfirmed'],
+    });
+  }
 });
 export type ScanScopeInput = z.infer<typeof scanScopeSchema>;
 

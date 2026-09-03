@@ -1,0 +1,44 @@
+FROM node:24-bookworm-slim AS build
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@10.11.0 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/ai/package.json packages/ai/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/crawler/package.json packages/crawler/package.json
+COPY packages/export/package.json packages/export/package.json
+COPY packages/fingerprint/package.json packages/fingerprint/package.json
+COPY packages/rules/package.json packages/rules/package.json
+COPY packages/safe-fetch/package.json packages/safe-fetch/package.json
+COPY packages/scoring/package.json packages/scoring/package.json
+
+RUN pnpm install --frozen-lockfile
+
+COPY apps/api apps/api
+COPY packages packages
+
+RUN pnpm --filter @fluxradar/api... build
+
+FROM node:24-bookworm-slim AS runtime
+
+ENV NODE_ENV=production
+ENV PORT=3310
+WORKDIR /app
+
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api ./apps/api
+COPY --from=build /app/packages ./packages
+
+RUN mkdir -p /data
+
+EXPOSE 3310
+
+CMD ["sh", "-c", "node_modules/.bin/prisma db push --schema apps/api/prisma/schema.prisma --skip-generate && exec node apps/api/dist/index.js"]

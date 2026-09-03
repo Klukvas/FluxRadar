@@ -1,4 +1,5 @@
-// SEO-модуль rules-mvp-0.1 (T-08): 9 технических + 4 on-page правила.
+// SEO-модуль rules-mvp-0.1 (T-08): технические, on-page, structured data и
+// social preview правила. Порядок — по реестру contracts.
 // Порядок — по ruleId реестра; движок сохраняет его в результатах.
 
 import type { Rule } from '../engine/types.js';
@@ -15,6 +16,8 @@ import { seoTech006BrokenLinks } from './seo-tech-006.js';
 import { seoTech007DuplicateUrls } from './seo-tech-007.js';
 import { seoTech008Noindex } from './seo-tech-008.js';
 import { seoTech013MixedContent } from './seo-tech-013.js';
+import { seoSocial001Preview } from './social-preview.js';
+import { seoStruct001JsonLdSyntax, seoStruct002JsonLdCompleteness } from './structured-data.js';
 
 export const SEO_RULES: readonly Rule[] = [
   seoTech001RobotsTxt,
@@ -30,4 +33,7 @@ export const SEO_RULES: readonly Rule[] = [
   seoOnpage002MetaDescription,
   seoOnpage003Headings,
   seoOnpage005ImageAlt,
+  seoStruct001JsonLdSyntax,
+  seoStruct002JsonLdCompleteness,
+  seoSocial001Preview,
 ];

@@ -94,6 +94,8 @@ const ALL_HTML_PAGES = [
 describe('passive-модули на fixture-сайте краулера', () => {
   it('Security: headers отсутствуют везде, cookie без флагов на /; HSTS N/A', () => {
     expect(findingPathsByRule('Security')).toEqual({
+      'SEC-ASVS-001': ALL_HTML_PAGES,
+      'SEC-ASVS-002': ALL_HTML_PAGES,
       'SEC-PASSIVE-002': ALL_HTML_PAGES,
       'SEC-PASSIVE-005': ['/'],
     });
@@ -123,7 +125,9 @@ describe('passive-модули на fixture-сайте краулера', () => 
   it('Accessibility: img без alt и input без label', () => {
     expect(findingPathsByRule('Accessibility')).toEqual({
       'A11Y-002': ['/broken-image.html'],
+      'A11Y-003': ['/empty.html'],
       'A11Y-004': ['/form.html'],
+      'A11Y-010': ALL_HTML_PAGES,
     });
     const unlabelled = moduleResult('Accessibility').findings.find(
       (finding) => finding.ruleId === 'A11Y-004',
@@ -160,6 +164,7 @@ describe('passive-модули на fixture-сайте краулера', () => 
     expect(findingPathsByRule('Privacy')).toEqual({
       'PRIVACY-001': ['/', '/trackers.html'],
       'PRIVACY-003': ['/trackers.html'],
+      'PRIVACY-004': [''],
     });
     const thirdParty = moduleResult('Privacy').findings.find(
       (finding) => finding.ruleId === 'PRIVACY-003',
@@ -170,16 +175,17 @@ describe('passive-модули на fixture-сайте краулера', () => 
   it('coverage: снимков без fetchError 17 → все checks каждого модуля завершены', () => {
     expect(crawlResult.pages).toHaveLength(17);
     const expectedChecks: Readonly<Record<string, number>> = {
-      // SEC-002×16 (2xx HTML) + SEC-003×0 (http) + SEC-005×17 (любой ответ).
-      Security: 33,
+      // Existing 33 checks + ASVS-001×16 + ASVS-002×16 + ASVS-003×17.
+      Security: 82,
       // REL-URL-001/003/009×17; api-правила без ctx.apiChecks — 0.
       Reliability: 51,
       // A11Y-002/004×16.
-      Accessibility: 32,
+      // A11Y-001..010 ×16 HTML pages + A11Y-011 site report contract ×1.
+      Accessibility: 161,
       // CONTENT-003/004×16.
       'Content Quality': 32,
-      // PRIVACY-001×17 + PRIVACY-003×16.
-      Privacy: 33,
+      // PRIVACY-001×17 + PRIVACY-002×16 + PRIVACY-003×16 + PRIVACY-004×1.
+      Privacy: 50,
     };
     for (const module of PASSIVE_MODULES) {
       const result = moduleResult(module);

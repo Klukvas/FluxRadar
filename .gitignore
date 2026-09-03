@@ -7,3 +7,4 @@ coverage/
 *.db
 *.tsbuildinfo
 .DS_Store
+client_secret_*.json

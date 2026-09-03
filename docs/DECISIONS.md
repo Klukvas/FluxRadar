@@ -595,3 +595,49 @@
   (3) `normalizeUsage` держит мёртвый fallback `?? 0` для required-полей usage —
   ajv гарантирует их присутствие, ветка безвредна; (4) формула-экранирование CSV
   остаётся `= + - @` (D-186) — tab/CR-lead нейтрализуются RFC 4180 quoting.
+- **D-190 (T-12)** — One-time Free entitlement хранится как `Account.freeCheckUsedAt`
+  и claim-ится условным `updateMany` внутри транзакции вместе с созданием Scan/Job.
+  Это делает параллельные Free requests взаимно исключающимися и не оставляет claim
+  при rollback создания профиля/скана.
+- **D-191 (T-12)** — v0.1 использует in-process enqueue + DB-backed Job: HTTP слой
+  только планирует scan, worker атомарно claim-ит Pending job и выполняет state machine.
+  Это сохраняет семантику для будущей внешней очереди без добавления инфраструктуры
+  в локальный релиз.
+- **D-192 (T-12)** — API tenant boundary проверяется на каждой сущности через
+  `accountId`; чужие profile/scan ids не различаются с отсутствующими и возвращают
+  not-found. История гейтируется Complete, а direct current result остаётся доступен
+  по согласованной матрице v0.1.
+- **D-193 (T-12)** — Export `observed_at` для AI records берётся из завершения scan,
+  а provider clock сохраняется отдельно как `provider_created_at`; это гарантирует
+  temporal invariant export schema даже если часы внешнего провайдера расходятся.
+- **D-194 (T-12 review)** — Module retry требует active paid entitlement: purchase
+  должен быть `paid`, entitlement не `suspended` и `expiresAt` должен быть позже
+  текущего времени. Истёкший retry возвращает `ENTITLEMENT_INACTIVE`.
+- **D-195 (UI feedback)** — Titlebar оставляет только close-box слева; zoom-box
+  удалён, потому что v0.1 не имеет поведения resize/zoom и не должен показывать
+  декоративную интерактивную кнопку без действия. Состояние titlebar закреплено в
+  `DESIGN_SYSTEM.md`.
+- **D-196 (UI feedback)** — Web API boundary не показывает сырые fetch/HTTP ошибки.
+  Backend envelope message сохраняется, если он пользовательский; не-JSON ответы,
+  network failures и технические fallback-сообщения преобразуются в короткий
+  product-safe текст с понятным действием «попробовать снова».
+- **D-197 (T-12 follow-up)** — Module retry без явно заданного модуля выбирается
+  только из `ModulePlan.runnable` и GEO при наличии GEO в тарифе. Stub-модули
+  `Performance`/`Analytics` не являются retryable: их `Unavailable` — честное
+  ограничение v0.1, а не временный сбой выполнения.
+- **D-198 (T-12 follow-up)** — Полная повторная попытка пересобирает snapshot
+  целиком и удаляет старые `AiResponseRecord` перед новым запуском. Retry одного
+  модуля удаляет только его issues/module rows; GEO retry дополнительно очищает
+  AI records, чтобы export не смешивал ответы разных попыток.
+- **D-199 (T-12 follow-up)** — Retention удаляет terminal scan вместе с job,
+  issues, modules, AI records и consent в одной транзакции; `DeletedScan`
+  сохраняет только content-free hash/reason и позволяет evidence endpoint вернуть
+  `410 EVIDENCE_EXPIRED` вместо сырой ошибки или повторной выдачи данных.
+- **D-200 (T-12 follow-up)** — Account deletion выполняется атомарно и удаляет
+  пользовательские профили, сессии, покупки, entitlement, refund metadata,
+  scan-зависимости и AI consent; сохраняется только content-free
+  `AccountDeletionAudit` для подтверждения удаления.
+- **D-201 (T-12 follow-up)** — Paddle `transaction.disputed` переводит purchase
+  в `Disputed`, приостанавливает entitlement и блокирует worker execution; переход
+  не откатывает уже `Refunded` purchase. Refund сохраняет transaction/event/signature,
+  currency, tax, price и reason metadata для reconciliation.

@@ -110,3 +110,61 @@ describe('PRIVACY-003 third-party скрипты', () => {
       .toContain('с 1 доменов: stats.example.com');
   });
 });
+
+describe('PRIVACY-002/004 consent and policy signals', () => {
+  it('reports tracker code without a detectable consent marker', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Tracking</title>' +
+        '<script src="https://www.googletagmanager.com/gtm.js"></script></head>' +
+        '<body><main><h1>Tracking</h1></main></body></html>',
+    );
+    const finding = single(runRule('Privacy', 'PRIVACY-002', ctx));
+    expect(finding.confidence).toBe(0.8);
+    expect(finding.evidenceExcerpt).toContain('googletagmanager.com');
+  });
+
+  it('does not report the consent signal when a banner marker exists', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Tracking</title>' +
+        '<script src="https://www.googletagmanager.com/gtm.js"></script></head>' +
+        '<body><div id="cookie-consent">Accept cookies</div></body></html>',
+    );
+    expect(runRule('Privacy', 'PRIVACY-002', ctx)).toEqual([]);
+  });
+
+  it('reports missing homepage policy link and accepts a same-site policy link', () => {
+    const missing = siteContext({
+      pages: [
+        {
+          path: '/',
+          html:
+            '<!doctype html><html lang="en"><head><title>Home</title></head>' +
+            '<body><main><h1>Home</h1></main></body></html>',
+        },
+      ],
+    });
+    expect(runRule('Privacy', 'PRIVACY-004', missing)).toHaveLength(1);
+    const linked = siteContext({
+      pages: [
+        {
+          path: '/',
+          html:
+            '<!doctype html><html lang="en"><head><title>Home</title></head>' +
+            '<body><main><h1>Home</h1><a href="/privacy">Privacy policy</a></main></body></html>',
+        },
+      ],
+    });
+    expect(runRule('Privacy', 'PRIVACY-004', linked)).toEqual([]);
+    const external = siteContext({
+      pages: [
+        {
+          path: '/',
+          html:
+            '<!doctype html><html lang="en"><head><title>Home</title></head>' +
+            '<body><main><h1>Home</h1><a href="https://privacy.example.net">Privacy policy</a></main></body></html>',
+        },
+      ],
+    });
+    expect(runRule('Privacy', 'PRIVACY-004', external)).toHaveLength(1);
+  });
+});

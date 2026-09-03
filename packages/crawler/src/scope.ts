@@ -22,6 +22,9 @@ export function validateScope(scope: CrawlScope): URL {
   if (scope.maxDepth !== undefined && (!Number.isInteger(scope.maxDepth) || scope.maxDepth < 0)) {
     throw new Error(`crawl: scope.maxDepth must be a non-negative integer, got ${scope.maxDepth}`);
   }
+  if (scope.queryPolicy !== undefined && scope.queryPolicy !== 'include' && scope.queryPolicy !== 'ignore') {
+    throw new Error(`crawl: scope.queryPolicy must be "include" or "ignore"`);
+  }
   return origin;
 }
 

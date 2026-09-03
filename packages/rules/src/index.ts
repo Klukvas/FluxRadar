@@ -39,3 +39,12 @@ export { RELIABILITY_RULES } from './reliability/index.js';
 export { ACCESSIBILITY_RULES } from './accessibility/index.js';
 export { CONTENT_RULES } from './content/index.js';
 export { PRIVACY_RULES } from './privacy/index.js';
+export { hasCompleteJsonLd, jsonLdBlocks, validJsonLdObjects } from './seo/structured-data.js';
+export { hasSocialPreview } from './seo/social-preview.js';
+export { AI_CRAWLER_USER_AGENTS, assessAiCrawlerReadiness } from './ai-readiness.js';
+export type {
+  AiCrawlerAgentCheck,
+  AiCrawlerAgentStatus,
+  AiCrawlerReadinessReport,
+  AiReadinessPageCheck,
+} from './ai-readiness.js';

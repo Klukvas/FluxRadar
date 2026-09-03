@@ -10,6 +10,7 @@ export * from './prompt-builder.js';
 export * from './request-key.js';
 export * from './response-contract.js';
 export * from './mock-provider.js';
+export * from './anthropic-provider.js';
 export * from './run-request.js';
 export * from './geo-findings.js';
 export * from './geo-rules.js';

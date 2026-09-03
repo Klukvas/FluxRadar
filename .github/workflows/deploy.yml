@@ -1,0 +1,111 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  deploy:
+    name: Deploy to Hetzner
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+
+      - name: Create release archive
+        env:
+          PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=dist \
+            --exclude=coverage \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='client_secret_*.json' \
+            -czf release.tar.gz .
+          printf '%s\n' "$PRODUCTION_ENV_FILE" > production.env
+
+      - name: Upload release
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
+          RELEASE_ID: ${{ github.sha }}
+        run: |
+          scp release.tar.gz "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.tar.gz"
+          scp production.env "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.env"
+          ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$APP_DIR/releases/$RELEASE_ID' && tar -xzf '/tmp/fluxradar-$RELEASE_ID.tar.gz' -C '$APP_DIR/releases/$RELEASE_ID' && install -m 600 '/tmp/fluxradar-$RELEASE_ID.env' '$APP_DIR/releases/$RELEASE_ID/.env.production'"
+
+      - name: Start release and smoke test
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
+          RELEASE_ID: ${{ github.sha }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" "set -eu; ln -sfn '$APP_DIR/releases/$RELEASE_ID' '$APP_DIR/current'; cd '$APP_DIR/current'; docker compose up -d --build --remove-orphans; for attempt in \$(seq 1 30); do if docker compose exec -T api node -e \"fetch('http://127.0.0.1:3310/health').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))\"; then exit 0; fi; sleep 2; done; docker compose ps; exit 1"
+
+      - name: Public smoke test
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" "curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-connrefused -H 'Host: fluxradar.net' http://127.0.0.1/api/health"

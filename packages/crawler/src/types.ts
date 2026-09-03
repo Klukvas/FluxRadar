@@ -21,6 +21,8 @@ export interface CrawlScope {
   readonly maxPages: number;
   /** Глубина обхода в переходах по ссылкам от origin; undefined — без ограничения. */
   readonly maxDepth?: number;
+  /** Учитывать query-параметры при дедупликации URL или отбросить query целиком. */
+  readonly queryPolicy?: 'include' | 'ignore';
   /** Соблюдать robots.txt; default true (план §3). */
   readonly respectRobots?: boolean;
   /**

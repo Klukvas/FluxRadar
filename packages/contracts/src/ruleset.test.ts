@@ -22,24 +22,28 @@ describe('rules-mvp-0.1 registry', () => {
   it('contains every enumerated group of IMPLEMENTATION_PLAN §3 in full', () => {
     expect(countByPrefix('SEO-TECH-')).toBe(9);
     expect(countByPrefix('SEO-ONPAGE-')).toBe(4);
+    expect(countByPrefix('SEO-STRUCT-')).toBe(2);
+    expect(countByPrefix('SEO-SOCIAL-')).toBe(1);
     expect(countByPrefix('GEO-')).toBe(5);
     expect(countByPrefix('SEC-PASSIVE-')).toBe(3);
+    expect(countByPrefix('SEC-ASVS-')).toBe(3);
     expect(countByPrefix('REL-')).toBe(5);
-    expect(countByPrefix('A11Y-')).toBe(2);
+    expect(countByPrefix('A11Y-')).toBe(11);
     expect(countByPrefix('CONTENT-')).toBe(2);
-    expect(countByPrefix('PRIVACY-')).toBe(2);
+    expect(countByPrefix('PRIVACY-')).toBe(4);
     expect(countByPrefix('BILLING-')).toBe(6);
     expect(countByPrefix('EXPORT-')).toBe(3);
     expect(countByPrefix('ECON-')).toBe(1);
   });
 
-  // D-107: the enumerated §3 groups sum to 42, not the headline "37" — that figure
+  // D-107: the enumerated §3 groups originally summed to 42, not the headline "37".
+  // The public-only discovery/security/privacy extensions add eight descriptors.
   // omits the GEO group (13 SEO + 14 passive + 10 platform). The registry keeps
   // every enumerated rule because T-08/T-09/T-10 depend on each of them.
-  it('splits into 32 scanning+GEO rules and 10 platform contracts, 42 in total', () => {
-    expect(RULES_MVP_01).toHaveLength(32);
+  it('splits into 49 scanning+GEO rules and 10 platform contracts, 59 in total', () => {
+    expect(RULES_MVP_01).toHaveLength(49);
     expect(PLATFORM_CONTRACTS).toHaveLength(10);
-    expect(RULESET_ALL).toHaveLength(42);
+    expect(RULESET_ALL).toHaveLength(59);
   });
 
   it('has a unique ruleId for every descriptor', () => {
@@ -85,7 +89,7 @@ describe('rules-mvp-0.1 registry', () => {
   });
 
   it('filters rules by module', () => {
-    expect(rulesForModule('SEO')).toHaveLength(13);
+    expect(rulesForModule('SEO')).toHaveLength(16);
     expect(rulesForModule('platform')).toHaveLength(10);
     expect(rulesForModule('Performance')).toHaveLength(0);
   });

@@ -221,4 +221,20 @@ describe('BILLING-003 monotonic refunded event ordering', () => {
     });
     expect(purchase.status).toBe('paid');
   });
+
+  it('suspends entitlement on a dispute and keeps the scan state separate', async () => {
+    const paid = await checkout('evt_mono_paid_dispute', 'txn_mono_dispute');
+    const result = await deliver({
+      ...refundedEvent('evt_mono_dispute', 'txn_mono_dispute'),
+      eventType: 'transaction.disputed',
+    });
+    expect(result.purchaseId).toBe(paid.result.purchaseId);
+    const purchase = await db.prisma.purchase.findUniqueOrThrow({
+      where: { id: paid.result.purchaseId ?? '' },
+      include: { entitlement: true, scan: true },
+    });
+    expect(purchase.status).toBe('Disputed');
+    expect(purchase.entitlement?.suspended).toBe(true);
+    expect(purchase.scan?.status).toBe('Pending');
+  });
 });

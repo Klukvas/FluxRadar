@@ -81,6 +81,10 @@ export const MODULE_NAMES = [
 ] as const;
 export type ModuleName = (typeof MODULE_NAMES)[number];
 
+export function isModuleName(value: string): value is ModuleName {
+  return MODULE_NAMES.includes(value as ModuleName);
+}
+
 export const AI_FINISH_REASONS = ['stop', 'length', 'safety', 'error'] as const;
 export type AiFinishReason = (typeof AI_FINISH_REASONS)[number];
 

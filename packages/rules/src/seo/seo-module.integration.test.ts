@@ -93,6 +93,24 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
       // Единственная страница без h1 — почти пустой /empty.html.
       'SEO-ONPAGE-003': ['/empty.html'],
       'SEO-ONPAGE-005': ['/broken-image.html'],
+      'SEO-SOCIAL-001': [
+        '/',
+        '/broken-image.html',
+        '/broken-link.html',
+        '/deep/',
+        '/deep/level2/page.html',
+        '/dup-a.html',
+        '/dup-b.html',
+        '/empty.html',
+        '/form.html',
+        '/mixed-content.html',
+        '/no-title.html',
+        '/noindex.html',
+        '/orphan.html',
+        '/redirect-a',
+        '/trackers.html',
+        '/wrong-canonical.html',
+      ],
     });
   });
 
@@ -101,14 +119,14 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
     expect(duplicate?.normalizedParameter).toBe(`${origin}/dup-a.html`);
     const fingerprints = result.findings.map((finding) => finding.fingerprint);
     expect(new Set(fingerprints).size).toBe(fingerprints.length);
-    expect(result.findings).toHaveLength(34);
+    expect(result.findings).toHaveLength(50);
   });
 
   it('агрегаты и coverage: 17 снимков без fetchError → все checks завершены', () => {
     expect(crawlResult.pages).toHaveLength(17);
-    // 8 default page-rules × 16 (2xx HTML) + TECH-003/005 × 17 + 3 site-rules.
-    expect(result.applicableChecks).toBe(165);
-    expect(result.completedApplicableChecks).toBe(165);
+    // 11 default page-rules × 16 (2xx HTML) + TECH-003/005 × 17 + 3 site-rules.
+    expect(result.applicableChecks).toBe(213);
+    expect(result.completedApplicableChecks).toBe(213);
     const canonical = result.evaluations.find((entry) => entry.ruleId === 'SEO-TECH-004');
     expect(canonical?.applicableTargets).toBe(16);
     expect(canonical?.affectedTargets).toBe(15);

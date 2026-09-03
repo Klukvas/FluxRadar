@@ -37,7 +37,11 @@ describe('SEC-PASSIVE-002 security headers', () => {
 
   it('negative: nosniff + CSP frame-ancestors + Referrer-Policy → пусто', () => {
     expect(
-      runRule('Security', 'SEC-PASSIVE-002', loadFixtureContext('fx-SEC-PASSIVE-002-negative.json')),
+      runRule(
+        'Security',
+        'SEC-PASSIVE-002',
+        loadFixtureContext('fx-SEC-PASSIVE-002-negative.json'),
+      ),
     ).toEqual([]);
   });
 
@@ -76,7 +80,11 @@ describe('SEC-PASSIVE-003 HSTS (https-моки)', () => {
 
   it('negative: HSTS с max-age=31536000 → пусто', () => {
     expect(
-      runRule('Security', 'SEC-PASSIVE-003', loadFixtureContext('fx-SEC-PASSIVE-003-negative.json')),
+      runRule(
+        'Security',
+        'SEC-PASSIVE-003',
+        loadFixtureContext('fx-SEC-PASSIVE-003-negative.json'),
+      ),
     ).toEqual([]);
   });
 
@@ -129,7 +137,11 @@ describe('SEC-PASSIVE-005 атрибуты cookie', () => {
 
   it('negative: Secure + HttpOnly + SameSite → пусто', () => {
     expect(
-      runRule('Security', 'SEC-PASSIVE-005', loadFixtureContext('fx-SEC-PASSIVE-005-negative.json')),
+      runRule(
+        'Security',
+        'SEC-PASSIVE-005',
+        loadFixtureContext('fx-SEC-PASSIVE-005-negative.json'),
+      ),
     ).toEqual([]);
   });
 
@@ -140,8 +152,7 @@ describe('SEC-PASSIVE-005 атрибуты cookie', () => {
           path: '/page.html',
           html: '<!doctype html><html lang="en"><head><title>Two cookies page</title></head><body></body></html>',
           headers: {
-            'set-cookie':
-              'weak=1; Path=/, strong=2; Path=/; Secure; HttpOnly; SameSite=Strict',
+            'set-cookie': 'weak=1; Path=/, strong=2; Path=/; Secure; HttpOnly; SameSite=Strict',
           },
         },
       ],
@@ -164,5 +175,59 @@ describe('SEC-PASSIVE-005 атрибуты cookie', () => {
     });
     const finding = single(runRule('Security', 'SEC-PASSIVE-005', ctx));
     expect(finding.normalizedParameter).toBe('legacy');
+  });
+});
+
+describe('OWASP ASVS Public Security Profile', () => {
+  it('reports missing CSP and Permissions-Policy on public HTML', () => {
+    const ctx = loadFixtureContext('fx-SEC-PASSIVE-002-positive.json');
+    expect(runRule('Security', 'SEC-ASVS-001', ctx)).toHaveLength(1);
+    expect(runRule('Security', 'SEC-ASVS-002', ctx)).toHaveLength(1);
+  });
+
+  it('accepts non-empty CSP and Permissions-Policy', () => {
+    const ctx = siteContext({
+      pages: [
+        {
+          path: '/',
+          html:
+            '<!doctype html><html lang="en"><head><title>Secure page</title></head>' +
+            '<body><main><h1>Secure</h1></main></body></html>',
+          headers: {
+            'content-security-policy': "default-src 'self'",
+            'permissions-policy': 'camera=(), microphone=()',
+          },
+        },
+      ],
+    });
+    expect(runRule('Security', 'SEC-ASVS-001', ctx)).toEqual([]);
+    expect(runRule('Security', 'SEC-ASVS-002', ctx)).toEqual([]);
+  });
+
+  it('reports wildcard CORS combined with credentials only', () => {
+    const bad = siteContext({
+      pages: [
+        {
+          path: '/',
+          html: '<!doctype html><html lang="en"><head><title>CORS</title></head><body></body></html>',
+          headers: {
+            'access-control-allow-origin': '*',
+            'access-control-allow-credentials': 'true',
+          },
+        },
+      ],
+    });
+    expect(runRule('Security', 'SEC-ASVS-003', bad)).toHaveLength(1);
+    const publicResource = siteContext({
+      pages: [
+        {
+          path: '/',
+          html: null,
+          contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+        },
+      ],
+    });
+    expect(runRule('Security', 'SEC-ASVS-003', publicResource)).toEqual([]);
   });
 });

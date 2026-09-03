@@ -43,6 +43,11 @@ export async function requestRefund(
         reasonCode,
         status: REFUND_STATUSES.requested,
         amountUsd: purchase.amountUsd,
+        currency: purchase.currency,
+        paddleTransactionId: purchase.paddleTransactionId,
+        priceId: purchase.priceId,
+        refundRequestId: `refund-request:${purchaseId}`,
+        refundReasonCode: reasonCode,
       },
     });
     return { record, deduplicated: false };

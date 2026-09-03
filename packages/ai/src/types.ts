@@ -4,7 +4,7 @@
 
 import type { AiFinishReason, RequestIdSource, UsageSource } from '@fluxradar/contracts';
 
-export const AI_PROVIDER_NAMES = ['openai', 'google', 'perplexity'] as const;
+export const AI_PROVIDER_NAMES = ['anthropic', 'openai', 'google', 'perplexity'] as const;
 export type AiProviderName = (typeof AI_PROVIDER_NAMES)[number];
 
 export type ProviderMode = 'mock' | 'real';

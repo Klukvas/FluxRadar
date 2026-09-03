@@ -16,6 +16,9 @@ model Account {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
+  // One-time anonymous-quality gate: the Free check is granted once per account.
+  // The nullable timestamp is claimed atomically before the scan/job is created.
+  freeCheckUsedAt DateTime?
   createdAt    DateTime @default(now())
 
   sessions     Session[]
@@ -23,6 +26,27 @@ model Account {
   purchases    Purchase[]
   scans        Scan[]
   aiConsents   AiConsent[]
+  integrations IntegrationConnection[]
+  oauthStates  IntegrationOAuthState[]
+  artifacts    ExportArtifact[]
+}
+
+// Content-free audit fact that survives account deletion (§17 retention).
+model AccountDeletionAudit {
+  id             String   @id @default(cuid())
+  accountIdHash  String
+  status         String
+  requestedAt    DateTime @default(now())
+  completedAt    DateTime?
+}
+
+// Allows old signed evidence links to fail closed with 410 after retention.
+model DeletedScan {
+  id            String   @id @default(cuid())
+  scanId        String   @unique
+  accountIdHash String
+  reason        String
+  deletedAt     DateTime @default(now())
 }
 
 model Session {
@@ -47,6 +71,10 @@ model SiteProfile {
   account   Account    @relation(fields: [accountId], references: [id])
   purchases Purchase[]
   scans     Scan[]
+
+  // T-12: one profile per (account, domain) — a second profile for the same
+  // origin would split scan history and break Resolved/Reopened comparison.
+  @@unique([accountId, domain])
 }
 
 // Idempotency contract §18: unique paddleTransactionId allows exactly one purchase.
@@ -56,6 +84,7 @@ model Purchase {
   siteProfileId       String
   plan                String
   paddleTransactionId String   @unique
+  priceId             String?
   amountUsd           Float
   currency            String
   // Billing state: 'paid' | 'Refunded' | 'Disputed' (§18: billing overlay, not a scan state).
@@ -106,6 +135,7 @@ model Scan {
   aiResponses AiResponseRecord[]
   aiConsent   AiConsent?
   job         Job?
+  artifacts   ExportArtifact[]
 }
 
 model ScanModule {
@@ -119,6 +149,7 @@ model ScanModule {
   score                     Float?
   applicableChecks          Int?
   completedApplicableChecks Int?
+  metadataJson              String  @default("{}")
   // §18 usable output: >=1 completed applicable check AND a valid metric/score/
   // finding with evidence (computed via @fluxradar/scoring hasUsableOutput, D-026).
   usableOutput              Boolean @default(false)
@@ -147,6 +178,8 @@ model Issue {
   evidenceType        String
   evidenceRef         String?
   evidenceExcerpt     String?
+  // Non-scoring cross-module evidence link (§14 cross-module policy, D-167).
+  evidenceGroupId     String?
   recommendation      String
   confidence          Float
   applicableTargets   Int
@@ -196,15 +229,79 @@ model AiConsent {
   scan    Scan    @relation(fields: [scanId], references: [id])
 }
 
+// User-authorized external data sources. Access and refresh tokens are always
+// encrypted before persistence; metadata contains only provider resource IDs
+// and selected settings, never raw credentials.
+model IntegrationConnection {
+  id                   String   @id @default(cuid())
+  accountId            String
+  provider             String
+  status               String   @default("connected")
+  accessTokenEncrypted String
+  refreshTokenEncrypted String?
+  tokenExpiresAt       DateTime?
+  scopesJson           String   @default("[]")
+  metadataJson         String   @default("{}")
+  lastCheckedAt        DateTime?
+  lastError            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, provider])
+  @@index([accountId, status])
+}
+
+// One-time OAuth state prevents callback CSRF and replay. Only a SHA-256 hash
+// of the state value is stored; the raw value exists in the browser redirect.
+model IntegrationOAuthState {
+  id        String   @id @default(cuid())
+  accountId String
+  provider  String
+  stateHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, provider])
+  @@index([expiresAt])
+}
+
+// Private report artifact stored in Hetzner Object Storage. The DB row keeps
+// the object address and tenant boundary; the object itself is never public.
+model ExportArtifact {
+  id          String   @id @default(cuid())
+  accountId   String
+  scanId      String
+  format      String
+  objectKey   String
+  contentType String
+  createdAt   DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+  scan    Scan    @relation(fields: [scanId], references: [id])
+
+  @@unique([scanId, format])
+  @@index([accountId, createdAt])
+}
+
 // Dedup table for Paddle events: unique paddleEventId makes redelivery a no-op (§18).
 // Raw payload + signature are retained per D-029.
 model WebhookEvent {
   id            String   @id @default(cuid())
   paddleEventId String   @unique
+  accountId     String?
+  paddleTransactionId String?
   eventType     String
   rawBody       String
   signature     String
   processedAt   DateTime @default(now())
+
+  @@index([accountId])
+  @@index([paddleTransactionId])
 }
 
 // Unique purchaseId AND unique idempotencyKey (refund:{purchase_id}): a second
@@ -217,7 +314,16 @@ model RefundRecord {
   // 'requested' | 'processing' | 'paid' | 'failed' (§18).
   status         String
   amountUsd      Float
+  currency       String?
+  taxAmountUsd   Float?
+  paddleTransactionId String?
+  paddleEventId  String?
+  paddleSignature String?
+  priceId        String?
+  refundRequestId String?
+  refundReasonCode String?
   requestedAt    DateTime @default(now())
+  processedAt    DateTime?
 
   purchase Purchase @relation(fields: [purchaseId], references: [id])
 }

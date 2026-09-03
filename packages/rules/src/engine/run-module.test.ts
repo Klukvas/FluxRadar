@@ -47,10 +47,10 @@ describe('runModuleRules: движок', () => {
     const result = runModuleRules('SEO', ctx);
     // 8 default page-rules: 1 applicable (2xx html) + 1 незавершённый (down);
     // TECH-003/TECH-005 (любой HTTP-ответ): 2 applicable + 1 незавершённый;
-    // 3 site-rules: 1/1. Итого applicable 8×2 + 2×3 + 3 = 25, completed
-    // 8×1 + 2×2 + 3 = 15.
-    expect(result.applicableChecks).toBe(25);
-    expect(result.completedApplicableChecks).toBe(15);
+    // 3 site-rules: 1/1. Three discovery page-rules make it 11×2 + 2×3 + 3 = 31,
+    // with 11×1 + 2×2 + 3 = 18 completed checks.
+    expect(result.applicableChecks).toBe(31);
+    expect(result.completedApplicableChecks).toBe(18);
   });
 
   it('site-level: normalizedUrl пуст, fingerprint по D-019, агрегаты 1/1', () => {

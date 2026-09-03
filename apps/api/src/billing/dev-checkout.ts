@@ -6,13 +6,15 @@ import { getPaddleWebhookSecret, signPaddleWebhook } from './paddle-signature.ts
 import { handlePaddleWebhook } from './webhook-handler.ts';
 import type { WebhookHandlingResult } from './webhook-handler.ts';
 import { PADDLE_PRICE_IDS } from './webhook-schema.ts';
-import type { PaddleWebhookEvent, PaidPlan } from './webhook-schema.ts';
+import type { PaddleCustomData, PaddleWebhookEvent, PaidPlan } from './webhook-schema.ts';
 
 export interface SimulateCheckoutParams {
   readonly prisma: PrismaClient;
   readonly accountId: string;
   readonly siteProfileId: string;
   readonly plan: PaidPlan;
+  /** Scope и AI-consent checkout-запроса — едут в подписанном событии (D-134). */
+  readonly customData?: PaddleCustomData;
   readonly eventId?: string;
   readonly transactionId?: string;
   /** Defaults to PADDLE_WEBHOOK_SECRET from the environment. */
@@ -47,6 +49,7 @@ export async function simulatePaidCheckout(
     amountUsd: TARIFFS[params.plan].priceUsd,
     currency: 'USD',
     priceId: PADDLE_PRICE_IDS[params.plan],
+    ...(params.customData !== undefined ? { customData: params.customData } : {}),
     ...params.overrides,
   };
   const rawBody = JSON.stringify(event);

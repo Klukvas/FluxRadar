@@ -6,17 +6,24 @@ Pay-per-scan website audit platform (v0.1 — local MVP). Plan and process docs 
 
 ```
 packages/
-  contracts/     types, enums, zod schemas, tariff matrix, rules-mvp-0.1 registry
+  contracts/     types, enums, zod schemas, tariff matrix, audit-rule registry
   fingerprint/   URL normalization v1 + fingerprint-v1
   scoring/       module/overall score, coverage, statuses
   safe-fetch/    SSRF-guarded fetch layer
   crawler/       scope, robots.txt, sitemap, dedup, tariff limits
-  rules/         rule engine + rules-mvp-0.1 implementations
+  rules/         rule engine + SEO/security/accessibility and other audit rules
   ai/            AiProvider contract + MockAiProvider
   export/        canonical records, JSON Schema, semantic validator, CSV
 apps/
   api/           Express + Prisma (SQLite): auth, billing, scan orchestrator
   web/           React + Vite UI (Mac OS 8/9 design system)
+
+Current integrations are documented in `docs/INTEGRATIONS.md`. Cloudflare and
+WordPress are intentionally deferred; report artifacts use Hetzner S3. All current audit
+profiles are public-only: no customer API tokens are required. This includes JSON-LD/social
+preview, OWASP ASVS Public Security Profile, Privacy & Consent signals, EN 301 549/Section 508
+mapping, and AI crawler readiness. The WCAG 2.2 AA Accessibility module and its
+automated/manual-review boundary are documented in `docs/WCAG_AUDIT.md`.
 ```
 
 ## Commands

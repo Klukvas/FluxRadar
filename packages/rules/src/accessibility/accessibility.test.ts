@@ -79,3 +79,153 @@ describe('A11Y-004 labels у форм', () => {
       .toBe('input[name="q"]');
   });
 });
+
+describe('WCAG 2.2 AA static checks', () => {
+  it('A11Y-001 finds an explicit low-contrast inline pair', () => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-001',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>Contrast</title></head><body>' +
+            '<main><h1 style="color:#777;background-color:#fff">Low contrast</h1></main></body></html>',
+        ),
+      ),
+    );
+    expect(finding.normalizedSelector).toBe('h1');
+    expect(finding.evidenceExcerpt).toContain('4.48:1');
+  });
+
+  it('A11Y-001 does not claim a violation when the inline pair meets the threshold', () => {
+    expect(
+      runRule(
+        'Accessibility',
+        'A11Y-001',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>Contrast</title></head><body>' +
+            '<main><h1 style="color:#000;background-color:#fff">Readable</h1></main></body></html>',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('A11Y-003 reports missing language and skipped heading levels', () => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-003',
+        htmlContext(
+          '<!doctype html><html><head><title>Structure</title></head><body>' +
+            '<main><h1>Page</h1><h3>Skipped</h3></main></body></html>',
+        ),
+      ),
+    );
+    expect(finding.normalizedSelector).toBe('html');
+    expect(finding.evidenceExcerpt).toContain('html[lang]');
+  });
+
+  it('A11Y-005 reports positive tabindex and mouse-only handlers', () => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-005',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>Keyboard</title></head><body>' +
+            '<main><h1>Page</h1><div onclick="openPanel()">Open</div><a href="/next" tabindex="2">Next</a></main></body></html>',
+        ),
+      ),
+    );
+    expect(finding.evidenceExcerpt).toContain('tabindex > 0');
+  });
+
+  it('A11Y-006 reports focus outline removal without replacement', () => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-006',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>Focus</title>' +
+            '<style>button:focus { outline: none; }</style></head><body><main><h1>Page</h1></main></body></html>',
+        ),
+      ),
+    );
+    expect(finding.evidenceExcerpt).toContain('focus-state');
+  });
+
+  it('A11Y-007 reports broken ARIA references and aria-hidden focusable controls', () => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-007',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>ARIA</title></head><body>' +
+            '<main><h1>Page</h1><button aria-labelledby="missing">Open</button></main></body></html>',
+        ),
+      ),
+    );
+    expect(finding.evidenceExcerpt).toContain('отсутствующий ARIA id');
+  });
+
+  it('A11Y-008 reports unnamed interactive elements', () => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-008',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>Names</title></head><body>' +
+            '<main><h1>Page</h1><button></button></main></body></html>',
+        ),
+      ),
+    );
+    expect(finding.normalizedSelector).toBe('button');
+  });
+
+  it('A11Y-009 requires an error description for an invalid control', () => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-009',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>Errors</title></head><body>' +
+            '<main><h1>Page</h1><input id="email" aria-invalid="true" /></main></body></html>',
+        ),
+      ),
+    );
+    expect(finding.normalizedSelector).toBe('input#email');
+  });
+
+  it('A11Y-010 reports missing main landmark and accepts an accessible document', () => {
+    expect(
+      runRule(
+        'Accessibility',
+        'A11Y-010',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>Landmark</title></head><body>' +
+            '<h1>Page</h1></body></html>',
+        ),
+      ),
+    ).toHaveLength(1);
+    expect(
+      runRule(
+        'Accessibility',
+        'A11Y-010',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>Landmark</title></head><body>' +
+            '<main><h1>Page</h1></main></body></html>',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('A11Y-011 contributes a site report contract without an issue or penalty', () => {
+    const result = runRule(
+      'Accessibility',
+      'A11Y-011',
+      htmlContext(
+        '<!doctype html><html lang="en"><head><title>Report</title></head><body>' +
+          '<main><h1>Page</h1></main></body></html>',
+      ),
+    );
+    expect(result).toEqual([]);
+  });
+});

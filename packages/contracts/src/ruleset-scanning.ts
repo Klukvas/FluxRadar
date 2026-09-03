@@ -137,6 +137,39 @@ const SEO_ONPAGE_RULES: readonly RuleDescriptor[] = [
   },
 ];
 
+const SEO_DISCOVERY_RULES: readonly RuleDescriptor[] = [
+  {
+    ruleId: 'SEO-STRUCT-001',
+    module: 'SEO',
+    title: 'JSON-LD syntax',
+    category: 'structured-data',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'application/ld+json blocks must contain valid JSON',
+  },
+  {
+    ruleId: 'SEO-STRUCT-002',
+    module: 'SEO',
+    title: 'JSON-LD completeness',
+    category: 'structured-data',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle: 'valid JSON-LD blocks must expose @context and @type',
+  },
+  {
+    ruleId: 'SEO-SOCIAL-001',
+    module: 'SEO',
+    title: 'social preview metadata',
+    category: 'social-preview',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle: 'og:title, og:description, og:image, og:url and twitter:card must be non-empty',
+  },
+];
+
 // GEO rules are informational in v0.1: the module is assessed via readiness practices
 // on mock provider responses without score penalties (score_delta = 0, §15/GEO-METHOD-005).
 const GEO_RULES: readonly RuleDescriptor[] = [
@@ -226,6 +259,36 @@ const SECURITY_RULES: readonly RuleDescriptor[] = [
     scoring: 'scored',
     oracle: 'Set-Cookie without Secure, HttpOnly, or SameSite attributes',
   },
+  {
+    ruleId: 'SEC-ASVS-001',
+    module: 'Security',
+    title: 'Content-Security-Policy',
+    category: 'owasp-asvs-public',
+    targetKind: 'page',
+    severity: 'High',
+    scoring: 'scored',
+    oracle: 'successful HTML response lacks a non-empty Content-Security-Policy header',
+  },
+  {
+    ruleId: 'SEC-ASVS-002',
+    module: 'Security',
+    title: 'Permissions-Policy',
+    category: 'owasp-asvs-public',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle: 'successful HTML response lacks a non-empty Permissions-Policy header',
+  },
+  {
+    ruleId: 'SEC-ASVS-003',
+    module: 'Security',
+    title: 'CORS wildcard with credentials',
+    category: 'owasp-asvs-public',
+    targetKind: 'page',
+    severity: 'High',
+    scoring: 'scored',
+    oracle: 'response combines Access-Control-Allow-Origin: * with Allow-Credentials: true',
+  },
 ];
 
 const RELIABILITY_RULES: readonly RuleDescriptor[] = [
@@ -285,6 +348,16 @@ const RELIABILITY_RULES: readonly RuleDescriptor[] = [
 
 const ACCESSIBILITY_RULES: readonly RuleDescriptor[] = [
   {
+    ruleId: 'A11Y-001',
+    module: 'Accessibility',
+    title: 'text contrast',
+    category: 'wcag-1.4.3',
+    targetKind: 'page',
+    severity: 'High',
+    scoring: 'scored',
+    oracle: 'explicit inline text/background color pair is below the applicable contrast threshold',
+  },
+  {
     ruleId: 'A11Y-002',
     module: 'Accessibility',
     title: 'alt text',
@@ -293,6 +366,16 @@ const ACCESSIBILITY_RULES: readonly RuleDescriptor[] = [
     severity: 'Medium',
     scoring: 'scored',
     oracle: 'meaningful images without non-empty alt text in the DOM',
+  },
+  {
+    ruleId: 'A11Y-003',
+    module: 'Accessibility',
+    title: 'document language and headings',
+    category: 'wcag-1.3.1',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'html language is missing or heading outline has zero/multiple h1 or skipped levels',
   },
   {
     ruleId: 'A11Y-004',
@@ -304,6 +387,77 @@ const ACCESSIBILITY_RULES: readonly RuleDescriptor[] = [
     scoring: 'scored',
     oracle:
       'form control lacks an associated label (label[for], wrapping label, aria-label/labelledby)',
+  },
+  {
+    ruleId: 'A11Y-005',
+    module: 'Accessibility',
+    title: 'keyboard navigation',
+    category: 'wcag-2.1.1',
+    targetKind: 'page',
+    severity: 'High',
+    scoring: 'scored',
+    oracle: 'positive tabindex or mouse-only inline interaction creates a keyboard access risk',
+  },
+  {
+    ruleId: 'A11Y-006',
+    module: 'Accessibility',
+    title: 'visible focus',
+    category: 'wcag-2.4.11',
+    targetKind: 'page',
+    severity: 'High',
+    scoring: 'scored',
+    oracle: 'focus outline is explicitly removed without a detectable visual replacement',
+  },
+  {
+    ruleId: 'A11Y-007',
+    module: 'Accessibility',
+    title: 'ARIA integrity',
+    category: 'wcag-4.1.2',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'ARIA role is unknown, ID reference is broken, or focusable content is aria-hidden',
+  },
+  {
+    ruleId: 'A11Y-008',
+    module: 'Accessibility',
+    title: 'interactive names',
+    category: 'wcag-4.1.2',
+    targetKind: 'page',
+    severity: 'High',
+    scoring: 'scored',
+    oracle: 'link, button, summary, or submit-like input lacks a usable accessible name',
+  },
+  {
+    ruleId: 'A11Y-009',
+    module: 'Accessibility',
+    title: 'form error messages',
+    category: 'wcag-3.3.1',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'declared aria-invalid control is not associated with an error description',
+  },
+  {
+    ruleId: 'A11Y-010',
+    module: 'Accessibility',
+    title: 'screen-reader evidence',
+    category: 'wcag-1.3.1',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'main landmark, named repeated navigation, iframe title, or media captions are missing',
+  },
+  {
+    ruleId: 'A11Y-011',
+    module: 'Accessibility',
+    title: 'audit transparency',
+    category: 'wcag-reporting',
+    targetKind: 'environment',
+    severity: null,
+    scoring: 'informational',
+    oracle:
+      'report identifies automated checks, manual-review boundaries, evidence, and non-legal status',
   },
 ];
 
@@ -351,12 +505,33 @@ const PRIVACY_RULES: readonly RuleDescriptor[] = [
     scoring: 'scored',
     oracle: 'third-party script origins referenced by the page are inventoried and reported',
   },
+  {
+    ruleId: 'PRIVACY-002',
+    module: 'Privacy',
+    title: 'consent signal',
+    category: 'consent',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle: 'known tracking code is present without a detectable consent control in static HTML',
+  },
+  {
+    ruleId: 'PRIVACY-004',
+    module: 'Privacy',
+    title: 'privacy policy discoverability',
+    category: 'transparency',
+    targetKind: 'site',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle: 'homepage lacks a same-site link that identifies a privacy or cookie policy',
+  },
 ];
 
 /** Scanner + GEO rules of rules-mvp-0.1 (platform contracts live separately). */
 export const RULES_MVP_01: readonly RuleDescriptor[] = [
   ...SEO_TECHNICAL_RULES,
   ...SEO_ONPAGE_RULES,
+  ...SEO_DISCOVERY_RULES,
   ...GEO_RULES,
   ...SECURITY_RULES,
   ...RELIABILITY_RULES,
