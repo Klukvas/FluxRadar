@@ -191,3 +191,31 @@
   `Reopened`/`Resolved` при повторной нормализации полей. Одиночный `\r` без
   последующего `\n` по-прежнему сохраняется (уточнение D-117); golden vectors
   не затронуты — `\r` в них отсутствует.
+- **D-119 (T-04)** — Module score считается в целых сотых (integer hundredths):
+  per-rule penalty = `floor((2·weight·100·min(affected, applicable) + applicable) / (2·applicable))`
+  (точное целочисленное деление с half-up, D-021), `score = (10000 − Σ penaltyHundredths) / 100`
+  с клэмпом в 0. Следствие: Σ отображаемых per-rule penalty (D-016) точно равна
+  `100 − score` до клэмпа — UI/export не расходятся с итогом, float-накопления нет.
+- **D-120 (T-04)** — `target_kind='api'` трактуется как page-level для score-формулы
+  (доля `min(1, affected/applicable)` по нормализованным endpoint-целям); site-level
+  (полный вес, targets 1/1) — только `site` и `environment`. Причина: §15 определяет
+  applicable target как «нормализованную цель», REL-API-правила оценивают множество
+  endpoint-ов; полный вес за один affected endpoint завышал бы вычет.
+- **D-121 (T-04)** — `affectedTargets`/`applicableTargets` на входе score — агрегаты
+  уровня правила (по контракту D-016 одинаковы у всех findings одного `rule_id`);
+  агрегатор берёт максимум по уникальным scored findings правила — детерминированная
+  защита при рассинхроне входа, findings с разными `targetKind` в одном правиле — ошибка.
+- **D-122 (T-04)** — Сравнение weighted coverage с порогами 0.80/0.50 выполняется
+  с epsilon 1e-9 (поглощает двоичный float-шум произведений `weight × coverage`,
+  например `0.6·1 + 0.4·0.5`); точное значение wc возвращается без округления,
+  отображение округляет round2. Гранулярность реальных coverage (≥ ~5e-8 при лимитах
+  тарифов) на порядки больше epsilon — ложных переключений вердикта нет.
+- **D-123 (T-04)** — Нулевой знаменатель `Σ tariff_weight` (Free и вырожденные тарифы)
+  возвращает `insufficient_data` без исключения — согласовано с «Free score
+  не рассчитывается» (§15) и требованием «нулевой знаменатель не кидает» (§25).
+- **D-124 (T-04)** — Вход `computeOverallScore`: модули из `SIDE_SCORE_MODULES`
+  (UX/Conversion, Analytics) молча пропускаются (§15 — побочные оценки), модуль вне
+  scoreWeights тарифа — ошибка (fail fast на неверную сборку), отсутствующий модуль
+  тарифа получает effective weight 0; effective weight > 0 требует usable output
+  И терминального `Completed`/`Partial` — `Unavailable` с ненулевым coverage
+  не набирает вес даже при некорректном входе.

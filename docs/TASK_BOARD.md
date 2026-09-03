@@ -8,7 +8,7 @@
 | T-01 | Скелет монорепо (pnpm, TS, Vitest, lint) | — | impl-агент | DONE | корень, packages/*, apps/* | ✅ approved-with-fixes | ✅ pass | TS 6.0, Vite 8, React 19 |
 | T-02 | contracts: типы, enums, тарифы, реестр rules-mvp-0.1 | T-01 | impl-агент | DONE | packages/contracts | ✅ approved (2 фикса) | ✅ pass | реестр = 42 правила (D-107), не 37 |
 | T-03 | fingerprint: URL-нормализация v1 + fingerprint-v1 | T-02 | impl-агент | DONE | packages/fingerprint | ✅ approved (1 фикс, D-118) | ✅ pass | golden vectors 6/6 ✅, независимый пересчёт ✅ |
-| T-04 | scoring: score engine §15 | T-02, T-03 | — | PENDING | — | — | — | golden 96.50 + state-фикстуры |
+| T-04 | scoring: score engine §15 | T-02, T-03 | impl-агент | DONE | packages/scoring | ✅ approved (0 фиксов, пересчёт 3 сценариев ✅) | ✅ pass | golden 96.50 ✅ (61 тест) |
 | T-05 | safe-fetch: SSRF-guard fetch-слой | T-02 | — | PENDING | — | — | — | IPv4+IPv6, redirects, лимиты D-028/D-030 |
 | T-06 | БД/биллинг: Prisma-схема, state machine, MockPaddle | T-02 | — | PENDING | — | — | — | идемпотентность BILLING-001..006 |
 | T-07 | crawler: scope, robots, dedup, лимиты + fixture-сайт | T-03, T-05 | — | PENDING | — | — | — | |
