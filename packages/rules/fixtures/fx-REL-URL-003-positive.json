@@ -1,0 +1,9 @@
+{
+  "pages": [
+    {
+      "path": "/api-status.html",
+      "status": 503,
+      "html": "<!doctype html><html lang=\"en\"><head><title>503</title></head><body><h1>Service Unavailable</h1></body></html>"
+    }
+  ]
+}

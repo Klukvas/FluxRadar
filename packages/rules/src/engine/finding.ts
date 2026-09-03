@@ -5,10 +5,10 @@
 
 import type { EvidenceType, RuleDescriptor } from '@fluxradar/contracts';
 import type { PageSnapshot } from '@fluxradar/crawler';
-import { normalizeField } from '@fluxradar/fingerprint';
+import { normalizeField, normalizeUrl } from '@fluxradar/fingerprint';
 
 import { truncateExcerpt } from './evidence.js';
-import type { RuleFinding } from './types.js';
+import type { ApiCheck, RuleFinding } from './types.js';
 import { RULE_VARIANT_V1 } from './types.js';
 
 interface FindingDetails {
@@ -20,6 +20,7 @@ interface FindingDetails {
   readonly selector?: string;
   readonly parameter?: string;
   readonly targetUnreachable?: boolean;
+  readonly evidenceGroupId?: string;
 }
 
 /** Page-level finding: цель — сама страница (normalizedUrl из снимка). */
@@ -38,6 +39,15 @@ export function siteFinding(
   details: FindingDetails,
 ): RuleFinding {
   return buildFinding(descriptor, '', targetUrl, details);
+}
+
+/** API-level finding: цель — URL проверки (normalizeUrl v1, как у страниц). */
+export function apiFinding(
+  descriptor: RuleDescriptor,
+  check: ApiCheck,
+  details: FindingDetails,
+): RuleFinding {
+  return buildFinding(descriptor, normalizeUrl(check.url), check.url, details);
 }
 
 function buildFinding(
@@ -66,5 +76,6 @@ function buildFinding(
     recommendation: details.recommendation,
     confidence,
     ...(details.targetUnreachable === true ? { targetUnreachable: true } : {}),
+    ...(details.evidenceGroupId !== undefined ? { evidenceGroupId: details.evidenceGroupId } : {}),
   };
 }

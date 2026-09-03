@@ -1,0 +1,8 @@
+{
+  "pages": [
+    {
+      "path": "/page.html",
+      "fetchError": "DNS lookup failed for fixture.test"
+    }
+  ]
+}

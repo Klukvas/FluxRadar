@@ -6,13 +6,15 @@ import type { Plan } from '@fluxradar/contracts';
 import type { CrawlResult } from '@fluxradar/crawler';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
-import type { SiteContext } from './types.js';
+import type { ApiCheck, SiteContext } from './types.js';
 
 export interface SiteContextInput {
   readonly origin: string;
   readonly crawl: CrawlResult;
   readonly plan: Plan;
   readonly robotsTxt?: string;
+  /** Явно добавленные API-endpoints (§9, T-09); опционален для T-08-путей. */
+  readonly apiChecks?: readonly ApiCheck[];
 }
 
 export function normalizedOrigin(origin: string): string {
@@ -26,5 +28,6 @@ export function createSiteContext(input: SiteContextInput): SiteContext {
     crawl: input.crawl,
     ...(input.robotsTxt !== undefined ? { robotsTxt: input.robotsTxt } : {}),
     plan: input.plan,
+    ...(input.apiChecks !== undefined ? { apiChecks: input.apiChecks } : {}),
   };
 }

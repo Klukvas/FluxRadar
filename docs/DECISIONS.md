@@ -380,3 +380,84 @@
   `normalized*` в RuleFinding нормализуются normalizeField ещё в билдерах
   (pageFinding/siteFinding) — хранимое значение побайтно совпадает со входом
   fingerprint-v1 (движок сохраняет повторную нормализацию как idempotent-защиту).
+- **D-160 (T-09)** — SEC-PASSIVE-002 baseline security headers: проверяются три группы —
+  `X-Content-Type-Options` со значением ровно `nosniff`, защита от framing
+  (`X-Frame-Options` ЛИБО CSP с директивой `frame-ancestors` — любого достаточно) и
+  непустой `Referrer-Policy`. Один finding на страницу с перечнем отсутствующих в
+  excerpt; selector пуст, resource = `security-headers`. Applicable — успешные
+  HTML-страницы (2xx + HTML).
+- **D-161 (T-09)** — SEC-PASSIVE-005 cookie-атрибуты: finding на каждую куку из
+  Set-Cookie без Secure/HttpOnly/SameSite, parameter = имя куки; значение куки в
+  evidence не попадает никогда (потенциальный секрет). safe-fetch склеивает повторные
+  Set-Cookie через `, ` — сплиттер режет по запятой, за которой идёт `name=`, и не
+  трогает запятую внутри Expires. Applicable — любой снимок с HTTP-ответом (куки
+  ставятся и не-HTML/не-2xx ответами).
+- **D-162 (T-09)** — SEC-PASSIVE-003 HSTS: applicable только для https-origin
+  (applicable = 1); http-сайт → Not applicable (0/0) — fixture-сайт краулера живёт на
+  loopback-http, поэтому в интеграционном тесте правило молчит, а оракул закрыт
+  юнит-фикстурами с https-моками. Evidence — снимок homepage (normalizedUrl =
+  origin + '/'): заголовок отсутствует ЛИБО без положительного max-age (отсутствие
+  max-age и max-age=0 эквивалентны отсутствию HSTS). Нет снимка homepage → applicable
+  без finding (evidence нет).
+- **D-163 (T-09)** — REL-URL-verdicts по §9 в v0.1: warning-вердикты scored finding НЕ
+  создают (у scored-правила score_delta = 0 невозможен). REL-URL-003 даёт finding
+  только на финальный 5xx (fail); неожиданный 4xx — warning-вердикт, к тому же его
+  evidence уже несёт SEO-TECH-003 — дублировать не стали. REL-URL-009: порог 1.8 s
+  (§9) строгий — ровно 1800 ms не finding; превышение единственный сигнал правила,
+  поэтому он scored (Medium из реестра). REL-URL-001: fetchError любого рода → fail c
+  `targetUnreachable: true` (D-026); правило берёт в applicable ВСЕ снимки — проверка
+  доступности недостижимого URL считается завершённой (её вердикт fail), coverage
+  D-156 не занижается.
+- **D-164 (T-09)** — API-проверки Reliability: SiteContext получил опциональный
+  `apiChecks` (method из allowlist GET/HEAD/OPTIONS, url, expectedStatus?,
+  requestHeaders?, snapshot?), движок — третий вид правила `kind: 'api'` (форма
+  результата — как у site-правил, цели — ctx.apiChecks). REL-API-003: applicable —
+  только выполненные проверки с чистыми заголовками; фактический статус ∈
+  expected_status → pass (ожидаемый 404 — pass), вне списка → finding (неожиданный
+  404 — finding); без явного списка ожидается любой 2xx; parameter = метод (различает
+  проверки одного URL). REL-API-005: applicable — все сконфигурированные проверки;
+  credentials детектируются по ИМЕНАМ заголовков (authorization, cookie,
+  proxy-authorization + паттерны api-key/token/secret), значения не читаются и не
+  логируются; выполненный вопреки policy запрос отмечается в excerpt; parameter =
+  первый offending заголовок.
+- **D-165 (T-09)** — CONTENT-004 битые media: краулер v0.1 фетчит только страницы по
+  `<a href>`, media-ресурсы снимков не имеют. Оракул: (a) media-цель со снимком
+  4xx/5xx, fetchError или text/html content-type (img на HTML-страницу) → битая,
+  confidence 1; (b) внутренняя (host сайта) media без снимка → «не подтверждён
+  обходом», confidence 0.6; внешние media без снимка не оцениваются (rationale
+  D-152 — нет evidence). Признанный trade-off: на fixture-сайте живой /img/pixel.png
+  попадает в excerpt как unconfirmed рядом с реальным /img/missing.png — деривативно
+  различить их без фетча нельзя; устраняется media-probe краулера в будущем релизе.
+  Один finding на страницу, selector — первый битый элемент.
+- **D-166 (T-09)** — CONTENT-003 порог видимого текста: текст body без script/style
+  (рекурсивный сбор без мутации кэшированного DOM), collapse whitespace, длина в
+  Unicode code points (метрика §16). Порог 200 строгий: < 200 → finding, ровно 200 —
+  норма (boundary 199/200). Страница без body — текст всего документа.
+- **D-167 (T-09)** — evidence_group_id (§14 cross-module policy): RuleFinding получил
+  опциональное non-scoring поле `evidenceGroupId` — в fingerprint не входит, на score
+  не влияет. Формат `evg-v1:<sha256-hex>`, hash от `evg-v1 NUL category NUL
+  normalizedUrl` (NUL-разделитель против склейки). Категория `img-alt` связывает
+  SEO-ONPAGE-005 и A11Y-002: оба намеренно дают по finding на одно evidence (разные
+  измерения и тарифные веса), SEO-ONPAGE-005 дополнен тем же group id.
+- **D-168 (T-09)** — A11Y-004 labels: элемент считается подписанным при любом из —
+  label[for] по id, обёртка `<label>`, непустой aria-label или aria-labelledby.
+  Не требуют label input-типы hidden/submit/button/reset/image (имя даёт value/alt,
+  hidden невидим); placeholder подписью НЕ считается. Один finding на элемент,
+  selector по приоритету `tag#id` → `tag[name="..."]` → `tag[type="..."]`; повторные
+  селекторы схлопываются (стабильный fingerprint).
+- **D-169 (T-09)** — Privacy-инвентаризация (Low, informational-style, но scored по
+  реестру): PRIVACY-001 — один finding на страницу с именами кук из Set-Cookie и/или
+  присваиваний document.cookie в inline-скриптах; evidence http/dom/mixed по
+  источникам; значения кук не логируются. PRIVACY-003 — один finding на страницу,
+  third-party = script src с host, отличным от host страницы (поддомены тоже чужие —
+  v0.1 не ведёт allowlist), отсортированные домены в excerpt; normalized-поля пусты,
+  чтобы fingerprint не менялся при смене CDN.
+- **D-170 (T-09 review)** — Уточнение D-169: PRIVACY-003 НЕ считает third-party хосты,
+  связанные поддоменной цепочкой с hostname страницы или сайта (dot-suffix в любую
+  сторону: cdn.example.com при сайте example.com — свой; сравнение по hostname, порт
+  стороны не различает). Rationale: «third-party скрипты с доменов: static.mysite.com»
+  на собственном статик-поддомене — ложный сигнал на самом распространённом сетапе.
+  v0.1 без PSL: registrable-суффиксы не выделяются, родительский хост платформы тоже
+  считается своим — осознанный trade-off в пользу отсутствия FP. Дополнительно:
+  PRIVACY-001 матчит только присваивания document.cookie (`=` с lookahead `(?!=)`) —
+  сравнение `document.cookie === ...` больше не даёт ложный маркер.

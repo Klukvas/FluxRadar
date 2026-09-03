@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Labelled form controls fixture</title>
+  </head>
+  <body>
+    <h1>Every control is labelled</h1>
+    <form action="/submit" method="post">
+      <label for="email">Email address</label>
+      <input type="email" id="email" name="email" />
+      <label>Nickname <input type="text" name="nickname" /></label>
+      <input type="search" name="q" aria-label="Site search" />
+      <select name="topic" aria-labelledby="topic-heading">
+        <option>General</option>
+      </select>
+      <input type="hidden" name="csrf" value="token" />
+      <input type="submit" value="Send" />
+    </form>
+  </body>
+</html>

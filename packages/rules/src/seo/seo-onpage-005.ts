@@ -3,11 +3,14 @@
 // Оракул: <img> без атрибута alt вообще — нарушение; пустой alt=""
 // (декоративное изображение) — норма. Affected — страница: один finding
 // на страницу, selector — первый нарушающий элемент (img[src="..."]),
-// excerpt — количество нарушений.
+// excerpt — количество нарушений. То же evidence находит A11Y-002 (T-09) —
+// по §14 это намеренно два findings, связанных общим non-scoring
+// evidenceGroupId категории 'img-alt'.
 
 import type { PageSnapshot } from '@fluxradar/crawler';
 
 import { requireDescriptor } from '../engine/descriptor.js';
+import { IMG_ALT_EVIDENCE_CATEGORY, evidenceGroupId } from '../engine/evidence-group.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
@@ -39,6 +42,7 @@ export const seoOnpage005ImageAlt: PageRule = {
           'Добавьте информативный alt каждому содержательному изображению; ' +
           'декоративным — явный пустой alt="".',
         selector,
+        evidenceGroupId: evidenceGroupId(IMG_ALT_EVIDENCE_CATEGORY, page.normalizedUrl),
       }),
     ];
   },

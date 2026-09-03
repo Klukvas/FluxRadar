@@ -15,7 +15,7 @@ import type {
   RuleEvaluation,
   RuleFinding,
   SiteContext,
-  SiteRule,
+  SiteRuleResult,
 } from './types.js';
 
 /**
@@ -60,7 +60,13 @@ interface RuleRun {
 }
 
 function evaluateRule(rule: Rule, ctx: SiteContext): RuleRun {
-  return rule.kind === 'page' ? evaluatePageRule(rule, ctx) : evaluateSiteRule(rule, ctx);
+  if (rule.kind === 'page') {
+    return evaluatePageRule(rule, ctx);
+  }
+  return toScopedRuleRun(
+    rule.descriptor.ruleId,
+    rule.kind === 'site' ? rule.evaluateSite(ctx) : rule.evaluateApiChecks(ctx),
+  );
 }
 
 /**
@@ -89,11 +95,11 @@ function evaluatePageRule(rule: PageRule, ctx: SiteContext): RuleRun {
   };
 }
 
-function evaluateSiteRule(rule: SiteRule, ctx: SiteContext): RuleRun {
-  const result = rule.evaluateSite(ctx);
+/** Site/api-правила сами считают applicable/affected (форма SiteRuleResult). */
+function toScopedRuleRun(ruleId: string, result: SiteRuleResult): RuleRun {
   return {
     evaluation: {
-      ruleId: rule.descriptor.ruleId,
+      ruleId,
       applicableTargets: result.applicableTargets,
       affectedTargets: result.affectedTargets,
       findings: result.findings,

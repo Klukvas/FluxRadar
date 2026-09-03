@@ -1,0 +1,20 @@
+{
+  "pages": [
+    {
+      "path": "/",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Fixture page for header checks</title></head><body><h1>Page</h1></body></html>"
+    }
+  ],
+  "apiChecks": [
+    {
+      "method": "GET",
+      "url": "https://fixture.test/api/health",
+      "requestHeaders": {
+        "Accept": "application/json"
+      },
+      "snapshot": {
+        "status": 200
+      }
+    }
+  ]
+}

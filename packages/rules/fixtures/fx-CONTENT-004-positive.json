@@ -1,0 +1,13 @@
+{
+  "pages": [
+    {
+      "path": "/gallery.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Gallery fixture page</title></head><body><h1>Gallery</h1><img src=\"/img/broken.png\" alt=\"Broken picture\" /></body></html>"
+    },
+    {
+      "path": "/img/broken.png",
+      "status": 404,
+      "html": "<!doctype html><html lang=\"en\"><head><title>404</title></head><body><h1>404</h1></body></html>"
+    }
+  ]
+}

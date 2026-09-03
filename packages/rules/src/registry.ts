@@ -1,13 +1,26 @@
-// Реестр реализованных правил по модулям. v0.1 (T-08): только SEO;
-// passive-модули добавит T-09. Имя не совпадает с contracts.rulesForModule
-// (дескрипторы) намеренно — здесь исполняемые реализации.
+// Реестр реализованных правил по модулям: SEO (T-08) + passive-модули
+// Security/Reliability/Accessibility/Content Quality/Privacy (T-09).
+// Имя не совпадает с contracts.rulesForModule (дескрипторы) намеренно —
+// здесь исполняемые реализации.
 
 import type { ModuleName } from '@fluxradar/contracts';
 
+import { ACCESSIBILITY_RULES } from './accessibility/index.js';
+import { CONTENT_RULES } from './content/index.js';
 import type { Rule } from './engine/types.js';
+import { PRIVACY_RULES } from './privacy/index.js';
+import { RELIABILITY_RULES } from './reliability/index.js';
+import { SECURITY_RULES } from './security/index.js';
 import { SEO_RULES } from './seo/index.js';
 
-const RULES_BY_MODULE: ReadonlyMap<ModuleName, readonly Rule[]> = new Map([['SEO', SEO_RULES]]);
+const RULES_BY_MODULE: ReadonlyMap<ModuleName, readonly Rule[]> = new Map([
+  ['SEO', SEO_RULES],
+  ['Security', SECURITY_RULES],
+  ['Reliability', RELIABILITY_RULES],
+  ['Accessibility', ACCESSIBILITY_RULES],
+  ['Content Quality', CONTENT_RULES],
+  ['Privacy', PRIVACY_RULES],
+]);
 
 export function implementedModules(): readonly ModuleName[] {
   return [...RULES_BY_MODULE.keys()];

@@ -1,0 +1,14 @@
+{
+  "pages": [
+    {
+      "path": "/gallery.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Gallery fixture page</title></head><body><h1>Gallery</h1><img src=\"/img/pixel.png\" alt=\"Working picture\" /><img src=\"https://cdn.example.net/pic.png\" alt=\"External picture\" /></body></html>"
+    },
+    {
+      "path": "/img/pixel.png",
+      "status": 200,
+      "html": null,
+      "contentType": "image/png"
+    }
+  ]
+}

@@ -6,6 +6,7 @@
 
 import { readFileSync } from 'node:fs';
 
+import type { ModuleName } from '@fluxradar/contracts';
 import type { CrawlResult, PageSnapshot } from '@fluxradar/crawler';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 import { z } from 'zod';
@@ -33,6 +34,18 @@ const FixturePageSchema = z.object({
   redirectChain: z.array(RedirectHopSchema).default([]),
   finalPath: z.string().optional(),
   fetchError: z.string().optional(),
+  timingMs: z.number().int().min(0).default(5),
+  contentType: z.string().default('text/html; charset=utf-8'),
+});
+
+const ApiCheckSchema = z.object({
+  method: z.enum(['GET', 'HEAD', 'OPTIONS']).default('GET'),
+  url: z.string(),
+  expectedStatus: z.array(z.number().int()).optional(),
+  requestHeaders: z.record(z.string(), z.string()).optional(),
+  snapshot: z
+    .object({ status: z.number().int(), timingMs: z.number().int().min(0).default(5) })
+    .optional(),
 });
 
 const SiteFixtureSchema = z.object({
@@ -41,6 +54,7 @@ const SiteFixtureSchema = z.object({
   sitemapUrls: z.array(z.string()).default([]),
   urlVariants: z.record(z.string(), z.array(z.string())).default({}),
   pages: z.array(FixturePageSchema),
+  apiChecks: z.array(ApiCheckSchema).default([]),
 });
 
 export type FixturePageInput = z.input<typeof FixturePageSchema>;
@@ -71,9 +85,18 @@ export function siteContext(fixture: SiteFixtureInput): SiteContext {
   return siteContextFromFixture(SiteFixtureSchema.parse(fixture));
 }
 
-/** Прогон SEO-модуля с фильтром по одному правилу — основной раннер тестов. */
+/** Прогон модуля с фильтром по одному правилу — основной раннер тестов T-09. */
+export function runRule(
+  module: ModuleName,
+  ruleId: string,
+  ctx: SiteContext,
+): readonly IssueCandidate[] {
+  return runModuleRules(module, ctx).findings.filter((finding) => finding.ruleId === ruleId);
+}
+
+/** Прогон SEO-модуля с фильтром по одному правилу (раннер тестов T-08). */
 export function runSeoRule(ruleId: string, ctx: SiteContext): readonly IssueCandidate[] {
-  return runModuleRules('SEO', ctx).findings.filter((finding) => finding.ruleId === ruleId);
+  return runRule('SEO', ruleId, ctx);
 }
 
 function siteContextFromFixture(fixture: z.output<typeof SiteFixtureSchema>): SiteContext {
@@ -86,7 +109,12 @@ function siteContextFromFixture(fixture: z.output<typeof SiteFixtureSchema>): Si
     ...(fixture.robotsTxt !== undefined ? { robotsTxt: fixture.robotsTxt } : {}),
     sitemapUrls: fixture.sitemapUrls,
   };
-  return createSiteContext({ origin: fixture.origin, crawl, plan: 'Complete' });
+  return createSiteContext({
+    origin: fixture.origin,
+    crawl,
+    plan: 'Complete',
+    ...(fixture.apiChecks.length > 0 ? { apiChecks: fixture.apiChecks } : {}),
+  });
 }
 
 function toSnapshot(origin: string, page: FixturePage): PageSnapshot {
@@ -98,11 +126,11 @@ function toSnapshot(origin: string, page: FixturePage): PageSnapshot {
     normalizedUrl: normalizeUrl(requestedUrl),
     finalUrl: failed ? requestedUrl : finalUrl,
     status: failed ? 0 : page.status,
-    headers: failed ? {} : { 'content-type': 'text/html; charset=utf-8', ...page.headers },
+    headers: failed ? {} : { 'content-type': page.contentType, ...page.headers },
     redirectChain: page.redirectChain,
     html: failed ? null : page.html,
-    contentType: failed ? null : 'text/html; charset=utf-8',
-    timingMs: 5,
+    contentType: failed ? null : page.contentType,
+    timingMs: page.timingMs,
     truncated: false,
     ...(failed ? { fetchError: page.fetchError } : {}),
   };

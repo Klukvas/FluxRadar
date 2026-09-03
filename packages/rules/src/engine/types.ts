@@ -9,6 +9,31 @@ import type { CrawlResult, PageSnapshot } from '@fluxradar/crawler';
 export const RULE_VARIANT_V1 = 'v1';
 export type RuleVariant = typeof RULE_VARIANT_V1;
 
+/** Метод API-проверки: allowlist §9 (Reliability contract v1). */
+export const API_CHECK_METHODS = ['GET', 'HEAD', 'OPTIONS'] as const;
+export type ApiCheckMethod = (typeof API_CHECK_METHODS)[number];
+
+/** Результат выполненного API-запроса (v0.1 — только статус и тайминг). */
+export interface ApiCheckSnapshot {
+  readonly status: number;
+  readonly timingMs: number;
+}
+
+/**
+ * Явно добавленный пользователем API-endpoint (§9 Reliability contract v1).
+ * snapshot отсутствует, если запрос не выполнялся (например, заблокирован
+ * no-credentials policy REL-API-005).
+ */
+export interface ApiCheck {
+  readonly method: ApiCheckMethod;
+  readonly url: string;
+  /** Явно ожидаемые статусы; пусто/не задано → default «любой 2xx» (§9). */
+  readonly expectedStatus?: readonly number[];
+  /** Заголовки из конфига проверки — вход policy-скана REL-API-005. */
+  readonly requestHeaders?: Readonly<Record<string, string>>;
+  readonly snapshot?: ApiCheckSnapshot;
+}
+
 /** Вход движка: результат обхода + идентичность сайта и тариф скана. */
 export interface SiteContext {
   /** Origin, как он задан в профиле сайта (до нормализации). */
@@ -19,6 +44,8 @@ export interface SiteContext {
   /** Сырой robots.txt (HTTP 200); приоритетнее crawl.robotsTxt, если задан. */
   readonly robotsTxt?: string;
   readonly plan: Plan;
+  /** Явно добавленные API-endpoints (§9); нет поля — Reliability/api молчит. */
+  readonly apiChecks?: readonly ApiCheck[];
 }
 
 /**
@@ -43,6 +70,11 @@ export interface RuleFinding {
   readonly confidence: number;
   /** true — единственное содержание находки это недоступность цели (D-026). */
   readonly targetUnreachable?: boolean;
+  /**
+   * Non-scoring связь findings разных модулей с общим evidence (§14
+   * cross-module policy): не входит в fingerprint и не влияет на score.
+   */
+  readonly evidenceGroupId?: string;
 }
 
 /** Итог одного правила: findings + агрегаты уровня правила (D-016/D-121). */
@@ -78,7 +110,17 @@ export interface SiteRule {
   evaluateSite(ctx: SiteContext): SiteRuleResult;
 }
 
-export type Rule = PageRule | SiteRule;
+/**
+ * API-level правило (T-09): цели — ctx.apiChecks; правило само решает,
+ * какие проверки applicable (форма результата та же, что у site-правил).
+ */
+export interface ApiRule {
+  readonly kind: 'api';
+  readonly descriptor: RuleDescriptor;
+  evaluateApiChecks(ctx: SiteContext): SiteRuleResult;
+}
+
+export type Rule = PageRule | SiteRule | ApiRule;
 
 /** Applicable target по умолчанию: финальный 2xx и HTML-тело (T-08). */
 export function isSuccessfulHtmlPage(page: PageSnapshot): boolean {

@@ -1,0 +1,14 @@
+{
+  "pages": [
+    {
+      "path": "/at-threshold.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Fixture page for header checks</title></head><body><h1>Page</h1></body></html>",
+      "timingMs": 1800
+    },
+    {
+      "path": "/over-threshold.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Fixture page for header checks</title></head><body><h1>Page</h1></body></html>",
+      "timingMs": 1801
+    }
+  ]
+}

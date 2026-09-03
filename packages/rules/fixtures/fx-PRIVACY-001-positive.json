@@ -1,0 +1,11 @@
+{
+  "pages": [
+    {
+      "path": "/page.html",
+      "headers": {
+        "set-cookie": "session=abc123; Path=/; Secure; HttpOnly; SameSite=Lax"
+      },
+      "html": "<!doctype html><html lang=\"en\"><head><title>Cookie fixture page</title></head><body><h1>Cookies</h1><script>document.cookie = 'visitor_id=v42; path=/';</script></body></html>"
+    }
+  ]
+}

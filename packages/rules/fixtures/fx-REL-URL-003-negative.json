@@ -1,0 +1,13 @@
+{
+  "pages": [
+    {
+      "path": "/page.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Fixture page for header checks</title></head><body><h1>Page</h1></body></html>"
+    },
+    {
+      "path": "/gone.html",
+      "status": 404,
+      "html": "<!doctype html><html lang=\"en\"><head><title>404</title></head><body><h1>404</h1></body></html>"
+    }
+  ]
+}
