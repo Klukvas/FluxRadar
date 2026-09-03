@@ -5,6 +5,7 @@ ENV PATH=$PNPM_HOME:$PATH
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@10.11.0 --activate
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
@@ -31,6 +32,8 @@ ENV NODE_ENV=production
 ENV PORT=3310
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=build /app/node_modules ./node_modules
@@ -41,4 +44,4 @@ RUN mkdir -p /data
 
 EXPOSE 3310
 
-CMD ["sh", "-c", "node_modules/.bin/prisma db push --schema apps/api/prisma/schema.prisma --skip-generate && exec node apps/api/dist/index.js"]
+CMD ["sh", "-c", "apps/api/node_modules/.bin/prisma db push --schema apps/api/prisma/schema.prisma --skip-generate && exec node apps/api/dist/index.js"]
