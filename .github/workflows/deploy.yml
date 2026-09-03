@@ -80,8 +80,8 @@ jobs:
             --exclude='.env' \
             --exclude='.env.*' \
             --exclude='client_secret_*.json' \
-            -czf release.tar.gz .
-          printf '%s\n' "$PRODUCTION_ENV_FILE" > production.env
+            -czf "$RUNNER_TEMP/release.tar.gz" .
+          printf '%s\n' "$PRODUCTION_ENV_FILE" > "$RUNNER_TEMP/production.env"
 
       - name: Upload release
         env:
@@ -90,8 +90,8 @@ jobs:
           APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
           RELEASE_ID: ${{ github.sha }}
         run: |
-          scp release.tar.gz "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.tar.gz"
-          scp production.env "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.env"
+          scp "$RUNNER_TEMP/release.tar.gz" "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.tar.gz"
+          scp "$RUNNER_TEMP/production.env" "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.env"
           ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$APP_DIR/releases/$RELEASE_ID' && tar -xzf '/tmp/fluxradar-$RELEASE_ID.tar.gz' -C '$APP_DIR/releases/$RELEASE_ID' && install -m 600 '/tmp/fluxradar-$RELEASE_ID.env' '$APP_DIR/releases/$RELEASE_ID/.env.production'"
 
       - name: Start release and smoke test
