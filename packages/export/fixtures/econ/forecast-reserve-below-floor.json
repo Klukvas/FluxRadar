@@ -1,0 +1,17 @@
+{
+  "forecast_scans": 120,
+  "basic_mix": 0,
+  "complete_mix": 1,
+  "forecast_gross_revenue": 14400,
+  "fixed_costs": 1000,
+  "support_reserve": 500,
+  "refund_rate": 0.02,
+  "chargeback_rate": 0.005,
+  "expected_refund_loss": 288,
+  "expected_chargeback_loss": 72,
+  "fx_buffer": 100,
+  "tax_treatment": "pass-through",
+  "variable_cost_basic_p95": 24.25,
+  "variable_cost_complete_p95": 53.5,
+  "provider_invoices_confirmed": true
+}

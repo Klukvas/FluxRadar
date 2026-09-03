@@ -525,3 +525,73 @@
   (scope T-10 по TASK_BOARD: email/JWT/API-key/cookie; auth-header и private-ip
   реализованы сверх scope). Deadline проверяется между паттернами (regex-exec в JS
   непрерываем) — приемлемо: все паттерны линейны, катастрофического backtracking нет.
+- **D-180 (T-11)** — JSON Schema §16 скопирована в `schema.ts` дословно (488 строк — данные,
+  а не код: превышение soft-лимита 400 оправдано требованием дословности). Валидация — ajv
+  (draft 2020-12, `Ajv2020` + ajv-formats; `allowUnionTypes` для union-типов схемы) —
+  единственные новые зависимости, только в `packages/export`. Named import `{ Ajv2020 }`:
+  default-импорт CJS-модуля ajv под NodeNext типизируется как namespace без
+  construct-сигнатуры; схема компилируется на загрузке модуля (битая схема падает при
+  импорте, не в проде).
+- **D-181 (T-11)** — Разрешение конфликта D-014 ↔ канонический пример §16: сама схема
+  допускает absent-поля, обязанные быть null для данного record_type (канонический пример
+  опускает все AI-поля), поэтому пайплайн после schema-этапа нормализует absent → explicit
+  null (включая unit-поля usage); билдеры всегда выдают полный record из 56 полей. D-014
+  регулирует записи, которые FluxRadar производит, а не принимает.
+- **D-182 (T-11)** — Билдеры гарантируют инварианты построением: `buildIssueRecord` сам
+  считает fingerprint из восьми компонент (EXPORT-001/8) и `score_delta = −rulePenalty`
+  (EXPORT-001/7; −0 нормализуется в 0); опциональный `expectedFingerprint` из БД сверяется
+  с пересчётом — рассинхрон это `ExportBuildError`, а не молчаливое предпочтение одного из
+  значений. `rule_penalty` обязан быть представим в целых сотых (D-119) — иная точность
+  означает расчёт в обход score engine.
+- **D-183 (T-11)** — Semantic validator: инварианты 1–9 EXPORT-001 полностью + usage-часть
+  инварианта 10 (`total = input + output`, `estimated` → `tokenizer_version` — §1057 относит
+  их к cross-field инвариантам semantic-валидатора) + из инварианта 13 только дешёвые
+  наборные проверки (один summary на snapshot — D-024, один scan_id на набор); полный 13
+  (сверка с dashboard) — scope T-15. Пересчёт rule_penalty делает тот же
+  `computeModuleScore` из scoring (integer hundredths, D-119) — валидатор и движок не могут
+  разойтись по округлению. `rule_penalty = 0` трактуется как explicit non-scoring resolver
+  (инвариант 9 «honour-ит explicit non-scoring resolver») и формулой не проверяется.
+- **D-184 (T-11)** — metric_key-контракт в валидаторе: performance-правила определяются
+  префиксом rule_id `PERF-`; требуется канон `normalized_url|profile|cache_mode|metric_name`
+  (4 части, 2–4 непустые, первая равна normalized_url) и `rule_variant`, содержащий тот же
+  metric_key («кодирует то же значение»); у остальных правил `metric_key = null`.
+  Special-cases PERF-RULE-014/015 не реализованы: Performance вне v0.1 (D-006), проверка
+  аддитивна при появлении runner-а.
+- **D-185 (T-11)** — CSV: header — плоский разворот таблицы data dictionary v1 (56 колонок,
+  порядок строк и полей внутри строки сохранён); два знака после точки только у
+  score/rule_penalty/score_delta (буква §16), coverage/confidence/целые — каноническое
+  `String()` точного значения; `citations`/`usage` — детерминированный JSON внутри RFC 4180
+  кавычек; module-строки — в порядке реестра MODULE_NAMES (план порядок не задаёт, D-108);
+  документ завершается LF. Пустая строка и null сериализуются одинаково (пустое поле) —
+  неоднозначность §16 разрешает самим фиксированным header + record_type.
+- **D-186 (T-11)** — Формула-экранирование CSV: префикс `'` (OWASP) добавляется только
+  строковым полям с ведущими `=` `+` `-` `@`; числовые поля не экранируются — иначе
+  `-10.00` в score_delta переставал быть числом; JSON-поля начинаются с `[`/`{` и в
+  экранировании не нуждаются. Признанный trade-off: экранированное значение отличается от
+  канонического record на один символ — цена защиты от формула-инъекции.
+- **D-187 (T-11)** — ECON-001: вход — snake_case forecast-файл по input contract §18,
+  форма валидируется ajv-схемой (отсутствующий risk input → автоматический отказ).
+  Margin пересчитывается из цен TARIFFS, модели Paddle 5% + $0.50 и p95 costs
+  (+ per-scan tax только при `tax_treatment=expense`) в целых центах; заявленная
+  `weighted_average_contribution_margin` — опциональна и сверяется с пересчётом (допуск
+  1 цент); gross revenue пересчитывается из цен и mix (§18 дословно); потолки p95
+  $24.25/$53.50 проверяются как обязательные (provider-invoice cost ceilings §25);
+  break-even — ceil с epsilon против float-шума. CLI `econ-validate` (bin пакета):
+  exit 0 pass / 1 fail / 2 непригодный вход; причины — в stderr, отчёт — в stdout,
+  вывод через `process.stdout/stderr.write`.
+- **D-188 (T-11 review)** — Детект прямого запуска econ-cli сравнивает канонические
+  пути: `import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href`.
+  Наивное сравнение без realpath не срабатывало при запуске через bin-шим pnpm
+  (`node_modules/.bin/econ-validate` — symlink; Node резолвит module URL через
+  realpath, а argv[1] остаётся путём symlink-а): main-блок не выполнялся и CLI
+  **молча выходил с кодом 0 при любом входе** — ложный PASS economics gate ECON-001.
+  При недоступном realpath (файл исчез между exec и проверкой) — откат к сравнению
+  без резолва. Библиотечный импорт main-блок по-прежнему не запускает.
+- **D-189 (T-11 review)** — Принятые low-трейдоффы export: (1) `compareStrings` CSV —
+  UTF-16 code-unit порядок; для fingerprint (ASCII hex, единственное место, где §16
+  требует лексикографику) совпадает с байтовым, provider/request_id на практике ASCII;
+  (2) центовая арифметика ECON-001 точна до mix-взвешивания, weighted margin — float
+  с допуском 1 цент и `ceilWithEpsilon` (mix — доля, дробные центы неустранимы);
+  (3) `normalizeUsage` держит мёртвый fallback `?? 0` для required-полей usage —
+  ajv гарантирует их присутствие, ветка безвредна; (4) формула-экранирование CSV
+  остаётся `= + - @` (D-186) — tab/CR-lead нейтрализуются RFC 4180 quoting.

@@ -9,9 +9,19 @@
       "default": "./dist/index.js"
     }
   },
+  "bin": {
+    "econ-validate": "./dist/econ-cli.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fluxradar/contracts": "workspace:*",
+    "@fluxradar/fingerprint": "workspace:*",
+    "@fluxradar/scoring": "workspace:*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
   }
 }
