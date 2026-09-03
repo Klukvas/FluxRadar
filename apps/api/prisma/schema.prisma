@@ -1,0 +1,237 @@
+// FluxRadar v0.1 database schema (T-06, D-011: SQLite dev/tests, Postgres later).
+// Status columns are strings holding the canonical contract enum literals from
+// @fluxradar/contracts; SQLite has no native enums and the literals must match
+// the export schema verbatim (D-108).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  sessions     Session[]
+  siteProfiles SiteProfile[]
+  purchases    Purchase[]
+  scans        Scan[]
+  aiConsents   AiConsent[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  accountId String
+  tokenHash String   @unique
+  expiresAt DateTime
+
+  account Account @relation(fields: [accountId], references: [id])
+}
+
+model SiteProfile {
+  id        String   @id @default(cuid())
+  accountId String
+  name      String
+  domain    String
+  industry  String?
+  region    String?
+  language  String?
+  createdAt DateTime @default(now())
+
+  account   Account    @relation(fields: [accountId], references: [id])
+  purchases Purchase[]
+  scans     Scan[]
+}
+
+// Idempotency contract §18: unique paddleTransactionId allows exactly one purchase.
+model Purchase {
+  id                  String   @id @default(cuid())
+  accountId           String
+  siteProfileId       String
+  plan                String
+  paddleTransactionId String   @unique
+  amountUsd           Float
+  currency            String
+  // Billing state: 'paid' | 'Refunded' | 'Disputed' (§18: billing overlay, not a scan state).
+  status              String   @default("paid")
+  createdAt           DateTime @default(now())
+
+  account     Account       @relation(fields: [accountId], references: [id])
+  siteProfile SiteProfile   @relation(fields: [siteProfileId], references: [id])
+  entitlement Entitlement?
+  scan        Scan?
+  refund      RefundRecord?
+}
+
+// Unique purchaseId: exactly one entitlement per purchase (§18 idempotency contract).
+model Entitlement {
+  id         String   @id @default(cuid())
+  purchaseId String   @unique
+  expiresAt  DateTime
+  suspended  Boolean  @default(false)
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+}
+
+// purchaseId is nullable-unique: the Free check runs without a purchase,
+// every paid purchase owns exactly one scan (§18 idempotency contract).
+model Scan {
+  id                 String    @id @default(cuid())
+  purchaseId         String?   @unique
+  accountId          String
+  siteProfileId      String
+  plan               String
+  domain             String
+  status             String    @default("Pending")
+  statusReason       String?
+  scopeJson          String
+  rulesetVersion     String
+  platformRetryCount Int       @default(0)
+  moduleRetryCount   Int       @default(0)
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+
+  purchase    Purchase?          @relation(fields: [purchaseId], references: [id])
+  account     Account            @relation(fields: [accountId], references: [id])
+  siteProfile SiteProfile        @relation(fields: [siteProfileId], references: [id])
+  modules     ScanModule[]
+  issues      Issue[]
+  aiResponses AiResponseRecord[]
+  aiConsent   AiConsent?
+  job         Job?
+}
+
+model ScanModule {
+  id                        String  @id @default(cuid())
+  scanId                    String
+  module                    String
+  runtimeStatus             String
+  exportStatus              String?
+  statusReason              String?
+  coverage                  Float?
+  score                     Float?
+  applicableChecks          Int?
+  completedApplicableChecks Int?
+  // §18 usable output: >=1 completed applicable check AND a valid metric/score/
+  // finding with evidence (computed via @fluxradar/scoring hasUsableOutput, D-026).
+  usableOutput              Boolean @default(false)
+
+  scan Scan @relation(fields: [scanId], references: [id])
+
+  @@unique([scanId, module])
+}
+
+model Issue {
+  id                  String   @id @default(cuid())
+  scanId              String
+  ruleId              String
+  module              String
+  fingerprint         String
+  severity            String
+  category            String
+  status              String
+  targetKind          String
+  normalizedUrl       String
+  normalizedResource  String
+  normalizedSelector  String
+  normalizedParameter String
+  ruleVariant         String
+  targetUrl           String
+  evidenceType        String
+  evidenceRef         String?
+  evidenceExcerpt     String?
+  recommendation      String
+  confidence          Float
+  applicableTargets   Int
+  affectedTargets     Int
+  rulePenalty         Float
+  scoreDelta          Float
+  observedAt          DateTime
+
+  scan Scan @relation(fields: [scanId], references: [id])
+
+  @@index([scanId, fingerprint])
+  @@index([fingerprint])
+}
+
+// Normalized provider response (§5/§16); aiRequestKey is the deterministic
+// idempotency key ai:{scan_id}:{provider}:{prompt_hash}:{sequence} (D-015).
+model AiResponseRecord {
+  id                  String   @id @default(cuid())
+  scanId              String
+  provider            String
+  apiVersion          String
+  modelId             String
+  promptVersion       String
+  requestId           String
+  requestIdSource     String
+  aiRequestKey        String   @unique
+  usageJson           String
+  usageSource         String
+  rawText             String
+  citationsJson       String
+  finishReason        String
+  deletionEvidenceRef String?
+  createdAt           DateTime @default(now())
+
+  scan Scan @relation(fields: [scanId], references: [id])
+}
+
+model AiConsent {
+  id            String   @id @default(cuid())
+  accountId     String
+  scanId        String   @unique
+  providersJson String
+  noticeVersion String
+  createdAt     DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+  scan    Scan    @relation(fields: [scanId], references: [id])
+}
+
+// Dedup table for Paddle events: unique paddleEventId makes redelivery a no-op (§18).
+// Raw payload + signature are retained per D-029.
+model WebhookEvent {
+  id            String   @id @default(cuid())
+  paddleEventId String   @unique
+  eventType     String
+  rawBody       String
+  signature     String
+  processedAt   DateTime @default(now())
+}
+
+// Unique purchaseId AND unique idempotencyKey (refund:{purchase_id}): a second
+// refund is impossible regardless of reason code (§18 idempotency contract).
+model RefundRecord {
+  id             String   @id @default(cuid())
+  purchaseId     String   @unique
+  idempotencyKey String   @unique
+  reasonCode     String
+  // 'requested' | 'processing' | 'paid' | 'failed' (§18).
+  status         String
+  amountUsd      Float
+  requestedAt    DateTime @default(now())
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+}
+
+// DB-backed job queue (D-005): worker claim is an atomic conditional update by scanId.
+model Job {
+  id         String    @id @default(cuid())
+  scanId     String    @unique
+  type       String
+  status     String
+  attempts   Int       @default(0)
+  claimedAt  DateTime?
+  leaseUntil DateTime?
+  createdAt  DateTime  @default(now())
+
+  scan Scan @relation(fields: [scanId], references: [id])
+}

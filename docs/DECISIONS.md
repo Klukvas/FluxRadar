@@ -253,3 +253,43 @@
   `acquire(host)` возвращает идемпотентную release-функцию. Авто-throttle по доле
   5xx из D-030 — ответственность crawler-а (T-07), которому нужен контекст
   ответов, а не rate-limiter-а.
+- **D-130 (T-06)** — Prisma зафиксирован на 6.19.x (не 7/8): новые мажоры требуют
+  driver adapters (`@prisma/adapter-better-sqlite3`), `prisma.config.ts` и генерацию
+  клиента в src — лишняя инфраструктура для локального SQLite MVP; 6.x даёт
+  `prisma-client-js` + `url = env("DATABASE_URL")` с нулевой настройкой. `prisma generate`
+  встроен в `build`/`test`/`typecheck`-скрипты apps/api (детерминизм для fresh clone);
+  postinstall-скрипты prisma/@prisma/client/@prisma/engines добавлены в
+  `pnpm.onlyBuiltDependencies` (pnpm 10 блокирует их по умолчанию).
+- **D-131 (T-06)** — Статусные колонки — строки с каноническими литералами enum-ов из
+  contracts (SQLite/Prisma без native enum, D-108 дословность). Фабрика `createPrismaClient`
+  принудительно добавляет `connection_limit=1` к file:-URL: пул >1 соединения на SQLite
+  даёт SQLITE_BUSY на конкурентных записях, одно соединение сериализует транзакции — на
+  этом стоят атомарный CAS и webhook-дедуп. Free-скан — `Scan.purchaseId NULL` (nullable
+  unique: SQLite допускает много NULL, каждый paid purchase — ровно один скан).
+- **D-132 (T-06)** — Доказуемость PRE_QUEUE_CANCEL без отдельной колонки `queuedAt`:
+  statusReason `UserCancelledPreQueue` пишется только атомарным CAS `Pending → Cancelled`
+  внутри `cancelScan`; policy-проверка refund требует `Cancelled` + именно этот reason.
+  Остановка после queue/старта пишет другие reasons и refund не проходит.
+- **D-133 (T-06)** — Retry-инварианты §18 встроены в WHERE самого CAS:
+  `Failed → Queued` требует `platformRetryCount < 1` (+increment), `Partial → Running` —
+  `moduleRetryCount < 1` (+increment). Ветка «ноль usable модулей на первом проходе»
+  (статуса для неё план не даёт) решена in-run: `resolveScanOutcome` выдаёт
+  `ExternalRetryGranted`, инкрементируя тот же `moduleRetryCount` условным update —
+  суммарно ровно один внешний retry, скан остаётся `Running`, worker перегоняет модули.
+- **D-134 (T-06)** — Webhook: amount/currency/priceId проверяются только у
+  `transaction.paid` (у refunded сумма может включать налоги); MockPaddle price IDs
+  зафиксированы в `billing/webhook-schema.ts`. Скан из webhook получает дефолтный
+  `scopeJson` — реальный scope свяжет checkout-поток T-12. `transaction.refunded` —
+  монотонный billing-overlay: purchase → `Refunded`, RefundRecord `requested/processing` →
+  `paid`; refunded до paid (out-of-order) сохраняет событие в dedup-таблицу без side effects.
+  Гонка «два разных eventId, один transactionId» решается одним повтором транзакции после
+  P2002 по `paddleTransactionId` (первая транзакция откатилась целиком, повтор идёт по
+  dedup-ветке). `amountUsd` — Float: только equality-сравнение с целыми ценами тарифов,
+  денежная арифметика в v0.1 не ведётся.
+- **D-135 (T-06)** — Тестовая БД: vitest globalSetup делает один `prisma db push` в
+  template-файл, каждый тест-файл копирует его в свой tmp-файл (`createTestDb`) —
+  изоляция по файлу без повторного push. Два обхода тулинга: (1) Prisma CLI 6.19 на
+  Node 24 падает с пустой «Schema engine error», если schema engine не логирует —
+  `RUST_LOG=info` форсируется для db push (унаследованный `RUST_LOG=warn` из среды
+  воспроизводимо ломает); (2) `--force-reset` не используется (срабатывает AI-consent
+  gate Prisma при запуске из агента) — вместо него template-файл удаляется перед push.
