@@ -14,7 +14,7 @@ import { handlePaddleWebhook, simulatePaidCheckout } from '../billing/index.ts';
 import { PADDLE_PRICE_IDS, PAID_PLANS, paddleCustomDataSchema } from '../billing/webhook-schema.ts';
 import type { PaidPlan } from '../billing/webhook-schema.ts';
 import { sendOk } from '../http/envelope.ts';
-import { validationError } from '../http/errors.ts';
+import { paymentRequired, validationError } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 
@@ -72,6 +72,9 @@ export function billingRouter(deps: BillingRouterDeps): Router {
   const auth = requireAuth(deps.prisma, deps.now);
 
   router.post('/billing/dev-checkout', auth, async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      throw paymentRequired('live checkout is not configured for this environment');
+    }
     const input = parseInput(devCheckoutInputSchema, req.body);
     const accountId = accountIdFrom(res);
     const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);

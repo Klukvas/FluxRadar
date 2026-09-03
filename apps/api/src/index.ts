@@ -82,6 +82,9 @@ export function createApp(options: CreateAppOptions): Express {
 
   const app = express();
   app.disable('x-powered-by');
+  if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+  }
   app.use(requestLogger(logger));
   app.use(
     corsMiddleware(options.corsOrigin ?? process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173'),

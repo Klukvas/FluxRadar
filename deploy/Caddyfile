@@ -1,4 +1,4 @@
-fluxradar.net, www.fluxradar.net {
+fluxradar.net {
     encode zstd gzip
 
     header {
