@@ -219,3 +219,37 @@
   тарифа получает effective weight 0; effective weight > 0 требует usable output
   И терминального `Completed`/`Partial` — `Unavailable` с ненулевым coverage
   не набирает вес даже при некорректном входе.
+- **D-125 (T-05)** — IP-pin в `safe-fetch` реализован через `node:http`/`node:https`
+  с кастомной `lookup`-опцией (callback подставляет ровно те адреса, что прошли
+  SSRF-гард), а не через undici Agent: `undici` не импортируем как builtin
+  (ERR_MODULE_NOT_FOUND в Node 24; внутренняя копия для fetch не экспортируется),
+  а новая внешняя зависимость не нужна. Резолв выполняется один раз, его результат
+  и проверяется blocklist-ом, и используется для соединения → DNS rebinding между
+  проверкой и connect невозможен. TLS SNI/cert проверяются по hostname (соединение
+  на pinned IP, `servername` остаётся доменом). `agent: false` — сокет на запрос,
+  без пула; `accept-encoding: identity` по умолчанию — лимит `maxHtmlBytes`
+  считается по байтам тела на проводе, без сюрпризов декомпрессии.
+- **D-126 (T-05)** — Тестовый эскейп-флаг сужен с «allow private» до
+  `dangerouslyAllowLoopback`: пропускает только loopback (127/8, `::1`) — ровно то,
+  что нужно fixture-сайту на 127.0.0.1. RFC1918, link-local/metadata, CGNAT и прочие
+  непубличные диапазоны блокируются даже с флагом, поэтому тест «redirect на
+  169.254.169.254 блокируется» работает и в тест-режиме без дополнительных лазеек.
+- **D-127 (T-05)** — `timeoutMs` (default `CRAWL_LIMITS.pageTimeoutMs`) — общий
+  дедлайн на весь `safeFetch`, включая redirect-цепочку: согласуется с «10 s
+  timeout на страницу» D-028. При сработавшем дедлайне `TimeoutError` имеет
+  приоритет над сетевыми ошибками, порождёнными самим abort-ом. Превышение
+  `maxRedirects` — `RedirectLimitError` на (maxRedirects+1)-м переходе, цепочка
+  переходов включена в ошибку; превышение тела — не ошибка, а `truncated: true`
+  с обрывом соединения на границе лимита.
+- **D-128 (T-05)** — Классификация IP в ip-guard: IPv4-mapped (`::ffff:0:0/96`)
+  и NAT64 (`64:ff9b::/96`) классифицируются по вложенному IPv4 (публичный
+  вложенный → публичный, приватный → блок с категорией вложенного); deprecated
+  IPv4-compatible `::/96` блокируется целиком; любой нераспарсенный адрес
+  (включая zone id `%…` и октальные формы) → non-public (fail-closed). Ошибки
+  валидации URL (схема, userinfo, длина) выделены в отдельный тип
+  `UrlValidationError` — это отказ до любых сетевых действий, не SSRF-блок.
+- **D-129 (T-05)** — `HostLimiter`: token bucket ёмкостью `perHostRps` (burst
+  ≤ секунды трафика) с непрерывным пополнением + семафор `perHostConcurrency`;
+  `acquire(host)` возвращает идемпотентную release-функцию. Авто-throttle по доле
+  5xx из D-030 — ответственность crawler-а (T-07), которому нужен контекст
+  ответов, а не rate-limiter-а.

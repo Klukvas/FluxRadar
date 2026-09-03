@@ -74,7 +74,11 @@ importers:
 
   packages/rules: {}
 
-  packages/safe-fetch: {}
+  packages/safe-fetch:
+    dependencies:
+      '@fluxradar/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/scoring:
     dependencies:
