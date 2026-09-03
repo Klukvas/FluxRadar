@@ -1,0 +1,10 @@
+{
+  "robotsTxt": "User-agent: *\nAllow: /\n",
+  "sitemapUrls": [],
+  "pages": [
+    {
+      "path": "/",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Home fixture page</title></head><body><h1>Home</h1></body></html>"
+    }
+  ]
+}

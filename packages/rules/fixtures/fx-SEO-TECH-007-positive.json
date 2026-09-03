@@ -1,0 +1,14 @@
+{
+  "urlVariants": {
+    "https://fixture.test/page.html": [
+      "https://fixture.test/page.html",
+      "https://fixture.test/page.html?utm_source=news"
+    ]
+  },
+  "pages": [
+    {
+      "path": "/page.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Duplicate URL fixture</title></head><body><h1>Page</h1></body></html>"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "robotsTxt": "User-agent: *\nSitemap: https://fixture.test/sitemap.xml\n",
+  "sitemapUrls": ["https://fixture.test/"],
+  "pages": [
+    {
+      "path": "/",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Home fixture page</title></head><body><h1>Home</h1></body></html>"
+    }
+  ]
+}

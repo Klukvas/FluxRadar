@@ -99,7 +99,30 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
-  packages/rules: {}
+  packages/rules:
+    dependencies:
+      '@fluxradar/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@fluxradar/crawler':
+        specifier: workspace:*
+        version: link:../crawler
+      '@fluxradar/fingerprint':
+        specifier: workspace:*
+        version: link:../fingerprint
+      node-html-parser:
+        specifier: ^7.0.1
+        version: 7.1.0
+    devDependencies:
+      '@fluxradar/safe-fetch':
+        specifier: workspace:*
+        version: link:../safe-fetch
+      '@fluxradar/scoring':
+        specifier: workspace:*
+        version: link:../scoring
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
 
   packages/safe-fetch:
     dependencies:

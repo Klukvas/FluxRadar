@@ -13,5 +13,16 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fluxradar/contracts": "workspace:*",
+    "@fluxradar/crawler": "workspace:*",
+    "@fluxradar/fingerprint": "workspace:*",
+    "node-html-parser": "^7.0.1"
+  },
+  "devDependencies": {
+    "@fluxradar/safe-fetch": "workspace:*",
+    "@fluxradar/scoring": "workspace:*",
+    "zod": "^4.5.4"
   }
 }

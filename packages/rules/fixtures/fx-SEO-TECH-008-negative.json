@@ -1,0 +1,9 @@
+{
+  "sitemapUrls": [],
+  "pages": [
+    {
+      "path": "/hidden.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Hidden fixture page</title><meta name=\"robots\" content=\"noindex, nofollow\"></head><body><h1>Hidden</h1></body></html>"
+    }
+  ]
+}

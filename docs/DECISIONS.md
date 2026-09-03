@@ -330,3 +330,53 @@
   глубины 2. Сервер слушает 127.0.0.1 (обход через `dangerouslyAllowLoopback`, D-126),
   security headers намеренно отсутствуют, на `/` — `Set-Cookie` без Secure/HttpOnly (под
   SEC-PASSIVE T-09). `startFixtureSite()` экспортируется из пакета для T-08/T-09/T-15.
+- **D-150 (T-08)** — Оракулы site-проверок SEO: TECH-001 — finding только при отсутствии
+  robots.txt (краулер заполняет `crawl.robotsTxt` лишь при HTTP 200, D-141; явный
+  `ctx.robotsTxt` приоритетнее), контент файла в v0.1 не валидируется. TECH-002 — сигнал
+  «sitemap не найден» = `crawl.sitemapUrls` пуст: недоступный, невалидный и пустой sitemap
+  на этом уровне неразличимы и дают один и тот же finding. Для обоих правил и TECH-007
+  applicable/affected = сайт (1/1 при любом числе findings, D-121).
+- **D-151 (T-08)** — TECH-004 canonical: finding при (a) отсутствии `<link rel=canonical>`
+  с непустым href, (b) href, не разрешающемся в абсолютный http(s)-URL (относительный
+  разрешается против `finalUrl`), (c) host канонического URL ≠ host страницы —
+  `www.example.com` и `example.com` считаются разными host-ами. Canonical на другой
+  path/scheme того же host-а — легитимная канонизация дублей, не finding; при нескольких
+  тегах берётся первый непустой href.
+- **D-152 (T-08)** — TECH-006 битые внутренние ссылки: оцениваются только `<a href>`, чья
+  цель имеет снимок в обходе; robots-blocked, за-лимитом и вне-scope цели не оцениваются —
+  их статус неизвестен, evidence нет. Finding вешается на страницу-источник, selector —
+  raw href (стабильная привязка к разметке), resource — нормализованный target; повторные
+  href на странице схлопываются.
+- **D-153 (T-08)** — TECH-008 noindex: finding только при противоречии сигналов —
+  страница с noindex (`<meta name=robots>` с токеном noindex/none либо `X-Robots-Tag`)
+  одновременно присутствует в sitemap ИЛИ на неё ведут внутренние ссылки с других страниц
+  (self-ссылки не считаются). Просто noindex без противоречия — осознанное намерение
+  владельца, НЕ finding. При обоих сигналах evidence — meta (dom).
+- **D-154 (T-08)** — TECH-013 mixed content: помимо классического случая (https-страница
+  с http:// субресурсом) finding даёт и http-страница с http-ресурсом на ДРУГОМ host —
+  небезопасный внешний субресурс, ломающийся при переходе на https (fixture-сайт живёт на
+  loopback-http и представляет https-сайт). Same-host ресурс на http-странице — не
+  finding. Субресурсы: img/script/iframe[src] и link[href] c resource-rel
+  (stylesheet/icon/apple-touch-icon/mask-icon/preload/prefetch/manifest); rel canonical/
+  alternate и пр. — не субресурсы. Дедуп по selector `tag[attr="raw"]`.
+- **D-155 (T-08)** — Пороги on-page правил: title 10–70, meta description 50–160; длина —
+  в Unicode code points после trim, границы включительны (ровно 10/70/50/160 — не
+  finding). ONPAGE-003 собирает все нарушения структуры заголовков (нет h1 / h1 > 1 /
+  пропуск уровня) в один finding на страницу; ONPAGE-005 — один finding на страницу
+  (selector — первый `<img>` без alt, excerpt с количеством), пустой alt="" — норма.
+- **D-156 (T-08)** — Движок runModuleRules: applicable page-check = страница, прошедшая
+  `rule.isApplicable` (по умолчанию 2xx+HTML; TECH-003/005 — любой HTTP-ответ); снимок с
+  fetchError, не взятый правилом в работу, — applicable check без completed (иначе
+  лежащий сайт давал бы coverage 1 вопреки D-026). Единственный fetchError-случай,
+  который правило обрабатывает, — цикл redirect-ов (RedirectLimitError → TECH-005 c
+  `targetUnreachable`). Issue-кандидаты дедупятся по fingerprint (первый побеждает),
+  сырые findings остаются в RuleEvaluation; модуль без реализованных правил — ошибка
+  вызывающего (throw), статусы Unavailable/Not applicable решаются до движка.
+- **D-157 (T-08 review)** — Уточнение D-154: protocol-relative субресурс `//host/...`
+  на http-странице НЕ finding — такой URL наследует схему страницы и при переходе
+  сайта на https обновится автоматически, «ломаться» ему нечем (rationale D-154 —
+  именно поломка при миграции). На https-странице protocol-relative резолвится в
+  https и в ветку mixed content не попадает по определению. Дополнительно: поля
+  `normalized*` в RuleFinding нормализуются normalizeField ещё в билдерах
+  (pageFinding/siteFinding) — хранимое значение побайтно совпадает со входом
+  fingerprint-v1 (движок сохраняет повторную нормализацию как idempotent-защиту).

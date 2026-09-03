@@ -1,0 +1,9 @@
+{
+  "urlVariants": {},
+  "pages": [
+    {
+      "path": "/page.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Single URL fixture</title></head><body><h1>Page</h1></body></html>"
+    }
+  ]
+}

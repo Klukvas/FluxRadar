@@ -1,0 +1,15 @@
+{
+  "pages": [
+    {
+      "path": "/old",
+      "finalPath": "/new.html",
+      "status": 200,
+      "html": "<!doctype html><html lang=\"en\"><head><title>Redirect landing page</title></head><body><h1>Landed</h1></body></html>",
+      "redirectChain": [
+        { "url": "https://fixture.test/old", "status": 301, "location": "/older" },
+        { "url": "https://fixture.test/older", "status": 302, "location": "/oldest" },
+        { "url": "https://fixture.test/oldest", "status": 301, "location": "/new.html" }
+      ]
+    }
+  ]
+}

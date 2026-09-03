@@ -1,0 +1,17 @@
+{
+  "pages": [
+    {
+      "path": "/source.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Source fixture page</title></head><body><h1>Source</h1><p><a href=\"/broken.html\">broken</a> and <a href=\"/ok.html\">ok</a></p></body></html>"
+    },
+    {
+      "path": "/broken.html",
+      "status": 404,
+      "html": "<!doctype html><html lang=\"en\"><head><title>404 Not Found</title></head><body><h1>404</h1></body></html>"
+    },
+    {
+      "path": "/ok.html",
+      "html": "<!doctype html><html lang=\"en\"><head><title>Ok fixture page</title></head><body><h1>Ok</h1></body></html>"
+    }
+  ]
+}

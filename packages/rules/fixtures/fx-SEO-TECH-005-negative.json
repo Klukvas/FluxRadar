@@ -1,0 +1,13 @@
+{
+  "pages": [
+    {
+      "path": "/moved",
+      "finalPath": "/target.html",
+      "status": 200,
+      "html": "<!doctype html><html lang=\"en\"><head><title>Redirect landing page</title></head><body><h1>Landed</h1></body></html>",
+      "redirectChain": [
+        { "url": "https://fixture.test/moved", "status": 301, "location": "/target.html" }
+      ]
+    }
+  ]
+}

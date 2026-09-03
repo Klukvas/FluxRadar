@@ -1,0 +1,9 @@
+{
+  "pages": [
+    {
+      "path": "/fine.html",
+      "status": 200,
+      "html": "<!doctype html><html lang=\"en\"><head><title>Fine fixture page</title></head><body><h1>Fine</h1></body></html>"
+    }
+  ]
+}
