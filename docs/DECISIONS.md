@@ -461,3 +461,67 @@
   считается своим — осознанный trade-off в пользу отсутствия FP. Дополнительно:
   PRIVACY-001 матчит только присваивания document.cookie (`=` с lookahead `(?!=)`) —
   сравнение `document.cookie === ...` больше не даёт ложный маркер.
+- **D-171 (T-10)** — GEO-правила ×5 живут в `packages/ai`, не в `packages/rules`:
+  их вход — NormalizedAiResponse и итоги AI-запросов, а не PageSnapshot/SiteContext,
+  зависимость ai → crawler не нужна. Форма `GeoFinding` зеркалит RuleFinding
+  (normalized*-поля, evidence cap §16, D-019: normalizedUrl=''), `GeoRuleEvaluation`
+  зеркалит RuleEvaluation (D-121) — T-11/T-12 собирают issue records единообразно;
+  T-12 orchestrator вызывает `runGeoModule` напрямую для Basic/Complete.
+- **D-172 (T-10)** — MockAiProvider принимает OpenAI-shaped фикстуры (id/created_at/
+  model/status/incomplete_details/output_text/citations/usage) и нормализует их в
+  контракт §5 внутри себя — как реальный адаптер; конфиг по registry v1:
+  openai/v1/gpt-5-mini. Выбор фикстуры — первая по подстроке вопроса; несматченный
+  вопрос = UnavailableError («недоступный отдельный запрос», GEO-METHOD-005).
+  totalTokens всегда пересчитывается как input+output (§5 дословно); output сверх
+  cap 2000 усекается по границе токена approx-v1 → finish_reason='length'
+  (из prompt-builder экспортирована CHARS_PER_TOKEN — граница токена одна на
+  input truncation и output cap).
+- **D-173 (T-10)** — Детерминизм мока: содержимое ответа только из фикстур,
+  без Date.now/Math.random; createdAt — из created_at фикстуры (unix seconds) либо
+  из инъектируемых часов с фиксированным дефолтом 2026-01-01T00:00:00Z; локальный
+  request id — sha256(sequence:prompt) в форме UUID, requestIdSource='local'.
+- **D-174 (T-10)** — Outcome-модель: каждый AI-запрос завершается 'response' либо
+  'unavailable' (ConsentMissing/RedactionBlocked/QuotaExceeded/ProviderUnavailable/
+  ProviderContract). Статус модуля: все ответы → Completed; часть → Partial (reason —
+  сводка отказов); ни одного → Unavailable (reason первого отказа); пустая библиотека
+  вопросов → Unavailable EmptyQuestionLibrary. Для Unavailable-модуля findings не
+  строятся — только module record со status_reason (§5 pre-response ветка);
+  GEO-METHOD-005 документирует пропуски в Completed/Partial-ветке.
+- **D-175 (T-10)** — Порядок pipeline одного запроса: consent → buildPrompt
+  (truncation) → redaction (fail-closed) → quota reserve → provider.send →
+  §5-валидация ответа → quota commit. ai_request_key считается от redacted-текста —
+  точного текста, ушедшего провайдеру (D-015). Ответ, не прошедший normalized
+  contract, → release резерва + outcome ProviderContract (adapter обязан вернуть
+  Unavailable, а не fail-open данные); неожиданное исключение провайдера → release +
+  AiModuleError наверх (баг интеграции, не легальная ветка §5).
+- **D-176 (T-10)** — Fingerprint-поля GEO findings: normalizedUrl='' (D-019),
+  normalizedResource = имя провайдера, normalizedParameter = `q<sequence>` —
+  стабильный между сканами номер вопроса библиотеки; ai_request_key хранится
+  отдельным полем и в fingerprint не входит (D-015). evidence_type='trace' для
+  выводов по AI-ответу, 'none' для METHOD-005. Регион/язык в GEO-METHOD-002 v0.1
+  представлены версией библиотеки вопросов (promptVersion), отдельных полей нет.
+- **D-177 (T-10 review)** — Input cap применяется ПОВТОРНО после redaction:
+  маркеры `[REDACTED:<type>]` длиннее большинства заменяемых значений и могли
+  вытолкнуть уже усечённый prompt за 8000 tokens — estimated-путь мока получал
+  ложный ProviderContract-отказ, а реальный адаптер отправил бы over-cap запрос.
+  Truncation-математика вынесена в `enforceInputCap` (prompt-builder) и вызывается
+  дважды: при сборке prompt-а и в run-request после redact. ai_request_key и
+  promptText outcome считаются от финального (re-capped) текста — ровно того, что
+  уходит провайдеру (уточнение D-175: consent → buildPrompt (cap) → redaction →
+  re-cap → quota reserve → send); `inputTruncated` = усечение на любом из двух
+  шагов. Повторный срез безопасен: секреты к этому моменту уже заменены маркерами.
+- **D-178 (T-10 review)** — GEO-VIS-004 матчит домен в rawText только на границе
+  hostname: слева и справа запрещён символ hostname `[a-z0-9-]`, справа также
+  запрещено продолжение через точку (`.` + буквенно-цифровой). `notsite.com`,
+  `evil-site.com`, `site.community`, `site.com.evil` больше не считаются ссылкой
+  на сайт (раньше substring-матч подавлял finding — false positive «ссылка есть»).
+  Поддомен слева (`docs.site.com`) и конец предложения (`site.com.`) остаются
+  легальным упоминанием. Citations по-прежнему сравниваются по распарсенному
+  hostname URL-а (равенство или dot-suffix `.domain`).
+- **D-179 (T-10 review)** — Redaction v1 остаётся сознательно агрессивной
+  (fail-closed трактовка): generic-паттерн `[A-Fa-f0-9]{32,}` ловит и SHA/контент-
+  хэши — это допустимая перередакция публичного контента, а не дефект; phone и
+  session-id паттерны полного списка §5 отложены до версии с real-адаптерами
+  (scope T-10 по TASK_BOARD: email/JWT/API-key/cookie; auth-header и private-ip
+  реализованы сверх scope). Deadline проверяется между паттернами (regex-exec в JS
+  непрерываем) — приемлемо: все паттерны линейны, катастрофического backtracking нет.
