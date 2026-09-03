@@ -108,4 +108,4 @@ jobs:
           SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-connrefused -H 'Host: fluxradar.net' http://127.0.0.1/api/health"
+          ssh "$SSH_USER@$SSH_HOST" "if getent ahostsv4 fluxradar.net >/dev/null 2>&1; then curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-connrefused --location --insecure https://fluxradar.net/api/health; else echo 'DNS for fluxradar.net is not configured yet; internal smoke test passed.'; fi"

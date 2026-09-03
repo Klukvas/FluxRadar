@@ -1,7 +1,3 @@
-{
-    auto_https on
-}
-
 fluxradar.net, www.fluxradar.net {
     encode zstd gzip
 
