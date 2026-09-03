@@ -101,7 +101,7 @@ jobs:
           APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
           RELEASE_ID: ${{ github.sha }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "set -eu; ln -sfn '$APP_DIR/releases/$RELEASE_ID' '$APP_DIR/current'; cd '$APP_DIR/current'; docker compose up -d --build --remove-orphans; for attempt in \$(seq 1 30); do if docker compose exec -T api node -e \"fetch('http://127.0.0.1:3310/health').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))\"; then exit 0; fi; sleep 2; done; docker compose ps; exit 1"
+          ssh "$SSH_USER@$SSH_HOST" "set -eu; ln -sfn '$APP_DIR/releases/$RELEASE_ID' '$APP_DIR/current'; cd '$APP_DIR/current'; docker compose up -d --build --force-recreate --remove-orphans; for attempt in \$(seq 1 30); do if docker compose exec -T api node -e \"fetch('http://127.0.0.1:3310/health').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))\"; then exit 0; fi; sleep 2; done; docker compose ps; exit 1"
 
       - name: Public smoke test
         env:
