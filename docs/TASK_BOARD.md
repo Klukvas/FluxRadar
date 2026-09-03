@@ -11,7 +11,7 @@
 | T-04 | scoring: score engine §15 | T-02, T-03 | impl-агент | DONE | packages/scoring | ✅ approved (0 фиксов, пересчёт 3 сценариев ✅) | ✅ pass | golden 96.50 ✅ (61 тест) |
 | T-05 | safe-fetch: SSRF-guard fetch-слой | T-02 | impl-агент | DONE | packages/safe-fetch | ✅ approved-with-fixes (H-1: NAT64 local-use 64:ff9b:1::/96; M-1: 6to4 2002::/16 — исправлены) | ✅ pass (тест-агент) | IP-pin через lookup-callback (D-125); +16 тестов SSRF-векторов |
 | T-06 | БД/биллинг: Prisma-схема, state machine, MockPaddle | T-02 | impl-агент | DONE | apps/api (prisma, billing) | ✅ approved-with-fixes (H-1: refunded-webhook был без тестов → +5 тестов монотонности; L-1: индекс Issue(scanId,fingerprint); L-2: хардкоды test-db) | ✅ pass | BILLING-001..006 ✅ 32 теста; Prisma 6.19 (D-130) |
-| T-07 | crawler: scope, robots, dedup, лимиты + fixture-сайт | T-03, T-05 | — | PENDING | — | — | — | |
+| T-07 | crawler: scope, robots, dedup, лимиты + fixture-сайт | T-03, T-05 | impl-агент | DONE | packages/crawler (+fixtures) | ✅ approved-with-fixes (H-1: redirect на чужой origin оставался источником ссылок; M-1: scope child-sitemap; M-2: urlVariants для SEO-TECH-007; M-3: per-host robots.txt; M-4: суммарный sitemap-лимит — исправлены) | ✅ pass | 17 страниц (≥15 ✅); robots /private/secret.html ✅; нет utm_ ✅; 2 прогона идентичны ✅; 33 теста ✅ |
 | T-08 | rules: движок + SEO-правила (13) | T-02, T-03, T-07 | — | PENDING | — | — | — | fx-фикстуры по D-025 |
 | T-09 | rules: passive-модули (SEC/REL/A11Y/CONTENT/PRIVACY, 14) | T-08 | — | PENDING | — | — | — | |
 | T-10 | ai: adapter-контракт, MockAiProvider, caps/quota/consent | T-02, T-06 | — | PENDING | — | — | — | GEO-правила ×5 |

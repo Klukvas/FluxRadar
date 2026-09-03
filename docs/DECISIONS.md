@@ -293,3 +293,40 @@
   `RUST_LOG=info` форсируется для db push (унаследованный `RUST_LOG=warn` из среды
   воспроизводимо ломает); (2) `--force-reset` не используется (срабатывает AI-consent
   gate Prisma при запуске из агента) — вместо него template-файл удаляется перед push.
+- **D-141 (T-07)** — Robots-политика краулера fail-safe: override работает только при
+  `respectRobots=false` **и** `robotsOverrideConfirmed=true`; `respectRobots=false` без
+  подтверждения игнорируется (robots.txt соблюдается) с warn-логом через инъектируемый
+  logger. Активный override логируется дважды: раз при старте обхода и на каждый фетч
+  заблокированного URL. robots.txt: 200 → парсинг (группы User-agent с longest-match
+  выбором токена, Allow/Disallow longest-match, при равной длине Allow сильнее, `*` и `$`
+  по RFC 9309), не-200 → «всё разрешено», сетевая ошибка → запись в `errors` + обход
+  продолжается открытым.
+- **D-142 (T-07)** — Дедуп и очередь: ключ дедупа — `normalizeUrl` v1 (fingerprint, utm/
+  gclid вырезаются там); проверка на этапе enqueue, поэтому дубли не попадают даже в
+  очередь. `finalUrl` каждого redirect-а тоже помечается посещённым — прямая ссылка на
+  цель redirect-а не фетчится повторно. Sitemap-seed-ы получают depth=1 и подчиняются
+  maxDepth; источники sitemap — директивы robots.txt (в scope), при их отсутствии —
+  стандартный `/sitemap.xml`; sitemapindex разворачивается на 1 уровень, суммарный лимит
+  1000 URL, недоступный sitemap — не ошибка. Ненормализуемые обнаруженные ссылки
+  (userinfo и пр.) молча отбрасываются — это мусор веба, не ошибка обхода.
+- **D-143 (T-07)** — Учёт лимитов: maxPages считает фетч-попытки (снимки, включая
+  упавшие — они несут `fetchError` и дублируются в `errors`); URL сверх лимита, прошедшие
+  scope и robots, идут в `skippedOverLimit`. Порядок классификации: scope-фильтры (тихо) →
+  robots (`blockedByRobots`) → лимит (`skippedOverLimit`) — заблокированный robots URL
+  остаётся в `blockedByRobots` даже при исчерпанном лимите. Include/exclude-шаблоны —
+  простые glob по pathname (`*` — любая последовательность, полное совпадение), exclude
+  сильнее include. 4xx/5xx-ответ — валидный снимок со статусом, не ошибка (нужно T-08/T-09
+  как evidence).
+- **D-144 (T-07)** — Авто-throttle D-030 конкретизирован как «≥5 **последовательных** 5xx
+  на host → стоп хоста»: счётчик сбрасывается любым не-5xx ответом; учитываются только
+  фетчи страниц (robots/sitemap — нет); остановка и каждый пропущенный из-за неё URL
+  фиксируются в `errors` с пометкой D-030. Порог — экспортируемая константа
+  `CONSECUTIVE_5XX_HOST_STOP`.
+- **D-145 (T-07)** — Fixture-сайт: 15 статических страниц + программные маршруты
+  (redirect-цепочка `/redirect-a`→`/redirect-b`→`/redirect-final.html`, 1×1 PNG
+  `/img/pixel.png`); динамический порт решён подстановкой `{{ORIGIN}}` в статику при
+  отдаче (canonical/robots/sitemap ссылаются на реальный origin). `/orphan.html` доступен
+  только из sitemap (доказывает seed-инг), `/deep/` — промежуточная страница для цепочки
+  глубины 2. Сервер слушает 127.0.0.1 (обход через `dangerouslyAllowLoopback`, D-126),
+  security headers намеренно отсутствуют, на `/` — `Set-Cookie` без Secure/HttpOnly (под
+  SEC-PASSIVE T-09). `startFixtureSite()` экспортируется из пакета для T-08/T-09/T-15.

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>FluxRadar Fixture Site — Home</title>
+    <meta
+      name="description"
+      content="Deterministic fixture site exercised by FluxRadar crawler and rules tests."
+    />
+    <link rel="canonical" href="{{ORIGIN}}/" />
+  </head>
+  <body>
+    <h1>FluxRadar fixture site</h1>
+    <p>
+      Welcome to the deterministic playground used by the FluxRadar test suite. Every page below
+      demonstrates exactly one class of problem: missing metadata, broken links, redirect chains,
+      duplicated content, inaccessible forms and privacy-hostile trackers. This paragraph keeps the
+      visible text volume of the home page comfortably above the low-value content threshold.
+    </p>
+    <nav>
+      <ul>
+        <li><a href="/no-title.html">Page without title</a></li>
+        <li><a href="/wrong-canonical.html">Wrong canonical</a></li>
+        <li><a href="/broken-link.html">Broken link</a></li>
+        <li><a href="/redirect-a">Redirect chain</a></li>
+        <li><a href="/noindex.html">Noindex page</a></li>
+        <li><a href="/dup-a.html">Duplicate content A</a></li>
+        <li><a href="/dup-b.html?utm_source=x">Duplicate content B</a></li>
+        <li><a href="/dup-a.html?utm_source=y">Duplicate A via campaign link</a></li>
+        <li><a href="/empty.html">Nearly empty page</a></li>
+        <li><a href="/broken-image.html">Broken image</a></li>
+        <li><a href="/mixed-content.html">Mixed content</a></li>
+        <li><a href="/form.html">Form page</a></li>
+        <li><a href="/trackers.html">Trackers page</a></li>
+        <li><a href="/deep/">Deep section</a></li>
+        <li><a href="/private/secret.html">Private area (robots-blocked)</a></li>
+      </ul>
+    </nav>
+  </body>
+</html>

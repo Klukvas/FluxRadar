@@ -1,0 +1,5 @@
+# Fixture robots.txt: the private area is off limits for everyone.
+User-agent: *
+Disallow: /private/
+
+Sitemap: {{ORIGIN}}/sitemap.xml

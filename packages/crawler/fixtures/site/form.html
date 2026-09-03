@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Form page — Fixture Site</title>
+    <meta name="description" content="A form mixing labelled and unlabelled inputs." />
+  </head>
+  <body>
+    <h1>Contact form with accessibility gaps</h1>
+    <p>
+      The form below contains one input without any associated label, which accessibility rules
+      must flag, and one correctly labelled email input that must stay quiet.
+    </p>
+    <form action="/submit" method="post">
+      <input type="text" name="nickname" placeholder="Nickname" />
+      <label for="email">Email address</label>
+      <input type="email" id="email" name="email" />
+      <button type="submit">Send</button>
+    </form>
+  </body>
+</html>

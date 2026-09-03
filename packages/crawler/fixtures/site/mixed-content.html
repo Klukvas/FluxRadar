@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mixed content — Fixture Site</title>
+    <meta name="description" content="A page embedding an insecure http resource." />
+  </head>
+  <body>
+    <h1>Insecure embedded resource</h1>
+    <p>
+      The image below is referenced over plain http from a third-party host. On an https site this
+      would be classic mixed content, and passive security rules must report the insecure URL.
+    </p>
+    <img src="http://insecure.example/pic.png" alt="Picture served over plain http" />
+  </body>
+</html>
