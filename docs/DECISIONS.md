@@ -106,4 +106,25 @@
 
 ## Решения, принятые в ходе реализации
 
-(дополняется по мере выполнения задач)
+- **D-101 (T-01)** — TypeScript зафиксирован на 6.0.x (не 7.0.2) — typescript-eslint 8.69 требует
+  peer `typescript <6.1.0`; нативный TS 7 ещё не поддержан линт-тулингом. Версии тулинга:
+  TypeScript 6.0.3, Vitest 4.1.11, ESLint 10.9.1 + @eslint/js 10.0.1 + typescript-eslint 8.69.0,
+  Prettier 3.9.6; web: Vite 8.2.2 + @vitejs/plugin-react 6.1.1 (peer `vite ^8`), React 19.2.8.
+- **D-102 (T-01)** — `tsconfig.base.json`: `module`/`moduleResolution: NodeNext` +
+  `verbatimModuleSyntax`, `isolatedModules`, `noUncheckedIndexedAccess`; `apps/web`
+  переопределяет на `ESNext`/`bundler` — Node-пакеты собираются tsc и обязаны писать корректные
+  ESM-расширения (`./index.js`), а Vite-приложение живёт в bundler-резолюции (extensionless
+  импорты `.tsx`, `noEmit`, сборку делает Vite).
+- **D-103 (T-01)** — vitest/typescript/eslint/prettier — только в корневых devDependencies;
+  скрипты пакетов используют бинарники через `node_modules/.bin` workspace-рута (штатное
+  поведение pnpm). Локальные devDependencies есть только у `apps/web` (vite, plugin-react,
+  типы React) — это тулинг конкретного приложения.
+- **D-104 (T-01)** — `src/**/*.test.ts` исключены из package tsconfig: build не тащит
+  тест-артефакты в `dist`, тесты исполняет Vitest. Цена — `tsc --noEmit` не проверяет
+  тест-файлы; ошибки типов в тестах ловятся на прогоне.
+- **D-105 (T-01)** — `apps/api` dev-скрипт = `node --watch src/index.ts` (нативный type
+  stripping Node ≥ 24) — без tsx/nodemon на этапе скелета; пересмотр при появлении
+  не-erasable синтаксиса в T-12.
+- **D-106 (T-01)** — `pnpm.onlyBuiltDependencies: ["esbuild"]` в корневом package.json —
+  pnpm 10 блокирует postinstall-скрипты по умолчанию; esbuild одобрен явно, чтобы Vite/Vitest
+  получили платформенный бинарник.

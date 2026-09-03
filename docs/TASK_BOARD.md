@@ -5,7 +5,7 @@
 
 | ID | Задача | Зависимости | Агент | Статус | Изменённые файлы | Ревью | Тесты | Комментарии |
 |---|---|---|---|---|---|---|---|---|
-| T-01 | Скелет монорепо (pnpm, TS, Vitest, lint) | — | — | PENDING | — | — | — | |
+| T-01 | Скелет монорепо (pnpm, TS, Vitest, lint) | — | impl-агент | DONE | корень, packages/*, apps/* | ✅ approved-with-fixes | ✅ pass | TS 6.0, Vite 8, React 19 |
 | T-02 | contracts: типы, enums, тарифы, реестр rules-mvp-0.1 | T-01 | — | PENDING | — | — | — | |
 | T-03 | fingerprint: URL-нормализация v1 + fingerprint-v1 | T-02 | — | PENDING | — | — | — | golden vectors 6/6 обязательны |
 | T-04 | scoring: score engine §15 | T-02, T-03 | — | PENDING | — | — | — | golden 96.50 + state-фикстуры |
