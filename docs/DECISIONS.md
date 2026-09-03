@@ -128,3 +128,30 @@
 - **D-106 (T-01)** — `pnpm.onlyBuiltDependencies: ["esbuild"]` в корневом package.json —
   pnpm 10 блокирует postinstall-скрипты по умолчанию; esbuild одобрен явно, чтобы Vite/Vitest
   получили платформенный бинарник.
+- **D-107 (T-02)** — Реестр `rules-mvp-0.1` фактически содержит **42** дескриптора:
+  32 сканирующих+GEO (`RULES_MVP_01`) + 10 платформенных (`PLATFORM_CONTRACTS`). Цифра «37»
+  в §3 IMPLEMENTATION_PLAN / D-007 — арифметическая ошибка: перечисленные группы дают
+  9+4+5+3+5+2+2+2+6+3+1 = 42, а «37» получается только без группы GEO×5 (13 SEO + 14 passive +
+  10 platform). Сокращать перечень нельзя: T-08 ждёт 13 SEO-правил, T-09 — 14 passive,
+  T-10 — 5 GEO. Тест фиксирует состав по группам и итог 42.
+- **D-108 (T-02)** — Канонические строковые значения enum-ов взяты дословно из export schema
+  §16 (`'Not applicable'`, `'False Positive'`, `'AI SEO / GEO'`, `'Content Quality'`).
+  Внутренние идентификаторы планов — короткие `'Free' | 'Basic' | 'Complete'`; display/export
+  метка (`'Basic Scan'`, `'Complete Scan'`) хранится полем `label` тарифной матрицы,
+  export records используют `label` плана Complete.
+- **D-109 (T-02)** — `RuleDescriptor.severity: Severity | null`: у informational-правил
+  (GEO×5 и платформенные контракты) severity = `null` — они не штрафуют score
+  (`score_delta = 0` по §15 / GEO-METHOD-005). Платформенные контракты вынесены в отдельный
+  массив `PLATFORM_CONTRACTS` (module `'platform'`, targetKind `environment`) — это инварианты
+  тестов, а не runtime-правила сканера.
+- **D-110 (T-02)** — `IssueStatusUpdateInput` ограничен user-settable статусами
+  (`New`, `Acknowledged`, `Ignored`, `False Positive`): `Resolved`/`Reopened` назначаются
+  только системой по сравнению fingerprint между Complete-сканами (§14) и через API
+  не принимаются.
+- **D-111 (T-02)** — `SiteProfileInput.domain`: строгий https-origin — без пути (включая
+  trailing slash), query, fragment и userinfo; значение нормализуется к `new URL(v).origin`
+  (lowercase host, срез default port). Пароль ограничен 72 байтами — bcrypt молча усекает
+  ввод на 72 байтах. `ScanRequestInput` через superRefine отклоняет `scope.maxPages` выше
+  urlLimit выбранного тарифа.
+- **D-112 (T-02)** — `zod@^4.5` добавлен в dependencies `packages/contracts` — единственная
+  runtime-зависимость пакета; корневой package.json не менялся.

@@ -66,7 +66,7 @@ fluxradar/
 | Админка (§20) | ❌ | вне v0.1 |
 | E2E Playwright | ❌ | integration-тесты API + ручная проверка UI (D-013) |
 
-## 3. Субсет правил `rules-mvp-0.1` (37 позиций)
+## 3. Субсет правил `rules-mvp-0.1` (42 позиции: 32 сканирующих/GEO + 10 платформенных; см. D-107)
 
 Severity и оракулы фиксируются в реестре `packages/contracts` (замена несуществующих
 `RULES-<module>-v1`); фикстуры `fx-<rule_id>-{positive|negative|boundary}`.
