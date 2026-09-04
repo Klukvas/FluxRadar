@@ -8,6 +8,7 @@ import type { PrismaClient } from '@prisma/client';
 import { loginInputSchema, registerInputSchema } from '@fluxradar/contracts';
 
 import { isUniqueViolation } from '../billing/prisma-errors.ts';
+import { isInternalFreeEmail } from '../billing/internal-access.ts';
 import { readCookie } from '../http/cookies.ts';
 import { conflict, unauthorized } from '../http/errors.ts';
 import { sendOk } from '../http/envelope.ts';
@@ -16,16 +17,24 @@ import { deleteAccountData } from '../data-retention.ts';
 import { accountIdFrom, requireAuth } from './middleware.ts';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import type { LoginRateLimiter } from './rate-limit.ts';
-import {
-  SESSION_COOKIE_NAME,
-  createSession,
-  deleteSessionByToken,
-} from './sessions.ts';
+import { SESSION_COOKIE_NAME, createSession, deleteSessionByToken } from './sessions.ts';
 
 export interface AuthRouterDeps {
   readonly prisma: PrismaClient;
   readonly loginRateLimiter: LoginRateLimiter;
   readonly now: () => Date;
+  readonly internalFreeEmails: ReadonlySet<string>;
+}
+
+function accountDto(
+  account: { readonly id: string; readonly email: string },
+  internalFreeEmails: ReadonlySet<string>,
+): Record<string, unknown> {
+  return {
+    accountId: account.id,
+    email: account.email,
+    internalFreeAccess: isInternalFreeEmail(account.email, internalFreeEmails),
+  };
 }
 
 async function attachSessionCookie(
@@ -56,7 +65,7 @@ export function authRouter(deps: AuthRouterDeps): Router {
     try {
       const account = await prisma.account.create({ data: { email, passwordHash } });
       await attachSessionCookie(deps, res, account.id);
-      sendOk(res, { accountId: account.id, email: account.email }, { status: 201 });
+      sendOk(res, accountDto(account, deps.internalFreeEmails), { status: 201 });
     } catch (error) {
       if (isUniqueViolation(error, 'email')) {
         throw conflict('EMAIL_TAKEN', 'an account with this email already exists');
@@ -80,7 +89,7 @@ export function authRouter(deps: AuthRouterDeps): Router {
 
     deps.loginRateLimiter.reset(email, ip);
     await attachSessionCookie(deps, res, account.id);
-    sendOk(res, { accountId: account.id, email: account.email });
+    sendOk(res, accountDto(account, deps.internalFreeEmails));
   });
 
   router.post('/auth/logout', async (req, res) => {
@@ -98,7 +107,7 @@ export function authRouter(deps: AuthRouterDeps): Router {
     if (account === null) {
       throw unauthorized('session account no longer exists');
     }
-    sendOk(res, { accountId: account.id, email: account.email });
+    sendOk(res, accountDto(account, deps.internalFreeEmails));
   });
 
   router.delete('/account', requireAuth(prisma, deps.now), async (_req, res) => {

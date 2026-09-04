@@ -28,6 +28,11 @@ committed to the repository. It must include `POSTGRES_DB`, `POSTGRES_USER`,
 `POSTGRES_PASSWORD`, `DATABASE_URL` pointing to the `postgres` compose service,
 and `FLUXRADAR_ENV_FILE=.env.production`.
 
+The optional GitHub `production` environment variable
+`FLUXRADAR_INTERNAL_FREE_EMAILS` is merged into that file by the deploy
+workflow. Keep it as an exact comma-separated list for internal test accounts;
+leave it unset when internal free access should be disabled.
+
 ## DNS before first public visit
 
 Create this DNS record at the authoritative DNS provider:
@@ -44,7 +49,10 @@ DNS resolves to the server. A `www` record and alias can be added later.
 
 ## Billing gate
 
-The deployed application intentionally rejects `/billing/dev-checkout` when
-`NODE_ENV=production`. Live Paddle checkout and real Paddle webhook verification
-must be configured before paid scans are opened to customers; the mock checkout
-is test-only.
+The deployed application rejects `/billing/dev-checkout` in production for
+ordinary accounts until live Paddle checkout is configured. An exact,
+comma-separated `FLUXRADAR_INTERNAL_FREE_EMAILS` allowlist may be supplied in
+the private production environment file for internal testing. Matching accounts
+can create Basic/Complete scans without a payment; those scans deliberately do
+not create Purchase or Entitlement records. Keep the allowlist limited to team
+accounts because the scan still consumes server and AI resources.

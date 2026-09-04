@@ -228,6 +228,7 @@ export function App() {
           <NewScanScreen
             profiles={profiles}
             selectedProfile={selectedProfile}
+            internalFreeAccess={account.internalFreeAccess === true}
             onCreated={onScanCreated}
             onError={setError}
           />
@@ -1244,6 +1245,7 @@ function DesktopScreen(props: {
 function NewScanScreen(props: {
   profiles: readonly SiteProfile[];
   selectedProfile: SiteProfile | null;
+  internalFreeAccess: boolean;
   onCreated: (scan: Scan) => void;
   onError: (value: string) => void;
 }) {
@@ -1355,8 +1357,14 @@ function NewScanScreen(props: {
             onChange={(value) => setPlan(value as typeof plan)}
             options={[
               { value: 'Free', label: 'Free · homepage only' },
-              { value: 'Basic', label: 'Basic · $55' },
-              { value: 'Complete', label: 'Complete · $120' },
+              {
+                value: 'Basic',
+                label: props.internalFreeAccess ? 'Basic · internal free' : 'Basic · $55',
+              },
+              {
+                value: 'Complete',
+                label: props.internalFreeAccess ? 'Complete · internal free' : 'Complete · $120',
+              },
             ]}
           />
           {plan !== 'Free' ? (
@@ -1423,7 +1431,13 @@ function NewScanScreen(props: {
               (plan !== 'Free' && !consent)
             }
           >
-            {busy ? 'Creating…' : plan === 'Free' ? 'Run free check' : 'Pay and run scan'}
+            {busy
+              ? 'Creating…'
+              : plan === 'Free'
+                ? 'Run free check'
+                : props.internalFreeAccess
+                  ? 'Run internal scan'
+                  : 'Pay and run scan'}
           </Button>
         </div>
       </form>

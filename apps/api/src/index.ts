@@ -5,6 +5,7 @@ import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 
 import { LoginRateLimiter } from './auth/rate-limit.ts';
 import { authRouter } from './auth/routes.ts';
+import { getInternalFreeEmails } from './billing/internal-access.ts';
 import { getPaddleWebhookSecret } from './billing/paddle-signature.ts';
 import { billingRouter, webhookHandler } from './billing-http/routes.ts';
 import { createPrismaClient } from './db.ts';
@@ -35,6 +36,8 @@ export interface CreateAppOptions {
   readonly crawl?: WorkerCrawlOptions;
   readonly createAiProvider?: WorkerDeps['createAiProvider'];
   readonly createPerformanceRunner?: WorkerDeps['createPerformanceRunner'];
+  /** Test seam; production reads FLUXRADAR_INTERNAL_FREE_EMAILS. */
+  readonly internalFreeEmails?: ReadonlySet<string>;
 }
 
 export interface StartedApi {
@@ -47,6 +50,7 @@ export interface StartedApi {
 export function createApp(options: CreateAppOptions): Express {
   const logger = options.logger ?? stdoutLogger;
   const now = options.now ?? (() => new Date());
+  const internalFreeEmails = options.internalFreeEmails ?? getInternalFreeEmails();
   const workerDeps: WorkerDeps = {
     prisma: options.prisma,
     logger,
@@ -102,7 +106,14 @@ export function createApp(options: CreateAppOptions): Express {
   );
   app.use(express.json({ limit: '1mb' }));
 
-  app.use(authRouter({ prisma: options.prisma, loginRateLimiter: new LoginRateLimiter(), now }));
+  app.use(
+    authRouter({
+      prisma: options.prisma,
+      loginRateLimiter: new LoginRateLimiter(),
+      now,
+      internalFreeEmails,
+    }),
+  );
   app.use(profilesRouter({ prisma: options.prisma, now }));
   app.use(integrationsRouter({ prisma: options.prisma, now }));
   app.use(
@@ -111,6 +122,7 @@ export function createApp(options: CreateAppOptions): Express {
       webhookSecret: options.webhookSecret,
       now,
       enqueueScan,
+      internalFreeEmails,
     }),
   );
   app.use(scansRouter({ prisma: options.prisma, now, enqueueScan }));

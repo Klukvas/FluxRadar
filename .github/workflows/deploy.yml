@@ -88,6 +88,7 @@ jobs:
       - name: Create release archive
         env:
           PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
+          INTERNAL_FREE_EMAILS: ${{ vars.FLUXRADAR_INTERNAL_FREE_EMAILS }}
         run: |
           tar \
             --exclude=.git \
@@ -99,6 +100,21 @@ jobs:
             --exclude='client_secret_*.json' \
             -czf "$RUNNER_TEMP/release.tar.gz" .
           printf '%s\n' "$PRODUCTION_ENV_FILE" > "$RUNNER_TEMP/production.env"
+          if [ -n "$INTERNAL_FREE_EMAILS" ]; then
+            awk -v value="$INTERNAL_FREE_EMAILS" '
+              BEGIN { replaced = 0 }
+              /^FLUXRADAR_INTERNAL_FREE_EMAILS=/ {
+                if (!replaced) print "FLUXRADAR_INTERNAL_FREE_EMAILS=" value
+                replaced = 1
+                next
+              }
+              { print }
+              END {
+                if (!replaced) print "FLUXRADAR_INTERNAL_FREE_EMAILS=" value
+              }
+            ' "$RUNNER_TEMP/production.env" > "$RUNNER_TEMP/production.env.tmp"
+            mv "$RUNNER_TEMP/production.env.tmp" "$RUNNER_TEMP/production.env"
+          fi
 
       - name: Upload release
         env:

@@ -56,6 +56,7 @@ function friendlyStatusMessage(status: number): string {
 export interface Account {
   readonly accountId: string;
   readonly email: string;
+  readonly internalFreeAccess?: boolean;
 }
 
 export interface SiteProfile {

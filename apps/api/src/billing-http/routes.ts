@@ -10,11 +10,13 @@ import { TARIFFS, scanScopeSchema } from '@fluxradar/contracts';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
+import { isInternalFreeEmail } from '../billing/internal-access.ts';
+import { createInternalFreeScan } from '../billing/internal-checkout.ts';
 import { handlePaddleWebhook, simulatePaidCheckout } from '../billing/index.ts';
 import { PADDLE_PRICE_IDS, PAID_PLANS, paddleCustomDataSchema } from '../billing/webhook-schema.ts';
 import type { PaidPlan } from '../billing/webhook-schema.ts';
 import { sendOk } from '../http/envelope.ts';
-import { paymentRequired, validationError } from '../http/errors.ts';
+import { paymentRequired, unauthorized, validationError } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 
@@ -43,10 +45,13 @@ export interface BillingRouterDeps {
   readonly webhookSecret: string;
   readonly now: () => Date;
   readonly enqueueScan?: (scanId: string) => void;
+  readonly internalFreeEmails: ReadonlySet<string>;
 }
 
+type WebhookHandlerDeps = Pick<BillingRouterDeps, 'prisma' | 'webhookSecret' | 'now'>;
+
 /** Отдельный handler: маршрут монтируется в app.ts ДО express.json (raw body). */
-export function webhookHandler(deps: BillingRouterDeps): RequestHandler {
+export function webhookHandler(deps: WebhookHandlerDeps): RequestHandler {
   return async (req, res) => {
     const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
     if (rawBody === '') {
@@ -72,15 +77,51 @@ export function billingRouter(deps: BillingRouterDeps): Router {
   const auth = requireAuth(deps.prisma, deps.now);
 
   router.post('/billing/dev-checkout', auth, async (req, res) => {
-    if (process.env.NODE_ENV === 'production') {
-      throw paymentRequired('live checkout is not configured for this environment');
-    }
     const input = parseInput(devCheckoutInputSchema, req.body);
     const accountId = accountIdFrom(res);
+    const account = await deps.prisma.account.findUnique({
+      where: { id: accountId },
+      select: { email: true },
+    });
+    if (account === null) {
+      throw unauthorized('session account no longer exists');
+    }
+    const internalFreeAccess = isInternalFreeEmail(account.email, deps.internalFreeEmails);
+    if (process.env.NODE_ENV === 'production' && !internalFreeAccess) {
+      throw paymentRequired('live checkout is not configured for this environment');
+    }
     const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);
     if (!PAID_PLANS.includes(input.plan)) {
       throw validationError('plan must be Basic or Complete');
     }
+
+    if (internalFreeAccess) {
+      const scan = await createInternalFreeScan({
+        prisma: deps.prisma,
+        accountId,
+        siteProfileId: profile.id,
+        plan: input.plan,
+        scope: input.scope,
+        aiConsent: input.aiConsent,
+        now: deps.now(),
+      });
+      sendOk(
+        res,
+        {
+          purchaseId: null,
+          entitlementId: null,
+          scanId: scan.id,
+          transactionId: null,
+          eventId: null,
+          plan: input.plan,
+          billing: 'internal-free',
+        },
+        { status: 201 },
+      );
+      deps.enqueueScan?.(scan.id);
+      return;
+    }
+
     const { result, event } = await simulatePaidCheckout({
       prisma: deps.prisma,
       accountId,

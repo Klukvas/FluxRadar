@@ -120,6 +120,53 @@ describe('T-12 API happy paths', () => {
     ).toBe(1);
   });
 
+  it('allows the configured internal email to run a paid plan without a purchase', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const app = createApp({
+        prisma: db.prisma,
+        webhookSecret: TEST_WEBHOOK_SECRET,
+        autoProcess: false,
+        logger: silentLogger,
+        internalFreeEmails: new Set(['pavlenkoandrey56@gmail.com']),
+      });
+      const agent = request.agent(app);
+      const account = await register(agent, 'PAVLENKOANDREY56@GMAIL.COM');
+      const profile = await createProfile(agent, account.cookie);
+
+      const checkout = await agent
+        .post('/billing/dev-checkout')
+        .set('Cookie', account.cookie)
+        .send({
+          siteProfileId: profile.id,
+          plan: 'Complete',
+          scope: { includeSubdomains: false, maxPages: 15 },
+          aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
+        });
+
+      expect(checkout.status).toBe(201);
+      expect(checkout.body.data).toMatchObject({
+        billing: 'internal-free',
+        plan: 'Complete',
+        purchaseId: null,
+        entitlementId: null,
+      });
+      expect(checkout.body.data.scanId).toEqual(expect.any(String));
+      expect((await agent.get('/auth/me').set('Cookie', account.cookie)).body.data).toMatchObject({
+        email: 'pavlenkoandrey56@gmail.com',
+        internalFreeAccess: true,
+      });
+      expect(await db.prisma.purchase.count()).toBe(0);
+      expect(
+        await db.prisma.scan.count({ where: { accountId: account.id, plan: 'Complete' } }),
+      ).toBe(1);
+    } finally {
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+    }
+  });
+
   it('runs Complete through the worker, exposes issues/dashboard, and exports JSON/CSV', async () => {
     const app = createApp({
       prisma: db.prisma,
