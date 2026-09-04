@@ -73,6 +73,51 @@ describe('T-12 API happy paths', () => {
       .send({});
     expect(duplicate.status).toBe(409);
     expect(duplicate.body.error.code).toBe('FREE_CHECK_USED');
+
+    const otherAgent = request.agent(app);
+    const otherAccount = await register(otherAgent, 'free-other@example.com');
+    const otherProfile = await createProfile(
+      otherAgent,
+      otherAccount.cookie,
+      'https://EXAMPLE.com/',
+    );
+    const sameDomain = await otherAgent
+      .post(`/profiles/${otherProfile.id}/free-check`)
+      .set('Cookie', otherAccount.cookie)
+      .send({});
+    expect(sameDomain.status).toBe(409);
+    expect(sameDomain.body.error.code).toBe('FREE_CHECK_DOMAIN_USED');
+  });
+
+  it('allows only one account to claim a domain under concurrent Free checks', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+    });
+    const agentA = request.agent(app);
+    const agentB = request.agent(app);
+    const [accountA, accountB] = await Promise.all([
+      register(agentA, 'free-race-a@example.com'),
+      register(agentB, 'free-race-b@example.com'),
+    ]);
+    const [profileA, profileB] = await Promise.all([
+      createProfile(agentA, accountA.cookie, 'https://race.example.com'),
+      createProfile(agentB, accountB.cookie, 'https://RACE.example.com/'),
+    ]);
+
+    const results = await Promise.all([
+      agentA.post(`/profiles/${profileA.id}/free-check`).set('Cookie', accountA.cookie).send({}),
+      agentB.post(`/profiles/${profileB.id}/free-check`).set('Cookie', accountB.cookie).send({}),
+    ]);
+    expect(results.map(({ status }) => status).sort()).toEqual([201, 409]);
+    expect(results.find(({ status }) => status === 409)?.body.error.code).toBe(
+      'FREE_CHECK_DOMAIN_USED',
+    );
+    expect(
+      await db.prisma.freeCheckClaim.count({ where: { origin: 'https://race.example.com' } }),
+    ).toBe(1);
   });
 
   it('runs Complete through the worker, exposes issues/dashboard, and exports JSON/CSV', async () => {
@@ -391,11 +436,11 @@ describe('T-12 API happy paths', () => {
     return { cookie, id: response.body.data.accountId as string };
   }
 
-  async function createProfile(agent: TestAgent, cookie: string) {
+  async function createProfile(agent: TestAgent, cookie: string, domain = 'https://example.com') {
     const response = await agent
       .post('/profiles')
       .set('Cookie', cookie)
-      .send({ name: 'Fixture Site', domain: 'https://example.com' });
+      .send({ name: 'Fixture Site', domain });
     expect(response.status).toBe(201);
     return response.body.data as { id: string };
   }

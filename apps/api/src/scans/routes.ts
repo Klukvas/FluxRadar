@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
 import { cancelScan } from '../billing/cancel-scan.ts';
+import { isUniqueViolation } from '../billing/prisma-errors.ts';
 import { transitionScan } from '../billing/state-machine.ts';
 import { conflict, forbidden, notFound, paymentRequired } from '../http/errors.ts';
 import { sendOk } from '../http/envelope.ts';
@@ -247,6 +248,16 @@ export async function createFreeScan(
     const profile = await tx.siteProfile.findFirst({ where: { id: siteProfileId, accountId } });
     if (profile === null) {
       throw notFound('site profile not found');
+    }
+    try {
+      await tx.freeCheckClaim.create({
+        data: { origin: profile.domain, claimedAt: now },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error, 'origin')) {
+        throw conflict('FREE_CHECK_DOMAIN_USED', 'this domain has already received a free check');
+      }
+      throw error;
     }
     const scan = await tx.scan.create({
       data: {

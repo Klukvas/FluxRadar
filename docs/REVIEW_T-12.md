@@ -11,8 +11,10 @@
 - Все пользовательские чтения tenant-scoped по `accountId`; прямой доступ к
   чужому `profileId`/`scanId` возвращает not-found.
 - Auth использует bcryptjs, httpOnly session cookie, TTL и login rate limit.
-- Free check claim выполняется атомарно в транзакции через
-  `Account.freeCheckUsedAt`; повторный запуск даёт `FREE_CHECK_USED`.
+- Free check claim выполняется атомарно в одной транзакции через
+  `Account.freeCheckUsedAt` и глобальный уникальный `FreeCheckClaim.origin`;
+  повтор аккаунта даёт `FREE_CHECK_USED`, а повтор домена из другого аккаунта —
+  `FREE_CHECK_DOMAIN_USED`.
 - Paid checkout проходит через подписанный MockPaddle webhook и создаёт ровно
   один purchase, entitlement, scan и job.
 - Worker выполняет atomic job claim, state machine, crawl → rules → GEO,
@@ -34,4 +36,3 @@
 Paddle и AI остаются mock-адаптерами, worker работает in-process, Google OAuth,
 active security, Performance и Analytics не входят в этот локальный релиз — это
 зафиксированный scope `IMPLEMENTATION_PLAN.md`, а не незакрытая ошибка API.
-

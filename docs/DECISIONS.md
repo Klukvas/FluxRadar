@@ -647,3 +647,9 @@
   используют checked-in Prisma migrations, а DB-backed тесты — отдельную disposable
   database и последовательный запуск файлов. Причина: production concurrency,
   durable migrations и отсутствие file-permission failure на runtime volume.
+- **D-203 (T-12 follow-up)** — Free check защищён двумя атомарными claims в одной
+  транзакции: `Account.freeCheckUsedAt` ограничивает один запуск на аккаунт, а
+  глобально уникальный `FreeCheckClaim.origin` — один запуск на нормализованный
+  публичный origin для всех аккаунтов и сохраняется после удаления аккаунта.
+  Существующие Free-сканы заполняются миграцией; конфликт домена возвращает
+  `FREE_CHECK_DOMAIN_USED`.

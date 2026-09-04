@@ -10,7 +10,7 @@
 | `pnpm lint` | ✅ |
 | API build через `pnpm -r build` | ✅ |
 
-Покрыты регистрация и сессия, tenant-scoping, один Free check, Complete и
-Basic checkout, worker pipeline, dashboard, Issue Center, Complete JSON/CSV,
-NoUsableOutput refund, retry gate после expiry и ошибки HTTP envelope.
-
+Покрыты регистрация и сессия, tenant-scoping, один Free check на аккаунт и
+публичный origin (включая межаккаунтную блокировку и конкурентный claim),
+Complete и Basic checkout, worker pipeline, dashboard, Issue Center, Complete
+JSON/CSV, NoUsableOutput refund, retry gate после expiry и ошибки HTTP envelope.

@@ -357,9 +357,9 @@ function PrivacyPolicy() {
         <h2>What this policy covers</h2>
         <p>
           This policy explains how FluxLab handles information when you use FluxRadar, create an
-          account, run a website audit, connect a supported data source or contact us. FluxRadar
-          is designed for public website checks. It does not ask for a client website password or
-          CMS credentials for the audit modules described on the public site.
+          account, run a website audit, connect a supported data source or contact us. FluxRadar is
+          designed for public website checks. It does not ask for a client website password or CMS
+          credentials for the audit modules described on the public site.
         </p>
       </section>
 
@@ -374,6 +374,11 @@ function PrivacyPolicy() {
           <li>
             <strong>Audit data:</strong> the public origin you submit, scan scope and options,
             public pages fetched by the crawler, findings, scores, fingerprints and exports.
+          </li>
+          <li>
+            <strong>Abuse-prevention data:</strong> a normalized public origin and claim timestamp
+            used to prevent repeated free checks across accounts. This minimal record is retained
+            independently of your account and contains no report content, credentials or tokens.
           </li>
           <li>
             <strong>Connected-source data:</strong> when you authorize Google or Bing, FluxRadar
@@ -405,8 +410,8 @@ function PrivacyPolicy() {
         </div>
         <p>
           We use connected Google data only to provide the Google-related audit and reporting
-          features you request. We do not sell Google user data or use it for advertising. We do
-          not give Google access tokens to AI providers. You can disconnect Google at any time;
+          features you request. We do not sell Google user data or use it for advertising. We do not
+          give Google access tokens to AI providers. You can disconnect Google at any time;
           disconnecting removes the stored connection tokens.
         </p>
         <p>
@@ -437,17 +442,18 @@ function PrivacyPolicy() {
         <span className="legal-section__label">05 / LIFECYCLE</span>
         <h2>Storage, providers and deletion</h2>
         <p>
-          FluxRadar stores application data in PostgreSQL on Hetzner infrastructure. Complete
-          report artifacts may be stored in a private, account-scoped Hetzner Object Storage
-          bucket. Google and Bing tokens are encrypted before they are stored. Paddle, Google,
-          Bing and Anthropic process information under their own terms and privacy documentation
-          when you use the corresponding integration.
+          FluxRadar stores application data in PostgreSQL on Hetzner infrastructure. Complete report
+          artifacts may be stored in a private, account-scoped Hetzner Object Storage bucket. Google
+          and Bing tokens are encrypted before they are stored. Paddle, Google, Bing and Anthropic
+          process information under their own terms and privacy documentation when you use the
+          corresponding integration.
         </p>
         <p>
           You can disconnect an integration from the Integrations screen. You can request account
           deletion from the product; this removes account-linked operational data according to the
-          service retention workflow. A minimal deletion audit record may remain to demonstrate
-          that the request was processed, without retaining your account content.
+          service retention workflow. A minimal deletion audit record and the abuse-prevention
+          origin claim may remain: the former demonstrates that the request was processed, while the
+          latter prevents repeated free checks. Neither retains your account content.
         </p>
       </section>
 
@@ -482,9 +488,9 @@ function TermsOfService() {
         <h2>What FluxRadar does</h2>
         <p>
           FluxRadar is a website audit service operated by FluxLab. It analyzes public web pages and
-          presents technical, SEO, AI-discoverability, security, accessibility, reliability,
-          content and privacy signals. The audit is read-only: you authorize us to fetch public
-          resources, not to change your website.
+          presents technical, SEO, AI-discoverability, security, accessibility, reliability, content
+          and privacy signals. The audit is read-only: you authorize us to fetch public resources,
+          not to change your website.
         </p>
       </section>
 
@@ -503,10 +509,11 @@ function TermsOfService() {
         <span className="legal-section__label">03 / PURCHASES</span>
         <h2>Free and paid scans</h2>
         <p>
-          FluxRadar offers one limited free homepage check and one-time paid scans. The Basic and
-          Complete plans are pay-per-scan products, not recurring subscriptions. The applicable
-          scope, features and price are shown before purchase. Payment is processed by Paddle;
-          payment-card data is handled by Paddle rather than stored by FluxRadar.
+          FluxRadar offers one limited free homepage check and one-time paid scans. The free check
+          is available once per account and once per normalized public origin across all accounts.
+          The Basic and Complete plans are pay-per-scan products, not recurring subscriptions. The
+          applicable scope, features and price are shown before purchase. Payment is processed by
+          Paddle; payment-card data is handled by Paddle rather than stored by FluxRadar.
         </p>
         <p>
           A paid scan grants the report and product access described for the purchased plan. If a
@@ -518,12 +525,20 @@ function TermsOfService() {
       <section id="terms-use" className="legal-section">
         <span className="legal-section__label">04 / BOUNDARIES</span>
         <h2>Acceptable use</h2>
-        <p>You may submit only websites and public resources you are authorized to review. You must not:</p>
+        <p>
+          You may submit only websites and public resources you are authorized to review. You must
+          not:
+        </p>
         <ul>
           <li>use FluxRadar to attack, overload, probe or bypass controls on a website;</li>
-          <li>submit private URLs, credentials, secrets or personal data that you do not have a right to process;</li>
+          <li>
+            submit private URLs, credentials, secrets or personal data that you do not have a right
+            to process;
+          </li>
           <li>use reports to misrepresent a legal, security or accessibility certification;</li>
-          <li>interfere with the service, evade plan limits or resell access without permission.</li>
+          <li>
+            interfere with the service, evade plan limits or resell access without permission.
+          </li>
         </ul>
       </section>
 
@@ -534,14 +549,14 @@ function TermsOfService() {
           Audit findings are automated technical signals and recommendations. They can be
           incomplete, delayed or incorrect, especially when a page requires JavaScript, a provider
           has no data or a site changes after the scan. AI-generated output may also be inaccurate.
-          FluxRadar does not promise rankings, traffic, security, legal compliance, WCAG
-          conformance or a particular business result.
+          FluxRadar does not promise rankings, traffic, security, legal compliance, WCAG conformance
+          or a particular business result.
         </p>
         <p>
-          You keep the rights to information you submit and may use reports for your internal
-          work. FluxLab retains the rights to the FluxRadar service, software, rules, scoring
-          methods and branding. Do not publish another person’s private data or confidential
-          material through an export.
+          You keep the rights to information you submit and may use reports for your internal work.
+          FluxLab retains the rights to the FluxRadar service, software, rules, scoring methods and
+          branding. Do not publish another person’s private data or confidential material through an
+          export.
         </p>
       </section>
 
@@ -557,8 +572,8 @@ function TermsOfService() {
         <p>
           To the maximum extent permitted by law, FluxRadar is provided without guarantees of
           uninterrupted availability or error-free results. Nothing in these terms excludes rights
-          that cannot lawfully be excluded. Questions about a purchase or these terms can be sent
-          to <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>.
+          that cannot lawfully be excluded. Questions about a purchase or these terms can be sent to{' '}
+          <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>.
         </p>
       </section>
     </article>

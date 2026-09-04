@@ -31,6 +31,13 @@ model Account {
   artifacts    ExportArtifact[]
 }
 
+// Global anti-abuse claim. It deliberately has no account relation so deleting
+// an account does not make its domain eligible for another free check.
+model FreeCheckClaim {
+  origin    String   @id
+  claimedAt DateTime @default(now())
+}
+
 // Content-free audit fact that survives account deletion (§17 retention).
 model AccountDeletionAudit {
   id             String   @id @default(cuid())
