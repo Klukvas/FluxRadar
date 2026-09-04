@@ -42,7 +42,7 @@ async function renderUnauthenticated(handler: (path: string, init?: RequestInit)
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  window.location.hash = '';
+  window.history.replaceState(null, '', '/');
 });
 
 describe('authentication UI', () => {
@@ -125,5 +125,35 @@ describe('authentication UI', () => {
     await waitFor(() => expect(screen.getByText('Unified public website audit station.')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Home' }));
     expect(screen.getByRole('heading', { name: 'One URL. Every signal.' })).toBeInTheDocument();
+  });
+});
+
+describe('public legal pages', () => {
+  it('renders the privacy policy without calling the API', async () => {
+    const fetchMock = stubApi(() => envelope(null));
+    window.history.replaceState(null, '', '/privacy');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Privacy policy' })).toBeInTheDocument();
+    expect(screen.getByText('How Google user data is used')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Terms of service →' })).toHaveAttribute(
+      'href',
+      '/terms',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('renders the terms of service as a public page', async () => {
+    window.history.replaceState(null, '', '/terms');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Terms of service' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Free and paid scans' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Privacy policy →' })).toHaveAttribute(
+      'href',
+      '/privacy',
+    );
   });
 });

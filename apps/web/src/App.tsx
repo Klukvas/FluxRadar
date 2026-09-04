@@ -42,9 +42,14 @@ type Screen =
   | 'results'
   | 'issues'
   | 'integrations'
+  | 'privacy'
+  | 'terms'
   | 'styleguide';
 
 function initialScreen(): Screen {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/privacy') return 'privacy';
+  if (path === '/terms') return 'terms';
   const route = window.location.hash.slice(1);
   return route === 'styleguide' ? 'styleguide' : route === 'integrations' ? 'integrations' : 'home';
 }
@@ -61,6 +66,11 @@ export function App() {
   const updateSelectedScan = useCallback((scan: Scan) => setSelectedScan(scan), []);
 
   useEffect(() => {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    if (path === '/privacy' || path === '/terms') {
+      setBooting(false);
+      return;
+    }
     apiRequest<Account>('/auth/me')
       .then((value) => {
         setAccount(value);
@@ -106,6 +116,9 @@ export function App() {
 
   if (screen === 'styleguide') {
     return <Styleguide onNavigate={navigate} />;
+  }
+  if (screen === 'privacy' || screen === 'terms') {
+    return <LegalDocumentScreen kind={screen} />;
   }
   if (booting) {
     return (
@@ -241,6 +254,314 @@ export function App() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+type LegalDocumentKind = 'privacy' | 'terms';
+
+function LegalDocumentScreen(props: { kind: LegalDocumentKind }) {
+  const isPrivacy = props.kind === 'privacy';
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = isPrivacy ? 'Privacy Policy — FluxRadar' : 'Terms of Service — FluxRadar';
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [isPrivacy]);
+
+  return (
+    <div className="app-shell legal-shell">
+      <MenuBar
+        active="home"
+        onNavigate={(next) => {
+          if (next === 'home') window.location.assign('/');
+        }}
+        signedIn={false}
+      />
+      <main className="legal-main">
+        <header className="legal-header">
+          <div>
+            <div className="legal-kicker">
+              <span className="legal-kicker__mark">{isPrivacy ? 'P' : 'T'}</span>
+              FLUXLAB / PUBLIC DOCUMENT
+            </div>
+            <div className="legal-meta">
+              <span>FLUXRADAR.NET</span>
+              <span>REV. 2026.09</span>
+              <span>READ BEFORE CONNECTING</span>
+            </div>
+            <h1>{isPrivacy ? 'Privacy policy' : 'Terms of service'}</h1>
+            <p className="legal-lede">
+              {isPrivacy
+                ? 'A plain-language record of what FluxRadar collects, why it uses it and how connected Google data is handled.'
+                : 'The operating terms for using FluxRadar to review public websites and purchase one-time audit reports.'}
+            </p>
+          </div>
+          <a className="legal-back" href="/">
+            ← Back to FluxRadar
+          </a>
+        </header>
+
+        <div className="legal-layout">
+          <nav className="legal-index" aria-label="Document sections">
+            <div className="legal-index__label">DOCUMENT MAP</div>
+            {isPrivacy ? (
+              <>
+                <a href="#privacy-scope">Scope</a>
+                <a href="#privacy-data">Data we handle</a>
+                <a href="#privacy-google">Google user data</a>
+                <a href="#privacy-use">How we use data</a>
+                <a href="#privacy-retention">Storage & deletion</a>
+                <a href="#privacy-rights">Your choices</a>
+              </>
+            ) : (
+              <>
+                <a href="#terms-service">The service</a>
+                <a href="#terms-account">Accounts</a>
+                <a href="#terms-paid">Free and paid scans</a>
+                <a href="#terms-use">Acceptable use</a>
+                <a href="#terms-results">Reports & limitations</a>
+                <a href="#terms-ending">Ending use</a>
+              </>
+            )}
+            <div className="legal-index__rule" />
+            <a href={isPrivacy ? '/terms' : '/privacy'}>
+              {isPrivacy ? 'Terms of service →' : 'Privacy policy →'}
+            </a>
+          </nav>
+
+          {isPrivacy ? <PrivacyPolicy /> : <TermsOfService />}
+        </div>
+
+        <footer className="legal-footer">
+          <span>FLUXRADAR / BY FLUXLAB</span>
+          <span>
+            Questions: <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>
+          </span>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+function PrivacyPolicy() {
+  return (
+    <article className="legal-document">
+      <div className="legal-document__notice">
+        <strong>Effective date: September 4, 2026</strong>
+        <span>FluxRadar is a public-site audit service operated by FluxLab.</span>
+      </div>
+
+      <section id="privacy-scope" className="legal-section">
+        <span className="legal-section__label">01 / SCOPE</span>
+        <h2>What this policy covers</h2>
+        <p>
+          This policy explains how FluxLab handles information when you use FluxRadar, create an
+          account, run a website audit, connect a supported data source or contact us. FluxRadar
+          is designed for public website checks. It does not ask for a client website password or
+          CMS credentials for the audit modules described on the public site.
+        </p>
+      </section>
+
+      <section id="privacy-data" className="legal-section">
+        <span className="legal-section__label">02 / INPUTS</span>
+        <h2>Data we handle</h2>
+        <ul>
+          <li>
+            <strong>Account data:</strong> your email address, a one-way password hash and session
+            records needed to keep you signed in.
+          </li>
+          <li>
+            <strong>Audit data:</strong> the public origin you submit, scan scope and options,
+            public pages fetched by the crawler, findings, scores, fingerprints and exports.
+          </li>
+          <li>
+            <strong>Connected-source data:</strong> when you authorize Google or Bing, FluxRadar
+            stores encrypted access/refresh tokens and the granted scopes so the connection can be
+            maintained. The raw tokens are not shown in the product interface.
+          </li>
+          <li>
+            <strong>Purchase data:</strong> payment and transaction metadata supplied by Paddle,
+            such as transaction ID, plan, amount, currency and payment status. FluxRadar does not
+            store your payment-card number.
+          </li>
+          <li>
+            <strong>Required technical data:</strong> security and operational records needed to
+            protect the service, enforce rate limits and diagnose failures.
+          </li>
+        </ul>
+      </section>
+
+      <section id="privacy-google" className="legal-section">
+        <span className="legal-section__label">03 / GOOGLE DATA</span>
+        <h2>How Google user data is used</h2>
+        <p>
+          FluxRadar requests read-only Google authorization for Search Console and Google Analytics
+          data. The current authorization asks for these API scopes:
+        </p>
+        <div className="legal-code-block">
+          <code>https://www.googleapis.com/auth/webmasters.readonly</code>
+          <code>https://www.googleapis.com/auth/analytics.readonly</code>
+        </div>
+        <p>
+          We use connected Google data only to provide the Google-related audit and reporting
+          features you request. We do not sell Google user data or use it for advertising. We do
+          not give Google access tokens to AI providers. You can disconnect Google at any time;
+          disconnecting removes the stored connection tokens.
+        </p>
+        <p>
+          FluxRadar requests the minimum read-only access needed for these integrations. If Google
+          data is used in a report, it remains associated with your account and selected site
+          profile and is not made public by FluxRadar.
+        </p>
+      </section>
+
+      <section id="privacy-use" className="legal-section">
+        <span className="legal-section__label">04 / PROCESSING</span>
+        <h2>How we use information</h2>
+        <ul>
+          <li>to authenticate your account and maintain your workspace;</li>
+          <li>to fetch and analyze public website signals you ask us to review;</li>
+          <li>to generate scores, findings, evidence and requested exports;</li>
+          <li>to process purchases, enforce plan limits and prevent duplicate transactions;</li>
+          <li>to secure, troubleshoot and improve the reliability of the service.</li>
+        </ul>
+        <p>
+          AI-assisted audit features run only when the scan has the required consent. Before an AI
+          request, FluxRadar applies its redaction rules to the audit context. Anthropic is used as
+          a platform provider for those requests when the feature is enabled.
+        </p>
+      </section>
+
+      <section id="privacy-retention" className="legal-section">
+        <span className="legal-section__label">05 / LIFECYCLE</span>
+        <h2>Storage, providers and deletion</h2>
+        <p>
+          FluxRadar stores application data in PostgreSQL on Hetzner infrastructure. Complete
+          report artifacts may be stored in a private, account-scoped Hetzner Object Storage
+          bucket. Google and Bing tokens are encrypted before they are stored. Paddle, Google,
+          Bing and Anthropic process information under their own terms and privacy documentation
+          when you use the corresponding integration.
+        </p>
+        <p>
+          You can disconnect an integration from the Integrations screen. You can request account
+          deletion from the product; this removes account-linked operational data according to the
+          service retention workflow. A minimal deletion audit record may remain to demonstrate
+          that the request was processed, without retaining your account content.
+        </p>
+      </section>
+
+      <section id="privacy-rights" className="legal-section">
+        <span className="legal-section__label">06 / CONTROL</span>
+        <h2>Your choices and contact</h2>
+        <p>
+          You can choose not to connect Google or Bing and still use public-site checks. You can
+          disconnect a provider, stop using the service or contact us about access, correction or
+          deletion requests. For privacy questions, contact{' '}
+          <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>.
+        </p>
+        <p>
+          We may update this policy when the service or its data practices change. The effective
+          date at the top will be updated when a new version is published.
+        </p>
+      </section>
+    </article>
+  );
+}
+
+function TermsOfService() {
+  return (
+    <article className="legal-document">
+      <div className="legal-document__notice">
+        <strong>Effective date: September 4, 2026</strong>
+        <span>By using FluxRadar, you agree to these terms.</span>
+      </div>
+
+      <section id="terms-service" className="legal-section">
+        <span className="legal-section__label">01 / SERVICE</span>
+        <h2>What FluxRadar does</h2>
+        <p>
+          FluxRadar is a website audit service operated by FluxLab. It analyzes public web pages and
+          presents technical, SEO, AI-discoverability, security, accessibility, reliability,
+          content and privacy signals. The audit is read-only: you authorize us to fetch public
+          resources, not to change your website.
+        </p>
+      </section>
+
+      <section id="terms-account" className="legal-section">
+        <span className="legal-section__label">02 / ACCESS</span>
+        <h2>Accounts and workspace</h2>
+        <p>
+          You are responsible for the email address and password used for your account and for
+          activity performed through your session. Keep your credentials private and contact us if
+          you believe your account has been used without permission. You must provide accurate
+          information and may use FluxRadar only if you are legally able to agree to these terms.
+        </p>
+      </section>
+
+      <section id="terms-paid" className="legal-section">
+        <span className="legal-section__label">03 / PURCHASES</span>
+        <h2>Free and paid scans</h2>
+        <p>
+          FluxRadar offers one limited free homepage check and one-time paid scans. The Basic and
+          Complete plans are pay-per-scan products, not recurring subscriptions. The applicable
+          scope, features and price are shown before purchase. Payment is processed by Paddle;
+          payment-card data is handled by Paddle rather than stored by FluxRadar.
+        </p>
+        <p>
+          A paid scan grants the report and product access described for the purchased plan. If a
+          payment, refund or dispute changes the transaction status, FluxRadar may suspend the
+          related entitlement or scan according to the billing state shown in the workspace.
+        </p>
+      </section>
+
+      <section id="terms-use" className="legal-section">
+        <span className="legal-section__label">04 / BOUNDARIES</span>
+        <h2>Acceptable use</h2>
+        <p>You may submit only websites and public resources you are authorized to review. You must not:</p>
+        <ul>
+          <li>use FluxRadar to attack, overload, probe or bypass controls on a website;</li>
+          <li>submit private URLs, credentials, secrets or personal data that you do not have a right to process;</li>
+          <li>use reports to misrepresent a legal, security or accessibility certification;</li>
+          <li>interfere with the service, evade plan limits or resell access without permission.</li>
+        </ul>
+      </section>
+
+      <section id="terms-results" className="legal-section">
+        <span className="legal-section__label">05 / OUTPUT</span>
+        <h2>Reports are decision support</h2>
+        <p>
+          Audit findings are automated technical signals and recommendations. They can be
+          incomplete, delayed or incorrect, especially when a page requires JavaScript, a provider
+          has no data or a site changes after the scan. AI-generated output may also be inaccurate.
+          FluxRadar does not promise rankings, traffic, security, legal compliance, WCAG
+          conformance or a particular business result.
+        </p>
+        <p>
+          You keep the rights to information you submit and may use reports for your internal
+          work. FluxLab retains the rights to the FluxRadar service, software, rules, scoring
+          methods and branding. Do not publish another person’s private data or confidential
+          material through an export.
+        </p>
+      </section>
+
+      <section id="terms-ending" className="legal-section">
+        <span className="legal-section__label">06 / EXIT</span>
+        <h2>Availability and ending use</h2>
+        <p>
+          We may change, pause or discontinue parts of FluxRadar, including third-party
+          integrations, when needed for security, maintenance or provider changes. We may suspend
+          access for abuse, unlawful use, fraud or material breach of these terms. You can stop
+          using the service and request account deletion at any time.
+        </p>
+        <p>
+          To the maximum extent permitted by law, FluxRadar is provided without guarantees of
+          uninterrupted availability or error-free results. Nothing in these terms excludes rights
+          that cannot lawfully be excluded. Questions about a purchase or these terms can be sent
+          to <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>.
+        </p>
+      </section>
+    </article>
   );
 }
 
@@ -771,7 +1092,11 @@ function HomeScreen(props: {
         </section>
         <footer className="home__footer">
           <span>FLUXRADAR / BY FLUXLAB</span>
-          <span>PUBLIC WEB AUDIT STATION · v0.1</span>
+          <span className="home__footer-links">
+            <a href="/privacy">Privacy policy</a>
+            <a href="/terms">Terms of service</a>
+            <span>PUBLIC WEB AUDIT STATION · v0.1</span>
+          </span>
         </footer>
       </main>
       {props.authOpen ? (
