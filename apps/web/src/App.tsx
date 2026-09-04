@@ -46,16 +46,39 @@ type Screen =
   | 'terms'
   | 'styleguide';
 
-function initialScreen(): Screen {
+interface InitialRoute {
+  readonly screen: Screen;
+  readonly scanId: string | null;
+}
+
+function readInitialRoute(): InitialRoute {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
-  if (path === '/privacy') return 'privacy';
-  if (path === '/terms') return 'terms';
+  if (path === '/privacy') return { screen: 'privacy', scanId: null };
+  if (path === '/terms') return { screen: 'terms', scanId: null };
+  const scanMatch = /^\/scans\/([^/]+)$/.exec(path);
+  if (scanMatch?.[1] !== undefined) {
+    try {
+      const scanId = decodeURIComponent(scanMatch[1]);
+      if (scanId.length > 0) return { screen: 'scan', scanId };
+    } catch {
+      // Treat malformed deep links like any other unknown public route.
+    }
+  }
   const route = window.location.hash.slice(1);
-  return route === 'styleguide' ? 'styleguide' : route === 'integrations' ? 'integrations' : 'home';
+  return {
+    screen:
+      route === 'styleguide' ? 'styleguide' : route === 'integrations' ? 'integrations' : 'home',
+    scanId: null,
+  };
+}
+
+function isTerminalScan(scan: Scan): boolean {
+  return ['Completed', 'Partial', 'Failed', 'Cancelled'].includes(scan.status);
 }
 
 export function App() {
-  const [screen, setScreen] = useState<Screen>(initialScreen);
+  const [entryRoute] = useState<InitialRoute>(readInitialRoute);
+  const [screen, setScreen] = useState<Screen>(entryRoute.screen);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [account, setAccount] = useState<Account | null>(null);
   const [profiles, setProfiles] = useState<SiteProfile[]>([]);
@@ -72,15 +95,55 @@ export function App() {
       return;
     }
     apiRequest<Account>('/auth/me')
-      .then((value) => {
+      .then(async (value) => {
         setAccount(value);
-        return loadProfiles(setProfiles);
+        try {
+          await loadProfiles(setProfiles);
+          if (entryRoute.scanId !== null) {
+            const scan = await apiRequest<Scan>(`/scans/${entryRoute.scanId}`);
+            setSelectedScan(scan);
+            setScreen(isTerminalScan(scan) ? 'results' : 'scan');
+            return;
+          }
+          const active = await apiRequest<Scan | null>('/scans/active');
+          if (active !== null) {
+            setSelectedScan(active);
+            window.history.replaceState(null, '', `/scans/${encodeURIComponent(active.id)}`);
+            setScreen(isTerminalScan(active) ? 'results' : 'scan');
+          }
+        } catch (caught: unknown) {
+          if (entryRoute.scanId !== null) {
+            setError(caught instanceof Error ? caught.message : 'Scan could not be restored');
+            window.history.replaceState(null, '', '/');
+            setScreen('desktop');
+          } else {
+            console.error('FluxRadar boot data unavailable', caught);
+          }
+        }
       })
-      .catch(() => undefined)
+      .catch(() => {
+        // Authentication is required before a deep-link scan is fetched. The
+        // same home surface then presents the login modal without exposing
+        // whether another account owns the requested scan.
+        if (entryRoute.scanId !== null) setScreen('auth');
+      })
       .finally(() => setBooting(false));
-  }, []);
+  }, [entryRoute.scanId]);
 
-  const navigate = (next: string) => {
+  const restoreScan = async (scanId: string): Promise<void> => {
+    try {
+      const scan = await apiRequest<Scan>(`/scans/${scanId}`);
+      setSelectedScan(scan);
+      setScreen(isTerminalScan(scan) ? 'results' : 'scan');
+      window.history.replaceState(null, '', `/scans/${encodeURIComponent(scan.id)}`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Scan could not be restored');
+      window.history.replaceState(null, '', '/');
+      setScreen('desktop');
+    }
+  };
+
+  const navigate = (next: string, scanId?: string) => {
     if (next === 'styleguide') {
       window.location.hash = 'styleguide';
       setScreen('styleguide');
@@ -98,7 +161,11 @@ export function App() {
     ].includes(next)
       ? (next as Screen)
       : 'desktop';
-    window.history.replaceState(null, '', window.location.pathname);
+    const scanPath =
+      scanId !== undefined && ['scan', 'results', 'issues'].includes(valid)
+        ? `/scans/${encodeURIComponent(scanId)}`
+        : '/';
+    window.history.replaceState(null, '', scanPath);
     setScreen(valid);
   };
 
@@ -106,12 +173,16 @@ export function App() {
     setAccount(value);
     setError(null);
     await loadProfiles(setProfiles);
-    navigate('desktop');
+    if (entryRoute.scanId !== null) {
+      await restoreScan(entryRoute.scanId);
+    } else {
+      navigate('desktop');
+    }
   };
 
   const onScanCreated = (scan: Scan) => {
     setSelectedScan(scan);
-    navigate('scan');
+    navigate('scan', scan.id);
   };
 
   if (screen === 'styleguide') {
@@ -237,7 +308,9 @@ export function App() {
           <ScanScreen
             scan={selectedScan}
             onUpdate={setSelectedScan}
-            onDone={() => navigate('results')}
+            onDone={() =>
+              selectedScan ? navigate('results', selectedScan.id) : navigate('desktop')
+            }
             onError={setError}
           />
         ) : null}
@@ -245,7 +318,9 @@ export function App() {
           <ResultsScreen
             scan={selectedScan}
             onScan={updateSelectedScan}
-            onIssues={() => navigate('issues')}
+            onIssues={() =>
+              selectedScan ? navigate('issues', selectedScan.id) : navigate('desktop')
+            }
             onError={setError}
           />
         ) : null}
@@ -1453,20 +1528,24 @@ function ScanScreen(props: {
 }) {
   const [cancelBusy, setCancelBusy] = useState(false);
   useEffect(() => {
-    if (props.scan === null) return undefined;
+    if (props.scan === null || isTerminalScan(props.scan)) return undefined;
     let cancelled = false;
     const scanId = props.scan.id;
     const poll = async () => {
       try {
         const scan = await apiRequest<Scan>(`/scans/${scanId}`);
-        if (!cancelled) props.onUpdate(scan);
+        if (cancelled) return;
+        props.onUpdate(scan);
+        if (isTerminalScan(scan) && timer !== undefined) {
+          window.clearInterval(timer);
+        }
       } catch (caught) {
         if (!cancelled)
           props.onError(caught instanceof Error ? caught.message : 'Scan status unavailable');
       }
     };
-    void poll();
     const timer = window.setInterval(() => void poll(), 1000);
+    void poll();
     return () => {
       cancelled = true;
       window.clearInterval(timer);

@@ -34,6 +34,7 @@ const scanListQuerySchema = z.object({
 });
 
 const TERMINAL_MODULE_STATUSES = new Set(['Completed', 'Partial', 'Unavailable', 'Not applicable']);
+const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running'] as const;
 
 export function scansRouter(deps: ScansRouterDeps): Router {
   const router = Router();
@@ -95,6 +96,18 @@ export function scansRouter(deps: ScansRouterDeps): Router {
         },
       },
     );
+  });
+
+  // This endpoint is deliberately separate from the history list: returning
+  // one in-flight scan lets a workspace recover after a refresh without
+  // unlocking or exposing historical results.
+  router.get('/scans/active', auth, async (req, res) => {
+    const scan = await deps.prisma.scan.findFirst({
+      where: { accountId: accountIdFrom(res), status: { in: [...ACTIVE_SCAN_STATUSES] } },
+      include: { modules: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    sendOk(res, scan === null ? null : toScanDto(scan, scan.modules));
   });
 
   router.get('/profiles/:profileId/scans', auth, async (req, res) => {

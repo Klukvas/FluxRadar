@@ -20,11 +20,14 @@ import { createDefaultPerformanceRunner } from './integrations/performance.ts';
 import { createDefaultAiProvider } from './orchestrator/geo.ts';
 import { purgeExpiredScans } from './data-retention.ts';
 import type { WorkerCrawlOptions, WorkerDeps } from './orchestrator/deps.ts';
+import { recoverClaimedJobs } from './orchestrator/claim.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { profilesRouter } from './profiles/routes.ts';
 import { scansRouter } from './scans/routes.ts';
 
 export const packageName = '@fluxradar/api';
+
+const QUEUE_RECOVERY_INTERVAL_MS = 30_000;
 
 export interface CreateAppOptions {
   readonly prisma: PrismaClient;
@@ -140,6 +143,10 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   const logger = stdoutLogger;
   const webhookSecret = getPaddleWebhookSecret();
   const app = createApp({ prisma, webhookSecret, logger });
+  // Recover before listen so a newly submitted scan cannot be claimed by the
+  // HTTP path while startup is requeueing jobs left by the previous process.
+  const recovered = await recoverClaimedJobs(prisma);
+  if (recovered > 0) logger.info('recovered claimed scan jobs', { recoveredCount: recovered });
   const server = app.listen(port);
   await new Promise<void>((resolveReady, reject) => {
     server.once('listening', resolveReady);
@@ -152,6 +159,20 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       createDefaultAiProvider(profile.name, new URL(scan.domain).hostname),
     createPerformanceRunner: () => createDefaultPerformanceRunner(),
   };
+  let queueDrainRunning = false;
+  const drainQueue = async (): Promise<void> => {
+    if (queueDrainRunning) return;
+    queueDrainRunning = true;
+    try {
+      await processPendingJobs(workerDeps);
+    } catch (error: unknown) {
+      logger.error('queue drain failed', {
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      });
+    } finally {
+      queueDrainRunning = false;
+    }
+  };
   const retentionTimer = setInterval(
     () => {
       void purgeExpiredScans(prisma, new Date()).catch((error: unknown) => {
@@ -163,16 +184,26 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
     60 * 60 * 1000,
   );
   retentionTimer.unref();
-  void processPendingJobs(workerDeps).catch((error: unknown) => {
-    logger.error('startup job drain failed', {
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    });
-  });
+  const queueRecoveryTimer = setInterval(() => {
+    void recoverClaimedJobs(prisma)
+      .then((recoveredCount) => {
+        if (recoveredCount > 0) logger.info('recovered expired scan jobs', { recoveredCount });
+        return drainQueue();
+      })
+      .catch((error: unknown) => {
+        logger.error('queue recovery failed', {
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+        });
+      });
+  }, QUEUE_RECOVERY_INTERVAL_MS);
+  queueRecoveryTimer.unref();
+  void drainQueue();
   return {
     app,
     server,
     close: async () => {
       clearInterval(retentionTimer);
+      clearInterval(queueRecoveryTimer);
       await new Promise<void>((resolveClose, reject) => {
         server.close((error) => (error ? reject(error) : resolveClose()));
       });

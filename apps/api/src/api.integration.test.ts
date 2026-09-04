@@ -2,8 +2,9 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from './index.ts';
+import { recoverClaimedJobs } from './orchestrator/claim.ts';
 import { createDefaultAiProvider } from './orchestrator/geo.ts';
-import { processScan } from './orchestrator/worker.ts';
+import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { silentLogger } from './http/logger.ts';
 import { createTestDb, type TestDb } from './test-utils/test-db.ts';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
@@ -439,6 +440,91 @@ describe('T-12 API happy paths', () => {
     const history = await agent.get('/scans?history=true').set('Cookie', account.cookie);
     expect(history.status).toBe(403);
     expect(history.body.error.code).toBe('HISTORY_REQUIRES_COMPLETE');
+  });
+
+  it('restores only the current account active scan and keeps scan IDs tenant-scoped', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+    });
+    const agentA = request.agent(app);
+    const agentB = request.agent(app);
+    const accountA = await register(agentA, 'active-a@example.com');
+    const accountB = await register(agentB, 'active-b@example.com');
+    const profileA = await createProfile(agentA, accountA.cookie);
+    const checkout = await agentA
+      .post('/billing/dev-checkout')
+      .set('Cookie', accountA.cookie)
+      .send({
+        siteProfileId: profileA.id,
+        plan: 'Basic',
+        scope: { includeSubdomains: false, maxPages: 15 },
+      });
+    expect(checkout.status).toBe(201);
+    const scanId = checkout.body.data.scanId as string;
+
+    const active = await agentA.get('/scans/active').set('Cookie', accountA.cookie);
+    expect(active.status).toBe(200);
+    expect(active.body.data).toMatchObject({ id: scanId, status: 'Pending' });
+    const repeated = await agentA.get('/scans/active').set('Cookie', accountA.cookie);
+    expect(repeated.body.data.id).toBe(scanId);
+    expect(await db.prisma.scan.count({ where: { accountId: accountA.id } })).toBe(1);
+    expect(await db.prisma.job.count({ where: { scanId } })).toBe(1);
+
+    const otherActive = await agentB.get('/scans/active').set('Cookie', accountB.cookie);
+    expect(otherActive.status).toBe(200);
+    expect(otherActive.body.data).toBeNull();
+    const forbiddenScan = await agentB.get(`/scans/${scanId}`).set('Cookie', accountB.cookie);
+    expect(forbiddenScan.status).toBe(404);
+    expect(forbiddenScan.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('recovers a claimed job and drains it once without creating another job', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'recovery@example.com');
+    const profile = await createProfile(agent, account.cookie, 'https://recovery.example.com');
+    const created = await agent
+      .post(`/profiles/${profile.id}/free-check`)
+      .set('Cookie', account.cookie)
+      .send({});
+    expect(created.status).toBe(201);
+    const scanId = created.body.data.id as string;
+    const claimedAt = new Date('2026-09-04T00:00:00.000Z');
+    await db.prisma.job.update({
+      where: { scanId },
+      data: { status: 'Claimed', claimedAt, attempts: 1 },
+    });
+
+    await expect(recoverClaimedJobs(db.prisma, new Date('2026-09-04T00:10:00.000Z'))).resolves.toBe(
+      1,
+    );
+    const recovered = await db.prisma.job.findUniqueOrThrow({ where: { scanId } });
+    expect(recovered).toMatchObject({ status: 'Pending', claimedAt: null, attempts: 1 });
+
+    const results = await processPendingJobs({
+      prisma: db.prisma,
+      logger: silentLogger,
+      createAiProvider: (scan, siteProfile) =>
+        createDefaultAiProvider(siteProfile.name, new URL(scan.domain).hostname),
+      crawl: { originOverride: () => fixture.origin, dangerouslyAllowLoopback: true },
+    });
+    expect(results).toHaveLength(1);
+    expect(results[0]?.scanId).toBe(scanId);
+    expect(await db.prisma.scan.count({ where: { id: scanId } })).toBe(1);
+    expect(await db.prisma.job.count({ where: { scanId } })).toBe(1);
+    expect(await db.prisma.job.findUniqueOrThrow({ where: { scanId } })).toMatchObject({
+      status: 'Done',
+      attempts: 2,
+      claimedAt: null,
+    });
   });
 
   it('deletes account-owned results and leaves only a content-free audit fact', async () => {
