@@ -137,10 +137,13 @@ export function scansRouter(deps: ScansRouterDeps): Router {
         },
       ];
     });
-    const overall = computeOverallScore(
-      scan.plan as 'Free' | 'Basic' | 'Complete',
-      moduleSummaries,
-    );
+    // Free exposes the fixed SEO homepage check, but it intentionally has no
+    // overall score weight. Its SEO module must therefore not be passed to the
+    // scoring engine, which correctly rejects unweighted non-side modules.
+    const overall =
+      scan.plan === 'Free'
+        ? computeOverallScore('Free', [])
+        : computeOverallScore(scan.plan as 'Basic' | 'Complete', moduleSummaries);
     sendOk(res, {
       scan: toScanDto(scan, scan.modules),
       overall,

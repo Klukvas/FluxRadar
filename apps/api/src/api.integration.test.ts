@@ -55,6 +55,18 @@ describe('T-12 API happy paths', () => {
     expect(scan.body.data.status).toBe('Completed');
     expect(scan.body.data.modules[0].module).toBe('SEO');
 
+    const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
+    expect(dashboard.status).toBe(200);
+    expect(dashboard.body.data.overall).toEqual({
+      verdict: 'insufficient_data',
+      score: null,
+      weightedCoverage: 0,
+      moduleWeights: [],
+    });
+    expect(dashboard.body.data.modules).toEqual(
+      expect.arrayContaining([expect.objectContaining({ module: 'SEO', score: null })]),
+    );
+
     const duplicate = await agent
       .post(`/profiles/${profile.id}/free-check`)
       .set('Cookie', account.cookie)
