@@ -1,22 +1,36 @@
 name: fluxradar
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - fluxradar_postgres:/var/lib/postgresql/data
+      - ./deploy/postgres-init.sql:/docker-entrypoint-initdb.d/01-test-database.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fluxradar -d fluxradar"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   api:
     build:
       context: .
       dockerfile: Dockerfile.api
     restart: unless-stopped
     env_file:
-      - .env.production
+      - ${FLUXRADAR_ENV_FILE:-.env}
     environment:
       NODE_ENV: production
-      DATABASE_URL: file:/data/fluxradar.db
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       PORT: 3310
       FRONTEND_ORIGIN: https://fluxradar.net
     expose:
       - "3310"
-    volumes:
-      - fluxradar_data:/data
     healthcheck:
       test:
         - CMD
@@ -29,6 +43,9 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   web:
     build:
@@ -62,6 +79,6 @@ services:
       - caddy_config:/config
 
 volumes:
-  fluxradar_data:
+  fluxradar_postgres:
   caddy_data:
   caddy_config:

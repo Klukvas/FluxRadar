@@ -1,5 +1,5 @@
 // In-process scan worker for the local v0.1 runtime. Jobs are claimed from
-// SQLite with the same compare-and-set primitive used by the production queue;
+// PostgreSQL with the same compare-and-set primitive used by the production queue;
 // the execution loop therefore remains useful in integration tests and can be
 // replaced by a separate worker process without changing scan semantics.
 

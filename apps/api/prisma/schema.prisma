@@ -1,14 +1,14 @@
-// FluxRadar v0.1 database schema (T-06, D-011: SQLite dev/tests, Postgres later).
+// FluxRadar v0.1 database schema (T-06, D-011: PostgreSQL for local, test, and production).
 // Status columns are strings holding the canonical contract enum literals from
-// @fluxradar/contracts; SQLite has no native enums and the literals must match
-// the export schema verbatim (D-108).
+// @fluxradar/contracts; keeping the literals as text makes the export contract
+// explicit and provider-independent (D-108).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

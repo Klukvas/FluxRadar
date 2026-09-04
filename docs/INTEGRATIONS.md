@@ -14,7 +14,7 @@ The current implementation includes the following integration surface:
 | Anthropic | Platform API | Real Messages API adapter when `ANTHROPIC_API_KEY` is configured; deterministic mock fallback for local development. |
 | Hetzner Object Storage | Platform S3 | Complete JSON/CSV exports are archived as private tenant-scoped objects when S3 configuration is present. |
 
-Google and Bing OAuth state is one-time, expires after ten minutes and is stored only as a SHA-256 hash. Access and refresh tokens are encrypted before they reach SQLite/Postgres. The UI never receives the raw tokens.
+Google and Bing OAuth state is one-time, expires after ten minutes and is stored only as a SHA-256 hash. Access and refresh tokens are encrypted before they reach PostgreSQL. The UI never receives the raw tokens.
 
 ## Server configuration
 

@@ -27,7 +27,7 @@ fluxradar/
                     # quota and consent
     export/         # канонические records, JSON Schema §16, semantic validator, CSV
   apps/
-    api/            # Express + Prisma(SQLite): auth, профили, биллинг (MockPaddle),
+    api/            # Express + Prisma(PostgreSQL): auth, профили, биллинг (MockPaddle),
                     # scan orchestrator + in-process worker, integrations, issues,
                     # dashboard and export API
     web/            # React + Vite, дизайн-система Mac OS 8/9 + terminal (DESIGN_SYSTEM.md)

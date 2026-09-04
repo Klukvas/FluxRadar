@@ -641,3 +641,9 @@
   в `Disputed`, приостанавливает entitlement и блокирует worker execution; переход
   не откатывает уже `Refunded` purchase. Refund сохраняет transaction/event/signature,
   currency, tax, price и reason metadata для reconciliation.
+- **D-202 (production hardening)** — SQLite заменён на PostgreSQL для local, test и
+  production окружений. Production PostgreSQL запускается отдельным внутренним
+  Docker-сервисом с persistent volume; API-порт базы не публикуется. API и тесты
+  используют checked-in Prisma migrations, а DB-backed тесты — отдельную disposable
+  database и последовательный запуск файлов. Причина: production concurrency,
+  durable migrations и отсутствие file-permission failure на runtime volume.

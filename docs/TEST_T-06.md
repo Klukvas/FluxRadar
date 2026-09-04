@@ -65,7 +65,7 @@ pnpm test
 git status --porcelain | grep -E '\.db|dev\.db'
 ```
 
-**Результат:** ✅ пуст — тестовые SQLite-файлы не попадают в репозиторий.
+**Результат:** ✅ тестовые PostgreSQL-данные изолированы в отдельной disposable database и не попадают в репозиторий.
 
 ---
 

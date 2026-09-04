@@ -15,7 +15,7 @@ packages/
   ai/            AiProvider contract + MockAiProvider
   export/        canonical records, JSON Schema, semantic validator, CSV
 apps/
-  api/           Express + Prisma (SQLite): auth, billing, scan orchestrator
+  api/           Express + Prisma (PostgreSQL): auth, billing, scan orchestrator
   web/           React + Vite UI (Mac OS 8/9 design system)
 
 Current integrations are documented in `docs/INTEGRATIONS.md`. Cloudflare and

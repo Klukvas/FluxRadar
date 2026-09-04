@@ -11,11 +11,12 @@
   },
   "scripts": {
     "build": "prisma generate && tsc -p tsconfig.build.json",
-    "dev": "prisma generate && RUST_LOG=info prisma db push && node --env-file-if-exists=../../.env --watch src/index.ts",
+    "dev": "prisma generate && RUST_LOG=info prisma migrate deploy && node --env-file-if-exists=../../.env --watch src/index.ts",
     "start": "node --env-file-if-exists=../../.env dist/index.js",
     "db:generate": "prisma generate",
-    "db:push": "RUST_LOG=info prisma db push",
-    "test": "prisma generate && vitest run",
+    "db:migrate": "RUST_LOG=info prisma migrate deploy",
+    "db:push": "RUST_LOG=info prisma migrate deploy",
+    "test": "prisma generate && node --env-file-if-exists=../../.env ../../node_modules/vitest/vitest.mjs run",
     "typecheck": "prisma generate && tsc --noEmit"
   },
   "dependencies": {

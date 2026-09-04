@@ -1,14 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { copyFile, mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import type { PrismaClient, Purchase, Scan } from '@prisma/client';
 import { RULESET_VERSION, TARIFFS } from '@fluxradar/contracts';
 import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 
 import { createPrismaClient } from '../db.ts';
 import { PURCHASE_STATUSES } from '../billing/constants.ts';
-import { TEMPLATE_DB_PATH } from './template-db.ts';
+import { testDatabaseUrl } from './template-db.ts';
 
 export const TEST_WEBHOOK_SECRET = 'test-paddle-webhook-secret';
 
@@ -18,19 +15,21 @@ export interface TestDb {
   cleanup(): Promise<void>;
 }
 
-/** Isolated per-test-file SQLite database copied from the pushed template. */
+/**
+ * Isolated test state in the shared disposable PostgreSQL database.
+ * Vitest runs DB-backed files sequentially; truncation keeps each file isolated.
+ */
 export async function createTestDb(): Promise<TestDb> {
-  const dir = await mkdtemp(join(tmpdir(), 'fluxradar-test-db-'));
-  const dbPath = join(dir, 'test.db');
-  await copyFile(TEMPLATE_DB_PATH, dbPath);
-  const databaseUrl = `file:${dbPath}`;
+  const databaseUrl = testDatabaseUrl();
   const prisma = createPrismaClient(databaseUrl);
+  await prisma.$executeRawUnsafe(
+    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "Session", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "Job" CASCADE',
+  );
   return {
     prisma,
     databaseUrl,
     async cleanup(): Promise<void> {
       await prisma.$disconnect();
-      await rm(dir, { recursive: true, force: true });
     },
   };
 }

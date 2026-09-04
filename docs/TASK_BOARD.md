@@ -54,9 +54,9 @@
 **Проверка:** `pnpm --filter safe-fetch test`. **Риски:** DNS-моки — вынести resolver в интерфейс.
 
 ### T-06 — БД и биллинг
-**Описание:** Prisma (SQLite): Account, Session, SiteProfile, Purchase (unique paddle_transaction_id), Entitlement (unique purchase_id), Scan (unique purchase_id; статусы; retry-счётчики), ScanModule, Issue, AiResponseRecord, WebhookEvent (unique paddle_event_id), RefundRecord (unique purchase_id), Job. Сервисы: webhook-handler MockPaddle (HMAC-SHA256 по raw body, D-029) в одной транзакции; state machine переходов §18 через conditional update; refund flow (`refund:{purchase_id}`, reason enum); dev-checkout endpoint-хелпер, эмитящий подписанный webhook.
+**Описание:** Prisma (PostgreSQL): Account, Session, SiteProfile, Purchase (unique paddle_transaction_id), Entitlement (unique purchase_id), Scan (unique purchase_id; статусы; retry-счётчики), ScanModule, Issue, AiResponseRecord, WebhookEvent (unique paddle_event_id), RefundRecord (unique purchase_id), Job. Сервисы: webhook-handler MockPaddle (HMAC-SHA256 по raw body, D-029) в одной транзакции; state machine переходов §18 через conditional update; refund flow (`refund:{purchase_id}`, reason enum); dev-checkout endpoint-хелпер, эмитящий подписанный webhook.
 **Критерии:** тесты BILLING-001..006: невалидная подпись reject; дубль event → один entitlement/scan; out-of-order не откатывает состояние; запрещённые переходы отвергаются; retry-счётчики ≤ 1; один refund на purchase; NoUsableOutput-ветка (D-026/D-027).
-**Проверка:** `pnpm --filter api test -- billing`. **Риски:** транзакции SQLite — использовать `prisma.$transaction`.
+**Проверка:** `pnpm --filter api test -- billing`. **Риски:** транзакции PostgreSQL — использовать `prisma.$transaction`.
 
 ### T-07 — crawler
 **Описание:** обход в пределах scope (домен/поддомены по флагу, include/exclude-шаблоны, глубина, лимит страниц тарифа), robots.txt по умолчанию (+ логируемый override), sitemap.xml как источник, dedup по нормализованному URL, учёт пропущенных сверх лимита, сбор PageSnapshot (status, headers, redirect chain, HTML, timing). Fixture-сайт: локальный static-сервер из `fixtures/site` (~12 страниц: валидная, без title, чужой canonical, 404, redirect chain, noindex, дубликат, пустая, broken image, mixed content, форма без labels, страница с trackers).

@@ -2,8 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // Builds the template SQLite database once; each test file copies it
-    // into its own tmp file (see src/test-utils/test-db.ts).
+    // DB-backed files truncate one shared disposable PostgreSQL database.
+    // Sequential files prevent cross-file truncation races.
+    fileParallelism: false,
     globalSetup: ['./src/test-utils/global-setup.ts'],
   },
 });

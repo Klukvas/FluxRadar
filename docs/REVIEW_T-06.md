@@ -53,7 +53,7 @@
 - CAS через `updateMany({where: {id, status: from, <retry guard>}})` — корректный примитив: `count === 1` ровно у одного победителя (BILLING-004: 1 из 5).
 - Webhook-транзакция действительно атомарна: dedup-insert и все side effects в одном `$transaction`; при откате по P2002-transactionId событие-неудачник переигрывается целиком и записывается по dedup-ветке (событие не теряется — проверено BILLING-003).
 - Гонка P2002 различает `paddleEventId` (→ stored result) и `paddleTransactionId` (→ один повтор, затем rethrow); цикл ограничен (`attempt === 1`).
-- SQLite: `connection_limit=1` принудительно (D-131) — сериализация записей, на которой стоят CAS и dedup.
+- PostgreSQL: connection pool остаётся управляемым через `DATABASE_URL`; CAS и dedup используют транзакции Prisma.
 
 ## Проблемы и исправления
 
