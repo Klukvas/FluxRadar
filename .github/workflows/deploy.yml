@@ -419,20 +419,15 @@ jobs:
               cd "$PREVIOUS_RELEASE"
               if [ -n "$PREVIOUS_API_UPSTREAM" ] && [ -n "$PREVIOUS_WEB_UPSTREAM" ]; then
                 render_caddyfile "$PREVIOUS_API_UPSTREAM" "$PREVIOUS_WEB_UPSTREAM" "$PREVIOUS_RELEASE/deploy/Caddyfile"
-                CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy)"
-                if [ -n "$CADDY_CONTAINER" ]; then
-                  if ! docker exec "$CADDY_CONTAINER" caddy reload --config /etc/caddy/Caddyfile; then
-                    export FLUXRADAR_CADDYFILE="$RUNTIME_DIR/Caddyfile"
-                    export FLUXRADAR_API_UPSTREAM="$PREVIOUS_API_UPSTREAM"
-                    export FLUXRADAR_WEB_UPSTREAM="$PREVIOUS_WEB_UPSTREAM"
-                    docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy || true
-                  fi
-                fi
+                export FLUXRADAR_CADDYFILE="$RUNTIME_DIR/Caddyfile"
+                export FLUXRADAR_API_UPSTREAM="$PREVIOUS_API_UPSTREAM"
+                export FLUXRADAR_WEB_UPSTREAM="$PREVIOUS_WEB_UPSTREAM"
+                docker compose --env-file .env.production -p fluxradar up -d --no-deps --force-recreate caddy || true
               else
                 export FLUXRADAR_CADDYFILE="$PREVIOUS_RELEASE/deploy/Caddyfile"
                 export FLUXRADAR_API_UPSTREAM="api:3310"
                 export FLUXRADAR_WEB_UPSTREAM="web:80"
-                docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy || true
+                docker compose --env-file .env.production -p fluxradar up -d --no-deps --force-recreate caddy || true
               fi
               atomic_switch "$PREVIOUS_RELEASE" || true
             fi
@@ -502,26 +497,14 @@ jobs:
           fi
 
           render_caddyfile "$NEW_API_UPSTREAM" "$NEW_WEB_UPSTREAM" "$RELEASE_DIR/deploy/Caddyfile"
-          if [ -n "$PREVIOUS_API_UPSTREAM" ] && [ -n "$PREVIOUS_WEB_UPSTREAM" ]; then
-            cd "$RELEASE_DIR"
-            CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy)"
-            if [ -z "$CADDY_CONTAINER" ]; then
-              docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy
-              CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy)"
-            fi
-            if ! docker exec "$CADDY_CONTAINER" caddy reload --config /etc/caddy/Caddyfile; then
-              export FLUXRADAR_CADDYFILE="$RUNTIME_DIR/Caddyfile"
-              export FLUXRADAR_API_UPSTREAM="$NEW_API_UPSTREAM"
-              export FLUXRADAR_WEB_UPSTREAM="$NEW_WEB_UPSTREAM"
-              docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy
-            fi
-          else
-            cd "$RELEASE_DIR"
-            export FLUXRADAR_CADDYFILE="$RUNTIME_DIR/Caddyfile"
-            export FLUXRADAR_API_UPSTREAM="$NEW_API_UPSTREAM"
-            export FLUXRADAR_WEB_UPSTREAM="$NEW_WEB_UPSTREAM"
-            docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy
-          fi
+          cd "$RELEASE_DIR"
+          # Always recreate Caddy with the generated runtime file. Reloading an
+          # existing container is unsafe here because it may still mount the
+          # previous release's deploy/Caddyfile and upstream names.
+          export FLUXRADAR_CADDYFILE="$RUNTIME_DIR/Caddyfile"
+          export FLUXRADAR_API_UPSTREAM="$NEW_API_UPSTREAM"
+          export FLUXRADAR_WEB_UPSTREAM="$NEW_WEB_UPSTREAM"
+          docker compose --env-file .env.production -p fluxradar up -d --no-deps --force-recreate caddy
 
           caddy_ready=0
           for attempt in $(seq 1 15); do
@@ -571,5 +554,26 @@ jobs:
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "if getent ahostsv4 fluxradar.net >/dev/null 2>&1; then curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-connrefused --location --insecure https://fluxradar.net/api/health; else echo 'DNS for fluxradar.net is not configured yet; internal smoke test passed.'; fi"
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" <<'REMOTE'
+          set -eu
+          APP_DIR="$1"
+          if ! getent ahostsv4 fluxradar.net >/dev/null 2>&1; then
+            echo 'DNS for fluxradar.net is not configured yet; internal smoke test passed.'
+            exit 0
+          fi
+          if curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-connrefused --location --insecure https://fluxradar.net/api/health; then
+            exit 0
+          fi
+
+          echo 'Public smoke failed; collecting sanitized Caddy diagnostics.' >&2
+          cd "$APP_DIR/current"
+          docker compose --env-file .env.production -p fluxradar ps caddy 2>&1 || true
+          CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy 2>/dev/null || true)"
+          if [ -n "$CADDY_CONTAINER" ]; then
+            docker inspect --format 'status={{.State.Status}} running={{.State.Running}} restarting={{.State.Restarting}} exitCode={{.State.ExitCode}} error={{.State.Error}}' "$CADDY_CONTAINER" 2>&1 || true
+            docker logs --tail 80 "$CADDY_CONTAINER" 2>&1 || true
+          fi
+          exit 1
+          REMOTE
