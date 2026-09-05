@@ -166,14 +166,18 @@ jobs:
           docker save --output "$RUNNER_TEMP/fluxradar-images.tar" \
             "fluxradar-api:$RELEASE_ID" "fluxradar-web:$RELEASE_ID"
 
-      - name: Reclaim remote /tmp and verify disk space
+      - name: Preflight remote disk space and stale staging cleanup
         # Runs before "Upload release" so scp cannot fail mid-write on a full
-        # /tmp. A previous failed rollout can leave large image tars/archives in
-        # /tmp; this step removes ONLY this workflow's stale upload artifacts and
-        # then refuses to continue if /tmp still lacks room for the new upload.
+        # disk. Uploads are staged under APP_DIR/incoming/<commit> on the ROOT
+        # filesystem (which has ample free space), not the tiny /tmp tmpfs. This
+        # gate therefore checks free space on the APP_DIR filesystem and reclaims
+        # ONLY this workflow's own stale per-release staging directories under
+        # APP_DIR/incoming. It never touches releases, current, runtime, Docker
+        # data/volumes, or PostgreSQL.
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
         run: |
           set -euo pipefail
           # Measure the exact bytes we are about to upload (release archive + env
@@ -191,14 +195,19 @@ jobs:
               exit 1
               ;;
           esac
-          # Require ~20% headroom, floored at 512 MiB, so we never fill /tmp to the
-          # brim and leave nothing for the extraction that follows on the remote.
-          margin_kb=$(( required_kb / 5 ))
+          # The staged artifacts live on the root filesystem only briefly: the
+          # release archive is extracted and the image tar is loaded into Docker,
+          # which transiently roughly doubles the footprint before the staging dir
+          # is removed. Reserve headroom equal to the artifact size (floored at
+          # 512 MiB) to cover that transient copy plus slack. The root filesystem
+          # has ~20G free, so this stays comfortably safe while still refusing a
+          # genuinely full disk.
+          margin_kb="$required_kb"
           floor_kb=524288
           if [ "$margin_kb" -lt "$floor_kb" ]; then margin_kb="$floor_kb"; fi
           need_kb=$(( required_kb + margin_kb ))
 
-          # Only delete files this workflow itself creates in /tmp and only if they
+          # Only remove staging dirs this workflow itself creates and only if they
           # are older than a threshold safely larger than a single deploy. Deploys
           # are serialized by the "production-deploy" concurrency group and the job
           # times out at 30 minutes, so a 60-minute floor cannot race an in-flight
@@ -206,47 +215,69 @@ jobs:
           stale_minutes=60
 
           # shellcheck disable=SC2029
-          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$need_kb" "$stale_minutes" <<'REMOTE'
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$need_kb" "$stale_minutes" "$APP_DIR" <<'REMOTE'
           set -eu
           NEED_KB="$1"
           STALE_MINUTES="$2"
+          APP_DIR="$3"
+          INCOMING_DIR="$APP_DIR/incoming"
 
-          echo "----- remote disk usage: /tmp and / (before cleanup) -----"
-          df -P -h /tmp / || true
+          echo "----- remote disk usage: APP_DIR filesystem (before cleanup) -----"
+          # df prints the mount point (e.g. /) in its last column, not the path we
+          # pass, so the APP_DIR value is not written to the log here.
+          df -P -h "$APP_DIR" || true
 
-          echo "----- removing stale FluxRadar upload artifacts in /tmp -----"
+          # Ensure the staging parent exists (owner-only) so the space math and the
+          # cleanup below are stable even on a fresh host. Creating it changes
+          # nothing about releases, current, runtime, Docker data, or PostgreSQL.
+          install -m 700 -d "$INCOMING_DIR"
+
+          echo "----- reclaiming stale FluxRadar staging dirs under incoming/ -----"
           # Safety scope, enforced by the predicates below:
-          #   -maxdepth 1  : only the top level of /tmp; never recurses elsewhere.
-          #   -type f      : regular files only; never directories or symlinks, so
-          #                  release dirs, Docker volumes, or sockets are untouched.
-          #   -name ...    : only "fluxradar-*" names with this workflow's known
-          #                  extensions (.tar.gz / .tar / .env); unrelated files and
-          #                  anything without the prefix are ignored.
-          #   -mmin +N     : only files older than the stale threshold.
-          # Releases live under the app dir (not /tmp) and running containers/images
-          # are unaffected by deleting a plain file, so none of those can be removed.
-          find /tmp -maxdepth 1 -type f \
-            \( -name 'fluxradar-*.tar.gz' -o -name 'fluxradar-*.tar' -o -name 'fluxradar-*.env' \) \
-            -mmin "+${STALE_MINUTES}" \
-            -printf 'removing %TY-%Tm-%Td %TH:%TM %10s bytes  %p\n' \
-            -delete || true
+          #   -mindepth/-maxdepth 1 : only immediate children of incoming/; never
+          #                           recurses into them or above incoming/.
+          #   -type d               : only directories (per-release staging); never
+          #                           files, symlinks, sockets, or Docker volumes.
+          #   name is strict hex     : the name must look like a git commit id
+          #                           (7-64 lowercase hex chars); anything else is
+          #                           skipped, so a stray file/dir is never removed.
+          #   -mmin +N               : only entries older than the stale threshold.
+          # APP_DIR/releases, current, runtime, Docker data (/var/lib/docker), and
+          # PostgreSQL's volume all live OUTSIDE incoming/, so none can be selected.
+          find "$INCOMING_DIR" -mindepth 1 -maxdepth 1 -type d -mmin "+${STALE_MINUTES}" -printf '%f\n' \
+            | while IFS= read -r name; do
+                case "$name" in
+                  ''|*[!0-9a-f]*) continue ;;
+                esac
+                len=${#name}
+                if [ "$len" -lt 7 ] || [ "$len" -gt 64 ]; then
+                  continue
+                fi
+                target="$INCOMING_DIR/$name"
+                case "$target" in
+                  "$INCOMING_DIR"/*) ;;
+                  *) continue ;;
+                esac
+                echo "removing stale staging dir incoming/$name"
+                rm -rf -- "$target"
+              done
 
-          echo "----- remote disk usage: /tmp (after cleanup) -----"
-          df -P -h /tmp || true
+          echo "----- remote disk usage: APP_DIR filesystem (after cleanup) -----"
+          df -P -h "$APP_DIR" || true
 
-          avail_kb="$(df -P -k /tmp | awk 'NR==2 {print $4}')"
+          avail_kb="$(df -P -k "$APP_DIR" | awk 'NR==2 {print $4}')"
           case "$avail_kb" in
             ''|*[!0-9]*)
-              echo "ERROR: could not determine free space on /tmp (got '$avail_kb')" >&2
+              echo "ERROR: could not determine free space on the APP_DIR filesystem (got '$avail_kb')" >&2
               exit 1
               ;;
           esac
           if [ "$avail_kb" -lt "$NEED_KB" ]; then
-            echo "ERROR: /tmp is critically full: ${avail_kb} KiB free but ${NEED_KB} KiB required for this release upload." >&2
-            echo "Refusing to upload. No releases, Docker volumes, or running containers were touched; inspect remote /tmp." >&2
+            echo "ERROR: insufficient free space on the APP_DIR filesystem: ${avail_kb} KiB free but ${NEED_KB} KiB required for this release (artifacts + extraction/load headroom)." >&2
+            echo "Refusing to upload. No releases, current symlink, runtime, Docker data/volumes, or PostgreSQL were touched; inspect the APP_DIR filesystem." >&2
             exit 1
           fi
-          echo "OK: /tmp has ${avail_kb} KiB free (need ${NEED_KB} KiB); proceeding to upload."
+          echo "OK: APP_DIR filesystem has ${avail_kb} KiB free (need ${NEED_KB} KiB); proceeding to upload."
           REMOTE
 
       - name: Upload release
@@ -256,11 +287,52 @@ jobs:
           APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
           RELEASE_ID: ${{ github.sha }}
         run: |
-          scp "$RUNNER_TEMP/release.tar.gz" "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.tar.gz"
-          scp "$RUNNER_TEMP/production.env" "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.env"
-          scp "$RUNNER_TEMP/fluxradar-images.tar" "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID-images.tar"
+          set -euo pipefail
+          # Stage every large artifact under a dedicated, per-release directory on
+          # the ROOT filesystem (APP_DIR/incoming/<commit>) instead of the tiny
+          # /tmp tmpfs. The staging dir is created up front with owner-only
+          # permissions and removed again after a successful install.
+          STAGE_DIR="$APP_DIR/incoming/$RELEASE_ID"
+
+          # On ANY failure below, remove ONLY this release's staging dir to reclaim
+          # space, then re-raise the original error. This never touches releases/,
+          # current, runtime, Docker data/volumes, or PostgreSQL, and it preserves
+          # the failing exit status so the real error is not masked.
+          cleanup_stage() {
+            # shellcheck disable=SC2029
+            ssh "$SSH_USER@$SSH_HOST" "rm -rf -- '$STAGE_DIR'" || true
+          }
+          trap 'rc=$?; cleanup_stage; exit "$rc"' ERR
+
+          # Create the exact per-release staging dir (and its parent) with safe,
+          # owner-only permissions before any scp so writes cannot fail mid-stream.
           # shellcheck disable=SC2029
-          ssh "$SSH_USER@$SSH_HOST" "docker load --input '/tmp/fluxradar-$RELEASE_ID-images.tar' && mkdir -p '$APP_DIR/releases/$RELEASE_ID' && tar -xzf '/tmp/fluxradar-$RELEASE_ID.tar.gz' -C '$APP_DIR/releases/$RELEASE_ID' && install -m 600 '/tmp/fluxradar-$RELEASE_ID.env' '$APP_DIR/releases/$RELEASE_ID/.env.production'"
+          ssh "$SSH_USER@$SSH_HOST" "install -m 700 -d '$APP_DIR/incoming' '$STAGE_DIR'"
+
+          scp "$RUNNER_TEMP/release.tar.gz" "$SSH_USER@$SSH_HOST:$STAGE_DIR/release.tar.gz"
+          scp "$RUNNER_TEMP/production.env" "$SSH_USER@$SSH_HOST:$STAGE_DIR/production.env"
+          scp "$RUNNER_TEMP/fluxradar-images.tar" "$SSH_USER@$SSH_HOST:$STAGE_DIR/images.tar"
+
+          # Load, extract, and install strictly from the staging dir, then remove
+          # ONLY that exact staging dir on success. If this fails partway, the ERR
+          # trap above cleans the staging dir; the (inactive) new release dir is
+          # left for the retention sweep and no active release/volume is deleted.
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "$RELEASE_ID" <<'REMOTE'
+          set -eu
+          APP_DIR="$1"
+          RELEASE_ID="$2"
+          STAGE_DIR="$APP_DIR/incoming/$RELEASE_ID"
+          RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
+          docker load --input "$STAGE_DIR/images.tar"
+          mkdir -p "$RELEASE_DIR"
+          tar -xzf "$STAGE_DIR/release.tar.gz" -C "$RELEASE_DIR"
+          install -m 600 "$STAGE_DIR/production.env" "$RELEASE_DIR/.env.production"
+          # Success: remove ONLY this release's staging dir to reclaim space.
+          rm -rf -- "$STAGE_DIR"
+          REMOTE
+
+          trap - ERR
 
       - name: Start release and smoke test
         env:
