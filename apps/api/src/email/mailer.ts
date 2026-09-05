@@ -91,7 +91,13 @@ function optional(value: string | undefined): string | null {
   return trimmed === '' ? null : trimmed;
 }
 
-/** Production uses Resend; development and tests are deterministic and offline. */
+/**
+ * Production uses Resend when connected; development and tests are deterministic
+ * and offline. Resend is optional until its keys are configured: with the API
+ * key or sender absent in production this returns a `NotConfiguredMailer`, so
+ * email-dependent flows stay safely disabled and surface `not-configured`
+ * instead of silently claiming a message was sent.
+ */
 export function createMailer(
   env: NodeJS.ProcessEnv = process.env,
   fetcher: typeof fetch = fetch,

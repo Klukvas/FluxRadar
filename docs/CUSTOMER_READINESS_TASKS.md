@@ -126,8 +126,10 @@ Resend и AI requests в CI не выполнять.
   object keys after commit, logs an aggregate cleanup warning when S3 deletion
   fails, and is idempotent. `AccountDeletionAudit.accountIdHash` is unique.
 - CR-02 uses a server-side Resend adapter in production and a mock mailer in
-  development/test. Production startup now fails fast unless both
-  `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are configured.
+  development/test. Resend is optional until it is connected: when
+  `RESEND_API_KEY`/`RESEND_FROM_EMAIL` are absent the API still boots and
+  email-dependent flows stay safely disabled, reporting a `not-configured`
+  status instead of pretending a message was sent.
 - CR-03 builds immutable API/web images in GitHub Actions, transfers them to
   Hetzner, probes isolated release containers through `/health/ready`, switches
   Caddy only after the probes pass, and updates the `current` symlink/state

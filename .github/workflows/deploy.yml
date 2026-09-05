@@ -87,8 +87,27 @@ jobs:
 
       - name: Create release archive
         env:
+          # PRODUCTION_ENV_FILE is the authoritative base env file and is never
+          # overwritten blindly. The optional secrets below are merged on top of
+          # it only when provided; each lives in its own production environment
+          # secret so integrations can be connected one at a time.
           PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
           INTERNAL_FREE_EMAILS: ${{ vars.FLUXRADAR_INTERNAL_FREE_EMAILS }}
+          PRODUCTION_INTEGRATION_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_INTEGRATION_ENCRYPTION_KEY }}
+          PRODUCTION_BING_OAUTH_CLIENT_ID: ${{ secrets.PRODUCTION_BING_OAUTH_CLIENT_ID }}
+          PRODUCTION_BING_OAUTH_CLIENT_SECRET: ${{ secrets.PRODUCTION_BING_OAUTH_CLIENT_SECRET }}
+          PRODUCTION_BING_OAUTH_REDIRECT_URI: ${{ secrets.PRODUCTION_BING_OAUTH_REDIRECT_URI }}
+          PRODUCTION_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.PRODUCTION_GOOGLE_OAUTH_CLIENT_ID }}
+          PRODUCTION_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.PRODUCTION_GOOGLE_OAUTH_CLIENT_SECRET }}
+          PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI: ${{ secrets.PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI }}
+          PRODUCTION_ANTHROPIC_API_KEY: ${{ secrets.PRODUCTION_ANTHROPIC_API_KEY }}
+          PRODUCTION_PAGESPEED_API_KEY: ${{ secrets.PRODUCTION_PAGESPEED_API_KEY }}
+          PRODUCTION_CRUX_API_KEY: ${{ secrets.PRODUCTION_CRUX_API_KEY }}
+          PRODUCTION_HETZNER_S3_ACCESS_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_ACCESS_KEY }}
+          PRODUCTION_HETZNER_S3_SECRET_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_SECRET_KEY }}
+          PRODUCTION_HETZNER_S3_ENDPOINT: ${{ secrets.PRODUCTION_HETZNER_S3_ENDPOINT }}
+          PRODUCTION_HETZNER_S3_REGION: ${{ secrets.PRODUCTION_HETZNER_S3_REGION }}
+          PRODUCTION_HETZNER_S3_BUCKET: ${{ secrets.PRODUCTION_HETZNER_S3_BUCKET }}
         run: |
           tar \
             --exclude=.git \
@@ -100,21 +119,43 @@ jobs:
             --exclude='client_secret_*.json' \
             -czf "$RUNNER_TEMP/release.tar.gz" .
           printf '%s\n' "$PRODUCTION_ENV_FILE" > "$RUNNER_TEMP/production.env"
-          if [ -n "$INTERNAL_FREE_EMAILS" ]; then
-            awk -v value="$INTERNAL_FREE_EMAILS" '
-              BEGIN { replaced = 0 }
-              /^FLUXRADAR_INTERNAL_FREE_EMAILS=/ {
-                if (!replaced) print "FLUXRADAR_INTERNAL_FREE_EMAILS=" value
-                replaced = 1
-                next
-              }
-              { print }
-              END {
-                if (!replaced) print "FLUXRADAR_INTERNAL_FREE_EMAILS=" value
-              }
-            ' "$RUNNER_TEMP/production.env" > "$RUNNER_TEMP/production.env.tmp"
+
+          # Upserts KEY=<value> into the release env file, but only when the
+          # optional source secret is non-empty. The value is read from the named
+          # environment variable and written with printf %s, so it never appears
+          # in the workflow log or process arguments and is copied verbatim (no
+          # awk/gsub escaping surprises). An unset or empty secret is skipped so a
+          # blank optional value can never override what PRODUCTION_ENV_FILE
+          # already defines.
+          upsert_env() {
+            key="$1"
+            source_var="$2"
+            value="$(printenv "$source_var" || true)"
+            if [ -z "$value" ]; then
+              return 0
+            fi
+            grep -v "^${key}=" "$RUNNER_TEMP/production.env" \
+              > "$RUNNER_TEMP/production.env.tmp" || true
             mv "$RUNNER_TEMP/production.env.tmp" "$RUNNER_TEMP/production.env"
-          fi
+            printf '%s=%s\n' "$key" "$value" >> "$RUNNER_TEMP/production.env"
+          }
+
+          upsert_env FLUXRADAR_INTERNAL_FREE_EMAILS INTERNAL_FREE_EMAILS
+          upsert_env INTEGRATION_ENCRYPTION_KEY PRODUCTION_INTEGRATION_ENCRYPTION_KEY
+          upsert_env BING_OAUTH_CLIENT_ID PRODUCTION_BING_OAUTH_CLIENT_ID
+          upsert_env BING_OAUTH_CLIENT_SECRET PRODUCTION_BING_OAUTH_CLIENT_SECRET
+          upsert_env BING_OAUTH_REDIRECT_URI PRODUCTION_BING_OAUTH_REDIRECT_URI
+          upsert_env GOOGLE_OAUTH_CLIENT_ID PRODUCTION_GOOGLE_OAUTH_CLIENT_ID
+          upsert_env GOOGLE_OAUTH_CLIENT_SECRET PRODUCTION_GOOGLE_OAUTH_CLIENT_SECRET
+          upsert_env GOOGLE_OAUTH_REDIRECT_URI PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI
+          upsert_env ANTHROPIC_API_KEY PRODUCTION_ANTHROPIC_API_KEY
+          upsert_env PAGESPEED_API_KEY PRODUCTION_PAGESPEED_API_KEY
+          upsert_env CRUX_API_KEY PRODUCTION_CRUX_API_KEY
+          upsert_env HETZNER_S3_ACCESS_KEY PRODUCTION_HETZNER_S3_ACCESS_KEY
+          upsert_env HETZNER_S3_SECRET_KEY PRODUCTION_HETZNER_S3_SECRET_KEY
+          upsert_env HETZNER_S3_ENDPOINT PRODUCTION_HETZNER_S3_ENDPOINT
+          upsert_env HETZNER_S3_REGION PRODUCTION_HETZNER_S3_REGION
+          upsert_env HETZNER_S3_BUCKET PRODUCTION_HETZNER_S3_BUCKET
 
       - name: Build production images
         env:

@@ -24,17 +24,55 @@ The `production` environment contains these secrets:
 - `PRODUCTION_ENV_FILE`
 
 The last secret is the complete production environment file and must never be
-committed to the repository. It must include `POSTGRES_DB`, `POSTGRES_USER`,
-`POSTGRES_PASSWORD`, `DATABASE_URL` pointing to the `postgres` compose service,
-`FLUXRADAR_ENV_FILE=.env.production`, `INTEGRATION_ENCRYPTION_KEY`,
-`RESEND_API_KEY` and `RESEND_FROM_EMAIL`. `RESEND_REPLY_TO` is optional.
-The API refuses to start in production when the dedicated encryption key or
-Resend sender configuration is missing.
+committed to the repository, and the deploy workflow never overwrites it
+blindly. It must include `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
+`DATABASE_URL` pointing to the `postgres` compose service,
+`FLUXRADAR_ENV_FILE=.env.production` and `INTEGRATION_ENCRYPTION_KEY`. The API
+refuses to start in production only when `DATABASE_URL`,
+`PADDLE_WEBHOOK_SECRET` or the dedicated `INTEGRATION_ENCRYPTION_KEY` is
+missing; every other integration is optional.
+
+Transactional email via Resend is optional until it is connected. If
+`RESEND_API_KEY`/`RESEND_FROM_EMAIL` are absent (`RESEND_REPLY_TO` is always
+optional), the API still boots, email-dependent flows stay safely disabled, and
+they report a `not-configured` status instead of pretending a message was sent.
+
+## Optional integration secrets
+
+The base `PRODUCTION_ENV_FILE` above always wins unless a matching optional
+secret is provided. To connect integrations one at a time without editing the
+base file, define any of these separate `production` environment secrets. The
+deploy workflow merges each non-empty value into the release env file (an unset
+or empty secret is skipped and never adds a blank override; values are never
+echoed to the workflow log):
+
+| GitHub `production` secret                | Env key written           |
+| ---------------------------------------- | ------------------------- |
+| `PRODUCTION_INTEGRATION_ENCRYPTION_KEY`   | `INTEGRATION_ENCRYPTION_KEY` |
+| `PRODUCTION_BING_OAUTH_CLIENT_ID`         | `BING_OAUTH_CLIENT_ID`     |
+| `PRODUCTION_BING_OAUTH_CLIENT_SECRET`     | `BING_OAUTH_CLIENT_SECRET` |
+| `PRODUCTION_BING_OAUTH_REDIRECT_URI`      | `BING_OAUTH_REDIRECT_URI`  |
+| `PRODUCTION_GOOGLE_OAUTH_CLIENT_ID`       | `GOOGLE_OAUTH_CLIENT_ID`   |
+| `PRODUCTION_GOOGLE_OAUTH_CLIENT_SECRET`   | `GOOGLE_OAUTH_CLIENT_SECRET` |
+| `PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI`    | `GOOGLE_OAUTH_REDIRECT_URI` |
+| `PRODUCTION_ANTHROPIC_API_KEY`            | `ANTHROPIC_API_KEY`        |
+| `PRODUCTION_PAGESPEED_API_KEY`            | `PAGESPEED_API_KEY`        |
+| `PRODUCTION_CRUX_API_KEY`                 | `CRUX_API_KEY`             |
+| `PRODUCTION_HETZNER_S3_ACCESS_KEY`        | `HETZNER_S3_ACCESS_KEY`    |
+| `PRODUCTION_HETZNER_S3_SECRET_KEY`        | `HETZNER_S3_SECRET_KEY`    |
+| `PRODUCTION_HETZNER_S3_ENDPOINT`         | `HETZNER_S3_ENDPOINT`      |
+| `PRODUCTION_HETZNER_S3_REGION`           | `HETZNER_S3_REGION`        |
+| `PRODUCTION_HETZNER_S3_BUCKET`            | `HETZNER_S3_BUCKET`        |
+
+`PRODUCTION_INTEGRATION_ENCRYPTION_KEY` upserts the same key the base file may
+already define; supply it only when rotating or when the base file omits it.
+Resend has no optional deploy secret — set `RESEND_API_KEY`/`RESEND_FROM_EMAIL`
+directly in `PRODUCTION_ENV_FILE` when you are ready to connect email.
 
 The optional GitHub `production` environment variable
-`FLUXRADAR_INTERNAL_FREE_EMAILS` is merged into that file by the deploy
-workflow. Keep it as an exact comma-separated list for internal test accounts;
-leave it unset when internal free access should be disabled.
+`FLUXRADAR_INTERNAL_FREE_EMAILS` is merged into that file the same way. Keep it
+as an exact comma-separated list for internal test accounts; leave it unset when
+internal free access should be disabled.
 
 ## DNS before first public visit
 

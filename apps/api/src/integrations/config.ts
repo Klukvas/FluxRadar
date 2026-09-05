@@ -97,16 +97,20 @@ export function readIntegrationConfig(env: NodeJS.ProcessEnv = process.env): Int
  * name only, never by value. `prisma migrate deploy` does not run this check, so
  * a deploy can migrate successfully and then crash-loop on `startServer` when one
  * of these is absent — aggregating them keeps that failure self-explanatory.
- * INTEGRATION_ENCRYPTION_KEY and RESEND_* have no safe production fallback;
- * DATABASE_URL and PADDLE_WEBHOOK_SECRET are also validated by their own callers
- * but listed here so a single failed deploy surfaces every gap at once.
+ * INTEGRATION_ENCRYPTION_KEY has no safe production fallback; DATABASE_URL and
+ * PADDLE_WEBHOOK_SECRET are also validated by their own callers but listed here
+ * so a single failed deploy surfaces every gap at once.
+ *
+ * RESEND_API_KEY/RESEND_FROM_EMAIL are intentionally NOT required: transactional
+ * email is optional until Resend is connected. When they are absent in
+ * production, `createMailer` returns a `NotConfiguredMailer` and email-dependent
+ * flows report the existing `not-configured` status instead of blocking startup
+ * or pretending a message was sent.
  */
 export const REQUIRED_PRODUCTION_SECRETS = [
   'DATABASE_URL',
   'PADDLE_WEBHOOK_SECRET',
   'INTEGRATION_ENCRYPTION_KEY',
-  'RESEND_API_KEY',
-  'RESEND_FROM_EMAIL',
 ] as const;
 
 /**

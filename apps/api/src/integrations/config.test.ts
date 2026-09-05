@@ -7,8 +7,6 @@ const completeProductionEnv = {
   DATABASE_URL: 'postgresql://user:pass@db:5432/fluxradar',
   PADDLE_WEBHOOK_SECRET: 'paddle-secret',
   INTEGRATION_ENCRYPTION_KEY: 'dedicated-key',
-  RESEND_API_KEY: 'resend-test-key',
-  RESEND_FROM_EMAIL: 'FluxRadar <noreply@example.com>',
 } satisfies NodeJS.ProcessEnv;
 
 function messageFrom(env: NodeJS.ProcessEnv): string {
@@ -33,21 +31,36 @@ describe('runtime secret validation', () => {
       NODE_ENV: 'production',
       DATABASE_URL: 'postgresql://user:pass@db:5432/fluxradar',
       PADDLE_WEBHOOK_SECRET: 'paddle-secret',
-      INTEGRATION_ENCRYPTION_KEY: 'dedicated-key',
-      RESEND_API_KEY: 'resend-test-key',
     });
-    expect(message).toContain('RESEND_FROM_EMAIL');
-    expect(message).not.toContain('RESEND_API_KEY');
+    expect(message).toContain('INTEGRATION_ENCRYPTION_KEY');
+    expect(message).not.toContain('PADDLE_WEBHOOK_SECRET');
     expect(message).not.toContain('DATABASE_URL');
   });
 
   it('never puts a secret value in the error message', () => {
     const message = messageFrom({
       NODE_ENV: 'production',
-      INTEGRATION_ENCRYPTION_KEY: 'super-secret-value',
+      DATABASE_URL: 'postgresql://user:pass@db:5432/fluxradar',
+      PADDLE_WEBHOOK_SECRET: 'super-secret-value',
     });
-    expect(message).toContain('RESEND_API_KEY');
+    expect(message).toContain('INTEGRATION_ENCRYPTION_KEY');
     expect(message).not.toContain('super-secret-value');
+  });
+
+  it('treats Resend as optional and boots production without it', () => {
+    expect(() => validateRuntimeConfig(completeProductionEnv)).not.toThrow();
+    for (const name of REQUIRED_PRODUCTION_SECRETS) {
+      expect(name).not.toMatch(/^RESEND_/);
+    }
+    expect(
+      messageFrom({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://user:pass@db:5432/fluxradar',
+        PADDLE_WEBHOOK_SECRET: 'paddle-secret',
+        INTEGRATION_ENCRYPTION_KEY: 'dedicated-key',
+        // RESEND_API_KEY / RESEND_FROM_EMAIL intentionally absent.
+      }),
+    ).toBe('');
   });
 
   it('allows the explicit development/test fallback', () => {

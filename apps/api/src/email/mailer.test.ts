@@ -16,6 +16,18 @@ describe('transactional email adapters', () => {
     expect(createMailer({ NODE_ENV: 'production' }).configured).toBe(false);
   });
 
+  it('reports not-configured instead of pretending to send when Resend is absent', async () => {
+    const mailer = createMailer({ NODE_ENV: 'production', RESEND_API_KEY: 'only-key' });
+    expect(mailer.configured).toBe(false);
+    const result = await mailer.send({
+      to: 'user@example.com',
+      subject: 'Hello',
+      html: '<p>Hello</p>',
+      text: 'Hello',
+    });
+    expect(result.status).toBe('not-configured');
+  });
+
   it('sends the documented Resend request without exposing the key in the body', async () => {
     const fetcher = vi
       .fn<typeof fetch>()

@@ -48,8 +48,9 @@ DevOps/reliability. После первого раунда были исправ
   tracking/alerts остаются deferred по решению владельца проекта.
 - Production не запускался и не пушился из этого раунда. Перед merge/deploy
   нужно проверить private production env: `INTEGRATION_ENCRYPTION_KEY`,
-  `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, Postgres credentials и
-  `FLUXRADAR_INTERNAL_FREE_EMAILS`.
+  Postgres credentials и `FLUXRADAR_INTERNAL_FREE_EMAILS`. Resend
+  (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) опционален: пока не подключён, API
+  стартует, а email-флоу отдают `not-configured`.
 - Перед первым новым deploy нужно подтвердить, что существующие production
   integration secrets не были зашифрованы только старым fallback на
   `SESSION_SECRET`; иначе подключения нужно перепривязать.
