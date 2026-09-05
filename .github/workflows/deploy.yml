@@ -166,6 +166,89 @@ jobs:
           docker save --output "$RUNNER_TEMP/fluxradar-images.tar" \
             "fluxradar-api:$RELEASE_ID" "fluxradar-web:$RELEASE_ID"
 
+      - name: Reclaim remote /tmp and verify disk space
+        # Runs before "Upload release" so scp cannot fail mid-write on a full
+        # /tmp. A previous failed rollout can leave large image tars/archives in
+        # /tmp; this step removes ONLY this workflow's stale upload artifacts and
+        # then refuses to continue if /tmp still lacks room for the new upload.
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -euo pipefail
+          # Measure the exact bytes we are about to upload (release archive + env
+          # file + image tar) so the remote free-space gate is precise rather than
+          # an arbitrary constant. du -k reports block usage, which slightly rounds
+          # up and is therefore conservative (never under-estimates the need).
+          required_kb="$(du -ck \
+            "$RUNNER_TEMP/release.tar.gz" \
+            "$RUNNER_TEMP/production.env" \
+            "$RUNNER_TEMP/fluxradar-images.tar" \
+            | tail -n 1 | cut -f1)"
+          case "$required_kb" in
+            ''|*[!0-9]*)
+              echo "ERROR: could not determine local upload size (got '$required_kb')" >&2
+              exit 1
+              ;;
+          esac
+          # Require ~20% headroom, floored at 512 MiB, so we never fill /tmp to the
+          # brim and leave nothing for the extraction that follows on the remote.
+          margin_kb=$(( required_kb / 5 ))
+          floor_kb=524288
+          if [ "$margin_kb" -lt "$floor_kb" ]; then margin_kb="$floor_kb"; fi
+          need_kb=$(( required_kb + margin_kb ))
+
+          # Only delete files this workflow itself creates in /tmp and only if they
+          # are older than a threshold safely larger than a single deploy. Deploys
+          # are serialized by the "production-deploy" concurrency group and the job
+          # times out at 30 minutes, so a 60-minute floor cannot race an in-flight
+          # upload from another run.
+          stale_minutes=60
+
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$need_kb" "$stale_minutes" <<'REMOTE'
+          set -eu
+          NEED_KB="$1"
+          STALE_MINUTES="$2"
+
+          echo "----- remote disk usage: /tmp and / (before cleanup) -----"
+          df -P -h /tmp / || true
+
+          echo "----- removing stale FluxRadar upload artifacts in /tmp -----"
+          # Safety scope, enforced by the predicates below:
+          #   -maxdepth 1  : only the top level of /tmp; never recurses elsewhere.
+          #   -type f      : regular files only; never directories or symlinks, so
+          #                  release dirs, Docker volumes, or sockets are untouched.
+          #   -name ...    : only "fluxradar-*" names with this workflow's known
+          #                  extensions (.tar.gz / .tar / .env); unrelated files and
+          #                  anything without the prefix are ignored.
+          #   -mmin +N     : only files older than the stale threshold.
+          # Releases live under the app dir (not /tmp) and running containers/images
+          # are unaffected by deleting a plain file, so none of those can be removed.
+          find /tmp -maxdepth 1 -type f \
+            \( -name 'fluxradar-*.tar.gz' -o -name 'fluxradar-*.tar' -o -name 'fluxradar-*.env' \) \
+            -mmin "+${STALE_MINUTES}" \
+            -printf 'removing %TY-%Tm-%Td %TH:%TM %10s bytes  %p\n' \
+            -delete || true
+
+          echo "----- remote disk usage: /tmp (after cleanup) -----"
+          df -P -h /tmp || true
+
+          avail_kb="$(df -P -k /tmp | awk 'NR==2 {print $4}')"
+          case "$avail_kb" in
+            ''|*[!0-9]*)
+              echo "ERROR: could not determine free space on /tmp (got '$avail_kb')" >&2
+              exit 1
+              ;;
+          esac
+          if [ "$avail_kb" -lt "$NEED_KB" ]; then
+            echo "ERROR: /tmp is critically full: ${avail_kb} KiB free but ${NEED_KB} KiB required for this release upload." >&2
+            echo "Refusing to upload. No releases, Docker volumes, or running containers were touched; inspect remote /tmp." >&2
+            exit 1
+          fi
+          echo "OK: /tmp has ${avail_kb} KiB free (need ${NEED_KB} KiB); proceeding to upload."
+          REMOTE
+
       - name: Upload release
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
