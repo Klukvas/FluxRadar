@@ -556,9 +556,17 @@ jobs:
             docker logs --tail 80 "$CADDY_CONTAINER" 2>&1 || true
             exit 1
           fi
-          curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 1 --retry-connrefused \
-            --location --insecure --header 'Host: fluxradar.net' \
-            https://127.0.0.1/api/health >/dev/null
+          # Use the production hostname for both SNI and Host. Sending only a
+          # Host header to 127.0.0.1 makes Caddy's automatic HTTPS listener
+          # reject the TLS handshake before the request reaches the proxy.
+          if ! curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 1 --retry-connrefused \
+            --location --insecure --resolve fluxradar.net:443:127.0.0.1 \
+            https://fluxradar.net/api/health >/dev/null; then
+            echo "Caddy local smoke failed; collecting sanitized diagnostics" >&2
+            docker logs --tail 80 "$CADDY_CONTAINER" 2>&1 || true
+            rollback
+            exit 1
+          fi
 
           atomic_switch "$RELEASE_DIR"
           cat > "$STATE_FILE" <<STATE
