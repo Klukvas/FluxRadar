@@ -93,19 +93,36 @@ export function readIntegrationConfig(env: NodeJS.ProcessEnv = process.env): Int
 }
 
 /**
- * Fails fast for secrets whose accidental fallback would invalidate stored
- * integration credentials. Development and tests may use SESSION_SECRET as a
- * deliberate convenience; production must provide the separate key.
+ * Secrets the API must have to boot in production. A missing one is reported by
+ * name only, never by value. `prisma migrate deploy` does not run this check, so
+ * a deploy can migrate successfully and then crash-loop on `startServer` when one
+ * of these is absent — aggregating them keeps that failure self-explanatory.
+ * INTEGRATION_ENCRYPTION_KEY and RESEND_* have no safe production fallback;
+ * DATABASE_URL and PADDLE_WEBHOOK_SECRET are also validated by their own callers
+ * but listed here so a single failed deploy surfaces every gap at once.
+ */
+export const REQUIRED_PRODUCTION_SECRETS = [
+  'DATABASE_URL',
+  'PADDLE_WEBHOOK_SECRET',
+  'INTEGRATION_ENCRYPTION_KEY',
+  'RESEND_API_KEY',
+  'RESEND_FROM_EMAIL',
+] as const;
+
+/**
+ * Fails fast, before the HTTP server binds, when a production deploy is missing a
+ * required secret. Every missing name is aggregated into one error so the
+ * operator does not rediscover them one redeploy at a time. Development and tests
+ * may fall back to SESSION_SECRET for the integration key (see
+ * integrations/crypto.ts) and are intentionally not checked here.
  */
 export function validateRuntimeConfig(env: NodeJS.ProcessEnv = process.env): void {
-  if (env.NODE_ENV === 'production' && optional(env.INTEGRATION_ENCRYPTION_KEY) === null) {
-    throw new Error('INTEGRATION_ENCRYPTION_KEY is required in production');
+  if (env.NODE_ENV !== 'production') {
+    return;
   }
-  if (
-    env.NODE_ENV === 'production' &&
-    (optional(env.RESEND_API_KEY) === null || optional(env.RESEND_FROM_EMAIL) === null)
-  ) {
-    throw new Error('RESEND_API_KEY and RESEND_FROM_EMAIL are required in production');
+  const missing = REQUIRED_PRODUCTION_SECRETS.filter((name) => optional(env[name]) === null);
+  if (missing.length > 0) {
+    throw new Error(`Missing required production configuration: ${missing.join(', ')}`);
   }
 }
 

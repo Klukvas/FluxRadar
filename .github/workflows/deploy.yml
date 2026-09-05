@@ -242,6 +242,22 @@ jobs:
             fi
             restore_state || true
           }
+
+          # Prints why a container is unhealthy without leaking configuration.
+          # Uses an explicit field list from `docker inspect` (never .Config.Env)
+          # plus the container's own log output, which carries the startup error
+          # (e.g. "Missing required production configuration: ...") but no secret
+          # values. Bounded to the last log lines so the deploy log stays readable.
+          dump_container_diagnostics() {
+            container_name="$1"
+            echo "----- diagnostics: $container_name -----"
+            docker inspect \
+              --format 'status={{.State.Status}} running={{.State.Running}} restarting={{.State.Restarting}} exitCode={{.State.ExitCode}} oomKilled={{.State.OOMKilled}} restartCount={{.RestartCount}} error={{.State.Error}}' \
+              "$container_name" 2>/dev/null || echo "container not found: $container_name"
+            echo "----- last 80 log lines: $container_name -----"
+            docker logs --tail 80 "$container_name" 2>&1 || echo "no logs available: $container_name"
+            echo "----- end diagnostics: $container_name -----"
+          }
           trap rollback ERR
 
           mkdir -p "$RUNTIME_DIR"
@@ -282,7 +298,10 @@ jobs:
             sleep 2
           done
           if [ "$ready" -ne 1 ]; then
+            echo "API/web readiness never became true after $((30 * 2))s; collecting sanitized diagnostics" >&2
             docker ps --filter "name=$API_CONTAINER" --filter "name=$WEB_CONTAINER"
+            dump_container_diagnostics "$API_CONTAINER"
+            dump_container_diagnostics "$WEB_CONTAINER"
             exit 1
           fi
 
