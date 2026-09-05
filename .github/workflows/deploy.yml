@@ -349,7 +349,7 @@ jobs:
           RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
           RUNTIME_DIR="$APP_DIR/runtime"
           STATE_FILE="$RUNTIME_DIR/active.env"
-          FLUXRADAR_NETWORK="fluxradar_default"
+          FLUXRADAR_NETWORK=""
           PREVIOUS_RELEASE="$(readlink -f "$APP_DIR/current" 2>/dev/null || true)"
           API_IMAGE="fluxradar-api:$RELEASE_ID"
           WEB_IMAGE="fluxradar-web:$RELEASE_ID"
@@ -456,6 +456,16 @@ jobs:
           mkdir -p "$RUNTIME_DIR"
           cd "$RELEASE_DIR"
           docker compose --env-file .env.production -p fluxradar up -d postgres
+          POSTGRES_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q postgres)"
+          if [ -z "$POSTGRES_CONTAINER" ]; then
+            echo "PostgreSQL container was not created; cannot determine the application network" >&2
+            exit 1
+          fi
+          FLUXRADAR_NETWORK="$(docker inspect --format '{{range $network, $_ := .NetworkSettings.Networks}}{{println $network}}{{end}}' "$POSTGRES_CONTAINER" | awk 'NF { print; exit }')"
+          if [ -z "$FLUXRADAR_NETWORK" ]; then
+            echo "Could not determine the Docker network attached to PostgreSQL" >&2
+            exit 1
+          fi
           docker run --rm \
             --name "${API_CONTAINER}-migrate" \
             --network "$FLUXRADAR_NETWORK" \
