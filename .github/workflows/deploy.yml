@@ -432,6 +432,8 @@ jobs:
               atomic_switch "$PREVIOUS_RELEASE" || true
             fi
             restore_state || true
+            # Never let an ERR trap turn a failed release into a successful one.
+            return 1
           }
 
           # Prints why a container is unhealthy without leaking configuration.
@@ -516,7 +518,17 @@ jobs:
             sleep 2
           done
           if [ "$caddy_ready" -ne 1 ]; then exit 1; fi
-          curl --fail --silent --show-error --retry 10 --retry-delay 1 --retry-connrefused \
+          if ! grep -Fq "$NEW_API_UPSTREAM" "$RUNTIME_DIR/Caddyfile" \
+            || ! grep -Fq "$NEW_WEB_UPSTREAM" "$RUNTIME_DIR/Caddyfile"; then
+            echo "Generated Caddyfile does not reference the new release upstreams" >&2
+            exit 1
+          fi
+          if ! docker exec "$CADDY_CONTAINER" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
+            echo "Caddy configuration validation failed" >&2
+            docker logs --tail 80 "$CADDY_CONTAINER" 2>&1 || true
+            exit 1
+          fi
+          curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 1 --retry-connrefused \
             --location --insecure --header 'Host: fluxradar.net' \
             https://127.0.0.1/api/health >/dev/null
 
