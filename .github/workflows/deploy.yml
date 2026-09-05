@@ -374,8 +374,8 @@ jobs:
 
           API_CONTAINER="fluxradar-api-$RELEASE_ID"
           WEB_CONTAINER="fluxradar-web-$RELEASE_ID"
-          NEW_API_UPSTREAM="$API_CONTAINER:3310"
-          NEW_WEB_UPSTREAM="$WEB_CONTAINER:80"
+          NEW_API_UPSTREAM=""
+          NEW_WEB_UPSTREAM=""
 
           atomic_switch() {
             ln -sfn "$1" "$APP_DIR/current.next"
@@ -499,6 +499,14 @@ jobs:
             "$WEB_IMAGE"
           ensure_network_attachment "$API_CONTAINER"
           ensure_network_attachment "$WEB_CONTAINER"
+          API_IP="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$API_CONTAINER")"
+          WEB_IP="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$WEB_CONTAINER")"
+          if [ -z "$API_IP" ] || [ -z "$WEB_IP" ]; then
+            echo "Could not determine API/web container IP addresses" >&2
+            exit 1
+          fi
+          NEW_API_UPSTREAM="$API_IP:3310"
+          NEW_WEB_UPSTREAM="$WEB_IP:80"
 
           ready=0
           for attempt in $(seq 1 30); do
