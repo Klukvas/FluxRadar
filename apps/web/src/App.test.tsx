@@ -34,7 +34,12 @@ const scan = {
   ],
 };
 
-const completedScan = { ...scan, status: 'Completed', completedAt: '2026-09-04T00:03:00.000Z' };
+const completedScan = {
+  ...scan,
+  status: 'Completed',
+  progress: { completedModules: 2, totalModules: 2 },
+  completedAt: '2026-09-04T00:03:00.000Z',
+};
 
 const dashboard = {
   scan: completedScan,
@@ -119,6 +124,8 @@ describe('authentication UI', () => {
 
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Blog' })).toHaveAttribute('href', '/blog');
+    expect(screen.getByRole('link', { name: 'Blog' })).toHaveClass('menubar__blog-link');
     openAuth();
 
     const dialog = screen.getByRole('dialog');
@@ -289,6 +296,10 @@ describe('refresh-safe scan routes', () => {
     expect(await screen.findByText('Scan progress · Basic')).toBeInTheDocument();
     // Human-readable progress copy — the UI intentionally hides raw scan state and ruleset details.
     expect(screen.getByText('Checking your website')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Audit progress' })).toHaveAttribute(
+      'aria-valuenow',
+      '50',
+    );
     expect(
       screen.getByText('Checking your site — 1 of 2 audit sections done.'),
     ).toBeInTheDocument();
@@ -310,8 +321,82 @@ describe('refresh-safe scan routes', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('Report dashboard · https://example.com')).toBeInTheDocument();
+    expect(await screen.findByText('Report dashboard · example.com')).toBeInTheDocument();
     expect(screen.getByText('Unified website signal')).toBeInTheDocument();
+  });
+
+  it('shows an explicit completed state while keeping progress accessible', async () => {
+    window.history.replaceState(null, '', `/scans/${scan.id}`);
+    let scanRequests = 0;
+    stubApi((path) => {
+      if (path === '/auth/me') return envelope(account);
+      if (path === '/profiles') return envelope([]);
+      if (path === `/scans/${scan.id}`) {
+        scanRequests += 1;
+        return envelope(scanRequests === 1 ? scan : completedScan);
+      }
+      return envelope(null);
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText('Scan progress · Basic')).toBeInTheDocument();
+    expect(await screen.findByText('Your report is ready.')).toBeInTheDocument();
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Audit progress' })).toHaveAttribute(
+      'aria-valuenow',
+      '100',
+    );
+  });
+
+  it('renders an initial report with readable metadata and honest insufficient data state', async () => {
+    const insufficientScan = {
+      ...completedScan,
+      id: 'scan-insufficient-1',
+      plan: 'Free' as const,
+      domain: 'https://flux-lab.dev',
+      modules: [
+        {
+          ...completedScan.modules[0],
+          status: 'Completed',
+          coverage: 1,
+          score: null,
+          usableOutput: false,
+          statusReason: 'TargetsUnreachable',
+        },
+      ],
+    };
+    const insufficientDashboard = {
+      scan: insufficientScan,
+      overall: {
+        verdict: 'insufficient_data',
+        score: null,
+        weightedCoverage: 0,
+        moduleWeights: [],
+      },
+      modules: insufficientScan.modules,
+    };
+    window.history.replaceState(null, '', `/scans/${insufficientScan.id}`);
+    stubApi((path) => {
+      if (path === '/auth/me') return envelope(account);
+      if (path === '/profiles') return envelope([]);
+      if (path === `/scans/${insufficientScan.id}`) return envelope(insufficientScan);
+      if (path === `/scans/${insufficientScan.id}/dashboard`)
+        return envelope(insufficientDashboard);
+      return envelope(null);
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText('Report dashboard · flux-lab.dev')).toBeInTheDocument();
+    expect(screen.getByText('Website')).toBeInTheDocument();
+    expect(screen.getByText('flux-lab.dev')).toBeInTheDocument();
+    expect(screen.getByText('Plan')).toBeInTheDocument();
+    expect(screen.getByText('Report')).toBeInTheDocument();
+    expect(screen.getByText('Insufficient data · coverage unavailable')).toBeInTheDocument();
+    expect(screen.getByText('No score')).toBeInTheDocument();
+    expect(screen.queryByText('Completed')).not.toBeInTheDocument();
+    expect(screen.queryByText('100%')).not.toBeInTheDocument();
   });
 
   it('opens the login modal instead of probing a deep-linked scan while signed out', async () => {
@@ -590,7 +675,7 @@ describe('Issue Center — inline detail row', () => {
     window.history.replaceState(null, '', `/scans/${completedScan.id}`);
     render(<App />);
     // Lands on results screen after boot.
-    await screen.findByText('Report dashboard · https://example.com');
+    await screen.findByText('Report dashboard · example.com');
     fireEvent.click(screen.getByRole('button', { name: 'Open Issue Center' }));
     // Wait for issues to load.
     await screen.findByText('seo.title-missing');

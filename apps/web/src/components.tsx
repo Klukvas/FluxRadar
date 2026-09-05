@@ -49,6 +49,9 @@ export function MenuBar(props: {
       >
         Home
       </button>
+      <a className="menubar__item menubar__blog-link" href="/blog">
+        Blog
+      </a>
       <button
         className={props.active === 'desktop' ? 'menubar__item is-active' : 'menubar__item'}
         type="button"
@@ -244,7 +247,15 @@ export function ScoreDial(props: { score: number | null; verdict?: string; cover
 export function ProgressBar(props: { value: number; label?: string }) {
   const value = Math.max(0, Math.min(100, props.value));
   return (
-    <div className="progress" aria-label={props.label ?? 'Progress'}>
+    <div
+      className="progress"
+      role="progressbar"
+      aria-label={props.label ?? 'Progress'}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value}
+      aria-valuetext={`${value.toFixed(0)}%`}
+    >
       <div className="progress__track">
         <div className="progress__fill" style={{ width: `${value}%` }} />
       </div>

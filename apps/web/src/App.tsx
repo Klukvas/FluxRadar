@@ -2478,11 +2478,26 @@ function ScanScreen(props: {
       <Panel title="Checking your website">
         <p className="muted">We’re reviewing {scan.domain} for you.</p>
         <ProgressBar value={progress} label="Audit progress" />
-        <p className="muted">
-          {terminal
-            ? 'Your report is ready.'
-            : `Checking your site — ${scan.progress.completedModules} of ${scan.progress.totalModules} audit sections done.`}
-        </p>
+        {terminal ? (
+          <div className="scan-complete" role="status" aria-live="polite">
+            <StatusChip status={scan.status} />
+            <div>
+              <strong>
+                {scan.status === 'Completed' ? 'Your report is ready.' : scanStatusLabel(scan.status)}
+              </strong>
+              <p className="muted">
+                {scan.completedAt
+                  ? `Finished ${new Date(scan.completedAt).toLocaleString()}.`
+                  : 'The scan has finished processing.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="muted">
+            Checking your site — {scan.progress.completedModules} of {scan.progress.totalModules}{' '}
+            audit sections done.
+          </p>
+        )}
       </Panel>
       <Panel title="What we’re checking">
         {scan.modules.length === 0 ? (
@@ -2526,6 +2541,29 @@ function friendlySectionStatus(status: string): string {
   return 'Waiting';
 }
 
+function scanStatusLabel(status: string): string {
+  if (/partial/i.test(status)) return 'Your report is partially ready.';
+  if (/failed/i.test(status)) return 'The scan could not finish.';
+  if (/cancelled/i.test(status)) return 'The scan was cancelled.';
+  return 'The scan has finished.';
+}
+
+function reportModuleStatus(module: ScanModule): string {
+  if (/unavailable|failed|error/i.test(module.status)) return 'Unavailable';
+  if (!module.usableOutput) return 'Insufficient data';
+  if (/partial/i.test(module.status)) return 'Partial';
+  if (/completed|pass|ok|done/i.test(module.status)) return 'Completed';
+  return friendlySectionStatus(module.status);
+}
+
+function reportDomain(domain: string): string {
+  try {
+    return new URL(domain).hostname;
+  } catch {
+    return domain;
+  }
+}
+
 function ResultsScreen(props: {
   scan: Scan | null;
   onScan: (scan: Scan) => void;
@@ -2564,13 +2602,24 @@ function ResultsScreen(props: {
   const { scan, overall } = dashboard;
   return (
     <div className="stack">
-      <Window title={`Report dashboard · ${scan.domain}`}>
+      <Window title={`Report dashboard · ${reportDomain(scan.domain)}`}>
         <div className="split">
           <div>
             <h2 className="section-heading">Unified website signal</h2>
-            <p className="muted">
-              {scan.plan} · <span className="technical">{scan.id}</span>
-            </p>
+            <div className="report-meta" aria-label="Report details">
+              <span>
+                <small>Website</small>
+                <strong className="technical">{reportDomain(scan.domain)}</strong>
+              </span>
+              <span>
+                <small>Plan</small>
+                <strong>{scan.plan}</strong>
+              </span>
+              <span>
+                <small>Report</small>
+                <strong className="technical">{scan.id}</strong>
+              </span>
+            </div>
           </div>
           <ScoreDial
             score={overall.score}
@@ -2583,7 +2632,7 @@ function ResultsScreen(props: {
             <div className="module-card" key={module.module}>
               <div className="split">
                 <strong>{module.module}</strong>
-                <StatusChip status={module.status} />
+                <StatusChip status={reportModuleStatus(module)} />
               </div>
               <div
                 className={
@@ -2595,10 +2644,13 @@ function ResultsScreen(props: {
                 {module.score === null ? 'No score' : module.score.toFixed(2)}
               </div>
               <ModuleMetadata module={module} />
-              <ProgressBar
-                value={(module.coverage ?? 0) * 100}
-                label={`${module.module} coverage`}
-              />
+              {module.usableOutput && module.coverage !== null ? (
+                <ProgressBar value={module.coverage * 100} label={`${module.module} coverage`} />
+              ) : (
+                <div className="module-card__coverage-unavailable" role="status">
+                  {reportModuleStatus(module)} · coverage unavailable
+                </div>
+              )}
             </div>
           ))}
         </div>
