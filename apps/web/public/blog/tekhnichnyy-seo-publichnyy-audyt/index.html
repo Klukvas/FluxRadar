@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Технічний SEO: публічний аудит сайту — FluxRadar</title>
+    <meta name="description" content="Покрокове пояснення публічних SEO-сигналів: індексування, канонічні URL, структуровані дані та чому кожен із них важливий для пошукових систем." />
+    <link rel="canonical" href="https://fluxradar.net/blog/tekhnichnyy-seo-publichnyy-audyt" />
+    <meta name="robots" content="noindex, follow" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Технічний SEO: публічний аудит сайту — FluxRadar" />
+    <meta property="og:description" content="Покрокове пояснення публічних SEO-сигналів: індексування, канонічні URL, структуровані дані." />
+    <meta property="og:url" content="https://fluxradar.net/blog/tekhnichnyy-seo-publichnyy-audyt" />
+    <meta property="og:site_name" content="FluxRadar Field Notes" />
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "Технічний SEO: публічний аудит сайту",
+      "description": "Покрокове пояснення публічних SEO-сигналів: індексування, канонічні URL, структуровані дані та чому кожен із них важливий для пошукових систем.",
+      "datePublished": "2026-09-05",
+      "dateModified": "2026-09-05",
+      "author": {"@type": "Organization", "name": "FluxLab", "url": "https://fluxradar.net"},
+      "publisher": {"@type": "Organization", "name": "FluxLab", "url": "https://fluxradar.net"},
+      "mainEntityOfPage": "https://fluxradar.net/blog/tekhnichnyy-seo-publichnyy-audyt",
+      "inLanguage": "uk"
+    }
+    </script>
+    <style>
+      :root { color-scheme: light; font: 16px/1.75 system-ui, sans-serif; color: #111; background: #66799b; }
+      body { max-width: 820px; margin: 0 auto; padding: 40px 24px; }
+      main { background: #efefef; border: 1px solid #111; padding: 32px 40px; box-shadow: 4px 4px #111; }
+      a { color: #333399; }
+      h1 { font-size: 2.4rem; line-height: 1.08; margin-bottom: 8px; }
+      h2 { font-size: 1.2rem; margin-top: 2rem; border-left: 3px solid #333399; padding-left: 10px; }
+      .kicker, time { color: #555; font: 12px monospace; letter-spacing: .08em; text-transform: uppercase; }
+      li { margin: 10px 0; }
+      nav { margin-bottom: 40px; font-family: monospace; display: flex; gap: 16px; justify-content: space-between; }
+      footer { border-top: 1px solid #888; margin-top: 48px; padding-top: 20px; font-family: monospace; font-size: 14px; }
+      .cta { margin-top: 32px; padding: 18px 24px; background: #d7dff0; border: 1px solid #333399; border-radius: 2px; }
+      .lang-badge { font: 11px monospace; background: #333399; color: #fff; padding: 2px 7px; border-radius: 2px; letter-spacing: .06em; }
+      figure { margin: 2rem 0; }
+      figcaption { font: 13px monospace; color: #555; margin-top: 8px; text-align: center; }
+      @media (max-width: 600px) { main { padding: 20px 16px; } h1 { font-size: 1.8rem; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav>
+        <a href="/blog">← Нотатки</a>
+        <a href="/">FluxRadar ↗</a>
+      </nav>
+
+      <div class="kicker">
+        ТЕХНІЧНИЙ SEO · <time datetime="2026-09-05">5 ВЕРЕСНЯ 2026</time>
+        &nbsp;<span class="lang-badge">🇺🇦 UK</span>
+      </div>
+      <h1>Технічний SEO: публічний аудит сайту</h1>
+      <p>Технічний SEO — це не магія. Це перевірка того, чи може пошуковий робот знайти ваш сайт, прочитати його зміст і зрозуміти, про що йдеться. Усе це можна перевірити публічно, без доступу до серверних логів або CMS-адміністратора.</p>
+
+      <!-- SVG: SEO signal bar chart -->
+      <figure role="img" aria-labelledby="seo-chart-title" aria-describedby="seo-chart-desc">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 270" width="100%" style="max-width:640px;display:block;margin:0 auto;background:#fff;border:1px solid #ccc;border-radius:2px;">
+          <title id="seo-chart-title">Частота помилок технічного SEO за категоріями</title>
+          <desc id="seo-chart-desc">Горизонтальна стовпчаста діаграма, що показує типову частоту проблем у п'яти категоріях технічного SEO: дублікати канонічного URL (72%), відсутній мета-опис (65%), неструктурований заголовок h1 (58%), відсутня sitemap.xml (44%) та відсутні Open Graph теги (39%).</desc>
+          <!-- grid lines -->
+          <g stroke="#e0e0e0" stroke-width="1">
+            <line x1="220" y1="20" x2="220" y2="230"/>
+            <line x1="310" y1="20" x2="310" y2="230"/>
+            <line x1="400" y1="20" x2="400" y2="230"/>
+            <line x1="490" y1="20" x2="490" y2="230"/>
+            <line x1="580" y1="20" x2="580" y2="230"/>
+          </g>
+          <!-- x-axis labels -->
+          <g font-size="10" fill="#888" text-anchor="middle">
+            <text x="220" y="248">20%</text>
+            <text x="310" y="248">40%</text>
+            <text x="400" y="248">60%</text>
+            <text x="490" y="248">80%</text>
+            <text x="580" y="248">100%</text>
+          </g>
+          <!-- bars: x=130 is 0%, each 4.5px = 1% → 130 + pct*4.5 -->
+          <!-- 72% → width=324 -->
+          <rect x="130" y="30"  width="324" height="32" rx="2" fill="#b8c8e8" stroke="#333399" stroke-width="1"/>
+          <text x="125" y="51" font-size="11" fill="#111" text-anchor="end">Дублікат canonical</text>
+          <text x="460" y="51" font-size="11" fill="#333399" font-weight="700">72%</text>
+          <!-- 65% → width=292.5 -->
+          <rect x="130" y="74"  width="293" height="32" rx="2" fill="#b8c8e8" stroke="#333399" stroke-width="1"/>
+          <text x="125" y="95"  font-size="11" fill="#111" text-anchor="end">Немає meta description</text>
+          <text x="429" y="95"  font-size="11" fill="#333399" font-weight="700">65%</text>
+          <!-- 58% → width=261 -->
+          <rect x="130" y="118" width="261" height="32" rx="2" fill="#c8d8f0" stroke="#333399" stroke-width="1"/>
+          <text x="125" y="139" font-size="11" fill="#111" text-anchor="end">Проблемний &lt;h1&gt;</text>
+          <text x="397" y="139" font-size="11" fill="#333399" font-weight="700">58%</text>
+          <!-- 44% → width=198 -->
+          <rect x="130" y="162" width="198" height="32" rx="2" fill="#d7e3f7" stroke="#333399" stroke-width="1"/>
+          <text x="125" y="183" font-size="11" fill="#111" text-anchor="end">Відсутня sitemap.xml</text>
+          <text x="334" y="183" font-size="11" fill="#333399" font-weight="700">44%</text>
+          <!-- 39% → width=175.5 -->
+          <rect x="130" y="206" width="176" height="32" rx="2" fill="#e8eeff" stroke="#333399" stroke-width="1"/>
+          <text x="125" y="227" font-size="11" fill="#111" text-anchor="end">Немає Open Graph</text>
+          <text x="312" y="227" font-size="11" fill="#333399" font-weight="700">39%</text>
+          <!-- x axis baseline -->
+          <line x1="130" y1="20" x2="130" y2="240" stroke="#999" stroke-width="1.5"/>
+          <line x1="130" y1="240" x2="610" y2="240" stroke="#999" stroke-width="1.5"/>
+          <text x="370" y="262" font-size="10" fill="#888" text-anchor="middle">Ілюстративні дані — типові показники для МСБ-сайтів</text>
+        </svg>
+        <figcaption>Рис. 1 — Типові категорії технічних SEO-проблем (ілюстративні дані)</figcaption>
+      </figure>
+
+      <h2>Що перевіряє публічний аудит</h2>
+      <p>Публічний аудит аналізує тільки те, що бачить будь-який відвідувач або краулер без облікового запису: HTTP-відповіді, HTML-код, метадані та заголовки безпеки. Це не менш інформативно — більшість критичних проблем помітні саме на публічному рівні.</p>
+
+      <h2>Канонічні URL та редиректи</h2>
+      <p>Сайт повинен мати одну стабільну HTTPS-адресу для кожної сторінки. Якщо <code>http://</code>, <code>https://</code>, <code>www.</code> та без <code>www.</code> версії дають різні відповіді без редиректу — пошукова система бачить кілька різних сайтів. Перевірте, чи правильно оголошено <code>&lt;link rel="canonical"&gt;</code> та чи збігається він із фактичною URL-адресою.</p>
+
+      <h2>Title, H1 та meta description</h2>
+      <ul>
+        <li><strong>Title</strong> — це перше, що читає пошукова система і перше, що бачить користувач у результатах пошуку. Він має описувати зміст сторінки, а не просто бренд.</li>
+        <li><strong>H1</strong> — один на сторінку, узгоджений з title, але не ідентичний.</li>
+        <li><strong>Meta description</strong> — не впливає на позицію прямо, але визначає CTR: якщо опис марний, користувачі не переходять на сайт.</li>
+      </ul>
+
+      <h2>Sitemap та robots.txt</h2>
+      <p>Файл <code>/sitemap.xml</code> підказує краулеру, які сторінки ви вважаєте важливими та коли вони оновлювалися. Файл <code>/robots.txt</code> встановлює правила доступу. Відсутній sitemap або заблокований краулер у robots.txt — типова помилка, яку легко виявити за 30 секунд.</p>
+
+      <h2>Структуровані дані та Open Graph</h2>
+      <p>Schema.org-розмітка (<code>Organization</code>, <code>Article</code>, <code>BreadcrumbList</code>) допомагає пошуковим системам та AI-краулерам зрозуміти структуру сторінки. Open Graph-теги визначають, як ваш контент виглядає у соцмережах та месенджерах. Обидві речі перевіряються публічно та є частиною будь-якого якісного аудиту.</p>
+
+      <h2>Як читати результати аудиту</h2>
+      <ul>
+        <li>Кожна знахідка повинна мати URL, правило, доказ і рекомендацію.</li>
+        <li>Відрізняйте «відсутній сигнал» від «помилковий сигнал» — це різні проблеми з різним пріоритетом.</li>
+        <li>Після виправлень перевіряйте знову: деякі зміни набирають чинності лише після переіндексації.</li>
+      </ul>
+
+      <div class="cta">
+        <strong>Перевірте свій сайт у FluxRadar →</strong><br>
+        FluxRadar автоматично перевіряє публічні SEO-сигнали, заголовки безпеки та готовність до AI-краулерів. Без реєстрації для першого сканування. <a href="/">Спробувати зараз</a>.
+      </div>
+
+      <footer>
+        <a href="/blog/bezpeka-ta-dostupnist-publichnyy-skaner">Наступна: Безпека та доступність: що бачать сканери →</a>
+        &nbsp;|&nbsp;
+        <a href="/blog">Всі нотатки</a>
+      </footer>
+    </main>
+  </body>
+</html>

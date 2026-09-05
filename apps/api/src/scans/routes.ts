@@ -18,11 +18,17 @@ import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import { modulePlanFor } from '../orchestrator/module-plan.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
+import {
+  SCAN_ACTION_LIMIT,
+  SCAN_ACTION_WINDOW_MS,
+  RequestRateLimiter,
+} from '../auth/rate-limit.ts';
 
 export interface ScansRouterDeps {
   readonly prisma: PrismaClient;
   readonly now: () => Date;
   readonly enqueueScan: (scanId: string) => void;
+  readonly requestRateLimiter?: RequestRateLimiter;
 }
 
 const freeCheckBodySchema = z.object({ scope: scanScopeSchema.optional() }).optional();
@@ -39,12 +45,18 @@ const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running'] as const;
 export function scansRouter(deps: ScansRouterDeps): Router {
   const router = Router();
   const auth = requireAuth(deps.prisma, deps.now);
+  const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
 
   router.post('/profiles/:profileId/free-check', auth, async (req, res) => {
     // Validate the optional shape even though Free always forces homepage-only
     // execution; rejecting malformed JSON keeps the boundary predictable.
     parseInput(freeCheckBodySchema, req.body);
     const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowed(
+      `scan-create:${accountId}:${req.ip ?? 'unknown'}`,
+      SCAN_ACTION_LIMIT,
+      SCAN_ACTION_WINDOW_MS,
+    );
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
     const created = await createFreeScan(deps.prisma, accountId, profile.id, deps.now());
@@ -58,6 +70,11 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   router.post('/profiles/:profileId/scans', auth, async (req, res) => {
     const input = parseInput(scanRequestInputSchema, req.body);
     const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowed(
+      `scan-create:${accountId}:${req.ip ?? 'unknown'}`,
+      SCAN_ACTION_LIMIT,
+      SCAN_ACTION_WINDOW_MS,
+    );
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
     if (input.plan !== 'Free') {
@@ -167,7 +184,13 @@ export function scansRouter(deps: ScansRouterDeps): Router {
 
   router.post('/scans/:scanId/process', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
-    const scan = await findOwnScan(deps.prisma, accountIdFrom(res), scanId);
+    const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowed(
+      `scan-process:${accountId}:${req.ip ?? 'unknown'}`,
+      SCAN_ACTION_LIMIT,
+      SCAN_ACTION_WINDOW_MS,
+    );
+    const scan = await findOwnScan(deps.prisma, accountId, scanId);
     if (scan.status === 'Completed' || scan.status === 'Cancelled') {
       throw conflict('SCAN_TERMINAL', 'scan is already terminal');
     }
@@ -177,7 +200,13 @@ export function scansRouter(deps: ScansRouterDeps): Router {
 
   router.post('/scans/:scanId/retry', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
-    const scan = await findOwnScan(deps.prisma, accountIdFrom(res), scanId);
+    const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowed(
+      `scan-retry:${accountId}:${req.ip ?? 'unknown'}`,
+      SCAN_ACTION_LIMIT,
+      SCAN_ACTION_WINDOW_MS,
+    );
+    const scan = await findOwnScan(deps.prisma, accountId, scanId);
     if (scan.status !== 'Partial') {
       throw conflict('RETRY_NOT_ALLOWED', 'only Partial scans can use the module retry');
     }

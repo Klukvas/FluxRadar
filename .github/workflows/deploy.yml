@@ -116,6 +116,15 @@ jobs:
             mv "$RUNNER_TEMP/production.env.tmp" "$RUNNER_TEMP/production.env"
           fi
 
+      - name: Build production images
+        env:
+          RELEASE_ID: ${{ github.sha }}
+        run: |
+          docker build --file Dockerfile.api --tag "fluxradar-api:$RELEASE_ID" .
+          docker build --file Dockerfile.web --tag "fluxradar-web:$RELEASE_ID" .
+          docker save --output "$RUNNER_TEMP/fluxradar-images.tar" \
+            "fluxradar-api:$RELEASE_ID" "fluxradar-web:$RELEASE_ID"
+
       - name: Upload release
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
@@ -125,7 +134,9 @@ jobs:
         run: |
           scp "$RUNNER_TEMP/release.tar.gz" "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.tar.gz"
           scp "$RUNNER_TEMP/production.env" "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID.env"
-          ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$APP_DIR/releases/$RELEASE_ID' && tar -xzf '/tmp/fluxradar-$RELEASE_ID.tar.gz' -C '$APP_DIR/releases/$RELEASE_ID' && install -m 600 '/tmp/fluxradar-$RELEASE_ID.env' '$APP_DIR/releases/$RELEASE_ID/.env.production'"
+          scp "$RUNNER_TEMP/fluxradar-images.tar" "$SSH_USER@$SSH_HOST:/tmp/fluxradar-$RELEASE_ID-images.tar"
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$SSH_HOST" "docker load --input '/tmp/fluxradar-$RELEASE_ID-images.tar' && mkdir -p '$APP_DIR/releases/$RELEASE_ID' && tar -xzf '/tmp/fluxradar-$RELEASE_ID.tar.gz' -C '$APP_DIR/releases/$RELEASE_ID' && install -m 600 '/tmp/fluxradar-$RELEASE_ID.env' '$APP_DIR/releases/$RELEASE_ID/.env.production'"
 
       - name: Start release and smoke test
         env:
@@ -134,7 +145,212 @@ jobs:
           APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
           RELEASE_ID: ${{ github.sha }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "set -eu; ln -sfn '$APP_DIR/releases/$RELEASE_ID' '$APP_DIR/current'; cd '$APP_DIR/current'; docker compose --env-file .env.production up -d --build --force-recreate --remove-orphans; for attempt in \$(seq 1 30); do if docker compose --env-file .env.production exec -T api node -e \"fetch('http://127.0.0.1:3310/health').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))\"; then exit 0; fi; sleep 2; done; docker compose --env-file .env.production ps; exit 1"
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "$RELEASE_ID" <<'REMOTE'
+          set -eu
+          set -o pipefail
+          APP_DIR="$1"
+          RELEASE_ID="$2"
+          RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
+          RUNTIME_DIR="$APP_DIR/runtime"
+          STATE_FILE="$RUNTIME_DIR/active.env"
+          FLUXRADAR_NETWORK="fluxradar_default"
+          PREVIOUS_RELEASE="$(readlink -f "$APP_DIR/current" 2>/dev/null || true)"
+          API_IMAGE="fluxradar-api:$RELEASE_ID"
+          WEB_IMAGE="fluxradar-web:$RELEASE_ID"
+          PREVIOUS_API_UPSTREAM=""
+          PREVIOUS_WEB_UPSTREAM=""
+          PREVIOUS_API_CONTAINER=""
+          PREVIOUS_WEB_CONTAINER=""
+          LEGACY_API_CONTAINER=""
+          LEGACY_WEB_CONTAINER=""
+          if [ -f "$STATE_FILE" ]; then
+            . "$STATE_FILE"
+            PREVIOUS_API_UPSTREAM="${FLUXRADAR_API_UPSTREAM:-}"
+            PREVIOUS_WEB_UPSTREAM="${FLUXRADAR_WEB_UPSTREAM:-}"
+            PREVIOUS_API_CONTAINER="${FLUXRADAR_API_CONTAINER:-}"
+            PREVIOUS_WEB_CONTAINER="${FLUXRADAR_WEB_CONTAINER:-}"
+          fi
+          if [ -z "$PREVIOUS_API_UPSTREAM" ] && [ -n "$PREVIOUS_RELEASE" ]; then
+            cd "$PREVIOUS_RELEASE"
+            LEGACY_API_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q api 2>/dev/null || true)"
+            LEGACY_WEB_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q web 2>/dev/null || true)"
+          fi
+
+          API_CONTAINER="fluxradar-api-$RELEASE_ID"
+          WEB_CONTAINER="fluxradar-web-$RELEASE_ID"
+          NEW_API_UPSTREAM="$API_CONTAINER:3310"
+          NEW_WEB_UPSTREAM="$WEB_CONTAINER:80"
+
+          atomic_switch() {
+            ln -sfn "$1" "$APP_DIR/current.next"
+            mv -Tf "$APP_DIR/current.next" "$APP_DIR/current"
+          }
+
+          render_caddyfile() {
+            awk -v api="$1" -v web="$2" '{
+              gsub(/\{\$FLUXRADAR_API_UPSTREAM\}/, api)
+              gsub(/\{\$FLUXRADAR_WEB_UPSTREAM\}/, web)
+              print
+            }' "$3" > "$RUNTIME_DIR/Caddyfile.next"
+            if [ -f "$RUNTIME_DIR/Caddyfile" ]; then
+              cat "$RUNTIME_DIR/Caddyfile.next" > "$RUNTIME_DIR/Caddyfile"
+              rm -f "$RUNTIME_DIR/Caddyfile.next"
+            else
+              mv -f "$RUNTIME_DIR/Caddyfile.next" "$RUNTIME_DIR/Caddyfile"
+            fi
+            chmod 644 "$RUNTIME_DIR/Caddyfile"
+          }
+
+          restore_state() {
+            if [ -n "$PREVIOUS_API_UPSTREAM" ] && [ -n "$PREVIOUS_WEB_UPSTREAM" ]; then
+              cat > "$STATE_FILE" <<STATE
+          FLUXRADAR_ACTIVE_RELEASE=$PREVIOUS_RELEASE
+          FLUXRADAR_API_UPSTREAM=$PREVIOUS_API_UPSTREAM
+          FLUXRADAR_WEB_UPSTREAM=$PREVIOUS_WEB_UPSTREAM
+          FLUXRADAR_API_CONTAINER=$PREVIOUS_API_CONTAINER
+          FLUXRADAR_WEB_CONTAINER=$PREVIOUS_WEB_CONTAINER
+          STATE
+              chmod 600 "$STATE_FILE"
+            else
+              rm -f "$STATE_FILE"
+            fi
+          }
+
+          rollback() {
+            set +e
+            docker rm -f "$API_CONTAINER" "$WEB_CONTAINER" >/dev/null 2>&1 || true
+            if [ -n "$PREVIOUS_RELEASE" ] && [ -f "$PREVIOUS_RELEASE/docker-compose.yml" ]; then
+              cd "$PREVIOUS_RELEASE"
+              if [ -n "$PREVIOUS_API_UPSTREAM" ] && [ -n "$PREVIOUS_WEB_UPSTREAM" ]; then
+                render_caddyfile "$PREVIOUS_API_UPSTREAM" "$PREVIOUS_WEB_UPSTREAM" "$PREVIOUS_RELEASE/deploy/Caddyfile"
+                CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy)"
+                if [ -n "$CADDY_CONTAINER" ]; then
+                  if ! docker exec "$CADDY_CONTAINER" caddy reload --config /etc/caddy/Caddyfile; then
+                    export FLUXRADAR_CADDYFILE="$RUNTIME_DIR/Caddyfile"
+                    export FLUXRADAR_API_UPSTREAM="$PREVIOUS_API_UPSTREAM"
+                    export FLUXRADAR_WEB_UPSTREAM="$PREVIOUS_WEB_UPSTREAM"
+                    docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy || true
+                  fi
+                fi
+              else
+                export FLUXRADAR_CADDYFILE="$PREVIOUS_RELEASE/deploy/Caddyfile"
+                export FLUXRADAR_API_UPSTREAM="api:3310"
+                export FLUXRADAR_WEB_UPSTREAM="web:80"
+                docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy || true
+              fi
+              atomic_switch "$PREVIOUS_RELEASE" || true
+            fi
+            restore_state || true
+          }
+          trap rollback ERR
+
+          mkdir -p "$RUNTIME_DIR"
+          cd "$RELEASE_DIR"
+          docker compose --env-file .env.production -p fluxradar up -d postgres
+          docker run --rm \
+            --name "${API_CONTAINER}-migrate" \
+            --network "$FLUXRADAR_NETWORK" \
+            --env-file "$RELEASE_DIR/.env.production" \
+            --env NODE_ENV=production \
+            --env PORT=3310 \
+            --env FRONTEND_ORIGIN=https://fluxradar.net \
+            "$API_IMAGE" \
+            apps/api/node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma
+          docker rm -f "$API_CONTAINER" "$WEB_CONTAINER" >/dev/null 2>&1 || true
+          docker run -d \
+            --name "$API_CONTAINER" \
+            --restart unless-stopped \
+            --network "$FLUXRADAR_NETWORK" \
+            --env-file "$RELEASE_DIR/.env.production" \
+            --env NODE_ENV=production \
+            --env PORT=3310 \
+            --env FRONTEND_ORIGIN=https://fluxradar.net \
+            "$API_IMAGE"
+          docker run -d \
+            --name "$WEB_CONTAINER" \
+            --restart unless-stopped \
+            --network "$FLUXRADAR_NETWORK" \
+            "$WEB_IMAGE"
+
+          ready=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$API_CONTAINER" node -e "fetch('http://127.0.0.1:3310/health/ready').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))" \
+              && docker exec "$WEB_CONTAINER" wget -q -O /dev/null http://127.0.0.1/health; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker ps --filter "name=$API_CONTAINER" --filter "name=$WEB_CONTAINER"
+            exit 1
+          fi
+
+          render_caddyfile "$NEW_API_UPSTREAM" "$NEW_WEB_UPSTREAM" "$RELEASE_DIR/deploy/Caddyfile"
+          if [ -n "$PREVIOUS_API_UPSTREAM" ] && [ -n "$PREVIOUS_WEB_UPSTREAM" ]; then
+            cd "$RELEASE_DIR"
+            CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy)"
+            if [ -z "$CADDY_CONTAINER" ]; then
+              docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy
+              CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy)"
+            fi
+            if ! docker exec "$CADDY_CONTAINER" caddy reload --config /etc/caddy/Caddyfile; then
+              export FLUXRADAR_CADDYFILE="$RUNTIME_DIR/Caddyfile"
+              export FLUXRADAR_API_UPSTREAM="$NEW_API_UPSTREAM"
+              export FLUXRADAR_WEB_UPSTREAM="$NEW_WEB_UPSTREAM"
+              docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy
+            fi
+          else
+            cd "$RELEASE_DIR"
+            export FLUXRADAR_CADDYFILE="$RUNTIME_DIR/Caddyfile"
+            export FLUXRADAR_API_UPSTREAM="$NEW_API_UPSTREAM"
+            export FLUXRADAR_WEB_UPSTREAM="$NEW_WEB_UPSTREAM"
+            docker compose --env-file .env.production -p fluxradar up -d --no-deps caddy
+          fi
+
+          caddy_ready=0
+          for attempt in $(seq 1 15); do
+            CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy)"
+            if [ -n "$CADDY_CONTAINER" ] && [ "$(docker inspect -f '{{.State.Running}}' "$CADDY_CONTAINER")" = "true" ]; then
+              caddy_ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$caddy_ready" -ne 1 ]; then exit 1; fi
+          curl --fail --silent --show-error --retry 10 --retry-delay 1 --retry-connrefused \
+            --location --insecure --header 'Host: fluxradar.net' \
+            https://127.0.0.1/api/health >/dev/null
+
+          atomic_switch "$RELEASE_DIR"
+          cat > "$STATE_FILE" <<STATE
+          FLUXRADAR_ACTIVE_RELEASE=$RELEASE_DIR
+          FLUXRADAR_API_UPSTREAM=$NEW_API_UPSTREAM
+          FLUXRADAR_WEB_UPSTREAM=$NEW_WEB_UPSTREAM
+          FLUXRADAR_API_CONTAINER=$API_CONTAINER
+          FLUXRADAR_WEB_CONTAINER=$WEB_CONTAINER
+          STATE
+          chmod 600 "$STATE_FILE"
+          if [ -n "$PREVIOUS_API_CONTAINER" ] || [ -n "$PREVIOUS_WEB_CONTAINER" ]; then
+            docker rm -f "$PREVIOUS_API_CONTAINER" "$PREVIOUS_WEB_CONTAINER" >/dev/null 2>&1 || true
+          fi
+          if [ -n "$LEGACY_API_CONTAINER" ] || [ -n "$LEGACY_WEB_CONTAINER" ]; then
+            docker rm -f "$LEGACY_API_CONTAINER" "$LEGACY_WEB_CONTAINER" >/dev/null 2>&1 || true
+          fi
+          trap - ERR
+          # Keep the active release plus two rollback candidates to bound disk use.
+          find "$APP_DIR/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+            | sort -nr | tail -n +4 | cut -d' ' -f2- \
+            | while IFS= read -r old_release; do
+                case "$old_release" in
+                  "$APP_DIR/releases/"*) ;;
+                  *) continue ;;
+                esac
+                old_id="${old_release##*/}"
+                rm -rf -- "$old_release"
+                docker image rm "fluxradar-api:$old_id" "fluxradar-web:$old_id" >/dev/null 2>&1 || true
+              done || true
+          REMOTE
 
       - name: Public smoke test
         env:

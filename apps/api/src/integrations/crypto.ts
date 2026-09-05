@@ -4,10 +4,12 @@ const ENCRYPTED_PREFIX = 'v1';
 
 /** Derives a stable 256-bit key without persisting a second secret. */
 function encryptionKey(): Buffer {
-  const secret =
-    process.env.INTEGRATION_ENCRYPTION_KEY?.trim() || process.env.SESSION_SECRET?.trim();
+  const dedicated = process.env.INTEGRATION_ENCRYPTION_KEY?.trim();
+  const developmentOrTest =
+    process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+  const secret = dedicated || (developmentOrTest ? process.env.SESSION_SECRET?.trim() : undefined);
   if (!secret) {
-    throw new Error('INTEGRATION_ENCRYPTION_KEY or SESSION_SECRET is not configured');
+    throw new Error('INTEGRATION_ENCRYPTION_KEY is not configured');
   }
   return createHash('sha256').update(secret, 'utf8').digest();
 }

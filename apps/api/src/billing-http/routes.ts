@@ -19,6 +19,15 @@ import { sendOk } from '../http/envelope.ts';
 import { paymentRequired, unauthorized, validationError } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
+import {
+  SCAN_ACTION_LIMIT,
+  SCAN_ACTION_WINDOW_MS,
+  WEBHOOK_LIMIT,
+  WEBHOOK_WINDOW_MS,
+  RequestRateLimiter,
+} from '../auth/rate-limit.ts';
+import type { Mailer } from '../email/mailer.ts';
+import { notifyScanEvent } from '../email/notifications.ts';
 
 export const PADDLE_SIGNATURE_HEADER = 'paddle-signature';
 
@@ -46,13 +55,22 @@ export interface BillingRouterDeps {
   readonly now: () => Date;
   readonly enqueueScan?: (scanId: string) => void;
   readonly internalFreeEmails: ReadonlySet<string>;
+  readonly requestRateLimiter?: RequestRateLimiter;
+  readonly mailer?: Mailer;
 }
 
-type WebhookHandlerDeps = Pick<BillingRouterDeps, 'prisma' | 'webhookSecret' | 'now'>;
+type WebhookHandlerDeps = Pick<BillingRouterDeps, 'prisma' | 'webhookSecret' | 'now'> & {
+  readonly requestRateLimiter?: RequestRateLimiter;
+};
 
 /** Отдельный handler: маршрут монтируется в app.ts ДО express.json (raw body). */
 export function webhookHandler(deps: WebhookHandlerDeps): RequestHandler {
   return async (req, res) => {
+    deps.requestRateLimiter?.assertAllowed(
+      `webhook:${req.ip ?? 'unknown'}`,
+      WEBHOOK_LIMIT,
+      WEBHOOK_WINDOW_MS,
+    );
     const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
     if (rawBody === '') {
       throw validationError('webhook body is empty');
@@ -75,10 +93,16 @@ export function webhookHandler(deps: WebhookHandlerDeps): RequestHandler {
 export function billingRouter(deps: BillingRouterDeps): Router {
   const router = Router();
   const auth = requireAuth(deps.prisma, deps.now);
+  const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
 
   router.post('/billing/dev-checkout', auth, async (req, res) => {
     const input = parseInput(devCheckoutInputSchema, req.body);
     const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowed(
+      `checkout:${accountId}:${req.ip ?? 'unknown'}`,
+      SCAN_ACTION_LIMIT,
+      SCAN_ACTION_WINDOW_MS,
+    );
     const account = await deps.prisma.account.findUnique({
       where: { id: accountId },
       select: { email: true },
@@ -119,6 +143,13 @@ export function billingRouter(deps: BillingRouterDeps): Router {
         { status: 201 },
       );
       deps.enqueueScan?.(scan.id);
+      void notifyScanEvent(
+        deps.prisma,
+        deps.mailer,
+        scan.id,
+        'purchase_confirmed',
+        'Your internal test audit is ready to run.',
+      ).catch(() => undefined);
       return;
     }
 
@@ -147,6 +178,13 @@ export function billingRouter(deps: BillingRouterDeps): Router {
     );
     if (result.scanId !== null) {
       deps.enqueueScan?.(result.scanId);
+      void notifyScanEvent(
+        deps.prisma,
+        deps.mailer,
+        result.scanId,
+        'purchase_confirmed',
+        'Your paid audit is ready to run.',
+      ).catch(() => undefined);
     }
   });
 

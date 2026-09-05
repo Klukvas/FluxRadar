@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>FluxRadar</title>
+  <rect width="64" height="64" fill="#101410"/>
+  <path d="M10 13h44v8H31v8h17v8H31v14h-9V29H10z" fill="#33ff66"/>
+  <path d="M45 39h9v12h-9z" fill="#4dd0e1"/>
+</svg>

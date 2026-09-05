@@ -11,6 +11,8 @@ import { z } from 'zod';
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
 import { ApiError, conflict, forbidden, notFound } from '../http/errors.ts';
 import { sendOk } from '../http/envelope.ts';
+import type { ApiLogger } from '../http/logger.ts';
+import { silentLogger } from '../http/logger.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import {
@@ -26,6 +28,12 @@ export interface ExportRouterDeps {
   readonly now: () => Date;
   /** Test seam; production uses the configured private Hetzner store. */
   readonly objectStore?: PrivateObjectStore | null;
+  /**
+   * Logger used to record the underlying storage error before it is converted
+   * to a user-facing 503.  Omitting it in tests keeps output clean; production
+   * inherits the app-level logger via createApp().
+   */
+  readonly logger?: ApiLogger;
 }
 
 const exportQuerySchema = z.object({ format: z.enum(['json', 'csv']).default('json') });
@@ -106,13 +114,23 @@ async function archiveExport(
   const store = deps.objectStore === undefined ? createConfiguredObjectStore() : deps.objectStore;
   if (store === null || store === undefined) return null;
   const objectKey = reportObjectKey(accountId, scanId, format);
+  const logger = deps.logger ?? silentLogger;
   try {
     await store.putText(
       objectKey,
       body,
       format === 'json' ? 'application/json; charset=utf-8' : 'text/csv; charset=utf-8',
     );
-  } catch {
+  } catch (err) {
+    // Log the real SDK / network error so operators can diagnose
+    // misconfiguration (wrong endpoint, bucket, credentials, unsupported
+    // headers) without it leaking to the client response.
+    logger.error('report storage putText failed', {
+      scanId,
+      format,
+      objectKey,
+      error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+    });
     throw new ApiError(
       503,
       'EXPORT_STORAGE_UNAVAILABLE',

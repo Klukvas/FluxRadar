@@ -8,6 +8,18 @@ import { rateLimited } from '../http/errors.ts';
 export const LOGIN_ATTEMPT_LIMIT = 5;
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
+export const REGISTER_LIMIT = 5;
+export const REGISTER_WINDOW_MS = 60 * 60 * 1000;
+export const EMAIL_ACTION_LIMIT = 5;
+export const EMAIL_ACTION_WINDOW_MS = 60 * 60 * 1000;
+export const EMAIL_IP_ACTION_LIMIT = 30;
+export const EMAIL_TOKEN_ACTION_LIMIT = 20;
+export const SCAN_ACTION_LIMIT = 10;
+export const SCAN_ACTION_WINDOW_MS = 10 * 60 * 1000;
+export const WEBHOOK_LIMIT = 6000;
+export const WEBHOOK_WINDOW_MS = 60 * 1000;
+export const RATE_LIMIT_MAX_TRACKED_KEYS = 10_000;
+
 export interface LoginRateLimiterOptions {
   readonly limit?: number;
   readonly windowMs?: number;
@@ -37,17 +49,72 @@ export class LoginRateLimiter {
    */
   assertAllowed(email: string, ip: string): void {
     const key = this.key(email, ip);
-    const cutoff = this.now() - this.windowMs;
+    const current = this.now();
+    this.pruneExpired(current);
+    const cutoff = current - this.windowMs;
     const recent = (this.attempts.get(key) ?? []).filter((timestamp) => timestamp > cutoff);
     if (recent.length >= this.limit) {
       this.attempts.set(key, recent);
       throw rateLimited('too many login attempts, try again later');
     }
-    this.attempts.set(key, [...recent, this.now()]);
+    if (!this.attempts.has(key) && this.attempts.size >= RATE_LIMIT_MAX_TRACKED_KEYS) {
+      throw rateLimited('too many login attempts, try again later');
+    }
+    this.attempts.set(key, [...recent, current]);
   }
 
   /** Успешный вход сбрасывает счётчик пары (email, IP). */
   reset(email: string, ip: string): void {
     this.attempts.delete(this.key(email, ip));
+  }
+
+  private pruneExpired(current: number): void {
+    if (this.attempts.size < RATE_LIMIT_MAX_TRACKED_KEYS) return;
+    const cutoff = current - this.windowMs;
+    for (const [key, timestamps] of this.attempts) {
+      if (!timestamps.some((timestamp) => timestamp > cutoff)) this.attempts.delete(key);
+    }
+  }
+}
+
+/** Generic in-memory limiter for non-login actions on the single API process. */
+export class RequestRateLimiter {
+  private readonly attempts = new Map<
+    string,
+    { readonly timestamps: readonly number[]; readonly windowMs: number }
+  >();
+  private readonly now: () => number;
+
+  constructor(now: () => number = Date.now) {
+    this.now = now;
+  }
+
+  assertAllowed(key: string, limit: number, windowMs: number): void {
+    const current = this.now();
+    this.pruneExpired(current);
+    const cutoff = current - windowMs;
+    const tracked = this.attempts.get(key);
+    const recent = (tracked?.timestamps ?? []).filter((timestamp) => timestamp > cutoff);
+    if (recent.length >= limit) {
+      this.attempts.set(key, { timestamps: recent, windowMs });
+      throw rateLimited('too many requests, try again later');
+    }
+    if (!this.attempts.has(key) && this.attempts.size >= RATE_LIMIT_MAX_TRACKED_KEYS) {
+      const oldest = this.attempts.keys().next().value;
+      if (oldest !== undefined) this.attempts.delete(oldest);
+    }
+    this.attempts.set(key, { timestamps: [...recent, current], windowMs });
+  }
+
+  reset(key: string): void {
+    this.attempts.delete(key);
+  }
+
+  private pruneExpired(current: number): void {
+    if (this.attempts.size < RATE_LIMIT_MAX_TRACKED_KEYS) return;
+    for (const [key, tracked] of this.attempts) {
+      const cutoff = current - tracked.windowMs;
+      if (!tracked.timestamps.some((timestamp) => timestamp > cutoff)) this.attempts.delete(key);
+    }
   }
 }

@@ -9,6 +9,7 @@ import type { CrawlFetcher } from '@fluxradar/crawler';
 import type { PerformanceSnapshot } from '../integrations/performance.ts';
 
 import type { ApiLogger } from '../http/logger.ts';
+import type { Mailer } from '../email/mailer.ts';
 
 export interface WorkerCrawlOptions {
   /**
@@ -33,4 +34,5 @@ export interface WorkerDeps {
     ((origin: string, strategy: 'desktop' | 'mobile') => Promise<PerformanceSnapshot>) | undefined;
   readonly crawl?: WorkerCrawlOptions;
   readonly now?: () => Date;
+  readonly mailer?: Mailer;
 }

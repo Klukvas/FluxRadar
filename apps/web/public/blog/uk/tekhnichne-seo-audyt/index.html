@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Технічний SEO-аудит без доступу до адмінки — FluxRadar</title>
+    <meta name="description" content="Практичний покроковий технічний SEO-аудит публічного сайту: crawlability, канонічні URL, structured data та відтворювані докази." />
+    <link rel="canonical" href="https://fluxradar.net/blog/uk/tekhnichne-seo-audyt" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Технічний SEO-аудит без доступу до адмінки" />
+    <meta property="og:description" content="Покроковий публічний аудит: crawlability, canonical URL, structured data, відтворювані докази." />
+    <meta property="og:url" content="https://fluxradar.net/blog/uk/tekhnichne-seo-audyt" />
+    <meta property="og:locale" content="uk_UA" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Технічний SEO-аудит без доступу до адмінки","inLanguage":"uk","datePublished":"2026-09-05","dateModified":"2026-09-05","author":{"@type":"Organization","name":"FluxLab"},"publisher":{"@type":"Organization","name":"FluxLab"},"mainEntityOfPage":"https://fluxradar.net/blog/uk/tekhnichne-seo-audyt"}</script>
+    <style>
+      :root{color-scheme:light}
+      *,*::before,*::after{box-sizing:border-box}
+      body{margin:0;padding:40px 24px;font:16px/1.75 Charcoal,Chicago,Geneva,"Helvetica Neue",system-ui,sans-serif;color:#111;background:#66799b}
+      main{max-width:780px;margin:0 auto;background:#efefef;border:1px solid #111;padding:36px 44px 48px;box-shadow:4px 4px #111}
+      a{color:#333399}
+      a:focus-visible{outline:2px dotted #333399;outline-offset:2px}
+      nav{margin-bottom:44px;font:12px/1.4 Monaco,"SF Mono",Menlo,"Courier New",monospace}
+      nav a{text-decoration:none}
+      nav a:hover{text-decoration:underline}
+      .kicker{color:#555;font:11px Monaco,"SF Mono",Menlo,"Courier New",monospace;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+      .lang{display:inline-block;padding:1px 6px;margin-left:8px;border:1px solid #111;background:#1d3461;color:#a8c4f0;font:9px Monaco,"SF Mono",Menlo,monospace;letter-spacing:.08em;vertical-align:middle;line-height:1.8}
+      h1{font-size:36px;line-height:1.08;margin:10px 0 22px;letter-spacing:-.025em}
+      h2{font-size:20px;margin:36px 0 8px;letter-spacing:-.01em}
+      p{margin:0 0 16px}
+      ul,ol{margin:0 0 16px;padding-left:24px}
+      li{margin:8px 0}
+      code{font-family:Monaco,"SF Mono",Menlo,"Courier New",monospace;font-size:13px;background:#ddd;padding:1px 4px}
+      .figure{margin:32px -4px;padding:20px;border:1px solid #888;background:#fff}
+      .figure figcaption{margin-top:10px;color:#555;font:11px Monaco,"SF Mono",Menlo,monospace;letter-spacing:.04em}
+      .figure svg{display:block;max-width:100%;height:auto}
+      .term{margin:20px 0;padding:14px 16px;background:#101410;border:1px solid #315d42;color:#33ff66;font:12px/1.6 Monaco,"SF Mono",Menlo,monospace;overflow-x:auto;white-space:pre}
+      .checklist{list-style:none;padding:0;margin:0 0 16px}
+      .checklist li{padding:10px 0 10px 28px;border-bottom:1px solid #ccc;position:relative}
+      .checklist li::before{content:"\25A1";position:absolute;left:4px;color:#333399;font-family:Monaco,monospace;font-size:14px}
+      .checklist li:last-child{border-bottom:0}
+      footer{border-top:1px solid #888;margin-top:48px;padding-top:20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font:12px Monaco,"SF Mono",Menlo,monospace}
+      @media(max-width:680px){body{padding:12px}main{padding:20px 18px 28px}h1{font-size:26px}h2{font-size:18px}.figure{margin:24px -2px;padding:12px}footer{flex-direction:column}}
+      @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:1ms!important;transition-duration:1ms!important}}
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav>
+        <a href="/blog">&#x2190; Field Notes / Нотатки</a>
+      </nav>
+
+      <div class="kicker">ТЕХНІЧНЕ SEO <span class="lang">UA</span> &#xB7; <time datetime="2026-09-05">5 ВЕРЕСНЯ 2026</time></div>
+      <h1>Технічний SEO-аудит без доступу до адмінки</h1>
+
+      <p>Публічний аудит охоплює лише те, що бачить пошуковий бот або звичайний відвідувач без логіна. Це обмеження є перевагою: знахідки відтворювані, а докази можна зберегти й перевірити повторно після виправлень.</p>
+
+      <h2>1. Перевірте межі краулінгу</h2>
+      <p>Завжди починайте з канонічного HTTPS-домену. Переконайтесь, що <code>robots.txt</code> існує, читається й не закриває важливі розділи сайту. Перевірте XML-карту сайту: чи вона оголошена в <code>robots.txt</code>, чи статус-коди всіх URL у ній дорівнюють 200.</p>
+      <div class="term">GET https://example.com/robots.txt  200 OK
+Sitemap: https://example.com/sitemap.xml
+
+GET https://example.com/sitemap.xml  200 OK
+URLs in sitemap: 142   Reachable: 138   4xx/5xx: 4</div>
+
+      <h2>2. Чи пояснює кожна сторінка саму себе?</h2>
+      <p>Кожна важлива сторінка повинна мати:</p>
+      <ul class="checklist">
+        <li>Унікальний, змістовний <code>&lt;title&gt;</code> (30&#x2013;60 символів)</li>
+        <li><code>meta description</code>, що відповідає змісту сторінки</li>
+        <li>Один <code>&lt;h1&gt;</code>, узгоджений із заголовком сторінки</li>
+        <li>Канонічний URL (<code>rel=canonical</code>) при множинних версіях</li>
+        <li>Основний контент, доступний у вихідному HTML (не лише через JavaScript)</li>
+      </ul>
+
+      <h2>3. Воронка сторінок &#x2014; де губляться ресурси</h2>
+      <p>На практиці більшість сайтів губить значну частину сторінок ще на етапі краулінгу. Діаграма нижче ілюструє типовий розподіл для сайту середнього розміру.</p>
+
+      <figure class="figure">
+        <svg width="640" height="300" viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="funnel-title funnel-desc">
+          <title id="funnel-title">Воронка сторінок під час технічного SEO-аудиту</title>
+          <desc id="funnel-desc">Ступінчаста воронка, що показує втрати сторінок при аудиті. Виявлено: 100 відсотків. Краулиться: 78 відсотків. Індексується: 64 відсотки. Канонічна URL коректна: 51 відсоток. Є структуровані дані: 32 відсотки.</desc>
+          <rect width="640" height="300" fill="#fff"/>
+          <!-- Stage 1: Виявлено 100% -->
+          <polygon points="0,24 640,24 569,72 71,72" fill="#333399"/>
+          <text x="320" y="50" text-anchor="middle" font-family="Monaco,monospace" font-size="12" fill="#fff" font-weight="bold">ВИЯВЛЕНО</text>
+          <text x="320" y="66" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#c8c8ff">100%</text>
+          <!-- Stage 2: Краулиться 78% -->
+          <polygon points="71,76 569,76 505,124 135,124" fill="#2b2b88"/>
+          <text x="320" y="103" text-anchor="middle" font-family="Monaco,monospace" font-size="12" fill="#fff" font-weight="bold">КРАУЛИТЬСЯ</text>
+          <text x="320" y="119" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#c8c8ff">78%</text>
+          <!-- Stage 3: Індексується 64% -->
+          <polygon points="135,128 505,128 441,176 199,176" fill="#24247a"/>
+          <text x="320" y="155" text-anchor="middle" font-family="Monaco,monospace" font-size="12" fill="#fff" font-weight="bold">ІНДЕКСУЄТЬСЯ</text>
+          <text x="320" y="171" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#c8c8ff">64%</text>
+          <!-- Stage 4: Канонічна URL 51% -->
+          <polygon points="199,180 441,180 377,228 263,228" fill="#1d1d6b"/>
+          <text x="320" y="207" text-anchor="middle" font-family="Monaco,monospace" font-size="12" fill="#fff" font-weight="bold">КАНОНІЧНА URL</text>
+          <text x="320" y="223" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#c8c8ff">51%</text>
+          <!-- Stage 5: Структуровані дані 32% -->
+          <polygon points="263,232 377,232 345,276 295,276" fill="#101452"/>
+          <text x="320" y="257" text-anchor="middle" font-family="Monaco,monospace" font-size="11" fill="#33ff66" font-weight="bold">СТРУКТ. ДАНІ</text>
+          <text x="320" y="272" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#8888cc">32%</text>
+          <!-- Loss labels on right -->
+          <text x="630" y="48"  text-anchor="end" font-family="Monaco,monospace" font-size="10" fill="#555">START</text>
+          <text x="630" y="100" text-anchor="end" font-family="Monaco,monospace" font-size="10" fill="#9b1c12">&#x2212;22%</text>
+          <text x="630" y="152" text-anchor="end" font-family="Monaco,monospace" font-size="10" fill="#9b1c12">&#x2212;14%</text>
+          <text x="630" y="204" text-anchor="end" font-family="Monaco,monospace" font-size="10" fill="#9b1c12">&#x2212;13%</text>
+          <text x="630" y="256" text-anchor="end" font-family="Monaco,monospace" font-size="10" fill="#9b1c12">&#x2212;19%</text>
+        </svg>
+        <figcaption>Типова воронка сторінок при аудиті середнього сайту. Відсотки відносні та ілюстративні.</figcaption>
+      </figure>
+
+      <h2>4. Структуровані дані як підтверджуючий сигнал</h2>
+      <p>Розмітка Schema.org повинна описувати те, що видно на сторінці. Перевіряйте три речі:</p>
+      <ol>
+        <li><strong>Тип відповідає сторінці</strong> &#x2014; <code>Article</code> для статей, <code>Product</code> для товарів.</li>
+        <li><strong>Значення збігаються з видимим контентом</strong> &#x2014; заголовок у JSON-LD має відповідати тегу <code>&lt;h1&gt;</code>.</li>
+        <li><strong>Немає заблокованих ресурсів</strong> &#x2014; якщо сторінка закрита в robots.txt, валідатор не зможе її отримати.</li>
+      </ol>
+
+      <h2>5. Фіксуйте докази, а не лише оцінки</h2>
+      <p>Корисний аудитний звіт містить: URL-адресу, статус-код, знайдений сигнал (або його відсутність), часову мітку та конкретний наступний крок. Без збереженого доказу неможливо підтвердити, що виправлення спрацювало.</p>
+      <p>FluxRadar застосовує саме цей підхід &#x2014; лише публічні сигнали, конкретні докази, відтворювані перевірки. <a href="/">Запустити публічну перевірку &#x2192;</a></p>
+
+      <footer>
+        <a href="/blog">&#x2190; Усі нотатки</a>
+        <a href="/blog/uk/pryvachnist-ta-cookie">Наступна: Приватність та cookie &#x2192;</a>
+      </footer>
+    </main>
+  </body>
+</html>

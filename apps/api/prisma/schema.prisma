@@ -16,6 +16,9 @@ model Account {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
+  emailVerifiedAt DateTime?
+  onboardingCompletedAt DateTime?
+  onboardingSkippedAt DateTime?
   // One-time anonymous-quality gate: the Free check is granted once per account.
   // The nullable timestamp is claimed atomically before the scan/job is created.
   freeCheckUsedAt DateTime?
@@ -29,6 +32,36 @@ model Account {
   integrations IntegrationConnection[]
   oauthStates  IntegrationOAuthState[]
   artifacts    ExportArtifact[]
+  emailTokens  EmailToken[]
+  emailNotifications EmailNotification[]
+}
+
+model EmailToken {
+  id        String   @id @default(cuid())
+  accountId String
+  kind      String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, kind])
+  @@index([expiresAt])
+}
+
+model EmailNotification {
+  id        String   @id @default(cuid())
+  accountId String
+  eventKey  String   @unique
+  kind      String
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, createdAt])
 }
 
 // Global anti-abuse claim. It deliberately has no account relation so deleting
@@ -41,7 +74,7 @@ model FreeCheckClaim {
 // Content-free audit fact that survives account deletion (§17 retention).
 model AccountDeletionAudit {
   id             String   @id @default(cuid())
-  accountIdHash  String
+  accountIdHash  String   @unique
   status         String
   requestedAt    DateTime @default(now())
   completedAt    DateTime?

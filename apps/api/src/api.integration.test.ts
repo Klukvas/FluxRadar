@@ -6,6 +6,7 @@ import { recoverClaimedJobs } from './orchestrator/claim.ts';
 import { createDefaultAiProvider } from './orchestrator/geo.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { silentLogger } from './http/logger.ts';
+import { deleteAccountData } from './data-retention.ts';
 import { createTestDb, type TestDb } from './test-utils/test-db.ts';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 import { TEST_WEBHOOK_SECRET } from './test-utils/test-db.ts';
@@ -528,11 +529,19 @@ describe('T-12 API happy paths', () => {
   });
 
   it('deletes account-owned results and leaves only a content-free audit fact', async () => {
+    const deletedKeys: string[] = [];
+    const objectStore = {
+      putText: async () => undefined,
+      deleteObject: async (key: string) => {
+        deletedKeys.push(key);
+      },
+    };
     const app = createApp({
       prisma: db.prisma,
       webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
+      objectStore,
     });
     const agent = request.agent(app);
     const account = await register(agent, 'delete-me@example.com');
@@ -546,6 +555,31 @@ describe('T-12 API happy paths', () => {
         scope: { includeSubdomains: false, maxPages: 15 },
       });
     expect(checkout.status).toBe(201);
+    const scanId = checkout.body.data.scanId as string;
+    await db.prisma.integrationConnection.create({
+      data: {
+        accountId: account.id,
+        provider: 'google',
+        accessTokenEncrypted: 'v1:encrypted',
+      },
+    });
+    await db.prisma.integrationOAuthState.create({
+      data: {
+        accountId: account.id,
+        provider: 'google',
+        stateHash: `state-${account.id}`,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    await db.prisma.exportArtifact.create({
+      data: {
+        accountId: account.id,
+        scanId,
+        format: 'json',
+        objectKey: `accounts/${account.id}/scans/${scanId}/report.json`,
+        contentType: 'application/json',
+      },
+    });
 
     const deleted = await agent.delete('/account').set('Cookie', account.cookie);
     expect(deleted.status).toBe(200);
@@ -555,7 +589,19 @@ describe('T-12 API happy paths', () => {
     expect(await db.prisma.siteProfile.count({ where: { id: profile.id } })).toBe(0);
     expect(await db.prisma.scan.count({ where: { accountId: account.id } })).toBe(0);
     expect(await db.prisma.purchase.count({ where: { accountId: account.id } })).toBe(0);
+    expect(await db.prisma.integrationConnection.count({ where: { accountId: account.id } })).toBe(
+      0,
+    );
+    expect(await db.prisma.integrationOAuthState.count({ where: { accountId: account.id } })).toBe(
+      0,
+    );
+    expect(await db.prisma.exportArtifact.count({ where: { accountId: account.id } })).toBe(0);
+    expect(deletedKeys).toEqual([`accounts/${account.id}/scans/${scanId}/report.json`]);
     expect(await db.prisma.webhookEvent.count({ where: { accountId: account.id } })).toBe(0);
+    expect(await db.prisma.accountDeletionAudit.count()).toBe(1);
+    await expect(deleteAccountData(db.prisma, account.id, objectStore)).resolves.toEqual({
+      orphanedArtifactCount: 0,
+    });
     expect(await db.prisma.accountDeletionAudit.count()).toBe(1);
   });
 

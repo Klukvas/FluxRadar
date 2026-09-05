@@ -92,6 +92,23 @@ export function readIntegrationConfig(env: NodeJS.ProcessEnv = process.env): Int
   };
 }
 
+/**
+ * Fails fast for secrets whose accidental fallback would invalidate stored
+ * integration credentials. Development and tests may use SESSION_SECRET as a
+ * deliberate convenience; production must provide the separate key.
+ */
+export function validateRuntimeConfig(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.NODE_ENV === 'production' && optional(env.INTEGRATION_ENCRYPTION_KEY) === null) {
+    throw new Error('INTEGRATION_ENCRYPTION_KEY is required in production');
+  }
+  if (
+    env.NODE_ENV === 'production' &&
+    (optional(env.RESEND_API_KEY) === null || optional(env.RESEND_FROM_EMAIL) === null)
+  ) {
+    throw new Error('RESEND_API_KEY and RESEND_FROM_EMAIL are required in production');
+  }
+}
+
 export function isUserIntegrationProvider(value: string): value is UserIntegrationProvider {
   return USER_INTEGRATION_PROVIDERS.includes(value as UserIntegrationProvider);
 }

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 
-import { LoginRateLimiter } from './auth/rate-limit.ts';
+import { LoginRateLimiter, RequestRateLimiter } from './auth/rate-limit.ts';
 import { authRouter } from './auth/routes.ts';
 import { getInternalFreeEmails } from './billing/internal-access.ts';
 import { getPaddleWebhookSecret } from './billing/paddle-signature.ts';
@@ -11,11 +11,14 @@ import { billingRouter, webhookHandler } from './billing-http/routes.ts';
 import { createPrismaClient } from './db.ts';
 import { exportRouter } from './export/routes.ts';
 import { errorHandler, notFoundHandler } from './http/error-handler.ts';
+import { healthRouter } from './http/health.ts';
 import { stdoutLogger } from './http/logger.ts';
 import type { ApiLogger } from './http/logger.ts';
 import { requestLogger } from './http/request-logger.ts';
 import { issuesRouter } from './issues/routes.ts';
 import { integrationsRouter } from './integrations/routes.ts';
+import { validateRuntimeConfig } from './integrations/config.ts';
+import { createMailer, type Mailer } from './email/mailer.ts';
 import { createDefaultPerformanceRunner } from './integrations/performance.ts';
 import { createDefaultAiProvider } from './orchestrator/geo.ts';
 import { purgeExpiredScans } from './data-retention.ts';
@@ -24,6 +27,7 @@ import { recoverClaimedJobs } from './orchestrator/claim.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { profilesRouter } from './profiles/routes.ts';
 import { scansRouter } from './scans/routes.ts';
+import type { PrivateObjectStore } from './integrations/s3.ts';
 
 export const packageName = '@fluxradar/api';
 
@@ -41,6 +45,9 @@ export interface CreateAppOptions {
   readonly createPerformanceRunner?: WorkerDeps['createPerformanceRunner'];
   /** Test seam; production reads FLUXRADAR_INTERNAL_FREE_EMAILS. */
   readonly internalFreeEmails?: ReadonlySet<string>;
+  readonly mailer?: Mailer;
+  readonly requestRateLimiter?: RequestRateLimiter;
+  readonly objectStore?: PrivateObjectStore | null;
 }
 
 export interface StartedApi {
@@ -54,6 +61,8 @@ export function createApp(options: CreateAppOptions): Express {
   const logger = options.logger ?? stdoutLogger;
   const now = options.now ?? (() => new Date());
   const internalFreeEmails = options.internalFreeEmails ?? getInternalFreeEmails();
+  const requestRateLimiter = options.requestRateLimiter ?? new RequestRateLimiter();
+  const mailer = options.mailer ?? createMailer();
   const workerDeps: WorkerDeps = {
     prisma: options.prisma,
     logger,
@@ -65,6 +74,7 @@ export function createApp(options: CreateAppOptions): Express {
     createPerformanceRunner:
       options.createPerformanceRunner ?? (() => createDefaultPerformanceRunner()),
     ...(options.crawl !== undefined ? { crawl: options.crawl } : {}),
+    mailer,
   };
   void purgeExpiredScans(options.prisma, now()).catch((error: unknown) => {
     logger.error('retention sweep failed', {
@@ -97,15 +107,18 @@ export function createApp(options: CreateAppOptions): Express {
     corsMiddleware(options.corsOrigin ?? process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173'),
   );
 
-  app.get('/health', (_req, res) => {
-    res.status(200).json({ ok: true, data: { service: 'api', status: 'ok' }, error: null });
-  });
+  app.use(healthRouter({ prisma: options.prisma }));
 
   // Paddle signs the exact request bytes. This route must precede express.json.
   app.post(
     '/webhooks/paddle',
     express.raw({ type: 'application/json', limit: '1mb' }),
-    webhookHandler({ prisma: options.prisma, webhookSecret: options.webhookSecret, now }),
+    webhookHandler({
+      prisma: options.prisma,
+      webhookSecret: options.webhookSecret,
+      now,
+      requestRateLimiter,
+    }),
   );
   app.use(express.json({ limit: '1mb' }));
 
@@ -113,8 +126,13 @@ export function createApp(options: CreateAppOptions): Express {
     authRouter({
       prisma: options.prisma,
       loginRateLimiter: new LoginRateLimiter(),
+      requestRateLimiter,
+      mailer,
+      frontendOrigin: options.corsOrigin ?? process.env.FRONTEND_ORIGIN,
       now,
       internalFreeEmails,
+      objectStore: options.objectStore,
+      logger,
     }),
   );
   app.use(profilesRouter({ prisma: options.prisma, now }));
@@ -126,11 +144,13 @@ export function createApp(options: CreateAppOptions): Express {
       now,
       enqueueScan,
       internalFreeEmails,
+      requestRateLimiter,
+      mailer,
     }),
   );
-  app.use(scansRouter({ prisma: options.prisma, now, enqueueScan }));
+  app.use(scansRouter({ prisma: options.prisma, now, enqueueScan, requestRateLimiter }));
   app.use(issuesRouter({ prisma: options.prisma, now }));
-  app.use(exportRouter({ prisma: options.prisma, now }));
+  app.use(exportRouter({ prisma: options.prisma, now, logger, objectStore: options.objectStore }));
 
   app.use(notFoundHandler);
   app.use(errorHandler(logger));
@@ -139,10 +159,12 @@ export function createApp(options: CreateAppOptions): Express {
 
 /** Starts the local HTTP server and drains jobs left in the database. */
 export async function startServer(port = Number(process.env.PORT ?? 3000)): Promise<StartedApi> {
+  validateRuntimeConfig();
   const prisma = createPrismaClient();
   const logger = stdoutLogger;
   const webhookSecret = getPaddleWebhookSecret();
-  const app = createApp({ prisma, webhookSecret, logger });
+  const mailer = createMailer();
+  const app = createApp({ prisma, webhookSecret, logger, mailer });
   // Recover before listen so a newly submitted scan cannot be claimed by the
   // HTTP path while startup is requeueing jobs left by the previous process.
   const recovered = await recoverClaimedJobs(prisma);
@@ -155,6 +177,7 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   const workerDeps: WorkerDeps = {
     prisma,
     logger,
+    mailer,
     createAiProvider: (scan, profile) =>
       createDefaultAiProvider(profile.name, new URL(scan.domain).hostname),
     createPerformanceRunner: () => createDefaultPerformanceRunner(),

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://fluxradar.net/</loc>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/blog</loc>
+  </url>
+  <!-- English articles -->
+  <url>
+    <loc>https://fluxradar.net/blog/public-website-audit-checklist</loc>
+    <lastmod>2026-09-05</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/blog/public-website-audit-checklist"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/blog/ai-crawler-readiness</loc>
+    <lastmod>2026-09-05</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/blog/ai-crawler-readiness"/>
+  </url>
+  <!-- Ukrainian articles -->
+  <url>
+    <loc>https://fluxradar.net/blog/uk/tekhnichne-seo-audyt</loc>
+    <lastmod>2026-09-05</lastmod>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/blog/uk/tekhnichne-seo-audyt"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/blog/uk/pryvachnist-ta-cookie</loc>
+    <lastmod>2026-09-05</lastmod>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/blog/uk/pryvachnist-ta-cookie"/>
+  </url>
+  <!-- Note: /blog/bezpeka-ta-dostupnist-publichnyy-skaner and
+             /blog/tekhnichnyy-seo-publichnyy-audyt are draft/unlisted pages
+             with noindex; they are intentionally omitted from this sitemap. -->
+</urlset>

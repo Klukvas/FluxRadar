@@ -16,7 +16,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "RUST_LOG=info prisma migrate deploy",
     "db:push": "RUST_LOG=info prisma migrate deploy",
-    "test": "prisma generate && node --env-file-if-exists=../../.env ../../node_modules/vitest/vitest.mjs run",
+    "test": "NODE_ENV=test prisma generate && NODE_ENV=test node --env-file-if-exists=../../.env ../../node_modules/vitest/vitest.mjs run",
     "typecheck": "prisma generate && tsc --noEmit"
   },
   "dependencies": {

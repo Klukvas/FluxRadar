@@ -105,6 +105,8 @@ export function Button(props: {
   type?: 'button' | 'submit';
   variant?: 'default' | 'primary' | 'danger';
   disabled?: boolean;
+  'aria-expanded'?: boolean;
+  'aria-controls'?: string;
 }) {
   return (
     <button
@@ -112,6 +114,8 @@ export function Button(props: {
       type={props.type ?? 'button'}
       onClick={props.onClick}
       disabled={props.disabled}
+      aria-expanded={props['aria-expanded']}
+      aria-controls={props['aria-controls']}
     >
       {props.children}
     </button>
@@ -125,6 +129,7 @@ export function Field(props: {
   placeholder?: string;
   type?: string;
   error?: string;
+  hint?: string;
 }) {
   return (
     <label className="field">
@@ -136,6 +141,7 @@ export function Field(props: {
         onChange={(event) => props.onChange(event.target.value)}
         placeholder={props.placeholder}
       />
+      {props.hint ? <span className="field__hint">{props.hint}</span> : null}
       {props.error ? <span className="field__error">{props.error}</span> : null}
     </label>
   );

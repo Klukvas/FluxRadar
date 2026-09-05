@@ -57,6 +57,8 @@ export interface Account {
   readonly accountId: string;
   readonly email: string;
   readonly internalFreeAccess?: boolean;
+  readonly emailVerified?: boolean;
+  readonly onboarding?: { readonly status: 'pending' | 'completed' | 'skipped' };
 }
 
 export interface SiteProfile {

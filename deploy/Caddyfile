@@ -10,14 +10,16 @@ fluxradar.net {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
         -Server
     }
 
     handle_path /api/* {
-        reverse_proxy api:3310
+        reverse_proxy {$FLUXRADAR_API_UPSTREAM}
     }
 
     handle {
-        reverse_proxy web:80
+        reverse_proxy {$FLUXRADAR_WEB_UPSTREAM}
     }
 }

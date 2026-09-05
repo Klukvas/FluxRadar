@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { TARIFFS } from '@fluxradar/contracts';
 
+import { createConfiguredObjectStore, type PrivateObjectStore } from './integrations/s3.ts';
+
 const TERMINAL_SCAN_STATUSES = ['Partial', 'Completed', 'Failed', 'Cancelled'];
 
 /** Deletes a scan snapshot and every dependent result row. */
@@ -51,53 +53,106 @@ export function accountDeletionHash(accountId: string): string {
   return createHash('sha256').update(`fluxradar-account:${accountId}`).digest('hex');
 }
 
-/** Deletes user-owned data while retaining a minimal deletion fact. */
-export async function deleteAccountData(prisma: PrismaClient, accountId: string): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    await tx.accountDeletionAudit.create({
-      data: {
-        accountIdHash: accountDeletionHash(accountId),
-        status: 'completed',
-        completedAt: new Date(),
-      },
-    });
-    const purchases = await tx.purchase.findMany({
-      where: { accountId },
-      select: { id: true, paddleTransactionId: true },
-    });
-    const purchaseIds = purchases.map(({ id }) => id);
-    const transactionIds = purchases.map(({ paddleTransactionId }) => paddleTransactionId);
-    const scans = await tx.scan.findMany({ where: { accountId }, select: { id: true } });
-    const scanIds = scans.map(({ id }) => id);
-    for (const scan of scans) {
-      await tx.deletedScan.upsert({
-        where: { scanId: scan.id },
-        create: { scanId: scan.id, accountIdHash: accountDeletionHash(accountId), reason: 'account-deletion' },
-        update: { accountIdHash: accountDeletionHash(accountId), reason: 'account-deletion' },
-      });
-    }
-    await tx.job.deleteMany({ where: { scanId: { in: scanIds } } });
-    await tx.issue.deleteMany({ where: { scanId: { in: scanIds } } });
-    await tx.scanModule.deleteMany({ where: { scanId: { in: scanIds } } });
-    await tx.aiResponseRecord.deleteMany({ where: { scanId: { in: scanIds } } });
-    await tx.aiConsent.deleteMany({ where: { scanId: { in: scanIds } } });
-    await tx.scan.deleteMany({ where: { id: { in: scanIds } } });
-    await tx.refundRecord.deleteMany({ where: { purchaseId: { in: purchaseIds } } });
-    await tx.entitlement.deleteMany({ where: { purchaseId: { in: purchaseIds } } });
-    await tx.purchase.deleteMany({ where: { id: { in: purchaseIds } } });
-    await tx.siteProfile.deleteMany({ where: { accountId } });
-    await tx.session.deleteMany({ where: { accountId } });
-    await tx.aiConsent.deleteMany({ where: { accountId } });
-    await tx.webhookEvent.deleteMany({
-      where: {
-        OR: [
-          { accountId },
-          ...(transactionIds.length > 0
-            ? [{ paddleTransactionId: { in: transactionIds } }]
-            : []),
-        ],
-      },
-    });
-    await tx.account.delete({ where: { id: accountId } });
+export interface AccountDeletionResult {
+  /** Objects that could not be deleted after their DB rows were removed. */
+  readonly orphanedArtifactCount: number;
+}
+
+/**
+ * Deletes user-owned data while retaining a minimal deletion fact.
+ *
+ * Database rows are removed in one transaction. Object storage is cleaned up
+ * only after that transaction commits, so a failed DB deletion cannot remove a
+ * report belonging to an account that still exists. S3 DELETE is idempotent;
+ * callers receive the count of cleanup failures so production can emit an
+ * operational signal without exposing private object keys to the client.
+ */
+export async function deleteAccountData(
+  prisma: PrismaClient,
+  accountId: string,
+  objectStore: PrivateObjectStore | null = createConfiguredObjectStore(),
+): Promise<AccountDeletionResult> {
+  const artifacts = await prisma.exportArtifact.findMany({
+    where: { accountId },
+    select: { objectKey: true },
   });
+  const deleted = await prisma.$transaction(
+    async (tx) => {
+      const account = await tx.account.findUnique({
+        where: { id: accountId },
+        select: { id: true },
+      });
+      if (account === null) return false;
+
+      await tx.accountDeletionAudit.upsert({
+        where: { accountIdHash: accountDeletionHash(accountId) },
+        update: {
+          accountIdHash: accountDeletionHash(accountId),
+          status: 'completed',
+          completedAt: new Date(),
+        },
+        create: {
+          accountIdHash: accountDeletionHash(accountId),
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      });
+      const purchases = await tx.purchase.findMany({
+        where: { accountId },
+        select: { id: true, paddleTransactionId: true },
+      });
+      const purchaseIds = purchases.map(({ id }) => id);
+      const transactionIds = purchases.map(({ paddleTransactionId }) => paddleTransactionId);
+      const scans = await tx.scan.findMany({ where: { accountId }, select: { id: true } });
+      const scanIds = scans.map(({ id }) => id);
+      if (scanIds.length > 0) {
+        await tx.deletedScan.createMany({
+          data: scanIds.map((scanId) => ({
+            scanId,
+            accountIdHash: accountDeletionHash(accountId),
+            reason: 'account-deletion',
+          })),
+          skipDuplicates: true,
+        });
+      }
+      await tx.exportArtifact.deleteMany({ where: { accountId } });
+      await tx.job.deleteMany({ where: { scanId: { in: scanIds } } });
+      await tx.issue.deleteMany({ where: { scanId: { in: scanIds } } });
+      await tx.scanModule.deleteMany({ where: { scanId: { in: scanIds } } });
+      await tx.aiResponseRecord.deleteMany({ where: { scanId: { in: scanIds } } });
+      await tx.aiConsent.deleteMany({ where: { scanId: { in: scanIds } } });
+      await tx.scan.deleteMany({ where: { id: { in: scanIds } } });
+      await tx.refundRecord.deleteMany({ where: { purchaseId: { in: purchaseIds } } });
+      await tx.entitlement.deleteMany({ where: { purchaseId: { in: purchaseIds } } });
+      await tx.purchase.deleteMany({ where: { id: { in: purchaseIds } } });
+      await tx.siteProfile.deleteMany({ where: { accountId } });
+      await tx.session.deleteMany({ where: { accountId } });
+      await tx.aiConsent.deleteMany({ where: { accountId } });
+      await tx.integrationOAuthState.deleteMany({ where: { accountId } });
+      await tx.integrationConnection.deleteMany({ where: { accountId } });
+      await tx.emailToken.deleteMany({ where: { accountId } });
+      await tx.emailNotification.deleteMany({ where: { accountId } });
+      await tx.webhookEvent.deleteMany({
+        where: {
+          OR: [
+            { accountId },
+            ...(transactionIds.length > 0 ? [{ paddleTransactionId: { in: transactionIds } }] : []),
+          ],
+        },
+      });
+      await tx.account.deleteMany({ where: { id: accountId } });
+      return true;
+    },
+    { maxWait: 10_000, timeout: 30_000 },
+  );
+
+  if (!deleted || objectStore === null || artifacts.length === 0) {
+    return { orphanedArtifactCount: 0 };
+  }
+  const cleanup = await Promise.allSettled(
+    artifacts.map(({ objectKey }) => objectStore.deleteObject(objectKey)),
+  );
+  return {
+    orphanedArtifactCount: cleanup.filter((result) => result.status === 'rejected').length,
+  };
 }

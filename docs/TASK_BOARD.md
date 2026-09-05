@@ -24,6 +24,13 @@
 | T-17 | Accessibility: WCAG 2.2 AA automated audit | T-09, T-12, T-14 | Codex + Opus review | DONE | `packages/contracts`, `packages/rules/src/accessibility`, `apps/web`, `docs/WCAG_AUDIT.md` | ✅ independent Opus review; static/manual boundary documented | ✅ A11Y rules + integration + full workspace gates | A11Y-001..011; no legal-conformance claim; browser-rendered checks remain follow-up |
 | T-18 | Public-only discovery/security/privacy profiles | T-08, T-09, T-10, T-17 | Codex | DONE | `packages/contracts`, `packages/rules`, `apps/api`, `apps/web`, docs | ✅ no customer tokens; static limitations documented | ✅ unit/integration coverage + workspace gates | JSON-LD/social preview; OWASP ASVS Public Profile; Privacy & Consent; EN/Section mappings; AI crawler readiness |
 
+### Customer-readiness track
+
+Tasks CR-01–CR-09, together with deferred items and the domain-ownership decision,
+are tracked in [`docs/CUSTOMER_READINESS_TASKS.md`](CUSTOMER_READINESS_TASKS.md).
+The latest independent review and quality-gate result is in
+[`docs/CUSTOMER_READINESS_REVIEW.md`](CUSTOMER_READINESS_REVIEW.md).
+
 ---
 
 ## Детали задач

@@ -66,6 +66,19 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
 }
 
 export function createDefaultAiProvider(brand: string, siteHostname: string): AiProvider {
+  // Never spend money or send customer context during tests, even when a
+  // developer has a real key in the local .env file.
+  if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true') {
+    return new MockAiProvider(defaultGeoFixtures(brand, siteHostname), {
+      config: {
+        provider: 'anthropic',
+        apiVersion: process.env.ANTHROPIC_API_VERSION ?? '2023-06-01',
+        modelId: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-20250514',
+        timeoutMs: 10_000,
+        maxRetries: 1,
+      },
+    });
+  }
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (apiKey) {
     return new AnthropicProvider({

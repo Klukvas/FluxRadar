@@ -20,6 +20,7 @@ import {
   requeueAndClaimJob,
 } from './claim.ts';
 import { runScanAttempt } from './run-attempt.ts';
+import { notifyScanEvent } from '../email/notifications.ts';
 
 // The current runtime has one in-process queue drain and HTTP enqueue path.
 // Keeping active scan IDs shared between both paths closes the retry window in
@@ -145,6 +146,15 @@ async function processClaimedJob(
       }
       if (afterQueue.status === 'Queued') {
         await transitionScan(prisma, scanId, 'Queued', 'Running', { now: deps.now?.() });
+        void notifyScanEvent(
+          prisma,
+          deps.mailer,
+          scanId,
+          'scan_started',
+          'Your audit has started.',
+        ).catch((error: unknown) =>
+          logger.warn('scan notification failed', { scanId, error: String(error) }),
+        );
       }
       if (afterQueue.status === 'Cancelled' || afterQueue.status === 'Completed') {
         await finishJob(prisma, activeJobId);
@@ -168,6 +178,28 @@ async function processClaimedJob(
           );
         }
         await finishJob(prisma, activeJobId);
+        void notifyScanEvent(
+          prisma,
+          deps.mailer,
+          scanId,
+          outcome.kind === 'Failed' ? 'scan_failed' : 'scan_completed',
+          outcome.kind === 'Failed'
+            ? 'Your audit failed and the billing workflow was updated.'
+            : `Your audit is ${outcome.kind.toLowerCase()}.`,
+        ).catch((error: unknown) =>
+          logger.warn('scan notification failed', { scanId, error: String(error) }),
+        );
+        if (outcome.kind === 'Failed' && outcome.refund !== null) {
+          void notifyScanEvent(
+            prisma,
+            deps.mailer,
+            scanId,
+            'refund_created',
+            'A refund record was created for this audit.',
+          ).catch((error: unknown) =>
+            logger.warn('refund notification failed', { scanId, error: String(error) }),
+          );
+        }
         return {
           scanId,
           status: outcome.kind,
@@ -214,6 +246,26 @@ async function processClaimedJob(
             : (await requestRefund(prisma, failed.purchaseId, 'PLATFORM_FAILURE_AFTER_RETRY'))
                 .record;
         await finishJob(prisma, activeJobId);
+        void notifyScanEvent(
+          prisma,
+          deps.mailer,
+          scanId,
+          'scan_failed',
+          'Your audit failed after the retry budget was exhausted.',
+        ).catch((error: unknown) =>
+          logger.warn('scan notification failed', { scanId, error: String(error) }),
+        );
+        if (refund !== null) {
+          void notifyScanEvent(
+            prisma,
+            deps.mailer,
+            scanId,
+            'refund_created',
+            'A refund record was created for this audit.',
+          ).catch((error: unknown) =>
+            logger.warn('refund notification failed', { scanId, error: String(error) }),
+          );
+        }
         return {
           scanId,
           status: 'Failed',

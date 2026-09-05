@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Приватність та cookie-сигнали: що бачать публічні краулери — FluxRadar</title>
+    <meta name="description" content="Які публічні сигнали конфіденційності перевіряють краулери: cookie-банери, заголовки безпеки, трекери та розкриття інформації." />
+    <link rel="canonical" href="https://fluxradar.net/blog/uk/pryvachnist-ta-cookie" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Приватність та cookie-сигнали: що бачать публічні краулери" />
+    <meta property="og:description" content="Публічні сигнали конфіденційності: cookie consent, CSP-заголовки, трекери, розкриття інформації." />
+    <meta property="og:url" content="https://fluxradar.net/blog/uk/pryvachnist-ta-cookie" />
+    <meta property="og:locale" content="uk_UA" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Приватність та cookie-сигнали: що бачать публічні краулери","inLanguage":"uk","datePublished":"2026-09-05","dateModified":"2026-09-05","author":{"@type":"Organization","name":"FluxLab"},"publisher":{"@type":"Organization","name":"FluxLab"},"mainEntityOfPage":"https://fluxradar.net/blog/uk/pryvachnist-ta-cookie"}</script>
+    <style>
+      :root{color-scheme:light}
+      *,*::before,*::after{box-sizing:border-box}
+      body{margin:0;padding:40px 24px;font:16px/1.75 Charcoal,Chicago,Geneva,"Helvetica Neue",system-ui,sans-serif;color:#111;background:#66799b}
+      main{max-width:780px;margin:0 auto;background:#efefef;border:1px solid #111;padding:36px 44px 48px;box-shadow:4px 4px #111}
+      a{color:#333399}
+      a:focus-visible{outline:2px dotted #333399;outline-offset:2px}
+      nav{margin-bottom:44px;font:12px/1.4 Monaco,"SF Mono",Menlo,"Courier New",monospace}
+      nav a{text-decoration:none}
+      nav a:hover{text-decoration:underline}
+      .kicker{color:#555;font:11px Monaco,"SF Mono",Menlo,"Courier New",monospace;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+      .lang{display:inline-block;padding:1px 6px;margin-left:8px;border:1px solid #111;background:#1d3461;color:#a8c4f0;font:9px Monaco,"SF Mono",Menlo,monospace;letter-spacing:.08em;vertical-align:middle;line-height:1.8}
+      h1{font-size:32px;line-height:1.08;margin:10px 0 22px;letter-spacing:-.02em}
+      h2{font-size:20px;margin:36px 0 8px;letter-spacing:-.01em}
+      p{margin:0 0 16px}
+      ul,ol{margin:0 0 16px;padding-left:24px}
+      li{margin:8px 0}
+      code{font-family:Monaco,"SF Mono",Menlo,"Courier New",monospace;font-size:13px;background:#ddd;padding:1px 4px}
+      .figure{margin:32px -4px;padding:20px;border:1px solid #888;background:#fff}
+      .figure figcaption{margin-top:10px;color:#555;font:11px Monaco,"SF Mono",Menlo,monospace;letter-spacing:.04em}
+      .figure svg{display:block;max-width:100%;height:auto}
+      .term{margin:20px 0;padding:14px 16px;background:#101410;border:1px solid #315d42;color:#33ff66;font:12px/1.6 Monaco,"SF Mono",Menlo,monospace;overflow-x:auto;white-space:pre}
+      .sig-table{width:100%;border-collapse:collapse;margin:0 0 20px;font-size:14px}
+      .sig-table th{padding:8px 10px;background:#111;color:#33ff66;font:11px Monaco,monospace;letter-spacing:.06em;text-align:left}
+      .sig-table td{padding:8px 10px;border-bottom:1px solid #ccc;vertical-align:top}
+      .sig-table tr:last-child td{border-bottom:0}
+      .sig-table tr:nth-child(even) td{background:#e8e8e8}
+      .tag{display:inline-block;padding:1px 5px;font:10px Monaco,monospace;border:1px solid}
+      .tag--ok{color:#1a6b2f;border-color:#1a6b2f;background:#d6efd9}
+      .tag--warn{color:#8a5b00;border-color:#8a5b00;background:#ffe9c2}
+      .tag--err{color:#9b1c12;border-color:#9b1c12;background:#ffd9d4}
+      footer{border-top:1px solid #888;margin-top:48px;padding-top:20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font:12px Monaco,"SF Mono",Menlo,monospace}
+      @media(max-width:680px){body{padding:12px}main{padding:20px 18px 28px}h1{font-size:23px}h2{font-size:18px}.figure{margin:24px -2px;padding:12px}.sig-table{font-size:13px}footer{flex-direction:column}}
+      @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:1ms!important;transition-duration:1ms!important}}
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav>
+        <a href="/blog">&#x2190; Field Notes / Нотатки</a>
+      </nav>
+
+      <div class="kicker">ПРИВАТНІСТЬ ТА CONSENT <span class="lang">UA</span> &#xB7; <time datetime="2026-09-05">5 ВЕРЕСНЯ 2026</time></div>
+      <h1>Приватність та cookie-сигнали: що бачать публічні краулери</h1>
+
+      <p>Пошуковий бот і публічний аудит не читають файли cookie й не заходять в акаунт. Але вони бачать HTTP-заголовки, розмітку cookie-банера, зовнішні ресурси та посилання на Privacy Policy. Ці публічні сигнали можна перевіряти систематично й відтворювано.</p>
+
+      <h2>Що таке публічний сигнал конфіденційності?</h2>
+      <p>Публічний сигнал &#x2014; це те, що спостерігається без автентифікації:</p>
+      <ul>
+        <li>HTTP-заголовки відповіді сервера (<code>Content-Security-Policy</code>, <code>X-Frame-Options</code>, <code>Permissions-Policy</code>)</li>
+        <li>Наявність та структура cookie-банера або consent-елемента</li>
+        <li>Посилання на <code>/privacy</code> або <code>/privacy-policy</code> у підвалі</li>
+        <li>Зовнішні скрипти та запити до третіх сторін у вихідному HTML</li>
+      </ul>
+
+      <h2>Cookie consent: що перевіряти</h2>
+      <p>Краулер без JavaScript та без логіна бачить те, що є у вихідному HTML. Для consent-перевірки важливі:</p>
+      <ol>
+        <li><strong>Чи присутній consent-елемент у HTML</strong> &#x2014; шукайте <code>role="dialog"</code>, класи <code>cookie-banner</code>, <code>consent-manager</code> або схожі.</li>
+        <li><strong>Чи є посилання на Cookie Policy або Privacy Policy</strong> &#x2014; мають бути в межах видимого DOM без JavaScript.</li>
+        <li><strong>Чи завантажуються аналітичні скрипти до надання згоди</strong> &#x2014; якщо <code>&lt;script src=&quot;https://www.googletagmanager.com/...&quot;&gt;</code> є в <code>&lt;head&gt;</code> без умовного завантаження, це сигнал порушення.</li>
+      </ol>
+
+      <div class="term">HTTP/2 200 OK
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-abc123'
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Permissions-Policy: camera=(), microphone=(), geolocation=()</div>
+
+      <h2>Заголовки безпеки як сигнал довіри</h2>
+      <table class="sig-table">
+        <caption style="text-align:left;font:11px Monaco,monospace;color:#555;padding-bottom:6px">Ключові HTTP-заголовки безпеки та їх ролі</caption>
+        <thead>
+          <tr><th>Заголовок</th><th>Захист</th><th>Типовий стан</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>Content-Security-Policy</code></td>
+            <td>Обмежує джерела скриптів та стилів</td>
+            <td><span class="tag tag--warn">часто відсутній</span></td>
+          </tr>
+          <tr>
+            <td><code>X-Frame-Options</code></td>
+            <td>Захист від clickjacking</td>
+            <td><span class="tag tag--ok">зазвичай є</span></td>
+          </tr>
+          <tr>
+            <td><code>X-Content-Type-Options</code></td>
+            <td>Заборона MIME-sniffing</td>
+            <td><span class="tag tag--ok">зазвичай є</span></td>
+          </tr>
+          <tr>
+            <td><code>Permissions-Policy</code></td>
+            <td>Контроль API браузера</td>
+            <td><span class="tag tag--err">рідко встановлений</span></td>
+          </tr>
+          <tr>
+            <td><code>Referrer-Policy</code></td>
+            <td>Обмеження витоку URL</td>
+            <td><span class="tag tag--warn">часто відсутній</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Поширеність сигналів на публічних сайтах</h2>
+      <p>Діаграма ілюструє типовий стан публічних сайтів малого та середнього бізнесу на основі відкритих досліджень.</p>
+
+      <figure class="figure">
+        <svg width="640" height="280" viewBox="0 0 640 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="priv-title priv-desc">
+          <title id="priv-title">Поширеність публічних сигналів конфіденційності на сайтах</title>
+          <desc id="priv-desc">Вертикальна гістограма. Cookie consent банер: 68 відсотків. Коректний CSP заголовок: 34 відсотки. Заголовки безпеки відповіді: 52 відсотки. Розкриття трекерів: 22 відсотки.</desc>
+          <rect width="640" height="280" fill="#fff"/>
+          <!-- grid: chart area x=64 to x=620, y=20 to y=220 -->
+          <line x1="64" y1="170" x2="620" y2="170" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="4,3"/>
+          <line x1="64" y1="120" x2="620" y2="120" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="4,3"/>
+          <line x1="64" y1="70"  x2="620" y2="70"  stroke="#e0e0e0" stroke-width="1" stroke-dasharray="4,3"/>
+          <line x1="64" y1="20"  x2="620" y2="20"  stroke="#ccc"    stroke-width="1"/>
+          <!-- Y labels -->
+          <text x="58" y="174" text-anchor="end" font-family="Monaco,monospace" font-size="10" fill="#555">25%</text>
+          <text x="58" y="124" text-anchor="end" font-family="Monaco,monospace" font-size="10" fill="#555">50%</text>
+          <text x="58" y="74"  text-anchor="end" font-family="Monaco,monospace" font-size="10" fill="#555">75%</text>
+          <text x="58" y="24"  text-anchor="end" font-family="Monaco,monospace" font-size="10" fill="#555">100%</text>
+          <!-- baseline -->
+          <line x1="64" y1="220" x2="620" y2="220" stroke="#111" stroke-width="1.5"/>
+          <!-- Bar 1: Cookie consent 68% height=136 y=84 -->
+          <rect x="96"  y="84"  width="80" height="136" fill="#333399"/>
+          <text x="136" y="78"  text-anchor="middle" font-family="Monaco,monospace" font-size="11" fill="#333399" font-weight="bold">68%</text>
+          <!-- Bar 2: CSP 34% height=68 y=152 -->
+          <rect x="236" y="152" width="80" height="68"  fill="#1a6b2f"/>
+          <text x="276" y="146" text-anchor="middle" font-family="Monaco,monospace" font-size="11" fill="#1a6b2f" font-weight="bold">34%</text>
+          <!-- Bar 3: Security headers 52% height=104 y=116 -->
+          <rect x="376" y="116" width="80" height="104" fill="#8a5b00"/>
+          <text x="416" y="110" text-anchor="middle" font-family="Monaco,monospace" font-size="11" fill="#8a5b00" font-weight="bold">52%</text>
+          <!-- Bar 4: Tracker disclosure 22% height=44 y=176 -->
+          <rect x="516" y="176" width="80" height="44"  fill="#9b1c12"/>
+          <text x="556" y="170" text-anchor="middle" font-family="Monaco,monospace" font-size="11" fill="#9b1c12" font-weight="bold">22%</text>
+          <!-- X labels -->
+          <text x="136" y="236" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#111">Cookie</text>
+          <text x="136" y="249" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#111">consent</text>
+          <text x="276" y="236" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#111">CSP</text>
+          <text x="276" y="249" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#111">заголовок</text>
+          <text x="416" y="236" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#111">Заголовки</text>
+          <text x="416" y="249" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#111">безпеки</text>
+          <text x="556" y="236" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#111">Розкриття</text>
+          <text x="556" y="249" text-anchor="middle" font-family="Monaco,monospace" font-size="10" fill="#111">трекерів</text>
+        </svg>
+        <figcaption>Ілюстративні дані на основі публічних досліджень. Відсотки відображають наявність сигналу, а не повну відповідність вимогам.</figcaption>
+      </figure>
+
+      <h2>Треті сторони у вихідному HTML</h2>
+      <p>Перелічте всі зовнішні домени, з яких завантажуються ресурси (<code>&lt;script src&gt;</code>, <code>&lt;link href&gt;</code>, <code>&lt;img src&gt;</code>) у вихідному HTML без JavaScript. Для кожного домену вкажіть:</p>
+      <ul>
+        <li>Чи є посилання на його Privacy Policy</li>
+        <li>Чи завантаження відбувається умовно (після згоди) або безумовно</li>
+        <li>Чи домен є відомим постачальником аналітики або реклами</li>
+      </ul>
+
+      <h2>Що FluxRadar перевіряє</h2>
+      <p>FluxRadar перевіряє публічні сигнали конфіденційності без автентифікації: HTTP-заголовки безпеки, наявність посилань на Cookie Policy та Privacy Policy у DOM, сторонні ресурси у вихідному HTML та відповідність <code>robots.txt</code>. <a href="/">Запустити перевірку &#x2192;</a></p>
+
+      <footer>
+        <a href="/blog/uk/tekhnichne-seo-audyt">&#x2190; Попередня: Технічний SEO</a>
+        <a href="/blog">Усі нотатки &#x2192;</a>
+      </footer>
+    </main>
+  </body>
+</html>
