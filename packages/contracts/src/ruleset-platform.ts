@@ -22,7 +22,8 @@ export const PLATFORM_CONTRACTS: readonly RuleDescriptor[] = [
     targetKind: 'environment',
     severity: null,
     scoring: 'informational',
-    oracle: 'duplicate paddle_event_id produces no second side effect (unique dedup constraint)',
+    oracle:
+      'duplicate (provider, provider_event_id) produces no second side effect (unique dedup constraint)',
   },
   {
     ruleId: 'BILLING-003',

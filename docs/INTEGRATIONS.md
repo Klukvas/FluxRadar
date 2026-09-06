@@ -46,6 +46,16 @@ INTEGRATION_ENCRYPTION_KEY=
 
 `INTEGRATION_ENCRYPTION_KEY` must be set explicitly in production. The local fallback to `SESSION_SECRET` exists only to keep a fresh development checkout usable.
 
+Each block above is all-or-nothing. Leave a whole block empty and that integration is simply
+off; set only part of one and production refuses to boot, naming the missing variables (never
+their values) — see *Optional, but never half configured* in `docs/DEPLOYMENT.md`. In particular
+`GOOGLE_OAUTH_REDIRECT_URI`/`BING_OAUTH_REDIRECT_URI` are **required in production** and must be
+the HTTPS callbacks shown above; only development falls back to
+`http://localhost:3310/integrations/<provider>/callback`. `ANTHROPIC_MODEL` is optional and
+defaults to `DEFAULT_ANTHROPIC_MODEL` in `apps/api/src/integrations/anthropic-config.ts`.
+The API logs one `integration configuration` line at startup listing which of these are
+configured, disabled or half-configured.
+
 ## User-facing flow
 
 1. The user opens **Integrations** in an authenticated workspace.

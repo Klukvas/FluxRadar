@@ -27,7 +27,7 @@ fluxradar/
                     # quota and consent
     export/         # канонические records, JSON Schema §16, semantic validator, CSV
   apps/
-    api/            # Express + Prisma(PostgreSQL): auth, профили, биллинг (MockPaddle),
+    api/            # Express + Prisma(PostgreSQL): auth, профили, биллинг (FastSpring),
                     # scan orchestrator + in-process worker, integrations, issues,
                     # dashboard and export API
     web/            # React + Vite, дизайн-система Mac OS 8/9 + terminal (DESIGN_SYSTEM.md)
@@ -36,7 +36,7 @@ fluxradar/
 
 - `contracts` — единственный общий низ, без зависимостей.
 - `fingerprint`, `scoring`, `export` — чистые пакеты без I/O, покрыты golden-фикстурами.
-- Внешние сервисы только через интерфейсы: `BillingProvider` (MockPaddle), `AiProvider`
+- Внешние сервисы только через интерфейсы: `BillingProvider` (FastSpring; MockPaddle — dev-only), `AiProvider`
   (Anthropic/Mock), OAuth connections and private object storage. Cloudflare и
   WordPress не входят в текущий scope.
 
@@ -47,7 +47,7 @@ fluxradar/
 | fingerprint-v1 + нормализация URL (§14) | ✅ полностью | golden vectors 6/6 + equivalence table как CI-тесты |
 | Score engine (§15) | ✅ полностью | все формулы, coverage, Provisional/Insufficient data, Basic 60/40 |
 | Scan/billing state machine (§18) | ✅ полностью | все переходы, идемпотентность, refund-инварианты |
-| Оплата Paddle | 🔶 mock | `MockPaddle`: HMAC-подписанные webhook, dev-checkout |
+| Оплата FastSpring | 🔶 код готов, live-режим закрыт | Серверная checkout-сессия + подписанный webhook (`X-FS-Signature`, base64 HMAC-SHA256), см. [FASTSPRING.md](FASTSPRING.md). `FASTSPRING_MODE=live` не включается, пока владелец аккаунта FastSpring не проверит магазин и не выставит `FASTSPRING_STORE_VERIFIED=verified` — этот шаг вне репозитория. MockPaddle остаётся только для локальной разработки |
 | Crawler (§3) | ✅ базово | HTTP, robots.txt, sitemap, лимиты; без JS-рендеринга |
 | SEO (§4) | ✅ субсет | SEO-TECH-001..008,013 + SEO-ONPAGE-001,002,003,005 + JSON-LD/social preview |
 | AI SEO/GEO (§5) | ✅ Anthropic + mock fallback | контракт adapter-а, caps, truncation, quota, consent; real Messages adapter включается через `ANTHROPIC_API_KEY` |
@@ -111,7 +111,7 @@ Basic/Complete по существующей модульной матрице �
    пороги 0.80/0.50, `round2` half-up, Basic 60/40, `Insufficient data` при нулевом знаменателе.
 4. **State machine** (§18): `Pending→Queued→Running→{Partial,Completed,Failed,Cancelled}`,
    atomic claim, `platform_retry_count ≤ 1`, `module_retry_count ≤ 1`, webhook dedup по
-   `paddle_event_id` (unique), один purchase → один entitlement → один scan,
+   `(provider, provider_event_id)` (unique), один purchase → один entitlement → один scan,
    `refund_idempotency_key = refund:{purchase_id}`, refund reason enum из §18.
 5. **Export schema v1** (§16 + D-014/15/16/19/24): 4 record types, JSON Schema дословно из
    плана, semantic validator (инварианты 1–9 из `EXPORT-001`), CSV: UTF-8 без BOM, LF, RFC 4180,

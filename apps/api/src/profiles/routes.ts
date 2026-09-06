@@ -7,6 +7,7 @@ import type { PrismaClient, SiteProfile } from '@prisma/client';
 import { siteProfileInputSchema } from '@fluxradar/contracts';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
+import { openCheckoutSessionWhere } from '../billing/checkout-lifecycle.ts';
 import { isUniqueViolation } from '../billing/prisma-errors.ts';
 import { sendOk } from '../http/envelope.ts';
 import { conflict, notFound } from '../http/errors.ts';
@@ -125,14 +126,29 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
       accountIdFrom(res),
       requiredParam(req.params.profileId, 'profileId'),
     );
-    const [scanCount, purchaseCount] = await Promise.all([
+    const [scanCount, purchaseCount, openCheckoutCount] = await Promise.all([
       prisma.scan.count({ where: { siteProfileId: profile.id } }),
       prisma.purchase.count({ where: { siteProfileId: profile.id } }),
+      prisma.checkoutSession.count({
+        where: { siteProfileId: profile.id, ...openCheckoutSessionWhere(deps.now()) },
+      }),
     ]);
     if (scanCount > 0 || purchaseCount > 0) {
       // Сканы и покупки — финансовые/исторические записи (§18): профиль с ними
       // не удаляется, чтобы не рвать FK и retention-обязательства.
       throw conflict('PROFILE_HAS_HISTORY', 'profile has scans or purchases and cannot be deleted');
+    }
+    // CheckoutSession cascades from SiteProfile (the rollback-safe foreign key),
+    // so deleting a profile mid-checkout would drop the binding the provider
+    // webhook needs and turn a real charge into a rejected order. An open
+    // checkout therefore blocks the deletion — but only while it can still be
+    // paid: a session past its provider deadline binds nothing chargeable, and
+    // an abandoned tab must never make a profile permanently undeletable.
+    if (openCheckoutCount > 0) {
+      throw conflict(
+        'PROFILE_HAS_OPEN_CHECKOUT',
+        'profile has a checkout in progress and cannot be deleted',
+      );
     }
     await prisma.siteGoogleBinding.deleteMany({ where: { siteProfileId: profile.id } });
     await prisma.siteProfile.delete({ where: { id: profile.id } });

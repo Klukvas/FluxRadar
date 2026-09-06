@@ -1,6 +1,6 @@
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
-import { readIntegrationConfig } from './config.ts';
+import { readObjectStorageConfig } from './object-storage-config.ts';
 
 export type ReportFormat = 'json' | 'csv';
 
@@ -89,6 +89,9 @@ export function createConfiguredObjectStore(): HetznerObjectStore | null {
   // Test runs must never send report data to a real bucket, even when a
   // developer has credentials in a local .env file.
   if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true') return null;
-  const config = readIntegrationConfig().hetznerS3;
-  return config === null ? null : new HetznerObjectStore(config);
+  const result = readObjectStorageConfig();
+  // A partially configured store never reaches here in production: the boot
+  // fails on it (integrations/config.ts). Elsewhere it stays off, and the
+  // startup diagnostics name the variables that are missing.
+  return result.state === 'configured' ? new HetznerObjectStore(result.config) : null;
 }

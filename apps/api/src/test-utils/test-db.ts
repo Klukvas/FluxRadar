@@ -23,7 +23,7 @@ export async function createTestDb(): Promise<TestDb> {
   const databaseUrl = testDatabaseUrl();
   const prisma = createPrismaClient(databaseUrl);
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "FreeCheckClaim", "Session", "EmailToken", "EmailNotification", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "Job" CASCADE',
+    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "FreeCheckClaim", "Session", "EmailToken", "EmailNotification", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "ProviderRefund", "CheckoutSession", "Job" CASCADE',
   );
   return {
     prisma,
@@ -76,7 +76,8 @@ export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Pr
             accountId: params.account.accountId,
             siteProfileId: params.account.siteProfileId,
             plan,
-            paddleTransactionId: `txn_${randomUUID()}`,
+            provider: 'paddle',
+            providerTransactionId: `txn_${randomUUID()}`,
             amountUsd: TARIFFS[plan].priceUsd,
             currency: 'USD',
             status: PURCHASE_STATUSES.paid,
