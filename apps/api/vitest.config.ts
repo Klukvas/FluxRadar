@@ -6,5 +6,6 @@ export default defineConfig({
     // Sequential files prevent cross-file truncation races.
     fileParallelism: false,
     globalSetup: ['./src/test-utils/global-setup.ts'],
+    setupFiles: ['./src/test-utils/test-env.ts'],
   },
 });
