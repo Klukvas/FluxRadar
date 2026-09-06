@@ -10,7 +10,12 @@ fluxradar.net {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
-        Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'"
+        # FastSpring popup checkout (docs/FASTSPRING.md §5): the Store Builder
+        # Library is served from sbl.onfastspring.com, renders the checkout in an
+        # iframe on the storefront host, and talks to that host from this page.
+        # Those three origins are the only additions — no wildcard, no inline
+        # script, and `frame-ancestors 'none'` still forbids framing FluxRadar.
+        Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://sbl.onfastspring.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*.onfastspring.com; frame-src https://*.onfastspring.com"
         Permissions-Policy "camera=(), microphone=(), geolocation=()"
         -Server
     }

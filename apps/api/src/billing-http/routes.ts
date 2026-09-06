@@ -1,7 +1,11 @@
-// HTTP-слой биллинга. Webhook принимает СЫРОЕ тело (express.raw монтируется в
-// app.ts до express.json) — HMAC-SHA256 считается по байтам провода (D-029).
-// Dev-checkout (D-008) строит подписанное событие MockPaddle и прогоняет его
-// через боевой webhook-код; scope и consent едут внутри события (D-134).
+// LEGACY MockPaddle HTTP surface (D-008/D-029) plus the internal free-access
+// checkout. Production billing lives in billing-http/fastspring-routes.ts.
+//
+// The webhook takes the RAW body (express.raw is mounted in index.ts before
+// express.json) so the HMAC covers the wire bytes. `/billing/dev-checkout`
+// builds a signed MockPaddle event and runs it through the real webhook code, so
+// local development exercises the production state machine; it refuses to mint a
+// paid scan in production, where only the internal free allowlist may use it.
 
 import { Router } from 'express';
 import type { RequestHandler } from 'express';
@@ -13,8 +17,8 @@ import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
 import { isInternalFreeEmail } from '../billing/internal-access.ts';
 import { createInternalFreeScan } from '../billing/internal-checkout.ts';
 import { handlePaddleWebhook, simulatePaidCheckout } from '../billing/index.ts';
-import { PADDLE_PRICE_IDS, PAID_PLANS, paddleCustomDataSchema } from '../billing/webhook-schema.ts';
-import type { PaidPlan } from '../billing/webhook-schema.ts';
+import { aiConsentSchema } from '../billing/checkout-metadata.ts';
+import { PAID_PLANS } from '../billing/plans.ts';
 import { sendOk } from '../http/envelope.ts';
 import { paymentRequired, unauthorized, validationError } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
@@ -34,9 +38,9 @@ export const PADDLE_SIGNATURE_HEADER = 'paddle-signature';
 const devCheckoutInputSchema = z
   .object({
     siteProfileId: z.string().min(1),
-    plan: z.enum(Object.keys(PADDLE_PRICE_IDS) as [PaidPlan, ...PaidPlan[]]),
+    plan: z.enum(PAID_PLANS),
     scope: scanScopeSchema,
-    aiConsent: paddleCustomDataSchema.shape.aiConsent,
+    aiConsent: aiConsentSchema.optional(),
   })
   .superRefine((input, ctx) => {
     const { urlLimit } = TARIFFS[input.plan];
@@ -112,12 +116,11 @@ export function billingRouter(deps: BillingRouterDeps): Router {
     }
     const internalFreeAccess = isInternalFreeEmail(account.email, deps.internalFreeEmails);
     if (process.env.NODE_ENV === 'production' && !internalFreeAccess) {
-      throw paymentRequired('live checkout is not configured for this environment');
+      throw paymentRequired(
+        'paid scans must be purchased through /billing/checkout-session in this environment',
+      );
     }
     const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);
-    if (!PAID_PLANS.includes(input.plan)) {
-      throw validationError('plan must be Basic or Complete');
-    }
 
     if (internalFreeAccess) {
       const scan = await createInternalFreeScan({

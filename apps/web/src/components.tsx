@@ -7,6 +7,7 @@ import {
 } from 'react';
 
 import { copy, languageOptions, type Language } from './i18n';
+import { tourTargets } from './tour-targets';
 
 export function Window(props: {
   title: string;
@@ -65,7 +66,11 @@ export function MenuBar(props: {
   }
 
   return (
-    <nav className="menubar" aria-label="Application menu">
+    <nav
+      className="menubar"
+      aria-label="Application menu"
+      data-tour-target={tourTargets.workspaceHeader}
+    >
       <button className="menubar__apple" type="button" onClick={() => navigateAndClose('home')}>
         <svg viewBox="0 0 12 12" aria-hidden="true">
           <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
@@ -84,7 +89,11 @@ export function MenuBar(props: {
           <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" fill="none" />
         </svg>
       </button>
-      <div id="menubar-links" className={isMenuOpen ? 'menubar__links is-open' : 'menubar__links'}>
+      <div
+        id="menubar-links"
+        className={isMenuOpen ? 'menubar__links is-open' : 'menubar__links'}
+        data-tour-target={tourTargets.workspaceTabs}
+      >
         <div className="menubar__sheet-head">
           <span className="menubar__sheet-brand">
             <svg viewBox="0 0 12 12" aria-hidden="true">
@@ -116,17 +125,15 @@ export function MenuBar(props: {
           <button
             className={props.active === 'desktop' ? 'menubar__item is-active' : 'menubar__item'}
             type="button"
-            data-tour-target="files-tab"
-            title={labels.descriptions.files}
+            title={labels.descriptions.profiles}
             onClick={() => navigateAndClose('desktop')}
             disabled={!props.signedIn}
           >
-            {labels.files}
+            {labels.profiles}
           </button>
           <button
             className={props.active === 'new-scan' ? 'menubar__item is-active' : 'menubar__item'}
             type="button"
-            data-tour-target="scan-tab"
             title={labels.descriptions.scan}
             onClick={() => navigateAndClose('new-scan')}
             disabled={!props.signedIn}
@@ -140,7 +147,6 @@ export function MenuBar(props: {
                 : 'menubar__item'
             }
             type="button"
-            data-tour-target="reports-tab"
             title={labels.descriptions.reports}
             onClick={() => navigateAndClose('results')}
             disabled={!props.signedIn}
@@ -152,22 +158,21 @@ export function MenuBar(props: {
               props.active === 'integrations' ? 'menubar__item is-active' : 'menubar__item'
             }
             type="button"
-            data-tour-target="integrations-tab"
             title={labels.descriptions.integrations}
             onClick={() => navigateAndClose('integrations')}
             disabled={!props.signedIn}
           >
             {labels.integrations}
           </button>
-          <button
-            className={props.active === 'plans' ? 'menubar__item is-active' : 'menubar__item'}
-            type="button"
-            data-tour-target="plans-tab"
-            title={labels.descriptions.plans}
-            onClick={() => navigateAndClose('plans')}
+          <a
+            className={props.active === 'faq' ? 'menubar__item is-active' : 'menubar__item'}
+            href="/faq"
+            title={labels.descriptions.faq}
+            aria-current={props.active === 'faq' ? 'page' : undefined}
+            onClick={() => setMenuOpen(false)}
           >
-            {labels.plans}
-          </button>
+            {labels.faq}
+          </a>
           <a
             className="menubar__item menubar__blog-link"
             href="/blog"

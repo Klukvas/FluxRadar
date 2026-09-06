@@ -7,6 +7,8 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import {
   BillingError,
   BillingNotFoundError,
+  BillingUnavailableError,
+  FastSpringApiError,
   InvalidSignatureError,
   InvalidTransitionError,
   RefundPolicyError,
@@ -28,6 +30,9 @@ function billingErrorStatus(error: BillingError): number {
   if (error instanceof BillingNotFoundError) return 404;
   if (error instanceof InvalidTransitionError) return 409;
   if (error instanceof RefundPolicyError) return 409;
+  if (error instanceof BillingUnavailableError) return 503;
+  // The provider refused or was unreachable: this side of the call is healthy.
+  if (error instanceof FastSpringApiError) return error.status === 429 ? 429 : 502;
   return 500;
 }
 
@@ -44,6 +49,17 @@ export function errorHandler(
       return;
     }
     if (error instanceof BillingError) {
+      // The detail explains how this deployment is wired — absent environment
+      // variables, what the provider objected to. It belongs in the log, and
+      // the response carries the neutral message and the code alone.
+      if (error.detail !== null) {
+        logger.error('billing request failed', {
+          method: req.method,
+          path: req.path,
+          code: error.code,
+          detail: error.detail,
+        });
+      }
       res.status(billingErrorStatus(error)).json(errorEnvelope(error.code, error.message));
       return;
     }

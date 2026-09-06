@@ -238,3 +238,65 @@ export interface GoogleDataSnapshot {
     readonly keyEvents: number | null;
   }>;
 }
+
+/**
+ * Why paid checkout is off, as a closed set of codes. The server deliberately
+ * never names the configuration behind it — the sentence the buyer reads is
+ * written here, from the code.
+ */
+export type CheckoutUnavailableReason = 'not_configured' | 'misconfigured';
+
+/**
+ * How the browser opens a FastSpring popup checkout, when this deployment has
+ * one. `storefront` is the public `data-storefront` value the Store Builder
+ * Library is initialised with; it is server-issued and server-validated so the
+ * same bundle can serve a test and a live deployment. No credential is involved.
+ */
+export interface CheckoutPopupConfig {
+  readonly storefront: string;
+}
+
+/** Whether paid checkout is switched on for this deployment, from the server. */
+export interface CheckoutConfig {
+  readonly provider: string;
+  readonly available: boolean;
+  readonly mode: 'test' | 'live' | null;
+  readonly unavailableReason: CheckoutUnavailableReason | null;
+  /** null when the deployment checks out on the provider-hosted page instead. */
+  readonly popup: CheckoutPopupConfig | null;
+  readonly plans: readonly {
+    readonly plan: string;
+    readonly priceUsd: number;
+    readonly currency: string;
+  }[];
+}
+
+/** What the server hands back when a checkout starts: never an entitlement. */
+export interface CheckoutSession {
+  readonly reference: string;
+  readonly sessionId: string;
+  readonly checkoutUrl: string;
+  readonly plan: string;
+  readonly amount: number;
+  readonly currency: string;
+  readonly mode: 'test' | 'live';
+  readonly expiresAt: string | null;
+}
+
+/**
+ * Why a rejected checkout produced no scan. A closed set of codes, never the
+ * server's internal reason: the sentence the buyer reads is written here.
+ */
+export type CheckoutReasonCode =
+  'checkout_expired' | 'provider_unavailable' | 'payment_not_verified';
+
+/** Polled after checkout; scanId appears only once the provider webhook lands. */
+export interface CheckoutStatus {
+  readonly reference: string;
+  readonly plan: string;
+  readonly status: string;
+  readonly reasonCode: CheckoutReasonCode | null;
+  readonly scanId: string | null;
+  readonly purchaseId: string | null;
+  readonly expiresAt: string | null;
+}

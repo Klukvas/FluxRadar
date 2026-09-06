@@ -580,6 +580,19 @@ describe('T-12 API happy paths', () => {
         contentType: 'application/json',
       },
     });
+    await db.prisma.checkoutSession.create({
+      data: {
+        provider: 'fastspring',
+        reference: `frcs_${account.id}`,
+        accountId: account.id,
+        siteProfileId: profile.id,
+        plan: 'Basic',
+        productPath: 'fluxradar-basic-scan',
+        expectedAmountUsd: 55,
+        liveMode: false,
+        scopeJson: JSON.stringify({ includeSubdomains: false }),
+      },
+    });
 
     const deleted = await agent.delete('/account').set('Cookie', account.cookie);
     expect(deleted.status).toBe(200);
@@ -596,6 +609,7 @@ describe('T-12 API happy paths', () => {
       0,
     );
     expect(await db.prisma.exportArtifact.count({ where: { accountId: account.id } })).toBe(0);
+    expect(await db.prisma.checkoutSession.count({ where: { accountId: account.id } })).toBe(0);
     expect(deletedKeys).toEqual([`accounts/${account.id}/scans/${scanId}/report.json`]);
     expect(await db.prisma.webhookEvent.count({ where: { accountId: account.id } })).toBe(0);
     expect(await db.prisma.accountDeletionAudit.count()).toBe(1);
@@ -603,6 +617,50 @@ describe('T-12 API happy paths', () => {
       orphanedArtifactCount: 0,
     });
     expect(await db.prisma.accountDeletionAudit.count()).toBe(1);
+  });
+
+  // A checkout session cascades from its site profile (the foreign key that keeps
+  // an account deletion working after a rollback), so deleting the profile
+  // mid-checkout would drop the binding the provider webhook needs and turn a
+  // real charge into a rejected order. The route refuses while one is open.
+  it('refuses to delete a site profile with a checkout in progress', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'open-checkout@example.com');
+    const profile = await createProfile(agent, account.cookie);
+    await db.prisma.checkoutSession.create({
+      data: {
+        provider: 'fastspring',
+        reference: `frcs_open_${profile.id}`,
+        accountId: account.id,
+        siteProfileId: profile.id,
+        plan: 'Basic',
+        productPath: 'fluxradar-basic-scan',
+        expectedAmountUsd: 55,
+        liveMode: false,
+        scopeJson: JSON.stringify({ includeSubdomains: false }),
+      },
+    });
+
+    const blocked = await agent.delete(`/profiles/${profile.id}`).set('Cookie', account.cookie);
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error.code).toBe('PROFILE_HAS_OPEN_CHECKOUT');
+    expect(await db.prisma.siteProfile.count({ where: { id: profile.id } })).toBe(1);
+
+    // Once the checkout is settled the profile can go — and the session goes with
+    // it, which is the cascade the previous release's deletion order relies on.
+    await db.prisma.checkoutSession.updateMany({
+      where: { siteProfileId: profile.id },
+      data: { status: 'rejected' },
+    });
+    const deleted = await agent.delete(`/profiles/${profile.id}`).set('Cookie', account.cookie);
+    expect(deleted.status).toBe(200);
+    expect(await db.prisma.checkoutSession.count({ where: { siteProfileId: profile.id } })).toBe(0);
   });
 
   async function register(agent: TestAgent, email: string) {

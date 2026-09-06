@@ -13,39 +13,40 @@ datasource db {
 }
 
 model Account {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  emailVerifiedAt DateTime?
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  passwordHash          String
+  emailVerifiedAt       DateTime?
   onboardingCompletedAt DateTime?
-  onboardingSkippedAt DateTime?
+  onboardingSkippedAt   DateTime?
   // One-time anonymous-quality gate: the Free check is granted once per account.
   // The nullable timestamp is claimed atomically before the scan/job is created.
-  freeCheckUsedAt DateTime?
-  createdAt    DateTime @default(now())
+  freeCheckUsedAt       DateTime?
+  createdAt             DateTime  @default(now())
 
-  sessions     Session[]
-  siteProfiles SiteProfile[]
-  purchases    Purchase[]
-  scans        Scan[]
-  aiConsents   AiConsent[]
-  integrations IntegrationConnection[]
-  googleBindings SiteGoogleBinding[]
-  oauthStates  IntegrationOAuthState[]
-  artifacts    ExportArtifact[]
-  emailTokens  EmailToken[]
+  sessions           Session[]
+  siteProfiles       SiteProfile[]
+  purchases          Purchase[]
+  checkoutSessions   CheckoutSession[]
+  scans              Scan[]
+  aiConsents         AiConsent[]
+  integrations       IntegrationConnection[]
+  googleBindings     SiteGoogleBinding[]
+  oauthStates        IntegrationOAuthState[]
+  artifacts          ExportArtifact[]
+  emailTokens        EmailToken[]
   emailNotifications EmailNotification[]
 }
 
 model EmailToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   accountId String
   kind      String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  attempts  Int      @default(0)
-  createdAt DateTime @default(now())
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
 
   account Account @relation(fields: [accountId], references: [id])
 
@@ -74,11 +75,11 @@ model FreeCheckClaim {
 
 // Content-free audit fact that survives account deletion (§17 retention).
 model AccountDeletionAudit {
-  id             String   @id @default(cuid())
-  accountIdHash  String   @unique
-  status         String
-  requestedAt    DateTime @default(now())
-  completedAt    DateTime?
+  id            String    @id @default(cuid())
+  accountIdHash String    @unique
+  status        String
+  requestedAt   DateTime  @default(now())
+  completedAt   DateTime?
 }
 
 // Allows old signed evidence links to fail closed with 410 after retention.
@@ -109,35 +110,130 @@ model SiteProfile {
   language  String?
   createdAt DateTime @default(now())
 
-  account   Account    @relation(fields: [accountId], references: [id])
-  purchases Purchase[]
-  scans     Scan[]
-  googleBinding SiteGoogleBinding?
+  account          Account            @relation(fields: [accountId], references: [id])
+  purchases        Purchase[]
+  checkoutSessions CheckoutSession[]
+  scans            Scan[]
+  googleBinding    SiteGoogleBinding?
 
   // T-12: one profile per (account, domain) — a second profile for the same
   // origin would split scan history and break Resolved/Reopened comparison.
   @@unique([accountId, domain])
 }
 
-// Idempotency contract §18: unique paddleTransactionId allows exactly one purchase.
+// Idempotency contract §18: (provider, providerTransactionId) admits exactly one
+// purchase. The pair — not the id alone — is the key, so a FastSpring order id can
+// never be mistaken for a legacy MockPaddle transaction id (and vice versa).
 model Purchase {
-  id                  String   @id @default(cuid())
-  accountId           String
-  siteProfileId       String
-  plan                String
-  paddleTransactionId String   @unique
-  priceId             String?
-  amountUsd           Float
-  currency            String
+  id                    String   @id @default(cuid())
+  accountId             String
+  siteProfileId         String
+  plan                  String
+  /**
+   * Payment provider that produced this purchase: 'fastspring' | 'paddle' (legacy).
+   * The default exists so the previous release, which does not know this column,
+   * can still insert during an expand-phase rollout. New code always sets it.
+   */
+  provider              String   @default("paddle")
+  /**
+   * FastSpring order id, or the legacy MockPaddle transaction id.
+   */
+  providerTransactionId String
+  /**
+   * EXPAND-PHASE COMPATIBILITY. The previous release still reads this column, so
+   * a database trigger mirrors providerTransactionId into it (and back) and it is
+   * never actually null. Application code must not read or write it; the contract
+   * migration drops it. See migrations/20260906180000_.../migration.sql.
+   */
+  paddleTransactionId   String?  @unique
+  /**
+   * FastSpring product path, or the legacy MockPaddle price id.
+   */
+  priceId               String?
+  /**
+   * USD-normalised price the refund policy works in.
+   */
+  amountUsd             Float
+  currency              String
+  /**
+   * What the buyer was actually charged when FastSpring localised the currency.
+   * Null when the charge was already in USD.
+   */
+  settledAmount         Float?
+  settledCurrency       String?
   // Billing state: 'paid' | 'Refunded' | 'Disputed' (§18: billing overlay, not a scan state).
-  status              String   @default("paid")
-  createdAt           DateTime @default(now())
+  status                String   @default("paid")
+  createdAt             DateTime @default(now())
 
-  account     Account       @relation(fields: [accountId], references: [id])
-  siteProfile SiteProfile   @relation(fields: [siteProfileId], references: [id])
+  account     Account          @relation(fields: [accountId], references: [id])
+  siteProfile SiteProfile      @relation(fields: [siteProfileId], references: [id])
   entitlement Entitlement?
   scan        Scan?
   refund      RefundRecord?
+  refundLines ProviderRefund[]
+  checkout    CheckoutSession?
+
+  @@unique([provider, providerTransactionId])
+}
+
+// Server-side binding between a paid checkout and the account/profile it was
+// started for. It is created BEFORE the provider session is opened and is the
+// only source of truth for accountId/siteProfileId/plan/scope/AI consent — the
+// browser and the provider payload never supply them. `reference` is the opaque
+// value round-tripped through FastSpring order tags and item attributes.
+model CheckoutSession {
+  id                String    @id @default(cuid())
+  provider          String
+  reference         String    @unique
+  accountId         String
+  siteProfileId     String
+  plan              String
+  /**
+   * Provider product identifier the session was opened with (FastSpring product path).
+   */
+  productPath       String
+  /**
+   * Catalogue price in USD at session time; kept for reconciliation.
+   */
+  expectedAmountUsd Float
+  /**
+   * Amount/currency FastSpring itself quoted for the session, when it returns one.
+   */
+  quotedAmount      Float?
+  quotedCurrency    String?
+  /**
+   * True for a live-mode checkout, false for a provider test-mode checkout.
+   */
+  liveMode          Boolean
+  providerSessionId String?
+  /**
+   * 'created' | 'completed' | 'rejected'.
+   */
+  status            String    @default("created")
+  statusReason      String?
+  /**
+   * What the buyer was actually charged, echoed from the completed order.
+   */
+  settledAmount     Float?
+  settledCurrency   String?
+  scopeJson         String
+  aiConsentJson     String?
+  purchaseId        String?   @unique
+  expiresAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Cascade, not Prisma's RESTRICT default: the previous release does not know
+  // this table, so its account deletion removes SiteProfile/Account without
+  // clearing checkout sessions first. RESTRICT would make that deletion fail
+  // after a rollback. The current release still deletes them explicitly.
+  account     Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  siteProfile SiteProfile @relation(fields: [siteProfileId], references: [id], onDelete: Cascade)
+  // The purchase outlives the session: keep the paid record when it is removed.
+  purchase    Purchase?   @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, createdAt])
+  @@index([provider, providerSessionId])
 }
 
 // Unique purchaseId: exactly one entitlement per purchase (§18 idempotency contract).
@@ -275,19 +371,19 @@ model AiConsent {
 // encrypted before persistence; metadata contains only provider resource IDs
 // and selected settings, never raw credentials.
 model IntegrationConnection {
-  id                   String   @id @default(cuid())
-  accountId            String
-  provider             String
-  status               String   @default("connected")
-  accessTokenEncrypted String
+  id                    String    @id @default(cuid())
+  accountId             String
+  provider              String
+  status                String    @default("connected")
+  accessTokenEncrypted  String
   refreshTokenEncrypted String?
-  tokenExpiresAt       DateTime?
-  scopesJson           String   @default("[]")
-  metadataJson         String   @default("{}")
-  lastCheckedAt        DateTime?
-  lastError            String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  tokenExpiresAt        DateTime?
+  scopesJson            String    @default("[]")
+  metadataJson          String    @default("{}")
+  lastCheckedAt         DateTime?
+  lastError             String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   account Account @relation(fields: [accountId], references: [id])
 
@@ -302,11 +398,17 @@ model SiteGoogleBinding {
   id                   String   @id @default(cuid())
   accountId            String
   siteProfileId        String   @unique
-  /** Search Console property, e.g. "sc-domain:example.com" or "https://example.com/". */
+  /**
+   * Search Console property, e.g. "sc-domain:example.com" or "https://example.com/".
+   */
   searchConsoleSiteUrl String?
-  /** Bare GA4 numeric property id, without the "properties/" prefix. */
+  /**
+   * Bare GA4 numeric property id, without the "properties/" prefix.
+   */
   ga4PropertyId        String?
-  /** Display name captured at selection time so the report can name the source. */
+  /**
+   * Display name captured at selection time so the report can name the source.
+   */
   ga4PropertyName      String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -320,13 +422,13 @@ model SiteGoogleBinding {
 // One-time OAuth state prevents callback CSRF and replay. Only a SHA-256 hash
 // of the state value is stored; the raw value exists in the browser redirect.
 model IntegrationOAuthState {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   accountId String
   provider  String
-  stateHash String   @unique
+  stateHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   account Account @relation(fields: [accountId], references: [id])
 
@@ -352,44 +454,143 @@ model ExportArtifact {
   @@index([accountId, createdAt])
 }
 
-// Dedup table for Paddle events: unique paddleEventId makes redelivery a no-op (§18).
-// Raw payload + signature are retained per D-029.
+// Dedup table for provider webhook events: unique (provider, providerEventId)
+// makes redelivery a no-op (§18). FastSpring reuses the event id on automatic
+// retries, so the pair is the idempotency key. Raw payload + signature are
+// retained per D-029.
 model WebhookEvent {
-  id            String   @id @default(cuid())
-  paddleEventId String   @unique
-  accountId     String?
-  paddleTransactionId String?
-  eventType     String
-  rawBody       String
-  signature     String
-  processedAt   DateTime @default(now())
+  id                    String   @id @default(cuid())
+  provider              String   @default("paddle")
+  providerEventId       String
+  accountId             String?
+  providerTransactionId String?
+  /**
+   * EXPAND-PHASE COMPATIBILITY, kept readable for the previous release and filled
+   * by a database trigger. Application code must not read or write these two; the
+   * contract migration drops them.
+   */
+  paddleEventId         String?  @unique
+  paddleTransactionId   String?
+  eventType             String
+  /**
+   * 'processed' | 'deduplicated' | 'ignored' | 'rejected' | 'unlinked' — why the
+   * event did or did not act. The default keeps the previous release's inserts,
+   * which only ever stored processed events, meaningful.
+   */
+  outcome               String   @default("processed")
+  outcomeReason         String?
+  rawBody               String
+  signature             String
+  processedAt           DateTime @default(now())
 
+  @@unique([provider, providerEventId])
   @@index([accountId])
+  @@index([providerTransactionId])
   @@index([paddleTransactionId])
+  /// The pending-refund sweep's access path: it walks the `unlinked` rows of one
+  /// provider in delivery order every five minutes. Without this index that walk
+  /// is a sequential scan of every webhook delivery ever received, which grows
+  /// with sales volume while the pending rows it is looking for do not.
+  @@index([provider, outcome, processedAt])
 }
 
 // Unique purchaseId AND unique idempotencyKey (refund:{purchase_id}): a second
 // refund is impossible regardless of reason code (§18 idempotency contract).
 model RefundRecord {
-  id             String   @id @default(cuid())
-  purchaseId     String   @unique
-  idempotencyKey String   @unique
-  reasonCode     String
+  id                    String    @id @default(cuid())
+  purchaseId            String    @unique
+  idempotencyKey        String    @unique
+  reasonCode            String
   // 'requested' | 'processing' | 'paid' | 'failed' (§18).
-  status         String
-  amountUsd      Float
-  currency       String?
-  taxAmountUsd   Float?
-  paddleTransactionId String?
-  paddleEventId  String?
-  paddleSignature String?
-  priceId        String?
-  refundRequestId String?
-  refundReasonCode String?
-  requestedAt    DateTime @default(now())
-  processedAt    DateTime?
+  status                String
+  amountUsd             Float
+  currency              String?
+  taxAmountUsd          Float?
+  provider              String    @default("paddle")
+  providerTransactionId String?
+  providerEventId       String?
+  providerSignature     String?
+  /**
+   * EXPAND-PHASE COMPATIBILITY, kept readable for the previous release and filled
+   * by a database trigger. Application code must not read or write these three;
+   * the contract migration drops them.
+   */
+  paddleTransactionId   String?
+  paddleEventId         String?
+  paddleSignature       String?
+  priceId               String?
+  refundRequestId       String?
+  refundReasonCode      String?
+  requestedAt           DateTime  @default(now())
+  processedAt           DateTime?
 
   purchase Purchase @relation(fields: [purchaseId], references: [id])
+}
+
+// One refund the provider actually reported against a purchase (a FastSpring
+// `return.created`).
+//
+// RefundRecord is the aggregate and §18 admits exactly one of those per purchase,
+// so it cannot hold the individual returns: writing each one into it makes the
+// second partial return overwrite the first, and the entitlement is then measured
+// against a single return instead of everything that went back. These rows are the
+// lines the aggregate sums. Keying them on the provider's own refund id is what
+// makes the sum idempotent — the same return redelivered under a new webhook event
+// id is counted exactly once.
+//
+// LEGACY HISTORY IS NOT RECONSTRUCTABLE. The migration that created this table
+// backfills one line per FastSpring RefundRecord already marked 'paid'. That is
+// everything the old data holds — RefundRecord is a single row per purchase and
+// the pre-cumulative handler OVERWROTE it on every return, so a purchase refunded
+// in instalments before the deploy kept only the last one. The backfill therefore
+// restores the last recorded instalment, not the sum, and no query over the
+// remaining data can tell the two apart. Inventing the missing lines would mean
+// inventing money movements, so it is not attempted: the shortfall is documented
+// in docs/FASTSPRING.md §7 as an operator reconciliation step against the
+// FastSpring console, and it is bounded — it can only affect purchases that were
+// already partially refunded before the deploy, and a later return still adds to
+// whatever was backfilled.
+model ProviderRefund {
+  id               String   @id @default(cuid())
+  purchaseId       String
+  provider         String
+  /**
+   * The provider's own id for this refund (the FastSpring return id). A payload
+   * that carries none falls back to the delivery's event id, which is unique per
+   * delivery; `reason` then says so.
+   */
+  providerRefundId String
+  /**
+   * Event type that reported it, e.g. 'return.created'.
+   */
+  eventType        String
+  /**
+   * The refund on the purchase's charged basis: the same figure and currency as
+   * `Purchase.settledAmount ?? Purchase.amountUsd`. The suspend decision sums this
+   * column, so every line has to be stated on that one basis.
+   */
+  amountCharged    Float
+  /**
+   * The same refund, USD-normalised, as the RefundRecord aggregate states it.
+   */
+  amountUsd        Float
+  /**
+   * Currency `amountCharged` is stated in.
+   */
+  currency         String?
+  /**
+   * Why the figures are what they are, whenever the payload did not simply state them.
+   */
+  reason           String?
+  createdAt        DateTime @default(now())
+
+  // Cascade, not Prisma's RESTRICT default: the previous release does not know
+  // this table, so after a rollback its account deletion removes purchases while
+  // these rows still point at them (same reasoning as CheckoutSession above).
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  // The refund is counted once per purchase, whatever redelivers it.
+  @@unique([purchaseId, providerRefundId])
 }
 
 // DB-backed job queue (D-005): worker claim is an atomic conditional update by scanId.

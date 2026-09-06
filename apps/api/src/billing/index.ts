@@ -1,5 +1,8 @@
 export * from './constants.ts';
 export * from './errors.ts';
+export * from './plans.ts';
+export * from './checkout-metadata.ts';
+export * from './paid-scan.ts';
 export * from './paddle-signature.ts';
 export * from './webhook-schema.ts';
 export * from './webhook-handler.ts';
@@ -8,3 +11,4 @@ export * from './cancel-scan.ts';
 export * from './refund.ts';
 export * from './resolve-outcome.ts';
 export * from './dev-checkout.ts';
+export * from './fastspring/index.ts';

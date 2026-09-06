@@ -13,10 +13,10 @@ import {
   type TestDb,
 } from '../test-utils/test-db.ts';
 
-// BILLING-003: unique paddleTransactionId admits exactly one purchase_id —
+// BILLING-003: unique (provider, transaction id) admits exactly one purchase_id —
 // two *different* events for the same transaction must not create a second
 // Purchase/Entitlement/Scan (§18 idempotency contract, monotonic rules).
-describe('BILLING-003 one purchase per paddleTransactionId', () => {
+describe('BILLING-003 one purchase per provider transaction id', () => {
   let db: TestDb;
   let account: SeededAccount;
 
@@ -69,9 +69,11 @@ describe('BILLING-003 one purchase per paddleTransactionId', () => {
     ]);
 
     expect(results.filter(({ result }) => !result.deduplicated)).toHaveLength(1);
-    expect(await db.prisma.purchase.count({ where: { paddleTransactionId: 'txn_shared_2' } })).toBe(
-      1,
-    );
+    expect(
+      await db.prisma.purchase.count({
+        where: { provider: 'paddle', providerTransactionId: 'txn_shared_2' },
+      }),
+    ).toBe(1);
     expect(await db.prisma.purchase.count()).toBe(2); // one per transactionId in this file
     expect(await db.prisma.entitlement.count()).toBe(2);
     expect(await db.prisma.scan.count()).toBe(2);
@@ -157,12 +159,16 @@ describe('BILLING-003 monotonic refunded event ordering', () => {
     expect(stale.result.deduplicated).toBe(true);
 
     const purchase = await db.prisma.purchase.findUniqueOrThrow({
-      where: { paddleTransactionId: 'txn_mono_1' },
+      where: {
+        provider_providerTransactionId: { provider: 'paddle', providerTransactionId: 'txn_mono_1' },
+      },
     });
     expect(purchase.status).toBe('Refunded');
-    expect(await db.prisma.purchase.count({ where: { paddleTransactionId: 'txn_mono_1' } })).toBe(
-      1,
-    );
+    expect(
+      await db.prisma.purchase.count({
+        where: { provider: 'paddle', providerTransactionId: 'txn_mono_1' },
+      }),
+    ).toBe(1);
     expect(await db.prisma.entitlement.count()).toBe(1);
     expect(await db.prisma.scan.count()).toBe(1);
   });
@@ -171,11 +177,13 @@ describe('BILLING-003 monotonic refunded event ordering', () => {
     const result = await deliver(refundedEvent('evt_mono_ref_1', 'txn_mono_1'));
     expect(result.deduplicated).toBe(true);
 
-    expect(await db.prisma.webhookEvent.count({ where: { paddleEventId: 'evt_mono_ref_1' } })).toBe(
-      1,
-    );
+    expect(
+      await db.prisma.webhookEvent.count({ where: { providerEventId: 'evt_mono_ref_1' } }),
+    ).toBe(1);
     const purchase = await db.prisma.purchase.findUniqueOrThrow({
-      where: { paddleTransactionId: 'txn_mono_1' },
+      where: {
+        provider_providerTransactionId: { provider: 'paddle', providerTransactionId: 'txn_mono_1' },
+      },
     });
     expect(purchase.status).toBe('Refunded');
   });
@@ -205,19 +213,23 @@ describe('BILLING-003 monotonic refunded event ordering', () => {
     const result = await deliver(refundedEvent('evt_mono_ref_3', 'txn_mono_3'));
     expect(result.purchaseId).toBeNull();
 
-    expect(await db.prisma.webhookEvent.count({ where: { paddleEventId: 'evt_mono_ref_3' } })).toBe(
-      1,
-    );
-    expect(await db.prisma.purchase.count({ where: { paddleTransactionId: 'txn_mono_3' } })).toBe(
-      0,
-    );
+    expect(
+      await db.prisma.webhookEvent.count({ where: { providerEventId: 'evt_mono_ref_3' } }),
+    ).toBe(1);
+    expect(
+      await db.prisma.purchase.count({
+        where: { provider: 'paddle', providerTransactionId: 'txn_mono_3' },
+      }),
+    ).toBe(0);
 
     // D-134: the stored early refund is not replayed — a later paid event
     // creates the purchase in its normal paid state.
     const paid = await checkout('evt_mono_paid_3', 'txn_mono_3');
     expect(paid.result.deduplicated).toBe(false);
     const purchase = await db.prisma.purchase.findUniqueOrThrow({
-      where: { paddleTransactionId: 'txn_mono_3' },
+      where: {
+        provider_providerTransactionId: { provider: 'paddle', providerTransactionId: 'txn_mono_3' },
+      },
     });
     expect(purchase.status).toBe('paid');
   });

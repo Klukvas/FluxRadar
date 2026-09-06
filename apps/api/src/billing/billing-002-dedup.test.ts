@@ -9,7 +9,7 @@ import {
   type TestDb,
 } from '../test-utils/test-db.ts';
 
-// BILLING-002: a redelivered paddleEventId is a no-op — one Purchase /
+// BILLING-002: a redelivered provider event id is a no-op — one Purchase /
 // Entitlement / Scan / Job regardless of how many times (or how concurrently)
 // the same event arrives (§18 idempotency contract).
 describe('BILLING-002 webhook event deduplication', () => {
@@ -44,7 +44,7 @@ describe('BILLING-002 webhook event deduplication', () => {
     expect(second.result.scanId).toBe(first.result.scanId);
     expect(second.result.entitlementId).toBe(first.result.entitlementId);
 
-    expect(await db.prisma.webhookEvent.count({ where: { paddleEventId: 'evt_dup_1' } })).toBe(1);
+    expect(await db.prisma.webhookEvent.count({ where: { providerEventId: 'evt_dup_1' } })).toBe(1);
     expect(await db.prisma.purchase.count()).toBe(1);
     expect(await db.prisma.entitlement.count()).toBe(1);
     expect(await db.prisma.scan.count()).toBe(1);
@@ -71,10 +71,12 @@ describe('BILLING-002 webhook event deduplication', () => {
     expect(purchaseIds.size).toBe(1);
 
     expect(
-      await db.prisma.webhookEvent.count({ where: { paddleEventId: 'evt_dup_parallel' } }),
+      await db.prisma.webhookEvent.count({ where: { providerEventId: 'evt_dup_parallel' } }),
     ).toBe(1);
     expect(
-      await db.prisma.purchase.count({ where: { paddleTransactionId: 'txn_dup_parallel' } }),
+      await db.prisma.purchase.count({
+        where: { provider: 'paddle', providerTransactionId: 'txn_dup_parallel' },
+      }),
     ).toBe(1);
     expect(await db.prisma.entitlement.count()).toBe(2); // one per test in this file
     expect(await db.prisma.scan.count()).toBe(2);

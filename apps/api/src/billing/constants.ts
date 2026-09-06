@@ -31,6 +31,35 @@ export const PURCHASE_STATUSES = {
   disputed: 'Disputed',
 } as const;
 
+/**
+ * Why paid checkout is switched off, as a closed set the browser may see.
+ *
+ * The full explanation — which FASTSPRING_* variables are absent, what the
+ * provider objected to — names how this deployment is wired and stays in the
+ * server log. A client gets one of these two codes and writes its own sentence:
+ * enough to tell "payments were never switched on here" from "switched on and
+ * broken", and nothing an attacker probing the checkout could act on.
+ */
+export const CHECKOUT_UNAVAILABLE_REASONS = {
+  /** No provider variable is set at all: this deployment does not sell scans. */
+  notConfigured: 'not_configured',
+  /** Set, but not usably so. An operator problem, not a buyer problem. */
+  misconfigured: 'misconfigured',
+} as const;
+
+export type CheckoutUnavailableReason =
+  (typeof CHECKOUT_UNAVAILABLE_REASONS)[keyof typeof CHECKOUT_UNAVAILABLE_REASONS];
+
+/**
+ * Lifecycle of a server-side checkout binding. `created` is the only state a
+ * provider webhook may still act on; the other two are terminal.
+ */
+export const CHECKOUT_SESSION_STATUSES = {
+  created: 'created',
+  completed: 'completed',
+  rejected: 'rejected',
+} as const;
+
 export const REFUND_STATUSES = {
   requested: 'requested',
   processing: 'processing',

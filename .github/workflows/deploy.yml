@@ -87,10 +87,13 @@ jobs:
 
       - name: Create release archive
         env:
-          # PRODUCTION_ENV_FILE is the authoritative base env file and is never
-          # overwritten blindly. The optional secrets below are merged on top of
-          # it only when provided; each lives in its own production environment
-          # secret so integrations can be connected one at a time.
+          # Precedence, and there is only one rule: PRODUCTION_ENV_FILE is the
+          # authoritative base and every other value here is an OPTIONAL
+          # override that applies only when it is non-empty. The workflow never
+          # pins a value of its own — a hardcoded ANTHROPIC_MODEL used to
+          # silently outrank the base file and contradict docs/DEPLOYMENT.md.
+          # A base file left on a retired model is caught by the API at startup
+          # instead (integrations/anthropic-config.ts), by name.
           PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
           INTERNAL_FREE_EMAILS: ${{ vars.FLUXRADAR_INTERNAL_FREE_EMAILS }}
           PRODUCTION_INTEGRATION_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_INTEGRATION_ENCRYPTION_KEY }}
@@ -101,9 +104,10 @@ jobs:
           PRODUCTION_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.PRODUCTION_GOOGLE_OAUTH_CLIENT_SECRET }}
           PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI: ${{ secrets.PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI }}
           PRODUCTION_ANTHROPIC_API_KEY: ${{ secrets.PRODUCTION_ANTHROPIC_API_KEY }}
-          # Keep production on an active Anthropic model even if the base env
-          # file still contains a retired model identifier.
-          ANTHROPIC_MODEL: claude-sonnet-5
+          # A model identifier is not a secret, so it is a production
+          # environment VARIABLE. Leave it unset to keep whatever
+          # PRODUCTION_ENV_FILE defines (or the API default).
+          PRODUCTION_ANTHROPIC_MODEL: ${{ vars.PRODUCTION_ANTHROPIC_MODEL }}
           PRODUCTION_PAGESPEED_API_KEY: ${{ secrets.PRODUCTION_PAGESPEED_API_KEY }}
           PRODUCTION_CRUX_API_KEY: ${{ secrets.PRODUCTION_CRUX_API_KEY }}
           PRODUCTION_HETZNER_S3_ACCESS_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_ACCESS_KEY }}
@@ -111,6 +115,30 @@ jobs:
           PRODUCTION_HETZNER_S3_ENDPOINT: ${{ secrets.PRODUCTION_HETZNER_S3_ENDPOINT }}
           PRODUCTION_HETZNER_S3_REGION: ${{ secrets.PRODUCTION_HETZNER_S3_REGION }}
           PRODUCTION_HETZNER_S3_BUCKET: ${{ secrets.PRODUCTION_HETZNER_S3_BUCKET }}
+          # FastSpring paid checkout. Only the three credentials are secrets; the
+          # rest describe which store, checkout and products this deployment
+          # sells, so they are production environment VARIABLES and are visible
+          # in the FastSpring app to anyone who can open it. FASTSPRING_MODE
+          # decides whether real cards are charged, and readFastSpringConfig
+          # refuses "live" until FASTSPRING_STORE_VERIFIED says an operator
+          # checked the store (docs/FASTSPRING.md section 4).
+          #
+          # The set is all-or-nothing: a half-configured provider is reported as
+          # "misconfigured" and sells nothing. deploy-003 asserts every name
+          # readFastSpringConfig requires is wired here.
+          PRODUCTION_FASTSPRING_API_USERNAME: ${{ secrets.PRODUCTION_FASTSPRING_API_USERNAME }}
+          PRODUCTION_FASTSPRING_API_PASSWORD: ${{ secrets.PRODUCTION_FASTSPRING_API_PASSWORD }}
+          PRODUCTION_FASTSPRING_WEBHOOK_SECRET: ${{ secrets.PRODUCTION_FASTSPRING_WEBHOOK_SECRET }}
+          PRODUCTION_FASTSPRING_MODE: ${{ vars.PRODUCTION_FASTSPRING_MODE }}
+          PRODUCTION_FASTSPRING_SESSION_API: ${{ vars.PRODUCTION_FASTSPRING_SESSION_API }}
+          PRODUCTION_FASTSPRING_CHECKOUT_PATH: ${{ vars.PRODUCTION_FASTSPRING_CHECKOUT_PATH }}
+          PRODUCTION_FASTSPRING_POPUP_STOREFRONT: ${{ vars.PRODUCTION_FASTSPRING_POPUP_STOREFRONT }}
+          PRODUCTION_FASTSPRING_STOREFRONT_URL: ${{ vars.PRODUCTION_FASTSPRING_STOREFRONT_URL }}
+          PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC: ${{ vars.PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC }}
+          PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE: ${{ vars.PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE }}
+          PRODUCTION_FASTSPRING_CURRENCY_POLICY: ${{ vars.PRODUCTION_FASTSPRING_CURRENCY_POLICY }}
+          PRODUCTION_FASTSPRING_STORE_VERIFIED: ${{ vars.PRODUCTION_FASTSPRING_STORE_VERIFIED }}
+          PRODUCTION_FASTSPRING_SESSION_EXPIRATION_DAYS: ${{ vars.PRODUCTION_FASTSPRING_SESSION_EXPIRATION_DAYS }}
         run: |
           tar \
             --exclude=.git \
@@ -152,7 +180,7 @@ jobs:
           upsert_env GOOGLE_OAUTH_CLIENT_SECRET PRODUCTION_GOOGLE_OAUTH_CLIENT_SECRET
           upsert_env GOOGLE_OAUTH_REDIRECT_URI PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI
           upsert_env ANTHROPIC_API_KEY PRODUCTION_ANTHROPIC_API_KEY
-          upsert_env ANTHROPIC_MODEL ANTHROPIC_MODEL
+          upsert_env ANTHROPIC_MODEL PRODUCTION_ANTHROPIC_MODEL
           upsert_env PAGESPEED_API_KEY PRODUCTION_PAGESPEED_API_KEY
           upsert_env CRUX_API_KEY PRODUCTION_CRUX_API_KEY
           upsert_env HETZNER_S3_ACCESS_KEY PRODUCTION_HETZNER_S3_ACCESS_KEY
@@ -160,6 +188,28 @@ jobs:
           upsert_env HETZNER_S3_ENDPOINT PRODUCTION_HETZNER_S3_ENDPOINT
           upsert_env HETZNER_S3_REGION PRODUCTION_HETZNER_S3_REGION
           upsert_env HETZNER_S3_BUCKET PRODUCTION_HETZNER_S3_BUCKET
+          upsert_env FASTSPRING_API_USERNAME PRODUCTION_FASTSPRING_API_USERNAME
+          upsert_env FASTSPRING_API_PASSWORD PRODUCTION_FASTSPRING_API_PASSWORD
+          upsert_env FASTSPRING_WEBHOOK_SECRET PRODUCTION_FASTSPRING_WEBHOOK_SECRET
+          upsert_env FASTSPRING_MODE PRODUCTION_FASTSPRING_MODE
+          upsert_env FASTSPRING_SESSION_API PRODUCTION_FASTSPRING_SESSION_API
+          upsert_env FASTSPRING_CHECKOUT_PATH PRODUCTION_FASTSPRING_CHECKOUT_PATH
+          upsert_env FASTSPRING_POPUP_STOREFRONT PRODUCTION_FASTSPRING_POPUP_STOREFRONT
+          upsert_env FASTSPRING_STOREFRONT_URL PRODUCTION_FASTSPRING_STOREFRONT_URL
+          upsert_env FASTSPRING_PRODUCT_PATH_BASIC PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC
+          upsert_env FASTSPRING_PRODUCT_PATH_COMPLETE PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE
+          upsert_env FASTSPRING_CURRENCY_POLICY PRODUCTION_FASTSPRING_CURRENCY_POLICY
+          upsert_env FASTSPRING_STORE_VERIFIED PRODUCTION_FASTSPRING_STORE_VERIFIED
+          upsert_env FASTSPRING_SESSION_EXPIRATION_DAYS PRODUCTION_FASTSPRING_SESSION_EXPIRATION_DAYS
+
+          # Both env-file parsers used by this deploy must read the same values:
+          # compose starts PostgreSQL and Caddy, `docker run` starts the API and
+          # web containers, and they disagree about quotes, "$", inline comments
+          # and trailing spaces. The normalizer rewrites the file into the one
+          # form both read identically, cross-checks DATABASE_URL against
+          # POSTGRES_*, and fails the deploy on anything it cannot express in
+          # both. It prints variable NAMES and problems only, never a value.
+          node deploy/normalize-env-file.cjs "$RUNNER_TEMP/production.env"
 
       - name: Build production images
         env:
@@ -344,17 +394,44 @@ jobs:
           SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
           APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
           RELEASE_ID: ${{ github.sha }}
+          # Escape hatch for the one legitimate case: the rollback target's image
+          # was pruned off the server, so its compatibility cannot be proven. Set
+          # the repository/environment variable to "true" ONLY when knowingly
+          # deploying without a verified rollback. Anything else fails the deploy.
+          ALLOW_UNVERIFIED_ROLLBACK: ${{ vars.ALLOW_UNVERIFIED_ROLLBACK }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "$RELEASE_ID" <<'REMOTE'
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "$RELEASE_ID" "${ALLOW_UNVERIFIED_ROLLBACK:-false}" <<'REMOTE'
           set -eu
           set -o pipefail
           APP_DIR="$1"
           RELEASE_ID="$2"
+          ALLOW_UNVERIFIED_ROLLBACK="$3"
           RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
           RUNTIME_DIR="$APP_DIR/runtime"
           STATE_FILE="$RUNTIME_DIR/active.env"
           FLUXRADAR_NETWORK=""
-          PREVIOUS_RELEASE="$(readlink -f "$APP_DIR/current" 2>/dev/null || true)"
+          # fluxradar:rollback-target-detection (regression-tested by
+          # apps/api/src/deploy/deploy-001-rollback-target-detection.test.ts —
+          # keep the markers, the test extracts and runs exactly these lines)
+          # `readlink -f` resolves a path whose LAST component does not exist, so
+          # on a first deploy it still prints "$APP_DIR/current" and the rollback
+          # gate below would look for the image "fluxradar-api:current". Existence
+          # decides instead: -L catches a symlink (including a dangling one, which
+          # is a real rollback target whose release directory is gone, never a
+          # first deploy), -e catches a plain directory.
+          PREVIOUS_RELEASE=""
+          PREVIOUS_RELEASE_ID=""
+          if [ -L "$APP_DIR/current" ] || [ -e "$APP_DIR/current" ]; then
+            PREVIOUS_RELEASE="$(readlink -f "$APP_DIR/current" 2>/dev/null || true)"
+            if [ -z "$PREVIOUS_RELEASE" ]; then
+              # Fail closed: `current` exists, so a rollback target exists too, and
+              # continuing would silently deploy without the safety gate below.
+              echo "ERROR: $APP_DIR/current exists but could not be resolved to a release directory." >&2
+              exit 1
+            fi
+            PREVIOUS_RELEASE_ID="${PREVIOUS_RELEASE##*/}"
+          fi
+          # fluxradar:end-rollback-target-detection
           API_IMAGE="fluxradar-api:$RELEASE_ID"
           WEB_IMAGE="fluxradar-web:$RELEASE_ID"
           PREVIOUS_API_UPSTREAM=""
@@ -486,6 +563,110 @@ jobs:
             --env FRONTEND_ORIGIN=https://fluxradar.net \
             "$API_IMAGE" \
             apps/api/node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma
+
+          # ---- Rollback compatibility gate --------------------------------
+          # The migration has already run, and it cannot be undone from here. Every
+          # way this step can still fail leaves the PREVIOUS release in front of
+          # traffic: a readiness or Caddy failure aborts before (or rolls back to
+          # before) the traffic switch. That release therefore has to be able to
+          # boot and serve against the schema and the environment file this deploy
+          # just produced — otherwise a failed deploy silently becomes a broken
+          # production instead of a no-op.
+          #
+          # Proving it, rather than asserting it in a comment: start the previous
+          # release's own image as a throwaway container against the migrated
+          # database and the new env file, and require TWO things of it.
+          #
+          #   1. Its readiness probe passes. That exercises the real startup path,
+          #      so it catches a production variable the old release validates at
+          #      boot but the new one no longer requires.
+          #   2. Its own Prisma client can still read every model it knows about
+          #      (deploy/rollback-schema-probe.cjs, copied in from this release
+          #      but executed against the OLD image's client and datamodel).
+          #      Readiness alone CANNOT catch a schema problem: it is a
+          #      `SELECT 1`, which succeeds against any reachable database,
+          #      including one whose columns the old client no longer finds. The
+          #      schema probe issues one `findFirst` per model, so every scalar
+          #      column the old release selects is named in a real query — that is
+          #      what fails a contract-phase migration (a dropped or renamed
+          #      column, a removed table) before it can strand a rollback.
+          #
+          # This runs BEFORE any traffic switch and before the previous
+          # containers are removed, so failing here leaves production exactly as
+          # it was. Migrations must stay additive/expand-phase for this to pass;
+          # see docs/DEPLOYMENT.md.
+          # PREVIOUS_RELEASE_ID was resolved from `current` at the top of this
+          # script; it is empty only when `current` does not exist at all.
+          if [ -z "$PREVIOUS_RELEASE_ID" ]; then
+            # No `current` symlink at all: this is the first deploy, so there is
+            # genuinely no rollback target and nothing to verify.
+            echo "First deploy ($APP_DIR/current does not exist): no rollback target exists yet."
+          elif ! docker image inspect "fluxradar-api:$PREVIOUS_RELEASE_ID" >/dev/null 2>&1 \
+            || ! docker image inspect "fluxradar-web:$PREVIOUS_RELEASE_ID" >/dev/null 2>&1; then
+            # A rollback target IS expected — `current` points at $PREVIOUS_RELEASE
+            # — but its image is gone, so its compatibility cannot be proven and a
+            # rollback could not recreate it either. Silently continuing here would
+            # disable the safety gate on exactly the deploys that need it most.
+            echo "ERROR: the rollback target ($PREVIOUS_RELEASE_ID) is still the active release, but its image is missing on this host." >&2
+            echo "Its compatibility with the migrated schema cannot be verified, and an automatic rollback could not recreate it." >&2
+            echo "Restore it with 'docker load' from a saved image, or set the ALLOW_UNVERIFIED_ROLLBACK variable to 'true' to deploy without a verified rollback." >&2
+            if [ "$ALLOW_UNVERIFIED_ROLLBACK" = "true" ]; then
+              echo "WARNING: ALLOW_UNVERIFIED_ROLLBACK=true — continuing WITHOUT a verified rollback target. Rollback is NOT proven safe for this deploy." >&2
+            else
+              exit 1
+            fi
+          else
+            ROLLBACK_PROBE="fluxradar-rollback-probe-$RELEASE_ID"
+            echo "Verifying that the rollback target ($PREVIOUS_RELEASE_ID) is healthy against the migrated schema"
+            docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
+            # The probe briefly joins the worker pool, exactly like the release
+            # being deployed does. Job claims are leased and atomic, so a probe
+            # that is removed mid-job simply lets the lease expire.
+            docker run -d \
+              --name "$ROLLBACK_PROBE" \
+              --network "$FLUXRADAR_NETWORK" \
+              --env-file "$RELEASE_DIR/.env.production" \
+              --env NODE_ENV=production \
+              --env PORT=3310 \
+              --env FRONTEND_ORIGIN=https://fluxradar.net \
+              "fluxradar-api:$PREVIOUS_RELEASE_ID" >/dev/null
+            rollback_ready=0
+            for attempt in $(seq 1 20); do
+              if docker exec "$ROLLBACK_PROBE" node -e "fetch('http://127.0.0.1:3310/health/ready').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))"; then
+                rollback_ready=1
+                break
+              fi
+              sleep 2
+            done
+            if [ "$rollback_ready" -ne 1 ]; then
+              echo "ERROR: the previous release ($PREVIOUS_RELEASE_ID) is NOT healthy against the schema and environment this deploy produced." >&2
+              echo "An automatic rollback would therefore restore a broken production, so this deploy is stopped before any traffic is switched." >&2
+              echo "Most likely cause: a migration that is not expand/contract safe, or a production variable the previous release still requires." >&2
+              dump_container_diagnostics "$ROLLBACK_PROBE"
+              docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
+              exit 1
+            fi
+            # Readiness only proves the database is reachable. Now prove the old
+            # release can still READ it, using its own generated Prisma client.
+            if ! docker cp "$RELEASE_DIR/deploy/rollback-schema-probe.cjs" \
+              "$ROLLBACK_PROBE:/tmp/rollback-schema-probe.cjs" >/dev/null; then
+              echo "ERROR: could not copy the schema-surface probe into the rollback container." >&2
+              docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
+              exit 1
+            fi
+            if ! docker exec "$ROLLBACK_PROBE" node /tmp/rollback-schema-probe.cjs; then
+              echo "ERROR: the previous release ($PREVIOUS_RELEASE_ID) cannot READ the migrated schema with its own Prisma client." >&2
+              echo "An automatic rollback would restore a release that fails on every query to the models listed above, so this deploy is stopped before any traffic is switched." >&2
+              echo "Most likely cause: a contract-phase migration (a dropped or renamed column, a removed table) shipped before every container that reads the old shape was retired." >&2
+              dump_container_diagnostics "$ROLLBACK_PROBE"
+              docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
+              exit 1
+            fi
+            echo "OK: the previous release boots, reports ready, and can read every model it knows about; an automatic rollback is safe."
+            docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
+          fi
+          # -----------------------------------------------------------------
+
           docker rm -f "$API_CONTAINER" "$WEB_CONTAINER" >/dev/null 2>&1 || true
           docker run -d \
             --name "$API_CONTAINER" \

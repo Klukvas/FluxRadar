@@ -1,3 +1,7 @@
+import { faqCopyEn, faqCopyUk } from './faq-copy';
+import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
+import { tourStepCopy } from './tour-steps';
+
 export type Language = 'en' | 'uk';
 
 export const LANGUAGE_STORAGE_KEY = 'fluxradar.language';
@@ -27,20 +31,20 @@ export const copy = {
   en: {
     nav: {
       home: 'Home',
-      files: 'Files',
+      profiles: 'Profiles',
       scan: 'Scan',
       reports: 'Reports',
       integrations: 'Integrations',
-      plans: 'Plans',
+      faq: 'FAQ',
       blog: 'Blog',
       language: 'Language',
       system: 'PUBLIC WEB AUDIT STATION · v0.1',
       descriptions: {
-        files: 'Your saved websites and their audit history.',
+        profiles: 'Your saved websites and their audit history.',
         scan: 'Set up and start a new audit.',
         reports: 'Completed and in-progress audit results.',
         integrations: 'Optional data connections. The public-site scan works without them.',
-        plans: 'What each audit covers and its limits.',
+        faq: 'Plain answers about every check and the limits of a report.',
       },
     },
     workspace: {
@@ -61,9 +65,6 @@ export const copy = {
       inspect: 'Inspect',
       notes: 'Operator notes',
       guide: 'Open setup guide',
-      guideTitle: 'What each area does',
-      guideLead:
-        'A quick map of your workspace — start with Files, run a Scan, then read the Reports.',
       billing: 'Billing',
       payPerScan: 'Pay-per-scan',
     },
@@ -72,10 +73,11 @@ export const copy = {
       createAccount: 'Create account',
       openWorkspace: 'Open workspace',
       freeCta: 'Run a free homepage check',
-      comparePlans: 'Compare plans',
+      seePricing: 'See what you get',
       startPublicSite: 'Start with a public site',
-      plansTitle: 'Buy the answer you need.',
-      plansLead: 'One scan, one clear result. No monthly quota and no recurring subscription.',
+      pricingTitle: 'Two one-time reports. No subscription.',
+      pricingLead:
+        'Pay once for a single scan of one public website and keep the report. Nothing renews, there is no monthly quota, and every module you paid for is included in the price.',
       accountBar: 'FLUXRADAR / PUBLIC WEB AUDIT STATION',
       hero: {
         eyebrow: 'FLUXLAB / PUBLIC WEB AUDIT STATION',
@@ -182,111 +184,80 @@ export const copy = {
       skip: 'Skip',
       finish: 'Finish',
       step: (current: number, total: number) => `Step ${current} of ${total}`,
-      steps: [
-        {
-          target: 'files-tab',
-          title: 'Files is your starting point',
-          body: 'Files keeps your saved public website profiles in one place. Each profile is the starting point for a scan. FluxRadar never needs a CMS password or source-code access.',
+      steps: tourStepCopy({
+        'workspace-tabs': {
+          title: 'Your workspace tabs',
+          body: 'The bar at the top is the whole workspace. Profiles holds the public websites you saved, Scan starts an audit of one of them, and Reports keeps the finished results. Integrations is optional context — a public audit works without it, and FAQ answers what each check covers.',
         },
-        {
-          target: 'scan-tab',
-          title: 'Scan turns a profile into an audit',
-          body: 'Open Scan or New scan after saving a site. Choose the audit plan and the public crawl parameters there.',
+        'profile-domain': {
+          title: 'Add a public website',
+          body: 'Enter the homepage address of a site anyone can open, like mysite.com. FluxRadar reads only public pages — it never needs a CMS password or source-code access.',
         },
-        {
-          target: 'reports-tab',
-          title: 'Reports keeps the evidence',
-          body: 'Completed audits, module scores and evidence-backed findings stay together in Reports.',
-        },
-        {
-          target: 'integrations-tab',
-          title: 'Integrations add optional context',
-          body: 'Connect supported external data sources when you need them. Public audits work without credentials.',
-        },
-        {
-          target: 'profile-domain',
-          title: 'Start with a public site',
-          body: 'Enter an HTTPS origin that anyone can open. This is the only site input needed to create a profile.',
-        },
-        {
-          target: 'save-profile',
+        'save-profile': {
           title: 'Save the profile',
-          body: 'Give the site a name and save it. Saving only creates a reusable profile; it does not start a scan or charge you.',
+          body: 'Give the site a name and save it. Saving only creates a reusable profile: it does not start a scan and it does not charge you.',
         },
-        {
-          target: 'scan-tab',
-          title: 'Then launch a scan',
-          body: 'Open New scan, choose Free, Basic or Complete and set the crawl parameters. Review the scope, then launch when ready.',
+        'run-scan': {
+          title: 'Start a scan when you are ready',
+          body: 'To audit a saved site, open Scan from this bar (or New scan next to the site), pick Basic or Complete, review the crawl scope and press start. Nothing runs until you press it — this tour never starts a scan for you.',
         },
-      ],
+      }),
     },
-    plans: {
-      kicker: 'PAY-PER-SCAN / PUBLIC AUDITS',
-      title: 'Plans for every public audit.',
-      lead: 'Choose the depth of answer you need. Each purchase is one scan; there is no recurring subscription or monthly quota.',
-      honestNote:
-        'Paid checkout is not enabled in this release. These buttons take you to the workspace; they do not charge you or create a paid scan.',
-      included: 'Included',
-      notIncluded: 'Not included',
-      limits: 'Limits',
+    faq: faqCopyEn,
+    pricing: {
       publicOnly: 'Public pages only — no customer credentials required',
-      tryFree: 'Try free',
-      chooseBasic: 'Choose Basic',
-      chooseComplete: 'Choose Complete',
-      openWorkspace: 'Open workspace',
-      createAccountToStart: 'Create account to start',
-      scopeKicker: 'HOW TO READ THE PLANS',
-      scopeTitle: 'One public origin. One report. Clear limits.',
-      privateData: 'Private analytics, CMS data and anything behind a login.',
-      limitCopy:
-        'Free is once per account and normalized origin; paid scans use the selected crawl scope.',
+      included: 'What you get',
+      bestFor: 'Best for',
+      notIncluded: 'Not covered',
+      limits: 'Limits',
+      chooseBasic: 'Start with Basic',
+      chooseComplete: 'Start with Complete',
+      startInWorkspace:
+        'You buy a report inside the workspace: pick a saved website, choose Basic or Complete, and the scan starts once the payment provider confirms the payment.',
+      freeNote:
+        'There is also a free homepage check — title, meta description, headings and indexability of one page, once per account and once per website. It is a first look at the report format, not a third product.',
       coverageLink: 'Read the full audit coverage →',
+      faqLink: 'Read the FAQ →',
+      cards: {
+        basic: {
+          eyebrow: 'BASIC / SEARCH + AI VISIBILITY',
+          title: 'Basic',
+          price: BASIC_PRICE,
+          description: 'One report on how search engines and AI systems read your website.',
+          included:
+            'The full SEO analysis — 16 checks covering titles, meta descriptions, headings, canonicals, robots.txt, sitemap, redirects, broken links, duplicate URLs, structured data and social previews — plus AI crawler readiness: which AI crawlers your robots.txt allows and whether your pages are machine-readable.',
+          bestFor:
+            'Owners and marketers whose question is “why am I not being found — in search or in AI answers?”',
+          notIncluded:
+            'Security, accessibility, performance, reliability, privacy and content-quality modules.',
+          limits: 'One scan of one website · up to 5,000 crawled pages · results kept for 30 days.',
+        },
+        complete: {
+          eyebrow: 'COMPLETE / EVERY MODULE',
+          title: 'Complete',
+          price: COMPLETE_PRICE,
+          description: 'Everything FluxRadar can read about a public website, in one report.',
+          included:
+            'Everything in Basic plus security (public OWASP ASVS profile), accessibility (WCAG 2.2 AA), performance, reliability, privacy and consent, and content quality — with the Issue Center, scan history and JSON/CSV export. Every module FluxRadar runs is already in this price; there is nothing extra to add at checkout.',
+          bestFor:
+            'Anyone who needs the whole picture before a redesign, a launch, a handover or a client report.',
+          limits:
+            'One scan of one website · up to 50,000 crawled pages · results kept for 365 days.',
+        },
+      },
       explainer: {
         kicker: 'IN PLAIN LANGUAGE',
-        title: 'Which plan is actually right for you?',
-        free: {
-          title: 'Free — a quick sanity check',
-          body: 'Runs one homepage check: title, meta description, headings and indexability. Good for a first look before you commit to a paid scan. Limited to one free check per account.',
-        },
+        title: 'Which one is right for you?',
         basic: {
-          title: 'Basic — search and AI visibility',
-          body: 'Adds full SEO analysis plus AI SEO / GEO, so you learn how both search engines and AI systems read your site, with actionable findings. It does not cover security, accessibility or performance.',
+          title: 'Take Basic if the question is visibility',
+          body: 'You want to know why the site is not showing up, or whether AI systems can read it at all. Basic goes deep on search and AI readiness and stops there — it does not look at security, accessibility or speed.',
         },
         complete: {
-          title: 'Complete — the full public-site picture',
-          body: 'Includes every available module in one report — SEO, AI SEO / GEO and the rest of the public-site checks — plus the Issue Center, history and JSON/CSV export. There is nothing left out for what the public web can expose.',
+          title: 'Take Complete if you need the whole picture',
+          body: 'Everything Basic covers, plus security headers, accessibility, performance, reliability and privacy — one report, one price, every module included. This is the one to buy before a redesign or when you have to hand a site over to someone else.',
         },
         footnote:
-          'Every plan reads public pages only, needs no CMS credentials, and follows the crawl scope and usage limits shown above.',
-      },
-      cards: {
-        free: {
-          eyebrow: 'FREE / FIRST LOOK',
-          title: 'Homepage check',
-          price: '$0',
-          description: 'A minimal first look at one public homepage.',
-          included: 'Title, meta description, headings and indexability',
-          notIncluded: 'Full crawl, AI SEO / GEO and advanced modules',
-          limits: 'One free check per account',
-        },
-        basic: {
-          eyebrow: 'BASIC / FOCUSED',
-          title: 'SEO + AI SEO / GEO',
-          price: '$55',
-          description: 'A focused report for search visibility and AI discoverability.',
-          included: 'SEO analysis, AI SEO / GEO and actionable findings',
-          notIncluded: 'Security, accessibility, performance and other full-audit modules',
-          limits: 'One paid scan; crawl scope and usage limits apply',
-        },
-        complete: {
-          eyebrow: 'COMPLETE / FULL SIGNAL',
-          title: 'Unified audit',
-          price: '$120',
-          description: 'The complete public-site picture in one report.',
-          included: 'All available modules, Issue Center, history and JSON/CSV export',
-          notIncluded: 'Private systems or data that the public web cannot expose',
-          limits: 'One paid scan; crawl scope and usage limits apply',
-        },
+          'Both read public pages only, need no CMS password, and stay inside the crawl scope you set before the scan starts.',
       },
     },
     newScan: {
@@ -303,9 +274,9 @@ export const copy = {
       labelScanPlan: 'Scan plan',
       planFree: 'Free · homepage only',
       planBasicInternal: 'Basic · internal free',
-      planBasicPaid: 'Basic · $55',
+      planBasicPaid: `Basic · ${BASIC_PRICE}`,
       planCompleteInternal: 'Complete · internal free',
-      planCompletePaid: 'Complete · $120',
+      planCompletePaid: `Complete · ${COMPLETE_PRICE}`,
       labelMaxPages: 'Maximum pages',
       labelMaxDepth: 'Maximum crawl depth',
       labelIncludePatterns: 'Include path patterns (comma separated)',
@@ -325,25 +296,70 @@ export const copy = {
       runPaid: 'Pay and run scan',
       paidUnavailable:
         'Paid scans will be available when checkout is enabled. Free scan is available now.',
+      openingCheckout: 'Opening checkout…',
+    },
+    checkout: {
+      windowTitle: 'Payment — confirming',
+      panelTitle: 'FluxRadar / checkout',
+      confirming:
+        'Finish the payment in the checkout tab. FluxRadar is waiting for the payment provider to confirm it.',
+      stillWaiting:
+        'The payment has not been confirmed yet. It can take a few minutes; this page updates as soon as the provider confirms.',
+      rejected:
+        'The payment provider reported a problem with this checkout, so no scan was created. No charge grants a scan until it is confirmed.',
+      rejectedExpired:
+        'This checkout expired before a payment was confirmed. Nothing was charged for it — start a new checkout when you are ready.',
+      rejectedProviderUnavailable:
+        'The payment provider could not open this checkout, so no payment was taken. Try again in a moment.',
+      rejectedPaymentNotVerified:
+        'A payment could not be matched to this checkout, so no scan was created. If you were charged, contact support and quote the checkout reference below.',
+      noScanUntilConfirmed:
+        'The scan starts only after the provider confirms the payment on our server — closing this window does not cancel it.',
+      openCheckoutLink: 'Open the checkout page',
+      popupBlocked: 'Your browser blocked the checkout tab. Use the link below to continue.',
+      popupOpening: 'Opening the secure FastSpring checkout…',
+      popupOpen:
+        'Complete the payment in the checkout window. FluxRadar is waiting for FastSpring to confirm it.',
+      popupClosed:
+        'The checkout window is closed. If the payment went through, confirmation appears here in a moment — reopen the checkout if you have not paid yet.',
+      popupPaused:
+        'This payment is still open. Reopen the checkout to finish it, or wait here if you have already paid.',
+      popupReopen: 'Reopen the checkout',
+      popupFailedSdk:
+        'The FastSpring checkout could not be loaded — an ad blocker, a privacy extension or the network may be blocking it. Nothing has been charged.',
+      popupFailedLaunch:
+        'The FastSpring checkout could not be opened for this payment. Nothing has been charged.',
+      popupFailedStorefront:
+        'Paid checkout is misconfigured for this environment, so the checkout could not open. Nothing has been charged.',
+      popupFallbackHint:
+        'You can finish the same payment on the FastSpring checkout page instead — it is the same order, opened in a new tab:',
+      checkAgain: 'Check payment status',
+      close: 'Close',
+      pollFailed: 'FluxRadar could not read the payment status. Try again in a moment.',
+      testMode: 'Payment provider is in test mode — no real charge is made.',
+      unavailable:
+        'Paid checkout is not configured for this environment yet. The free homepage check is available now.',
+      unavailableTemporary:
+        'Paid checkout is temporarily unavailable. The free homepage check is available now.',
     },
   },
   uk: {
     nav: {
       home: 'Головна',
-      files: 'Сайти',
+      profiles: 'Профілі',
       scan: 'Перевірка',
       reports: 'Звіти',
       integrations: 'Інтеграції',
-      plans: 'Тарифи',
+      faq: 'FAQ',
       blog: 'Блог',
       language: 'Мова',
       system: 'СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1',
       descriptions: {
-        files: 'Ваші збережені сайти та історія їхніх перевірок.',
+        profiles: 'Ваші збережені сайти та історія їхніх перевірок.',
         scan: 'Налаштуйте та запустіть нову перевірку.',
         reports: 'Готові та поточні результати перевірок.',
         integrations: 'Необовʼязкові підключення даних. Публічна перевірка працює без них.',
-        plans: 'Що входить у кожну перевірку та її межі.',
+        faq: 'Прості відповіді про кожну перевірку та межі звіту.',
       },
     },
     workspace: {
@@ -364,9 +380,6 @@ export const copy = {
       inspect: 'Переглянути',
       notes: 'Нотатки оператора',
       guide: 'Відкрити інструкцію',
-      guideTitle: 'Що робить кожен розділ',
-      guideLead:
-        'Коротка карта робочого простору — почніть із «Сайти», запустіть «Перевірку», потім читайте «Звіти».',
       billing: 'Оплата',
       payPerScan: 'Оплата за перевірку',
     },
@@ -375,11 +388,11 @@ export const copy = {
       createAccount: 'Створити акаунт',
       openWorkspace: 'Відкрити робочий простір',
       freeCta: 'Запустити безкоштовну перевірку',
-      comparePlans: 'Порівняти тарифи',
+      seePricing: 'Що входить у звіт',
       startPublicSite: 'Почати з публічного сайту',
-      plansTitle: 'Оберіть потрібну відповідь.',
-      plansLead:
-        'Одна перевірка — один зрозумілий результат. Без щомісячної квоти та регулярної підписки.',
+      pricingTitle: 'Два разові звіти. Без підписки.',
+      pricingLead:
+        'Ви платите один раз за одну перевірку одного публічного сайту і залишаєте звіт собі. Нічого не поновлюється, місячної квоти немає, а всі модулі, за які ви заплатили, уже входять у ціну.',
       accountBar: 'FLUXRADAR / СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ',
       hero: {
         eyebrow: 'FLUXLAB / СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ',
@@ -486,111 +499,79 @@ export const copy = {
       skip: 'Пропустити',
       finish: 'Завершити',
       step: (current: number, total: number) => `Крок ${current} з ${total}`,
-      steps: [
-        {
-          target: 'files-tab',
-          title: 'Сайти — ваша стартова точка',
-          body: 'У розділі «Сайти» зберігаються ваші профілі публічних сайтів. Кожен профіль — відправна точка для перевірки. Пароль CMS або доступ до коду не потрібні.',
+      steps: tourStepCopy({
+        'workspace-tabs': {
+          title: 'Вкладки робочого простору',
+          body: 'Верхня панель — це весь робочий простір. «Профілі» зберігають публічні сайти, які ви додали, «Перевірка» запускає аудит одного з них, «Звіти» містять готові результати. «Інтеграції» — необовʼязковий контекст: публічний аудит працює й без них, а FAQ пояснює, що саме входить у кожну перевірку.',
         },
-        {
-          target: 'scan-tab',
-          title: 'Перевірка перетворює профіль на аудит',
-          body: 'Після збереження сайту відкрийте нову перевірку. Тут обираються тариф і параметри публічного обходу.',
+        'profile-domain': {
+          title: 'Додайте публічний сайт',
+          body: 'Введіть адресу головної сторінки, яку може відкрити будь-хто, наприклад mysite.com. FluxRadar читає лише публічні сторінки — пароль до CMS або доступ до коду не потрібні.',
         },
-        {
-          target: 'reports-tab',
-          title: 'Звіти зберігають докази',
-          body: 'Готові аудити, оцінки модулів і висновки з доказами зібрані у розділі звітів.',
-        },
-        {
-          target: 'integrations-tab',
-          title: 'Інтеграції додають контекст',
-          body: 'За потреби підключайте підтримувані зовнішні джерела. Публічний аудит працює без облікових даних.',
-        },
-        {
-          target: 'profile-domain',
-          title: 'Почніть із публічного сайту',
-          body: 'Введіть HTTPS-адресу, яку може відкрити будь-хто. Це єдине поле сайту для створення профілю.',
-        },
-        {
-          target: 'save-profile',
+        'save-profile': {
           title: 'Збережіть профіль',
-          body: 'Дайте сайту назву та збережіть його. Це лише створює профіль — перевірка не запускається й оплата не стягується.',
+          body: 'Дайте сайту назву та збережіть його. Це лише створює багаторазовий профіль: перевірка не запускається й оплата не стягується.',
         },
-        {
-          target: 'scan-tab',
-          title: 'Після цього запустіть перевірку',
-          body: 'Відкрийте нову перевірку, оберіть Free, Basic або Complete та налаштуйте обхід. Перевірте область і запускайте.',
+        'run-scan': {
+          title: 'Запустіть перевірку, коли будете готові',
+          body: 'Щоб перевірити збережений сайт, відкрийте «Перевірку» на цій панелі (або «Нову перевірку» біля сайту), оберіть Basic або Complete, перегляньте область обходу та натисніть запуск. Нічого не почнеться, доки ви не натиснете — цей огляд не запускає перевірку за вас.',
         },
-      ],
+      }),
     },
-    plans: {
-      kicker: 'ОПЛАТА ЗА ПЕРЕВІРКУ / ПУБЛІЧНІ АУДИТИ',
-      title: 'Тарифи для кожного публічного аудиту.',
-      lead: 'Оберіть потрібну глибину. Кожна покупка — це одна перевірка, без регулярної підписки та щомісячної квоти.',
-      honestNote:
-        'Оплата ще не підключена в цій версії. Ці кнопки ведуть до робочого простору; вони не списують кошти й не створюють платну перевірку.',
-      included: 'Входить',
+    faq: faqCopyUk,
+    pricing: {
+      publicOnly: 'Лише публічні сторінки — облікові дані клієнта не потрібні',
+      included: 'Що ви отримуєте',
+      bestFor: 'Кому підходить',
       notIncluded: 'Не входить',
       limits: 'Обмеження',
-      publicOnly: 'Лише публічні сторінки — облікові дані клієнта не потрібні',
-      tryFree: 'Спробувати безкоштовно',
-      chooseBasic: 'Обрати Basic',
-      chooseComplete: 'Обрати Complete',
-      openWorkspace: 'Відкрити робочий простір',
-      createAccountToStart: 'Створити акаунт, щоб почати',
-      scopeKicker: 'ЯК ЧИТАТИ ТАРИФИ',
-      scopeTitle: 'Одне публічне джерело. Один звіт. Чіткі межі.',
-      privateData: 'Приватна аналітика, дані CMS і все, що приховано за входом.',
-      limitCopy:
-        'Free доступний один раз на акаунт і нормалізоване джерело; для платних перевірок діє обрана область обходу.',
+      chooseBasic: 'Почати з Basic',
+      chooseComplete: 'Почати з Complete',
+      startInWorkspace:
+        'Звіт купується в робочому просторі: оберіть збережений сайт, оберіть Basic або Complete — перевірка стартує, щойно платіжний провайдер підтвердить оплату.',
+      freeNote:
+        'Є також безкоштовна перевірка головної сторінки — заголовок, meta description, заголовки та індексація однієї сторінки, один раз на акаунт і один раз на сайт. Це перший погляд на формат звіту, а не третій продукт.',
       coverageLink: 'Переглянути всі перевірки →',
+      faqLink: 'Читати FAQ →',
+      cards: {
+        basic: {
+          eyebrow: 'BASIC / ПОШУК + AI',
+          title: 'Basic',
+          price: BASIC_PRICE,
+          description: 'Один звіт про те, як ваш сайт читають пошукові системи та AI-системи.',
+          included:
+            'Повний SEO-аналіз — 16 перевірок: заголовки, meta description, структура заголовків, канонічні теги, robots.txt, мапа сайту, редиректи, биті посилання, дублікати адрес, структуровані дані та соціальні прев’ю — плюс готовність до AI-роботів: яким AI-роботам дозволяє ваш robots.txt і чи придатні ваші сторінки для машинного читання.',
+          bestFor:
+            'Власникам і маркетологам, чиє питання звучить так: «чому мене не знаходять — у пошуку чи у відповідях AI?»',
+          notIncluded:
+            'Модулі безпеки, доступності, продуктивності, надійності, приватності та якості контенту.',
+          limits: 'Одна перевірка одного сайту · до 5 000 сторінок обходу · результати 30 днів.',
+        },
+        complete: {
+          eyebrow: 'COMPLETE / УСІ МОДУЛІ',
+          title: 'Complete',
+          price: COMPLETE_PRICE,
+          description: 'Усе, що FluxRadar може прочитати про публічний сайт, в одному звіті.',
+          included:
+            'Усе з Basic плюс безпека (публічний профіль OWASP ASVS), доступність (WCAG 2.2 AA), продуктивність, надійність, приватність і згода та якість контенту — разом з Issue Center, історією перевірок і експортом JSON/CSV. Усі модулі, які запускає FluxRadar, уже входять у цю ціну; нічого додавати на етапі оплати не потрібно.',
+          bestFor:
+            'Тим, кому потрібна повна картина перед редизайном, запуском, передачею сайту або звітом для клієнта.',
+          limits: 'Одна перевірка одного сайту · до 50 000 сторінок обходу · результати 365 днів.',
+        },
+      },
       explainer: {
         kicker: 'ПРОСТОЮ МОВОЮ',
-        title: 'Який тариф підходить саме вам?',
-        free: {
-          title: 'Free — швидка перевірка',
-          body: 'Одна перевірка головної сторінки: заголовок, meta description, заголовки та індексація. Підходить для першого погляду перед платною перевіркою. Обмежено однією безкоштовною перевіркою на акаунт.',
-        },
+        title: 'Що обрати саме вам?',
         basic: {
-          title: 'Basic — видимість у пошуку та для AI',
-          body: 'Додає повний SEO-аналіз і AI SEO / GEO, тож ви дізнаєтесь, як ваш сайт читають пошукові системи та AI-системи, з практичними висновками. Не включає безпеку, доступність і продуктивність.',
+          title: 'Беріть Basic, якщо питання — видимість',
+          body: 'Вам треба зрозуміти, чому сайт не показується, або чи можуть AI-системи взагалі його прочитати. Basic глибоко розбирає пошук і готовність до AI — і на цьому зупиняється: безпеку, доступність і швидкість він не дивиться.',
         },
         complete: {
-          title: 'Complete — повна картина публічного сайту',
-          body: 'Включає всі доступні модулі в одному звіті — SEO, AI SEO / GEO та решту публічних перевірок — а також Issue Center, історію та JSON/CSV-експорт. Нічого з того, що видно у відкритому вебі, не залишається поза увагою.',
+          title: 'Беріть Complete, якщо потрібна вся картина',
+          body: 'Усе, що є в Basic, плюс заголовки безпеки, доступність, продуктивність, надійність і приватність — один звіт, одна ціна, усі модулі включені. Саме цей варіант беруть перед редизайном або коли сайт треба комусь передати.',
         },
         footnote:
-          'Кожен тариф читає лише публічні сторінки, не потребує облікових даних CMS і діє в межах обходу та обмежень використання, зазначених вище.',
-      },
-      cards: {
-        free: {
-          eyebrow: 'FREE / ПЕРШИЙ ПОГЛЯД',
-          title: 'Перевірка головної',
-          price: '$0',
-          description: 'Мінімальна перша перевірка однієї публічної головної сторінки.',
-          included: 'Заголовок, meta description, заголовки та індексація',
-          notIncluded: 'Повний обхід, AI SEO / GEO та розширені модулі',
-          limits: 'Одна безкоштовна перевірка на акаунт',
-        },
-        basic: {
-          eyebrow: 'BASIC / ФОКУС',
-          title: 'SEO + AI SEO / GEO',
-          price: '$55',
-          description: 'Зосереджений звіт про пошукову видимість і доступність для AI.',
-          included: 'SEO-аналіз, AI SEO / GEO та практичні висновки',
-          notIncluded: 'Безпека, доступність, продуктивність та інші модулі повного аудиту',
-          limits: 'Одна платна перевірка; діють обмеження обходу та використання',
-        },
-        complete: {
-          eyebrow: 'COMPLETE / ПОВНИЙ СИГНАЛ',
-          title: 'Єдиний аудит',
-          price: '$120',
-          description: 'Повна картина публічного сайту в одному звіті.',
-          included: 'Усі доступні модулі, Issue Center, історія та JSON/CSV-експорт',
-          notIncluded: 'Приватні системи або дані, яких немає у відкритому вебі',
-          limits: 'Одна платна перевірка; діють обмеження обходу та використання',
-        },
+          'Обидва читають лише публічні сторінки, не потребують пароля до CMS і працюють у межах області обходу, яку ви задаєте перед стартом.',
       },
     },
     newScan: {
@@ -607,9 +588,9 @@ export const copy = {
       labelScanPlan: 'Тариф перевірки',
       planFree: 'Free · лише головна',
       planBasicInternal: 'Basic · внутрішній безкоштовний',
-      planBasicPaid: 'Basic · $55',
+      planBasicPaid: `Basic · ${BASIC_PRICE}`,
       planCompleteInternal: 'Complete · внутрішній безкоштовний',
-      planCompletePaid: 'Complete · $120',
+      planCompletePaid: `Complete · ${COMPLETE_PRICE}`,
       labelMaxPages: 'Максимум сторінок',
       labelMaxDepth: 'Максимальна глибина обходу',
       labelIncludePatterns: 'Шаблони шляхів для включення (через кому)',
@@ -629,6 +610,51 @@ export const copy = {
       runPaid: 'Оплатити та запустити',
       paidUnavailable:
         'Платні перевірки будуть доступні після підключення оплати. Безкоштовна перевірка доступна зараз.',
+      openingCheckout: 'Відкриваємо оплату…',
+    },
+    checkout: {
+      windowTitle: 'Оплата — підтвердження',
+      panelTitle: 'FluxRadar / оплата',
+      confirming:
+        'Завершіть оплату у вкладці checkout. FluxRadar очікує підтвердження від платіжного провайдера.',
+      stillWaiting:
+        'Оплату ще не підтверджено. Це може зайняти кілька хвилин; сторінка оновиться, щойно провайдер підтвердить платіж.',
+      rejected:
+        'Платіжний провайдер повідомив про проблему з цим checkout, тому перевірку не створено. Без підтвердження оплата не відкриває сканування.',
+      rejectedExpired:
+        'Термін цього checkout минув до підтвердження оплати. Кошти за нього не списано — просто розпочніть нову оплату.',
+      rejectedProviderUnavailable:
+        'Платіжний провайдер не зміг відкрити цей checkout, тому оплату не проведено. Спробуйте ще раз за хвилину.',
+      rejectedPaymentNotVerified:
+        'Платіж не вдалося зіставити з цим checkout, тому перевірку не створено. Якщо кошти списано, зверніться до підтримки та вкажіть номер checkout нижче.',
+      noScanUntilConfirmed:
+        'Перевірка стартує лише після підтвердження оплати на нашому сервері — закриття цього вікна її не скасовує.',
+      openCheckoutLink: 'Відкрити сторінку оплати',
+      popupBlocked: 'Браузер заблокував вкладку оплати. Скористайтеся посиланням нижче.',
+      popupOpening: 'Відкриваємо захищений checkout FastSpring…',
+      popupOpen:
+        'Завершіть оплату у вікні checkout. FluxRadar очікує підтвердження від FastSpring.',
+      popupClosed:
+        'Вікно checkout закрито. Якщо оплата пройшла, підтвердження зʼявиться тут за мить — якщо ще ні, відкрийте checkout знову.',
+      popupPaused:
+        'Ця оплата ще активна. Відкрийте checkout, щоб завершити її, або зачекайте тут, якщо вже оплатили.',
+      popupReopen: 'Відкрити checkout знову',
+      popupFailedSdk:
+        'Не вдалося завантажити checkout FastSpring — можливо, його блокує розширення браузера або мережа. Кошти не списано.',
+      popupFailedLaunch:
+        'Не вдалося відкрити checkout FastSpring для цієї оплати. Кошти не списано.',
+      popupFailedStorefront:
+        'Платний checkout налаштовано некоректно для цього середовища, тому вікно не відкрилося. Кошти не списано.',
+      popupFallbackHint:
+        'Ту саму оплату можна завершити на сторінці checkout FastSpring — це те саме замовлення, відкриється в новій вкладці:',
+      checkAgain: 'Перевірити статус оплати',
+      close: 'Закрити',
+      pollFailed: 'FluxRadar не зміг прочитати статус оплати. Спробуйте за мить.',
+      testMode: 'Платіжний провайдер у тестовому режимі — реального списання немає.',
+      unavailable:
+        'Платний checkout ще не налаштовано для цього середовища. Безкоштовна перевірка головної сторінки доступна зараз.',
+      unavailableTemporary:
+        'Платний checkout тимчасово недоступний. Безкоштовна перевірка головної сторінки доступна зараз.',
     },
   },
 } as const;

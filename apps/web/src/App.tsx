@@ -23,6 +23,8 @@ import {
 import {
   apiRequest,
   type Account,
+  type CheckoutConfig,
+  type CheckoutSession,
   type Dashboard,
   type ExportPayload,
   type IntegrationStatus,
@@ -39,13 +41,21 @@ import {
   WEBSITE_INPUT_LABEL,
   WEBSITE_INPUT_PLACEHOLDER,
 } from './website-input';
+import {
+  CheckoutPending,
+  clearPendingCheckout,
+  openCheckoutWindow,
+  readPendingCheckout,
+  storePendingCheckout,
+  useCheckoutConfig,
+  type PendingCheckout,
+} from './Checkout';
 import { copy, readStoredLanguage, storeLanguage, type Language } from './i18n';
 import { OnboardingTour } from './OnboardingTour';
-import { PlanCards, PlansScreen } from './PlansScreen';
-import { WorkspaceGuide } from './WorkspaceGuide';
+import { FaqScreen } from './Faq';
+import { PricingCards, PricingExplainer } from './Pricing';
+import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 import './styles/base.css';
-
-const LIVE_CHECKOUT_ENABLED = import.meta.env.VITE_LIVE_CHECKOUT_ENABLED === 'true';
 
 type Screen =
   | 'home'
@@ -56,7 +66,7 @@ type Screen =
   | 'results'
   | 'issues'
   | 'integrations'
-  | 'plans'
+  | 'faq'
   | 'privacy'
   | 'terms'
   | 'checks'
@@ -66,6 +76,8 @@ interface InitialRoute {
   readonly screen: Screen;
   readonly scanId: string | null;
   readonly emailAction: { readonly kind: 'verify' | 'reset'; readonly token: string } | null;
+  /** Home section to scroll to on entry, used by legacy links such as /plans. */
+  readonly scrollTo: 'pricing' | null;
 }
 
 function readInitialRoute(): InitialRoute {
@@ -79,15 +91,25 @@ function readInitialRoute(): InitialRoute {
       : resetToken !== null
         ? { kind: 'reset' as const, token: resetToken }
         : null;
-  if (path === '/privacy') return { screen: 'privacy', scanId: null, emailAction: null };
-  if (path === '/terms') return { screen: 'terms', scanId: null, emailAction: null };
-  if (path === '/checks') return { screen: 'checks', scanId: null, emailAction: null };
-  if (path === '/plans') return { screen: 'plans', scanId: null, emailAction: null };
+  const publicRoute = (screen: Screen): InitialRoute => ({
+    screen,
+    scanId: null,
+    emailAction: null,
+    scrollTo: null,
+  });
+  if (path === '/privacy') return publicRoute('privacy');
+  if (path === '/terms') return publicRoute('terms');
+  if (path === '/checks') return publicRoute('checks');
+  if (path === '/faq') return publicRoute('faq');
+  // The standalone plans screen was folded into the home pricing section. Old
+  // /plans links keep working by landing there instead of on an unknown route.
+  if (path === '/plans')
+    return { screen: 'home', scanId: null, emailAction: null, scrollTo: 'pricing' };
   const scanMatch = /^\/scans\/([^/]+)$/.exec(path);
   if (scanMatch?.[1] !== undefined) {
     try {
       const scanId = decodeURIComponent(scanMatch[1]);
-      if (scanId.length > 0) return { screen: 'scan', scanId, emailAction: null };
+      if (scanId.length > 0) return { screen: 'scan', scanId, emailAction: null, scrollTo: null };
     } catch {
       // Treat malformed deep links like any other unknown public route.
     }
@@ -104,6 +126,7 @@ function readInitialRoute(): InitialRoute {
             : 'home',
     scanId: null,
     emailAction,
+    scrollTo: null,
   };
 }
 
@@ -124,6 +147,10 @@ export function App() {
   const [booting, setBooting] = useState(true);
   const [language, setLanguage] = useState<Language>(readStoredLanguage);
   const [tourOpen, setTourOpen] = useState(false);
+  // Held here, not inside the new-scan screen: the buyer pays in another tab and
+  // may reload or navigate away before the provider webhook lands, and the
+  // "confirming payment" window has to survive that from any screen.
+  const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(null);
   const updateSelectedScan = useCallback((scan: Scan) => setSelectedScan(scan), []);
   const changeLanguage = useCallback((next: Language) => {
     setLanguage(next);
@@ -132,7 +159,7 @@ export function App() {
 
   useEffect(() => {
     const path = window.location.pathname.replace(/\/+$/, '') || '/';
-    if (path === '/privacy' || path === '/terms' || path === '/checks') {
+    if (path === '/privacy' || path === '/terms' || path === '/checks' || path === '/faq') {
       setBooting(false);
       return;
     }
@@ -140,7 +167,6 @@ export function App() {
       .then(async (value) => {
         setAccount(value);
         try {
-          if (entryRoute.screen === 'plans') return;
           await loadProfiles(setProfiles);
           if (entryRoute.scanId === null && value.onboarding?.status === 'pending') {
             setScreen('desktop');
@@ -176,7 +202,29 @@ export function App() {
         if (entryRoute.scanId !== null) setScreen('auth');
       })
       .finally(() => setBooting(false));
-  }, [entryRoute.scanId, entryRoute.screen]);
+  }, [entryRoute.scanId]);
+
+  useEffect(() => {
+    const restored = account === null ? null : readPendingCheckout(account.accountId);
+    setPendingCheckout(restored);
+    // A buyer who reloaded mid-payment lands on the marketing home screen, where
+    // the confirming window is not rendered. Put them back in the workspace so
+    // the payment they already made is visibly still being confirmed.
+    if (restored !== null) {
+      setScreen((current) => (current === 'home' || current === 'auth' ? 'desktop' : current));
+    }
+  }, [account]);
+
+  // Stable across renders so the confirming window is never handed a new
+  // identity mid-payment; `CheckoutPending` guards its own polling as well.
+  const startCheckout = useCallback((pending: PendingCheckout): void => {
+    storePendingCheckout(pending);
+    setPendingCheckout(pending);
+  }, []);
+  const endCheckout = useCallback((): void => {
+    clearPendingCheckout();
+    setPendingCheckout(null);
+  }, []);
 
   const restoreScan = async (scanId: string): Promise<void> => {
     try {
@@ -209,7 +257,6 @@ export function App() {
       'results',
       'issues',
       'integrations',
-      'plans',
       'checks',
     ].includes(requested)
       ? (requested as Screen)
@@ -217,11 +264,9 @@ export function App() {
     const scanPath =
       valid === 'checks'
         ? '/checks'
-        : valid === 'plans'
-          ? '/plans'
-          : scanId !== undefined && ['scan', 'results', 'issues'].includes(valid)
-            ? `/scans/${encodeURIComponent(scanId)}`
-            : '/';
+        : scanId !== undefined && ['scan', 'results', 'issues'].includes(valid)
+          ? `/scans/${encodeURIComponent(scanId)}`
+          : '/';
     window.history.replaceState(null, '', scanPath);
     setScreen(valid);
   };
@@ -288,6 +333,9 @@ export function App() {
   if (screen === 'checks') {
     return <AuditCoverageScreen language={language} onLanguageChange={changeLanguage} />;
   }
+  if (screen === 'faq') {
+    return <FaqScreen language={language} onLanguageChange={changeLanguage} />;
+  }
   if (booting) {
     return (
       <div className="app-shell">
@@ -304,26 +352,6 @@ export function App() {
           </Window>
         </div>
       </div>
-    );
-  }
-  if (screen === 'plans') {
-    return (
-      <PlansScreen
-        language={language}
-        onLanguageChange={changeLanguage}
-        signedIn={account !== null}
-        onStart={() => {
-          if (account === null) {
-            setAuthMode('register');
-            setError(null);
-            navigate('auth');
-          } else {
-            navigate('desktop');
-          }
-        }}
-        onOpenWorkspace={() => navigate('desktop')}
-        onNavigate={navigate}
-      />
     );
   }
   if (account === null) {
@@ -349,7 +377,7 @@ export function App() {
         }}
         onOpenWorkspace={() => undefined}
         onOpenIntegrations={() => undefined}
-        onOpenPlans={() => navigate('plans')}
+        scrollTo={entryRoute.scrollTo}
         language={language}
         onLanguageChange={changeLanguage}
         authOpen={screen === 'auth'}
@@ -377,7 +405,7 @@ export function App() {
         onRegister={() => undefined}
         onOpenWorkspace={() => navigate('desktop')}
         onOpenIntegrations={() => navigate('integrations')}
-        onOpenPlans={() => navigate('plans')}
+        scrollTo={entryRoute.scrollTo}
         language={language}
         onLanguageChange={changeLanguage}
         authOpen={false}
@@ -442,13 +470,27 @@ export function App() {
             language={language}
           />
         ) : null}
-        {screen === 'new-scan' ? (
+        {pendingCheckout !== null ? (
+          <CheckoutPending
+            language={language}
+            checkout={pendingCheckout}
+            onConfirmed={(scan) => {
+              endCheckout();
+              onScanCreated(scan);
+            }}
+            onCancel={endCheckout}
+            onError={setError}
+          />
+        ) : null}
+        {screen === 'new-scan' && pendingCheckout === null ? (
           <NewScanScreen
             profiles={profiles}
             selectedProfile={selectedProfile}
+            accountId={account.accountId}
             internalFreeAccess={account.internalFreeAccess === true}
             language={language}
             onCreated={onScanCreated}
+            onCheckoutStarted={startCheckout}
             onClose={() => navigate('desktop')}
             onError={setError}
           />
@@ -511,7 +553,6 @@ function LegalDocumentScreen(props: {
         active="home"
         onNavigate={(next) => {
           if (next === 'home') window.location.assign('/');
-          if (next === 'plans') window.location.assign('/plans');
         }}
         signedIn={false}
         language={props.language}
@@ -625,9 +666,9 @@ function PrivacyPolicy() {
             maintained. The raw tokens are not shown in the product interface.
           </li>
           <li>
-            <strong>Purchase data:</strong> payment and transaction metadata supplied by Paddle,
-            such as transaction ID, plan, amount, currency and payment status. FluxRadar does not
-            store your payment-card number.
+            <strong>Purchase data:</strong> payment and transaction metadata supplied by FastSpring,
+            our payment provider and merchant of record — such as order ID, plan, amount, currency
+            and payment status. FluxRadar does not store your payment-card number.
           </li>
           <li>
             <strong>Required technical data:</strong> security and operational records needed to
@@ -683,9 +724,9 @@ function PrivacyPolicy() {
         <p>
           FluxRadar stores application data in PostgreSQL on Hetzner infrastructure. Complete report
           artifacts may be stored in a private, account-scoped Hetzner Object Storage bucket. Google
-          and Bing tokens are encrypted before they are stored. Paddle, Google, Bing and Anthropic
-          process information under their own terms and privacy documentation when you use the
-          corresponding integration.
+          and Bing tokens are encrypted before they are stored. FastSpring, Google, Bing and
+          Anthropic process information under their own terms and privacy documentation when you use
+          the corresponding integration or make a purchase.
         </p>
         <p>
           You can disconnect an integration from the Integrations screen. You can request account
@@ -752,7 +793,9 @@ function TermsOfService() {
           is available once per account and once per normalized public origin across all accounts.
           The Basic and Complete plans are pay-per-scan products, not recurring subscriptions. The
           applicable scope, features and price are shown before purchase. Payment is processed by
-          Paddle; payment-card data is handled by Paddle rather than stored by FluxRadar.
+          FastSpring, which acts as merchant of record; payment-card data is handled by FastSpring
+          rather than stored by FluxRadar. A paid scan starts only after FastSpring confirms the
+          payment to our server.
         </p>
         <p>
           A paid scan grants the report and product access described for the purchased plan. If a
@@ -831,7 +874,6 @@ function AuditCoverageScreen(props: {
         active="home"
         onNavigate={(next) => {
           if (next === 'home') window.location.assign('/');
-          if (next === 'plans') window.location.assign('/plans');
         }}
         signedIn={false}
         language={props.language}
@@ -1415,7 +1457,8 @@ function IntegrationsScreen(props: {
         <GoogleProperties
           profiles={props.profiles}
           connected={integrations.some(
-            (integration) => integration.provider === 'google' && integration.status === 'connected',
+            (integration) =>
+              integration.provider === 'google' && integration.status === 'connected',
           )}
           onError={props.onError}
         />
@@ -1632,7 +1675,8 @@ function HomeScreen(props: {
   onRegister: () => void;
   onOpenWorkspace: () => void;
   onOpenIntegrations: () => void;
-  onOpenPlans: () => void;
+  /** Section to reveal on entry when an old link pointed at a folded-in page. */
+  scrollTo?: 'pricing' | null;
   language: Language;
   onLanguageChange: (language: Language) => void;
   authOpen: boolean;
@@ -1646,6 +1690,14 @@ function HomeScreen(props: {
   const authDialogRef = useRef<HTMLDivElement>(null);
   const t = copy[props.language];
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ block: 'start' });
+  const entrySection = props.scrollTo ?? null;
+  // A visitor arriving from an old /plans link should land on the pricing block
+  // and keep a clean URL, not stay on a path the app no longer serves.
+  useEffect(() => {
+    if (entrySection === null) return;
+    if (window.location.pathname !== '/') window.history.replaceState(null, '', '/');
+    document.getElementById(entrySection)?.scrollIntoView({ block: 'start' });
+  }, [entrySection]);
   useEffect(() => {
     if (!props.authOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
@@ -1689,9 +1741,7 @@ function HomeScreen(props: {
               ? props.onOpenWorkspace()
               : next === 'integrations'
                 ? props.onOpenIntegrations()
-                : next === 'plans'
-                  ? props.onOpenPlans()
-                  : undefined
+                : undefined
         }
         signedIn={props.signedIn}
         language={props.language}
@@ -1736,7 +1786,7 @@ function HomeScreen(props: {
                 type="button"
                 onClick={() => scrollTo('pricing')}
               >
-                {t.home.comparePlans} <span aria-hidden="true">↓</span>
+                {t.home.seePricing} <span aria-hidden="true">↓</span>
               </button>
             </div>
             <div className="home__proof" aria-label={t.home.hero.proofAriaLabel}>
@@ -1849,7 +1899,7 @@ function HomeScreen(props: {
             <h2 id="coverage-entry-title">{t.home.coverageEntry.title}</h2>
             <p>{t.home.coverageEntry.body}</p>
             <a className="home__coverage-link" href="/checks">
-              {t.plans.coverageLink}
+              {t.pricing.coverageLink}
             </a>
           </div>
         </section>
@@ -1893,10 +1943,14 @@ function HomeScreen(props: {
             <div className="home__eyebrow">
               <span className="home__eyebrow-index">04</span> {t.home.pricingEyebrow}
             </div>
-            <h2 id="pricing-title">{t.home.plansTitle}</h2>
-            <p>{t.home.plansLead}</p>
+            <h2 id="pricing-title">{t.home.pricingTitle}</h2>
+            <p>{t.home.pricingLead}</p>
+            <span className="home__pricing-note home__pricing-note--public">
+              {t.pricing.publicOnly}
+            </span>
           </div>
-          <PlanCards language={props.language} onChoose={props.onStart} compact />
+          <PricingCards language={props.language} onChoose={props.onStart} />
+          <PricingExplainer language={props.language} />
         </section>
 
         <section className="home__last-call" aria-labelledby="last-call-title">
@@ -1918,6 +1972,7 @@ function HomeScreen(props: {
           <span>{t.home.footer.brand}</span>
           <span className="home__footer-links">
             <a href="/checks">{t.home.footer.coverageLink}</a>
+            <a href="/faq">{t.nav.faq}</a>
             <a href="/privacy">{t.home.footer.privacyLink}</a>
             <a href="/terms">{t.home.footer.termsLink}</a>
             <a href="/blog">{t.home.footer.fieldNotes}</a>
@@ -1993,7 +2048,6 @@ function DesktopScreen(props: {
   };
   return (
     <div className="stack">
-      <WorkspaceGuide language={props.language} />
       <div className="desktop__grid">
         <Window title={t.workspace.sites}>
           <Panel title={t.workspace.registered}>
@@ -2080,8 +2134,8 @@ function DesktopScreen(props: {
           />
           <Panel title="Subscription model">
             <FieldRow label={t.workspace.billing} value={t.workspace.payPerScan} />
-            <FieldRow label="Basic" value="$55 · SEO + AI SEO / GEO" />
-            <FieldRow label="Complete" value="$120 · full report" />
+            <FieldRow label="Basic" value={`${BASIC_PRICE} · SEO + AI SEO / GEO`} />
+            <FieldRow label="Complete" value={`${COMPLETE_PRICE} · full report`} />
           </Panel>
           <div className="button-row">
             <Button variant="primary" onClick={props.onOnboarding}>
@@ -2094,7 +2148,24 @@ function DesktopScreen(props: {
   );
 }
 
+/**
+ * What to tell a buyer who cannot pay yet.
+ *
+ * The server answers with a closed code and never with its configuration, so the
+ * distinction the buyer sees is made here: "this deployment does not sell scans"
+ * reads differently from "payments are set up and currently broken", and a
+ * config we could not read at all says neither.
+ */
+function paidUnavailableCopy(t: (typeof copy)[Language], config: CheckoutConfig | null): string {
+  if (config === null) return t.newScan.paidUnavailable;
+  return config.unavailableReason === 'misconfigured'
+    ? t.checkout.unavailableTemporary
+    : t.checkout.unavailable;
+}
+
 function NewScanScreen(props: {
+  accountId: string;
+  onCheckoutStarted: (pending: PendingCheckout) => void;
   profiles: readonly SiteProfile[];
   selectedProfile: SiteProfile | null;
   internalFreeAccess: boolean;
@@ -2104,7 +2175,10 @@ function NewScanScreen(props: {
   onError: (value: string) => void;
 }) {
   const t = copy[props.language];
-  const paidAvailable = props.internalFreeAccess || LIVE_CHECKOUT_ENABLED;
+  // Whether a real checkout exists is a server fact, not a build-time flag: an
+  // unreachable or unconfigured provider must never look like a working one.
+  const checkoutConfig = useCheckoutConfig(!props.internalFreeAccess);
+  const paidAvailable = props.internalFreeAccess || checkoutConfig?.available === true;
   const [profileId, setProfileId] = useState(
     props.selectedProfile?.id ?? props.profiles[0]?.id ?? '',
   );
@@ -2148,24 +2222,47 @@ function NewScanScreen(props: {
         robotsOverrideConfirmed,
         userAgent,
       };
+      const aiConsent = consent
+        ? { aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' } }
+        : {};
       if (plan === 'Free') {
         scan = await apiRequest<Scan>(`/profiles/${profileId}/free-check`, {
           method: 'POST',
           body: JSON.stringify({ scope }),
         });
-      } else {
+      } else if (props.internalFreeAccess) {
+        // Internal allowlist only: creates a scan without a purchase, and is
+        // refused for everyone else (and in production).
         scan = await apiRequest<{ scanId: string } & Record<string, unknown>>(
           '/billing/dev-checkout',
           {
             method: 'POST',
-            body: JSON.stringify({
-              siteProfileId: profileId,
-              plan,
-              scope,
-              ...(consent ? { aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' } } : {}),
-            }),
+            body: JSON.stringify({ siteProfileId: profileId, plan, scope, ...aiConsent }),
           },
         ).then((value) => apiRequest<Scan>(`/scans/${value.scanId}`));
+      } else {
+        // Paid plans hand off to the provider. No scan exists until the signed
+        // provider webhook creates one, so nothing is created here.
+        const session = await apiRequest<CheckoutSession>('/billing/checkout-session', {
+          method: 'POST',
+          body: JSON.stringify({ siteProfileId: profileId, plan, scope, ...aiConsent }),
+        });
+        // With a popup checkout configured, the FastSpring iframe opens over this
+        // page from `CheckoutPending` and the hosted URL is never opened by us —
+        // it stays only as the link the buyer clicks if the popup could not load.
+        // Without one (the older hosted storefront), the provider page opens in a
+        // tab as before.
+        const storefront = checkoutConfig?.popup?.storefront ?? null;
+        props.onCheckoutStarted({
+          accountId: props.accountId,
+          reference: session.reference,
+          sessionId: session.sessionId,
+          checkoutUrl: session.checkoutUrl,
+          storefront,
+          restored: false,
+          popupBlocked: storefront === null && !openCheckoutWindow(session.checkoutUrl),
+        });
+        return;
       }
       props.onCreated(scan);
     } catch (caught) {
@@ -2232,7 +2329,12 @@ function NewScanScreen(props: {
             onChange={(value) => setPlan(value as typeof plan)}
             options={planOptions}
           />
-          {!paidAvailable ? <p className="muted">{t.newScan.paidUnavailable}</p> : null}
+          {!paidAvailable ? (
+            <p className="muted">{paidUnavailableCopy(t, checkoutConfig)}</p>
+          ) : null}
+          {paidAvailable && checkoutConfig?.mode === 'test' ? (
+            <p className="muted">{t.checkout.testMode}</p>
+          ) : null}
           {plan !== 'Free' ? (
             <>
               <Field
@@ -2301,7 +2403,9 @@ function NewScanScreen(props: {
             }
           >
             {busy
-              ? t.newScan.creating
+              ? plan !== 'Free' && !props.internalFreeAccess
+                ? t.newScan.openingCheckout
+                : t.newScan.creating
               : plan === 'Free'
                 ? t.newScan.runFree
                 : props.internalFreeAccess
@@ -2624,7 +2728,9 @@ function ModuleMetadata({ module }: { module: ScanModule }) {
     return <small className="module-card__meta">JSON-LD · Open Graph · Twitter Cards</small>;
   }
   if (module.module === 'Analytics') {
-    return <small className="module-card__meta">Google Search Console · Analytics 4 · read-only</small>;
+    return (
+      <small className="module-card__meta">Google Search Console · Analytics 4 · read-only</small>
+    );
   }
   if (module.module === 'AI SEO / GEO') {
     const pages = asRecord(module.metadata?.pages);

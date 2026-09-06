@@ -826,45 +826,6 @@ code,
   white-space: nowrap;
 }
 
-/* Workspace navigation guide — a plain-language map of the signed-in tabs,
-   shown above the desktop grid so it reads as part of the platinum shell. */
-.workspace-guide {
-  padding: var(--sp-4);
-  background: var(--plat-100);
-  border: 1px solid var(--plat-900);
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
-}
-.workspace-guide__head {
-  margin-bottom: var(--sp-3);
-}
-.workspace-guide__head .section-heading {
-  margin-bottom: var(--sp-1);
-}
-.workspace-guide__head p {
-  margin: 0;
-}
-.workspace-guide__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--sp-3);
-  margin: 0;
-}
-.workspace-guide__item {
-  padding: var(--sp-3);
-  background: var(--plat-50);
-  border: 1px solid var(--plat-400);
-}
-.workspace-guide__item dt {
-  margin-bottom: 3px;
-  font-weight: 700;
-}
-.workspace-guide__item dd {
-  margin: 0;
-  color: var(--plat-600);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
 /* Contextual help copy that sits inline in panels and empty states. */
 .empty__description {
   max-width: 46ch;
@@ -1332,7 +1293,7 @@ code,
 }
 .home__pricing-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 12px;
   margin-top: 36px;
 }
@@ -1373,6 +1334,69 @@ code,
 .home__plan--complete .button {
   color: var(--plat-900);
 }
+.home__pricing-explainer {
+  margin-top: 28px;
+  padding: 26px 28px;
+  border: 1px solid #8c9bb3;
+  background: rgba(16, 20, 16, 0.35);
+}
+.home__pricing-explainer .home__card-index {
+  /* The kicker sits on the dark panel here, not on a light plan card. */
+  color: #b3d1bc;
+}
+.home__pricing-explainer h3 {
+  margin: 10px 0 0;
+  font: bold clamp(22px, 3vw, 30px)/1.05 var(--mono-font);
+  letter-spacing: -0.05em;
+}
+.home__pricing-explainer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 18px;
+  margin: 22px 0 0;
+}
+.home__pricing-explainer-grid p {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid #315d42;
+}
+.home__pricing-explainer-grid strong {
+  color: var(--term-green);
+  font: bold 14px/1.3 var(--mono-font);
+}
+.home__pricing-explainer-grid span {
+  color: #d5deeb;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.home__pricing-note {
+  margin: 16px 0 0;
+  color: #b3d1bc;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.home__pricing-note--public {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--term-green);
+  color: var(--term-green);
+  font: 11px/1.4 var(--mono-font);
+  text-transform: uppercase;
+}
+.home__pricing-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 20px 0 0;
+}
+.home__pricing-links a {
+  color: var(--term-green);
+  font-weight: 700;
+}
+
 .home__last-call {
   display: flex;
   align-items: end;
@@ -1482,65 +1506,6 @@ code,
   float: right;
 }
 
-.plans-page {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: clamp(48px, 9vw, 108px) var(--sp-6) 72px;
-  color: #fff;
-}
-.plans-page__header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 36px;
-  padding-bottom: 34px;
-  border-bottom: 1px solid #8c9bb3;
-}
-.plans-page__header h1 {
-  max-width: 760px;
-  margin: 18px 0 14px;
-  font: bold clamp(42px, 7vw, 78px)/0.95 var(--mono-font);
-  letter-spacing: -0.08em;
-}
-.plans-page__header p {
-  max-width: 650px;
-  margin: 0;
-  color: #d5deeb;
-  font-size: 16px;
-}
-.plans-page__public-note {
-  max-width: 245px;
-  padding: 10px;
-  border: 1px solid var(--term-green);
-  color: var(--term-green);
-  font: 11px/1.4 var(--mono-font);
-  text-transform: uppercase;
-}
-.plans-page__notice {
-  display: flex;
-  gap: 14px;
-  align-items: baseline;
-  margin: 26px 0 0;
-  padding: 12px 14px;
-  border-left: 4px solid var(--term-amber);
-  background: rgba(16, 20, 16, 0.78);
-  color: #e8f0e8;
-}
-.plans-page__notice strong {
-  color: var(--term-amber);
-  font: 11px var(--mono-font);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.plans-page__notice span {
-  color: #d5deeb;
-}
-.plans-page__cards {
-  margin-top: 28px;
-}
-.plans-page__cards .home__plan {
-  min-height: 430px;
-}
 .plan-card__details {
   display: grid;
   gap: 12px;
@@ -1570,59 +1535,13 @@ code,
 .home__plan--complete .plan-card__details dd {
   color: #d5e9d9;
 }
-.plans-page__scope {
-  display: grid;
-  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
-  gap: 42px;
-  margin-top: 84px;
-  padding: 28px 0;
-  border-top: 1px solid #8c9bb3;
-  border-bottom: 1px solid #8c9bb3;
-}
-.plans-page__scope h2 {
-  margin: 16px 0 0;
-  font: bold clamp(24px, 3vw, 38px)/1 var(--mono-font);
-  letter-spacing: -0.06em;
-}
-.plans-page__scope-grid {
-  display: grid;
-  gap: 0;
-}
-.plans-page__scope-grid p {
-  display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 12px;
-  margin: 0;
-  padding: 14px 0;
-  border-bottom: 1px solid #315d42;
-}
-.plans-page__scope-grid p:last-child {
-  border-bottom: 0;
-}
-.plans-page__scope-grid strong {
-  color: var(--term-green);
-  font: 10px var(--mono-font);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.plans-page__scope-grid span {
-  color: #d5deeb;
-}
-.plans-page__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 18px;
-  margin-top: 28px;
-}
-.plans-page__actions a {
-  color: var(--term-green);
-}
 
 .tour-overlay {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  /* Above the mobile navigation sheet (z-index 50): the tour is the modal in
+     play, so opening the burger mid-tour must not bury the dialog. */
+  z-index: 60;
   pointer-events: none;
 }
 .tour-overlay__scrim {
@@ -1912,6 +1831,18 @@ code,
 .legal-footer a:hover {
   color: #1a6b2f;
 }
+.faq-entry + .faq-entry {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid var(--plat-300);
+}
+.faq-entry h3 {
+  max-width: 760px;
+  margin: 0 0 10px;
+  font: bold 16px/1.35 var(--mono-font);
+  letter-spacing: -0.02em;
+}
+
 .legal-code-block {
   display: grid;
   gap: 6px;
@@ -2414,34 +2345,6 @@ code,
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
-  }
-  .plans-page {
-    padding: 36px 12px 48px;
-  }
-  .plans-page__header {
-    display: block;
-  }
-  .plans-page__header h1 {
-    font-size: 52px;
-  }
-  .plans-page__public-note {
-    display: inline-block;
-    margin-top: 22px;
-  }
-  .plans-page__notice {
-    display: grid;
-    gap: 5px;
-  }
-  .plans-page__cards {
-    grid-template-columns: 1fr;
-  }
-  .plans-page__scope {
-    grid-template-columns: 1fr;
-    gap: 20px;
-    margin-top: 64px;
-  }
-  .plans-page__scope-grid p {
-    grid-template-columns: 105px 1fr;
   }
   .tour-dialog {
     width: calc(100vw - 24px);
