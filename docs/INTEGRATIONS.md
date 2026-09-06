@@ -16,6 +16,11 @@ The current implementation includes the following integration surface:
 
 Google and Bing OAuth state is one-time, expires after ten minutes and is stored only as a SHA-256 hash. Access and refresh tokens are encrypted before they reach PostgreSQL. The UI never receives the raw tokens.
 
+The user-facing **Integrations** screen lists only customer-connectable sources: Google data
+(Search Console and GA4) and Bing Webmaster Tools. PageSpeed, CrUX, Anthropic and Hetzner S3 are
+platform services used internally by FluxRadar; their keys are server configuration and are not
+shown as user connections.
+
 ## Server configuration
 
 Copy `.env.example` and configure only the services enabled for the environment:
@@ -23,11 +28,12 @@ Copy `.env.example` and configure only the services enabled for the environment:
 ```text
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
-GOOGLE_OAUTH_REDIRECT_URI=https://api.example.com/integrations/google/callback
+GOOGLE_OAUTH_REDIRECT_URI=https://fluxradar.net/api/integrations/google/callback
 BING_OAUTH_CLIENT_ID=
 BING_OAUTH_CLIENT_SECRET=
-BING_OAUTH_REDIRECT_URI=https://api.example.com/integrations/bing/callback
+BING_OAUTH_REDIRECT_URI=https://fluxradar.net/api/integrations/bing/callback
 ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-5
 PAGESPEED_API_KEY=
 CRUX_API_KEY=
 HETZNER_S3_ENDPOINT=

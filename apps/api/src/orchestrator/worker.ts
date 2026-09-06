@@ -9,6 +9,7 @@ import type { PrismaClient } from '@prisma/client';
 import { requestRefund } from '../billing/refund.ts';
 import { resolveScanOutcome } from '../billing/resolve-outcome.ts';
 import { transitionScan } from '../billing/state-machine.ts';
+import { persistAnalyticsModule } from './analytics-module.ts';
 import { markResolvedAgainstPrevious } from './issue-sync.ts';
 import { modulePlanFor } from './module-plan.ts';
 import type { WorkerDeps } from './deps.ts';
@@ -171,6 +172,7 @@ async function processClaimedJob(
         }
 
         await persistUnavailableModules(prisma, scanId);
+        await persistAnalyticsModule(deps, scanId);
         if (outcome.kind === 'Completed') {
           await markResolvedAgainstPrevious(
             prisma,

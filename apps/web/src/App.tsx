@@ -31,25 +31,32 @@ import {
   type ScanModule,
   type SiteProfile,
 } from './api';
+import { GoogleDataPanel, googleSnapshotOf } from './GoogleDataPanel';
+import { GoogleProperties } from './GoogleProperties';
 import {
   normalizeWebsiteInput,
-  WEBSITE_INPUT_ERROR,
   WEBSITE_INPUT_HINT,
   WEBSITE_INPUT_LABEL,
   WEBSITE_INPUT_PLACEHOLDER,
 } from './website-input';
+import { copy, readStoredLanguage, storeLanguage, type Language } from './i18n';
+import { OnboardingTour } from './OnboardingTour';
+import { PlanCards, PlansScreen } from './PlansScreen';
+import { WorkspaceGuide } from './WorkspaceGuide';
 import './styles/base.css';
+
+const LIVE_CHECKOUT_ENABLED = import.meta.env.VITE_LIVE_CHECKOUT_ENABLED === 'true';
 
 type Screen =
   | 'home'
   | 'auth'
-  | 'onboarding'
   | 'desktop'
   | 'new-scan'
   | 'scan'
   | 'results'
   | 'issues'
   | 'integrations'
+  | 'plans'
   | 'privacy'
   | 'terms'
   | 'checks'
@@ -75,6 +82,7 @@ function readInitialRoute(): InitialRoute {
   if (path === '/privacy') return { screen: 'privacy', scanId: null, emailAction: null };
   if (path === '/terms') return { screen: 'terms', scanId: null, emailAction: null };
   if (path === '/checks') return { screen: 'checks', scanId: null, emailAction: null };
+  if (path === '/plans') return { screen: 'plans', scanId: null, emailAction: null };
   const scanMatch = /^\/scans\/([^/]+)$/.exec(path);
   if (scanMatch?.[1] !== undefined) {
     try {
@@ -114,7 +122,13 @@ export function App() {
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
+  const [language, setLanguage] = useState<Language>(readStoredLanguage);
+  const [tourOpen, setTourOpen] = useState(false);
   const updateSelectedScan = useCallback((scan: Scan) => setSelectedScan(scan), []);
+  const changeLanguage = useCallback((next: Language) => {
+    setLanguage(next);
+    storeLanguage(next);
+  }, []);
 
   useEffect(() => {
     const path = window.location.pathname.replace(/\/+$/, '') || '/';
@@ -126,13 +140,11 @@ export function App() {
       .then(async (value) => {
         setAccount(value);
         try {
-          const loadedProfiles = await loadProfiles(setProfiles);
-          if (
-            entryRoute.scanId === null &&
-            loadedProfiles.length === 0 &&
-            value.onboarding?.status === 'pending'
-          ) {
-            setScreen('onboarding');
+          if (entryRoute.screen === 'plans') return;
+          await loadProfiles(setProfiles);
+          if (entryRoute.scanId === null && value.onboarding?.status === 'pending') {
+            setScreen('desktop');
+            setTourOpen(true);
             return;
           }
           if (entryRoute.scanId !== null) {
@@ -164,7 +176,7 @@ export function App() {
         if (entryRoute.scanId !== null) setScreen('auth');
       })
       .finally(() => setBooting(false));
-  }, [entryRoute.scanId]);
+  }, [entryRoute.scanId, entryRoute.screen]);
 
   const restoreScan = async (scanId: string): Promise<void> => {
     try {
@@ -185,26 +197,31 @@ export function App() {
       setScreen('styleguide');
       return;
     }
+    // 'onboarding' is a virtual route: it opens the tour and lands on desktop.
+    if (next === 'onboarding') setTourOpen(true);
+    const requested = next === 'onboarding' ? 'desktop' : next;
     const valid: Screen = [
       'home',
       'auth',
-      'onboarding',
       'desktop',
       'new-scan',
       'scan',
       'results',
       'issues',
       'integrations',
+      'plans',
       'checks',
-    ].includes(next)
-      ? (next as Screen)
+    ].includes(requested)
+      ? (requested as Screen)
       : 'desktop';
     const scanPath =
       valid === 'checks'
         ? '/checks'
-        : scanId !== undefined && ['scan', 'results', 'issues'].includes(valid)
-          ? `/scans/${encodeURIComponent(scanId)}`
-          : '/';
+        : valid === 'plans'
+          ? '/plans'
+          : scanId !== undefined && ['scan', 'results', 'issues'].includes(valid)
+            ? `/scans/${encodeURIComponent(scanId)}`
+            : '/';
     window.history.replaceState(null, '', scanPath);
     setScreen(valid);
   };
@@ -213,26 +230,24 @@ export function App() {
     setEmailAction(null);
     setAccount(value);
     setError(null);
-    const loadedProfiles = await loadProfiles(setProfiles);
+    await loadProfiles(setProfiles);
     if (entryRoute.scanId !== null) {
       await restoreScan(entryRoute.scanId);
-    } else if (loadedProfiles.length === 0 && value.onboarding?.status === 'pending') {
-      navigate('onboarding');
     } else {
       navigate('desktop');
+      if (value.onboarding?.status === 'pending') setTourOpen(true);
     }
   };
 
-  const finishOnboarding = async (scan: Scan | null = null): Promise<void> => {
+  const finishOnboarding = async (): Promise<void> => {
     try {
       const updated = await apiRequest<Account>('/account/onboarding', {
         method: 'PATCH',
         body: JSON.stringify({ completed: true }),
       });
       setAccount(updated);
-      await loadProfiles(setProfiles);
-      if (scan !== null) onScanCreated(scan);
-      else navigate('desktop');
+      setTourOpen(false);
+      navigate('desktop');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Onboarding could not be saved');
     }
@@ -240,11 +255,15 @@ export function App() {
 
   const skipOnboarding = async (): Promise<void> => {
     try {
+      // The backend records `completed: false` as a durable "skipped" status
+      // (onboardingSkippedAt). Boot and sign-in only auto-open the tour for a
+      // 'pending' account, so a skipped tour never reappears on later logins.
       const updated = await apiRequest<Account>('/account/onboarding', {
         method: 'PATCH',
         body: JSON.stringify({ completed: false }),
       });
       setAccount(updated);
+      setTourOpen(false);
       navigate('desktop');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Onboarding could not be skipped');
@@ -257,24 +276,54 @@ export function App() {
   };
 
   if (screen === 'styleguide') {
-    return <Styleguide onNavigate={navigate} />;
+    return (
+      <Styleguide onNavigate={navigate} language={language} onLanguageChange={changeLanguage} />
+    );
   }
   if (screen === 'privacy' || screen === 'terms') {
-    return <LegalDocumentScreen kind={screen} />;
+    return (
+      <LegalDocumentScreen kind={screen} language={language} onLanguageChange={changeLanguage} />
+    );
   }
   if (screen === 'checks') {
-    return <AuditCoverageScreen />;
+    return <AuditCoverageScreen language={language} onLanguageChange={changeLanguage} />;
   }
   if (booting) {
     return (
       <div className="app-shell">
-        <MenuBar active="desktop" onNavigate={navigate} signedIn={false} />
+        <MenuBar
+          active="desktop"
+          onNavigate={navigate}
+          signedIn={false}
+          language={language}
+          onLanguageChange={changeLanguage}
+        />
         <div className="desktop">
           <Window title="Boot sequence" terminal>
             <LoadingState />
           </Window>
         </div>
       </div>
+    );
+  }
+  if (screen === 'plans') {
+    return (
+      <PlansScreen
+        language={language}
+        onLanguageChange={changeLanguage}
+        signedIn={account !== null}
+        onStart={() => {
+          if (account === null) {
+            setAuthMode('register');
+            setError(null);
+            navigate('auth');
+          } else {
+            navigate('desktop');
+          }
+        }}
+        onOpenWorkspace={() => navigate('desktop')}
+        onNavigate={navigate}
+      />
     );
   }
   if (account === null) {
@@ -300,6 +349,9 @@ export function App() {
         }}
         onOpenWorkspace={() => undefined}
         onOpenIntegrations={() => undefined}
+        onOpenPlans={() => navigate('plans')}
+        language={language}
+        onLanguageChange={changeLanguage}
         authOpen={screen === 'auth'}
         authAction={emailAction}
         authMode={authMode}
@@ -325,6 +377,9 @@ export function App() {
         onRegister={() => undefined}
         onOpenWorkspace={() => navigate('desktop')}
         onOpenIntegrations={() => navigate('integrations')}
+        onOpenPlans={() => navigate('plans')}
+        language={language}
+        onLanguageChange={changeLanguage}
         authOpen={false}
         authAction={null}
         authMode="login"
@@ -336,30 +391,20 @@ export function App() {
     );
   }
 
-  if (screen === 'onboarding') {
-    return (
-      <div className="app-shell">
-        <MenuBar active="desktop" onNavigate={navigate} signedIn />
-        <div className="desktop">
-          {error ? <AlertDialog message={error} onClose={() => setError(null)} /> : null}
-          <OnboardingScreen
-            onDone={finishOnboarding}
-            onSkip={() => void skipOnboarding()}
-            onError={setError}
-          />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="app-shell">
-      <MenuBar active={screen} onNavigate={navigate} signedIn />
+      <MenuBar
+        active={screen}
+        onNavigate={navigate}
+        signedIn
+        language={language}
+        onLanguageChange={changeLanguage}
+      />
       <div className="desktop">
         <header className="desktop__intro">
           <div>
             <h1>FluxRadar</h1>
-            <p>Unified public website audit station.</p>
+            <p>{copy[language].workspace.intro}</p>
           </div>
           <div className="button-row">
             <span className="technical">{account.email}</span>
@@ -390,7 +435,11 @@ export function App() {
               navigate('new-scan');
             }}
             onError={setError}
-            onOnboarding={() => navigate('onboarding')}
+            onOnboarding={() => {
+              setTourOpen(true);
+              navigate('desktop');
+            }}
+            language={language}
           />
         ) : null}
         {screen === 'new-scan' ? (
@@ -398,6 +447,7 @@ export function App() {
             profiles={profiles}
             selectedProfile={selectedProfile}
             internalFreeAccess={account.internalFreeAccess === true}
+            language={language}
             onCreated={onScanCreated}
             onClose={() => navigate('desktop')}
             onError={setError}
@@ -425,7 +475,14 @@ export function App() {
         ) : null}
         {screen === 'issues' ? <IssuesScreen scan={selectedScan} onError={setError} /> : null}
         {screen === 'integrations' ? (
-          <IntegrationsScreen onClose={() => navigate('desktop')} onError={setError} />
+          <IntegrationsScreen
+            profiles={profiles}
+            onClose={() => navigate('desktop')}
+            onError={setError}
+          />
+        ) : null}
+        {tourOpen && screen === 'desktop' ? (
+          <OnboardingTour language={language} onFinish={finishOnboarding} onSkip={skipOnboarding} />
         ) : null}
       </div>
     </div>
@@ -434,7 +491,11 @@ export function App() {
 
 type LegalDocumentKind = 'privacy' | 'terms';
 
-function LegalDocumentScreen(props: { kind: LegalDocumentKind }) {
+function LegalDocumentScreen(props: {
+  kind: LegalDocumentKind;
+  language: Language;
+  onLanguageChange: (language: Language) => void;
+}) {
   const isPrivacy = props.kind === 'privacy';
   useEffect(() => {
     const previousTitle = document.title;
@@ -450,8 +511,11 @@ function LegalDocumentScreen(props: { kind: LegalDocumentKind }) {
         active="home"
         onNavigate={(next) => {
           if (next === 'home') window.location.assign('/');
+          if (next === 'plans') window.location.assign('/plans');
         }}
         signedIn={false}
+        language={props.language}
+        onLanguageChange={props.onLanguageChange}
       />
       <main className="legal-main">
         <header className="legal-header">
@@ -757,15 +821,21 @@ function TermsOfService() {
 
 // ─── /checks — public audit coverage page ────────────────────────────────────
 
-function AuditCoverageScreen() {
+function AuditCoverageScreen(props: {
+  language: Language;
+  onLanguageChange: (language: Language) => void;
+}) {
   return (
     <div className="app-shell legal-shell">
       <MenuBar
         active="home"
         onNavigate={(next) => {
           if (next === 'home') window.location.assign('/');
+          if (next === 'plans') window.location.assign('/plans');
         }}
         signedIn={false}
+        language={props.language}
+        onLanguageChange={props.onLanguageChange}
       />
       <main className="legal-main" aria-labelledby="checks-title">
         <header className="legal-header">
@@ -808,8 +878,8 @@ function AuditCoverageScreen() {
           <article className="legal-document" aria-label="Audit coverage detail">
             <div className="legal-document__notice">
               <span>
-                <strong>READ-ONLY AUDIT</strong> · FluxRadar fetches only public HTTP responses.
-                No CMS login, SSH access, database credentials or source-code access is required or
+                <strong>READ-ONLY AUDIT</strong> · FluxRadar fetches only public HTTP responses. No
+                CMS login, SSH access, database credentials or source-code access is required or
                 requested.
               </span>
               <span>Applies to all scan tiers</span>
@@ -819,10 +889,10 @@ function AuditCoverageScreen() {
               <span className="legal-section__label">00 / HOW IT WORKS</span>
               <h2>What the scanner does</h2>
               <p>
-                FluxRadar makes ordinary HTTP(S) requests to your public website — the same
-                requests a browser or search-engine crawler would make — and records the responses.
-                It does not guess, estimate or infer. Every finding traces back to a byte in a
-                real HTTP response.
+                FluxRadar makes ordinary HTTP(S) requests to your public website — the same requests
+                a browser or search-engine crawler would make — and records the responses. It does
+                not guess, estimate or infer. Every finding traces back to a byte in a real HTTP
+                response.
               </p>
               <p>
                 The scanner respects <code>robots.txt</code> directives. For the free homepage check
@@ -849,12 +919,12 @@ function AuditCoverageScreen() {
                   (120–158 chars).
                 </li>
                 <li>
-                  <strong>Heading hierarchy</strong> — a single H1, logical H2/H3 nesting with
-                  no skipped levels.
+                  <strong>Heading hierarchy</strong> — a single H1, logical H2/H3 nesting with no
+                  skipped levels.
                 </li>
                 <li>
-                  <strong>Canonical URL</strong> — <code>&lt;link rel="canonical"&gt;</code>{' '}
-                  present and self-referencing on canonical pages.
+                  <strong>Canonical URL</strong> — <code>&lt;link rel="canonical"&gt;</code> present
+                  and self-referencing on canonical pages.
                 </li>
                 <li>
                   <strong>Indexing signals</strong> — <code>noindex</code> / <code>nofollow</code>{' '}
@@ -886,20 +956,20 @@ function AuditCoverageScreen() {
                   declared.
                 </li>
                 <li>
-                  <strong>Image alt text</strong> — non-decorative images missing{' '}
-                  <code>alt</code> attributes.
+                  <strong>Image alt text</strong> — non-decorative images missing <code>alt</code>{' '}
+                  attributes.
                 </li>
                 <li>
-                  <strong>Broken links</strong> — internal anchor <code>href</code> values
-                  returning 4xx/5xx within scope.
+                  <strong>Broken links</strong> — internal anchor <code>href</code> values returning
+                  4xx/5xx within scope.
                 </li>
                 <li>
-                  <strong>Redirect chains</strong> — 301/302 hops counted; chains longer than
-                  two hops flagged.
+                  <strong>Redirect chains</strong> — 301/302 hops counted; chains longer than two
+                  hops flagged.
                 </li>
                 <li>
-                  <strong>Page speed signals</strong> — server response time, uncompressed
-                  transfer size and HTTP/2 support as measurable proxies.
+                  <strong>Page speed signals</strong> — server response time, uncompressed transfer
+                  size and HTTP/2 support as measurable proxies.
                 </li>
                 <li>
                   <strong>HTTPS enforcement</strong> — HTTP-to-HTTPS redirect present, no mixed
@@ -919,32 +989,31 @@ function AuditCoverageScreen() {
               </p>
               <ul>
                 <li>
-                  <strong>AI crawler access</strong> — <code>robots.txt</code> is parsed for
-                  known AI crawler user-agent strings (GPTBot, Claude-Web, PerplexityBot,
-                  GoogleOther, BingBot and others). The report shows which crawlers are allowed,
-                  disallowed or missing an explicit rule.
+                  <strong>AI crawler access</strong> — <code>robots.txt</code> is parsed for known
+                  AI crawler user-agent strings (GPTBot, Claude-Web, PerplexityBot, GoogleOther,
+                  BingBot and others). The report shows which crawlers are allowed, disallowed or
+                  missing an explicit rule.
                 </li>
                 <li>
-                  <strong>LLMs.txt</strong> — checks for the emerging{' '}
-                  <code>/llms.txt</code> convention, which signals AI-friendly content
-                  structure to language models.
+                  <strong>LLMs.txt</strong> — checks for the emerging <code>/llms.txt</code>{' '}
+                  convention, which signals AI-friendly content structure to language models.
                 </li>
                 <li>
-                  <strong>Structured data for AI comprehension</strong> — JSON-LD types that
-                  help AI systems build entity graphs (Organization, Product, FAQPage,
-                  HowTo, Article, BreadcrumbList) are flagged when absent.
+                  <strong>Structured data for AI comprehension</strong> — JSON-LD types that help AI
+                  systems build entity graphs (Organization, Product, FAQPage, HowTo, Article,
+                  BreadcrumbList) are flagged when absent.
                 </li>
                 <li>
                   <strong>Content clarity signals</strong> — heading density, paragraph length
-                  distribution and readability score (Flesch-Kincaid) measured from the
-                  extracted main content.
+                  distribution and readability score (Flesch-Kincaid) measured from the extracted
+                  main content.
                 </li>
                 <li>
-                  <strong>Provider visibility (optional, consent-gated)</strong> — the AI SEO
-                  module can query provider APIs to check whether your brand appears in
-                  AI-generated answers. This step runs only when you explicitly enable it in the
-                  scan settings and is never included in the free homepage check. Provider API
-                  calls are subject to the providers' own terms.
+                  <strong>Provider visibility (optional, consent-gated)</strong> — the AI SEO module
+                  can query provider APIs to check whether your brand appears in AI-generated
+                  answers. This step runs only when you explicitly enable it in the scan settings
+                  and is never included in the free homepage check. Provider API calls are subject
+                  to the providers' own terms.
                 </li>
               </ul>
             </section>
@@ -960,41 +1029,40 @@ function AuditCoverageScreen() {
               </p>
               <ul>
                 <li>
-                  <strong>Transport security</strong> — TLS version (TLS 1.2+ required), HSTS
-                  header present with <code>max-age ≥ 31536000</code> and{' '}
-                  <code>includeSubDomains</code> flag. Maps to ASVS 9.1.
+                  <strong>Transport security</strong> — TLS version (TLS 1.2+ required), HSTS header
+                  present with <code>max-age ≥ 31536000</code> and <code>includeSubDomains</code>{' '}
+                  flag. Maps to ASVS 9.1.
                 </li>
                 <li>
                   <strong>Security headers</strong> — <code>Content-Security-Policy</code>,{' '}
                   <code>X-Frame-Options</code> (or CSP <code>frame-ancestors</code>),{' '}
-                  <code>X-Content-Type-Options: nosniff</code>,{' '}
-                  <code>Referrer-Policy</code>, <code>Permissions-Policy</code>. Maps to ASVS 14.4.
+                  <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy</code>,{' '}
+                  <code>Permissions-Policy</code>. Maps to ASVS 14.4.
                 </li>
                 <li>
-                  <strong>Cookie flags</strong> — cookies set on the homepage response are
-                  checked for <code>HttpOnly</code>, <code>Secure</code> and{' '}
-                  <code>SameSite</code> attributes. Maps to ASVS 3.4.
+                  <strong>Cookie flags</strong> — cookies set on the homepage response are checked
+                  for <code>HttpOnly</code>, <code>Secure</code> and <code>SameSite</code>{' '}
+                  attributes. Maps to ASVS 3.4.
                 </li>
                 <li>
                   <strong>Information disclosure</strong> — server version strings in{' '}
-                  <code>Server</code> / <code>X-Powered-By</code> headers, verbose error messages
-                  in HTML, directory listing indicators. Maps to ASVS 14.3.
+                  <code>Server</code> / <code>X-Powered-By</code> headers, verbose error messages in
+                  HTML, directory listing indicators. Maps to ASVS 14.3.
                 </li>
                 <li>
                   <strong>Mixed content</strong> — HTTP resources (scripts, stylesheets, images)
                   embedded in an HTTPS page. Maps to ASVS 9.1.
                 </li>
                 <li>
-                  <strong>Subresource Integrity</strong> — third-party{' '}
-                  <code>&lt;script&gt;</code> and <code>&lt;link&gt;</code> tags checked for{' '}
-                  <code>integrity</code> attribute presence. Maps to ASVS 14.2.
+                  <strong>Subresource Integrity</strong> — third-party <code>&lt;script&gt;</code>{' '}
+                  and <code>&lt;link&gt;</code> tags checked for <code>integrity</code> attribute
+                  presence. Maps to ASVS 14.2.
                 </li>
               </ul>
               <p>
-                Findings are classified as <em>signal present</em> or{' '}
-                <em>signal absent</em> — not as confirmed vulnerabilities. A missing header is
-                evidence that a defensive control is not deployed, not proof that the site is
-                exploitable.
+                Findings are classified as <em>signal present</em> or <em>signal absent</em> — not
+                as confirmed vulnerabilities. A missing header is evidence that a defensive control
+                is not deployed, not proof that the site is exploitable.
               </p>
             </section>
 
@@ -1003,41 +1071,41 @@ function AuditCoverageScreen() {
               <h2>Accessibility — WCAG 2.2 AA / EN 301 549 / Section 508</h2>
               <p>
                 Automated DOM checks cover the machine-verifiable subset of{' '}
-                <strong>WCAG 2.2 Level AA</strong>. WCAG 2.2 AA is a superset of the WCAG
-                chapters referenced by{' '}
-                <strong>EN 301 549</strong> (EU, chapter 9 references WCAG 2.1) and{' '}
-                <strong>Section 508</strong> (US federal, incorporates WCAG 2.0 AA). Note that
-                both standards include non-WCAG functional requirements that automated DOM
-                scanning does not cover.
-                Automated tools can verify approximately 30–40 % of WCAG criteria; the remaining
-                criteria require human judgement or assistive-technology testing.
+                <strong>WCAG 2.2 Level AA</strong>. WCAG 2.2 AA is a superset of the WCAG chapters
+                referenced by <strong>EN 301 549</strong> (EU, chapter 9 references WCAG 2.1) and{' '}
+                <strong>Section 508</strong> (US federal, incorporates WCAG 2.0 AA). Note that both
+                standards include non-WCAG functional requirements that automated DOM scanning does
+                not cover. Automated tools can verify approximately 30–40 % of WCAG criteria; the
+                remaining criteria require human judgement or assistive-technology testing.
               </p>
               <ul>
                 <li>
-                  <strong>Perceivable (WCAG 2.2 Principle 1)</strong> — missing image alt text (1.1.1),
-                  colour-contrast ratio ≥ 4.5:1 for normal text and ≥ 3:1 for large text measured
-                  from computed CSS (1.4.3), absence of auto-playing media with audio (1.4.2).
+                  <strong>Perceivable (WCAG 2.2 Principle 1)</strong> — missing image alt text
+                  (1.1.1), colour-contrast ratio ≥ 4.5:1 for normal text and ≥ 3:1 for large text
+                  measured from computed CSS (1.4.3), absence of auto-playing media with audio
+                  (1.4.2).
                 </li>
                 <li>
-                  <strong>Operable (WCAG 2.2 Principle 2)</strong> — interactive elements reachable by
-                  keyboard in source order (2.1.1), skip-navigation link present (2.4.1), page
+                  <strong>Operable (WCAG 2.2 Principle 2)</strong> — interactive elements reachable
+                  by keyboard in source order (2.1.1), skip-navigation link present (2.4.1), page
                   <code>&lt;title&gt;</code> descriptive (2.4.2), link purpose from text (2.4.4).
                 </li>
                 <li>
-                  <strong>Understandable (WCAG 2.2 Principle 3)</strong> — <code>&lt;html lang&gt;</code>{' '}
-                  attribute present and valid (3.1.1), form <code>&lt;label&gt;</code> elements
-                  properly associated (3.3.2), error identification markup (3.3.1).
+                  <strong>Understandable (WCAG 2.2 Principle 3)</strong> —{' '}
+                  <code>&lt;html lang&gt;</code> attribute present and valid (3.1.1), form{' '}
+                  <code>&lt;label&gt;</code> elements properly associated (3.3.2), error
+                  identification markup (3.3.1).
                 </li>
                 <li>
-                  <strong>Robust (WCAG 2.2 Principle 4)</strong> — valid HTML (4.1.1), ARIA roles and
-                  properties correctly applied (4.1.2), status messages using appropriate live
+                  <strong>Robust (WCAG 2.2 Principle 4)</strong> — valid HTML (4.1.1), ARIA roles
+                  and properties correctly applied (4.1.2), status messages using appropriate live
                   regions (4.1.3).
                 </li>
               </ul>
               <p>
                 Each accessibility finding includes the WCAG criterion reference, the failing
-                element selector and the specific rule that was violated, so you can reproduce
-                the finding without re-running the scan.
+                element selector and the specific rule that was violated, so you can reproduce the
+                finding without re-running the scan.
               </p>
               <p>
                 <strong>What automated checks cannot assess:</strong> keyboard trap behaviour in
@@ -1069,20 +1137,20 @@ function AuditCoverageScreen() {
                   <code>br</code> present on text responses.
                 </li>
                 <li>
-                  <strong>HTTP/2 or HTTP/3</strong> — protocol version recorded; HTTP/1.1-only
-                  sites flagged.
+                  <strong>HTTP/2 or HTTP/3</strong> — protocol version recorded; HTTP/1.1-only sites
+                  flagged.
                 </li>
                 <li>
-                  <strong>Cache headers</strong> — <code>Cache-Control</code> and{' '}
-                  <code>ETag</code> / <code>Last-Modified</code> presence on static assets.
+                  <strong>Cache headers</strong> — <code>Cache-Control</code> and <code>ETag</code>{' '}
+                  / <code>Last-Modified</code> presence on static assets.
                 </li>
                 <li>
-                  <strong>Uptime signal</strong> — HTTP status recorded for every URL in scope.
-                  5xx responses and connection timeouts are flagged as reliability issues.
+                  <strong>Uptime signal</strong> — HTTP status recorded for every URL in scope. 5xx
+                  responses and connection timeouts are flagged as reliability issues.
                 </li>
                 <li>
-                  <strong>Redirect economy</strong> — total redirect hops from the canonical
-                  entry URL; each hop adds latency for real users and crawlers.
+                  <strong>Redirect economy</strong> — total redirect hops from the canonical entry
+                  URL; each hop adds latency for real users and crawlers.
                 </li>
               </ul>
             </section>
@@ -1108,18 +1176,17 @@ function AuditCoverageScreen() {
                   domains listed in the report.
                 </li>
                 <li>
-                  <strong>Privacy policy link</strong> — a link whose text or destination suggests
-                  a privacy or cookie policy is present in the page or footer.
+                  <strong>Privacy policy link</strong> — a link whose text or destination suggests a
+                  privacy or cookie policy is present in the page or footer.
                 </li>
                 <li>
                   <strong>Do Not Track / GPC signal support</strong> — whether the site sets{' '}
-                  <code>Sec-GPC</code> acknowledgement headers or publishes a GPC support
-                  statement.
+                  <code>Sec-GPC</code> acknowledgement headers or publishes a GPC support statement.
                 </li>
                 <li>
-                  <strong>Cookie first-load audit</strong> — cookies set before any user
-                  interaction are recorded. Cookies with no <code>SameSite</code> attribute or
-                  marked as cross-site are highlighted.
+                  <strong>Cookie first-load audit</strong> — cookies set before any user interaction
+                  are recorded. Cookies with no <code>SameSite</code> attribute or marked as
+                  cross-site are highlighted.
                 </li>
               </ul>
             </section>
@@ -1127,13 +1194,17 @@ function AuditCoverageScreen() {
             <section id="checks-evidence" className="legal-section">
               <span className="legal-section__label">07 / EVIDENCE</span>
               <h2>How findings are evidenced</h2>
-              <p>
-                Every issue in the Issue Center includes:
-              </p>
+              <p>Every issue in the Issue Center includes:</p>
               <ul>
                 <li>The URL on which the finding was observed.</li>
-                <li>The specific HTTP response field (header name, HTML selector or attribute) that triggered the rule.</li>
-                <li>The actual value observed (truncated for display; the full value is in the JSON export).</li>
+                <li>
+                  The specific HTTP response field (header name, HTML selector or attribute) that
+                  triggered the rule.
+                </li>
+                <li>
+                  The actual value observed (truncated for display; the full value is in the JSON
+                  export).
+                </li>
                 <li>The rule ID and the standard or guideline it maps to.</li>
                 <li>A recommended remediation step.</li>
               </ul>
@@ -1156,10 +1227,10 @@ function AuditCoverageScreen() {
                   your site is fully accessible or legally compliant.
                 </li>
                 <li>
-                  <strong>It cannot certify ASVS compliance.</strong> Security findings reflect
-                  the observable public surface only. Authenticated pages, server-side logic,
-                  database access, dependency vulnerabilities and infrastructure configuration are
-                  outside scope.
+                  <strong>It cannot certify ASVS compliance.</strong> Security findings reflect the
+                  observable public surface only. Authenticated pages, server-side logic, database
+                  access, dependency vulnerabilities and infrastructure configuration are outside
+                  scope.
                 </li>
                 <li>
                   <strong>It cannot certify GDPR, ePrivacy or CCPA compliance.</strong> Privacy
@@ -1207,7 +1278,11 @@ function AuditCoverageScreen() {
 
 // ─── /integrations ────────────────────────────────────────────────────────────
 
-function IntegrationsScreen(props: { onClose: () => void; onError: (value: string) => void }) {
+function IntegrationsScreen(props: {
+  profiles: readonly SiteProfile[];
+  onClose: () => void;
+  onError: (value: string) => void;
+}) {
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
@@ -1228,7 +1303,8 @@ function IntegrationsScreen(props: { onClose: () => void; onError: (value: strin
     void load();
     const result = new URLSearchParams(window.location.search).get('result');
     const message = new URLSearchParams(window.location.search).get('message');
-    if (result === 'connected') setNotice('Integration connected. The next scan can use its data.');
+    if (result === 'connected')
+      setNotice('Google is connected. Choose which properties this website reports on below.');
     if (result === 'error') setNotice(message ?? 'The integration could not be connected.');
   }, [load]);
 
@@ -1336,24 +1412,20 @@ function IntegrationsScreen(props: { onClose: () => void; onError: (value: strin
             </div>
           ))}
         </div>
+        <GoogleProperties
+          profiles={props.profiles}
+          connected={integrations.some(
+            (integration) => integration.provider === 'google' && integration.status === 'connected',
+          )}
+          onError={props.onError}
+        />
         <Panel title="Current policy">
           <p className="muted integration-policy">
             Google and Bing connections are read-only. FluxRadar requests no CMS credentials and
-            never changes a client site. Anthropic and Hetzner S3 are platform services configured
-            by FluxLab.
+            never changes a client site. Public-site scans continue to work without either
+            connection.
           </p>
         </Panel>
-      </Window>
-      <Window title="Deferred integrations">
-        <div className="integration-deferred">
-          <span>ROADMAP / LATER</span>
-          <strong>Cloudflare</strong>
-          <strong>WordPress</strong>
-          <p>
-            Kept outside the current release scope. They will be added as separate read-only
-            connections.
-          </p>
-        </div>
       </Window>
     </div>
   );
@@ -1560,6 +1632,9 @@ function HomeScreen(props: {
   onRegister: () => void;
   onOpenWorkspace: () => void;
   onOpenIntegrations: () => void;
+  onOpenPlans: () => void;
+  language: Language;
+  onLanguageChange: (language: Language) => void;
   authOpen: boolean;
   authAction: { readonly kind: 'verify' | 'reset'; readonly token: string } | null;
   authMode: 'login' | 'register';
@@ -1569,6 +1644,7 @@ function HomeScreen(props: {
   onCloseAuth: () => void;
 }) {
   const authDialogRef = useRef<HTMLDivElement>(null);
+  const t = copy[props.language];
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ block: 'start' });
   useEffect(() => {
     if (!props.authOpen) return undefined;
@@ -1613,25 +1689,29 @@ function HomeScreen(props: {
               ? props.onOpenWorkspace()
               : next === 'integrations'
                 ? props.onOpenIntegrations()
-                : undefined
+                : next === 'plans'
+                  ? props.onOpenPlans()
+                  : undefined
         }
         signedIn={props.signedIn}
+        language={props.language}
+        onLanguageChange={props.onLanguageChange}
       />
       <main className="home" id="top">
         <div className="home__account-bar">
-          <span className="home__account-label">FLUXRADAR / PUBLIC WEB AUDIT STATION</span>
+          <span className="home__account-label">{t.home.accountBar}</span>
           {props.signedIn ? (
             <div className="home__account-actions">
               <span className="home__account-email technical">{props.accountEmail}</span>
               <Button variant="primary" onClick={props.onOpenWorkspace}>
-                Open workspace
+                {t.home.openWorkspace}
               </Button>
             </div>
           ) : (
             <div className="home__account-actions">
-              <Button onClick={props.onLogin}>Sign in</Button>
+              <Button onClick={props.onLogin}>{t.home.signIn}</Button>
               <Button variant="primary" onClick={props.onRegister}>
-                Create account
+                {t.home.createAccount}
               </Button>
             </div>
           )}
@@ -1639,145 +1719,124 @@ function HomeScreen(props: {
         <section className="home__hero" aria-labelledby="home-title">
           <div className="home__hero-copy">
             <div className="home__eyebrow">
-              <span className="home__eyebrow-index">01</span> FLUXLAB / PUBLIC WEB AUDIT STATION
+              <span className="home__eyebrow-index">01</span> {t.home.hero.eyebrow}
             </div>
             <h1 id="home-title">
-              One URL.
+              {t.home.hero.titleLine1}
               <br />
-              <em>Every signal.</em>
+              <em>{t.home.hero.titleEm}</em>
             </h1>
-            <p className="home__lede">
-              FluxRadar turns a public website into one clear operating picture: search visibility,
-              AI discoverability, technical integrity and the issues worth fixing first.
-            </p>
+            <p className="home__lede">{t.home.hero.lede}</p>
             <div className="home__actions">
               <Button variant="primary" onClick={props.onStart}>
-                Run a free homepage check
+                {t.home.freeCta}
               </Button>
               <button
                 className="home__text-action"
                 type="button"
                 onClick={() => scrollTo('pricing')}
               >
-                Compare plans <span aria-hidden="true">↓</span>
+                {t.home.comparePlans} <span aria-hidden="true">↓</span>
               </button>
             </div>
-            <div className="home__proof" aria-label="Product highlights">
+            <div className="home__proof" aria-label={t.home.hero.proofAriaLabel}>
               <span>
-                <strong>01</strong> homepage check
+                <strong>01</strong> {t.home.hero.proofScan}
               </span>
               <span>
-                <strong>06</strong> audit signals
+                <strong>06</strong> {t.home.hero.proofSignals}
               </span>
               <span>
-                <strong>02</strong> paid report tiers
+                <strong>02</strong> {t.home.hero.proofTiers}
               </span>
             </div>
           </div>
-          <div className="home__instrument" aria-label="FluxRadar audit preview">
+          <div className="home__instrument" aria-label={t.home.instrument.previewAriaLabel}>
             <div className="home__instrument-bar">
-              <span className="home__live-dot" /> LIVE AUDIT PREVIEW{' '}
-              <span className="home__instrument-mode">READ ONLY</span>
+              <span className="home__live-dot" /> {t.home.instrument.live}{' '}
+              <span className="home__instrument-mode">{t.home.instrument.mode}</span>
             </div>
             <div className="home__instrument-body">
               <div className="home__origin">
-                <span className="home__label">PUBLIC ORIGIN</span>
+                <span className="home__label">{t.home.instrument.originLabel}</span>
                 <strong className="technical">https://your-site.com</strong>
-                <StatusChip status="Running" />
+                <StatusChip status="Running" label={t.home.instrument.statusRunning} />
               </div>
               <div className="home__readout">
                 <div className="home__readout-cell">
-                  <span className="home__label">SIGNAL SCORE</span>
+                  <span className="home__label">{t.home.instrument.signalScore}</span>
                   <strong>—</strong>
-                  <small>your result after scan</small>
+                  <small>{t.home.instrument.signalScoreHint}</small>
                 </div>
                 <div className="home__readout-cell">
-                  <span className="home__label">COVERAGE</span>
+                  <span className="home__label">{t.home.instrument.coverage}</span>
                   <strong>—</strong>
-                  <small>measured per scan</small>
+                  <small>{t.home.instrument.coverageHint}</small>
                 </div>
                 <div className="home__readout-cell">
-                  <span className="home__label">FINDINGS</span>
+                  <span className="home__label">{t.home.instrument.findings}</span>
                   <strong>—</strong>
-                  <small>evidence-backed findings</small>
+                  <small>{t.home.instrument.findingsHint}</small>
                 </div>
               </div>
-              <Terminal
-                lines={[
-                  'scope homepage + public links',
-                  'seo       16 checks · complete',
-                  'ai seo    public readiness · ready',
-                  'security  ASVS public profile · queued',
-                ]}
-                active
-              />
-              <div className="home__module-list" aria-label="Audit modules">
+              <Terminal lines={[...t.home.instrument.terminalLines]} active />
+              <div className="home__module-list" aria-label={t.home.instrument.modulesAriaLabel}>
                 <span>
-                  <i className="home__module-mark home__module-mark--green" /> SEO
+                  <i className="home__module-mark home__module-mark--green" />{' '}
+                  {t.home.instrument.moduleSeo}
                 </span>
                 <span>
-                  <i className="home__module-mark home__module-mark--cyan" /> AI SEO / GEO
+                  <i className="home__module-mark home__module-mark--cyan" />{' '}
+                  {t.home.instrument.moduleAiSeo}
                 </span>
                 <span>
-                  <i className="home__module-mark home__module-mark--amber" /> Security
+                  <i className="home__module-mark home__module-mark--amber" />{' '}
+                  {t.home.instrument.moduleSecurity}
                 </span>
                 <span>
-                  <i className="home__module-mark home__module-mark--dim" /> 03 more signals
+                  <i className="home__module-mark home__module-mark--dim" />{' '}
+                  {t.home.instrument.moduleMore}
                 </span>
               </div>
             </div>
           </div>
         </section>
 
-        <div className="home__ticker" aria-label="FluxRadar audit coverage">
-          <span>SEO</span>
-          <span>AI SEO / GEO</span>
-          <span>SECURITY</span>
-          <span>ACCESSIBILITY</span>
-          <span>RELIABILITY</span>
-          <span>PRIVACY</span>
+        <div className="home__ticker" aria-label={t.home.ticker.ariaLabel}>
+          <span>{t.home.ticker.seo}</span>
+          <span>{t.home.ticker.aiSeo}</span>
+          <span>{t.home.ticker.security}</span>
+          <span>{t.home.ticker.accessibility}</span>
+          <span>{t.home.ticker.reliability}</span>
+          <span>{t.home.ticker.privacy}</span>
         </div>
 
         <section className="home__section" id="capabilities" aria-labelledby="capabilities-title">
           <div className="home__section-head">
             <div className="home__eyebrow">
-              <span className="home__eyebrow-index">02</span> WHAT FLUXRADAR READS
+              <span className="home__eyebrow-index">02</span> {t.home.capabilities.eyebrow}
             </div>
-            <h2 id="capabilities-title">A website is more than a ranking.</h2>
-            <p>
-              Get one report for the signals that shape how people, crawlers and AI systems
-              experience your site.
-            </p>
+            <h2 id="capabilities-title">{t.home.capabilities.title}</h2>
+            <p>{t.home.capabilities.lead}</p>
           </div>
           <div className="home__capability-grid">
             <article className="home__capability home__capability--green">
-              <span className="home__card-index">A / SEARCH</span>
-              <h3>SEO visibility</h3>
-              <p>
-                Titles, descriptions, headings, canonicals, indexing and the technical details that
-                help search engines understand your pages.
-              </p>
-              <span className="home__card-foot">16 deterministic checks · JSON-LD preview</span>
+              <span className="home__card-index">{t.home.capabilities.seo.index}</span>
+              <h3>{t.home.capabilities.seo.title}</h3>
+              <p>{t.home.capabilities.seo.body}</p>
+              <span className="home__card-foot">{t.home.capabilities.seo.foot}</span>
             </article>
             <article className="home__capability home__capability--cyan">
-              <span className="home__card-index">B / AI SYSTEMS</span>
-              <h3>AI SEO / GEO</h3>
-              <p>
-                See whether your brand and site are discoverable by AI systems, with public crawler
-                readiness plus consent-aware provider checks.
-              </p>
-              <span className="home__card-foot">
-                Public readiness · provider visibility optional
-              </span>
+              <span className="home__card-index">{t.home.capabilities.ai.index}</span>
+              <h3>{t.home.capabilities.ai.title}</h3>
+              <p>{t.home.capabilities.ai.body}</p>
+              <span className="home__card-foot">{t.home.capabilities.ai.foot}</span>
             </article>
             <article className="home__capability home__capability--amber">
-              <span className="home__card-index">C / INTEGRITY</span>
-              <h3>Site health</h3>
-              <p>
-                OWASP ASVS public signals, WCAG mappings, reliability, content quality and privacy —
-                scored with honest coverage states.
-              </p>
-              <span className="home__card-foot">No false certainty</span>
+              <span className="home__card-index">{t.home.capabilities.integrity.index}</span>
+              <h3>{t.home.capabilities.integrity.title}</h3>
+              <p>{t.home.capabilities.integrity.body}</p>
+              <span className="home__card-foot">{t.home.capabilities.integrity.foot}</span>
             </article>
           </div>
         </section>
@@ -1785,16 +1844,12 @@ function HomeScreen(props: {
         <section className="home__coverage-entry" aria-labelledby="coverage-entry-title">
           <div className="home__coverage-entry-inner">
             <div className="home__eyebrow">
-              <span className="home__eyebrow-index">02b</span> EXACTLY WHAT WE CHECK
+              <span className="home__eyebrow-index">02b</span> {t.home.coverageEntry.eyebrow}
             </div>
-            <h2 id="coverage-entry-title">Every check. Every standard. No surprises.</h2>
-            <p>
-              16 SEO checks, AI crawler readiness, OWASP ASVS public signals, WCAG 2.2 AA /
-              EN 301 549 / Section 508 accessibility rules, performance signals and privacy /
-              consent detection — all sourced from public HTTP responses, no credentials needed.
-            </p>
+            <h2 id="coverage-entry-title">{t.home.coverageEntry.title}</h2>
+            <p>{t.home.coverageEntry.body}</p>
             <a className="home__coverage-link" href="/checks">
-              Read the full audit coverage →
+              {t.plans.coverageLink}
             </a>
           </div>
         </section>
@@ -1802,35 +1857,32 @@ function HomeScreen(props: {
         <section className="home__workflow" aria-labelledby="workflow-title">
           <div className="home__workflow-copy">
             <div className="home__eyebrow">
-              <span className="home__eyebrow-index">03</span> THE OPERATING LOOP
+              <span className="home__eyebrow-index">03</span> {t.home.workflow.eyebrow}
             </div>
-            <h2 id="workflow-title">From public URL to prioritized work.</h2>
-            <p>
-              No access to your CMS, analytics or source code required. Start with what anyone on
-              the web can see.
-            </p>
-            <Button onClick={props.onStart}>Start with a public site</Button>
+            <h2 id="workflow-title">{t.home.workflow.title}</h2>
+            <p>{t.home.workflow.lead}</p>
+            <Button onClick={props.onStart}>{t.home.startPublicSite}</Button>
           </div>
           <div className="home__steps">
             <div className="home__step">
               <strong>01</strong>
               <div>
-                <h3>Choose an origin</h3>
-                <p>Enter one HTTPS website and define how deep the crawl should go.</p>
+                <h3>{t.home.workflow.step1Title}</h3>
+                <p>{t.home.workflow.step1Body}</p>
               </div>
             </div>
             <div className="home__step">
               <strong>02</strong>
               <div>
-                <h3>Run the station</h3>
-                <p>FluxRadar crawls public pages and records evidence behind every finding.</p>
+                <h3>{t.home.workflow.step2Title}</h3>
+                <p>{t.home.workflow.step2Body}</p>
               </div>
             </div>
             <div className="home__step">
               <strong>03</strong>
               <div>
-                <h3>Fix what matters</h3>
-                <p>Open the Issue Center, assign a status and export the Complete report.</p>
+                <h3>{t.home.workflow.step3Title}</h3>
+                <p>{t.home.workflow.step3Body}</p>
               </div>
             </div>
           </div>
@@ -1839,63 +1891,37 @@ function HomeScreen(props: {
         <section className="home__pricing" id="pricing" aria-labelledby="pricing-title">
           <div className="home__section-head">
             <div className="home__eyebrow">
-              <span className="home__eyebrow-index">04</span> PAY PER SCAN
+              <span className="home__eyebrow-index">04</span> {t.home.pricingEyebrow}
             </div>
-            <h2 id="pricing-title">Buy the answer you need.</h2>
-            <p>One scan, one clear result. No monthly quota and no recurring subscription.</p>
+            <h2 id="pricing-title">{t.home.plansTitle}</h2>
+            <p>{t.home.plansLead}</p>
           </div>
-          <div className="home__pricing-grid">
-            <article className="home__plan home__plan--free">
-              <span className="home__card-index">FREE / FIRST LOOK</span>
-              <h3>Homepage check</h3>
-              <div className="home__price">$0</div>
-              <p>
-                One limited check for title, headings, description and indexing on your homepage.
-              </p>
-              <Button onClick={props.onStart}>Try free</Button>
-            </article>
-            <article className="home__plan home__plan--basic">
-              <span className="home__card-index">BASIC / FOCUSED</span>
-              <h3>SEO + AI SEO / GEO</h3>
-              <div className="home__price">$55</div>
-              <p>Public-site SEO analysis plus AI visibility checks with one actionable report.</p>
-              <Button variant="primary" onClick={props.onStart}>
-                Choose Basic
-              </Button>
-            </article>
-            <article className="home__plan home__plan--complete">
-              <span className="home__card-index">COMPLETE / FULL SIGNAL</span>
-              <h3>Unified audit</h3>
-              <div className="home__price">$120</div>
-              <p>All available audit modules, Issue Center, history and JSON/CSV export.</p>
-              <Button onClick={props.onStart}>Choose Complete</Button>
-            </article>
-          </div>
+          <PlanCards language={props.language} onChoose={props.onStart} compact />
         </section>
 
         <section className="home__last-call" aria-labelledby="last-call-title">
           <div>
             <div className="home__eyebrow">
-              <span className="home__eyebrow-index">05</span> READY WHEN YOU ARE
+              <span className="home__eyebrow-index">05</span> {t.home.lastCall.eyebrow}
             </div>
             <h2 id="last-call-title">
-              Start with the site
+              {t.home.lastCall.titleLine1}
               <br />
-              <em>you already have.</em>
+              <em>{t.home.lastCall.titleEm}</em>
             </h2>
           </div>
           <Button variant="primary" onClick={props.onStart}>
-            Run a free check <span aria-hidden="true">→</span>
+            {t.home.lastCall.cta} <span aria-hidden="true">→</span>
           </Button>
         </section>
         <footer className="home__footer">
-          <span>FLUXRADAR / BY FLUXLAB</span>
+          <span>{t.home.footer.brand}</span>
           <span className="home__footer-links">
-            <a href="/checks">Audit coverage</a>
-            <a href="/privacy">Privacy policy</a>
-            <a href="/terms">Terms of service</a>
-            <a href="/blog">Field notes</a>
-            <span>PUBLIC WEB AUDIT STATION · v0.1</span>
+            <a href="/checks">{t.home.footer.coverageLink}</a>
+            <a href="/privacy">{t.home.footer.privacyLink}</a>
+            <a href="/terms">{t.home.footer.termsLink}</a>
+            <a href="/blog">{t.home.footer.fieldNotes}</a>
+            <span>{t.nav.system}</span>
           </span>
         </footer>
       </main>
@@ -1935,7 +1961,9 @@ function DesktopScreen(props: {
   onNewScan: (profile: SiteProfile) => void;
   onError: (value: string) => void;
   onOnboarding: () => void;
+  language: Language;
 }) {
+  const t = copy[props.language];
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
   const [domainError, setDomainError] = useState<string | null>(null);
@@ -1964,255 +1992,105 @@ function DesktopScreen(props: {
     }
   };
   return (
-    <div className="desktop__grid">
-      <Window title="Site Profiles">
-        <Panel title="Registered public origins">
-          <div>
-            {props.profiles.length === 0 ? (
-              <EmptyState
-                title="No public sites yet"
-                action={
-                  <Button
-                    variant="primary"
-                    onClick={() =>
-                      document
-                        .querySelector<HTMLInputElement>('input[placeholder="Product website"]')
-                        ?.focus()
-                    }
-                  >
-                    Add site
-                  </Button>
-                }
-              />
-            ) : (
-              props.profiles.map((profile) => (
-                <div className="profile-row" key={profile.id}>
-                  <div>
-                    <strong>{profile.name}</strong>
-                    <span className="profile-row__domain">{profile.domain}</span>
-                  </div>
-                  <div className="profile-row__actions">
-                    <Button onClick={() => props.onNewScan(profile)} variant="primary">
-                      New scan
+    <div className="stack">
+      <WorkspaceGuide language={props.language} />
+      <div className="desktop__grid">
+        <Window title={t.workspace.sites}>
+          <Panel title={t.workspace.registered}>
+            <div>
+              {props.profiles.length === 0 ? (
+                <EmptyState
+                  title={t.workspace.noSites}
+                  description={t.workspace.noSitesHelp}
+                  action={
+                    <Button
+                      variant="primary"
+                      onClick={() =>
+                        document
+                          .querySelector<HTMLInputElement>(
+                            '[data-tour-target="profile-domain"] input',
+                          )
+                          ?.focus()
+                      }
+                    >
+                      {t.workspace.addSite}
                     </Button>
-                    <Button onClick={() => props.onSelectProfile(profile)}>Inspect</Button>
+                  }
+                />
+              ) : (
+                props.profiles.map((profile) => (
+                  <div className="profile-row" key={profile.id}>
+                    <div>
+                      <strong>{profile.name}</strong>
+                      <span className="profile-row__domain">{profile.domain}</span>
+                    </div>
+                    <div className="profile-row__actions">
+                      <Button onClick={() => props.onNewScan(profile)} variant="primary">
+                        {t.workspace.newScan}
+                      </Button>
+                      <Button onClick={() => props.onSelectProfile(profile)}>
+                        {t.workspace.inspect}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
-        </Panel>
-        <Panel title="Add site">
-          <form className="stack" onSubmit={create}>
-            <Field
-              label="Display name"
-              value={name}
-              onChange={setName}
-              placeholder="Product website"
-            />
-            <Field
-              label={WEBSITE_INPUT_LABEL}
-              value={domain}
-              onChange={(value) => {
-                setDomain(value);
-                if (domainError !== null) setDomainError(null);
-              }}
-              placeholder={WEBSITE_INPUT_PLACEHOLDER}
-              hint={WEBSITE_INPUT_HINT}
-              error={domainError ?? undefined}
-            />
-            <Button type="submit" variant="primary" disabled={busy || name.trim() === ''}>
-              {busy ? 'Saving…' : 'Save profile'}
+                ))
+              )}
+            </div>
+          </Panel>
+          <Panel title={t.workspace.addSite}>
+            <form className="stack" onSubmit={create}>
+              <p className="muted panel-help">{t.workspace.addSiteHelp}</p>
+              <Field
+                label={t.workspace.displayName}
+                value={name}
+                onChange={setName}
+                placeholder={t.workspace.displayNamePlaceholder}
+              />
+              <Field
+                label={WEBSITE_INPUT_LABEL}
+                value={domain}
+                onChange={(value) => {
+                  setDomain(value);
+                  if (domainError !== null) setDomainError(null);
+                }}
+                placeholder={WEBSITE_INPUT_PLACEHOLDER}
+                hint={WEBSITE_INPUT_HINT}
+                error={domainError ?? undefined}
+                data-tour-target="profile-domain"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={busy || name.trim() === ''}
+                data-tour-target="save-profile"
+              >
+                {busy ? t.workspace.saving : t.workspace.saveProfile}
+              </Button>
+            </form>
+          </Panel>
+        </Window>
+        <Window title={t.workspace.notes} terminal>
+          <Terminal
+            lines={[
+              'ready: public-origin mode',
+              'free: one homepage check',
+              'basic: seo + ai seo / geo',
+              'complete: all available modules + export',
+            ]}
+          />
+          <Panel title="Subscription model">
+            <FieldRow label={t.workspace.billing} value={t.workspace.payPerScan} />
+            <FieldRow label="Basic" value="$55 · SEO + AI SEO / GEO" />
+            <FieldRow label="Complete" value="$120 · full report" />
+          </Panel>
+          <div className="button-row">
+            <Button variant="primary" onClick={props.onOnboarding}>
+              {t.workspace.guide}
             </Button>
-          </form>
-        </Panel>
-      </Window>
-      <Window title="Operator notes" terminal>
-        <Terminal
-          lines={[
-            'ready: public-origin mode',
-            'free: one homepage check',
-            'basic: seo + ai seo / geo',
-            'complete: all available modules + export',
-          ]}
-        />
-        <Panel title="Subscription model">
-          <FieldRow label="Billing" value="Pay-per-scan" />
-          <FieldRow label="Basic" value="$55 · SEO + AI SEO / GEO" />
-          <FieldRow label="Complete" value="$120 · full report" />
-        </Panel>
-        <div className="button-row">
-          <Button variant="primary" onClick={props.onOnboarding}>
-            Open setup guide
-          </Button>
-        </div>
-      </Window>
+          </div>
+        </Window>
+      </div>
     </div>
-  );
-}
-
-function OnboardingScreen(props: {
-  onDone: (scan?: Scan) => Promise<void>;
-  onSkip: () => void;
-  onError: (value: string) => void;
-}) {
-  const [name, setName] = useState('');
-  const [domain, setDomain] = useState('');
-  const [plan, setPlan] = useState<'Free' | 'Basic' | 'Complete'>('Free');
-  const [domainError, setDomainError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const isPaid = plan !== 'Free';
-
-  // Live, reassuring preview of what we will actually check. It never blocks
-  // typing — the blocking validation happens on submit.
-  const preview = domain.trim() === '' ? null : normalizeWebsiteInput(domain);
-  const previewOrigin = preview !== null && preview.ok ? preview.origin : null;
-
-  // Creates the site profile from a normalized origin, or surfaces a friendly
-  // field error and returns null. Shared by both onboarding actions.
-  const createProfile = async (): Promise<SiteProfile | null> => {
-    const normalized = normalizeWebsiteInput(domain);
-    if (!normalized.ok) {
-      setDomainError(normalized.error);
-      return null;
-    }
-    setDomainError(null);
-    return apiRequest<SiteProfile>('/profiles', {
-      method: 'POST',
-      body: JSON.stringify({ name: name.trim(), domain: normalized.origin }),
-    });
-  };
-
-  const runFreeCheck = async (event?: FormEvent) => {
-    event?.preventDefault();
-    if (!normalizeWebsiteInput(domain).ok) {
-      setDomainError(WEBSITE_INPUT_ERROR);
-      return;
-    }
-    setBusy(true);
-    try {
-      const profile = await createProfile();
-      if (profile === null) return;
-      const scan = await apiRequest<Scan>(`/profiles/${profile.id}/free-check`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      });
-      await props.onDone(scan);
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Setup could not be completed');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Paid checkout is deferred, so a paid choice only saves the site and the
-  // preference — it never fakes a paid transaction. The user lands in the
-  // workspace, where paid audits will open next.
-  const savePreference = async () => {
-    if (!normalizeWebsiteInput(domain).ok) {
-      setDomainError(WEBSITE_INPUT_ERROR);
-      return;
-    }
-    setBusy(true);
-    try {
-      const profile = await createProfile();
-      if (profile === null) return;
-      await props.onDone();
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Setup could not be completed');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Window title="FluxRadar — first-run setup" className="window--dialog">
-      <form className="stack" onSubmit={runFreeCheck}>
-        <div>
-          <span className="panel__label">01 / SET UP YOUR FIRST CHECK</span>
-          <h1 className="section-heading">Set up your first check.</h1>
-          <p className="muted">
-            FluxRadar only looks at your public website — the same pages anyone can open in a
-            browser. You never share a password, CMS login or analytics access.
-          </p>
-        </div>
-        <Field
-          label="Site name"
-          value={name}
-          onChange={setName}
-          placeholder="My website"
-          hint="A label so you can recognise this site later."
-        />
-        <Field
-          label={WEBSITE_INPUT_LABEL}
-          value={domain}
-          onChange={(value) => {
-            setDomain(value);
-            if (domainError !== null) setDomainError(null);
-          }}
-          placeholder={WEBSITE_INPUT_PLACEHOLDER}
-          hint={WEBSITE_INPUT_HINT}
-          error={domainError ?? undefined}
-        />
-        {previewOrigin !== null ? (
-          <p className="muted">
-            FluxRadar will check <strong>{previewOrigin}</strong>
-          </p>
-        ) : null}
-        <SelectField
-          label="What would you like to run first?"
-          value={plan}
-          onChange={(value) => setPlan(value as typeof plan)}
-          options={[
-            { value: 'Free', label: 'Free homepage check — recommended first step' },
-            { value: 'Basic', label: 'Basic · SEO + AI SEO / GEO · $55 (available after setup)' },
-            { value: 'Complete', label: 'Complete · full audit · $120 (available after setup)' },
-          ]}
-        />
-        <p className="muted">
-          <strong>Free</strong> is a one-time check of a single homepage — the title, headings,
-          description and whether search engines can index it. It is available once per account, at
-          no cost.
-        </p>
-        {isPaid ? (
-          <div className="onboarding-note" role="note">
-            <strong>Paid audits open after setup</strong>
-            <p>
-              Basic and Complete are one-time paid audits. Checkout is not available during setup
-              yet, so we will just save {plan} as your preference — you are not charged now and no
-              scan starts. You can still run your free homepage check below, and paid audits will be
-              available from your workspace.
-            </p>
-            <p>
-              A paid audit also includes AI SEO / GEO — a check of how visible your site is to AI
-              search tools. To run it, some of your public pages may be sent to an external AI model.
-              That only happens for a paid scan, and we will ask you to allow it first.
-            </p>
-          </div>
-        ) : null}
-        <p className="muted">
-          Review our <a href="/privacy">Privacy policy</a> and <a href="/terms">Terms of service</a>
-          . You can reopen this guide any time from the workspace.
-        </p>
-        <div className="button-row">
-          <Button type="submit" variant="primary" disabled={busy || name.trim() === ''}>
-            {busy
-              ? 'Setting up…'
-              : isPaid
-                ? 'Run the free homepage check now'
-                : 'Create site and run free homepage check'}
-          </Button>
-          {isPaid ? (
-            <Button onClick={() => void savePreference()} disabled={busy || name.trim() === ''}>
-              Save choice and open workspace
-            </Button>
-          ) : null}
-          <Button onClick={props.onSkip} disabled={busy}>
-            Skip for now
-          </Button>
-        </div>
-      </form>
-    </Window>
   );
 }
 
@@ -2220,14 +2098,19 @@ function NewScanScreen(props: {
   profiles: readonly SiteProfile[];
   selectedProfile: SiteProfile | null;
   internalFreeAccess: boolean;
+  language: Language;
   onCreated: (scan: Scan) => void;
   onClose: () => void;
   onError: (value: string) => void;
 }) {
+  const t = copy[props.language];
+  const paidAvailable = props.internalFreeAccess || LIVE_CHECKOUT_ENABLED;
   const [profileId, setProfileId] = useState(
     props.selectedProfile?.id ?? props.profiles[0]?.id ?? '',
   );
-  const [plan, setPlan] = useState<'Free' | 'Basic' | 'Complete'>('Complete');
+  const [plan, setPlan] = useState<'Free' | 'Basic' | 'Complete'>(
+    paidAvailable ? 'Complete' : 'Free',
+  );
   const [maxPages, setMaxPages] = useState('15');
   const [maxDepth, setMaxDepth] = useState('5');
   const [includeSubdomains, setIncludeSubdomains] = useState(false);
@@ -2291,18 +2174,35 @@ function NewScanScreen(props: {
       setBusy(false);
     }
   };
+  const planOptions = [
+    { value: 'Free', label: t.newScan.planFree },
+    ...(paidAvailable
+      ? [
+          {
+            value: 'Basic',
+            label: props.internalFreeAccess ? t.newScan.planBasicInternal : t.newScan.planBasicPaid,
+          },
+          {
+            value: 'Complete',
+            label: props.internalFreeAccess
+              ? t.newScan.planCompleteInternal
+              : t.newScan.planCompletePaid,
+          },
+        ]
+      : []),
+  ];
   if (props.profiles.length === 0)
     return (
-      <Window title="New scan" onClose={props.onClose}>
-        <EmptyState title="Create a site profile first" />
+      <Window title={t.newScan.windowTitleEmpty} onClose={props.onClose}>
+        <EmptyState title={t.newScan.emptyTitle} />
       </Window>
     );
   return (
-    <Window title="New scan — scope and tariff" className="window--dialog" onClose={props.onClose}>
+    <Window title={t.newScan.windowTitle} className="window--dialog" onClose={props.onClose}>
       <form className="stack" onSubmit={submit}>
-        <Panel title="Target">
+        <Panel title={t.newScan.panelTarget}>
           <SelectField
-            label="Public origin"
+            label={t.newScan.labelOrigin}
             value={profileId}
             onChange={setProfileId}
             options={props.profiles.map((profile) => ({
@@ -2311,91 +2211,85 @@ function NewScanScreen(props: {
             }))}
           />
           <Checkbox
-            label="Include subdomains (where allowed)"
+            label={t.newScan.labelSubdomains}
             checked={includeSubdomains}
             onChange={setIncludeSubdomains}
           />
           <SelectField
-            label="User agent"
+            label={t.newScan.labelUserAgent}
             value={userAgent}
             onChange={(value) => setUserAgent(value as typeof userAgent)}
             options={[
-              { value: 'desktop', label: 'Desktop' },
-              { value: 'mobile', label: 'Mobile' },
+              { value: 'desktop', label: t.newScan.userAgentDesktop },
+              { value: 'mobile', label: t.newScan.userAgentMobile },
             ]}
           />
         </Panel>
-        <Panel title="Audit depth">
+        <Panel title={t.newScan.panelDepth}>
           <SelectField
-            label="Scan plan"
+            label={t.newScan.labelScanPlan}
             value={plan}
             onChange={(value) => setPlan(value as typeof plan)}
-            options={[
-              { value: 'Free', label: 'Free · homepage only' },
-              {
-                value: 'Basic',
-                label: props.internalFreeAccess ? 'Basic · internal free' : 'Basic · $55',
-              },
-              {
-                value: 'Complete',
-                label: props.internalFreeAccess ? 'Complete · internal free' : 'Complete · $120',
-              },
-            ]}
+            options={planOptions}
           />
+          {!paidAvailable ? <p className="muted">{t.newScan.paidUnavailable}</p> : null}
           {plan !== 'Free' ? (
             <>
-              <Field label="Maximum pages" value={maxPages} onChange={setMaxPages} type="number" />
               <Field
-                label="Maximum crawl depth"
+                label={t.newScan.labelMaxPages}
+                value={maxPages}
+                onChange={setMaxPages}
+                type="number"
+              />
+              <Field
+                label={t.newScan.labelMaxDepth}
                 value={maxDepth}
                 onChange={setMaxDepth}
                 type="number"
               />
               <Field
-                label="Include path patterns (comma separated)"
+                label={t.newScan.labelIncludePatterns}
                 value={includePatterns}
                 onChange={setIncludePatterns}
                 placeholder="/docs/*, /blog/*"
               />
               <Field
-                label="Exclude path patterns (comma separated)"
+                label={t.newScan.labelExcludePatterns}
                 value={excludePatterns}
                 onChange={setExcludePatterns}
                 placeholder="/admin/*, /private/*"
               />
               <SelectField
-                label="URL query parameters"
+                label={t.newScan.labelQueryPolicy}
                 value={queryPolicy}
                 onChange={(value) => setQueryPolicy(value as typeof queryPolicy)}
                 options={[
-                  { value: 'ignore', label: 'Ignore parameters' },
-                  { value: 'include', label: 'Include parameters' },
+                  { value: 'ignore', label: t.newScan.queryIgnore },
+                  { value: 'include', label: t.newScan.queryInclude },
                 ]}
               />
             </>
           ) : null}
           <Checkbox
-            label="Respect robots.txt"
+            label={t.newScan.labelRespectRobots}
             checked={respectRobots}
             onChange={setRespectRobots}
           />
           {!respectRobots ? (
             <Checkbox
-              label="I confirm the robots.txt override"
+              label={t.newScan.labelRobotsOverride}
               checked={robotsOverrideConfirmed}
               onChange={setRobotsOverrideConfirmed}
             />
           ) : null}
           {plan !== 'Free' ? (
-            <Checkbox
-              label="Allow sending public pages to an external AI model (for AI SEO / GEO visibility)"
-              checked={consent}
-              onChange={setConsent}
-            />
+            <Checkbox label={t.newScan.labelAiConsent} checked={consent} onChange={setConsent} />
           ) : null}
         </Panel>
         <div className="split">
-          <span className="muted">{selected?.domain ?? 'Select a profile'} · public site only</span>
+          <span className="muted">
+            {selected?.domain ?? t.newScan.noProfile} {t.newScan.publicSiteOnly}
+          </span>
           <Button
             type="submit"
             variant="primary"
@@ -2407,12 +2301,12 @@ function NewScanScreen(props: {
             }
           >
             {busy
-              ? 'Creating…'
+              ? t.newScan.creating
               : plan === 'Free'
-                ? 'Run free check'
+                ? t.newScan.runFree
                 : props.internalFreeAccess
-                  ? 'Run internal scan'
-                  : 'Pay and run scan'}
+                  ? t.newScan.runInternal
+                  : t.newScan.runPaid}
           </Button>
         </div>
       </form>
@@ -2483,7 +2377,9 @@ function ScanScreen(props: {
             <StatusChip status={scan.status} />
             <div>
               <strong>
-                {scan.status === 'Completed' ? 'Your report is ready.' : scanStatusLabel(scan.status)}
+                {scan.status === 'Completed'
+                  ? 'Your report is ready.'
+                  : scanStatusLabel(scan.status)}
               </strong>
               <p className="muted">
                 {scan.completedAt
@@ -2600,6 +2496,9 @@ function ResultsScreen(props: {
       </Window>
     );
   const { scan, overall } = dashboard;
+  // Present only when the scan actually stored a Google snapshot; a plan without
+  // the Analytics module renders no Google section at all.
+  const googleSnapshot = googleSnapshotOf(dashboard.modules);
   return (
     <div className="stack">
       <Window title={`Report dashboard · ${reportDomain(scan.domain)}`}>
@@ -2627,6 +2526,29 @@ function ResultsScreen(props: {
             coverage={overall.weightedCoverage}
           />
         </div>
+        <section className="report-help" aria-label="How to read this report">
+          <h3 className="section-heading">How to read this report</h3>
+          <dl className="report-help__list">
+            <div>
+              <dt>Score</dt>
+              <dd>
+                A 0–100 rating for each area and for the site overall. Higher is better; a dash (—)
+                means there was not enough public data to score it.
+              </dd>
+            </div>
+            <div>
+              <dt>Coverage</dt>
+              <dd>How much of your site FluxRadar was able to check for that area.</dd>
+            </div>
+            <div>
+              <dt>Findings</dt>
+              <dd>
+                Specific issues we detected, each with the evidence behind it. Open the findings
+                list below to review them and see recommended fixes.
+              </dd>
+            </div>
+          </dl>
+        </section>
         <div className="module-grid">
           {dashboard.modules.map((module) => (
             <div className="module-card" key={module.module}>
@@ -2664,6 +2586,11 @@ function ResultsScreen(props: {
             <small>FluxRadar does not provide legal accessibility certification.</small>
           </aside>
         ) : null}
+        {googleSnapshot === null ? null : <GoogleDataPanel snapshot={googleSnapshot} />}
+        <p className="muted report-help__cta">
+          The Issue Center lists every finding with its evidence and a recommended fix, so you can
+          decide what to work on first.
+        </p>
         <div className="button-row">
           <Button onClick={props.onIssues} variant="primary">
             Open Issue Center
@@ -2695,6 +2622,9 @@ function ModuleMetadata({ module }: { module: ScanModule }) {
   }
   if (module.module === 'SEO') {
     return <small className="module-card__meta">JSON-LD · Open Graph · Twitter Cards</small>;
+  }
+  if (module.module === 'Analytics') {
+    return <small className="module-card__meta">Google Search Console · Analytics 4 · read-only</small>;
   }
   if (module.module === 'AI SEO / GEO') {
     const pages = asRecord(module.metadata?.pages);
@@ -2804,10 +2734,18 @@ function IssuesScreen(props: { scan: Scan | null; onError: (value: string) => vo
       <div className="split">
         <div>
           <h2 className="section-heading">Findings and evidence</h2>
-          <p className="muted">Statuses are preserved by fingerprint on the next Complete scan.</p>
+          <p className="muted">
+            Each finding is something FluxRadar detected on a public page. Use Details to see the
+            evidence, the affected page and a recommended fix. The status you set is remembered on
+            your next full scan.
+          </p>
         </div>
         <Field label="Filter" value={filter} onChange={setFilter} placeholder="rule, module, URL" />
       </div>
+      <p className="muted issue-severity-legend">
+        <strong>Severity</strong> shows how urgent a finding is: Critical and High need attention
+        first, then Medium, then Low.
+      </p>
       {visible.length === 0 ? (
         <EmptyState title="No issues match this filter" />
       ) : (
@@ -2913,8 +2851,11 @@ function IssuesScreen(props: { scan: Scan | null; onError: (value: string) => vo
   );
 }
 
-
-function Styleguide(props: { onNavigate: (screen: string) => void }) {
+function Styleguide(props: {
+  onNavigate: (screen: string) => void;
+  language: Language;
+  onLanguageChange: (language: Language) => void;
+}) {
   const lines = [
     'loading… ▮',
     'GET https://example.com/ → 200 (312 ms)',
@@ -2923,7 +2864,13 @@ function Styleguide(props: { onNavigate: (screen: string) => void }) {
   ];
   return (
     <div className="app-shell">
-      <MenuBar active="styleguide" onNavigate={props.onNavigate} signedIn={false} />
+      <MenuBar
+        active="styleguide"
+        onNavigate={props.onNavigate}
+        signedIn={false}
+        language={props.language}
+        onLanguageChange={props.onLanguageChange}
+      />
       <div className="desktop">
         <div className="desktop__intro">
           <div>

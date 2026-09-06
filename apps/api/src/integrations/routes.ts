@@ -71,25 +71,6 @@ function userIntegration(
   };
 }
 
-function platformIntegration(
-  provider: string,
-  label: string,
-  services: readonly string[],
-  configured: boolean,
-  limited = false,
-): IntegrationDto {
-  return {
-    provider,
-    label,
-    kind: 'platform',
-    status: configured ? 'connected' : limited ? 'limited' : 'not_configured',
-    services,
-    canConnect: false,
-    lastCheckedAt: null,
-    lastError: null,
-  };
-}
-
 function callbackUrl(
   config: IntegrationConfig,
   provider: UserIntegrationProvider,
@@ -124,31 +105,6 @@ export function integrationsRouter(deps: IntegrationsRouterDeps): Router {
     const data: IntegrationDto[] = [
       userIntegration('google', config, byProvider.get('google') ?? null),
       userIntegration('bing', config, byProvider.get('bing') ?? null),
-      platformIntegration(
-        'pagespeed',
-        'PageSpeed Insights',
-        ['Lighthouse lab data'],
-        config.pageSpeedApiKey !== null,
-        true,
-      ),
-      platformIntegration(
-        'crux',
-        'Chrome UX Report',
-        ['Real-user Core Web Vitals'],
-        config.cruxApiKey !== null,
-      ),
-      platformIntegration(
-        'anthropic',
-        'Anthropic',
-        ['AI SEO / GEO recommendations'],
-        config.anthropicApiKey !== null,
-      ),
-      platformIntegration(
-        'hetzner-s3',
-        'Hetzner Object Storage',
-        ['Report artifacts', 'Scan evidence'],
-        config.hetznerS3 !== null,
-      ),
     ];
     sendOk(res, data, { meta: { total: data.length, page: 1, limit: data.length } });
   });

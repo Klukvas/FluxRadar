@@ -11,8 +11,10 @@ describe('integrations routes', () => {
   const envKeys = [
     'GOOGLE_OAUTH_CLIENT_ID',
     'GOOGLE_OAUTH_CLIENT_SECRET',
+    'GOOGLE_OAUTH_REDIRECT_URI',
     'BING_OAUTH_CLIENT_ID',
     'BING_OAUTH_CLIENT_SECRET',
+    'BING_OAUTH_REDIRECT_URI',
     'ANTHROPIC_API_KEY',
     'PAGESPEED_API_KEY',
     'CRUX_API_KEY',
@@ -38,7 +40,7 @@ describe('integrations routes', () => {
     }
   });
 
-  it('returns user and platform integration status without exposing configuration values', async () => {
+  it('returns only customer-connectable integrations without exposing configuration values', async () => {
     const app = createApp({
       prisma: db.prisma,
       webhookSecret: TEST_WEBHOOK_SECRET,
@@ -58,18 +60,13 @@ describe('integrations routes', () => {
           canConnect: false,
         }),
         expect.objectContaining({ provider: 'bing', status: 'not_configured', canConnect: false }),
-        expect.objectContaining({
-          provider: 'anthropic',
-          status: 'not_configured',
-          kind: 'platform',
-        }),
-        expect.objectContaining({
-          provider: 'hetzner-s3',
-          status: 'not_configured',
-          kind: 'platform',
-        }),
       ]),
     );
+    expect(response.body.data).toHaveLength(2);
+    expect(response.body.data.map((item: { provider: string }) => item.provider)).toEqual([
+      'google',
+      'bing',
+    ]);
     expect(JSON.stringify(response.body)).not.toContain('client_secret');
   });
 
@@ -88,6 +85,53 @@ describe('integrations routes', () => {
       .send({});
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe('INTEGRATION_NOT_CONFIGURED');
+  });
+
+  it('makes Google and Bing connectable and builds provider authorization URLs when configured', async () => {
+    process.env.GOOGLE_OAUTH_CLIENT_ID = 'google-client-id';
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'google-client-secret';
+    process.env.GOOGLE_OAUTH_REDIRECT_URI =
+      'https://fluxradar.net/api/integrations/google/callback';
+    process.env.BING_OAUTH_CLIENT_ID = 'bing-client-id';
+    process.env.BING_OAUTH_CLIENT_SECRET = 'bing-client-secret';
+    process.env.BING_OAUTH_REDIRECT_URI = 'https://fluxradar.net/api/integrations/bing/callback';
+
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'configured-integrations@example.com');
+    const status = await agent.get('/integrations').set('Cookie', account.cookie);
+
+    expect(status.body.data).toEqual([
+      expect.objectContaining({ provider: 'google', status: 'available', canConnect: true }),
+      expect.objectContaining({ provider: 'bing', status: 'available', canConnect: true }),
+    ]);
+
+    const googleStart = await agent
+      .post('/integrations/google/start')
+      .set('Cookie', account.cookie)
+      .send({});
+    const googleUrl = new URL(googleStart.body.data.authorizationUrl as string);
+    expect(googleStart.status).toBe(200);
+    expect(googleUrl.origin).toBe('https://accounts.google.com');
+    expect(googleUrl.searchParams.get('redirect_uri')).toBe(
+      'https://fluxradar.net/api/integrations/google/callback',
+    );
+
+    const bingStart = await agent
+      .post('/integrations/bing/start')
+      .set('Cookie', account.cookie)
+      .send({});
+    const bingUrl = new URL(bingStart.body.data.authorizationUrl as string);
+    expect(bingStart.status).toBe(200);
+    expect(bingUrl.origin).toBe('https://www.bing.com');
+    expect(bingUrl.searchParams.get('redirect_uri')).toBe(
+      'https://fluxradar.net/api/integrations/bing/callback',
+    );
   });
 });
 

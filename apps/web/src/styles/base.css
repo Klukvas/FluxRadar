@@ -49,8 +49,23 @@ summary:focus-visible {
   background: var(--plat-100);
   border-bottom: 1px solid var(--plat-900);
   box-shadow: inset 0 1px 0 #fff;
+  overflow: visible;
+}
+.menubar__nav {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-x: auto;
   white-space: nowrap;
+}
+.menubar__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 .menubar button,
 .menubar__item {
@@ -96,6 +111,28 @@ summary:focus-visible {
 .menubar__system {
   font: 11px var(--mono-font);
   color: var(--plat-600);
+}
+.menubar__toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+}
+.menubar__toggle svg {
+  width: 16px;
+  height: 16px;
+}
+.menubar__links {
+  display: contents;
+}
+.menubar__close {
+  display: none;
+}
+.menubar__sheet-head,
+.menubar__group-label {
+  display: none;
 }
 
 .desktop {
@@ -788,6 +825,92 @@ code,
   overflow-x: auto;
   white-space: nowrap;
 }
+
+/* Workspace navigation guide — a plain-language map of the signed-in tabs,
+   shown above the desktop grid so it reads as part of the platinum shell. */
+.workspace-guide {
+  padding: var(--sp-4);
+  background: var(--plat-100);
+  border: 1px solid var(--plat-900);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+}
+.workspace-guide__head {
+  margin-bottom: var(--sp-3);
+}
+.workspace-guide__head .section-heading {
+  margin-bottom: var(--sp-1);
+}
+.workspace-guide__head p {
+  margin: 0;
+}
+.workspace-guide__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+}
+.workspace-guide__item {
+  padding: var(--sp-3);
+  background: var(--plat-50);
+  border: 1px solid var(--plat-400);
+}
+.workspace-guide__item dt {
+  margin-bottom: 3px;
+  font-weight: 700;
+}
+.workspace-guide__item dd {
+  margin: 0;
+  color: var(--plat-600);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Contextual help copy that sits inline in panels and empty states. */
+.empty__description {
+  max-width: 46ch;
+  margin: 0;
+  line-height: 1.45;
+}
+.panel-help {
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* "How to read this report" definitions and the findings call-to-action. */
+.report-help {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--plat-50);
+  border: 1px solid var(--plat-400);
+}
+.report-help .section-heading {
+  margin-bottom: var(--sp-2);
+  font-size: 14px;
+}
+.report-help__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+}
+.report-help__list dt {
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+.report-help__list dd {
+  margin: 0;
+  color: var(--plat-600);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.report-help__cta {
+  margin: var(--sp-3) 0 0;
+  line-height: 1.45;
+}
+.issue-severity-legend {
+  margin: var(--sp-2) 0 0;
+  line-height: 1.45;
+}
 .styleguide {
   display: grid;
   gap: var(--sp-3);
@@ -1292,6 +1415,294 @@ code,
 .home button:focus-visible {
   outline-color: var(--term-green);
 }
+
+.menubar__language {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 0 8px;
+  color: var(--plat-600);
+  font: 10px var(--mono-font);
+  text-transform: uppercase;
+}
+.menubar__language-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--plat-400);
+  border-radius: 0;
+  background: var(--plat-50);
+  color: var(--plat-900);
+  font: 11px var(--ui-font);
+  cursor: pointer;
+}
+.menubar__language-button:hover {
+  background: var(--plat-100);
+}
+.menubar__language-button:focus-visible {
+  outline: 2px solid var(--term-green);
+  outline-offset: 1px;
+}
+.menubar__language-caret {
+  width: 8px;
+  height: 5px;
+  color: var(--plat-600);
+}
+.menubar__language-listbox {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  min-width: 120px;
+  margin: 2px 0 0;
+  padding: 2px 0;
+  list-style: none;
+  border: 1px solid var(--plat-400);
+  background: var(--plat-50);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 25%);
+}
+.menubar__language-option {
+  padding: 4px 10px;
+  color: var(--plat-900);
+  font: 11px var(--ui-font);
+  text-transform: none;
+  cursor: pointer;
+}
+.menubar__language-option:hover,
+.menubar__language-option.is-active {
+  background: var(--selection);
+  color: var(--plat-50);
+}
+.menubar__language-option[aria-selected='true']::after {
+  content: '✓';
+  float: right;
+}
+
+.plans-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: clamp(48px, 9vw, 108px) var(--sp-6) 72px;
+  color: #fff;
+}
+.plans-page__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 36px;
+  padding-bottom: 34px;
+  border-bottom: 1px solid #8c9bb3;
+}
+.plans-page__header h1 {
+  max-width: 760px;
+  margin: 18px 0 14px;
+  font: bold clamp(42px, 7vw, 78px)/0.95 var(--mono-font);
+  letter-spacing: -0.08em;
+}
+.plans-page__header p {
+  max-width: 650px;
+  margin: 0;
+  color: #d5deeb;
+  font-size: 16px;
+}
+.plans-page__public-note {
+  max-width: 245px;
+  padding: 10px;
+  border: 1px solid var(--term-green);
+  color: var(--term-green);
+  font: 11px/1.4 var(--mono-font);
+  text-transform: uppercase;
+}
+.plans-page__notice {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  margin: 26px 0 0;
+  padding: 12px 14px;
+  border-left: 4px solid var(--term-amber);
+  background: rgba(16, 20, 16, 0.78);
+  color: #e8f0e8;
+}
+.plans-page__notice strong {
+  color: var(--term-amber);
+  font: 11px var(--mono-font);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.plans-page__notice span {
+  color: #d5deeb;
+}
+.plans-page__cards {
+  margin-top: 28px;
+}
+.plans-page__cards .home__plan {
+  min-height: 430px;
+}
+.plan-card__details {
+  display: grid;
+  gap: 12px;
+  margin: 22px 0 20px;
+}
+.plan-card__details > div {
+  padding-top: 9px;
+  border-top: 1px solid var(--plat-300);
+}
+.plan-card__details dt {
+  color: var(--plat-600);
+  font: 10px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.plan-card__details dd {
+  margin: 3px 0 0;
+  color: var(--plat-900);
+  font-size: 12px;
+}
+.home__plan--complete .plan-card__details > div {
+  border-color: #315d42;
+}
+.home__plan--complete .plan-card__details dt {
+  color: #8db69a;
+}
+.home__plan--complete .plan-card__details dd {
+  color: #d5e9d9;
+}
+.plans-page__scope {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+  gap: 42px;
+  margin-top: 84px;
+  padding: 28px 0;
+  border-top: 1px solid #8c9bb3;
+  border-bottom: 1px solid #8c9bb3;
+}
+.plans-page__scope h2 {
+  margin: 16px 0 0;
+  font: bold clamp(24px, 3vw, 38px)/1 var(--mono-font);
+  letter-spacing: -0.06em;
+}
+.plans-page__scope-grid {
+  display: grid;
+  gap: 0;
+}
+.plans-page__scope-grid p {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  margin: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid #315d42;
+}
+.plans-page__scope-grid p:last-child {
+  border-bottom: 0;
+}
+.plans-page__scope-grid strong {
+  color: var(--term-green);
+  font: 10px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.plans-page__scope-grid span {
+  color: #d5deeb;
+}
+.plans-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  margin-top: 28px;
+}
+.plans-page__actions a {
+  color: var(--term-green);
+}
+
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.tour-overlay__scrim {
+  position: fixed;
+  background: rgba(5, 8, 14, 0.68);
+  backdrop-filter: blur(2px);
+  pointer-events: auto;
+}
+.tour-overlay__scrim--full,
+.tour-overlay__scrim--top,
+.tour-overlay__scrim--bottom {
+  inset-inline: 0;
+}
+.tour-overlay__scrim--full {
+  inset-block: 0;
+}
+.tour-overlay__scrim--top {
+  top: 0;
+}
+.tour-overlay__scrim--left {
+  left: 0;
+}
+.tour-overlay__scrim--right {
+  right: 0;
+}
+.tour-overlay__scrim--bottom {
+  bottom: 0;
+}
+.tour-overlay__spotlight {
+  position: fixed;
+  z-index: 1;
+  border: 2px solid var(--term-green);
+  box-shadow: 0 0 0 5px rgba(51, 255, 102, 0.2);
+  /* Purely decorative: the scrims dim and block the page, but the spotlight
+     sits over the highlighted control, so it must let clicks pass through. */
+  pointer-events: none;
+}
+.tour-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: min(380px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid var(--plat-900);
+  background: var(--plat-100);
+  color: var(--plat-900);
+  box-shadow: 6px 6px 0 rgba(16, 20, 16, 0.45);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+.tour-dialog[style] {
+  transform: none;
+}
+.tour-dialog__kicker,
+.tour-dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tour-dialog__kicker {
+  justify-content: space-between;
+  color: var(--plat-600);
+  font: 10px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.tour-dialog h2 {
+  margin: 22px 0 8px;
+  font: bold 22px/1.05 var(--mono-font);
+  letter-spacing: -0.04em;
+}
+.tour-dialog p {
+  min-height: 72px;
+  margin: 0 0 22px;
+  color: var(--plat-600);
+}
+.tour-dialog__spacer {
+  flex: 1;
+}
 .home__coverage-entry {
   padding: 56px 0;
   border-top: 1px solid #2e3d55;
@@ -1692,6 +2103,133 @@ code,
   .menubar__system {
     display: none;
   }
+  .menubar__toggle {
+    display: inline-flex;
+  }
+  .menubar__links {
+    display: none;
+  }
+  .menubar__links.is-open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: var(--plat-100);
+    padding: 0 0 var(--sp-4);
+    overflow-y: auto;
+    animation: open-window 140ms ease-out;
+  }
+  .menubar__sheet-head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 44px;
+    padding: 0 var(--sp-3);
+    background: var(--term-bg);
+    color: var(--plat-50);
+    border-bottom: 2px solid var(--plat-900);
+  }
+  .menubar__sheet-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 700 13px var(--mono-font);
+    letter-spacing: 0.02em;
+  }
+  .menubar__sheet-brand svg {
+    width: 12px;
+    height: 12px;
+    fill: var(--term-green);
+  }
+  .menubar__sheet-status {
+    font: 10px var(--mono-font);
+    color: var(--term-green);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-left: var(--sp-2);
+  }
+  .menubar__group-label {
+    display: block;
+    font: 700 10px var(--mono-font);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--plat-600);
+    padding: var(--sp-3) var(--sp-3) var(--sp-1);
+  }
+  .menubar__nav {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: visible;
+    white-space: normal;
+    border-bottom: 1px solid var(--plat-300);
+    padding-bottom: var(--sp-2);
+  }
+  .menubar__meta {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    margin-left: 0;
+    padding: var(--sp-1) var(--sp-2) 0;
+  }
+  .menubar__links.is-open .menubar__language {
+    min-height: 44px;
+    padding: 0 var(--sp-1);
+    align-self: flex-start;
+  }
+  .menubar__language-listbox {
+    left: 0;
+    right: auto;
+    top: calc(100% + 2px);
+  }
+  .menubar__links.is-open .menubar__item,
+  .menubar__links.is-open .menubar__blog-link {
+    min-height: 44px;
+    justify-content: flex-start;
+    padding: 0 var(--sp-3) 0 calc(var(--sp-3) + 4px);
+    margin: 0 var(--sp-2);
+    font-size: 16px;
+    border-left: 3px solid transparent;
+  }
+  .menubar__links.is-open .menubar__item:hover:not(:disabled),
+  .menubar__links.is-open .menubar__blog-link:hover {
+    background: var(--plat-200);
+    color: inherit;
+    border-left-color: var(--plat-300);
+  }
+  .menubar__links.is-open .is-active {
+    background: var(--selection);
+    color: #fff;
+    border-left-color: var(--term-green);
+    font-weight: 700;
+  }
+  .menubar__links.is-open .menubar__spacer {
+    display: none;
+  }
+  .menubar__sheet-head .menubar__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--plat-300);
+    background: var(--plat-900);
+    color: var(--plat-50);
+  }
+  .menubar__sheet-head .menubar__close:hover {
+    background: var(--term-red);
+    border-color: var(--term-red);
+  }
+  .menubar__links.is-open .menubar__close svg {
+    width: 12px;
+    height: 12px;
+  }
   .button {
     min-height: 40px;
   }
@@ -1860,4 +2398,95 @@ code,
     display: grid;
     gap: 8px;
   }
+}
+
+@media (max-width: 699px) {
+  .menubar__language {
+    padding: 0 6px;
+  }
+  .menubar__language > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .plans-page {
+    padding: 36px 12px 48px;
+  }
+  .plans-page__header {
+    display: block;
+  }
+  .plans-page__header h1 {
+    font-size: 52px;
+  }
+  .plans-page__public-note {
+    display: inline-block;
+    margin-top: 22px;
+  }
+  .plans-page__notice {
+    display: grid;
+    gap: 5px;
+  }
+  .plans-page__cards {
+    grid-template-columns: 1fr;
+  }
+  .plans-page__scope {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    margin-top: 64px;
+  }
+  .plans-page__scope-grid p {
+    grid-template-columns: 105px 1fr;
+  }
+  .tour-dialog {
+    width: calc(100vw - 24px);
+    padding: 16px;
+  }
+}
+
+/* Google data section of a report. */
+.google-panel section + section {
+  margin-top: 1.25rem;
+}
+
+.google-panel__unavailable {
+  border: 1px solid var(--border, #d5d5d5);
+  border-left-width: 4px;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+}
+
+.google-panel__unavailable p {
+  margin: 0.25rem 0 0;
+}
+
+.google-panel__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.google-panel__table caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 0.35rem;
+}
+
+.google-panel__table th,
+.google-panel__table td {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border, #e3e3e3);
+}
+
+.google-panel__table td:not(:first-child),
+.google-panel__table th:not(:first-child) {
+  text-align: right;
+  white-space: nowrap;
 }

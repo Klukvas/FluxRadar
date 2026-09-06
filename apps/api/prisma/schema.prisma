@@ -30,6 +30,7 @@ model Account {
   scans        Scan[]
   aiConsents   AiConsent[]
   integrations IntegrationConnection[]
+  googleBindings SiteGoogleBinding[]
   oauthStates  IntegrationOAuthState[]
   artifacts    ExportArtifact[]
   emailTokens  EmailToken[]
@@ -111,6 +112,7 @@ model SiteProfile {
   account   Account    @relation(fields: [accountId], references: [id])
   purchases Purchase[]
   scans     Scan[]
+  googleBinding SiteGoogleBinding?
 
   // T-12: one profile per (account, domain) — a second profile for the same
   // origin would split scan history and break Resolved/Reopened comparison.
@@ -291,6 +293,28 @@ model IntegrationConnection {
 
   @@unique([accountId, provider])
   @@index([accountId, status])
+}
+
+// Which Google properties an account chose for one of its site profiles. Only
+// provider resource identifiers are stored here — never tokens, never metrics.
+// One binding per site profile keeps a report's data source unambiguous.
+model SiteGoogleBinding {
+  id                   String   @id @default(cuid())
+  accountId            String
+  siteProfileId        String   @unique
+  /** Search Console property, e.g. "sc-domain:example.com" or "https://example.com/". */
+  searchConsoleSiteUrl String?
+  /** Bare GA4 numeric property id, without the "properties/" prefix. */
+  ga4PropertyId        String?
+  /** Display name captured at selection time so the report can name the source. */
+  ga4PropertyName      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  account     Account     @relation(fields: [accountId], references: [id])
+  siteProfile SiteProfile @relation(fields: [siteProfileId], references: [id])
+
+  @@index([accountId])
 }
 
 // One-time OAuth state prevents callback CSRF and replay. Only a SHA-256 hash

@@ -7,6 +7,7 @@ import type { AiProvider } from '@fluxradar/ai';
 import type { HostLimiter } from '@fluxradar/safe-fetch';
 import type { CrawlFetcher } from '@fluxradar/crawler';
 import type { PerformanceSnapshot } from '../integrations/performance.ts';
+import type { GoogleDataRunner } from '../integrations/google/runner.ts';
 
 import type { ApiLogger } from '../http/logger.ts';
 import type { Mailer } from '../email/mailer.ts';
@@ -32,6 +33,12 @@ export interface WorkerDeps {
   readonly createAiProvider: (scan: Scan, profile: SiteProfile) => AiProvider;
   readonly createPerformanceRunner?: () =>
     ((origin: string, strategy: 'desktop' | 'mobile') => Promise<PerformanceSnapshot>) | undefined;
+  /**
+   * Reads Search Console/GA4 for the scan's account. Absent means the Google
+   * data flow is disabled entirely and the Analytics module reports
+   * "not connected" — the same result as an account that never authorized.
+   */
+  readonly createGoogleDataRunner?: () => GoogleDataRunner | undefined;
   readonly crawl?: WorkerCrawlOptions;
   readonly now?: () => Date;
   readonly mailer?: Mailer;

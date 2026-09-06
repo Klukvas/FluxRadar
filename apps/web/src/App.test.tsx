@@ -2,7 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
-import { WEBSITE_INPUT_ERROR } from './website-input';
+
+function switchLanguageToUkrainian() {
+  fireEvent.click(screen.getByRole('combobox', { name: 'Language' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Українська' }));
+}
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
 
@@ -91,6 +95,7 @@ async function renderUnauthenticated(
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  window.localStorage.clear();
   window.history.replaceState(null, '', '/');
 });
 
@@ -539,12 +544,24 @@ describe('public /checks — audit coverage page', () => {
     stubApi(() => envelope(null));
     render(<App />);
     await screen.findByRole('heading', { name: 'Audit coverage' });
-    expect(screen.getByRole('heading', { name: /SEO — what FluxRadar checks/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /AI SEO \/ Generative Engine Optimisation/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Security — OWASP ASVS public profile/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Accessibility — WCAG 2\.2 AA/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Reliability and performance/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Privacy and consent signals/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /SEO — what FluxRadar checks/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /AI SEO \/ Generative Engine Optimisation/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Security — OWASP ASVS public profile/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Accessibility — WCAG 2\.2 AA/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Reliability and performance/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Privacy and consent signals/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows the evidence and limitations sections', async () => {
@@ -552,8 +569,12 @@ describe('public /checks — audit coverage page', () => {
     stubApi(() => envelope(null));
     render(<App />);
     await screen.findByRole('heading', { name: 'Audit coverage' });
-    expect(screen.getByRole('heading', { name: /How findings are evidenced/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /What FluxRadar cannot certify/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /How findings are evidenced/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /What FluxRadar cannot certify/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders a back-to-home link pointing to /', async () => {
@@ -775,9 +796,23 @@ describe('Issue Center — inline detail row', () => {
       expect(screen.queryByText('No <title> element found')).not.toBeInTheDocument(),
     );
     // Second issue detail must appear.
+    expect(await screen.findByText('Content-Security-Policy header absent')).toBeInTheDocument();
+  });
+
+  it('explains findings and severity in plain language without exposing internal jargon', async () => {
+    stubIssues();
+    await renderIssues();
+
+    // A non-technical owner is told what a finding is and how to act on it.
     expect(
-      await screen.findByText('Content-Security-Policy header absent'),
+      screen.getByText(/Each finding is something FluxRadar detected on a public page/i),
     ).toBeInTheDocument();
+    // Severity is explained rather than left as bare Critical/High/Medium/Low chips.
+    expect(
+      screen.getByText(/Critical and High need attention first, then Medium, then Low/i),
+    ).toBeInTheDocument();
+    // The implementation-only word "fingerprint" must not leak to the owner.
+    expect(screen.queryByText(/fingerprint/i)).not.toBeInTheDocument();
   });
 });
 
@@ -813,55 +848,171 @@ describe('/blog routing — SPA does not intercept static pages', () => {
   });
 });
 
-// ─── Onboarding — non-technical first-run customer journey ────────────────────
-//
-// A non-technical site owner must be able to:
-//   • land in onboarding right after registration (pending onboarding, no site);
-//   • type a natural website address ("mysite.com"), see it normalized to an
-//     https origin, and run the one-time free homepage check;
-//   • get a friendly error for an unusable address without any API call;
-//   • pick a paid plan and be told, plainly, that checkout is deferred — no fake
-//     purchase is created — while still being offered the free check;
-//   • reopen the setup guide from the workspace after onboarding.
-// ─────────────────────────────────────────────────────────────────────────────
-describe('onboarding — non-technical first-run', () => {
+describe('/plans and workspace onboarding', () => {
   const pendingAccount = { ...account, onboarding: { status: 'pending' as const } };
-  const onboardProfile = { id: 'profile-onb-1', name: 'My website', domain: 'https://mysite.com' };
-  const freeScan = {
-    ...scan,
-    id: 'scan-free-onb',
-    profileId: onboardProfile.id,
-    plan: 'Free' as const,
-    domain: 'https://mysite.com',
-    status: 'Running',
-    progress: { completedModules: 0, totalModules: 1 },
-    modules: [],
-  };
+  const profile = { id: 'profile-1', name: 'My website', domain: 'https://mysite.com' };
 
   function pathOf(input: RequestInfo | URL): string {
     return new URL(String(input)).pathname;
   }
-  function calledPost(fetchMock: ReturnType<typeof vi.fn>, path: string): boolean {
-    return fetchMock.mock.calls.some(
-      ([input, init]) => pathOf(input) === path && (init as RequestInit | undefined)?.method === 'POST',
-    );
-  }
+
   function calledMethod(
     fetchMock: ReturnType<typeof vi.fn>,
     path: string,
     method: string,
   ): boolean {
     return fetchMock.mock.calls.some(
-      ([input, init]) => pathOf(input) === path && (init as RequestInit | undefined)?.method === method,
+      ([input, init]) =>
+        pathOf(input) === path && (init as RequestInit | undefined)?.method === method,
     );
   }
 
-  it('routes a newly registered owner into onboarding instead of the workspace', async () => {
-    const fetchMock = await renderUnauthenticated((path, init) => {
+  it('opens /plans directly, shows the honest pay-per-scan scope and keeps the route', async () => {
+    window.history.replaceState(null, '', '/plans');
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Plans for every public audit.' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Paid checkout is not enabled in this release/i)).toBeInTheDocument();
+    expect(screen.getByText('One free check per account')).toBeInTheDocument();
+    expect(
+      screen.getByText('SEO analysis, AI SEO / GEO and actionable findings'),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/plans');
+  });
+
+  it('does not show a "Not included" row for the Complete plan, but keeps it for Free/Basic', async () => {
+    window.history.replaceState(null, '', '/plans');
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Plans for every public audit.' });
+    const completeCard = document.querySelector('.home__plan--complete');
+    expect(completeCard).not.toBeNull();
+    expect(within(completeCard as HTMLElement).queryByText('Not included')).not.toBeInTheDocument();
+
+    const freeCard = document.querySelector('.home__plan--free');
+    expect(within(freeCard as HTMLElement).getByText('Not included')).toBeInTheDocument();
+    const basicCard = document.querySelector('.home__plan--basic');
+    expect(within(basicCard as HTMLElement).getByText('Not included')).toBeInTheDocument();
+  });
+
+  it('shows the plain-language plan explainer copy on the plans page', async () => {
+    window.history.replaceState(null, '', '/plans');
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Plans for every public audit.' });
+    expect(
+      screen.getByRole('heading', { name: 'Which plan is actually right for you?' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Free — a quick sanity check')).toBeInTheDocument();
+    expect(screen.getByText('Basic — search and AI visibility')).toBeInTheDocument();
+    expect(screen.getByText('Complete — the full public-site picture')).toBeInTheDocument();
+  });
+
+  it('labels the signed-out plans CTA as create account and opens registration', async () => {
+    window.history.replaceState(null, '', '/plans');
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
+
+    render(<App />);
+
+    // The action opens registration, so the label must not promise a sign in.
+    const cta = await screen.findByRole('button', { name: 'Create account to start' });
+    expect(screen.queryByRole('button', { name: 'Sign in to start' })).not.toBeInTheDocument();
+
+    fireEvent.click(cta);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Create account' })).toBeInTheDocument();
+  });
+
+  it('switches the shell to Ukrainian and persists the language after remount', async () => {
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+
+    switchLanguageToUkrainian();
+    expect(screen.getByRole('button', { name: 'Увійти' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }),
+    ).toBeInTheDocument();
+    expect(window.localStorage.getItem('fluxradar.language')).toBe('uk');
+
+    cleanup();
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Одна адреса. Усі сигнали.' });
+    expect(screen.getByRole('combobox', { name: 'Мова' })).toHaveTextContent('Українська');
+    expect(screen.getByRole('button', { name: 'Увійти' })).toBeInTheDocument();
+  });
+
+  it('keeps the language listbox outside the scrollable menubar strip', async () => {
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Language' }));
+
+    const scrollStrip = document.querySelector('.menubar__nav');
+    expect(scrollStrip).not.toBeNull();
+    const listbox = screen.getByRole('listbox', { name: 'Language' });
+    expect(scrollStrip).not.toContainElement(listbox);
+  });
+
+  it('closes the language listbox when clicking outside it inside the mobile burger menu', async () => {
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Language' }));
+    expect(screen.getByRole('listbox', { name: 'Language' })).toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByText('System'));
+
+    expect(screen.queryByRole('listbox', { name: 'Language' })).not.toBeInTheDocument();
+  });
+
+  it('renders the full homepage in Ukrainian, not just the header, after switching language', async () => {
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+
+    switchLanguageToUkrainian();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Одна адреса. Усі сигнали.' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Сайт — це більше, ніж позиція в рейтингу.' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Кожна перевірка. Кожен стандарт. Без сюрпризів.' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Від публічної адреси до пріоритезованих завдань.' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Почніть із сайту/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Запустити перевірку/ })).toBeInTheDocument();
+    expect(screen.getByText('FLUXRADAR / ВІД FLUXLAB')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Політика приватності' })).toBeInTheDocument();
+    expect(screen.queryByText('A website is more than a ranking.')).not.toBeInTheDocument();
+  });
+
+  it('routes a newly registered owner into workspace tour without creating a profile or scan', async () => {
+    const fetchMock = await renderUnauthenticated((path) => {
       if (path === '/auth/me') return failure(401, 'session required');
       if (path === '/auth/register') return envelope(pendingAccount, 201);
-      if (path === '/profiles' && init?.method === 'POST') return envelope(onboardProfile, 201);
       if (path === '/profiles') return envelope([]);
+      if (path === '/scans/active') return envelope(null);
       return envelope(null);
     });
 
@@ -873,131 +1024,516 @@ describe('onboarding — non-technical first-run', () => {
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'valid-password' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create account' }));
 
-    expect(
-      await screen.findByRole('heading', { name: 'Set up your first check.' }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(calledPost(fetchMock, '/auth/register')).toBe(true);
-  });
-
-  it('normalizes a typed website and runs the one-time free homepage check', async () => {
-    const fetchMock = stubApi((path, init) => {
-      if (path === '/auth/me') return envelope(pendingAccount);
-      if (path === '/profiles' && init?.method === 'POST') return envelope(onboardProfile, 201);
-      if (path === '/profiles') return envelope([]);
-      if (path === `/profiles/${onboardProfile.id}/free-check`) return envelope(freeScan, 201);
-      if (path === '/account/onboarding')
-        return envelope({ ...pendingAccount, onboarding: { status: 'completed' } });
-      if (path === `/scans/${freeScan.id}`) return envelope(freeScan);
-      return envelope(null);
-    });
-
-    render(<App />);
-    await screen.findByRole('heading', { name: 'Set up your first check.' });
-
-    fireEvent.change(screen.getByPlaceholderText('My website'), { target: { value: 'My website' } });
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), { target: { value: 'mysite.com' } });
-
-    // The owner sees, in plain terms, exactly which origin will be checked.
-    expect(screen.getByText('https://mysite.com')).toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Create site and run free homepage check' }),
-    );
-
-    // Lands on the live progress screen for the Free plan.
-    expect(await screen.findByText('Scan progress · Free')).toBeInTheDocument();
-
-    // The profile was created from the normalized https origin (not the raw text).
-    const profilePost = fetchMock.mock.calls.find(
-      ([input, init]) =>
-        pathOf(input) === '/profiles' && (init as RequestInit | undefined)?.method === 'POST',
-    );
-    expect(profilePost).toBeDefined();
-    expect(String((profilePost?.[1] as RequestInit).body)).toContain('https://mysite.com');
-    expect(calledPost(fetchMock, `/profiles/${onboardProfile.id}/free-check`)).toBe(true);
-    expect(calledMethod(fetchMock, '/account/onboarding', 'PATCH')).toBe(true);
-    // No fake paid transaction anywhere in the free path.
-    expect(calledPost(fetchMock, '/billing/dev-checkout')).toBe(false);
-  });
-
-  it('rejects an unusable website address with a friendly message and no API call', async () => {
-    const fetchMock = stubApi((path) => {
-      if (path === '/auth/me') return envelope(pendingAccount);
-      if (path === '/profiles') return envelope([]);
-      return envelope(null);
-    });
-
-    render(<App />);
-    await screen.findByRole('heading', { name: 'Set up your first check.' });
-
-    fireEvent.change(screen.getByPlaceholderText('My website'), { target: { value: 'My website' } });
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
-      target: { value: 'not a website' },
-    });
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Create site and run free homepage check' }),
-    );
-
-    expect(await screen.findByText(WEBSITE_INPUT_ERROR)).toBeInTheDocument();
-    // Nothing is created from an invalid address.
-    expect(calledPost(fetchMock, '/profiles')).toBe(false);
-  });
-
-  it('defers a paid choice without faking a purchase and still offers the free check', async () => {
-    const fetchMock = stubApi((path, init) => {
-      if (path === '/auth/me') return envelope(pendingAccount);
-      if (path === '/profiles' && init?.method === 'POST') return envelope(onboardProfile, 201);
-      if (path === '/profiles') return envelope([]);
-      if (path === '/scans/active') return envelope(null);
-      if (path === '/account/onboarding')
-        return envelope({ ...pendingAccount, onboarding: { status: 'completed' } });
-      return envelope(null);
-    });
-
-    render(<App />);
-    await screen.findByRole('heading', { name: 'Set up your first check.' });
-
-    fireEvent.change(screen.getByPlaceholderText('My website'), { target: { value: 'My website' } });
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), { target: { value: 'mysite.com' } });
-
-    // Choose a paid plan.
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Basic' } });
-
-    // A clear, honest deferral notice — not a promise of payment.
-    expect(screen.getByText('Paid audits open after setup')).toBeInTheDocument();
-    expect(screen.getByText(/Checkout is not available during setup yet/i)).toBeInTheDocument();
-    // Free is still offered as the primary action.
-    expect(
-      screen.getByRole('button', { name: 'Run the free homepage check now' }),
-    ).toBeInTheDocument();
-
-    // Saving the paid preference must not fake a purchase or start a scan.
-    fireEvent.click(screen.getByRole('button', { name: 'Save choice and open workspace' }));
-
     expect(await screen.findByText('Unified public website audit station.')).toBeInTheDocument();
-    expect(calledPost(fetchMock, '/profiles')).toBe(true);
-    expect(calledMethod(fetchMock, '/account/onboarding', 'PATCH')).toBe(true);
-    expect(calledPost(fetchMock, '/billing/dev-checkout')).toBe(false);
-    expect(calledPost(fetchMock, `/profiles/${onboardProfile.id}/free-check`)).toBe(false);
+    expect(
+      await screen.findByRole('heading', { name: 'Files is your starting point' }),
+    ).toBeInTheDocument();
+    expect(calledMethod(fetchMock, '/profiles', 'POST')).toBe(false);
+    expect(calledMethod(fetchMock, '/account/onboarding', 'PATCH')).toBe(false);
+    expect(fetchMock.mock.calls.some(([input]) => pathOf(input).includes('/free-check'))).toBe(
+      false,
+    );
+    expect(calledMethod(fetchMock, '/billing/dev-checkout', 'POST')).toBe(false);
   });
 
-  it('reopens the setup guide from the workspace after onboarding', async () => {
-    stubApi((path) => {
-      if (path === '/auth/me')
-        return envelope({ ...account, onboarding: { status: 'completed' } });
-      if (path === '/profiles') return envelope([onboardProfile]);
+  it('exposes the tour as an accessible dialog and moves between steps via its controls', async () => {
+    const fetchMock = stubApi((path, init) => {
+      if (path === '/auth/me') return envelope(pendingAccount);
+      if (path === '/profiles') return envelope([]);
       if (path === '/scans/active') return envelope(null);
+      if (path === '/account/onboarding' && init?.method === 'PATCH') {
+        return envelope({ ...account, onboarding: { status: 'skipped' as const } });
+      }
+      return envelope(null);
+    });
+
+    render(<App />);
+
+    // The step title names the dialog and the body describes it, so assistive
+    // technology announces the current step, not just an unlabelled modal.
+    const tour = await screen.findByRole('dialog', { name: 'Files is your starting point' });
+    expect(tour).toHaveAttribute('aria-modal', 'true');
+    expect(tour).toHaveAccessibleDescription(/Files keeps your saved public website profiles/);
+
+    // One minimal visual-presence check: the spotlight is decorative only and
+    // must stay hidden from assistive technology.
+    const spotlight = document.querySelector('.tour-overlay__spotlight');
+    expect(spotlight).toBeInTheDocument();
+    expect(spotlight).toHaveAttribute('aria-hidden', 'true');
+
+    // Keyboard focus stays trapped within the dialog controls.
+    const controls = within(tour).getAllByRole('button');
+    const firstControl = controls[0];
+    const lastControl = controls[controls.length - 1];
+    if (!firstControl || !lastControl) throw new Error('expected tour controls to render');
+    lastControl.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(firstControl).toHaveFocus();
+    firstControl.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(lastControl).toHaveFocus();
+
+    // Next and Back change the visible step, announced through the dialog name.
+    fireEvent.click(within(tour).getByRole('button', { name: 'Next' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Scan turns a profile into an audit' }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Back' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Files is your starting point' }),
+    ).toBeInTheDocument();
+
+    // Escape performs the same safe skip as the Skip button.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(calledMethod(fetchMock, '/account/onboarding', 'PATCH')).toBe(true);
+    expect(fetchMock.mock.calls.some(([input]) => pathOf(input).includes('/free-check'))).toBe(
+      false,
+    );
+  });
+
+  it('does not auto-open the tour for an account that already skipped it', async () => {
+    stubApi((path) => {
+      if (path === '/auth/me') {
+        return envelope({ ...account, onboarding: { status: 'skipped' as const } });
+      }
+      if (path === '/profiles') return envelope([profile]);
+      if (path === '/scans/active') return envelope(null);
+      return envelope(null);
+    });
+
+    render(<App />);
+
+    // A returning skipped user lands on the signed-in home, never the tour.
+    expect(await screen.findByRole('button', { name: 'Open workspace' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Files is your starting point' }),
+    ).not.toBeInTheDocument();
+
+    // Entering the workspace does not resurrect the skipped tour either.
+    fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
+    expect(await screen.findByText('Site Profiles')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('finishes the tour through the onboarding status endpoint only', async () => {
+    const fetchMock = stubApi((path, init) => {
+      if (path === '/auth/me') return envelope(pendingAccount);
+      if (path === '/profiles') return envelope([]);
+      if (path === '/scans/active') return envelope(null);
+      if (path === '/account/onboarding' && init?.method === 'PATCH') {
+        return envelope({ ...account, onboarding: { status: 'completed' as const } });
+      }
+      return envelope(null);
+    });
+
+    render(<App />);
+    expect(
+      await screen.findByRole('heading', { name: 'Files is your starting point' }),
+    ).toBeInTheDocument();
+    for (let step = 0; step < 6; step += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Files is your starting point' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(calledMethod(fetchMock, '/account/onboarding', 'PATCH')).toBe(true);
+    expect(calledMethod(fetchMock, '/profiles', 'POST')).toBe(false);
+  });
+
+  it('reopens the same tour from the workspace and allows skipping', async () => {
+    const fetchMock = stubApi((path, init) => {
+      if (path === '/auth/me')
+        return envelope({ ...account, onboarding: { status: 'completed' as const } });
+      if (path === '/profiles') return envelope([profile]);
+      if (path === '/scans/active') return envelope(null);
+      if (path === '/account/onboarding' && init?.method === 'PATCH') {
+        return envelope({ ...account, onboarding: { status: 'skipped' as const } });
+      }
       return envelope(null);
     });
 
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Open workspace' }));
     await screen.findByText('Site Profiles');
-
     fireEvent.click(screen.getByRole('button', { name: 'Open setup guide' }));
     expect(
-      await screen.findByRole('heading', { name: 'Set up your first check.' }),
+      await screen.findByRole('heading', { name: 'Files is your starting point' }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Files is your starting point' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(calledMethod(fetchMock, '/account/onboarding', 'PATCH')).toBe(true);
+  });
+});
+
+// ─── Self-explanatory workflow — nav descriptions, workspace map, plain help ──
+//
+// A non-technical site owner must be able to understand the workflow without
+// already knowing what Files/Scan/Reports/Integrations/Plans mean. These tests
+// assert the user-visible, accessibility-friendly copy that carries that
+// explanation, in both English and Ukrainian where the shell is bilingual.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('self-explanatory workflow copy', () => {
+  const emptyWorkspace = (path: string): Response => {
+    if (path === '/auth/me') return envelope(account);
+    if (path === '/profiles') return envelope([]);
+    if (path === '/scans/active') return envelope(null);
+    return envelope(null);
+  };
+
+  it('describes each main navigation tab in plain language (English)', async () => {
+    await renderUnauthenticated((path) =>
+      path === '/auth/me' ? failure(401, 'session required') : envelope([]),
+    );
+
+    expect(screen.getByRole('button', { name: 'Files' })).toHaveAttribute(
+      'title',
+      'Your saved websites and their audit history.',
+    );
+    expect(screen.getByRole('button', { name: 'Files' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Scan' })).toHaveAttribute(
+      'title',
+      'Set up and start a new audit.',
+    );
+    expect(screen.getByRole('button', { name: 'Reports' })).toHaveAttribute(
+      'title',
+      'Completed and in-progress audit results.',
+    );
+    expect(screen.getByRole('button', { name: 'Integrations' })).toHaveAttribute(
+      'title',
+      'Optional data connections. The public-site scan works without them.',
+    );
+    expect(screen.getByRole('button', { name: 'Plans' })).toHaveAttribute(
+      'title',
+      'What each audit covers and its limits.',
+    );
+  });
+
+  it('describes the navigation tabs in Ukrainian after switching language', async () => {
+    await renderUnauthenticated((path) =>
+      path === '/auth/me' ? failure(401, 'session required') : envelope([]),
+    );
+
+    switchLanguageToUkrainian();
+
+    expect(screen.getByRole('button', { name: 'Сайти' })).toHaveAttribute(
+      'title',
+      'Ваші збережені сайти та історія їхніх перевірок.',
+    );
+    expect(screen.getByRole('button', { name: 'Перевірка' })).toHaveAttribute(
+      'title',
+      'Налаштуйте та запустіть нову перевірку.',
+    );
+    expect(screen.getByRole('button', { name: 'Інтеграції' })).toHaveAttribute(
+      'title',
+      'Необовʼязкові підключення даних. Публічна перевірка працює без них.',
+    );
+  });
+
+  it('shows a plain-language map of the workspace areas', async () => {
+    stubApi(emptyWorkspace);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open workspace' }));
+    const guide = await screen.findByRole('region', { name: 'What each area does' });
+
+    expect(
+      within(guide).getByText('Your saved websites and their audit history.'),
+    ).toBeInTheDocument();
+    expect(within(guide).getByText('Set up and start a new audit.')).toBeInTheDocument();
+    expect(within(guide).getByText('Completed and in-progress audit results.')).toBeInTheDocument();
+    expect(
+      within(guide).getByText(
+        'Optional data connections. The public-site scan works without them.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(guide).getByText('What each audit covers and its limits.')).toBeInTheDocument();
+  });
+
+  it('shows the workspace map in Ukrainian', async () => {
+    stubApi(emptyWorkspace);
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Open workspace' });
+    switchLanguageToUkrainian();
+    fireEvent.click(screen.getByRole('button', { name: 'Відкрити робочий простір' }));
+
+    const guide = await screen.findByRole('region', { name: 'Що робить кожен розділ' });
+    expect(
+      within(guide).getByText('Ваші збережені сайти та історія їхніх перевірок.'),
+    ).toBeInTheDocument();
+    expect(within(guide).getByText('Готові та поточні результати перевірок.')).toBeInTheDocument();
+  });
+
+  it('tells a first-time owner what to enter and that saving does not start a scan', async () => {
+    stubApi(emptyWorkspace);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open workspace' }));
+    await screen.findByText('Site Profiles');
+
+    // Empty state names the first action and the input in plain language.
+    expect(screen.getByText(/Add your first public website to begin/i)).toBeInTheDocument();
+    // The add-site form reassures that saving is not a scan and not a charge.
+    expect(screen.getByText(/saving does not start a scan or charge you/i)).toBeInTheDocument();
+  });
+
+  it('explains score, coverage and findings on the report dashboard', async () => {
+    window.history.replaceState(null, '', `/scans/${completedScan.id}`);
+    stubApi((path) => {
+      if (path === '/auth/me') return envelope(account);
+      if (path === '/profiles') return envelope([]);
+      if (path === `/scans/${completedScan.id}`) return envelope(completedScan);
+      if (path === `/scans/${completedScan.id}/dashboard`) return envelope(dashboard);
+      return envelope(null);
+    });
+
+    render(<App />);
+
+    const help = await screen.findByRole('region', { name: 'How to read this report' });
+    expect(within(help).getByText('Score')).toBeInTheDocument();
+    expect(within(help).getByText(/0–100 rating/)).toBeInTheDocument();
+    expect(within(help).getByText('Coverage')).toBeInTheDocument();
+    expect(
+      within(help).getByText(/How much of your site FluxRadar was able to check/i),
+    ).toBeInTheDocument();
+    expect(within(help).getByText('Findings')).toBeInTheDocument();
+  });
+});
+
+// ─── /plans — MenuBar navigation must not silently no-op ─────────────────────
+//
+// The PlansScreen renders its own MenuBar.  Every nav button must navigate to
+// the correct screen; buttons that previously had no handler in PlansScreen's
+// onNavigate callback would silently do nothing (no-op).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('/plans — MenuBar navigation (signed in)', () => {
+  function stubPlansSignedIn() {
+    return stubApi((path) => {
+      if (path === '/auth/me') return envelope(account);
+      if (path === '/profiles') return envelope([]);
+      if (path === '/scans/active') return envelope(null);
+      if (path === '/integrations') return envelope([]);
+      return envelope(null);
+    });
+  }
+
+  it('navigates from /plans to the workspace when the Files tab is clicked', async () => {
+    window.history.replaceState(null, '', '/plans');
+    stubPlansSignedIn();
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Plans for every public audit.' });
+    expect(screen.getByRole('button', { name: 'Files' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }));
+
+    await screen.findByText('Unified public website audit station.');
+    expect(
+      screen.queryByRole('heading', { name: 'Plans for every public audit.' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('navigates from /plans to integrations when the Integrations tab is clicked', async () => {
+    window.history.replaceState(null, '', '/plans');
+    stubPlansSignedIn();
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Plans for every public audit.' });
+    fireEvent.click(screen.getByRole('button', { name: 'Integrations' }));
+
+    await screen.findByText('Connected data sources');
+    expect(
+      screen.queryByRole('heading', { name: 'Plans for every public audit.' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows only customer-connectable integrations', async () => {
+    window.history.replaceState(null, '', '/#integrations');
+    stubApi((path) => {
+      if (path === '/auth/me') return envelope(account);
+      if (path === '/profiles') return envelope([]);
+      if (path === '/integrations') {
+        return envelope([
+          {
+            provider: 'google',
+            label: 'Google data',
+            kind: 'user',
+            status: 'available',
+            services: ['Google Search Console', 'Google Analytics 4'],
+            canConnect: true,
+            lastCheckedAt: null,
+            lastError: null,
+          },
+          {
+            provider: 'bing',
+            label: 'Bing Webmaster Tools',
+            kind: 'user',
+            status: 'available',
+            services: ['Bing Webmaster Tools'],
+            canConnect: true,
+            lastCheckedAt: null,
+            lastError: null,
+          },
+        ]);
+      }
+      return envelope(null);
+    });
+    render(<App />);
+
+    await screen.findByText('Google data');
+    expect(screen.getAllByText('Bing Webmaster Tools')).toHaveLength(2);
+    expect(screen.queryByText('Chrome UX Report')).not.toBeInTheDocument();
+    expect(screen.queryByText('Anthropic')).not.toBeInTheDocument();
+    expect(screen.queryByText('Hetzner Object Storage')).not.toBeInTheDocument();
+    expect(screen.queryByText('ROADMAP / LATER')).not.toBeInTheDocument();
+  });
+});
+
+// ─── Files tab — accurate copy ───────────────────────────────────────────────
+//
+// The Files tour step must describe what is actually rendered in the Files tab
+// (saved website profiles) and must not claim it holds "saved files" or
+// "audit artifacts" that do not appear in the UI.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Files tab — accurate tour copy', () => {
+  it('tour body does not claim the tab holds saved files or audit artifacts', async () => {
+    stubApi((path) => {
+      if (path === '/auth/me')
+        return envelope({ ...account, onboarding: { status: 'pending' as const } });
+      if (path === '/profiles') return envelope([]);
+      if (path === '/scans/active') return envelope(null);
+      return envelope(null);
+    });
+    render(<App />);
+
+    const tour = await screen.findByRole('dialog', { name: 'Files is your starting point' });
+
+    expect(within(tour).queryByText(/saved files/i)).not.toBeInTheDocument();
+    expect(within(tour).queryByText(/audit artifacts/i)).not.toBeInTheDocument();
+    expect(within(tour).getByText(/saved public website profiles/i)).toBeInTheDocument();
+  });
+});
+
+// ─── NewScanScreen — paid availability and i18n ───────────────────────────────
+//
+// Three focused tests that verify the VITE_LIVE_CHECKOUT_ENABLED gate and the
+// NewScanScreen i18n wiring:
+//
+//  1. Ordinary user (no internalFreeAccess, checkout disabled by default in
+//     test env) sees the paid-unavailable note, only the Free plan option, and
+//     the "Run free check" button — and can actually submit (calls free-check,
+//     never dev-checkout).
+//
+//  2. internalFreeAccess user sees "Basic · internal free" / "Complete · internal
+//     free" plan options and the "Run internal scan" button; no unavailable note.
+//
+//  3. After switching the shell language to Ukrainian the NewScanScreen window
+//     title, key field labels and the submit button all render in Ukrainian.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('NewScanScreen — paid availability and i18n', () => {
+  const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
+
+  function stubNewScan(acct: object): ReturnType<typeof vi.fn> {
+    return stubApi((path) => {
+      if (path === '/auth/me') return envelope(acct);
+      if (path === '/profiles') return envelope([profile]);
+      if (path === '/scans/active') return envelope(null);
+      if (path === `/profiles/${profile.id}/free-check`)
+        return envelope({ ...scan, id: 'scan-free-1', plan: 'Free' as const });
+      if (path.startsWith('/scans/'))
+        return envelope({ ...scan, id: 'scan-free-1', plan: 'Free' as const });
+      return envelope(null);
+    });
+  }
+
+  async function openNewScan(acct: object): Promise<ReturnType<typeof vi.fn>> {
+    const fetchMock = stubNewScan(acct);
+    render(<App />);
+    await screen.findByText(account.email);
+    fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
+    await screen.findByText('Site Profiles');
+    fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+    await screen.findByText('New scan — scope and tariff');
+    return fetchMock;
+  }
+
+  it('ordinary user sees paid-unavailable note and can still run Free', async () => {
+    const fetchMock = await openNewScan(account);
+
+    // Paid-unavailable note is shown.
+    expect(
+      screen.getByText(/Paid scans will be available when checkout is enabled/i),
+    ).toBeInTheDocument();
+
+    // Basic and Complete options are absent from the plan selector.
+    expect(screen.queryByText(/Basic · \$55/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Complete · \$120/)).not.toBeInTheDocument();
+
+    // Submit button is enabled and labelled for Free.
+    const runBtn = screen.getByRole('button', { name: 'Run free check' });
+    expect(runBtn).toBeEnabled();
+
+    // Submitting calls free-check, never dev-checkout.
+    fireEvent.click(runBtn);
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching(/\/profiles\/profile-1\/free-check$/),
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringMatching(/\/billing\/dev-checkout/),
+      expect.anything(),
+    );
+  });
+
+  it('internalFreeAccess user sees internal Basic and Complete options', async () => {
+    const internalAccount = { ...account, internalFreeAccess: true };
+    await openNewScan(internalAccount);
+
+    // No unavailable note for internal users.
+    expect(
+      screen.queryByText(/Paid scans will be available when checkout is enabled/i),
+    ).not.toBeInTheDocument();
+
+    // Internal-free labels appear in the plan selector.
+    expect(screen.getByText('Basic · internal free')).toBeInTheDocument();
+    expect(screen.getByText('Complete · internal free')).toBeInTheDocument();
+
+    // Default plan is Complete for internal users → submit label is Run internal scan.
+    expect(screen.getByRole('button', { name: 'Run internal scan' })).toBeInTheDocument();
+  });
+
+  it('renders New scan labels in Ukrainian after language switch', async () => {
+    stubNewScan(account);
+    render(<App />);
+    await screen.findByText(account.email);
+
+    // Switch language before entering the workspace.
+    switchLanguageToUkrainian();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Відкрити робочий простір' }));
+    await screen.findByText('Профілі сайтів');
+    fireEvent.click(screen.getByRole('button', { name: 'Нова перевірка' }));
+
+    // Window title in Ukrainian.
+    expect(await screen.findByText('Нова перевірка — область і тариф')).toBeInTheDocument();
+    // Field label in Ukrainian.
+    expect(screen.getByText('Публічне джерело')).toBeInTheDocument();
+    // Plan selector label in Ukrainian.
+    expect(screen.getByText('Тариф перевірки')).toBeInTheDocument();
+    // Submit button in Ukrainian (ordinary account → Free plan → runFree).
+    expect(
+      screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }),
     ).toBeInTheDocument();
   });
 });

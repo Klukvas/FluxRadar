@@ -16,6 +16,8 @@ import { stdoutLogger } from './http/logger.ts';
 import type { ApiLogger } from './http/logger.ts';
 import { requestLogger } from './http/request-logger.ts';
 import { issuesRouter } from './issues/routes.ts';
+import { googleIntegrationRouter } from './integrations/google/routes.ts';
+import { createGoogleDataRunner } from './integrations/google/runner.ts';
 import { integrationsRouter } from './integrations/routes.ts';
 import { validateRuntimeConfig } from './integrations/config.ts';
 import { createMailer, type Mailer } from './email/mailer.ts';
@@ -43,6 +45,7 @@ export interface CreateAppOptions {
   readonly crawl?: WorkerCrawlOptions;
   readonly createAiProvider?: WorkerDeps['createAiProvider'];
   readonly createPerformanceRunner?: WorkerDeps['createPerformanceRunner'];
+  readonly createGoogleDataRunner?: WorkerDeps['createGoogleDataRunner'];
   /** Test seam; production reads FLUXRADAR_INTERNAL_FREE_EMAILS. */
   readonly internalFreeEmails?: ReadonlySet<string>;
   readonly mailer?: Mailer;
@@ -73,6 +76,9 @@ export function createApp(options: CreateAppOptions): Express {
         createDefaultAiProvider(profile.name, new URL(scan.domain).hostname)),
     createPerformanceRunner:
       options.createPerformanceRunner ?? (() => createDefaultPerformanceRunner()),
+    createGoogleDataRunner:
+      options.createGoogleDataRunner ??
+      (() => createGoogleDataRunner({ prisma: options.prisma, now })),
     ...(options.crawl !== undefined ? { crawl: options.crawl } : {}),
     mailer,
   };
@@ -137,6 +143,7 @@ export function createApp(options: CreateAppOptions): Express {
   );
   app.use(profilesRouter({ prisma: options.prisma, now }));
   app.use(integrationsRouter({ prisma: options.prisma, now }));
+  app.use(googleIntegrationRouter({ prisma: options.prisma, now }));
   app.use(
     billingRouter({
       prisma: options.prisma,
@@ -181,6 +188,7 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
     createAiProvider: (scan, profile) =>
       createDefaultAiProvider(profile.name, new URL(scan.domain).hostname),
     createPerformanceRunner: () => createDefaultPerformanceRunner(),
+    createGoogleDataRunner: () => createGoogleDataRunner({ prisma }),
   };
   let queueDrainRunning = false;
   const drainQueue = async (): Promise<void> => {
@@ -244,7 +252,7 @@ function corsMiddleware(origin: string) {
       res.setHeader('Vary', 'Origin');
     }
     if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, paddle-signature');
       res.status(204).end();
       return;

@@ -134,6 +134,7 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
       // не удаляется, чтобы не рвать FK и retention-обязательства.
       throw conflict('PROFILE_HAS_HISTORY', 'profile has scans or purchases and cannot be deleted');
     }
+    await prisma.siteGoogleBinding.deleteMany({ where: { siteProfileId: profile.id } });
     await prisma.siteProfile.delete({ where: { id: profile.id } });
     sendOk(res, null);
   });

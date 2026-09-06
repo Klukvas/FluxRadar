@@ -10,7 +10,7 @@ describe('AnthropicProvider', () => {
       new Response(
         JSON.stringify({
           id: 'msg_123',
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-5',
           stop_reason: 'end_turn',
           content: [{ type: 'text', text: 'A useful answer.' }],
           usage: { input_tokens: 40, output_tokens: 12 },
@@ -38,7 +38,7 @@ describe('AnthropicProvider', () => {
     );
     const init = fetcher.mock.calls[0]?.[1];
     expect(JSON.parse(String(init?.body))).toMatchObject({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 2000,
       messages: [{ role: 'user', content: 'redacted prompt' }],
     });

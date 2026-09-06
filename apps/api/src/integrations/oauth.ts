@@ -10,12 +10,17 @@ export interface OAuthTokens {
   readonly scopes: readonly string[];
 }
 
+export const GOOGLE_SEARCH_CONSOLE_SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
+export const GOOGLE_ANALYTICS_SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
+
+// Unchanged from the approved consent screen: both Google scopes are read-only
+// and neither the Search Console nor the GA4 flow asks for anything beyond them.
 const GOOGLE_SCOPES = [
   'openid',
   'email',
   'profile',
-  'https://www.googleapis.com/auth/webmasters.readonly',
-  'https://www.googleapis.com/auth/analytics.readonly',
+  GOOGLE_SEARCH_CONSOLE_SCOPE,
+  GOOGLE_ANALYTICS_SCOPE,
 ] as const;
 
 const BING_SCOPES = ['webmaster.read'] as const;
@@ -96,4 +101,60 @@ export async function exchangeOAuthCode(
   code: string,
 ): Promise<OAuthTokens> {
   return exchangeCode(provider, config, code);
+}
+
+/**
+ * Raised when Google refuses the refresh grant itself (revoked consent, deleted
+ * client, rotated secret). It is terminal for the stored connection: retrying
+ * cannot help, the user has to authorize again.
+ */
+export class OAuthGrantRevokedError extends Error {
+  constructor(provider: UserIntegrationProvider) {
+    super(`OAuth refresh grant was rejected for ${provider}`);
+    this.name = 'OAuthGrantRevokedError';
+  }
+}
+
+/**
+ * Exchanges a refresh token for a fresh access token. Google does not return a
+ * new refresh token here, so the caller keeps the stored one; the returned
+ * `refreshToken` is null to make that explicit rather than implied.
+ */
+export async function refreshOAuthTokens(
+  provider: UserIntegrationProvider,
+  config: OAuthProviderConfig,
+  refreshToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<OAuthTokens> {
+  const endpoint =
+    provider === 'google'
+      ? 'https://oauth2.googleapis.com/token'
+      : 'https://www.bing.com/webmasters/oauth/token';
+  const response = await fetcher(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const payload = (await response.json().catch(() => null)) as TokenResponse | null;
+  if (response.status === 400 || response.status === 401) {
+    // invalid_grant is Google's answer for revoked/expired consent.
+    throw new OAuthGrantRevokedError(provider);
+  }
+  if (!response.ok || typeof payload?.access_token !== 'string' || payload.access_token === '') {
+    throw new Error(`OAuth token refresh failed for ${provider}`);
+  }
+  const expiresIn = typeof payload.expires_in === 'number' ? payload.expires_in : null;
+  const scope = typeof payload.scope === 'string' ? payload.scope.split(' ').filter(Boolean) : [];
+  return {
+    accessToken: payload.access_token,
+    refreshToken: null,
+    expiresAt: expiresIn === null ? null : new Date(Date.now() + expiresIn * 1000),
+    scopes: scope,
+  };
 }

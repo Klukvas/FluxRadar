@@ -28,14 +28,10 @@ export interface ModulePlan {
   readonly stubs: readonly StubModule[];
 }
 
-/** Матрица IMPLEMENTATION_PLAN §2: Performance/Analytics — Unavailable, UX — N/A. */
+// Матрица IMPLEMENTATION_PLAN §2: UX — N/A. Analytics больше не заглушка:
+// строку модуля пишет orchestrator/analytics-module.ts по реальным данным
+// Google (или по честному состоянию подключения), в той же пост-outcome фазе.
 const COMPLETE_STUBS: readonly StubModule[] = [
-  {
-    module: 'Analytics',
-    runtimeStatus: 'Unavailable',
-    statusReason: 'AnalyticsIntegrationNotConnected',
-    applicableChecks: 1,
-  },
   {
     module: 'UX/Conversion',
     runtimeStatus: 'Not applicable',

@@ -60,7 +60,7 @@ export class AnthropicProvider implements AiProvider {
     this.config = {
       provider: 'anthropic',
       apiVersion: options.apiVersion ?? '2023-06-01',
-      modelId: options.modelId ?? 'claude-sonnet-4-20250514',
+      modelId: options.modelId ?? 'claude-sonnet-5',
       timeoutMs: options.timeoutMs ?? 15_000,
       maxRetries: 1,
     };

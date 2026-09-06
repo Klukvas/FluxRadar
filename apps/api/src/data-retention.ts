@@ -125,6 +125,7 @@ export async function deleteAccountData(
       await tx.refundRecord.deleteMany({ where: { purchaseId: { in: purchaseIds } } });
       await tx.entitlement.deleteMany({ where: { purchaseId: { in: purchaseIds } } });
       await tx.purchase.deleteMany({ where: { id: { in: purchaseIds } } });
+      await tx.siteGoogleBinding.deleteMany({ where: { accountId } });
       await tx.siteProfile.deleteMany({ where: { accountId } });
       await tx.session.deleteMany({ where: { accountId } });
       await tx.aiConsent.deleteMany({ where: { accountId } });

@@ -73,7 +73,7 @@ export function createDefaultAiProvider(brand: string, siteHostname: string): Ai
       config: {
         provider: 'anthropic',
         apiVersion: process.env.ANTHROPIC_API_VERSION ?? '2023-06-01',
-        modelId: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-20250514',
+        modelId: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5',
         timeoutMs: 10_000,
         maxRetries: 1,
       },
@@ -91,7 +91,7 @@ export function createDefaultAiProvider(brand: string, siteHostname: string): Ai
     config: {
       provider: 'anthropic',
       apiVersion: process.env.ANTHROPIC_API_VERSION ?? '2023-06-01',
-      modelId: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-20250514',
+      modelId: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5',
       timeoutMs: 10_000,
       maxRetries: 1,
     },

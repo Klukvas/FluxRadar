@@ -76,7 +76,7 @@ export function readIntegrationConfig(env: NodeJS.ProcessEnv = process.env): Int
       'http://localhost:3310/integrations/bing/callback',
     ),
     anthropicApiKey: optional(env.ANTHROPIC_API_KEY),
-    anthropicModel: optional(env.ANTHROPIC_MODEL) ?? 'claude-sonnet-4-20250514',
+    anthropicModel: optional(env.ANTHROPIC_MODEL) ?? 'claude-sonnet-5',
     anthropicApiVersion: optional(env.ANTHROPIC_API_VERSION) ?? '2023-06-01',
     pageSpeedApiKey: optional(env.PAGESPEED_API_KEY),
     cruxApiKey: optional(env.CRUX_API_KEY),

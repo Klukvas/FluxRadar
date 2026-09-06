@@ -160,3 +160,81 @@ export interface IntegrationStatus {
   readonly lastCheckedAt: string | null;
   readonly lastError: string | null;
 }
+
+/** Mirrors the API's GoogleDataState; every value has its own explanation in the UI. */
+export type GoogleDataState =
+  | 'connected'
+  | 'not_connected'
+  | 'no_property_selected'
+  | 'needs_reconnect'
+  | 'no_access'
+  | 'no_data'
+  | 'request_failed';
+
+export interface GoogleDiscoverySection<T> {
+  readonly state: GoogleDataState;
+  readonly detail: string;
+  readonly items: readonly T[];
+}
+
+export interface GoogleDiscovery {
+  readonly connection: { readonly state: GoogleDataState; readonly detail: string };
+  readonly searchConsole: GoogleDiscoverySection<{
+    readonly siteUrl: string;
+    readonly permissionLevel: string;
+  }>;
+  readonly analytics: GoogleDiscoverySection<{
+    readonly propertyId: string;
+    readonly displayName: string;
+    readonly accountName: string;
+  }>;
+}
+
+export interface GoogleBinding {
+  readonly siteProfileId: string;
+  readonly searchConsoleSiteUrl: string | null;
+  readonly ga4PropertyId: string | null;
+  readonly ga4PropertyName: string | null;
+  readonly updatedAt: string;
+}
+
+export interface GoogleServiceResult<T> {
+  readonly state: GoogleDataState;
+  readonly detail: string;
+  readonly data: T | null;
+}
+
+export interface SearchConsoleRow {
+  readonly key: string;
+  readonly clicks: number;
+  readonly impressions: number;
+  readonly ctr: number;
+  readonly position: number;
+}
+
+export interface GoogleDataSnapshot {
+  readonly source: 'google';
+  readonly readOnly: boolean;
+  readonly fetchedAt: string;
+  readonly dateRange: { readonly startDate: string; readonly endDate: string };
+  readonly searchConsole: GoogleServiceResult<{
+    readonly siteUrl: string;
+    readonly totals: {
+      readonly clicks: number;
+      readonly impressions: number;
+      readonly ctr: number;
+      readonly position: number;
+    };
+    readonly topQueries: readonly SearchConsoleRow[];
+    readonly topPages: readonly SearchConsoleRow[];
+  }>;
+  readonly analytics: GoogleServiceResult<{
+    readonly propertyId: string;
+    readonly propertyName: string | null;
+    readonly users: number;
+    readonly sessions: number;
+    readonly pageViews: number;
+    readonly events: number;
+    readonly keyEvents: number | null;
+  }>;
+}
