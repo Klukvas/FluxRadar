@@ -176,12 +176,17 @@ rather than pretending a message was sent — `POST /auth/register` answers with
 `emailVerification: { status: "not-configured" }` and the password-reset request
 still answers 202 (it is deliberately indistinguishable from an unknown address).
 
-To connect it, set `RESEND_API_KEY` in `PRODUCTION_ENV_FILE` (`RESEND_REPLY_TO`
-is always optional and has no deploy secret). The sender has one: the
-`production` secret `PRODUCTION_RESEND_FROM_EMAIL` overrides `RESEND_FROM_EMAIL`
-when it is non-empty, so the address can be corrected — a rebrand, a new sending
-subdomain, a mailbox Resend stopped accepting — without rewriting the whole base
-env file. Leave the secret unset to keep whatever `PRODUCTION_ENV_FILE` defines.
+To connect it, set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` — either in
+`PRODUCTION_ENV_FILE`, or through the two `production` secrets
+`PRODUCTION_RESEND_API_KEY` and `PRODUCTION_RESEND_FROM_EMAIL`, which override
+them when non-empty and are skipped when empty, like every other optional
+override below. Supplying them as deploy secrets is what lets the pair be
+connected or corrected — a rotated key, a rebrand, a new sending subdomain —
+without rewriting a base env file nobody can read back.
+
+They are overridable as a **pair** on purpose: half of it sends nothing and is
+reported `invalid` at boot, by name. `RESEND_REPLY_TO` stays optional everywhere
+and has no deploy secret, because on its own it configures nothing.
 
 **Remaining manual, provider-side steps — none of which this repository can do or
 verify:**
@@ -236,6 +241,7 @@ workflow log):
 | `PRODUCTION_ANTHROPIC_API_KEY`            | `ANTHROPIC_API_KEY`        |
 | `PRODUCTION_PAGESPEED_API_KEY`            | `PAGESPEED_API_KEY`        |
 | `PRODUCTION_CRUX_API_KEY`                 | `CRUX_API_KEY`             |
+| `PRODUCTION_RESEND_API_KEY`               | `RESEND_API_KEY`           |
 | `PRODUCTION_RESEND_FROM_EMAIL`            | `RESEND_FROM_EMAIL`        |
 | `PRODUCTION_HETZNER_S3_ACCESS_KEY`        | `HETZNER_S3_ACCESS_KEY`    |
 | `PRODUCTION_HETZNER_S3_SECRET_KEY`        | `HETZNER_S3_SECRET_KEY`    |

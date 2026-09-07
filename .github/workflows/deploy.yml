@@ -110,19 +110,22 @@ jobs:
           PRODUCTION_ANTHROPIC_MODEL: ${{ vars.PRODUCTION_ANTHROPIC_MODEL }}
           PRODUCTION_PAGESPEED_API_KEY: ${{ secrets.PRODUCTION_PAGESPEED_API_KEY }}
           PRODUCTION_CRUX_API_KEY: ${{ secrets.PRODUCTION_CRUX_API_KEY }}
-          # Transactional email (Resend). The API key stays in PRODUCTION_ENV_FILE
-          # with every other credential; only the SENDER is overridable here,
-          # because it is the half of the pair that changes on its own — a
-          # rebrand, a new sending subdomain, an address Resend stopped
-          # accepting — and correcting it should not mean rewriting the whole
-          # base env file blind. It is a secret rather than a variable only so
-          # the deploy log never prints a mailbox address for a crawler to find.
+          # Transactional email (Resend). Overridable as a PAIR, and that is the
+          # whole point: the key and the sender are useless apart. Setting one
+          # without the other is the state this codebase refuses to let happen
+          # quietly — registration succeeds, the browser is told a verification
+          # email is on its way, and nothing arrives — so the API reports it as
+          # `invalid` at boot, by name (email/resend-config.ts).
+          #
+          # Both are secrets. The key obviously; the sender so the deploy log
+          # never prints a mailbox address for a crawler to find.
           #
           # Empty means "keep what PRODUCTION_ENV_FILE defines", like every other
           # override here. The address must be on a domain VERIFIED in Resend,
           # which nothing in this repository can check: an unverified sender is
           # an HTTP error on the first send, reported to the user as an
           # emailVerification status of "provider-error" (docs/DEPLOYMENT.md).
+          PRODUCTION_RESEND_API_KEY: ${{ secrets.PRODUCTION_RESEND_API_KEY }}
           PRODUCTION_RESEND_FROM_EMAIL: ${{ secrets.PRODUCTION_RESEND_FROM_EMAIL }}
           PRODUCTION_HETZNER_S3_ACCESS_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_ACCESS_KEY }}
           PRODUCTION_HETZNER_S3_SECRET_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_SECRET_KEY }}
@@ -209,6 +212,7 @@ jobs:
           upsert_env ANTHROPIC_MODEL PRODUCTION_ANTHROPIC_MODEL
           upsert_env PAGESPEED_API_KEY PRODUCTION_PAGESPEED_API_KEY
           upsert_env CRUX_API_KEY PRODUCTION_CRUX_API_KEY
+          upsert_env RESEND_API_KEY PRODUCTION_RESEND_API_KEY
           upsert_env RESEND_FROM_EMAIL PRODUCTION_RESEND_FROM_EMAIL
           upsert_env HETZNER_S3_ACCESS_KEY PRODUCTION_HETZNER_S3_ACCESS_KEY
           upsert_env HETZNER_S3_SECRET_KEY PRODUCTION_HETZNER_S3_SECRET_KEY
