@@ -38,6 +38,13 @@ function makeScan(overrides: Record<string, unknown> = {}): Record<string, unkno
     platformRetryCount: 0,
     moduleRetryCount: 0,
     purchaseId: 'purchase_1',
+    // The paid-access snapshot the route loads with the scan (PAID_ACCESS_INCLUDE).
+    // A paid scan with no readable purchase fails CLOSED, so it is part of the
+    // fixture rather than something a test may forget.
+    purchase: {
+      status: 'paid',
+      entitlement: { suspended: false, expiresAt: new Date('2099-01-01T00:00:00Z') },
+    },
     startedAt: new Date('2026-09-05T01:00:00Z'),
     completedAt: new Date('2026-09-05T01:05:00Z'),
     createdAt: new Date('2026-09-05T00:59:00Z'),
@@ -177,5 +184,79 @@ describe('export route – storage failure regression', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('EXPORT_NOT_READY');
+  });
+
+  // An export is the entire report in one file, so it is the last place a
+  // returned payment could still hand the report over.
+  describe('when the payment behind the scan came back', () => {
+    const revoked: readonly { readonly name: string; readonly purchase: unknown }[] = [
+      {
+        name: 'a refunded purchase',
+        purchase: {
+          status: 'Refunded',
+          entitlement: { suspended: true, expiresAt: new Date('2099-01-01T00:00:00Z') },
+        },
+      },
+      {
+        name: 'a chargeback',
+        purchase: {
+          status: 'Disputed',
+          entitlement: { suspended: true, expiresAt: new Date('2099-01-01T00:00:00Z') },
+        },
+      },
+      {
+        name: 'a suspension an operator applied by hand',
+        purchase: {
+          status: 'paid',
+          entitlement: { suspended: true, expiresAt: new Date('2099-01-01T00:00:00Z') },
+        },
+      },
+      { name: 'a purchase that cannot be read at all', purchase: null },
+    ];
+
+    for (const scenario of revoked) {
+      it(`refuses the export after ${scenario.name}`, async () => {
+        const store = { putText: vi.fn().mockResolvedValue(undefined), deleteObject: vi.fn() };
+        const prisma = makePrisma(makeScan({ purchase: scenario.purchase }));
+        const app = makeApp(prisma, store);
+
+        const res = await authed(request(app).get('/scans/scan_abc123/export?format=json'));
+
+        expect(res.status).toBe(403);
+        expect(res.body.error.code).toBe('ENTITLEMENT_SUSPENDED');
+        expect(res.body.data ?? null).toBeNull();
+        // Not built, not serialized, not archived.
+        expect(store.putText).not.toHaveBeenCalled();
+        expect(prisma.exportArtifact.upsert as Mock).not.toHaveBeenCalled();
+      });
+    }
+
+    it('still exports a Free scan, which never had a purchase to return', async () => {
+      const prisma = makePrisma(makeScan({ purchaseId: null, purchase: null }));
+      const app = makeApp(prisma, null);
+
+      const res = await authed(request(app).get('/scans/scan_abc123/export?format=json'));
+
+      expect(res.status).toBe(200);
+    });
+
+    // An entitlement that simply ran out is NOT a revoked one: ENTITLEMENT_DAYS
+    // bounds what may still be bought, not how long a delivered report is
+    // readable (packages/contracts/src/tariffs.ts).
+    it('still exports after the entitlement window has closed', async () => {
+      const prisma = makePrisma(
+        makeScan({
+          purchase: {
+            status: 'paid',
+            entitlement: { suspended: false, expiresAt: new Date('2020-01-01T00:00:00Z') },
+          },
+        }),
+      );
+      const app = makeApp(prisma, null);
+
+      const res = await authed(request(app).get('/scans/scan_abc123/export?format=json'));
+
+      expect(res.status).toBe(200);
+    });
   });
 });

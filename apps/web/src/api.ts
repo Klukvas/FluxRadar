@@ -6,12 +6,58 @@ export interface ApiResult<T> {
   readonly success: boolean;
   readonly data: T | null;
   readonly error: { readonly code: string; readonly message: string } | null;
+  readonly meta?: PageMeta;
+}
+
+/**
+ * Paging information the API returns alongside a list.
+ *
+ * `hasNext` is optional on purpose: it is the newest field of the envelope and a
+ * deployment that predates it still answers with `total`/`page`/`limit` only.
+ * Read it through `hasMorePages` rather than directly, so a missing field falls
+ * back to the arithmetic the older shape already supported.
+ */
+export interface PageMeta {
+  readonly total: number;
+  readonly page: number;
+  readonly limit: number;
+  readonly hasNext?: boolean;
+}
+
+/** A list response with the paging information the envelope carried for it. */
+export interface PagedResult<T> {
+  readonly data: T;
+  readonly meta: PageMeta | null;
+}
+
+/** Whether another page follows the one described by `meta`. */
+export function hasMorePages(meta: PageMeta | null): boolean {
+  if (meta === null) return false;
+  if (typeof meta.hasNext === 'boolean') return meta.hasNext;
+  return meta.page * meta.limit < meta.total;
+}
+
+/** The offset the next page starts at, for a client that pages with offsets. */
+export function nextPageOffset(meta: PageMeta | null): number {
+  return meta === null ? 0 : meta.page * meta.limit;
 }
 
 const TECHNICAL_ERROR =
   /^(request failed|failed to fetch|networkerror|typeerror|fetch error|http\s*\d+)/i;
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return (await apiRequestWithMeta<T>(path, init)).data;
+}
+
+/**
+ * The same request as `apiRequest`, keeping the envelope's `meta` instead of
+ * dropping it. Only list screens that page need it; everything else stays on
+ * `apiRequest` and is unaffected by this existing.
+ */
+export async function apiRequestWithMeta<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<PagedResult<T>> {
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
@@ -24,7 +70,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   }
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('text/csv') && response.ok) {
-    return (await response.text()) as T;
+    return { data: (await response.text()) as T, meta: null };
   }
   let envelope: ApiResult<T> | null = null;
   try {
@@ -40,7 +86,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
         : friendlyStatusMessage(response.status);
     throw new Error(message);
   }
-  return envelope.data as T;
+  return { data: envelope.data as T, meta: envelope.meta ?? null };
 }
 
 function friendlyStatusMessage(status: number): string {

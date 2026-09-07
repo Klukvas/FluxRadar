@@ -1,17 +1,23 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
+import { readIntegrationEncryptionKey } from './encryption-key.ts';
+
 const ENCRYPTED_PREFIX = 'v1';
 
-/** Derives a stable 256-bit key without persisting a second secret. */
+/**
+ * Derives the stable 256-bit key.
+ *
+ * Which secret is acceptable is decided in one place (`encryption-key.ts`), and
+ * production has no fallback: `validateRuntimeConfig` fails the boot on the same
+ * reader, so reaching the throw here means the process was started around that
+ * check rather than through it.
+ */
 function encryptionKey(): Buffer {
-  const dedicated = process.env.INTEGRATION_ENCRYPTION_KEY?.trim();
-  const developmentOrTest =
-    process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
-  const secret = dedicated || (developmentOrTest ? process.env.SESSION_SECRET?.trim() : undefined);
-  if (!secret) {
-    throw new Error('INTEGRATION_ENCRYPTION_KEY is not configured');
+  const result = readIntegrationEncryptionKey();
+  if (result.state === 'invalid') {
+    throw new Error(result.reason);
   }
-  return createHash('sha256').update(secret, 'utf8').digest();
+  return createHash('sha256').update(result.secret, 'utf8').digest();
 }
 
 export function encryptIntegrationSecret(value: string): string {

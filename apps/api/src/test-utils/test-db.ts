@@ -65,7 +65,14 @@ export interface SeededScan {
   readonly purchase: Purchase | null;
 }
 
-/** Directly seeds a scan (optionally with its purchase) in an arbitrary state. */
+/**
+ * Directly seeds a scan (optionally with its purchase) in an arbitrary state.
+ *
+ * It writes NO entitlement, which production never does (createPaidScan writes
+ * both in one transaction). The paid-access guard fails closed on that, so a
+ * scan seeded here answers 403 `ENTITLEMENT_SUSPENDED` on the report endpoints;
+ * create the entitlement in the test when it needs to read one.
+ */
 export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Promise<SeededScan> {
   const plan = params.plan ?? 'Basic';
   const purchase =

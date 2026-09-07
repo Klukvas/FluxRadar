@@ -55,7 +55,6 @@ export interface FaqSection extends FaqSectionText {
 }
 
 export interface FaqCopy {
-  readonly documentTitle: string;
   readonly kicker: string;
   readonly meta: readonly string[];
   readonly title: string;
@@ -80,7 +79,6 @@ function faqSections(sections: Record<FaqSectionId, FaqSectionText>): readonly F
 }
 
 export const faqCopyEn: FaqCopy = {
-  documentTitle: 'FAQ — FluxRadar',
   kicker: 'FLUXRADAR / FREQUENTLY ASKED QUESTIONS',
   meta: ['Updated 2026-09-06', 'No account needed to read this', 'Ruleset v0.1'],
   title: 'Every check, explained in plain language',
@@ -404,7 +402,6 @@ export const faqCopyEn: FaqCopy = {
 };
 
 export const faqCopyUk: FaqCopy = {
-  documentTitle: 'Часті питання — FluxRadar',
   kicker: 'FLUXRADAR / ЧАСТІ ПИТАННЯ',
   meta: ['Оновлено 2026-09-06', 'Акаунт для читання не потрібен', 'Набір правил v0.1'],
   title: 'Кожна перевірка простими словами',

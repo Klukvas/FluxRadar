@@ -1,5 +1,7 @@
 import { readFastSpringConfig } from '../billing/fastspring/config.ts';
+import { isMockCheckoutEnabled } from '../billing/mock-checkout.ts';
 import { DEFAULT_ANTHROPIC_MODEL, readAnthropicConfig } from './anthropic-config.ts';
+import { readIntegrationEncryptionKey } from './encryption-key.ts';
 import { readObjectStorageConfig, type ObjectStorageConfig } from './object-storage-config.ts';
 import { readOAuthConfig, type OAuthProviderConfig } from './oauth-config.ts';
 import type { UserIntegrationProvider } from './providers.ts';
@@ -55,7 +57,9 @@ export function readIntegrationConfig(env: NodeJS.ProcessEnv = process.env): Int
  * name only, never by value. `prisma migrate deploy` does not run this check, so
  * a deploy can migrate successfully and then crash-loop on `startServer` when one
  * of these is absent — aggregating them keeps that failure self-explanatory.
- * INTEGRATION_ENCRYPTION_KEY has no safe production fallback; DATABASE_URL is
+ * INTEGRATION_ENCRYPTION_KEY has no safe production fallback and must also
+ * differ from SESSION_SECRET; both rules live in integrations/encryption-key.ts
+ * and are enforced through `partialIntegrationFailures` below. DATABASE_URL is
  * also validated by its own caller but listed here so a single failed deploy
  * surfaces every gap at once.
  *
@@ -66,21 +70,30 @@ export function readIntegrationConfig(env: NodeJS.ProcessEnv = process.env): Int
  * or pretending a message was sent.
  *
  * PADDLE_WEBHOOK_SECRET is not required by this release — the MockPaddle webhook
- * is a development-only route and is not mounted in production — but it must
- * stay in PRODUCTION_ENV_FILE until every release that still requires it has
- * been retired; see docs/DEPLOYMENT.md.
+ * is a development affordance and is mounted only where FLUXRADAR_ENABLE_MOCK_CHECKOUT
+ * explicitly asks for it (billing/mock-checkout.ts) — but it must stay in
+ * PRODUCTION_ENV_FILE until every release that still requires it has been
+ * retired; see docs/DEPLOYMENT.md.
  */
 export const REQUIRED_PRODUCTION_SECRETS = ['DATABASE_URL', 'INTEGRATION_ENCRYPTION_KEY'] as const;
 
 /**
- * Every optional integration that is allowed to be entirely absent but must
- * never be *half* present. A partial configuration is the dangerous state: it
- * looks connected from the outside while it cannot complete a single request.
+ * Every reader whose `invalid` state must stop a production boot.
+ *
+ * Most of them describe an optional integration that is allowed to be entirely
+ * absent but must never be *half* present. A partial configuration is the
+ * dangerous state: it looks connected from the outside while it cannot complete
+ * a single request. The integration encryption key is the one entry that is not
+ * optional at all — it is here because its second rule (it must not be the same
+ * value as SESSION_SECRET) is not a presence check and cannot be expressed in
+ * REQUIRED_PRODUCTION_SECRETS.
+ *
  * Each reader answers not_configured / invalid / configured, and only `invalid`
  * fails the boot — by variable NAME, never by value.
  */
 function partialIntegrationFailures(env: NodeJS.ProcessEnv): readonly string[] {
   const results = [
+    readIntegrationEncryptionKey(env),
     readFastSpringConfig(env),
     readOAuthConfig('google', env),
     readOAuthConfig('bing', env),
@@ -95,8 +108,8 @@ function partialIntegrationFailures(env: NodeJS.ProcessEnv): readonly string[] {
  * required secret or carries a half-configured optional integration. Every
  * problem is aggregated into one error so the operator does not rediscover them
  * one redeploy at a time. Development and tests may fall back to SESSION_SECRET
- * for the integration key (see integrations/crypto.ts) and are intentionally not
- * checked here.
+ * for the integration key (see integrations/encryption-key.ts) and are
+ * intentionally not checked here.
  */
 export function validateRuntimeConfig(env: NodeJS.ProcessEnv = process.env): void {
   if (env.NODE_ENV !== 'production') {
@@ -109,6 +122,17 @@ export function validateRuntimeConfig(env: NodeJS.ProcessEnv = process.env): voi
   const invalid = partialIntegrationFailures(env);
   if (invalid.length > 0) {
     throw new Error(`Invalid production configuration: ${invalid.join('; ')}`);
+  }
+  // Defence in depth, and only ever in the closing direction: the mock surface
+  // is already off unless a deployment explicitly asked for it
+  // (billing/mock-checkout.ts), and this refuses to boot if a production
+  // deployment ever does. Being able to mint paid scans for free is not a state
+  // to discover from a sales report.
+  if (isMockCheckoutEnabled(env)) {
+    throw new Error(
+      'Invalid production configuration: FLUXRADAR_ENABLE_MOCK_CHECKOUT opens the ' +
+        'MockPaddle free-checkout surface and must not be set in production',
+    );
   }
 }
 

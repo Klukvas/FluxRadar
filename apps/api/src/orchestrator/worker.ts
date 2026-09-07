@@ -7,6 +7,7 @@ import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 import type { PrismaClient } from '@prisma/client';
 
 import { requestRefund } from '../billing/refund.ts';
+import { paidAccessDenial } from '../billing/report-access.ts';
 import { resolveScanOutcome } from '../billing/resolve-outcome.ts';
 import { transitionScan } from '../billing/state-machine.ts';
 import { persistAnalyticsModule } from './analytics-module.ts';
@@ -287,6 +288,11 @@ function moduleFromRetryJob(jobType: string): string | undefined {
   return jobType.startsWith(prefix) ? jobType.slice(prefix.length) : undefined;
 }
 
+/**
+ * Whether a refund, a chargeback or an expired entitlement forbids running this
+ * scan. The rule itself lives in billing/report-access.ts, next to the one the
+ * read paths apply, so the worker and the API can no longer drift apart.
+ */
 async function isBillingBlocked(
   prisma: PrismaClient,
   purchaseId: string | null,
@@ -299,13 +305,7 @@ async function isBillingBlocked(
     where: { id: purchaseId },
     include: { entitlement: true },
   });
-  return (
-    purchase === null ||
-    purchase.status !== 'paid' ||
-    purchase.entitlement === null ||
-    purchase.entitlement.suspended ||
-    purchase.entitlement.expiresAt.getTime() <= now.getTime()
-  );
+  return paidAccessDenial({ purchaseId, purchase }, { now }) !== null;
 }
 
 async function persistUnavailableModules(prisma: PrismaClient, scanId: string): Promise<void> {

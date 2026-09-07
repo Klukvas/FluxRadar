@@ -8,6 +8,7 @@
 // any variable is read into a log line, ever.
 
 import { readFastSpringConfig } from '../billing/fastspring/config.ts';
+import { readResendConfig } from '../email/resend-config.ts';
 import type { ApiLogger } from '../http/logger.ts';
 import { readAnthropicConfig } from './anthropic-config.ts';
 import { readObjectStorageConfig } from './object-storage-config.ts';
@@ -21,11 +22,6 @@ export interface IntegrationStatus {
   /** Variable names only — never their values. Empty unless `invalid`. */
   readonly missing: readonly string[];
 }
-
-const RESEND_ENV_VARS = {
-  apiKey: 'RESEND_API_KEY',
-  from: 'RESEND_FROM_EMAIL',
-} as const;
 
 const SINGLE_KEY_INTEGRATIONS = [
   { integration: 'pagespeed', variable: 'PAGESPEED_API_KEY' },
@@ -44,29 +40,6 @@ function status(
   return { integration, status: result.state, missing: result.missing ?? [] };
 }
 
-/**
- * Resend is optional as a pair: both the key and the verified sender are needed
- * before anything can be sent, so exactly one of them present is the same
- * half-configured state every other integration reports.
- */
-function resendStatus(env: NodeJS.ProcessEnv): IntegrationStatus {
-  const apiKey = trimmed(env[RESEND_ENV_VARS.apiKey]);
-  const from = trimmed(env[RESEND_ENV_VARS.from]);
-  if (apiKey === null && from === null) {
-    return status('resend', { state: 'not_configured' });
-  }
-  if (apiKey === null || from === null) {
-    return status('resend', {
-      state: 'invalid',
-      missing: [
-        ...(apiKey === null ? [RESEND_ENV_VARS.apiKey] : []),
-        ...(from === null ? [RESEND_ENV_VARS.from] : []),
-      ],
-    });
-  }
-  return status('resend', { state: 'configured' });
-}
-
 /** Every integration status, in a stable order, for logging and for tests. */
 export function readIntegrationStatuses(
   env: NodeJS.ProcessEnv = process.env,
@@ -79,7 +52,9 @@ export function readIntegrationStatuses(
         state: trimmed(env[variable]) === null ? 'not_configured' : 'configured',
       }),
     ),
-    resendStatus(env),
+    // Optional as a pair, and reported — never fatal: a deployment that cannot
+    // send email can still sell and run scans (email/resend-config.ts).
+    status('resend', readResendConfig(env)),
     status('google', readOAuthConfig('google', env)),
     status('bing', readOAuthConfig('bing', env)),
     status('fastspring', readFastSpringConfig(env)),

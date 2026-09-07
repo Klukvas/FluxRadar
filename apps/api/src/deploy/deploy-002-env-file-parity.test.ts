@@ -24,18 +24,32 @@ const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');
 const SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'normalize-env-file.cjs');
 
 const require_ = createRequire(import.meta.url);
-const { normalizeEnvFile } = require_(SCRIPT_PATH) as {
+const { normalizeEnvFile, BACKUP_KEYS, BACKUP_POLICY_NUMBERS } = require_(SCRIPT_PATH) as {
   normalizeEnvFile: (path: string) => { readonly keys: string[]; readonly warnings: string[] };
+  BACKUP_KEYS: readonly string[];
+  BACKUP_POLICY_NUMBERS: readonly { key: string; positive: boolean }[];
+};
+
+/** Every backup variable set to something usable, for the "configured" cases. */
+const BACKUP_ENV: Readonly<Record<string, string>> = {
+  HETZNER_S3_ENDPOINT: 'https://nbg1.your-objectstorage.com',
+  HETZNER_S3_REGION: 'nbg1',
+  HETZNER_S3_BUCKET: 'fluxradar-backups',
+  HETZNER_S3_ACCESS_KEY: 'access-key-id',
+  HETZNER_S3_SECRET_KEY: 'secret-access-key',
+  FLUXRADAR_BACKUP_ENCRYPTION_KEY: 'BASE64LOOKINGBACKUPKEYOF32RANDOMBYTESHERE==',
 };
 
 const PASSWORD = 'p4ssw0rd-value';
+/** 44 characters, as `randomBytes(32).toString('base64')` produces. */
+const ENCRYPTION_KEY = 'BASE64LOOKINGKEYOF32RANDOMBYTESFORTHISTEST==';
 const BASE_ENV: Readonly<Record<string, string>> = {
   POSTGRES_DB: 'fluxradar',
   POSTGRES_USER: 'fluxradar',
   POSTGRES_PASSWORD: PASSWORD,
   DATABASE_URL: `postgresql://fluxradar:${PASSWORD}@postgres:5432/fluxradar`,
   FLUXRADAR_ENV_FILE: '.env.production',
-  INTEGRATION_ENCRYPTION_KEY: 'integration-key',
+  INTEGRATION_ENCRYPTION_KEY: ENCRYPTION_KEY,
   PADDLE_WEBHOOK_SECRET: 'legacy-secret',
 };
 
@@ -175,8 +189,8 @@ describe('DEPLOY-002 production env file parity', () => {
 
   it.each([
     ['an interpolated "$" in a compose-consumed value', { POSTGRES_PASSWORD: 'a$bc' }],
-    ['an inline comment', { INTEGRATION_ENCRYPTION_KEY: 'key # rotated 2026-01-01' }],
-    ['a trailing space', { INTEGRATION_ENCRYPTION_KEY: 'key ' }],
+    ['an inline comment', { INTEGRATION_ENCRYPTION_KEY: `${ENCRYPTION_KEY} # rotated` }],
+    ['a trailing space', { INTEGRATION_ENCRYPTION_KEY: `${ENCRYPTION_KEY} ` }],
     ['a backslash escape in a quoted value', { INTEGRATION_ENCRYPTION_KEY: '"a\\nb"' }],
   ])('refuses %s', (_case, overrides) => {
     expect(expectFailure(baseLines(overrides))).not.toBe('');
@@ -222,8 +236,142 @@ describe('DEPLOY-002 production env file parity', () => {
     expect(uploadAt).toBeGreaterThan(normalizeAt);
   });
 
+  // INTEGRATION_ENCRYPTION_KEY encrypts every stored Google/Bing token, and
+  // SESSION_SECRET is what a development checkout falls back to when the key is
+  // absent — which makes copying it across the most natural way to fill in the
+  // env file, and the one that ties every stored token to a secret rotated for
+  // unrelated reasons. The API refuses to boot on it, so shipping the file at
+  // all would only turn a bad env file into a crash loop on the server.
+  it('refuses an integration key that is a copy of SESSION_SECRET', () => {
+    const message = expectFailure(
+      baseLines({ INTEGRATION_ENCRYPTION_KEY: PASSWORD, SESSION_SECRET: PASSWORD }),
+    );
+
+    expect(message).toContain('INTEGRATION_ENCRYPTION_KEY');
+    expect(message).toContain('SESSION_SECRET');
+    expect(message).not.toContain(PASSWORD);
+  });
+
+  it('accepts the two secrets side by side when they differ', () => {
+    const path = writeEnvFile(baseLines({ SESSION_SECRET: 'a-different-session-secret' }));
+
+    expect(() => normalizeEnvFile(path)).not.toThrow();
+  });
+
+  // A warning, not a refusal: a deployment already running a short key has to be
+  // able to redeploy in order to rotate it.
+  it('warns about an integration key short enough to attack offline', () => {
+    const path = writeEnvFile(baseLines({ INTEGRATION_ENCRYPTION_KEY: 'short-key' }));
+
+    const { warnings } = normalizeEnvFile(path);
+
+    expect(warnings.join('\n')).toContain('INTEGRATION_ENCRYPTION_KEY');
+    expect(warnings.join('\n')).not.toContain('short-key');
+  });
+
+  it('stays quiet about a properly generated key', () => {
+    const path = writeEnvFile(baseLines());
+
+    const { warnings } = normalizeEnvFile(path);
+
+    expect(warnings.join('\n')).not.toContain('INTEGRATION_ENCRYPTION_KEY');
+  });
+
   // The workflow must not pin a value of its own: PRODUCTION_ENV_FILE is the
   // base and the optional secrets are the only overrides (docs/DEPLOYMENT.md).
+  // Backups are the one part of this deployment that is configured entirely
+  // outside the code, taken by a cron job nobody watches, and only ever needed
+  // on the worst day. The deploy is the single moment a human reads this file,
+  // so it is where the state of the backup configuration gets said out loud.
+  describe('the backup configuration', () => {
+    it('warns when this deployment ships with no backup at all', () => {
+      const { warnings } = normalizeEnvFile(writeEnvFile(baseLines()));
+      expect(warnings.join('\n')).toContain('No database backup is configured');
+      for (const key of BACKUP_KEYS) expect(warnings.join('\n')).toContain(key);
+    });
+
+    it('warns when only some of the backup variables are set', () => {
+      const { warnings } = normalizeEnvFile(
+        writeEnvFile(
+          baseLines({
+            HETZNER_S3_ENDPOINT: BACKUP_ENV.HETZNER_S3_ENDPOINT as string,
+            HETZNER_S3_BUCKET: BACKUP_ENV.HETZNER_S3_BUCKET as string,
+          }),
+        ),
+      );
+      const message = warnings.join('\n');
+      expect(message).toContain('half-configured');
+      expect(message).toContain('FLUXRADAR_BACKUP_ENCRYPTION_KEY');
+      // A deploy is never blocked by this: docs/DEPLOYMENT.md's own backup
+      // setup requires deploying once BEFORE the key exists on the server.
+      expect(message).not.toContain('ERROR');
+    });
+
+    it('says nothing once every backup variable is set', () => {
+      const { warnings } = normalizeEnvFile(writeEnvFile(baseLines(BACKUP_ENV)));
+      expect(warnings.join('\n')).not.toContain('backup');
+    });
+
+    // The value below is read by nothing until a backup or a restore runs, and
+    // both of those run unattended. A deploy is the last chance to reject it.
+    it('refuses a policy number that is not a number', () => {
+      const message = expectFailure(
+        baseLines({ ...BACKUP_ENV, FLUXRADAR_BACKUP_RETENTION_DAYS: 'thirty' }),
+      );
+      expect(message).toContain('FLUXRADAR_BACKUP_RETENTION_DAYS');
+      expect(message).toContain('non-negative number');
+    });
+
+    it('refuses the two policy numbers that must not be zero', () => {
+      for (const { key } of BACKUP_POLICY_NUMBERS.filter((entry) => entry.positive)) {
+        const message = expectFailure(baseLines({ ...BACKUP_ENV, [key]: '0' }));
+        expect(message).toContain(key);
+        expect(message).toContain('is 0');
+      }
+    });
+
+    it('accepts the numbers a real deployment sets', () => {
+      const { keys } = normalizeEnvFile(
+        writeEnvFile(
+          baseLines({
+            ...BACKUP_ENV,
+            FLUXRADAR_BACKUP_RETENTION_DAYS: '30',
+            FLUXRADAR_BACKUP_MIN_KEEP: '7',
+            FLUXRADAR_BACKUP_MAX_DELETE: '50',
+            FLUXRADAR_BACKUP_STALE_HOURS: '48',
+            FLUXRADAR_BACKUP_MAX_AGE_HOURS: '26',
+          }),
+        ),
+      );
+      expect(keys).toContain('FLUXRADAR_BACKUP_MAX_AGE_HOURS');
+    });
+
+    // A backup variable that the tools read but the workflow never writes into
+    // the release env file is a setting that silently does not exist in
+    // production. The list is taken from the shipped normalizer, so adding a
+    // backup variable to the code fails here until the deploy ships it too.
+    it('ships every backup variable the backup tools read', () => {
+      const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
+      const wired = new Map(
+        [...workflow.matchAll(/^\s*upsert_env (\S+) (\S+)\s*$/gm)].map((match) => [
+          match[1] as string,
+          match[2] as string,
+        ]),
+      );
+      const shipped = [
+        ...BACKUP_KEYS,
+        'FLUXRADAR_BACKUP_PREFIX',
+        ...BACKUP_POLICY_NUMBERS.map((entry) => entry.key),
+      ];
+      for (const key of shipped) {
+        const source = wired.get(key);
+        expect(source, `${key} is never written into the release env file`).toBeDefined();
+        // ...and the secret/variable it copies from is declared on the step.
+        expect(workflow).toContain(`${source as string}: `);
+      }
+    });
+  });
+
   it('keeps the workflow free of a hardcoded ANTHROPIC_MODEL', () => {
     const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
 

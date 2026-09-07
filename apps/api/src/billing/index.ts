@@ -9,6 +9,7 @@ export * from './webhook-handler.ts';
 export * from './state-machine.ts';
 export * from './cancel-scan.ts';
 export * from './refund.ts';
+export * from './report-access.ts';
 export * from './resolve-outcome.ts';
 export * from './dev-checkout.ts';
 export * from './fastspring/index.ts';

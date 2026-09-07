@@ -8,11 +8,16 @@ import { ISSUE_STATUSES, SEVERITIES, issueStatusUpdateInputSchema } from '@fluxr
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
+import {
+  PAID_ACCESS_INCLUDE,
+  assertPaidReportAccess,
+  type PaidAccessScan,
+} from '../billing/report-access.ts';
 import { forbidden, gone, notFound } from '../http/errors.ts';
 import { sendOk } from '../http/envelope.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
-import { findOwnScan } from '../scans/routes.ts';
+import { findOwnReportScan } from '../scans/routes.ts';
 
 export interface IssuesRouterDeps {
   readonly prisma: PrismaClient;
@@ -34,7 +39,7 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
 
   router.get('/scans/:scanId/issues', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
-    await findOwnScan(deps.prisma, accountIdFrom(res), scanId);
+    await findOwnReportScan(deps.prisma, accountIdFrom(res), scanId);
     const query = parseInput(issueQuerySchema, req.query);
     const where = {
       scanId,
@@ -69,7 +74,7 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
   router.get('/scans/:scanId/issues/:issueId', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
     const issueId = requiredParam(req.params.issueId, 'issueId');
-    await findOwnScan(deps.prisma, accountIdFrom(res), scanId);
+    await findOwnReportScan(deps.prisma, accountIdFrom(res), scanId);
     const issue = await findOwnIssue(deps.prisma, accountIdFrom(res), scanId, issueId);
     sendOk(res, toIssueDto(issue));
   });
@@ -78,7 +83,13 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
     const accountId = accountIdFrom(res);
     const scanId = requiredParam(req.params.scanId, 'scanId');
     const issueId = requiredParam(req.params.issueId, 'issueId');
-    const scan = await deps.prisma.scan.findFirst({ where: { id: scanId, accountId } });
+    // This route keeps its own lookup because it distinguishes "expired" (410)
+    // from "never existed" (404); the paid-access rule is applied to the result
+    // exactly as findOwnReportScan would.
+    const scan = (await deps.prisma.scan.findFirst({
+      where: { id: scanId, accountId },
+      include: { ...PAID_ACCESS_INCLUDE },
+    })) as PaidAccessScan | null;
     if (scan === null) {
       const deleted = await deps.prisma.deletedScan.findUnique({ where: { scanId } });
       if (deleted !== null) {
@@ -86,6 +97,7 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
       }
       throw notFound('scan not found');
     }
+    assertPaidReportAccess(scan);
     const issue = await findOwnIssue(deps.prisma, accountId, scanId, issueId);
     sendOk(res, {
       issueId: issue.id,
@@ -101,7 +113,8 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
     const accountId = accountIdFrom(res);
     const scanId = requiredParam(req.params.scanId, 'scanId');
     const issueId = requiredParam(req.params.issueId, 'issueId');
-    await findOwnScan(deps.prisma, accountId, scanId);
+    // Triaging an issue is working on the report, so it goes with the report.
+    await findOwnReportScan(deps.prisma, accountId, scanId);
     const input = parseInput(issueStatusUpdateInputSchema, req.body);
     const issue = await findOwnIssue(deps.prisma, accountId, scanId, issueId);
     if (issue.status === 'Resolved' || issue.status === 'Reopened') {

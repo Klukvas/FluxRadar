@@ -15,10 +15,9 @@ import { z } from 'zod';
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
 import {
   RequestRateLimiter,
-  SCAN_ACTION_LIMIT,
-  SCAN_ACTION_WINDOW_MS,
   WEBHOOK_LIMIT,
   WEBHOOK_WINDOW_MS,
+  scanActionRules,
 } from '../auth/rate-limit.ts';
 import { aiConsentSchema } from '../billing/checkout-metadata.ts';
 import {
@@ -124,10 +123,8 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
     const config = requireConfig(deps.fastSpring);
     const input = parseInput(checkoutSessionInputSchema, req.body);
     const accountId = accountIdFrom(res);
-    requestRateLimiter.assertAllowed(
-      `checkout:${accountId}:${req.ip ?? 'unknown'}`,
-      SCAN_ACTION_LIMIT,
-      SCAN_ACTION_WINDOW_MS,
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('checkout', accountId, req.ip ?? 'unknown'),
     );
     const session = await createCheckoutSession(
       {

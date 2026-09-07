@@ -1,5 +1,3 @@
-import { useEffect } from 'react';
-
 import { MenuBar } from './components';
 import { copy, type Language } from './i18n';
 
@@ -12,13 +10,6 @@ export function FaqScreen(props: {
   onLanguageChange: (language: Language) => void;
 }) {
   const t = copy[props.language].faq;
-  useEffect(() => {
-    const previousTitle = document.title;
-    document.title = t.documentTitle;
-    return () => {
-      document.title = previousTitle;
-    };
-  }, [t.documentTitle]);
 
   return (
     <div className="app-shell legal-shell">

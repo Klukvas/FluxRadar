@@ -22,6 +22,7 @@ import {
   EMAIL_ACTION_WINDOW_MS,
   EMAIL_IP_ACTION_LIMIT,
   EMAIL_TOKEN_ACTION_LIMIT,
+  REGISTER_EMAIL_LIMIT,
   REGISTER_LIMIT,
   REGISTER_WINDOW_MS,
   type LoginRateLimiter,
@@ -146,13 +147,21 @@ export function authRouter(deps: AuthRouterDeps): Router {
 
   router.post('/auth/register', async (req, res) => {
     const input = parseInput(registerInputSchema, req.body);
-    requestRateLimiter.assertAllowed(
-      `register:${req.ip ?? 'unknown'}`,
-      REGISTER_LIMIT,
-      REGISTER_WINDOW_MS,
-    );
-    const passwordHash = await hashPassword(input.password);
     const email = input.email.toLowerCase();
+    // Before bcrypt, not after it. Hashing at cost 12 is ~250ms of CPU that the
+    // caller gets for free on every request; a limit that runs afterwards lets a
+    // flood saturate the process long before it starts refusing anything.
+    // Two buckets: one client, and one target address (each attempt sends a
+    // verification email to an address the caller chose).
+    requestRateLimiter.assertAllowedAll([
+      {
+        key: `register:ip:${req.ip ?? 'unknown'}`,
+        limit: REGISTER_LIMIT,
+        windowMs: REGISTER_WINDOW_MS,
+      },
+      { key: `register:email:${email}`, limit: REGISTER_EMAIL_LIMIT, windowMs: REGISTER_WINDOW_MS },
+    ]);
+    const passwordHash = await hashPassword(input.password);
     try {
       const account = await prisma.account.create({ data: { email, passwordHash } });
       const verificationStatus = await deliverVerification(deps, account, deps.now());

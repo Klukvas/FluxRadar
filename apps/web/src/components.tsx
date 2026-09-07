@@ -21,16 +21,28 @@ export function Window(props: {
       className={`window ${props.terminal ? 'window--terminal' : ''} ${props.className ?? ''}`}
     >
       <div className="window__titlebar">
-        <button
-          className="window__box"
-          aria-label="Close window"
-          type="button"
-          onClick={props.onClose}
-        >
-          <svg viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M2 2l8 8M10 2l-8 8" />
-          </svg>
-        </button>
+        {/* The titlebar box is part of the desktop look, but only the windows
+            that can actually be closed offer it as a control: a focusable button
+            that does nothing is a promise the screen does not keep, and a
+            keyboard user meets it before anything else on the screen. */}
+        {props.onClose === undefined ? (
+          <span className="window__box window__box--inert" aria-hidden="true">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" />
+            </svg>
+          </span>
+        ) : (
+          <button
+            className="window__box"
+            aria-label="Close window"
+            type="button"
+            onClick={props.onClose}
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" />
+            </svg>
+          </button>
+        )}
         <span>{props.title}</span>
       </div>
       <div className="window__content">{props.children}</div>
@@ -114,7 +126,7 @@ export function MenuBar(props: {
           </button>
         </div>
         <div className="menubar__nav">
-          <span className="menubar__group-label">Navigate</span>
+          <span className="menubar__group-label">{labels.navigateGroup}</span>
           <button
             className={props.active === 'home' ? 'menubar__item is-active' : 'menubar__item'}
             type="button"
@@ -142,13 +154,13 @@ export function MenuBar(props: {
           </button>
           <button
             className={
-              props.active === 'results' || props.active === 'issues'
+              ['reports', 'results', 'issues', 'scan'].includes(props.active)
                 ? 'menubar__item is-active'
                 : 'menubar__item'
             }
             type="button"
             title={labels.descriptions.reports}
-            onClick={() => navigateAndClose('results')}
+            onClick={() => navigateAndClose('reports')}
             disabled={!props.signedIn}
           >
             {labels.reports}
@@ -183,7 +195,7 @@ export function MenuBar(props: {
           <span className="menubar__spacer" />
         </div>
         <div className="menubar__meta">
-          <span className="menubar__group-label">System</span>
+          <span className="menubar__group-label">{labels.systemGroup}</span>
           <LanguageSwitcher
             label={labels.language}
             language={props.language}
@@ -342,6 +354,8 @@ export function Button(props: {
   disabled?: boolean;
   'aria-expanded'?: boolean;
   'aria-controls'?: string;
+  /** Overrides the accessible name when the visible text repeats across rows. */
+  'aria-label'?: string;
   'data-tour-target'?: string;
 }) {
   return (
@@ -352,6 +366,7 @@ export function Button(props: {
       disabled={props.disabled}
       aria-expanded={props['aria-expanded']}
       aria-controls={props['aria-controls']}
+      aria-label={props['aria-label']}
       data-tour-target={props['data-tour-target']}
     >
       {props.children}

@@ -4,8 +4,12 @@
 // The webhook takes the RAW body (express.raw is mounted in index.ts before
 // express.json) so the HMAC covers the wire bytes. `/billing/dev-checkout`
 // builds a signed MockPaddle event and runs it through the real webhook code, so
-// local development exercises the production state machine; it refuses to mint a
-// paid scan in production, where only the internal free allowlist may use it.
+// local development exercises the production state machine.
+//
+// It grants paid access only to a named internal account (the
+// FLUXRADAR_INTERNAL_FREE_EMAILS allowlist, which fails closed when unset) or in
+// a deployment that explicitly enabled the mock surface. Anywhere else it
+// answers 402 and the buyer goes through the provider.
 
 import { Router } from 'express';
 import type { RequestHandler } from 'express';
@@ -15,6 +19,7 @@ import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
 import { isInternalFreeEmail } from '../billing/internal-access.ts';
+import { isMockCheckoutEnabled } from '../billing/mock-checkout.ts';
 import { createInternalFreeScan } from '../billing/internal-checkout.ts';
 import { handlePaddleWebhook, simulatePaidCheckout } from '../billing/index.ts';
 import { aiConsentSchema } from '../billing/checkout-metadata.ts';
@@ -24,11 +29,10 @@ import { paymentRequired, unauthorized, validationError } from '../http/errors.t
 import { parseInput } from '../http/validate.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 import {
-  SCAN_ACTION_LIMIT,
-  SCAN_ACTION_WINDOW_MS,
   WEBHOOK_LIMIT,
   WEBHOOK_WINDOW_MS,
   RequestRateLimiter,
+  scanActionRules,
 } from '../auth/rate-limit.ts';
 import type { Mailer } from '../email/mailer.ts';
 import { notifyScanEvent } from '../email/notifications.ts';
@@ -61,6 +65,8 @@ export interface BillingRouterDeps {
   readonly internalFreeEmails: ReadonlySet<string>;
   readonly requestRateLimiter?: RequestRateLimiter;
   readonly mailer?: Mailer;
+  /** Test seam; production reads FLUXRADAR_ENABLE_MOCK_CHECKOUT. */
+  readonly mockCheckoutEnabled?: boolean;
 }
 
 type WebhookHandlerDeps = Pick<BillingRouterDeps, 'prisma' | 'webhookSecret' | 'now'> & {
@@ -98,14 +104,13 @@ export function billingRouter(deps: BillingRouterDeps): Router {
   const router = Router();
   const auth = requireAuth(deps.prisma, deps.now);
   const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
+  const mockCheckoutEnabled = deps.mockCheckoutEnabled ?? isMockCheckoutEnabled();
 
   router.post('/billing/dev-checkout', auth, async (req, res) => {
     const input = parseInput(devCheckoutInputSchema, req.body);
     const accountId = accountIdFrom(res);
-    requestRateLimiter.assertAllowed(
-      `checkout:${accountId}:${req.ip ?? 'unknown'}`,
-      SCAN_ACTION_LIMIT,
-      SCAN_ACTION_WINDOW_MS,
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('checkout', accountId, req.ip ?? 'unknown'),
     );
     const account = await deps.prisma.account.findUnique({
       where: { id: accountId },
@@ -115,7 +120,11 @@ export function billingRouter(deps: BillingRouterDeps): Router {
       throw unauthorized('session account no longer exists');
     }
     const internalFreeAccess = isInternalFreeEmail(account.email, deps.internalFreeEmails);
-    if (process.env.NODE_ENV === 'production' && !internalFreeAccess) {
+    // Two independent ways in, and neither depends on NODE_ENV: the named
+    // internal accounts (a production feature that fails closed when the
+    // allowlist is unset), and the MockPaddle simulation (off unless a
+    // deployment explicitly asks for it). Everyone else pays the provider.
+    if (!internalFreeAccess && !mockCheckoutEnabled) {
       throw paymentRequired(
         'paid scans must be purchased through /billing/checkout-session in this environment',
       );

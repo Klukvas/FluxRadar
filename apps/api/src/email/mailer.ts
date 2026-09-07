@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { readResendConfig } from './resend-config.ts';
+
 export interface EmailMessage {
   readonly to: string;
   readonly subject: string;
@@ -86,28 +88,25 @@ export class ResendMailer implements Mailer {
   }
 }
 
-function optional(value: string | undefined): string | null {
-  const trimmed = value?.trim() ?? '';
-  return trimmed === '' ? null : trimmed;
-}
-
 /**
  * Production uses Resend when connected; development and tests are deterministic
- * and offline. Resend is optional until its keys are configured: with the API
- * key or sender absent in production this returns a `NotConfiguredMailer`, so
+ * and offline. Resend is optional until its keys are configured: anything short
+ * of a complete, usable configuration returns a `NotConfiguredMailer`, so
  * email-dependent flows stay safely disabled and surface `not-configured`
  * instead of silently claiming a message was sent.
+ *
+ * What counts as complete is decided once, in `readResendConfig`, which is also
+ * what the startup diagnostics report — so "email is off" and "email is
+ * reported as off" can never disagree.
  */
 export function createMailer(
   env: NodeJS.ProcessEnv = process.env,
   fetcher: typeof fetch = fetch,
 ): Mailer {
-  const apiKey = optional(env.RESEND_API_KEY);
-  const from = optional(env.RESEND_FROM_EMAIL);
   if (env.NODE_ENV !== 'production') return new MockMailer();
-  if (apiKey === null || from === null) return new NotConfiguredMailer();
-  const replyTo = optional(env.RESEND_REPLY_TO);
-  return new ResendMailer({ apiKey, from, ...(replyTo === null ? {} : { replyTo }), fetcher });
+  const result = readResendConfig(env);
+  if (result.state !== 'configured') return new NotConfiguredMailer();
+  return new ResendMailer({ ...result.config, fetcher });
 }
 
 export function emailText(value: string): string {

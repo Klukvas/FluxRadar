@@ -1,0 +1,95 @@
+name: Verify database backup
+
+# A backup nobody has restored is a hope, not a backup.
+#
+# This workflow proves, on a schedule and from outside the server, that the
+# newest snapshot in Hetzner Object Storage can actually be decrypted and
+# restored. It restores into a THROWAWAY database beside the live one and drops
+# it again — the live database is never read from, written to or dropped, and
+# nothing in the bucket is deleted (retention runs from cron, not from here).
+#
+# It fails loudly when the snapshot is missing, stale, undecryptable or does not
+# restore, because every one of those is a silent failure until the day it is
+# needed. STALE is the one that needs saying out loud: a backup job that stopped
+# two weeks ago leaves a snapshot that decrypts, checksums and restores
+# perfectly, so nothing except its AGE says the backups have stopped. The age
+# limit is FLUXRADAR_BACKUP_MAX_AGE_HOURS (default 26 hours, one daily cycle plus
+# slack) and pg-restore.sh --verify-latest refuses anything older.
+#
+# It uses the SSH secrets the deploy already defines; the encryption key
+# and the S3 credentials never leave the server's env file.
+
+on:
+  schedule:
+    # 04:20 UTC daily, after the 02:17 UTC backup has finished.
+    - cron: '20 4 * * *'
+  workflow_dispatch:
+    inputs:
+      snapshot_key:
+        description: 'S3 key of a specific snapshot (default: the newest one; a key named here is not age-checked)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Restore the newest snapshot into a throwaway database
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The same environment the deploy uses, because it needs the same SSH
+    # secrets. If required reviewers are ever configured on it, this scheduled
+    # run will WAIT for an approval instead of verifying anything — check that
+    # before treating a quiet night as a passing one.
+    environment: production
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+
+      - name: Verify the newest snapshot restores
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
+          SNAPSHOT_KEY: ${{ inputs.snapshot_key }}
+        run: |
+          set -euo pipefail
+          # The script is taken from the ACTIVE release on the server, so this
+          # verifies the code that production actually runs. It is passed no
+          # secret: the encryption key and the S3 credentials are read from the
+          # release env file (mode 600) on the server itself.
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "${SNAPSHOT_KEY:-}" <<'REMOTE'
+          set -eu
+          APP_DIR="$1"
+          SNAPSHOT_KEY="$2"
+          RESTORE_SCRIPT="$APP_DIR/current/deploy/backup/pg-restore.sh"
+          if [ ! -x "$RESTORE_SCRIPT" ]; then
+            echo "ERROR: $RESTORE_SCRIPT is missing or not executable on the server." >&2
+            echo "The active release predates the backup tooling; deploy the current main first." >&2
+            exit 1
+          fi
+          if [ -n "$SNAPSHOT_KEY" ]; then
+            # An operator named one object: verify exactly it, and do not apply
+            # the freshness alarm to a snapshot that was chosen on purpose.
+            "$RESTORE_SCRIPT" --key "$SNAPSHOT_KEY"
+          else
+            # The scheduled run. This is the one that has to fail on a stale
+            # newest snapshot, and it does: the age gate lives in the shipped
+            # script, so it also protects the weekly cron on the server.
+            "$RESTORE_SCRIPT" --verify-latest
+          fi
+          REMOTE

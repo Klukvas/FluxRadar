@@ -23,11 +23,28 @@
  *
  * Pinned rather than floating: this script runs on the page that renders the
  * payment UI, and an unreviewed automatic upgrade there is a change to the
- * checkout itself. 1.0.6 is the version FastSpring's own integration guide ships
- * (developer.fastspring.com — Add checkout to your site, "Preview and test").
- * Bumping it means bumping this constant, nothing else.
+ * checkout itself. Bumping it means bumping this constant, nothing else.
+ *
+ * 1.0.9 is the version the FastSpring app itself prints for our popup checkout
+ * (Checkouts → Popup Checkouts → Place on your Website), and the popup flow
+ * needs it. From 1.0.9 the library stores the page's origin on the session
+ * before opening the checkout — `POST {storefront}/popup-{store}/finalize` with
+ * `{origin, originOnly: true}`, guarded by a `shouldSendOrigin()` that is true
+ * exactly for the `popup` and `inapp` checkout modes. That call is how
+ * FastSpring learns which page the checkout was opened from, and therefore how
+ * the popup checkout's **Allow Listed Website Domains** can be enforced at all.
+ *
+ * 1.0.6 has no such call: it jumps straight to the session URL. On a checkout
+ * with a domain allowlist configured — ours lists https://fluxradar.net and
+ * https://www.fluxradar.net — that leaves FastSpring deciding without the one
+ * fact the allowlist is about. Nothing in this repository can detect the
+ * difference: it shows up as a popup that does not open, which is the same
+ * symptom as a blocked script.
+ *
+ * The `/finalize` call goes to the storefront host, which the deployed CSP
+ * already allows (`connect-src 'self' https://*.onfastspring.com`).
  */
-export const SBL_VERSION = '1.0.6';
+export const SBL_VERSION = '1.0.9';
 
 /** The only origin the SBL script may be fetched from; mirrored in the CSP. */
 export const SBL_ORIGIN = 'https://sbl.onfastspring.com';

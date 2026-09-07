@@ -36,23 +36,47 @@ export {
   storePendingCheckout,
 } from './checkout-storage';
 
-export function useCheckoutConfig(enabled: boolean): CheckoutConfig | null {
-  const [config, setConfig] = useState<CheckoutConfig | null>(null);
+/**
+ * Whether this deployment sells scans, as the server answers it.
+ *
+ * "We have not asked yet" is a third state, not a quiet "no": treating the
+ * unanswered moment as unavailable makes the buyer read "paid scans are not
+ * enabled here" for as long as the request takes, and then watch it contradict
+ * itself. The screen shows nothing conclusive until the answer is in.
+ */
+export type CheckoutConfigState =
+  | { readonly status: 'loading' }
+  | { readonly status: 'ready'; readonly config: CheckoutConfig }
+  | { readonly status: 'unavailable' };
+
+const CHECKOUT_CONFIG_LOADING: CheckoutConfigState = { status: 'loading' };
+const CHECKOUT_CONFIG_UNAVAILABLE: CheckoutConfigState = { status: 'unavailable' };
+
+export function useCheckoutConfig(enabled: boolean): CheckoutConfigState {
+  const [state, setState] = useState<CheckoutConfigState>(CHECKOUT_CONFIG_LOADING);
   useEffect(() => {
-    if (!enabled) return undefined;
+    // Nobody asked: an internal account never sees a checkout, so there is no
+    // pending question and no reason to leave the screen waiting on one.
+    if (!enabled) {
+      setState(CHECKOUT_CONFIG_UNAVAILABLE);
+      return undefined;
+    }
     let active = true;
+    setState(CHECKOUT_CONFIG_LOADING);
     void apiRequest<CheckoutConfig>('/billing/checkout-config')
       .then((value) => {
-        if (active) setConfig(value);
+        if (active) setState({ status: 'ready', config: value });
         return value;
       })
       // An unreachable config endpoint means "not available", never "assume paid".
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setState(CHECKOUT_CONFIG_UNAVAILABLE);
+      });
     return () => {
       active = false;
     };
   }, [enabled]);
-  return config;
+  return state;
 }
 
 /**

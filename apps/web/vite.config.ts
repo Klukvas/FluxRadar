@@ -2,10 +2,13 @@ import react from '@vitejs/plugin-react';
 import type { Connect } from 'vite';
 import { defineConfig } from 'vite';
 
+// Extensionless on purpose: `tsc` type-checks this file with
+// `allowImportingTsExtensions` off, so a `.ts` suffix here would fail the build.
+import { blogIndexUrl } from './src/blog-routing';
+
 /**
- * Rewrite clean /blog paths to their static index.html equivalents so that
- * both `vite dev` and `vite preview` serve the standalone blog HTML pages
- * rather than falling through to the React SPA shell.
+ * Serve the standalone blog HTML for clean /blog paths in `vite dev` and
+ * `vite preview`, instead of falling through to the React SPA shell.
  *
  * Paths handled
  * ─────────────
@@ -13,6 +16,7 @@ import { defineConfig } from 'vite';
  *  /blog/           → /blog/index.html          (blog index, trailing slash)
  *  /blog/<slug>     → /blog/<slug>/index.html   (any article or locale sub-path)
  *  /blog/<slug>/    → /blog/<slug>/index.html   (same, trailing slash)
+ *  /blog/blog.css   → untouched                 (a real file, served as-is)
  *
  * The rewrite only changes the request URL seen by later middleware; it never
  * alters the URL the browser sees (no client-side redirect is issued).
@@ -20,9 +24,9 @@ import { defineConfig } from 'vite';
  * Production deployment (nginx)
  * ─────────────────────────────
  * The production nginx config uses `try_files $uri $uri/index.html /index.html`
- * which achieves the same result without a redirect: nginx tests the explicit
- * file <path>/index.html before falling back to the SPA entry point.
- * See deploy/nginx.conf.
+ * which achieves the same result without a redirect: nginx tests the request as
+ * a real file first, then the explicit <path>/index.html, then the SPA entry
+ * point. See deploy/nginx.conf.
  *
  * Why `$uri/index.html` instead of `$uri $uri/`
  * ───────────────────────────────────────────────
@@ -32,34 +36,11 @@ import { defineConfig } from 'vite';
  * request becomes /blog// → normalised back to /blog/ (not a regular file) →
  * falls through to /index.html (the SPA).  The explicit `$uri/index.html` step
  * avoids the redirect cycle and directly verifies the physical file.
+ *
+ * The matching rules themselves live in `src/blog-routing.ts` so they can be
+ * unit tested; this plugin only applies them to the request URL.
  */
 function blogIndexRewritePlugin() {
-  /**
-   * Map a request URL to its static /index.html equivalent for any path
-   * that lives inside the /blog subtree.  Returns null for all other paths.
-   */
-  function blogIndexUrl(url: string): string | null {
-    // Strip query string for matching, preserve it for rewriting.
-    const qmark = url.indexOf('?');
-    const path = qmark === -1 ? url : url.slice(0, qmark);
-    const qs = qmark === -1 ? '' : url.slice(qmark);
-
-    // Exact match: /blog or /blog/
-    if (path === '/blog' || path === '/blog/') {
-      return `/blog/index.html${qs}`;
-    }
-
-    // Sub-paths: /blog/<something> or /blog/<something>/
-    // Covers article slugs and locale sub-directories (e.g. /blog/uk/article).
-    if (path.startsWith('/blog/') && path.length > '/blog/'.length) {
-      // Remove any trailing slash before appending /index.html.
-      const clean = path.endsWith('/') ? path.slice(0, -1) : path;
-      return `${clean}/index.html${qs}`;
-    }
-
-    return null;
-  }
-
   const rewrite: Connect.NextHandleFunction = (req, _res, next) => {
     if (req.url) {
       const rewritten = blogIndexUrl(req.url);

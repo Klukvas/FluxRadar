@@ -510,8 +510,9 @@ describe('new scan modal — Close window button', () => {
     expect(screen.getByText('Site Profiles')).toBeInTheDocument();
     expect(screen.queryByText('New scan — scope and tariff')).not.toBeInTheDocument();
 
-    // URL should be reset to the root (no stale /scans/… fragment).
-    expect(window.location.pathname).toBe('/');
+    // The URL must name the screen we landed on (no stale /scans/… fragment),
+    // so a reload from here comes back to the workspace rather than to home.
+    expect(window.location.pathname).toBe('/profiles');
   });
 
   it('does not submit the scan form when Close window is clicked mid-form', async () => {
@@ -1219,6 +1220,43 @@ describe('home pricing and workspace onboarding', () => {
     );
     expect(calledMethod(fetchMock, '/account/onboarding', 'PATCH')).toBe(true);
   });
+
+  // The tour is an explanation, not a wizard: a first-time owner has to be able
+  // to dismiss it on step one and be left in an empty, unbilled workspace.
+  it('lets a brand-new owner skip the tour on the first step without running a scan', async () => {
+    const fetchMock = stubApi((path, init) => {
+      if (path === '/auth/me') return envelope(pendingAccount);
+      if (path === '/profiles') return envelope([]);
+      if (path === '/scans/active') return envelope(null);
+      if (path === '/account/onboarding' && init?.method === 'PATCH') {
+        return envelope({ ...account, onboarding: { status: 'skipped' as const } });
+      }
+      return envelope(null);
+    });
+
+    render(<App />);
+    await screen.findByRole('dialog', { name: 'Your workspace tabs' });
+
+    // The opening step frames the header, so the spotlight covers the whole tab
+    // strip rather than a single control inside it. Which of the two header
+    // targets carries it depends on the viewport; `tour-targets.test.ts` pins
+    // that choice, and what matters here is that the tabs are inside it.
+    const highlighted = resolvedTourTarget();
+    expect(['workspace-header', 'workspace-tabs']).toContain(highlighted.dataset.tourTarget);
+    for (const tab of ['Profiles', 'Scan', 'Reports']) {
+      expect(highlighted).toContainElement(screen.getByRole('button', { name: tab }));
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    expect(screen.getByText('Unified public website audit station.')).toBeInTheDocument();
+    expect(calledMethod(fetchMock, '/scans', 'POST')).toBe(false);
+    expect(calledMethod(fetchMock, '/profiles', 'POST')).toBe(false);
+    expect(fetchMock.mock.calls.some(([input]) => pathOf(input).includes('/free-check'))).toBe(
+      false,
+    );
+  });
 });
 
 // ─── Self-explanatory workflow — nav descriptions and plain help ─────────────
@@ -1634,6 +1672,56 @@ describe('NewScanScreen — paid availability and i18n', () => {
       expect.stringMatching(/\/billing\/dev-checkout/),
       expect.anything(),
     );
+  });
+
+  // Until the server has answered, the screen must not announce an absence it
+  // cannot know about: an unresolved config request used to read exactly like a
+  // deployment that does not sell scans, and then contradict itself on arrival.
+  it('says it is still checking while the checkout config is in flight', async () => {
+    let releaseConfig = (): void => undefined;
+    const configArrived = new Promise<Response>((resolve) => {
+      releaseConfig = () =>
+        resolve(
+          envelope({
+            provider: 'fastspring',
+            available: true,
+            mode: 'test',
+            unavailableReason: null,
+            popup: { storefront: 'fluxlab.test.onfastspring.com/popup-fluxlab' },
+            plans: [],
+          }),
+        );
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = pathOf(input);
+      if (path === '/billing/checkout-config') return configArrived;
+      if (path === '/auth/me') return Promise.resolve(envelope(account));
+      if (path === '/profiles') return Promise.resolve(envelope([profile]));
+      if (path === '/scans/active') return Promise.resolve(envelope(null));
+      return Promise.resolve(envelope(null));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await screen.findByText(account.email);
+    fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
+    await screen.findByText('Site Profiles');
+    fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+    await screen.findByText('New scan — scope and tariff');
+
+    expect(
+      screen.getByText('Checking whether paid reports can be bought here…'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Paid scans will be available when checkout is enabled/i),
+    ).not.toBeInTheDocument();
+
+    releaseConfig();
+
+    // Once the answer lands, the paid plans are offered — no note either way.
+    expect(await screen.findByText(/Complete · \$/)).toBeInTheDocument();
+    expect(
+      screen.queryByText('Checking whether paid reports can be bought here…'),
+    ).not.toBeInTheDocument();
   });
 
   it('internalFreeAccess user sees internal Basic and Complete options', async () => {

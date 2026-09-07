@@ -70,3 +70,48 @@ jobs:
 
       - name: Build web image
         run: docker build --file Dockerfile.web --build-arg VITE_API_URL=/api --tag fluxradar-web:ci .
+
+  dependencies:
+    name: Dependency advisories
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Deliberately its own job, and deliberately NOT part of the production
+    # deploy. An advisory is published against code that is already merged and
+    # already running, so gating the deploy on it would block the hotfix that
+    # fixes it. It gates the merge instead: this workflow runs on every pull
+    # request and on main, and a failure here is a dependency to upgrade, not a
+    # release to hold.
+    #
+    # This checks the public advisory database over the network. It needs no
+    # secret and no production credential, and it proves nothing about a
+    # vulnerability nobody has reported yet.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Blocking: these are the packages that end up inside the deployed images.
+      - name: Audit runtime dependencies
+        run: pnpm audit --prod --audit-level high
+
+      # Advisory: a build-time package cannot be reached by a request to the
+      # deployed service, but it does run on this runner and on developer
+      # machines. Reported, not enforced, so a vitest advisory cannot stop a fix
+      # from being merged.
+      - name: Audit build and test dependencies
+        continue-on-error: true
+        run: pnpm audit --audit-level high

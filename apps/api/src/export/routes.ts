@@ -9,6 +9,14 @@ import { validateExportRecords, writeExportCsv } from '@fluxradar/export';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
+import { PAID_ACCESS_INCLUDE, assertPaidReportAccess } from '../billing/report-access.ts';
+import {
+  EXPORT_ACTION_IP_LIMIT,
+  EXPORT_ACTION_LIMIT,
+  EXPORT_ACTION_WINDOW_MS,
+  RequestRateLimiter,
+  accountAndIpRules,
+} from '../auth/rate-limit.ts';
 import { ApiError, conflict, forbidden, notFound } from '../http/errors.ts';
 import { sendOk } from '../http/envelope.ts';
 import type { ApiLogger } from '../http/logger.ts';
@@ -34,6 +42,7 @@ export interface ExportRouterDeps {
    * inherits the app-level logger via createApp().
    */
   readonly logger?: ApiLogger;
+  readonly requestRateLimiter?: RequestRateLimiter;
 }
 
 const exportQuerySchema = z.object({ format: z.enum(['json', 'csv']).default('json') });
@@ -47,17 +56,31 @@ const EXPORTABLE_STATUSES = new Set<ScanExportStatus>([
 export function exportRouter(deps: ExportRouterDeps): Router {
   const router = Router();
   const auth = requireAuth(deps.prisma, deps.now);
+  const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
 
   router.get('/scans/:scanId/export', auth, async (req, res) => {
     const accountId = accountIdFrom(res);
     const scanId = requiredParam(req.params.scanId, 'scanId');
+    // The heaviest read in the API: it loads the scan with every issue and AI
+    // response, re-validates the whole record set and can store an object.
+    requestRateLimiter.assertAllowedAll(
+      accountAndIpRules('scan-export', accountId, req.ip ?? 'unknown', {
+        account: EXPORT_ACTION_LIMIT,
+        ip: EXPORT_ACTION_IP_LIMIT,
+        windowMs: EXPORT_ACTION_WINDOW_MS,
+      }),
+    );
     const scan = await deps.prisma.scan.findFirst({
       where: { id: scanId, accountId },
-      include: { modules: true, issues: true, aiResponses: true },
+      include: { modules: true, issues: true, aiResponses: true, ...PAID_ACCESS_INCLUDE },
     });
     if (scan === null) {
       throw notFound('scan not found');
     }
+    // Before the plan gate, so a refunded Complete scan gives the same answer as
+    // a refunded Basic one: an export is the whole report in one file, and it is
+    // the last place a returned payment may still hand it over.
+    assertPaidReportAccess(scan);
     if (scan.plan !== 'Complete') {
       throw forbidden(
         'EXPORT_COMPLETE_ONLY',

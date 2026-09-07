@@ -1,21 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <!-- Public app pages. Each one is served in English at its bare path and in
+       Ukrainian at ?lang=uk, which the app reads on entry, so every alternate
+       below renders the language it declares. -->
   <url>
     <loc>https://fluxradar.net/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/?lang=uk</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/"/>
   </url>
   <url>
     <loc>https://fluxradar.net/faq</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/faq"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/faq?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/faq"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/faq?lang=uk</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/faq"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/faq?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/faq"/>
   </url>
   <url>
     <loc>https://fluxradar.net/checks</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/checks"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/checks?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/checks"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/checks?lang=uk</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/checks"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/checks?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/checks"/>
   </url>
   <url>
     <loc>https://fluxradar.net/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/privacy"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/privacy?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/privacy"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/privacy?lang=uk</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/privacy"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/privacy?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/privacy"/>
   </url>
   <url>
     <loc>https://fluxradar.net/terms</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/terms"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/terms?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/terms"/>
   </url>
+  <url>
+    <loc>https://fluxradar.net/terms?lang=uk</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/terms"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/terms?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/terms"/>
+  </url>
+  <!-- Blog index. One page with a client-side language filter, so it has a
+       single canonical URL rather than a per-language alternate pair. -->
   <url>
     <loc>https://fluxradar.net/blog</loc>
   </url>

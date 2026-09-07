@@ -1,4 +1,12 @@
 User-agent: *
 Allow: /
 
+# Signed-in application routes. They render nothing useful without a session and
+# exist only for the account that owns them, so they are not worth crawling.
+Disallow: /profiles
+Disallow: /scan
+Disallow: /scans/
+Disallow: /reports
+Disallow: /integrations
+
 Sitemap: https://fluxradar.net/sitemap.xml

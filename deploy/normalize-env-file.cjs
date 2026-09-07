@@ -54,12 +54,69 @@ const REQUIRED_KEYS = [
 ];
 
 /**
+ * Secrets that must not hold the same value.
+ *
+ * INTEGRATION_ENCRYPTION_KEY encrypts every stored Google/Bing token;
+ * SESSION_SECRET is what a development checkout falls back to when the key is
+ * absent, which makes copying it into the key the most natural way to fill in
+ * the env file — and the one that quietly ties every stored token's lifetime to
+ * a secret rotated for unrelated reasons. The API refuses to boot on it
+ * (apps/api/src/integrations/encryption-key.ts); catching it here turns that
+ * crash-loop into a failed deploy that never reaches the server.
+ *
+ * Compared by value, reported by name: no value is ever printed.
+ */
+const DISTINCT_SECRET_PAIRS = [['INTEGRATION_ENCRYPTION_KEY', 'SESSION_SECRET']];
+
+/**
+ * How short a key may be before the deploy says so. The key is stretched with a
+ * single unsalted SHA-256, so its own entropy is all the protection a leaked
+ * database has. 32 characters is what
+ * `randomBytes(24).toString('base64')` produces; the documented generator emits
+ * 44. A warning rather than an error: an existing deployment running a shorter
+ * key must be able to redeploy and rotate, not be locked out by the check that
+ * told it to.
+ */
+const MIN_ENCRYPTION_KEY_LENGTH = 32;
+
+/**
  * Kept until every release that reads it at startup has been retired: an older
  * release crash-loops without it, which would turn an automatic rollback into an
  * outage. A warning, not an error, because only the rollback probe knows which
  * release would actually come back.
  */
 const ROLLBACK_ONLY_KEYS = ['PADDLE_WEBHOOK_SECRET'];
+
+/**
+ * Everything deploy/backup/* needs before a snapshot can be taken.
+ *
+ * Absent, backups simply do not run — and nothing else in the deploy says so,
+ * which is how a deployment ends up believing it has backups it has never taken.
+ * The deploy is the only moment a human is watching this file, so it is where
+ * the state of the backup configuration is reported.
+ */
+const BACKUP_KEYS = [
+  'HETZNER_S3_ENDPOINT',
+  'HETZNER_S3_REGION',
+  'HETZNER_S3_BUCKET',
+  'HETZNER_S3_ACCESS_KEY',
+  'HETZNER_S3_SECRET_KEY',
+  'FLUXRADAR_BACKUP_ENCRYPTION_KEY',
+];
+
+/**
+ * Backup policy numbers, with the constraint each one is read under.
+ * `positive: true` is the freshness alarm, which no snapshot can satisfy at 0;
+ * see the same rule in deploy/backup/backup-cli.cjs, which this check exists to
+ * report a day earlier — at deploy time, rather than in a nightly verification.
+ */
+const BACKUP_POLICY_NUMBERS = [
+  { key: 'FLUXRADAR_BACKUP_RETENTION_DAYS', positive: false },
+  { key: 'FLUXRADAR_BACKUP_MIN_KEEP', positive: true },
+  { key: 'FLUXRADAR_BACKUP_MAX_DELETE', positive: false },
+  { key: 'FLUXRADAR_BACKUP_STALE_HOURS', positive: false },
+  { key: 'FLUXRADAR_BACKUP_MAX_AGE_HOURS', positive: true },
+];
 
 /** The API container is started with this env file, so compose must agree. */
 const EXPECTED_ENV_FILE_NAME = '.env.production';
@@ -241,6 +298,82 @@ function checkRequiredKeys(entries) {
   return errors;
 }
 
+/** Secrets the deploy refuses to ship as copies of one another. */
+function checkDistinctSecrets(entries) {
+  return DISTINCT_SECRET_PAIRS.flatMap(([first, second]) => {
+    const firstValue = entries.get(first);
+    const secondValue = entries.get(second);
+    if (firstValue === undefined || secondValue === undefined || firstValue !== secondValue) {
+      return [];
+    }
+    return [
+      `${first} holds the same value as ${second}. They protect different things and must ` +
+        'rotate independently; the API refuses to boot on this, so the deploy stops here.',
+    ];
+  });
+}
+
+/** Reports a key short enough to be worth attacking offline, by name only. */
+function checkEncryptionKeyStrength(entries) {
+  const key = entries.get('INTEGRATION_ENCRYPTION_KEY');
+  if (key === undefined || key.length >= MIN_ENCRYPTION_KEY_LENGTH) {
+    return [];
+  }
+  return [
+    `INTEGRATION_ENCRYPTION_KEY is shorter than ${MIN_ENCRYPTION_KEY_LENGTH} characters. It is ` +
+      'stretched with a single SHA-256, so a short key is the whole protection a leaked ' +
+      "database has. Rotate it to `node -e \"console.log(require('node:crypto')" +
+      ".randomBytes(32).toString('base64'))\"` (docs/DEPLOYMENT.md).",
+  ];
+}
+
+/**
+ * Says out loud whether this deploy ships a working backup configuration.
+ *
+ * Presence is a WARNING in both directions: a host that has not been through
+ * docs/DEPLOYMENT.md's one-time backup setup deploys fine and must keep
+ * deploying fine, and the S3 credentials are also the application's own, so a
+ * bucket without a backup key is a real intermediate state rather than a typo.
+ *
+ * A policy number that is present and unusable is an ERROR: nothing else reads
+ * it until a backup or a restore does, and both of those run unattended.
+ */
+function checkBackupConfiguration(entries) {
+  const errors = [];
+  const warnings = [];
+  const configured = BACKUP_KEYS.filter((key) => (entries.get(key) ?? '').trim() !== '');
+  const missing = BACKUP_KEYS.filter((key) => !configured.includes(key));
+  if (configured.length === 0) {
+    warnings.push(
+      'No database backup is configured: none of ' +
+        `${BACKUP_KEYS.join(', ')} is set, so deploy/backup/pg-backup.sh cannot run and this ` +
+        'deployment has no snapshot to restore from (docs/DEPLOYMENT.md, "Manual setup").',
+    );
+  } else if (missing.length > 0) {
+    warnings.push(
+      `Database backups are half-configured: ${missing.join(', ')} ` +
+        `${missing.length === 1 ? 'is' : 'are'} absent. Until every one of ` +
+        `${BACKUP_KEYS.join(', ')} is set, no snapshot is taken (docs/DEPLOYMENT.md).`,
+    );
+  }
+  for (const { key, positive } of BACKUP_POLICY_NUMBERS) {
+    const raw = entries.get(key);
+    if (raw === undefined || raw.trim() === '') continue;
+    const value = Number(raw.trim());
+    if (!Number.isFinite(value) || value < 0) {
+      errors.push(`${key} must be a non-negative number; the backup tools refuse to run on it.`);
+      continue;
+    }
+    if (positive && value === 0) {
+      errors.push(
+        `${key} is 0. The backup tools reject it — a freshness limit of 0 accepts no snapshot ` +
+          'and a minimum of 0 kept snapshots is not a retention policy.',
+      );
+    }
+  }
+  return { errors, warnings };
+}
+
 function checkRollbackKeys(entries) {
   return ROLLBACK_ONLY_KEYS.filter((key) => !entries.has(key)).map(
     (key) =>
@@ -261,15 +394,24 @@ function render(entries) {
  */
 function normalizeEnvFile(path) {
   const parsed = parseEnvFile(readFileSync(path, 'utf8'));
+  const backups = checkBackupConfiguration(parsed.entries);
   const errors = [
     ...parsed.errors,
     ...checkRequiredKeys(parsed.entries),
     ...checkDatabaseConsistency(parsed.entries),
+    ...checkDistinctSecrets(parsed.entries),
+    ...backups.errors,
   ];
-  const warnings = [...parsed.warnings, ...checkRollbackKeys(parsed.entries)];
+  const warnings = [
+    ...parsed.warnings,
+    ...checkRollbackKeys(parsed.entries),
+    ...checkEncryptionKeyStrength(parsed.entries),
+    ...backups.warnings,
+  ];
   if (errors.length > 0) {
     const error = new Error(
-      `The production env file cannot be passed identically to docker compose and docker run:\n` +
+      'The production env file cannot be passed identically to docker compose and docker run, ' +
+        'or carries a value the deploy refuses to ship:\n' +
         errors.map((message) => `  - ${message}`).join('\n'),
     );
     error.warnings = warnings;
@@ -279,7 +421,16 @@ function normalizeEnvFile(path) {
   return { keys: [...parsed.entries.keys()], warnings };
 }
 
-module.exports = { normalizeEnvFile, parseEnvFile, COMPOSE_CONSUMED_KEYS, REQUIRED_KEYS };
+module.exports = {
+  normalizeEnvFile,
+  parseEnvFile,
+  BACKUP_KEYS,
+  BACKUP_POLICY_NUMBERS,
+  COMPOSE_CONSUMED_KEYS,
+  REQUIRED_KEYS,
+  DISTINCT_SECRET_PAIRS,
+  MIN_ENCRYPTION_KEY_LENGTH,
+};
 
 if (require.main === module) {
   const path = process.argv[2];

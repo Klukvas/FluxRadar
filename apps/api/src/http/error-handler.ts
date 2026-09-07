@@ -45,6 +45,12 @@ export function errorHandler(
       return;
     }
     if (error instanceof ApiError) {
+      // Тело ответа не меняется — клиент, который его уже разбирает, ничего не
+      // замечает; Retry-After лишь говорит корректному клиенту, когда повторять,
+      // вместо того чтобы он подбирал паузу сам.
+      if (error.retryAfterSeconds !== null) {
+        res.setHeader('Retry-After', String(error.retryAfterSeconds));
+      }
       res.status(error.status).json(errorEnvelope(error.code, error.message));
       return;
     }

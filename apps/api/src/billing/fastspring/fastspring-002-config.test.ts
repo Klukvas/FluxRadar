@@ -173,4 +173,114 @@ describe('FASTSPRING-002 configuration', () => {
       validateRuntimeConfig({ ...base, ...COMPLETE_ENV, FASTSPRING_MODE: 'live' }),
     ).toThrow(/FASTSPRING_STORE_VERIFIED/);
   });
+
+  // The shape the FluxRadar FastSpring store actually has, in both modes.
+  //
+  // Every value below was read out of the FastSpring app for store
+  // `fluxlab_store` (Catalog → One-Time Products for the paths, Checkouts →
+  // Popup Checkouts → Settings for the checkout path, and its "Place on your
+  // Website" snippet for the storefront). None of them is a credential. They are
+  // pinned here because each one is a value the store owner types into an
+  // environment file by hand, and every one of them has a way of being subtly
+  // wrong that only shows up as a checkout a buyer cannot pay on: the checkout
+  // path is two URL segments, the popup storefront is a host plus one segment
+  // with no scheme, and the two differ between test and live by one `.test.`
+  // label the eye skips over.
+  describe('the configured FluxRadar store', () => {
+    const STORE_ENV = {
+      FASTSPRING_API_USERNAME: 'api-user',
+      FASTSPRING_API_PASSWORD: 'api-password-value',
+      FASTSPRING_WEBHOOK_SECRET: 'webhook-secret-value',
+      FASTSPRING_SESSION_API: 'v2',
+      FASTSPRING_CHECKOUT_PATH: 'fluxlab/popup-fluxlab',
+      FASTSPRING_PRODUCT_PATH_BASIC: 'fluxradar-basic',
+      FASTSPRING_PRODUCT_PATH_COMPLETE: 'fluxradar-complete',
+      // The storefront localises the price in 33 currencies and leaves the
+      // country selector adjustable, so the buyer can change what they are
+      // charged in after the session was priced. "strict" would refuse those
+      // orders after the card was charged (docs/FASTSPRING.md §4).
+      FASTSPRING_CURRENCY_POLICY: 'localized',
+    } satisfies NodeJS.ProcessEnv;
+
+    const TEST_STOREFRONT = 'fluxlab.test.onfastspring.com/popup-fluxlab';
+    const LIVE_STOREFRONT = 'fluxlab.onfastspring.com/popup-fluxlab';
+
+    it('accepts the test-mode values as they are printed in the FastSpring app', () => {
+      const result = readFastSpringConfig({
+        ...STORE_ENV,
+        FASTSPRING_MODE: 'test',
+        FASTSPRING_POPUP_STOREFRONT: TEST_STOREFRONT,
+      });
+      expect(result.state).toBe('configured');
+      if (result.state !== 'configured') return;
+      expect(result.config.liveMode).toBe(false);
+      expect(result.config.checkoutPath).toBe('fluxlab/popup-fluxlab');
+      expect(result.config.popupStorefront).toBe(TEST_STOREFRONT);
+      expect(result.config.currencyPolicy).toBe('localized');
+      // v2 is the popup flow; the classic storefront URL is not part of it.
+      expect(result.config.storefrontUrl).toBeNull();
+      expect(planForProductPath(result.config, 'fluxradar-basic')).toBe('Basic');
+      expect(planForProductPath(result.config, 'fluxradar-complete')).toBe('Complete');
+    });
+
+    it('accepts the live-mode values only once the store has been verified', () => {
+      const live = {
+        ...STORE_ENV,
+        FASTSPRING_MODE: 'live',
+        FASTSPRING_POPUP_STOREFRONT: LIVE_STOREFRONT,
+      } satisfies NodeJS.ProcessEnv;
+      expect(readFastSpringConfig(live)).toMatchObject({
+        state: 'invalid',
+        missing: [FASTSPRING_ENV_VARS.storeVerified],
+      });
+
+      const verified = readFastSpringConfig({
+        ...live,
+        FASTSPRING_STORE_VERIFIED: FASTSPRING_STORE_VERIFIED_VALUE,
+      });
+      expect(verified.state).toBe('configured');
+      if (verified.state !== 'configured') return;
+      expect(verified.config.liveMode).toBe(true);
+      expect(verified.config.popupStorefront).toBe(LIVE_STOREFRONT);
+    });
+
+    // The expensive mistake: the mode is switched but the storefront is not (or
+    // the other way round). A session opened with `live: false` cannot be paid on
+    // the live storefront, so the buyer would face a checkout that can never
+    // complete. It fails at boot instead.
+    it('refuses a mode and a storefront that disagree, in either direction', () => {
+      const liveModeTestStorefront = readFastSpringConfig({
+        ...STORE_ENV,
+        FASTSPRING_MODE: 'live',
+        FASTSPRING_STORE_VERIFIED: FASTSPRING_STORE_VERIFIED_VALUE,
+        FASTSPRING_POPUP_STOREFRONT: TEST_STOREFRONT,
+      });
+      expect(liveModeTestStorefront).toMatchObject({
+        state: 'invalid',
+        missing: [FASTSPRING_ENV_VARS.popupStorefront],
+      });
+
+      const testModeLiveStorefront = readFastSpringConfig({
+        ...STORE_ENV,
+        FASTSPRING_MODE: 'test',
+        FASTSPRING_POPUP_STOREFRONT: LIVE_STOREFRONT,
+      });
+      expect(testModeLiveStorefront).toMatchObject({
+        state: 'invalid',
+        missing: [FASTSPRING_ENV_VARS.popupStorefront],
+      });
+    });
+
+    // v2 without the popup storefront is not a checkout at all: the Store Builder
+    // Library has nothing to initialise with, so the buyer gets a button that
+    // does nothing. It is required rather than guessed from the checkout path.
+    it('refuses the v2 store configuration with no popup storefront', () => {
+      expect(
+        readFastSpringConfig({ ...STORE_ENV, FASTSPRING_MODE: 'test' }),
+      ).toMatchObject({
+        state: 'invalid',
+        missing: [FASTSPRING_ENV_VARS.popupStorefront],
+      });
+    });
+  });
 });

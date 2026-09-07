@@ -7,7 +7,12 @@ never assert that one happened.
 
 This document lists the exact environment variables, the FastSpring app settings
 they correspond to, and what still has to come from the FastSpring account owner.
-Nothing here contains a real credential, product path or store name.
+§5a records what the configured store actually holds, checked in the FastSpring
+app. **Nothing here contains a credential** — no API password, no webhook HMAC
+secret. Product paths, the checkout path and the popup storefront are named there
+because none of them is secret: the storefront is shipped in a public script tag
+on every page that sells through FastSpring, and a product path is visible in any
+checkout URL.
 
 ---
 
@@ -105,6 +110,7 @@ account's profile.
 | The buyer-facing status carries a closed reason code, never the internal reason | `billing/checkout-status-reason.ts` |
 | Live mode cannot be switched on before the store is confirmed | `FASTSPRING_STORE_VERIFIED`, `billing/fastspring/config.ts` |
 | A full return suspends the entitlement, and partial returns suspend it once they add up to the charge | `billing/fastspring/refund-events.ts`, `billing/fastspring/refund-amounts.ts` |
+| A suspended entitlement takes the report back, not only future work: the scan, its dashboard, its issues, their evidence and the export all answer 403 `ENTITLEMENT_SUSPENDED`, and the lists keep the row without its module payload | `billing/report-access.ts` (one rule, applied by the read paths and the worker alike; D-216) |
 | A refund stored while its order was being granted is still applied, and a pile of refunds for orders that never arrived cannot delay it | `billing/fastspring/pending-refund-reconciliation.ts` |
 | A chargeback is never relabelled as a plain refund by a later return | `billing/fastspring/refund-events.ts` |
 | A cross-currency return the payload states no usable rate for suspends rather than being under-counted | `billing/fastspring/refund-amounts.ts` |
@@ -652,6 +658,156 @@ repository, so `FASTSPRING_MODE=live` fails closed until whoever checked them se
 `FASTSPRING_STORE_VERIFIED=verified`. Nothing in the code can be substituted for
 that check, and this integration is therefore **not** finished until the account
 owner has performed it.
+
+---
+
+## 5a. What the FastSpring store actually holds (checked 2026-09-06)
+
+Everything in §5 is a question to the account owner. This section is the answer
+to most of them, read directly out of the FastSpring app for store
+`fluxlab_store`, plus the two questions that are still open and **block live
+checkout**.
+
+No credential appears here. The API password, the webhook HMAC secret and the
+GitHub Actions secrets that carry them are not readable from this repository and
+are not reproduced anywhere in it.
+
+### Confirmed
+
+| Question (§5) | What the FastSpring app says |
+| --- | --- |
+| Store | `fluxlab_store`, base currency **USD** |
+| 2 — product paths | `fluxradar-basic` (FluxRadar Basic Audit, **$55.00 USD**) and `fluxradar-complete` (FluxRadar Complete Audit, **$120.00 USD**), both **one-time** products. They match the §18 tariff to the cent. |
+| 1 — checkout path | **`fluxlab/popup-fluxlab`** → `FASTSPRING_CHECKOUT_PATH`. Two URL segments, as the Sessions v2 endpoint requires. |
+| 1 — popup storefront | Test: **`fluxlab.test.onfastspring.com/popup-fluxlab`**, read from the popup checkout's *Place on your Website* snippet. → `FASTSPRING_POPUP_STOREFRONT`, which must change together with `FASTSPRING_MODE`. The live host is the same value without the `.test.` label — that is FastSpring's documented convention and what `popup-storefront.ts` enforces, but the app only prints the **test** snippet while the checkout is Offline, so **re-read the snippet after switching it Online** rather than assuming the live value. |
+| 1b — whitelisted origins | **`https://fluxradar.net`** and **`https://www.fluxradar.net`** are both listed under *Allow Listed Website Domains* on the popup checkout. §4 item 6 is satisfied for production. `http://localhost:5173` is **not** listed, so the popup cannot be smoke-tested from a local dev server against this checkout. |
+| 3 — API credentials | A username exists under Developer Tools → APIs. The password reads *"No longer available."* — FastSpring shows it once, at creation. It is therefore only usable if the owner still holds it; otherwise **Reset Credentials** issues a new pair and `FASTSPRING_API_PASSWORD` has to be updated with it. |
+| — webhook URL | **`https://fluxradar.net/api/webhooks/fastspring`**, exactly the endpoint this API mounts. |
+| — webhook events | `order.completed`, `return.created`, `chargeback.created` — all three, and nothing else. |
+| — webhook source | *Live and Test Orders*, so one endpoint serves both modes and `FASTSPRING_MODE` is what decides which events may grant. Webhook expansion is off, which §4 item 4 allows. |
+| 7 — currency behaviour | **33 currencies are enabled** store-wide (everything but RUB and ZAR) and the popup's *Country and Language Selector* is set to **Enable**, so a buyer can change country — and therefore currency — on the checkout, after the session was priced. |
+| 8 — coupons at checkout | The popup's *'Promotional Code' Field* is **off**, and the catalogue has no coupons. No upsell or cross-sell is configured: the popup lists exactly the two audit products and no secondary products. |
+| 7 — popup currency override | The popup does **not** override store languages or currencies, and its default country is *Automatically Detected*, so the store-level list above is what applies. |
+
+**`FASTSPRING_CURRENCY_POLICY` must therefore be `localized`, not the default
+`strict`.** This is not a preference. With 33 currencies enabled and an
+adjustable country selector, a buyer outside the US pays in their own currency;
+`strict` accepts only the currency the session was quoted in, so every such order
+would be **charged and then rejected** — the buyer loses the money and gets no
+scan, and the charge has to be returned by hand. `localized` still binds the
+order to our own `CheckoutSession`, to one catalogue product path and to a
+single-use reference, and still measures the amount against the USD payout figure
+whenever FastSpring reports one (§4, *Currency*).
+
+The alternative — setting *Country and Language Selector* to **Disable** or
+**Enable, but lock** and cutting the currency list down to USD — is what would
+make `strict` correct. Either choice is the owner's; they are not
+interchangeable, and picking the wrong one costs a buyer real money.
+
+### Blockers — live checkout cannot be switched on until both are cleared
+
+1. **The webhook has no HMAC secret.** Developer Tools → Webhooks →
+   *Edit Endpoint* → **HMAC SHA256 Secret** is **empty**. FastSpring only sends
+   `X-FS-Signature` when that field is set, and `billing/fastspring/signature.ts`
+   rejects an unsigned delivery with **400**. So today *every* `order.completed`
+   would be refused, no `Purchase`, `Entitlement` or `Scan` would ever be
+   created, and a buyer who paid would get nothing. The webhook log confirms the
+   path has never run: it holds **no deliveries at all**.
+
+   This is deliberately not fixed from here. The secret has to be generated,
+   typed into that field in the FastSpring app, and stored as the
+   `PRODUCTION_FASTSPRING_WEBHOOK_SECRET` GitHub Actions secret **as the same
+   value** — a secret set on one side only is indistinguishable, from the code's
+   point of view, from no secret at all.
+
+2. **The popup checkout is Offline.** The storefront card reads **Offline**, and
+   *Place on your Website* warns in as many words that this is an offline
+   storefront. An offline checkout takes no live transactions. Switching it
+   (*Offline ▾ → Switch to Online*) is a deliberate commercial act — it is what
+   makes the store able to charge real cards — so it is the owner's click, not
+   this repository's.
+
+Two further items from §5 stay **unverified**, and both are part of what
+`FASTSPRING_STORE_VERIFIED=verified` asserts:
+
+* **6 — order tags on `order.completed`.** No order has ever been placed in this
+  store, so nothing has proved that `fluxradarCheckoutRef` comes back on the
+  webhook. One test order settles it — read the stored `WebhookEvent.rawBody`.
+  This cannot be answered until blocker 1 is cleared, because until then no
+  webhook is accepted to read.
+* **11 — payout currency.** Not exposed on any store settings screen; it lives on
+  the FastSpring account. If it is not USD, a return quoted in a currency the
+  buyer was not charged in is counted as the whole charge and suspends the
+  entitlement (§4, *Returns*).
+
+**9 — product tax category** is also open: Settings → Store Settings → General
+shows *Default Tax Code: **Not Configured***. That is the store-wide fallback,
+not the per-product setting, so it does not by itself mean the two products are
+untaxed — but it does mean nothing is catching a product that was created without
+a tax category. It only ever shows up as the `tax` figure on real orders.
+
+### The order this has to happen in
+
+Nothing below is code work; all of it is in the FastSpring app and in the
+repository's deployment secrets.
+
+1. Set the webhook HMAC secret in FastSpring and store the identical value as
+   `PRODUCTION_FASTSPRING_WEBHOOK_SECRET`.
+2. Confirm the API password is still held, or reset the credentials and update
+   `PRODUCTION_FASTSPRING_API_PASSWORD`.
+3. Deploy with `FASTSPRING_MODE=test`, `FASTSPRING_SESSION_API=v2`,
+   `FASTSPRING_CURRENCY_POLICY=localized`, the checkout path and the **test**
+   popup storefront from the table above.
+4. Run the §5 item 10 sandbox smoke test: open a checkout from the app, pay with
+   a FastSpring test card, and confirm the webhook produced a `Purchase`, an
+   `Entitlement` and a `Scan`. Read the stored `WebhookEvent.rawBody` and confirm
+   the `fluxradarCheckoutRef` order tag is there (§5 item 6). Then issue a full
+   return from the FastSpring console and confirm the entitlement is suspended.
+5. Confirm the account's payout currency (§5 item 11) and the two products' tax
+   categories (§5 item 9).
+6. Only then: switch the popup checkout **Online**, move the environment to
+   `FASTSPRING_MODE=live` with the **live** popup storefront, and set
+   `FASTSPRING_STORE_VERIFIED=verified` — which is the operator's statement that
+   steps 4 and 5 were actually done.
+
+### Store Builder Library version
+
+The FastSpring app ships **1.0.9** in this store's popup snippet, and
+`apps/web/src/fastspring-sbl.ts` pins that version. It is not interchangeable
+with the 1.0.6 this repository pinned before: from 1.0.9 the library posts the
+page's origin onto the session (`{origin, originOnly: true}`) before opening the
+checkout, for the `popup` and `inapp` modes only. That call is what tells
+FastSpring which page the checkout was opened from — which is the fact the
+*Allow Listed Website Domains* list above is about. 1.0.6 never makes it. The
+deployed CSP already permits the call (`connect-src 'self' https://*.onfastspring.com`).
+
+### Outbound refunds are a manual console action
+
+`billing/refund.ts` is the §18 refund-policy path: a scan that was cancelled
+before queueing, a platform failure after the retry, or a run with no usable
+output writes a `RefundRecord` with status `requested`. **It calls no FastSpring
+API and moves no money.** Nothing in this repository ever asks a payment provider
+to return a charge.
+
+That is on purpose rather than unfinished. FastSpring does expose a returns API,
+but wiring it here would mean this service initiating an irreversible transfer of
+real money on its own, and the current schema has nowhere to put the provider's
+answer: `RefundRecord` carries the *reason* a refund is owed, not a provider
+return id, and the `ProviderRefund` lines that decide whether an entitlement is
+suspended are written only by the inbound `return.created` webhook. An automated
+outbound refund would therefore either double-count against that same webhook or
+run untracked.
+
+So the contract is: a `requested` `RefundRecord` is a **statement that a refund
+is owed**, and an operator issues the return in the FastSpring console. The
+inbound `return.created` webhook then closes the loop on its own — it writes the
+`ProviderRefund` line, moves the `RefundRecord` aggregate to `paid`, and suspends
+the entitlement once the returns add up to the charge (§4, *Returns*). Nothing
+about that path assumes the return was started by hand rather than by the buyer.
+
+To find what is owed: `RefundRecord` rows with `status = 'requested'` and
+`provider = 'fastspring'`; `providerTransactionId` is the FastSpring order to
+return, and `reasonCode` says why.
 
 ---
 

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
 import {
@@ -12,10 +12,8 @@ import {
   LoadingState,
   MenuBar,
   Panel,
-  ProgressBar,
   ScoreDial,
   SelectField,
-  SkeletonRows,
   StatusChip,
   Terminal,
   Window,
@@ -25,16 +23,9 @@ import {
   type Account,
   type CheckoutConfig,
   type CheckoutSession,
-  type Dashboard,
-  type ExportPayload,
-  type IntegrationStatus,
-  type Issue,
   type Scan,
-  type ScanModule,
   type SiteProfile,
 } from './api';
-import { GoogleDataPanel, googleSnapshotOf } from './GoogleDataPanel';
-import { GoogleProperties } from './GoogleProperties';
 import {
   normalizeWebsiteInput,
   WEBSITE_INPUT_HINT,
@@ -50,10 +41,18 @@ import {
   useCheckoutConfig,
   type PendingCheckout,
 } from './Checkout';
-import { copy, readStoredLanguage, storeLanguage, type Language } from './i18n';
+import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
+import { applyPageMetadata, type SeoPageId } from './seo';
 import { OnboardingTour } from './OnboardingTour';
 import { FaqScreen } from './Faq';
+import { AuditCoverageScreen } from './Checks';
 import { PricingCards, PricingExplainer } from './Pricing';
+import { IntegrationsScreen } from './Integrations';
+import { IssuesScreen } from './Issues';
+import { ResultsScreen } from './Report';
+import { ScanScreen } from './ScanProgress';
+import { ReportsScreen } from './Reports';
+import { isTerminalScanStatus } from './scan-status';
 import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 import './styles/base.css';
 
@@ -62,6 +61,7 @@ type Screen =
   | 'auth'
   | 'desktop'
   | 'new-scan'
+  | 'reports'
   | 'scan'
   | 'results'
   | 'issues'
@@ -72,6 +72,64 @@ type Screen =
   | 'checks'
   | 'styleguide';
 
+/**
+ * Screens that only exist for a signed-in account.
+ *
+ * A signed-out visitor who follows one of their URLs is asked to sign in and is
+ * then taken to the screen they asked for, rather than being dropped on the
+ * marketing home page with no explanation of where their link went.
+ */
+const WORKSPACE_SCREENS: readonly Screen[] = [
+  'desktop',
+  'new-scan',
+  'reports',
+  'scan',
+  'results',
+  'issues',
+  'integrations',
+];
+
+function isWorkspaceScreen(screen: Screen): boolean {
+  return WORKSPACE_SCREENS.includes(screen);
+}
+
+/**
+ * The URL a screen lives at.
+ *
+ * Every workspace screen has one, which is the whole point: a reload, a
+ * bookmark, a shared link and the browser's back button all have to land the
+ * owner where they were, and a screen that shares `/` with another one cannot
+ * do that.
+ */
+function pathForScreen(screen: Screen, scanId: string | null): string {
+  switch (screen) {
+    case 'desktop':
+      return '/profiles';
+    case 'new-scan':
+      return '/scan';
+    case 'reports':
+      return '/reports';
+    case 'integrations':
+      return '/integrations';
+    case 'checks':
+      return '/checks';
+    case 'faq':
+      return '/faq';
+    case 'privacy':
+      return '/privacy';
+    case 'terms':
+      return '/terms';
+    case 'scan':
+    case 'results':
+      // A report screen without a scan is the reports list, not a broken URL.
+      return scanId === null ? '/reports' : `/scans/${encodeURIComponent(scanId)}`;
+    case 'issues':
+      return scanId === null ? '/reports' : `/scans/${encodeURIComponent(scanId)}/issues`;
+    default:
+      return '/';
+  }
+}
+
 interface InitialRoute {
   readonly screen: Screen;
   readonly scanId: string | null;
@@ -79,6 +137,14 @@ interface InitialRoute {
   /** Home section to scroll to on entry, used by legacy links such as /plans. */
   readonly scrollTo: 'pricing' | null;
 }
+
+/** Workspace paths that carry no identifier, in the order they are matched. */
+const WORKSPACE_PATHS: Readonly<Record<string, Screen>> = {
+  '/profiles': 'desktop',
+  '/scan': 'new-scan',
+  '/reports': 'reports',
+  '/integrations': 'integrations',
+};
 
 function readInitialRoute(): InitialRoute {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
@@ -105,15 +171,11 @@ function readInitialRoute(): InitialRoute {
   // /plans links keep working by landing there instead of on an unknown route.
   if (path === '/plans')
     return { screen: 'home', scanId: null, emailAction: null, scrollTo: 'pricing' };
-  const scanMatch = /^\/scans\/([^/]+)$/.exec(path);
-  if (scanMatch?.[1] !== undefined) {
-    try {
-      const scanId = decodeURIComponent(scanMatch[1]);
-      if (scanId.length > 0) return { screen: 'scan', scanId, emailAction: null, scrollTo: null };
-    } catch {
-      // Treat malformed deep links like any other unknown public route.
-    }
-  }
+  const workspaceScreen = WORKSPACE_PATHS[path];
+  if (workspaceScreen !== undefined)
+    return { screen: workspaceScreen, scanId: null, emailAction: null, scrollTo: null };
+  const scanRoute = readScanRoute(path);
+  if (scanRoute !== null) return scanRoute;
   const route = window.location.hash.slice(1);
   return {
     screen:
@@ -130,8 +192,53 @@ function readInitialRoute(): InitialRoute {
   };
 }
 
+/** `/scans/:id` and `/scans/:id/issues`, or null when the path is neither. */
+function readScanRoute(path: string): InitialRoute | null {
+  const match = /^\/scans\/([^/]+)(\/issues)?$/.exec(path);
+  if (match?.[1] === undefined) return null;
+  try {
+    const scanId = decodeURIComponent(match[1]);
+    if (scanId.length === 0) return null;
+    return {
+      screen: match[2] === undefined ? 'scan' : 'issues',
+      scanId,
+      emailAction: null,
+      scrollTo: null,
+    };
+  } catch {
+    // Treat a malformed deep link like any other unknown public route.
+    return null;
+  }
+}
+
 function isTerminalScan(scan: Scan): boolean {
-  return ['Completed', 'Partial', 'Failed', 'Cancelled'].includes(scan.status);
+  return isTerminalScanStatus(scan.status);
+}
+
+/**
+ * Which public document a screen is, for search engines.
+ *
+ * `auth` is the home page with a modal over it, and `styleguide` is an internal
+ * reference; everything else that is not a listed public page sits behind
+ * sign-in and is marked as not indexable rather than described as something it
+ * is not.
+ */
+function seoPageForScreen(screen: Screen): SeoPageId {
+  switch (screen) {
+    case 'home':
+    case 'auth':
+      return 'home';
+    case 'faq':
+      return 'faq';
+    case 'checks':
+      return 'checks';
+    case 'privacy':
+      return 'privacy';
+    case 'terms':
+      return 'terms';
+    default:
+      return 'workspace';
+  }
 }
 
 export function App() {
@@ -142,10 +249,12 @@ export function App() {
   const [account, setAccount] = useState<Account | null>(null);
   const [profiles, setProfiles] = useState<SiteProfile[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<SiteProfile | null>(null);
+  // Which website the reports list is scoped to; null lists the whole account.
+  const [reportsProfile, setReportsProfile] = useState<SiteProfile | null>(null);
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
-  const [language, setLanguage] = useState<Language>(readStoredLanguage);
+  const [language, setLanguage] = useState<Language>(readInitialLanguage);
   const [tourOpen, setTourOpen] = useState(false);
   // Held here, not inside the new-scan screen: the buyer pays in another tab and
   // may reload or navigate away before the provider webhook lands, and the
@@ -157,9 +266,49 @@ export function App() {
     storeLanguage(next);
   }, []);
 
+  // The document language is what a screen reader announces the page in and what
+  // a browser offers to translate; leaving it on the served default silently
+  // mislabels every Ukrainian session.
   useEffect(() => {
-    const path = window.location.pathname.replace(/\/+$/, '') || '/';
-    if (path === '/privacy' || path === '/terms' || path === '/checks' || path === '/faq') {
+    document.documentElement.lang = language;
+  }, [language]);
+
+  // Title, description, canonical, social cards and `hreflang` alternates are
+  // per screen and per language: `index.html` is served for every route, so a
+  // page that does not state its own metadata silently claims to be the home
+  // page — including its canonical, which would keep it out of the index.
+  useEffect(() => {
+    applyPageMetadata(seoPageForScreen(screen), language);
+  }, [screen, language]);
+
+  /**
+   * Opens a scan by id and lands on the screen that scan actually has.
+   *
+   * A running scan opens on its progress window and a finished one on its
+   * report, so the same URL is correct before and after the scan ends. A scan
+   * that cannot be read (deleted, or another account's) falls back to the
+   * reports list, which explains itself, rather than to a blank screen.
+   */
+  const openScanById = useCallback(
+    async (scanId: string, preferred: 'auto' | 'issues' = 'auto'): Promise<void> => {
+      try {
+        const scan = await apiRequest<Scan>(`/scans/${scanId}`);
+        setSelectedScan(scan);
+        const target: Screen =
+          preferred === 'issues' ? 'issues' : isTerminalScan(scan) ? 'results' : 'scan';
+        setScreen(target);
+        window.history.replaceState(null, '', pathForScreen(target, scan.id));
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'Scan could not be restored');
+        window.history.replaceState(null, '', pathForScreen('reports', null));
+        setScreen('reports');
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (['privacy', 'terms', 'checks', 'faq'].includes(entryRoute.screen)) {
       setBooting(false);
       return;
     }
@@ -168,41 +317,42 @@ export function App() {
         setAccount(value);
         try {
           await loadProfiles(setProfiles);
-          if (entryRoute.scanId === null && value.onboarding?.status === 'pending') {
+          if (entryRoute.scanId !== null) {
+            await openScanById(
+              entryRoute.scanId,
+              entryRoute.screen === 'issues' ? 'issues' : 'auto',
+            );
+            return;
+          }
+          if (value.onboarding?.status === 'pending') {
             setScreen('desktop');
+            window.history.replaceState(null, '', pathForScreen('desktop', null));
             setTourOpen(true);
             return;
           }
-          if (entryRoute.scanId !== null) {
-            const scan = await apiRequest<Scan>(`/scans/${entryRoute.scanId}`);
-            setSelectedScan(scan);
-            setScreen(isTerminalScan(scan) ? 'results' : 'scan');
-            return;
-          }
+          // A workspace URL is an explicit request for that screen, so the
+          // active-scan shortcut below must not overrule it — someone who opened
+          // their reports did not ask to be moved to a running scan.
+          if (isWorkspaceScreen(entryRoute.screen)) return;
           const active = await apiRequest<Scan | null>('/scans/active');
           if (active !== null) {
             setSelectedScan(active);
-            window.history.replaceState(null, '', `/scans/${encodeURIComponent(active.id)}`);
-            setScreen(isTerminalScan(active) ? 'results' : 'scan');
+            const target: Screen = isTerminalScan(active) ? 'results' : 'scan';
+            window.history.replaceState(null, '', pathForScreen(target, active.id));
+            setScreen(target);
           }
         } catch (caught: unknown) {
-          if (entryRoute.scanId !== null) {
-            setError(caught instanceof Error ? caught.message : 'Scan could not be restored');
-            window.history.replaceState(null, '', '/');
-            setScreen('desktop');
-          } else {
-            console.error('FluxRadar boot data unavailable', caught);
-          }
+          console.error('FluxRadar boot data unavailable', caught);
         }
       })
       .catch(() => {
-        // Authentication is required before a deep-link scan is fetched. The
+        // Authentication is required before any workspace screen is fetched. The
         // same home surface then presents the login modal without exposing
         // whether another account owns the requested scan.
-        if (entryRoute.scanId !== null) setScreen('auth');
+        if (entryRoute.scanId !== null || isWorkspaceScreen(entryRoute.screen)) setScreen('auth');
       })
       .finally(() => setBooting(false));
-  }, [entryRoute.scanId]);
+  }, [entryRoute.scanId, entryRoute.screen, openScanById]);
 
   useEffect(() => {
     const restored = account === null ? null : readPendingCheckout(account.accountId);
@@ -226,20 +376,7 @@ export function App() {
     setPendingCheckout(null);
   }, []);
 
-  const restoreScan = async (scanId: string): Promise<void> => {
-    try {
-      const scan = await apiRequest<Scan>(`/scans/${scanId}`);
-      setSelectedScan(scan);
-      setScreen(isTerminalScan(scan) ? 'results' : 'scan');
-      window.history.replaceState(null, '', `/scans/${encodeURIComponent(scan.id)}`);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Scan could not be restored');
-      window.history.replaceState(null, '', '/');
-      setScreen('desktop');
-    }
-  };
-
-  const navigate = (next: string, scanId?: string) => {
+  const navigate = useCallback((next: string, scanId?: string) => {
     if (next === 'styleguide') {
       window.location.hash = 'styleguide';
       setScreen('styleguide');
@@ -253,6 +390,7 @@ export function App() {
       'auth',
       'desktop',
       'new-scan',
+      'reports',
       'scan',
       'results',
       'issues',
@@ -261,15 +399,55 @@ export function App() {
     ].includes(requested)
       ? (requested as Screen)
       : 'desktop';
-    const scanPath =
-      valid === 'checks'
-        ? '/checks'
-        : scanId !== undefined && ['scan', 'results', 'issues'].includes(valid)
-          ? `/scans/${encodeURIComponent(scanId)}`
-          : '/';
-    window.history.replaceState(null, '', scanPath);
+    const path = pathForScreen(valid, scanId ?? null);
+    // Pushed, not replaced, so that Back returns to the previous screen instead
+    // of leaving the workspace entirely. Re-entering the screen you are already
+    // on replaces instead, so a repeated tab click does not fill the history.
+    if (path === window.location.pathname) window.history.replaceState(null, '', path);
+    else window.history.pushState(null, '', path);
     setScreen(valid);
-  };
+  }, []);
+
+  // Read by the history listener below, which is registered once and must not
+  // see the account and scan as they were when it was registered.
+  const accountRef = useRef<Account | null>(null);
+  const selectedScanRef = useRef<Scan | null>(null);
+  useEffect(() => {
+    accountRef.current = account;
+  }, [account]);
+  useEffect(() => {
+    selectedScanRef.current = selectedScan;
+  }, [selectedScan]);
+
+  // Back and Forward have to move between workspace screens, not out of the app:
+  // every navigation above pushes an entry, so each of those entries needs a
+  // screen to return to. The URL is the single source of truth here.
+  useEffect(() => {
+    function onPopState(): void {
+      const route = readInitialRoute();
+      if (accountRef.current === null && isWorkspaceScreen(route.screen)) {
+        setScreen('home');
+        return;
+      }
+      if (route.scanId === null) {
+        setScreen(route.screen);
+        return;
+      }
+      const loaded = selectedScanRef.current;
+      if (loaded === null || loaded.id !== route.scanId) {
+        void openScanById(route.scanId, route.screen === 'issues' ? 'issues' : 'auto');
+        return;
+      }
+      // `/scans/:id` is the report once the scan has one and the progress window
+      // while it is still running — the same rule the deep link is resolved by,
+      // so going back to a URL shows what going forward to it showed.
+      setScreen(
+        route.screen === 'issues' ? 'issues' : isTerminalScan(loaded) ? 'results' : 'scan',
+      );
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [openScanById]);
 
   const onAuthed = async (value: Account) => {
     setEmailAction(null);
@@ -277,11 +455,13 @@ export function App() {
     setError(null);
     await loadProfiles(setProfiles);
     if (entryRoute.scanId !== null) {
-      await restoreScan(entryRoute.scanId);
-    } else {
-      navigate('desktop');
-      if (value.onboarding?.status === 'pending') setTourOpen(true);
+      await openScanById(entryRoute.scanId, entryRoute.screen === 'issues' ? 'issues' : 'auto');
+      return;
     }
+    // Sign-in is a detour, not a destination: whoever followed a workspace link
+    // gets that screen, and everyone else gets the workspace they signed in for.
+    navigate(isWorkspaceScreen(entryRoute.screen) ? entryRoute.screen : 'desktop');
+    if (value.onboarding?.status === 'pending') setTourOpen(true);
   };
 
   const finishOnboarding = async (): Promise<void> => {
@@ -320,6 +500,12 @@ export function App() {
     navigate('scan', scan.id);
   };
 
+  /** Opens a scan from the reports list, on whichever screen that scan has. */
+  const openReport = (scan: Scan) => {
+    setSelectedScan(scan);
+    navigate(isTerminalScan(scan) ? 'results' : 'scan', scan.id);
+  };
+
   if (screen === 'styleguide') {
     return (
       <Styleguide onNavigate={navigate} language={language} onLanguageChange={changeLanguage} />
@@ -347,7 +533,7 @@ export function App() {
           onLanguageChange={changeLanguage}
         />
         <div className="desktop">
-          <Window title="Boot sequence" terminal>
+          <Window title={copy[language].workspace.booting} terminal>
             <LoadingState />
           </Window>
         </div>
@@ -441,12 +627,16 @@ export function App() {
                 void apiRequest<null>('/auth/logout', { method: 'POST' }).then(() => {
                   setAccount(null);
                   setProfiles([]);
-                  navigate('desktop');
+                  setSelectedScan(null);
+                  setReportsProfile(null);
+                  // Back to the public home: staying on a workspace URL with no
+                  // account would render the marketing page under /profiles.
+                  navigate('home');
                 });
               }}
               variant="danger"
             >
-              Log out
+              {copy[language].workspace.logOut}
             </Button>
           </div>
         </header>
@@ -457,7 +647,11 @@ export function App() {
             onRefresh={async () => {
               await loadProfiles(setProfiles);
             }}
-            onSelectProfile={setSelectedProfile}
+            onSelectProfile={(profile) => {
+              setSelectedProfile(profile);
+              setReportsProfile(profile);
+              navigate('reports');
+            }}
             onNewScan={(profile) => {
               setSelectedProfile(profile);
               navigate('new-scan');
@@ -468,6 +662,18 @@ export function App() {
               navigate('desktop');
             }}
             language={language}
+          />
+        ) : null}
+        {screen === 'reports' ? (
+          <ReportsScreen
+            language={language}
+            profile={reportsProfile}
+            onOpenScan={openReport}
+            onNewScan={() => navigate('new-scan')}
+            onShowAll={() => {
+              setReportsProfile(null);
+              navigate('reports');
+            }}
           />
         ) : null}
         {pendingCheckout !== null ? (
@@ -498,27 +704,34 @@ export function App() {
         {screen === 'scan' ? (
           <ScanScreen
             scan={selectedScan}
+            language={language}
             onUpdate={setSelectedScan}
             onDone={() =>
-              selectedScan ? navigate('results', selectedScan.id) : navigate('desktop')
+              selectedScan ? navigate('results', selectedScan.id) : navigate('reports')
             }
+            onReports={() => navigate('reports')}
             onError={setError}
           />
         ) : null}
         {screen === 'results' ? (
           <ResultsScreen
             scan={selectedScan}
+            language={language}
             onScan={updateSelectedScan}
             onIssues={() =>
-              selectedScan ? navigate('issues', selectedScan.id) : navigate('desktop')
+              selectedScan ? navigate('issues', selectedScan.id) : navigate('reports')
             }
+            onReports={() => navigate('reports')}
             onError={setError}
           />
         ) : null}
-        {screen === 'issues' ? <IssuesScreen scan={selectedScan} onError={setError} /> : null}
+        {screen === 'issues' ? (
+          <IssuesScreen scan={selectedScan} language={language} onError={setError} />
+        ) : null}
         {screen === 'integrations' ? (
           <IntegrationsScreen
             profiles={profiles}
+            language={language}
             onClose={() => navigate('desktop')}
             onError={setError}
           />
@@ -539,13 +752,9 @@ function LegalDocumentScreen(props: {
   onLanguageChange: (language: Language) => void;
 }) {
   const isPrivacy = props.kind === 'privacy';
-  useEffect(() => {
-    const previousTitle = document.title;
-    document.title = isPrivacy ? 'Privacy Policy — FluxRadar' : 'Terms of Service — FluxRadar';
-    return () => {
-      document.title = previousTitle;
-    };
-  }, [isPrivacy]);
+  const t = copy[props.language].legal;
+  const document = isPrivacy ? t.privacy : t.terms;
+  const other = isPrivacy ? t.terms : t.privacy;
 
   return (
     <div className="app-shell legal-shell">
@@ -563,60 +772,51 @@ function LegalDocumentScreen(props: {
           <div>
             <div className="legal-kicker">
               <span className="legal-kicker__mark">{isPrivacy ? 'P' : 'T'}</span>
-              FLUXLAB / PUBLIC DOCUMENT
+              {t.kicker}
             </div>
             <div className="legal-meta">
-              <span>FLUXRADAR.NET</span>
-              <span>REV. 2026.09</span>
-              <span>READ BEFORE CONNECTING</span>
+              {t.meta.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
             </div>
-            <h1>{isPrivacy ? 'Privacy policy' : 'Terms of service'}</h1>
-            <p className="legal-lede">
-              {isPrivacy
-                ? 'A plain-language record of what FluxRadar collects, why it uses it and how connected Google data is handled.'
-                : 'The operating terms for using FluxRadar to review public websites and purchase one-time audit reports.'}
-            </p>
+            <h1>{document.title}</h1>
+            <p className="legal-lede">{document.lede}</p>
           </div>
           <a className="legal-back" href="/">
-            ← Back to FluxRadar
+            {t.back}
           </a>
         </header>
 
         <div className="legal-layout">
-          <nav className="legal-index" aria-label="Document sections">
-            <div className="legal-index__label">DOCUMENT MAP</div>
-            {isPrivacy ? (
-              <>
-                <a href="#privacy-scope">Scope</a>
-                <a href="#privacy-data">Data we handle</a>
-                <a href="#privacy-google">Google user data</a>
-                <a href="#privacy-use">How we use data</a>
-                <a href="#privacy-retention">Storage & deletion</a>
-                <a href="#privacy-rights">Your choices</a>
-              </>
-            ) : (
-              <>
-                <a href="#terms-service">The service</a>
-                <a href="#terms-account">Accounts</a>
-                <a href="#terms-paid">Free and paid scans</a>
-                <a href="#terms-use">Acceptable use</a>
-                <a href="#terms-results">Reports & limitations</a>
-                <a href="#terms-ending">Ending use</a>
-              </>
-            )}
+          <nav className="legal-index" aria-label={t.contentsLabel}>
+            <div className="legal-index__label">{t.contents}</div>
+            {document.sections.map((section) => (
+              <a key={section.id} href={`#${section.id}`}>
+                {section.label}
+              </a>
+            ))}
             <div className="legal-index__rule" />
-            <a href={isPrivacy ? '/terms' : '/privacy'}>
-              {isPrivacy ? 'Terms of service →' : 'Privacy policy →'}
-            </a>
+            <a href={isPrivacy ? '/terms' : '/privacy'}>{other.crossLink}</a>
           </nav>
 
-          {isPrivacy ? <PrivacyPolicy /> : <TermsOfService />}
+          <div className="legal-document-column">
+            {/* The binding text is not machine-translated: a policy has to say
+                the same thing in every language it claims to be written in, so
+                the reader is told which version applies instead. */}
+            {props.language === 'en' ? null : (
+              <p className="legal-language-notice" lang={props.language}>
+                {t.englishNotice}
+              </p>
+            )}
+            {isPrivacy ? <PrivacyPolicy /> : <TermsOfService />}
+          </div>
         </div>
 
         <footer className="legal-footer">
-          <span>FLUXRADAR / BY FLUXLAB</span>
+          <span>{t.footerBrand}</span>
           <span>
-            Questions: <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>
+            {t.questions}{' '}
+            <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>
           </span>
         </footer>
       </main>
@@ -626,7 +826,7 @@ function LegalDocumentScreen(props: {
 
 function PrivacyPolicy() {
   return (
-    <article className="legal-document">
+    <article className="legal-document" lang="en">
       <div className="legal-document__notice">
         <strong>Effective date: September 4, 2026</strong>
         <span>FluxRadar is a public-site audit service operated by FluxLab.</span>
@@ -757,7 +957,7 @@ function PrivacyPolicy() {
 
 function TermsOfService() {
   return (
-    <article className="legal-document">
+    <article className="legal-document" lang="en">
       <div className="legal-document__notice">
         <strong>Effective date: September 4, 2026</strong>
         <span>By using FluxRadar, you agree to these terms.</span>
@@ -864,615 +1064,7 @@ function TermsOfService() {
 
 // ─── /checks — public audit coverage page ────────────────────────────────────
 
-function AuditCoverageScreen(props: {
-  language: Language;
-  onLanguageChange: (language: Language) => void;
-}) {
-  return (
-    <div className="app-shell legal-shell">
-      <MenuBar
-        active="home"
-        onNavigate={(next) => {
-          if (next === 'home') window.location.assign('/');
-        }}
-        signedIn={false}
-        language={props.language}
-        onLanguageChange={props.onLanguageChange}
-      />
-      <main className="legal-main" aria-labelledby="checks-title">
-        <header className="legal-header">
-          <div>
-            <div className="legal-kicker">
-              <span className="legal-kicker__mark">✦</span>
-              FLUXRADAR / PUBLIC WEB AUDIT STATION
-            </div>
-            <div className="legal-meta">
-              <span>Updated 2026-09-05</span>
-              <span>No login required to read this</span>
-              <span>Ruleset v0.1</span>
-            </div>
-            <h1 id="checks-title">Audit coverage</h1>
-            <p className="legal-lede">
-              Exactly what FluxRadar inspects, why, and what it cannot certify — with no customer
-              credentials required for the core public audit.
-            </p>
-          </div>
-          <a className="legal-back" href="/">
-            ← Back to home
-          </a>
-        </header>
-
-        <div className="legal-layout">
-          <nav className="legal-index" aria-label="Coverage sections">
-            <span className="legal-index__label">CONTENTS</span>
-            <a href="#checks-how">How it works</a>
-            <a href="#checks-seo">SEO visibility</a>
-            <a href="#checks-ai-seo">AI SEO / GEO</a>
-            <a href="#checks-security">Security</a>
-            <a href="#checks-accessibility">Accessibility</a>
-            <a href="#checks-reliability">Reliability & performance</a>
-            <a href="#checks-privacy">Privacy & consent</a>
-            <div className="legal-index__rule" />
-            <a href="#checks-evidence">Evidence</a>
-            <a href="#checks-limits">What we cannot certify</a>
-          </nav>
-
-          <article className="legal-document" aria-label="Audit coverage detail">
-            <div className="legal-document__notice">
-              <span>
-                <strong>READ-ONLY AUDIT</strong> · FluxRadar fetches only public HTTP responses. No
-                CMS login, SSH access, database credentials or source-code access is required or
-                requested.
-              </span>
-              <span>Applies to all scan tiers</span>
-            </div>
-
-            <section id="checks-how" className="legal-section">
-              <span className="legal-section__label">00 / HOW IT WORKS</span>
-              <h2>What the scanner does</h2>
-              <p>
-                FluxRadar makes ordinary HTTP(S) requests to your public website — the same requests
-                a browser or search-engine crawler would make — and records the responses. It does
-                not guess, estimate or infer. Every finding traces back to a byte in a real HTTP
-                response.
-              </p>
-              <p>
-                The scanner respects <code>robots.txt</code> directives. For the free homepage check
-                only the root URL is fetched. Paid scans extend coverage to linked public pages
-                within the configured scope.
-              </p>
-            </section>
-
-            <section id="checks-seo" className="legal-section">
-              <span className="legal-section__label">01 / SEO VISIBILITY</span>
-              <h2>SEO — what FluxRadar checks</h2>
-              <p>
-                The SEO module runs up to <strong>16 deterministic checks</strong> derived from
-                documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines,
-                schema.org). All checks are rule-based; no model inference is involved.
-              </p>
-              <ul>
-                <li>
-                  <strong>Title tag</strong> — presence, character length (≤ 60 chars recommended),
-                  uniqueness across crawled pages.
-                </li>
-                <li>
-                  <strong>Meta description</strong> — presence and recommended length window
-                  (120–158 chars).
-                </li>
-                <li>
-                  <strong>Heading hierarchy</strong> — a single H1, logical H2/H3 nesting with no
-                  skipped levels.
-                </li>
-                <li>
-                  <strong>Canonical URL</strong> — <code>&lt;link rel="canonical"&gt;</code> present
-                  and self-referencing on canonical pages.
-                </li>
-                <li>
-                  <strong>Indexing signals</strong> — <code>noindex</code> / <code>nofollow</code>{' '}
-                  in meta robots and <code>X-Robots-Tag</code> headers.
-                </li>
-                <li>
-                  <strong>robots.txt</strong> — reachable, parseable, does not inadvertently block
-                  the origin.
-                </li>
-                <li>
-                  <strong>XML sitemap</strong> — declared in robots.txt, reachable, well-formed.
-                </li>
-                <li>
-                  <strong>Structured data / JSON-LD</strong> — syntax validity, schema type
-                  detected, required properties present per schema.org spec. A JSON-LD preview is
-                  included in the report.
-                </li>
-                <li>
-                  <strong>Open Graph tags</strong> — <code>og:title</code>,{' '}
-                  <code>og:description</code>, <code>og:image</code> present and non-empty. Image
-                  URL is reachable (HTTP 200).
-                </li>
-                <li>
-                  <strong>Twitter / X Card tags</strong> — <code>twitter:card</code>,{' '}
-                  <code>twitter:title</code>, <code>twitter:image</code> present.
-                </li>
-                <li>
-                  <strong>Hreflang</strong> — valid language codes, reciprocal links present where
-                  declared.
-                </li>
-                <li>
-                  <strong>Image alt text</strong> — non-decorative images missing <code>alt</code>{' '}
-                  attributes.
-                </li>
-                <li>
-                  <strong>Broken links</strong> — internal anchor <code>href</code> values returning
-                  4xx/5xx within scope.
-                </li>
-                <li>
-                  <strong>Redirect chains</strong> — 301/302 hops counted; chains longer than two
-                  hops flagged.
-                </li>
-                <li>
-                  <strong>Page speed signals</strong> — server response time, uncompressed transfer
-                  size and HTTP/2 support as measurable proxies.
-                </li>
-                <li>
-                  <strong>HTTPS enforcement</strong> — HTTP-to-HTTPS redirect present, no mixed
-                  content in the HTML source.
-                </li>
-              </ul>
-            </section>
-
-            <section id="checks-ai-seo" className="legal-section">
-              <span className="legal-section__label">02 / AI SEO / GEO</span>
-              <h2>AI SEO / Generative Engine Optimisation</h2>
-              <p>
-                AI search systems (ChatGPT, Gemini, Perplexity, Claude, Bing Copilot, etc.) use
-                public web content and their own proprietary indexes. FluxRadar checks the publicly
-                observable signals that influence whether your site is understood and cited by these
-                systems.
-              </p>
-              <ul>
-                <li>
-                  <strong>AI crawler access</strong> — <code>robots.txt</code> is parsed for known
-                  AI crawler user-agent strings (GPTBot, Claude-Web, PerplexityBot, GoogleOther,
-                  BingBot and others). The report shows which crawlers are allowed, disallowed or
-                  missing an explicit rule.
-                </li>
-                <li>
-                  <strong>LLMs.txt</strong> — checks for the emerging <code>/llms.txt</code>{' '}
-                  convention, which signals AI-friendly content structure to language models.
-                </li>
-                <li>
-                  <strong>Structured data for AI comprehension</strong> — JSON-LD types that help AI
-                  systems build entity graphs (Organization, Product, FAQPage, HowTo, Article,
-                  BreadcrumbList) are flagged when absent.
-                </li>
-                <li>
-                  <strong>Content clarity signals</strong> — heading density, paragraph length
-                  distribution and readability score (Flesch-Kincaid) measured from the extracted
-                  main content.
-                </li>
-                <li>
-                  <strong>Provider visibility (optional, consent-gated)</strong> — the AI SEO module
-                  can query provider APIs to check whether your brand appears in AI-generated
-                  answers. This step runs only when you explicitly enable it in the scan settings
-                  and is never included in the free homepage check. Provider API calls are subject
-                  to the providers' own terms.
-                </li>
-              </ul>
-            </section>
-
-            <section id="checks-security" className="legal-section">
-              <span className="legal-section__label">03 / SECURITY</span>
-              <h2>Security — OWASP ASVS public profile</h2>
-              <p>
-                FluxRadar checks the subset of{' '}
-                <strong>OWASP Application Security Verification Standard (ASVS) v4</strong> signals
-                that are observable in public HTTP responses. It does not attempt to exploit
-                vulnerabilities, probe authenticated surfaces or run active attack techniques.
-              </p>
-              <ul>
-                <li>
-                  <strong>Transport security</strong> — TLS version (TLS 1.2+ required), HSTS header
-                  present with <code>max-age ≥ 31536000</code> and <code>includeSubDomains</code>{' '}
-                  flag. Maps to ASVS 9.1.
-                </li>
-                <li>
-                  <strong>Security headers</strong> — <code>Content-Security-Policy</code>,{' '}
-                  <code>X-Frame-Options</code> (or CSP <code>frame-ancestors</code>),{' '}
-                  <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy</code>,{' '}
-                  <code>Permissions-Policy</code>. Maps to ASVS 14.4.
-                </li>
-                <li>
-                  <strong>Cookie flags</strong> — cookies set on the homepage response are checked
-                  for <code>HttpOnly</code>, <code>Secure</code> and <code>SameSite</code>{' '}
-                  attributes. Maps to ASVS 3.4.
-                </li>
-                <li>
-                  <strong>Information disclosure</strong> — server version strings in{' '}
-                  <code>Server</code> / <code>X-Powered-By</code> headers, verbose error messages in
-                  HTML, directory listing indicators. Maps to ASVS 14.3.
-                </li>
-                <li>
-                  <strong>Mixed content</strong> — HTTP resources (scripts, stylesheets, images)
-                  embedded in an HTTPS page. Maps to ASVS 9.1.
-                </li>
-                <li>
-                  <strong>Subresource Integrity</strong> — third-party <code>&lt;script&gt;</code>{' '}
-                  and <code>&lt;link&gt;</code> tags checked for <code>integrity</code> attribute
-                  presence. Maps to ASVS 14.2.
-                </li>
-              </ul>
-              <p>
-                Findings are classified as <em>signal present</em> or <em>signal absent</em> — not
-                as confirmed vulnerabilities. A missing header is evidence that a defensive control
-                is not deployed, not proof that the site is exploitable.
-              </p>
-            </section>
-
-            <section id="checks-accessibility" className="legal-section">
-              <span className="legal-section__label">04 / ACCESSIBILITY</span>
-              <h2>Accessibility — WCAG 2.2 AA / EN 301 549 / Section 508</h2>
-              <p>
-                Automated DOM checks cover the machine-verifiable subset of{' '}
-                <strong>WCAG 2.2 Level AA</strong>. WCAG 2.2 AA is a superset of the WCAG chapters
-                referenced by <strong>EN 301 549</strong> (EU, chapter 9 references WCAG 2.1) and{' '}
-                <strong>Section 508</strong> (US federal, incorporates WCAG 2.0 AA). Note that both
-                standards include non-WCAG functional requirements that automated DOM scanning does
-                not cover. Automated tools can verify approximately 30–40 % of WCAG criteria; the
-                remaining criteria require human judgement or assistive-technology testing.
-              </p>
-              <ul>
-                <li>
-                  <strong>Perceivable (WCAG 2.2 Principle 1)</strong> — missing image alt text
-                  (1.1.1), colour-contrast ratio ≥ 4.5:1 for normal text and ≥ 3:1 for large text
-                  measured from computed CSS (1.4.3), absence of auto-playing media with audio
-                  (1.4.2).
-                </li>
-                <li>
-                  <strong>Operable (WCAG 2.2 Principle 2)</strong> — interactive elements reachable
-                  by keyboard in source order (2.1.1), skip-navigation link present (2.4.1), page
-                  <code>&lt;title&gt;</code> descriptive (2.4.2), link purpose from text (2.4.4).
-                </li>
-                <li>
-                  <strong>Understandable (WCAG 2.2 Principle 3)</strong> —{' '}
-                  <code>&lt;html lang&gt;</code> attribute present and valid (3.1.1), form{' '}
-                  <code>&lt;label&gt;</code> elements properly associated (3.3.2), error
-                  identification markup (3.3.1).
-                </li>
-                <li>
-                  <strong>Robust (WCAG 2.2 Principle 4)</strong> — valid HTML (4.1.1), ARIA roles
-                  and properties correctly applied (4.1.2), status messages using appropriate live
-                  regions (4.1.3).
-                </li>
-              </ul>
-              <p>
-                Each accessibility finding includes the WCAG criterion reference, the failing
-                element selector and the specific rule that was violated, so you can reproduce the
-                finding without re-running the scan.
-              </p>
-              <p>
-                <strong>What automated checks cannot assess:</strong> keyboard trap behaviour in
-                dynamic widgets, screen-reader announcement quality, cognitive load, motion
-                sensitivity in animations, or compliance with criteria that require understanding
-                content meaning (e.g. 1.3.3 Sensory Characteristics).
-              </p>
-            </section>
-
-            <section id="checks-reliability" className="legal-section">
-              <span className="legal-section__label">05 / RELIABILITY & PERFORMANCE</span>
-              <h2>Reliability and performance</h2>
-              <p>
-                Performance signals are measured from a single-origin, single-request perspective.
-                They reflect what FluxRadar's scanner observed at the time of the scan, not a
-                statistical average across geographies or time.
-              </p>
-              <ul>
-                <li>
-                  <strong>Server response time (TTFB)</strong> — time to first byte recorded for
-                  each scanned URL. Flagged if consistently above 600 ms.
-                </li>
-                <li>
-                  <strong>Transfer size</strong> — uncompressed HTML size and total page weight
-                  (HTML + linked CSS/JS within scope). Flagged if HTML exceeds 100 KB.
-                </li>
-                <li>
-                  <strong>Compression</strong> — <code>Content-Encoding: gzip</code> or{' '}
-                  <code>br</code> present on text responses.
-                </li>
-                <li>
-                  <strong>HTTP/2 or HTTP/3</strong> — protocol version recorded; HTTP/1.1-only sites
-                  flagged.
-                </li>
-                <li>
-                  <strong>Cache headers</strong> — <code>Cache-Control</code> and <code>ETag</code>{' '}
-                  / <code>Last-Modified</code> presence on static assets.
-                </li>
-                <li>
-                  <strong>Uptime signal</strong> — HTTP status recorded for every URL in scope. 5xx
-                  responses and connection timeouts are flagged as reliability issues.
-                </li>
-                <li>
-                  <strong>Redirect economy</strong> — total redirect hops from the canonical entry
-                  URL; each hop adds latency for real users and crawlers.
-                </li>
-              </ul>
-            </section>
-
-            <section id="checks-privacy" className="legal-section">
-              <span className="legal-section__label">06 / PRIVACY & CONSENT</span>
-              <h2>Privacy and consent signals</h2>
-              <p>
-                FluxRadar reads publicly visible consent and tracking signals. It does not install
-                tracking code, set cookies on behalf of the target site, or interact with
-                third-party consent infrastructure beyond reading what is embedded in the page.
-              </p>
-              <ul>
-                <li>
-                  <strong>Cookie consent banner detection</strong> — common consent-management
-                  platform (CMP) signatures detected in HTML and script sources (OneTrust,
-                  Cookiebot, CookieYes, Osano and others). Absence flagged when cookies are set on
-                  first load.
-                </li>
-                <li>
-                  <strong>Third-party script audit</strong> — external script domains classified
-                  against a known-tracker list (analytics, advertising, fingerprinting). Count and
-                  domains listed in the report.
-                </li>
-                <li>
-                  <strong>Privacy policy link</strong> — a link whose text or destination suggests a
-                  privacy or cookie policy is present in the page or footer.
-                </li>
-                <li>
-                  <strong>Do Not Track / GPC signal support</strong> — whether the site sets{' '}
-                  <code>Sec-GPC</code> acknowledgement headers or publishes a GPC support statement.
-                </li>
-                <li>
-                  <strong>Cookie first-load audit</strong> — cookies set before any user interaction
-                  are recorded. Cookies with no <code>SameSite</code> attribute or marked as
-                  cross-site are highlighted.
-                </li>
-              </ul>
-            </section>
-
-            <section id="checks-evidence" className="legal-section">
-              <span className="legal-section__label">07 / EVIDENCE</span>
-              <h2>How findings are evidenced</h2>
-              <p>Every issue in the Issue Center includes:</p>
-              <ul>
-                <li>The URL on which the finding was observed.</li>
-                <li>
-                  The specific HTTP response field (header name, HTML selector or attribute) that
-                  triggered the rule.
-                </li>
-                <li>
-                  The actual value observed (truncated for display; the full value is in the JSON
-                  export).
-                </li>
-                <li>The rule ID and the standard or guideline it maps to.</li>
-                <li>A recommended remediation step.</li>
-              </ul>
-              <p>
-                The JSON and CSV export (Complete plan) contains the full raw evidence for every
-                finding so you can reproduce the check independently.
-              </p>
-            </section>
-
-            <section id="checks-limits" className="legal-section">
-              <span className="legal-section__label">08 / LIMITATIONS</span>
-              <h2>What FluxRadar cannot certify</h2>
-              <p>
-                FluxRadar is a public-signal audit tool. There are important things it cannot do:
-              </p>
-              <ul>
-                <li>
-                  <strong>It cannot certify WCAG conformance.</strong> Automated checks cover
-                  roughly one-third of WCAG criteria. A passing accessibility score does not mean
-                  your site is fully accessible or legally compliant.
-                </li>
-                <li>
-                  <strong>It cannot certify ASVS compliance.</strong> Security findings reflect the
-                  observable public surface only. Authenticated pages, server-side logic, database
-                  access, dependency vulnerabilities and infrastructure configuration are outside
-                  scope.
-                </li>
-                <li>
-                  <strong>It cannot certify GDPR, ePrivacy or CCPA compliance.</strong> Privacy
-                  signals indicate whether common mechanisms are present; they do not constitute a
-                  legal assessment of data processing lawfulness.
-                </li>
-                <li>
-                  <strong>It does not run active security tests.</strong> No fuzzing, injection
-                  attempts, brute-force probing or credential stuffing is performed.
-                </li>
-                <li>
-                  <strong>Results are a point-in-time snapshot.</strong> A scan reflects what was
-                  publicly visible when the scan ran. Dynamic content, A/B tests and CDN edge
-                  variance may produce different results for a simultaneous browser visit.
-                </li>
-                <li>
-                  <strong>It does not access authenticated or paywalled content.</strong> The audit
-                  covers only URLs reachable by an unauthenticated HTTP client.
-                </li>
-                <li>
-                  <strong>AI SEO provider visibility is optional and not guaranteed.</strong> AI
-                  provider APIs change frequently; provider-visibility checks reflect API responses
-                  at scan time and may not represent end-user query behaviour.
-                </li>
-              </ul>
-              <p>
-                Questions about coverage or evidence:{' '}
-                <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>
-              </p>
-            </section>
-          </article>
-        </div>
-
-        <footer className="legal-footer">
-          <span>FLUXRADAR / BY FLUXLAB</span>
-          <span>
-            <a href="/">Home</a> · <a href="/privacy">Privacy policy</a> ·{' '}
-            <a href="/terms">Terms of service</a>
-          </span>
-        </footer>
-      </main>
-    </div>
-  );
-}
-
 // ─── /integrations ────────────────────────────────────────────────────────────
-
-function IntegrationsScreen(props: {
-  profiles: readonly SiteProfile[];
-  onClose: () => void;
-  onError: (value: string) => void;
-}) {
-  const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busyProvider, setBusyProvider] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setIntegrations(await apiRequest<IntegrationStatus[]>('/integrations'));
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Integrations unavailable');
-    } finally {
-      setLoading(false);
-    }
-  }, [props.onError]);
-
-  useEffect(() => {
-    void load();
-    const result = new URLSearchParams(window.location.search).get('result');
-    const message = new URLSearchParams(window.location.search).get('message');
-    if (result === 'connected')
-      setNotice('Google is connected. Choose which properties this website reports on below.');
-    if (result === 'error') setNotice(message ?? 'The integration could not be connected.');
-  }, [load]);
-
-  const connect = async (provider: IntegrationStatus) => {
-    setBusyProvider(provider.provider);
-    try {
-      const result = await apiRequest<{ authorizationUrl: string }>(
-        `/integrations/${provider.provider}/start`,
-        { method: 'POST', body: '{}' },
-      );
-      window.location.assign(result.authorizationUrl);
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Connection could not be started');
-    } finally {
-      setBusyProvider(null);
-    }
-  };
-
-  const disconnect = async (provider: IntegrationStatus) => {
-    setBusyProvider(provider.provider);
-    try {
-      await apiRequest<null>(`/integrations/${provider.provider}`, { method: 'DELETE' });
-      await load();
-    } catch (caught) {
-      props.onError(
-        caught instanceof Error ? caught.message : 'Integration could not be disconnected',
-      );
-    } finally {
-      setBusyProvider(null);
-    }
-  };
-
-  if (loading)
-    return (
-      <Window title="Integrations" onClose={props.onClose}>
-        <LoadingState />
-      </Window>
-    );
-  return (
-    <div className="stack">
-      <Window title="FluxRadar — Integrations" onClose={props.onClose}>
-        <div className="split">
-          <div>
-            <h2 className="section-heading">Connected data sources</h2>
-            <p className="muted">
-              Optional connections are managed here. Public-site checks continue to work without
-              them.
-            </p>
-          </div>
-          <Button onClick={() => void load()}>Refresh</Button>
-        </div>
-        {notice ? (
-          <div className="integration-notice" role="status">
-            {notice}
-          </div>
-        ) : null}
-        <div className="integration-list">
-          {integrations.map((integration) => (
-            <div className="integration-row" key={integration.provider}>
-              <div className="integration-row__copy">
-                <div className="split">
-                  <strong>{integration.label}</strong>
-                  <StatusChip
-                    status={
-                      integration.status === 'available'
-                        ? 'Ready to connect'
-                        : integration.status.replace('_', ' ')
-                    }
-                  />
-                </div>
-                <p>{integration.services.join(' · ')}</p>
-                {integration.lastError ? (
-                  <small className="integration-row__error">{integration.lastError}</small>
-                ) : null}
-              </div>
-              <div className="integration-row__action">
-                {integration.kind === 'user' ? (
-                  integration.status === 'connected' ? (
-                    <Button
-                      variant="danger"
-                      disabled={busyProvider === integration.provider}
-                      onClick={() => void disconnect(integration)}
-                    >
-                      {busyProvider === integration.provider ? 'Disconnecting…' : 'Disconnect'}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="primary"
-                      disabled={!integration.canConnect || busyProvider === integration.provider}
-                      onClick={() => void connect(integration)}
-                    >
-                      {busyProvider === integration.provider ? 'Opening…' : 'Connect'}
-                    </Button>
-                  )
-                ) : (
-                  <span className="technical integration-row__server">
-                    {integration.status === 'connected'
-                      ? 'Server configured'
-                      : integration.status === 'limited'
-                        ? 'Limited mode'
-                        : 'Needs server config'}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-        <GoogleProperties
-          profiles={props.profiles}
-          connected={integrations.some(
-            (integration) =>
-              integration.provider === 'google' && integration.status === 'connected',
-          )}
-          onError={props.onError}
-        />
-        <Panel title="Current policy">
-          <p className="muted integration-policy">
-            Google and Bing connections are read-only. FluxRadar requests no CMS credentials and
-            never changes a client site. Public-site scans continue to work without either
-            connection.
-          </p>
-        </Panel>
-      </Window>
-    </div>
-  );
-}
 
 function AuthScreen(props: {
   onAuthed: (account: Account) => Promise<void>;
@@ -2177,13 +1769,20 @@ function NewScanScreen(props: {
   const t = copy[props.language];
   // Whether a real checkout exists is a server fact, not a build-time flag: an
   // unreachable or unconfigured provider must never look like a working one.
-  const checkoutConfig = useCheckoutConfig(!props.internalFreeAccess);
+  const checkout = useCheckoutConfig(!props.internalFreeAccess);
+  const checkoutConfig = checkout.status === 'ready' ? checkout.config : null;
   const paidAvailable = props.internalFreeAccess || checkoutConfig?.available === true;
+  // Until the server has answered, the screen says it is still asking rather
+  // than announcing an absence it cannot yet know about.
+  const checkoutPending = checkout.status === 'loading';
   const [profileId, setProfileId] = useState(
     props.selectedProfile?.id ?? props.profiles[0]?.id ?? '',
   );
+  // A paying owner opens this form on the free check and chooses to pay; nothing
+  // is pre-selected for them. An internal account cannot be charged and is here
+  // to exercise the full report, so it starts on Complete.
   const [plan, setPlan] = useState<'Free' | 'Basic' | 'Complete'>(
-    paidAvailable ? 'Complete' : 'Free',
+    props.internalFreeAccess ? 'Complete' : 'Free',
   );
   const [maxPages, setMaxPages] = useState('15');
   const [maxDepth, setMaxDepth] = useState('5');
@@ -2291,7 +1890,15 @@ function NewScanScreen(props: {
   if (props.profiles.length === 0)
     return (
       <Window title={t.newScan.windowTitleEmpty} onClose={props.onClose}>
-        <EmptyState title={t.newScan.emptyTitle} />
+        <EmptyState
+          title={t.newScan.emptyTitle}
+          description={t.newScan.emptyBody}
+          action={
+            <Button variant="primary" onClick={props.onClose}>
+              {t.newScan.emptyAction}
+            </Button>
+          }
+        />
       </Window>
     );
   return (
@@ -2329,9 +1936,11 @@ function NewScanScreen(props: {
             onChange={(value) => setPlan(value as typeof plan)}
             options={planOptions}
           />
-          {!paidAvailable ? (
+          {paidAvailable ? null : checkoutPending ? (
+            <p className="muted">{t.newScan.paidChecking}</p>
+          ) : (
             <p className="muted">{paidUnavailableCopy(t, checkoutConfig)}</p>
-          ) : null}
+          )}
           {paidAvailable && checkoutConfig?.mode === 'test' ? (
             <p className="muted">{t.checkout.testMode}</p>
           ) : null}
@@ -2414,545 +2023,6 @@ function NewScanScreen(props: {
           </Button>
         </div>
       </form>
-    </Window>
-  );
-}
-
-function ScanScreen(props: {
-  scan: Scan | null;
-  onUpdate: (scan: Scan) => void;
-  onDone: () => void;
-  onError: (value: string) => void;
-}) {
-  const [cancelBusy, setCancelBusy] = useState(false);
-  useEffect(() => {
-    if (props.scan === null || isTerminalScan(props.scan)) return undefined;
-    let cancelled = false;
-    const scanId = props.scan.id;
-    const poll = async () => {
-      try {
-        const scan = await apiRequest<Scan>(`/scans/${scanId}`);
-        if (cancelled) return;
-        props.onUpdate(scan);
-        if (isTerminalScan(scan) && timer !== undefined) {
-          window.clearInterval(timer);
-        }
-      } catch (caught) {
-        if (!cancelled)
-          props.onError(caught instanceof Error ? caught.message : 'Scan status unavailable');
-      }
-    };
-    const timer = window.setInterval(() => void poll(), 1000);
-    void poll();
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [props.scan?.id, props.onError, props.onUpdate]);
-  if (props.scan === null)
-    return (
-      <Window title="Scan progress">
-        <EmptyState title="No scan selected" />
-      </Window>
-    );
-  const scan = props.scan;
-  const progress =
-    scan.progress.totalModules === 0
-      ? 0
-      : (scan.progress.completedModules / scan.progress.totalModules) * 100;
-  const terminal = ['Completed', 'Partial', 'Failed', 'Cancelled'].includes(scan.status);
-  const cancel = async () => {
-    setCancelBusy(true);
-    try {
-      props.onUpdate(await apiRequest<Scan>(`/scans/${scan.id}/cancel`, { method: 'POST' }));
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Cancel failed');
-    } finally {
-      setCancelBusy(false);
-    }
-  };
-  return (
-    <Window title={`Scan progress · ${scan.plan}`}>
-      <Panel title="Checking your website">
-        <p className="muted">We’re reviewing {scan.domain} for you.</p>
-        <ProgressBar value={progress} label="Audit progress" />
-        {terminal ? (
-          <div className="scan-complete" role="status" aria-live="polite">
-            <StatusChip status={scan.status} />
-            <div>
-              <strong>
-                {scan.status === 'Completed'
-                  ? 'Your report is ready.'
-                  : scanStatusLabel(scan.status)}
-              </strong>
-              <p className="muted">
-                {scan.completedAt
-                  ? `Finished ${new Date(scan.completedAt).toLocaleString()}.`
-                  : 'The scan has finished processing.'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="muted">
-            Checking your site — {scan.progress.completedModules} of {scan.progress.totalModules}{' '}
-            audit sections done.
-          </p>
-        )}
-      </Panel>
-      <Panel title="What we’re checking">
-        {scan.modules.length === 0 ? (
-          <p className="muted">Getting your checks ready…</p>
-        ) : (
-          <div aria-label="Audit sections">
-            {scan.modules.map((module) => (
-              <FieldRow
-                key={module.module}
-                label={module.module}
-                value={friendlySectionStatus(module.status)}
-              />
-            ))}
-          </div>
-        )}
-      </Panel>
-      <div className="button-row">
-        {terminal ? (
-          <Button onClick={props.onDone} variant="primary">
-            Open report
-          </Button>
-        ) : (
-          <Button onClick={() => void cancel()} variant="danger" disabled={cancelBusy}>
-            {cancelBusy ? 'Cancelling…' : 'Cancel scan'}
-          </Button>
-        )}
-      </div>
-    </Window>
-  );
-}
-
-// Maps internal per-module runtime statuses (Pending/Running/Completed/Partial/
-// Unavailable) to plain language for the non-technical progress screen. Keeps the
-// owner-facing UI free of queue/worker/state jargon while still saying, in human
-// terms, what is happening to each audit section.
-function friendlySectionStatus(status: string): string {
-  if (/running/i.test(status)) return 'Checking…';
-  if (/partial/i.test(status)) return 'Checked with limits';
-  if (/completed|pass|ok|done/i.test(status)) return 'Checked';
-  if (/unavailable|failed|error/i.test(status)) return 'Not available';
-  return 'Waiting';
-}
-
-function scanStatusLabel(status: string): string {
-  if (/partial/i.test(status)) return 'Your report is partially ready.';
-  if (/failed/i.test(status)) return 'The scan could not finish.';
-  if (/cancelled/i.test(status)) return 'The scan was cancelled.';
-  return 'The scan has finished.';
-}
-
-function reportModuleStatus(module: ScanModule): string {
-  if (/unavailable|failed|error/i.test(module.status)) return 'Unavailable';
-  if (!module.usableOutput) return 'Insufficient data';
-  if (/partial/i.test(module.status)) return 'Partial';
-  if (/completed|pass|ok|done/i.test(module.status)) return 'Completed';
-  return friendlySectionStatus(module.status);
-}
-
-function reportDomain(domain: string): string {
-  try {
-    return new URL(domain).hostname;
-  } catch {
-    return domain;
-  }
-}
-
-function ResultsScreen(props: {
-  scan: Scan | null;
-  onScan: (scan: Scan) => void;
-  onIssues: () => void;
-  onError: (value: string) => void;
-}) {
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    if (!props.scan) {
-      setLoading(false);
-      return;
-    }
-    apiRequest<Dashboard>(`/scans/${props.scan.id}/dashboard`)
-      .then((value) => {
-        setDashboard(value);
-        props.onScan(value.scan);
-      })
-      .catch((caught) =>
-        props.onError(caught instanceof Error ? caught.message : 'Dashboard unavailable'),
-      )
-      .finally(() => setLoading(false));
-  }, [props.scan?.id, props.onError, props.onScan]);
-  if (loading)
-    return (
-      <Window title="Report dashboard">
-        <LoadingState />
-      </Window>
-    );
-  if (!dashboard)
-    return (
-      <Window title="Report dashboard">
-        <EmptyState title="No completed report selected" />
-      </Window>
-    );
-  const { scan, overall } = dashboard;
-  // Present only when the scan actually stored a Google snapshot; a plan without
-  // the Analytics module renders no Google section at all.
-  const googleSnapshot = googleSnapshotOf(dashboard.modules);
-  return (
-    <div className="stack">
-      <Window title={`Report dashboard · ${reportDomain(scan.domain)}`}>
-        <div className="split">
-          <div>
-            <h2 className="section-heading">Unified website signal</h2>
-            <div className="report-meta" aria-label="Report details">
-              <span>
-                <small>Website</small>
-                <strong className="technical">{reportDomain(scan.domain)}</strong>
-              </span>
-              <span>
-                <small>Plan</small>
-                <strong>{scan.plan}</strong>
-              </span>
-              <span>
-                <small>Report</small>
-                <strong className="technical">{scan.id}</strong>
-              </span>
-            </div>
-          </div>
-          <ScoreDial
-            score={overall.score}
-            verdict={overall.verdict}
-            coverage={overall.weightedCoverage}
-          />
-        </div>
-        <section className="report-help" aria-label="How to read this report">
-          <h3 className="section-heading">How to read this report</h3>
-          <dl className="report-help__list">
-            <div>
-              <dt>Score</dt>
-              <dd>
-                A 0–100 rating for each area and for the site overall. Higher is better; a dash (—)
-                means there was not enough public data to score it.
-              </dd>
-            </div>
-            <div>
-              <dt>Coverage</dt>
-              <dd>How much of your site FluxRadar was able to check for that area.</dd>
-            </div>
-            <div>
-              <dt>Findings</dt>
-              <dd>
-                Specific issues we detected, each with the evidence behind it. Open the findings
-                list below to review them and see recommended fixes.
-              </dd>
-            </div>
-          </dl>
-        </section>
-        <div className="module-grid">
-          {dashboard.modules.map((module) => (
-            <div className="module-card" key={module.module}>
-              <div className="split">
-                <strong>{module.module}</strong>
-                <StatusChip status={reportModuleStatus(module)} />
-              </div>
-              <div
-                className={
-                  module.score === null
-                    ? 'module-card__score module-card__score--null'
-                    : 'module-card__score'
-                }
-              >
-                {module.score === null ? 'No score' : module.score.toFixed(2)}
-              </div>
-              <ModuleMetadata module={module} />
-              {module.usableOutput && module.coverage !== null ? (
-                <ProgressBar value={module.coverage * 100} label={`${module.module} coverage`} />
-              ) : (
-                <div className="module-card__coverage-unavailable" role="status">
-                  {reportModuleStatus(module)} · coverage unavailable
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        {dashboard.modules.some((module) => module.module === 'Accessibility') ? (
-          <aside className="accessibility-note" aria-label="Accessibility audit scope">
-            <strong>Accessibility · WCAG 2.2 AA</strong>
-            <p>
-              Automated DOM/CSS checks are shown in this report. Keyboard flows, computed styles,
-              focus visibility under overlays and runtime validation may require manual review.
-            </p>
-            <small>FluxRadar does not provide legal accessibility certification.</small>
-          </aside>
-        ) : null}
-        {googleSnapshot === null ? null : <GoogleDataPanel snapshot={googleSnapshot} />}
-        <p className="muted report-help__cta">
-          The Issue Center lists every finding with its evidence and a recommended fix, so you can
-          decide what to work on first.
-        </p>
-        <div className="button-row">
-          <Button onClick={props.onIssues} variant="primary">
-            Open Issue Center
-          </Button>
-          {scan.plan === 'Complete' ? (
-            <ExportButtons scanId={scan.id} onError={props.onError} />
-          ) : (
-            <span className="muted">Export is reserved for Complete scans.</span>
-          )}
-        </div>
-        <div className="breadcrumb">
-          {scan.id} · {scan.rulesetVersion} · coverage {(overall.weightedCoverage * 100).toFixed(0)}
-          %
-        </div>
-      </Window>
-    </div>
-  );
-}
-
-function ModuleMetadata({ module }: { module: ScanModule }) {
-  if (module.module === 'Accessibility') {
-    return <small className="module-card__meta">WCAG 2.2 AA · EN 301 549 · Section 508</small>;
-  }
-  if (module.module === 'Security') {
-    return <small className="module-card__meta">OWASP ASVS · Public Security Profile</small>;
-  }
-  if (module.module === 'Privacy') {
-    return <small className="module-card__meta">Public technical consent signals</small>;
-  }
-  if (module.module === 'SEO') {
-    return <small className="module-card__meta">JSON-LD · Open Graph · Twitter Cards</small>;
-  }
-  if (module.module === 'Analytics') {
-    return (
-      <small className="module-card__meta">Google Search Console · Analytics 4 · read-only</small>
-    );
-  }
-  if (module.module === 'AI SEO / GEO') {
-    const pages = asRecord(module.metadata?.pages);
-    const checked = numberValue(pages?.checked);
-    const structured = numberValue(pages?.structuredData);
-    return (
-      <small className="module-card__meta">
-        Public AI readiness
-        {checked !== null && structured !== null
-          ? ` · ${structured}/${checked} pages with structured data`
-          : ''}
-      </small>
-    );
-  }
-  return null;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function numberValue(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function ExportButtons(props: { scanId: string; onError: (value: string) => void }) {
-  const downloadJson = async () => {
-    try {
-      const value = await apiRequest<ExportPayload>(`/scans/${props.scanId}/export?format=json`);
-      download(
-        `fluxradar-${props.scanId}.json`,
-        JSON.stringify(value.records, null, 2),
-        'application/json',
-      );
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'JSON export failed');
-    }
-  };
-  const downloadCsv = async () => {
-    try {
-      const value = await apiRequest<string>(`/scans/${props.scanId}/export?format=csv`);
-      download(`fluxradar-${props.scanId}.csv`, value, 'text/csv');
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'CSV export failed');
-    }
-  };
-  return (
-    <>
-      <Button onClick={() => void downloadJson()}>JSON</Button>
-      <Button onClick={() => void downloadCsv()}>CSV</Button>
-    </>
-  );
-}
-
-function IssuesScreen(props: { scan: Scan | null; onError: (value: string) => void }) {
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [filter, setFilter] = useState('');
-  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    if (!props.scan) {
-      setLoading(false);
-      return;
-    }
-    apiRequest<Issue[]>(`/scans/${props.scan.id}/issues?limit=100`)
-      .then(setIssues)
-      .catch((caught) =>
-        props.onError(caught instanceof Error ? caught.message : 'Issues unavailable'),
-      )
-      .finally(() => setLoading(false));
-  }, [props.scan?.id, props.onError]);
-  const visible = useMemo(
-    () =>
-      filter === ''
-        ? issues
-        : issues.filter((issue) =>
-            `${issue.ruleId} ${issue.module} ${issue.status} ${issue.targetUrl}`
-              .toLowerCase()
-              .includes(filter.toLowerCase()),
-          ),
-    [filter, issues],
-  );
-  const update = async (issue: Issue, status: string) => {
-    try {
-      const value = await apiRequest<Issue>(`/scans/${issue.scanId}/issues/${issue.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-      });
-      setIssues((current) =>
-        current.map((candidate) => (candidate.id === value.id ? value : candidate)),
-      );
-      setSelectedIssue((current) => (current?.id === value.id ? value : current));
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Issue update failed');
-    }
-  };
-  if (loading)
-    return (
-      <Window title="Issue Center">
-        <SkeletonRows rows={3} />
-      </Window>
-    );
-  return (
-    <Window title={`Issue Center · ${props.scan?.id ?? 'no scan'}`}>
-      <div className="split">
-        <div>
-          <h2 className="section-heading">Findings and evidence</h2>
-          <p className="muted">
-            Each finding is something FluxRadar detected on a public page. Use Details to see the
-            evidence, the affected page and a recommended fix. The status you set is remembered on
-            your next full scan.
-          </p>
-        </div>
-        <Field label="Filter" value={filter} onChange={setFilter} placeholder="rule, module, URL" />
-      </div>
-      <p className="muted issue-severity-legend">
-        <strong>Severity</strong> shows how urgent a finding is: Critical and High need attention
-        first, then Medium, then Low.
-      </p>
-      {visible.length === 0 ? (
-        <EmptyState title="No issues match this filter" />
-      ) : (
-        <DataTable>
-          <thead>
-            <tr>
-              <th>Severity</th>
-              <th>Rule</th>
-              <th>Target</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((issue) => {
-              const isExpanded = selectedIssue?.id === issue.id;
-              const detailId = `issue-detail-${issue.id}`;
-              return (
-                <Fragment key={issue.id}>
-                  <tr>
-                    <td data-label="Severity">
-                      <StatusChip status={issue.severity} />
-                    </td>
-                    <td data-label="Rule" className="technical">
-                      {issue.ruleId}
-                      <br />
-                      <span className="muted">{issue.module}</span>
-                    </td>
-                    <td data-label="Target" className="technical">
-                      {issue.targetUrl}
-                    </td>
-                    <td data-label="Status">
-                      <StatusChip status={issue.status} />
-                    </td>
-                    <td data-label="Action">
-                      <div className="button-row">
-                        <Button
-                          onClick={() => setSelectedIssue(isExpanded ? null : issue)}
-                          aria-expanded={isExpanded}
-                          aria-controls={detailId}
-                        >
-                          {isExpanded ? 'Hide details' : 'Details'}
-                        </Button>
-                        <select
-                          className="control"
-                          value={
-                            ['New', 'Acknowledged', 'Ignored', 'False Positive'].includes(
-                              issue.status,
-                            )
-                              ? issue.status
-                              : 'New'
-                          }
-                          onChange={(event) => void update(issue, event.target.value)}
-                        >
-                          <option>New</option>
-                          <option>Acknowledged</option>
-                          <option>Ignored</option>
-                          <option>False Positive</option>
-                        </select>
-                      </div>
-                    </td>
-                  </tr>
-                  {isExpanded ? (
-                    <tr id={detailId} className="issue-detail-row">
-                      <td colSpan={5} className="issue-detail-cell">
-                        <div className="issue-detail">
-                          <div className="split">
-                            <strong>
-                              {issue.ruleId} · {issue.module}
-                            </strong>
-                            <Button onClick={() => setSelectedIssue(null)}>Close details</Button>
-                          </div>
-                          <FieldRow
-                            label="Severity"
-                            value={<StatusChip status={issue.severity} />}
-                          />
-                          <FieldRow label="Status" value={<StatusChip status={issue.status} />} />
-                          <FieldRow label="Target" value={issue.targetUrl} technical />
-                          <FieldRow
-                            label="Evidence"
-                            value={issue.evidenceExcerpt ?? 'No excerpt available'}
-                          />
-                          <FieldRow label="Recommendation" value={issue.recommendation} />
-                          <FieldRow
-                            label="Impact"
-                            value={`${issue.affectedTargets}/${issue.applicableTargets} targets · score ${issue.scoreDelta.toFixed(2)}`}
-                          />
-                          <FieldRow
-                            label="Confidence"
-                            value={`${(issue.confidence * 100).toFixed(0)}%`}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ) : null}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </DataTable>
-      )}
     </Window>
   );
 }
@@ -3064,13 +2134,4 @@ async function loadProfiles(setter: (profiles: SiteProfile[]) => void): Promise<
   const profiles = await apiRequest<SiteProfile[]>('/profiles');
   setter(profiles);
   return profiles;
-}
-
-function download(filename: string, content: string, type: string): void {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
 }

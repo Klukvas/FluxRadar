@@ -443,6 +443,49 @@ code,
   flex-wrap: wrap;
   justify-content: end;
 }
+/* Reports list — one row per audit, mirroring the profile rows above it. */
+.report-list {
+  display: block;
+  /* A real <ul> for the screen reader, without the marker and indent that would
+     push every row out of line with the profile rows it sits beside. */
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.report-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: 42px;
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--plat-300);
+}
+.report-row:last-child {
+  border-bottom: none;
+}
+.report-row__copy .split {
+  gap: var(--sp-2);
+}
+.report-row__meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+.report-row__action {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: end;
+}
+/* The titlebar box of a window that cannot be closed: same shape, no affordance. */
+.window__box--inert {
+  pointer-events: none;
+}
+.reports-footer {
+  margin-top: var(--sp-3);
+  align-items: center;
+}
+
 .integration-list {
   display: grid;
   gap: 0;
@@ -1760,6 +1803,20 @@ code,
   margin: 5px 0;
   background: #8c9bb3;
 }
+.legal-document-column {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+/* Says which language the binding text is in, above a document kept in English. */
+.legal-language-notice {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid #c4d0e2;
+  background: #596c8d;
+  color: #fff;
+  font: 11px/1.5 var(--mono-font);
+}
 .legal-document {
   min-width: 0;
   overflow: hidden;
@@ -1923,7 +1980,11 @@ code,
     padding: var(--sp-4);
   }
   .desktop__grid {
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr), not 1fr: a grid item defaults to min-width:auto, so the
+       unwrappable monospace lines in the operator-notes terminal widened the
+       column past the viewport and scrolled the whole page sideways on a phone.
+       The terminal scrolls inside its own box instead. */
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 900px) {
@@ -1973,6 +2034,15 @@ code,
 @media (max-width: 699px) {
   .desktop {
     padding: var(--sp-2);
+  }
+  .report-row {
+    grid-template-columns: 1fr;
+  }
+  .report-row__action {
+    justify-content: start;
+  }
+  .reports-footer {
+    display: block;
   }
   .desktop__intro {
     display: block;

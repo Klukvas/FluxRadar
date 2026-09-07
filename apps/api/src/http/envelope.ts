@@ -9,6 +9,12 @@ export interface EnvelopeMeta {
   readonly total: number;
   readonly page: number;
   readonly limit: number;
+  /**
+   * Whether another page follows this one. Optional so every existing meta shape
+   * stays valid; list endpoints that page in the database always set it, and a
+   * client can keep reading `total`/`page`/`limit` exactly as before.
+   */
+  readonly hasNext?: boolean;
 }
 
 export interface EnvelopeError {

@@ -5,12 +5,24 @@
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /**
+   * Сколько секунд клиенту ждать перед повтором. Не часть тела ответа —
+   * error-handler отдаёт это заголовком Retry-After, как того требует RFC 9110
+   * для 429. Null для ошибок, у которых повтор ничего не изменит.
+   */
+  readonly retryAfterSeconds: number | null;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    retryAfterSeconds: number | null = null,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -35,5 +47,5 @@ export const conflict = (code: string, message: string): ApiError =>
 export const paymentRequired = (message: string): ApiError =>
   new ApiError(402, 'PAYMENT_REQUIRED', message);
 
-export const rateLimited = (message: string): ApiError =>
-  new ApiError(429, 'RATE_LIMITED', message);
+export const rateLimited = (message: string, retryAfterSeconds = 60): ApiError =>
+  new ApiError(429, 'RATE_LIMITED', message, Math.max(1, Math.ceil(retryAfterSeconds)));

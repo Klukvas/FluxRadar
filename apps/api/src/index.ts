@@ -6,6 +6,7 @@ import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { LoginRateLimiter, RequestRateLimiter } from './auth/rate-limit.ts';
 import { authRouter } from './auth/routes.ts';
 import { getInternalFreeEmails } from './billing/internal-access.ts';
+import { isMockCheckoutEnabled } from './billing/mock-checkout.ts';
 import { resolvePaddleWebhookSecret } from './billing/paddle-signature.ts';
 import { billingRouter, webhookHandler } from './billing-http/routes.ts';
 import { fastSpringRouter, fastSpringWebhookHandler } from './billing-http/fastspring-routes.ts';
@@ -21,6 +22,7 @@ import { exportRouter } from './export/routes.ts';
 import { errorHandler, notFoundHandler } from './http/error-handler.ts';
 import { healthRouter } from './http/health.ts';
 import { stdoutLogger } from './http/logger.ts';
+import { resolveTrustProxy } from './http/trust-proxy.ts';
 import type { ApiLogger } from './http/logger.ts';
 import { requestLogger } from './http/request-logger.ts';
 import { issuesRouter } from './issues/routes.ts';
@@ -38,7 +40,7 @@ import { recoverClaimedJobs } from './orchestrator/claim.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { profilesRouter } from './profiles/routes.ts';
 import { scansRouter } from './scans/routes.ts';
-import type { PrivateObjectStore } from './integrations/s3.ts';
+import { createConfiguredObjectStore, type PrivateObjectStore } from './integrations/s3.ts';
 
 export const packageName = '@fluxradar/api';
 
@@ -57,6 +59,10 @@ export interface CreateAppOptions {
   readonly createGoogleDataRunner?: WorkerDeps['createGoogleDataRunner'];
   /** Test seam; production reads FLUXRADAR_INTERNAL_FREE_EMAILS. */
   readonly internalFreeEmails?: ReadonlySet<string>;
+  /** Test seam; production reads FLUXRADAR_ENABLE_MOCK_CHECKOUT. */
+  readonly mockCheckoutEnabled?: boolean;
+  /** Test seam; production uses READINESS_TIMEOUT_MS. */
+  readonly readinessTimeoutMs?: number;
   readonly mailer?: Mailer;
   readonly requestRateLimiter?: RequestRateLimiter;
   readonly objectStore?: PrivateObjectStore | null;
@@ -77,9 +83,14 @@ export function createApp(options: CreateAppOptions): Express {
   const logger = options.logger ?? stdoutLogger;
   const now = options.now ?? (() => new Date());
   const internalFreeEmails = options.internalFreeEmails ?? getInternalFreeEmails();
+  const mockCheckoutEnabled = options.mockCheckoutEnabled ?? isMockCheckoutEnabled();
   const requestRateLimiter = options.requestRateLimiter ?? new RequestRateLimiter();
   const mailer = options.mailer ?? createMailer();
   const fastSpring = options.fastSpring ?? readFastSpringConfig();
+  // Undefined means "this deployment did not say", which is the production path:
+  // sweepRetention then builds the configured store itself. An explicit null is a
+  // caller that wants no storage at all, and must stay null.
+  const objectStore = options.objectStore;
   logFastSpringState(logger, fastSpring);
   // Names and statuses only; see integrations/diagnostics.ts.
   logIntegrationStatuses(logger);
@@ -99,7 +110,7 @@ export function createApp(options: CreateAppOptions): Express {
     ...(options.crawl !== undefined ? { crawl: options.crawl } : {}),
     mailer,
   };
-  void sweepRetention(options.prisma, now(), logger);
+  void sweepRetention(options.prisma, now(), logger, objectStore);
   const scheduled = new Set<string>();
   const enqueueScan = (scanId: string): void => {
     if (options.autoProcess === false || scheduled.has(scanId)) {
@@ -118,15 +129,22 @@ export function createApp(options: CreateAppOptions): Express {
 
   const app = express();
   app.disable('x-powered-by');
-  if (process.env.NODE_ENV === 'production') {
-    app.set('trust proxy', 1);
-  }
+  // Decides what req.ip is, and therefore what every IP-scoped rate limit
+  // actually limits. See http/trust-proxy.ts.
+  app.set('trust proxy', resolveTrustProxy());
   app.use(requestLogger(logger));
   app.use(
     corsMiddleware(options.corsOrigin ?? process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173'),
   );
 
-  app.use(healthRouter({ prisma: options.prisma }));
+  app.use(
+    healthRouter({
+      prisma: options.prisma,
+      ...(options.readinessTimeoutMs !== undefined
+        ? { timeoutMs: options.readinessTimeoutMs }
+        : {}),
+    }),
+  );
 
   // Providers sign the exact request bytes, so both webhook routes must take the
   // raw body and therefore precede express.json.
@@ -142,9 +160,11 @@ export function createApp(options: CreateAppOptions): Express {
       requestRateLimiter,
     }),
   );
-  // The MockPaddle webhook is a development affordance: mounting it in
-  // production would leave a second, non-provider way to mint an entitlement.
-  if (process.env.NODE_ENV !== 'production') {
+  // The MockPaddle webhook is a development affordance: mounting it anywhere
+  // real would leave a second, non-provider way to mint an entitlement. It is
+  // therefore mounted only where the deployment explicitly asked for the mock
+  // surface — see billing/mock-checkout.ts for why this is no longer NODE_ENV.
+  if (mockCheckoutEnabled) {
     app.post(
       '/webhooks/paddle',
       express.raw({ type: 'application/json', limit: '1mb' }),
@@ -167,7 +187,7 @@ export function createApp(options: CreateAppOptions): Express {
       frontendOrigin: options.corsOrigin ?? process.env.FRONTEND_ORIGIN,
       now,
       internalFreeEmails,
-      objectStore: options.objectStore,
+      objectStore,
       logger,
     }),
   );
@@ -192,11 +212,20 @@ export function createApp(options: CreateAppOptions): Express {
       internalFreeEmails,
       requestRateLimiter,
       mailer,
+      mockCheckoutEnabled,
     }),
   );
   app.use(scansRouter({ prisma: options.prisma, now, enqueueScan, requestRateLimiter }));
   app.use(issuesRouter({ prisma: options.prisma, now }));
-  app.use(exportRouter({ prisma: options.prisma, now, logger, objectStore: options.objectStore }));
+  app.use(
+    exportRouter({
+      prisma: options.prisma,
+      now,
+      logger,
+      objectStore,
+      requestRateLimiter,
+    }),
+  );
 
   app.use(notFoundHandler);
   app.use(errorHandler(logger));
@@ -210,7 +239,10 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   const logger = stdoutLogger;
   const webhookSecret = resolvePaddleWebhookSecret();
   const mailer = createMailer();
-  const app = createApp({ prisma, webhookSecret, logger, mailer });
+  // One store for the whole process: the export route, account deletion and the
+  // retention sweep all address the same bucket.
+  const objectStore = createConfiguredObjectStore();
+  const app = createApp({ prisma, webhookSecret, logger, mailer, objectStore });
   // Recover before listen so a newly submitted scan cannot be claimed by the
   // HTTP path while startup is requeueing jobs left by the previous process.
   const recovered = await recoverClaimedJobs(prisma);
@@ -245,7 +277,7 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   };
   const retentionTimer = setInterval(
     () => {
-      void sweepRetention(prisma, new Date(), logger);
+      void sweepRetention(prisma, new Date(), logger, objectStore);
     },
     60 * 60 * 1000,
   );

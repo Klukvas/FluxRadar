@@ -11,6 +11,8 @@ FluxRadar is deployed to one Hetzner Cloud server through GitHub Actions.
 - Complete report artifacts use the private Hetzner Object Storage bucket.
 - Releases are unpacked under `/opt/fluxradar/releases/<commit>` and selected by
   `/opt/fluxradar/current`.
+- Encrypted database snapshots go to the same Hetzner bucket under
+  `fluxradar/postgres/` — see *Database backup and restore*.
 
 ## Required GitHub environment
 
@@ -23,6 +25,9 @@ The `production` environment contains these secrets:
 - `PRODUCTION_APP_DIR`
 - `PRODUCTION_ENV_FILE`
 
+`PRODUCTION_BACKUP_ENCRYPTION_KEY` is required as well once database backups are
+switched on — see *Database backup and restore*.
+
 The last secret is the complete production environment file and must never be
 committed to the repository, and the deploy workflow never overwrites it
 blindly. It must include `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
@@ -31,6 +36,39 @@ blindly. It must include `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
 refuses to start in production when `DATABASE_URL` or the dedicated
 `INTEGRATION_ENCRYPTION_KEY` is missing; every integration is optional, but none
 of them may be *half* configured (see *Optional, but never half configured*).
+
+### `INTEGRATION_ENCRYPTION_KEY`
+
+This key encrypts every stored Google/Bing access and refresh token, so it is the
+one thing between a database dump and every connected customer's analytics. Two
+rules, both enforced:
+
+- **It must be stated in production, and there is no fallback.** Development and
+  tests may fall back to `SESSION_SECRET`; nothing else may, and an *unset*
+  `NODE_ENV` gets no fallback either — an unlabelled process in a container is a
+  production process that lost its label, not a developer checkout.
+- **It must not be the same value as `SESSION_SECRET`.** Copying it across
+  satisfies the first rule while reintroducing exactly the coupling the first
+  rule exists to prevent: the day `SESSION_SECRET` is rotated, every stored token
+  becomes undecryptable, with no error anywhere — AES-GCM simply stops
+  authenticating.
+
+Both are refused twice: `deploy/normalize-env-file.cjs` fails the **deploy** on an
+env file that breaks either, so a bad file never reaches the server, and
+`validateRuntimeConfig` fails the **boot** as a backstop. Both report variable
+names only. The normalizer additionally *warns* when the key is shorter than 32
+characters — it is stretched with a single unsalted SHA-256, so its own entropy is
+all a leaked database has. A warning rather than an error, because a deployment
+already running a short key has to be able to redeploy in order to rotate it.
+
+Generate one with:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Rotating it makes every **existing** integration connection undecryptable; users
+reconnect Google/Bing afterwards. Plan a rotation, do not improvise one.
 
 ### Optional, but never half configured
 
@@ -129,10 +167,50 @@ be started again** — concretely, in or after the same release that ships the
 `paddle*` contract-phase migration described at the end of this document, when the
 retained rollback candidates no longer include such a release.
 
-Transactional email via Resend is optional until it is connected. If
-`RESEND_API_KEY`/`RESEND_FROM_EMAIL` are absent (`RESEND_REPLY_TO` is always
-optional), the API still boots, email-dependent flows stay safely disabled, and
-they report a `not-configured` status instead of pretending a message was sent.
+### Transactional email
+
+Email verification and password reset are implemented and ship in this release;
+what is not automatic is the Resend account behind them. Until it is connected,
+the API still boots and every email-dependent flow reports `not-configured`
+rather than pretending a message was sent — `POST /auth/register` answers with
+`emailVerification: { status: "not-configured" }` and the password-reset request
+still answers 202 (it is deliberately indistinguishable from an unknown address).
+
+To connect it, set `RESEND_API_KEY` in `PRODUCTION_ENV_FILE` (`RESEND_REPLY_TO`
+is always optional and has no deploy secret). The sender has one: the
+`production` secret `PRODUCTION_RESEND_FROM_EMAIL` overrides `RESEND_FROM_EMAIL`
+when it is non-empty, so the address can be corrected — a rebrand, a new sending
+subdomain, a mailbox Resend stopped accepting — without rewriting the whole base
+env file. Leave the secret unset to keep whatever `PRODUCTION_ENV_FILE` defines.
+
+**Remaining manual, provider-side steps — none of which this repository can do or
+verify:**
+
+1. Create a Resend account and an API key with send permission.
+2. Add `fluxradar.net` (or the chosen sending subdomain) as a **domain** in the
+   Resend dashboard.
+3. Publish the DKIM and SPF DNS records Resend prints, at the same authoritative
+   DNS provider as the `A` record, and wait for Resend to report the domain
+   **verified**.
+4. Set `RESEND_FROM_EMAIL` to an address on that verified domain, as
+   `mail@fluxradar.net` or `FluxRadar <mail@fluxradar.net>`.
+5. Register once against the live site and confirm the verification email
+   arrives. This is the only end-to-end proof; CI never sends a real message.
+
+What *is* checked automatically, at startup, by name and never by value
+(`apps/api/src/email/resend-config.ts`):
+
+- exactly one of the key/sender pair present → reported `invalid`;
+- a `RESEND_FROM_EMAIL` that is not an address Resend could accept → reported
+  `invalid`, because a malformed sender is otherwise indistinguishable from a
+  working one until a customer says the email never arrived;
+- a `RESEND_REPLY_TO` left behind on its own, or one that is not an address.
+
+None of these fails the boot: a deployment that cannot send email can still sell
+and run scans. They appear in the `integration configuration` line and in an
+`integration is only partially configured` error line. **An unverified domain is
+not visible here at all** — it is an HTTP error on the first send, which the
+caller reports as `provider-error`.
 
 ## Optional integration secrets
 
@@ -158,11 +236,13 @@ workflow log):
 | `PRODUCTION_ANTHROPIC_API_KEY`            | `ANTHROPIC_API_KEY`        |
 | `PRODUCTION_PAGESPEED_API_KEY`            | `PAGESPEED_API_KEY`        |
 | `PRODUCTION_CRUX_API_KEY`                 | `CRUX_API_KEY`             |
+| `PRODUCTION_RESEND_FROM_EMAIL`            | `RESEND_FROM_EMAIL`        |
 | `PRODUCTION_HETZNER_S3_ACCESS_KEY`        | `HETZNER_S3_ACCESS_KEY`    |
 | `PRODUCTION_HETZNER_S3_SECRET_KEY`        | `HETZNER_S3_SECRET_KEY`    |
 | `PRODUCTION_HETZNER_S3_ENDPOINT`         | `HETZNER_S3_ENDPOINT`      |
 | `PRODUCTION_HETZNER_S3_REGION`           | `HETZNER_S3_REGION`        |
 | `PRODUCTION_HETZNER_S3_BUCKET`            | `HETZNER_S3_BUCKET`        |
+| `PRODUCTION_BACKUP_ENCRYPTION_KEY`        | `FLUXRADAR_BACKUP_ENCRYPTION_KEY` |
 
 The model identifier is not a secret, so it is a production environment
 **variable** rather than a secret: set `PRODUCTION_ANTHROPIC_MODEL` to override
@@ -174,11 +254,60 @@ env file left on a **retired** model identifier no longer needs a workflow
 override to correct it: with `ANTHROPIC_API_KEY` present, the API refuses to boot
 and names `ANTHROPIC_MODEL` (never its value).
 
-FastSpring has no optional deploy secret yet: set the `FASTSPRING_*` block
-directly in `PRODUCTION_ENV_FILE` when you are ready to connect payments.
-`FASTSPRING_MODE=live` additionally requires `FASTSPRING_STORE_VERIFIED=verified`,
-which may only be set after the FastSpring store itself has been checked — see
-`docs/FASTSPRING.md` §3/§4. Without it the production boot fails on purpose.
+### FastSpring
+
+Every `FASTSPRING_*` variable can be supplied from the `production` environment
+instead of the base file, and only three of them are secrets. The rest describe
+*which* store, checkout and products this deployment sells and are visible in the
+FastSpring app to anyone who can open it, so they are environment **variables**:
+
+| GitHub `production` secret                | Env key written                |
+| ---------------------------------------- | ------------------------------ |
+| `PRODUCTION_FASTSPRING_API_USERNAME`      | `FASTSPRING_API_USERNAME`      |
+| `PRODUCTION_FASTSPRING_API_PASSWORD`      | `FASTSPRING_API_PASSWORD`      |
+| `PRODUCTION_FASTSPRING_WEBHOOK_SECRET`    | `FASTSPRING_WEBHOOK_SECRET`    |
+
+| GitHub `production` **variable**                   | Env key written                       |
+| ------------------------------------------------- | ------------------------------------- |
+| `PRODUCTION_FASTSPRING_MODE`                       | `FASTSPRING_MODE`                     |
+| `PRODUCTION_FASTSPRING_SESSION_API`                | `FASTSPRING_SESSION_API`              |
+| `PRODUCTION_FASTSPRING_CHECKOUT_PATH`              | `FASTSPRING_CHECKOUT_PATH`            |
+| `PRODUCTION_FASTSPRING_POPUP_STOREFRONT`           | `FASTSPRING_POPUP_STOREFRONT`         |
+| `PRODUCTION_FASTSPRING_STOREFRONT_URL`             | `FASTSPRING_STOREFRONT_URL`           |
+| `PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC`         | `FASTSPRING_PRODUCT_PATH_BASIC`       |
+| `PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE`      | `FASTSPRING_PRODUCT_PATH_COMPLETE`    |
+| `PRODUCTION_FASTSPRING_CURRENCY_POLICY`            | `FASTSPRING_CURRENCY_POLICY`          |
+| `PRODUCTION_FASTSPRING_STORE_VERIFIED`             | `FASTSPRING_STORE_VERIFIED`           |
+| `PRODUCTION_FASTSPRING_SESSION_EXPIRATION_DAYS`    | `FASTSPRING_SESSION_EXPIRATION_DAYS`  |
+
+The set is all-or-nothing: a half-configured provider is reported as
+`misconfigured` and sells nothing, and in production it fails the boot naming the
+missing variables. `FASTSPRING_MODE=live` additionally requires
+`FASTSPRING_STORE_VERIFIED=verified`, which may only be set after the FastSpring
+store itself has been checked — see `docs/FASTSPRING.md` §3/§4. Without it the
+production boot fails on purpose. Setting the block directly in
+`PRODUCTION_ENV_FILE` works exactly as well; the overrides above exist so a value
+can be changed without rewriting the whole file.
+
+### Backup retention
+
+The encryption key is a secret (above). The retention knobs describe a policy,
+not a credential, so they are `production` environment **variables**. All are
+optional; the defaults are in *Database backup and restore*.
+
+| GitHub `production` **variable**       | Env key written                     |
+| -------------------------------------- | ----------------------------------- |
+| `PRODUCTION_BACKUP_PREFIX`             | `FLUXRADAR_BACKUP_PREFIX`           |
+| `PRODUCTION_BACKUP_RETENTION_DAYS`     | `FLUXRADAR_BACKUP_RETENTION_DAYS`   |
+| `PRODUCTION_BACKUP_MIN_KEEP`           | `FLUXRADAR_BACKUP_MIN_KEEP`         |
+| `PRODUCTION_BACKUP_MAX_DELETE`         | `FLUXRADAR_BACKUP_MAX_DELETE`       |
+| `PRODUCTION_BACKUP_STALE_HOURS`        | `FLUXRADAR_BACKUP_STALE_HOURS`      |
+| `PRODUCTION_BACKUP_MAX_AGE_HOURS`      | `FLUXRADAR_BACKUP_MAX_AGE_HOURS`    |
+
+`DEPLOY-009` (`apps/api/src/deploy/deploy-009-ci-security-checks.test.ts`) fails
+when a workflow reads a `secrets.*` or `vars.*` name this document does not
+mention, because a name only the workflow knows resolves to an empty string and
+is skipped in silence.
 
 `PRODUCTION_INTEGRATION_ENCRYPTION_KEY` upserts the same key the base file may
 already define; supply it only when rotating or when the base file omits it.
@@ -203,6 +332,103 @@ Value: 138.201.172.158
 Cloudflare proxying may be enabled after the record exists. Use SSL/TLS mode
 `Full (strict)`. Caddy will obtain the certificate automatically once public
 DNS resolves to the server. A `www` record and alias can be added later.
+
+**Publish the record before the first deploy.** The public smoke test at the end
+of the deploy now fails when the hostname does not resolve, instead of reporting
+a pass — see *Public smoke test* below.
+
+## Public smoke test
+
+The last step of a deploy is the only one that looks at the deployment the way a
+customer's browser does, so it runs `deploy/public-smoke.sh` **from the GitHub
+runner**, not over SSH. A check that curls the site from the machine that serves
+it cannot see a DNS record that was never published, a certificate that was never
+issued, or a proxy in front refusing traffic.
+
+It fails, non-zero, on any of:
+
+- the hostname does not resolve;
+- the certificate cannot be verified — there is no `--insecure` anywhere in the
+  script, and curl's own `ssl_verify_result` is asserted as well;
+- the request ends anywhere but `https://` (a redirect off TLS);
+- `/api/health` is not 200 with `"status":"ok"`;
+- `/api/health/ready` is not 200 with `"status":"ready"` — the readiness contract,
+  so a deployment whose API cannot reach PostgreSQL fails here;
+- `/` is not the FluxRadar document, or is served without the
+  `Strict-Transport-Security` **or** `Content-Security-Policy` header
+  `deploy/Caddyfile` is responsible for. The policy is what keeps the paid
+  checkout working and inline script out, and it is set in one file and read by
+  nobody afterwards, so a Caddyfile edit could drop it while every other check
+  still passed.
+
+The previous version did none of this: it ran `curl --insecure`, asserted nothing
+about the status or the body, and exited **0** when the hostname did not resolve
+at all. `DEPLOY-007` runs the script against a real TLS server for every one of
+those cases, including the self-signed certificate that must fail.
+
+The loopback check earlier in the deploy (`--resolve fluxradar.net:443:127.0.0.1`)
+is a different thing and deliberately still ignores the certificate: it asks only
+whether Caddy on this host routes `/api/*` to the new container, and it runs while
+ACME may still be issuing on a fresh server. The certificate is the public check's
+job, which is where a wrong or expired one is actually visible.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and on `main`: lint, build,
+typecheck, the full test suite against a real PostgreSQL service, and a build of
+both production images. `deploy.yml` repeats the same quality gates before it
+touches the server, so a red test never reaches production.
+
+A second CI job, **Dependency advisories**, checks the packages against the
+public advisory database:
+
+- `pnpm audit --prod --audit-level high` is **blocking** — those are the packages
+  that end up inside the deployed images;
+- the same audit over build and test dependencies runs with `continue-on-error`,
+  because blocking on a `vitest` advisory would stop the very pull request that
+  fixes it from merging.
+
+It is deliberately **not** part of `deploy.yml`. An advisory is published against
+code that is already merged and already running, so gating the deploy on it would
+block the hotfix. It gates the merge instead. It needs no secret and no
+production credential — and it proves nothing about a vulnerability nobody has
+reported yet. There is no container image scanning and no runtime monitoring in
+this repository; both are still manual (see *What is not automated*).
+
+#### Accepted advisories
+
+`pnpm.auditConfig.ignoreGhsas` in the root `package.json` is the only way an
+advisory is allowed to stay. Every entry needs a row here saying what it is and
+why the fix is worse than the finding; `DEPLOY-009` fails when an id is ignored
+without one, so an exception cannot be added quietly.
+
+| Advisory | Package | Why it is accepted |
+| --- | --- | --- |
+| [`GHSA-ggr8-5vv4-36mx`](https://github.com/advisories/GHSA-ggr8-5vv4-36mx) | `deepmerge-ts <8.0.0`, reached only through `@prisma/client → prisma → @prisma/config` | Stack exhaustion while merging a recursive object graph. The only graph `@prisma/config` merges is the Prisma configuration file, which is in this repository and authored by us — no request, payload or customer input reaches it, so there is nothing for an attacker to recurse. `@prisma/config@6.19.3` pins `deepmerge-ts` to exactly `7.1.5`, and no stable Prisma release moves off it, so removing this would mean forcing a **major** override into the CLI that runs `prisma migrate deploy` on every deploy. Breaking migrations to fix an unreachable stack overflow is the worse trade. **Review on every Prisma upgrade** and drop the entry the moment a release ships `deepmerge-ts >= 8`. |
+
+`DEPLOY-009` (`apps/api/src/deploy/deploy-009-ci-security-checks.test.ts`) keeps
+the workflows honest: every one of them must declare explicit least-privilege
+`permissions`, none may run on `pull_request_target`, the deploy and the backup
+verification must agree on the SSH secret names, and every `secrets.*` / `vars.*`
+name a workflow reads must appear in **this document** — GitHub resolves an
+undefined secret to the empty string and `upsert_env` skips empty values, so a
+typo or a rename is silent everywhere else.
+
+### What is not automated
+
+Stated plainly so nothing here is mistaken for a control that exists:
+
+- **Container image scanning** — no workflow scans the built images for OS-level
+  vulnerabilities. The base images (`node:24-bookworm-slim`, `nginx:1.27-alpine`,
+  `postgres:17-alpine`, `caddy:2.10-alpine`) are pinned and must be bumped by
+  hand.
+- **Uptime and error monitoring** — there is none. Nothing pages anyone when the
+  site goes down between deploys; the only automated outside-in check is the
+  public smoke test at the end of a deploy, and the nightly backup verification.
+- **Log aggregation** — container logs live on the one server and are read with
+  `docker logs`.
+- **Secret rotation** — manual, and `INTEGRATION_ENCRYPTION_KEY` has consequences
+  when rotated (see above).
 
 ## Billing gate
 
@@ -262,17 +488,292 @@ the CSP violation, and the UI says the checkout could not be loaded and offers
 the hosted page as a link. If a deployment runs `FASTSPRING_SESSION_API=v1` (no
 popup checkout), none of the three is needed — the hosted page opens in a tab.
 
+That sentence used to be the whole safety net. Three things now check it:
+
+- **`DEPLOY-008`** (`apps/api/src/deploy/deploy-008-security-headers.test.ts`)
+  reads `deploy/Caddyfile` and asserts the whole header set, that `script-src`
+  carries no `'unsafe-inline'`, `'unsafe-eval'` or wildcard, and that the
+  FastSpring exceptions are **exactly** the origins the code uses — `script-src`
+  against `SBL_ORIGIN` in `apps/web/src/fastspring-sbl.ts`, `frame-src` and
+  `connect-src` against the storefront domain
+  `apps/api/src/billing/fastspring/popup-storefront.ts` validates. Bumping the
+  SBL origin without the Caddyfile now fails CI instead of the checkout.
+- **The web container repeats the same headers** (`deploy/nginx.conf`), so a
+  document served straight off it still carries them. Caddy's `header` directive
+  *sets* a field, so on the public path the browser sees one of each; DEPLOY-008
+  requires the two policies to be byte-identical, which makes the duplication
+  safe either way.
+- **`deploy/public-smoke.sh` asserts the header reaches the browser**, from the
+  GitHub runner, as the last gate of every deploy — alongside HSTS.
+
+A fourth check sits on the other side of the policy: `apps/web/src/inline-script-policy.test.ts`
+asserts that no document FluxRadar serves — the SPA shell or any static blog page
+— carries an inline `<script>`, an `on…=` handler, a `javascript:` URL or an
+off-origin asset. `vite dev` and `vite preview` serve these pages with **no**
+policy, so an inline script added to an article works everywhere except
+production, where the browser silently refuses to run it. (`<script
+type="application/ld+json">` is a data block, not a script, and is allowed.)
+
+## Database backup and restore
+
+One server, one PostgreSQL volume. Everything a customer has paid for lives in
+it, and until this section existed nothing copied it anywhere else. The scripts
+are in [`deploy/backup/`](../deploy/backup/README.md); this is what they do and
+what an operator has to set up once.
+
+### What runs, and when
+
+| When | What | Touches the live database |
+| ---- | ---- | ------------------------- |
+| 02:17 UTC daily (cron) | `pg-backup.sh` — dump, encrypt, upload, prune | reads it with `pg_dump` |
+| 03:30 UTC Sunday (cron) | `pg-restore.sh --verify-latest` | no — restores into a throwaway database |
+| 04:20 UTC daily (GitHub Actions) | `backup-verify` workflow, the same verification over SSH | no |
+
+`pg_dump` runs **inside the running PostgreSQL container**, so the dump is always
+taken by the exact server version that wrote the data and the host needs no
+PostgreSQL packages. The dump is written to `$APP_DIR/backups/work`, encrypted
+there, uploaded, and the plaintext is deleted on every exit path.
+
+### Encryption
+
+Every archive is AES-256-GCM before it leaves the work directory
+(`deploy/backup/archive-crypto.cjs`, format `FRBK1`). The bucket only ever holds
+ciphertext, so an S3 credential leak is not a database leak, and GCM's
+authentication tag means a truncated or altered archive fails to decrypt instead
+of restoring into plausible corruption.
+
+The key is `FLUXRADAR_BACKUP_ENCRYPTION_KEY`, 32 bytes base64:
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+It is deliberately **not** the object-storage credential: rotating one must not
+force the other. Keep it in the password manager *and* in the GitHub secret
+`PRODUCTION_BACKUP_ENCRYPTION_KEY`. **A snapshot taken with a key that is later
+lost is unrecoverable** — when rotating, keep the previous key until every
+snapshot encrypted with it has aged out of retention.
+
+Alongside each archive is a plaintext `.meta.json` sidecar holding sizes and the
+SHA-256 of the *plaintext* dump. It carries no credential and no customer data,
+and it is what lets a restore prove it reconstructed the exact bytes that were
+dumped — including when the key itself is what is being recovered.
+
+Because both the age check and the checksum check read that sidecar, only one
+reason for its absence is accepted: a `404`, which is a snapshot older than
+sidecars. A bucket that answers `403` or `5xx` for it, or a sidecar that is not
+readable JSON, **fails** the command — silently continuing there would drop the
+checksum verification and fall back to a timestamp taken from the object's own
+name.
+
+### Retention
+
+`deploy/backup/retention-policy.cjs` is a pure planner and every rule in it exists
+because the failure mode of a retention sweep is "the backups are gone":
+
+- only keys this tool wrote (`fluxradar-<UTC timestamp>.dump.enc`) are candidates;
+  anything else in the bucket is invisible to it and can never be deleted;
+- the newest `FLUXRADAR_BACKUP_MIN_KEEP` (default 7) snapshots survive regardless
+  of age;
+- everything past `FLUXRADAR_BACKUP_RETENTION_DAYS` (default 30) is expired;
+- at most `FLUXRADAR_BACKUP_MAX_DELETE` (default 50) snapshots go per run;
+- **nothing is pruned at all** while the newest snapshot is older than
+  `FLUXRADAR_BACKUP_STALE_HOURS` (default 48). A stale newest snapshot means
+  backups are failing, and pruning then would finish what the failure started.
+
+### Freshness
+
+Retention refusing to prune is a safety valve, not an alarm: it is silent, and it
+is deliberately generous. The alarm is `FLUXRADAR_BACKUP_MAX_AGE_HOURS`
+(default 26 — one daily cycle plus slack, and deliberately below the 48-hour
+retention threshold so it fires first).
+
+`pg-restore.sh --verify-latest` — the nightly `backup-verify` workflow and the
+weekly cron — **fails** when the newest snapshot is older than that. It is the
+only check that can: a backup job that stopped two weeks ago leaves a snapshot
+that still decrypts, still matches its checksum and still restores perfectly, so
+nothing except its age says the backups have stopped.
+
+The age is taken from the snapshot key and, when the metadata sidecar states a
+`takenAt`, from the sidecar too — **the older of the two wins**, because a job
+that re-uploads an old dump under a fresh key would otherwise look brand new. A
+snapshot timestamped in the future is refused rather than treated as fresh, and a
+sidecar with an unusable `takenAt` is reported and the key is used instead.
+
+Two paths are deliberately NOT age-gated, and both are an operator naming what
+they want:
+
+- `--key <s3 key>` (including the `snapshot_key` input of the `backup-verify`
+  workflow) — one specific object was asked for;
+- `--target-database …` (the destructive disaster-recovery restore, which passes
+  `--allow-stale` to the CLI). On the day it is needed, the only backup that
+  exists may well be older than the alarm, and refusing to restore it would be
+  the alarm causing the outage it warns about.
+
+### Restoring
+
+`pg-restore.sh` verifies by default and destroys only when told to, four times
+over. The verification path is the one a schedule runs against production:
+
+```sh
+/opt/fluxradar/current/deploy/backup/pg-restore.sh --verify-latest
+```
+
+It downloads the newest snapshot, refuses it if it is older than
+`FLUXRADAR_BACKUP_MAX_AGE_HOURS`, decrypts it, checks it against the sidecar
+checksum, creates `fluxradar_verify_<timestamp>` beside the live database,
+restores into it, asserts the schema is there, that every recorded migration
+finished and that `Account` can be read, then drops the throwaway database again.
+The live database is never read from, written to or dropped. Add `--keep` to
+inspect the result, `--key <s3 key>` for a specific snapshot, `--dry-run` to
+decrypt without touching any database.
+
+**A real disaster recovery** is deliberately not a single command. In order:
+
+```sh
+# 1. Stop the API so nothing writes while the database is being replaced.
+docker stop "$(docker ps --filter 'name=fluxradar-api-' -q)"
+
+# 2. Recreate the database EMPTY. This is the destructive step, and it is done by
+#    hand, at the prompt, on purpose — no script in this repository drops the
+#    live database.
+PG="$(docker ps --filter 'label=com.docker.compose.service=postgres' -q)"
+docker exec -i "$PG" dropdb --username fluxradar --force fluxradar
+docker exec -i "$PG" createdb --username fluxradar fluxradar
+
+# 3. Restore into it. The script refuses unless all of this is true: the flag is
+#    present, the variable names the database by hand, no API container is
+#    running, and the target is empty.
+FLUXRADAR_RESTORE_ALLOW_PRODUCTION=overwrite-fluxradar \
+  /opt/fluxradar/current/deploy/backup/pg-restore.sh \
+  --target-database fluxradar --i-know-this-destroys-data
+
+# 4. Start the API again and confirm from outside the server.
+docker start "<the api container>"
+bash deploy/public-smoke.sh --host fluxradar.net
+```
+
+### Manual setup (one time, by an operator)
+
+Nothing below can be done by a deploy, and until it is done there are no backups:
+
+1. Create the GitHub `production` secret `PRODUCTION_BACKUP_ENCRYPTION_KEY` with
+   a fresh 32-byte base64 key, and store the same key in the password manager.
+   Optionally set the `PRODUCTION_BACKUP_*` repository variables to override the
+   prefix and the retention numbers.
+2. Deploy once, so `.env.production` on the server carries the key.
+3. Install the schedule as root. The log directory is created first, because
+   cron opens the log file *before* running the script and a missing directory
+   would make the job fail without ever starting:
+   ```sh
+   install -m 0700 -o fluxradar -g fluxradar -d /opt/fluxradar/backups
+   install -m 0644 -o root -g root \
+     /opt/fluxradar/current/deploy/backup/fluxradar-backup.cron \
+     /etc/cron.d/fluxradar-backup
+   ```
+   Edit the user in that file if the deploy account is not `fluxradar`, and point
+   `MAILTO` at an address a human reads.
+4. Prove it end to end, from the server, before trusting it:
+   ```sh
+   /opt/fluxradar/current/deploy/backup/pg-backup.sh --dry-run
+   /opt/fluxradar/current/deploy/backup/pg-backup.sh
+   /opt/fluxradar/current/deploy/backup/pg-restore.sh --verify-latest
+   ```
+
+The bucket is the same Hetzner Object Storage the application uses
+(`HETZNER_S3_*`). A separate bucket, or a bucket with object-lock, is the next
+step up and needs no code change — only different values.
+
+Every deploy says where that setup stands, because nothing else does:
+`deploy/normalize-env-file.cjs` warns when none of the backup variables is set
+("No database backup is configured") and when only some are — step 2 above is
+exactly that intermediate state, so neither blocks a deploy. A policy number
+that is *present and unusable* does block it: a non-numeric value, or a
+`FLUXRADAR_BACKUP_MAX_AGE_HOURS` / `FLUXRADAR_BACKUP_MIN_KEEP` of 0, which no
+snapshot can satisfy. The same limits are re-checked by the backup CLI when it
+reads its configuration, so a hand-edited `.env.production` on the server fails
+the next backup run instead of a later restore.
+
+`DEPLOY-004` and `DEPLOY-005` run all of this in CI against a stub bucket and a
+recorded `docker`, including every refusal on the destructive path.
+
 ## Release rollback
 
 The deploy workflow builds immutable API/web images in GitHub Actions, loads
 them on Hetzner, keeps each extracted release under `releases/<commit>` and
 updates `current` only after the new API passes the database-aware readiness
-probe. A failed rollout restores the previous images/release and switches the
-symlink back automatically. For a manual rollback after the first blue-green
-deployment, SSH to the server and run the following with the desired
-known-good commit whose image is still loaded. During a normal rollout the
-previous containers remain available until the new smoke test passes; after
-success they are removed, so this procedure recreates them only when needed:
+probe.
+
+### What a failed rollout does, exactly
+
+There are three phases, and the contract is different in each. `DEPLOY-010`,
+`DEPLOY-011` and `DEPLOY-012` run every one of them.
+
+| Phase | What fails there | What happens |
+| --- | --- | --- |
+| Before the traffic switch | migration, rollback compatibility gate, readiness | The previous release never stops serving. The new containers are removed; nothing else is touched. |
+| After the traffic switch, while the release script runs | Caddy, `caddy validate`, the loopback smoke, the `current` symlink | `deploy/rollback-release.sh` restores the previous release and the workflow fails. |
+| After the release script exits — the public smoke test | DNS, certificate, the site as seen from outside | The same `deploy/rollback-release.sh` runs over SSH, the site is re-checked from the runner, and the workflow fails. |
+| Either of those, on the **first** deploy of a host | anything post-switch | There is no earlier release, so the rollback changes **nothing** and reports `ROLLBACK IMPOSSIBLE`. The release that failed keeps serving — tearing it down would leave the host serving nothing — and the workflow fails with a CRITICAL line asking for manual action. |
+
+Once the release is live and recorded, the retention sweep that trims old
+releases is the only thing left. It never rolls anything back: a failure there
+is reported and the release keeps serving.
+
+The rollback is a script rather than a step so that all of it is the same
+rollback, and it reports what it did:
+
+- `ROLLBACK OK` (exit 0) — the previous release is serving again. This line is
+  printed only after the restored release has ANSWERED: each restored container
+  is asked its own readiness probe (`/health/ready` for the API, `/health` for
+  web) and the public hostname is fetched through Caddy on `127.0.0.1`, with
+  bounded retries. A rewritten Caddyfile is not evidence that anything serves.
+- `ROLLBACK OK (DEGRADED)` (exit 0) — the previous release is serving and proven
+  the same way, but its own release directory had been swept off disk, so the
+  failed release's `docker-compose.yml` and `deploy/Caddyfile` were used.
+  Restore the directory before the next deploy.
+- `ROLLBACK IMPOSSIBLE` (exit 3) — there was no earlier release (a first
+  deploy). **Nothing was changed**: the release that failed keeps its containers
+  and its proxy configuration, because removing them would leave the host
+  serving nothing at all. Deploy a working release; the workflow reports this as
+  a CRITICAL needing manual action.
+- `ROLLBACK FAILED` (exit 1) — it could not restore, including the case where
+  Caddy was reconfigured but the restored upstreams never answered. Production
+  needs the manual procedure below; `current` and `runtime/active.env` are left
+  describing the release that was live.
+
+It never exits 0 without one of the two OK lines, the deploy log never claims a
+rollback it did not perform, and no non-zero exit is swallowed by either caller.
+
+Two details of how it restores a release are deliberate:
+
+- when the previous release's containers are gone — which is the normal state
+  once the release script has finished — it recreates them from
+  `fluxradar-api:<commit>` / `fluxradar-web:<commit>` and takes the upstream
+  addresses from the containers that are running afterwards, never from the
+  addresses recorded before, which a recreate invalidates;
+- it starts them on the **failed release's** `.env.production`. That is the file
+  the rollback compatibility gate already started this same image against,
+  before any traffic moved, so it is the only environment the previous release
+  is *proven* to boot and read the migrated database on.
+
+### Rolling back by hand
+
+To undo the release that is live now, run the same script the deploy runs. It
+reads its target from `runtime/rollback.env`, which the deploy wrote before it
+switched traffic:
+
+```sh
+APP_DIR=/opt/fluxradar
+RELEASE_ID=<the release that is live now>
+bash "$APP_DIR/releases/$RELEASE_ID/deploy/rollback-release.sh" \
+  "$APP_DIR" "$APP_DIR/releases/$RELEASE_ID"
+```
+
+To go back to some *other* known-good commit whose image is still loaded, SSH to
+the server and run the following. During a normal rollout the previous
+containers remain available until the new smoke test passes; after success they
+are removed, so this procedure recreates them only when needed:
 
 ```sh
 APP_DIR=/opt/fluxradar
@@ -332,24 +833,46 @@ no automatic way back.
 The workflow therefore proves compatibility instead of assuming it. Immediately
 after `migrate deploy`, and before anything is switched, it starts the *previous*
 release's own image as a throwaway container against the migrated database and the
-new environment file, and requires **two** things of it:
+new environment file, and requires **two** things of it.
 
-1. **`/health/ready` passes.** This runs the old release's real startup path, so it
-   catches an environment variable it validates at boot but the new release no
-   longer requires.
-2. **Its own Prisma client can still read every model it knows about.** The
-   readiness check alone cannot answer this — it is a `SELECT 1`, which succeeds
-   against any reachable database, including one whose columns the old client no
-   longer finds. `deploy/rollback-schema-probe.cjs` is copied into the running
-   container and executed there, so it loads the **old image's** `@prisma/client`
-   and its generated datamodel, then issues one read-only `findFirst` per model.
-   Prisma names every scalar column it knows about in those SELECTs, so a dropped
-   or renamed column, or a removed table, fails the probe with the old client's own
-   error. It enumerates the whole datamodel rather than a fixed list, so it covers
-   any future contract-phase migration, not only the billing tables.
+**The probe container is read-only, and that is enforced by how it is started.**
+It runs with `--entrypoint node` and an idle timer as its command, so the image's
+production command never executes. This matters more than it sounds: that command
+is a full API instance, and on boot and on timers it sweeps data retention
+(deleting expired scans, reports and webhook rows), recovers and *claims* queued
+scan jobs, drains the queue — real crawls, real AI calls, real customer email —
+and sweeps pending refunds. All of that used to happen inside a verification
+container that the deploy removed seconds later, against the live database, while
+the release being deployed was doing the same work. A step that verifies
+production must not be able to change it.
+
+With nothing booted, the two checks are asked directly, by two scripts copied in
+from the release being deployed and executed against the **old image's** modules:
+
+1. **`deploy/rollback-readonly-probe.cjs` — would it start, and can it reach the
+   database?** It calls the previous release's own boot-time validators
+   (`validateRuntimeConfig`, `readFastSpringConfig`,
+   `resolvePaddleWebhookSecret`), which is what catches an environment variable it
+   requires and the new release no longer does, and then runs `SELECT 1` inside a
+   transaction it first marks `READ ONLY` — verifying the mark before it queries.
+   A validator that this release's layout does not contain is skipped by name; a
+   validator that is present and throws fails the deploy, and finding none at all
+   fails it too (unable to verify is not verified).
+2. **`deploy/rollback-schema-probe.cjs` — can it still read every model it knows
+   about?** Reachability alone cannot answer this: `SELECT 1` succeeds against any
+   reachable database, including one whose columns the old client no longer finds.
+   This probe loads the old image's `@prisma/client` and its generated datamodel
+   and issues one read-only `findFirst` per model. Prisma names every scalar
+   column it knows about in those SELECTs, so a dropped or renamed column, or a
+   removed table, fails with the old client's own error. It enumerates the whole
+   datamodel rather than a fixed list, so it covers any future contract-phase
+   migration, not only the billing tables.
 
 If either check fails the deploy stops with production untouched, and the failing
-models are printed in the workflow log.
+variables or models are printed in the workflow log. `DEPLOY-006` extracts the
+workflow's own `docker run` lines and asserts the entrypoint override, and runs
+the probe against a real database to prove it passes, fails closed, and writes
+nothing.
 
 **A missing rollback image fails the deploy.** If `current` points at a previous
 release but its `fluxradar-api`/`fluxradar-web` image is no longer loaded on the

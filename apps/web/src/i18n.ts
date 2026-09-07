@@ -1,3 +1,4 @@
+import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
 import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 import { tourStepCopy } from './tour-steps';
@@ -11,6 +12,8 @@ export const languageOptions: readonly { value: Language; label: string }[] = [
   { value: 'uk', label: 'Українська' },
 ];
 
+export const LANGUAGE_QUERY_PARAM = 'lang';
+
 export function readStoredLanguage(): Language {
   try {
     return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === 'uk' ? 'uk' : 'en';
@@ -19,12 +22,54 @@ export function readStoredLanguage(): Language {
   }
 }
 
+/** `?lang=uk` / `?lang=en` on the current URL, or null when it is absent or unknown. */
+export function readLanguageParam(search: string = window.location.search): Language | null {
+  try {
+    const value = new URLSearchParams(search).get(LANGUAGE_QUERY_PARAM);
+    return value === 'uk' || value === 'en' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The language a session opens in.
+ *
+ * `?lang=` wins over the stored preference and is written back to it, because
+ * that parameter is what the blog's language filter, the sitemap's `hreflang`
+ * alternates and any shared link carry: following one of those has to land in
+ * the language it promised, and stay there for the rest of the visit.
+ */
+export function readInitialLanguage(): Language {
+  const requested = readLanguageParam();
+  if (requested === null) return readStoredLanguage();
+  storeLanguage(requested);
+  return requested;
+}
+
 export function storeLanguage(language: Language): void {
   try {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   } catch {
     // A blocked storage context should not prevent the shell from working.
   }
+}
+
+/**
+ * Fills `{name}` placeholders in a localized string.
+ *
+ * Sentences that carry a number or a domain differ in word order between the
+ * locales, so the value has to sit inside the translated sentence rather than be
+ * concatenated around it. An unknown placeholder is left as written, which makes
+ * a missing value visible in review instead of silently rendering "undefined".
+ */
+export function fillCopy(
+  template: string,
+  values: Readonly<Record<string, string | number>>,
+): string {
+  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : match,
+  );
 }
 
 export const copy = {
@@ -39,6 +84,8 @@ export const copy = {
       blog: 'Blog',
       language: 'Language',
       system: 'PUBLIC WEB AUDIT STATION · v0.1',
+      navigateGroup: 'Navigate',
+      systemGroup: 'System',
       descriptions: {
         profiles: 'Your saved websites and their audit history.',
         scan: 'Set up and start a new audit.',
@@ -46,6 +93,71 @@ export const copy = {
         integrations: 'Optional data connections. The public-site scan works without them.',
         faq: 'Plain answers about every check and the limits of a report.',
       },
+    },
+    legal: {
+      kicker: 'FLUXLAB / PUBLIC DOCUMENT',
+      meta: ['FLUXRADAR.NET', 'REV. 2026.09', 'READ BEFORE CONNECTING'],
+      back: '← Back to FluxRadar',
+      contents: 'DOCUMENT MAP',
+      contentsLabel: 'Document sections',
+      englishNotice:
+        'This document is maintained in English. The English text is the version that applies.',
+      footerBrand: 'FLUXRADAR / BY FLUXLAB',
+      questions: 'Questions:',
+      privacy: {
+        title: 'Privacy policy',
+        crossLink: 'Privacy policy →',
+        lede: 'A plain-language record of what FluxRadar collects, why it uses it and how connected Google data is handled.',
+        sections: [
+          { id: 'privacy-scope', label: 'Scope' },
+          { id: 'privacy-data', label: 'Data we handle' },
+          { id: 'privacy-google', label: 'Google user data' },
+          { id: 'privacy-use', label: 'How we use data' },
+          { id: 'privacy-retention', label: 'Storage & deletion' },
+          { id: 'privacy-rights', label: 'Your choices' },
+        ],
+      },
+      terms: {
+        title: 'Terms of service',
+        crossLink: 'Terms of service →',
+        lede: 'The operating terms for using FluxRadar to review public websites and purchase one-time audit reports.',
+        sections: [
+          { id: 'terms-service', label: 'The service' },
+          { id: 'terms-account', label: 'Accounts' },
+          { id: 'terms-paid', label: 'Free and paid scans' },
+          { id: 'terms-use', label: 'Acceptable use' },
+          { id: 'terms-results', label: 'Reports & limitations' },
+          { id: 'terms-ending', label: 'Ending use' },
+        ],
+      },
+    },
+    seo: {
+      home: {
+        title: 'FluxRadar — public website audit for SEO, AI crawlers, security and accessibility',
+        description:
+          'FluxRadar audits any public website and reports what search engines, AI crawlers and users can observe: SEO, AI readiness, security headers, accessibility, performance and privacy signals. Two one-time reports, no subscription.',
+      },
+      faq: {
+        title: 'FAQ — what every FluxRadar check means | FluxRadar',
+        description:
+          'Plain answers about every FluxRadar check: SEO, AI crawler readiness, security, accessibility, structured data, privacy, performance — and the limits of what a public audit can prove.',
+      },
+      checks: {
+        title: 'Audit coverage — every check FluxRadar runs | FluxRadar',
+        description:
+          'The full list of what FluxRadar inspects on a public website, the standards each module follows, how findings are evidenced and what FluxRadar will not certify.',
+      },
+      privacy: {
+        title: 'Privacy policy | FluxRadar',
+        description:
+          'What FluxRadar collects, why it uses it, how connected Google data is handled, and how long anything is kept.',
+      },
+      terms: {
+        title: 'Terms of service | FluxRadar',
+        description:
+          'The operating terms for using FluxRadar to review public websites and buy one-time audit reports.',
+      },
+      workspaceTitle: 'Workspace — FluxRadar',
     },
     workspace: {
       intro: 'Unified public website audit station.',
@@ -67,6 +179,8 @@ export const copy = {
       guide: 'Open setup guide',
       billing: 'Billing',
       payPerScan: 'Pay-per-scan',
+      logOut: 'Log out',
+      booting: 'Boot sequence',
     },
     home: {
       signIn: 'Sign in',
@@ -204,6 +318,7 @@ export const copy = {
       }),
     },
     faq: faqCopyEn,
+    checks: checksCopyEn,
     pricing: {
       publicOnly: 'Public pages only — no customer credentials required',
       included: 'What you get',
@@ -264,6 +379,9 @@ export const copy = {
       windowTitle: 'New scan — scope and tariff',
       windowTitleEmpty: 'New scan',
       emptyTitle: 'Create a site profile first',
+      emptyBody:
+        'A scan always runs against a website you saved. Add the homepage address once and it stays available for every later check.',
+      emptyAction: 'Add a website',
       panelTarget: 'Target',
       labelOrigin: 'Public origin',
       labelSubdomains: 'Include subdomains (where allowed)',
@@ -296,7 +414,149 @@ export const copy = {
       runPaid: 'Pay and run scan',
       paidUnavailable:
         'Paid scans will be available when checkout is enabled. Free scan is available now.',
+      paidChecking: 'Checking whether paid reports can be bought here…',
       openingCheckout: 'Opening checkout…',
+    },
+    reports: {
+      windowTitle: 'Reports',
+      heading: 'Your audit reports',
+      lead: 'Every check you have started, newest first. Open one to read its score, its findings and what to fix.',
+      profileHeading: 'Reports for {name}',
+      profileLead: 'Every check of {domain}, newest first.',
+      showAll: 'Show all reports',
+      refresh: 'Refresh',
+      emptyTitle: 'No reports yet',
+      emptyBody: 'A report appears here as soon as you check a website. The free homepage check is a good place to start.',
+      emptyProfileTitle: 'No reports for this website yet',
+      emptyProfileBody: 'Nothing has been checked for this website yet. Start a check and its report will appear here.',
+      emptyAction: 'Check a website',
+      errorTitle: 'Your reports could not be loaded',
+      retry: 'Try again',
+      showMore: 'Show older reports',
+      loadingMore: 'Loading…',
+      showingCount: 'Showing {shown} of {total}.',
+      openReport: 'Open report',
+      followProgress: 'Follow progress',
+      viewDetails: 'View details',
+      startedAt: 'Started {time}',
+      finishedAt: 'Finished {time}',
+      planLabel: 'Plan',
+      statusLabel: 'Result',
+      websiteLabel: 'Website',
+    },
+    scanProgress: {
+      windowTitle: 'Scan progress',
+      noScanTitle: 'No check selected',
+      noScanBody: 'Open one of your reports, or start a new check of a saved website.',
+      noScanAction: 'Go to reports',
+      panelTitle: 'Checking your website',
+      reviewing: 'We’re reviewing {domain} for you.',
+      progressLabel: 'Audit progress',
+      ready: 'Your report is ready.',
+      finishedAt: 'Finished {time}.',
+      finishedUnknown: 'The scan has finished processing.',
+      running: 'Checking your site — {done} of {total} audit sections done.',
+      sectionsTitle: 'What we’re checking',
+      sectionsPreparing: 'Getting your checks ready…',
+      sectionsLabel: 'Audit sections',
+      openReport: 'Open report',
+      cancel: 'Cancel scan',
+      cancelling: 'Cancelling…',
+      statusPartial: 'Your report is partially ready.',
+      statusFailed: 'The scan could not finish.',
+      statusCancelled: 'The scan was cancelled.',
+      statusFinished: 'The scan has finished.',
+      sectionChecking: 'Checking…',
+      sectionPartial: 'Checked with limits',
+      sectionChecked: 'Checked',
+      sectionUnavailable: 'Not available',
+      sectionWaiting: 'Waiting',
+      moduleUnavailable: 'Unavailable',
+      moduleInsufficient: 'Insufficient data',
+      moduleCompleted: 'Completed',
+    },
+    report: {
+      windowTitle: 'Report dashboard',
+      loadingTitle: 'Report dashboard',
+      emptyTitle: 'No report open',
+      emptyBody: 'Pick one of your reports to read its score, its findings and what to fix first.',
+      emptyAction: 'Go to reports',
+      errorTitle: 'This report could not be opened',
+      retry: 'Try again',
+      signalHeading: 'Unified website signal',
+      detailsLabel: 'Report details',
+      website: 'Website',
+      plan: 'Plan',
+      report: 'Report',
+      helpHeading: 'How to read this report',
+      helpScoreTerm: 'Score',
+      helpScoreBody:
+        'A 0–100 rating for each area and for the site overall. Higher is better; a dash (—) means there was not enough public data to score it.',
+      helpCoverageTerm: 'Coverage',
+      helpCoverageBody: 'How much of your site FluxRadar was able to check for that area.',
+      helpFindingsTerm: 'Findings',
+      helpFindingsBody:
+        'Specific issues we detected, each with the evidence behind it. Open the findings list below to review them and see recommended fixes.',
+      noScore: 'No score',
+      coverageUnavailable: 'coverage unavailable',
+      accessibilityTitle: 'Accessibility · WCAG 2.2 AA',
+      accessibilityBody:
+        'Automated DOM/CSS checks are shown in this report. Keyboard flows, computed styles, focus visibility under overlays and runtime validation may require manual review.',
+      accessibilityNote: 'FluxRadar does not provide legal accessibility certification.',
+      accessibilityLabel: 'Accessibility audit scope',
+      issuesCta:
+        'The Issue Center lists every finding with its evidence and a recommended fix, so you can decide what to work on first.',
+      openIssues: 'Open Issue Center',
+      exportComplete: 'Export is reserved for Complete scans.',
+    },
+    issues: {
+      windowTitle: 'Issue Center',
+      noScan: 'no scan',
+      heading: 'Findings and evidence',
+      lead: 'Each finding is something FluxRadar detected on a public page. Use Details to see the evidence, the affected page and a recommended fix. The status you set is remembered on your next full scan.',
+      filterLabel: 'Filter',
+      filterPlaceholder: 'rule, module, URL',
+      severityLegendTerm: 'Severity',
+      severityLegendBody:
+        'shows how urgent a finding is: Critical and High need attention first, then Medium, then Low.',
+      emptyFiltered: 'No issues match this filter',
+      emptyAll: 'No findings in this report',
+      emptyAllBody: 'FluxRadar detected nothing worth reporting on the pages it could read.',
+      columnSeverity: 'Severity',
+      columnRule: 'Rule',
+      columnTarget: 'Target',
+      columnStatus: 'Status',
+      columnAction: 'Action',
+      details: 'Details',
+      hideDetails: 'Hide details',
+      closeDetails: 'Close details',
+      evidence: 'Evidence',
+      noExcerpt: 'No excerpt available',
+      recommendation: 'Recommendation',
+      impact: 'Impact',
+      impactValue: '{affected}/{applicable} targets · score {delta}',
+      confidence: 'Confidence',
+    },
+    integrations: {
+      windowTitle: 'FluxRadar — Integrations',
+      loadingTitle: 'Integrations',
+      heading: 'Connected data sources',
+      lead: 'Optional connections are managed here. Public-site checks continue to work without them.',
+      refresh: 'Refresh',
+      connectedNotice:
+        'Google is connected. Choose which properties this website reports on below.',
+      errorNotice: 'The integration could not be connected.',
+      readyToConnect: 'Ready to connect',
+      connect: 'Connect',
+      connecting: 'Opening…',
+      disconnect: 'Disconnect',
+      disconnecting: 'Disconnecting…',
+      serverConfigured: 'Server configured',
+      serverLimited: 'Limited mode',
+      serverMissing: 'Needs server config',
+      policyTitle: 'Current policy',
+      policyBody:
+        'Google and Bing connections are read-only. FluxRadar requests no CMS credentials and never changes a client site. Public-site scans continue to work without either connection.',
     },
     checkout: {
       windowTitle: 'Payment — confirming',
@@ -354,6 +614,8 @@ export const copy = {
       blog: 'Блог',
       language: 'Мова',
       system: 'СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1',
+      navigateGroup: 'Навігація',
+      systemGroup: 'Система',
       descriptions: {
         profiles: 'Ваші збережені сайти та історія їхніх перевірок.',
         scan: 'Налаштуйте та запустіть нову перевірку.',
@@ -361,6 +623,71 @@ export const copy = {
         integrations: 'Необовʼязкові підключення даних. Публічна перевірка працює без них.',
         faq: 'Прості відповіді про кожну перевірку та межі звіту.',
       },
+    },
+    legal: {
+      kicker: 'FLUXLAB / ПУБЛІЧНИЙ ДОКУМЕНТ',
+      meta: ['FLUXRADAR.NET', 'РЕД. 2026.09', 'ПРОЧИТАЙТЕ ПЕРЕД ПІДКЛЮЧЕННЯМ'],
+      back: '← Назад до FluxRadar',
+      contents: 'МАПА ДОКУМЕНТА',
+      contentsLabel: 'Розділи документа',
+      englishNotice:
+        'Цей документ ведеться англійською. Саме англійський текст є чинною версією.',
+      footerBrand: 'FLUXRADAR / ВІД FLUXLAB',
+      questions: 'Питання:',
+      privacy: {
+        title: 'Політика приватності',
+        crossLink: 'Політика приватності →',
+        lede: 'Простими словами про те, які дані збирає FluxRadar, навіщо їх використовує і як обробляються підключені дані Google.',
+        sections: [
+          { id: 'privacy-scope', label: 'Обсяг' },
+          { id: 'privacy-data', label: 'Які дані ми обробляємо' },
+          { id: 'privacy-google', label: 'Дані користувача Google' },
+          { id: 'privacy-use', label: 'Як ми використовуємо дані' },
+          { id: 'privacy-retention', label: 'Зберігання та видалення' },
+          { id: 'privacy-rights', label: 'Ваші можливості' },
+        ],
+      },
+      terms: {
+        title: 'Умови користування',
+        crossLink: 'Умови користування →',
+        lede: 'Умови користування FluxRadar для перевірки публічних сайтів і купівлі разових звітів аудиту.',
+        sections: [
+          { id: 'terms-service', label: 'Сервіс' },
+          { id: 'terms-account', label: 'Акаунти' },
+          { id: 'terms-paid', label: 'Безкоштовні та платні перевірки' },
+          { id: 'terms-use', label: 'Прийнятне використання' },
+          { id: 'terms-results', label: 'Звіти та обмеження' },
+          { id: 'terms-ending', label: 'Припинення користування' },
+        ],
+      },
+    },
+    seo: {
+      home: {
+        title: 'FluxRadar — аудит публічного сайту: SEO, AI-краулери, безпека та доступність',
+        description:
+          'FluxRadar перевіряє будь-який публічний сайт і показує те, що бачать пошукові системи, AI-краулери та люди: SEO, готовність до AI, заголовки безпеки, доступність, продуктивність і сигнали приватності. Два разові звіти, без підписки.',
+      },
+      faq: {
+        title: 'Часті питання — що означає кожна перевірка FluxRadar | FluxRadar',
+        description:
+          'Прості відповіді про кожну перевірку FluxRadar: SEO, готовність до AI-краулерів, безпека, доступність, структуровані дані, приватність, продуктивність — і межі того, що може довести публічний аудит.',
+      },
+      checks: {
+        title: 'Обсяг аудиту — усі перевірки FluxRadar | FluxRadar',
+        description:
+          'Повний перелік того, що FluxRadar перевіряє на публічному сайті, які стандарти використовує кожен модуль, як підтверджуються знахідки та чого FluxRadar не сертифікує.',
+      },
+      privacy: {
+        title: 'Політика приватності | FluxRadar',
+        description:
+          'Які дані збирає FluxRadar, навіщо їх використовує, як обробляються підключені дані Google і скільки все це зберігається.',
+      },
+      terms: {
+        title: 'Умови користування | FluxRadar',
+        description:
+          'Умови користування FluxRadar для перевірки публічних сайтів і купівлі разових звітів аудиту.',
+      },
+      workspaceTitle: 'Робочий простір — FluxRadar',
     },
     workspace: {
       intro: 'Єдина станція аудиту публічного сайту.',
@@ -382,6 +709,8 @@ export const copy = {
       guide: 'Відкрити інструкцію',
       billing: 'Оплата',
       payPerScan: 'Оплата за перевірку',
+      logOut: 'Вийти',
+      booting: 'Завантаження',
     },
     home: {
       signIn: 'Увійти',
@@ -519,6 +848,7 @@ export const copy = {
       }),
     },
     faq: faqCopyUk,
+    checks: checksCopyUk,
     pricing: {
       publicOnly: 'Лише публічні сторінки — облікові дані клієнта не потрібні',
       included: 'Що ви отримуєте',
@@ -578,6 +908,9 @@ export const copy = {
       windowTitle: 'Нова перевірка — область і тариф',
       windowTitleEmpty: 'Нова перевірка',
       emptyTitle: 'Спочатку створіть профіль сайту',
+      emptyBody:
+        'Перевірка завжди виконується для збереженого сайту. Додайте адресу головної сторінки один раз — і вона буде доступна для всіх наступних перевірок.',
+      emptyAction: 'Додати сайт',
       panelTarget: 'Ціль',
       labelOrigin: 'Публічне джерело',
       labelSubdomains: 'Включати піддомени (де дозволено)',
@@ -610,7 +943,148 @@ export const copy = {
       runPaid: 'Оплатити та запустити',
       paidUnavailable:
         'Платні перевірки будуть доступні після підключення оплати. Безкоштовна перевірка доступна зараз.',
+      paidChecking: 'Перевіряємо, чи можна тут купити платні звіти…',
       openingCheckout: 'Відкриваємо оплату…',
+    },
+    reports: {
+      windowTitle: 'Звіти',
+      heading: 'Ваші звіти перевірок',
+      lead: 'Усі перевірки, які ви запускали, найновіші вгорі. Відкрийте звіт, щоб побачити оцінку, знахідки та що виправити.',
+      profileHeading: 'Звіти для {name}',
+      profileLead: 'Усі перевірки сайту {domain}, найновіші вгорі.',
+      showAll: 'Показати всі звіти',
+      refresh: 'Оновити',
+      emptyTitle: 'Звітів ще немає',
+      emptyBody: 'Звіт зʼявиться тут одразу після першої перевірки сайту. Почніть із безкоштовної перевірки головної сторінки.',
+      emptyProfileTitle: 'Для цього сайту звітів ще немає',
+      emptyProfileBody: 'Цей сайт ще не перевіряли. Запустіть перевірку — і її звіт зʼявиться тут.',
+      emptyAction: 'Перевірити сайт',
+      errorTitle: 'Не вдалося завантажити ваші звіти',
+      retry: 'Спробувати ще раз',
+      showMore: 'Показати давніші звіти',
+      loadingMore: 'Завантаження…',
+      showingCount: 'Показано {shown} з {total}.',
+      openReport: 'Відкрити звіт',
+      followProgress: 'Стежити за перебігом',
+      viewDetails: 'Переглянути деталі',
+      startedAt: 'Початок: {time}',
+      finishedAt: 'Завершено: {time}',
+      planLabel: 'Тариф',
+      statusLabel: 'Результат',
+      websiteLabel: 'Сайт',
+    },
+    scanProgress: {
+      windowTitle: 'Перебіг перевірки',
+      noScanTitle: 'Перевірку не вибрано',
+      noScanBody: 'Відкрийте один зі своїх звітів або запустіть нову перевірку збереженого сайту.',
+      noScanAction: 'Перейти до звітів',
+      panelTitle: 'Перевіряємо ваш сайт',
+      reviewing: 'Ми переглядаємо {domain} для вас.',
+      progressLabel: 'Перебіг аудиту',
+      ready: 'Ваш звіт готовий.',
+      finishedAt: 'Завершено: {time}.',
+      finishedUnknown: 'Перевірку завершено.',
+      running: 'Перевіряємо ваш сайт — готово {done} з {total} розділів аудиту.',
+      sectionsTitle: 'Що ми перевіряємо',
+      sectionsPreparing: 'Готуємо ваші перевірки…',
+      sectionsLabel: 'Розділи аудиту',
+      openReport: 'Відкрити звіт',
+      cancel: 'Скасувати перевірку',
+      cancelling: 'Скасовуємо…',
+      statusPartial: 'Ваш звіт готовий частково.',
+      statusFailed: 'Перевірку не вдалося завершити.',
+      statusCancelled: 'Перевірку скасовано.',
+      statusFinished: 'Перевірку завершено.',
+      sectionChecking: 'Перевіряємо…',
+      sectionPartial: 'Перевірено з обмеженнями',
+      sectionChecked: 'Перевірено',
+      sectionUnavailable: 'Недоступно',
+      sectionWaiting: 'Очікує',
+      moduleUnavailable: 'Недоступно',
+      moduleInsufficient: 'Недостатньо даних',
+      moduleCompleted: 'Завершено',
+    },
+    report: {
+      windowTitle: 'Панель звіту',
+      loadingTitle: 'Панель звіту',
+      emptyTitle: 'Звіт не відкрито',
+      emptyBody: 'Виберіть один зі своїх звітів, щоб побачити оцінку, знахідки та що виправити першим.',
+      emptyAction: 'Перейти до звітів',
+      errorTitle: 'Не вдалося відкрити цей звіт',
+      retry: 'Спробувати ще раз',
+      signalHeading: 'Єдиний сигнал сайту',
+      detailsLabel: 'Деталі звіту',
+      website: 'Сайт',
+      plan: 'Тариф',
+      report: 'Звіт',
+      helpHeading: 'Як читати цей звіт',
+      helpScoreTerm: 'Оцінка',
+      helpScoreBody:
+        'Оцінка від 0 до 100 для кожної області та для сайту загалом. Більше — краще; риска (—) означає, що публічних даних для оцінки забракло.',
+      helpCoverageTerm: 'Покриття',
+      helpCoverageBody: 'Яку частину вашого сайту FluxRadar зміг перевірити в цій області.',
+      helpFindingsTerm: 'Знахідки',
+      helpFindingsBody:
+        'Конкретні проблеми, які ми виявили, кожна з доказом. Відкрийте список знахідок нижче, щоб переглянути їх і побачити рекомендовані виправлення.',
+      noScore: 'Без оцінки',
+      coverageUnavailable: 'покриття недоступне',
+      accessibilityTitle: 'Доступність · WCAG 2.2 AA',
+      accessibilityBody:
+        'У звіті показано автоматичні перевірки DOM/CSS. Клавіатурні сценарії, обчислені стилі, видимість фокуса під накладками та валідацію під час роботи може знадобитися перевірити вручну.',
+      accessibilityNote: 'FluxRadar не надає юридичної сертифікації доступності.',
+      accessibilityLabel: 'Межі аудиту доступності',
+      issuesCta:
+        'Центр проблем показує кожну знахідку з доказом і рекомендованим виправленням, щоб ви вирішили, з чого почати.',
+      openIssues: 'Відкрити Центр проблем',
+      exportComplete: 'Експорт доступний лише для тарифу Complete.',
+    },
+    issues: {
+      windowTitle: 'Центр проблем',
+      noScan: 'без перевірки',
+      heading: 'Знахідки та докази',
+      lead: 'Кожна знахідка — це те, що FluxRadar виявив на публічній сторінці. Натисніть «Деталі», щоб побачити доказ, сторінку та рекомендоване виправлення. Встановлений вами статус збережеться під час наступної повної перевірки.',
+      filterLabel: 'Фільтр',
+      filterPlaceholder: 'правило, модуль, URL',
+      severityLegendTerm: 'Критичність',
+      severityLegendBody:
+        'показує, наскільки терміновою є знахідка: спершу Critical і High, далі Medium, потім Low.',
+      emptyFiltered: 'Жодна знахідка не відповідає фільтру',
+      emptyAll: 'У цьому звіті немає знахідок',
+      emptyAllBody: 'FluxRadar не виявив нічого вартого уваги на сторінках, які зміг прочитати.',
+      columnSeverity: 'Критичність',
+      columnRule: 'Правило',
+      columnTarget: 'Сторінка',
+      columnStatus: 'Статус',
+      columnAction: 'Дія',
+      details: 'Деталі',
+      hideDetails: 'Сховати деталі',
+      closeDetails: 'Закрити деталі',
+      evidence: 'Доказ',
+      noExcerpt: 'Фрагмент недоступний',
+      recommendation: 'Рекомендація',
+      impact: 'Вплив',
+      impactValue: '{affected}/{applicable} обʼєктів · оцінка {delta}',
+      confidence: 'Впевненість',
+    },
+    integrations: {
+      windowTitle: 'FluxRadar — Інтеграції',
+      loadingTitle: 'Інтеграції',
+      heading: 'Підключені джерела даних',
+      lead: 'Тут керують необовʼязковими підключеннями. Перевірки публічного сайту працюють і без них.',
+      refresh: 'Оновити',
+      connectedNotice: 'Google підключено. Нижче виберіть, за якими ресурсами звітує цей сайт.',
+      errorNotice: 'Не вдалося підключити інтеграцію.',
+      readyToConnect: 'Готово до підключення',
+      connect: 'Підключити',
+      connecting: 'Відкриваємо…',
+      disconnect: 'Відключити',
+      disconnecting: 'Відключаємо…',
+      serverConfigured: 'Налаштовано на сервері',
+      serverLimited: 'Обмежений режим',
+      serverMissing: 'Потрібне налаштування сервера',
+      policyTitle: 'Поточна політика',
+      policyBody:
+        'Підключення Google і Bing працюють лише на читання. FluxRadar не запитує доступів до CMS і ніколи не змінює сайт клієнта. Перевірки публічного сайту працюють без обох підключень.',
     },
     checkout: {
       windowTitle: 'Оплата — підтвердження',

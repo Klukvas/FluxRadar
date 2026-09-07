@@ -153,3 +153,35 @@ describe('production fail-closed integration checks', () => {
     expect(message).toContain(OBJECT_STORAGE_ENV_VARS.endpoint);
   });
 });
+
+// The MockPaddle surface mints purchases, entitlements and paid scans from a
+// locally signed event. It is off unless a deployment asks for it; a production
+// deployment that asks for it anyway must fail to boot rather than start selling
+// nothing.
+describe('production refuses the mock checkout surface', () => {
+  it('names the variable and stops the boot', () => {
+    const message = messageFrom({
+      ...completeProductionEnv,
+      FLUXRADAR_ENABLE_MOCK_CHECKOUT: 'true',
+    });
+
+    expect(message).toContain('FLUXRADAR_ENABLE_MOCK_CHECKOUT');
+  });
+
+  it('boots when it is absent or off', () => {
+    expect(messageFrom(completeProductionEnv)).toBe('');
+    expect(messageFrom({ ...completeProductionEnv, FLUXRADAR_ENABLE_MOCK_CHECKOUT: 'false' })).toBe(
+      '',
+    );
+  });
+
+  // The internal allowlist is the production free-access path and is unaffected.
+  it('leaves the internal free allowlist alone', () => {
+    expect(
+      messageFrom({
+        ...completeProductionEnv,
+        FLUXRADAR_INTERNAL_FREE_EMAILS: 'internal@fluxradar.test',
+      }),
+    ).toBe('');
+  });
+});

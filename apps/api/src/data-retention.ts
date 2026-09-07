@@ -46,34 +46,72 @@ export const WEBHOOK_EVENT_PURGE_BATCH_LIMIT = 1000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Deletes a scan snapshot and every dependent result row. */
-export async function deleteScanResult(prisma: PrismaClient, scanId: string): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+/**
+ * Deletes a scan snapshot and every dependent result row.
+ *
+ * `ExportArtifact` is one of those rows and its foreign key to Scan is
+ * ON DELETE RESTRICT, so leaving it out did not orphan a report — it made the
+ * delete of any scan that had ever been exported fail outright, which stopped
+ * the whole sweep (see `sweepRetention`). Its object lives outside the database,
+ * so the keys are returned rather than deleted here: storage is touched only
+ * after the transaction commits, or a rolled-back deletion would take the report
+ * of a scan that still exists.
+ */
+export async function deleteScanResult(
+  prisma: PrismaClient,
+  scanId: string,
+): Promise<readonly string[]> {
+  return prisma.$transaction(async (tx) => {
     const scan = await tx.scan.findUnique({ where: { id: scanId }, select: { accountId: true } });
     if (scan === null) {
-      return;
+      return [];
     }
     await tx.deletedScan.upsert({
       where: { scanId },
       create: { scanId, accountIdHash: accountDeletionHash(scan.accountId), reason: 'retention' },
       update: { accountIdHash: accountDeletionHash(scan.accountId), reason: 'retention' },
     });
+    const artifacts = await tx.exportArtifact.findMany({
+      where: { scanId },
+      select: { objectKey: true },
+    });
+    await tx.exportArtifact.deleteMany({ where: { scanId } });
     await tx.job.deleteMany({ where: { scanId } });
     await tx.issue.deleteMany({ where: { scanId } });
     await tx.scanModule.deleteMany({ where: { scanId } });
     await tx.aiResponseRecord.deleteMany({ where: { scanId } });
     await tx.aiConsent.deleteMany({ where: { scanId } });
     await tx.scan.delete({ where: { id: scanId } });
+    return artifacts.map(({ objectKey }) => objectKey);
   });
 }
 
-/** Removes terminal snapshots whose plan-specific retention window expired. */
-export async function purgeExpiredScans(prisma: PrismaClient, now: Date): Promise<number> {
+export interface ScanPurgeResult {
+  readonly deletedScanCount: number;
+  /** Reports whose row is gone but whose object storage delete failed. */
+  readonly orphanedArtifactCount: number;
+}
+
+/**
+ * Removes terminal snapshots whose plan-specific retention window expired, and
+ * the stored reports that belong to them.
+ *
+ * The retention window is a promise about the report as much as about the row,
+ * so the object is removed too. It is best effort and counted, never retried
+ * into a failure: a bucket that refuses a delete must not stop the sweep from
+ * removing the data it can, because stopping keeps MORE data past its window.
+ */
+export async function purgeExpiredScans(
+  prisma: PrismaClient,
+  now: Date,
+  objectStore: PrivateObjectStore | null = createConfiguredObjectStore(),
+): Promise<ScanPurgeResult> {
   const candidates = await prisma.scan.findMany({
     where: { status: { in: TERMINAL_SCAN_STATUSES } },
     select: { id: true, plan: true, createdAt: true },
   });
-  let deleted = 0;
+  let deletedScanCount = 0;
+  const objectKeys: string[] = [];
   for (const scan of candidates) {
     const retentionDays = TARIFFS[scan.plan as keyof typeof TARIFFS]?.retentionDays;
     if (retentionDays === undefined) {
@@ -81,11 +119,33 @@ export async function purgeExpiredScans(prisma: PrismaClient, now: Date): Promis
     }
     const expiresAt = scan.createdAt.getTime() + retentionDays * DAY_MS;
     if (expiresAt <= now.getTime()) {
-      await deleteScanResult(prisma, scan.id);
-      deleted += 1;
+      objectKeys.push(...(await deleteScanResult(prisma, scan.id)));
+      deletedScanCount += 1;
     }
   }
-  return deleted;
+  return {
+    deletedScanCount,
+    orphanedArtifactCount: await removeStoredObjects(objectStore, objectKeys),
+  };
+}
+
+/**
+ * Deletes report objects whose rows are already gone, and counts what stayed.
+ *
+ * S3 DELETE is idempotent, so a retried key is harmless; the count is what an
+ * operator needs, and the keys themselves are private and never reported.
+ */
+async function removeStoredObjects(
+  objectStore: PrivateObjectStore | null,
+  objectKeys: readonly string[],
+): Promise<number> {
+  if (objectStore === null || objectKeys.length === 0) {
+    return 0;
+  }
+  const cleanup = await Promise.allSettled(
+    objectKeys.map((objectKey) => objectStore.deleteObject(objectKey)),
+  );
+  return cleanup.filter((result) => result.status === 'rejected').length;
 }
 
 /**
@@ -216,6 +276,7 @@ export async function expireAbandonedCheckoutSessions(
 
 export interface RetentionSweepResult {
   readonly deletedScanCount: number;
+  readonly orphanedArtifactCount: number;
   readonly deletedWebhookEventCount: number;
   readonly expiredCheckoutSessionCount: number;
 }
@@ -227,11 +288,17 @@ export interface RetentionSweepResult {
 export async function runRetentionSweep(
   prisma: PrismaClient,
   now: Date,
+  objectStore: PrivateObjectStore | null = createConfiguredObjectStore(),
 ): Promise<RetentionSweepResult> {
-  const deletedScanCount = await purgeExpiredScans(prisma, now);
+  const scans = await purgeExpiredScans(prisma, now, objectStore);
   const deletedWebhookEventCount = await purgeUnboundWebhookEvents(prisma, now);
   const expiredCheckoutSessionCount = await expireAbandonedCheckoutSessions(prisma, now);
-  return { deletedScanCount, deletedWebhookEventCount, expiredCheckoutSessionCount };
+  return {
+    deletedScanCount: scans.deletedScanCount,
+    orphanedArtifactCount: scans.orphanedArtifactCount,
+    deletedWebhookEventCount,
+    expiredCheckoutSessionCount,
+  };
 }
 
 /**
@@ -243,6 +310,10 @@ export async function runRetentionSweep(
  * indistinguishable from a sweep that never fired. The counts are the whole
  * record of an automatic deletion, so they are logged on every pass.
  *
+ * A non-zero `orphanedArtifactCount` is the one line that needs a human: the
+ * database rows are gone and the report objects behind them are not, so they are
+ * now unreferenced and only a bucket listing can find them.
+ *
  * It never rejects: a sweep is background housekeeping and the next pass
  * retries, so a failure here must not take down the boot path or the timer that
  * calls it.
@@ -251,9 +322,10 @@ export async function sweepRetention(
   prisma: PrismaClient,
   now: Date,
   logger: ApiLogger,
+  objectStore: PrivateObjectStore | null = createConfiguredObjectStore(),
 ): Promise<void> {
   try {
-    const result = await runRetentionSweep(prisma, now);
+    const result = await runRetentionSweep(prisma, now, objectStore);
     logger.info('retention sweep completed', { ...result });
   } catch (error) {
     logger.error('retention sweep failed', {
@@ -377,13 +449,13 @@ export async function deleteAccountData(
     { maxWait: 10_000, timeout: 30_000 },
   );
 
-  if (!deleted || objectStore === null || artifacts.length === 0) {
+  if (!deleted) {
     return { orphanedArtifactCount: 0 };
   }
-  const cleanup = await Promise.allSettled(
-    artifacts.map(({ objectKey }) => objectStore.deleteObject(objectKey)),
-  );
   return {
-    orphanedArtifactCount: cleanup.filter((result) => result.status === 'rejected').length,
+    orphanedArtifactCount: await removeStoredObjects(
+      objectStore,
+      artifacts.map(({ objectKey }) => objectKey),
+    ),
   };
 }

@@ -138,10 +138,15 @@ describe('FastSpring popup checkout', () => {
   // The exact script block from developer.fastspring.com: the `fsc-api` id the
   // library requires, the pinned SBL bundle, the storefront it binds to, and the
   // three callbacks FastSpring resolves by global function name.
+  //
+  // The version is spelled out rather than interpolated from SBL_VERSION on
+  // purpose: it is the one value here that the FastSpring app also states (in
+  // the popup checkout's "Place on your Website" snippet), so an edit to the
+  // constant has to be a deliberate edit to this expectation too.
   it('declares the Store Builder script exactly as FastSpring documents it', () => {
     expect(storeBuilderScriptAttributes(STOREFRONT)).toEqual({
       id: 'fsc-api',
-      src: 'https://sbl.onfastspring.com/sbl/1.0.6/fastspring-builder.min.js',
+      src: 'https://sbl.onfastspring.com/sbl/1.0.9/fastspring-builder.min.js',
       type: 'text/javascript',
       'data-storefront': STOREFRONT,
       'data-popup-closed': 'fluxradarFastSpringPopupClosed',

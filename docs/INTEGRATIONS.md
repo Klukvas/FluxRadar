@@ -44,7 +44,13 @@ HETZNER_S3_SECRET_KEY=
 INTEGRATION_ENCRYPTION_KEY=
 ```
 
-`INTEGRATION_ENCRYPTION_KEY` must be set explicitly in production. The local fallback to `SESSION_SECRET` exists only to keep a fresh development checkout usable.
+`INTEGRATION_ENCRYPTION_KEY` must be set explicitly in production, and it must **not** be the
+same value as `SESSION_SECRET` — the two protect different things and have to rotate
+independently, and reusing one makes every stored token undecryptable the day the other
+changes. Both rules are refused by the deploy (`deploy/normalize-env-file.cjs`) and again at
+boot. The local fallback to `SESSION_SECRET` exists only to keep a fresh development checkout
+usable, and applies only when `NODE_ENV` is exactly `development` or `test`. Rotating the key
+makes existing connections undecryptable; users reconnect. See `docs/DEPLOYMENT.md`.
 
 Each block above is all-or-nothing. Leave a whole block empty and that integration is simply
 off; set only part of one and production refuses to boot, naming the missing variables (never

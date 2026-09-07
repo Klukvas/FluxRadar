@@ -11,18 +11,28 @@ import { z } from 'zod';
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
 import { cancelScan } from '../billing/cancel-scan.ts';
 import { isUniqueViolation } from '../billing/prisma-errors.ts';
+import {
+  PAID_ACCESS_INCLUDE,
+  assertPaidReportAccess,
+  assertPaidWorkAllowed,
+  isPaidAccessActive,
+  type PaidAccessScan,
+} from '../billing/report-access.ts';
 import { transitionScan } from '../billing/state-machine.ts';
 import { conflict, forbidden, notFound, paymentRequired } from '../http/errors.ts';
 import { sendOk } from '../http/envelope.ts';
+import {
+  pageMetaFrom,
+  pageQuerySchema,
+  pageRequestFrom,
+  type PageMeta,
+  type PageRequest,
+} from '../http/pagination.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import { modulePlanFor } from '../orchestrator/module-plan.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
-import {
-  SCAN_ACTION_LIMIT,
-  SCAN_ACTION_WINDOW_MS,
-  RequestRateLimiter,
-} from '../auth/rate-limit.ts';
+import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 
 export interface ScansRouterDeps {
   readonly prisma: PrismaClient;
@@ -32,15 +42,18 @@ export interface ScansRouterDeps {
 }
 
 const freeCheckBodySchema = z.object({ scope: scanScopeSchema.optional() }).optional();
-const scanListQuerySchema = z.object({
+const scanListQuerySchema = pageQuerySchema.extend({
   profileId: z.string().min(1).optional(),
   history: z.enum(['true', 'false']).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
 });
+const profileScanListQuerySchema = pageQuerySchema;
 
 const TERMINAL_MODULE_STATUSES = new Set(['Completed', 'Partial', 'Unavailable', 'Not applicable']);
 const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running'] as const;
+// Newest first, with the id as the tie-breaker: two scans created in the same
+// millisecond must not swap places between one page and the next, which would
+// show one of them twice and hide the other entirely.
+const SCAN_HISTORY_ORDER = [{ createdAt: 'desc' }, { id: 'desc' }] as const;
 
 export function scansRouter(deps: ScansRouterDeps): Router {
   const router = Router();
@@ -52,10 +65,8 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     // execution; rejecting malformed JSON keeps the boundary predictable.
     parseInput(freeCheckBodySchema, req.body);
     const accountId = accountIdFrom(res);
-    requestRateLimiter.assertAllowed(
-      `scan-create:${accountId}:${req.ip ?? 'unknown'}`,
-      SCAN_ACTION_LIMIT,
-      SCAN_ACTION_WINDOW_MS,
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('scan-create', accountId, req.ip ?? 'unknown'),
     );
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
@@ -70,10 +81,8 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   router.post('/profiles/:profileId/scans', auth, async (req, res) => {
     const input = parseInput(scanRequestInputSchema, req.body);
     const accountId = accountIdFrom(res);
-    requestRateLimiter.assertAllowed(
-      `scan-create:${accountId}:${req.ip ?? 'unknown'}`,
-      SCAN_ACTION_LIMIT,
-      SCAN_ACTION_WINDOW_MS,
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('scan-create', accountId, req.ip ?? 'unknown'),
     );
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
@@ -87,6 +96,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
 
   router.get('/scans', auth, async (req, res) => {
     const query = parseInput(scanListQuerySchema, req.query);
+    const page = pageRequestFrom(query);
     const accountId = accountIdFrom(res);
     if (query.profileId !== undefined) {
       await findOwnProfile(deps.prisma, accountId, query.profileId);
@@ -95,23 +105,11 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       accountId,
       ...(query.profileId !== undefined ? { siteProfileId: query.profileId } : {}),
     };
-    const all = await deps.prisma.scan.findMany({
-      where,
-      include: { modules: true, siteProfile: true },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    });
-    const visible = await applyHistoryGate(all, query.history === 'true');
-    const page = visible.slice(query.offset, query.offset + query.limit);
+    const listed = await listScanHistory(deps.prisma, where, page, query.history === 'true');
     sendOk(
       res,
-      page.map((scan) => toScanDto(scan, scan.modules)),
-      {
-        meta: {
-          total: visible.length,
-          page: Math.floor(query.offset / query.limit) + 1,
-          limit: query.limit,
-        },
-      },
+      listed.scans.map((scan) => toScanDto(scan, readableModules(scan))),
+      { meta: listed.meta },
     );
   });
 
@@ -119,42 +117,44 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   // one in-flight scan lets a workspace recover after a refresh without
   // unlocking or exposing historical results.
   router.get('/scans/active', auth, async (req, res) => {
-    const scan = await deps.prisma.scan.findFirst({
+    const scan = (await deps.prisma.scan.findFirst({
       where: { accountId: accountIdFrom(res), status: { in: [...ACTIVE_SCAN_STATUSES] } },
-      include: { modules: true },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    });
-    sendOk(res, scan === null ? null : toScanDto(scan, scan.modules));
+      include: { modules: true, ...PAID_ACCESS_INCLUDE },
+      orderBy: [...SCAN_HISTORY_ORDER],
+    })) as OwnScan | null;
+    sendOk(res, scan === null ? null : toScanDto(scan, readableModules(scan)));
   });
 
   router.get('/profiles/:profileId/scans', auth, async (req, res) => {
+    const query = parseInput(profileScanListQuerySchema, req.query);
+    const page = pageRequestFrom(query);
     const accountId = accountIdFrom(res);
     const profileId = requiredParam(req.params.profileId, 'profileId');
     await findOwnProfile(deps.prisma, accountId, profileId);
-    const scans = await deps.prisma.scan.findMany({
-      where: { accountId, siteProfileId: profileId },
-      include: { modules: true },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    });
-    const visible = await applyHistoryGate(scans, false);
+    // Never the history view: this list is the profile's own results, so the
+    // Complete-only gate applies here exactly as it does with history=false.
+    const listed = await listScanHistory(
+      deps.prisma,
+      { accountId, siteProfileId: profileId },
+      page,
+      false,
+    );
     sendOk(
       res,
-      visible.map((scan) => toScanDto(scan, scan.modules)),
-      {
-        meta: { total: visible.length, page: 1, limit: visible.length || 1 },
-      },
+      listed.scans.map((scan) => toScanDto(scan, readableModules(scan))),
+      { meta: listed.meta },
     );
   });
 
   router.get('/scans/:scanId', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
-    const scan = await findOwnScan(deps.prisma, accountIdFrom(res), scanId);
+    const scan = await findOwnReportScan(deps.prisma, accountIdFrom(res), scanId);
     sendOk(res, toScanDto(scan, scan.modules));
   });
 
   router.get('/scans/:scanId/dashboard', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
-    const scan = await findOwnScan(deps.prisma, accountIdFrom(res), scanId);
+    const scan = await findOwnReportScan(deps.prisma, accountIdFrom(res), scanId);
     const moduleSummaries = scan.modules.flatMap((module) => {
       if (!isModuleName(module.module)) return [];
       return [
@@ -185,12 +185,14 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   router.post('/scans/:scanId/process', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
     const accountId = accountIdFrom(res);
-    requestRateLimiter.assertAllowed(
-      `scan-process:${accountId}:${req.ip ?? 'unknown'}`,
-      SCAN_ACTION_LIMIT,
-      SCAN_ACTION_WINDOW_MS,
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('scan-process', accountId, req.ip ?? 'unknown'),
     );
     const scan = await findOwnScan(deps.prisma, accountId, scanId);
+    // Running the scan is what the purchase bought, so a refunded or suspended
+    // one may not re-trigger it. The worker refuses the job as well; this is the
+    // answer the caller gets instead of a 202 for work that will never run.
+    assertPaidWorkAllowed(scan, deps.now());
     if (scan.status === 'Completed' || scan.status === 'Cancelled') {
       throw conflict('SCAN_TERMINAL', 'scan is already terminal');
     }
@@ -201,32 +203,17 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   router.post('/scans/:scanId/retry', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
     const accountId = accountIdFrom(res);
-    requestRateLimiter.assertAllowed(
-      `scan-retry:${accountId}:${req.ip ?? 'unknown'}`,
-      SCAN_ACTION_LIMIT,
-      SCAN_ACTION_WINDOW_MS,
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('scan-retry', accountId, req.ip ?? 'unknown'),
     );
     const scan = await findOwnScan(deps.prisma, accountId, scanId);
     if (scan.status !== 'Partial') {
       throw conflict('RETRY_NOT_ALLOWED', 'only Partial scans can use the module retry');
     }
-    if (scan.purchaseId !== null) {
-      const entitlement = await deps.prisma.entitlement.findUnique({
-        where: { purchaseId: scan.purchaseId },
-        include: { purchase: true },
-      });
-      if (
-        entitlement === null ||
-        entitlement.suspended ||
-        entitlement.expiresAt.getTime() <= deps.now().getTime() ||
-        entitlement.purchase.status !== 'paid'
-      ) {
-        throw forbidden(
-          'ENTITLEMENT_INACTIVE',
-          'scan retry is unavailable after entitlement expiry or suspension',
-        );
-      }
-    }
+    // D-194: a retry needs an ACTIVE paid entitlement — paid, not suspended and
+    // not expired. The rule now lives beside the one the read paths apply, so
+    // the two can no longer drift apart.
+    assertPaidWorkAllowed(scan, deps.now());
     const input = z
       .object({ module: z.string().min(1).optional() })
       .optional()
@@ -257,9 +244,20 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     sendOk(res, { scanId: scan.id, status: 'Running', module: retryModule }, { status: 202 });
   });
 
+  // DELIBERATELY NOT GUARDED by paid access. Cancelling returns no report data,
+  // and it is how a customer stops work that is still running — including work
+  // running under a purchase that has just been refunded, where refusing would
+  // leave them unable to stop a scan they no longer own. The refund path itself
+  // is idempotent (billing/cancel-scan.ts).
   router.post('/scans/:scanId/cancel', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
-    const scan = await findOwnScan(deps.prisma, accountIdFrom(res), scanId);
+    const accountId = accountIdFrom(res);
+    // Cancellation is a write that can also open a refund; it belongs under the
+    // same ceiling as the other scan actions rather than being free to repeat.
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('scan-cancel', accountId, req.ip ?? 'unknown'),
+    );
+    const scan = await findOwnScan(deps.prisma, accountId, scanId);
     const cancelled = await cancelScan(deps.prisma, scan.id);
     const updated = await deps.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
     sendOk(res, {
@@ -321,19 +319,50 @@ export async function createFreeScan(
   });
 }
 
+export type OwnScan = Scan &
+  PaidAccessScan & { readonly modules: readonly ScanModule[] };
+
+/**
+ * One scan of this account, or a 404 — the tenant boundary, unchanged.
+ *
+ * It always loads the paid-access snapshot with it, so no caller has to remember
+ * a second query and no read path can silently skip the guard for lack of the
+ * data to apply it.
+ */
 export async function findOwnScan(
   prisma: PrismaClient,
   accountId: string,
   scanId: string,
-): Promise<Scan & { readonly modules: readonly ScanModule[] }> {
+): Promise<OwnScan> {
   const scan = await prisma.scan.findFirst({
     where: { id: scanId, accountId },
-    include: { modules: true },
+    include: { modules: true, ...PAID_ACCESS_INCLUDE },
   });
   if (scan === null) {
     throw notFound('scan not found');
   }
-  return scan as Scan & { readonly modules: readonly ScanModule[] };
+  return scan as OwnScan;
+}
+
+/**
+ * The same scan, but only while the purchase behind it still entitles the
+ * account to the report. EVERY read of paid report data goes through this —
+ * details, dashboard, issues, evidence and export — so a refunded or charged-back
+ * purchase revokes all of them together instead of one at a time.
+ */
+export async function findOwnReportScan(
+  prisma: PrismaClient,
+  accountId: string,
+  scanId: string,
+): Promise<OwnScan> {
+  const scan = await findOwnScan(prisma, accountId, scanId);
+  assertPaidReportAccess(scan);
+  return scan;
+}
+
+/** Modules are report data, so a scan whose payment came back lists none. */
+export function readableModules(scan: OwnScan): readonly ScanModule[] {
+  return isPaidAccessActive(scan) ? scan.modules : [];
 }
 
 function toScanDto(scan: Scan, modules: readonly ScanModule[]): Record<string, unknown> {
@@ -389,23 +418,68 @@ function parseScope(value: string): unknown {
   }
 }
 
-async function applyHistoryGate(
-  scans: readonly (Scan & { modules: ScanModule[] })[],
+type ScanWithModules = Scan & PaidAccessScan & { modules: ScanModule[] };
+
+interface ScanHistoryPage {
+  readonly scans: readonly ScanWithModules[];
+  readonly meta: PageMeta;
+}
+
+/**
+ * One page of scan history, gated and counted by PostgreSQL.
+ *
+ * The gate is unchanged: a Complete purchase unlocks the full historical list,
+ * an account that has bought Basic but never Complete sees only its current
+ * result, and a Free/Basic result stays reachable by its own scan id in either
+ * case — the gate hides the list, not the scan. What changed
+ * is where the work happens — this used to load every scan the account had ever
+ * run, decide the gate over the loaded array and slice the page in JavaScript,
+ * which made the cost of listing grow with how long a customer had been paying
+ * us. The gate is now two existence probes and the page is one indexed read.
+ */
+async function listScanHistory(
+  prisma: PrismaClient,
+  where: { readonly accountId: string; readonly siteProfileId?: string },
+  page: PageRequest,
   historyRequested: boolean,
-) {
-  const hasComplete = scans.some((scan) => scan.plan === 'Complete');
-  if (!hasComplete && scans.some((scan) => scan.plan === 'Basic')) {
+): Promise<ScanHistoryPage> {
+  const [complete, basic] = await Promise.all([
+    prisma.scan.findFirst({ where: { ...where, plan: 'Complete' }, select: { id: true } }),
+    prisma.scan.findFirst({ where: { ...where, plan: 'Basic' }, select: { id: true } }),
+  ]);
+  if (complete === null && basic !== null) {
     if (historyRequested) {
       throw forbidden(
         'HISTORY_REQUIRES_COMPLETE',
         'scan history is available on Complete scans only',
       );
     }
-    return scans.slice(0, 1);
+    // Exactly one row is visible, so only the first page can carry it.
+    const current =
+      page.offset === 0
+        ? ((await prisma.scan.findMany({
+            where,
+            include: { modules: true, ...PAID_ACCESS_INCLUDE },
+            orderBy: [...SCAN_HISTORY_ORDER],
+            take: 1,
+          })) as ScanWithModules[])
+        : [];
+    return {
+      scans: current,
+      meta: { total: 1, page: page.page, limit: page.limit, hasNext: false },
+    };
   }
-  // The Complete purchase unlocks the full historical list. Free/Basic current
-  // results remain accessible by direct scan id even when history is gated.
-  return scans;
+  const [scans, total] = await Promise.all([
+    prisma.scan.findMany({
+      where,
+      include: { modules: true, ...PAID_ACCESS_INCLUDE },
+      orderBy: [...SCAN_HISTORY_ORDER],
+      skip: page.offset,
+      take: page.limit,
+    }) as Promise<ScanWithModules[]>,
+    prisma.scan.count({ where }),
+  ]);
+  return { scans, meta: pageMetaFrom(page, scans.length, total) };
 }
 
 function retryableModule(
