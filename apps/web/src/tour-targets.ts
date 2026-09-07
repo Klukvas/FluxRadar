@@ -9,9 +9,9 @@ export const tourTargets = {
   workspaceHeader: 'workspace-header',
   /** The navigation container itself: the desktop tab strip and the mobile sheet. */
   workspaceTabs: 'workspace-tabs',
-  /** Website address field of the add-site form. */
+  /** Site address field of the add-profile form. */
   profileDomain: 'profile-domain',
-  /** Submit button of the add-site form. */
+  /** Submit button of the add-profile form. */
   saveProfile: 'save-profile',
 } as const;
 

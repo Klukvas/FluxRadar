@@ -12,6 +12,7 @@ import {
   LoadingState,
   MenuBar,
   Panel,
+  PoweredByFluxLab,
   ScoreDial,
   SelectField,
   StatusChip,
@@ -27,12 +28,6 @@ import {
   type SiteProfile,
 } from './api';
 import {
-  normalizeWebsiteInput,
-  WEBSITE_INPUT_HINT,
-  WEBSITE_INPUT_LABEL,
-  WEBSITE_INPUT_PLACEHOLDER,
-} from './website-input';
-import {
   CheckoutPending,
   clearPendingCheckout,
   openCheckoutWindow,
@@ -41,6 +36,8 @@ import {
   useCheckoutConfig,
   type PendingCheckout,
 } from './Checkout';
+import { SUPPORT_EMAIL } from './brand';
+import { CoverageTicker } from './CoverageTicker';
 import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
 import { applyPageMetadata, type SeoPageId } from './seo';
 import { OnboardingTour } from './OnboardingTour';
@@ -53,6 +50,7 @@ import { ResultsScreen } from './Report';
 import { ScanScreen } from './ScanProgress';
 import { ReportsScreen } from './Reports';
 import { isTerminalScanStatus } from './scan-status';
+import { normalizeSiteAddress, siteNameFromAddress } from './site-address-input';
 import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 import './styles/base.css';
 
@@ -249,7 +247,7 @@ export function App() {
   const [account, setAccount] = useState<Account | null>(null);
   const [profiles, setProfiles] = useState<SiteProfile[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<SiteProfile | null>(null);
-  // Which website the reports list is scoped to; null lists the whole account.
+  // Which profile the reports list is scoped to; null lists the whole account.
   const [reportsProfile, setReportsProfile] = useState<SiteProfile | null>(null);
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -441,9 +439,7 @@ export function App() {
       // `/scans/:id` is the report once the scan has one and the progress window
       // while it is still running — the same rule the deep link is resolved by,
       // so going back to a URL shows what going forward to it showed.
-      setScreen(
-        route.screen === 'issues' ? 'issues' : isTerminalScan(loaded) ? 'results' : 'scan',
-      );
+      setScreen(route.screen === 'issues' ? 'issues' : isTerminalScan(loaded) ? 'results' : 'scan');
     }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -733,12 +729,19 @@ export function App() {
             profiles={profiles}
             language={language}
             onClose={() => navigate('desktop')}
+            onAddProfile={() => navigate('desktop')}
+            onProfilesChanged={async () => {
+              await loadProfiles(setProfiles);
+            }}
             onError={setError}
           />
         ) : null}
         {tourOpen && screen === 'desktop' ? (
           <OnboardingTour language={language} onFinish={finishOnboarding} onSkip={skipOnboarding} />
         ) : null}
+        <footer className="desktop__footer">
+          <PoweredByFluxLab language={language} />
+        </footer>
       </div>
     </div>
   );
@@ -815,9 +818,9 @@ function LegalDocumentScreen(props: {
         <footer className="legal-footer">
           <span>{t.footerBrand}</span>
           <span>
-            {t.questions}{' '}
-            <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>
+            {t.questions} <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
           </span>
+          <PoweredByFluxLab language={props.language} />
         </footer>
       </main>
     </div>
@@ -944,7 +947,7 @@ function PrivacyPolicy() {
           You can choose not to connect Google or Bing and still use public-site checks. You can
           disconnect a provider, stop using the service or contact us about access, correction or
           deletion requests. For privacy questions, contact{' '}
-          <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>.
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
         </p>
         <p>
           We may update this policy when the service or its data practices change. The effective
@@ -1055,7 +1058,7 @@ function TermsOfService() {
           To the maximum extent permitted by law, FluxRadar is provided without guarantees of
           uninterrupted availability or error-free results. Nothing in these terms excludes rights
           that cannot lawfully be excluded. Questions about a purchase or these terms can be sent to{' '}
-          <a href="mailto:pavlenkoandrey56@gmail.com">pavlenkoandrey56@gmail.com</a>.
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
         </p>
       </section>
     </article>
@@ -1444,14 +1447,17 @@ function HomeScreen(props: {
           </div>
         </section>
 
-        <div className="home__ticker" aria-label={t.home.ticker.ariaLabel}>
-          <span>{t.home.ticker.seo}</span>
-          <span>{t.home.ticker.aiSeo}</span>
-          <span>{t.home.ticker.security}</span>
-          <span>{t.home.ticker.accessibility}</span>
-          <span>{t.home.ticker.reliability}</span>
-          <span>{t.home.ticker.privacy}</span>
-        </div>
+        <CoverageTicker
+          label={t.home.ticker.ariaLabel}
+          items={[
+            t.home.ticker.seo,
+            t.home.ticker.aiSeo,
+            t.home.ticker.security,
+            t.home.ticker.accessibility,
+            t.home.ticker.reliability,
+            t.home.ticker.privacy,
+          ]}
+        />
 
         <section className="home__section" id="capabilities" aria-labelledby="capabilities-title">
           <div className="home__section-head">
@@ -1570,6 +1576,7 @@ function HomeScreen(props: {
             <a href="/blog">{t.home.footer.fieldNotes}</a>
             <span>{t.nav.system}</span>
           </span>
+          <PoweredByFluxLab language={props.language} />
         </footer>
       </main>
       {props.authOpen ? (
@@ -1612,14 +1619,29 @@ function DesktopScreen(props: {
 }) {
   const t = copy[props.language];
   const [name, setName] = useState('');
+  // The last name this form filled in from the address. Anything else in the
+  // name field was typed by the owner and is never overwritten.
+  const [suggestedName, setSuggestedName] = useState('');
   const [domain, setDomain] = useState('');
   const [domainError, setDomainError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * Keep the display name in step with the address until the owner takes it
+   * over: an empty name, or one this form suggested, follows what is typed;
+   * a name the owner edited stays exactly as they left it.
+   */
+  const updateSuggestedName = (address: string) => {
+    if (name !== '' && name !== suggestedName) return;
+    const next = siteNameFromAddress(address) ?? '';
+    setSuggestedName(next);
+    setName(next);
+  };
+
   const create = async (event: FormEvent) => {
     event.preventDefault();
-    const normalized = normalizeWebsiteInput(domain);
+    const normalized = normalizeSiteAddress(domain);
     if (!normalized.ok) {
-      setDomainError(normalized.error);
+      setDomainError(t.workspace.siteAddressError);
       return;
     }
     setDomainError(null);
@@ -1630,6 +1652,7 @@ function DesktopScreen(props: {
         body: JSON.stringify({ name: name.trim(), domain: normalized.origin }),
       });
       setName('');
+      setSuggestedName('');
       setDomain('');
       await props.onRefresh();
     } catch (caught) {
@@ -1645,24 +1668,10 @@ function DesktopScreen(props: {
           <Panel title={t.workspace.registered}>
             <div>
               {props.profiles.length === 0 ? (
-                <EmptyState
-                  title={t.workspace.noSites}
-                  description={t.workspace.noSitesHelp}
-                  action={
-                    <Button
-                      variant="primary"
-                      onClick={() =>
-                        document
-                          .querySelector<HTMLInputElement>(
-                            '[data-tour-target="profile-domain"] input',
-                          )
-                          ?.focus()
-                      }
-                    >
-                      {t.workspace.addSite}
-                    </Button>
-                  }
-                />
+                // No call to action here: the add-profile form with its own
+                // save button is already on this screen, so a second "Add
+                // profile" button would only point at what is next to it.
+                <EmptyState title={t.workspace.noSites} description={t.workspace.noSitesHelp} />
               ) : (
                 props.profiles.map((profile) => (
                   <div className="profile-row" key={profile.id}>
@@ -1693,14 +1702,16 @@ function DesktopScreen(props: {
                 placeholder={t.workspace.displayNamePlaceholder}
               />
               <Field
-                label={WEBSITE_INPUT_LABEL}
+                label={t.workspace.siteAddressLabel}
+                technical
                 value={domain}
                 onChange={(value) => {
                   setDomain(value);
                   if (domainError !== null) setDomainError(null);
+                  updateSuggestedName(value);
                 }}
-                placeholder={WEBSITE_INPUT_PLACEHOLDER}
-                hint={WEBSITE_INPUT_HINT}
+                placeholder={t.workspace.siteAddressPlaceholder}
+                hint={t.workspace.siteAddressHint}
                 error={domainError ?? undefined}
                 data-tour-target="profile-domain"
               />
@@ -1948,24 +1959,28 @@ function NewScanScreen(props: {
             <>
               <Field
                 label={t.newScan.labelMaxPages}
+                technical
                 value={maxPages}
                 onChange={setMaxPages}
                 type="number"
               />
               <Field
                 label={t.newScan.labelMaxDepth}
+                technical
                 value={maxDepth}
                 onChange={setMaxDepth}
                 type="number"
               />
               <Field
                 label={t.newScan.labelIncludePatterns}
+                technical
                 value={includePatterns}
                 onChange={setIncludePatterns}
                 placeholder="/docs/*, /blog/*"
               />
               <Field
                 label={t.newScan.labelExcludePatterns}
+                technical
                 value={excludePatterns}
                 onChange={setExcludePatterns}
                 placeholder="/admin/*, /private/*"
@@ -2070,7 +2085,12 @@ function Styleguide(props: {
           </Window>
           <Window title="Controls">
             <div className="form-grid">
-              <Field label="Technical URL" value="https://example.com" onChange={() => undefined} />
+              <Field
+                label="Technical URL"
+                technical
+                value="https://example.com"
+                onChange={() => undefined}
+              />
               <SelectField
                 label="Module"
                 value="SEO"

@@ -37,8 +37,7 @@
       .tag--ok{color:#1a6b2f;border-color:#1a6b2f;background:#d6efd9}
       .tag--warn{color:#8a5b00;border-color:#8a5b00;background:#ffe9c2}
       .tag--err{color:#9b1c12;border-color:#9b1c12;background:#ffd9d4}
-      footer{border-top:1px solid #888;margin-top:48px;padding-top:20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font:12px Monaco,"SF Mono",Menlo,monospace}
-      @media(max-width:680px){main{padding:20px 18px 28px}h1{font-size:23px}h2{font-size:18px}.figure{margin:24px -2px;padding:12px}.sig-table{font-size:13px}footer{flex-direction:column}}
+      @media(max-width:699px){main{padding:20px 18px 28px}h1{font-size:23px}h2{font-size:18px}.figure{margin:24px -2px;padding:12px}.sig-table{font-size:13px}}
       @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:1ms!important;transition-duration:1ms!important}}
 
     </style>
@@ -81,7 +80,7 @@
           <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
           <a class="menubar__item" href="/" data-t="nav.home">Home</a>
           <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
-          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog">Blog</a>
           <span class="menubar__spacer"></span>
         </div>
         <div class="menubar__meta">
@@ -118,7 +117,7 @@
     </nav>
 
     <div class="blog-page">
-      <main>
+      <main id="blog-main">
 
       <div class="kicker">ПРИВАТНІСТЬ ТА CONSENT <span class="lang">UA</span> &#xB7; <time datetime="2026-09-05">5 ВЕРЕСНЯ 2026</time></div>
       <h1>Приватність та cookie-сигнали: що бачать публічні краулери</h1>
@@ -239,9 +238,22 @@ Permissions-Policy: camera=(), microphone=(), geolocation=()</div>
       <h2>Що FluxRadar перевіряє</h2>
       <p>FluxRadar перевіряє публічні сигнали конфіденційності без автентифікації: HTTP-заголовки безпеки, наявність посилань на Cookie Policy та Privacy Policy у DOM, сторонні ресурси у вихідному HTML та відповідність <code>robots.txt</code>. <a href="/">Запустити перевірку &#x2192;</a></p>
 
-      <footer>
+      <footer class="site-footer">
         <a href="/blog/uk/tekhnichne-seo-audyt">&#x2190; Попередня: Технічний SEO</a>
         <a href="/blog">Усі нотатки &#x2192;</a>
+        <span class="powered-by">
+          <a
+            class="powered-by__link"
+            href="https://flux-lab.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-t-label="blog.poweredByAria"
+            aria-label="Працює на FluxLab (відкривається в новій вкладці)"
+          >
+            <span class="powered-by__mark" aria-hidden="true">◈</span>
+            <span data-t="blog.poweredBy">Працює на FluxLab</span>
+          </a>
+        </span>
       </footer>
       </main>
     </div>

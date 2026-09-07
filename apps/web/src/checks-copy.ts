@@ -9,6 +9,8 @@
 // Two inline markers are allowed inside a paragraph or a bullet body:
 // `code` renders as <code> and **strong** as <strong>. Anything else is text.
 
+import { SUPPORT_EMAIL } from './brand';
+
 export type ChecksSectionId =
   | 'how'
   | 'seo'
@@ -98,7 +100,7 @@ export const checksCopyEn: ChecksCopy = {
     'FluxRadar fetches only public HTTP responses. No CMS login, SSH access, database credentials or source-code access is required or requested.',
   noticeTag: 'Applies to all scan tiers',
   contact: 'Questions about coverage or evidence:',
-  contactEmail: 'pavlenkoandrey56@gmail.com',
+  contactEmail: SUPPORT_EMAIL,
   footerBrand: 'FLUXRADAR / BY FLUXLAB',
   footerHome: 'Home',
   footerPrivacy: 'Privacy policy',
@@ -429,7 +431,7 @@ export const checksCopyUk: ChecksCopy = {
     'FluxRadar завантажує лише публічні HTTP-відповіді. Вхід у CMS, доступ по SSH, дані до бази чи вихідний код не потрібні й не запитуються.',
   noticeTag: 'Стосується всіх тарифів',
   contact: 'Питання про обсяг або докази:',
-  contactEmail: 'pavlenkoandrey56@gmail.com',
+  contactEmail: SUPPORT_EMAIL,
   footerBrand: 'FLUXRADAR / ВІД FLUXLAB',
   footerHome: 'Головна',
   footerPrivacy: 'Політика приватності',

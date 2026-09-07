@@ -36,7 +36,7 @@ const PAGE_SIZE = 20;
 
 export interface ReportsScreenProps {
   readonly language: Language;
-  /** When set, the list is scoped to that website instead of the whole account. */
+  /** When set, the list is scoped to that profile instead of the whole account. */
   readonly profile: SiteProfile | null;
   readonly onOpenScan: (scan: Scan) => void;
   readonly onNewScan: () => void;
@@ -200,11 +200,7 @@ function ReportsBody(props: {
     <ul className="report-list" aria-label={t.heading}>
       {props.list.scans.map((scan) => (
         <li key={scan.id}>
-          <ReportRow
-            scan={scan}
-            language={props.language}
-            onOpen={() => props.onOpenScan(scan)}
-          />
+          <ReportRow scan={scan} language={props.language} onOpen={() => props.onOpenScan(scan)} />
         </li>
       ))}
     </ul>
@@ -240,7 +236,7 @@ function ReportRow(props: { scan: Scan; language: Language; onOpen: () => void }
       </div>
       <div className="report-row__action">
         {/* Every row's button reads the same on screen, so the accessible name
-            carries the website too — otherwise a screen reader announces a list
+            carries the site address too — otherwise a screen reader announces a list
             of identical "Open report" buttons with no way to tell them apart.
             The visible text stays the start of the name (WCAG 2.5.3). */}
         <Button

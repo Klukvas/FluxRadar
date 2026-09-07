@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL } from './brand';
 import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 
 // Public FAQ content, kept out of `i18n.ts` so the answer copy can grow without
@@ -90,7 +91,7 @@ export const faqCopyEn: FaqCopy = {
     'FluxRadar only makes ordinary public requests to your website, the same ones a browser or a search engine makes. It never needs a CMS password, SSH access, database credentials or your source code.',
   noticeTag: 'Applies to every scan',
   contact: 'Question that is not answered here? Write to',
-  contactEmail: 'pavlenkoandrey56@gmail.com',
+  contactEmail: SUPPORT_EMAIL,
   footerBrand: 'FLUXRADAR / BY FLUXLAB',
   footerHome: 'Home',
   footerCoverage: 'Audit coverage',
@@ -133,7 +134,7 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'What is a profile?',
           answer: [
-            'A profile is a website you saved: its public address plus a name you recognise. It keeps the audit history for that site in one place, so a later scan can be compared with an earlier one.',
+            'A profile is a site you saved: its public address plus a name you recognise. It keeps the audit history for that site in one place, so a later scan can be compared with an earlier one.',
             'Saving a profile does not start a scan and does not charge you. It is only the bookmark the workspace works from.',
           ],
         },
@@ -413,7 +414,7 @@ export const faqCopyUk: FaqCopy = {
     'FluxRadar робить до вашого сайту звичайні публічні запити — такі самі, як браузер або пошуковий робот. Пароль до CMS, доступ по SSH, дані бази чи вихідний код не потрібні.',
   noticeTag: 'Стосується кожної перевірки',
   contact: 'Немає відповіді на ваше питання? Напишіть на',
-  contactEmail: 'pavlenkoandrey56@gmail.com',
+  contactEmail: SUPPORT_EMAIL,
   footerBrand: 'FLUXRADAR / ВІД FLUXLAB',
   footerHome: 'Головна',
   footerCoverage: 'Покриття аудиту',

@@ -52,7 +52,7 @@ export function createGoogleDataRunner(options: GoogleDataRunnerOptions): Google
         // the user to pick a property instead of implying Google has no data.
         return connectionStateSnapshot(
           'no_property_selected',
-          'No Google property is linked to this website yet. Choose one in Integrations.',
+          'No Google property is linked to this profile yet. Choose one in Integrations.',
           timestamp,
         );
       }

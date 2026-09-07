@@ -146,6 +146,38 @@ describe('Ukrainian result screens', () => {
   });
 });
 
+describe('one word for a saved site, in both languages', () => {
+  // The workspace called the same record a Profile in the navigation and a
+  // Website in the Google picker, the reports list and the report header. Every
+  // surface that talks about a saved record now says Profile / Профіль; "site"
+  // and "адреса сайту" are kept only for the address itself.
+  const workspaceSurfaces = [
+    'nav',
+    'workspace',
+    'newScan',
+    'reports',
+    'scanProgress',
+    'report',
+    'integrations',
+    'tour',
+  ] as const;
+
+  it('never calls a saved profile a Website on a workspace surface', () => {
+    for (const language of ['en', 'uk'] as const) {
+      for (const surface of workspaceSurfaces) {
+        expect(JSON.stringify(copy[language][surface])).not.toMatch(/website|вебсайт|веб-сайт/i);
+      }
+    }
+  });
+
+  it('names the profile picker of the Google panel Profile, not Website', () => {
+    expect(copy.en.integrations.google.profileLabel).toBe('Profile');
+    expect(copy.uk.integrations.google.profileLabel).toBe('Профіль');
+    expect(copy.en.integrations.google.emptyAction).toBe('Add profile');
+    expect(copy.uk.integrations.google.emptyAction).toBe('Додати профіль');
+  });
+});
+
 describe('every localized screen has both languages', () => {
   it('defines the same keys in English and Ukrainian', () => {
     const keysOf = (value: unknown, prefix = ''): string[] =>

@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
 import { cancelScan } from '../billing/cancel-scan.ts';
+import { isFreeCheckAllowedOrigin } from '../billing/free-check-allowlist.ts';
 import { isUniqueViolation } from '../billing/prisma-errors.ts';
 import {
   PAID_ACCESS_INCLUDE,
@@ -39,6 +40,8 @@ export interface ScansRouterDeps {
   readonly now: () => Date;
   readonly enqueueScan: (scanId: string) => void;
   readonly requestRateLimiter?: RequestRateLimiter;
+  /** Origins exempt from both Free-check limits; empty keeps the one-time rule. */
+  readonly freeCheckAllowedOrigins?: ReadonlySet<string>;
 }
 
 const freeCheckBodySchema = z.object({ scope: scanScopeSchema.optional() }).optional();
@@ -59,6 +62,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   const router = Router();
   const auth = requireAuth(deps.prisma, deps.now);
   const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
+  const freeCheckAllowedOrigins = deps.freeCheckAllowedOrigins ?? new Set<string>();
 
   router.post('/profiles/:profileId/free-check', auth, async (req, res) => {
     // Validate the optional shape even though Free always forces homepage-only
@@ -70,7 +74,13 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     );
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
-    const created = await createFreeScan(deps.prisma, accountId, profile.id, deps.now());
+    const created = await createFreeScan(
+      deps.prisma,
+      accountId,
+      profile.id,
+      deps.now(),
+      freeCheckAllowedOrigins,
+    );
     deps.enqueueScan(created.id);
     sendOk(res, toScanDto(created, []), { status: 201 });
   });
@@ -89,7 +99,13 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     if (input.plan !== 'Free') {
       throw paymentRequired('Basic and Complete scans must be purchased before creation');
     }
-    const scan = await createFreeScan(deps.prisma, accountId, profile.id, deps.now());
+    const scan = await createFreeScan(
+      deps.prisma,
+      accountId,
+      profile.id,
+      deps.now(),
+      freeCheckAllowedOrigins,
+    );
     deps.enqueueScan(scan.id);
     sendOk(res, toScanDto(scan, []), { status: 201 });
   });
@@ -271,33 +287,46 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   return router;
 }
 
+/**
+ * Creates the one Free scan an account is entitled to, or an unmetered one for
+ * an origin this deployment allowlisted.
+ *
+ * The profile is read first because the allowlist is keyed by its domain, and
+ * the limits are only spent when the domain is not exempt: an allowlisted origin
+ * leaves freeCheckUsedAt untouched and writes no global claim, so it can be
+ * re-checked from any account, as often as it needs to be. Everything stays in
+ * one transaction, so a scan that fails to be created never spends a limit.
+ */
 export async function createFreeScan(
   prisma: PrismaClient,
   accountId: string,
   siteProfileId: string,
   now: Date,
+  allowedOrigins: ReadonlySet<string> = new Set(),
 ): Promise<Scan> {
   return prisma.$transaction(async (tx) => {
-    const claimed = await tx.account.updateMany({
-      where: { id: accountId, freeCheckUsedAt: null },
-      data: { freeCheckUsedAt: now },
-    });
-    if (claimed.count !== 1) {
-      throw conflict('FREE_CHECK_USED', 'the one-time free check has already been used');
-    }
     const profile = await tx.siteProfile.findFirst({ where: { id: siteProfileId, accountId } });
     if (profile === null) {
       throw notFound('site profile not found');
     }
-    try {
-      await tx.freeCheckClaim.create({
-        data: { origin: profile.domain, claimedAt: now },
+    if (!isFreeCheckAllowedOrigin(profile.domain, allowedOrigins)) {
+      const claimed = await tx.account.updateMany({
+        where: { id: accountId, freeCheckUsedAt: null },
+        data: { freeCheckUsedAt: now },
       });
-    } catch (error) {
-      if (isUniqueViolation(error, 'origin')) {
-        throw conflict('FREE_CHECK_DOMAIN_USED', 'this domain has already received a free check');
+      if (claimed.count !== 1) {
+        throw conflict('FREE_CHECK_USED', 'the one-time free check has already been used');
       }
-      throw error;
+      try {
+        await tx.freeCheckClaim.create({
+          data: { origin: profile.domain, claimedAt: now },
+        });
+      } catch (error) {
+        if (isUniqueViolation(error, 'origin')) {
+          throw conflict('FREE_CHECK_DOMAIN_USED', 'this domain has already received a free check');
+        }
+        throw error;
+      }
     }
     const scan = await tx.scan.create({
       data: {

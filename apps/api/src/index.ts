@@ -5,6 +5,10 @@ import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 
 import { LoginRateLimiter, RequestRateLimiter } from './auth/rate-limit.ts';
 import { authRouter } from './auth/routes.ts';
+import {
+  FREE_CHECK_ALLOWED_ORIGINS_ENV,
+  readFreeCheckAllowlist,
+} from './billing/free-check-allowlist.ts';
 import { getInternalFreeEmails } from './billing/internal-access.ts';
 import { isMockCheckoutEnabled } from './billing/mock-checkout.ts';
 import { resolvePaddleWebhookSecret } from './billing/paddle-signature.ts';
@@ -59,6 +63,8 @@ export interface CreateAppOptions {
   readonly createGoogleDataRunner?: WorkerDeps['createGoogleDataRunner'];
   /** Test seam; production reads FLUXRADAR_INTERNAL_FREE_EMAILS. */
   readonly internalFreeEmails?: ReadonlySet<string>;
+  /** Test seam; production reads FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS. */
+  readonly freeCheckAllowedOrigins?: ReadonlySet<string>;
   /** Test seam; production reads FLUXRADAR_ENABLE_MOCK_CHECKOUT. */
   readonly mockCheckoutEnabled?: boolean;
   /** Test seam; production uses READINESS_TIMEOUT_MS. */
@@ -83,6 +89,8 @@ export function createApp(options: CreateAppOptions): Express {
   const logger = options.logger ?? stdoutLogger;
   const now = options.now ?? (() => new Date());
   const internalFreeEmails = options.internalFreeEmails ?? getInternalFreeEmails();
+  const freeCheckAllowedOrigins =
+    options.freeCheckAllowedOrigins ?? resolveFreeCheckAllowedOrigins(logger);
   const mockCheckoutEnabled = options.mockCheckoutEnabled ?? isMockCheckoutEnabled();
   const requestRateLimiter = options.requestRateLimiter ?? new RequestRateLimiter();
   const mailer = options.mailer ?? createMailer();
@@ -215,7 +223,15 @@ export function createApp(options: CreateAppOptions): Express {
       mockCheckoutEnabled,
     }),
   );
-  app.use(scansRouter({ prisma: options.prisma, now, enqueueScan, requestRateLimiter }));
+  app.use(
+    scansRouter({
+      prisma: options.prisma,
+      now,
+      enqueueScan,
+      requestRateLimiter,
+      freeCheckAllowedOrigins,
+    }),
+  );
   app.use(issuesRouter({ prisma: options.prisma, now }));
   app.use(
     exportRouter({
@@ -328,6 +344,32 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       await prisma.$disconnect();
     },
   };
+}
+
+/**
+ * The Free-check allowlist this process will honour, reported at boot.
+ *
+ * An entry that is not an https origin is dropped rather than guessed at, and it
+ * is logged by value — the values are public site addresses, and an operator who
+ * mistyped one would otherwise believe a domain is exempt while every check
+ * still refuses it. An empty or absent variable is the normal state and says
+ * nothing.
+ */
+function resolveFreeCheckAllowedOrigins(logger: ApiLogger): ReadonlySet<string> {
+  const allowlist = readFreeCheckAllowlist();
+  if (allowlist.rejected.length > 0) {
+    logger.error('free-check allowlist entries ignored: not an https origin', {
+      variable: FREE_CHECK_ALLOWED_ORIGINS_ENV,
+      ignored: allowlist.rejected,
+    });
+  }
+  if (allowlist.origins.size > 0) {
+    logger.info('free-check allowlist active', {
+      variable: FREE_CHECK_ALLOWED_ORIGINS_ENV,
+      origins: [...allowlist.origins],
+    });
+  }
+  return allowlist.origins;
 }
 
 /**

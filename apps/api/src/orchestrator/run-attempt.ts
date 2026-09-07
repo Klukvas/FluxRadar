@@ -16,7 +16,7 @@ import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
 
 import type { WorkerDeps } from './deps.ts';
-import { runFreeCheck } from './free-check.ts';
+import { freeCheckMetadata, runFreeCheck } from './free-check.ts';
 import { buildGeoRequests } from './geo.ts';
 import { initialIssueStatuses } from './issue-sync.ts';
 import { modulePlanFor } from './module-plan.ts';
@@ -71,7 +71,13 @@ type ModuleRowData = {
   readonly metadataJson?: string;
 };
 
-function metadataForRuleModule(module: ModuleName): string | undefined {
+function metadataForRuleModule(module: ModuleName, plan: Plan): string | undefined {
+  if (plan === 'Free' && module === 'SEO') {
+    // Free runs the fixed four-rule homepage check, not the full SEO module:
+    // the paid module's structured-data and social-preview metadata would
+    // describe checks that never ran (see free-check.ts).
+    return JSON.stringify(freeCheckMetadata());
+  }
   const metadata =
     module === 'Accessibility'
       ? {
@@ -285,6 +291,7 @@ export async function runScanAttempt(
     await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
     const result = plan === 'Free' ? runFreeCheck(ctx) : runModuleRules(module, ctx);
     const finalized = finalizeRuleModule(result, plan, siteReachable);
+    const metadataJson = metadataForRuleModule(module, plan);
     await setModule(prisma, scanId, module, {
       runtimeStatus: finalized.runtimeStatus,
       statusReason: finalized.statusReason,
@@ -293,9 +300,7 @@ export async function runScanAttempt(
       applicableChecks: finalized.applicableChecks,
       completedApplicableChecks: finalized.completedApplicableChecks,
       usableOutput: finalized.usableOutput,
-      ...(metadataForRuleModule(module) !== undefined
-        ? { metadataJson: metadataForRuleModule(module) }
-        : {}),
+      ...(metadataJson !== undefined ? { metadataJson } : {}),
     });
     issueRows.push(...issueRowsForModule(scanId, module, result.findings, finalized, observedAt));
   }

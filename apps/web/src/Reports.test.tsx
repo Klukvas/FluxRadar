@@ -42,7 +42,11 @@ function scanAt(id: string, overrides: Record<string, unknown> = {}) {
 
 function envelope<T>(data: T, meta?: unknown, status = 200): Response {
   return new Response(
-    JSON.stringify(meta === undefined ? { success: true, data, error: null } : { success: true, data, error: null, meta }),
+    JSON.stringify(
+      meta === undefined
+        ? { success: true, data, error: null }
+        : { success: true, data, error: null, meta },
+    ),
     { status, headers: { 'content-type': 'application/json' } },
   );
 }
@@ -126,7 +130,9 @@ describe('Reports list', () => {
 
   it('opens the report of the scan that was clicked and puts it in the URL', async () => {
     await openReports(
-      workspace(() => envelope([scanAt('scan-a')], { total: 1, page: 1, limit: 20, hasNext: false })),
+      workspace(() =>
+        envelope([scanAt('scan-a')], { total: 1, page: 1, limit: 20, hasNext: false }),
+      ),
     );
 
     fireEvent.click(await screen.findByRole('button', { name: /^Open report/ }));
@@ -141,8 +147,10 @@ describe('Reports list', () => {
     );
 
     expect(await screen.findByText('No reports yet')).toBeInTheDocument();
-    expect(screen.getByText(/A report appears here as soon as you check a website/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Check a website' }));
+    expect(
+      screen.getByText(/A report appears here as soon as you check one of your profiles/i),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Check a profile' }));
     expect(await screen.findByText('New scan — scope and tariff')).toBeInTheDocument();
   });
 
@@ -181,9 +189,7 @@ describe('Reports list', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Show older reports' }));
 
     await waitFor(() => expect(screen.getByText('Showing 21 of 21.')).toBeInTheDocument());
-    expect(
-      fetchMock.mock.calls.some(([input]) => String(input).includes('offset=20')),
-    ).toBe(true);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('offset=20'))).toBe(true);
     // The last page removes the control rather than offering a page that is not there.
     expect(screen.queryByRole('button', { name: 'Show older reports' })).not.toBeInTheDocument();
   });
@@ -206,7 +212,9 @@ describe('Reports list', () => {
 
   it('never asks for the Complete-only history view, which would 403 a Basic owner', async () => {
     const fetchMock = await openReports(
-      workspace(() => envelope([scanAt('scan-a')], { total: 1, page: 1, limit: 20, hasNext: false })),
+      workspace(() =>
+        envelope([scanAt('scan-a')], { total: 1, page: 1, limit: 20, hasNext: false }),
+      ),
     );
 
     await screen.findByRole('button', { name: /^Open report/ });

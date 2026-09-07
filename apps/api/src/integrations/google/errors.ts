@@ -19,10 +19,10 @@ export class GoogleApiError extends Error {
 const DETAILS: Readonly<Record<GoogleDataState, string>> = {
   connected: 'Google returned data for this period.',
   not_connected: 'Google is not connected for this workspace.',
-  no_property_selected: 'No Google property is linked to this website yet.',
+  no_property_selected: 'No Google property is linked to this profile yet.',
   needs_reconnect: 'Google access has expired or was revoked. Reconnect Google to continue.',
   no_access: 'This Google account cannot read the selected property.',
-  no_data: 'Google has no data for this website in the selected period.',
+  no_data: 'Google has no data for this site in the selected period.',
   request_failed: 'Google did not respond in time. The rest of the report is unaffected.',
 };
 

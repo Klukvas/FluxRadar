@@ -1,9 +1,13 @@
-import { MenuBar } from './components';
+import { MenuBar, PoweredByFluxLab } from './components';
 import { copy, type Language } from './i18n';
 
 // Public FAQ page (/faq). It reuses the document shell of the other public
 // pages, so the reading layout, the sticky index and the responsive rules stay
 // identical across /checks, /privacy, /terms and this page.
+//
+// The header is the shared `MenuBar` in its public variant: the same Home / FAQ
+// / Blog row the static blog pages render, rather than the workspace tabs a
+// reader without an account cannot use.
 
 export function FaqScreen(props: {
   language: Language;
@@ -14,11 +18,8 @@ export function FaqScreen(props: {
   return (
     <div className="app-shell legal-shell">
       <MenuBar
+        variant="public"
         active="faq"
-        onNavigate={(next) => {
-          if (next === 'home') window.location.assign('/');
-        }}
-        signedIn={false}
         language={props.language}
         onLanguageChange={props.onLanguageChange}
       />
@@ -89,6 +90,7 @@ export function FaqScreen(props: {
             <a href="/">{t.footerHome}</a> · <a href="/checks">{t.footerCoverage}</a> ·{' '}
             <a href="/privacy">{t.footerPrivacy}</a> · <a href="/terms">{t.footerTerms}</a>
           </span>
+          <PoweredByFluxLab language={props.language} />
         </footer>
       </main>
     </div>

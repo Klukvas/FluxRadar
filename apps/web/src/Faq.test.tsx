@@ -72,6 +72,65 @@ describe('/faq route', () => {
   });
 });
 
+// Regression: /faq shipped the workspace header. A visitor with no account met
+// four controls they could not use (Profiles, Scan, Reports, Integrations), and
+// between the burger breakpoint and roughly 1000px that row scrolled sideways
+// inside the bar and clipped its last items — the Blog link among them.
+describe('/faq header is the public one', () => {
+  function headerNav(): HTMLElement {
+    return screen.getByRole('navigation', { name: 'Site menu' });
+  }
+
+  it('offers exactly the destinations a reader without an account can reach', async () => {
+    renderFaq();
+    await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
+
+    const links = within(headerNav()).getAllByRole('link');
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/', '/', '/faq', '/blog']);
+    expect(links.map((link) => link.textContent?.trim())).toEqual([
+      'FluxRadar',
+      'Home',
+      'FAQ',
+      'Blog',
+    ]);
+  });
+
+  it('carries no workspace control a signed-out reader could not use', async () => {
+    renderFaq();
+    await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
+
+    const nav = headerNav();
+    for (const label of ['Profiles', 'Scan', 'Reports', 'Integrations']) {
+      expect(within(nav).queryByRole('button', { name: label })).toBeNull();
+    }
+    // The only header buttons left are the burger and the language combobox,
+    // and neither of those is ever disabled.
+    for (const button of within(nav).getAllByRole('button')) {
+      expect(button).not.toBeDisabled();
+    }
+  });
+
+  it('tells a screen reader which of the three pages is open', async () => {
+    renderFaq();
+    await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
+
+    const nav = headerNav();
+    expect(within(nav).getByRole('link', { name: 'FAQ' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('keeps the language switch the rest of the site uses', async () => {
+    renderFaq();
+    await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
+
+    switchLanguageToUkrainian();
+
+    const nav = screen.getByRole('navigation', { name: 'Site menu' });
+    expect(within(nav).getByRole('link', { name: 'Головна' })).toHaveAttribute('href', '/');
+    expect(within(nav).getByRole('link', { name: 'Блог' })).toHaveAttribute('href', '/blog');
+  });
+});
+
 describe('/faq content — what each check does', () => {
   it('explains the SEO module concretely', async () => {
     renderFaq();

@@ -14,6 +14,9 @@ export function IntegrationsScreen(props: {
   profiles: readonly SiteProfile[];
   language: Language;
   onClose: () => void;
+  /** Sends the owner to the workspace screen that holds the add-profile form. */
+  onAddProfile: () => void;
+  onProfilesChanged: () => Promise<void>;
   onError: (value: string) => void;
 }) {
   const t = copy[props.language].integrations;
@@ -93,64 +96,72 @@ export function IntegrationsScreen(props: {
         ) : null}
         <div className="integration-list">
           {integrations.map((integration) => (
-            <div className="integration-row" key={integration.provider}>
-              <div className="integration-row__copy">
-                <div className="split">
-                  <strong>{integration.label}</strong>
-                  <StatusChip
-                    status={integration.status}
-                    label={
-                      integration.status === 'available'
-                        ? t.readyToConnect
-                        : integration.status.replace(/_/g, ' ')
-                    }
+            <div className="integration-group" key={integration.provider}>
+              <div className="integration-row">
+                <div className="integration-row__copy">
+                  <div className="split">
+                    <strong>{integration.label}</strong>
+                    <StatusChip
+                      status={integration.status}
+                      label={
+                        integration.status === 'available'
+                          ? t.readyToConnect
+                          : integration.status.replace(/_/g, ' ')
+                      }
+                    />
+                  </div>
+                  <p>{integration.services.join(' · ')}</p>
+                  {integration.lastError ? (
+                    <small className="integration-row__error">{integration.lastError}</small>
+                  ) : null}
+                </div>
+                <div className="integration-row__action">
+                  {integration.kind === 'user' ? (
+                    integration.status === 'connected' ? (
+                      <Button
+                        variant="danger"
+                        disabled={busyProvider === integration.provider}
+                        onClick={() => void disconnect(integration)}
+                      >
+                        {busyProvider === integration.provider ? t.disconnecting : t.disconnect}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        disabled={!integration.canConnect || busyProvider === integration.provider}
+                        onClick={() => void connect(integration)}
+                      >
+                        {busyProvider === integration.provider ? t.connecting : t.connect}
+                      </Button>
+                    )
+                  ) : (
+                    <span className="technical integration-row__server">
+                      {integration.status === 'connected'
+                        ? t.serverConfigured
+                        : integration.status === 'limited'
+                          ? t.serverLimited
+                          : t.serverMissing}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* The property picker belongs to the Google connection, so it is
+                  nested in that row — above Bing, not floating after the list
+                  where it read as a setting for every integration at once. */}
+              {integration.provider === 'google' ? (
+                <div className="integration-group__detail">
+                  <GoogleProperties
+                    profiles={props.profiles}
+                    connected={integration.status === 'connected'}
+                    language={props.language}
+                    onAddProfile={props.onAddProfile}
+                    onProfilesChanged={props.onProfilesChanged}
                   />
                 </div>
-                <p>{integration.services.join(' · ')}</p>
-                {integration.lastError ? (
-                  <small className="integration-row__error">{integration.lastError}</small>
-                ) : null}
-              </div>
-              <div className="integration-row__action">
-                {integration.kind === 'user' ? (
-                  integration.status === 'connected' ? (
-                    <Button
-                      variant="danger"
-                      disabled={busyProvider === integration.provider}
-                      onClick={() => void disconnect(integration)}
-                    >
-                      {busyProvider === integration.provider ? t.disconnecting : t.disconnect}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="primary"
-                      disabled={!integration.canConnect || busyProvider === integration.provider}
-                      onClick={() => void connect(integration)}
-                    >
-                      {busyProvider === integration.provider ? t.connecting : t.connect}
-                    </Button>
-                  )
-                ) : (
-                  <span className="technical integration-row__server">
-                    {integration.status === 'connected'
-                      ? t.serverConfigured
-                      : integration.status === 'limited'
-                        ? t.serverLimited
-                        : t.serverMissing}
-                  </span>
-                )}
-              </div>
+              ) : null}
             </div>
           ))}
         </div>
-        <GoogleProperties
-          profiles={props.profiles}
-          connected={integrations.some(
-            (integration) =>
-              integration.provider === 'google' && integration.status === 'connected',
-          )}
-          onError={props.onError}
-        />
         <Panel title={t.policyTitle}>
           <p className="muted integration-policy">{t.policyBody}</p>
         </Panel>

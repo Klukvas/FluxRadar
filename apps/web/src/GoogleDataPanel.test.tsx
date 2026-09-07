@@ -132,7 +132,7 @@ describe('GoogleDataPanel', () => {
           ...BASE,
           searchConsole: {
             state: 'no_property_selected',
-            detail: 'No Google property is linked to this website yet.',
+            detail: 'No Google property is linked to this profile yet.',
             data: null,
           },
         }}

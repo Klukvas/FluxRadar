@@ -85,12 +85,19 @@ summary:focus-visible {
   color: var(--plat-400);
   cursor: not-allowed;
 }
+/* A brand that is a link on the public pages and a button in the workspace, so
+   it declares the colour, padding and underline the `.menubar button` rules used
+   to hand the button for free. `!important` is what outranks the `padding: 0 10px`
+   every menubar control gets. */
 .menubar__apple {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-height: 22px;
+  padding: 0 10px 0 4px !important;
+  color: inherit;
   font-weight: 700;
-  padding-left: 4px !important;
+  text-decoration: none;
 }
 .menubar__item {
   display: inline-flex;
@@ -162,7 +169,24 @@ summary:focus-visible {
   grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.8fr);
   gap: var(--sp-4);
 }
+/* The workspace shell's footer carries the studio attribution and nothing
+   else, so it is a single row rather than the brand/links split the public
+   footers use. It borrows their rule, colour and type scale so the line reads
+   the same on a signed-in screen as it does on the home page. */
+.desktop__footer {
+  display: flex;
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid #8c9bb3;
+  color: #d5deeb;
+  font: 10px var(--mono-font);
+  letter-spacing: 0.08em;
+}
+/* `min-width: 0` because a window is usually a grid item, and a grid item's
+   automatic minimum is its content: a window titled with a long site address
+   grew past its column and scrolled the whole report sideways on a phone. */
 .window {
+  min-width: 0;
   background: var(--plat-100);
   border: 1px solid var(--plat-900);
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
@@ -171,16 +195,23 @@ summary:focus-visible {
 .window__titlebar {
   height: 22px;
   display: grid;
-  grid-template-columns: 22px 1fr 22px;
+  grid-template-columns: 22px minmax(0, 1fr) 22px;
   align-items: center;
   text-align: center;
   font-weight: 700;
   background: repeating-linear-gradient(0deg, #fff 0 1px, var(--plat-200) 1px 2px);
 }
+/* The title bar is one fixed-height strip, so a title too long for it is cut
+   with an ellipsis rather than widening the window. Whatever it names — the
+   site address, the scan id — is also written in full inside the window. */
 .window__titlebar > span {
+  max-width: 100%;
+  overflow: hidden;
   background: var(--plat-100);
   padding: 0 8px;
   justify-self: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .window__box {
   width: 22px;
@@ -208,8 +239,22 @@ summary:focus-visible {
 .window__content {
   padding: var(--sp-4);
 }
+/* A terminal window lets its terminal panel run edge to edge — that is the look
+   the design calls for. Everything else it holds is ordinary window content and
+   keeps the window inset, so a panel or a button row never sits on the frame.
+   Expressed as margins rather than container padding so a window whose only
+   child is the terminal still bleeds on all four sides. */
 .window--terminal .window__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
   padding: 0;
+}
+.window--terminal .window__content > *:not(.terminal) {
+  margin-inline: var(--sp-4);
+}
+.window--terminal .window__content > *:not(.terminal):last-child {
+  margin-bottom: var(--sp-4);
 }
 .window--dialog {
   max-width: 520px;
@@ -255,15 +300,42 @@ summary:focus-visible {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+/* One step of air between anything stacked inside a panel. Without it a field
+   label sits directly on the control above it and a "Save" button touches the
+   select it saves, because neither `.field` nor `.button-row` carries an outer
+   margin of its own. Margins collapse with the prose margins already in a
+   panel, so a paragraph between two fields keeps its own rhythm. */
+.panel > * + * {
+  margin-top: var(--sp-3);
+}
 .stack {
   display: grid;
+  /* minmax(0, ...), not the implicit `auto`: a stacked window whose content has
+     an unbreakable line would otherwise widen the column past the viewport. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-3);
 }
+/* A heading beside its action. It wraps because the two halves are sized by
+   their content: a long site address or a three-word button label used to keep
+   the row on one line and push the action past the window, instead of moving it
+   to the next line. `min-width: 0` lets the text half shrink first. */
 .split {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
+}
+.split > * {
+  min-width: 0;
+}
+/* The action half keeps the width its label needs; the text half is what gives
+   way. Without this a button in a split was squeezed to a few characters wide
+   and grew three lines tall next to a long sentence. */
+.split > .button,
+.split > .button-row,
+.split > .status-chip {
+  flex: 0 0 auto;
 }
 .technical,
 code,
@@ -274,12 +346,20 @@ code,
   color: var(--plat-600);
 }
 
+/* 24px tall, and exactly 24: the line-height is pinned so a button lines up
+   with the 24px input or select it sits next to, instead of standing ~1px
+   taller on the body's 1.45 line-height. */
 .button {
   min-height: 24px;
   padding: 2px 12px;
   border: 1px solid var(--plat-900);
   border-radius: var(--r-1);
   background: var(--plat-100);
+  /* Not `inherit`: on the dark home surface a button drew #fff on its own
+     platinum face, ~1.2:1. `--button-fg` clears AA against every background
+     this button takes — resting, hover and pressed alike. */
+  color: var(--button-fg);
+  line-height: 18px;
   cursor: pointer;
   box-shadow:
     inset 1px 1px 0 #fff,
@@ -313,6 +393,13 @@ code,
   gap: var(--sp-2);
   align-items: center;
 }
+/* A control standing in a button row is one item among several, not a full-width
+   field: left at `width: 100%` it claimed the whole line and pushed the button
+   it belongs beside onto a line of its own. */
+.button-row > .control {
+  width: auto;
+  max-width: 100%;
+}
 
 .field {
   display: grid;
@@ -328,11 +415,15 @@ code,
   border: 1px solid var(--plat-400);
   border-radius: 0;
   background: #fff;
+  line-height: 18px;
   box-shadow:
     inset 1px 1px 0 var(--plat-300),
     inset -1px -1px 0 #fff;
 }
-.field:first-of-type .control,
+/* Monospace marks a technical value — a domain, a URL, a pattern, a count — and
+   nothing else. It used to be applied to whichever field happened to come first
+   in its container, which put a person's chosen profile name in Monaco and left
+   the site address beside it in the UI font. The field says so now. */
 .technical-input {
   font-family: var(--mono-font);
 }
@@ -467,6 +558,10 @@ code,
 .report-row__copy .split {
   gap: var(--sp-2);
 }
+/* A site address has no spaces to break at and can be longer than its column. */
+.report-row__copy .split strong {
+  overflow-wrap: anywhere;
+}
 .report-row__meta {
   margin: 2px 0 0;
   font-size: 12px;
@@ -493,16 +588,26 @@ code,
   border: 1px solid var(--plat-400);
   background: #fff;
 }
+/* One connection: its row, plus whatever that connection configures. The rule
+   between connections now belongs to the group, so a nested detail panel stays
+   visibly inside the connection it belongs to. */
+.integration-group {
+  border-bottom: 1px solid var(--plat-300);
+}
+.integration-group:last-child {
+  border-bottom: 0;
+}
+.integration-group__detail {
+  margin: 0 var(--sp-3) var(--sp-3) var(--sp-6);
+  padding-left: var(--sp-3);
+  border-left: 3px solid var(--plat-400);
+}
 .integration-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--sp-3);
   align-items: center;
   padding: var(--sp-3);
-  border-bottom: 1px solid var(--plat-300);
-}
-.integration-row:last-child {
-  border-bottom: 0;
 }
 .integration-row__copy {
   min-width: 0;
@@ -549,6 +654,28 @@ code,
 }
 .integration-deferred p {
   margin: 4px 0 0;
+}
+
+.google-properties__create {
+  margin-top: var(--sp-3);
+}
+.google-properties__list {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.google-properties__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-2);
+  border: 1px solid var(--plat-300);
+  background: #fff;
+}
+/* A Search Console property is a URL and can be longer than its column. */
+.google-properties__row > span {
+  overflow-wrap: anywhere;
 }
 
 .terminal {
@@ -651,7 +778,10 @@ code,
   display: grid;
   justify-items: center;
   gap: 2px;
-  min-width: 180px;
+  /* Its 180px floor is a desktop reading size, not a hard requirement: below it
+     the dial wraps to its own line (see `.split`) and, on a phone, gives the
+     floor up entirely rather than scrolling the report sideways. */
+  min-width: min(180px, 100%);
   padding: var(--sp-4);
   border: 1px solid var(--plat-900);
   background: var(--plat-50);
@@ -844,6 +974,7 @@ code,
 .report-meta strong {
   color: var(--plat-900);
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 .accessibility-note {
   margin-top: var(--sp-3);
@@ -917,6 +1048,7 @@ code,
 }
 .styleguide {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-3);
 }
 .skeleton-list {
@@ -969,19 +1101,30 @@ code,
   margin-bottom: 20px;
 }
 .home__account-label {
+  min-width: 0;
   color: #d5deeb;
   font: 11px var(--mono-font);
   letter-spacing: 0.08em;
 }
 .home__account-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: end;
   gap: 8px;
+  min-width: 0;
 }
+/* An address has no spaces to break at, so it kept its full width and squeezed
+   the button beside it into a two- or three-line sliver that ran off the page.
+   It wraps now, and the button keeps the width its label needs. */
 .home__account-email {
+  min-width: 0;
   color: #d5deeb;
   font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.home__account-actions .button {
+  flex: 0 0 auto;
 }
 .home__account-actions .button--primary {
   background: var(--term-green);
@@ -1142,6 +1285,7 @@ code,
 }
 .home__readout-cell {
   display: grid;
+  align-content: start;
   gap: 4px;
   min-width: 0;
   padding: 12px;
@@ -1157,12 +1301,13 @@ code,
   color: var(--term-dim);
   font-size: 13px;
 }
+/* The hint under each figure is prose, and the Ukrainian wording is roughly
+   twice as long as the English. Clipped to one line it lost most of its
+   sentence in both languages, so it wraps inside the cell instead. */
 .home__readout-cell small {
-  overflow: hidden;
   color: #8bb79a;
-  font: 10px var(--mono-font);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font: 10px/1.4 var(--mono-font);
+  overflow-wrap: anywhere;
 }
 .home__instrument .terminal {
   min-height: 0;
@@ -1200,22 +1345,88 @@ code,
 .home__module-mark--dim {
   background: #557d60;
 }
+/* The coverage strip is a marquee, and a marquee is a track wider than its
+   frame. `overflow: hidden` is the frame: it clips the running copy here rather
+   than letting a `max-content` track widen `.home` and scroll the whole page
+   sideways. `--ticker-gap` is one value because the space between two labels
+   and the space across the loop's seam have to match. */
 .home__ticker {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 12px 20px;
+  --ticker-gap: 40px;
+  max-width: 100%;
   padding: 16px 0;
+  overflow: hidden;
   border-top: 1px solid #8c9bb3;
   border-bottom: 1px solid #8c9bb3;
   color: #d5deeb;
   font: 11px var(--mono-font);
   letter-spacing: 0.08em;
 }
-.home__ticker span::before {
+.home__ticker-track {
+  display: flex;
+  width: max-content;
+  /* Transform only, so the loop stays on the compositor: no width, left or
+     margin is touched, and nothing reflows for 30s at a time. */
+  animation: home-ticker-run 30s linear infinite;
+}
+/* Reading a moving label is work. Hovering the strip — or tabbing into
+   anything it ever grows — stops it where it stands. */
+.home__ticker:hover .home__ticker-track,
+.home__ticker:focus-within .home__ticker-track {
+  animation-play-state: paused;
+}
+.home__ticker-group {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--ticker-gap);
+  /* The trailing gap belongs to the group, not to the space between the two
+     groups: without it the seam closes up and the loop visibly stutters. */
+  padding-inline-end: var(--ticker-gap);
+  margin: 0;
+  list-style: none;
+}
+.home__ticker-group li {
+  white-space: nowrap;
+}
+.home__ticker-group li::before {
   content: '·';
   margin-right: 8px;
   color: var(--term-green);
+}
+/* Half the track is the second copy of the labels, so at -50% the strip is
+   pixel-identical to where it started and the restart is invisible. */
+@keyframes home-ticker-run {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+/* Motion off: the strip goes back to being the wrapped row it was. The track
+   has to wrap rather than sit pinned at 0, or the frame above would clip every
+   label past the first two — the point is that the words stay readable, not
+   that they stay in a line. The second copy is scenery and simply goes. */
+@media (prefers-reduced-motion: reduce) {
+  .home__ticker-track {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+    gap: 12px var(--ticker-gap);
+    transform: none;
+  }
+  .home__ticker-group {
+    /* `0 0 auto` sizes the group at max-content, which is exactly what the
+       running track wants and exactly what a wrapped row must not have: at
+       360px the row would run off its frame again. */
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    min-width: 0;
+    gap: 12px var(--ticker-gap);
+    padding-inline-end: 0;
+  }
+  .home__ticker-group[aria-hidden='true'] {
+    display: none;
+  }
 }
 .home__section {
   padding: 128px 0 0;
@@ -1370,11 +1581,14 @@ code,
   font: bold 42px/1 var(--mono-font);
   letter-spacing: -0.08em;
 }
+/* The plan grid is the one place a button is deliberately not the shared blue.
+   Both cards read as black call-to-actions and always have: Complete said so
+   outright, Basic inherited it from `.home__plan`. Now that `.button` carries a
+   foreground of its own there is nothing left to inherit, so the pair is
+   written down once here rather than half-declared and half-inherited. */
 .home__plan .button {
   width: 100%;
   margin-top: auto;
-}
-.home__plan--complete .button {
   color: var(--plat-900);
 }
 .home__pricing-explainer {
@@ -1456,6 +1670,7 @@ code,
 }
 .home__footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 16px;
   margin-top: 42px;
@@ -1694,14 +1909,25 @@ code,
   letter-spacing: 0.06em;
   text-decoration: none;
   box-shadow: 3px 3px 0 rgba(16, 20, 16, 0.35);
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 .home__coverage-link:hover {
   background: var(--term-green);
   color: var(--term-bg);
 }
 
+/* The public documents are a column: header, menubar, document, footer. The
+   shell owns the column so `.legal-main` can grow into a viewport a short
+   document does not fill, and the footer can then ride down to the floor —
+   see `.legal-footer`. */
+.legal-shell {
+  display: flex;
+  flex-direction: column;
+}
 .legal-main {
+  flex: 1 0 auto;
   max-width: 1180px;
   margin: 0 auto;
   padding: 56px 24px 72px;
@@ -1915,8 +2141,16 @@ code,
   font-size: 12px;
   white-space: nowrap;
 }
+/* `position: sticky` with a `top` of a whole viewport is what puts the footer on
+   the floor of a short page: the offset asks for a position below the fold, and
+   the sticky rectangle — the main element, stretched by `flex: 1 0 auto` — clamps
+   it back to its own bottom edge. A long document never has that free space, so
+   the footer stays exactly where it fell in the flow and nothing overlaps. */
 .legal-footer {
+  position: sticky;
+  top: 100vh;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 16px;
   margin-top: 42px;
@@ -1936,6 +2170,45 @@ code,
 .legal-shell a:focus-visible {
   outline: 2px dotted var(--term-green);
   outline-offset: 3px;
+}
+
+/* The studio attribution shared by every footer. `flex-basis: 100%` is what
+   drops it onto a line of its own, so the brand/links row above it keeps the
+   two-column split it already had; on the narrow layouts those footers are a
+   grid and it is simply the last row. */
+.powered-by {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+}
+/* White, not the footers' green: this link leaves the product, and at 4.4:1
+   against `--desktop` it is the highest contrast that background allows —
+   better than either the surrounding link green or the footer body colour.
+   `min-height` keeps the tap target usable next to 10px type.
+
+   Written with the wrapper in front so it outranks `.legal-footer a` and
+   `.home__footer a` on specificity rather than on where it happens to sit in
+   the file. */
+.powered-by .powered-by__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  color: #ffffff;
+  text-decoration: none;
+}
+.powered-by .powered-by__link:hover {
+  text-decoration: underline;
+}
+/* Declared here rather than left to `.legal-shell a:focus-visible`, because the
+   same link also sits in the workspace and home footers, which have no such
+   rule of their own. */
+.powered-by .powered-by__link:focus-visible {
+  outline: 2px dotted var(--term-green);
+  outline-offset: 3px;
+}
+.powered-by__mark {
+  color: var(--term-green);
 }
 
 @keyframes cursor-blink {
@@ -2057,6 +2330,14 @@ code,
   .window__content {
     padding: var(--sp-3);
   }
+  /* Keeps the terminal window's non-terminal content on the same inset the rest
+     of the windows use at this width. */
+  .window--terminal .window__content > *:not(.terminal) {
+    margin-inline: var(--sp-3);
+  }
+  .window--terminal .window__content > *:not(.terminal):last-child {
+    margin-bottom: var(--sp-3);
+  }
   .form-grid,
   .module-grid {
     grid-template-columns: 1fr;
@@ -2073,6 +2354,15 @@ code,
   }
   .integration-row__action {
     justify-content: start;
+  }
+  /* The indent that shows nesting on a wide screen costs too much width here,
+     so the left rule alone carries the relationship. */
+  .integration-group__detail {
+    margin: 0 var(--sp-2) var(--sp-3) var(--sp-3);
+    padding-left: var(--sp-2);
+  }
+  .google-properties__row {
+    grid-template-columns: 1fr;
   }
   .data-table,
   .data-table thead,
@@ -2134,6 +2424,7 @@ code,
   }
   .menubar__sheet-brand {
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: 6px;
     font: 700 13px var(--mono-font);
@@ -2144,12 +2435,32 @@ code,
     height: 12px;
     fill: var(--term-green);
   }
+  /* The Ukrainian station name is long enough to wrap and push the head to two
+     rows, which broke the alignment of the brand and the close box against the
+     44px strip. It is a subtitle, so it gives way with an ellipsis instead. */
   .menubar__sheet-status {
+    min-width: 0;
+    overflow: hidden;
     font: 10px var(--mono-font);
     color: var(--term-green);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     margin-left: var(--sp-2);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* One left edge for the whole sheet. The group labels, the navigation items,
+     the brand and the language control each used to compute their own inset
+     from a different mix of padding and margin, so their text started at 16px,
+     23px and 30px in the same column. `--sheet-inset` is that edge, and the
+     3px active rail is subtracted from the padding rather than added in front
+     of it, so a selected row's label stays on the line as the others. */
+  .menubar__links.is-open {
+    --sheet-inset: var(--sp-4);
+    --sheet-rail: 3px;
+  }
+  .menubar__sheet-head {
+    padding: 0 var(--sheet-inset);
   }
   .menubar__group-label {
     display: block;
@@ -2157,7 +2468,7 @@ code,
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--plat-600);
-    padding: var(--sp-3) var(--sp-3) var(--sp-1);
+    padding: var(--sp-3) var(--sheet-inset) var(--sp-1);
   }
   .menubar__nav {
     flex: none;
@@ -2175,15 +2486,23 @@ code,
     flex-direction: column;
     align-items: stretch;
     margin-left: 0;
-    padding: var(--sp-1) var(--sp-2) 0;
+    padding: var(--sp-1) 0 0;
   }
   .menubar__links.is-open .menubar__language {
     min-height: 44px;
-    padding: 0 var(--sp-1);
-    align-self: flex-start;
+    padding: 0 calc(var(--sheet-inset) - var(--sp-2));
+    align-self: stretch;
+    justify-content: flex-start;
+  }
+  /* The same 40px minimum tap target the rest of the sheet offers, so the
+     language control is not a 22px exception in a column of 44px rows. */
+  .menubar__links.is-open .menubar__language-button {
+    min-height: 40px;
+    padding: 0 var(--sp-2);
+    font-size: 14px;
   }
   .menubar__language-listbox {
-    left: 0;
+    left: calc(var(--sheet-inset) - var(--sp-2));
     right: auto;
     top: calc(100% + 2px);
   }
@@ -2191,10 +2510,10 @@ code,
   .menubar__links.is-open .menubar__blog-link {
     min-height: 44px;
     justify-content: flex-start;
-    padding: 0 var(--sp-3) 0 calc(var(--sp-3) + 4px);
-    margin: 0 var(--sp-2);
+    padding: 0 var(--sheet-inset) 0 calc(var(--sheet-inset) - var(--sheet-rail));
+    margin: 0;
     font-size: 16px;
-    border-left: 3px solid transparent;
+    border-left: var(--sheet-rail) solid transparent;
   }
   .menubar__links.is-open .menubar__item:hover:not(:disabled),
   .menubar__links.is-open .menubar__blog-link:hover {
@@ -2234,6 +2553,12 @@ code,
   .button {
     min-height: 40px;
   }
+  /* Inputs and selects grow with the buttons they sit beside: the design's 40px
+     minimum tap target applies to every control, and a 24px select next to a
+     40px button reads as a misaligned pair. */
+  .control {
+    min-height: 40px;
+  }
   .window__titlebar {
     height: 40px;
     grid-template-columns: 40px 1fr 40px;
@@ -2253,11 +2578,15 @@ code,
   .home__account-actions {
     justify-content: stretch;
   }
+  /* On a phone the buttons share one full-width line and the signed-in address
+     takes the line above them, rather than competing with a button for a row
+     barely wide enough for either. */
   .home__account-actions .button {
-    flex: 1;
+    flex: 1 1 auto;
   }
   .home__account-email {
-    align-self: center;
+    flex: 1 0 100%;
+    align-self: start;
   }
   .home__hero {
     gap: 32px;
@@ -2316,8 +2645,7 @@ code,
     grid-template-columns: 1fr;
   }
   .home__ticker {
-    justify-content: flex-start;
-    gap: 8px 16px;
+    --ticker-gap: 24px;
   }
   .home__section,
   .home__pricing {

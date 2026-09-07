@@ -11,6 +11,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // Vitest runs with `apps/web` as its working directory.
 const BLOG_ROOT = resolve(process.cwd(), 'public/blog');
 
+const ARTICLE_PAGES = [
+  'ai-crawler-readiness/index.html',
+  'public-website-audit-checklist/index.html',
+  'bezpeka-ta-dostupnist-publichnyy-skaner/index.html',
+  'tekhnichnyy-seo-publichnyy-audyt/index.html',
+  'uk/pryvachnist-ta-cookie/index.html',
+  'uk/tekhnichne-seo-audyt/index.html',
+];
+
 const PAGES = [
   'index.html',
   'ai-crawler-readiness/index.html',
@@ -90,6 +99,244 @@ describe('blog pages share one header with the app', () => {
   });
 });
 
+// The React shell credits the studio in every footer it renders; the blog is
+// served as flat files and had no such link at all. These pin the same contract
+// on the static side — one attribution per page, in the page's own language.
+describe('blog footer attribution', () => {
+  const FLUXLAB_URL = 'https://flux-lab.dev';
+  const POWERED_BY = { en: 'Powered by FluxLab', uk: 'Працює на FluxLab' };
+
+  /** The footer alone: parsing the whole document would fetch its stylesheet. */
+  function footerOf(name: string): Element {
+    const markup = /<footer[\s\S]*?<\/footer>/.exec(readPage(name))?.[0];
+    if (markup === undefined) throw new Error(`${name} has no footer`);
+    const footer = new DOMParser().parseFromString(markup, 'text/html').querySelector('footer');
+    if (footer === null) throw new Error(`${name} has an unparseable footer`);
+    return footer;
+  }
+
+  /** The language the page declares for itself — the label has to follow it. */
+  function languageOf(name: string): 'en' | 'uk' {
+    return readPage(name).includes('<html lang="uk">') ? 'uk' : 'en';
+  }
+
+  it.each(PAGES)('%s credits the studio from its footer', (name) => {
+    const links = footerOf(name).querySelectorAll(`a[href="${FLUXLAB_URL}"]`);
+    expect(links).toHaveLength(1);
+  });
+
+  // A second copy would read as two attributions rather than one.
+  it.each(PAGES)('%s carries the attribution exactly once', (name) => {
+    expect(readPage(name).match(/powered-by__link/g)).toHaveLength(1);
+  });
+
+  it.each(PAGES)('%s writes the attribution in the language it declares', (name) => {
+    const link = footerOf(name).querySelector('.powered-by__link');
+    expect(link?.textContent).toContain(POWERED_BY[languageOf(name)]);
+  });
+
+  it.each(PAGES)('%s leaves for the studio site without handing it a window', (name) => {
+    const link = footerOf(name).querySelector('.powered-by__link');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+    // The new tab is announced, so following the link is not a surprise.
+    expect(link?.getAttribute('aria-label')).toContain(POWERED_BY[languageOf(name)]);
+    expect(link?.getAttribute('aria-label')?.length).toBeGreaterThan(
+      POWERED_BY[languageOf(name)].length,
+    );
+  });
+
+  // The links that were already in each footer keep the order they had.
+  it('appends the attribution after the existing footer links', () => {
+    const links = Array.from(footerOf('index.html').querySelectorAll('a'));
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/', FLUXLAB_URL]);
+  });
+});
+
+describe('blog footer attribution styling', () => {
+  const css = readFileSync(resolve(BLOG_ROOT, 'blog.css'), 'utf8');
+
+  /** The body of a rule, so an assertion cannot match a declaration next door. */
+  function rule(selector: string): string {
+    const start = css.indexOf(`${selector} {`);
+    if (start === -1) throw new Error(`blog.css has no rule for ${selector}`);
+    return css.slice(start, css.indexOf('}', start));
+  }
+
+  it('gives the attribution a row of its own in every footer shape', () => {
+    const row = rule('.powered-by');
+    expect(row).toMatch(/width: 100%;/);
+    // Not `flex-basis`: wherever a footer is laid out as a column,
+    // a percentage basis resolves against the height instead.
+    expect(row).not.toMatch(/flex: 0 0 100%;/);
+    expect(row).toMatch(/flex-wrap: wrap;/);
+  });
+
+  it('paints the link in the colour the rest of the blog uses for links', () => {
+    // #333399 on the #efefef page surface: 8.8:1.
+    expect(rule('.powered-by .powered-by__link')).toMatch(/color: var\(--selection\);/);
+  });
+
+  it('shows a focus ring of its own, whatever the page stylesheet does', () => {
+    expect(rule('.powered-by .powered-by__link:focus-visible')).toMatch(/outline: 2px dotted/);
+  });
+});
+
+// Regression: the header was the same markup on every page but not the same
+// header — only the index told the reader which section they were in, and the
+// blog switched to the burger 19px earlier than the React pages did.
+describe('blog header renders the same way on every page variant', () => {
+  const BASE_CSS = readFileSync(resolve(process.cwd(), 'src/styles/base.css'), 'utf8');
+  const BLOG_CSS = readFileSync(resolve(BLOG_ROOT, 'blog.css'), 'utf8');
+
+  /** The viewport width below which a stylesheet turns the burger on. */
+  function burgerBreakpoint(css: string): number {
+    for (const query of css.matchAll(/@media \(max-width: (\d+)px\) \{/g)) {
+      const start = query.index ?? 0;
+      const block = css.slice(start, css.indexOf('\n}', start));
+      if (block.includes('.menubar__toggle {')) return Number(query[1]);
+    }
+    throw new Error('no media query turns the burger on');
+  }
+
+  it.each(PAGES)('%s offers the three public destinations and nothing else', (name) => {
+    const hrefs = Array.from(
+      readPage(name).matchAll(/class="menubar__item[^"]*" href="([^"]+)"/g),
+      (match) => match[1],
+    );
+    expect(hrefs).toEqual(['/', '/faq', '/blog']);
+  });
+
+  it.each(PAGES)('%s marks the blog as the section the reader is in', (name) => {
+    const blogItem = /<a class="menubar__item[^"]*" href="\/blog"[^>]*>/.exec(readPage(name))?.[0];
+    expect(blogItem).toContain('is-active');
+    // The index is the page the link opens; an article only lives inside it.
+    expect(blogItem).toContain(
+      name === 'index.html' ? 'aria-current="page"' : 'aria-current="true"',
+    );
+  });
+
+  it.each(PAGES)('%s names its main landmark the way the index does', (name) => {
+    expect(readPage(name)).toContain('<main id="blog-main">');
+  });
+
+  it('switches to the burger at the width the React header switches at', () => {
+    expect(burgerBreakpoint(BLOG_CSS)).toBe(burgerBreakpoint(BASE_CSS));
+  });
+
+  it.each(ARTICLE_PAGES)('%s keeps its own responsive rules on that width', (name) => {
+    const inline = readPage(name).match(/@media\s*\(max-width:\s*\d+px\)/g) ?? [];
+    expect(inline.length).toBeGreaterThan(0);
+    for (const query of inline) {
+      expect(query.replace(/\s/g, '')).toBe(`@media(max-width:${burgerBreakpoint(BLOG_CSS)}px)`);
+    }
+  });
+
+  // Regression: the two sheets were written twice and drifted. The blog head
+  // wrapped to two rows on the Ukrainian station name, its language button was
+  // a 22px target in a column of 44px rows, and its rows, labels and brand each
+  // started in a different column from the React sheet's.
+  /**
+   * Every declaration a selector picks up inside the burger media query. Base
+   * splits some selectors over two rules where the blog writes one, so the
+   * rules are read together rather than one at a time.
+   */
+  function mobileRule(css: string, selector: string): string {
+    const query = css.indexOf(`@media (max-width: ${burgerBreakpoint(css)}px) {`);
+    const block = css.slice(query, css.indexOf('\n}', query));
+    const bodies: string[] = [];
+    for (
+      let at = block.indexOf(`${selector} {`);
+      at !== -1;
+      at = block.indexOf(`${selector} {`, at + 1)
+    ) {
+      bodies.push(block.slice(at, block.indexOf('}', at)));
+    }
+    if (bodies.length === 0) throw new Error(`no mobile rule for ${selector}`);
+    return bodies.join('\n');
+  }
+
+  it('ellipsizes the sheet subtitle rather than wrapping the 44px head', () => {
+    const status = mobileRule(BLOG_CSS, '.menubar__sheet-status');
+    expect(status).toMatch(/min-width: 0;/);
+    expect(status).toMatch(/overflow: hidden;/);
+    expect(status).toMatch(/text-overflow: ellipsis;/);
+    expect(status).toMatch(/white-space: nowrap;/);
+  });
+
+  it('offers the same tap target on the language button the React sheet does', () => {
+    const selector = '.menubar__links.is-open .menubar__language-button';
+    expect(mobileRule(BLOG_CSS, selector)).toMatch(/min-height: 40px;/);
+    expect(mobileRule(BASE_CSS, selector)).toMatch(/min-height: 40px;/);
+  });
+
+  it.each([
+    '.menubar__sheet-head',
+    '.menubar__group-label',
+    '.menubar__links.is-open .menubar__language',
+    '.menubar__language-listbox',
+  ])('lays %s out on the shared sheet inset, as the React sheet does', (selector) => {
+    /** The declarations that position a rule against the sheet's left edge. */
+    const insetLines = (css: string) =>
+      mobileRule(css, selector)
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.includes('var(--sheet-inset)'));
+
+    expect(insetLines(BASE_CSS).length).toBeGreaterThan(0);
+    expect(insetLines(BLOG_CSS)).toEqual(insetLines(BASE_CSS));
+  });
+
+  it('subtracts the active rail from the row padding instead of adding to it', () => {
+    const row = mobileRule(BLOG_CSS, '.menubar__links.is-open .menubar__item');
+    expect(row).toMatch(
+      /padding: 0 var\(--sheet-inset\) 0 calc\(var\(--sheet-inset\) - var\(--sheet-rail\)\);/,
+    );
+    expect(row).toMatch(/margin: 0;/);
+    expect(row).toMatch(/border-left: var\(--sheet-rail\) solid transparent;/);
+  });
+});
+
+// Regression: the blog shipped three footer shapes — the index's `.site-footer`
+// plus two inline article ones, one flex and one block — and on a short page all
+// three floated in the middle of the screen above an empty desktop.
+describe('blog footer is one shape, pinned to the bottom of a short page', () => {
+  const css = readFileSync(resolve(BLOG_ROOT, 'blog.css'), 'utf8');
+
+  function rule(selector: string): string {
+    const start = css.indexOf(`${selector} {`);
+    if (start === -1) throw new Error(`blog.css has no rule for ${selector}`);
+    return css.slice(start, css.indexOf('}', start));
+  }
+
+  it.each(PAGES)('%s uses the shared footer, not one of its own', (name) => {
+    expect(readPage(name)).toContain('<footer class="site-footer">');
+  });
+
+  it.each(ARTICLE_PAGES)('%s no longer restyles the footer in its own stylesheet', (name) => {
+    const inlineStyles = Array.from(
+      readPage(name).matchAll(/<style>([\s\S]*?)<\/style>/g),
+      (match) => match[1],
+    ).join('\n');
+    expect(inlineStyles).not.toMatch(/(^|[\s{;,])footer\s*\{/);
+  });
+
+  it('lets the page fill a viewport the content does not', () => {
+    expect(rule('body')).toMatch(/min-height: 100dvh;/);
+    expect(rule('body')).toMatch(/flex-direction: column;/);
+    expect(rule('main')).toMatch(/flex: 1 0 auto;/);
+  });
+
+  // A sticky top of one viewport asks for a position below the fold; the card
+  // clamps it back to its own bottom edge, which is the floor of a short page
+  // and the end of the flow on a long one. Geometry is checked in a browser.
+  it('sinks the footer to the floor without moving it on a long page', () => {
+    expect(rule('.site-footer')).toMatch(/position: sticky;/);
+    expect(rule('.site-footer')).toMatch(/top: 100vh;/);
+    expect(rule('.site-footer')).toMatch(/margin-top: 40px;/);
+  });
+});
+
 describe('blog language filter', () => {
   const source = readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
 
@@ -152,6 +399,18 @@ describe('blog language filter', () => {
     filterButton('uk').click();
     expect(title?.textContent).toBe('Польові нотатки для здоровіших сайтів.');
     expect(document.querySelector('[data-t="nav.home"]')?.textContent).toBe('Головна');
+  });
+
+  it('translates the footer attribution along with the chrome', () => {
+    bootIndex();
+    const attribution = document.querySelector('[data-t="blog.poweredBy"]');
+    const link = document.querySelector('.powered-by__link');
+    expect(attribution?.textContent).toBe('Powered by FluxLab');
+
+    filterButton('uk').click();
+
+    expect(attribution?.textContent).toBe('Працює на FluxLab');
+    expect(link?.getAttribute('aria-label')).toContain('Працює на FluxLab');
   });
 
   it('remembers the choice under the key the product app reads', () => {

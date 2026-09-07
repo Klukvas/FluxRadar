@@ -21,6 +21,42 @@ function freeCheckRules(): readonly PageRule[] {
   });
 }
 
+/**
+ * Why a Free module row carries no score.
+ *
+ * Free has no tariff score weights (§18), so `score` is null by design rather
+ * than for lack of readable data. The report has to be able to tell those two
+ * apart, and a Completed module may not carry a status_reason (§15/§16) — so
+ * the reason travels in the module metadata instead.
+ */
+export const FREE_CHECK_SCORING_REASON = 'NotScoredOnFreePlan';
+
+/**
+ * What the Free check actually looked at.
+ *
+ * The paid SEO module reports structured data and social preview coverage; the
+ * Free check runs the four homepage rules above and nothing else. Writing the
+ * paid metadata onto a Free row would advertise checks that never ran, so the
+ * row carries the real rule list, taken from the registry rather than restated.
+ */
+export function freeCheckMetadata(): Record<string, unknown> {
+  return {
+    freeCheck: true,
+    scope: 'homepage only',
+    scoring: FREE_CHECK_SCORING_REASON,
+    automation: 'static-html-homepage',
+    checks: FREE_CHECK_RULE_IDS.map((ruleId) => ({ ruleId, title: descriptorFor(ruleId).title })),
+  };
+}
+
+function descriptorFor(ruleId: string): { readonly title: string } {
+  const descriptor = ruleById(ruleId);
+  if (descriptor === undefined) {
+    throw new Error(`free-check: ${ruleId} отсутствует в реестре`);
+  }
+  return descriptor;
+}
+
 /** Идентичная run-module сборка fingerprint (D-019 не задействован: все page). */
 function fingerprintFor(candidateDomain: string, finding: IssueCandidate): string {
   return computeFingerprint({

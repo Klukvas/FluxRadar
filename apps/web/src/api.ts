@@ -45,6 +45,28 @@ export function nextPageOffset(meta: PageMeta | null): number {
 const TECHNICAL_ERROR =
   /^(request failed|failed to fetch|networkerror|typeerror|fetch error|http\s*\d+)/i;
 
+/**
+ * A failed API call, carrying the envelope's machine-readable code.
+ *
+ * It is an `Error` with the same user-facing `message` every caller already
+ * renders, so nothing that catches it has to change. The `code` exists for the
+ * few screens that must say something of their own about a specific failure —
+ * "this profile already exists" reads very differently from the generic
+ * sentence — without matching on server prose. `code` is null when the failure
+ * never reached the API (network) or the response carried no envelope.
+ */
+export class ApiRequestError extends Error {
+  readonly code: string | null;
+  readonly status: number;
+
+  constructor(message: string, options: { code: string | null; status: number }) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.code = options.code;
+    this.status = options.status;
+  }
+}
+
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await apiRequestWithMeta<T>(path, init)).data;
 }
@@ -66,7 +88,10 @@ export async function apiRequestWithMeta<T>(
       ...init,
     });
   } catch {
-    throw new Error('FluxRadar is temporarily unavailable. Try again in a moment.');
+    throw new ApiRequestError('FluxRadar is temporarily unavailable. Try again in a moment.', {
+      code: null,
+      status: 0,
+    });
   }
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('text/csv') && response.ok) {
@@ -84,7 +109,10 @@ export async function apiRequestWithMeta<T>(
       backendMessage && !TECHNICAL_ERROR.test(backendMessage)
         ? backendMessage
         : friendlyStatusMessage(response.status);
-    throw new Error(message);
+    throw new ApiRequestError(message, {
+      code: envelope?.error?.code ?? null,
+      status: response.status,
+    });
   }
   return { data: envelope.data as T, meta: envelope.meta ?? null };
 }

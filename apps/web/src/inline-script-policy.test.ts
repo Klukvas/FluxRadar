@@ -28,8 +28,17 @@ const REPO_ROOT = join(WEB_ROOT, '..', '..');
 /** The `type` a `<script>` may carry while holding inline content. */
 const DATA_BLOCK_TYPE = 'application/ld+json';
 
-/** Origins the policy allows a document to reference, besides its own. */
+/** Origins the policy allows a document to load a subresource from, besides its own. */
 const ALLOWED_EXTERNAL_ORIGINS = ['https://fluxradar.net'];
+
+/**
+ * Elements whose `href` sends the reader somewhere rather than loading
+ * something into the page. CSP governs what a document fetches, not where it
+ * lets a reader navigate: `default-src` never applies to a hyperlink, and the
+ * one directive that would have — `navigate-to` — was dropped before any
+ * browser shipped it. The blog footers link out to https://flux-lab.dev.
+ */
+const NAVIGATION_ELEMENTS = ['a', 'area'];
 
 function htmlDocuments(): readonly string[] {
   const blogRoot = join(WEB_ROOT, 'public', 'blog');
@@ -57,6 +66,22 @@ function scriptBlocks(html: string): readonly ScriptBlock[] {
 
 function typeOf(attributes: string): string | null {
   return /\btype\s*=\s*["']([^"']+)["']/i.exec(attributes)?.[1]?.toLowerCase() ?? null;
+}
+
+/** Every third-party URL the document would ask the browser to *fetch*. */
+function offOriginSubresources(html: string): readonly string[] {
+  const references = [...html.matchAll(/<([a-z][a-z0-9-]*)\b([^>]*)>/gi)]
+    .filter((tag) => !NAVIGATION_ELEMENTS.includes((tag[1] ?? '').toLowerCase()))
+    .flatMap((tag) => [
+      ...(tag[2] ?? '').matchAll(/\b(?:src|href)\s*=\s*["'](https?:\/\/[^"']+)["']/gi),
+    ])
+    .map((match) => match[1] ?? '');
+
+  return references.filter(
+    (reference) =>
+      !ALLOWED_EXTERNAL_ORIGINS.some((origin) => reference.startsWith(`${origin}/`)) &&
+      !ALLOWED_EXTERNAL_ORIGINS.includes(reference),
+  );
 }
 
 const documents = htmlDocuments().map((path) => ({
@@ -102,16 +127,17 @@ describe('documents served under the production CSP', () => {
   // simply not fetched, and the page ships with a hole in it.
   it.each(documents.map(({ name }) => name))('%s loads nothing off-origin', (name) => {
     const html = documents.find((entry) => entry.name === name)?.html ?? '';
-    const references = [...html.matchAll(/\b(?:src|href)\s*=\s*["'](https?:\/\/[^"']+)["']/gi)].map(
-      (match) => match[1] ?? '',
-    );
 
-    const foreign = references.filter(
-      (reference) =>
-        !ALLOWED_EXTERNAL_ORIGINS.some((origin) => reference.startsWith(`${origin}/`)) &&
-        !ALLOWED_EXTERNAL_ORIGINS.includes(reference),
-    );
+    expect(offOriginSubresources(html)).toEqual([]);
+  });
 
-    expect(foreign).toEqual([]);
+  // Reading past `<a href>` is only safe while everything else stays checked.
+  it('still flags an off-origin subresource, and only a subresource', () => {
+    expect(offOriginSubresources('<link rel="stylesheet" href="https://cdn.example/x.css" />')) //
+      .toEqual(['https://cdn.example/x.css']);
+    expect(offOriginSubresources('<img src="https://cdn.example/x.png" />')) //
+      .toEqual(['https://cdn.example/x.png']);
+    expect(offOriginSubresources('<a href="https://flux-lab.dev" target="_blank">FluxLab</a>')) //
+      .toEqual([]);
   });
 });

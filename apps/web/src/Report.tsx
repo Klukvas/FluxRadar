@@ -6,13 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import {
-  apiRequest,
-  type Dashboard,
-  type ExportPayload,
-  type Scan,
-  type ScanModule,
-} from './api';
+import { apiRequest, type Dashboard, type ExportPayload, type Scan, type ScanModule } from './api';
 import {
   Button,
   EmptyState,
@@ -24,7 +18,7 @@ import {
   Window,
 } from './components';
 import { GoogleDataPanel, googleSnapshotOf } from './GoogleDataPanel';
-import { copy, type Language } from './i18n';
+import { copy, fillCopy, type Language } from './i18n';
 import { chipStatusFor, displayDomain, moduleResultLabel } from './scan-status';
 
 export function ResultsScreen(props: {
@@ -106,6 +100,15 @@ export function ResultsScreen(props: {
   // Present only when the scan actually stored a Google snapshot; a plan without
   // the Analytics module renders no Google section at all.
   const googleSnapshot = googleSnapshotOf(dashboard.modules);
+  // No weighted module at all means the plan carries no score by definition —
+  // not that this particular scan came back empty. Read from the tariff weights
+  // the API already sends rather than from the plan name, so a plan that gains
+  // weights later stops taking this branch on its own.
+  // The `score === null` half is belt-and-braces: a plan with weights always
+  // reports them, so a number arriving without any is a contract the UI does not
+  // understand — and hiding a real score behind this branch would be its own lie.
+  const unscoredPlan = overall.moduleWeights.length === 0 && overall.score === null;
+  const checksLine = checksSummary(dashboard.modules, props.language);
   return (
     <div className="stack">
       <Window title={`${t.windowTitle} · ${displayDomain(scan.domain)}`}>
@@ -114,7 +117,7 @@ export function ResultsScreen(props: {
             <h2 className="section-heading">{t.signalHeading}</h2>
             <div className="report-meta" aria-label={t.detailsLabel}>
               <span>
-                <small>{t.website}</small>
+                <small>{t.siteAddress}</small>
                 <strong className="technical">{displayDomain(scan.domain)}</strong>
               </span>
               <span>
@@ -127,18 +130,33 @@ export function ResultsScreen(props: {
               </span>
             </div>
           </div>
-          <ScoreDial
-            score={overall.score}
-            verdict={overall.verdict}
-            coverage={overall.weightedCoverage}
-          />
+          {unscoredPlan ? (
+            <div className="score-dial" role="status" aria-label={t.unscoredLabel}>
+              <div className="score-dial__number">—</div>
+              <div className="score-dial__label">{t.unscoredLabel}</div>
+              <div className="score-dial__coverage">{checksLine}</div>
+            </div>
+          ) : (
+            <ScoreDial
+              score={overall.score}
+              verdict={overall.verdict}
+              coverage={overall.weightedCoverage}
+            />
+          )}
         </div>
+        {unscoredPlan ? (
+          <p className="muted">{fillCopy(t.unscoredLead, { plan: scan.plan })}</p>
+        ) : null}
         <section className="report-help" aria-label={t.helpHeading}>
           <h3 className="section-heading">{t.helpHeading}</h3>
           <dl className="report-help__list">
             <div>
               <dt>{t.helpScoreTerm}</dt>
-              <dd>{t.helpScoreBody}</dd>
+              <dd>
+                {unscoredPlan
+                  ? fillCopy(t.unscoredScoreBody, { plan: scan.plan })
+                  : t.helpScoreBody}
+              </dd>
             </div>
             <div>
               <dt>{t.helpCoverageTerm}</dt>
@@ -169,7 +187,7 @@ export function ResultsScreen(props: {
               >
                 {module.score === null ? t.noScore : module.score.toFixed(2)}
               </div>
-              <ModuleMetadata module={module} />
+              <ModuleMetadata module={module} scored={!unscoredPlan} />
               {module.usableOutput && module.coverage !== null ? (
                 <ProgressBar value={module.coverage * 100} label={`${module.module} coverage`} />
               ) : (
@@ -201,15 +219,46 @@ export function ResultsScreen(props: {
           <Button onClick={props.onReports}>{copy[props.language].reports.windowTitle}</Button>
         </div>
         <div className="breadcrumb">
-          {scan.id} · {scan.rulesetVersion} · coverage {(overall.weightedCoverage * 100).toFixed(0)}
-          %
+          {scan.id} · {scan.rulesetVersion} ·{' '}
+          {unscoredPlan ? checksLine : `coverage ${(overall.weightedCoverage * 100).toFixed(0)}%`}
         </div>
       </Window>
     </div>
   );
 }
 
-function ModuleMetadata({ module }: { module: ScanModule }) {
+/**
+ * The one line an unscored report can put where the coverage number goes.
+ *
+ * Completed checks, not a percentage: on a plan with no score weights the
+ * weighted coverage is 0 by construction, and printing it would repeat the very
+ * claim this screen exists to stop making. A scan that read nothing says so.
+ *
+ * Both halves are counted over the modules that produced usable output, so the
+ * ratio stays a statement about one set of results. Counting the denominator
+ * over every module would fold in checks belonging to a module that returned
+ * nothing, and the line would read as a shortfall in the checks that did run.
+ */
+function checksSummary(modules: readonly ScanModule[], language: Language): string {
+  const t = copy[language].report;
+  const usable = modules.filter((module) => module.usableOutput);
+  if (usable.length === 0) {
+    return t.unscoredChecksNone;
+  }
+  return fillCopy(t.unscoredChecks, {
+    completed: sumChecks(usable, (module) => module.completedApplicableChecks),
+    applicable: sumChecks(usable, (module) => module.applicableChecks),
+  });
+}
+
+function sumChecks(
+  modules: readonly ScanModule[],
+  select: (module: ScanModule) => number | null,
+): number {
+  return modules.reduce((total, module) => total + (select(module) ?? 0), 0);
+}
+
+function ModuleMetadata({ module, scored }: { module: ScanModule; scored: boolean }) {
   if (module.module === 'Accessibility') {
     return <small className="module-card__meta">WCAG 2.2 AA · EN 301 549 · Section 508</small>;
   }
@@ -220,7 +269,17 @@ function ModuleMetadata({ module }: { module: ScanModule }) {
     return <small className="module-card__meta">Public technical consent signals</small>;
   }
   if (module.module === 'SEO') {
-    return <small className="module-card__meta">JSON-LD · Open Graph · Twitter Cards</small>;
+    // The Free check runs four homepage rules and none of the structured-data or
+    // social-preview ones, so the paid module's line would name checks that
+    // never ran. What the module row itself recorded wins; failing that, a scan
+    // known not to be the full module says nothing rather than something false.
+    const checks = checkTitles(module.metadata);
+    if (checks.length > 0) {
+      return <small className="module-card__meta">{checks.join(' · ')}</small>;
+    }
+    return scored ? (
+      <small className="module-card__meta">JSON-LD · Open Graph · Twitter Cards</small>
+    ) : null;
   }
   if (module.module === 'Analytics') {
     return (
@@ -241,6 +300,18 @@ function ModuleMetadata({ module }: { module: ScanModule }) {
     );
   }
   return null;
+}
+
+/** Titles of the checks a module row says it ran; empty when it recorded none. */
+function checkTitles(metadata: Readonly<Record<string, unknown>> | undefined): readonly string[] {
+  const checks = metadata?.checks;
+  if (!Array.isArray(checks)) {
+    return [];
+  }
+  return checks.flatMap((entry: unknown) => {
+    const title = asRecord(entry)?.title;
+    return typeof title === 'string' && title !== '' ? [title] : [];
+  });
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

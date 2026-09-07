@@ -7,7 +7,9 @@ import { createDefaultAiProvider } from './orchestrator/geo.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { silentLogger } from './http/logger.ts';
 import { deleteAccountData } from './data-retention.ts';
+import { FREE_CHECK_SCORING_REASON } from './orchestrator/free-check.ts';
 import { createTestDb, type TestDb } from './test-utils/test-db.ts';
+import { FREE_CHECK_RULE_IDS } from '@fluxradar/contracts';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 import { TEST_WEBHOOK_SECRET } from './test-utils/test-db.ts';
 
@@ -65,8 +67,32 @@ describe('T-12 API happy paths', () => {
       weightedCoverage: 0,
       moduleWeights: [],
     });
-    expect(dashboard.body.data.modules).toEqual(
-      expect.arrayContaining([expect.objectContaining({ module: 'SEO', score: null })]),
+    // The pair the report has to reconcile, pinned on both halves: the overall
+    // verdict above is `insufficient_data` with a weighted coverage of 0 because
+    // Free carries no tariff score weight (D-123) — while the SEO row itself ran
+    // every check it had and says so. A screen that printed both verbatim told
+    // the owner a completed check had failed.
+    const seo = (dashboard.body.data.modules as Record<string, unknown>[]).find(
+      (module) => module.module === 'SEO',
+    );
+    expect(seo).toMatchObject({
+      module: 'SEO',
+      status: 'Completed',
+      score: null,
+      usableOutput: true,
+      coverage: 1,
+    });
+    expect(seo?.completedApplicableChecks).toBe(seo?.applicableChecks);
+    expect(seo?.applicableChecks).toBeGreaterThan(0);
+    // And the row names the four homepage rules it ran, not the paid module's
+    // structured-data and social-preview checks.
+    expect(seo?.metadata).toMatchObject({
+      freeCheck: true,
+      scope: 'homepage only',
+      scoring: FREE_CHECK_SCORING_REASON,
+    });
+    expect((seo?.metadata as { checks: unknown[] }).checks).toHaveLength(
+      FREE_CHECK_RULE_IDS.length,
     );
 
     const duplicate = await agent
@@ -119,6 +145,106 @@ describe('T-12 API happy paths', () => {
     );
     expect(
       await db.prisma.freeCheckClaim.count({ where: { origin: 'https://race.example.com' } }),
+    ).toBe(1);
+  });
+
+  // ─── Free-check allowlist ──────────────────────────────────────────────────
+  //
+  // FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS names the origins this deployment runs
+  // itself (the demo site, a customer site being reproduced during support).
+  // They skip BOTH Free-check limits: the account's one-time flag and the global
+  // per-domain claim. Everything else keeps the limits above, unchanged.
+  // ───────────────────────────────────────────────────────────────────────────
+  it('lets an allowlisted origin run the Free check repeatedly, from any account', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+      freeCheckAllowedOrigins: new Set(['https://demo.example.com']),
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'allowlisted@example.com');
+    // Stored as the normalized origin, which is what the allowlist is matched
+    // against — an operator writing either spelling means the same site.
+    const profile = await createProfile(agent, account.cookie, 'https://DEMO.example.com/');
+
+    const runs = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      runs.push(
+        await agent
+          .post(`/profiles/${profile.id}/free-check`)
+          .set('Cookie', account.cookie)
+          .send({}),
+      );
+    }
+    expect(runs.map(({ status }) => status)).toEqual([201, 201, 201]);
+
+    // Neither limit was spent, so nothing has to be undone later to run again.
+    expect(
+      await db.prisma.account.count({ where: { id: account.id, freeCheckUsedAt: null } }),
+    ).toBe(1);
+    expect(
+      await db.prisma.freeCheckClaim.count({ where: { origin: 'https://demo.example.com' } }),
+    ).toBe(0);
+
+    // The global claim is what normally stops a second account; an allowlisted
+    // origin is exempt from that too.
+    const otherAgent = request.agent(app);
+    const otherAccount = await register(otherAgent, 'allowlisted-second@example.com');
+    const otherProfile = await createProfile(
+      otherAgent,
+      otherAccount.cookie,
+      'https://demo.example.com',
+    );
+    const secondAccountRun = await otherAgent
+      .post(`/profiles/${otherProfile.id}/free-check`)
+      .set('Cookie', otherAccount.cookie)
+      .send({});
+    expect(secondAccountRun.status).toBe(201);
+  });
+
+  it('keeps both Free-check limits for an origin the allowlist does not name', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+      // A near miss on purpose: the allowlist is exact, so a subdomain of an
+      // allowlisted origin is a different site and stays limited.
+      freeCheckAllowedOrigins: new Set(['https://demo.example.com']),
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'not-allowlisted@example.com');
+    const profile = await createProfile(agent, account.cookie, 'https://www.demo.example.com');
+
+    const first = await agent
+      .post(`/profiles/${profile.id}/free-check`)
+      .set('Cookie', account.cookie)
+      .send({});
+    expect(first.status).toBe(201);
+    const second = await agent
+      .post(`/profiles/${profile.id}/free-check`)
+      .set('Cookie', account.cookie)
+      .send({});
+    expect(second.status).toBe(409);
+    expect(second.body.error.code).toBe('FREE_CHECK_USED');
+
+    const otherAgent = request.agent(app);
+    const otherAccount = await register(otherAgent, 'not-allowlisted-second@example.com');
+    const otherProfile = await createProfile(
+      otherAgent,
+      otherAccount.cookie,
+      'https://www.demo.example.com',
+    );
+    const sameDomain = await otherAgent
+      .post(`/profiles/${otherProfile.id}/free-check`)
+      .set('Cookie', otherAccount.cookie)
+      .send({});
+    expect(sameDomain.status).toBe(409);
+    expect(sameDomain.body.error.code).toBe('FREE_CHECK_DOMAIN_USED');
+    expect(
+      await db.prisma.freeCheckClaim.count({ where: { origin: 'https://www.demo.example.com' } }),
     ).toBe(1);
   });
 

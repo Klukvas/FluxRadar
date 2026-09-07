@@ -80,6 +80,7 @@ export function IssuesScreen(props: {
         </div>
         <Field
           label={t.filterLabel}
+          technical
           value={filter}
           onChange={setFilter}
           placeholder={t.filterPlaceholder}

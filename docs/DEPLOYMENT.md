@@ -325,6 +325,16 @@ The optional GitHub `production` environment variable
 as an exact comma-separated list for internal test accounts; leave it unset when
 internal free access should be disabled.
 
+| GitHub `production` **variable**          | Env key written                        |
+| ----------------------------------------- | -------------------------------------- |
+| `FLUXRADAR_INTERNAL_FREE_EMAILS`          | `FLUXRADAR_INTERNAL_FREE_EMAILS`       |
+| `PRODUCTION_FREE_CHECK_ALLOWED_ORIGINS`   | `FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS` |
+
+`PRODUCTION_FREE_CHECK_ALLOWED_ORIGINS` names the origins allowed to re-run the
+free homepage check without spending a limit; it is a variable rather than a
+secret because an https origin is public by construction. See *Free-check
+allowlist* below for the matching rules and for what a listed origin gives away.
+
 ## DNS before first public visit
 
 Create this DNS record at the authoritative DNS provider:
@@ -473,6 +483,40 @@ Matching accounts can create Basic/Complete scans without a payment; those scans
 deliberately do not create Purchase or Entitlement records. Keep the allowlist
 limited to team accounts because the scan still consumes server and AI
 resources.
+
+### Free-check allowlist
+
+The free homepage check is limited twice: once per account, and once per domain
+for everyone (a global claim row that survives account deletion). Both limits get
+in the way of the sites this deployment runs itself — the demo site, the
+marketing site, a customer site being reproduced during support.
+
+`FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS` is the exception. It is an exact,
+comma-separated list of **https origins** —
+`https://demo.example.com,https://fluxradar.net`. Set it either in
+`PRODUCTION_ENV_FILE`, or through the optional GitHub `production` **variable**
+`PRODUCTION_FREE_CHECK_ALLOWED_ORIGINS`, which overrides the base file when it is
+non-empty and is skipped when empty, like every other optional override. It is a
+variable and deliberately **not** a secret: an https origin is printed on the
+site it names, so hiding it buys nothing, while keeping it out of
+`PRODUCTION_ENV_FILE` means the list can be corrected — a demo domain added, a
+customer's site removed after support is over — without rewriting a base env file
+nobody can read back. Rules worth knowing before adding one:
+
+- Exact match only, on the normalized origin (host lowercased, default port and a
+  trailing `/` removed). There are **no wildcards**: `https://example.com` does
+  not cover `https://www.example.com`, which is a different site.
+- A listed origin skips both limits. The account's one-time flag is not spent and
+  no global claim row is written, so the check can be re-run from any account, as
+  often as needed.
+- Entries that are not an https origin (a bare host, an `http://` URL, anything
+  with a path) are ignored and logged at startup by value — `free-check allowlist
+  entries ignored: not an https origin`. The active list is logged too.
+- Unset or empty is the normal state: every account keeps its one free check, and
+  every domain keeps its global claim.
+
+Keep the list to origins this team controls. A listed origin is unlimited free
+scanning for anyone who registers and adds that domain as a profile.
 
 ### Content Security Policy
 

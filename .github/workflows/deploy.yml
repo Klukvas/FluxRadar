@@ -96,6 +96,14 @@ jobs:
           # instead (integrations/anthropic-config.ts), by name.
           PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
           INTERNAL_FREE_EMAILS: ${{ vars.FLUXRADAR_INTERNAL_FREE_EMAILS }}
+          # The origins this deployment may re-check for free. A public https
+          # origin is not a credential — it is printed on the site it names — so
+          # it is a production environment VARIABLE, not a secret, and it can be
+          # corrected without rewriting the base env file nobody can read back.
+          # Empty keeps whatever PRODUCTION_ENV_FILE defines, like every other
+          # override here, and with neither present every account keeps its one
+          # free check (billing/free-check-allowlist.ts fails closed).
+          PRODUCTION_FREE_CHECK_ALLOWED_ORIGINS: ${{ vars.PRODUCTION_FREE_CHECK_ALLOWED_ORIGINS }}
           PRODUCTION_INTEGRATION_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_INTEGRATION_ENCRYPTION_KEY }}
           PRODUCTION_BING_OAUTH_CLIENT_ID: ${{ secrets.PRODUCTION_BING_OAUTH_CLIENT_ID }}
           PRODUCTION_BING_OAUTH_CLIENT_SECRET: ${{ secrets.PRODUCTION_BING_OAUTH_CLIENT_SECRET }}
@@ -201,6 +209,7 @@ jobs:
           }
 
           upsert_env FLUXRADAR_INTERNAL_FREE_EMAILS INTERNAL_FREE_EMAILS
+          upsert_env FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS PRODUCTION_FREE_CHECK_ALLOWED_ORIGINS
           upsert_env INTEGRATION_ENCRYPTION_KEY PRODUCTION_INTEGRATION_ENCRYPTION_KEY
           upsert_env BING_OAUTH_CLIENT_ID PRODUCTION_BING_OAUTH_CLIENT_ID
           upsert_env BING_OAUTH_CLIENT_SECRET PRODUCTION_BING_OAUTH_CLIENT_SECRET

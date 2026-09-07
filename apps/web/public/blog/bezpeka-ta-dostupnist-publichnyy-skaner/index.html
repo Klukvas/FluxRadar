@@ -34,13 +34,12 @@
       h2 { font-size: 1.2rem; margin-top: 2rem; border-left: 3px solid #333399; padding-left: 10px; }
       .kicker, time { color: #555; font: 12px monospace; letter-spacing: .08em; text-transform: uppercase; }
       li { margin: 10px 0; }
-      footer { border-top: 1px solid #888; margin-top: 48px; padding-top: 20px; font-family: monospace; font-size: 14px; }
       .cta { margin-top: 32px; padding: 18px 24px; background: #d7dff0; border: 1px solid #333399; border-radius: 2px; }
       .lang-badge { font: 11px monospace; background: #333399; color: #fff; padding: 2px 7px; border-radius: 2px; letter-spacing: .06em; }
       figure { margin: 2rem 0; }
       figcaption { font: 13px monospace; color: #555; margin-top: 8px; text-align: center; }
       code { background: #e0e0e0; padding: 1px 5px; border-radius: 2px; font-size: 0.9em; }
-      @media (max-width: 600px) { main { padding: 20px 16px; } h1 { font-size: 1.8rem; } }
+      @media (max-width: 699px) { main { padding: 20px 16px; } h1 { font-size: 1.8rem; } }
 
     </style>
   </head>
@@ -82,7 +81,7 @@
           <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
           <a class="menubar__item" href="/" data-t="nav.home">Home</a>
           <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
-          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog">Blog</a>
           <span class="menubar__spacer"></span>
         </div>
         <div class="menubar__meta">
@@ -119,7 +118,7 @@
     </nav>
 
     <div class="blog-page">
-      <main>
+      <main id="blog-main">
 
       <div class="kicker">
         БЕЗПЕКА · ДОСТУПНІСТЬ · <time datetime="2026-09-05">5 ВЕРЕСНЯ 2026</time>
@@ -242,10 +241,22 @@
         FluxRadar аналізує HTTP-заголовки, HTTPS-конфігурацію та базові сигнали доступності у кожному скані. Без реєстрації для першого сканування. <a href="/">Спробувати зараз</a>.
       </div>
 
-      <footer>
+      <footer class="site-footer">
         <a href="/blog/tekhnichnyy-seo-publichnyy-audyt">← Попередня: Технічний SEO: публічний аудит сайту</a>
-        &nbsp;|&nbsp;
         <a href="/blog">Всі нотатки</a>
+        <span class="powered-by">
+          <a
+            class="powered-by__link"
+            href="https://flux-lab.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-t-label="blog.poweredByAria"
+            aria-label="Працює на FluxLab (відкривається в новій вкладці)"
+          >
+            <span class="powered-by__mark" aria-hidden="true">◈</span>
+            <span data-t="blog.poweredBy">Працює на FluxLab</span>
+          </a>
+        </span>
       </footer>
       </main>
     </div>

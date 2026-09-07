@@ -87,7 +87,7 @@ export const copy = {
       navigateGroup: 'Navigate',
       systemGroup: 'System',
       descriptions: {
-        profiles: 'Your saved websites and their audit history.',
+        profiles: 'Your saved profiles and their audit history.',
         scan: 'Set up and start a new audit.',
         reports: 'Completed and in-progress audit results.',
         integrations: 'Optional data connections. The public-site scan works without them.',
@@ -160,17 +160,23 @@ export const copy = {
       workspaceTitle: 'Workspace — FluxRadar',
     },
     workspace: {
-      intro: 'Unified public website audit station.',
+      intro: 'Unified public site audit station.',
       sites: 'Site Profiles',
       registered: 'Registered public origins',
-      noSites: 'No public sites yet',
+      noSites: 'No profiles yet',
       noSitesHelp:
-        'Add your first public website to begin. Enter its homepage address (like mysite.com) and FluxRadar creates a profile you can scan whenever you are ready.',
-      addSite: 'Add site',
+        'Add your first profile to begin. Enter the homepage address of your site (like mysite.com) and FluxRadar saves it as a profile you can scan whenever you are ready.',
+      addSite: 'Add profile',
       addSiteHelp:
-        'Saving a website builds a reusable profile and its audit history. FluxRadar reads only public pages — no passwords or CMS access — and saving does not start a scan or charge you.',
+        'A profile stores one site address and its audit history. FluxRadar reads only public pages — no passwords or CMS access — and saving does not start a scan or charge you.',
       displayName: 'Display name',
-      displayNamePlaceholder: 'Product website',
+      displayNamePlaceholder: 'Product site',
+      siteAddressLabel: 'Site address',
+      siteAddressPlaceholder: 'mysite.com',
+      siteAddressHint:
+        'Enter your homepage domain, for example mysite.com. No CMS access or passwords needed.',
+      siteAddressError:
+        'That does not look like a site address. Enter your domain, like mysite.com.',
       saveProfile: 'Save profile',
       saving: 'Saving…',
       newScan: 'New scan',
@@ -301,15 +307,19 @@ export const copy = {
       steps: tourStepCopy({
         'workspace-tabs': {
           title: 'Your workspace tabs',
-          body: 'The bar at the top is the whole workspace. Profiles holds the public websites you saved, Scan starts an audit of one of them, and Reports keeps the finished results. Integrations is optional context — a public audit works without it, and FAQ answers what each check covers.',
+          body: 'The bar at the top is the whole workspace. Profiles holds the public sites you saved as profiles, Scan starts an audit of one of them, and Reports keeps the finished results. Integrations is optional context — a public audit works without it, and FAQ answers what each check covers.',
         },
         'profile-domain': {
-          title: 'Add a public website',
+          title: 'Add your first profile',
           body: 'Enter the homepage address of a site anyone can open, like mysite.com. FluxRadar reads only public pages — it never needs a CMS password or source-code access.',
         },
         'save-profile': {
           title: 'Save the profile',
-          body: 'Give the site a name and save it. Saving only creates a reusable profile: it does not start a scan and it does not charge you.',
+          body: 'The name is filled in from the address you entered, and you can rename it to anything you recognise. Saving only creates a reusable profile: it does not start a scan and it does not charge you.',
+        },
+        integrations: {
+          title: 'Integrations are optional',
+          body: 'The Integrations tab connects accounts you already own, such as Google Search Console or Analytics. Nothing there is required: every audit reads public pages only and works with no connection at all. Connecting one just adds the data that account holds — search performance, traffic — next to the results FluxRadar measures itself.',
         },
         'run-scan': {
           title: 'Start a scan when you are ready',
@@ -328,9 +338,9 @@ export const copy = {
       chooseBasic: 'Start with Basic',
       chooseComplete: 'Start with Complete',
       startInWorkspace:
-        'You buy a report inside the workspace: pick a saved website, choose Basic or Complete, and the scan starts once the payment provider confirms the payment.',
+        'You buy a report inside the workspace: pick a saved profile, choose Basic or Complete, and the scan starts once the payment provider confirms the payment.',
       freeNote:
-        'There is also a free homepage check — title, meta description, headings and indexability of one page, once per account and once per website. It is a first look at the report format, not a third product.',
+        'There is also a free homepage check — title, meta description, headings and indexability of one page, once per account and once per site. It is a first look at the report format, not a third product.',
       coverageLink: 'Read the full audit coverage →',
       faqLink: 'Read the FAQ →',
       cards: {
@@ -378,10 +388,10 @@ export const copy = {
     newScan: {
       windowTitle: 'New scan — scope and tariff',
       windowTitleEmpty: 'New scan',
-      emptyTitle: 'Create a site profile first',
+      emptyTitle: 'Create a profile first',
       emptyBody:
-        'A scan always runs against a website you saved. Add the homepage address once and it stays available for every later check.',
-      emptyAction: 'Add a website',
+        'A scan always runs against a profile you saved. Add the site address once and it stays available for every later check.',
+      emptyAction: 'Add profile',
       panelTarget: 'Target',
       labelOrigin: 'Public origin',
       labelSubdomains: 'Include subdomains (where allowed)',
@@ -426,10 +436,12 @@ export const copy = {
       showAll: 'Show all reports',
       refresh: 'Refresh',
       emptyTitle: 'No reports yet',
-      emptyBody: 'A report appears here as soon as you check a website. The free homepage check is a good place to start.',
-      emptyProfileTitle: 'No reports for this website yet',
-      emptyProfileBody: 'Nothing has been checked for this website yet. Start a check and its report will appear here.',
-      emptyAction: 'Check a website',
+      emptyBody:
+        'A report appears here as soon as you check one of your profiles. The free homepage check is a good place to start.',
+      emptyProfileTitle: 'No reports for this profile yet',
+      emptyProfileBody:
+        'Nothing has been checked for this profile yet. Start a check and its report will appear here.',
+      emptyAction: 'Check a profile',
       errorTitle: 'Your reports could not be loaded',
       retry: 'Try again',
       showMore: 'Show older reports',
@@ -442,14 +454,14 @@ export const copy = {
       finishedAt: 'Finished {time}',
       planLabel: 'Plan',
       statusLabel: 'Result',
-      websiteLabel: 'Website',
+      profileLabel: 'Profile',
     },
     scanProgress: {
       windowTitle: 'Scan progress',
       noScanTitle: 'No check selected',
-      noScanBody: 'Open one of your reports, or start a new check of a saved website.',
+      noScanBody: 'Open one of your reports, or start a new check of a saved profile.',
       noScanAction: 'Go to reports',
-      panelTitle: 'Checking your website',
+      panelTitle: 'Checking your site',
       reviewing: 'We’re reviewing {domain} for you.',
       progressLabel: 'Audit progress',
       ready: 'Your report is ready.',
@@ -483,9 +495,9 @@ export const copy = {
       emptyAction: 'Go to reports',
       errorTitle: 'This report could not be opened',
       retry: 'Try again',
-      signalHeading: 'Unified website signal',
+      signalHeading: 'Unified site signal',
       detailsLabel: 'Report details',
-      website: 'Website',
+      siteAddress: 'Site address',
       plan: 'Plan',
       report: 'Report',
       helpHeading: 'How to read this report',
@@ -508,6 +520,19 @@ export const copy = {
         'The Issue Center lists every finding with its evidence and a recommended fix, so you can decide what to work on first.',
       openIssues: 'Open Issue Center',
       exportComplete: 'Export is reserved for Complete scans.',
+      // A plan with no tariff score weights. The scoring engine answers
+      // `insufficient_data` with a weighted coverage of 0 for it — the same
+      // verdict a paid scan gets when it could not read the site — so a Free
+      // report used to say "Insufficient data · coverage 0%" next to an SEO
+      // section that had completed all four of its checks. These say the honest
+      // thing instead: the check ran, and this plan carries no score.
+      unscoredLabel: 'Not scored on this plan',
+      unscoredChecks: '{completed}/{applicable} checks completed',
+      unscoredChecksNone: 'homepage could not be read',
+      unscoredLead:
+        'The {plan} check runs a fixed set of homepage checks. The findings below are real, and each one carries its evidence.',
+      unscoredScoreBody:
+        'A 0–100 rating is part of the Basic and Complete scans. The {plan} check reports findings only, so this report shows a dash rather than a number nothing measured.',
     },
     issues: {
       windowTitle: 'Issue Center',
@@ -544,7 +569,7 @@ export const copy = {
       lead: 'Optional connections are managed here. Public-site checks continue to work without them.',
       refresh: 'Refresh',
       connectedNotice:
-        'Google is connected. Choose which properties this website reports on below.',
+        'Google is connected. Choose which properties each profile reports on below.',
       errorNotice: 'The integration could not be connected.',
       readyToConnect: 'Ready to connect',
       connect: 'Connect',
@@ -554,6 +579,53 @@ export const copy = {
       serverConfigured: 'Server configured',
       serverLimited: 'Limited mode',
       serverMissing: 'Needs server config',
+      google: {
+        title: 'Google properties',
+        readOnly:
+          'FluxRadar only reads these properties — it never writes to Search Console or Analytics. They are two separate data sources: Search Console reports how the site performs in search, Analytics reports the traffic it receives.',
+        notConnected:
+          'Connect Google above to choose which Search Console property and which Analytics property each profile reports on.',
+        profileLabel: 'Profile',
+        searchConsoleLabel: 'Search Console property',
+        analyticsLabel: 'Analytics property',
+        notLinked: 'Not linked',
+        loading: 'Loading Google properties…',
+        save: 'Save selection',
+        saving: 'Saving…',
+        refresh: 'Refresh list',
+        savedLinked: 'Saved. The next scan of this profile will include this Google data.',
+        savedUnlinked: 'Google properties unlinked. Reports will not include Google data.',
+        noBinding:
+          'No property is linked to this profile yet, so reports will show Google data as not configured.',
+        searchConsolePrefix: 'Search Console',
+        analyticsPrefix: 'Analytics',
+        loadFailed: 'Google properties could not be loaded. Refresh the list to try again.',
+        saveFailed: 'The selection could not be saved. Try again in a moment.',
+        emptyTitle: 'No profile to link yet',
+        emptyBody:
+          'Google is connected, but Google data is linked per profile. Create a profile first — manually, or from one of the Search Console properties this Google account can read.',
+        emptyAction: 'Add profile',
+        createHeading: 'Create profile from Search Console',
+        createBody:
+          'Each property below becomes a profile at its own site address and is linked to that Search Console property straight away. The connection stays read-only.',
+        create: 'Create profile',
+        creating: 'Creating…',
+        createdLinked: 'Profile {name} was created and linked to {property}.',
+        createdUnlinked:
+          'Profile {name} was created, but the Search Console property could not be linked to it. Choose the property in the list below.',
+        createInsecure:
+          'This property is verified over http://. FluxRadar audits https sites only, so add the profile manually using its https address.',
+        createUnsupported:
+          'This property cannot be turned into a site address FluxRadar is able to audit. Add the profile manually instead.',
+        createDuplicate:
+          'A profile for this site address already exists. Select it above instead of creating another one.',
+        createFailed:
+          'The profile could not be created from this property. Try again, or add it manually.',
+        noProperties:
+          'This Google account has no Search Console property FluxRadar can read, so there is nothing to create a profile from yet.',
+        analyticsOnlyNote:
+          'An Analytics property on its own does not create a profile: it carries no site address to audit. Add the profile manually, then link its Analytics property here.',
+      },
       policyTitle: 'Current policy',
       policyBody:
         'Google and Bing connections are read-only. FluxRadar requests no CMS credentials and never changes a client site. Public-site scans continue to work without either connection.',
@@ -617,7 +689,7 @@ export const copy = {
       navigateGroup: 'Навігація',
       systemGroup: 'Система',
       descriptions: {
-        profiles: 'Ваші збережені сайти та історія їхніх перевірок.',
+        profiles: 'Ваші збережені профілі та історія їхніх перевірок.',
         scan: 'Налаштуйте та запустіть нову перевірку.',
         reports: 'Готові та поточні результати перевірок.',
         integrations: 'Необовʼязкові підключення даних. Публічна перевірка працює без них.',
@@ -630,8 +702,7 @@ export const copy = {
       back: '← Назад до FluxRadar',
       contents: 'МАПА ДОКУМЕНТА',
       contentsLabel: 'Розділи документа',
-      englishNotice:
-        'Цей документ ведеться англійською. Саме англійський текст є чинною версією.',
+      englishNotice: 'Цей документ ведеться англійською. Саме англійський текст є чинною версією.',
       footerBrand: 'FLUXRADAR / ВІД FLUXLAB',
       questions: 'Питання:',
       privacy: {
@@ -693,14 +764,19 @@ export const copy = {
       intro: 'Єдина станція аудиту публічного сайту.',
       sites: 'Профілі сайтів',
       registered: 'Зареєстровані публічні джерела',
-      noSites: 'Публічних сайтів ще немає',
+      noSites: 'Профілів ще немає',
       noSitesHelp:
-        'Додайте перший публічний сайт, щоб почати. Введіть адресу головної сторінки (наприклад, mysite.com), і FluxRadar створить профіль, який можна перевірити будь-коли.',
-      addSite: 'Додати сайт',
+        'Додайте перший профіль, щоб почати. Введіть адресу головної сторінки вашого сайту (наприклад, mysite.com) — FluxRadar збереже її як профіль, який можна перевірити будь-коли.',
+      addSite: 'Додати профіль',
       addSiteHelp:
-        'Збереження сайту створює багаторазовий профіль та історію його перевірок. FluxRadar читає лише публічні сторінки — без паролів і доступу до CMS — а збереження не запускає перевірку й не стягує оплату.',
+        'Профіль зберігає одну адресу сайту та історію його перевірок. FluxRadar читає лише публічні сторінки — без паролів і доступу до CMS — а збереження не запускає перевірку й не стягує оплату.',
       displayName: 'Назва',
       displayNamePlaceholder: 'Сайт продукту',
+      siteAddressLabel: 'Адреса сайту',
+      siteAddressPlaceholder: 'mysite.com',
+      siteAddressHint:
+        'Введіть домен головної сторінки, наприклад mysite.com. Доступ до CMS і паролі не потрібні.',
+      siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysite.com.',
       saveProfile: 'Зберегти профіль',
       saving: 'Збереження…',
       newScan: 'Нова перевірка',
@@ -831,15 +907,19 @@ export const copy = {
       steps: tourStepCopy({
         'workspace-tabs': {
           title: 'Вкладки робочого простору',
-          body: 'Верхня панель — це весь робочий простір. «Профілі» зберігають публічні сайти, які ви додали, «Перевірка» запускає аудит одного з них, «Звіти» містять готові результати. «Інтеграції» — необовʼязковий контекст: публічний аудит працює й без них, а FAQ пояснює, що саме входить у кожну перевірку.',
+          body: 'Верхня панель — це весь робочий простір. «Профілі» — це публічні сайти, які ви зберегли, «Перевірка» запускає аудит одного з них, «Звіти» містять готові результати. «Інтеграції» — необовʼязковий контекст: публічний аудит працює й без них, а FAQ пояснює, що саме входить у кожну перевірку.',
         },
         'profile-domain': {
-          title: 'Додайте публічний сайт',
+          title: 'Додайте перший профіль',
           body: 'Введіть адресу головної сторінки, яку може відкрити будь-хто, наприклад mysite.com. FluxRadar читає лише публічні сторінки — пароль до CMS або доступ до коду не потрібні.',
         },
         'save-profile': {
           title: 'Збережіть профіль',
-          body: 'Дайте сайту назву та збережіть його. Це лише створює багаторазовий профіль: перевірка не запускається й оплата не стягується.',
+          body: 'Назва підставляється з введеної адреси, і ви можете змінити її на будь-яку зрозумілу вам. Це лише створює багаторазовий профіль: перевірка не запускається й оплата не стягується.',
+        },
+        integrations: {
+          title: 'Інтеграції — необовʼязкові',
+          body: 'Вкладка «Інтеграції» підключає акаунти, які у вас уже є, наприклад Google Search Console чи Analytics. Нічого з цього не обовʼязкове: аудит читає лише публічні сторінки й працює взагалі без підключень. Підключення лише додає дані, які має той акаунт — пошукову ефективність, трафік — поруч із тим, що FluxRadar вимірює сам.',
         },
         'run-scan': {
           title: 'Запустіть перевірку, коли будете готові',
@@ -858,7 +938,7 @@ export const copy = {
       chooseBasic: 'Почати з Basic',
       chooseComplete: 'Почати з Complete',
       startInWorkspace:
-        'Звіт купується в робочому просторі: оберіть збережений сайт, оберіть Basic або Complete — перевірка стартує, щойно платіжний провайдер підтвердить оплату.',
+        'Звіт купується в робочому просторі: оберіть збережений профіль, оберіть Basic або Complete — перевірка стартує, щойно платіжний провайдер підтвердить оплату.',
       freeNote:
         'Є також безкоштовна перевірка головної сторінки — заголовок, meta description, заголовки та індексація однієї сторінки, один раз на акаунт і один раз на сайт. Це перший погляд на формат звіту, а не третій продукт.',
       coverageLink: 'Переглянути всі перевірки →',
@@ -907,10 +987,10 @@ export const copy = {
     newScan: {
       windowTitle: 'Нова перевірка — область і тариф',
       windowTitleEmpty: 'Нова перевірка',
-      emptyTitle: 'Спочатку створіть профіль сайту',
+      emptyTitle: 'Спочатку створіть профіль',
       emptyBody:
-        'Перевірка завжди виконується для збереженого сайту. Додайте адресу головної сторінки один раз — і вона буде доступна для всіх наступних перевірок.',
-      emptyAction: 'Додати сайт',
+        'Перевірка завжди виконується для збереженого профілю. Додайте адресу сайту один раз — і вона буде доступна для всіх наступних перевірок.',
+      emptyAction: 'Додати профіль',
       panelTarget: 'Ціль',
       labelOrigin: 'Публічне джерело',
       labelSubdomains: 'Включати піддомени (де дозволено)',
@@ -955,10 +1035,12 @@ export const copy = {
       showAll: 'Показати всі звіти',
       refresh: 'Оновити',
       emptyTitle: 'Звітів ще немає',
-      emptyBody: 'Звіт зʼявиться тут одразу після першої перевірки сайту. Почніть із безкоштовної перевірки головної сторінки.',
-      emptyProfileTitle: 'Для цього сайту звітів ще немає',
-      emptyProfileBody: 'Цей сайт ще не перевіряли. Запустіть перевірку — і її звіт зʼявиться тут.',
-      emptyAction: 'Перевірити сайт',
+      emptyBody:
+        'Звіт зʼявиться тут одразу після першої перевірки профілю. Почніть із безкоштовної перевірки головної сторінки.',
+      emptyProfileTitle: 'Для цього профілю звітів ще немає',
+      emptyProfileBody:
+        'Цей профіль ще не перевіряли. Запустіть перевірку — і її звіт зʼявиться тут.',
+      emptyAction: 'Перевірити профіль',
       errorTitle: 'Не вдалося завантажити ваші звіти',
       retry: 'Спробувати ще раз',
       showMore: 'Показати давніші звіти',
@@ -971,12 +1053,13 @@ export const copy = {
       finishedAt: 'Завершено: {time}',
       planLabel: 'Тариф',
       statusLabel: 'Результат',
-      websiteLabel: 'Сайт',
+      profileLabel: 'Профіль',
     },
     scanProgress: {
       windowTitle: 'Перебіг перевірки',
       noScanTitle: 'Перевірку не вибрано',
-      noScanBody: 'Відкрийте один зі своїх звітів або запустіть нову перевірку збереженого сайту.',
+      noScanBody:
+        'Відкрийте один зі своїх звітів або запустіть нову перевірку збереженого профілю.',
       noScanAction: 'Перейти до звітів',
       panelTitle: 'Перевіряємо ваш сайт',
       reviewing: 'Ми переглядаємо {domain} для вас.',
@@ -1008,13 +1091,14 @@ export const copy = {
       windowTitle: 'Панель звіту',
       loadingTitle: 'Панель звіту',
       emptyTitle: 'Звіт не відкрито',
-      emptyBody: 'Виберіть один зі своїх звітів, щоб побачити оцінку, знахідки та що виправити першим.',
+      emptyBody:
+        'Виберіть один зі своїх звітів, щоб побачити оцінку, знахідки та що виправити першим.',
       emptyAction: 'Перейти до звітів',
       errorTitle: 'Не вдалося відкрити цей звіт',
       retry: 'Спробувати ще раз',
       signalHeading: 'Єдиний сигнал сайту',
       detailsLabel: 'Деталі звіту',
-      website: 'Сайт',
+      siteAddress: 'Адреса сайту',
       plan: 'Тариф',
       report: 'Звіт',
       helpHeading: 'Як читати цей звіт',
@@ -1037,6 +1121,13 @@ export const copy = {
         'Центр проблем показує кожну знахідку з доказом і рекомендованим виправленням, щоб ви вирішили, з чого почати.',
       openIssues: 'Відкрити Центр проблем',
       exportComplete: 'Експорт доступний лише для тарифу Complete.',
+      unscoredLabel: 'Цей тариф не оцінюється',
+      unscoredChecks: 'виконано перевірок: {completed}/{applicable}',
+      unscoredChecksNone: 'не вдалося прочитати головну сторінку',
+      unscoredLead:
+        'Перевірка {plan} виконує фіксований набір перевірок головної сторінки. Знахідки нижче справжні, і кожна має свій доказ.',
+      unscoredScoreBody:
+        'Оцінка 0–100 доступна в тарифах Basic і Complete. Перевірка {plan} показує лише знахідки, тому тут стоїть риска, а не число, якого ніхто не вимірював.',
     },
     issues: {
       windowTitle: 'Центр проблем',
@@ -1072,7 +1163,8 @@ export const copy = {
       heading: 'Підключені джерела даних',
       lead: 'Тут керують необовʼязковими підключеннями. Перевірки публічного сайту працюють і без них.',
       refresh: 'Оновити',
-      connectedNotice: 'Google підключено. Нижче виберіть, за якими ресурсами звітує цей сайт.',
+      connectedNotice:
+        'Google підключено. Нижче виберіть, за якими ресурсами звітує кожен профіль.',
       errorNotice: 'Не вдалося підключити інтеграцію.',
       readyToConnect: 'Готово до підключення',
       connect: 'Підключити',
@@ -1082,6 +1174,53 @@ export const copy = {
       serverConfigured: 'Налаштовано на сервері',
       serverLimited: 'Обмежений режим',
       serverMissing: 'Потрібне налаштування сервера',
+      google: {
+        title: 'Ресурси Google',
+        readOnly:
+          'FluxRadar лише читає ці ресурси — він ніколи не записує дані в Search Console чи Analytics. Це два різні джерела даних: Search Console показує, як сайт працює в пошуку, Analytics — який трафік він отримує.',
+        notConnected:
+          'Підключіть Google вище, щоб обрати, який ресурс Search Console і який ресурс Analytics використовує кожен профіль.',
+        profileLabel: 'Профіль',
+        searchConsoleLabel: 'Ресурс Search Console',
+        analyticsLabel: 'Ресурс Analytics',
+        notLinked: 'Не звʼязано',
+        loading: 'Завантажуємо ресурси Google…',
+        save: 'Зберегти вибір',
+        saving: 'Збереження…',
+        refresh: 'Оновити список',
+        savedLinked: 'Збережено. Наступна перевірка цього профілю включатиме ці дані Google.',
+        savedUnlinked: 'Ресурси Google відʼєднано. Звіти не міститимуть даних Google.',
+        noBinding:
+          'З цим профілем ще не звʼязано жодного ресурсу, тому у звітах дані Google будуть позначені як не налаштовані.',
+        searchConsolePrefix: 'Search Console',
+        analyticsPrefix: 'Analytics',
+        loadFailed: 'Не вдалося завантажити ресурси Google. Оновіть список, щоб спробувати ще раз.',
+        saveFailed: 'Не вдалося зберегти вибір. Спробуйте за мить ще раз.',
+        emptyTitle: 'Ще немає профілю для звʼязку',
+        emptyBody:
+          'Google підключено, але дані Google звʼязуються з окремим профілем. Спершу створіть профіль — вручну або з одного з ресурсів Search Console, які доступні цьому акаунту Google.',
+        emptyAction: 'Додати профіль',
+        createHeading: 'Створити профіль із Search Console',
+        createBody:
+          'Кожен ресурс нижче стає профілем зі своєю адресою сайту й одразу звʼязується з цим ресурсом Search Console. Підключення лишається лише для читання.',
+        create: 'Створити профіль',
+        creating: 'Створення…',
+        createdLinked: 'Профіль {name} створено та звʼязано з {property}.',
+        createdUnlinked:
+          'Профіль {name} створено, але звʼязати з ним ресурс Search Console не вдалося. Оберіть ресурс у списку нижче.',
+        createInsecure:
+          'Цей ресурс підтверджено через http://. FluxRadar перевіряє лише https-сайти, тому додайте профіль вручну з його https-адресою.',
+        createUnsupported:
+          'Із цього ресурсу не вдається отримати адресу сайту, яку FluxRadar може перевірити. Додайте профіль вручну.',
+        createDuplicate:
+          'Профіль для цієї адреси сайту вже існує. Оберіть його вище замість створення ще одного.',
+        createFailed:
+          'Не вдалося створити профіль із цього ресурсу. Спробуйте ще раз або додайте його вручну.',
+        noProperties:
+          'У цього акаунта Google немає ресурсів Search Console, доступних FluxRadar, тому створювати профіль поки що немає з чого.',
+        analyticsOnlyNote:
+          'Ресурс Analytics сам собою не створює профіль: у ньому немає адреси сайту для перевірки. Додайте профіль вручну, а потім звʼяжіть із ним ресурс Analytics тут.',
+      },
       policyTitle: 'Поточна політика',
       policyBody:
         'Підключення Google і Bing працюють лише на читання. FluxRadar не запитує доступів до CMS і ніколи не змінює сайт клієнта. Перевірки публічного сайту працюють без обох підключень.',

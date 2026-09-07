@@ -56,7 +56,11 @@ const isHttpsOrigin = (value: string): boolean => {
 };
 
 // Normalizing to url.origin lowercases the host and strips an explicit default port.
-const httpsOriginSchema = z
+// Exported because a profile domain is not the only place an https origin is
+// read: a server-side allowlist has to normalize the origins an operator writes
+// by hand exactly the way a stored profile domain was normalized, or an exact
+// match compares two spellings of the same site and answers no.
+export const httpsOriginSchema = z
   .string()
   .refine((value) => utf8ByteLength(value) <= CRAWL_LIMITS.maxUrlBytes, {
     message: `domain must be at most ${CRAWL_LIMITS.maxUrlBytes} bytes`,

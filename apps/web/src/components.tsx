@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { FLUXLAB_URL, poweredByFluxLab } from './brand';
 import { copy, languageOptions, type Language } from './i18n';
 import { tourTargets } from './tour-targets';
 
@@ -50,13 +51,61 @@ export function Window(props: {
   );
 }
 
-export function MenuBar(props: {
-  active: string;
-  onNavigate: (screen: string) => void;
-  signedIn: boolean;
-  language: Language;
-  onLanguageChange: (language: Language) => void;
-}) {
+/**
+ * Footer attribution shared by every screen that has a footer. It sits on its
+ * own row so the brand/links row above it keeps the layout it already had, and
+ * it opens the studio site in a new tab — which is why it carries the
+ * `noopener noreferrer` pair and says so to a screen reader.
+ */
+export function PoweredByFluxLab(props: { language: Language }) {
+  const label = poweredByFluxLab[props.language];
+  return (
+    <span className="powered-by">
+      <a
+        className="powered-by__link"
+        href={FLUXLAB_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`${label} (opens in a new tab)`}
+      >
+        <span className="powered-by__mark" aria-hidden="true">
+          ◈
+        </span>
+        {label}
+      </a>
+    </span>
+  );
+}
+
+/**
+ * The one header the whole site ships. `variant` decides which destinations it
+ * offers, not which header it is: the `app` variant carries the workspace tabs
+ * (disabled until there is a session), the `public` variant carries only the
+ * three destinations a visitor without an account can actually reach — the same
+ * Home / FAQ / Blog trio the static blog pages render in plain HTML.
+ *
+ * Keeping the public pages to three items is not only about dead controls: the
+ * app row is wide enough that between the burger breakpoint and roughly 1000px
+ * it used to scroll sideways inside the bar and clip its last items.
+ */
+export type MenuBarProps =
+  | {
+      variant: 'public';
+      active: string;
+      language: Language;
+      onLanguageChange: (language: Language) => void;
+    }
+  | {
+      variant?: 'app';
+      active: string;
+      onNavigate: (screen: string) => void;
+      signedIn: boolean;
+      language: Language;
+      onLanguageChange: (language: Language) => void;
+    };
+
+export function MenuBar(props: MenuBarProps) {
+  const isPublic = props.variant === 'public';
   const labels = copy[props.language].nav;
   const [isMenuOpen, setMenuOpen] = useState(false);
 
@@ -73,22 +122,31 @@ export function MenuBar(props: {
     languageOptions.find((option) => option.value === props.language)?.label ?? props.language;
 
   function navigateAndClose(screen: string) {
-    props.onNavigate(screen);
+    if (props.variant !== 'public') props.onNavigate(screen);
     setMenuOpen(false);
   }
 
   return (
     <nav
       className="menubar"
-      aria-label="Application menu"
+      aria-label={isPublic ? 'Site menu' : 'Application menu'}
       data-tour-target={tourTargets.workspaceHeader}
     >
-      <button className="menubar__apple" type="button" onClick={() => navigateAndClose('home')}>
-        <svg viewBox="0 0 12 12" aria-hidden="true">
-          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
-        </svg>
-        FluxRadar
-      </button>
+      {isPublic ? (
+        <a className="menubar__apple" href="/" onClick={() => setMenuOpen(false)}>
+          <svg viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+          </svg>
+          FluxRadar
+        </a>
+      ) : (
+        <button className="menubar__apple" type="button" onClick={() => navigateAndClose('home')}>
+          <svg viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+          </svg>
+          FluxRadar
+        </button>
+      )}
       <button
         className="menubar__toggle"
         type="button"
@@ -127,55 +185,70 @@ export function MenuBar(props: {
         </div>
         <div className="menubar__nav">
           <span className="menubar__group-label">{labels.navigateGroup}</span>
-          <button
-            className={props.active === 'home' ? 'menubar__item is-active' : 'menubar__item'}
-            type="button"
-            onClick={() => navigateAndClose('home')}
-          >
-            {labels.home}
-          </button>
-          <button
-            className={props.active === 'desktop' ? 'menubar__item is-active' : 'menubar__item'}
-            type="button"
-            title={labels.descriptions.profiles}
-            onClick={() => navigateAndClose('desktop')}
-            disabled={!props.signedIn}
-          >
-            {labels.profiles}
-          </button>
-          <button
-            className={props.active === 'new-scan' ? 'menubar__item is-active' : 'menubar__item'}
-            type="button"
-            title={labels.descriptions.scan}
-            onClick={() => navigateAndClose('new-scan')}
-            disabled={!props.signedIn}
-          >
-            {labels.scan}
-          </button>
-          <button
-            className={
-              ['reports', 'results', 'issues', 'scan'].includes(props.active)
-                ? 'menubar__item is-active'
-                : 'menubar__item'
-            }
-            type="button"
-            title={labels.descriptions.reports}
-            onClick={() => navigateAndClose('reports')}
-            disabled={!props.signedIn}
-          >
-            {labels.reports}
-          </button>
-          <button
-            className={
-              props.active === 'integrations' ? 'menubar__item is-active' : 'menubar__item'
-            }
-            type="button"
-            title={labels.descriptions.integrations}
-            onClick={() => navigateAndClose('integrations')}
-            disabled={!props.signedIn}
-          >
-            {labels.integrations}
-          </button>
+          {isPublic ? (
+            <a
+              className={props.active === 'home' ? 'menubar__item is-active' : 'menubar__item'}
+              href="/"
+              aria-current={props.active === 'home' ? 'page' : undefined}
+              onClick={() => setMenuOpen(false)}
+            >
+              {labels.home}
+            </a>
+          ) : (
+            <>
+              <button
+                className={props.active === 'home' ? 'menubar__item is-active' : 'menubar__item'}
+                type="button"
+                onClick={() => navigateAndClose('home')}
+              >
+                {labels.home}
+              </button>
+              <button
+                className={props.active === 'desktop' ? 'menubar__item is-active' : 'menubar__item'}
+                type="button"
+                title={labels.descriptions.profiles}
+                onClick={() => navigateAndClose('desktop')}
+                disabled={!props.signedIn}
+              >
+                {labels.profiles}
+              </button>
+              <button
+                className={
+                  props.active === 'new-scan' ? 'menubar__item is-active' : 'menubar__item'
+                }
+                type="button"
+                title={labels.descriptions.scan}
+                onClick={() => navigateAndClose('new-scan')}
+                disabled={!props.signedIn}
+              >
+                {labels.scan}
+              </button>
+              <button
+                className={
+                  ['reports', 'results', 'issues', 'scan'].includes(props.active)
+                    ? 'menubar__item is-active'
+                    : 'menubar__item'
+                }
+                type="button"
+                title={labels.descriptions.reports}
+                onClick={() => navigateAndClose('reports')}
+                disabled={!props.signedIn}
+              >
+                {labels.reports}
+              </button>
+              <button
+                className={
+                  props.active === 'integrations' ? 'menubar__item is-active' : 'menubar__item'
+                }
+                type="button"
+                title={labels.descriptions.integrations}
+                onClick={() => navigateAndClose('integrations')}
+                disabled={!props.signedIn}
+              >
+                {labels.integrations}
+              </button>
+            </>
+          )}
           <a
             className={props.active === 'faq' ? 'menubar__item is-active' : 'menubar__item'}
             href="/faq"
@@ -186,8 +259,13 @@ export function MenuBar(props: {
             {labels.faq}
           </a>
           <a
-            className="menubar__item menubar__blog-link"
+            className={
+              props.active === 'blog'
+                ? 'menubar__item menubar__blog-link is-active'
+                : 'menubar__item menubar__blog-link'
+            }
             href="/blog"
+            aria-current={props.active === 'blog' ? 'page' : undefined}
             onClick={() => setMenuOpen(false)}
           >
             {labels.blog}
@@ -374,6 +452,21 @@ export function Button(props: {
   );
 }
 
+/**
+ * Whether a field holds a technical value — a domain, a URL, a path pattern, a
+ * count — and so renders in the monospace face the design reserves for those.
+ * Anything a person writes in their own words stays in the UI font.
+ */
+function controlClass(options: { technical?: boolean; error?: boolean }): string {
+  return [
+    'control',
+    options.technical === true ? 'technical-input' : null,
+    options.error === true ? 'control--error' : null,
+  ]
+    .filter((part) => part !== null)
+    .join(' ');
+}
+
 export function Field(props: {
   label: string;
   value: string;
@@ -382,13 +475,15 @@ export function Field(props: {
   type?: string;
   error?: string;
   hint?: string;
+  /** Renders the value in monospace; see `controlClass`. */
+  technical?: boolean;
   'data-tour-target'?: string;
 }) {
   return (
     <label className="field" data-tour-target={props['data-tour-target']}>
       <span className="field__label">{props.label}</span>
       <input
-        className={props.error ? 'control control--error' : 'control'}
+        className={controlClass({ technical: props.technical, error: props.error !== undefined })}
         type={props.type ?? 'text'}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
@@ -405,12 +500,14 @@ export function SelectField(props: {
   value: string;
   onChange: (value: string) => void;
   options: readonly { value: string; label: string }[];
+  /** Renders the options in monospace; see `controlClass`. */
+  technical?: boolean;
 }) {
   return (
     <label className="field">
       <span className="field__label">{props.label}</span>
       <select
-        className="control"
+        className={controlClass({ technical: props.technical })}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
       >

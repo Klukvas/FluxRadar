@@ -47,7 +47,16 @@
       en: 'No articles in this language yet. Switch the language filter to see the rest.',
       uk: 'Статей цією мовою поки немає. Змініть фільтр мови, щоб побачити решту.',
     },
-    'blog.footerHome': { en: 'FluxRadar — public website audits', uk: 'FluxRadar — аудит публічних сайтів' },
+    'blog.footerHome': {
+      en: 'FluxRadar — public website audits',
+      uk: 'FluxRadar — аудит публічних сайтів',
+    },
+    'blog.poweredBy': { en: 'Powered by FluxLab', uk: 'Працює на FluxLab' },
+    // The link leaves the site, so the accessible name says so before it is followed.
+    'blog.poweredByAria': {
+      en: 'Powered by FluxLab (opens in a new tab)',
+      uk: 'Працює на FluxLab (відкривається в новій вкладці)',
+    },
   };
 
   var LANGUAGE_LABELS = { en: 'English', uk: 'Українська' };
