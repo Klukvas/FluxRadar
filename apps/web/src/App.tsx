@@ -2196,7 +2196,27 @@ function NewScanScreen(props: {
                   onChange={(checked) => updateScope({ robotsOverrideConfirmed: checked })}
                 />
               )}
-              <Checkbox label={t.newScan.labelAiConsent} checked={consent} onChange={setConsent} />
+              <section className="ai-consent-callout" aria-labelledby="ai-consent-title">
+                <div className="ai-consent-callout__header">
+                  <span className="ai-consent-callout__eyebrow">AI SEO / GEO</span>
+                  <span className="status-chip status-chip--neutral">
+                    {t.newScan.aiConsentOptional}
+                  </span>
+                </div>
+                <h3 id="ai-consent-title">{t.newScan.aiConsentTitle}</h3>
+                <Checkbox
+                  className="ai-consent-callout__checkbox"
+                  label={t.newScan.labelAiConsent}
+                  checked={consent}
+                  describedBy="ai-consent-description"
+                  onChange={setConsent}
+                />
+                <p id="ai-consent-description" className="ai-consent-callout__body">
+                  {t.newScan.aiConsentBody} <a href="/privacy">{t.newScan.aiConsentPrivacy}</a>
+                  {' · '}
+                  <a href="/terms">{t.newScan.aiConsentTerms}</a>
+                </p>
+              </section>
             </>
           ) : null}
         </Panel>
@@ -2279,8 +2299,13 @@ function Styleguide(props: {
               <StatusChip status="Unavailable" />
             </div>
             <div className="split" style={{ marginTop: 16 }}>
-              <ScoreDial score={96.5} verdict="normal" coverage={0.87} />
-              <ScoreDial score={null} verdict="insufficient_data" coverage={0.2} />
+              <ScoreDial score={96.5} language={props.language} verdict="normal" coverage={0.87} />
+              <ScoreDial
+                score={null}
+                language={props.language}
+                verdict="insufficient_data"
+                coverage={0.2}
+              />
             </div>
           </Window>
           <Window title="Controls">

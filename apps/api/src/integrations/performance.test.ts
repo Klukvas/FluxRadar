@@ -62,12 +62,64 @@ describe('performance integrations', () => {
     });
   });
 
-  it('does not enable the default runner until a platform key is configured', () => {
+  it('uses PageSpeed without a key and leaves the key optional', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          lighthouseResult: {
+            categories: { performance: { score: 0.84 } },
+            audits: {},
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    const runner = createPerformanceRunner({ pageSpeedApiKey: null, fetcher });
+
+    await expect(runner('https://example.com', 'mobile')).resolves.toMatchObject({
+      source: 'pagespeed',
+      performanceScore: 84,
+      strategy: 'mobile',
+    });
+    const [url] = fetcher.mock.calls[0] ?? [];
+    expect(String(url)).not.toContain('key=');
+  });
+
+  it('keeps CrUX measurements when PageSpeed is unavailable', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            record: {
+              metrics: {
+                largest_contentful_paint: { percentiles: { p75: 1900 } },
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+    const runner = createPerformanceRunner({
+      pageSpeedApiKey: null,
+      cruxApiKey: 'crux-key',
+      fetcher,
+    });
+
+    await expect(runner('https://example.com', 'desktop')).resolves.toMatchObject({
+      source: 'crux',
+      performanceScore: null,
+      metrics: { lcpP75Ms: 1900 },
+    });
+  });
+
+  it('enables the default runner even when no optional provider key is configured', () => {
     const previousPageSpeed = process.env.PAGESPEED_API_KEY;
     const previousCrux = process.env.CRUX_API_KEY;
     delete process.env.PAGESPEED_API_KEY;
     delete process.env.CRUX_API_KEY;
-    expect(createDefaultPerformanceRunner()).toBeUndefined();
+    expect(createDefaultPerformanceRunner()).toEqual(expect.any(Function));
     if (previousPageSpeed === undefined) delete process.env.PAGESPEED_API_KEY;
     else process.env.PAGESPEED_API_KEY = previousPageSpeed;
     if (previousCrux === undefined) delete process.env.CRUX_API_KEY;

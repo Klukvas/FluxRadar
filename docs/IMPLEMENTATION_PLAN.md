@@ -50,10 +50,10 @@ fluxradar/
 | Оплата FastSpring | 🔶 код готов, live-режим закрыт | Серверная checkout-сессия + подписанный webhook (`X-FS-Signature`, base64 HMAC-SHA256), см. [FASTSPRING.md](FASTSPRING.md). `FASTSPRING_MODE=live` не включается, пока владелец аккаунта FastSpring не проверит магазин и не выставит `FASTSPRING_STORE_VERIFIED=verified` — этот шаг вне репозитория. MockPaddle остаётся только для локальной разработки |
 | Crawler (§3) | ✅ базово | HTTP, robots.txt, sitemap, лимиты; без JS-рендеринга |
 | SEO (§4) | ✅ субсет | SEO-TECH-001..008,013 + SEO-ONPAGE-001,002,003,005 + JSON-LD/social preview |
-| AI SEO/GEO (§5) | ✅ Anthropic + mock fallback | контракт adapter-а, caps, truncation, quota, consent; real Messages adapter включается через `ANTHROPIC_API_KEY` |
+| AI SEO/GEO (§5) | ✅ Anthropic, fail-closed when absent | контракт adapter-а, caps, truncation, quota, consent; real Messages adapter включается через `ANTHROPIC_API_KEY`, а production без ключа не подменяется фиктивными ответами |
 | Security passive (§6) | ✅ субсет | SEC-PASSIVE-002,003,005 + OWASP ASVS Public Profile (HTTP/DOM) |
 | Security active (§6) | ❌ | за launch gate по самому плану |
-| Performance (§7) | 🔶 optional external runner | PageSpeed Insights + CrUX normalized snapshot; без ключей честный `Unavailable` |
+| Performance (§7) | ✅ external runner | PageSpeed Insights normalized lab snapshot работает без ключа; CrUX дополняет его field metrics при наличии `CRUX_API_KEY` |
 | Accessibility (§8) | ✅ WCAG 2.2 AA automated/static | A11Y-001..011 + EN 301 549/Section 508 mappings, explicit manual-review boundary and report disclaimer |
 | Reliability (§9) | ✅ субсет | REL-URL-001,003,009 + REL-API-003,005 |
 | Content Quality (§10) | ✅ субсет | CONTENT-003,004 |

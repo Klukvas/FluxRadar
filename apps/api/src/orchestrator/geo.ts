@@ -1,10 +1,13 @@
 // GEO-модуль в оркестраторе: детерминированная библиотека вопросов v0.1
-// (2 вопроса) и дефолтные фикстуры MockAiProvider, согласованные с ней по
-// подстрокам questionIncludes. Провайдер инъектируется через WorkerDeps —
-// тесты и прод собирают его этой же фабрикой.
+// (2 вопроса). Тесты получают согласованные дефолтные фикстуры MockAiProvider,
+// а production — Anthropic либо fail-closed provider без фиктивных ответов.
+// Провайдер инъектируется через WorkerDeps — тесты и production собирают его
+// этой же фабрикой.
 
-import type { AiProvider, AiRequest, MockAiFixture } from '@fluxradar/ai';
-import { AnthropicProvider, MockAiProvider } from '@fluxradar/ai';
+import type { AiProvider, AiProviderConfig, AiRequest, MockAiFixture } from '@fluxradar/ai';
+import { AnthropicProvider, MockAiProvider, UnavailableError } from '@fluxradar/ai';
+
+import { readIntegrationConfig } from '../integrations/config.ts';
 
 export const GEO_PROMPT_VERSION = 'geo-questions-v1';
 export const GEO_SYSTEM_INSTRUCTIONS = 'Answer factually. Cite sources when possible.';
@@ -79,21 +82,36 @@ export function createDefaultAiProvider(brand: string, siteHostname: string): Ai
       },
     });
   }
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (apiKey) {
+  const config = readIntegrationConfig();
+  if (config.anthropicApiKey !== null) {
     return new AnthropicProvider({
-      apiKey,
-      modelId: process.env.ANTHROPIC_MODEL,
-      apiVersion: process.env.ANTHROPIC_API_VERSION,
+      apiKey: config.anthropicApiKey,
+      modelId: config.anthropicModel,
+      apiVersion: config.anthropicApiVersion,
     });
   }
-  return new MockAiProvider(defaultGeoFixtures(brand, siteHostname), {
-    config: {
+  return new UnconfiguredAnthropicProvider(config.anthropicModel, config.anthropicApiVersion);
+}
+
+/**
+ * Production must never turn a missing external key into a fake visibility
+ * result. Keeping the refusal as an AiProvider lets the normal GEO pipeline
+ * record `ProviderUnavailable`, release quota, and keep the scan itself alive.
+ */
+class UnconfiguredAnthropicProvider implements AiProvider {
+  readonly config: AiProviderConfig;
+
+  constructor(modelId: string, apiVersion: string) {
+    this.config = {
       provider: 'anthropic',
-      apiVersion: process.env.ANTHROPIC_API_VERSION ?? '2023-06-01',
-      modelId: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5',
-      timeoutMs: 10_000,
+      apiVersion,
+      modelId,
+      timeoutMs: 15_000,
       maxRetries: 1,
-    },
-  });
+    };
+  }
+
+  async send(): Promise<never> {
+    throw new UnavailableError('Anthropic API key is not configured');
+  }
 }

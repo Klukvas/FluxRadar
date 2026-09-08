@@ -194,6 +194,82 @@ describe('one word for a saved site, in both languages', () => {
   });
 });
 
+// The score area was the last part of the report written in literals: the word
+// under the number was the scoring model's identifier `score-v1`, the accessible
+// name was "Score 90.00" and the line beneath it was "coverage 100%". All three
+// stayed English in a Ukrainian report, on the one part of the screen a reader
+// looks at first.
+describe('the report score area in Ukrainian', () => {
+  const scoredScan = {
+    ...completedScan,
+    modules: [
+      {
+        module: 'Performance',
+        status: 'Unavailable',
+        statusReason: 'PerformanceIntegrationNotConfigured',
+        coverage: 0,
+        score: null,
+        applicableChecks: 1,
+        completedApplicableChecks: 0,
+        usableOutput: false,
+        metadata: {},
+      },
+      ...completedScan.modules,
+    ],
+  };
+
+  function renderScoredReport(): void {
+    window.localStorage.setItem('fluxradar.language', 'uk');
+    stubApi((path) => {
+      if (path === `/scans/${completedScan.id}/dashboard`)
+        return envelope({
+          scan: scoredScan,
+          overall: {
+            verdict: 'normal',
+            score: 90,
+            weightedCoverage: 1,
+            moduleWeights: [{ module: 'SEO', tariffWeight: 1, effectiveWeight: 1 }],
+          },
+          modules: scoredScan.modules,
+        });
+      if (path === `/scans/${completedScan.id}`) return envelope(scoredScan);
+      return signedIn(path);
+    });
+    window.history.replaceState(null, '', `/scans/${completedScan.id}`);
+    render(<App />);
+  }
+
+  it('names the number and its coverage in Ukrainian, and drops score-v1', async () => {
+    renderScoredReport();
+    await screen.findByText('Звіт аудиту сайту');
+
+    // `score-v1` named a scoring model version nothing on the screen explains.
+    expect(screen.queryByText('score-v1')).not.toBeInTheDocument();
+    // The word under the number is the one the report's own legend uses.
+    expect(screen.getAllByText(copy.uk.report.helpScoreTerm).length).toBeGreaterThan(0);
+    expect(screen.getByText('покриття 100%')).toBeInTheDocument();
+    expect(screen.queryByText('coverage 100%')).not.toBeInTheDocument();
+  });
+
+  it('gives the dial an accessible name in the reader’s language', async () => {
+    renderScoredReport();
+    await screen.findByText('Звіт аудиту сайту');
+
+    expect(screen.getByLabelText('Оцінка 90.00')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Score 90.00')).not.toBeInTheDocument();
+  });
+
+  it('explains an unavailable section in Ukrainian instead of one English word', async () => {
+    renderScoredReport();
+    await screen.findByText('Звіт аудиту сайту');
+
+    expect(
+      screen.getByText(copy.uk.report.moduleReason.performanceNotConfigured),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/PerformanceIntegrationNotConfigured/)).not.toBeInTheDocument();
+  });
+});
+
 describe('every localized screen has both languages', () => {
   it('defines the same keys in English and Ukrainian', () => {
     const keysOf = (value: unknown, prefix = ''): string[] =>

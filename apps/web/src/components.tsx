@@ -8,7 +8,7 @@ import {
 } from 'react';
 
 import { FLUXLAB_URL, createdByFluxLab } from './brand';
-import { copy, languageOptions, type Language } from './i18n';
+import { copy, fillCopy, languageOptions, type Language } from './i18n';
 import { statusKind } from './status-kind';
 import { tourTargets } from './tour-targets';
 
@@ -552,13 +552,16 @@ export function Checkbox(props: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  describedBy?: string;
+  className?: string;
 }) {
   return (
-    <label className="checkbox">
+    <label className={props.className === undefined ? 'checkbox' : `checkbox ${props.className}`}>
       <span className="checkbox__control">
         <input
           type="checkbox"
           checked={props.checked}
+          {...(props.describedBy === undefined ? {} : { 'aria-describedby': props.describedBy })}
           onChange={(event) => props.onChange(event.target.checked)}
         />
         <span aria-hidden="true" className="checkbox__mark">
@@ -580,32 +583,56 @@ export function StatusChip(props: { status: string; label?: string }) {
   );
 }
 
-export function ScoreDial(props: { score: number | null; verdict?: string; coverage?: number }) {
+/**
+ * The report's headline number, and the three things written around it.
+ *
+ * All four were English literals, so the one part of a Ukrainian report a reader
+ * looks at first stayed in English. The label under the number used to be the
+ * scoring model's identifier, `score-v1` — a version nothing on the screen
+ * explains, in place of the word for what the number is. It now says what the
+ * report's own legend calls it.
+ *
+ * The verdict is still matched on the API's vocabulary and translated for
+ * display only: `StatusChip` picks its colour from the machine word, so a
+ * translated label must change what is read, never what the colour means.
+ */
+export function ScoreDial(props: {
+  score: number | null;
+  language: Language;
+  verdict?: string;
+  coverage?: number;
+}) {
+  const t = copy[props.language].report;
   const score = props.score === null ? '—' : props.score.toFixed(2);
-  const verdict =
+  const verdictLabel =
     props.score === null
-      ? 'Insufficient data'
+      ? t.insufficientData
       : props.verdict === 'normal'
-        ? 'Completed'
+        ? t.verdictNormal
         : props.verdict === 'provisional'
-          ? 'Provisional'
+          ? t.verdictProvisional
           : props.verdict === 'insufficient_data'
-            ? 'Insufficient data'
+            ? t.insufficientData
             : props.verdict === 'unavailable'
-              ? 'Unavailable'
+              ? t.verdictUnavailable
               : props.verdict;
+  const chipStatus = props.score === null ? 'Insufficient data' : (props.verdict ?? '');
   return (
     <div
       className="score-dial"
-      aria-label={props.score === null ? 'Insufficient data' : `Score ${score}`}
+      aria-label={
+        props.score === null ? t.insufficientData : fillCopy(t.scoreValueLabel, { score })
+      }
     >
       <div className="score-dial__number">{score}</div>
       <div className="score-dial__label">
-        {props.score === null ? 'Insufficient data' : 'score-v1'}
+        {props.score === null ? t.insufficientData : t.helpScoreTerm}
       </div>
-      {verdict ? <StatusChip status={verdict} /> : null}
+      {verdictLabel ? <StatusChip status={chipStatus} label={verdictLabel} /> : null}
       {props.coverage !== undefined ? (
-        <div className="score-dial__coverage">coverage {(props.coverage * 100).toFixed(0)}%</div>
+        <div className="score-dial__coverage">
+          {fillCopy(t.coverageValue, { percent: (props.coverage * 100).toFixed(0) })}
+        </div>
       ) : null}
     </div>
   );
@@ -629,9 +656,15 @@ export function ScoreDial(props: { score: number | null; verdict?: string; cover
  * a static reading inside a known range, so a completed section's coverage is
  * announced as the measurement it is. Both carry the same value semantics.
  */
+/**
+ * `label` is required, not defaulted: the fallback used to be the literal
+ * "Progress", which is the accessible name a screen reader announces — and the
+ * one string on this control a Ukrainian reader would have heard in English.
+ * Every caller already passes a localized one.
+ */
 export function ProgressBar(props: {
   value: number;
-  label?: string;
+  label: string;
   variant?: 'live' | 'result';
   caption?: string;
 }) {
@@ -640,7 +673,7 @@ export function ProgressBar(props: {
     <div
       className={props.variant === 'result' ? 'progress progress--result' : 'progress'}
       role={props.variant === 'result' ? 'meter' : 'progressbar'}
-      aria-label={props.label ?? 'Progress'}
+      aria-label={props.label}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={value}

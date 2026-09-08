@@ -100,7 +100,9 @@ looked healthy.
 
 PageSpeed, CrUX and Resend cannot fail the boot (Resend is reported as `invalid`
 when only one half of the key/sender pair is present, but transactional email
-stays optional). Their state is visible in the startup log instead.
+stays optional). PageSpeed remains enabled without `PAGESPEED_API_KEY`; the key
+only raises the upstream quota. `CRUX_API_KEY` is optional and adds field data
+when configured. Their state is visible in the startup log instead.
 
 ### Local secret files
 

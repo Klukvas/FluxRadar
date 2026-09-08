@@ -111,9 +111,13 @@ async function crux(
 export function createDefaultPerformanceRunner():
   ((origin: string, strategy: 'desktop' | 'mobile') => Promise<PerformanceSnapshot>) | undefined {
   const config = readIntegrationConfig();
-  if (config.pageSpeedApiKey === null && config.cruxApiKey === null) return undefined;
+  // PageSpeed Insights accepts requests without an API key. The key is still
+  // useful for a higher quota, while CrUX always needs its own key. Keeping
+  // PageSpeed enabled by default means Performance is an actual external
+  // integration in a fresh deployment instead of silently becoming
+  // `PerformanceIntegrationNotConfigured`.
   return createPerformanceRunner({
-    ...(config.pageSpeedApiKey === null ? {} : { pageSpeedApiKey: config.pageSpeedApiKey }),
+    pageSpeedApiKey: config.pageSpeedApiKey,
     ...(config.cruxApiKey === null ? {} : { cruxApiKey: config.cruxApiKey }),
   });
 }
@@ -124,13 +128,21 @@ export function createPerformanceRunner(
   const fetcher = options.fetcher ?? fetch;
   const now = options.now ?? (() => new Date());
   return async (origin, strategy) => {
-    const pageSpeedResult =
+    const pageSpeedAttempt =
       options.pageSpeedApiKey === undefined
-        ? null
-        : await pageSpeed(origin, strategy, options.pageSpeedApiKey, fetcher);
-    const cruxResult = options.cruxApiKey ? await crux(origin, options.cruxApiKey, fetcher) : null;
+        ? Promise.resolve(null)
+        : pageSpeed(origin, strategy, options.pageSpeedApiKey, fetcher);
+    const cruxAttempt = options.cruxApiKey
+      ? crux(origin, options.cruxApiKey, fetcher)
+      : Promise.resolve(null);
+    const [pageSpeedSettled, cruxSettled] = await Promise.allSettled([
+      pageSpeedAttempt,
+      cruxAttempt,
+    ]);
+    const pageSpeedResult = pageSpeedSettled.status === 'fulfilled' ? pageSpeedSettled.value : null;
+    const cruxResult = cruxSettled.status === 'fulfilled' ? cruxSettled.value : null;
     if (pageSpeedResult === null && cruxResult === null)
-      throw new Error('performance provider is not configured');
+      throw new Error('performance providers are unavailable');
     return {
       source:
         pageSpeedResult !== null && cruxResult !== null

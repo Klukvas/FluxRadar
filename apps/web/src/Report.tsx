@@ -19,6 +19,7 @@ import {
 } from './components';
 import { GoogleDataPanel, googleSnapshotOf } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
+import { moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { statusKind } from './status-kind';
@@ -141,6 +142,7 @@ export function ResultsScreen(props: {
           ) : (
             <ScoreDial
               score={overall.score}
+              language={props.language}
               verdict={overall.verdict}
               coverage={overall.weightedCoverage}
             />
@@ -196,7 +198,7 @@ export function ResultsScreen(props: {
               >
                 {moduleScoreLabel(module, props.language)}
               </div>
-              <ModuleMetadata module={module} scored={!unscoredPlan} />
+              <ModuleMetadata module={module} scored={!unscoredPlan} language={props.language} />
               {module.usableOutput && module.coverage !== null ? (
                 // Named, and drawn as a measurement rather than as progress: an
                 // unlabelled zebra bar at 100% beside a Completed chip was the
@@ -205,13 +207,14 @@ export function ResultsScreen(props: {
                   variant="result"
                   caption={t.helpCoverageTerm}
                   value={module.coverage * 100}
-                  label={`${module.module} coverage`}
+                  label={fillCopy(t.moduleCoverageLabel, { module: module.module })}
                 />
               ) : (
                 <div className="module-card__coverage-unavailable" role="status">
                   {moduleResultLabel(module, props.language)} · {t.coverageUnavailable}
                 </div>
               )}
+              <ModuleReasons module={module} language={props.language} />
             </div>
           ))}
         </div>
@@ -223,7 +226,13 @@ export function ResultsScreen(props: {
             <small>{t.accessibilityNote}</small>
           </aside>
         ) : null}
-        {googleSnapshot === null ? null : <GoogleDataPanel snapshot={googleSnapshot} />}
+        {googleSnapshot === null ? null : (
+          <GoogleDataPanel
+            snapshot={googleSnapshot}
+            language={props.language}
+            scanId={scan.id}
+          />
+        )}
         <p className="muted report-help__cta">{t.issuesCta}</p>
         <div className="button-row">
           <Button onClick={props.onIssues} variant="primary">
@@ -238,7 +247,11 @@ export function ResultsScreen(props: {
         </div>
         <div className="breadcrumb">
           {scan.id} · {scan.rulesetVersion} ·{' '}
-          {unscoredPlan ? checksLine : `coverage ${(overall.weightedCoverage * 100).toFixed(0)}%`}
+          {unscoredPlan
+            ? checksLine
+            : fillCopy(t.coverageValue, {
+                percent: (overall.weightedCoverage * 100).toFixed(0),
+              })}
         </div>
       </Window>
     </div>
@@ -358,7 +371,24 @@ function scopeDetail(module: ScanModule, language: Language): string {
   return parts.join(' · ');
 }
 
-function ModuleMetadata({ module, scored }: { module: ScanModule; scored: boolean }) {
+/**
+ * The standards one section works to, under its name.
+ *
+ * Standard names — WCAG 2.2 AA, OWASP ASVS, JSON-LD — are the same string in
+ * every language and stay as written; the prose around them used to be English
+ * literals and is now read from the dictionary, so a Ukrainian card no longer
+ * mixes the two.
+ */
+function ModuleMetadata({
+  module,
+  scored,
+  language,
+}: {
+  module: ScanModule;
+  scored: boolean;
+  language: Language;
+}) {
+  const t = copy[language].report;
   if (module.module === 'Accessibility') {
     return <small className="module-card__meta">WCAG 2.2 AA · EN 301 549 · Section 508</small>;
   }
@@ -366,7 +396,7 @@ function ModuleMetadata({ module, scored }: { module: ScanModule; scored: boolea
     return <small className="module-card__meta">OWASP ASVS · Public Security Profile</small>;
   }
   if (module.module === 'Privacy') {
-    return <small className="module-card__meta">Public technical consent signals</small>;
+    return <small className="module-card__meta">{t.metaPrivacy}</small>;
   }
   if (module.module === 'SEO') {
     // The Free check runs four homepage rules and none of the structured-data or
@@ -377,14 +407,10 @@ function ModuleMetadata({ module, scored }: { module: ScanModule; scored: boolea
     if (checks.length > 0) {
       return <small className="module-card__meta">{checks.join(' · ')}</small>;
     }
-    return scored ? (
-      <small className="module-card__meta">JSON-LD · Open Graph · Twitter Cards</small>
-    ) : null;
+    return scored ? <small className="module-card__meta">{t.metaSeo}</small> : null;
   }
   if (module.module === 'Analytics') {
-    return (
-      <small className="module-card__meta">Google Search Console · Analytics 4 · read-only</small>
-    );
+    return <small className="module-card__meta">{t.metaAnalytics}</small>;
   }
   if (module.module === 'AI SEO / GEO') {
     const pages = asRecord(module.metadata?.pages);
@@ -392,14 +418,36 @@ function ModuleMetadata({ module, scored }: { module: ScanModule; scored: boolea
     const structured = numberValue(pages?.structuredData);
     return (
       <small className="module-card__meta">
-        Public AI readiness
+        {t.metaAiReadiness}
         {checked !== null && structured !== null
-          ? ` · ${structured}/${checked} pages with structured data`
+          ? ` · ${fillCopy(t.metaAiStructured, { structured, checked })}`
           : ''}
       </small>
     );
   }
   return null;
+}
+
+/**
+ * Why this section ended where it did.
+ *
+ * The card said "Unavailable" for a Performance section with no measurement
+ * service configured and for one whose provider was down, and "Not applicable"
+ * for a section the product has no check for — three different things to do
+ * about it, spelled with one word. The module row has carried the machine reason
+ * all along; this is where it is finally read.
+ */
+function ModuleReasons({ module, language }: { module: ScanModule; language: Language }) {
+  const reasons = moduleStatusReasons(module, language);
+  if (reasons.length === 0) return null;
+  return (
+    <div className="module-card__reason">
+      <span className="module-card__reason-label">{copy[language].report.reasonLabel}</span>
+      {reasons.map((reason) => (
+        <p key={reason}>{reason}</p>
+      ))}
+    </div>
+  );
 }
 
 /** Titles of the checks a module row says it ran; empty when it recorded none. */

@@ -1,18 +1,38 @@
 // The Google section of a report. It renders numbers only when Google actually
 // returned them; every other case gets its own explanation, so "no property
 // selected", "no access" and "Google was unreachable" never look alike.
+//
+// Every word on it used to be an English literal — the headings, the column
+// names, the metric labels and the sentence under a state that had no data — so
+// a Ukrainian report switched language for one panel. All of it now comes from
+// the dictionary, including the per-state sentence: the API sends an English one
+// with the snapshot and it is used only for a state this build does not know.
 
 import type { GoogleDataSnapshot, GoogleDataState, ScanModule, SearchConsoleRow } from './api';
 import { Panel } from './components';
+import { copy, fillCopy, type Language } from './i18n';
+import { QueryIdeasPanel } from './QueryIdeas';
 
-const STATE_TITLES: Readonly<Record<GoogleDataState, string>> = {
-  connected: 'Data received',
-  not_connected: 'Google not connected',
-  no_property_selected: 'No property linked',
-  needs_reconnect: 'Reconnect required',
-  no_access: 'No access to this property',
-  no_data: 'No data for this period',
-  request_failed: 'Google data unavailable',
+type GoogleCopy = (typeof copy)['en']['report']['google'];
+
+const STATE_TITLE_KEYS: Readonly<Record<GoogleDataState, keyof GoogleCopy>> = {
+  connected: 'stateConnected',
+  not_connected: 'stateNotConnected',
+  no_property_selected: 'stateNoPropertySelected',
+  needs_reconnect: 'stateNeedsReconnect',
+  no_access: 'stateNoAccess',
+  no_data: 'stateNoData',
+  request_failed: 'stateRequestFailed',
+};
+
+const STATE_DETAIL_KEYS: Readonly<Record<GoogleDataState, keyof GoogleCopy>> = {
+  connected: 'detailConnected',
+  not_connected: 'detailNotConnected',
+  no_property_selected: 'detailNoPropertySelected',
+  needs_reconnect: 'detailNeedsReconnect',
+  no_access: 'detailNoAccess',
+  no_data: 'detailNoData',
+  request_failed: 'detailRequestFailed',
 };
 
 function isSnapshot(value: unknown): value is GoogleDataSnapshot {
@@ -44,18 +64,31 @@ function formatTimestamp(value: string): string {
     : parsed.toISOString().replace('T', ' ').slice(0, 16);
 }
 
-function Unavailable(props: { state: GoogleDataState; detail: string }) {
+/**
+ * A state with no data, named and explained.
+ *
+ * The sentence is written here per state rather than taken from the snapshot,
+ * because the wire one is English. The wire sentence is the fallback for a state
+ * this build has no key for — better the API's own words than none.
+ */
+function Unavailable(props: { state: GoogleDataState; detail: string; language: Language }) {
+  const t = copy[props.language].report.google;
+  const titleKey = STATE_TITLE_KEYS[props.state];
+  const detailKey = STATE_DETAIL_KEYS[props.state];
   return (
     <div className="google-panel__unavailable" role="status">
-      <strong>{STATE_TITLES[props.state]}</strong>
-      <p className="muted">{props.detail}</p>
+      <strong>{titleKey === undefined ? props.state : t[titleKey]}</strong>
+      <p className="muted">{detailKey === undefined ? props.detail : t[detailKey]}</p>
     </div>
   );
 }
 
-function Metrics(props: { items: readonly { label: string; value: string }[] }) {
+function Metrics(props: {
+  items: readonly { label: string; value: string }[];
+  label: string;
+}) {
   return (
-    <div className="report-meta" aria-label="Google metrics">
+    <div className="report-meta" aria-label={props.label}>
       {props.items.map((item) => (
         <span key={item.label}>
           <small>{item.label}</small>
@@ -70,7 +103,9 @@ function RowTable(props: {
   caption: string;
   columnLabel: string;
   rows: readonly SearchConsoleRow[];
+  language: Language;
 }) {
+  const t = copy[props.language].report.google;
   if (props.rows.length === 0) return null;
   return (
     <table className="google-panel__table">
@@ -78,10 +113,10 @@ function RowTable(props: {
       <thead>
         <tr>
           <th scope="col">{props.columnLabel}</th>
-          <th scope="col">Clicks</th>
-          <th scope="col">Impressions</th>
-          <th scope="col">CTR</th>
-          <th scope="col">Position</th>
+          <th scope="col">{t.clicks}</th>
+          <th scope="col">{t.impressions}</th>
+          <th scope="col">{t.ctr}</th>
+          <th scope="col">{t.position}</th>
         </tr>
       </thead>
       <tbody>
@@ -99,64 +134,96 @@ function RowTable(props: {
   );
 }
 
-export function GoogleDataPanel({ snapshot }: { snapshot: GoogleDataSnapshot }) {
+export function GoogleDataPanel({
+  snapshot,
+  language,
+  scanId,
+}: {
+  snapshot: GoogleDataSnapshot;
+  language: Language;
+  /** Absent on a report with no id to ask about; the ideas block is then omitted. */
+  scanId?: string;
+}) {
+  const t = copy[language].report.google;
   const { searchConsole, analytics } = snapshot;
   return (
-    <Panel title="Google data" className="google-panel">
+    <Panel title={t.panelTitle} className="google-panel">
       <p className="muted">
-        Source: Google Search Console and Google Analytics 4 · read-only · period{' '}
+        {t.sourceNote}{' '}
         <span className="technical">
           {snapshot.dateRange.startDate} → {snapshot.dateRange.endDate}
         </span>{' '}
-        · last fetched <span className="technical">{formatTimestamp(snapshot.fetchedAt)}</span> UTC
+        · {t.lastFetched}{' '}
+        <span className="technical">{formatTimestamp(snapshot.fetchedAt)}</span> UTC
       </p>
 
-      <section aria-label="Google Search Console">
-        <h3 className="section-heading">Search Console</h3>
+      <section aria-label={t.searchConsoleHeading}>
+        <h3 className="section-heading">{t.searchConsoleHeading}</h3>
         {searchConsole.data === null ? (
-          <Unavailable state={searchConsole.state} detail={searchConsole.detail} />
+          <Unavailable
+            state={searchConsole.state}
+            detail={searchConsole.detail}
+            language={language}
+          />
         ) : (
           <>
             <p className="muted technical">{searchConsole.data.siteUrl}</p>
             <Metrics
+              label={t.metricsLabel}
               items={[
-                { label: 'Clicks', value: formatCount(searchConsole.data.totals.clicks) },
-                { label: 'Impressions', value: formatCount(searchConsole.data.totals.impressions) },
-                { label: 'CTR', value: formatPercent(searchConsole.data.totals.ctr) },
+                { label: t.clicks, value: formatCount(searchConsole.data.totals.clicks) },
                 {
-                  label: 'Average position',
+                  label: t.impressions,
+                  value: formatCount(searchConsole.data.totals.impressions),
+                },
+                { label: t.ctr, value: formatPercent(searchConsole.data.totals.ctr) },
+                {
+                  label: t.averagePosition,
                   value: searchConsole.data.totals.position.toFixed(1),
                 },
               ]}
             />
             <RowTable
-              caption="Top queries"
-              columnLabel="Query"
+              caption={t.topQueries}
+              columnLabel={t.query}
               rows={searchConsole.data.topQueries}
+              language={language}
             />
-            <RowTable caption="Top pages" columnLabel="Page" rows={searchConsole.data.topPages} />
+            {/* Below the measured queries, in its own region: hypotheses next to
+                a table of measurements, never inside it. */}
+            {scanId === undefined ? null : (
+              <QueryIdeasPanel scanId={scanId} language={language} />
+            )}
+            <RowTable
+              caption={t.topPages}
+              columnLabel={t.page}
+              rows={searchConsole.data.topPages}
+              language={language}
+            />
           </>
         )}
       </section>
 
-      <section aria-label="Google Analytics 4">
-        <h3 className="section-heading">Analytics 4</h3>
+      <section aria-label={t.analyticsHeading}>
+        <h3 className="section-heading">{t.analyticsHeading}</h3>
         {analytics.data === null ? (
-          <Unavailable state={analytics.state} detail={analytics.detail} />
+          <Unavailable state={analytics.state} detail={analytics.detail} language={language} />
         ) : (
           <>
             <p className="muted technical">
-              {analytics.data.propertyName ?? `Property ${analytics.data.propertyId}`}
+              {analytics.data.propertyName ??
+                fillCopy(t.property, { id: analytics.data.propertyId })}
             </p>
             <Metrics
+              label={t.metricsLabel}
               items={[
-                { label: 'Users', value: formatCount(analytics.data.users) },
-                { label: 'Sessions', value: formatCount(analytics.data.sessions) },
-                { label: 'Page views', value: formatCount(analytics.data.pageViews) },
-                { label: 'Events', value: formatCount(analytics.data.events) },
+                { label: t.users, value: formatCount(analytics.data.users) },
+                { label: t.sessions, value: formatCount(analytics.data.sessions) },
+                { label: t.pageViews, value: formatCount(analytics.data.pageViews) },
+                { label: t.events, value: formatCount(analytics.data.events) },
                 ...(analytics.data.keyEvents === null
                   ? []
-                  : [{ label: 'Key events', value: formatCount(analytics.data.keyEvents) }]),
+                  : [{ label: t.keyEvents, value: formatCount(analytics.data.keyEvents) }]),
               ]}
             />
           </>

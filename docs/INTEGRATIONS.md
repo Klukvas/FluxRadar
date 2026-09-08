@@ -9,9 +9,9 @@ The current implementation includes the following integration surface:
 | Google Search Console | User OAuth | OAuth connection, encrypted token storage and connection status. Read-only scopes only. |
 | Google Analytics 4 | User OAuth | Uses the same Google authorization connection as Search Console. Read-only scopes only. |
 | Bing Webmaster Tools | User OAuth | OAuth connection, encrypted token storage and connection status. `webmaster.read` only. |
-| PageSpeed Insights | Platform API | Optional PageSpeed API key; the Complete Performance module stores a normalized lab snapshot. |
+| PageSpeed Insights | Platform API | The Complete Performance module always uses the public PageSpeed endpoint; an optional API key raises the platform quota. |
 | Chrome UX Report (CrUX) | Platform API | Optional CrUX API key; field Core Web Vitals are merged into the Performance snapshot. |
-| Anthropic | Platform API | Real Messages API adapter when `ANTHROPIC_API_KEY` is configured; deterministic mock fallback for local development. |
+| Anthropic | Platform API | Real Messages API adapter when `ANTHROPIC_API_KEY` is configured; tests use a deterministic mock, while a production deployment without the key fails closed. |
 | Hetzner Object Storage | Platform S3 | Complete JSON/CSV exports are archived as private tenant-scoped objects when S3 configuration is present. |
 
 Google and Bing OAuth state is one-time, expires after ten minutes and is stored only as a SHA-256 hash. Access and refresh tokens are encrypted before they reach PostgreSQL. The UI never receives the raw tokens.
@@ -68,7 +68,7 @@ configured, disabled or half-configured.
 2. FluxRadar redirects them to Google or Bing; the user approves read-only access.
 3. The callback exchanges the authorization code and stores encrypted tokens.
 4. The user can disconnect the provider; deleting the connection removes its stored tokens.
-5. A public-site scan remains available without any user integration. External data is optional and must degrade to `Unavailable` rather than lower a score because a provider is absent.
+5. A public-site scan remains available without any user integration. PageSpeed is queried without a key by default; CrUX and Anthropic remain optional platform services and fail closed rather than inventing data when their provider is absent.
 
 ## Deferred roadmap
 

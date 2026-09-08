@@ -31,6 +31,7 @@ import type { ApiLogger } from './http/logger.ts';
 import { requestLogger } from './http/request-logger.ts';
 import { issuesRouter } from './issues/routes.ts';
 import { googleIntegrationRouter } from './integrations/google/routes.ts';
+import { queryIdeasRouter } from './integrations/google/query-ideas-routes.ts';
 import { createGoogleDataRunner } from './integrations/google/runner.ts';
 import { integrationsRouter } from './integrations/routes.ts';
 import { validateRuntimeConfig } from './integrations/config.ts';
@@ -202,6 +203,7 @@ export function createApp(options: CreateAppOptions): Express {
   app.use(profilesRouter({ prisma: options.prisma, now, requestRateLimiter }));
   app.use(integrationsRouter({ prisma: options.prisma, now }));
   app.use(googleIntegrationRouter({ prisma: options.prisma, now }));
+  app.use(queryIdeasRouter({ prisma: options.prisma, now, logger, requestRateLimiter }));
   app.use(
     fastSpringRouter({
       prisma: options.prisma,

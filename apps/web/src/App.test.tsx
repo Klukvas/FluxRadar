@@ -379,7 +379,12 @@ describe('refresh-safe scan routes', () => {
     expect(await screen.findByText('Scan progress · Basic')).toBeInTheDocument();
     expect(await screen.findByText('Your report is ready.')).toBeInTheDocument();
     expect(screen.getByText('Completed')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Audit progress' })).toHaveAttribute(
+    // A finished scan reports a measurement, not an operation in flight: the
+    // bar becomes a `meter` and stops wearing the running zebra, while the
+    // value it always exposed stays exposed. It used to stay a `progressbar`
+    // at 100% next to "Your report is ready", which read as a scan still going.
+    expect(screen.queryByRole('progressbar', { name: 'Audit progress' })).toBeNull();
+    expect(screen.getByRole('meter', { name: 'Audit progress' })).toHaveAttribute(
       'aria-valuenow',
       '100',
     );

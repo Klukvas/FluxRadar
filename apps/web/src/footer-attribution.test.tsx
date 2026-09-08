@@ -388,6 +388,79 @@ describe('attribution styling', () => {
   });
 });
 
+// The last shell on the site with no floor at all. `.legal-shell` and
+// `.workspace-shell` were both given one; the marketing home page kept a footer
+// that simply ended where the last section did, so a viewport taller than the
+// page — a short locale, a zoomed-out desktop — left bare desktop under it.
+describe('home footer sits on the floor of a short page', () => {
+  it('makes the home shell a column its page stretches to fill', () => {
+    expect(rule('.home-shell')).toMatch(/flex-direction: column;/);
+    expect(rule('.home-shell > .home')).toMatch(/flex: 1 0 auto;/);
+    // Same reason the workspace column needs it: an auto cross-axis margin
+    // sizes a flex item to its content instead of stretching it.
+    expect(rule('.home-shell > .home')).toMatch(/width: 100%;/);
+    expect(rule('.app-shell')).toMatch(/min-height: 100vh;/);
+  });
+
+  it('sinks the footer the same way every other footer on the site is sunk', () => {
+    const footer = rule('.home__footer');
+    expect(footer).toMatch(/position: sticky;/);
+    expect(footer).toMatch(/top: 100vh;/);
+  });
+
+  // Every shell that renders a footer now expresses the same three decisions,
+  // so a new page cannot be added with a footer that floats.
+  it('leaves no footer-bearing shell without a floor', () => {
+    for (const [shell, main, footer] of [
+      ['.home-shell', '.home-shell > .home', '.home__footer'],
+      ['.legal-shell', '.legal-main', '.legal-footer'],
+      ['.workspace-shell', '.workspace-shell > .desktop', '.desktop__footer'],
+    ] as const) {
+      expect(rule(shell)).toMatch(/flex-direction: column;/);
+      expect(rule(main)).toMatch(/flex: 1 0 auto;/);
+      expect(rule(footer)).toMatch(/top: 100vh;/);
+    }
+  });
+});
+
+// A report that is still loading, and one that could not be opened, are ordinary
+// workspace screens: they render inside the shell that carries the floor, so the
+// footer they end with is the same one and reaches the same place.
+describe('the workspace footer survives the report’s loading and error states', () => {
+  it('keeps one floored footer while the report is loading', async () => {
+    // The dashboard request never settles, so the screen stays on LoadingState.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const path = new URL(String(input)).pathname;
+        if (path.endsWith('/dashboard')) return new Promise<Response>(() => undefined);
+        return Promise.resolve(signedInReport(path));
+      }),
+    );
+    window.history.replaceState(null, '', `/scans/${reportScan.id}`);
+    render(<App />);
+
+    // The report window is open on its loading state, not on a report.
+    await screen.findByText('Report dashboard');
+    expect(document.querySelector('.loading')).not.toBeNull();
+    const footer = document.querySelector('footer') as HTMLElement;
+    expect(footer).toHaveClass('desktop__footer');
+    expect(footer.parentElement?.parentElement).toHaveClass('workspace-shell');
+  });
+
+  it('keeps one floored footer when the report could not be opened', async () => {
+    renderAt(`/scans/${reportScan.id}`, (path) =>
+      path.endsWith('/dashboard') ? failure(500, 'nope') : signedInReport(path),
+    );
+
+    await screen.findByText('This report could not be opened');
+    expect(document.querySelectorAll('footer')).toHaveLength(1);
+    const footer = document.querySelector('footer') as HTMLElement;
+    expect(footer).toHaveClass('desktop__footer');
+    expect(footer.parentElement?.parentElement).toHaveClass('workspace-shell');
+  });
+});
+
 // Regression: on a viewport taller than the document, the footer of a public
 // page stopped wherever the text ran out and left the desktop bare beneath it.
 describe('public document footer sits on the floor of a short page', () => {

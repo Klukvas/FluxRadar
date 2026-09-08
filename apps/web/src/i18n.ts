@@ -482,6 +482,12 @@ export const copy = {
       labelRobotsOverride: 'I confirm the robots.txt override',
       labelAiConsent:
         'Allow sending public pages to an external AI model (for AI SEO / GEO visibility)',
+      aiConsentTitle: 'Optional AI visibility check',
+      aiConsentOptional: 'Optional',
+      aiConsentBody:
+        'When enabled, FluxRadar sends the public pages read by this scan to Anthropic after redaction. The provider helps check how your brand may appear in AI-generated answers. Leave it off and the AI SEO / GEO module will not run.',
+      aiConsentPrivacy: 'Privacy policy',
+      aiConsentTerms: 'Terms of service',
       noProfile: 'Select a profile',
       publicSiteOnly: '· public site only',
       creating: 'Creating…',
@@ -552,6 +558,10 @@ export const copy = {
       moduleUnavailable: 'Unavailable',
       moduleInsufficient: 'Insufficient data',
       moduleCompleted: 'Completed',
+      // A section the product deliberately does not run. It is a terminal fact,
+      // not a queue position, and calling it "Waiting" on a finished scan was
+      // the report promising work that was never going to happen.
+      sectionNotApplicable: 'Not applicable',
     },
     report: {
       windowTitle: 'Report dashboard',
@@ -619,6 +629,161 @@ export const copy = {
       scopeLockedNone: 'This plan runs every audit section FluxRadar offers.',
       scopeUnlock: 'Included in {plan}',
       scopeChecks: '{completed} of {applicable} checks',
+      // ── The score area ────────────────────────────────────────────────────
+      //
+      // The dial used to be written in literals: "Score", "coverage" and the
+      // scoring-model identifier `score-v1` stayed English in a Ukrainian
+      // report, and `score-v1` named a version nothing on the screen explains.
+      // The number keeps its own line; the word under it is the word this
+      // report already uses for it, in the reader's language.
+      scoreValueLabel: 'Score {score}',
+      insufficientData: 'Insufficient data',
+      verdictNormal: 'Completed',
+      verdictProvisional: 'Provisional',
+      verdictUnavailable: 'Unavailable',
+      coverageValue: 'coverage {percent}%',
+      moduleCoverageLabel: '{module} coverage',
+      // ── Why a section says what it says ───────────────────────────────────
+      //
+      // Every module row carries a machine reason (`status_reason`) that the
+      // report never showed, so "Unavailable" and "Waiting" were the whole
+      // explanation an owner got for a section that had a specific, actionable
+      // cause. One sentence per reason, written for the person who has to act.
+      reasonLabel: 'Why',
+      moduleReason: {
+        noApplicableTargets:
+          'Nothing on the pages FluxRadar read matched the checks in this section, so there was nothing to measure.',
+        targetsUnreachable:
+          'None of the pages FluxRadar tried to read responded, so this section could not be measured at all.',
+        targetsPartiallyUnreachable:
+          'Some of the pages FluxRadar tried to read did not respond, so this section covers only the part of your site it could reach.',
+        noDeterministicOracle:
+          'FluxRadar has no public, evidence-based check for this area yet, so nothing was measured and no score is claimed. The section is listed so you can see it was not silently skipped.',
+        platformFailure:
+          'The audit itself failed while this section was running. Run the check again; if it fails a second time, contact support.',
+        performanceNotConfigured:
+          'Performance is measured by an external service, and this FluxRadar deployment has none configured. Nothing was measured here and the rest of the report is unaffected.',
+        performanceScoreUnavailable:
+          'The performance service answered but returned no overall performance score, so this section reports what it did measure and leaves the score empty.',
+        performanceProviderUnavailable:
+          'The external performance service did not answer. Nothing was measured for this section — run the check again to try once more.',
+        aiConsentMissing:
+          'The AI visibility questions were not asked because this scan has no recorded consent to send site context to an AI provider.',
+        aiRedactionBlocked:
+          'The request was stopped inside FluxRadar because the step that removes secrets from it could not finish. Nothing was sent to the AI provider.',
+        aiQuotaExceeded:
+          'This plan’s allowance of AI questions was already used by this scan, so the remaining questions were not asked.',
+        aiProviderUnavailable:
+          'The AI provider is not configured for this deployment, or it did not answer, so no AI visibility questions were asked.',
+        aiProviderContract:
+          'The AI provider answered in a shape FluxRadar refuses to store, so the answer was discarded instead of being reported as a result.',
+        aiEmptyQuestionLibrary:
+          'No AI visibility questions were prepared for this scan, so there was nothing to ask.',
+        aiPartial:
+          '{unavailable} of {total} AI questions could not be asked, so this section covers only the ones that were. Each cause is named below.',
+        analyticsNotConnected:
+          'Google is not connected for this workspace, so no Search Console or Analytics data could be read. Connect Google on the Integrations screen.',
+        analyticsPropertyNotSelected:
+          'Google is connected, but this profile is not linked to a Search Console property or a GA4 property yet. Link one on the Integrations screen.',
+        analyticsNeedsReconnect:
+          'Google access has expired or was revoked. Reconnect Google on the Integrations screen and run the check again.',
+        analyticsAccessDenied:
+          'The connected Google account cannot read the linked property. Grant it access in Google, or link a property this account can read.',
+        analyticsNoData:
+          'Google is connected and readable, but it reports no data for this site in the period this scan covers.',
+        analyticsProviderUnavailable:
+          'Google did not answer while this report was being built. The rest of the report is unaffected — run the check again to retry the Google data.',
+        // Deliberately quotes the machine reason rather than inventing a
+        // sentence for it: a reason this build has never seen is a fact about
+        // the scan, and paraphrasing it would be guessing.
+        unknown: 'The audit recorded this reason: {reason}',
+      },
+      // Section metadata that was English prose rather than a standard's name.
+      metaAiReadiness: 'Public AI readiness',
+      metaAiStructured: '{structured}/{checked} pages with structured data',
+      metaPrivacy: 'Public technical consent signals',
+      metaAnalytics: 'Google Search Console · Analytics 4 · read-only',
+      metaSeo: 'JSON-LD · Open Graph · Twitter Cards',
+      // ── The Google panel ──────────────────────────────────────────────────
+      google: {
+        panelTitle: 'Google data',
+        sourceNote: 'Source: Google Search Console and Google Analytics 4 · read-only · period',
+        lastFetched: 'last fetched',
+        searchConsoleHeading: 'Search Console',
+        analyticsHeading: 'Analytics 4',
+        metricsLabel: 'Google metrics',
+        clicks: 'Clicks',
+        impressions: 'Impressions',
+        ctr: 'CTR',
+        averagePosition: 'Average position',
+        position: 'Position',
+        topQueries: 'Top queries',
+        topPages: 'Top pages',
+        query: 'Query',
+        page: 'Page',
+        users: 'Users',
+        sessions: 'Sessions',
+        pageViews: 'Page views',
+        events: 'Events',
+        keyEvents: 'Key events',
+        property: 'Property {id}',
+        stateConnected: 'Data received',
+        stateNotConnected: 'Google not connected',
+        stateNoPropertySelected: 'No property linked',
+        stateNeedsReconnect: 'Reconnect required',
+        stateNoAccess: 'No access to this property',
+        stateNoData: 'No data for this period',
+        stateRequestFailed: 'Google data unavailable',
+        // The API sends an English sentence with every state. Reading it back
+        // to a Ukrainian owner was the one place the Google panel fell out of
+        // their language, so the sentence is written here, per state, and the
+        // wire detail is used only for a state this build does not know.
+        detailConnected: 'Google returned data for this period.',
+        detailNotConnected: 'Google is not connected for this workspace.',
+        detailNoPropertySelected: 'No Google property is linked to this profile yet.',
+        detailNeedsReconnect:
+          'Google access has expired or was revoked. Reconnect Google to continue.',
+        detailNoAccess: 'This Google account cannot read the selected property.',
+        detailNoData: 'Google has no data for this site in the selected period.',
+        detailRequestFailed:
+          'Google did not respond in time. The rest of the report is unaffected.',
+      },
+      // ── AI query ideas ────────────────────────────────────────────────────
+      //
+      // Hypotheses, and labelled as such everywhere they appear. They sit in
+      // their own region below the Search Console tables, never in them: a made
+      // -up query in a row of measured ones would be indistinguishable from
+      // data, which is the one thing this feature must never produce.
+      queryIdeas: {
+        heading: 'AI query ideas',
+        badge: 'AI-generated · not Search Console data',
+        lead: 'Search terms an AI model suggests you might be missing, written from your site address and the measured queries above. They are hypotheses to test, not measurements: none of them is counted in any total on this page.',
+        generate: 'Generate ideas',
+        regenerate: 'Generate again',
+        generating: 'Generating…',
+        idleBody:
+          'Nothing has been generated yet. Generating sends your site address and the queries above to the AI provider this deployment is configured with.',
+        tableLabel: 'AI-generated query ideas',
+        columnQuery: 'Suggested query',
+        columnLanguage: 'Language',
+        columnRationale: 'Why it might fit',
+        languageRu: 'Russian',
+        languageUk: 'Ukrainian',
+        languageEn: 'English',
+        generatedNote: 'Generated by {model} on {time} UTC. Not measured, not from Google.',
+        notConfiguredTitle: 'AI query ideas are switched off',
+        notConfiguredBody:
+          'This FluxRadar deployment has no AI provider configured, so nothing can be generated and nothing was sent anywhere.',
+        failedTitle: 'Ideas could not be generated',
+        failedBody:
+          'The AI provider did not return an answer FluxRadar could use. Nothing on this page changed — try again in a moment.',
+        emptyTitle: 'No usable ideas came back',
+        emptyBody:
+          'The model answered, but nothing in the answer passed validation, so nothing is shown rather than something invented.',
+        unavailableTitle: 'No Search Console data to work from',
+        unavailableBody:
+          'Query ideas are written from the Search Console rows above. Link a Search Console property and run the check again to enable them.',
+      },
     },
     issues: {
       windowTitle: 'Issue Center',
@@ -1174,6 +1339,12 @@ export const copy = {
       labelRobotsOverride: 'Підтверджую відхилення robots.txt',
       labelAiConsent:
         'Дозволити надсилати публічні сторінки зовнішній AI-моделі (для AI SEO / GEO)',
+      aiConsentTitle: 'Необовʼязкова перевірка AI-видимості',
+      aiConsentOptional: 'Необовʼязково',
+      aiConsentBody:
+        'Якщо увімкнути, FluxRadar надсилатиме прочитані під час цієї перевірки публічні сторінки до Anthropic після вилучення секретів. Провайдер допоможе перевірити, як бренд може зʼявлятися у відповідях, згенерованих AI. Якщо залишити опцію вимкненою, модуль AI SEO / GEO не запускатиметься.',
+      aiConsentPrivacy: 'Політика приватності',
+      aiConsentTerms: 'Умови користування',
       noProfile: 'Оберіть профіль',
       publicSiteOnly: '· лише публічний сайт',
       creating: 'Створення…',
@@ -1245,6 +1416,7 @@ export const copy = {
       moduleUnavailable: 'Недоступно',
       moduleInsufficient: 'Недостатньо даних',
       moduleCompleted: 'Завершено',
+      sectionNotApplicable: 'Не застосовується',
     },
     report: {
       windowTitle: 'Панель звіту',
@@ -1295,6 +1467,132 @@ export const copy = {
       scopeLockedNone: 'Цей тариф виконує всі розділи аудиту, які пропонує FluxRadar.',
       scopeUnlock: 'Входить у тариф {plan}',
       scopeChecks: 'перевірок: {completed} з {applicable}',
+      scoreValueLabel: 'Оцінка {score}',
+      insufficientData: 'Недостатньо даних',
+      verdictNormal: 'Завершено',
+      verdictProvisional: 'Попередня',
+      verdictUnavailable: 'Недоступно',
+      coverageValue: 'покриття {percent}%',
+      moduleCoverageLabel: 'покриття розділу «{module}»',
+      reasonLabel: 'Чому',
+      moduleReason: {
+        noApplicableTargets:
+          'На сторінках, які FluxRadar прочитав, немає нічого, що підпадає під перевірки цього розділу, тому вимірювати не було чого.',
+        targetsUnreachable:
+          'Жодна зі сторінок, які FluxRadar намагався прочитати, не відповіла, тому цей розділ не вдалося виміряти зовсім.',
+        targetsPartiallyUnreachable:
+          'Частина сторінок, які FluxRadar намагався прочитати, не відповіла, тому цей розділ охоплює лише ту частину сайту, до якої вдалося дістатися.',
+        noDeterministicOracle:
+          'У FluxRadar поки немає публічної перевірки з доказами для цієї області, тому нічого не вимірювалося і жодної оцінки не заявлено. Розділ показано, щоб було видно: його не пропустили мовчки.',
+        platformFailure:
+          'Сам аудит зупинився з помилкою, поки виконувався цей розділ. Запустіть перевірку ще раз; якщо помилка повториться — зверніться до підтримки.',
+        performanceNotConfigured:
+          'Швидкодію вимірює зовнішній сервіс, а в цьому розгортанні FluxRadar його не налаштовано. Тут нічого не виміряно, на решту звіту це не впливає.',
+        performanceScoreUnavailable:
+          'Сервіс швидкодії відповів, але не повернув загальної оцінки, тому розділ показує виміряні дані й лишає оцінку порожньою.',
+        performanceProviderUnavailable:
+          'Зовнішній сервіс швидкодії не відповів. Для цього розділу нічого не виміряно — запустіть перевірку ще раз, щоб спробувати знову.',
+        aiConsentMissing:
+          'Питання про видимість в AI не ставилися, бо для цієї перевірки не записано згоди надсилати контекст сайту постачальнику AI.',
+        aiRedactionBlocked:
+          'Запит зупинено всередині FluxRadar, бо крок, який вилучає з нього секрети, не встиг завершитися. Постачальнику AI нічого не надіслано.',
+        aiQuotaExceeded:
+          'Ліміт AI-запитів цього тарифу вже вичерпано цією перевіркою, тому решту питань не поставлено.',
+        aiProviderUnavailable:
+          'Постачальника AI не налаштовано в цьому розгортанні або він не відповів, тому питань про видимість в AI не ставили.',
+        aiProviderContract:
+          'Постачальник AI відповів у формі, яку FluxRadar відмовляється зберігати, тому відповідь відкинуто, а не подано як результат.',
+        aiEmptyQuestionLibrary:
+          'Для цієї перевірки не підготовлено жодного питання про видимість в AI, тому й ставити не було чого.',
+        aiPartial:
+          'Не вдалося поставити {unavailable} з {total} AI-питань, тому розділ охоплює лише ті, які було поставлено. Кожну причину названо нижче.',
+        analyticsNotConnected:
+          'Google не підключено для цього робочого простору, тому дані Search Console та Analytics прочитати не вдалося. Підключіть Google на екрані інтеграцій.',
+        analyticsPropertyNotSelected:
+          'Google підключено, але цей профіль ще не звʼязано з ресурсом Search Console чи ресурсом GA4. Звʼяжіть його на екрані інтеграцій.',
+        analyticsNeedsReconnect:
+          'Доступ до Google минув або його відкликано. Підключіть Google заново на екрані інтеграцій і запустіть перевірку ще раз.',
+        analyticsAccessDenied:
+          'Підключений акаунт Google не може читати звʼязаний ресурс. Надайте йому доступ у Google або звʼяжіть ресурс, який цей акаунт читає.',
+        analyticsNoData:
+          'Google підключено й доступно, але він не має даних про цей сайт за період, який охоплює ця перевірка.',
+        analyticsProviderUnavailable:
+          'Google не відповів під час формування цього звіту. На решту звіту це не впливає — запустіть перевірку ще раз, щоб отримати дані Google.',
+        unknown: 'Аудит записав таку причину: {reason}',
+      },
+      metaAiReadiness: 'Готовність до публічних AI-роботів',
+      metaAiStructured: 'сторінок зі структурованими даними: {structured}/{checked}',
+      metaPrivacy: 'Публічні технічні сигнали згоди',
+      metaAnalytics: 'Google Search Console · Analytics 4 · лише читання',
+      metaSeo: 'JSON-LD · Open Graph · Twitter Cards',
+      google: {
+        panelTitle: 'Дані Google',
+        sourceNote: 'Джерело: Google Search Console і Google Analytics 4 · лише читання · період',
+        lastFetched: 'останнє отримання',
+        searchConsoleHeading: 'Search Console',
+        analyticsHeading: 'Analytics 4',
+        metricsLabel: 'Показники Google',
+        clicks: 'Кліки',
+        impressions: 'Покази',
+        ctr: 'CTR',
+        averagePosition: 'Середня позиція',
+        position: 'Позиція',
+        topQueries: 'Топ запитів',
+        topPages: 'Топ сторінок',
+        query: 'Запит',
+        page: 'Сторінка',
+        users: 'Користувачі',
+        sessions: 'Сеанси',
+        pageViews: 'Перегляди сторінок',
+        events: 'Події',
+        keyEvents: 'Ключові події',
+        property: 'Ресурс {id}',
+        stateConnected: 'Дані отримано',
+        stateNotConnected: 'Google не підключено',
+        stateNoPropertySelected: 'Ресурс не звʼязано',
+        stateNeedsReconnect: 'Потрібне повторне підключення',
+        stateNoAccess: 'Немає доступу до цього ресурсу',
+        stateNoData: 'Немає даних за цей період',
+        stateRequestFailed: 'Дані Google недоступні',
+        detailConnected: 'Google повернув дані за цей період.',
+        detailNotConnected: 'Google не підключено для цього робочого простору.',
+        detailNoPropertySelected: 'Із цим профілем ще не звʼязано жодного ресурсу Google.',
+        detailNeedsReconnect:
+          'Доступ до Google минув або його відкликано. Підключіть Google заново, щоб продовжити.',
+        detailNoAccess: 'Цей акаунт Google не може читати вибраний ресурс.',
+        detailNoData: 'Google не має даних про цей сайт за вибраний період.',
+        detailRequestFailed: 'Google не відповів вчасно. На решту звіту це не впливає.',
+      },
+      queryIdeas: {
+        heading: 'AI-ідеї запитів',
+        badge: 'Згенеровано AI · це не дані Search Console',
+        lead: 'Пошукові запити, яких, на думку AI-моделі, вам може бракувати; складені з адреси вашого сайту та виміряних запитів вище. Це гіпотези для перевірки, а не вимірювання: жодна з них не входить у жоден показник на цій сторінці.',
+        generate: 'Згенерувати ідеї',
+        regenerate: 'Згенерувати ще раз',
+        generating: 'Генеруємо…',
+        idleBody:
+          'Ще нічого не згенеровано. Генерація надсилає адресу вашого сайту та запити вище постачальнику AI, налаштованому в цьому розгортанні.',
+        tableLabel: 'Згенеровані AI ідеї запитів',
+        columnQuery: 'Запропонований запит',
+        columnLanguage: 'Мова',
+        columnRationale: 'Чому може підійти',
+        languageRu: 'Російська',
+        languageUk: 'Українська',
+        languageEn: 'Англійська',
+        generatedNote: 'Згенеровано моделлю {model} {time} UTC. Не виміряно, не з Google.',
+        notConfiguredTitle: 'AI-ідеї запитів вимкнено',
+        notConfiguredBody:
+          'У цьому розгортанні FluxRadar не налаштовано постачальника AI, тому згенерувати нічого не можна і нікуди нічого не надсилалося.',
+        failedTitle: 'Не вдалося згенерувати ідеї',
+        failedBody:
+          'Постачальник AI не повернув відповіді, яку FluxRadar міг би використати. На цій сторінці нічого не змінилося — спробуйте за хвилину.',
+        emptyTitle: 'Придатних ідей не надійшло',
+        emptyBody:
+          'Модель відповіла, але ніщо у відповіді не пройшло перевірку, тому нічого не показано — краще нічого, ніж вигадане.',
+        unavailableTitle: 'Немає даних Search Console, з яких працювати',
+        unavailableBody:
+          'Ідеї запитів складаються з рядків Search Console вище. Звʼяжіть ресурс Search Console і запустіть перевірку ще раз, щоб їх увімкнути.',
+      },
     },
     issues: {
       windowTitle: 'Центр проблем',

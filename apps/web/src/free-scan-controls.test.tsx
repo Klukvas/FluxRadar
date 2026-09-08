@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
@@ -160,6 +160,42 @@ describe('paid plan controls', () => {
       expect(screen.getByLabelText(pattern)).toBeInTheDocument();
     }
     expect(screen.queryByText('What the free check does')).not.toBeInTheDocument();
+  });
+
+  it('explains the optional AI visibility check before consent is given', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+
+    const callout = screen.getByRole('region', { name: 'Optional AI visibility check' });
+    expect(
+      within(callout).getByText(/sends the public pages read by this scan to Anthropic/),
+    ).toBeInTheDocument();
+    expect(
+      within(callout).getByText(/Leave it off and the AI SEO \/ GEO module will not run/),
+    ).toBeInTheDocument();
+    expect(within(callout).getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
+      'href',
+      '/privacy',
+    );
+    expect(within(callout).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
+      'href',
+      '/terms',
+    );
+    expect(within(callout).getByLabelText(/Allow sending public pages/)).toHaveAttribute(
+      'aria-describedby',
+      'ai-consent-description',
+    );
+  });
+
+  it('localizes the optional AI visibility callout', async () => {
+    renderNewScan(internalAccount, 'uk');
+    await screen.findByText('Нова перевірка — область і тариф');
+
+    const callout = screen.getByRole('region', { name: 'Необовʼязкова перевірка AI-видимості' });
+    expect(within(callout).getByRole('link', { name: 'Політика приватності' })).toHaveAttribute(
+      'href',
+      '/privacy',
+    );
   });
 
   it('sends the settings the owner set', async () => {

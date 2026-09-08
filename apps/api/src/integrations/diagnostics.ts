@@ -23,10 +23,7 @@ export interface IntegrationStatus {
   readonly missing: readonly string[];
 }
 
-const SINGLE_KEY_INTEGRATIONS = [
-  { integration: 'pagespeed', variable: 'PAGESPEED_API_KEY' },
-  { integration: 'crux', variable: 'CRUX_API_KEY' },
-] as const;
+const SINGLE_KEY_INTEGRATIONS = [{ integration: 'crux', variable: 'CRUX_API_KEY' }] as const;
 
 function trimmed(value: string | undefined): string | null {
   const result = value?.trim() ?? '';
@@ -47,6 +44,10 @@ export function readIntegrationStatuses(
   return [
     status('storage', readObjectStorageConfig(env)),
     status('anthropic', readAnthropicConfig(env)),
+    // PageSpeed Insights is usable without a key. PAGESPEED_API_KEY only
+    // raises the platform quota, so the provider is enabled even when it is
+    // absent from the environment.
+    status('pagespeed', { state: 'configured' }),
     ...SINGLE_KEY_INTEGRATIONS.map(({ integration, variable }) =>
       status(integration, {
         state: trimmed(env[variable]) === null ? 'not_configured' : 'configured',

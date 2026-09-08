@@ -6,9 +6,10 @@
 
 import { useEffect, useState } from 'react';
 
-import { apiRequest, type Scan } from './api';
+import { apiRequest, type Scan, type ScanModule } from './api';
 import { Button, EmptyState, FieldRow, Panel, ProgressBar, StatusChip, Window } from './components';
 import { copy, fillCopy, type Language } from './i18n';
+import { moduleStatusReasons } from './module-status';
 import {
   displayDomain,
   formatTimestamp,
@@ -87,7 +88,15 @@ export function ScanScreen(props: {
     <Window title={`${t.windowTitle} · ${scan.plan}`}>
       <Panel title={t.panelTitle}>
         <p className="muted">{fillCopy(t.reviewing, { domain: displayDomain(scan.domain) })}</p>
-        <ProgressBar value={progress} label={t.progressLabel} />
+        {/* A finished scan's bar is a measurement, not a running one: the
+            zebra texture at 100% beside a "Your report is ready" line was the
+            last thing on this screen still claiming work was in flight. Same
+            geometry, no motion — see `.progress--result`. */}
+        <ProgressBar
+          value={progress}
+          label={t.progressLabel}
+          variant={terminal ? 'result' : 'live'}
+        />
         {terminal ? (
           <div className="scan-complete" role="status" aria-live="polite">
             <StatusChip
@@ -118,11 +127,13 @@ export function ScanScreen(props: {
         ) : (
           <div aria-label={t.sectionsLabel}>
             {scan.modules.map((module) => (
-              <FieldRow
-                key={module.module}
-                label={module.module}
-                value={sectionStatusLabel(module.status, props.language)}
-              />
+              <div className="section-status" key={module.module}>
+                <FieldRow
+                  label={module.module}
+                  value={sectionStatusLabel(module.status, props.language)}
+                />
+                <SectionReasons module={module} language={props.language} />
+              </div>
             ))}
           </div>
         )}
@@ -140,5 +151,26 @@ export function ScanScreen(props: {
         <Button onClick={props.onReports}>{copy[props.language].reports.windowTitle}</Button>
       </div>
     </Window>
+  );
+}
+
+/**
+ * Why one section ended where it did, under the row that says where.
+ *
+ * The status word alone answered "Unavailable" for a Performance section with
+ * no measurement service configured and for one whose provider had just gone
+ * down — two different things to do about it, spelled the same way. Nothing is
+ * rendered for a section that simply finished.
+ */
+function SectionReasons({ module, language }: { module: ScanModule; language: Language }) {
+  const reasons = moduleStatusReasons(module, language);
+  if (reasons.length === 0) return null;
+  return (
+    <div className="section-status__reason">
+      <span className="section-status__reason-label">{copy[language].report.reasonLabel}</span>
+      {reasons.map((reason) => (
+        <p key={reason}>{reason}</p>
+      ))}
+    </div>
   );
 }

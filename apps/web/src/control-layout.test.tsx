@@ -268,9 +268,60 @@ describe('base.css layout rules', () => {
   // Issue Center and the row of buttons under it.
   it('keeps the report’s blocks apart at one consistent step', () => {
     expect(BASE_CSS).toMatch(/\.module-grid \{[^}]*margin-top: var\(--sp-4\);/);
-    expect(BASE_CSS).toMatch(/\.report-help__cta \+ \.button-row \{\s*margin-top: var\(--sp-4\);/);
     // The disclosure under the cards stands off them by the same step.
     expect(BASE_CSS).toMatch(/\.plan-scope \{[^}]*margin-top: var\(--sp-4\);/);
+  });
+
+  // The rule above used to name one sentence — `.report-help__cta` — so only the
+  // report's own action row was ever spaced. Every other window ended with its
+  // buttons flush against whatever was above them: "Open report" sat on the
+  // bottom edge of the section list on the progress window, and the checkout
+  // dialog's controls sat on its terminal panel.
+  it('stands every window’s action row off the block above it', () => {
+    expect(BASE_CSS).toMatch(
+      /\.window:not\(\.window--terminal\) > \.window__content > \* \+ \.button-row \{\s*margin-top: var\(--sp-4\);/,
+    );
+  });
+
+  // `* + .button-row`, not `.button-row`: a window whose *first* child is a row
+  // of controls — the styleguide's chip row — would otherwise be pushed off its
+  // own top edge by the same rule that fixes the ones at the bottom.
+  it('leaves a window that opens with controls on its own top edge', () => {
+    const rule = /\.window__content > (\S+) \+ \.button-row/.exec(BASE_CSS)?.[1];
+    expect(rule).toBe('*');
+  });
+
+  // Terminal windows are excluded because their content is a grid that already
+  // carries a gap; the margin would be added on top of it.
+  it('does not double the gap inside a terminal window', () => {
+    expect(BASE_CSS).toMatch(/\.window--terminal \.window__content \{[^}]*gap: var\(--sp-3\);/);
+    expect(BASE_CSS).toMatch(/\.window:not\(\.window--terminal\) > \.window__content/);
+  });
+
+  // The AI query-ideas table borrows the Google panel's table styling, which
+  // right-aligns and `nowrap`s every column after the first — the treatment that
+  // makes a Search Console row read as measured data. Nothing in this table is a
+  // measurement, so all of it is undone.
+  it('never sets a generated idea the way a measured row is set', () => {
+    const ideas = BASE_CSS.slice(
+      BASE_CSS.indexOf('.query-ideas__table td,'),
+      BASE_CSS.indexOf('.query-ideas__table th:nth-child(1)'),
+    );
+    expect(ideas).toMatch(/text-align: left;/);
+    expect(ideas).toMatch(/white-space: normal;/);
+  });
+
+  // At 360px the Ukrainian column heading widened an auto-laid-out table past
+  // the viewport and scrolled the whole report sideways. Prose in three
+  // languages needs a layout that wraps rather than one that grows.
+  it('wraps the ideas table instead of letting it widen the report', () => {
+    expect(BASE_CSS).toMatch(/\.query-ideas__table \{\s*table-layout: fixed;/);
+    expect(
+      BASE_CSS.slice(
+        BASE_CSS.indexOf('.query-ideas__table td,'),
+        BASE_CSS.indexOf('.query-ideas__table th:nth-child(1)'),
+      ),
+    ).toMatch(/overflow-wrap: anywhere;/);
   });
 
   // A finished section's coverage was drawn with the design system's progress

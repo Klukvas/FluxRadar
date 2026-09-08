@@ -313,6 +313,43 @@ export interface GoogleDataSnapshot {
   }>;
 }
 
+/** The three languages the query-idea generator writes candidates in. */
+export type QueryIdeaLanguage = 'ru' | 'uk' | 'en';
+
+/**
+ * One AI-written search query, and why the model thinks it might fit.
+ *
+ * Deliberately carries no number of any kind: it sits under a table of measured
+ * Search Console rows, and a made-up metric beside measured ones would be
+ * indistinguishable from data. The API drops anything else the model sends.
+ */
+export interface QueryIdea {
+  readonly query: string;
+  readonly language: QueryIdeaLanguage;
+  readonly rationale: string;
+}
+
+/**
+ * What the query-ideas endpoint can honestly report.
+ *
+ * A closed union rather than a list plus an error string, because the four ways
+ * of having no ideas are four different sentences for the reader:
+ * `not_configured` is a deployment with no AI provider, `unavailable` is a scan
+ * with no Search Console data to work from, `empty` is a model that answered
+ * with nothing usable, and `failed` is a provider that did not answer.
+ */
+export type QueryIdeasResult =
+  | {
+      readonly state: 'generated';
+      readonly ideas: readonly QueryIdea[];
+      readonly model: string;
+      readonly generatedAt: string;
+    }
+  | { readonly state: 'empty' }
+  | { readonly state: 'not_configured' }
+  | { readonly state: 'unavailable' }
+  | { readonly state: 'failed' };
+
 /**
  * Why paid checkout is off, as a closed set of codes. The server deliberately
  * never names the configuration behind it — the sentence the buyer reads is

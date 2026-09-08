@@ -46,7 +46,12 @@ describe('startup integration diagnostics', () => {
       'bing',
       'fastspring',
     ]);
-    expect(statuses.every((entry) => entry.status === 'not_configured')).toBe(true);
+    expect(statusOf({}, 'pagespeed')).toBe('configured');
+    expect(
+      statuses
+        .filter((entry) => entry.integration !== 'pagespeed')
+        .every((entry) => entry.status === 'not_configured'),
+    ).toBe(true);
   });
 
   it('reports a configured single-key integration', () => {

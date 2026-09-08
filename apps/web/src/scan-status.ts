@@ -7,6 +7,7 @@
 // new locale is a translation, not another switch statement.
 
 import { copy, type Language } from './i18n';
+import { isNotApplicable } from './module-status';
 import type { ScanModule } from './api';
 
 /** Statuses a scan never moves out of; the report is whatever it produced. */
@@ -44,6 +45,11 @@ export function scanStateLabel(status: string, language: Language): string {
 /** What is happening to one audit section while the scan is still running. */
 export function sectionStatusLabel(status: string, language: Language): string {
   const t = copy[language].scanProgress;
+  // First, because it is the one status that is neither a step nor a result: a
+  // section the plan lists but the product does not measure. It matched no rung
+  // below and fell through to "Waiting", which read as a queue position for
+  // work that was never going to start.
+  if (isNotApplicable(status)) return t.sectionNotApplicable;
   if (/running/i.test(status)) return t.sectionChecking;
   if (/partial/i.test(status)) return t.sectionPartial;
   if (/completed|pass|ok|done/i.test(status)) return t.sectionChecked;
@@ -60,6 +66,10 @@ export function sectionStatusLabel(status: string, language: Language): string {
  */
 export function moduleResultLabel(module: ScanModule, language: Language): string {
   const t = copy[language].scanProgress;
+  // Ahead of the usable-output rung: nothing was attempted here, so there is no
+  // shortfall of data to report and "Insufficient data" would be a complaint
+  // about a site that was never asked anything.
+  if (isNotApplicable(module.status)) return t.sectionNotApplicable;
   if (/unavailable|failed|error/i.test(module.status)) return t.moduleUnavailable;
   if (!module.usableOutput) return t.moduleInsufficient;
   if (/partial/i.test(module.status)) return t.sectionPartial;
@@ -112,6 +122,10 @@ export function moduleScoreLabel(module: ScanModule, language: Language): string
  * change what the owner reads, never what the colour means.
  */
 export function chipStatusFor(module: ScanModule): string {
+  // Kept as itself so the chip and the card edge stay neutral: the design
+  // system has no colour for "we did not look", and both the failure red and
+  // the insufficient-data grey would claim something about the site.
+  if (isNotApplicable(module.status)) return module.status;
   if (/unavailable|failed|error/i.test(module.status)) return 'Failed';
   if (!module.usableOutput) return 'Insufficient';
   return module.status;

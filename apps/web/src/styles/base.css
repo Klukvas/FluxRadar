@@ -1138,6 +1138,55 @@ code,
   color: var(--plat-600);
   font: 11px/1.35 var(--mono-font);
 }
+/* Why a section ended where it did, under the result that says where.
+ *
+ * Set apart with a rule rather than a box: it is an aside about the card it
+ * sits in, not a second card. Prose face, not the mono the technical lines
+ * above use — these are sentences to read, not values to compare. */
+.module-card__reason {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--plat-200);
+  color: var(--plat-600);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.module-card__reason p {
+  margin: 0 0 4px;
+}
+.module-card__reason p:last-child {
+  margin-bottom: 0;
+}
+.module-card__reason-label,
+.section-status__reason-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--plat-600);
+  font: 11px var(--mono-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* The same aside on the progress window, where the rows are `.field-row`s
+   rather than cards. It hangs under the row it belongs to and is indented to
+   the row's value column so it reads as an answer to that row's status, not as
+   a new row. */
+.section-status__reason {
+  padding: 5px 0 8px 0;
+  color: var(--plat-600);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.section-status__reason p {
+  margin: 0 0 4px;
+}
+.section-status__reason p:last-child {
+  margin-bottom: 0;
+}
+@media (min-width: 700px) {
+  .section-status__reason {
+    padding-left: calc(180px + var(--sp-3));
+  }
+}
 .report-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1200,6 +1249,49 @@ code,
   line-height: 1.45;
 }
 
+.ai-consent-callout {
+  padding: var(--sp-3);
+  border: 1px solid var(--selection);
+  background: #eef4ff;
+  box-shadow:
+    inset 2px 0 0 var(--selection),
+    inset 1px 1px 0 #fff;
+}
+.ai-consent-callout__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.ai-consent-callout__eyebrow {
+  color: var(--selection);
+  font: 11px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ai-consent-callout h3 {
+  margin: var(--sp-2) 0 0;
+  font-size: 14px;
+}
+.ai-consent-callout__checkbox {
+  margin-top: var(--sp-2);
+  min-height: 32px;
+}
+.ai-consent-callout__checkbox:focus-within {
+  outline: 2px solid var(--selection);
+  outline-offset: 2px;
+}
+.ai-consent-callout__body {
+  margin: var(--sp-2) 0 0;
+  color: var(--plat-700);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.ai-consent-callout__body a {
+  color: var(--selection);
+}
+
 /* "How to read this report" definitions and the findings call-to-action. */
 .report-help {
   margin-top: var(--sp-3);
@@ -1231,11 +1323,19 @@ code,
   margin: var(--sp-3) 0 0;
   line-height: 1.45;
 }
-/* The sentence explaining the Issue Center sat directly on top of the row of
-   buttons it explains — no space at all, because neither a paragraph with its
-   bottom margin cleared nor `.button-row` carries one. Same step as the one
-   above the section cards, so the window has one rhythm. */
-.report-help__cta + .button-row {
+/* The action row at the foot of a window, given the step it never had.
+ *
+ * A window lays its children out in plain flow with no rhythm of its own, and
+ * `.button-row` carries no outer margin — so "Open report" sat flush against
+ * the bottom edge of the section list above it, and "Open Issue Center / JSON /
+ * CSV / Reports" sat flush against the sentence that explains them. One step,
+ * the same one the section cards and the plan footnote already use, so every
+ * window ends the same way.
+ *
+ * `* + .button-row` so a window that *opens* with a row of controls (the
+ * styleguide's chip row) is not pushed off its own top edge; terminal windows
+ * are excluded because their content is a grid that already carries a gap. */
+.window:not(.window--terminal) > .window__content > * + .button-row {
   margin-top: var(--sp-4);
 }
 
@@ -1333,12 +1433,32 @@ code,
   background: var(--plat-50);
 }
 
+/* The public home page is a column too, for the same reason `.legal-shell` and
+   `.workspace-shell` are: without it `.home` is only as tall as its content and
+   the footer inside it has no floor to sink to. It was the last shell on the
+   site without one — on a viewport taller than the page (a short locale, a
+   zoomed-out desktop) the footer stopped where the last section ended and left
+   bare desktop under it. */
+.home-shell {
+  display: flex;
+  flex-direction: column;
+}
 .home {
   max-width: 1180px;
   margin: 0 auto;
   padding: 56px 24px 72px;
   overflow: hidden;
   color: #fff;
+}
+/* Written after `.home` on purpose: `home-ticker.test.tsx` reads the block that
+   follows the first `.home {` in this file, and a rule whose selector ends in
+   `.home {` above it would hand that test the wrong block.
+   `width: 100%` for the reason `.workspace-shell > .desktop` needs it: a flex
+   item with an auto cross-axis margin is sized to its content instead of being
+   stretched, so `margin: 0 auto` alone would shrink-wrap the whole page. */
+.home-shell > .home {
+  flex: 1 0 auto;
+  width: 100%;
 }
 .home__account-bar {
   display: flex;
@@ -2021,7 +2141,14 @@ code,
 .home__last-call h2 {
   margin-bottom: 0;
 }
+/* Sunk to the floor the same way `.legal-footer` and `.desktop__footer` are:
+   a sticky offset of a whole viewport asks for a position below the fold and is
+   clamped back to the bottom of `.home`, which the rule above stretches to fill
+   the shell. A page long enough to scroll never has that free space, so the
+   footer stays exactly where it fell in the flow. */
 .home__footer {
+  position: sticky;
+  top: 100vh;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -3199,4 +3326,82 @@ code,
 .google-panel__table th:not(:first-child) {
   text-align: right;
   white-space: nowrap;
+}
+
+/* AI query ideas — hypotheses, sitting under the measured Search Console rows.
+ *
+ * Everything here is about not looking like the table above it. Its own inset
+ * block with a dashed edge (the measured tables have none), a badge welded to
+ * the heading, and no right-aligned numeric column at all: the alignment rule
+ * above is what makes a Search Console row read as data, so this table's cells
+ * stay left-aligned prose. */
+.query-ideas {
+  margin-top: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px dashed var(--plat-400);
+  border-left: 4px solid var(--plat-400);
+  background: var(--plat-50);
+}
+.query-ideas__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  font-size: 14px;
+}
+/* Says what the rows are, wherever the heading is read. */
+.query-ideas__badge {
+  padding: 1px 5px;
+  border: 1px solid var(--plat-600);
+  background: var(--plat-100);
+  color: var(--plat-600);
+  font: 10px var(--mono-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: normal;
+}
+.query-ideas__lead,
+.query-ideas__note {
+  margin: 0 0 var(--sp-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.query-ideas__note {
+  margin: var(--sp-2) 0 0;
+}
+.query-ideas__unavailable {
+  padding: var(--sp-2) 0 0;
+}
+.query-ideas__unavailable p {
+  margin: 3px 0 0;
+}
+/* Overrides the numeric alignment `.google-panel__table` gives every column
+   after the first: nothing in this table is a measurement, so nothing in it is
+   set the way a measurement is.
+ *
+ * `table-layout: fixed` because the content is prose in three languages and an
+ * automatic layout sizes columns to it: at 360px the Ukrainian column heading
+ * ("Запропонований запит") widened the table past the viewport and scrolled the
+ * whole report sideways. Fixed widths plus `overflow-wrap` make the cells wrap
+ * instead of the page growing. */
+.query-ideas__table {
+  table-layout: fixed;
+}
+.query-ideas__table td,
+.query-ideas__table th,
+.query-ideas__table td:not(:first-child),
+.query-ideas__table th:not(:first-child) {
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.query-ideas__table th:nth-child(1) {
+  width: 38%;
+}
+.query-ideas__table th:nth-child(2) {
+  width: 18%;
+}
+.query-ideas__actions {
+  margin-top: var(--sp-3);
 }

@@ -1,5 +1,5 @@
 // Одна попытка прогона скана: crawl → последовательные модули тарифа →
-// GEO (mock) → запись ScanModule/Issue/AiResponseRecord. Попытка идемпотентно
+// GEO provider → запись ScanModule/Issue/AiResponseRecord. Попытка идемпотентно
 // перезаписывает результат предыдущей (module retry / external retry, D-024).
 // Терминализацию выполняет process-scan через resolveScanOutcome.
 
