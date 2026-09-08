@@ -19,7 +19,9 @@ import {
 } from './components';
 import { GoogleDataPanel, googleSnapshotOf } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
-import { chipStatusFor, displayDomain, moduleResultLabel } from './scan-status';
+import { modulesBeyondPlan } from './plan-modules';
+import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
+import { statusKind } from './status-kind';
 
 export function ResultsScreen(props: {
   scan: Scan | null;
@@ -170,7 +172,14 @@ export function ResultsScreen(props: {
         </section>
         <div className="module-grid">
           {dashboard.modules.map((module) => (
-            <div className="module-card" key={module.module}>
+            // The card wears its own result: a section on a finished report is a
+            // terminal fact, and the accent edge says which kind before the chip
+            // beside it is read. Colour is never the only carrier — the chip
+            // carries the same fact in words.
+            <div
+              className={`module-card module-card--${statusKind(chipStatusFor(module))}`}
+              key={module.module}
+            >
               <div className="split">
                 <strong>{module.module}</strong>
                 <StatusChip
@@ -185,11 +194,19 @@ export function ResultsScreen(props: {
                     : 'module-card__score'
                 }
               >
-                {module.score === null ? t.noScore : module.score.toFixed(2)}
+                {moduleScoreLabel(module, props.language)}
               </div>
               <ModuleMetadata module={module} scored={!unscoredPlan} />
               {module.usableOutput && module.coverage !== null ? (
-                <ProgressBar value={module.coverage * 100} label={`${module.module} coverage`} />
+                // Named, and drawn as a measurement rather than as progress: an
+                // unlabelled zebra bar at 100% beside a Completed chip was the
+                // one thing on this card that still looked like a running scan.
+                <ProgressBar
+                  variant="result"
+                  caption={t.helpCoverageTerm}
+                  value={module.coverage * 100}
+                  label={`${module.module} coverage`}
+                />
               ) : (
                 <div className="module-card__coverage-unavailable" role="status">
                   {moduleResultLabel(module, props.language)} · {t.coverageUnavailable}
@@ -198,6 +215,7 @@ export function ResultsScreen(props: {
             </div>
           ))}
         </div>
+        <PlanScope modules={dashboard.modules} plan={scan.plan} language={props.language} />
         {dashboard.modules.some((module) => module.module === 'Accessibility') ? (
           <aside className="accessibility-note" aria-label={t.accessibilityLabel}>
             <strong>{t.accessibilityTitle}</strong>
@@ -256,6 +274,88 @@ function sumChecks(
   select: (module: ScanModule) => number | null,
 ): number {
   return modules.reduce((total, module) => total + (select(module) ?? 0), 0);
+}
+
+/**
+ * What this plan looked at, and what it did not.
+ *
+ * The cards above show the sections that ran; a section the plan does not carry
+ * sends no module row at all, so its absence is invisible. That is how a Free
+ * report came to read as a clean bill of health for security and accessibility,
+ * which were never opened. The right-hand list names them and the plan that adds
+ * each one, taken from the tariff matrix rather than from a sales page.
+ *
+ * A native `<details>` because the answer is a footnote, not the report: shut by
+ * default, keyboard-operable and announced as a disclosure without a line of
+ * script or a single ARIA attribute of our own.
+ */
+function PlanScope(props: {
+  modules: readonly ScanModule[];
+  plan: Scan['plan'];
+  language: Language;
+}) {
+  const t = copy[props.language].report;
+  const locked = modulesBeyondPlan(props.plan);
+  return (
+    <details className="plan-scope">
+      <summary className="plan-scope__summary">
+        {fillCopy(t.scopeSummary, { plan: props.plan })}
+      </summary>
+      <p className="muted plan-scope__lead">{t.scopeLead}</p>
+      <div className="plan-scope__columns">
+        <section aria-label={t.scopeIncludedTerm}>
+          <h4 className="plan-scope__term">{t.scopeIncludedTerm}</h4>
+          <ul className="plan-scope__list">
+            {props.modules.map((module) => (
+              <li key={module.module}>
+                <strong>{module.module}</strong>
+                <span className="plan-scope__detail">{scopeDetail(module, props.language)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section aria-label={t.scopeLockedTerm}>
+          <h4 className="plan-scope__term">{t.scopeLockedTerm}</h4>
+          {locked.length === 0 ? (
+            <p className="muted plan-scope__detail">{t.scopeLockedNone}</p>
+          ) : (
+            <ul className="plan-scope__list">
+              {locked.map((entry) => (
+                <li key={entry.module}>
+                  <strong>{entry.module}</strong>
+                  <span className="plan-scope__detail">
+                    {fillCopy(t.scopeUnlock, { plan: entry.plan })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </details>
+  );
+}
+
+/**
+ * One line about what a section that ran actually did.
+ *
+ * Everything in it comes off the module row: how it ended, how many of its
+ * applicable checks closed, and — where the row recorded them, as the Free check
+ * does — the names of the checks themselves. Nothing is filled in from the plan.
+ */
+function scopeDetail(module: ScanModule, language: Language): string {
+  const t = copy[language].report;
+  const parts = [moduleResultLabel(module, language)];
+  if (module.completedApplicableChecks !== null && module.applicableChecks !== null) {
+    parts.push(
+      fillCopy(t.scopeChecks, {
+        completed: module.completedApplicableChecks,
+        applicable: module.applicableChecks,
+      }),
+    );
+  }
+  parts.push(...checkTitles(module.metadata));
+  return parts.join(' · ');
 }
 
 function ModuleMetadata({ module, scored }: { module: ScanModule; scored: boolean }) {

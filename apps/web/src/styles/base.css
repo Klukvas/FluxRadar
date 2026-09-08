@@ -40,6 +40,24 @@ summary:focus-visible {
 .app-shell {
   min-height: 100vh;
 }
+/* The signed-in shell, as a column whose desktop takes the slack. `.legal-shell`
+   does the same for the public documents; without it the workspace desktop is
+   only as tall as its content and the footer inside it has no floor to sink to. */
+.workspace-shell {
+  display: flex;
+  flex-direction: column;
+}
+/* `width: 100%` because `.desktop` centres itself with `margin: 0 auto`, and a
+   flex item with an auto cross-axis margin is never stretched to its line — it
+   is sized to its content instead. Left to shrink-wrap, the workspace column
+   was as wide as whatever screen was open and moved when the language changed:
+   the reports list came out at 823px in English and 925px in Ukrainian, taking
+   the intro header and this footer in with it. Asking for the full width puts
+   `max-width: 1100px` back in charge and leaves the auto margins the centring. */
+.workspace-shell > .desktop {
+  flex: 1 0 auto;
+  width: 100%;
+}
 .menubar {
   min-height: 22px;
   display: flex;
@@ -169,18 +187,49 @@ summary:focus-visible {
   grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.8fr);
   gap: var(--sp-4);
 }
-/* The workspace shell's footer carries the studio attribution and nothing
-   else, so it is a single row rather than the brand/links split the public
-   footers use. It borrows their rule, colour and type scale so the line reads
-   the same on a signed-in screen as it does on the home page. */
+/* The workspace's site footer — the same row the public pages end with.
+ *
+ * `top: 100vh` is the trick `.legal-footer` uses: it asks for a position one
+ * viewport down and is clamped back to the bottom of its containing block,
+ * which is the floor of a short page and the end of the flow on a long one. It
+ * only has a floor to reach because `.workspace-shell` stretches the desktop to
+ * fill the shell; without that the footer stopped wherever a two-card report ran
+ * out and left bare desktop under it. */
 .desktop__footer {
+  position: sticky;
+  top: 100vh;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
   margin-top: var(--sp-6);
   padding-top: var(--sp-4);
   border-top: 1px solid #8c9bb3;
   color: #d5deeb;
   font: 10px var(--mono-font);
   letter-spacing: 0.08em;
+}
+.desktop__footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 4px 16px;
+}
+.desktop__footer a {
+  color: var(--term-green);
+  text-decoration: none;
+}
+.desktop__footer a:hover {
+  text-decoration: underline;
+}
+/* Spelled out because nothing gives a bare `a` a ring: the base
+   `:focus-visible` rule names buttons and form controls only, and the public
+   footers are covered by `.legal-shell a` and `.home a`. Without this the
+   workspace footer links were the one set on the site that fell back to the
+   browser default. Same ring the public footers draw. */
+.desktop__footer a:focus-visible {
+  outline: 2px dotted var(--term-green);
+  outline-offset: 3px;
 }
 /* `min-width: 0` because a window is usually a grid item, and a grid item's
    automatic minimum is its content: a window titled with a long site address
@@ -534,43 +583,116 @@ code,
   flex-wrap: wrap;
   justify-content: end;
 }
-/* Reports list — one row per audit, mirroring the profile rows above it. */
+/* Reports list — one raised card per audit.
+ *
+ * It used to be hairline-divided rows on the window's own platinum, which made
+ * a report indistinguishable from the panel holding it — and the divider was
+ * not even drawn: every row is the only child of its <li>, so the
+ * `:last-child { border-bottom: none }` that was meant to spare the final rule
+ * matched all of them. Cards do not depend on a sibling to be visible. */
 .report-list {
-  display: block;
+  display: grid;
+  /* The same step the skeleton rows this list replaces are spaced on, so the
+     loading state and the loaded state have the same rhythm. */
+  gap: var(--sp-2);
   /* A real <ul> for the screen reader, without the marker and indent that would
-     push every row out of line with the profile rows it sits beside. */
+     push every card out of line with the window content beside it. */
   list-style: none;
   margin: 0;
   padding: 0;
 }
 .report-row {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--sp-2);
-  align-items: center;
+  /* minmax(0, ...) rather than 1fr: the copy column holds an unbroken site
+     address, and a grid item's automatic minimum is its content. */
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  /* The status-and-action pair keeps the card's first line, the one carrying
+     the address it reports on. Centred on the whole card, it slid down the
+     moment a long address wrapped — the same drift `.integration-row` was
+     fixed for. */
+  align-items: start;
   min-height: 42px;
-  padding: var(--sp-2);
-  border-bottom: 1px solid var(--plat-300);
+  padding: var(--sp-3);
+  /* Raised on a white face (DESIGN_SYSTEM §4): the border and the bevel do the
+     separating, so the card reads as a record standing on the window rather
+     than as a field sunk into it. */
+  border: 1px solid var(--plat-900);
+  /* The status a second time, as the colour of the card's own edge — the one
+     cue that survives scanning a screenful of reports without reading them. The
+     chip beside the address carries the same fact in words, so nothing here is
+     said in colour alone. The modifiers below set the colour; a status the app
+     has no colour for keeps this neutral edge, so the card is never left with a
+     black rail wider than its own border. */
+  border-left-width: 4px;
+  border-left-color: var(--plat-400);
+  background: #fff;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 var(--plat-300);
 }
-.report-row:last-child {
-  border-bottom: none;
+/* Status palette: DESIGN_SYSTEM §1. */
+.report-row--ok {
+  border-left-color: #1a6b2f;
 }
-.report-row__copy .split {
-  gap: var(--sp-2);
+.report-row--high {
+  border-left-color: #c2410c;
 }
-/* A site address has no spaces to break at and can be longer than its column. */
-.report-row__copy .split strong {
+.report-row--warning {
+  border-left-color: #8a5b00;
+}
+.report-row--error {
+  border-left-color: #9b1c12;
+}
+.report-row--info {
+  border-left-color: #1a4f8a;
+}
+.report-row--neutral {
+  border-left-color: var(--plat-400);
+}
+/* Hover marks the card under the pointer without promising a click: only the
+   button in it is actionable, so the card shifts to the list tone and lifts on
+   a hard shadow (no blur, no transition — DESIGN_SYSTEM §9, §11). */
+.report-row:hover {
+  background: var(--plat-50);
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 var(--plat-300),
+    1px 1px 0 rgba(0, 0, 0, 0.25);
+}
+/* Keyboard focus lands on the button inside the card, and a lone ring around a
+   button in a list of identical buttons does not say *which* report is in
+   hand. The card answers that. Solid rather than the dotted control ring so the
+   two read as different things: this card, that control. */
+.report-row:focus-within {
+  background: var(--plat-50);
+  outline: 2px solid var(--selection);
+  outline-offset: 1px;
+}
+.report-row__copy {
+  min-width: 0;
+}
+/* A site address is a technical value (DESIGN_SYSTEM §2) and the card's title:
+   monospace, a step up from the body, and free to break — it has no spaces to
+   break at and can be longer than its column. */
+.report-row__domain {
+  font: bold 14px/1.3 var(--mono-font);
+  display: block;
   overflow-wrap: anywhere;
 }
 .report-row__meta {
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin: var(--sp-1) 0 0;
+  font: 11px/1.4 var(--mono-font);
 }
+/* The status and the action it belongs to are one pair on one centred line:
+   nothing about their alignment depends on how long the address beside them
+   runs or on where the card breaks. Same pairing as `.integration-row__action`. */
 .report-row__action {
   display: flex;
-  gap: var(--sp-2);
   flex-wrap: wrap;
+  align-items: center;
   justify-content: end;
+  gap: var(--sp-2);
 }
 /* The titlebar box of a window that cannot be closed: same shape, no affordance. */
 .window__box--inert {
@@ -606,13 +728,27 @@ code,
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--sp-3);
-  align-items: center;
+  /* The action pair keeps the row's first line. Centred, it drifted down the
+     moment the connection gained a sentence explaining what it gives you. */
+  align-items: start;
   padding: var(--sp-3);
 }
 .integration-row__copy {
   min-width: 0;
 }
-.integration-row__copy p {
+/* A row label, not a section title: the heading level carries the structure,
+   the row keeps the weight and size it always had. */
+.integration-row__name {
+  margin: 0;
+  font-size: inherit;
+}
+/* Plain language about what this connection gives you, so it is body copy in
+   the body colour — the service list under it is the metadata. */
+.integration-row__why {
+  margin: 5px 0 0;
+  max-width: 68ch;
+}
+.integration-row__services {
   margin: 5px 0 0;
   color: var(--plat-600);
 }
@@ -621,9 +757,15 @@ code,
   margin-top: 5px;
   color: #9b1c12;
 }
+/* The status and the control it belongs to are one pair on one centred line:
+   nothing about their alignment depends on how long the copy beside them runs
+   or on where the row breaks. */
 .integration-row__action {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: end;
+  gap: var(--sp-2);
 }
 .integration-row__server {
   color: var(--plat-600);
@@ -718,6 +860,23 @@ code,
 .progress__value {
   width: 40px;
   text-align: right;
+}
+/* A finished measurement, not a running one.
+ *
+ * The zebra is the design system's progress texture (§7) and it is the only
+ * thing that made a completed audit section look like a section still being
+ * checked: stripes at 100% beside a `Completed` chip read as a loading bar
+ * nobody had told the truth to. A result is one flat filled trough — same
+ * geometry, no motion of any kind, and it never animates its width because it
+ * has only ever had one. */
+.progress--result .progress__fill {
+  background: #333399;
+  transition: none;
+}
+.progress__caption {
+  color: var(--plat-600);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .scan-complete {
@@ -922,6 +1081,10 @@ code,
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-3);
+  /* The window lays its children out in plain flow with no rhythm of its own, so
+     the section cards started flush against the bottom edge of the help block
+     above them and read as one continuous slab. */
+  margin-top: var(--sp-4);
 }
 .module-card {
   display: grid;
@@ -929,6 +1092,32 @@ code,
   padding: var(--sp-3);
   border: 1px solid var(--plat-400);
   background: #fff;
+  /* The section's result as the colour of its own edge, so a grid of ten cards
+     can be read for the one that failed without reading ten chips. The chip
+     inside carries the same fact in words — nothing here is said in colour
+     alone — and a status the app has no colour for keeps this neutral edge
+     rather than a black rail wider than the card's border. */
+  border-left-width: 4px;
+  border-left-color: var(--plat-400);
+}
+/* Status palette: DESIGN_SYSTEM §1. */
+.module-card--ok {
+  border-left-color: #1a6b2f;
+}
+.module-card--high {
+  border-left-color: #c2410c;
+}
+.module-card--warning {
+  border-left-color: #8a5b00;
+}
+.module-card--error {
+  border-left-color: #9b1c12;
+}
+.module-card--info {
+  border-left-color: #1a4f8a;
+}
+.module-card--neutral {
+  border-left-color: var(--plat-400);
 }
 .module-card__score {
   font: bold 20px var(--mono-font);
@@ -1041,6 +1230,65 @@ code,
 .report-help__cta {
   margin: var(--sp-3) 0 0;
   line-height: 1.45;
+}
+/* The sentence explaining the Issue Center sat directly on top of the row of
+   buttons it explains — no space at all, because neither a paragraph with its
+   bottom margin cleared nor `.button-row` carries one. Same step as the one
+   above the section cards, so the window has one rhythm. */
+.report-help__cta + .button-row {
+  margin-top: var(--sp-4);
+}
+
+/* "What the {plan} check covered" — the folded footnote under the section cards
+   listing what ran and what the plan does not reach. */
+.plan-scope {
+  margin-top: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: var(--plat-50);
+}
+/* The native disclosure triangle is left alone: it is the only thing that says
+   the line opens, and the reset above already gives `summary` the app's focus
+   ring. */
+.plan-scope__summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.plan-scope__lead {
+  margin: var(--sp-2) 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.plan-scope__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+.plan-scope__term {
+  margin: 0 0 var(--sp-2);
+  color: var(--plat-600);
+  font: 11px var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.plan-scope__list {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.plan-scope__list li {
+  display: grid;
+  gap: 2px;
+}
+.plan-scope__detail {
+  color: var(--plat-600);
+  /* A check title is a technical value (DESIGN_SYSTEM §2) and these lines are
+     mostly check titles; they wrap because a Free row names four of them. */
+  font: 11px/1.4 var(--mono-font);
+  overflow-wrap: anywhere;
 }
 .issue-severity-legend {
   margin: var(--sp-2) 0 0;
@@ -1167,11 +1415,89 @@ code,
   margin: 22px 0 24px;
   font: bold clamp(52px, 7.2vw, 92px)/0.86 var(--mono-font);
   letter-spacing: -0.085em;
+  /* The pace of the hero's typing reveal: one character per step, plus the
+     time a single character takes to land. Both are inherited by the character
+     spans `HeroTitle` renders. */
+  --type-step-duration: 45ms;
+  --type-char-fade: 90ms;
 }
 .home h1 em,
 .home h2 em {
   color: var(--term-green);
   font-style: normal;
+}
+
+/* ── The hero title types itself in ──────────────────────────────────────────
+   Every character is in the DOM and holds its own space from the first paint;
+   only the paint is delayed, so the heading never reflows and the reveal cannot
+   leave the message hidden. A character stays visible if its animation is ever
+   dropped, because the opacity it animates *from* lives in the keyframes rather
+   than on the element. */
+.home__type-char {
+  position: relative;
+  animation: home-type-char var(--type-char-fade, 90ms) ease-out
+    calc(var(--type-step, 0) * var(--type-step-duration, 45ms)) backwards;
+}
+/* The cursor rides the character being typed: no width in the flow, drawn at
+   that character's trailing edge, so it moves without moving the title.
+ *
+ * The hidden state is the element's own `opacity: 0` and the animation does not
+ * fill, so the cursor is absent before its step, painted for the length of it,
+ * and gone after — each of those states resolved by the rule rather than by
+ * where the step easing lands. Filling forwards asked `steps(1)` for its value
+ * at the end boundary, and a delay of `calc(step * 45ms)` past about 990ms
+ * finishes on a progress of 0.9999999999999984: just short of the jump, so the
+ * step held the *from* value and every cursor from the 22nd character on stayed
+ * painted over the title for the rest of the visit. */
+.home__type-char::after {
+  content: '';
+  position: absolute;
+  top: 0.06em;
+  left: 100%;
+  width: 0.46ch;
+  height: 0.76em;
+  background: var(--term-green);
+  opacity: 0;
+  animation: home-type-caret var(--type-step-duration, 45ms) steps(1)
+    calc(var(--type-step, 0) * var(--type-step-duration, 45ms));
+}
+/* The last character keeps the cursor for three blinks and then lets it go: a
+   caret that blinks for the whole visit is a distraction, not a detail. */
+.home__type-char--last::after {
+  animation: home-type-caret-blink 520ms linear
+    calc(var(--type-step, 0) * var(--type-step-duration, 45ms)) 3 forwards;
+}
+@keyframes home-type-char {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes home-type-caret {
+  from {
+    opacity: 1;
+  }
+}
+@keyframes home-type-caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+/* The title is the message, so with motion turned off it is simply there, in
+   full, on the first paint — the characters never animate, which leaves them at
+   their own opacity, and the cursor that only exists to sell the typing is
+   never drawn at all. */
+@media (prefers-reduced-motion: reduce) {
+  .home__type-char {
+    animation: none;
+  }
+  .home__type-char::after {
+    content: none;
+  }
 }
 .home__lede {
   max-width: 590px;
@@ -1606,27 +1932,54 @@ code,
   font: bold clamp(22px, 3vw, 30px)/1.05 var(--mono-font);
   letter-spacing: -0.05em;
 }
-.home__pricing-explainer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-  gap: 18px;
+/* ── Basic against Complete, as a table ──────────────────────────────────────
+   The wrapper is the last line of defence, not the layout: the table is sized
+   to fit its column and stacks on a phone, so it should never need to scroll —
+   but a long word in a translation must move this frame, never the page. */
+.plan-compare-wrap {
   margin: 22px 0 0;
+  overflow-x: auto;
 }
-.home__pricing-explainer-grid p {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding-top: 12px;
-  border-top: 1px solid #315d42;
-}
-.home__pricing-explainer-grid strong {
-  color: var(--term-green);
-  font: bold 14px/1.3 var(--mono-font);
-}
-.home__pricing-explainer-grid span {
+.plan-compare {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
   color: #d5deeb;
   font-size: 14px;
+  line-height: 1.55;
+  text-align: left;
+}
+.plan-compare caption {
+  padding-bottom: 12px;
+  color: #b3d1bc;
+  font-size: 13px;
   line-height: 1.6;
+  text-align: left;
+}
+.plan-compare th,
+.plan-compare td {
+  padding: 10px 14px 10px 0;
+  border-top: 1px solid #315d42;
+  vertical-align: top;
+  /* A single long word in a translation would otherwise widen the column past
+     the frame and take the scrollbar with it. */
+  overflow-wrap: anywhere;
+}
+.plan-compare thead th {
+  padding-top: 0;
+  border-top: 0;
+  color: var(--term-green);
+  font: bold 12px/1.3 var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.plan-compare tbody th {
+  width: 26%;
+  color: var(--term-green);
+  font: bold 13px/1.4 var(--mono-font);
+}
+.plan-compare td:last-child {
+  padding-right: 0;
 }
 .home__pricing-note {
   margin: 16px 0 0;
@@ -2309,7 +2662,10 @@ code,
     padding: var(--sp-2);
   }
   .report-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    /* One column means the action sits under the copy rather than beside it, so
+       the gap between them is vertical space next to a 40px tap target. */
+    gap: var(--sp-3);
   }
   .report-row__action {
     justify-content: start;
@@ -2389,6 +2745,50 @@ code,
     content: attr(data-label);
     color: var(--plat-600);
     font: 11px var(--mono-font);
+    text-transform: uppercase;
+  }
+  /* Three columns of prose do not fit a phone, and a table that scrolls
+     sideways is a table nobody compares: the comparison stacks the same way,
+     each answer naming the product it belongs to. */
+  .plan-compare,
+  .plan-compare thead,
+  .plan-compare tbody,
+  .plan-compare tr,
+  .plan-compare th,
+  .plan-compare td {
+    display: block;
+  }
+  /* The caption has to be re-boxed with the rest of it. A `table-caption` whose
+     parent is no longer a table gets an anonymous table wrapper of its own, and
+     that wrapper shrinks to fit: the sentence introducing the comparison was
+     laid out in 60px of a 308px phone, a word or two per line, seventeen lines
+     deep before the first row. */
+  .plan-compare caption {
+    display: block;
+  }
+  .plan-compare thead {
+    display: none;
+  }
+  .plan-compare tr {
+    padding-bottom: 14px;
+    border-top: 1px solid #315d42;
+  }
+  .plan-compare tbody th {
+    width: auto;
+    padding: 12px 0 4px;
+    border-top: 0;
+    font-size: 14px;
+  }
+  .plan-compare td {
+    padding: 0 0 8px;
+    border-top: 0;
+  }
+  .plan-compare td::before {
+    content: attr(data-label);
+    display: block;
+    color: #b3d1bc;
+    font: bold 11px/1.4 var(--mono-font);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
   }
   .menubar__system {
@@ -2671,6 +3071,15 @@ code,
     gap: 8px;
   }
   .home__footer-links {
+    justify-content: start;
+  }
+  /* Same stack as the public footer above: at this width the brand, the links
+     and the attribution each take a line rather than competing for one. */
+  .desktop__footer {
+    display: grid;
+    gap: 8px;
+  }
+  .desktop__footer-links {
     justify-content: start;
   }
   .modal-backdrop {

@@ -11,8 +11,20 @@ export const SUPPORT_EMAIL = 'support@flux-lab.dev';
 /** The studio site the footer attribution links to. */
 export const FLUXLAB_URL = 'https://flux-lab.dev';
 
-/** Footer attribution, translated like the rest of the shell copy. */
-export const poweredByFluxLab: Record<Language, string> = {
-  en: 'Powered by FluxLab',
-  uk: 'Працює на FluxLab',
+/**
+ * Footer attribution, translated like the rest of the shell copy.
+ *
+ * It credits the studio that *built* FluxRadar. "Powered by" read, in Ukrainian
+ * especially, as though the product ran on top of FluxLab — a platform the
+ * service depends on — which is not what the line is for. Both locales now say
+ * the same thing: FluxLab made this.
+ *
+ * The `.powered-by` class and the blog's `blog.poweredBy` translation key keep
+ * their names: they are the structural contract this footer shares with the
+ * static blog pages, and renaming them across those files would buy nothing a
+ * reader can see.
+ */
+export const createdByFluxLab: Record<Language, string> = {
+  en: 'Created by FluxLab',
+  uk: 'Створено FluxLab',
 };

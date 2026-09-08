@@ -8,7 +8,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, type IntegrationStatus, type SiteProfile } from './api';
 import { Button, LoadingState, Panel, StatusChip, Window } from './components';
 import { GoogleProperties } from './GoogleProperties';
-import { copy, type Language } from './i18n';
+import { copy, type Copy, type Language } from './i18n';
+
+/**
+ * Why a customer would connect this provider, in their own words.
+ *
+ * Keyed by provider so a connection the API adds later renders without an
+ * explanation rather than with someone else's.
+ */
+function whyConnect(t: Copy['integrations'], provider: string): string | null {
+  const reasons: Readonly<Record<string, string>> = t.whyConnect;
+  return reasons[provider] ?? null;
+}
 
 export function IntegrationsScreen(props: {
   profiles: readonly SiteProfile[];
@@ -95,12 +106,29 @@ export function IntegrationsScreen(props: {
           </div>
         ) : null}
         <div className="integration-list">
-          {integrations.map((integration) => (
-            <div className="integration-group" key={integration.provider}>
-              <div className="integration-row">
-                <div className="integration-row__copy">
-                  <div className="split">
-                    <strong>{integration.label}</strong>
+          {integrations.map((integration) => {
+            const reason = whyConnect(t, integration.provider);
+            const reasonId = `integration-why-${integration.provider}`;
+            return (
+              <div className="integration-group" key={integration.provider}>
+                <div className="integration-row">
+                  <div className="integration-row__copy">
+                    <h3 className="integration-row__name">{integration.label}</h3>
+                    {reason === null ? null : (
+                      <p className="integration-row__why" id={reasonId}>
+                        {reason}
+                      </p>
+                    )}
+                    <p className="integration-row__services">{integration.services.join(' · ')}</p>
+                    {integration.lastError ? (
+                      <small className="integration-row__error">{integration.lastError}</small>
+                    ) : null}
+                  </div>
+                  {/* Status and control are one pair on one line. Read apart —
+                      the chip beside the name, the button in a column centred
+                      on the whole description — they never line up once the
+                      copy is longer than a single line. */}
+                  <div className="integration-row__action">
                     <StatusChip
                       status={integration.status}
                       label={
@@ -109,58 +137,56 @@ export function IntegrationsScreen(props: {
                           : integration.status.replace(/_/g, ' ')
                       }
                     />
-                  </div>
-                  <p>{integration.services.join(' · ')}</p>
-                  {integration.lastError ? (
-                    <small className="integration-row__error">{integration.lastError}</small>
-                  ) : null}
-                </div>
-                <div className="integration-row__action">
-                  {integration.kind === 'user' ? (
-                    integration.status === 'connected' ? (
-                      <Button
-                        variant="danger"
-                        disabled={busyProvider === integration.provider}
-                        onClick={() => void disconnect(integration)}
-                      >
-                        {busyProvider === integration.provider ? t.disconnecting : t.disconnect}
-                      </Button>
+                    {integration.kind === 'user' ? (
+                      integration.status === 'connected' ? (
+                        <Button
+                          variant="danger"
+                          disabled={busyProvider === integration.provider}
+                          aria-describedby={reason === null ? undefined : reasonId}
+                          onClick={() => void disconnect(integration)}
+                        >
+                          {busyProvider === integration.provider ? t.disconnecting : t.disconnect}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="primary"
+                          disabled={
+                            !integration.canConnect || busyProvider === integration.provider
+                          }
+                          aria-describedby={reason === null ? undefined : reasonId}
+                          onClick={() => void connect(integration)}
+                        >
+                          {busyProvider === integration.provider ? t.connecting : t.connect}
+                        </Button>
+                      )
                     ) : (
-                      <Button
-                        variant="primary"
-                        disabled={!integration.canConnect || busyProvider === integration.provider}
-                        onClick={() => void connect(integration)}
-                      >
-                        {busyProvider === integration.provider ? t.connecting : t.connect}
-                      </Button>
-                    )
-                  ) : (
-                    <span className="technical integration-row__server">
-                      {integration.status === 'connected'
-                        ? t.serverConfigured
-                        : integration.status === 'limited'
-                          ? t.serverLimited
-                          : t.serverMissing}
-                    </span>
-                  )}
+                      <span className="technical integration-row__server">
+                        {integration.status === 'connected'
+                          ? t.serverConfigured
+                          : integration.status === 'limited'
+                            ? t.serverLimited
+                            : t.serverMissing}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {/* The property picker belongs to the Google connection, so it
+                    is nested in that row — above Bing, not floating after the
+                    list where it read as a setting for every integration. */}
+                {integration.provider === 'google' ? (
+                  <div className="integration-group__detail">
+                    <GoogleProperties
+                      profiles={props.profiles}
+                      connected={integration.status === 'connected'}
+                      language={props.language}
+                      onAddProfile={props.onAddProfile}
+                      onProfilesChanged={props.onProfilesChanged}
+                    />
+                  </div>
+                ) : null}
               </div>
-              {/* The property picker belongs to the Google connection, so it is
-                  nested in that row — above Bing, not floating after the list
-                  where it read as a setting for every integration at once. */}
-              {integration.provider === 'google' ? (
-                <div className="integration-group__detail">
-                  <GoogleProperties
-                    profiles={props.profiles}
-                    connected={integration.status === 'connected'}
-                    language={props.language}
-                    onAddProfile={props.onAddProfile}
-                    onProfilesChanged={props.onProfilesChanged}
-                  />
-                </div>
-              ) : null}
-            </div>
-          ))}
+            );
+          })}
         </div>
         <Panel title={t.policyTitle}>
           <p className="muted integration-policy">{t.policyBody}</p>

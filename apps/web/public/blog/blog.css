@@ -114,11 +114,17 @@ button:focus-visible,
   cursor: pointer;
   padding: 0 10px;
 }
-.menubar button:hover,
+.menubar button:hover:not(:disabled),
 .menubar__item:hover,
 .menubar .is-active {
   background: var(--selection);
   color: #fff;
+}
+/* The workspace tabs the header lists are inert on flat files, so they render
+   here the way the product renders them for a reader with no session. */
+.menubar button:disabled {
+  color: var(--plat-400);
+  cursor: not-allowed;
 }
 .menubar__apple {
   display: inline-flex;
@@ -566,6 +572,21 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
     right: auto;
     top: calc(100% + 2px);
   }
+  /* The word "Language" is what names the combobox for a screen reader, so it
+     is hidden from the sheet rather than removed — the React header hides it
+     the same way, and a visible label was the one row the two sheets differed
+     on. */
+  .menubar__language > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
   .menubar__links.is-open .menubar__item {
     min-height: 44px;
     justify-content: flex-start;
@@ -574,7 +595,7 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
     font-size: 16px;
     border-left: var(--sheet-rail) solid transparent;
   }
-  .menubar__links.is-open .menubar__item:hover {
+  .menubar__links.is-open .menubar__item:hover:not(:disabled) {
     background: var(--plat-200);
     color: inherit;
     border-left-color: var(--plat-300);

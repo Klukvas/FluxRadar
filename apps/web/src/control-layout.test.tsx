@@ -73,6 +73,27 @@ describe('technical fields', () => {
     render(<SelectField label="Profile" value="a" onChange={() => undefined} options={OPTIONS} />);
     expect(screen.getByLabelText('Profile')).not.toHaveClass('technical-input');
   });
+
+  // A label names what is being chosen; what choosing it means belongs under
+  // the control, in the same slot a `Field` puts it — not folded back into the
+  // label, which is how the scan screen ended up calling its profile picker a
+  // public origin.
+  it('lets a select explain itself in the hint a field already has', () => {
+    render(
+      <SelectField
+        label="Profile"
+        hint="Public pages only."
+        value="a"
+        onChange={() => undefined}
+        options={OPTIONS}
+      />,
+    );
+    const hint = screen.getByText('Public pages only.');
+    expect(hint).toHaveClass('field__hint');
+    // Inside the label, so the hint is part of the control's accessible name
+    // rather than floating text a screen reader never reaches.
+    expect(hint.closest('label')).toContainElement(screen.getByLabelText(/Profile/));
+  });
 });
 
 describe('base.css layout rules', () => {
@@ -134,6 +155,156 @@ describe('base.css layout rules', () => {
     ]) {
       expect(mobile).toMatch(rule);
     }
+  });
+
+  // A report used to be a block of grey text on the window's own grey, with no
+  // boundary of its own: the only separator was a bottom hairline whose
+  // `:last-child` exception matched every row, because each row is the only
+  // child of its <li>. The card must not depend on a sibling to be visible.
+  it('draws a report as a card with its own boundary, not a hairline between rows', () => {
+    const card = BASE_CSS.slice(
+      BASE_CSS.indexOf('.report-row {'),
+      BASE_CSS.indexOf('.report-row__copy {'),
+    );
+    expect(card).toMatch(/border: 1px solid var\(--plat-900\);/);
+    expect(card).toMatch(/background: #fff;/);
+    expect(card).not.toMatch(/border-bottom: 1px solid/);
+    expect(BASE_CSS).not.toMatch(/\.report-row:last-child/);
+    expect(BASE_CSS).toMatch(/\.report-list \{[^}]*gap: var\(--sp-2\);/);
+  });
+
+  // The status is read twice — as the chip's words and as the card's edge — so
+  // every colour family the chip can pick has an edge to match it.
+  it('gives each status family its own accent edge on the card', () => {
+    expect(BASE_CSS).toMatch(/\.report-row \{[^}]*border-left-width: 4px;/);
+    for (const kind of ['ok', 'high', 'warning', 'error', 'info', 'neutral']) {
+      expect(BASE_CSS).toMatch(new RegExp(`\\.report-row--${kind} \\{\\s*border-left-color:`));
+    }
+  });
+
+  // Only the button in a card is actionable, so hover marks the card without
+  // promising a click — and keyboard focus, which lands on that button, still
+  // has to say which of twenty identical buttons is in hand.
+  it('marks a hovered card and the card holding keyboard focus', () => {
+    expect(BASE_CSS).toMatch(/\.report-row:hover \{[^}]*background: var\(--plat-50\);/);
+    expect(BASE_CSS).toMatch(
+      /\.report-row:focus-within \{[^}]*outline: 2px solid var\(--selection\);/,
+    );
+    // The design system animates the cursor, the spinner, the progress zebra
+    // and a window opening — nothing else (§9) — and allows no blurred shadow
+    // (§11). The hover lift is a hard offset, and no state here animates.
+    const card = BASE_CSS.slice(
+      BASE_CSS.indexOf('.report-row {'),
+      BASE_CSS.indexOf('.report-row__copy {'),
+    );
+    expect(card).not.toMatch(/transition[a-z-]*:/);
+    expect(card).toMatch(/1px 1px 0 rgba\(0, 0, 0, 0\.25\);/);
+  });
+
+  // A site address and a timestamp are technical values (§2), and they were the
+  // one place on the card still set in the body face.
+  it('sets the card’s technical values in the monospace face', () => {
+    expect(BASE_CSS).toMatch(/\.report-row__domain \{\s*font: bold 14px\/1\.3 var\(--mono-font\);/);
+    expect(BASE_CSS).toMatch(/\.report-row__meta \{[^}]*var\(--mono-font\);/);
+    // A hostname has no spaces to break at and can be longer than its column.
+    expect(BASE_CSS).toMatch(/\.report-row__domain \{[^}]*overflow-wrap: anywhere;/);
+  });
+
+  // A report card reports how the check ended and offers the control that acts
+  // on it. The chip sat in the copy column and the button in a column centred
+  // on the whole card, so the pair drifted apart the moment a long address
+  // wrapped — the finding `.integration-row` was already fixed for.
+  it('keeps a report’s status and its action on one aligned line', () => {
+    expect(BASE_CSS).toMatch(
+      /\.report-row__action \{[^}]*display: flex;[^}]*align-items: center;[^}]*gap: var\(--sp-2\);/,
+    );
+    // And the pair keeps the card's first line — the one holding the address it
+    // reports on — rather than centring on copy of an unknown height.
+    expect(BASE_CSS).toMatch(/\.report-row \{[^}]*align-items: start;/);
+    // Nothing groups the chip with the address any more, so the class that did
+    // is gone rather than left behind as a dead rule.
+    expect(BASE_CSS).not.toMatch(/\.report-row__identity/);
+  });
+
+  // On a phone the action moves under the copy, so the row's gap becomes the
+  // vertical space above a 40px tap target.
+  it('stacks a report card and keeps its columns unbreakable at both sizes', () => {
+    expect(BASE_CSS).toMatch(/\.report-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/);
+    const mobile = BASE_CSS.slice(BASE_CSS.indexOf('@media (max-width: 699px)'));
+    expect(mobile).toMatch(
+      /\.report-row \{\s*grid-template-columns: minmax\(0, 1fr\);[^}]*gap: var\(--sp-3\);/,
+    );
+    expect(mobile).toMatch(/\.report-row__action \{\s*justify-content: start;/);
+  });
+
+  // An integration row reports a status and offers the control that changes it.
+  // The chip sat in the copy column and the button in a column centred on the
+  // whole row, so the pair drifted apart as soon as the copy ran past one line.
+  it('keeps a connection’s status and its action on one aligned line', () => {
+    expect(BASE_CSS).toMatch(
+      /\.integration-row__action \{[^}]*display: flex;[^}]*align-items: center;[^}]*gap: var\(--sp-2\);/,
+    );
+    // And the pair keeps the row's first line rather than centring on copy it
+    // has no relationship to.
+    expect(BASE_CSS).toMatch(/\.integration-row \{[^}]*align-items: start;/);
+    const mobile = BASE_CSS.slice(BASE_CSS.indexOf('@media (max-width: 699px)'));
+    expect(mobile).toMatch(/\.integration-row \{\s*grid-template-columns: 1fr;/);
+    expect(mobile).toMatch(/\.integration-row__action \{\s*justify-content: start;/);
+  });
+
+  // The row now holds two paragraphs — what the connection gives you, and which
+  // services it covers — so neither may be styled by which one comes first.
+  it('styles a connection’s explanation by name, not by position in the row', () => {
+    expect(BASE_CSS).not.toMatch(/\.integration-row__copy p \{/);
+    expect(BASE_CSS).toMatch(/\.integration-row__why \{[^}]*max-width: 68ch;/);
+    expect(BASE_CSS).toMatch(/\.integration-row__services \{[^}]*color: var\(--plat-600\);/);
+    // A row label keeps the row's own size; the heading level is structure.
+    expect(BASE_CSS).toMatch(/\.integration-row__name \{[^}]*font-size: inherit;/);
+  });
+
+  // The window lays its children out in plain flow, so a block ends exactly
+  // where the next one starts. The help panel and the first row of section cards
+  // met with no space at all and read as one slab; so did the sentence about the
+  // Issue Center and the row of buttons under it.
+  it('keeps the report’s blocks apart at one consistent step', () => {
+    expect(BASE_CSS).toMatch(/\.module-grid \{[^}]*margin-top: var\(--sp-4\);/);
+    expect(BASE_CSS).toMatch(/\.report-help__cta \+ \.button-row \{\s*margin-top: var\(--sp-4\);/);
+    // The disclosure under the cards stands off them by the same step.
+    expect(BASE_CSS).toMatch(/\.plan-scope \{[^}]*margin-top: var\(--sp-4\);/);
+  });
+
+  // A finished section's coverage was drawn with the design system's progress
+  // zebra (§7) — the texture that means "still going" — and at 100% beside a
+  // Completed chip it read as a bar still filling.
+  it('draws a finished measurement flat, and never animates it', () => {
+    const result = BASE_CSS.slice(
+      BASE_CSS.indexOf('.progress--result .progress__fill {'),
+      BASE_CSS.indexOf('.progress__caption {'),
+    );
+    expect(result).toMatch(/background: #333399;/);
+    expect(result).not.toMatch(/repeating-linear-gradient/);
+    expect(result).toMatch(/transition: none;/);
+    // The live bar keeps the zebra: this is a variant, not a replacement.
+    expect(BASE_CSS).toMatch(/\.progress__fill \{[^}]*repeating-linear-gradient/);
+  });
+
+  // The card carries its result as its own edge as well as in the chip, so a
+  // grid of ten sections can be scanned for the one that failed.
+  it('gives each result its own accent edge on a section card', () => {
+    expect(BASE_CSS).toMatch(/\.module-card \{[^}]*border-left-width: 4px;/);
+    for (const kind of ['ok', 'high', 'warning', 'error', 'info', 'neutral']) {
+      expect(BASE_CSS).toMatch(new RegExp(`\\.module-card--${kind} \\{\\s*border-left-color:`));
+    }
+  });
+
+  // The disclosure holds two lists side by side on a wide window and stacks them
+  // on a narrow one, without a breakpoint of its own: a check title is an
+  // unbroken technical string and its column has to be allowed to be small.
+  it('lets the plan-scope lists stack rather than overflow', () => {
+    expect(BASE_CSS).toMatch(
+      /\.plan-scope__columns \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(220px, 1fr\)\);/,
+    );
+    expect(BASE_CSS).toMatch(/\.plan-scope__detail \{[^}]*overflow-wrap: anywhere;/);
   });
 
   // The Ukrainian hints under the hero figures are about twice as long as the

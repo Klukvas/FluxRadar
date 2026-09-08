@@ -397,6 +397,66 @@ describe('FASTSPRING-004 checkout HTTP surface', () => {
     expect(await db.prisma.checkoutSession.count()).toBe(0);
   });
 
+  // The ceiling is the plan's, not the schema's: the same page count is a scan
+  // Complete sells and a scan Basic does not. It is refused on the input, so no
+  // session row carries a scope the plan cannot run and no checkout opens on one.
+  it('refuses a page count Basic does not sell and takes the same one on Complete', async () => {
+    const calls: StubCall[] = [];
+    const app = buildApp({
+      fetchImpl: stubFastSpring(
+        { body: { id: 'sess_limit', currency: 'USD', subtotal: 149 } },
+        calls,
+      ),
+    });
+    const owner = await signIn(app, 'owner@example.com');
+    const scope = { ...SCOPE, maxPages: 20_000 };
+
+    const refused = await owner.agent
+      .post('/billing/checkout-session')
+      .set('Cookie', owner.cookie)
+      .send({ siteProfileId: owner.profileId, plan: 'Basic', scope });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.code).toBe('VALIDATION');
+    expect(refused.body.error.message).toContain('maxPages exceeds the Basic plan limit');
+    expect(calls).toHaveLength(0);
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+
+    const accepted = await owner.agent
+      .post('/billing/checkout-session')
+      .set('Cookie', owner.cookie)
+      .send({ siteProfileId: owner.profileId, plan: 'Complete', scope });
+    expect(accepted.status).toBe(201);
+    const stored = await db.prisma.checkoutSession.findFirstOrThrow();
+    expect((JSON.parse(stored.scopeJson) as { maxPages: number }).maxPages).toBe(20_000);
+  });
+
+  // An over-limit scope is the buyer's own input, so it is answered before the
+  // profile is read: the request never reaches a database lookup it would fail.
+  it('names the over-limit page count even when the profile is not the buyer own', async () => {
+    const calls: StubCall[] = [];
+    const app = buildApp({
+      fetchImpl: stubFastSpring(
+        { body: { id: 'sess_none', currency: 'USD', subtotal: 55 } },
+        calls,
+      ),
+    });
+    const owner = await signIn(app, 'owner@example.com');
+    const stranger = await signIn(app, 'stranger@example.com');
+
+    const response = await stranger.agent
+      .post('/billing/checkout-session')
+      .set('Cookie', stranger.cookie)
+      .send({
+        siteProfileId: owner.profileId,
+        plan: 'Basic',
+        scope: { ...SCOPE, maxPages: 999_999 },
+      });
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('VALIDATION');
+    expect(calls).toHaveLength(0);
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+  });
+
   it('maps a FastSpring failure to a gateway error without leaking credentials', async () => {
     const errorLog = vi.fn();
     const app = createApp({

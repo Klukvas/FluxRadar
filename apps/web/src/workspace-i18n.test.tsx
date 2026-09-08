@@ -96,12 +96,14 @@ describe('Ukrainian result screens', () => {
     renderUkrainianAt(`/scans/${completedScan.id}`);
 
     expect(await screen.findByText('Панель звіту · example.com')).toBeInTheDocument();
-    expect(screen.getByText('Єдиний сигнал сайту')).toBeInTheDocument();
+    expect(screen.getByText('Звіт аудиту сайту')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Як читати цей звіт' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Відкрити Центр проблем' })).toBeInTheDocument();
     // The English literals these replaced must be gone, not merely alongside.
-    expect(screen.queryByText('Unified website signal')).not.toBeInTheDocument();
+    expect(screen.queryByText('Site audit report')).not.toBeInTheDocument();
     expect(screen.queryByText('How to read this report')).not.toBeInTheDocument();
+    // The heading that named a metric nobody publishes, in either language.
+    expect(screen.queryByText('Єдиний сигнал сайту')).not.toBeInTheDocument();
   });
 
   it('renders the Issue Center in Ukrainian, including its empty state', async () => {
@@ -168,6 +170,20 @@ describe('one word for a saved site, in both languages', () => {
         expect(JSON.stringify(copy[language][surface])).not.toMatch(/website|вебсайт|веб-сайт/i);
       }
     }
+  });
+
+  // The scan screen named its picker after what a profile *holds* — a public
+  // origin — while the dropdown it labels lists saved profiles. The label says
+  // what is being chosen; the address and the public-pages-only promise it used
+  // to carry moved to the hint under the field.
+  it('names the profile picker of the scan screen Profile, not a public origin', () => {
+    expect(copy.en.newScan.labelProfile).toBe('Profile');
+    expect(copy.uk.newScan.labelProfile).toBe('Профіль');
+    expect(JSON.stringify(copy.en.newScan)).not.toMatch(/Public origin/);
+    expect(JSON.stringify(copy.uk.newScan)).not.toMatch(/Публічне джерело/);
+    // Nothing about the scan's scope was lost in the rename.
+    expect(copy.en.newScan.hintProfile).toMatch(/public pages/i);
+    expect(copy.uk.newScan.hintProfile).toMatch(/публічні сторінки/);
   });
 
   it('names the profile picker of the Google panel Profile, not Website', () => {

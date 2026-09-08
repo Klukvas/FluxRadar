@@ -68,6 +68,43 @@ export function moduleResultLabel(module: ScanModule, language: Language): strin
 }
 
 /**
+ * The wire value a module row uses to say its plan carries no score.
+ *
+ * §15/§16 forbid an ordinary `Completed` module from carrying a status_reason,
+ * so the reason a Free row has no number travels in the row's own metadata
+ * instead. This is the API's `FREE_CHECK_SCORING_REASON`, matched as a literal
+ * because the web app does not depend on the contracts package; the producing
+ * side pins the same string in free-check-metadata.test.ts.
+ */
+const NOT_SCORED_ON_PLAN = 'NotScoredOnFreePlan';
+
+/**
+ * What one audit section puts where its score would go.
+ *
+ * Two unrelated facts produce a null score — the plan carries no score weight,
+ * or the section produced nothing to score — and the card used to spell both of
+ * them "No score". That is how a Free SEO section came to read "Completed ·
+ * 100% · No score", leaving the owner to work out which of the three was the
+ * lie.
+ *
+ * The plan is named as the reason only for a section that did produce a usable
+ * result, because that is the only case where the plan is what deprived it of a
+ * number: a section that could not be measured would carry no score on a paid
+ * plan either, and its own status already says so. Everything else reports the
+ * absence and nothing more — inventing the reason would be the same mistake as
+ * inventing the score.
+ */
+export function moduleScoreLabel(module: ScanModule, language: Language): string {
+  if (module.score !== null) {
+    return module.score.toFixed(2);
+  }
+  const t = copy[language].report;
+  return module.usableOutput && module.metadata?.scoring === NOT_SCORED_ON_PLAN
+    ? t.unscoredLabel
+    : t.noScore;
+}
+
+/**
  * The status string handed to `StatusChip` for its colour.
  *
  * The chip picks its colour by matching English keywords, so it is given the

@@ -13,11 +13,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
-import { FLUXLAB_URL, SUPPORT_EMAIL, poweredByFluxLab } from './brand';
+import { FLUXLAB_URL, SUPPORT_EMAIL, createdByFluxLab } from './brand';
 
 // Vitest runs with `apps/web` as its working directory (see blog-page.test.ts).
 const SRC = join(resolve(process.cwd()), 'src');
@@ -52,6 +52,39 @@ function stubApi(handler: (path: string) => Response): void {
 
 const signedOut = (path: string): Response =>
   path === '/auth/me' ? failure(401, 'session required') : envelope(null);
+
+/** A completed scan and the report the workspace opens for it. */
+const reportScan = {
+  id: 'scan-1',
+  profileId: 'profile-1',
+  plan: 'Free',
+  domain: 'https://example.com',
+  status: 'Completed',
+  statusReason: null,
+  scope: { includeSubdomains: false },
+  rulesetVersion: 'rules-v1',
+  progress: { completedModules: 1, totalModules: 1 },
+  startedAt: '2026-09-06T00:00:00.000Z',
+  completedAt: '2026-09-06T00:01:00.000Z',
+  createdAt: '2026-09-06T00:00:00.000Z',
+  modules: [],
+};
+
+function signedInReport(path: string): Response {
+  if (path === `/scans/${reportScan.id}`) return envelope(reportScan);
+  if (path === `/scans/${reportScan.id}/dashboard`)
+    return envelope({
+      scan: reportScan,
+      overall: {
+        verdict: 'insufficient_data',
+        score: null,
+        weightedCoverage: 0,
+        moduleWeights: [],
+      },
+      modules: [],
+    });
+  return signedIn(path);
+}
 
 function signedIn(path: string): Response {
   if (path === '/auth/me') return envelope(account);
@@ -150,7 +183,20 @@ describe('published contact address', () => {
   });
 });
 
-describe('Powered by FluxLab attribution', () => {
+describe('Created by FluxLab attribution', () => {
+  // "Працює на FluxLab" said the product *runs on* FluxLab, as if the studio
+  // were a platform the service depends on; the English credited its maker.
+  // Both lines now say the one true thing, and neither wording survives in
+  // customer-facing source.
+  it('credits FluxLab as the maker, and means the same in both languages', () => {
+    expect(createdByFluxLab.en).toBe('Created by FluxLab');
+    expect(createdByFluxLab.uk).toBe('Створено FluxLab');
+    const offenders = productionSources(SRC).filter((path) =>
+      /Powered by FluxLab|Працює на FluxLab/.test(readFileSync(path, 'utf8')),
+    );
+    expect(offenders).toEqual([]);
+  });
+
   it.each([
     ['the home page', '/', signedOut],
     ['the FAQ', '/faq', signedOut],
@@ -158,32 +204,144 @@ describe('Powered by FluxLab attribution', () => {
     ['the privacy policy', '/privacy', signedOut],
     ['the terms', '/terms', signedOut],
     ['a signed-in workspace screen', '/profiles', signedIn],
+    ['an open report', `/scans/${reportScan.id}`, signedInReport],
   ])('appears in the footer of %s', async (_label, path, handler) => {
     renderAt(path, handler);
 
-    const link = await screen.findByRole('link', { name: /Powered by FluxLab/ });
+    const link = await screen.findByRole('link', { name: /Created by FluxLab/ });
     expect(link).toHaveAttribute('href', FLUXLAB_URL);
   });
 
   it('opens the studio site in a new tab without handing it a window reference', async () => {
     renderAt('/', signedOut);
 
-    const link = await screen.findByRole('link', { name: /Powered by FluxLab/ });
+    const link = await screen.findByRole('link', { name: /Created by FluxLab/ });
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     // The new tab is announced, so following the link is not a surprise.
-    expect(link).toHaveAccessibleName('Powered by FluxLab (opens in a new tab)');
+    expect(link).toHaveAccessibleName('Created by FluxLab (opens in a new tab)');
   });
 
   it('is translated with the rest of the shell', async () => {
     renderAt('/faq', signedOut);
-    await screen.findByRole('link', { name: /Powered by FluxLab/ });
+    await screen.findByRole('link', { name: /Created by FluxLab/ });
 
     switchLanguageToUkrainian();
 
     expect(
-      await screen.findByRole('link', { name: new RegExp(poweredByFluxLab.uk) }),
+      await screen.findByRole('link', { name: new RegExp(createdByFluxLab.uk) }),
     ).toHaveAttribute('href', FLUXLAB_URL);
+  });
+});
+
+// A report was the only page on the site that ended in nothing: the workspace
+// shell closed with the studio attribution alone, so an owner reading a report
+// had no way out to the coverage page, the policies or the field notes that
+// every public page offers.
+describe('the site footer on a report', () => {
+  it('offers the standing links the public pages end with', async () => {
+    renderAt(`/scans/${reportScan.id}`, signedInReport);
+    await screen.findByText('Site audit report');
+
+    // Scoped to the footer: the menu bar above links to /faq and /blog too, and
+    // the point here is where the reader lands at the *end* of the page.
+    const footer = within(document.querySelector('footer') as HTMLElement);
+    const links = [
+      ['Audit coverage', '/checks'],
+      ['FAQ', '/faq'],
+      ['Privacy policy', '/privacy'],
+      ['Terms of service', '/terms'],
+      ['Field notes', '/blog'],
+    ] as const;
+    for (const [label, href] of links) {
+      expect(footer.getByRole('link', { name: label })).toHaveAttribute('href', href);
+    }
+    // The brand line, and the attribution the footer already carried.
+    expect(footer.getByText('FLUXRADAR / BY FLUXLAB')).toBeTruthy();
+    expect(footer.getByRole('link', { name: /Created by FluxLab/ })).toBeTruthy();
+  });
+
+  it('has exactly one footer, in the shell rather than in the screen', async () => {
+    renderAt(`/scans/${reportScan.id}`, signedInReport);
+    await screen.findByText('Site audit report');
+
+    expect(document.querySelectorAll('footer')).toHaveLength(1);
+    // The shell's, not the report window's: it sits outside the report content.
+    expect(document.querySelector('footer')).toHaveClass('desktop__footer');
+  });
+
+  it('is translated with the rest of the workspace', async () => {
+    window.localStorage.setItem('fluxradar.language', 'uk');
+    renderAt(`/scans/${reportScan.id}`, signedInReport);
+    await screen.findByText('Звіт аудиту сайту');
+
+    const footer = within(document.querySelector('footer') as HTMLElement);
+    expect(footer.getByRole('link', { name: 'Покриття аудиту' })).toHaveAttribute(
+      'href',
+      '/checks',
+    );
+    expect(footer.getByRole('link', { name: 'Нотатки з практики' })).toHaveAttribute(
+      'href',
+      '/blog',
+    );
+  });
+});
+
+// Regression, workspace half: on a viewport taller than a two-card report the
+// footer stopped where the content ran out and left bare desktop under it.
+describe('workspace footer sits on the floor of a short page', () => {
+  it('stretches the desktop so the footer has a floor to reach', () => {
+    expect(rule('.workspace-shell')).toMatch(/flex-direction: column;/);
+    expect(rule('.workspace-shell > .desktop')).toMatch(/flex: 1 0 auto;/);
+    expect(rule('.app-shell')).toMatch(/min-height: 100vh;/);
+  });
+
+  it('sinks it the same way the public document footer is sunk', () => {
+    const footer = rule('.desktop__footer');
+    expect(footer).toMatch(/position: sticky;/);
+    expect(footer).toMatch(/top: 100vh;/);
+    // It has to be able to wrap, or the links crowd the attribution row.
+    expect(footer).toMatch(/flex-wrap: wrap;/);
+  });
+
+  // The column that gives it that floor is also a flex item, and a flex item
+  // with `margin: 0 auto` is sized to its content rather than stretched. Until
+  // it asked for the width, the workspace shrink-wrapped whatever screen was
+  // open — the reports list rendered 823px wide in English and 925px in
+  // Ukrainian instead of the 1100px the profiles screen kept — and the intro
+  // header and this footer narrowed with it.
+  it('keeps the desktop full width while it takes the slack', () => {
+    expect(rule('.workspace-shell > .desktop')).toMatch(/width: 100%;/);
+    // The width the column is actually meant to stop at, left where it was.
+    // Read with a leading newline: `.desktop {` is a substring of the rule
+    // above, so `rule('.desktop')` would hand back that one instead.
+    const desktop = rule('\n.desktop');
+    expect(desktop).toMatch(/max-width: 1100px;/);
+    expect(desktop).toMatch(/margin: 0 auto;/);
+  });
+
+  // The floor was reported missing on the reports list, which is the shortest
+  // screen the workspace has — an empty list is a heading and one card. The
+  // floor belongs to the shell, so what this pins is that the list is inside
+  // that shell: one footer, in the stretched column, in the flex shell.
+  it('wraps the reports list in the shell that carries the floor', async () => {
+    renderAt('/reports', signedIn);
+    await screen.findByText('No reports yet');
+
+    expect(document.querySelectorAll('footer')).toHaveLength(1);
+    const footer = document.querySelector('footer') as HTMLElement;
+    expect(footer).toHaveClass('desktop__footer');
+    // The chain the sticky floor depends on, from the inside out: the sunk
+    // footer sits in the column that takes the slack, in the flex shell that
+    // gives it slack to take.
+    expect(footer.parentElement).toHaveClass('desktop');
+    expect(footer.parentElement?.parentElement).toHaveClass('workspace-shell');
+  });
+
+  it('stacks brand, links and attribution on a phone', () => {
+    const mobile = BASE_CSS.slice(BASE_CSS.indexOf('@media (max-width: 699px)'));
+    expect(mobile).toMatch(/\.desktop__footer \{\s*display: grid;/);
+    expect(mobile).toMatch(/\.desktop__footer-links \{\s*justify-content: start;/);
   });
 });
 
@@ -199,6 +357,19 @@ describe('attribution styling', () => {
     const workspace = rule('.desktop__footer');
     expect(workspace).toMatch(/border-top: 1px solid #8c9bb3;/);
     expect(workspace).toMatch(/font: 10px var\(--mono-font\);/);
+  });
+
+  // The workspace footer links were the last set on the site with no ring of
+  // their own: no rule gives a bare `a` one, so they fell back to whatever the
+  // browser draws while `.legal-shell a` and `.powered-by__link` drew green.
+  it('rings the workspace footer links the way the public footers are rung', () => {
+    const workspace = rule('.desktop__footer a:focus-visible');
+    expect(workspace).toMatch(/outline: 2px dotted var\(--term-green\);/);
+    expect(workspace).toMatch(/outline-offset: 3px;/);
+    // The same ring, not a second look: this is what the public documents draw.
+    expect(rule('.legal-shell a:focus-visible')).toMatch(
+      /outline: 2px dotted var\(--term-green\);/,
+    );
   });
 
   it('declares a foreground at least as legible as the footer text beside it', () => {

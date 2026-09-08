@@ -25,7 +25,7 @@ import {
   type CheckoutUnavailableReason,
 } from '../billing/constants.ts';
 import { BillingUnavailableError } from '../billing/errors.ts';
-import { PAID_PLANS, planPriceUsd } from '../billing/plans.ts';
+import { PAID_PLANS, planPriceUsd, planUrlLimit } from '../billing/plans.ts';
 import {
   FASTSPRING_PROVIDER,
   WEBHOOK_OUTCOMES,
@@ -45,12 +45,30 @@ import { parseInput } from '../http/validate.ts';
 
 export const FASTSPRING_SIGNATURE_HEADER_NAME = 'x-fs-signature';
 
-const checkoutSessionInputSchema = z.object({
-  siteProfileId: z.string().min(1),
-  plan: z.enum(PAID_PLANS),
-  scope: scanScopeSchema,
-  aiConsent: aiConsentSchema.optional(),
-});
+// The page count is the one part of the scope whose ceiling is the plan being
+// bought, so it cannot be checked by `scanScopeSchema` alone — and a checkout
+// that opened on a scope the plan does not sell would be a payment for a scan
+// this side would then have to trim. It is refused here, on the input, the way
+// `/billing/dev-checkout` refuses it: before the profile is read, before a
+// session row exists, and as the same 400 VALIDATION any other malformed field
+// earns. `createCheckoutSession` re-checks it as the floor under this.
+const checkoutSessionInputSchema = z
+  .object({
+    siteProfileId: z.string().min(1),
+    plan: z.enum(PAID_PLANS),
+    scope: scanScopeSchema,
+    aiConsent: aiConsentSchema.optional(),
+  })
+  .superRefine((input, ctx) => {
+    const urlLimit = planUrlLimit(input.plan);
+    if (input.scope.maxPages !== undefined && input.scope.maxPages > urlLimit) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `maxPages exceeds the ${input.plan} plan limit of ${urlLimit} URLs`,
+        path: ['scope', 'maxPages'],
+      });
+    }
+  });
 
 export interface FastSpringRouterDeps {
   readonly prisma: PrismaClient;

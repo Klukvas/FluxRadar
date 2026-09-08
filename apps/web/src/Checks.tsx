@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { MenuBar, PoweredByFluxLab } from './components';
+import { MenuBar, CreatedByFluxLab } from './components';
 import { CHECKS_INDEX_RULE_BEFORE, type ChecksBullet } from './checks-copy';
 import { copy, type Language } from './i18n';
 
@@ -95,7 +95,7 @@ export function AuditCoverageScreen(props: {
             <a href="/">{t.footerHome}</a> · <a href="/privacy">{t.footerPrivacy}</a> ·{' '}
             <a href="/terms">{t.footerTerms}</a>
           </span>
-          <PoweredByFluxLab language={props.language} />
+          <CreatedByFluxLab language={props.language} />
         </footer>
       </main>
     </div>

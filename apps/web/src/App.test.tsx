@@ -355,7 +355,10 @@ describe('refresh-safe scan routes', () => {
     render(<App />);
 
     expect(await screen.findByText('Report dashboard · example.com')).toBeInTheDocument();
-    expect(screen.getByText('Unified site signal')).toBeInTheDocument();
+    // The heading names the screen. "Unified site signal" named a metric that
+    // does not exist and sat above a dial the reader then tried to match it to.
+    expect(screen.getByText('Site audit report')).toBeInTheDocument();
+    expect(screen.queryByText('Unified site signal')).not.toBeInTheDocument();
   });
 
   it('shows an explicit completed state while keeping progress accessible', async () => {
@@ -529,9 +532,18 @@ describe('new scan modal — Close window button', () => {
     // Clicking Close must NOT POST /billing/dev-checkout or /profiles/*/free-check.
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
 
-    // Desktop is restored without any additional API calls.
+    // Desktop is restored. Landing on it is no longer call-free — the site
+    // status panel reads this account's last check when it mounts — so what is
+    // asserted is the thing the test is named for: nothing that leaves the form
+    // writes. Every request made by going back is a plain read.
     expect(screen.getByText('Site Profiles')).toBeInTheDocument();
-    expect(fetchMock.mock.calls.length).toBe(callCountBefore);
+    const afterClose = fetchMock.mock.calls.slice(callCountBefore);
+    expect(
+      afterClose.map(([input, init]) => [
+        pathOf(input),
+        (init as RequestInit | undefined)?.method ?? 'GET',
+      ]),
+    ).toEqual([['/scans', 'GET']]);
   });
 
   it('stays on the new-scan screen when Escape is pressed (non-modal window)', async () => {
@@ -932,8 +944,15 @@ describe('home pricing and workspace onboarding', () => {
     expect(
       screen.getByRole('heading', { name: 'Which one is right for you?' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Take Basic if the question is visibility')).toBeInTheDocument();
-    expect(screen.getByText('Take Complete if you need the whole picture')).toBeInTheDocument();
+    // The choice is a comparison, and it is laid out as one — the structure of
+    // the table is pinned in pricing-comparison.test.tsx.
+    const comparison = screen.getByRole('table', { name: /Basic and Complete side by side/ });
+    expect(
+      within(comparison).getByRole('rowheader', { name: 'The question it answers' }),
+    ).toBeInTheDocument();
+    expect(
+      within(comparison).getByText('Why is my site not being found — in search, or in AI answers?'),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/It is a first look at the report format, not a third product/i),
     ).toBeInTheDocument();
@@ -1794,8 +1813,10 @@ describe('NewScanScreen — paid availability and i18n', () => {
 
     // Window title in Ukrainian.
     expect(await screen.findByText('Нова перевірка — область і тариф')).toBeInTheDocument();
-    // Field label in Ukrainian.
-    expect(screen.getByText('Публічне джерело')).toBeInTheDocument();
+    // Field label in Ukrainian. The control picks a saved profile, so it is
+    // named after that and not after the public address the profile holds.
+    expect(screen.getByText('Профіль')).toBeInTheDocument();
+    expect(screen.queryByText('Публічне джерело')).not.toBeInTheDocument();
     // Plan selector label in Ukrainian.
     expect(screen.getByText('Тариф перевірки')).toBeInTheDocument();
     // Submit button in Ukrainian (ordinary account → Free plan → runFree).

@@ -4,9 +4,11 @@
 
 import { Router } from 'express';
 import type { PrismaClient, SiteProfile } from '@prisma/client';
-import { siteProfileInputSchema } from '@fluxradar/contracts';
+import { httpsOriginSchema, siteProfileInputSchema } from '@fluxradar/contracts';
+import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
+import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 import { openCheckoutSessionWhere } from '../billing/checkout-lifecycle.ts';
 import { isUniqueViolation } from '../billing/prisma-errors.ts';
 import { sendOk } from '../http/envelope.ts';
@@ -19,13 +21,20 @@ import {
 } from '../http/pagination.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
+import { resolveOwnProfile } from './resolve.ts';
 
 export interface ProfilesRouterDeps {
   readonly prisma: PrismaClient;
   readonly now: () => Date;
+  readonly requestRateLimiter?: RequestRateLimiter;
 }
 
 const siteProfilePatchSchema = siteProfileInputSchema.partial();
+
+// Only the address. A name is never accepted here: this endpoint exists for a
+// scan started from a raw URL, where nobody typed one, and accepting one would
+// be a second way to overwrite the name on a profile that already exists.
+const profileResolveInputSchema = z.object({ domain: httpsOriginSchema });
 
 function toProfileDto(profile: SiteProfile): Record<string, unknown> {
   return {
@@ -56,6 +65,30 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
   const router = Router();
   const { prisma } = deps;
   const auth = requireAuth(prisma, deps.now);
+  const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
+
+  /**
+   * The profile for a site address, created only if this account has none.
+   *
+   * This is the first step of a scan started from a raw URL, so it is limited
+   * under the same ceiling as scan creation: it is a write, and it is the one
+   * request between "someone typed an address" and "a scan exists". 200 for a
+   * profile that was already there, 201 for one this call created — the caller
+   * uses the difference only to tell the owner what happened.
+   */
+  router.post('/profiles/resolve', auth, async (req, res) => {
+    const input = parseInput(profileResolveInputSchema, req.body);
+    const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('profile-resolve', accountId, req.ip ?? 'unknown'),
+    );
+    const resolved = await resolveOwnProfile(prisma, accountId, input.domain);
+    sendOk(
+      res,
+      { profile: toProfileDto(resolved.profile), created: resolved.created },
+      { status: resolved.created ? 201 : 200 },
+    );
+  });
 
   router.post('/profiles', auth, async (req, res) => {
     const input = parseInput(siteProfileInputSchema, req.body);

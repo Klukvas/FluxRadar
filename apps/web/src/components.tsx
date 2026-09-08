@@ -1,13 +1,15 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
 
-import { FLUXLAB_URL, poweredByFluxLab } from './brand';
+import { FLUXLAB_URL, createdByFluxLab } from './brand';
 import { copy, languageOptions, type Language } from './i18n';
+import { statusKind } from './status-kind';
 import { tourTargets } from './tour-targets';
 
 export function Window(props: {
@@ -57,8 +59,8 @@ export function Window(props: {
  * it opens the studio site in a new tab — which is why it carries the
  * `noopener noreferrer` pair and says so to a screen reader.
  */
-export function PoweredByFluxLab(props: { language: Language }) {
-  const label = poweredByFluxLab[props.language];
+export function CreatedByFluxLab(props: { language: Language }) {
+  const label = createdByFluxLab[props.language];
   return (
     <span className="powered-by">
       <a
@@ -78,15 +80,42 @@ export function PoweredByFluxLab(props: { language: Language }) {
 }
 
 /**
- * The one header the whole site ships. `variant` decides which destinations it
- * offers, not which header it is: the `app` variant carries the workspace tabs
- * (disabled until there is a session), the `public` variant carries only the
- * three destinations a visitor without an account can actually reach — the same
- * Home / FAQ / Blog trio the static blog pages render in plain HTML.
+ * The workspace destinations, in the order the header lists them.
  *
- * Keeping the public pages to three items is not only about dead controls: the
- * app row is wide enough that between the burger breakpoint and roughly 1000px
- * it used to scroll sideways inside the bar and clip its last items.
+ * `matches` is wider than one screen for the reports tab because a report, its
+ * issue list and a running scan are all reached from it, and the reader is
+ * still "in reports" on each of them.
+ */
+const WORKSPACE_TABS: readonly {
+  readonly screen: string;
+  readonly label: 'profiles' | 'scan' | 'reports' | 'integrations';
+  readonly matches: readonly string[];
+}[] = [
+  { screen: 'desktop', label: 'profiles', matches: ['desktop'] },
+  { screen: 'new-scan', label: 'scan', matches: ['new-scan'] },
+  { screen: 'reports', label: 'reports', matches: ['reports', 'results', 'issues', 'scan'] },
+  { screen: 'integrations', label: 'integrations', matches: ['integrations'] },
+];
+
+/**
+ * The one header the whole site ships, with one row of destinations everywhere:
+ * FluxRadar, Home, the four workspace tabs, FAQ, Blog, the language switch and
+ * the station line. A reader who moves between the home page, a public document
+ * and the blog must not watch the navigation grow and shrink under them.
+ *
+ * `variant` decides how those destinations are wired, not which of them exist.
+ * The `app` variant lives inside the running SPA, so it navigates through
+ * `onNavigate` and enables the workspace tabs once there is a session. The
+ * `public` variant is for pages rendered without that callback — /faq, and the
+ * static blog pages that hand-write this same markup — so it links out with
+ * plain `href`s and shows the workspace tabs in the signed-out state every
+ * public document already shows them in.
+ *
+ * Known, and the same on every page: between the burger breakpoint and roughly
+ * 1000px the row is wider than the bar, so `.menubar__nav` scrolls sideways and
+ * the last item sits past its right edge until the reader scrolls. Whatever
+ * fixes that — an earlier burger, a wrapping row — has to move for the whole
+ * site at once, or the headers drift apart again.
  */
 export type MenuBarProps =
   | {
@@ -106,6 +135,9 @@ export type MenuBarProps =
 
 export function MenuBar(props: MenuBarProps) {
   const isPublic = props.variant === 'public';
+  // A public page never knows about a session, so its workspace tabs render the
+  // way they do for a signed-out visitor on the home page.
+  const isSignedIn = props.variant === 'public' ? false : props.signedIn;
   const labels = copy[props.language].nav;
   const [isMenuOpen, setMenuOpen] = useState(false);
 
@@ -195,60 +227,28 @@ export function MenuBar(props: MenuBarProps) {
               {labels.home}
             </a>
           ) : (
-            <>
-              <button
-                className={props.active === 'home' ? 'menubar__item is-active' : 'menubar__item'}
-                type="button"
-                onClick={() => navigateAndClose('home')}
-              >
-                {labels.home}
-              </button>
-              <button
-                className={props.active === 'desktop' ? 'menubar__item is-active' : 'menubar__item'}
-                type="button"
-                title={labels.descriptions.profiles}
-                onClick={() => navigateAndClose('desktop')}
-                disabled={!props.signedIn}
-              >
-                {labels.profiles}
-              </button>
-              <button
-                className={
-                  props.active === 'new-scan' ? 'menubar__item is-active' : 'menubar__item'
-                }
-                type="button"
-                title={labels.descriptions.scan}
-                onClick={() => navigateAndClose('new-scan')}
-                disabled={!props.signedIn}
-              >
-                {labels.scan}
-              </button>
-              <button
-                className={
-                  ['reports', 'results', 'issues', 'scan'].includes(props.active)
-                    ? 'menubar__item is-active'
-                    : 'menubar__item'
-                }
-                type="button"
-                title={labels.descriptions.reports}
-                onClick={() => navigateAndClose('reports')}
-                disabled={!props.signedIn}
-              >
-                {labels.reports}
-              </button>
-              <button
-                className={
-                  props.active === 'integrations' ? 'menubar__item is-active' : 'menubar__item'
-                }
-                type="button"
-                title={labels.descriptions.integrations}
-                onClick={() => navigateAndClose('integrations')}
-                disabled={!props.signedIn}
-              >
-                {labels.integrations}
-              </button>
-            </>
+            <button
+              className={props.active === 'home' ? 'menubar__item is-active' : 'menubar__item'}
+              type="button"
+              onClick={() => navigateAndClose('home')}
+            >
+              {labels.home}
+            </button>
           )}
+          {WORKSPACE_TABS.map((tab) => (
+            <button
+              key={tab.screen}
+              className={
+                tab.matches.includes(props.active) ? 'menubar__item is-active' : 'menubar__item'
+              }
+              type="button"
+              title={labels.descriptions[tab.label]}
+              onClick={() => navigateAndClose(tab.screen)}
+              disabled={!isSignedIn}
+            >
+              {labels[tab.label]}
+            </button>
+          ))}
           <a
             className={props.active === 'faq' ? 'menubar__item is-active' : 'menubar__item'}
             href="/faq"
@@ -434,6 +434,8 @@ export function Button(props: {
   'aria-controls'?: string;
   /** Overrides the accessible name when the visible text repeats across rows. */
   'aria-label'?: string;
+  /** Points at the text that explains what pressing this button gets you. */
+  'aria-describedby'?: string;
   'data-tour-target'?: string;
 }) {
   return (
@@ -445,6 +447,7 @@ export function Button(props: {
       aria-expanded={props['aria-expanded']}
       aria-controls={props['aria-controls']}
       aria-label={props['aria-label']}
+      aria-describedby={props['aria-describedby']}
       data-tour-target={props['data-tour-target']}
     >
       {props.children}
@@ -479,18 +482,39 @@ export function Field(props: {
   technical?: boolean;
   'data-tour-target'?: string;
 }) {
+  // A rejected value was red text and nothing else: a screen reader was told
+  // the field was fine and read the message only if its user happened to walk
+  // back over the label. `aria-invalid` marks the control the message is about,
+  // and `role="alert"` makes the message arrive when it appears — the field is
+  // rejected while the owner is already past it, so nothing else announces it.
+  //
+  // Those two say a message exists and that something is wrong; neither says
+  // which message belongs to which control. `aria-describedby` is what ties the
+  // two together, so someone who returns to the field afterwards — the moment
+  // `role="alert"` has already passed — is read the reason with it. The id comes
+  // from `useId`, so it is stable across renders and unique among however many
+  // fields share the screen, and it is pointed at only while there is something
+  // to point at: a field with no error describes nothing, as before.
+  const invalid = props.error !== undefined && props.error !== '';
+  const errorId = useId();
   return (
     <label className="field" data-tour-target={props['data-tour-target']}>
       <span className="field__label">{props.label}</span>
       <input
-        className={controlClass({ technical: props.technical, error: props.error !== undefined })}
+        className={controlClass({ technical: props.technical, error: invalid })}
         type={props.type ?? 'text'}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
         placeholder={props.placeholder}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={invalid ? errorId : undefined}
       />
       {props.hint ? <span className="field__hint">{props.hint}</span> : null}
-      {props.error ? <span className="field__error">{props.error}</span> : null}
+      {invalid ? (
+        <span className="field__error" id={errorId} role="alert">
+          {props.error}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -500,6 +524,8 @@ export function SelectField(props: {
   value: string;
   onChange: (value: string) => void;
   options: readonly { value: string; label: string }[];
+  /** Says what choosing an option actually means, in the same place `Field` says it. */
+  hint?: string;
   /** Renders the options in monospace; see `controlClass`. */
   technical?: boolean;
 }) {
@@ -517,6 +543,7 @@ export function SelectField(props: {
           </option>
         ))}
       </select>
+      {props.hint ? <span className="field__hint">{props.hint}</span> : null}
     </label>
   );
 }
@@ -546,18 +573,11 @@ export function Checkbox(props: {
 }
 
 export function StatusChip(props: { status: string; label?: string }) {
-  const kind = /failed|critical|error/i.test(props.status)
-    ? 'error'
-    : /high/i.test(props.status)
-      ? 'high'
-      : /partial|warning|medium|provisional/i.test(props.status)
-        ? 'warning'
-        : /completed|pass|ok|low/i.test(props.status)
-          ? 'ok'
-          : /running|queued|info/i.test(props.status)
-            ? 'info'
-            : 'neutral';
-  return <span className={`status-chip status-chip--${kind}`}>{props.label ?? props.status}</span>;
+  return (
+    <span className={`status-chip status-chip--${statusKind(props.status)}`}>
+      {props.label ?? props.status}
+    </span>
+  );
 }
 
 export function ScoreDial(props: { score: number | null; verdict?: string; coverage?: number }) {
@@ -591,18 +611,44 @@ export function ScoreDial(props: { score: number | null; verdict?: string; cover
   );
 }
 
-export function ProgressBar(props: { value: number; label?: string }) {
+/**
+ * A bar with a percentage beside it.
+ *
+ * `variant` is what the bar is *about*, and it is not decoration. The default
+ * `live` bar is the design system's zebra (§7): diagonal stripes, the classic
+ * "this is still going" texture. A finished report has no such thing — its bars
+ * are measurements of a run that ended — and a striped one at 100% next to a
+ * `Completed` chip was read as a section still loading. `result` draws the same
+ * geometry as one flat filled trough, and `caption` puts the word for what is
+ * being measured in front of it, so the number is never a bare percentage the
+ * reader has to assign a meaning to.
+ *
+ * The role follows the same distinction for a screen reader, which cannot see
+ * the texture: `progressbar` announces a task still advancing toward its end,
+ * which is a lie on a report that has already finished. `meter` is the role for
+ * a static reading inside a known range, so a completed section's coverage is
+ * announced as the measurement it is. Both carry the same value semantics.
+ */
+export function ProgressBar(props: {
+  value: number;
+  label?: string;
+  variant?: 'live' | 'result';
+  caption?: string;
+}) {
   const value = Math.max(0, Math.min(100, props.value));
   return (
     <div
-      className="progress"
-      role="progressbar"
+      className={props.variant === 'result' ? 'progress progress--result' : 'progress'}
+      role={props.variant === 'result' ? 'meter' : 'progressbar'}
       aria-label={props.label ?? 'Progress'}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={value}
       aria-valuetext={`${value.toFixed(0)}%`}
     >
+      {props.caption === undefined ? null : (
+        <span className="progress__caption">{props.caption}</span>
+      )}
       <div className="progress__track">
         <div className="progress__fill" style={{ width: `${value}%` }} />
       </div>

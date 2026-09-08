@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { copy } from './i18n';
+
 // The blog is static HTML served straight from `public/`, so it has no
 // component to render in a test. These tests read the shipped files instead:
 // the first group pins the markup contract every page has to keep, and the
@@ -104,7 +106,7 @@ describe('blog pages share one header with the app', () => {
 // on the static side — one attribution per page, in the page's own language.
 describe('blog footer attribution', () => {
   const FLUXLAB_URL = 'https://flux-lab.dev';
-  const POWERED_BY = { en: 'Powered by FluxLab', uk: 'Працює на FluxLab' };
+  const ATTRIBUTION = { en: 'Created by FluxLab', uk: 'Створено FluxLab' };
 
   /** The footer alone: parsing the whole document would fetch its stylesheet. */
   function footerOf(name: string): Element {
@@ -132,7 +134,7 @@ describe('blog footer attribution', () => {
 
   it.each(PAGES)('%s writes the attribution in the language it declares', (name) => {
     const link = footerOf(name).querySelector('.powered-by__link');
-    expect(link?.textContent).toContain(POWERED_BY[languageOf(name)]);
+    expect(link?.textContent).toContain(ATTRIBUTION[languageOf(name)]);
   });
 
   it.each(PAGES)('%s leaves for the studio site without handing it a window', (name) => {
@@ -140,9 +142,9 @@ describe('blog footer attribution', () => {
     expect(link?.getAttribute('target')).toBe('_blank');
     expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
     // The new tab is announced, so following the link is not a surprise.
-    expect(link?.getAttribute('aria-label')).toContain(POWERED_BY[languageOf(name)]);
+    expect(link?.getAttribute('aria-label')).toContain(ATTRIBUTION[languageOf(name)]);
     expect(link?.getAttribute('aria-label')?.length).toBeGreaterThan(
-      POWERED_BY[languageOf(name)].length,
+      ATTRIBUTION[languageOf(name)].length,
     );
   });
 
@@ -199,12 +201,46 @@ describe('blog header renders the same way on every page variant', () => {
     throw new Error('no media query turns the burger on');
   }
 
-  it.each(PAGES)('%s offers the three public destinations and nothing else', (name) => {
+  /** Every destination the static header offers, in the order it offers them. */
+  function destinations(name: string): string[] {
+    return Array.from(
+      readPage(name).matchAll(/<(a|button) class="menubar__item[^"]*"[^>]*>([^<]+)<\/\1>/g),
+      (match) => match[2]?.trim() ?? '',
+    );
+  }
+
+  // Regression: the blog and /faq abbreviated the row to Home / FAQ / Blog while
+  // every other page listed the workspace tabs too, so the navigation changed
+  // shape under a reader who followed the Blog link out of the product.
+  it.each(PAGES)('%s lists the destinations the product header lists', (name) => {
+    expect(destinations(name)).toEqual([
+      'Home',
+      'Profiles',
+      'Scan',
+      'Reports',
+      'Integrations',
+      'FAQ',
+      'Blog',
+    ]);
+  });
+
+  it.each(PAGES)('%s keeps the public destinations as real links', (name) => {
     const hrefs = Array.from(
       readPage(name).matchAll(/class="menubar__item[^"]*" href="([^"]+)"/g),
       (match) => match[1],
     );
     expect(hrefs).toEqual(['/', '/faq', '/blog']);
+  });
+
+  // Flat files have no session, so the tabs behind one render the way the
+  // product renders them for a reader who is not signed in.
+  it.each(PAGES)('%s shows the workspace tabs in the signed-out state', (name) => {
+    const tabs = Array.from(
+      readPage(name).matchAll(/<button class="menubar__item"[^>]*>/g),
+      (match) => match[0],
+    );
+    expect(tabs).toHaveLength(4);
+    for (const tab of tabs) expect(tab).toContain(' disabled ');
   });
 
   it.each(PAGES)('%s marks the blog as the section the reader is in', (name) => {
@@ -222,6 +258,27 @@ describe('blog header renders the same way on every page variant', () => {
 
   it('switches to the burger at the width the React header switches at', () => {
     expect(burgerBreakpoint(BLOG_CSS)).toBe(burgerBreakpoint(BASE_CSS));
+  });
+
+  // The tabs are inert on flat files. Without the rule they would read as four
+  // live controls in full contrast, which is not how the product draws them.
+  it('greys the inert workspace tabs the way the React header greys them', () => {
+    const declarations = (css: string) => {
+      const start = css.indexOf('.menubar button:disabled {');
+      if (start === -1) throw new Error('no disabled rule for menubar buttons');
+      return css.slice(start, css.indexOf('}', start));
+    };
+    expect(declarations(BLOG_CSS)).toMatch(/color: var\(--plat-400\);/);
+    expect(declarations(BLOG_CSS)).toMatch(/cursor: not-allowed;/);
+    expect(declarations(BASE_CSS)).toMatch(/color: var\(--plat-400\);/);
+  });
+
+  // A disabled tab still matches `:hover`, so the selector has to exclude it or
+  // an inert control lights up in the selection colour under the pointer.
+  it('does not paint a disabled tab on hover, in either stylesheet', () => {
+    expect(BLOG_CSS).toContain('.menubar button:hover:not(:disabled)');
+    expect(BASE_CSS).toContain('.menubar button:hover:not(:disabled)');
+    expect(BLOG_CSS).toContain('.menubar__links.is-open .menubar__item:hover:not(:disabled)');
   });
 
   it.each(ARTICLE_PAGES)('%s keeps its own responsive rules on that width', (name) => {
@@ -262,6 +319,22 @@ describe('blog header renders the same way on every page variant', () => {
     expect(status).toMatch(/overflow: hidden;/);
     expect(status).toMatch(/text-overflow: ellipsis;/);
     expect(status).toMatch(/white-space: nowrap;/);
+  });
+
+  // Regression: the sheet showed a visible "Language" / "МОВА" label the React
+  // sheet hides, so the same header read differently on /blog and /faq.
+  it('hides the language label from the sheet the way the React sheet hides it', () => {
+    // Each sheet writes the rule under its own narrow-viewport query, so the
+    // rule is read where it is rather than inside one particular query.
+    const hidingRule = (css: string) => {
+      const start = css.indexOf('.menubar__language > span {');
+      if (start === -1) throw new Error('nothing hides the language label');
+      return css.slice(start, css.indexOf('}', start));
+    };
+    expect(hidingRule(BLOG_CSS)).toMatch(/clip: rect\(0, 0, 0, 0\);/);
+    expect(hidingRule(BASE_CSS)).toMatch(/clip: rect\(0, 0, 0, 0\);/);
+    // Hidden, not removed: it is the combobox's accessible name.
+    expect(hidingRule(BLOG_CSS)).not.toMatch(/display: none;/);
   });
 
   it('offers the same tap target on the language button the React sheet does', () => {
@@ -401,16 +474,44 @@ describe('blog language filter', () => {
     expect(document.querySelector('[data-t="nav.home"]')?.textContent).toBe('Головна');
   });
 
+  // The static header keeps its own copy of the labels, so it can drift from the
+  // product's. It has to read as the same header in both languages, not only in
+  // the one the files ship in.
+  it.each(['en', 'uk'] as const)(
+    'names the destinations in %s the way the product does',
+    (language) => {
+      bootIndex();
+      if (language === 'uk') filterButton('uk').click();
+      const labels = copy[language].nav;
+
+      const destinations = Array.from(document.querySelectorAll('.menubar__item')).map((item) =>
+        item.textContent?.trim(),
+      );
+      expect(destinations).toEqual([
+        labels.home,
+        labels.profiles,
+        labels.scan,
+        labels.reports,
+        labels.integrations,
+        labels.faq,
+        labels.blog,
+      ]);
+      expect(document.querySelector('[data-t="nav.profiles"]')?.getAttribute('title')).toBe(
+        labels.descriptions.profiles,
+      );
+    },
+  );
+
   it('translates the footer attribution along with the chrome', () => {
     bootIndex();
     const attribution = document.querySelector('[data-t="blog.poweredBy"]');
     const link = document.querySelector('.powered-by__link');
-    expect(attribution?.textContent).toBe('Powered by FluxLab');
+    expect(attribution?.textContent).toBe('Created by FluxLab');
 
     filterButton('uk').click();
 
-    expect(attribution?.textContent).toBe('Працює на FluxLab');
-    expect(link?.getAttribute('aria-label')).toContain('Працює на FluxLab');
+    expect(attribution?.textContent).toBe('Створено FluxLab');
+    expect(link?.getAttribute('aria-label')).toContain('Створено FluxLab');
   });
 
   it('remembers the choice under the key the product app reads', () => {

@@ -183,10 +183,29 @@ export const copy = {
       inspect: 'Inspect',
       notes: 'Operator notes',
       guide: 'Open setup guide',
-      billing: 'Billing',
-      payPerScan: 'Pay-per-scan',
       logOut: 'Log out',
       booting: 'Boot sequence',
+    },
+    siteStatus: {
+      title: 'Site status',
+      errorTitle: 'Site status could not be loaded',
+      retry: 'Try again',
+      emptyNoSites: 'No sites yet. Add one below and its first check appears here.',
+      emptyNoChecks: 'No checks yet. Run the free homepage check and its result appears here.',
+      coverageLink: 'See what a report covers',
+      lastSite: 'Last checked',
+      lastResult: 'Result',
+      lastPlan: 'Plan',
+      startedLabel: 'Started',
+      finishedLabel: 'Finished',
+      unknownTime: 'No time recorded',
+      totalChecks: 'Reports listed',
+      sitesSaved: 'Sites saved',
+      googleLabel: 'Google data',
+      googleNotLinked: 'Not linked',
+      googleUnknown: 'Could not be read',
+      googleSearchConsole: 'Search Console',
+      googleAnalytics: 'Analytics',
     },
     home: {
       signIn: 'Sign in',
@@ -373,13 +392,44 @@ export const copy = {
       explainer: {
         kicker: 'IN PLAIN LANGUAGE',
         title: 'Which one is right for you?',
-        basic: {
-          title: 'Take Basic if the question is visibility',
-          body: 'You want to know why the site is not showing up, or whether AI systems can read it at all. Basic goes deep on search and AI readiness and stops there — it does not look at security, accessibility or speed.',
-        },
-        complete: {
-          title: 'Take Complete if you need the whole picture',
-          body: 'Everything Basic covers, plus security headers, accessibility, performance, reliability and privacy — one report, one price, every module included. This is the one to buy before a redesign or when you have to hand a site over to someone else.',
+        tableCaption:
+          'Basic and Complete side by side: the question each report answers, what it covers, what it leaves out and when to choose it.',
+        aspect: 'What you are comparing',
+        basicColumn: 'Basic',
+        completeColumn: 'Complete',
+        rows: {
+          question: {
+            label: 'The question it answers',
+            basic: 'Why is my site not being found — in search, or in AI answers?',
+            complete: 'What is wrong with this website, across everything we can read?',
+          },
+          included: {
+            label: 'What is included',
+            basic: 'The full SEO analysis — 16 checks — and AI crawler readiness.',
+            complete:
+              'Everything in Basic, plus security, accessibility, performance, reliability, privacy and content quality, with the Issue Center, scan history and JSON/CSV export.',
+          },
+          notIncluded: {
+            label: 'What is not included',
+            basic:
+              'Security, accessibility, performance, reliability, privacy and content quality.',
+            complete: 'Nothing FluxRadar can read is held back.',
+          },
+          chooseWhen: {
+            label: 'Choose it when',
+            basic: 'Being found is the question, and nothing else is urgent yet.',
+            complete: 'A redesign, a launch, a handover or a client report is coming.',
+          },
+          price: {
+            label: 'What you pay',
+            basic: `${BASIC_PRICE}, once, for one scan of one website.`,
+            complete: `${COMPLETE_PRICE}, once, for one scan of one website.`,
+          },
+          difference: {
+            label: 'The difference in one line',
+            basic: 'Depth on a single question: how your site is read.',
+            complete: 'Every module FluxRadar runs, in one report.',
+          },
         },
         footnote:
           'Both read public pages only, need no CMS password, and stay inside the crawl scope you set before the scan starts.',
@@ -387,13 +437,27 @@ export const copy = {
     },
     newScan: {
       windowTitle: 'New scan — scope and tariff',
-      windowTitleEmpty: 'New scan',
-      emptyTitle: 'Create a profile first',
-      emptyBody:
-        'A scan always runs against a profile you saved. Add the site address once and it stays available for every later check.',
-      emptyAction: 'Add profile',
       panelTarget: 'Target',
-      labelOrigin: 'Public origin',
+      labelProfile: 'Profile',
+      hintProfile: 'Scans the site address saved on this profile, and reads its public pages only.',
+      optionNewAddress: 'Another site address…',
+      labelAddress: 'Site address',
+      noAddress: 'Enter a site address',
+      addressPlaceholder: 'mysite.com',
+      hintAddress:
+        'FluxRadar saves this address as a profile, so every report for the site stays in one place.',
+      noProfilesLead:
+        'No saved profiles yet — type the address you want checked and FluxRadar saves it as a profile for you.',
+      prefillNote: 'Settings carried over from your last check of this site.',
+      freeScopeTitle: 'What the free check does',
+      freeScopeNote:
+        'The free check reads your homepage and nothing else: the page title, the heading structure, the meta description, and whether search engines are allowed to index it.',
+      freeScopeLocked:
+        'Page limits, subdomains, path patterns, URL parameters and the AI visibility check belong to the paid plans and are not available on Free.',
+      freeScopePages: 'Pages read',
+      freeScopePagesValue: 'Homepage only',
+      freeScopeRobots: 'robots.txt',
+      freeScopeRobotsValue: 'Always respected',
       labelSubdomains: 'Include subdomains (where allowed)',
       labelUserAgent: 'User agent',
       userAgentDesktop: 'Desktop',
@@ -406,7 +470,9 @@ export const copy = {
       planCompleteInternal: 'Complete · internal free',
       planCompletePaid: `Complete · ${COMPLETE_PRICE}`,
       labelMaxPages: 'Maximum pages',
+      maxPagesError: 'Enter a whole number of pages, 1 or more, or leave it empty.',
       labelMaxDepth: 'Maximum crawl depth',
+      maxDepthError: 'Enter a whole crawl depth, 0 or more, or leave it empty.',
       labelIncludePatterns: 'Include path patterns (comma separated)',
       labelExcludePatterns: 'Exclude path patterns (comma separated)',
       labelQueryPolicy: 'URL query parameters',
@@ -495,7 +561,14 @@ export const copy = {
       emptyAction: 'Go to reports',
       errorTitle: 'This report could not be opened',
       retry: 'Try again',
-      signalHeading: 'Unified site signal',
+      // "Unified site signal" named nothing the product sells: the reader had no
+      // way to tell it from a metric on the page below it. This is what the
+      // screen is, in the words the rest of the product already uses — "audit"
+      // from the coverage page and the plans, "report" from the reports list.
+      // "Site", not "Website": a workspace surface never says Website (see
+      // workspace-i18n.test.tsx), and "Site address" is the label directly
+      // beneath this heading.
+      signalHeading: 'Site audit report',
       detailsLabel: 'Report details',
       siteAddress: 'Site address',
       plan: 'Plan',
@@ -533,6 +606,19 @@ export const copy = {
         'The {plan} check runs a fixed set of homepage checks. The findings below are real, and each one carries its evidence.',
       unscoredScoreBody:
         'A 0–100 rating is part of the Basic and Complete scans. The {plan} check reports findings only, so this report shows a dash rather than a number nothing measured.',
+      // What the plan did and did not look at. A section a plan never runs sends
+      // no module row, so its absence is invisible on the cards above — an owner
+      // reading a Free report cannot tell "we found nothing wrong with your
+      // security" from "we never looked". Folded shut by default: it answers a
+      // question, it is not the report.
+      scopeSummary: 'What the {plan} check covered',
+      scopeLead:
+        'Every audit section below either ran in this report or belongs to a plan this check is not on.',
+      scopeIncludedTerm: 'Ran in this report',
+      scopeLockedTerm: 'Only on paid plans',
+      scopeLockedNone: 'This plan runs every audit section FluxRadar offers.',
+      scopeUnlock: 'Included in {plan}',
+      scopeChecks: '{completed} of {applicable} checks',
     },
     issues: {
       windowTitle: 'Issue Center',
@@ -579,6 +665,11 @@ export const copy = {
       serverConfigured: 'Server configured',
       serverLimited: 'Limited mode',
       serverMissing: 'Needs server config',
+      whyConnect: {
+        google:
+          'This connection puts what your own Google account already records — the searches people used to find you, and the visits each page received — beside the audit results. FluxRadar only reads that data; it changes nothing in Google and nothing on your pages.',
+        bing: 'This connection shows how the same pages do in Bing search: the searches they appeared for and the clicks they got. It is read-only as well, so nothing in your Bing account is changed.',
+      },
       google: {
         title: 'Google properties',
         readOnly:
@@ -783,10 +874,30 @@ export const copy = {
       inspect: 'Переглянути',
       notes: 'Нотатки оператора',
       guide: 'Відкрити інструкцію',
-      billing: 'Оплата',
-      payPerScan: 'Оплата за перевірку',
       logOut: 'Вийти',
       booting: 'Завантаження',
+    },
+    siteStatus: {
+      title: 'Стан сайтів',
+      errorTitle: 'Не вдалося завантажити стан сайтів',
+      retry: 'Спробувати ще раз',
+      emptyNoSites: 'Сайтів ще немає. Додайте сайт нижче — і його перша перевірка з’явиться тут.',
+      emptyNoChecks:
+        'Перевірок ще немає. Запустіть безкоштовну перевірку головної — і результат з’явиться тут.',
+      coverageLink: 'Подивитись, що охоплює звіт',
+      lastSite: 'Остання перевірка',
+      lastResult: 'Результат',
+      lastPlan: 'Тариф',
+      startedLabel: 'Розпочато',
+      finishedLabel: 'Завершено',
+      unknownTime: 'Час не записано',
+      totalChecks: 'Звітів у списку',
+      sitesSaved: 'Збережено сайтів',
+      googleLabel: 'Дані Google',
+      googleNotLinked: 'Не підключено',
+      googleUnknown: 'Не вдалося прочитати',
+      googleSearchConsole: 'Search Console',
+      googleAnalytics: 'Analytics',
     },
     home: {
       signIn: 'Увійти',
@@ -972,13 +1083,44 @@ export const copy = {
       explainer: {
         kicker: 'ПРОСТОЮ МОВОЮ',
         title: 'Що обрати саме вам?',
-        basic: {
-          title: 'Беріть Basic, якщо питання — видимість',
-          body: 'Вам треба зрозуміти, чому сайт не показується, або чи можуть AI-системи взагалі його прочитати. Basic глибоко розбирає пошук і готовність до AI — і на цьому зупиняється: безпеку, доступність і швидкість він не дивиться.',
-        },
-        complete: {
-          title: 'Беріть Complete, якщо потрібна вся картина',
-          body: 'Усе, що є в Basic, плюс заголовки безпеки, доступність, продуктивність, надійність і приватність — один звіт, одна ціна, усі модулі включені. Саме цей варіант беруть перед редизайном або коли сайт треба комусь передати.',
+        tableCaption:
+          'Basic і Complete поруч: на яке питання відповідає кожен звіт, що входить, що не входить і коли його брати.',
+        aspect: 'Що порівнюємо',
+        basicColumn: 'Basic',
+        completeColumn: 'Complete',
+        rows: {
+          question: {
+            label: 'На яке питання відповідає',
+            basic: 'Чому мій сайт не знаходять — у пошуку чи у відповідях AI?',
+            complete: 'Що не так із сайтом загалом — в усьому, що ми можемо прочитати?',
+          },
+          included: {
+            label: 'Що входить',
+            basic: 'Повний SEO-аналіз — 16 перевірок — і готовність до AI-роботів.',
+            complete:
+              'Усе з Basic, а також безпека, доступність, продуктивність, надійність, приватність і якість контенту — з Issue Center, історією перевірок та експортом JSON/CSV.',
+          },
+          notIncluded: {
+            label: 'Що не входить',
+            basic:
+              'Безпека, доступність, продуктивність, надійність, приватність і якість контенту.',
+            complete: 'Нічого з того, що FluxRadar уміє прочитати, не лишається поза звітом.',
+          },
+          chooseWhen: {
+            label: 'Коли обирати',
+            basic: 'Питання саме у видимості, а решта поки не термінова.',
+            complete: 'Попереду редизайн, запуск, передача сайту або звіт для клієнта.',
+          },
+          price: {
+            label: 'Скільки коштує',
+            basic: `${BASIC_PRICE}, один раз, за одну перевірку одного сайту.`,
+            complete: `${COMPLETE_PRICE}, один раз, за одну перевірку одного сайту.`,
+          },
+          difference: {
+            label: 'Різниця в одному рядку',
+            basic: 'Глибина в одному питанні: як читають ваш сайт.',
+            complete: 'Усі модулі FluxRadar в одному звіті.',
+          },
         },
         footnote:
           'Обидва читають лише публічні сторінки, не потребують пароля до CMS і працюють у межах області обходу, яку ви задаєте перед стартом.',
@@ -986,13 +1128,28 @@ export const copy = {
     },
     newScan: {
       windowTitle: 'Нова перевірка — область і тариф',
-      windowTitleEmpty: 'Нова перевірка',
-      emptyTitle: 'Спочатку створіть профіль',
-      emptyBody:
-        'Перевірка завжди виконується для збереженого профілю. Додайте адресу сайту один раз — і вона буде доступна для всіх наступних перевірок.',
-      emptyAction: 'Додати профіль',
       panelTarget: 'Ціль',
-      labelOrigin: 'Публічне джерело',
+      labelProfile: 'Профіль',
+      hintProfile:
+        'Перевіряє адресу сайту, збережену в цьому профілі, і читає лише публічні сторінки.',
+      optionNewAddress: 'Інша адреса сайту…',
+      labelAddress: 'Адреса сайту',
+      noAddress: 'Введіть адресу сайту',
+      addressPlaceholder: 'mysite.com',
+      hintAddress:
+        'FluxRadar збереже цю адресу як профіль, щоб усі звіти для сайту були в одному місці.',
+      noProfilesLead:
+        'Збережених профілів ще немає — введіть адресу, яку треба перевірити, і FluxRadar збереже її як профіль.',
+      prefillNote: 'Налаштування перенесено з вашої попередньої перевірки цього сайту.',
+      freeScopeTitle: 'Що робить безкоштовна перевірка',
+      freeScopeNote:
+        'Безкоштовна перевірка читає лише головну сторінку: заголовок сторінки, структуру заголовків, meta description і чи дозволено пошуковим системам індексувати сторінку.',
+      freeScopeLocked:
+        'Ліміти сторінок, піддомени, шаблони шляхів, параметри URL і перевірка AI-видимості належать до платних тарифів і недоступні на Free.',
+      freeScopePages: 'Прочитано сторінок',
+      freeScopePagesValue: 'Лише головна',
+      freeScopeRobots: 'robots.txt',
+      freeScopeRobotsValue: 'Завжди дотримуємось',
       labelSubdomains: 'Включати піддомени (де дозволено)',
       labelUserAgent: 'Агент користувача',
       userAgentDesktop: 'Десктоп',
@@ -1005,7 +1162,9 @@ export const copy = {
       planCompleteInternal: 'Complete · внутрішній безкоштовний',
       planCompletePaid: `Complete · ${COMPLETE_PRICE}`,
       labelMaxPages: 'Максимум сторінок',
+      maxPagesError: 'Введіть ціле число сторінок — 1 або більше, або залиште поле порожнім.',
       labelMaxDepth: 'Максимальна глибина обходу',
+      maxDepthError: 'Введіть цілу глибину обходу — 0 або більше, або залиште поле порожнім.',
       labelIncludePatterns: 'Шаблони шляхів для включення (через кому)',
       labelExcludePatterns: 'Шаблони шляхів для виключення (через кому)',
       labelQueryPolicy: 'Параметри URL-запиту',
@@ -1096,7 +1255,7 @@ export const copy = {
       emptyAction: 'Перейти до звітів',
       errorTitle: 'Не вдалося відкрити цей звіт',
       retry: 'Спробувати ще раз',
-      signalHeading: 'Єдиний сигнал сайту',
+      signalHeading: 'Звіт аудиту сайту',
       detailsLabel: 'Деталі звіту',
       siteAddress: 'Адреса сайту',
       plan: 'Тариф',
@@ -1128,6 +1287,14 @@ export const copy = {
         'Перевірка {plan} виконує фіксований набір перевірок головної сторінки. Знахідки нижче справжні, і кожна має свій доказ.',
       unscoredScoreBody:
         'Оцінка 0–100 доступна в тарифах Basic і Complete. Перевірка {plan} показує лише знахідки, тому тут стоїть риска, а не число, якого ніхто не вимірював.',
+      scopeSummary: 'Що охопила перевірка {plan}',
+      scopeLead:
+        'Кожен розділ аудиту нижче або виконувався в цьому звіті, або він належить до тарифу, за яким цю перевірку не запускали.',
+      scopeIncludedTerm: 'Виконувалося в цьому звіті',
+      scopeLockedTerm: 'Лише в платних тарифах',
+      scopeLockedNone: 'Цей тариф виконує всі розділи аудиту, які пропонує FluxRadar.',
+      scopeUnlock: 'Входить у тариф {plan}',
+      scopeChecks: 'перевірок: {completed} з {applicable}',
     },
     issues: {
       windowTitle: 'Центр проблем',
@@ -1174,6 +1341,11 @@ export const copy = {
       serverConfigured: 'Налаштовано на сервері',
       serverLimited: 'Обмежений режим',
       serverMissing: 'Потрібне налаштування сервера',
+      whyConnect: {
+        google:
+          'Це підключення показує поруч із результатами перевірки те, що вже фіксує ваш акаунт Google: за якими запитами вас знаходять і скільки відвідувань отримала кожна сторінка. FluxRadar лише читає ці дані — він нічого не змінює ні в Google, ні на ваших сторінках.',
+        bing: 'Це підключення показує, як ті самі сторінки працюють у пошуку Bing: за якими запитами їх показували і скільки кліків вони отримали. Тут теж лише читання, тож у вашому акаунті Bing нічого не змінюється.',
+      },
       google: {
         title: 'Ресурси Google',
         readOnly:

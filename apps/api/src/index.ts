@@ -199,7 +199,7 @@ export function createApp(options: CreateAppOptions): Express {
       logger,
     }),
   );
-  app.use(profilesRouter({ prisma: options.prisma, now }));
+  app.use(profilesRouter({ prisma: options.prisma, now, requestRateLimiter }));
   app.use(integrationsRouter({ prisma: options.prisma, now }));
   app.use(googleIntegrationRouter({ prisma: options.prisma, now }));
   app.use(

@@ -72,51 +72,102 @@ describe('/faq route', () => {
   });
 });
 
-// Regression: /faq shipped the workspace header. A visitor with no account met
-// four controls they could not use (Profiles, Scan, Reports, Integrations), and
-// between the burger breakpoint and roughly 1000px that row scrolled sideways
-// inside the bar and clipped its last items — the Blog link among them.
-describe('/faq header is the public one', () => {
+// Regression: /faq and /blog were the only pages that abbreviated the header to
+// Home / FAQ / Blog. Every other page — the home page, /checks, the legal
+// documents and the workspace — lists the full row, so a reader moving between
+// them watched the navigation shrink and lost the way back to their workspace.
+// The row is now the same everywhere; what differs is only how it is wired.
+describe('/faq header is the platform header', () => {
+  const ENGLISH_ROW = ['Home', 'Profiles', 'Scan', 'Reports', 'Integrations', 'FAQ', 'Blog'];
+
   function headerNav(): HTMLElement {
     return screen.getByRole('navigation', { name: 'Site menu' });
   }
 
-  it('offers exactly the destinations a reader without an account can reach', async () => {
+  /** Every destination the header offers, in the order it offers them. */
+  function destinations(nav: HTMLElement): string[] {
+    return Array.from(nav.querySelectorAll('.menubar__item')).map(
+      (item) => item.textContent?.trim() ?? '',
+    );
+  }
+
+  it('offers every destination the rest of the site offers, in the same order', async () => {
     renderFaq();
     await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
 
-    const links = within(headerNav()).getAllByRole('link');
-    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/', '/', '/faq', '/blog']);
-    expect(links.map((link) => link.textContent?.trim())).toEqual([
-      'FluxRadar',
-      'Home',
-      'FAQ',
-      'Blog',
-    ]);
+    expect(destinations(headerNav())).toEqual(ENGLISH_ROW);
+    expect(within(headerNav()).getByRole('link', { name: 'FluxRadar' })).toHaveAttribute(
+      'href',
+      '/',
+    );
   });
 
-  it('carries no workspace control a signed-out reader could not use', async () => {
+  it('ships the same row as the other public documents', async () => {
+    renderFaq();
+    await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
+    const faqRow = destinations(headerNav());
+
+    cleanup();
+    window.history.replaceState(null, '', '/checks');
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Audit coverage' });
+
+    expect(destinations(screen.getByRole('navigation', { name: 'Application menu' }))).toEqual(
+      faqRow,
+    );
+  });
+
+  it('keeps the public destinations as real links, not scripted buttons', async () => {
+    renderFaq();
+    await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
+
+    const nav = headerNav();
+    expect(within(nav).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
+    expect(within(nav).getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '/faq');
+    expect(within(nav).getByRole('link', { name: 'Blog' })).toHaveAttribute('href', '/blog');
+  });
+
+  // A public document never asks who the reader is, so its workspace tabs show
+  // the state every other page shows a visitor without a session.
+  it('shows the workspace tabs in the signed-out state the rest of the site shows', async () => {
     renderFaq();
     await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
 
     const nav = headerNav();
     for (const label of ['Profiles', 'Scan', 'Reports', 'Integrations']) {
-      expect(within(nav).queryByRole('button', { name: label })).toBeNull();
-    }
-    // The only header buttons left are the burger and the language combobox,
-    // and neither of those is ever disabled.
-    for (const button of within(nav).getAllByRole('button')) {
-      expect(button).not.toBeDisabled();
+      expect(within(nav).getByRole('button', { name: label })).toBeDisabled();
     }
   });
 
-  it('tells a screen reader which of the three pages is open', async () => {
+  it('tells a screen reader that the FAQ is the page that is open', async () => {
     renderFaq();
     await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
 
     const nav = headerNav();
     expect(within(nav).getByRole('link', { name: 'FAQ' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
+    expect(within(nav).getByRole('link', { name: 'FAQ' })).toHaveClass('is-active');
+  });
+
+  it('opens and closes the full-screen menu a narrow viewport gets', async () => {
+    renderFaq();
+    await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
+
+    const sheet = document.getElementById('menubar-links');
+    const toggle = screen.getByRole('button', { name: 'Open menu' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(sheet).not.toHaveClass('is-open');
+
+    fireEvent.click(toggle);
+    expect(sheet).toHaveClass('is-open');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+    // The sheet's own close button, not the burger that opened it: both answer
+    // to "Close menu" once the sheet is up.
+    const close = document.querySelector('.menubar__close');
+    fireEvent.click(close as Element);
+    expect(sheet).not.toHaveClass('is-open');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('keeps the language switch the rest of the site uses', async () => {
@@ -125,7 +176,16 @@ describe('/faq header is the public one', () => {
 
     switchLanguageToUkrainian();
 
-    const nav = screen.getByRole('navigation', { name: 'Site menu' });
+    const nav = headerNav();
+    expect(destinations(nav)).toEqual([
+      'Головна',
+      'Профілі',
+      'Перевірка',
+      'Звіти',
+      'Інтеграції',
+      'FAQ',
+      'Блог',
+    ]);
     expect(within(nav).getByRole('link', { name: 'Головна' })).toHaveAttribute('href', '/');
     expect(within(nav).getByRole('link', { name: 'Блог' })).toHaveAttribute('href', '/blog');
   });

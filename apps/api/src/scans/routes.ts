@@ -6,6 +6,7 @@ import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
 import { computeOverallScore } from '@fluxradar/scoring';
 import { RULESET_VERSION, scanRequestInputSchema, scanScopeSchema } from '@fluxradar/contracts';
 import { isModuleName } from '@fluxradar/contracts';
+import type { ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
@@ -34,6 +35,7 @@ import { parseInput } from '../http/validate.ts';
 import { modulePlanFor } from '../orchestrator/module-plan.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
+import { freeScanScope } from './free-scan-scope.ts';
 
 export interface ScansRouterDeps {
   readonly prisma: PrismaClient;
@@ -66,8 +68,10 @@ export function scansRouter(deps: ScansRouterDeps): Router {
 
   router.post('/profiles/:profileId/free-check', auth, async (req, res) => {
     // Validate the optional shape even though Free always forces homepage-only
-    // execution; rejecting malformed JSON keeps the boundary predictable.
-    parseInput(freeCheckBodySchema, req.body);
+    // execution; rejecting malformed JSON keeps the boundary predictable. What
+    // survives validation is recorded as the scan's scope by `freeScanScope`,
+    // which keeps only the settings a Free check actually honours.
+    const body = parseInput(freeCheckBodySchema, req.body);
     const accountId = accountIdFrom(res);
     requestRateLimiter.assertAllowedAll(
       scanActionRules('scan-create', accountId, req.ip ?? 'unknown'),
@@ -80,6 +84,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       profile.id,
       deps.now(),
       freeCheckAllowedOrigins,
+      body?.scope,
     );
     deps.enqueueScan(created.id);
     sendOk(res, toScanDto(created, []), { status: 201 });
@@ -105,6 +110,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       profile.id,
       deps.now(),
       freeCheckAllowedOrigins,
+      input.scope,
     );
     deps.enqueueScan(scan.id);
     sendOk(res, toScanDto(scan, []), { status: 201 });
@@ -296,6 +302,10 @@ export function scansRouter(deps: ScansRouterDeps): Router {
  * leaves freeCheckUsedAt untouched and writes no global claim, so it can be
  * re-checked from any account, as often as it needs to be. Everything stays in
  * one transaction, so a scan that fails to be created never spends a limit.
+ *
+ * `requestedScope` is what the caller asked for, not what is stored: Free runs a
+ * fixed homepage check, so the row records the settings that check will actually
+ * apply (see free-scan-scope.ts).
  */
 export async function createFreeScan(
   prisma: PrismaClient,
@@ -303,6 +313,7 @@ export async function createFreeScan(
   siteProfileId: string,
   now: Date,
   allowedOrigins: ReadonlySet<string> = new Set(),
+  requestedScope?: ScanScopeInput,
 ): Promise<Scan> {
   return prisma.$transaction(async (tx) => {
     const profile = await tx.siteProfile.findFirst({ where: { id: siteProfileId, accountId } });
@@ -336,7 +347,7 @@ export async function createFreeScan(
         plan: 'Free',
         domain: profile.domain,
         status: 'Pending',
-        scopeJson: JSON.stringify({ includeSubdomains: false }),
+        scopeJson: JSON.stringify(freeScanScope(requestedScope)),
         rulesetVersion: RULESET_VERSION,
         createdAt: now,
       },

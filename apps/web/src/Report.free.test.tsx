@@ -103,13 +103,80 @@ describe('a report on a plan that is not scored', () => {
       scan,
     );
 
-    expect(await screen.findByText('Not scored on this plan')).toBeTruthy();
+    // Twice: the overall dial, and the SEO card whose own score slot used to
+    // read a bare "No score" beside a Completed chip and a full coverage bar.
+    expect((await screen.findAllByText('Not scored on this plan')).length).toBe(2);
+    expect(screen.queryByText('No score')).toBeNull();
     // The two sentences the owner read as a failed scan.
     expect(screen.queryByText('Insufficient data')).toBeNull();
     expect(screen.queryByText(/coverage 0%/)).toBeNull();
     // What actually ran, counted rather than expressed as a 0% share of a score
-    // this plan never computes.
-    expect(screen.getAllByText('4/4 checks completed').length).toBeGreaterThan(0);
+    // this plan never computes. Two elements carry it — the dial and the
+    // breadcrumb — so the two cannot drift into disagreeing about the run. The
+    // matcher is a pattern because the breadcrumb surrounds the line with the
+    // scan id and the ruleset version.
+    expect(screen.getAllByText(/4\/4 checks completed/).length).toBe(2);
+  });
+
+  it('leaves the section unscored rather than inventing a number for it', async () => {
+    const scan = scanOf('Free');
+    renderDashboard(
+      {
+        scan,
+        overall: {
+          verdict: 'insufficient_data',
+          score: null,
+          weightedCoverage: 0,
+          moduleWeights: [],
+        },
+        modules: [freeSeoModule()],
+      },
+      scan,
+    );
+
+    await screen.findAllByText('Not scored on this plan');
+    // A completed check with no score must not acquire one — not a zero, and
+    // not the 100 a run without findings could be mistaken for.
+    expect(screen.queryByText('0.00')).toBeNull();
+    expect(screen.queryByText('100.00')).toBeNull();
+    // The coverage bar still reports the checks that actually ran.
+    expect(screen.getByRole('meter', { name: 'SEO coverage' })).toHaveAttribute(
+      'aria-valuenow',
+      '100',
+    );
+  });
+
+  it('does not blame the plan for a section that produced nothing to score', async () => {
+    const scan = scanOf('Free');
+    renderDashboard(
+      {
+        scan,
+        overall: {
+          verdict: 'insufficient_data',
+          score: null,
+          weightedCoverage: 0,
+          moduleWeights: [],
+        },
+        // The Free row always carries the plan's scoring reason, but an
+        // unreadable section would carry no score on Basic or Complete either.
+        // Naming the plan there would explain the wrong thing; its own status
+        // is the specific truth, and the card already shows it.
+        modules: [
+          freeSeoModule({
+            status: 'Unavailable',
+            statusReason: 'TargetsUnreachable',
+            coverage: 0,
+            completedApplicableChecks: 0,
+            usableOutput: false,
+          }),
+        ],
+      },
+      scan,
+    );
+
+    expect(await screen.findByText('No score')).toBeTruthy();
+    // Once only: the dial, not the card.
+    expect(screen.getAllByText('Not scored on this plan').length).toBe(1);
   });
 
   it('names the checks the free run performed, not the paid module ones', async () => {
@@ -194,7 +261,8 @@ describe('a report on a plan that is not scored', () => {
 
     expect(await screen.findByText('Not scored on this plan')).toBeTruthy();
     // A completed-checks count would be the invented part here; there is none.
-    expect(screen.getAllByText('homepage could not be read').length).toBeGreaterThan(0);
+    // The dial and the breadcrumb say the same thing, from the same line.
+    expect(screen.getAllByText(/homepage could not be read/).length).toBe(2);
     expect(screen.queryByText(/checks completed/)).toBeNull();
     expect(screen.getByText('Unavailable')).toBeTruthy();
   });
@@ -235,5 +303,8 @@ describe('a paid report that genuinely could not be measured', () => {
     expect((await screen.findAllByText('Insufficient data')).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/coverage 20%/).length).toBe(2); // the dial and the breadcrumb
     expect(screen.queryByText('Not scored on this plan')).toBeNull();
+    // A paid section with no readable result reports the absence and no reason
+    // for it; the plan is not what deprived this one of a number.
+    expect(screen.getByText('No score')).toBeTruthy();
   });
 });

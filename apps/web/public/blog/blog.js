@@ -24,6 +24,30 @@
     'nav.navigate': { en: 'Navigate', uk: 'Навігація' },
     'nav.system': { en: 'System', uk: 'Система' },
     'nav.home': { en: 'Home', uk: 'Головна' },
+    // The workspace tabs the product header lists. They are disabled here for
+    // the same reason they are disabled on every other page served to a reader
+    // without a session — the blog is flat files and has no session at all —
+    // but the row itself has to be the row the rest of the site shows.
+    'nav.profiles': { en: 'Profiles', uk: 'Профілі' },
+    'nav.scan': { en: 'Scan', uk: 'Перевірка' },
+    'nav.reports': { en: 'Reports', uk: 'Звіти' },
+    'nav.integrations': { en: 'Integrations', uk: 'Інтеграції' },
+    'nav.profilesHint': {
+      en: 'Your saved profiles and their audit history.',
+      uk: 'Ваші збережені профілі та історія їхніх перевірок.',
+    },
+    'nav.scanHint': {
+      en: 'Set up and start a new audit.',
+      uk: 'Налаштуйте та запустіть нову перевірку.',
+    },
+    'nav.reportsHint': {
+      en: 'Completed and in-progress audit results.',
+      uk: 'Готові та поточні результати перевірок.',
+    },
+    'nav.integrationsHint': {
+      en: 'Optional data connections. The public-site scan works without them.',
+      uk: 'Необовʼязкові підключення даних. Публічна перевірка працює без них.',
+    },
     'nav.faq': { en: 'FAQ', uk: 'FAQ' },
     'nav.blog': { en: 'Blog', uk: 'Блог' },
     'nav.language': { en: 'Language', uk: 'Мова' },
@@ -51,11 +75,14 @@
       en: 'FluxRadar — public website audits',
       uk: 'FluxRadar — аудит публічних сайтів',
     },
-    'blog.poweredBy': { en: 'Powered by FluxLab', uk: 'Працює на FluxLab' },
+    // The key predates the wording. It credits the studio that built FluxRadar,
+    // which is what both locales now say; the key itself is the contract every
+    // static page carries in `data-t`, so it keeps its name.
+    'blog.poweredBy': { en: 'Created by FluxLab', uk: 'Створено FluxLab' },
     // The link leaves the site, so the accessible name says so before it is followed.
     'blog.poweredByAria': {
-      en: 'Powered by FluxLab (opens in a new tab)',
-      uk: 'Працює на FluxLab (відкривається в новій вкладці)',
+      en: 'Created by FluxLab (opens in a new tab)',
+      uk: 'Створено FluxLab (відкривається в новій вкладці)',
     },
   };
 
@@ -113,6 +140,12 @@
       var target = labelled[i];
       var labelEntry = TEXT[target.getAttribute('data-t-label')];
       if (labelEntry !== undefined) target.setAttribute('aria-label', labelEntry[language]);
+    }
+    var titled = document.querySelectorAll('[data-t-title]');
+    for (var t = 0; t < titled.length; t += 1) {
+      var tooltip = titled[t];
+      var titleEntry = TEXT[tooltip.getAttribute('data-t-title')];
+      if (titleEntry !== undefined) tooltip.setAttribute('title', titleEntry[language]);
     }
   }
 

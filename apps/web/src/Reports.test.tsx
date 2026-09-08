@@ -222,6 +222,95 @@ describe('Reports list', () => {
   });
 });
 
+describe('Report cards', () => {
+  // The list used to be hairline-divided rows on the window's own platinum —
+  // and the hairline was never drawn, because every row is the only child of
+  // its <li>, so the rule meant to spare the last divider removed all of them.
+  // A report was a block of grey text on grey. Each one is a card now, and the
+  // card says which report it is and how that check ended.
+  it('gives every report a card carrying its own status', async () => {
+    await openReports(
+      workspace(() =>
+        envelope(
+          [
+            scanAt('scan-ok'),
+            scanAt('scan-running', { status: 'Running', completedAt: null }),
+            scanAt('scan-failed', { status: 'Failed', completedAt: null }),
+            scanAt('scan-partial', { status: 'Partial' }),
+            scanAt('scan-cancelled', { status: 'Cancelled', completedAt: null }),
+          ],
+          { total: 5, page: 1, limit: 20, hasNext: false },
+        ),
+      ),
+    );
+
+    const list = await screen.findByRole('list', { name: 'Your audit reports' });
+    const cards = within(list)
+      .getAllByRole('listitem')
+      .map((item) => item.firstElementChild);
+
+    // The accent edge is a second reading of the chip beside the address, so it
+    // has to follow the scan's own status rather than the row's position.
+    expect(cards.map((card) => card?.className)).toEqual([
+      'report-row report-row--ok',
+      'report-row report-row--info',
+      'report-row report-row--error',
+      'report-row report-row--warning',
+      'report-row report-row--neutral',
+    ]);
+  });
+
+  // How the check ended and what to do about it are one pair. The chip used to
+  // sit in the copy column beside the address while the button sat in a column
+  // centred on the whole card, so the two only lined up while the address fit a
+  // single line — the same drift `.integration-row` was fixed for. This asserts
+  // the pairing, not the pixels: the geometry is checked in a real browser.
+  it('holds the status and the action in one container, not in two columns', async () => {
+    await openReports(
+      workspace(() =>
+        envelope(
+          [scanAt('scan-ok'), scanAt('scan-failed', { status: 'Failed', completedAt: null })],
+          { total: 2, page: 1, limit: 20, hasNext: false },
+        ),
+      ),
+    );
+
+    const list = await screen.findByRole('list', { name: 'Your audit reports' });
+    for (const [label, action] of [
+      ['Completed', 'Open report'],
+      ['Not available', 'View details'],
+    ] as const) {
+      const card = within(list).getByText(label).closest('.report-row');
+      const pair = card?.querySelector('.report-row__action');
+      const chip = within(card as HTMLElement).getByText(label);
+      const button = within(card as HTMLElement).getByRole('button', {
+        name: new RegExp(`^${action}`),
+      });
+
+      expect(pair).toContainElement(chip);
+      expect(pair).toContainElement(button);
+      // The old placement — a column away from the control it reports on — is
+      // what could not stay aligned.
+      expect(card?.querySelector('.report-row__copy')).not.toContainElement(chip);
+      // And the card keeps saying which report it is, beside the pair.
+      expect(card?.querySelector('.report-row__domain')?.textContent).toBe('example.com');
+    }
+  });
+
+  // The address is a technical value and the card's title (DESIGN_SYSTEM §2),
+  // and it was the one thing on the card set in the body face at body size.
+  it('titles the card with the site address', async () => {
+    await openReports(
+      workspace(() =>
+        envelope([scanAt('scan-a')], { total: 1, page: 1, limit: 20, hasNext: false }),
+      ),
+    );
+
+    const list = await screen.findByRole('list', { name: 'Your audit reports' });
+    expect(within(list).getByText('example.com')).toHaveClass('report-row__domain');
+  });
+});
+
 describe('Reports scoped to one website', () => {
   it('opens that website reports from the profile row and can widen back out', async () => {
     stubApi(

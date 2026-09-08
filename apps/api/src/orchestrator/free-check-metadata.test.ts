@@ -27,4 +27,12 @@ describe('Free check module metadata', () => {
   it('records that the missing score is the plan, not missing data', () => {
     expect(freeCheckMetadata().scoring).toBe(FREE_CHECK_SCORING_REASON);
   });
+
+  it('keeps the wire value the report matches on', () => {
+    // The web app has no dependency on this package, so it matches the literal
+    // (apps/web/src/scan-status.ts). Renaming the constant is free; changing
+    // what goes on the wire silently turns the report's explanation back into a
+    // bare "No score", which is the exact regression this pins.
+    expect(FREE_CHECK_SCORING_REASON).toBe('NotScoredOnFreePlan');
+  });
 });

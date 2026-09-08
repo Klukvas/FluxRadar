@@ -24,6 +24,7 @@ import {
   isTerminalScanStatus,
   scanStateLabel,
 } from './scan-status';
+import { statusKind } from './status-kind';
 
 /**
  * How many reports one page holds.
@@ -219,12 +220,13 @@ function ReportRow(props: { scan: Scan; language: Language; onOpen: () => void }
       ? t.openReport
       : t.viewDetails;
   return (
-    <div className="report-row">
+    // The card carries the status a second time, as the colour of its left
+    // edge, so a list of twenty reports can be scanned for the failed one
+    // without reading twenty chips. Colour is never the only carrier: the chip
+    // beside the action says the same thing in words.
+    <div className={`report-row report-row--${statusKind(scan.status)}`}>
       <div className="report-row__copy">
-        <div className="split">
-          <strong>{displayDomain(scan.domain)}</strong>
-          <StatusChip status={scan.status} label={scanStateLabel(scan.status, props.language)} />
-        </div>
+        <strong className="report-row__domain">{displayDomain(scan.domain)}</strong>
         <p className="muted report-row__meta">
           {scan.plan}
           {finished !== null
@@ -234,7 +236,13 @@ function ReportRow(props: { scan: Scan; language: Language; onOpen: () => void }
               : ''}
         </p>
       </div>
+      {/* How the check ended and what to do about it are one pair on one line.
+          Read apart — the chip beside the address, the button in a column
+          centred on the whole card — they only lined up when the address
+          happened to fit one line, which is the same drift the integrations
+          row was fixed for. */}
       <div className="report-row__action">
+        <StatusChip status={scan.status} label={scanStateLabel(scan.status, props.language)} />
         {/* Every row's button reads the same on screen, so the accessible name
             carries the site address too — otherwise a screen reader announces a list
             of identical "Open report" buttons with no way to tell them apart.

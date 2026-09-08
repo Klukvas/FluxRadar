@@ -61,6 +61,29 @@ export function PricingCards(props: { language: Language; onChoose: () => void }
   );
 }
 
+/**
+ * The rows of the comparison, in the order a buyer meets the question: what am
+ * I asking, what do I get, what do I not get, when do I take it, what does it
+ * cost, and what is the difference in one line.
+ */
+const COMPARISON_ROWS = [
+  'question',
+  'included',
+  'notIncluded',
+  'chooseWhen',
+  'price',
+  'difference',
+] as const;
+
+/**
+ * Basic and Complete as a table rather than two paragraphs, because the reader's
+ * question is a comparison and prose makes them hold both halves in their head.
+ *
+ * It stays a real table — caption, column headers, a row header per question —
+ * so the relationship survives being read out. Below the phone breakpoint the
+ * stylesheet stacks the rows and each cell names its own plan from `data-label`,
+ * the way `.data-table` already does, so nothing scrolls sideways.
+ */
 export function PricingExplainer(props: { language: Language }) {
   const t = copy[props.language].pricing;
   return (
@@ -69,15 +92,26 @@ export function PricingExplainer(props: { language: Language }) {
         <span className="home__card-index">{t.explainer.kicker}</span>
         <h3 id="pricing-explainer-title">{t.explainer.title}</h3>
       </div>
-      <div className="home__pricing-explainer-grid">
-        <p>
-          <strong>{t.explainer.basic.title}</strong>
-          <span>{t.explainer.basic.body}</span>
-        </p>
-        <p>
-          <strong>{t.explainer.complete.title}</strong>
-          <span>{t.explainer.complete.body}</span>
-        </p>
+      <div className="plan-compare-wrap">
+        <table className="plan-compare">
+          <caption>{t.explainer.tableCaption}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{t.explainer.aspect}</th>
+              <th scope="col">{t.explainer.basicColumn}</th>
+              <th scope="col">{t.explainer.completeColumn}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {COMPARISON_ROWS.map((row) => (
+              <tr key={row}>
+                <th scope="row">{t.explainer.rows[row].label}</th>
+                <td data-label={t.explainer.basicColumn}>{t.explainer.rows[row].basic}</td>
+                <td data-label={t.explainer.completeColumn}>{t.explainer.rows[row].complete}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       <p className="home__pricing-note">{t.explainer.footnote}</p>
       <p className="home__pricing-note">{t.startInWorkspace}</p>
