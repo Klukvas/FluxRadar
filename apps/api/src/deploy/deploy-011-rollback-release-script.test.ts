@@ -55,9 +55,8 @@ const TARGET_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const FAILED_ID = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const RECORDED_API_UPSTREAM = '10.9.9.1:3310';
 const RECORDED_WEB_UPSTREAM = '10.9.9.2:80';
-/** Addresses a container that had to be recreated comes back on. */
-const REBUILT_API_UPSTREAM = '10.9.9.71:3310';
-const REBUILT_WEB_UPSTREAM = '10.9.9.72:80';
+const TARGET_API_UPSTREAM = `fluxradar-api-${TARGET_ID}:3310`;
+const TARGET_WEB_UPSTREAM = `fluxradar-web-${TARGET_ID}:80`;
 const FAILED_API_UPSTREAM = '10.10.0.5:3310';
 const FAILED_WEB_UPSTREAM = '10.10.0.5:80';
 /** Exit code that means "there was nothing to roll back to, so nothing changed". */
@@ -96,16 +95,6 @@ case "$1" in
     esac ;;
   inspect)
     case "$*" in
-      *IPAddress*)
-        case "$*" in
-          *"fluxradar-api-$TARGET_RELEASE_ID"*)
-            if [ "$MISSING_CONTAINERS" = "1" ]; then printf '%s\n' "$REBUILT_API_IP"
-            else printf '%s\n' "$RECORDED_API_IP"; fi ;;
-          *"fluxradar-web-$TARGET_RELEASE_ID"*)
-            if [ "$MISSING_CONTAINERS" = "1" ]; then printf '%s\n' "$REBUILT_WEB_IP"
-            else printf '%s\n' "$RECORDED_WEB_IP"; fi ;;
-          *) printf '%s\n' "$FAILED_CONTAINER_IP" ;;
-        esac ;;
       *"State.Running"*)
         if [ "$STOPPED_CONTAINERS" = "1" ]; then printf 'false\n'; else printf 'true\n'; fi ;;
       *NetworkSettings.Networks*) printf 'fluxradar_default\n' ;;
@@ -272,11 +261,6 @@ function runRollback(options: Options = {}): Rollback {
       HOME: appDir,
       DOCKER_LOG: dockerLog,
       TARGET_RELEASE_ID: TARGET_ID,
-      RECORDED_API_IP: RECORDED_API_UPSTREAM.split(':')[0] as string,
-      RECORDED_WEB_IP: RECORDED_WEB_UPSTREAM.split(':')[0] as string,
-      REBUILT_API_IP: REBUILT_API_UPSTREAM.split(':')[0] as string,
-      REBUILT_WEB_IP: REBUILT_WEB_UPSTREAM.split(':')[0] as string,
-      FAILED_CONTAINER_IP: FAILED_API_UPSTREAM.split(':')[0] as string,
       MV_EMULATE_T: process.platform === 'linux' ? '0' : '1',
       MISSING_CONTAINERS: '',
       STOPPED_CONTAINERS: '',
@@ -374,24 +358,33 @@ function expectNothingTouched(rollback: Rollback): void {
 }
 
 describe('DEPLOY-011 rollback-release.sh', () => {
+  it('uses stable Docker names and aliases for an image-backed rollback', () => {
+    const script = readFileSync(SCRIPT_PATH, 'utf8');
+    expect(script).toContain('--network-alias "$name"');
+    expect(script).toContain('api_upstream="fluxradar-api-$TARGET_ID:3310"');
+    expect(script).toContain('web_upstream="fluxradar-web-$TARGET_ID:80"');
+    expect(script).not.toContain('container_ip()');
+  });
+
   it('puts the previous release back while its containers are still running', () => {
     const rollback = runRollback();
-    expectRestored(rollback, RECORDED_API_UPSTREAM, RECORDED_WEB_UPSTREAM);
+    expectRestored(rollback, TARGET_API_UPSTREAM, TARGET_WEB_UPSTREAM);
     expect(rollback.stateFile()).toContain(`FLUXRADAR_API_CONTAINER=fluxradar-api-${TARGET_ID}`);
   });
 
   // The case the public smoke test hits: the release script finished, so it has
   // already removed the previous release's containers. A rollback that only
   // repointed Caddy would point it at containers that no longer exist.
-  it('recreates the previous release when its containers are gone, and uses their new addresses', () => {
+  it('recreates the previous release when its containers are gone, and keeps stable names', () => {
     const rollback = runRollback({ env: { MISSING_CONTAINERS: '1' } });
-    expectRestored(rollback, REBUILT_API_UPSTREAM, REBUILT_WEB_UPSTREAM);
+    expectRestored(rollback, TARGET_API_UPSTREAM, TARGET_WEB_UPSTREAM);
     const started = rollback
       .dockerCalls()
       .filter((call) => call.startsWith('run -d') && call.includes(`fluxradar-api-${TARGET_ID}`));
     expect(started).toHaveLength(1);
     expect(started[0]).toContain(`fluxradar-api:${TARGET_ID}`);
     expect(started[0]).toContain('--restart unless-stopped');
+    expect(started[0]).toContain(`--network-alias fluxradar-api-${TARGET_ID}`);
     // On the env file the deploy's rollback gate already started this image
     // against — the failed release's — not the one it happened to run on before
     // the migration.
@@ -402,7 +395,7 @@ describe('DEPLOY-011 rollback-release.sh', () => {
 
   it('starts the previous release again when its containers are merely stopped', () => {
     const rollback = runRollback({ env: { STOPPED_CONTAINERS: '1' } });
-    expectRestored(rollback, RECORDED_API_UPSTREAM, RECORDED_WEB_UPSTREAM);
+    expectRestored(rollback, TARGET_API_UPSTREAM, TARGET_WEB_UPSTREAM);
     expect(rollback.dockerCalls().some((call) => call === `start fluxradar-api-${TARGET_ID}`)).toBe(
       true,
     );
@@ -415,7 +408,7 @@ describe('DEPLOY-011 rollback-release.sh', () => {
     expect(rollback.output).toContain('no longer holds docker-compose.yml');
     expect(rollback.output).toContain('ROLLBACK OK (DEGRADED)');
     expect(rollback.exitCode).toBe(0);
-    expect(rollback.runtimeCaddyfile()).toContain(RECORDED_API_UPSTREAM);
+    expect(rollback.runtimeCaddyfile()).toContain(TARGET_API_UPSTREAM);
     expect(rollback.runtimeCaddyfile()).not.toContain(FAILED_API_UPSTREAM);
     expect(rollback.currentReleaseId()).toBe(TARGET_ID);
   });
@@ -537,7 +530,7 @@ describe('DEPLOY-011 rollback-release.sh', () => {
 
     it('accepts a restored release that answers, on the addresses it restored', () => {
       const rollback = runRollback({ env: { MISSING_CONTAINERS: '1' } });
-      expectRestored(rollback, REBUILT_API_UPSTREAM, REBUILT_WEB_UPSTREAM);
+      expectRestored(rollback, TARGET_API_UPSTREAM, TARGET_WEB_UPSTREAM);
       expect(rollback.output).toContain('serving again');
     });
   });

@@ -54,9 +54,13 @@ const PREVIOUS_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const RELEASE_ID = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const PREVIOUS_API_UPSTREAM = '10.9.9.1:3310';
 const PREVIOUS_WEB_UPSTREAM = '10.9.9.2:80';
+const PREVIOUS_RUNTIME_API_UPSTREAM = `fluxradar-api-${PREVIOUS_ID}:3310`;
+const PREVIOUS_RUNTIME_WEB_UPSTREAM = `fluxradar-web-${PREVIOUS_ID}:80`;
 const NEW_CONTAINER_IP = '10.10.0.5';
-const NEW_API_UPSTREAM = `${NEW_CONTAINER_IP}:3310`;
-const NEW_WEB_UPSTREAM = `${NEW_CONTAINER_IP}:80`;
+const NEW_API_CONTAINER = `fluxradar-api-${RELEASE_ID}`;
+const NEW_WEB_CONTAINER = `fluxradar-web-${RELEASE_ID}`;
+const NEW_API_UPSTREAM = `${NEW_API_CONTAINER}:3310`;
+const NEW_WEB_UPSTREAM = `${NEW_WEB_CONTAINER}:80`;
 const NETWORK = 'fluxradar_default';
 
 /** The workflow's own release script, dedented out of the YAML block scalar. */
@@ -86,9 +90,14 @@ case "$1" in
       *"ps -q caddy"*)
         # An empty id is exactly what compose prints when the container is not
         # there, which is how "Caddy never came up" is simulated.
-        if [ "$fail" != "caddy_running" ]; then printf 'caddy-container\n'; fi ;;
+        if [ "$fail" != "caddy_running" ] || [ "$(grep -c 'force-recreate caddy' "$DOCKER_LOG")" -gt 1 ]; then
+          printf 'caddy-container\n'
+        fi ;;
       *"force-recreate caddy"*)
-        if [ "$fail" = "caddy_up" ]; then echo 'compose refused to start caddy' >&2; exit 1; fi ;;
+        if [ "$fail" = "caddy_up" ] && [ "$(grep -c 'force-recreate caddy' "$DOCKER_LOG")" -eq 1 ]; then
+          echo 'compose refused to start caddy' >&2
+          exit 1
+        fi ;;
     esac ;;
   run)
     case "$*" in
@@ -148,6 +157,9 @@ printf 'curl %s\n' "$*" >> "$DOCKER_LOG"
 if [ "$FAIL_STEP" = "caddy_smoke" ] && [ "$(grep -c '^curl ' "$DOCKER_LOG")" -eq 1 ]; then
   exit 22
 fi
+if [ "$FAIL_STEP" = "post_cleanup_smoke" ] && [ "$(grep -c '^curl ' "$DOCKER_LOG")" -eq 2 ]; then
+  exit 22
+fi
 printf '{"status":"ok"}\n'
 `;
 
@@ -167,7 +179,15 @@ const SLEEP_STUB = '#!/usr/bin/env bash\nexit 0\n';
 const MV_SHIM = String.raw`#!/usr/bin/env bash
 if [ "$FAIL_STEP" = "atomic_switch" ]; then
   case "$*" in
-    *current*) echo 'mv: injected failure' >&2; exit 1 ;;
+    *current*)
+      mv_count_file="$HOME/mv-current-count"
+      mv_count=0
+      if [ -f "$mv_count_file" ]; then mv_count="$(cat "$mv_count_file")"; fi
+      if [ "$mv_count" -eq 0 ]; then
+        echo 1 > "$mv_count_file"
+        echo 'mv: injected failure' >&2
+        exit 1
+      fi ;;
   esac
 fi
 if [ "$MV_EMULATE_T" = "1" ]; then
@@ -387,10 +407,12 @@ function cleanedUpNewContainers(calls: readonly string[]): boolean {
 function expectRolledBack(deployment: Deployment): void {
   expect(deployment.exitCode).not.toBe(0);
   expect(deployment.currentReleaseId()).toBe(PREVIOUS_ID);
-  expect(deployment.runtimeCaddyfile()).toContain(PREVIOUS_API_UPSTREAM);
-  expect(deployment.runtimeCaddyfile()).toContain(PREVIOUS_WEB_UPSTREAM);
+  expect(deployment.runtimeCaddyfile()).toContain(PREVIOUS_RUNTIME_API_UPSTREAM);
+  expect(deployment.runtimeCaddyfile()).toContain(PREVIOUS_RUNTIME_WEB_UPSTREAM);
   expect(deployment.runtimeCaddyfile()).not.toContain(NEW_API_UPSTREAM);
-  expect(deployment.stateFile()).toContain(`FLUXRADAR_API_UPSTREAM=${PREVIOUS_API_UPSTREAM}`);
+  expect(deployment.stateFile()).toContain(
+    `FLUXRADAR_API_UPSTREAM=${PREVIOUS_RUNTIME_API_UPSTREAM}`,
+  );
   expect(deployment.stateFile()).toContain(`FLUXRADAR_API_CONTAINER=fluxradar-api-${PREVIOUS_ID}`);
   expect(cleanedUpNewContainers(deployment.dockerCalls())).toBe(true);
   // The switch recreated Caddy once; the rollback recreated it once more. A
@@ -410,6 +432,16 @@ function expectNoRollback(deployment: Deployment): void {
 }
 
 describe('DEPLOY-010 release switch and rollback', () => {
+  it('uses stable Docker network identities for Caddy upstreams', () => {
+    const script = extractReleaseScript();
+    expect(script).toContain('--network-alias "$API_CONTAINER"');
+    expect(script).toContain('--network-alias "$WEB_CONTAINER"');
+    expect(script).toContain('NEW_API_UPSTREAM="$API_CONTAINER:3310"');
+    expect(script).toContain('NEW_WEB_UPSTREAM="$WEB_CONTAINER:80"');
+    expect(script).not.toContain('API_IP="$(docker inspect');
+    expect(script).not.toContain('WEB_IP="$(docker inspect');
+  });
+
   it('installs an exit handler instead of an ERR trap that misses `exit` and functions', () => {
     const script = extractReleaseScript();
     expect(script).toContain('trap on_exit EXIT');
@@ -454,6 +486,10 @@ describe('DEPLOY-010 release switch and rollback', () => {
     },
     { name: '`caddy validate` rejects the configuration', failStep: 'caddy_validate' },
     { name: 'the local HTTPS smoke test fails', failStep: 'caddy_smoke' },
+    {
+      name: 'the post-cleanup smoke test fails',
+      failStep: 'post_cleanup_smoke',
+    },
     { name: 'the `current` symlink cannot be moved into place', failStep: 'atomic_switch' },
   ];
 
@@ -470,7 +506,9 @@ describe('DEPLOY-010 release switch and rollback', () => {
     expect(deployment.output).toContain('does not reference the new release upstreams');
     expect(deployment.exitCode).not.toBe(0);
     expect(deployment.currentReleaseId()).toBe(PREVIOUS_ID);
-    expect(deployment.stateFile()).toContain(`FLUXRADAR_API_UPSTREAM=${PREVIOUS_API_UPSTREAM}`);
+    expect(deployment.stateFile()).toContain(
+      `FLUXRADAR_API_UPSTREAM=${PREVIOUS_RUNTIME_API_UPSTREAM}`,
+    );
     expect(cleanedUpNewContainers(deployment.dockerCalls())).toBe(true);
     expect(caddyRecreations(deployment.dockerCalls())).toBe(2);
   });
@@ -511,11 +549,13 @@ describe('DEPLOY-010 release switch and rollback', () => {
       expect(deployment.output).toContain('no longer holds docker-compose.yml');
       expect(deployment.output).toContain('ROLLBACK OK (DEGRADED)');
       // The outcome that matters: traffic is on the previous release again.
-      expect(deployment.runtimeCaddyfile()).toContain(PREVIOUS_API_UPSTREAM);
-      expect(deployment.runtimeCaddyfile()).toContain(PREVIOUS_WEB_UPSTREAM);
+      expect(deployment.runtimeCaddyfile()).toContain(PREVIOUS_RUNTIME_API_UPSTREAM);
+      expect(deployment.runtimeCaddyfile()).toContain(PREVIOUS_RUNTIME_WEB_UPSTREAM);
       expect(deployment.runtimeCaddyfile()).not.toContain(NEW_API_UPSTREAM);
       expect(deployment.currentReleaseId()).toBe(PREVIOUS_ID);
-      expect(deployment.stateFile()).toContain(`FLUXRADAR_API_UPSTREAM=${PREVIOUS_API_UPSTREAM}`);
+      expect(deployment.stateFile()).toContain(
+        `FLUXRADAR_API_UPSTREAM=${PREVIOUS_RUNTIME_API_UPSTREAM}`,
+      );
       expect(cleanedUpNewContainers(deployment.dockerCalls())).toBe(true);
       expect(caddyRecreations(deployment.dockerCalls())).toBe(2);
     });
@@ -523,7 +563,7 @@ describe('DEPLOY-010 release switch and rollback', () => {
     it('never reports a rollback it did not perform', () => {
       const deployment = runDeploy({ failStep: 'caddy_validate', prunePreviousRelease: true });
       const claimedSuccess = deployment.output.includes('serving again');
-      const restored = deployment.runtimeCaddyfile().includes(PREVIOUS_API_UPSTREAM);
+      const restored = deployment.runtimeCaddyfile().includes(PREVIOUS_RUNTIME_API_UPSTREAM);
       expect(claimedSuccess).toBe(restored);
     });
   });

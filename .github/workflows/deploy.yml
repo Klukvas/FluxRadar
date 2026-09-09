@@ -826,6 +826,7 @@ jobs:
             --name "$API_CONTAINER" \
             --restart unless-stopped \
             --network "$FLUXRADAR_NETWORK" \
+            --network-alias "$API_CONTAINER" \
             --env-file "$RELEASE_DIR/.env.production" \
             --env NODE_ENV=production \
             --env PORT=3310 \
@@ -835,17 +836,16 @@ jobs:
             --name "$WEB_CONTAINER" \
             --restart unless-stopped \
             --network "$FLUXRADAR_NETWORK" \
+            --network-alias "$WEB_CONTAINER" \
             "$WEB_IMAGE"
           ensure_network_attachment "$API_CONTAINER"
           ensure_network_attachment "$WEB_CONTAINER"
-          API_IP="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$API_CONTAINER")"
-          WEB_IP="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$WEB_CONTAINER")"
-          if [ -z "$API_IP" ] || [ -z "$WEB_IP" ]; then
-            echo "Could not determine API/web container IP addresses" >&2
-            exit 1
-          fi
-          NEW_API_UPSTREAM="$API_IP:3310"
-          NEW_WEB_UPSTREAM="$WEB_IP:80"
+          # Resolve through Docker's user-defined network instead of freezing
+          # ephemeral container IPs into Caddy. The names are stable for this
+          # release and the explicit aliases remain resolvable after Caddy is
+          # recreated or old release containers are removed.
+          NEW_API_UPSTREAM="$API_CONTAINER:3310"
+          NEW_WEB_UPSTREAM="$WEB_CONTAINER:80"
 
           ready=0
           for attempt in $(seq 1 30); do
@@ -939,6 +939,21 @@ jobs:
           fi
           if [ -n "$LEGACY_API_CONTAINER" ] || [ -n "$LEGACY_WEB_CONTAINER" ]; then
             docker rm -f "$LEGACY_API_CONTAINER" "$LEGACY_WEB_CONTAINER" >/dev/null 2>&1 || true
+          fi
+          # Verify the exact post-cleanup state. The first smoke test runs
+          # before old containers are removed; this one catches a stale Docker
+          # route or DNS binding that only appears once cleanup has completed.
+          if ! curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 1 --retry-connrefused \
+            --location --insecure --resolve fluxradar.net:443:127.0.0.1 \
+            https://fluxradar.net/api/health | grep -q '"status":"ok"' \
+            || ! curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 1 --retry-connrefused \
+            --location --insecure --resolve fluxradar.net:443:127.0.0.1 \
+            --output /dev/null https://fluxradar.net/; then
+            echo "Post-cleanup local smoke failed; collecting sanitized diagnostics" >&2
+            docker logs --tail 80 "$CADDY_CONTAINER" 2>&1 || true
+            docker logs --tail 80 "$API_CONTAINER" 2>&1 || true
+            docker logs --tail 80 "$WEB_CONTAINER" 2>&1 || true
+            exit 1
           fi
           # The release is live and recorded. Everything below is bookkeeping,
           # and the exit handler above honours this flag: from here a failure is

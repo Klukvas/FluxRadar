@@ -166,10 +166,6 @@ render_caddyfile() {
   chmod 644 "$RUNTIME_DIR/Caddyfile"
 }
 
-container_ip() {
-  docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$1" 2>/dev/null
-}
-
 # Runs the target release's container again when it is gone.
 #
 # It is gone on exactly the path this script exists for: a successful release
@@ -187,7 +183,7 @@ ensure_container() {
     echo "ROLLBACK: could not start the existing container $name; recreating it." >&2
     docker rm -f "$name" >/dev/null 2>&1 || true
   fi
-  docker run -d --name "$name" --restart unless-stopped "$@" >/dev/null
+  docker run -d --name "$name" --restart unless-stopped --network-alias "$name" "$@" >/dev/null
 }
 
 api_upstream=""
@@ -229,16 +225,13 @@ if [ -n "$TARGET_ID" ] \
     --network "$network" \
     "fluxradar-web:$TARGET_ID" \
     || { echo "ROLLBACK FAILED: the previous release's web container could not be started." >&2; exit 1; }
-  api_ip="$(container_ip "fluxradar-api-$TARGET_ID")"
-  web_ip="$(container_ip "fluxradar-web-$TARGET_ID")"
-  if [ -n "$api_ip" ] && [ -n "$web_ip" ]; then
-    # Derived from the containers that are running NOW, not from what was
-    # recorded: a container that had to be recreated has a different address.
-    api_upstream="$api_ip:3310"
-    web_upstream="$web_ip:80"
-    state_api_container="fluxradar-api-$TARGET_ID"
-    state_web_container="fluxradar-web-$TARGET_ID"
-  fi
+  # Docker's user-defined network resolves container names and aliases. Keep
+  # the rollback on those stable identities rather than recording an
+  # ephemeral IP that can become stale as soon as a container is recreated.
+  api_upstream="fluxradar-api-$TARGET_ID:3310"
+  web_upstream="fluxradar-web-$TARGET_ID:80"
+  state_api_container="fluxradar-api-$TARGET_ID"
+  state_web_container="fluxradar-web-$TARGET_ID"
 fi
 
 if [ -z "$api_upstream" ] || [ -z "$web_upstream" ]; then
