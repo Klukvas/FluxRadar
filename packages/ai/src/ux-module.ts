@@ -12,7 +12,7 @@ import { runAiRequest } from './run-request.js';
 import type { AiRequest, AiProvider } from './types.js';
 import type { AiRequestOutcome } from './run-request.js';
 
-export const UX_PROMPT_VERSION = 'ux-conversion-v1';
+export const UX_PROMPT_VERSION = 'ux-conversion-v2';
 export const UX_SYSTEM_INSTRUCTIONS =
   'You are a careful UX and conversion reviewer. Use only the supplied evidence. ' +
   'Do not claim that a site converts or fails to convert, and do not invent missing facts. ' +
@@ -21,7 +21,10 @@ export const UX_SYSTEM_INSTRUCTIONS =
 
 const UX_RULE_IDS = new Set(['UX-CONV-AI-001', 'UX-CONV-AI-002', 'UX-CONV-AI-003']);
 const SEVERITIES = new Set(['High', 'Medium', 'Low']);
-const MAX_FINDINGS = 12;
+// Six concise findings fit comfortably inside the shared 2,000-token response
+// cap. Asking for twelve made normal multi-page reviews end mid-JSON, turning a
+// valid provider response into an unusable contract failure.
+const MAX_FINDINGS = 6;
 const MAX_FIELD_LENGTH = 2_048;
 
 export interface UxAiPageEvidence {
@@ -120,7 +123,8 @@ export function buildUxAiRequest(input: UxAiInput): AiRequest {
     sequence: 1001,
     question:
       `Review ${input.brand} at ${input.siteOrigin} for UX/Conversion. ` +
-      'Return at most 12 actionable findings. Use only these rule IDs: ' +
+      'Return at most 6 actionable findings. Keep each evidence and recommendation value under 240 characters. ' +
+      'Return one JSON object without Markdown fences or commentary. Use only these rule IDs: ' +
       'UX-CONV-AI-001 (value proposition clarity), UX-CONV-AI-002 (primary action clarity), ' +
       'UX-CONV-AI-003 (conversion friction and trust). ' +
       'If the evidence does not support a finding, omit it. Use the exact supplied page URL as targetUrl. ' +
@@ -197,7 +201,7 @@ export function parseUxAiResponse(
   }
   const findings = (payload as Record<string, unknown>).findings;
   if (!Array.isArray(findings) || findings.length > MAX_FINDINGS) {
-    throw new AiModuleError('ai: UX response findings must be an array of at most 12 items');
+    throw new AiModuleError('ai: UX response findings must be an array of at most 6 items');
   }
   const allowed = new Set(allowedUrls);
   const parsed = findings.map((finding) => parseFinding(finding, allowed));

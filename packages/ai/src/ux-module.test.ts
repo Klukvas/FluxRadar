@@ -86,6 +86,27 @@ describe('UX AI contract', () => {
     ).toThrow(/target URL was not supplied/);
   });
 
+  it('bounds the response so a multi-page review fits the provider output cap', () => {
+    const request = buildUxAiRequest(input);
+    expect(request.promptVersion).toBe('ux-conversion-v2');
+    expect(request.question).toContain('at most 6 actionable findings');
+    expect(request.question).toContain('under 240 characters');
+
+    const finding = {
+      ruleId: 'UX-CONV-AI-001',
+      targetUrl: PAGE,
+      severity: 'Medium',
+      evidence: 'The offer is not stated in the first heading.',
+      recommendation: 'State the service and audience in the first heading.',
+      confidence: 0.8,
+    };
+    expect(() =>
+      parseUxAiResponse(JSON.stringify({ findings: Array.from({ length: 7 }, () => finding) }), [
+        PAGE,
+      ]),
+    ).toThrow(/at most 6 items/);
+  });
+
   it('runs one real-contract request and accepts strict JSON output', async () => {
     const provider = new MockAiProvider(
       [
@@ -127,6 +148,6 @@ describe('UX AI contract', () => {
     expect(result.status).toBe('Completed');
     expect(result.findings).toHaveLength(1);
     expect(result.outcome.kind).toBe('response');
-    expect(buildUxAiRequest(input).promptVersion).toBe('ux-conversion-v1');
+    expect(buildUxAiRequest(input).promptVersion).toBe('ux-conversion-v2');
   });
 });
