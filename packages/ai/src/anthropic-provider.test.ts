@@ -60,4 +60,29 @@ describe('AnthropicProvider', () => {
       provider.send(makeRequest({ provider: 'anthropic' }), 'prompt'),
     ).rejects.toBeInstanceOf(UnavailableError);
   });
+
+  it.each([
+    ['timeout', new DOMException('timed out', 'TimeoutError'), 'Anthropic request timed out'],
+    ['abort', new DOMException('aborted', 'AbortError'), 'Anthropic request timed out'],
+    ['network failure', new TypeError('fetch failed'), 'Anthropic network request failed'],
+  ])('maps %s transport failures to Unavailable', async (_kind, failure, reason) => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValue(failure);
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    await expect(
+      provider.send(makeRequest({ provider: 'anthropic' }), 'prompt'),
+    ).rejects.toMatchObject({
+      name: 'UnavailableError',
+      reason,
+    });
+  });
+
+  it('allows a bounded 45 second model turn by default', () => {
+    const provider = new AnthropicProvider({
+      apiKey: 'sk-test',
+      fetcher: vi.fn<typeof fetch>(),
+    });
+
+    expect(provider.config.timeoutMs).toBe(45_000);
+  });
 });

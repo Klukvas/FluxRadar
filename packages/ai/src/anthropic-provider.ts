@@ -21,6 +21,18 @@ interface AnthropicMessageResponse {
   readonly usage?: { readonly input_tokens?: unknown; readonly output_tokens?: unknown };
 }
 
+const ANTHROPIC_REQUEST_TIMEOUT_MS = 45_000;
+
+function transportFailureReason(error: unknown): string {
+  if (
+    error instanceof DOMException &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError')
+  ) {
+    return 'Anthropic request timed out';
+  }
+  return 'Anthropic network request failed';
+}
+
 function textFromContent(content: unknown): string {
   if (!Array.isArray(content)) return '';
   return content
@@ -61,7 +73,9 @@ export class AnthropicProvider implements AiProvider {
       provider: 'anthropic',
       apiVersion: options.apiVersion ?? '2023-06-01',
       modelId: options.modelId ?? 'claude-sonnet-5',
-      timeoutMs: options.timeoutMs ?? 15_000,
+      // UX evidence requests are materially larger than the short GEO prompts.
+      // Keep the request bounded, but allow enough time for a normal model turn.
+      timeoutMs: options.timeoutMs ?? ANTHROPIC_REQUEST_TIMEOUT_MS,
       maxRetries: 1,
     };
   }
@@ -70,21 +84,29 @@ export class AnthropicProvider implements AiProvider {
     if (request.provider !== 'anthropic') {
       throw new Error(`ai: anthropic adapter received ${request.provider} request`);
     }
-    const response = await this.fetcher('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': this.config.apiVersion,
-      },
-      body: JSON.stringify({
-        model: this.config.modelId,
-        max_tokens: AI_REQUEST_CAPS.maxOutputTokens,
-        system: request.systemInstructions,
-        messages: [{ role: 'user', content: promptText }],
-      }),
-      signal: AbortSignal.timeout(this.config.timeoutMs),
-    });
+    let response: Response;
+    try {
+      response = await this.fetcher('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': this.config.apiVersion,
+        },
+        body: JSON.stringify({
+          model: this.config.modelId,
+          max_tokens: AI_REQUEST_CAPS.maxOutputTokens,
+          system: request.systemInstructions,
+          messages: [{ role: 'user', content: promptText }],
+        }),
+        signal: AbortSignal.timeout(this.config.timeoutMs),
+      });
+    } catch (error) {
+      // fetch rejects for deadlines and transport failures. Both are an
+      // unavailable external provider, not a platform bug that should fail and
+      // refund the whole scan.
+      throw new UnavailableError(transportFailureReason(error), { cause: error });
+    }
     const payload = (await response.json().catch(() => null)) as AnthropicMessageResponse | null;
     if (!response.ok) {
       if (response.status === 408 || response.status === 429 || response.status >= 500) {

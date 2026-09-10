@@ -1,8 +1,14 @@
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AiProvider } from '@fluxradar/ai';
-import { CURRENT_AI_PROCESSING_NOTICE_VERSION, MockAiProvider } from '@fluxradar/ai';
+import {
+  CURRENT_AI_PROCESSING_NOTICE_VERSION,
+  MockAiProvider,
+  UnavailableError,
+} from '@fluxradar/ai';
+import { validateExportRecords } from '@fluxradar/export';
 import type { Scan, SiteProfile } from '@prisma/client';
+import { buildExportRecords } from './export/build-records.ts';
 import { defaultGeoFixtures } from './orchestrator/geo.ts';
 import { processScan } from './orchestrator/worker.ts';
 import { createApp } from './index.ts';
@@ -247,6 +253,139 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
     expect(
       issues.body.data.some((issue: { ruleId: string }) => issue.ruleId.startsWith('UX-CONV-AI-')),
     ).toBe(false);
+  }, 15_000);
+
+  it('degrades an unavailable AI provider and still completes Performance', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'ux-provider-timeout@example.com');
+    const profile = await createProfile(agent, account.cookie);
+    const checkout = await agent
+      .post('/billing/dev-checkout')
+      .set('Cookie', account.cookie)
+      .send({
+        siteProfileId: profile.id,
+        plan: 'Complete',
+        scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
+        aiConsent: {
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
+      });
+
+    expect(checkout.status).toBe(201);
+    const scanId = checkout.body.data.scanId as string;
+    const result = await processScan(
+      {
+        prisma: db.prisma,
+        logger: silentLogger,
+        createAiProvider: () => ({
+          config: AI_CONFIG,
+          send: () => {
+            throw new UnavailableError('Anthropic request timed out');
+          },
+        }),
+        createPerformanceRunner: () => async (origin, strategy) => ({
+          source: 'pagespeed',
+          origin,
+          strategy,
+          performanceScore: 71,
+          metrics: { lcpMs: 2_400 },
+          fetchedAt: '2026-09-10T23:00:00.000Z',
+        }),
+        crawl: { originOverride: () => fixture.origin, dangerouslyAllowLoopback: true },
+      },
+      scanId,
+    );
+
+    expect(result.outcome).not.toBe('Failed');
+    const scan = await agent.get(`/scans/${scanId}`).set('Cookie', account.cookie);
+    expect(scan.body.data.modules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          module: 'UX/Conversion',
+          status: 'Partial',
+          statusReason: 'UxAiProviderUnavailable',
+          usableOutput: true,
+        }),
+        expect.objectContaining({
+          module: 'Performance',
+          status: 'Completed',
+          score: 71,
+          usableOutput: true,
+        }),
+      ]),
+    );
+  }, 15_000);
+
+  it('terminalizes incomplete modules after an exhausted platform retry so export stays valid', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'ux-platform-failure@example.com');
+    const profile = await createProfile(agent, account.cookie);
+    const checkout = await agent
+      .post('/billing/dev-checkout')
+      .set('Cookie', account.cookie)
+      .send({
+        siteProfileId: profile.id,
+        plan: 'Complete',
+        scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
+        aiConsent: {
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
+      });
+
+    expect(checkout.status).toBe(201);
+    const scanId = checkout.body.data.scanId as string;
+    const result = await runScan(scanId, () => ({
+      config: AI_CONFIG,
+      send: () => {
+        throw new Error('unexpected adapter bug');
+      },
+    }));
+
+    expect(result.outcome).toBe('Failed');
+    const modules = await db.prisma.scanModule.findMany({ where: { scanId } });
+    expect(modules.some((module) => ['Pending', 'Running'].includes(module.runtimeStatus))).toBe(
+      false,
+    );
+    expect(
+      modules
+        .filter((module) => module.runtimeStatus !== 'Completed')
+        .every((module) => module.statusReason === 'PlatformFailureBeforeCompletion'),
+    ).toBe(true);
+
+    const exportScan = await db.prisma.scan.findUniqueOrThrow({
+      where: { id: scanId },
+      include: { modules: true, issues: true, aiResponses: true },
+    });
+    const validation = validateExportRecords(buildExportRecords(exportScan));
+    expect(validation.ok).toBe(true);
+
+    const jsonExport = await agent
+      .get(`/scans/${scanId}/export?format=json`)
+      .set('Cookie', account.cookie);
+    expect(jsonExport.status).toBe(200);
+    expect(jsonExport.body.data.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          record_type: 'module',
+          module_status: 'Unavailable',
+          status_reason: 'PlatformFailureBeforeCompletion',
+        }),
+      ]),
+    );
   }, 15_000);
 
   it('treats an obsolete AI notice as no consent and never calls the provider', async () => {

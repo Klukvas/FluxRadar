@@ -243,6 +243,7 @@ async function processClaimedJob(
           jobType = claimed.type;
           continue;
         }
+        await terminalizeIncompleteModules(prisma, scanId);
         const refund =
           failed.purchaseId === null
             ? null
@@ -281,6 +282,24 @@ async function processClaimedJob(
     clearInterval(leaseTimer);
     activeScanIds.delete(scanId);
   }
+}
+
+async function terminalizeIncompleteModules(prisma: PrismaClient, scanId: string): Promise<void> {
+  await prisma.scanModule.updateMany({
+    where: { scanId, runtimeStatus: { in: ['Pending', 'Running'] } },
+    data: {
+      runtimeStatus: 'Unavailable',
+      statusReason: 'PlatformFailureBeforeCompletion',
+      coverage: 0,
+      score: null,
+      // Export semantics require an applicable unavailable module to record at
+      // least one attempted check. The platform failed before the module could
+      // calculate its more granular denominator.
+      applicableChecks: 1,
+      completedApplicableChecks: 0,
+      usableOutput: false,
+    },
+  });
 }
 
 function moduleFromRetryJob(jobType: string): string | undefined {

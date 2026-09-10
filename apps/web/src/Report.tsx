@@ -119,6 +119,10 @@ export function ResultsScreen(props: {
   // reports them, so a number arriving without any is a contract the UI does not
   // understand — and hiding a real score behind this branch would be its own lie.
   const unscoredPlan = overall.moduleWeights.length === 0 && overall.score === null;
+  // A failed/cancelled run can still contain useful module results from before
+  // the platform failure. Those results stay visible below, but their weighted
+  // aggregate is not a completed site score and must not wear a green verdict.
+  const scoreUnavailable = /failed|cancelled/i.test(scan.status);
   const checksLine = checksSummary(dashboard.modules, props.language);
   return (
     <div className="stack">
@@ -147,10 +151,19 @@ export function ResultsScreen(props: {
               )}
             </div>
           </div>
-          {unscoredPlan ? (
-            <div className="score-dial" role="status" aria-label={t.unscoredLabel}>
+          {unscoredPlan || scoreUnavailable ? (
+            <div
+              className="score-dial"
+              role="status"
+              aria-label={scoreUnavailable ? t.verdictUnavailable : t.unscoredLabel}
+            >
               <div className="score-dial__number">—</div>
-              <div className="score-dial__label">{t.unscoredLabel}</div>
+              <div className="score-dial__label">
+                {scoreUnavailable ? t.helpScoreTerm : t.unscoredLabel}
+              </div>
+              {scoreUnavailable ? (
+                <StatusChip status={scan.status} label={t.verdictUnavailable} />
+              ) : null}
               <div className="score-dial__coverage">{checksLine}</div>
             </div>
           ) : (

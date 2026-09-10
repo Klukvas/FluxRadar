@@ -221,6 +221,28 @@ describe('the plan-scope disclosure', () => {
 });
 
 describe('a section that has finished', () => {
+  it('does not present a platform-failed scan as a completed score', async () => {
+    const dashboard = dashboardOf('Complete', [moduleOf()]);
+    await openReport({
+      ...dashboard,
+      scan: {
+        ...dashboard.scan,
+        status: 'Failed',
+        statusReason: 'PlatformFailure',
+      },
+      overall: {
+        ...dashboard.overall,
+        verdict: 'normal',
+        score: 74,
+      },
+    });
+
+    const dial = screen.getByRole('status', { name: 'Unavailable' });
+    expect(within(dial).getByText('Unavailable')).toBeInTheDocument();
+    expect(within(dial).queryByText('74.00')).toBeNull();
+    expect(within(dial).queryByText('Completed')).toBeNull();
+  });
+
   it('says the number is coverage instead of leaving a bare percentage', async () => {
     await openReport(dashboardOf('Free', [freeSeoModule()]));
 
