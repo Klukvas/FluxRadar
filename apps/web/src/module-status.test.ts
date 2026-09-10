@@ -30,9 +30,9 @@ function moduleRow(overrides: Partial<ScanModule> = {}): ScanModule {
   };
 }
 
-/** The UX/Conversion row the Complete plan writes after a scan terminates. */
-const uxStub = moduleRow({
-  module: 'UX/Conversion',
+/** A legacy Not applicable row used to pin neutral status rendering. */
+const unmeasuredRow = moduleRow({
+  module: 'SEO',
   status: 'Not applicable',
   statusReason: 'NoDeterministicOracle',
   coverage: 0,
@@ -50,35 +50,44 @@ describe('a section the plan does not measure', () => {
     expect(isNotApplicable('Unavailable')).toBe(false);
   });
 
-  // The reported defect: on a finished scan the UX/Conversion stub read
-  // "Waiting", which is a queue position, for a section that will never run.
+  // A completed report must not render a terminal Not applicable row as a queue position.
   it('never reads as waiting on the progress window', () => {
-    expect(sectionStatusLabel(uxStub.status, 'en')).toBe(copy.en.scanProgress.sectionNotApplicable);
-    expect(sectionStatusLabel(uxStub.status, 'en')).not.toBe(copy.en.scanProgress.sectionWaiting);
-    expect(sectionStatusLabel(uxStub.status, 'uk')).toBe(copy.uk.scanProgress.sectionNotApplicable);
-    expect(sectionStatusLabel(uxStub.status, 'uk')).not.toBe(copy.uk.scanProgress.sectionWaiting);
+    expect(sectionStatusLabel(unmeasuredRow.status, 'en')).toBe(
+      copy.en.scanProgress.sectionNotApplicable,
+    );
+    expect(sectionStatusLabel(unmeasuredRow.status, 'en')).not.toBe(
+      copy.en.scanProgress.sectionWaiting,
+    );
+    expect(sectionStatusLabel(unmeasuredRow.status, 'uk')).toBe(
+      copy.uk.scanProgress.sectionNotApplicable,
+    );
+    expect(sectionStatusLabel(unmeasuredRow.status, 'uk')).not.toBe(
+      copy.uk.scanProgress.sectionWaiting,
+    );
   });
 
   // ...and on the report card it is not "Insufficient data" either: nothing was
   // attempted, so there is no shortfall of data to report.
   it('reads as not applicable on the report card, not as missing data', () => {
-    expect(moduleResultLabel(uxStub, 'en')).toBe(copy.en.scanProgress.sectionNotApplicable);
-    expect(moduleResultLabel(uxStub, 'en')).not.toBe(copy.en.scanProgress.moduleInsufficient);
-    expect(moduleResultLabel(uxStub, 'uk')).toBe(copy.uk.scanProgress.sectionNotApplicable);
+    expect(moduleResultLabel(unmeasuredRow, 'en')).toBe(copy.en.scanProgress.sectionNotApplicable);
+    expect(moduleResultLabel(unmeasuredRow, 'en')).not.toBe(
+      copy.en.scanProgress.moduleInsufficient,
+    );
+    expect(moduleResultLabel(unmeasuredRow, 'uk')).toBe(copy.uk.scanProgress.sectionNotApplicable);
   });
 
   it('keeps its own chip status rather than borrowing a failure', () => {
-    expect(chipStatusFor(uxStub)).toBe('Not applicable');
+    expect(chipStatusFor(unmeasuredRow)).toBe('Not applicable');
     // Neutral, because the design system has no colour for "we did not look" —
     // and an error colour would read as a finding.
-    expect(statusKind(chipStatusFor(uxStub))).toBe('neutral');
+    expect(statusKind(chipStatusFor(unmeasuredRow))).toBe('neutral');
   });
 
   it('explains that it is a gap in the product, not in the site', () => {
-    expect(moduleStatusReasons(uxStub, 'en')).toEqual([
+    expect(moduleStatusReasons(unmeasuredRow, 'en')).toEqual([
       copy.en.report.moduleReason.noDeterministicOracle,
     ]);
-    expect(moduleStatusReasons(uxStub, 'uk')).toEqual([
+    expect(moduleStatusReasons(unmeasuredRow, 'uk')).toEqual([
       copy.uk.report.moduleReason.noDeterministicOracle,
     ]);
   });
@@ -230,6 +239,11 @@ describe('why a section is unavailable or partial', () => {
       'ProviderUnavailable',
       'ProviderContract',
       'EmptyQuestionLibrary',
+      'UxAiConsentMissing',
+      'UxAiRedactionBlocked',
+      'UxAiQuotaExceeded',
+      'UxAiProviderUnavailable',
+      'UxAiProviderContract',
       'AnalyticsIntegrationNotConnected',
       'AnalyticsPropertyNotSelected',
       'AnalyticsIntegrationNeedsReconnect',

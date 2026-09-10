@@ -70,7 +70,10 @@ function scanRow(overrides: Record<string, unknown> = {}): Record<string, unknow
   };
 }
 
-function makePrisma(scan: Record<string, unknown> | null): PrismaClient {
+function makePrisma(
+  scan: Record<string, unknown> | null,
+  profile: Record<string, unknown> = { id: 'profile_1', accountId: ACCOUNT_ID, name: 'Example' },
+): PrismaClient {
   return {
     scan: {
       findFirst: vi.fn((args: { where: { id: string; accountId: string } }) =>
@@ -78,9 +81,7 @@ function makePrisma(scan: Record<string, unknown> | null): PrismaClient {
       ),
     },
     siteProfile: {
-      findUnique: vi
-        .fn()
-        .mockResolvedValue({ id: 'profile_1', accountId: ACCOUNT_ID, name: 'Example' }),
+      findUnique: vi.fn().mockResolvedValue(profile),
     },
     session: {
       findUnique: vi
@@ -120,6 +121,7 @@ interface AppOptions {
   readonly scan?: Record<string, unknown> | null;
   readonly provider?: AiProvider | null;
   readonly limiter?: RequestRateLimiter;
+  readonly profile?: Record<string, unknown>;
 }
 
 function makeApp(options: AppOptions = {}) {
@@ -127,7 +129,7 @@ function makeApp(options: AppOptions = {}) {
   app.use(express.json());
   app.use(
     queryIdeasRouter({
-      prisma: makePrisma(options.scan === undefined ? scanRow() : options.scan),
+      prisma: makePrisma(options.scan === undefined ? scanRow() : options.scan, options.profile),
       now: () => new Date('2026-09-08T12:00:00.000Z'),
       logger: silentLogger,
       ...(options.limiter !== undefined ? { requestRateLimiter: options.limiter } : {}),
@@ -139,7 +141,7 @@ function makeApp(options: AppOptions = {}) {
 }
 
 function authed(req: Test): Test {
-  return req.set('Cookie', SESSION_COOKIE);
+  return req.set('Cookie', SESSION_COOKIE).send({ noticeVersion: 'query-ideas-v2' });
 }
 
 const IDEAS_PATH = `/scans/${SCAN_ID}/search-console/query-ideas`;
@@ -153,6 +155,19 @@ const GOOD_ANSWER = JSON.stringify({
 });
 
 describe('who may ask', () => {
+  it.each([undefined, 'v1', 'v2'])(
+    'rejects an unaccepted query-ideas notice (%s) before provider calls',
+    async (noticeVersion) => {
+      const provider = providerReturning(GOOD_ANSWER);
+      const send = vi.spyOn(provider, 'send');
+      const response = await request(makeApp({ provider }))
+        .post(IDEAS_PATH)
+        .set('Cookie', SESSION_COOKIE)
+        .send(noticeVersion === undefined ? {} : { noticeVersion });
+      expect(response.status).toBe(400);
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
   it('refuses an unauthenticated caller', async () => {
     const response = await request(makeApp()).post(IDEAS_PATH);
 
@@ -210,6 +225,44 @@ describe('who may ask', () => {
 });
 
 describe('what comes back', () => {
+  it('uses the immutable run context even after the reusable profile is edited', async () => {
+    const provider = providerReturning(GOOD_ANSWER);
+    const send = vi.spyOn(provider, 'send');
+    const scan = scanRow({
+      executionConfigJson: JSON.stringify({
+        schemaVersion: 1,
+        source: 'launch',
+        profileConfigVersion: 2,
+        plan: 'Complete',
+        scope: { includeSubdomains: false },
+        profile: {
+          name: 'Frozen Clinic',
+          domain: 'https://example.com',
+          industry: 'Dentistry',
+          offerings: 'Implants',
+        },
+      }),
+    });
+    const response = await authed(
+      request(
+        makeApp({
+          scan,
+          provider,
+          profile: {
+            id: 'profile_1',
+            accountId: ACCOUNT_ID,
+            name: 'Changed Plumbing',
+            offerings: 'Leak repair',
+          },
+        }),
+      ).post(IDEAS_PATH),
+    );
+    expect(response.status).toBe(200);
+    const prompt = send.mock.calls[0]?.[1] ?? '';
+    expect(prompt).toContain('Frozen Clinic');
+    expect(prompt).toContain('Implants');
+    expect(prompt).not.toMatch(/Changed Plumbing|Leak repair/);
+  });
   it('returns validated ideas with the model that wrote them', async () => {
     const response = await authed(
       request(makeApp({ provider: providerReturning(GOOD_ANSWER) })).post(IDEAS_PATH),
@@ -225,6 +278,55 @@ describe('what comes back', () => {
       'uk',
       'en',
     ]);
+  });
+
+  it('uses saved profile context when Search Console has no rows', async () => {
+    const scan = scanRow({
+      executionConfigJson: JSON.stringify({
+        schemaVersion: 1,
+        source: 'launch',
+        profileConfigVersion: 1,
+        plan: 'Complete',
+        scope: { includeSubdomains: false },
+        profile: {
+          name: 'Smile Clinic',
+          domain: 'https://example.com',
+          industry: 'Dental clinic',
+          region: 'Kyiv',
+        },
+      }),
+      modules: [
+        {
+          module: 'Analytics',
+          runtimeStatus: 'Partial',
+          metadataJson: JSON.stringify({
+            ...SNAPSHOT,
+            searchConsole: {
+              ...SNAPSHOT.searchConsole,
+              data: { ...SNAPSHOT.searchConsole?.data, topQueries: [], topPages: [] },
+            },
+          }),
+        },
+      ],
+    });
+    const response = await authed(
+      request(
+        makeApp({
+          scan,
+          profile: {
+            id: 'profile_1',
+            accountId: ACCOUNT_ID,
+            name: 'Smile Clinic',
+            industry: 'Dental clinic',
+            region: 'Kyiv',
+          },
+          provider: providerReturning(GOOD_ANSWER),
+        }),
+      ).post(IDEAS_PATH),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.state).toBe('generated');
   });
 
   // The whole point of the block: an idea is a query and a reason. No count, no

@@ -10,6 +10,7 @@ import { deleteAccountData } from './data-retention.ts';
 import { FREE_CHECK_SCORING_REASON } from './orchestrator/free-check.ts';
 import { createTestDb, type TestDb } from './test-utils/test-db.ts';
 import { FREE_CHECK_RULE_IDS } from '@fluxradar/contracts';
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 import { TEST_WEBHOOK_SECRET } from './test-utils/test-db.ts';
 
@@ -312,7 +313,10 @@ describe('T-12 API happy paths', () => {
         siteProfileId: profile.id,
         plan: 'Complete',
         scope: { includeSubdomains: false, maxPages: 15 },
-        aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
+        aiConsent: {
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
       });
     expect(checkout.status).toBe(201);
     const scanId = checkout.body.data.scanId as string;
@@ -398,7 +402,10 @@ describe('T-12 API happy paths', () => {
         siteProfileId: profile.id,
         plan: 'Basic',
         scope: { includeSubdomains: false, maxPages: 15 },
-        aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
+        aiConsent: {
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
       });
     const scanId = checkout.body.data.scanId as string;
     await runScan(db, scanId);
@@ -531,6 +538,49 @@ describe('T-12 API happy paths', () => {
     expect(retry.body.data.module).toBe('Security');
     expect(await db.prisma.job.findUniqueOrThrow({ where: { scanId } })).toMatchObject({
       type: 'module-retry:Security',
+      status: 'Pending',
+    });
+  });
+
+  it('allows an unavailable UX/Conversion module to be retried on Complete', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'ux-module-retry@example.com');
+    const profile = await createProfile(agent, account.cookie);
+    const checkout = await agent
+      .post('/billing/dev-checkout')
+      .set('Cookie', account.cookie)
+      .send({
+        siteProfileId: profile.id,
+        plan: 'Complete',
+        scope: { includeSubdomains: false, maxPages: 15 },
+      });
+    const scanId = checkout.body.data.scanId as string;
+    await db.prisma.scan.update({ where: { id: scanId }, data: { status: 'Partial' } });
+    await db.prisma.scanModule.create({
+      data: {
+        scanId,
+        module: 'UX/Conversion',
+        runtimeStatus: 'Unavailable',
+        statusReason: 'ProviderUnavailable',
+        usableOutput: false,
+      },
+    });
+
+    const retry = await agent
+      .post(`/scans/${scanId}/retry`)
+      .set('Cookie', account.cookie)
+      .send({ module: 'UX/Conversion' });
+
+    expect(retry.status).toBe(202);
+    expect(retry.body.data.module).toBe('UX/Conversion');
+    expect(await db.prisma.job.findUniqueOrThrow({ where: { scanId } })).toMatchObject({
+      type: 'module-retry:UX/Conversion',
       status: 'Pending',
     });
   });

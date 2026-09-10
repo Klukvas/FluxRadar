@@ -2,9 +2,9 @@ import react from '@vitejs/plugin-react';
 import type { Connect } from 'vite';
 import { defineConfig } from 'vite';
 
-// Extensionless on purpose: `tsc` type-checks this file with
-// `allowImportingTsExtensions` off, so a `.ts` suffix here would fail the build.
-import { blogIndexUrl } from './src/blog-routing';
+// Keep the runtime-style `.js` suffix: TypeScript resolves it to the `.ts`
+// source, while Vite's native config loader gets an explicit ESM import.
+import { blogIndexUrl } from './src/blog-routing.js';
 
 /**
  * Serve the standalone blog HTML for clean /blog paths in `vite dev` and

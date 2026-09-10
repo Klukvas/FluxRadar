@@ -205,12 +205,15 @@ describe('/faq content — what each check does', () => {
     expect(within(section).getByText(/Not from a scan/i)).toBeInTheDocument();
   });
 
-  it('names the AI crawlers it checks and keeps provider visibility optional', async () => {
+  it('names the AI crawlers and explains the paid provider visibility check', async () => {
     renderFaq();
     await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
 
     expect(screen.getByText(/GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot/)).toBeInTheDocument();
-    expect(screen.getByText(/only if you switch it on for that scan/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Paid audits include provider-backed AI visibility checks/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/current production adapter uses Anthropic/i)).toBeInTheDocument();
   });
 
   it('describes security as a passive OWASP ASVS profile, not a penetration test', async () => {

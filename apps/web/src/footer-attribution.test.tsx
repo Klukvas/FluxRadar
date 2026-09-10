@@ -1,3 +1,4 @@
+import { saveCookieConsent } from './browser-consent';
 // Two outward-facing facts that used to be spelled out in place, and were wrong
 // in different ways: the contact address on the public pages was a personal
 // gmail account, and nothing anywhere pointed at the studio behind the product.
@@ -24,7 +25,7 @@ const SRC = join(resolve(process.cwd()), 'src');
 const BASE_CSS = readFileSync(join(SRC, 'styles', 'base.css'), 'utf8');
 const TOKENS_CSS = readFileSync(join(SRC, 'styles', 'tokens.css'), 'utf8');
 
-/** The address that was published before support@flux-lab.dev existed. */
+/** The personal address that preceded the shared product support mailbox. */
 const RETIRED_CONTACT = 'pavlenkoandrey56@gmail.com';
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
@@ -157,7 +158,7 @@ afterEach(() => {
 
 describe('published contact address', () => {
   it('is the shared support mailbox, not a personal account', () => {
-    expect(SUPPORT_EMAIL).toBe('support@flux-lab.dev');
+    expect(SUPPORT_EMAIL).toBe('support@fluxradar.net');
   });
 
   it.each([
@@ -165,6 +166,7 @@ describe('published contact address', () => {
     ['/checks', signedOut],
     ['/privacy', signedOut],
     ['/terms', signedOut],
+    ['/cookies', signedOut],
   ])('offers it as a mailto link on %s', async (path, handler) => {
     renderAt(path, handler);
 
@@ -271,6 +273,7 @@ describe('the site footer on a report', () => {
   });
 
   it('is translated with the rest of the workspace', async () => {
+    saveCookieConsent(true);
     window.localStorage.setItem('fluxradar.language', 'uk');
     renderAt(`/scans/${reportScan.id}`, signedInReport);
     await screen.findByText('Звіт аудиту сайту');

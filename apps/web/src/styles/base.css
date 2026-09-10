@@ -309,6 +309,14 @@ summary:focus-visible {
   max-width: 520px;
   margin: 8vh auto;
 }
+/* FastSpring's Store Builder creates this backdrop outside React and mounts the
+   checkout iframe inside it. Keep the checkout itself untouched while making
+   the page underneath feel intentionally de-emphasized. */
+#fscCanvas.fs-popup-background {
+  background: rgba(255, 255, 255, 0.68);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1126,6 +1134,74 @@ code,
   color: var(--plat-600);
   font-size: 14px;
 }
+
+.geo-observations {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-700);
+  background: var(--plat-100);
+}
+.geo-observations .section-heading,
+.geo-observations__lead,
+.geo-observation p {
+  margin: 0;
+}
+.geo-observations__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: var(--sp-3);
+}
+.geo-observation {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: #fff;
+}
+.geo-observation__header {
+  align-items: start;
+  gap: var(--sp-2);
+}
+.geo-observation__header small,
+.geo-observation__question,
+.geo-observation__answer p,
+.geo-observation__citations a {
+  overflow-wrap: anywhere;
+}
+.geo-observation__answer {
+  display: grid;
+  gap: 4px;
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--plat-300);
+}
+.geo-observation__answer p {
+  white-space: pre-wrap;
+}
+.geo-observation__mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.geo-observation__mentions span {
+  padding: 2px 5px;
+  border: 1px solid var(--plat-400);
+  background: var(--plat-100);
+  font-size: 11px;
+}
+.geo-observation__citations {
+  display: grid;
+  gap: 4px;
+}
+.geo-observation__citations ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
 .module-card__meta {
   display: block;
   min-height: 32px;
@@ -1246,6 +1322,80 @@ code,
 }
 .panel-help {
   margin: 0;
+  line-height: 1.45;
+}
+
+.configuration-status {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: var(--plat-100);
+  box-shadow: inset 2px 0 0 var(--plat-500);
+}
+.configuration-status--saved {
+  border-color: #86b58b;
+  background: #f1faf1;
+  box-shadow: inset 2px 0 0 #25833b;
+}
+.configuration-status--dirty {
+  border-color: #d7a63b;
+  background: #fff7df;
+  box-shadow: inset 2px 0 0 #b77900;
+}
+.configuration-status__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.configuration-status__header > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.configuration-status p {
+  margin: var(--sp-2) 0 0;
+  color: var(--plat-700);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.launch-summary {
+  border-top: 1px solid var(--plat-300);
+}
+.launch-summary .field-row:last-child {
+  border-bottom: 0;
+}
+
+.scan-option-callout {
+  padding: var(--sp-3);
+  border: 1px solid var(--selection);
+  background: #eef4ff;
+  box-shadow:
+    inset 2px 0 0 var(--selection),
+    inset 1px 1px 0 #fff;
+}
+.scan-option-callout__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.scan-option-callout__eyebrow {
+  color: var(--selection);
+  font: 11px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.scan-option-callout h3 {
+  margin: var(--sp-2) 0 0;
+  font-size: 14px;
+}
+.scan-option-callout__body {
+  margin: var(--sp-2) 0 0;
+  color: var(--plat-700);
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -2514,7 +2664,8 @@ code,
   gap: 12px;
   min-width: 0;
 }
-/* Says which language the binding text is in, above a document kept in English. */
+/* Says whether the rendered text is the controlling Ukrainian document or an
+   informational translation. */
 .legal-language-notice {
   margin: 0;
   padding: 10px 14px;
@@ -2593,6 +2744,49 @@ code,
 .legal-section a:hover,
 .legal-footer a:hover {
   color: #1a6b2f;
+}
+.legal-operator {
+  display: grid;
+  gap: 5px;
+  max-width: 760px;
+  margin: 18px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--plat-400);
+  background: var(--plat-50);
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.5;
+}
+.legal-storage-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--plat-400);
+}
+.legal-storage-table table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.legal-storage-table th,
+.legal-storage-table td {
+  padding: 10px 12px;
+  border-right: 1px solid var(--plat-300);
+  border-bottom: 1px solid var(--plat-300);
+  text-align: left;
+  vertical-align: top;
+}
+.legal-storage-table th:last-child,
+.legal-storage-table td:last-child {
+  border-right: 0;
+}
+.legal-storage-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.legal-storage-table th {
+  background: var(--plat-200);
+  font: 700 11px var(--mono-font);
 }
 .faq-entry + .faq-entry {
   margin-top: 26px;

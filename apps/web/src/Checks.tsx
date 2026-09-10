@@ -93,7 +93,10 @@ export function AuditCoverageScreen(props: {
           <span>{t.footerBrand}</span>
           <span>
             <a href="/">{t.footerHome}</a> · <a href="/privacy">{t.footerPrivacy}</a> ·{' '}
-            <a href="/terms">{t.footerTerms}</a>
+            <a href="/terms">{t.footerTerms}</a> ·{' '}
+            <a href={`/cookies?lang=${props.language}`}>
+              {copy[props.language].legal.cookies.title}
+            </a>
           </span>
           <CreatedByFluxLab language={props.language} />
         </footer>

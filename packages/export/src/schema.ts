@@ -265,7 +265,7 @@ export const EXPORT_RECORD_SCHEMA = {
       ],
       properties: {
         record_type: { const: 'ai_response' },
-        module: { const: 'AI SEO / GEO' },
+        module: { enum: ['AI SEO / GEO', 'UX/Conversion'] },
         module_status: { enum: ['Completed', 'Partial'] },
         scan_status: { const: null },
         coverage: { const: null },
@@ -386,7 +386,9 @@ export const EXPORT_RECORD_SCHEMA = {
         category: { type: 'string', minLength: 1 },
         severity: { enum: ['Critical', 'High', 'Medium', 'Low'] },
         confidence: { type: 'number', minimum: 0, maximum: 1 },
-        status: { enum: ['New', 'Acknowledged', 'Resolved', 'Reopened', 'Ignored', 'False Positive'] },
+        status: {
+          enum: ['New', 'Acknowledged', 'Resolved', 'Reopened', 'Ignored', 'False Positive'],
+        },
         target_url: { type: 'string', format: 'uri' },
         evidence_type: { enum: ['none', 'http', 'dom', 'screenshot', 'trace', 'mixed'] },
         evidence_ref: { type: 'string', minLength: 1 },

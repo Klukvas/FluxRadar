@@ -2,6 +2,7 @@ import type { CheckoutSession, Prisma, PrismaClient } from '@prisma/client';
 
 import { claimableCheckoutSessionWhere } from '../checkout-lifecycle.ts';
 import { aiConsentSchema, type AiConsentInput } from '../checkout-metadata.ts';
+import { storedExecutionConfig } from '../../profiles/execution-config.ts';
 import { CHECKOUT_SESSION_STATUSES } from '../constants.ts';
 import { InvalidSignatureError, WebhookValidationError } from '../errors.ts';
 import { createPaidScan, type PaidScanRecords } from '../paid-scan.ts';
@@ -418,6 +419,8 @@ async function processOrderCompleted(
       ...settledFields(amount.settledAmount, amount.settledCurrency),
       priceId: session.productPath,
       scopeJson: session.scopeJson,
+      profileConfigVersion: session.profileConfigVersion,
+      executionConfig: storedExecutionConfig(session.executionConfigJson) ?? undefined,
       aiConsent: readStoredConsent(session),
       now: context.now,
     });

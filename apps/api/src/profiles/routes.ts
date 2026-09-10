@@ -4,7 +4,13 @@
 
 import { Router } from 'express';
 import type { PrismaClient, SiteProfile } from '@prisma/client';
-import { httpsOriginSchema, siteProfileInputSchema } from '@fluxradar/contracts';
+import {
+  defaultProfileScanConfig,
+  httpsOriginSchema,
+  profileScanConfigSchema,
+  siteProfileInputSchema,
+  siteProfilePatchInputSchema,
+} from '@fluxradar/contracts';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
@@ -29,7 +35,7 @@ export interface ProfilesRouterDeps {
   readonly requestRateLimiter?: RequestRateLimiter;
 }
 
-const siteProfilePatchSchema = siteProfileInputSchema.partial();
+const siteProfilePatchSchema = siteProfilePatchInputSchema;
 
 // Only the address. A name is never accepted here: this endpoint exists for a
 // scan started from a raw URL, where nobody typed one, and accepting one would
@@ -44,8 +50,23 @@ function toProfileDto(profile: SiteProfile): Record<string, unknown> {
     industry: profile.industry,
     region: profile.region,
     language: profile.language,
+    businessDescription: profile.businessDescription,
+    offerings: profile.offerings,
+    targetLanguages: profile.targetLanguages,
+    targetAudience: profile.targetAudience,
+    scanConfig: profileScanConfigFromJson(profile.scanConfigJson),
+    scanConfigVersion: profile.scanConfigVersion,
     createdAt: profile.createdAt.toISOString(),
   };
+}
+
+function profileScanConfigFromJson(value: string): unknown {
+  try {
+    const parsed = profileScanConfigSchema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : defaultProfileScanConfig;
+  } catch {
+    return defaultProfileScanConfig;
+  }
 }
 
 export async function findOwnProfile(
@@ -102,6 +123,12 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
           industry: input.industry ?? null,
           region: input.region ?? null,
           language: input.language ?? null,
+          businessDescription: input.businessDescription ?? null,
+          offerings: input.offerings ?? null,
+          targetLanguages: input.targetLanguages ?? null,
+          targetAudience: input.targetAudience ?? null,
+          scanConfigJson: JSON.stringify(input.scanConfig ?? defaultProfileScanConfig),
+          scanConfigVersion: 1,
         },
       });
       sendOk(res, toProfileDto(profile), { status: 201 });
@@ -156,20 +183,74 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
       requiredParam(req.params.profileId, 'profileId'),
     );
     const input = parseInput(siteProfilePatchSchema, req.body);
+    if (
+      input.expectedProfileConfigVersion !== undefined &&
+      input.expectedProfileConfigVersion !== profile.scanConfigVersion
+    ) {
+      throw conflict(
+        'PROFILE_CONFIG_CHANGED',
+        'The profile changed. Reload it and review the configuration before trying again.',
+      );
+    }
     if (input.domain !== undefined && input.domain !== profile.domain) {
       await assertDomainChangeAllowed(prisma, profile.id, deps.now());
     }
+    const nextScanConfig =
+      input.scanConfig === undefined ? undefined : profileScanConfigSchema.parse(input.scanConfig);
+    const scanConfigChanged =
+      nextScanConfig !== undefined &&
+      JSON.stringify(nextScanConfig) !==
+        JSON.stringify(profileScanConfigFromJson(profile.scanConfigJson));
+    const identityChanged = (
+      [
+        'name',
+        'domain',
+        'industry',
+        'region',
+        'language',
+        'businessDescription',
+        'offerings',
+        'targetLanguages',
+        'targetAudience',
+      ] as const
+    ).some((key) => input[key] !== undefined && input[key] !== profile[key]);
     const data = {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.domain !== undefined ? { domain: input.domain } : {}),
       ...(input.industry !== undefined ? { industry: input.industry } : {}),
       ...(input.region !== undefined ? { region: input.region } : {}),
       ...(input.language !== undefined ? { language: input.language } : {}),
+      ...(input.businessDescription !== undefined
+        ? { businessDescription: input.businessDescription }
+        : {}),
+      ...(input.offerings !== undefined ? { offerings: input.offerings } : {}),
+      ...(input.targetLanguages !== undefined ? { targetLanguages: input.targetLanguages } : {}),
+      ...(input.targetAudience !== undefined ? { targetAudience: input.targetAudience } : {}),
+      ...(scanConfigChanged
+        ? {
+            scanConfigJson: JSON.stringify(nextScanConfig),
+          }
+        : {}),
+      ...(scanConfigChanged || identityChanged ? { scanConfigVersion: { increment: 1 } } : {}),
     };
     try {
-      const updated = await prisma.siteProfile.update({ where: { id: profile.id }, data });
+      const updated = await prisma.siteProfile.update({
+        where: { id: profile.id, accountId, scanConfigVersion: profile.scanConfigVersion },
+        data,
+      });
       sendOk(res, toProfileDto(updated));
     } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'P2025'
+      ) {
+        throw conflict(
+          'PROFILE_CONFIG_CHANGED',
+          'The profile changed. Reload it and review the configuration before trying again.',
+        );
+      }
       if (isUniqueViolation(error, 'domain')) {
         throw conflict('DOMAIN_EXISTS', 'a profile for this domain already exists');
       }

@@ -4,7 +4,7 @@ import type { PrismaClient, Scan } from '@prisma/client';
 
 import { JOB_TYPES } from './constants.ts';
 import type { PaddleCustomData, PaidPlan } from './webhook-schema.ts';
-import { notFound } from '../http/errors.ts';
+import { captureExecutionConfig, lockOwnProfile } from '../profiles/execution-config.ts';
 
 export interface InternalCheckoutParams {
   readonly prisma: PrismaClient;
@@ -14,6 +14,7 @@ export interface InternalCheckoutParams {
   readonly scope: ScanScopeInput;
   readonly aiConsent: PaddleCustomData['aiConsent'];
   readonly now: Date;
+  readonly expectedProfileConfigVersion?: number | undefined;
 }
 
 /**
@@ -23,12 +24,12 @@ export interface InternalCheckoutParams {
  */
 export async function createInternalFreeScan(params: InternalCheckoutParams): Promise<Scan> {
   return params.prisma.$transaction(async (tx) => {
-    const profile = await tx.siteProfile.findFirst({
-      where: { id: params.siteProfileId, accountId: params.accountId },
-    });
-    if (profile === null) {
-      throw notFound('site profile not found');
-    }
+    const profile = await lockOwnProfile(
+      tx,
+      params.accountId,
+      params.siteProfileId,
+      params.expectedProfileConfigVersion,
+    );
 
     const scan = await tx.scan.create({
       data: {
@@ -39,6 +40,10 @@ export async function createInternalFreeScan(params: InternalCheckoutParams): Pr
         domain: profile.domain,
         status: 'Pending',
         scopeJson: JSON.stringify(params.scope),
+        profileConfigVersion: profile.scanConfigVersion,
+        executionConfigJson: JSON.stringify(
+          captureExecutionConfig(profile, params.plan, params.scope),
+        ),
         rulesetVersion: RULESET_VERSION,
         createdAt: params.now,
       },

@@ -8,10 +8,11 @@
 // the form built one payload and the plan was never part of the decision.
 //
 // Both are decisions, not rendering, so they live here where they can be read
-// and tested on their own. `Scan.scopeJson` is the store; nothing else is
-// needed, and no preset table exists.
+// and tested on their own. The profile's scanConfig is the reusable store;
+// `Scan.scopeJson` remains the immutable snapshot of the settings used by one
+// completed or in-flight scan.
 
-import type { Scan } from './api';
+import type { ProfileScanConfig, Scan } from './api';
 import { PLAN_URL_LIMIT, type Plan } from './plan-modules';
 
 /** The scan settings as the form holds them — numbers and lists as typed text. */
@@ -167,14 +168,15 @@ export function scanScopeFrom(form: ScanScopeForm, plan: Plan): ScanScopePayload
 }
 
 /**
- * The form as the last check of this site left it.
+ * The form as a legacy scan left it. New profiles use their saved scanConfig;
+ * this fallback keeps older API fixtures and profiles usable during rollout.
  *
  * A Free scan contributes only its user agent. Everything else in a Free scope
  * was written by the server at the value the fixed homepage check enforces, so
  * carrying it forward would tell the owner they had once chosen a one-page
  * crawl with no depth — a preference they never expressed. A paid scan carries
- * everything, which is the whole point: the same site is usually checked the
- * same way twice.
+ * everything as a compatibility fallback; the profile configuration is now the
+ * source of truth for new and edited profiles.
  */
 export function scopeFormFromScan(scan: Scan): ScanScopeForm {
   const scope = scan.scope;
@@ -189,12 +191,41 @@ export function scopeFormFromScan(scan: Scan): ScanScopeForm {
     excludePatterns: (scope?.excludePatterns ?? []).join(', '),
     queryPolicy: scope?.queryPolicy ?? DEFAULT_SCOPE_FORM.queryPolicy,
     respectRobots: scope?.respectRobots ?? DEFAULT_SCOPE_FORM.respectRobots,
-    // Never carried forward: overriding robots.txt is a decision the owner
-    // confirms for the scan in front of them, not one a previous scan makes for
-    // them. The API refuses the pair anyway when the confirmation is missing.
+    // Legacy scan history is only a fallback during rollout. A robots override
+    // is not carried from that snapshot; the reusable profile config handles
+    // explicit saved settings separately.
     robotsOverrideConfirmed: false,
     userAgent: scope?.userAgent ?? DEFAULT_SCOPE_FORM.userAgent,
   };
+}
+
+/** Converts the reusable configuration stored on a profile into form values. */
+export function scopeFormFromProfileConfig(config: ProfileScanConfig): ScanScopeForm {
+  const scope = config.scope;
+  if (config.plan === 'Free') {
+    return { ...DEFAULT_SCOPE_FORM, userAgent: scope.userAgent };
+  }
+  return {
+    includeSubdomains: scope.includeSubdomains,
+    maxPages: numberText(scope.maxPages, ''),
+    maxDepth: numberText(scope.maxDepth, ''),
+    includePatterns: (scope.urlPatterns ?? []).join(', '),
+    excludePatterns: (scope.excludePatterns ?? []).join(', '),
+    queryPolicy: scope.queryPolicy,
+    respectRobots: scope.respectRobots,
+    robotsOverrideConfirmed: scope.robotsOverrideConfirmed,
+    userAgent: scope.userAgent,
+  };
+}
+
+/** Converts the current form into the complete reusable profile configuration. */
+export function profileScanConfigFromForm(form: ScanScopeForm, plan: Plan): ProfileScanConfig {
+  return { plan, scope: scanScopeFrom(form, plan) };
+}
+
+/** A stable comparison key for the editable part of a saved profile. */
+export function profileScanConfigFingerprint(config: ProfileScanConfig): string {
+  return JSON.stringify(config);
 }
 
 /** A comma-separated list as the API wants it: trimmed, without empty entries. */

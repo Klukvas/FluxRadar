@@ -40,10 +40,10 @@ describe('rules-mvp-0.1 registry', () => {
   // The public-only discovery/security/privacy extensions add eight descriptors.
   // omits the GEO group (13 SEO + 14 passive + 10 platform). The registry keeps
   // every enumerated rule because T-08/T-09/T-10 depend on each of them.
-  it('splits into 49 scanning+GEO rules and 10 platform contracts, 59 in total', () => {
-    expect(RULES_MVP_01).toHaveLength(49);
+  it('splits into 55 scanning+GEO+UX rules and 10 platform contracts, 65 in total', () => {
+    expect(RULES_MVP_01).toHaveLength(55);
     expect(PLATFORM_CONTRACTS).toHaveLength(10);
-    expect(RULESET_ALL).toHaveLength(59);
+    expect(RULESET_ALL).toHaveLength(65);
   });
 
   it('has a unique ruleId for every descriptor', () => {
@@ -76,6 +76,15 @@ describe('rules-mvp-0.1 registry', () => {
     const geoRules = rulesForModule('AI SEO / GEO');
     expect(geoRules).toHaveLength(5);
     for (const rule of geoRules) {
+      expect(rule.scoring).toBe('informational');
+      expect(rule.severity).toBeNull();
+    }
+  });
+
+  it('marks all UX/Conversion rules informational (no score penalty in v0.1)', () => {
+    const uxRules = rulesForModule('UX/Conversion');
+    expect(uxRules).toHaveLength(6);
+    for (const rule of uxRules) {
       expect(rule.scoring).toBe('informational');
       expect(rule.severity).toBeNull();
     }

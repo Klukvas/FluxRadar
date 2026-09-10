@@ -108,6 +108,12 @@ model SiteProfile {
   industry  String?
   region    String?
   language  String?
+  businessDescription String?
+  offerings           String?
+  targetLanguages     String?
+  targetAudience      String?
+  scanConfigJson      String    @default("{\"plan\":\"Complete\",\"scope\":{\"includeSubdomains\":false,\"maxPages\":15,\"maxDepth\":5,\"queryPolicy\":\"ignore\",\"respectRobots\":true,\"robotsOverrideConfirmed\":false,\"userAgent\":\"desktop\"}}")
+  scanConfigVersion   Int       @default(1)
   createdAt DateTime @default(now())
 
   account          Account            @relation(fields: [accountId], references: [id])
@@ -220,6 +226,8 @@ model CheckoutSession {
   settledAmount     Float?
   settledCurrency   String?
   scopeJson         String
+  profileConfigVersion Int @default(1)
+  executionConfigJson String?
   aiConsentJson     String?
   purchaseId        String?   @unique
   expiresAt         DateTime?
@@ -264,6 +272,8 @@ model Scan {
   status             String    @default("Pending")
   statusReason       String?
   scopeJson          String
+  profileConfigVersion Int @default(1)
+  executionConfigJson String?
   rulesetVersion     String
   platformRetryCount Int       @default(0)
   moduleRetryCount   Int       @default(0)
@@ -360,6 +370,9 @@ model Issue {
 model AiResponseRecord {
   id                  String   @id @default(cuid())
   scanId              String
+  module              String   @default("AI SEO / GEO")
+  promptText          String   @default("")
+  tokenizerVersion    String?
   provider            String
   apiVersion          String
   modelId             String

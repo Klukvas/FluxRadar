@@ -11,7 +11,7 @@
 // `scan-status.ts` matches the free-check scoring reason as one: the web app has
 // no dependency on the contracts package. The sources are
 // `apps/api/src/orchestrator/module-result.ts` (crawl coverage),
-// `module-plan.ts` (the deliberate stubs), `run-attempt.ts` (Performance),
+// `module-plan.ts` (the tariff/module plan), `run-attempt.ts` (Performance),
 // `packages/ai/src/run-request.ts` (the AI refusals) and
 // `apps/api/src/integrations/google/module-row.ts` (Google).
 
@@ -40,6 +40,11 @@ const REASON_KEYS: Readonly<Record<string, ReasonKey>> = {
   ProviderUnavailable: 'aiProviderUnavailable',
   ProviderContract: 'aiProviderContract',
   EmptyQuestionLibrary: 'aiEmptyQuestionLibrary',
+  UxAiConsentMissing: 'uxAiConsentMissing',
+  UxAiRedactionBlocked: 'uxAiRedactionBlocked',
+  UxAiQuotaExceeded: 'uxAiQuotaExceeded',
+  UxAiProviderUnavailable: 'uxAiProviderUnavailable',
+  UxAiProviderContract: 'uxAiProviderContract',
   // Analytics, written from the live Google connection state.
   AnalyticsIntegrationNotConnected: 'analyticsNotConnected',
   AnalyticsPropertyNotSelected: 'analyticsPropertyNotSelected',

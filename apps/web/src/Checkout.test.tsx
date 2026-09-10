@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
@@ -146,7 +146,23 @@ describe('paid checkout flow', () => {
     // The paid default is never pre-selected: the plan stays Free until the
     // buyer picks a paid one themselves.
     selectPlan('Complete');
-    fireEvent.click(screen.getByRole('checkbox', { name: /Allow sending public pages/ }));
+    const legalNotice = screen.getByRole('note', { name: 'Purchase terms' });
+    expect(legalNotice).toHaveTextContent(
+      'By selecting “Pay and run scan”, you agree to the Terms of service and acknowledge the Privacy policy · Cookie policy.',
+    );
+    expect(within(legalNotice).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
+      'href',
+      '/terms?lang=en',
+    );
+    expect(within(legalNotice).getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
+      'href',
+      '/privacy?lang=en',
+    );
+    expect(within(legalNotice).getByRole('link', { name: 'Cookie policy' })).toHaveAttribute(
+      'href',
+      '/cookies?lang=en',
+    );
+    expect(screen.queryByRole('checkbox', { name: /Anthropic/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 
     expect(await screen.findByText('Payment — confirming')).toBeInTheDocument();
@@ -170,7 +186,10 @@ describe('paid checkout flow', () => {
       siteProfileId: profile.id,
       plan: 'Complete',
       scope: expect.objectContaining({ includeSubdomains: false }),
-      aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: 'core-ai-processing-notice-v3',
+      },
     });
 
     // Only after the server reports a scan does the UI move on.
@@ -205,7 +224,6 @@ describe('paid checkout flow', () => {
 
     await screen.findByText('Complete · $120');
     selectPlan('Complete');
-    fireEvent.click(screen.getByRole('checkbox', { name: /Allow sending public pages/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 
     const link = await screen.findByRole('link', { name: 'Open the checkout page' });
@@ -242,7 +260,6 @@ describe('paid checkout flow', () => {
 
     await screen.findByText('Complete · $120');
     selectPlan('Complete');
-    fireEvent.click(screen.getByRole('checkbox', { name: /Allow sending public pages/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 
     expect(
@@ -338,7 +355,6 @@ describe('paid checkout flow', () => {
       return envelope(null);
     });
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /Allow sending public pages/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Run internal scan' }));
 
     await waitFor(() => expect(called(fetchMock, '/billing/dev-checkout')).toBe(true));
@@ -377,7 +393,6 @@ describe('paid checkout flow', () => {
     await openNewScan(handler);
     await screen.findByText('Complete · $120');
     selectPlan('Complete');
-    fireEvent.click(screen.getByRole('checkbox', { name: /Allow sending public pages/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
     await screen.findByText('Payment — confirming');
 

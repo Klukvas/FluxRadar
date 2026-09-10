@@ -449,6 +449,88 @@ article p {
   color: var(--plat-600);
 }
 
+/* The static blog uses the same necessary-vs-preferences choice as the React
+   shell. It is a non-modal dock, so reading and keyboard focus are never
+   trapped behind it. */
+.blog-cookie-dock {
+  position: fixed;
+  z-index: 80;
+  inset: auto 0 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--sp-3);
+  padding-bottom: max(var(--sp-3), env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+.blog-cookie-consent {
+  width: min(100%, 720px);
+  min-width: 0;
+  max-height: min(440px, 50dvh);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  background: var(--plat-100);
+  border: 1px solid var(--plat-900);
+  box-shadow: 2px 2px 0 rgb(0 0 0 / 35%);
+  font: 13px/1.5 var(--ui-font);
+}
+.blog-cookie-consent__titlebar {
+  padding: 3px var(--sp-3);
+  text-align: center;
+  background: repeating-linear-gradient(0deg, #fff 0 1px, var(--plat-200) 1px 2px);
+}
+.blog-cookie-consent__titlebar h2 {
+  display: inline;
+  padding: 0 var(--sp-2);
+  background: var(--plat-100);
+  font: 700 13px/1.5 var(--ui-font);
+}
+.blog-cookie-consent__body {
+  padding: var(--sp-3) var(--sp-4);
+}
+.blog-cookie-consent__body p {
+  margin: 0 0 var(--sp-2);
+}
+.blog-cookie-consent__body a {
+  color: var(--selection);
+}
+.blog-cookie-consent__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.blog-cookie-consent__actions button,
+.blog-cookie-settings {
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--plat-900);
+  background: var(--plat-50);
+  color: var(--plat-900);
+  box-shadow:
+    inset 1px 1px #fff,
+    inset -1px -1px var(--plat-400);
+  cursor: pointer;
+  font: 700 13px/1.4 var(--ui-font);
+}
+.blog-cookie-consent__actions button {
+  white-space: normal;
+}
+.blog-cookie-settings {
+  max-width: 100%;
+  pointer-events: auto;
+}
+.blog-cookie-consent__error {
+  padding-top: var(--sp-2);
+  color: #8b1a12;
+  font-weight: 700;
+}
+.blog-cookie-consent :focus-visible,
+.blog-cookie-settings:focus-visible {
+  outline: 2px solid var(--selection);
+  outline-offset: 3px;
+}
+
 /* The language filter: JS records the choice on <html>, the rest is CSS. */
 html[data-blog-lang='en'] [data-article-lang='uk'],
 html[data-blog-lang='uk'] [data-article-lang='en'] {
@@ -464,6 +546,13 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
   }
   h1 {
     font-size: 30px;
+  }
+  .blog-cookie-dock {
+    padding: var(--sp-2);
+    padding-bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+  }
+  .blog-cookie-consent__actions {
+    grid-template-columns: 1fr;
   }
   .menubar__system {
     display: none;

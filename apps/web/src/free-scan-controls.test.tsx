@@ -1,3 +1,4 @@
+import { saveCookieConsent } from './browser-consent';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -64,6 +65,7 @@ function renderNewScan(acct: object, language: 'en' | 'uk' = 'en'): ReturnType<t
     return Promise.resolve(envelope(null));
   });
   vi.stubGlobal('fetch', fetchMock);
+  saveCookieConsent(true);
   window.localStorage.setItem('fluxradar.language', language);
   window.history.replaceState(null, '', '/scan');
   render(<App />);
@@ -78,7 +80,6 @@ const PAID_ONLY_CONTROLS = [
   ['exclude patterns', /^Exclude path patterns/],
   ['URL query parameters', /^URL query parameters/],
   ['robots.txt', /Respect robots\.txt/],
-  ['AI consent', /Allow sending public pages/],
 ] as const;
 
 afterEach(() => {
@@ -102,7 +103,7 @@ describe('free plan controls', () => {
 
     expect(screen.getByText('What the free check does')).toBeInTheDocument();
     expect(screen.getByText(/reads your homepage and nothing else/)).toBeInTheDocument();
-    expect(screen.getByText('Homepage only')).toBeInTheDocument();
+    expect(screen.getAllByText('Homepage only').length).toBeGreaterThan(0);
     expect(screen.getByText('Always respected')).toBeInTheDocument();
     expect(
       screen.getByText(/belong to the paid plans and are not available on Free/),
@@ -115,7 +116,7 @@ describe('free plan controls', () => {
 
     expect(screen.getByText('Що робить безкоштовна перевірка')).toBeInTheDocument();
     expect(screen.getByText(/читає лише головну сторінку/)).toBeInTheDocument();
-    expect(screen.getByText('Лише головна')).toBeInTheDocument();
+    expect(screen.getAllByText('Лише головна').length).toBeGreaterThan(0);
     expect(screen.getByText(/недоступні на Free/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Включати піддомени/)).not.toBeInTheDocument();
   });
@@ -159,42 +160,82 @@ describe('paid plan controls', () => {
     for (const [, pattern] of PAID_ONLY_CONTROLS) {
       expect(screen.getByLabelText(pattern)).toBeInTheDocument();
     }
+    expect(
+      screen.getByRole('region', { name: 'AI processing included in this audit' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('What the free check does')).not.toBeInTheDocument();
   });
 
-  it('explains the optional AI visibility check before consent is given', async () => {
+  it('discloses included AI processing before a paid audit starts', async () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan — scope and tariff');
 
-    const callout = screen.getByRole('region', { name: 'Optional AI visibility check' });
+    const callout = screen.getByRole('region', {
+      name: 'AI processing included in this audit',
+    });
+    expect(within(callout).getByText(/instruct FluxRadar to use Anthropic/)).toBeInTheDocument();
     expect(
-      within(callout).getByText(/sends the public pages read by this scan to Anthropic/),
-    ).toBeInTheDocument();
-    expect(
-      within(callout).getByText(/Leave it off and the AI SEO \/ GEO module will not run/),
+      within(callout).getByText(/AI can be wrong, omit a mention or be temporarily unavailable/),
     ).toBeInTheDocument();
     expect(within(callout).getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
       'href',
-      '/privacy',
+      '/privacy?lang=en',
     );
     expect(within(callout).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
       'href',
-      '/terms',
+      '/terms?lang=en',
     );
-    expect(within(callout).getByLabelText(/Allow sending public pages/)).toHaveAttribute(
+    expect(within(callout).queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('discloses the external performance provider before a Complete scan can start', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+
+    const callout = screen.getByRole('region', { name: 'External performance measurement' });
+    expect(within(callout).getByText(/Google PageSpeed Insights/)).toHaveTextContent(
+      /do not connect a Google account or install anything/i,
+    );
+    expect(within(callout).getByText(/return no field data or fail to answer/i)).toBeVisible();
+  });
+
+  it('explains how robots.txt changes the crawl before the controls', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+
+    const callout = screen.getByRole('region', { name: 'How robots.txt affects this scan' });
+    expect(within(callout).getByText(/reads the site’s public robots\.txt/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Respect robots\.txt/)).toHaveAttribute(
       'aria-describedby',
-      'ai-consent-description',
+      'robots-info-description',
+    );
+    fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
+    expect(screen.getByLabelText(/I confirm the robots\.txt override/)).toHaveAttribute(
+      'aria-describedby',
+      'robots-info-description',
     );
   });
 
-  it('localizes the optional AI visibility callout', async () => {
+  it('localizes the included AI processing disclosure', async () => {
     renderNewScan(internalAccount, 'uk');
     await screen.findByText('Нова перевірка — область і тариф');
 
-    const callout = screen.getByRole('region', { name: 'Необовʼязкова перевірка AI-видимості' });
+    const callout = screen.getByRole('region', { name: 'AI-обробка включена в цей аудит' });
     expect(within(callout).getByRole('link', { name: 'Політика приватності' })).toHaveAttribute(
       'href',
-      '/privacy',
+      '/privacy?lang=uk',
+    );
+  });
+
+  it('localizes the robots.txt explanation', async () => {
+    renderNewScan(internalAccount, 'uk');
+    await screen.findByText('Нова перевірка — область і тариф');
+
+    const callout = screen.getByRole('region', { name: 'Як robots.txt впливає на перевірку' });
+    expect(within(callout).getByText(/читає публічний robots\.txt сайту/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Дотримуватись robots\.txt/)).toHaveAttribute(
+      'aria-describedby',
+      'robots-info-description',
     );
   });
 
@@ -208,7 +249,6 @@ describe('paid plan controls', () => {
     fireEvent.change(screen.getByLabelText(/^Include path patterns/), {
       target: { value: '/docs/*' },
     });
-    fireEvent.click(screen.getByLabelText(/Allow sending public pages/));
     fireEvent.click(screen.getByRole('button', { name: 'Run internal scan' }));
 
     await waitFor(() =>
@@ -220,6 +260,10 @@ describe('paid plan controls', () => {
     expect(bodyOf(call?.[1] as RequestInit)).toMatchObject({
       siteProfileId: profile.id,
       plan: 'Complete',
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: 'core-ai-processing-notice-v3',
+      },
       scope: {
         includeSubdomains: true,
         maxPages: 30,

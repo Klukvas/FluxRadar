@@ -16,6 +16,22 @@ import { App } from './App';
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
 const savedProfile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
+const configuredProfile = {
+  ...savedProfile,
+  scanConfigVersion: 3,
+  scanConfig: {
+    plan: 'Complete' as const,
+    scope: {
+      includeSubdomains: true,
+      maxPages: 120,
+      maxDepth: 6,
+      queryPolicy: 'include' as const,
+      respectRobots: true,
+      robotsOverrideConfirmed: false,
+      userAgent: 'mobile' as const,
+    },
+  },
+};
 const createdProfile = { id: 'profile-new', name: 'mysite.com', domain: 'https://mysite.com' };
 
 const freeScan = {
@@ -83,12 +99,15 @@ function renderNewScan(
 }
 
 function stubWorkspace(profiles: readonly object[]) {
-  return (path: string): Response => {
+  return (path: string, init?: RequestInit): Response => {
     if (path === '/auth/me') return envelope(account);
     if (path === '/profiles') return envelope(profiles);
     if (path === '/scans/active') return envelope(null);
     if (path === '/profiles/profile-1/scans') return envelope([lastBasicScan]);
     if (path === '/profiles/resolve') return envelope({ profile: createdProfile, created: true });
+    if (path.startsWith('/profiles/') && init?.method === 'PATCH') {
+      return envelope(profiles[0] ?? createdProfile);
+    }
     if (path.endsWith('/free-check')) return envelope(freeScan);
     if (path.startsWith('/scans/')) return envelope(freeScan);
     return envelope(null);
@@ -211,13 +230,13 @@ describe('new scan from a raw address — no saved profile', () => {
   // will not re-read must not cancel the check it was created for.
   it('still starts the check when the profile list cannot be reloaded', async () => {
     let listReads = 0;
-    const fetchMock = renderNewScan((path) => {
+    const fetchMock = renderNewScan((path, init) => {
       if (path === '/profiles' && (listReads += 1) > 1)
         return new Response(
           JSON.stringify({ success: false, data: null, error: { code: 'X', message: 'no list' } }),
           { status: 500, headers: { 'content-type': 'application/json' } },
         );
-      return stubWorkspace([])(path);
+      return stubWorkspace([])(path, init);
     });
     await screen.findByText('New scan — scope and tariff');
 
@@ -236,6 +255,80 @@ describe('new scan from a raw address — no saved profile', () => {
 });
 
 describe('new scan from a raw address — profiles already saved', () => {
+  it('keeps Free runnable when saved Complete checkout is unavailable without overwriting that configuration', async () => {
+    const fetchMock = renderNewScan(stubWorkspace([configuredProfile]));
+    const button = await screen.findByRole('button', { name: 'Run free check' });
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(screen.getByRole('combobox', { name: 'Scan plan' })).toHaveValue('Free');
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([input]) => pathOf(input).endsWith('/free-check'))).toBe(
+        true,
+      ),
+    );
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false);
+  });
+
+  it('loads and saves the reusable configuration on the selected profile', async () => {
+    const fetchMock = renderNewScan((path, init) => {
+      if (path === '/auth/me') return envelope({ ...account, internalFreeAccess: true });
+      if (path === `/profiles/${configuredProfile.id}` && init?.method === 'PATCH') {
+        return envelope(configuredProfile);
+      }
+      return stubWorkspace([configuredProfile])(path, init);
+    });
+    await screen.findByText('New scan — scope and tariff');
+
+    expect(screen.getByRole('combobox', { name: /^Scan plan/ })).toHaveValue('Complete');
+    await waitFor(() => {
+      expect(screen.getByRole('spinbutton', { name: /^Maximum pages/ })).toHaveValue(120);
+      expect(screen.getByRole('spinbutton', { name: /^Maximum crawl depth/ })).toHaveValue(6);
+      expect(screen.getByRole('combobox', { name: /^User agent/ })).toHaveValue('mobile');
+    });
+    expect(screen.getByText('Saved · version 3')).toBeInTheDocument();
+    expect(screen.getByText('What will run')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: /^Maximum pages/ }), {
+      target: { value: '80' },
+    });
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Starting the check will save these settings as a new version/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([input, init]) =>
+            pathOf(input) === `/profiles/${configuredProfile.id}` &&
+            (init as RequestInit | undefined)?.method === 'PATCH',
+        ),
+      ).toBe(true),
+    );
+    const patchCall = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        pathOf(input) === `/profiles/${configuredProfile.id}` &&
+        (init as RequestInit | undefined)?.method === 'PATCH',
+    );
+    expect(bodyOf(patchCall?.[1] as RequestInit)).toMatchObject({
+      expectedProfileConfigVersion: 3,
+      scanConfig: {
+        plan: 'Complete',
+        scope: {
+          includeSubdomains: true,
+          maxPages: 80,
+          maxDepth: 6,
+          queryPolicy: 'include',
+          respectRobots: true,
+          robotsOverrideConfirmed: false,
+          userAgent: 'mobile',
+        },
+      },
+    });
+  });
+
   it('offers the saved profiles and a way out of the list', async () => {
     renderNewScan(stubWorkspace([savedProfile]));
     await screen.findByText('New scan — scope and tariff');
@@ -263,10 +356,10 @@ describe('new scan from a raw address — profiles already saved', () => {
   });
 
   it('checks an unsaved address while a saved profile exists', async () => {
-    const fetchMock = renderNewScan((path) => {
+    const fetchMock = renderNewScan((path, init) => {
       if (path === '/profiles/resolve')
         return envelope({ profile: createdProfile, created: false });
-      return stubWorkspace([savedProfile])(path);
+      return stubWorkspace([savedProfile])(path, init);
     });
     await screen.findByText('New scan — scope and tariff');
 
@@ -297,10 +390,10 @@ describe('new scan from a raw address — profiles already saved', () => {
     // An internal account is the one that can actually pick Complete here — a
     // plan a signed-out storefront does not offer is not in the list, and a
     // select cannot report a value it has no option for.
-    renderNewScan((path) =>
+    renderNewScan((path, init) =>
       path === '/auth/me'
         ? envelope({ ...account, internalFreeAccess: true })
-        : stubWorkspace([savedProfile])(path),
+        : stubWorkspace([savedProfile])(path, init),
     );
     await screen.findByText('New scan — scope and tariff');
 
@@ -320,9 +413,9 @@ describe('new scan from a raw address — profiles already saved', () => {
   });
 
   it('opens on the defaults, and says nothing about a carry-over, for a site with no history', async () => {
-    renderNewScan((path) => {
+    renderNewScan((path, init) => {
       if (path === '/profiles/profile-1/scans') return envelope([]);
-      return stubWorkspace([savedProfile])(path);
+      return stubWorkspace([savedProfile])(path, init);
     });
     await screen.findByText('New scan — scope and tariff');
 

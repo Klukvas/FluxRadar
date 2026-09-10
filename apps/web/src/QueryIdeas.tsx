@@ -54,7 +54,7 @@ export function QueryIdeasPanel(props: { scanId: string; language: Language }) {
     try {
       const result = await apiRequest<QueryIdeasResult>(
         `/scans/${props.scanId}/search-console/query-ideas`,
-        { method: 'POST' },
+        { method: 'POST', body: JSON.stringify({ noticeVersion: 'query-ideas-v2' }) },
       );
       setPhase({ kind: 'answered', result });
     } catch {
@@ -74,6 +74,7 @@ export function QueryIdeasPanel(props: { scanId: string; language: Language }) {
       </h4>
       <p className="muted query-ideas__lead">{t.lead}</p>
       <QueryIdeasBody phase={phase} language={props.language} />
+      <p className="muted query-ideas__note">{t.idleBody}</p>
       <div className="button-row query-ideas__actions">
         <Button onClick={() => void generate()} disabled={phase.kind === 'generating'}>
           {phase.kind === 'generating'
@@ -90,7 +91,7 @@ export function QueryIdeasPanel(props: { scanId: string; language: Language }) {
 function QueryIdeasBody({ phase, language }: { phase: Phase; language: Language }) {
   const t = copy[language].report.queryIdeas;
   if (phase.kind === 'idle') {
-    return <p className="muted query-ideas__note">{t.idleBody}</p>;
+    return null;
   }
   if (phase.kind === 'generating') {
     return (

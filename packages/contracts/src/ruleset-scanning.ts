@@ -171,7 +171,8 @@ const SEO_DISCOVERY_RULES: readonly RuleDescriptor[] = [
 ];
 
 // GEO rules are informational in v0.1: the module is assessed via readiness practices
-// on mock provider responses without score penalties (score_delta = 0, §15/GEO-METHOD-005).
+// on normalized provider responses without score penalties (score_delta = 0,
+// §15/GEO-METHOD-005). Production uses the configured provider; tests use mocks.
 const GEO_RULES: readonly RuleDescriptor[] = [
   {
     ruleId: 'GEO-PROVIDER-001',
@@ -527,6 +528,72 @@ const PRIVACY_RULES: readonly RuleDescriptor[] = [
   },
 ];
 
+// UX/Conversion combines narrow DOM facts with AI-assisted interpretations of
+// the same bounded evidence package. All are informational: the module never
+// claims a real conversion rate and these findings stay outside the overall score.
+const UX_CONVERSION_RULES: readonly RuleDescriptor[] = [
+  {
+    ruleId: 'UX-CONV-STATIC-001',
+    module: 'UX/Conversion',
+    title: 'entry-page primary heading',
+    category: 'value-proposition',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle: 'fetched entry-page HTML contains an h1 heading',
+  },
+  {
+    ruleId: 'UX-CONV-STATIC-002',
+    module: 'UX/Conversion',
+    title: 'entry-page action path',
+    category: 'call-to-action',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle: 'fetched entry-page HTML contains a link, button, or button-like input',
+  },
+  {
+    ruleId: 'UX-CONV-STATIC-003',
+    module: 'UX/Conversion',
+    title: 'explicit form submission control',
+    category: 'conversion-friction',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle: 'a form with controls contains an explicit submit control in static HTML',
+  },
+  {
+    ruleId: 'UX-CONV-AI-001',
+    module: 'UX/Conversion',
+    title: 'value proposition clarity',
+    category: 'value-proposition',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle: 'AI interpretation of visible page copy against the saved profile context',
+  },
+  {
+    ruleId: 'UX-CONV-AI-002',
+    module: 'UX/Conversion',
+    title: 'primary action clarity',
+    category: 'call-to-action',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle: 'AI interpretation of detected actions, forms, and links against the intended audience',
+  },
+  {
+    ruleId: 'UX-CONV-AI-003',
+    module: 'UX/Conversion',
+    title: 'conversion friction and trust',
+    category: 'conversion-friction',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle: 'AI interpretation of visible steps, contact paths, and trust signals in static HTML',
+  },
+];
+
 /** Scanner + GEO rules of rules-mvp-0.1 (platform contracts live separately). */
 export const RULES_MVP_01: readonly RuleDescriptor[] = [
   ...SEO_TECHNICAL_RULES,
@@ -538,4 +605,5 @@ export const RULES_MVP_01: readonly RuleDescriptor[] = [
   ...ACCESSIBILITY_RULES,
   ...CONTENT_RULES,
   ...PRIVACY_RULES,
+  ...UX_CONVERSION_RULES,
 ];

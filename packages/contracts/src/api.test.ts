@@ -4,6 +4,8 @@ import {
   issueStatusUpdateInputSchema,
   loginInputSchema,
   registerInputSchema,
+  defaultProfileScanConfig,
+  profileScanConfigSchema,
   scanRequestInputSchema,
   siteProfileInputSchema,
 } from './api.js';
@@ -50,16 +52,38 @@ describe('loginInputSchema', () => {
   });
 });
 
+describe('launch configuration revision', () => {
+  it('preserves the expected profile revision independently of the requested plan', () => {
+    expect(
+      scanRequestInputSchema.parse({
+        plan: 'Free',
+        scope: { includeSubdomains: false },
+        expectedProfileConfigVersion: 7,
+      }),
+    ).toMatchObject({ expectedProfileConfigVersion: 7 });
+    expect(
+      scanRequestInputSchema.safeParse({
+        plan: 'Complete',
+        scope: { includeSubdomains: false },
+        expectedProfileConfigVersion: 0,
+      }).success,
+    ).toBe(false);
+  });
+});
+
 describe('siteProfileInputSchema', () => {
   const base = { name: 'My Site' };
 
-  it.each(['https://example.com', 'https://example.com/'])('accepts a root https origin and normalizes it', (domain) => {
-    const result = siteProfileInputSchema.safeParse({ ...base, domain });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.domain).toBe('https://example.com');
-    }
-  });
+  it.each(['https://example.com', 'https://example.com/'])(
+    'accepts a root https origin and normalizes it',
+    (domain) => {
+      const result = siteProfileInputSchema.safeParse({ ...base, domain });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.domain).toBe('https://example.com');
+      }
+    },
+  );
 
   it('normalizes host case and default port to the canonical origin', () => {
     const result = siteProfileInputSchema.safeParse({ ...base, domain: 'https://Example.com:443' });
@@ -67,6 +91,63 @@ describe('siteProfileInputSchema', () => {
     if (result.success) {
       expect(result.data.domain).toBe('https://example.com');
     }
+  });
+
+  it('accepts the optional site context used for future domain-specific queries', () => {
+    const result = siteProfileInputSchema.safeParse({
+      ...base,
+      domain: 'https://example.com',
+      industry: 'Dental clinic',
+      businessDescription: 'A family dental clinic in Kyiv.',
+      offerings: 'Implants, cleanings, emergency appointments',
+      region: 'Kyiv, Ukraine',
+      targetLanguages: 'Ukrainian, Russian, English',
+      targetAudience: 'Adults and families in Kyiv',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects site context that exceeds its bounded input size', () => {
+    expect(
+      siteProfileInputSchema.safeParse({
+        ...base,
+        domain: 'https://example.com',
+        offerings: 'x'.repeat(1201),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('defines a valid reusable Complete profile configuration', () => {
+    const result = siteProfileInputSchema.safeParse({ ...base, domain: 'https://example.com' });
+    expect(result.success).toBe(true);
+    expect(defaultProfileScanConfig.plan).toBe('Complete');
+    expect(profileScanConfigSchema.safeParse(defaultProfileScanConfig).success).toBe(true);
+  });
+
+  it('validates a saved profile configuration with the same plan limits as a scan', () => {
+    expect(
+      profileScanConfigSchema.safeParse({
+        plan: 'Basic',
+        scope: { includeSubdomains: false, maxPages: 5001 },
+      }).success,
+    ).toBe(false);
+    expect(
+      siteProfileInputSchema.safeParse({
+        ...base,
+        domain: 'https://example.com',
+        scanConfig: {
+          plan: 'Complete',
+          scope: {
+            includeSubdomains: true,
+            maxPages: 120,
+            maxDepth: 6,
+            queryPolicy: 'include',
+            respectRobots: true,
+            userAgent: 'mobile',
+          },
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it.each([
@@ -126,14 +207,18 @@ describe('scanRequestInputSchema', () => {
       expect(parsed.data.scope.userAgent).toBe('mobile');
       expect(parsed.data.scope.robotsOverrideConfirmed).toBe(false);
     }
-    expect(scanRequestInputSchema.safeParse({
-      plan: 'Complete',
-      scope: { includeSubdomains: false, respectRobots: false },
-    }).success).toBe(false);
-    expect(scanRequestInputSchema.safeParse({
-      plan: 'Complete',
-      scope: { includeSubdomains: false, respectRobots: false, robotsOverrideConfirmed: true },
-    }).success).toBe(true);
+    expect(
+      scanRequestInputSchema.safeParse({
+        plan: 'Complete',
+        scope: { includeSubdomains: false, respectRobots: false },
+      }).success,
+    ).toBe(false);
+    expect(
+      scanRequestInputSchema.safeParse({
+        plan: 'Complete',
+        scope: { includeSubdomains: false, respectRobots: false, robotsOverrideConfirmed: true },
+      }).success,
+    ).toBe(true);
   });
 
   it('rejects an unknown plan and a malformed scope', () => {

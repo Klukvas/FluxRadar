@@ -166,7 +166,9 @@ function groupConsistencyViolations(group: readonly IndexedIssue[]): readonly Se
 }
 
 /** Пересчёт агрегатных penalty модуля тем же движком, что считал score (D-119). */
-function modulePenaltyViolations(moduleIssues: readonly IndexedIssue[]): readonly SemanticViolation[] {
+function modulePenaltyViolations(
+  moduleIssues: readonly IndexedIssue[],
+): readonly SemanticViolation[] {
   const scored = moduleIssues.filter(({ record }) => record.rule_penalty > 0);
   if (scored.length === 0) {
     return [];
@@ -224,7 +226,9 @@ function unusableModuleViolations(
 ): readonly SemanticViolation[] {
   const unusableModules = new Set(
     records.flatMap((record) =>
-      record.record_type === 'module' && record.module_status === 'Completed' && record.score === null
+      record.record_type === 'module' &&
+      record.module_status === 'Completed' &&
+      record.score === null
         ? [record.module]
         : [],
     ),
@@ -233,7 +237,7 @@ function unusableModuleViolations(
     return [];
   }
   return issues.flatMap(({ record, index }) =>
-    unusableModules.has(record.module)
+    unusableModules.has(record.module) && !isAdvisoryUxIssue(record)
       ? [
           {
             invariant: 'EXPORT-001/5',
@@ -244,6 +248,21 @@ function unusableModuleViolations(
           },
         ]
       : [],
+  );
+}
+
+const ADVISORY_UX_RULES: Readonly<Record<string, ReadonlySet<string>>> = {
+  'deterministic-ux': new Set(['UX-CONV-STATIC-001', 'UX-CONV-STATIC-002', 'UX-CONV-STATIC-003']),
+  'ai-assisted-ux': new Set(['UX-CONV-AI-001', 'UX-CONV-AI-002', 'UX-CONV-AI-003']),
+};
+
+/** D-217: only the six known non-scoring UX findings may accompany a null score. */
+function isAdvisoryUxIssue(record: IndexedIssue['record']): boolean {
+  return (
+    record.module === 'UX/Conversion' &&
+    ADVISORY_UX_RULES[record.category]?.has(record.rule_id) === true &&
+    record.rule_penalty === 0 &&
+    record.score_delta === 0
   );
 }
 

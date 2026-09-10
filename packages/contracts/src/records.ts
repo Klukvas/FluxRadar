@@ -177,7 +177,7 @@ export type ModuleRecord = ExportRecordBase &
 export type AiResponseRecord = ExportRecordBase &
   WithNullIssueFields & {
     readonly record_type: 'ai_response';
-    readonly module: 'AI SEO / GEO';
+    readonly module: 'AI SEO / GEO' | 'UX/Conversion';
     /** Record exists only after a normalized provider response (§16). */
     readonly module_status: IssueLevelModuleStatus;
     readonly scan_status: null;

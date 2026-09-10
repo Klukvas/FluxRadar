@@ -17,6 +17,7 @@ import {
   SelectField,
   StatusChip,
   Terminal,
+  TextAreaField,
   Window,
 } from './components';
 import {
@@ -27,6 +28,7 @@ import {
   type Scan,
   type SiteProfile,
 } from './api';
+import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
 import {
   CheckoutPending,
   clearPendingCheckout,
@@ -36,10 +38,10 @@ import {
   useCheckoutConfig,
   type PendingCheckout,
 } from './Checkout';
-import { SUPPORT_EMAIL } from './brand';
 import { CoverageTicker } from './CoverageTicker';
+import { CookieConsent } from './CookieConsent';
 import { HeroTitle } from './HeroTitle';
-import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
+import { copy, fillCopy, readInitialLanguage, storeLanguage, type Language } from './i18n';
 import { applyPageMetadata, type SeoPageId } from './seo';
 import { OnboardingTour } from './OnboardingTour';
 import { FaqScreen } from './Faq';
@@ -48,6 +50,7 @@ import { PricingCards, PricingExplainer } from './Pricing';
 import { IntegrationsScreen } from './Integrations';
 import { IssuesScreen } from './Issues';
 import { ResultsScreen } from './Report';
+import { LegalDocumentScreen } from './LegalDocuments';
 import { ScanScreen } from './ScanProgress';
 import { ReportsScreen } from './Reports';
 import { isTerminalScanStatus } from './scan-status';
@@ -55,7 +58,10 @@ import {
   clampScopeToPlan,
   DEFAULT_SCOPE_FORM,
   invalidScopeFields,
+  profileScanConfigFingerprint,
+  profileScanConfigFromForm,
   scanScopeFrom,
+  scopeFormFromProfileConfig,
   scopeFormFromScan,
   type ScanScopeForm,
   type ScopeNumberField,
@@ -77,6 +83,7 @@ type Screen =
   | 'faq'
   | 'privacy'
   | 'terms'
+  | 'cookies'
   | 'checks'
   | 'styleguide';
 
@@ -127,6 +134,8 @@ function pathForScreen(screen: Screen, scanId: string | null): string {
       return '/privacy';
     case 'terms':
       return '/terms';
+    case 'cookies':
+      return '/cookies';
     case 'scan':
     case 'results':
       // A report screen without a scan is the reports list, not a broken URL.
@@ -173,6 +182,7 @@ function readInitialRoute(): InitialRoute {
   });
   if (path === '/privacy') return publicRoute('privacy');
   if (path === '/terms') return publicRoute('terms');
+  if (path === '/cookies') return publicRoute('cookies');
   if (path === '/checks') return publicRoute('checks');
   if (path === '/faq') return publicRoute('faq');
   // The standalone plans screen was folded into the home pricing section. Old
@@ -244,12 +254,34 @@ function seoPageForScreen(screen: Screen): SeoPageId {
       return 'privacy';
     case 'terms':
       return 'terms';
+    case 'cookies':
+      return 'cookies';
     default:
       return 'workspace';
   }
 }
 
 export function App() {
+  const [language, setLanguage] = useState<Language>(readInitialLanguage);
+  const changeLanguage = useCallback((next: Language) => {
+    setLanguage(next);
+    storeLanguage(next);
+  }, []);
+  return (
+    <>
+      <AppContent language={language} changeLanguage={changeLanguage} />
+      <CookieConsent language={language} />
+    </>
+  );
+}
+
+function AppContent({
+  language,
+  changeLanguage,
+}: {
+  language: Language;
+  changeLanguage: (language: Language) => void;
+}) {
   const [entryRoute] = useState<InitialRoute>(readInitialRoute);
   const [screen, setScreen] = useState<Screen>(entryRoute.screen);
   const [emailAction, setEmailAction] = useState(entryRoute.emailAction);
@@ -262,17 +294,12 @@ export function App() {
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
-  const [language, setLanguage] = useState<Language>(readInitialLanguage);
   const [tourOpen, setTourOpen] = useState(false);
   // Held here, not inside the new-scan screen: the buyer pays in another tab and
   // may reload or navigate away before the provider webhook lands, and the
   // "confirming payment" window has to survive that from any screen.
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(null);
   const updateSelectedScan = useCallback((scan: Scan) => setSelectedScan(scan), []);
-  const changeLanguage = useCallback((next: Language) => {
-    setLanguage(next);
-    storeLanguage(next);
-  }, []);
 
   // The document language is what a screen reader announces the page in and what
   // a browser offers to translate; leaving it on the served default silently
@@ -316,7 +343,7 @@ export function App() {
   );
 
   useEffect(() => {
-    if (['privacy', 'terms', 'checks', 'faq'].includes(entryRoute.screen)) {
+    if (['privacy', 'terms', 'cookies', 'checks', 'faq'].includes(entryRoute.screen)) {
       setBooting(false);
       return;
     }
@@ -517,7 +544,7 @@ export function App() {
       <Styleguide onNavigate={navigate} language={language} onLanguageChange={changeLanguage} />
     );
   }
-  if (screen === 'privacy' || screen === 'terms') {
+  if (screen === 'privacy' || screen === 'terms' || screen === 'cookies') {
     return (
       <LegalDocumentScreen kind={screen} language={language} onLanguageChange={changeLanguage} />
     );
@@ -769,6 +796,7 @@ export function App() {
             <a href="/faq">{copy[language].nav.faq}</a>
             <a href="/privacy">{copy[language].home.footer.privacyLink}</a>
             <a href="/terms">{copy[language].home.footer.termsLink}</a>
+            <a href="/cookies">{copy[language].legal.cookies.title}</a>
             <a href="/blog">{copy[language].home.footer.fieldNotes}</a>
           </span>
           <CreatedByFluxLab language={language} />
@@ -778,329 +806,12 @@ export function App() {
   );
 }
 
-type LegalDocumentKind = 'privacy' | 'terms';
-
-function LegalDocumentScreen(props: {
-  kind: LegalDocumentKind;
-  language: Language;
-  onLanguageChange: (language: Language) => void;
-}) {
-  const isPrivacy = props.kind === 'privacy';
-  const t = copy[props.language].legal;
-  const document = isPrivacy ? t.privacy : t.terms;
-  const other = isPrivacy ? t.terms : t.privacy;
-
-  return (
-    <div className="app-shell legal-shell">
-      <MenuBar
-        active="home"
-        onNavigate={(next) => {
-          if (next === 'home') window.location.assign('/');
-        }}
-        signedIn={false}
-        language={props.language}
-        onLanguageChange={props.onLanguageChange}
-      />
-      <main className="legal-main">
-        <header className="legal-header">
-          <div>
-            <div className="legal-kicker">
-              <span className="legal-kicker__mark">{isPrivacy ? 'P' : 'T'}</span>
-              {t.kicker}
-            </div>
-            <div className="legal-meta">
-              {t.meta.map((item) => (
-                <span key={item}>{item}</span>
-              ))}
-            </div>
-            <h1>{document.title}</h1>
-            <p className="legal-lede">{document.lede}</p>
-          </div>
-          <a className="legal-back" href="/">
-            {t.back}
-          </a>
-        </header>
-
-        <div className="legal-layout">
-          <nav className="legal-index" aria-label={t.contentsLabel}>
-            <div className="legal-index__label">{t.contents}</div>
-            {document.sections.map((section) => (
-              <a key={section.id} href={`#${section.id}`}>
-                {section.label}
-              </a>
-            ))}
-            <div className="legal-index__rule" />
-            <a href={isPrivacy ? '/terms' : '/privacy'}>{other.crossLink}</a>
-          </nav>
-
-          <div className="legal-document-column">
-            {/* The binding text is not machine-translated: a policy has to say
-                the same thing in every language it claims to be written in, so
-                the reader is told which version applies instead. */}
-            {props.language === 'en' ? null : (
-              <p className="legal-language-notice" lang={props.language}>
-                {t.englishNotice}
-              </p>
-            )}
-            {isPrivacy ? <PrivacyPolicy /> : <TermsOfService />}
-          </div>
-        </div>
-
-        <footer className="legal-footer">
-          <span>{t.footerBrand}</span>
-          <span>
-            {t.questions} <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
-          </span>
-          <CreatedByFluxLab language={props.language} />
-        </footer>
-      </main>
-    </div>
-  );
-}
-
-function PrivacyPolicy() {
-  return (
-    <article className="legal-document" lang="en">
-      <div className="legal-document__notice">
-        <strong>Effective date: September 4, 2026</strong>
-        <span>FluxRadar is a public-site audit service operated by FluxLab.</span>
-      </div>
-
-      <section id="privacy-scope" className="legal-section">
-        <span className="legal-section__label">01 / SCOPE</span>
-        <h2>What this policy covers</h2>
-        <p>
-          This policy explains how FluxLab handles information when you use FluxRadar, create an
-          account, run a website audit, connect a supported data source or contact us. FluxRadar is
-          designed for public website checks. It does not ask for a client website password or CMS
-          credentials for the audit modules described on the public site.
-        </p>
-      </section>
-
-      <section id="privacy-data" className="legal-section">
-        <span className="legal-section__label">02 / INPUTS</span>
-        <h2>Data we handle</h2>
-        <ul>
-          <li>
-            <strong>Account data:</strong> your email address, a one-way password hash and session
-            records needed to keep you signed in.
-          </li>
-          <li>
-            <strong>Audit data:</strong> the public origin you submit, scan scope and options,
-            public pages fetched by the crawler, findings, scores, fingerprints and exports.
-          </li>
-          <li>
-            <strong>Abuse-prevention data:</strong> a normalized public origin and claim timestamp
-            used to prevent repeated free checks across accounts. This minimal record is retained
-            independently of your account and contains no report content, credentials or tokens.
-          </li>
-          <li>
-            <strong>Connected-source data:</strong> when you authorize Google or Bing, FluxRadar
-            stores encrypted access/refresh tokens and the granted scopes so the connection can be
-            maintained. The raw tokens are not shown in the product interface.
-          </li>
-          <li>
-            <strong>Purchase data:</strong> payment and transaction metadata supplied by FastSpring,
-            our payment provider and merchant of record — such as order ID, plan, amount, currency
-            and payment status. FluxRadar does not store your payment-card number.
-          </li>
-          <li>
-            <strong>Required technical data:</strong> security and operational records needed to
-            protect the service, enforce rate limits and diagnose failures.
-          </li>
-        </ul>
-      </section>
-
-      <section id="privacy-google" className="legal-section">
-        <span className="legal-section__label">03 / GOOGLE DATA</span>
-        <h2>How Google user data is used</h2>
-        <p>
-          FluxRadar requests read-only Google authorization for Search Console and Google Analytics
-          data. The current authorization asks for these API scopes:
-        </p>
-        <div className="legal-code-block">
-          <code>https://www.googleapis.com/auth/webmasters.readonly</code>
-          <code>https://www.googleapis.com/auth/analytics.readonly</code>
-        </div>
-        <p>
-          We use connected Google data only to provide the Google-related audit and reporting
-          features you request. We do not sell Google user data or use it for advertising. We do not
-          give Google access tokens to AI providers. You can disconnect Google at any time;
-          disconnecting removes the stored connection tokens.
-        </p>
-        <p>
-          FluxRadar requests the minimum read-only access needed for these integrations. If Google
-          data is used in a report, it remains associated with your account and selected site
-          profile and is not made public by FluxRadar.
-        </p>
-      </section>
-
-      <section id="privacy-use" className="legal-section">
-        <span className="legal-section__label">04 / PROCESSING</span>
-        <h2>How we use information</h2>
-        <ul>
-          <li>to authenticate your account and maintain your workspace;</li>
-          <li>to fetch and analyze public website signals you ask us to review;</li>
-          <li>to generate scores, findings, evidence and requested exports;</li>
-          <li>to process purchases, enforce plan limits and prevent duplicate transactions;</li>
-          <li>to secure, troubleshoot and improve the reliability of the service.</li>
-        </ul>
-        <p>
-          AI-assisted audit features run only when the scan has the required consent. Before an AI
-          request, FluxRadar applies its redaction rules to the audit context. Anthropic is used as
-          a platform provider for those requests when the feature is enabled.
-        </p>
-      </section>
-
-      <section id="privacy-retention" className="legal-section">
-        <span className="legal-section__label">05 / LIFECYCLE</span>
-        <h2>Storage, providers and deletion</h2>
-        <p>
-          FluxRadar stores application data in PostgreSQL on Hetzner infrastructure. Complete report
-          artifacts may be stored in a private, account-scoped Hetzner Object Storage bucket. Google
-          and Bing tokens are encrypted before they are stored. FastSpring, Google, Bing and
-          Anthropic process information under their own terms and privacy documentation when you use
-          the corresponding integration or make a purchase.
-        </p>
-        <p>
-          You can disconnect an integration from the Integrations screen. You can request account
-          deletion from the product; this removes account-linked operational data according to the
-          service retention workflow. A minimal deletion audit record and the abuse-prevention
-          origin claim may remain: the former demonstrates that the request was processed, while the
-          latter prevents repeated free checks. Neither retains your account content.
-        </p>
-      </section>
-
-      <section id="privacy-rights" className="legal-section">
-        <span className="legal-section__label">06 / CONTROL</span>
-        <h2>Your choices and contact</h2>
-        <p>
-          You can choose not to connect Google or Bing and still use public-site checks. You can
-          disconnect a provider, stop using the service or contact us about access, correction or
-          deletion requests. For privacy questions, contact{' '}
-          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
-        </p>
-        <p>
-          We may update this policy when the service or its data practices change. The effective
-          date at the top will be updated when a new version is published.
-        </p>
-      </section>
-    </article>
-  );
-}
-
-function TermsOfService() {
-  return (
-    <article className="legal-document" lang="en">
-      <div className="legal-document__notice">
-        <strong>Effective date: September 4, 2026</strong>
-        <span>By using FluxRadar, you agree to these terms.</span>
-      </div>
-
-      <section id="terms-service" className="legal-section">
-        <span className="legal-section__label">01 / SERVICE</span>
-        <h2>What FluxRadar does</h2>
-        <p>
-          FluxRadar is a website audit service operated by FluxLab. It analyzes public web pages and
-          presents technical, SEO, AI-discoverability, security, accessibility, reliability, content
-          and privacy signals. The audit is read-only: you authorize us to fetch public resources,
-          not to change your website.
-        </p>
-      </section>
-
-      <section id="terms-account" className="legal-section">
-        <span className="legal-section__label">02 / ACCESS</span>
-        <h2>Accounts and workspace</h2>
-        <p>
-          You are responsible for the email address and password used for your account and for
-          activity performed through your session. Keep your credentials private and contact us if
-          you believe your account has been used without permission. You must provide accurate
-          information and may use FluxRadar only if you are legally able to agree to these terms.
-        </p>
-      </section>
-
-      <section id="terms-paid" className="legal-section">
-        <span className="legal-section__label">03 / PURCHASES</span>
-        <h2>Free and paid scans</h2>
-        <p>
-          FluxRadar offers one limited free homepage check and one-time paid scans. The free check
-          is available once per account and once per normalized public origin across all accounts.
-          The Basic and Complete plans are pay-per-scan products, not recurring subscriptions. The
-          applicable scope, features and price are shown before purchase. Payment is processed by
-          FastSpring, which acts as merchant of record; payment-card data is handled by FastSpring
-          rather than stored by FluxRadar. A paid scan starts only after FastSpring confirms the
-          payment to our server.
-        </p>
-        <p>
-          A paid scan grants the report and product access described for the purchased plan. If a
-          payment, refund or dispute changes the transaction status, FluxRadar may suspend the
-          related entitlement or scan according to the billing state shown in the workspace.
-        </p>
-      </section>
-
-      <section id="terms-use" className="legal-section">
-        <span className="legal-section__label">04 / BOUNDARIES</span>
-        <h2>Acceptable use</h2>
-        <p>
-          You may submit only websites and public resources you are authorized to review. You must
-          not:
-        </p>
-        <ul>
-          <li>use FluxRadar to attack, overload, probe or bypass controls on a website;</li>
-          <li>
-            submit private URLs, credentials, secrets or personal data that you do not have a right
-            to process;
-          </li>
-          <li>use reports to misrepresent a legal, security or accessibility certification;</li>
-          <li>
-            interfere with the service, evade plan limits or resell access without permission.
-          </li>
-        </ul>
-      </section>
-
-      <section id="terms-results" className="legal-section">
-        <span className="legal-section__label">05 / OUTPUT</span>
-        <h2>Reports are decision support</h2>
-        <p>
-          Audit findings are automated technical signals and recommendations. They can be
-          incomplete, delayed or incorrect, especially when a page requires JavaScript, a provider
-          has no data or a site changes after the scan. AI-generated output may also be inaccurate.
-          FluxRadar does not promise rankings, traffic, security, legal compliance, WCAG conformance
-          or a particular business result.
-        </p>
-        <p>
-          You keep the rights to information you submit and may use reports for your internal work.
-          FluxLab retains the rights to the FluxRadar service, software, rules, scoring methods and
-          branding. Do not publish another person’s private data or confidential material through an
-          export.
-        </p>
-      </section>
-
-      <section id="terms-ending" className="legal-section">
-        <span className="legal-section__label">06 / EXIT</span>
-        <h2>Availability and ending use</h2>
-        <p>
-          We may change, pause or discontinue parts of FluxRadar, including third-party
-          integrations, when needed for security, maintenance or provider changes. We may suspend
-          access for abuse, unlawful use, fraud or material breach of these terms. You can stop
-          using the service and request account deletion at any time.
-        </p>
-        <p>
-          To the maximum extent permitted by law, FluxRadar is provided without guarantees of
-          uninterrupted availability or error-free results. Nothing in these terms excludes rights
-          that cannot lawfully be excluded. Questions about a purchase or these terms can be sent to{' '}
-          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
-        </p>
-      </section>
-    </article>
-  );
-}
-
 // ─── /checks — public audit coverage page ────────────────────────────────────
 
 // ─── /integrations ────────────────────────────────────────────────────────────
 
 function AuthScreen(props: {
+  language: Language;
   onAuthed: (account: Account) => Promise<void>;
   error: string | null;
   onError: (value: string | null) => void;
@@ -1117,6 +828,7 @@ function AuthScreen(props: {
   const verificationStarted = useRef(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const isReset = props.emailAction?.kind === 'reset';
@@ -1158,7 +870,7 @@ function AuthScreen(props: {
       }
       const account = await apiRequest<Account>(`/auth/${mode}`, {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
       await props.onAuthed(account);
     } catch (caught) {
@@ -1219,6 +931,8 @@ function AuthScreen(props: {
         {!isVerification && !isReset ? (
           <Field
             label="Email"
+            name="email"
+            autoComplete={mode === 'login' ? 'username' : 'email'}
             value={email}
             onChange={setEmail}
             type="email"
@@ -1228,15 +942,49 @@ function AuthScreen(props: {
         {!isVerification && !forgotPassword && !sent && !resetDone ? (
           <Field
             label="Password"
+            name="password"
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             value={password}
             onChange={setPassword}
             type="password"
             placeholder="8+ characters"
           />
         ) : null}
+        {!isVerification && !isReset && !forgotPassword && !sent ? (
+          <>
+            <Checkbox
+              name="remember-me"
+              label={
+                props.language === 'uk' ? 'Запамʼятати вхід на 7 днів' : 'Remember me for 7 days'
+              }
+              checked={rememberMe}
+              onChange={setRememberMe}
+            />
+            <p className="muted">
+              {mode === 'login'
+                ? props.language === 'uk'
+                  ? 'Вхід використовує необхідний cookie. Докладніше: '
+                  : 'Sign-in uses a necessary cookie. Learn more: '
+                : props.language === 'uk'
+                  ? 'Створюючи акаунт, ви погоджуєтеся з умовами та підтверджуєте ознайомлення з політиками: '
+                  : 'By creating an account, you agree to the terms and acknowledge the policies: '}
+              <a href={`/terms?lang=${props.language}`}>{copy[props.language].legal.terms.title}</a>
+              {' · '}
+              <a href={`/privacy?lang=${props.language}`}>
+                {copy[props.language].legal.privacy.title}
+              </a>
+              {' · '}
+              <a href={`/cookies?lang=${props.language}`}>
+                {copy[props.language].legal.cookies.title}
+              </a>
+            </p>
+          </>
+        ) : null}
         {!isVerification && isReset && !resetDone ? (
           <Field
             label="New password"
+            name="password"
+            autoComplete="new-password"
             value={password}
             onChange={setPassword}
             type="password"
@@ -1607,6 +1355,7 @@ function HomeScreen(props: {
             <a href="/faq">{t.nav.faq}</a>
             <a href="/privacy">{t.home.footer.privacyLink}</a>
             <a href="/terms">{t.home.footer.termsLink}</a>
+            <a href="/cookies">{t.legal.cookies.title}</a>
             <a href="/blog">{t.home.footer.fieldNotes}</a>
             <span>{t.nav.system}</span>
           </span>
@@ -1628,6 +1377,7 @@ function HomeScreen(props: {
             aria-labelledby="auth-title"
           >
             <AuthScreen
+              language={props.language}
               onAuthed={props.onAuthed}
               error={props.authError}
               onError={props.onAuthError}
@@ -1653,6 +1403,13 @@ function DesktopScreen(props: {
 }) {
   const t = copy[props.language];
   const [name, setName] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [businessDescription, setBusinessDescription] = useState('');
+  const [offerings, setOfferings] = useState('');
+  const [region, setRegion] = useState('');
+  const [targetLanguages, setTargetLanguages] = useState('');
+  const [targetAudience, setTargetAudience] = useState('');
+  const [editingProfile, setEditingProfile] = useState<SiteProfile | null>(null);
   // The last name this form filled in from the address. Anything else in the
   // name field was typed by the owner and is never overwritten.
   const [suggestedName, setSuggestedName] = useState('');
@@ -1671,6 +1428,39 @@ function DesktopScreen(props: {
     setName(next);
   };
 
+  const resetForm = () => {
+    setEditingProfile(null);
+    setName('');
+    setSuggestedName('');
+    setDomain('');
+    setIndustry('');
+    setBusinessDescription('');
+    setOfferings('');
+    setRegion('');
+    setTargetLanguages('');
+    setTargetAudience('');
+    setDomainError(null);
+  };
+
+  const editProfile = (profile: SiteProfile) => {
+    setEditingProfile(profile);
+    setName(profile.name);
+    setSuggestedName('');
+    setDomain(profile.domain);
+    setIndustry(profile.industry ?? '');
+    setBusinessDescription(profile.businessDescription ?? '');
+    setOfferings(profile.offerings ?? '');
+    setRegion(profile.region ?? '');
+    setTargetLanguages(profile.targetLanguages ?? profile.language ?? '');
+    setTargetAudience(profile.targetAudience ?? '');
+    setDomainError(null);
+  };
+
+  const optionalText = (value: string): string | undefined => {
+    const trimmed = value.trim();
+    return trimmed === '' ? undefined : trimmed;
+  };
+
   const create = async (event: FormEvent) => {
     event.preventDefault();
     const normalized = normalizeSiteAddress(domain);
@@ -1681,13 +1471,33 @@ function DesktopScreen(props: {
     setDomainError(null);
     setBusy(true);
     try {
-      await apiRequest<SiteProfile>('/profiles', {
-        method: 'POST',
-        body: JSON.stringify({ name: name.trim(), domain: normalized.origin }),
-      });
-      setName('');
-      setSuggestedName('');
-      setDomain('');
+      const context = {
+        industry: optionalText(industry),
+        businessDescription: optionalText(businessDescription),
+        offerings: optionalText(offerings),
+        region: optionalText(region),
+        targetLanguages: optionalText(targetLanguages),
+        targetAudience: optionalText(targetAudience),
+      };
+      await apiRequest<SiteProfile>(
+        editingProfile === null ? '/profiles' : `/profiles/${editingProfile.id}`,
+        {
+          method: editingProfile === null ? 'POST' : 'PATCH',
+          body: JSON.stringify(
+            editingProfile === null
+              ? { name: name.trim(), domain: normalized.origin, ...context }
+              : {
+                  name: name.trim(),
+                  domain: normalized.origin,
+                  expectedProfileConfigVersion: editingProfile.scanConfigVersion,
+                  ...Object.fromEntries(
+                    Object.entries(context).map(([key, value]) => [key, value ?? null]),
+                  ),
+                },
+          ),
+        },
+      );
+      resetForm();
       await props.onRefresh();
     } catch (caught) {
       props.onError(caught instanceof Error ? caught.message : 'Profile creation failed');
@@ -1720,23 +1530,30 @@ function DesktopScreen(props: {
                       <Button onClick={() => props.onSelectProfile(profile)}>
                         {t.workspace.inspect}
                       </Button>
+                      <Button onClick={() => editProfile(profile)}>
+                        {t.workspace.editProfile}
+                      </Button>
                     </div>
                   </div>
                 ))
               )}
             </div>
           </Panel>
-          <Panel title={t.workspace.addSite}>
+          <Panel title={editingProfile === null ? t.workspace.addSite : t.workspace.editProfile}>
             <form className="stack" onSubmit={create}>
               <p className="muted panel-help">{t.workspace.addSiteHelp}</p>
               <Field
                 label={t.workspace.displayName}
+                name="profile-name"
+                autoComplete="off"
                 value={name}
                 onChange={setName}
                 placeholder={t.workspace.displayNamePlaceholder}
               />
               <Field
                 label={t.workspace.siteAddressLabel}
+                name="profile-domain"
+                autoComplete="url"
                 technical
                 value={domain}
                 onChange={(value) => {
@@ -1749,14 +1566,81 @@ function DesktopScreen(props: {
                 error={domainError ?? undefined}
                 data-tour-target="profile-domain"
               />
+              <div className="onboarding-note">
+                <strong>{t.workspace.profileContextHeading}</strong>
+                <p>{t.workspace.profileContextHelp}</p>
+              </div>
+              <Field
+                label={t.workspace.businessType}
+                name="profile-industry"
+                autoComplete="off"
+                value={industry}
+                onChange={setIndustry}
+                placeholder={t.workspace.businessTypePlaceholder}
+                hint={t.workspace.businessTypeHint}
+              />
+              <TextAreaField
+                label={t.workspace.businessDescription}
+                name="profile-description"
+                autoComplete="off"
+                value={businessDescription}
+                onChange={setBusinessDescription}
+                placeholder={t.workspace.businessDescriptionPlaceholder}
+                hint={t.workspace.businessDescriptionHint}
+              />
+              <TextAreaField
+                label={t.workspace.offerings}
+                name="profile-offerings"
+                autoComplete="off"
+                value={offerings}
+                onChange={setOfferings}
+                placeholder={t.workspace.offeringsPlaceholder}
+                hint={t.workspace.offeringsHint}
+              />
+              <Field
+                label={t.workspace.operatingRegion}
+                name="profile-region"
+                autoComplete="off"
+                value={region}
+                onChange={setRegion}
+                placeholder={t.workspace.operatingRegionPlaceholder}
+                hint={t.workspace.operatingRegionHint}
+              />
+              <Field
+                label={t.workspace.targetLanguages}
+                name="profile-languages"
+                autoComplete="off"
+                value={targetLanguages}
+                onChange={setTargetLanguages}
+                placeholder={t.workspace.targetLanguagesPlaceholder}
+                hint={t.workspace.targetLanguagesHint}
+              />
+              <TextAreaField
+                label={t.workspace.targetAudience}
+                name="profile-audience"
+                autoComplete="off"
+                value={targetAudience}
+                onChange={setTargetAudience}
+                placeholder={t.workspace.targetAudiencePlaceholder}
+                hint={t.workspace.targetAudienceHint}
+              />
               <Button
                 type="submit"
                 variant="primary"
                 disabled={busy || name.trim() === ''}
                 data-tour-target="save-profile"
               >
-                {busy ? t.workspace.saving : t.workspace.saveProfile}
+                {busy
+                  ? t.workspace.saving
+                  : editingProfile === null
+                    ? t.workspace.saveProfile
+                    : t.workspace.updateProfile}
               </Button>
+              {editingProfile !== null ? (
+                <Button type="button" onClick={resetForm}>
+                  {t.workspace.cancelEdit}
+                </Button>
+              ) : null}
             </form>
           </Panel>
         </Window>
@@ -1839,34 +1723,55 @@ function NewScanScreen(props: {
   );
   const [address, setAddress] = useState('');
   const [addressError, setAddressError] = useState<string | null>(null);
-  // A paying owner opens this form on the free check and chooses to pay; nothing
-  // is pre-selected for them. An internal account cannot be charged and is here
-  // to exercise the full report, so it starts on Complete.
+  // A saved profile owns its preferred plan. New addresses keep the existing
+  // free-first flow; internal accounts start on Complete so they can exercise
+  // the full report without a payment.
   const [plan, setPlan] = useState<'Free' | 'Basic' | 'Complete'>(
-    props.internalFreeAccess ? 'Complete' : 'Free',
+    props.selectedProfile?.scanConfig?.plan ?? (props.internalFreeAccess ? 'Complete' : 'Free'),
   );
-  // The plan as it stands when the prefill below lands, which is not necessarily
-  // the plan that was chosen when it was asked for: reading a site's last check
-  // is a request, and the picker stays live while it is in flight. It is read
-  // through a ref so the plan can stay out of that effect's dependencies, where
-  // it would re-read the history on every plan change and overwrite settings the
-  // owner had already typed.
+  // Legacy profile fixtures and profiles created before the migration still
+  // fall back to the last scan while their saved config is absent. Keep the
+  // plan the owner chose while that compatibility read is in flight.
   const planRef = useRef(plan);
   useEffect(() => {
     planRef.current = plan;
   }, [plan]);
-  const [scope, setScope] = useState<ScanScopeForm>(DEFAULT_SCOPE_FORM);
+  const [scope, setScope] = useState<ScanScopeForm>(() =>
+    props.selectedProfile?.scanConfig == null
+      ? DEFAULT_SCOPE_FORM
+      : scopeFormFromProfileConfig(props.selectedProfile.scanConfig),
+  );
   // The number fields the owner has been told to fix, empty until a submission
   // finds one: a form that reddens while someone is still typing into it is
   // telling them they are wrong before they have finished being right.
   const [invalidScope, setInvalidScope] = useState<readonly ScopeNumberField[]>([]);
-  // True once the settings below came from this site's last check rather than
-  // from the defaults, which is the only case where saying so is true.
+  // True once the settings below came from the reusable profile configuration.
   const [carriedOver, setCarriedOver] = useState(false);
-  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [savingConfiguration, setSavingConfiguration] = useState(false);
+  const [savedConfigFingerprint, setSavedConfigFingerprint] = useState<string | null>(() =>
+    props.selectedProfile?.scanConfig == null
+      ? null
+      : profileScanConfigFingerprint(props.selectedProfile.scanConfig),
+  );
+  const [savedConfigVersion, setSavedConfigVersion] = useState<number | null>(
+    props.selectedProfile?.scanConfigVersion ?? null,
+  );
   const usingSavedProfile = target !== NEW_ADDRESS_TARGET;
+  const resolvedProfileVersion = useRef<number | undefined>(undefined);
   const selected = props.profiles.find((profile) => profile.id === target);
+  const currentProfileConfig = profileScanConfigFromForm(scope, plan);
+  const unavailablePlanFallback =
+    usingSavedProfile &&
+    !paidAvailable &&
+    plan === 'Free' &&
+    selected?.scanConfig != null &&
+    selected.scanConfig.plan !== 'Free';
+  const configurationDirty =
+    usingSavedProfile &&
+    !unavailablePlanFallback &&
+    savedConfigFingerprint !== null &&
+    profileScanConfigFingerprint(currentProfileConfig) !== savedConfigFingerprint;
   const updateScope = (change: Partial<ScanScopeForm>): void => {
     setScope((current) => ({ ...current, ...change }));
     // Editing a field withdraws the complaint about it, as the address field
@@ -1875,19 +1780,25 @@ function NewScanScreen(props: {
     setInvalidScope((current) => current.filter((field) => !edited.includes(field)));
   };
 
-  /**
-   * Opens the form on the settings this site was last checked with.
-   *
-   * The configuration lives in the scan itself (`Scan.scopeJson`), so the last
-   * scan of the profile is the whole store — there is no preset to keep in step
-   * with it. A site with no history, or one whose history cannot be read, opens
-   * on the defaults rather than on an error: nothing here is required to start a
-   * scan.
-   */
+  /** Opens the form on the reusable settings stored with the selected profile. */
   useEffect(() => {
     if (!usingSavedProfile) {
+      setPlan(props.internalFreeAccess ? 'Complete' : 'Free');
       setScope(DEFAULT_SCOPE_FORM);
       setCarriedOver(false);
+      setSavedConfigFingerprint(null);
+      setSavedConfigVersion(null);
+      return;
+    }
+    if (selected?.scanConfig != null) {
+      const restoredPlan = paidAvailable ? selected.scanConfig.plan : 'Free';
+      setPlan(restoredPlan);
+      setScope(
+        clampScopeToPlan(scopeFormFromProfileConfig(selected.scanConfig), selected.scanConfig.plan),
+      );
+      setCarriedOver(true);
+      setSavedConfigFingerprint(profileScanConfigFingerprint(selected.scanConfig));
+      setSavedConfigVersion(selected.scanConfigVersion ?? 1);
       return;
     }
     let cancelled = false;
@@ -1906,17 +1817,20 @@ function NewScanScreen(props: {
       // the payload is clamped as well (`scanScopeFrom`), but a form that shows
       // a Complete-sized page count while Basic is selected is offering a scan
       // that is not the one the checkout would open on.
+      const legacyPlan = planRef.current;
       setScope(
         latest === undefined
           ? DEFAULT_SCOPE_FORM
-          : clampScopeToPlan(scopeFormFromScan(latest), planRef.current),
+          : clampScopeToPlan(scopeFormFromScan(latest), legacyPlan),
       );
       setCarriedOver(latest !== undefined);
+      setSavedConfigFingerprint(null);
+      setSavedConfigVersion(null);
     })();
     return () => {
       cancelled = true;
     };
-  }, [target, usingSavedProfile]);
+  }, [paidAvailable, props.internalFreeAccess, selected, target, usingSavedProfile]);
 
   /**
    * The profile this scan runs against, creating one from a typed address.
@@ -1944,7 +1858,41 @@ function NewScanScreen(props: {
     // profile exists either way, and a list that could not be re-read must not
     // cancel the check it was created for.
     void props.onProfilesChanged().catch(() => undefined);
+    resolvedProfileVersion.current = resolved.profile.scanConfigVersion;
     return resolved.profile.id;
+  };
+
+  const persistProfileConfiguration = async (profileId: string): Promise<SiteProfile | null> => {
+    return apiRequest<SiteProfile | null>(`/profiles/${encodeURIComponent(profileId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        scanConfig: currentProfileConfig,
+        expectedProfileConfigVersion: usingSavedProfile
+          ? (savedConfigVersion ?? selected?.scanConfigVersion)
+          : resolvedProfileVersion.current,
+      }),
+    });
+  };
+
+  const saveConfiguration = async (): Promise<void> => {
+    setSavingConfiguration(true);
+    try {
+      const profileId = await resolveTargetProfileId();
+      if (profileId === null) return;
+      const updated = unavailablePlanFallback
+        ? selected
+        : await persistProfileConfiguration(profileId);
+      setSavedConfigFingerprint(
+        profileScanConfigFingerprint(updated?.scanConfig ?? currentProfileConfig),
+      );
+      setSavedConfigVersion(updated?.scanConfigVersion ?? (savedConfigVersion ?? 0) + 1);
+      setCarriedOver(true);
+      await props.onProfilesChanged().catch(() => undefined);
+    } catch (caught) {
+      props.onError(caught instanceof Error ? caught.message : 'Configuration could not be saved');
+    } finally {
+      setSavingConfiguration(false);
+    }
   };
 
   const submit = async (event: FormEvent) => {
@@ -1960,16 +1908,36 @@ function NewScanScreen(props: {
       const profileId = await resolveTargetProfileId();
       if (profileId === null) return;
       let scan: Scan;
+      const updated = unavailablePlanFallback
+        ? selected
+        : await persistProfileConfiguration(profileId);
+      const expectedProfileConfigVersion =
+        updated?.scanConfigVersion ?? savedConfigVersion ?? undefined;
+      setSavedConfigFingerprint(
+        profileScanConfigFingerprint(updated?.scanConfig ?? currentProfileConfig),
+      );
+      setSavedConfigVersion(updated?.scanConfigVersion ?? (savedConfigVersion ?? 0) + 1);
+      await props.onProfilesChanged().catch(() => undefined);
       // Free sends the settings it will actually run with, not the ones the
       // form happens to hold; the server stores its own answer either way.
       const scopePayload = scanScopeFrom(scope, plan);
-      const aiConsent = consent
-        ? { aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' } }
-        : {};
+      // Basic and Complete include provider-backed AI checks as part of the
+      // purchased audit. The UI presents the data-transfer notice before
+      // checkout; this compatibility field records which notice applied to the
+      // scan so the orchestrator can enforce that contract boundary.
+      const aiConsent =
+        plan === 'Free'
+          ? {}
+          : {
+              aiConsent: {
+                providers: ['anthropic'],
+                noticeVersion: AI_PROCESSING_NOTICE_VERSION,
+              },
+            };
       if (plan === 'Free') {
         scan = await apiRequest<Scan>(`/profiles/${profileId}/free-check`, {
           method: 'POST',
-          body: JSON.stringify({ scope: scopePayload }),
+          body: JSON.stringify({ scope: scopePayload, expectedProfileConfigVersion }),
         });
       } else if (props.internalFreeAccess) {
         // Internal allowlist only: creates a scan without a purchase, and is
@@ -1982,6 +1950,7 @@ function NewScanScreen(props: {
               siteProfileId: profileId,
               plan,
               scope: scopePayload,
+              expectedProfileConfigVersion,
               ...aiConsent,
             }),
           },
@@ -1995,6 +1964,7 @@ function NewScanScreen(props: {
             siteProfileId: profileId,
             plan,
             scope: scopePayload,
+            expectedProfileConfigVersion,
             ...aiConsent,
           }),
         });
@@ -2051,6 +2021,36 @@ function NewScanScreen(props: {
     : normalizeSiteAddress(address).ok
       ? address.trim()
       : t.newScan.noAddress;
+  const configurationState = !usingSavedProfile
+    ? 'new'
+    : savedConfigFingerprint === null
+      ? 'loading'
+      : configurationDirty
+        ? 'dirty'
+        : 'saved';
+  const configurationStatusLabel =
+    configurationState === 'dirty'
+      ? t.newScan.configurationUnsaved
+      : configurationState === 'new'
+        ? t.newScan.configurationNew
+        : configurationState === 'loading'
+          ? t.newScan.configurationLoading
+          : fillCopy(t.newScan.configurationSaved, {
+              version: savedConfigVersion ?? 1,
+            });
+  const planLabel = planOptions.find((option) => option.value === plan)?.label ?? plan;
+  const launchSite = usingSavedProfile ? targetLabel : address.trim() || '—';
+  const launchPages =
+    plan === 'Free' ? t.newScan.launchSummaryHomepage : scope.maxPages.trim() || '—';
+  const launchDepth = plan === 'Free' ? '—' : scope.maxDepth.trim() || '—';
+  const launchRobots =
+    plan === 'Free'
+      ? t.newScan.launchSummaryRespected
+      : scope.respectRobots
+        ? t.newScan.launchSummaryRespected
+        : scope.robotsOverrideConfirmed
+          ? t.newScan.launchSummaryOverridden
+          : t.newScan.launchSummaryDisabled;
   return (
     <Window title={t.newScan.windowTitle} className="window--dialog" onClose={props.onClose}>
       <form className="stack" onSubmit={submit}>
@@ -2065,6 +2065,8 @@ function NewScanScreen(props: {
           ) : (
             <SelectField
               label={t.newScan.labelProfile}
+              name="scan-profile"
+              autoComplete="off"
               // The hint describes a saved profile, so it goes away with the
               // profile: the address field below states its own terms.
               {...(usingSavedProfile ? { hint: t.newScan.hintProfile } : {})}
@@ -2082,6 +2084,8 @@ function NewScanScreen(props: {
           {usingSavedProfile ? null : (
             <Field
               label={t.newScan.labelAddress}
+              name="scan-address"
+              autoComplete="url"
               technical
               value={address}
               onChange={(value) => {
@@ -2094,8 +2098,32 @@ function NewScanScreen(props: {
             />
           )}
           {carriedOver ? <p className="muted panel-help">{t.newScan.prefillNote}</p> : null}
+          <section
+            className={`configuration-status configuration-status--${configurationState}`}
+            aria-live="polite"
+          >
+            <div className="configuration-status__header">
+              <strong>{t.newScan.configurationTitle}</strong>
+              <StatusChip
+                status={
+                  configurationState === 'dirty'
+                    ? 'warning'
+                    : configurationState === 'saved'
+                      ? 'Completed'
+                      : 'info'
+                }
+                label={configurationStatusLabel}
+              />
+            </div>
+            {configurationState === 'dirty' ? (
+              <p>{t.newScan.configurationUnsavedBody}</p>
+            ) : configurationState === 'new' ? (
+              <p>{t.newScan.configurationNewBody}</p>
+            ) : null}
+          </section>
           {paidScopeControls ? (
             <Checkbox
+              name="scan-include-subdomains"
               label={t.newScan.labelSubdomains}
               checked={scope.includeSubdomains}
               onChange={(checked) => updateScope({ includeSubdomains: checked })}
@@ -2103,6 +2131,8 @@ function NewScanScreen(props: {
           ) : null}
           <SelectField
             label={t.newScan.labelUserAgent}
+            name="scan-user-agent"
+            autoComplete="off"
             value={scope.userAgent}
             onChange={(value) => updateScope({ userAgent: value as ScanScopeForm['userAgent'] })}
             options={[
@@ -2114,6 +2144,8 @@ function NewScanScreen(props: {
         <Panel title={t.newScan.panelDepth}>
           <SelectField
             label={t.newScan.labelScanPlan}
+            name="scan-plan"
+            autoComplete="off"
             value={plan}
             onChange={(value) => {
               const chosen = value as typeof plan;
@@ -2139,6 +2171,8 @@ function NewScanScreen(props: {
             <>
               <Field
                 label={t.newScan.labelMaxPages}
+                name="scan-max-pages"
+                autoComplete="off"
                 technical
                 value={scope.maxPages}
                 onChange={(value) => updateScope({ maxPages: value })}
@@ -2147,6 +2181,8 @@ function NewScanScreen(props: {
               />
               <Field
                 label={t.newScan.labelMaxDepth}
+                name="scan-max-depth"
+                autoComplete="off"
                 technical
                 value={scope.maxDepth}
                 onChange={(value) => updateScope({ maxDepth: value })}
@@ -2155,6 +2191,8 @@ function NewScanScreen(props: {
               />
               <Field
                 label={t.newScan.labelIncludePatterns}
+                name="scan-include-patterns"
+                autoComplete="off"
                 technical
                 value={scope.includePatterns}
                 onChange={(value) => updateScope({ includePatterns: value })}
@@ -2162,6 +2200,8 @@ function NewScanScreen(props: {
               />
               <Field
                 label={t.newScan.labelExcludePatterns}
+                name="scan-exclude-patterns"
+                autoComplete="off"
                 technical
                 value={scope.excludePatterns}
                 onChange={(value) => updateScope({ excludePatterns: value })}
@@ -2169,6 +2209,8 @@ function NewScanScreen(props: {
               />
               <SelectField
                 label={t.newScan.labelQueryPolicy}
+                name="scan-query-policy"
+                autoComplete="off"
                 value={scope.queryPolicy}
                 onChange={(value) =>
                   updateScope({ queryPolicy: value as ScanScopeForm['queryPolicy'] })
@@ -2178,9 +2220,23 @@ function NewScanScreen(props: {
                   { value: 'include', label: t.newScan.queryInclude },
                 ]}
               />
+              <section className="scan-option-callout" aria-labelledby="robots-info-title">
+                <div className="scan-option-callout__header">
+                  <span className="scan-option-callout__eyebrow">robots.txt</span>
+                  <span className="status-chip status-chip--neutral">
+                    {t.newScan.robotsInfoMode}
+                  </span>
+                </div>
+                <h3 id="robots-info-title">{t.newScan.robotsInfoTitle}</h3>
+                <p id="robots-info-description" className="scan-option-callout__body">
+                  {t.newScan.robotsInfoBody}
+                </p>
+              </section>
               <Checkbox
+                name="scan-respect-robots"
                 label={t.newScan.labelRespectRobots}
                 checked={scope.respectRobots}
+                describedBy="robots-info-description"
                 onChange={(checked) =>
                   updateScope({
                     respectRobots: checked,
@@ -2192,31 +2248,39 @@ function NewScanScreen(props: {
               {scope.respectRobots ? null : (
                 <Checkbox
                   label={t.newScan.labelRobotsOverride}
+                  name="scan-robots-override"
                   checked={scope.robotsOverrideConfirmed}
+                  describedBy="robots-info-description"
                   onChange={(checked) => updateScope({ robotsOverrideConfirmed: checked })}
                 />
               )}
               <section className="ai-consent-callout" aria-labelledby="ai-consent-title">
                 <div className="ai-consent-callout__header">
-                  <span className="ai-consent-callout__eyebrow">AI SEO / GEO</span>
+                  <span className="ai-consent-callout__eyebrow">AI SEO / GEO · UX</span>
                   <span className="status-chip status-chip--neutral">
                     {t.newScan.aiConsentOptional}
                   </span>
                 </div>
                 <h3 id="ai-consent-title">{t.newScan.aiConsentTitle}</h3>
-                <Checkbox
-                  className="ai-consent-callout__checkbox"
-                  label={t.newScan.labelAiConsent}
-                  checked={consent}
-                  describedBy="ai-consent-description"
-                  onChange={setConsent}
-                />
                 <p id="ai-consent-description" className="ai-consent-callout__body">
-                  {t.newScan.aiConsentBody} <a href="/privacy">{t.newScan.aiConsentPrivacy}</a>
+                  {t.newScan.aiConsentBody}{' '}
+                  <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
                   {' · '}
-                  <a href="/terms">{t.newScan.aiConsentTerms}</a>
+                  <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>
                 </p>
               </section>
+              {plan === 'Complete' ? (
+                <section className="scan-option-callout" aria-labelledby="performance-info-title">
+                  <div className="scan-option-callout__header">
+                    <span className="scan-option-callout__eyebrow">PERFORMANCE · GOOGLE</span>
+                    <span className="status-chip status-chip--neutral">
+                      {t.newScan.performanceInfoMode}
+                    </span>
+                  </div>
+                  <h3 id="performance-info-title">{t.newScan.performanceInfoTitle}</h3>
+                  <p className="scan-option-callout__body">{t.newScan.performanceInfoBody}</p>
+                </section>
+              ) : null}
             </>
           ) : null}
         </Panel>
@@ -2232,6 +2296,68 @@ function NewScanScreen(props: {
             <p className="muted panel-help">{t.newScan.freeScopeLocked}</p>
           </Panel>
         )}
+        <Panel title={t.newScan.launchSummaryTitle}>
+          <div className="launch-summary">
+            <FieldRow label={t.newScan.launchSummarySite} value={launchSite} technical />
+            <FieldRow label={t.newScan.launchSummaryPlan} value={planLabel} />
+            <FieldRow label={t.newScan.launchSummaryPages} value={launchPages} />
+            <FieldRow label={t.newScan.launchSummaryDepth} value={launchDepth} />
+            <FieldRow
+              label={t.newScan.launchSummarySubdomains}
+              value={
+                scope.includeSubdomains
+                  ? t.newScan.launchSummaryEnabled
+                  : t.newScan.launchSummaryDisabled
+              }
+            />
+            <FieldRow label={t.newScan.launchSummaryRobots} value={launchRobots} />
+            <FieldRow
+              label={t.newScan.launchSummaryQueries}
+              value={
+                plan === 'Free'
+                  ? t.newScan.launchSummaryIgnored
+                  : scope.queryPolicy === 'include'
+                    ? t.newScan.launchSummaryIncluded
+                    : t.newScan.launchSummaryIgnored
+              }
+            />
+            <FieldRow
+              label={t.newScan.launchSummaryUserAgent}
+              value={
+                scope.userAgent === 'desktop'
+                  ? t.newScan.userAgentDesktop
+                  : t.newScan.userAgentMobile
+              }
+            />
+            <FieldRow
+              label={t.newScan.launchSummaryAi}
+              value={
+                plan === 'Free' ? t.newScan.launchSummaryDisabled : t.newScan.launchSummaryEnabled
+              }
+            />
+            {plan === 'Complete' ? (
+              <FieldRow
+                label={t.newScan.launchSummaryPerformance}
+                value={t.newScan.launchSummaryPerformanceValue}
+              />
+            ) : null}
+          </div>
+        </Panel>
+        {plan === 'Free' || props.internalFreeAccess ? null : (
+          <p
+            className="muted checkout-legal-note"
+            role="note"
+            aria-label={t.newScan.purchaseTermsLabel}
+          >
+            {t.newScan.purchaseTermsPrefix}{' '}
+            <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>{' '}
+            {t.newScan.purchaseTermsJoin}{' '}
+            <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
+            {' · '}
+            <a href={`/cookies?lang=${props.language}`}>{t.legal.cookies.title}</a>
+            {t.newScan.purchaseTermsSuffix}
+          </p>
+        )}
         <div className="split">
           <span className="muted">
             {targetLabel} {t.newScan.publicSiteOnly}
@@ -2241,9 +2367,9 @@ function NewScanScreen(props: {
             variant="primary"
             disabled={
               busy ||
+              savingConfiguration ||
               (usingSavedProfile ? target === '' : address.trim() === '') ||
-              (paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed) ||
-              (paidScopeControls && !consent)
+              (paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed)
             }
           >
             {busy
@@ -2257,6 +2383,20 @@ function NewScanScreen(props: {
                   : t.newScan.runPaid}
           </Button>
         </div>
+        <Button
+          type="button"
+          disabled={
+            unavailablePlanFallback ||
+            busy ||
+            savingConfiguration ||
+            (usingSavedProfile ? target === '' : address.trim() === '') ||
+            invalidScopeFields(scope, plan).length > 0 ||
+            (paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed)
+          }
+          onClick={() => void saveConfiguration()}
+        >
+          {savingConfiguration ? t.newScan.savingConfiguration : t.newScan.saveConfiguration}
+        </Button>
       </form>
     </Window>
   );

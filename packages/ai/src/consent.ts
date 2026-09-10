@@ -1,9 +1,12 @@
-// Consent-гейт AI-модуля (T-10, план §5): без подтверждённого согласия на
-// передачу публично извлечённого контента внешним провайдерам AI-модуль
-// получает Unavailable и не списывает квоту.
+// Versioned processing-notice gate for paid AI modules. The persisted model is
+// still named AiConsent for database/API compatibility, but the product now
+// presents AI processing as an included part of the paid audit with a prominent
+// pre-purchase disclosure, not as an optional checkbox.
 
 import { ConsentMissingError } from './errors.js';
 import type { AiProviderName } from './types.js';
+
+export const CURRENT_AI_PROCESSING_NOTICE_VERSION = 'core-ai-processing-notice-v3';
 
 export interface AiConsent {
   readonly scanId: string;
@@ -12,10 +15,8 @@ export interface AiConsent {
 }
 
 /**
- * Бросает ConsentMissingError, если consent отсутствует или не покрывает
- * провайдера. Соответствие consent конкретному скану проверяет вызывающий код
- * (geo-module трактует чужой scanId как отсутствие записи — §5 «несоответствие
- * записи блокирует запрос»).
+ * Throws when the persisted processing record is absent or does not cover the
+ * provider. The caller verifies that the record belongs to this scan.
  */
 export function ensureConsent(consent: AiConsent | null, provider: AiProviderName): void {
   if (consent === null) {

@@ -152,6 +152,7 @@ async function processPaid(
         ? JSON.stringify(event.customData.scope)
         : DEFAULT_SCOPE_JSON,
     aiConsent: event.customData?.aiConsent,
+    expectedProfileConfigVersion: event.customData?.expectedProfileConfigVersion,
     now,
   });
 

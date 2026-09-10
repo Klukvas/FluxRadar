@@ -2,6 +2,7 @@
 // runnable — модули с реализованными правилами (движок rules);
 // external — модули с подключаемым внешним runner-ом;
 // geo — модуль «AI SEO / GEO» (T-10, внешний provider с test mock);
+// ux — модуль «UX/Conversion»: bounded static evidence плюс AI review;
 // stubs — модули тарифа, невозможные в v0.1: получают честный
 // Unavailable / Not applicable со status_reason (D-006) и пишутся ПОСЛЕ
 // resolveScanOutcome — они не «потерянная работа», а версионное отсутствие
@@ -25,30 +26,23 @@ export interface ModulePlan {
   readonly runnable: readonly ModuleName[];
   readonly external: readonly ModuleName[];
   readonly geo: boolean;
+  readonly ux: boolean;
   readonly stubs: readonly StubModule[];
 }
 
-// Матрица IMPLEMENTATION_PLAN §2: UX — N/A. Analytics больше не заглушка:
+// Матрица IMPLEMENTATION_PLAN §2. Analytics больше не заглушка:
 // строку модуля пишет orchestrator/analytics-module.ts по реальным данным
 // Google (или по честному состоянию подключения), в той же пост-outcome фазе.
-const COMPLETE_STUBS: readonly StubModule[] = [
-  {
-    module: 'UX/Conversion',
-    runtimeStatus: 'Not applicable',
-    statusReason: 'NoDeterministicOracle',
-    applicableChecks: 0,
-  },
-];
-
 const PLANS_TO_MODULES: Readonly<Record<Plan, ModulePlan>> = {
   // Free — фиксированная SEO-проверка homepage (§18), без GEO и score.
-  Free: { runnable: ['SEO'], external: [], geo: false, stubs: [] },
-  Basic: { runnable: ['SEO'], external: [], geo: true, stubs: [] },
+  Free: { runnable: ['SEO'], external: [], geo: false, ux: false, stubs: [] },
+  Basic: { runnable: ['SEO'], external: [], geo: true, ux: false, stubs: [] },
   Complete: {
     runnable: ['SEO', 'Security', 'Accessibility', 'Reliability', 'Content Quality', 'Privacy'],
     external: ['Performance'],
     geo: true,
-    stubs: COMPLETE_STUBS,
+    ux: true,
+    stubs: [],
   },
 };
 

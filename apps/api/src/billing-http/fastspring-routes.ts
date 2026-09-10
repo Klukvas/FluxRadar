@@ -58,6 +58,7 @@ const checkoutSessionInputSchema = z
     plan: z.enum(PAID_PLANS),
     scope: scanScopeSchema,
     aiConsent: aiConsentSchema.optional(),
+    expectedProfileConfigVersion: z.number().int().min(1).optional(),
   })
   .superRefine((input, ctx) => {
     const urlLimit = planUrlLimit(input.plan);
@@ -157,6 +158,7 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
         plan: input.plan,
         scope: input.scope,
         aiConsent: input.aiConsent,
+        expectedProfileConfigVersion: input.expectedProfileConfigVersion,
       },
     );
     sendOk(res, session, { status: 201 });

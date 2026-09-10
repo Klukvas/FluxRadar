@@ -47,6 +47,7 @@ export const QUERY_IDEAS_SYSTEM_INSTRUCTIONS = [
   'Never repeat a query that already appears in the measured data you are shown.',
   'The rationale is one short sentence about why the query might fit this site.',
   'Write each query in its own language, not a transliteration of another one.',
+  "Use the supplied profile context to make the ideas specific to the site's domain, services, geography and audience.",
 ].join('\n');
 
 export interface QueryIdea {
@@ -82,6 +83,17 @@ export interface QueryIdeasInput {
   readonly brand: string;
   readonly measuredQueries: readonly SearchConsoleRow[];
   readonly measuredPages: readonly SearchConsoleRow[];
+  readonly profileContext?: QueryIdeasProfileContext;
+}
+
+export interface QueryIdeasProfileContext {
+  readonly industry?: string | null;
+  readonly region?: string | null;
+  readonly language?: string | null;
+  readonly businessDescription?: string | null;
+  readonly offerings?: string | null;
+  readonly targetLanguages?: string | null;
+  readonly targetAudience?: string | null;
 }
 
 const ideasSchema = z.object({
@@ -95,6 +107,26 @@ const ideasSchema = z.object({
     )
     .max(200),
 });
+
+function contextFacts(context: QueryIdeasProfileContext | undefined): readonly string[] {
+  if (context === undefined) return [];
+  return [
+    ['Business/site type', context.industry],
+    ['Business description', context.businessDescription],
+    ['Services or products', context.offerings],
+    ['Operating region', context.region],
+    ['Primary site language', context.language],
+    ['Target search languages', context.targetLanguages],
+    ['Target audience', context.targetAudience],
+  ].flatMap(([label, value]) => {
+    const normalized = value?.replace(/\s+/g, ' ').trim() ?? '';
+    return normalized === '' ? [] : [`${label}: ${normalized.slice(0, 360)}`];
+  });
+}
+
+export function hasQueryIdeasContext(context: QueryIdeasProfileContext | undefined): boolean {
+  return contextFacts(context).length > 0;
+}
 
 /**
  * The prompt, as the metadata half of an `AiRequest`.
@@ -117,6 +149,7 @@ export function buildQueryIdeasRequest(input: QueryIdeasInput): AiRequest {
     brandFacts: [
       `The site is ${input.siteUrl}`,
       `The site is presented as "${input.brand}"`,
+      ...contextFacts(input.profileContext),
       ...measured.map(
         (row) =>
           `Already measured query: "${row.key}" ` +
@@ -211,7 +244,9 @@ export async function generateQueryIdeas(
   deps: QueryIdeasDeps,
 ): Promise<QueryIdeasResult> {
   if (deps.provider === null) return { state: 'not_configured' };
-  if (input.measuredQueries.length === 0) return { state: 'unavailable' };
+  if (input.measuredQueries.length === 0 && !hasQueryIdeasContext(input.profileContext)) {
+    return { state: 'unavailable' };
+  }
 
   const request = buildQueryIdeasRequest(input);
   const prompt = buildPrompt(request);

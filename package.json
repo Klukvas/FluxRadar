@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
     "dev": "pnpm -r --parallel dev",
+    "test:e2e": "playwright test",
     "format": "prettier --write ."
   },
   "pnpm": {
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.3",
     "eslint": "^10.9.1",
     "prettier": "^3.9.6",

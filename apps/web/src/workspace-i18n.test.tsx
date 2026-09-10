@@ -1,3 +1,4 @@
+import { saveCookieConsent } from './browser-consent';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -78,6 +79,7 @@ function signedIn(path: string): Response {
 
 /** Renders with Ukrainian already chosen, the way a returning owner arrives. */
 function renderUkrainianAt(path: string): void {
+  saveCookieConsent(true);
   window.localStorage.setItem('fluxradar.language', 'uk');
   stubApi(signedIn);
   window.history.replaceState(null, '', path);
@@ -139,6 +141,7 @@ describe('Ukrainian result screens', () => {
       }
       return signedIn(path);
     });
+    saveCookieConsent(true);
     window.localStorage.setItem('fluxradar.language', 'uk');
     window.history.replaceState(null, '', `/scans/${completedScan.id}`);
     render(<App />);
@@ -219,6 +222,7 @@ describe('the report score area in Ukrainian', () => {
   };
 
   function renderScoredReport(): void {
+    saveCookieConsent(true);
     window.localStorage.setItem('fluxradar.language', 'uk');
     stubApi((path) => {
       if (path === `/scans/${completedScan.id}/dashboard`)

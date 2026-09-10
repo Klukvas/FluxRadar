@@ -45,6 +45,7 @@ const devCheckoutInputSchema = z
     plan: z.enum(PAID_PLANS),
     scope: scanScopeSchema,
     aiConsent: aiConsentSchema.optional(),
+    expectedProfileConfigVersion: z.number().int().min(1).optional(),
   })
   .superRefine((input, ctx) => {
     const { urlLimit } = TARIFFS[input.plan];
@@ -139,6 +140,7 @@ export function billingRouter(deps: BillingRouterDeps): Router {
         plan: input.plan,
         scope: input.scope,
         aiConsent: input.aiConsent,
+        expectedProfileConfigVersion: input.expectedProfileConfigVersion,
         now: deps.now(),
       });
       sendOk(
@@ -173,6 +175,9 @@ export function billingRouter(deps: BillingRouterDeps): Router {
       secret: deps.webhookSecret,
       customData: {
         scope: input.scope,
+        ...(input.expectedProfileConfigVersion === undefined
+          ? {}
+          : { expectedProfileConfigVersion: input.expectedProfileConfigVersion }),
         ...(input.aiConsent !== undefined ? { aiConsent: input.aiConsent } : {}),
       },
     });

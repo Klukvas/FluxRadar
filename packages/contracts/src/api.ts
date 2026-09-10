@@ -76,34 +76,44 @@ export const siteProfileInputSchema = z.object({
   industry: z.string().trim().min(1).max(64).optional(),
   region: z.string().trim().min(1).max(64).optional(),
   language: z.string().trim().min(1).max(64).optional(),
+  businessDescription: z.string().trim().min(1).max(800).optional(),
+  offerings: z.string().trim().min(1).max(1200).optional(),
+  targetLanguages: z.string().trim().min(1).max(200).optional(),
+  targetAudience: z.string().trim().min(1).max(500).optional(),
+  scanConfig: z.lazy(() => profileScanConfigSchema).optional(),
 });
 export type SiteProfileInput = z.infer<typeof siteProfileInputSchema>;
 
-export const scanScopeSchema = z.object({
-  includeSubdomains: z.boolean(),
-  maxPages: z.number().int().min(1).optional(),
-  maxDepth: z.number().int().min(0).max(100).optional(),
-  urlPatterns: z.array(z.string().trim().min(1).max(CRAWL_LIMITS.maxUrlBytes)).max(100).optional(),
-  excludePatterns: z
-    .array(z.string().trim().min(1).max(CRAWL_LIMITS.maxUrlBytes))
-    .max(100)
-    .optional(),
-  queryPolicy: z.enum(['include', 'ignore']).default('ignore'),
-  respectRobots: z.boolean().default(true),
-  robotsOverrideConfirmed: z.boolean().default(false),
-  userAgent: z.enum(['desktop', 'mobile']).default('desktop'),
-}).superRefine((scope, ctx) => {
-  if (!scope.respectRobots && !scope.robotsOverrideConfirmed) {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'robotsOverrideConfirmed is required when respectRobots is false',
-      path: ['robotsOverrideConfirmed'],
-    });
-  }
-});
+export const scanScopeSchema = z
+  .object({
+    includeSubdomains: z.boolean(),
+    maxPages: z.number().int().min(1).optional(),
+    maxDepth: z.number().int().min(0).max(100).optional(),
+    urlPatterns: z
+      .array(z.string().trim().min(1).max(CRAWL_LIMITS.maxUrlBytes))
+      .max(100)
+      .optional(),
+    excludePatterns: z
+      .array(z.string().trim().min(1).max(CRAWL_LIMITS.maxUrlBytes))
+      .max(100)
+      .optional(),
+    queryPolicy: z.enum(['include', 'ignore']).default('ignore'),
+    respectRobots: z.boolean().default(true),
+    robotsOverrideConfirmed: z.boolean().default(false),
+    userAgent: z.enum(['desktop', 'mobile']).default('desktop'),
+  })
+  .superRefine((scope, ctx) => {
+    if (!scope.respectRobots && !scope.robotsOverrideConfirmed) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'robotsOverrideConfirmed is required when respectRobots is false',
+        path: ['robotsOverrideConfirmed'],
+      });
+    }
+  });
 export type ScanScopeInput = z.infer<typeof scanScopeSchema>;
 
-export const scanRequestInputSchema = z
+const scanConfigSchema = z
   .object({
     plan: z.enum(PLANS),
     scope: scanScopeSchema,
@@ -118,7 +128,52 @@ export const scanRequestInputSchema = z
       });
     }
   });
+export const defaultProfileScanConfig = {
+  plan: 'Complete',
+  scope: {
+    includeSubdomains: false,
+    maxPages: 15,
+    maxDepth: 5,
+    queryPolicy: 'ignore',
+    respectRobots: true,
+    robotsOverrideConfirmed: false,
+    userAgent: 'desktop',
+  },
+} as const satisfies z.input<typeof scanConfigSchema>;
+
+export const profileScanConfigSchema = scanConfigSchema;
+export type ProfileScanConfig = z.infer<typeof profileScanConfigSchema>;
+
+export const expectedProfileConfigVersionSchema = z.number().int().min(1);
+export const scanRequestInputSchema = scanConfigSchema.safeExtend({
+  expectedProfileConfigVersion: expectedProfileConfigVersionSchema.optional(),
+});
 export type ScanRequestInput = z.infer<typeof scanRequestInputSchema>;
+
+export const siteProfilePatchInputSchema = siteProfileInputSchema.partial().extend({
+  industry: siteProfileInputSchema.shape.industry.unwrap().nullable().optional(),
+  region: siteProfileInputSchema.shape.region.unwrap().nullable().optional(),
+  language: siteProfileInputSchema.shape.language.unwrap().nullable().optional(),
+  businessDescription: siteProfileInputSchema.shape.businessDescription
+    .unwrap()
+    .nullable()
+    .optional(),
+  offerings: siteProfileInputSchema.shape.offerings.unwrap().nullable().optional(),
+  targetLanguages: siteProfileInputSchema.shape.targetLanguages.unwrap().nullable().optional(),
+  targetAudience: siteProfileInputSchema.shape.targetAudience.unwrap().nullable().optional(),
+  expectedProfileConfigVersion: expectedProfileConfigVersionSchema.optional(),
+});
+export type SiteProfilePatchInput = z.infer<typeof siteProfilePatchInputSchema>;
+
+export const executionConfigSchema = z.object({
+  schemaVersion: z.literal(1),
+  source: z.enum(['launch', 'legacy-checkout']),
+  profileConfigVersion: expectedProfileConfigVersionSchema.nullable(),
+  profile: siteProfileInputSchema.omit({ scanConfig: true }),
+  plan: z.enum(PLANS),
+  scope: scanScopeSchema,
+});
+export type ExecutionConfig = z.infer<typeof executionConfigSchema>;
 
 // Resolved/Reopened are assigned only by fingerprint comparison between Complete
 // scans (§14); users may never set them by hand.

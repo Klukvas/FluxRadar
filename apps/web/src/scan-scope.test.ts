@@ -11,6 +11,8 @@ import {
   invalidScopeFields,
   MAX_CRAWL_DEPTH,
   scanScopeFrom,
+  profileScanConfigFromForm,
+  scopeFormFromProfileConfig,
   scopeFormFromScan,
 } from './scan-scope';
 
@@ -26,6 +28,17 @@ import {
 function scanWith(plan: Scan['plan'], scope: Scan['scope']): Scan {
   return { plan, scope } as Scan;
 }
+
+it('preserves intentionally cleared limits when a saved configuration is reopened', () => {
+  const saved = profileScanConfigFromForm(
+    { ...DEFAULT_SCOPE_FORM, maxPages: '', maxDepth: '' },
+    'Complete',
+  );
+  const restored = scopeFormFromProfileConfig(saved);
+  expect(restored.maxPages).toBe('');
+  expect(restored.maxDepth).toBe('');
+  expect(profileScanConfigFromForm(restored, 'Complete')).toEqual(saved);
+});
 
 describe('scanScopeFrom', () => {
   const filledForm = {

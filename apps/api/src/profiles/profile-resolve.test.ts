@@ -61,6 +61,56 @@ describe('POST /profiles/resolve', () => {
     await expect(db.prisma.siteProfile.count()).resolves.toBe(1);
   });
 
+  it('persists the reusable scan configuration on the profile', async () => {
+    const agent = await signedIn('profile-config@example.com');
+    const created = await agent.post('/profiles').send({
+      name: 'Configured site',
+      domain: 'https://configured.example.com',
+      scanConfig: {
+        plan: 'Complete',
+        scope: {
+          includeSubdomains: true,
+          maxPages: 120,
+          maxDepth: 6,
+          queryPolicy: 'include',
+          respectRobots: true,
+          userAgent: 'mobile',
+        },
+      },
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.data.scanConfig.scope.maxPages).toBe(120);
+    expect(created.body.data.scanConfigVersion).toBe(1);
+
+    const updated = await agent.patch(`/profiles/${created.body.data.id}`).send({
+      scanConfig: {
+        plan: 'Complete',
+        scope: {
+          includeSubdomains: false,
+          maxPages: 15,
+          maxDepth: 5,
+          queryPolicy: 'ignore',
+          respectRobots: true,
+          userAgent: 'desktop',
+        },
+      },
+    });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.scanConfig).toEqual({
+      plan: 'Complete',
+      scope: {
+        includeSubdomains: false,
+        maxPages: 15,
+        maxDepth: 5,
+        queryPolicy: 'ignore',
+        respectRobots: true,
+        robotsOverrideConfirmed: false,
+        userAgent: 'desktop',
+      },
+    });
+    expect(updated.body.data.scanConfigVersion).toBe(2);
+  });
+
   // The name is a suggestion made once. A profile the owner renamed is the same
   // profile the next scan of that address belongs to, and renaming it back would
   // undo a decision they made on purpose.

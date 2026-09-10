@@ -86,6 +86,7 @@ export interface IssueRecordInput {
 }
 
 export interface AiResponseRecordInput {
+  readonly module?: 'AI SEO / GEO' | 'UX/Conversion';
   readonly moduleStatus: 'Completed' | 'Partial';
   readonly statusReason: string | null;
   readonly provider: string;

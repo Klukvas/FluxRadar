@@ -229,6 +229,7 @@ function ReportRow(props: { scan: Scan; language: Language; onOpen: () => void }
         <strong className="report-row__domain">{displayDomain(scan.domain)}</strong>
         <p className="muted report-row__meta">
           {scan.plan}
+          {scan.profileConfigVersion === undefined ? '' : ` · v${scan.profileConfigVersion}`}
           {finished !== null
             ? ` · ${fillCopy(t.finishedAt, { time: finished })}`
             : started !== null

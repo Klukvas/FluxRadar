@@ -6,7 +6,8 @@
 **Цель v0.1:** локально работающая pay-per-scan платформа, реализующая все load-bearing
 контракты спецификации (`fingerprint-v1`, URL-нормализация v1, score-формулы §15, scan/billing
 state machine §18, export schema v1 §16) на детерминированном субсете правил `rules-mvp-0.1`,
-с mock-адаптерами вместо внешней инфраструктуры и честными ветками `Unavailable`.
+с реальными внешними адаптерами там, где интеграция настроена, тестовыми mock-адаптерами и
+честными ветками `Unavailable`, когда внешнего результата нет.
 
 ---
 
@@ -50,7 +51,7 @@ fluxradar/
 | Оплата FastSpring | 🔶 код готов, live-режим закрыт | Серверная checkout-сессия + подписанный webhook (`X-FS-Signature`, base64 HMAC-SHA256), см. [FASTSPRING.md](FASTSPRING.md). `FASTSPRING_MODE=live` не включается, пока владелец аккаунта FastSpring не проверит магазин и не выставит `FASTSPRING_STORE_VERIFIED=verified` — этот шаг вне репозитория. MockPaddle остаётся только для локальной разработки |
 | Crawler (§3) | ✅ базово | HTTP, robots.txt, sitemap, лимиты; без JS-рендеринга |
 | SEO (§4) | ✅ субсет | SEO-TECH-001..008,013 + SEO-ONPAGE-001,002,003,005 + JSON-LD/social preview |
-| AI SEO/GEO (§5) | ✅ Anthropic, fail-closed when absent | контракт adapter-а, caps, truncation, quota, consent; real Messages adapter включается через `ANTHROPIC_API_KEY`, а production без ключа не подменяется фиктивными ответами |
+| AI SEO/GEO (§5) | ✅ Anthropic, fail-closed when absent | AI генерирует neutral domain-specific вопросы из сохранённого профиля, затем отдельные provider-вызовы проверяют упоминание бренда/домена; caps, truncation, quota, consent; production без ключа не подменяется фиктивными ответами |
 | Security passive (§6) | ✅ субсет | SEC-PASSIVE-002,003,005 + OWASP ASVS Public Profile (HTTP/DOM) |
 | Security active (§6) | ❌ | за launch gate по самому плану |
 | Performance (§7) | ✅ external runner | PageSpeed Insights normalized lab snapshot работает без ключа; CrUX дополняет его field metrics при наличии `CRUX_API_KEY` |
@@ -58,7 +59,7 @@ fluxradar/
 | Reliability (§9) | ✅ субсет | REL-URL-001,003,009 + REL-API-003,005 |
 | Content Quality (§10) | ✅ субсет | CONTENT-003,004 |
 | Privacy (§11) | ✅ public technical subset | PRIVACY-001..004: cookies, third-party scripts, consent signal, policy discoverability; not legal advice |
-| UX/Conversion (§12) | ❌ `Not applicable` | правила без оракула |
+| UX/Conversion (§12) | ✅ hybrid static + Anthropic | bounded static HTML signals plus consent-gated, strict-JSON AI review; AI findings are advisory and outside the overall score |
 | Analytics (§13) | 🔶 OAuth foundation | Google/Bing OAuth connections and status; full analytics rule runner remains a follow-up |
 | Issue Center (§14) | ✅ | статусы, фильтры, Resolved/Reopened по fingerprint |
 | Дашборд (§15) | ✅ | score, coverage, веса, вклад проблем |
@@ -67,9 +68,10 @@ fluxradar/
 | Тарифы Free/Basic/Complete (§18) | ✅ | гейтирование модулей, лимиты URL/AI, retention-метки |
 | ECON-001 (§18) | ✅ CLI | чистый валидатор экономики |
 | Админка (§20) | ❌ | вне v0.1 |
-| E2E Playwright | ❌ | integration-тесты API + ручная проверка UI (D-013); browser-rendered audit остаётся отдельным follow-up |
+| Backend E2E | ✅ | Supertest + disposable PostgreSQL: Complete checkout → worker → UX/Conversion → Issue Center/export, включая consent-gated Partial |
+| E2E Playwright | ✅ Google bindings | browser-rendered Integrations flow покрывает отдельные связки всех профилей; полный paid audit flow остаётся отдельным follow-up |
 
-## 3. Реализуемый набор правил `rules-mvp-0.1` (59 позиций: 49 сканирующих/GEO + 10 платформенных)
+## 3. Реализуемый набор правил `rules-mvp-0.1` (65 позиций: 55 сканирующих/GEO/UX + 10 платформенных)
 
 Severity и оракулы фиксируются в реестре `packages/contracts` (замена несуществующих
 `RULES-<module>-v1`); фикстуры `fx-<rule_id>-{positive|negative|boundary}`.
@@ -79,7 +81,8 @@ Severity и оракулы фиксируются в реестре `packages/co
 | SEO technical | SEO-TECH-001 robots.txt; 002 sitemap; 003 HTTP status; 004 canonical; 005 redirect chains; 006 4xx/5xx; 007 duplicate URL; 008 index/noindex; 013 HTTPS/mixed content | HTTP/HTML детерминированно |
 | SEO on-page | SEO-ONPAGE-001 title; 002 meta description; 003 H1–H6; 005 image alt | DOM |
 | SEO discovery | SEO-STRUCT-001 JSON-LD syntax; SEO-STRUCT-002 JSON-LD completeness; SEO-SOCIAL-001 social preview | статический HTML; JS-injected markup не объявляется отсутствующим |
-| GEO (mock) | GEO-PROVIDER-001 adapter-контракт; GEO-VIS-003 brand presence; GEO-VIS-004 site link; GEO-METHOD-002 metadata capture; GEO-METHOD-005 unavailable без штрафа | нормализованный AI-ответ |
+| GEO | GEO-PROVIDER-001 adapter-контракт; GEO-VIS-003 brand presence; GEO-VIS-004 site link; GEO-METHOD-002 metadata capture; GEO-METHOD-005 unavailable без штрафа | нормализованный AI-ответ реального provider-а; mock только в тестах |
+| UX/Conversion | UX-CONV-STATIC-001..003; UX-CONV-AI-001..003 | узкие DOM-факты + consent-gated AI interpretation, без штрафа score |
 | Security passive/ASVS | SEC-PASSIVE-002 security headers; 003 HSTS; 005 cookie attributes; SEC-ASVS-001 CSP; 002 Permissions-Policy; 003 CORS credentials | заголовки ответа + HTML |
 | Reliability | REL-URL-001 availability; 003 4xx/5xx verdict; 009 response time; REL-API-003 expected-status precedence; REL-API-005 no-credentials policy | HTTP + контракт §9 |
 | Accessibility | A11Y-001 contrast; A11Y-002 alt text; A11Y-003 language/headings; A11Y-004 form labels; A11Y-005 keyboard risks; A11Y-006 focus; A11Y-007 ARIA; A11Y-008 interactive names; A11Y-009 form errors; A11Y-010 landmarks/media; A11Y-011 report transparency | DOM/CSS + report contract |
@@ -100,6 +103,82 @@ Basic/Complete по существующей модульной матрице �
 - `AI SEO / GEO`: public AI crawler readiness (robots policy, extractable content, structured data,
   social preview) работает без provider token. Provider visibility остаётся отдельным consent-gated слоем.
 
+### Remaining follow-up: context inference when the form is empty
+
+Domain-specific GEO query generation is now implemented for saved profile context. The remaining
+follow-up is to infer a proposal from public content when the user leaves the form empty. The
+proposal must be shown for confirmation before payment and scan launch. The implemented behavior:
+
+- accept saved profile context: business/domain topic, services or products, target city or region,
+  audience, and target languages;
+- always include brand/official-site awareness checks; in a separate provider call, generate two to
+  four bounded domain-specific questions from neutralized structured profile context, then ask those
+  questions as independent visibility checks; query generation and discovery prompts do not receive
+  the brand, domain, free-form description or crawled page titles, because those values would teach
+  the provider which site to mention;
+- keep generated GEO questions and observations separate from measured Search Console queries and
+  metrics;
+- keep the on-demand AI query-ideas block separate from Search Console tables; it now uses both
+  measured rows and saved profile context and can work with profile context even without GSC rows.
+
+### Implemented: hybrid UX/Conversion review
+
+Complete scans now run a public-only UX/Conversion module. The deterministic half collects bounded
+HTML evidence (headings, visible text, actions, forms, links, and contact signals) from up to twelve
+reachable pages. The AI half receives that evidence plus the saved profile context only when the
+scan's existing Anthropic consent covers the provider. It must return strict JSON using an allowlist
+of UX rule IDs and URLs supplied by the crawler; malformed or unsupported output is discarded as
+`ProviderContract`, never shown as a result. Findings become ordinary Issue Center items with
+evidence and recommendations, but have zero score penalty because the module cannot measure a real
+conversion rate. The report explicitly states the static-HTML limitation and why the AI half was
+unavailable when that happens.
+
+### Implemented: backend E2E coverage
+
+`apps/api/src/api.e2e.test.ts` covers the public backend seam with Supertest, the disposable
+PostgreSQL test database, the crawler fixture site, and the real worker pipeline. The happy path
+starts at Complete checkout and verifies the persisted UX module, an Issue Center finding, and a
+Complete export. The consent-gated path verifies that static UX evidence remains usable while the
+AI half is stored as `Partial` with `UxAiConsentMissing` and produces no fabricated issue. Run these
+tests with `TEST_DATABASE_URL` pointing at the disposable PostgreSQL database. Browser-rendered
+coverage is provided separately by Playwright.
+
+### Implemented: Playwright Google bindings coverage
+
+`e2e/google-bindings.spec.ts` starts the real Vite web app and intercepts only the authenticated
+API seam with deterministic Google fixtures. It verifies that every saved profile can be selected,
+that its Search Console and GA4 binding are loaded independently, and that saving a changed
+binding for one profile does not silently change another profile. This is browser-rendered UI
+coverage, not a live OAuth or Google quota test; the authenticated provider contract remains
+covered by the API and component tests.
+
+### Planned follow-up: Google bindings overview
+
+The current Integrations screen configures only the selected profile and does not make the
+account's existing Google bindings visible as a list. The follow-up must:
+
+- show one row per FluxRadar profile with its Search Console and GA4 binding status;
+- distinguish linked, partially linked, and not linked profiles in the row itself;
+- provide a clear "Configure" action for each profile that opens the existing property selectors;
+- keep one binding per profile while allowing different profiles to use different Google
+  properties.
+
+### Implemented: profiles as saved Complete-run configurations
+
+A profile is not just a site name and URL. It must be the complete, reusable configuration for
+running an audit on the Complete plan. The profile now:
+
+- persist the site identity together with the full run configuration, including plan, subdomain
+  scope, page/depth limits, query-parameter policy, robots policy and user-agent;
+- keeps the user's AI-provider consent per run rather than storing it in the reusable profile;
+- create and edit profiles through one complete configuration surface, so a saved profile can be
+  launched without silently falling back to defaults or losing advanced settings;
+- shows the effective configuration before payment and before starting a scan;
+- marks unsaved edits explicitly, explains that a run saves them, and labels the resulting
+  profile configuration revision on the profile, checkout, scan and report;
+- keep profile identity/configuration separate from Google bindings, while allowing each profile
+  to have its own Complete-run settings and Google properties.
+
 ## 4. Ключевые контракты (обязательные к дословной реализации)
 
 1. **fingerprint-v1** (§14): сериализация с length-prefix + NUL, SHA-256, префикс
@@ -117,7 +196,7 @@ Basic/Complete по существующей модульной матрице �
    плана, semantic validator (инварианты 1–9 из `EXPORT-001`), CSV: UTF-8 без BOM, LF, RFC 4180,
    порядок summary→module→ai_response→issue (severity → fingerprint lexicographic),
    zero-issue → одна summary-строка, экранирование формул (`= + - @`).
-6. **AI-контракт** (§5, на mock): normalized response contract, caps 8000/2000, детерминированная
+6. **AI-контракт** (§5; mock только в тестах): normalized response contract, caps 8000/2000, детерминированная
    truncation `[TRUNCATED]`, `finish_reason=length`, `ai_request_key`, consent per-scan,
    pre-response отказ → module `Unavailable` без `ai_response` record и без списания квоты.
 7. **safe-fetch** (§6/§21 + находки security): резолв всех A+AAAA адресов до соединения,
@@ -127,7 +206,7 @@ Basic/Complete по существующей модульной матрице �
 ## 5. Последовательность реализации
 
 Задачи и зависимости — в `docs/TASK_BOARD.md`. Порядок: скелет → contracts →
-fingerprint → scoring → safe-fetch → БД/биллинг → crawler → правила → AI mock → export →
+fingerprint → scoring → safe-fetch → БД/биллинг → crawler → правила → AI provider (mock в тестах) → export →
 API/оркестратор → дизайн-система UI → экраны → интеграционные тесты → финальная проверка.
 
 ## 6. Definition of Done v0.1
@@ -142,5 +221,8 @@ API/оркестратор → дизайн-система UI → экраны �
 - [ ] UI: happy path (регистрация → профиль → dev-checkout → скан → дашборд → Issue Center →
   CSV) работает вручную; стиль соответствует `DESIGN_SYSTEM.md`.
 - [ ] Секреты только в env, `.env.example` без значений; логи без raw HTML/credentials.
+- [x] До публичных продаж Terms, Privacy и Cookie Policy называют фактического продавца/контролёра: полное
+  юридическое имя, страну и почтовый адрес, применимые регистрационные/налоговые данные и
+  юрисдикцию; формулировки проверены с учётом стран, где сервис целенаправленно продаётся.
 
 v0.1 не претендует на launch gates §26 — они остаются условиями public launch полного релиза.

@@ -101,7 +101,6 @@ async function payWithPaidPlan(): Promise<void> {
   await screen.findByText('New scan — scope and tariff');
   await screen.findByText('Complete · $120');
   fireEvent.change(screen.getByLabelText('Scan plan'), { target: { value: 'Complete' } });
-  fireEvent.click(screen.getByRole('checkbox', { name: /Allow sending public pages/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 }
 

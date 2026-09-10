@@ -1,4 +1,5 @@
 import { checksCopyEn, checksCopyUk } from './checks-copy';
+import { preferencesAllowed } from './browser-consent';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
 import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 import { tourStepCopy } from './tour-steps';
@@ -16,6 +17,10 @@ export const LANGUAGE_QUERY_PARAM = 'lang';
 
 export function readStoredLanguage(): Language {
   try {
+    if (!preferencesAllowed()) {
+      window.localStorage.removeItem(LANGUAGE_STORAGE_KEY);
+      return 'en';
+    }
     return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === 'uk' ? 'uk' : 'en';
   } catch {
     return 'en';
@@ -35,7 +40,8 @@ export function readLanguageParam(search: string = window.location.search): Lang
 /**
  * The language a session opens in.
  *
- * `?lang=` wins over the stored preference and is written back to it, because
+ * `?lang=` wins over the stored preference and is written back only when
+ * preference storage was allowed, because
  * that parameter is what the blog's language filter, the sitemap's `hreflang`
  * alternates and any shared link carry: following one of those has to land in
  * the language it promised, and stay there for the rest of the visit.
@@ -49,6 +55,10 @@ export function readInitialLanguage(): Language {
 
 export function storeLanguage(language: Language): void {
   try {
+    if (!preferencesAllowed()) {
+      window.localStorage.removeItem(LANGUAGE_STORAGE_KEY);
+      return;
+    }
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   } catch {
     // A blocked storage context should not prevent the shell from working.
@@ -100,8 +110,8 @@ export const copy = {
       back: '← Back to FluxRadar',
       contents: 'DOCUMENT MAP',
       contentsLabel: 'Document sections',
-      englishNotice:
-        'This document is maintained in English. The English text is the version that applies.',
+      languageNotice:
+        'This English text is an informational translation. The Ukrainian version is the legally controlling version.',
       footerBrand: 'FLUXRADAR / BY FLUXLAB',
       questions: 'Questions:',
       privacy: {
@@ -109,12 +119,14 @@ export const copy = {
         crossLink: 'Privacy policy →',
         lede: 'A plain-language record of what FluxRadar collects, why it uses it and how connected Google data is handled.',
         sections: [
-          { id: 'privacy-scope', label: 'Scope' },
+          { id: 'privacy-controller', label: 'Controller' },
           { id: 'privacy-data', label: 'Data we handle' },
           { id: 'privacy-google', label: 'Google user data' },
           { id: 'privacy-use', label: 'How we use data' },
+          { id: 'privacy-providers', label: 'Providers & transfers' },
           { id: 'privacy-retention', label: 'Storage & deletion' },
-          { id: 'privacy-rights', label: 'Your choices' },
+          { id: 'privacy-cookies', label: 'Cookies & browser storage' },
+          { id: 'privacy-rights', label: 'Your rights' },
         ],
       },
       terms: {
@@ -122,12 +134,27 @@ export const copy = {
         crossLink: 'Terms of service →',
         lede: 'The operating terms for using FluxRadar to review public websites and purchase one-time audit reports.',
         sections: [
+          { id: 'terms-operator', label: 'Operator' },
           { id: 'terms-service', label: 'The service' },
           { id: 'terms-account', label: 'Accounts' },
-          { id: 'terms-paid', label: 'Free and paid scans' },
+          { id: 'terms-paid', label: 'Purchases & refunds' },
           { id: 'terms-use', label: 'Acceptable use' },
           { id: 'terms-results', label: 'Reports & limitations' },
-          { id: 'terms-ending', label: 'Ending use' },
+          { id: 'terms-rights', label: 'Intellectual property' },
+          { id: 'terms-liability', label: 'Liability' },
+          { id: 'terms-law', label: 'Law & contact' },
+        ],
+      },
+      cookies: {
+        title: 'Cookie policy',
+        crossLink: 'Cookie policy →',
+        lede: 'The exact cookies and browser storage FluxRadar uses, their purpose, duration and controls.',
+        sections: [
+          { id: 'cookies-controller', label: 'Operator & scope' },
+          { id: 'cookies-categories', label: 'Categories' },
+          { id: 'cookies-inventory', label: 'Storage inventory' },
+          { id: 'cookies-providers', label: 'FastSpring checkout' },
+          { id: 'cookies-controls', label: 'Your controls' },
         ],
       },
     },
@@ -157,6 +184,11 @@ export const copy = {
         description:
           'The operating terms for using FluxRadar to review public websites and buy one-time audit reports.',
       },
+      cookies: {
+        title: 'Cookie policy | FluxRadar',
+        description:
+          'The cookies and browser storage FluxRadar uses, why they are needed, how long they remain and how to control them.',
+      },
       workspaceTitle: 'Workspace — FluxRadar',
     },
     workspace: {
@@ -168,7 +200,10 @@ export const copy = {
         'Add your first profile to begin. Enter the homepage address of your site (like mysite.com) and FluxRadar saves it as a profile you can scan whenever you are ready.',
       addSite: 'Add profile',
       addSiteHelp:
-        'A profile stores one site address and its audit history. FluxRadar reads only public pages — no passwords or CMS access — and saving does not start a scan or charge you.',
+        'A profile is the complete saved configuration for one site: identity, audience context and audit history. FluxRadar reads only public pages — no passwords or CMS access — and saving does not start a scan or charge you.',
+      profileContextHeading: 'Site context for AI queries',
+      profileContextHelp:
+        'Tell FluxRadar what this site is about. This context will later help generate realistic, domain-specific AI visibility questions instead of generic audit questions. Write plain language; leave anything unknown blank.',
       displayName: 'Display name',
       displayNamePlaceholder: 'Product site',
       siteAddressLabel: 'Site address',
@@ -177,7 +212,30 @@ export const copy = {
         'Enter your homepage domain, for example mysite.com. No CMS access or passwords needed.',
       siteAddressError:
         'That does not look like a site address. Enter your domain, like mysite.com.',
+      businessType: 'Business or site type',
+      businessTypePlaceholder: 'Dental clinic, recruiting platform, online store',
+      businessTypeHint: 'The short category a customer would use to describe this site.',
+      businessDescription: 'What is this site about?',
+      businessDescriptionPlaceholder: 'A private dental clinic helping families in Kyiv…',
+      businessDescriptionHint:
+        'Describe the main purpose and value of the site in one or two sentences.',
+      offerings: 'Services or products',
+      offeringsPlaceholder: 'Dental implants, cleanings, emergency appointments',
+      offeringsHint:
+        'List the services or products people may search for, separated by commas or lines.',
+      operatingRegion: 'Where does it operate?',
+      operatingRegionPlaceholder: 'Kyiv and Kyiv region, Ukraine',
+      operatingRegionHint: 'Add the city, region or country that matters for discovery.',
+      targetLanguages: 'Target languages',
+      targetLanguagesPlaceholder: 'Ukrainian, Russian, English',
+      targetLanguagesHint: 'Languages in which potential customers may search for this site.',
+      targetAudience: 'Who is it for?',
+      targetAudiencePlaceholder: 'Adults and families looking for a dentist in Kyiv',
+      targetAudienceHint: 'Describe the people or organizations you want to reach.',
       saveProfile: 'Save profile',
+      updateProfile: 'Update profile',
+      editProfile: 'Edit profile',
+      cancelEdit: 'Cancel editing',
       saving: 'Saving…',
       newScan: 'New scan',
       inspect: 'Inspect',
@@ -480,14 +538,22 @@ export const copy = {
       queryInclude: 'Include parameters',
       labelRespectRobots: 'Respect robots.txt',
       labelRobotsOverride: 'I confirm the robots.txt override',
+      robotsInfoTitle: 'How robots.txt affects this scan',
+      robotsInfoMode: 'Safe default',
+      robotsInfoBody:
+        'Before crawling, FluxRadar reads the site’s public robots.txt. When “Respect robots.txt” is on, pages disallowed for crawlers are skipped. Turn it off only when you are authorized to inspect those paths; the confirmation below records that choice.',
       labelAiConsent:
-        'Allow sending public pages to an external AI model (for AI SEO / GEO visibility)',
-      aiConsentTitle: 'Optional AI visibility check',
-      aiConsentOptional: 'Optional',
+        'Anthropic processes site context and public-page evidence for the included AI checks',
+      aiConsentTitle: 'AI processing included in this audit',
+      aiConsentOptional: 'Included',
       aiConsentBody:
-        'When enabled, FluxRadar sends the public pages read by this scan to Anthropic after redaction. The provider helps check how your brand may appear in AI-generated answers. Leave it off and the AI SEO / GEO module will not run.',
+        'By starting this paid audit, you instruct FluxRadar to use Anthropic for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain. Separate awareness questions include the brand and domain; on Complete, UX review can include saved context and bounded public-page evidence. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
       aiConsentPrivacy: 'Privacy policy',
       aiConsentTerms: 'Terms of service',
+      performanceInfoTitle: 'External performance measurement',
+      performanceInfoMode: 'No sign-in or site script',
+      performanceInfoBody:
+        'Complete sends the public page URL to Google PageSpeed Insights for a point-in-time Lighthouse lab test and requests available CrUX field data for that URL or origin. You do not connect a Google account or install anything on the tested site. Google can return no field data or fail to answer; in that case the report shows the limitation instead of inventing a score.',
       noProfile: 'Select a profile',
       publicSiteOnly: '· public site only',
       creating: 'Creating…',
@@ -495,9 +561,42 @@ export const copy = {
       runInternal: 'Run internal scan',
       runPaid: 'Pay and run scan',
       paidUnavailable:
-        'Paid scans will be available when checkout is enabled. Free scan is available now.',
+        'Paid scans will be available when checkout is enabled. Free scan is available now. Any saved paid configuration is preserved; this Free run does not replace it.',
       paidChecking: 'Checking whether paid reports can be bought here…',
       openingCheckout: 'Opening checkout…',
+      purchaseTermsLabel: 'Purchase terms',
+      purchaseTermsPrefix: 'By selecting “Pay and run scan”, you agree to the',
+      purchaseTermsJoin: 'and acknowledge the',
+      purchaseTermsSuffix: '. FastSpring handles payment as merchant of record.',
+      saveConfiguration: 'Save configuration',
+      savingConfiguration: 'Saving configuration…',
+      configurationTitle: 'Profile configuration',
+      configurationSaved: 'Saved · version {version}',
+      configurationUnsaved: 'Unsaved changes',
+      configurationUnsavedBody:
+        'You changed the settings after the last save. Save them to reuse this configuration. Starting the check will save these settings as a new version and run exactly what is shown below.',
+      configurationNew: 'New configuration',
+      configurationNewBody: 'It will be saved to this profile before the check starts.',
+      configurationLoading: 'Configuration is loading…',
+      launchSummaryTitle: 'What will run',
+      launchSummarySite: 'Site',
+      launchSummaryPlan: 'Plan',
+      launchSummaryPages: 'Pages',
+      launchSummaryDepth: 'Maximum depth',
+      launchSummarySubdomains: 'Subdomains',
+      launchSummaryRobots: 'robots.txt',
+      launchSummaryQueries: 'URL parameters',
+      launchSummaryUserAgent: 'User agent',
+      launchSummaryAi: 'AI visibility',
+      launchSummaryPerformance: 'Performance provider',
+      launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · no sign-in',
+      launchSummaryEnabled: 'Enabled',
+      launchSummaryDisabled: 'Off',
+      launchSummaryHomepage: 'Homepage only',
+      launchSummaryIncluded: 'Included',
+      launchSummaryIgnored: 'Ignored',
+      launchSummaryRespected: 'Respected',
+      launchSummaryOverridden: 'Override confirmed',
     },
     reports: {
       windowTitle: 'Reports',
@@ -527,6 +626,7 @@ export const copy = {
       planLabel: 'Plan',
       statusLabel: 'Result',
       profileLabel: 'Profile',
+      configurationVersion: 'Configuration version',
     },
     scanProgress: {
       windowTitle: 'Scan progress',
@@ -583,6 +683,7 @@ export const copy = {
       siteAddress: 'Site address',
       plan: 'Plan',
       report: 'Report',
+      configurationVersion: 'Configuration version',
       helpHeading: 'How to read this report',
       helpScoreTerm: 'Score',
       helpScoreBody:
@@ -599,6 +700,20 @@ export const copy = {
         'Automated DOM/CSS checks are shown in this report. Keyboard flows, computed styles, focus visibility under overlays and runtime validation may require manual review.',
       accessibilityNote: 'FluxRadar does not provide legal accessibility certification.',
       accessibilityLabel: 'Accessibility audit scope',
+      geoObservationsHeading: 'AI visibility observations',
+      geoObservationsLead:
+        'These are the model’s answers to this scan’s exact prompts. They show whether the answer mentioned your brand or official domain in this run; they do not prove what the model has memorized or will answer later.',
+      geoAwarenessQuestion: 'Direct awareness question',
+      geoDiscoveryQuestion: 'Domain discovery question',
+      geoProvider: 'Provider/model',
+      geoAnswerLabel: 'Model answer',
+      geoMentionSignals: 'Mention signals',
+      geoBrandMentioned: 'Brand mentioned',
+      geoBrandNotMentioned: 'Brand not mentioned',
+      geoDomainMentioned: 'Official domain referenced',
+      geoDomainNotMentioned: 'Official domain not referenced',
+      geoCitations: 'Provider citations',
+      geoUnavailable: 'The model did not return a usable answer for this question.',
       issuesCta:
         'The Issue Center lists every finding with its evidence and a recommended fix, so you can decide what to work on first.',
       openIssues: 'Open Issue Center',
@@ -668,7 +783,7 @@ export const copy = {
         performanceProviderUnavailable:
           'The external performance service did not answer. Nothing was measured for this section — run the check again to try once more.',
         aiConsentMissing:
-          'The AI visibility questions were not asked because this scan has no recorded consent to send site context to an AI provider.',
+          'The AI visibility questions were not asked because this scan has no recorded AI-processing notice for the provider. New paid audits record it automatically after showing the disclosure before launch.',
         aiRedactionBlocked:
           'The request was stopped inside FluxRadar because the step that removes secrets from it could not finish. Nothing was sent to the AI provider.',
         aiQuotaExceeded:
@@ -679,6 +794,16 @@ export const copy = {
           'The AI provider answered in a shape FluxRadar refuses to store, so the answer was discarded instead of being reported as a result.',
         aiEmptyQuestionLibrary:
           'No AI visibility questions were prepared for this scan, so there was nothing to ask.',
+        uxAiConsentMissing:
+          'The static UX checks ran, but the AI-assisted UX review was not run because this scan has no recorded AI-processing notice for the provider. New Complete audits record it automatically after the pre-launch disclosure.',
+        uxAiRedactionBlocked:
+          'The static UX checks ran, but the AI-assisted UX review was stopped because FluxRadar could not finish removing secrets from the request.',
+        uxAiQuotaExceeded:
+          'The static UX checks ran, but this plan’s AI allowance was already used by the other AI questions in this scan.',
+        uxAiProviderUnavailable:
+          'The static UX checks ran, but the AI-assisted UX provider is not configured or did not answer.',
+        uxAiProviderContract:
+          'The static UX checks ran, but the AI response did not meet FluxRadar’s strict evidence contract and was discarded.',
         aiPartial:
           '{unavailable} of {total} AI questions could not be asked, so this section covers only the ones that were. Each cause is named below.',
         analyticsNotConnected:
@@ -704,6 +829,7 @@ export const copy = {
       metaPrivacy: 'Public technical consent signals',
       metaAnalytics: 'Google Search Console · Analytics 4 · read-only',
       metaSeo: 'JSON-LD · Open Graph · Twitter Cards',
+      metaUx: 'Static HTML signals · AI-assisted review',
       // ── The Google panel ──────────────────────────────────────────────────
       google: {
         panelTitle: 'Google data',
@@ -757,12 +883,12 @@ export const copy = {
       queryIdeas: {
         heading: 'AI query ideas',
         badge: 'AI-generated · not Search Console data',
-        lead: 'Search terms an AI model suggests you might be missing, written from your site address and the measured queries above. They are hypotheses to test, not measurements: none of them is counted in any total on this page.',
+        lead: 'Search terms an AI model suggests you might be missing, written from your saved profile context, site address and measured queries above. They are hypotheses to test, not measurements: none of them is counted in any total on this page.',
         generate: 'Generate ideas',
         regenerate: 'Generate again',
         generating: 'Generating…',
         idleBody:
-          'Nothing has been generated yet. Generating sends your site address and the queries above to the AI provider this deployment is configured with.',
+          'Each time you choose Generate, you allow Anthropic to process your site address and name, saved project context, and, when available, up to 20 Search Console queries with their metrics and top-page URLs. Google access tokens are never sent. This permission is separate from the AI processing included in a paid audit. Without Search Console, ideas use the project context only. Do not include confidential information.',
         tableLabel: 'AI-generated query ideas',
         columnQuery: 'Suggested query',
         columnLanguage: 'Language',
@@ -780,9 +906,9 @@ export const copy = {
         emptyTitle: 'No usable ideas came back',
         emptyBody:
           'The model answered, but nothing in the answer passed validation, so nothing is shown rather than something invented.',
-        unavailableTitle: 'No Search Console data to work from',
+        unavailableTitle: 'No query context to work from',
         unavailableBody:
-          'Query ideas are written from the Search Console rows above. Link a Search Console property and run the check again to enable them.',
+          'Add profile context or link a Search Console property so the AI has a real topic, audience or measured query to work from.',
       },
     },
     issues: {
@@ -958,7 +1084,8 @@ export const copy = {
       back: '← Назад до FluxRadar',
       contents: 'МАПА ДОКУМЕНТА',
       contentsLabel: 'Розділи документа',
-      englishNotice: 'Цей документ ведеться англійською. Саме англійський текст є чинною версією.',
+      languageNotice:
+        'Це юридично пріоритетна українська версія. Англійський переклад надається лише для зручності.',
       footerBrand: 'FLUXRADAR / ВІД FLUXLAB',
       questions: 'Питання:',
       privacy: {
@@ -966,12 +1093,14 @@ export const copy = {
         crossLink: 'Політика приватності →',
         lede: 'Простими словами про те, які дані збирає FluxRadar, навіщо їх використовує і як обробляються підключені дані Google.',
         sections: [
-          { id: 'privacy-scope', label: 'Обсяг' },
+          { id: 'privacy-controller', label: 'Контролер' },
           { id: 'privacy-data', label: 'Які дані ми обробляємо' },
           { id: 'privacy-google', label: 'Дані користувача Google' },
           { id: 'privacy-use', label: 'Як ми використовуємо дані' },
+          { id: 'privacy-providers', label: 'Провайдери та передачі' },
           { id: 'privacy-retention', label: 'Зберігання та видалення' },
-          { id: 'privacy-rights', label: 'Ваші можливості' },
+          { id: 'privacy-cookies', label: 'Cookies і сховище браузера' },
+          { id: 'privacy-rights', label: 'Ваші права' },
         ],
       },
       terms: {
@@ -979,12 +1108,27 @@ export const copy = {
         crossLink: 'Умови користування →',
         lede: 'Умови користування FluxRadar для перевірки публічних сайтів і купівлі разових звітів аудиту.',
         sections: [
+          { id: 'terms-operator', label: 'Оператор' },
           { id: 'terms-service', label: 'Сервіс' },
           { id: 'terms-account', label: 'Акаунти' },
-          { id: 'terms-paid', label: 'Безкоштовні та платні перевірки' },
+          { id: 'terms-paid', label: 'Покупки та повернення' },
           { id: 'terms-use', label: 'Прийнятне використання' },
           { id: 'terms-results', label: 'Звіти та обмеження' },
-          { id: 'terms-ending', label: 'Припинення користування' },
+          { id: 'terms-rights', label: 'Інтелектуальні права' },
+          { id: 'terms-liability', label: 'Відповідальність' },
+          { id: 'terms-law', label: 'Право та контакти' },
+        ],
+      },
+      cookies: {
+        title: 'Політика cookies',
+        crossLink: 'Політика cookies →',
+        lede: 'Точний перелік cookies і browser storage FluxRadar, їх мета, строки та способи керування.',
+        sections: [
+          { id: 'cookies-controller', label: 'Оператор і сфера дії' },
+          { id: 'cookies-categories', label: 'Категорії' },
+          { id: 'cookies-inventory', label: 'Реєстр storage' },
+          { id: 'cookies-providers', label: 'Checkout FastSpring' },
+          { id: 'cookies-controls', label: 'Ваші налаштування' },
         ],
       },
     },
@@ -1014,6 +1158,11 @@ export const copy = {
         description:
           'Умови користування FluxRadar для перевірки публічних сайтів і купівлі разових звітів аудиту.',
       },
+      cookies: {
+        title: 'Політика cookies | FluxRadar',
+        description:
+          'Які cookies і browser storage використовує FluxRadar, навіщо вони потрібні, скільки зберігаються та як ними керувати.',
+      },
       workspaceTitle: 'Робочий простір — FluxRadar',
     },
     workspace: {
@@ -1025,7 +1174,10 @@ export const copy = {
         'Додайте перший профіль, щоб почати. Введіть адресу головної сторінки вашого сайту (наприклад, mysite.com) — FluxRadar збереже її як профіль, який можна перевірити будь-коли.',
       addSite: 'Додати профіль',
       addSiteHelp:
-        'Профіль зберігає одну адресу сайту та історію його перевірок. FluxRadar читає лише публічні сторінки — без паролів і доступу до CMS — а збереження не запускає перевірку й не стягує оплату.',
+        'Профіль — це повна збережена конфігурація одного сайту: ідентичність, контекст аудиторії та історія перевірок. FluxRadar читає лише публічні сторінки — без паролів і доступу до CMS — а збереження не запускає перевірку й не стягує оплату.',
+      profileContextHeading: 'Контекст сайту для AI-запитів',
+      profileContextHelp:
+        'Розкажіть FluxRadar, про що цей сайт. Надалі цей контекст допоможе генерувати реалістичні тематичні запити для перевірки AI-видимості, а не загальні питання про аудит. Пишіть простими словами; невідомі поля можна залишити порожніми.',
       displayName: 'Назва',
       displayNamePlaceholder: 'Сайт продукту',
       siteAddressLabel: 'Адреса сайту',
@@ -1033,7 +1185,29 @@ export const copy = {
       siteAddressHint:
         'Введіть домен головної сторінки, наприклад mysite.com. Доступ до CMS і паролі не потрібні.',
       siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysite.com.',
+      businessType: 'Тип бізнесу або сайту',
+      businessTypePlaceholder: 'Стоматологія, рекрутингова платформа, інтернет-магазин',
+      businessTypeHint: 'Коротка категорія, якою клієнт описав би цей сайт.',
+      businessDescription: 'Про що цей сайт?',
+      businessDescriptionPlaceholder: 'Приватна стоматологія, яка допомагає сім’ям у Києві…',
+      businessDescriptionHint: 'Опишіть головну мету та користь сайту одним-двома реченнями.',
+      offerings: 'Послуги або товари',
+      offeringsPlaceholder: 'Імплантація, чистка зубів, термінові прийоми',
+      offeringsHint:
+        'Перелічіть послуги або товари, які люди можуть шукати через кому чи з нового рядка.',
+      operatingRegion: 'Де працює сайт?',
+      operatingRegionPlaceholder: 'Київ і Київська область, Україна',
+      operatingRegionHint: 'Додайте місто, регіон або країну, важливі для пошуку.',
+      targetLanguages: 'Цільові мови',
+      targetLanguagesPlaceholder: 'Українська, російська, англійська',
+      targetLanguagesHint: 'Мови, якими потенційні клієнти можуть шукати цей сайт.',
+      targetAudience: 'Для кого цей сайт?',
+      targetAudiencePlaceholder: 'Дорослі та сім’ї, які шукають стоматолога в Києві',
+      targetAudienceHint: 'Опишіть людей або організації, яких ви хочете залучити.',
       saveProfile: 'Зберегти профіль',
+      updateProfile: 'Оновити профіль',
+      editProfile: 'Редагувати профіль',
+      cancelEdit: 'Скасувати редагування',
       saving: 'Збереження…',
       newScan: 'Нова перевірка',
       inspect: 'Переглянути',
@@ -1337,14 +1511,22 @@ export const copy = {
       queryInclude: 'Включати параметри',
       labelRespectRobots: 'Дотримуватись robots.txt',
       labelRobotsOverride: 'Підтверджую відхилення robots.txt',
+      robotsInfoTitle: 'Як robots.txt впливає на перевірку',
+      robotsInfoMode: 'Безпечний режим',
+      robotsInfoBody:
+        'Перед обходом FluxRadar читає публічний robots.txt сайту. Якщо «Дотримуватись robots.txt» увімкнено, сторінки, заборонені для сканерів, пропускаються. Вимикайте цю опцію лише якщо маєте право перевіряти такі шляхи: нижче потрібно буде окремо підтвердити відхилення правил.',
       labelAiConsent:
-        'Дозволити надсилати публічні сторінки зовнішній AI-моделі (для AI SEO / GEO)',
-      aiConsentTitle: 'Необовʼязкова перевірка AI-видимості',
-      aiConsentOptional: 'Необовʼязково',
+        'Anthropic обробляє контекст сайту та публічні докази для включених AI-перевірок',
+      aiConsentTitle: 'AI-обробка включена в цей аудит',
+      aiConsentOptional: 'Включено',
       aiConsentBody:
-        'Якщо увімкнути, FluxRadar надсилатиме прочитані під час цієї перевірки публічні сторінки до Anthropic після вилучення секретів. Провайдер допоможе перевірити, як бренд може зʼявлятися у відповідях, згенерованих AI. Якщо залишити опцію вимкненою, модуль AI SEO / GEO не запускатиметься.',
+        'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену. Окремі awareness-запитання містять бренд і домен; у Complete UX-аналіз може включати збережений контекст та обмежені докази з публічних сторінок. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
       aiConsentPrivacy: 'Політика приватності',
       aiConsentTerms: 'Умови користування',
+      performanceInfoTitle: 'Зовнішнє вимірювання швидкодії',
+      performanceInfoMode: 'Без входу й скрипту на сайті',
+      performanceInfoBody:
+        'Complete надсилає публічну URL-адресу Google PageSpeed Insights для разового лабораторного тесту Lighthouse та запитує доступні польові дані CrUX для цієї адреси або джерела. Не потрібно підключати Google-акаунт чи встановлювати щось на сайті. Google може не мати польових даних або не відповісти; тоді звіт покаже обмеження, а не вигадану оцінку.',
       noProfile: 'Оберіть профіль',
       publicSiteOnly: '· лише публічний сайт',
       creating: 'Створення…',
@@ -1352,9 +1534,42 @@ export const copy = {
       runInternal: 'Запустити внутрішню перевірку',
       runPaid: 'Оплатити та запустити',
       paidUnavailable:
-        'Платні перевірки будуть доступні після підключення оплати. Безкоштовна перевірка доступна зараз.',
+        'Платні перевірки будуть доступні після підключення оплати. Безкоштовна перевірка доступна зараз. Збережену платну конфігурацію не буде змінено: цей безкоштовний запуск її не замінює.',
       paidChecking: 'Перевіряємо, чи можна тут купити платні звіти…',
       openingCheckout: 'Відкриваємо оплату…',
+      purchaseTermsLabel: 'Умови придбання',
+      purchaseTermsPrefix: 'Натискаючи «Оплатити та запустити», ви погоджуєтеся з',
+      purchaseTermsJoin: 'і підтверджуєте, що ознайомилися з',
+      purchaseTermsSuffix: '. FastSpring обробляє оплату як merchant of record.',
+      saveConfiguration: 'Зберегти конфігурацію',
+      savingConfiguration: 'Зберігаємо конфігурацію…',
+      configurationTitle: 'Конфігурація профілю',
+      configurationSaved: 'Збережено · версія {version}',
+      configurationUnsaved: 'Є незбережені зміни',
+      configurationUnsavedBody:
+        'Ви змінили налаштування після останнього збереження. Збережіть їх, щоб повторно використовувати цю конфігурацію. Запуск перевірки збереже ці налаштування як нову версію й виконає саме те, що показано нижче.',
+      configurationNew: 'Нова конфігурація',
+      configurationNewBody: 'Її буде збережено в цьому профілі перед запуском перевірки.',
+      configurationLoading: 'Завантажуємо конфігурацію…',
+      launchSummaryTitle: 'Що буде запущено',
+      launchSummarySite: 'Сайт',
+      launchSummaryPlan: 'Тариф',
+      launchSummaryPages: 'Сторінки',
+      launchSummaryDepth: 'Максимальна глибина',
+      launchSummarySubdomains: 'Піддомени',
+      launchSummaryRobots: 'robots.txt',
+      launchSummaryQueries: 'Параметри URL',
+      launchSummaryUserAgent: 'Агент користувача',
+      launchSummaryAi: 'Видимість в AI',
+      launchSummaryPerformance: 'Провайдер швидкодії',
+      launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · без входу',
+      launchSummaryEnabled: 'Увімкнено',
+      launchSummaryDisabled: 'Вимкнено',
+      launchSummaryHomepage: 'Лише головна',
+      launchSummaryIncluded: 'Включено',
+      launchSummaryIgnored: 'Ігноруються',
+      launchSummaryRespected: 'Дотримуємось',
+      launchSummaryOverridden: 'Відхилення підтверджено',
     },
     reports: {
       windowTitle: 'Звіти',
@@ -1384,6 +1599,7 @@ export const copy = {
       planLabel: 'Тариф',
       statusLabel: 'Результат',
       profileLabel: 'Профіль',
+      configurationVersion: 'Версія конфігурації',
     },
     scanProgress: {
       windowTitle: 'Перебіг перевірки',
@@ -1432,6 +1648,7 @@ export const copy = {
       siteAddress: 'Адреса сайту',
       plan: 'Тариф',
       report: 'Звіт',
+      configurationVersion: 'Версія конфігурації',
       helpHeading: 'Як читати цей звіт',
       helpScoreTerm: 'Оцінка',
       helpScoreBody:
@@ -1448,6 +1665,20 @@ export const copy = {
         'У звіті показано автоматичні перевірки DOM/CSS. Клавіатурні сценарії, обчислені стилі, видимість фокуса під накладками та валідацію під час роботи може знадобитися перевірити вручну.',
       accessibilityNote: 'FluxRadar не надає юридичної сертифікації доступності.',
       accessibilityLabel: 'Межі аудиту доступності',
+      geoObservationsHeading: 'Спостереження видимості в AI',
+      geoObservationsLead:
+        'Це відповіді моделі на конкретні запити цієї перевірки. Вони показують, чи згадала відповідь ваш бренд або офіційний домен саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
+      geoAwarenessQuestion: 'Пряме питання про впізнаваність',
+      geoDiscoveryQuestion: 'Пошукове питання про послугу',
+      geoProvider: 'Постачальник/модель',
+      geoAnswerLabel: 'Відповідь моделі',
+      geoMentionSignals: 'Ознаки згадки',
+      geoBrandMentioned: 'Бренд згадано',
+      geoBrandNotMentioned: 'Бренд не згадано',
+      geoDomainMentioned: 'Офіційний домен наведено',
+      geoDomainNotMentioned: 'Офіційний домен не наведено',
+      geoCitations: 'Посилання від постачальника',
+      geoUnavailable: 'Модель не повернула придатної відповіді на це питання.',
       issuesCta:
         'Центр проблем показує кожну знахідку з доказом і рекомендованим виправленням, щоб ви вирішили, з чого почати.',
       openIssues: 'Відкрити Центр проблем',
@@ -1493,7 +1724,7 @@ export const copy = {
         performanceProviderUnavailable:
           'Зовнішній сервіс швидкодії не відповів. Для цього розділу нічого не виміряно — запустіть перевірку ще раз, щоб спробувати знову.',
         aiConsentMissing:
-          'Питання про видимість в AI не ставилися, бо для цієї перевірки не записано згоди надсилати контекст сайту постачальнику AI.',
+          'Питання про видимість в AI не ставилися, бо для цієї перевірки немає запису про повідомлення щодо AI-обробки цим провайдером. Нові платні аудити записують його автоматично після показу дисклеймера перед запуском.',
         aiRedactionBlocked:
           'Запит зупинено всередині FluxRadar, бо крок, який вилучає з нього секрети, не встиг завершитися. Постачальнику AI нічого не надіслано.',
         aiQuotaExceeded:
@@ -1504,6 +1735,16 @@ export const copy = {
           'Постачальник AI відповів у формі, яку FluxRadar відмовляється зберігати, тому відповідь відкинуто, а не подано як результат.',
         aiEmptyQuestionLibrary:
           'Для цієї перевірки не підготовлено жодного питання про видимість в AI, тому й ставити не було чого.',
+        uxAiConsentMissing:
+          'Статичні UX-перевірки виконано, але AI-аналіз UX не запускався, бо для цієї перевірки немає запису про повідомлення щодо AI-обробки цим провайдером. Нові аудити Complete записують його автоматично після дисклеймера перед запуском.',
+        uxAiRedactionBlocked:
+          'Статичні UX-перевірки виконано, але AI-аналіз UX зупинено, бо FluxRadar не зміг завершити вилучення секретів із запиту.',
+        uxAiQuotaExceeded:
+          'Статичні UX-перевірки виконано, але ліміт AI-запитів цього тарифу вже використали інші питання цієї перевірки.',
+        uxAiProviderUnavailable:
+          'Статичні UX-перевірки виконано, але AI-провайдер UX не налаштовано або він не відповів.',
+        uxAiProviderContract:
+          'Статичні UX-перевірки виконано, але відповідь AI не відповіла суворому контракту доказів FluxRadar і була відхилена.',
         aiPartial:
           'Не вдалося поставити {unavailable} з {total} AI-питань, тому розділ охоплює лише ті, які було поставлено. Кожну причину названо нижче.',
         analyticsNotConnected:
@@ -1525,6 +1766,7 @@ export const copy = {
       metaPrivacy: 'Публічні технічні сигнали згоди',
       metaAnalytics: 'Google Search Console · Analytics 4 · лише читання',
       metaSeo: 'JSON-LD · Open Graph · Twitter Cards',
+      metaUx: 'Статичні сигнали HTML · AI-аналіз',
       google: {
         panelTitle: 'Дані Google',
         sourceNote: 'Джерело: Google Search Console і Google Analytics 4 · лише читання · період',
@@ -1566,12 +1808,12 @@ export const copy = {
       queryIdeas: {
         heading: 'AI-ідеї запитів',
         badge: 'Згенеровано AI · це не дані Search Console',
-        lead: 'Пошукові запити, яких, на думку AI-моделі, вам може бракувати; складені з адреси вашого сайту та виміряних запитів вище. Це гіпотези для перевірки, а не вимірювання: жодна з них не входить у жоден показник на цій сторінці.',
+        lead: 'Пошукові запити, яких, на думку AI-моделі, вам може бракувати; складені з контексту профілю, адреси сайту та виміряних запитів вище. Це гіпотези для перевірки, а не вимірювання: жодна з них не входить у жоден показник на цій сторінці.',
         generate: 'Згенерувати ідеї',
         regenerate: 'Згенерувати ще раз',
         generating: 'Генеруємо…',
         idleBody:
-          'Ще нічого не згенеровано. Генерація надсилає адресу вашого сайту та запити вище постачальнику AI, налаштованому в цьому розгортанні.',
+          'Кожне натискання «Згенерувати» дозволяє Anthropic обробити адресу й назву сайту, збережений контекст проєкту та, за наявності, до 20 запитів Search Console з їхніми показниками й URL найпопулярніших сторінок. Токени доступу Google не передаються. Цей дозвіл окремий від AI-обробки, включеної в платний аудит. Без Search Console ідеї використовують лише контекст проєкту. Не додавайте конфіденційну інформацію.',
         tableLabel: 'Згенеровані AI ідеї запитів',
         columnQuery: 'Запропонований запит',
         columnLanguage: 'Мова',
@@ -1589,9 +1831,9 @@ export const copy = {
         emptyTitle: 'Придатних ідей не надійшло',
         emptyBody:
           'Модель відповіла, але ніщо у відповіді не пройшло перевірку, тому нічого не показано — краще нічого, ніж вигадане.',
-        unavailableTitle: 'Немає даних Search Console, з яких працювати',
+        unavailableTitle: 'Немає контексту для запитів',
         unavailableBody:
-          'Ідеї запитів складаються з рядків Search Console вище. Звʼяжіть ресурс Search Console і запустіть перевірку ще раз, щоб їх увімкнути.',
+          'Додайте контекст профілю або звʼяжіть ресурс Search Console, щоб AI мав тему, аудиторію чи виміряний запит для роботи.',
       },
     },
     issues: {

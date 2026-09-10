@@ -134,14 +134,14 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'What is a profile?',
           answer: [
-            'A profile is a site you saved: its public address plus a name you recognise. It keeps the audit history for that site in one place, so a later scan can be compared with an earlier one.',
-            'Saving a profile does not start a scan and does not charge you. It is only the bookmark the workspace works from.',
+            'A profile is the complete reusable scan configuration for one site: its name and public address, business context, plan, crawl limits, path and query rules, robots.txt choice and user agent. It also keeps that site’s audit history together.',
+            'Saving a profile does not start a scan and does not charge you. When you open Scan, the saved configuration is restored; you can review or change it before launch, and the report records the exact configuration revision that ran.',
           ],
         },
         {
           question: 'How do I run a scan?',
           answer: [
-            'Open Scan, pick one of your profiles, choose Basic or Complete, review the crawl scope (how many pages, how deep, which paths to include or exclude, whether to follow robots.txt) and press start. Nothing runs until you press it.',
+            'Open Scan and pick a profile. FluxRadar restores its saved plan and crawl scope; review how many pages and levels it covers, its paths, query handling, robots.txt choice and user agent, then press start. Nothing runs until you press it.',
             'A paid scan begins only after the payment provider confirms the payment on our server. Closing the tab in the middle does not cancel it.',
           ],
         },
@@ -198,7 +198,8 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'Do you check whether ChatGPT or Perplexity mention my brand?',
           answer: [
-            'Only as an optional extra, and only if you switch it on for that scan. That step sends public page content to an external AI provider, so it is consent-gated in the scan settings and it is never part of the free homepage check.',
+            'Paid audits include provider-backed AI visibility checks. FluxRadar first asks the provider to generate neutral discovery questions from the saved industry, offerings, region, audience and language settings without showing it the brand or domain; it then asks those questions and checks whether the answers mention or cite the site. Separate awareness questions do name the brand and official address.',
+            'The current production adapter uses Anthropic, not ChatGPT or Perplexity. A prominent notice before purchase explains what project context and public-page evidence is sent. The free homepage check never sends data to an AI provider.',
             'It is also not a ranking guarantee. It reflects what a provider answered at that moment through its API; the same question can be answered differently tomorrow.',
           ],
         },
@@ -340,8 +341,8 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'What needs an integration or external data?',
           answer: [
-            'Three things. Search performance — impressions, clicks and queries — comes from Google Search Console or Bing Webmaster Tools, which you connect yourself in Integrations. Audience data comes from Google Analytics 4 the same way. Core Web Vitals come from Google PageSpeed Insights and the Chrome UX Report. AI provider visibility needs an AI provider and your explicit consent for that scan.',
-            'None of these are required. When a source is not connected the report says exactly that — not connected, no property linked, no data for this period — instead of inventing a number.',
+            'Three things. Search performance — impressions, clicks and queries — comes from Google Search Console or Bing Webmaster Tools, which you connect yourself in Integrations. Audience data comes from Google Analytics 4 the same way. Core Web Vitals come from Google PageSpeed Insights and the Chrome UX Report. Paid AI visibility and, on Complete, AI-assisted UX checks use FluxRadar’s configured Anthropic provider after the pre-purchase disclosure.',
+            'Google and Bing account connections are optional. External sources can still be unavailable or have no data; the report says exactly that instead of inventing a number.',
           ],
         },
         {
@@ -457,14 +458,14 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Що таке профіль?',
           answer: [
-            'Профіль — це збережений сайт: його публічна адреса плюс зрозуміла вам назва. Він тримає історію перевірок цього сайту в одному місці, щоб нову перевірку можна було порівняти з попередньою.',
-            'Збереження профілю не запускає перевірку й не стягує оплату. Це лише закладка, з якою працює робочий простір.',
+            'Профіль — це повна багаторазова конфігурація перевірки одного сайту: назва й публічна адреса, контекст бізнесу, тариф, ліміти обходу, правила шляхів і параметрів, вибір robots.txt та агент користувача. Тут же зберігається історія перевірок сайту.',
+            'Збереження профілю не запускає перевірку й не стягує оплату. На екрані запуску конфігурація відновлюється; її можна переглянути або змінити, а звіт фіксує точну версію налаштувань, яка була запущена.',
           ],
         },
         {
           question: 'Як запустити перевірку?',
           answer: [
-            'Відкрийте «Перевірку», оберіть профіль, оберіть Basic або Complete, перегляньте область обходу (скільки сторінок, яка глибина, які шляхи включити чи виключити, чи дотримуватись robots.txt) і натисніть запуск. Нічого не стартує, доки ви не натиснете.',
+            'Відкрийте «Перевірку» й оберіть профіль. FluxRadar відновить збережений тариф та область обходу; перегляньте кількість сторінок і рівнів, шляхи, параметри адрес, вибір robots.txt та агент користувача, а потім натисніть запуск. Нічого не стартує, доки ви не натиснете.',
             'Платна перевірка починається лише після того, як платіжний провайдер підтвердить оплату на нашому сервері. Закриття вкладки посеред процесу її не скасовує.',
           ],
         },
@@ -521,7 +522,8 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Чи перевіряєте ви, чи згадують мій бренд ChatGPT або Perplexity?',
           answer: [
-            'Лише як необовʼязкове доповнення й лише якщо ви увімкнете його для конкретної перевірки. Цей крок надсилає публічний вміст сторінок зовнішньому AI-провайдеру, тому він захищений окремою згодою в налаштуваннях перевірки й ніколи не входить у безкоштовну перевірку головної.',
+            'Платні аудити включають перевірки AI-видимості через зовнішнього провайдера. Спочатку FluxRadar просить його створити нейтральні discovery-запитання з налаштувань галузі, пропозицій, регіону, аудиторії та мов, не показуючи бренд або домен; потім ставить ці запитання й перевіряє, чи згадує або цитує відповідь сайт. Окремі awareness-запитання прямо називають бренд і офіційну адресу.',
+            'Поточний production-адаптер використовує Anthropic, а не ChatGPT чи Perplexity. Помітне повідомлення перед оплатою пояснює, який контекст проєкту та докази з публічних сторінок передаються. Безкоштовна перевірка головної ніколи не надсилає дані AI-провайдеру.',
             'Це також не гарантія видимості. Результат відображає те, що провайдер відповів через свій API у той момент; завтра відповідь може бути іншою.',
           ],
         },
@@ -663,8 +665,8 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Що потребує інтеграцій або зовнішніх даних?',
           answer: [
-            'Три речі. Пошукова ефективність — покази, кліки та запити — надходить із Google Search Console або Bing Webmaster Tools, які ви підключаєте самі в розділі «Інтеграції». Дані про аудиторію так само надходять із Google Analytics 4. Core Web Vitals надходять із Google PageSpeed Insights і Chrome UX Report. Видимість у AI-провайдерів потребує провайдера та вашої явної згоди для конкретної перевірки.',
-            'Нічого з цього не обовʼязкове. Якщо джерело не підключене, звіт так і пише — не підключено, ресурс не обрано, немає даних за період — замість того щоб вигадати число.',
+            'Три речі. Пошукова ефективність — покази, кліки та запити — надходить із Google Search Console або Bing Webmaster Tools, які ви підключаєте самі в розділі «Інтеграції». Дані про аудиторію так само надходять із Google Analytics 4. Core Web Vitals надходять із Google PageSpeed Insights і Chrome UX Report. Платна перевірка AI-видимості та AI-аналіз UX у Complete використовують налаштованого FluxRadar провайдера Anthropic після повідомлення перед оплатою.',
+            'Підключення акаунтів Google і Bing необовʼязкові. Зовнішнє джерело все одно може бути недоступне або не мати даних; звіт так і пише замість того, щоб вигадати число.',
           ],
         },
         {

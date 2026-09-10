@@ -1,3 +1,4 @@
+import { saveCookieConsent } from './browser-consent';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -128,6 +129,51 @@ afterEach(() => {
 });
 
 describe('authentication UI', () => {
+  it.each([
+    { rememberMe: false, label: 'a browser-session cookie' },
+    { rememberMe: true, label: 'an explicitly persistent cookie' },
+  ])('submits $label only when Remember me is selected', async ({ rememberMe }) => {
+    const fetchMock = await renderUnauthenticated((path) => {
+      if (path === '/auth/me') return failure(401, 'session required');
+      if (path === '/auth/register') return envelope(account, 201);
+      if (path === '/profiles') return envelope([]);
+      return envelope([]);
+    });
+
+    openAuth();
+    const dialog = screen.getByRole('dialog');
+    const checkbox = within(dialog).getByRole('checkbox', { name: 'Remember me for 7 days' });
+    expect(checkbox).not.toBeChecked();
+    expect(within(dialog).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
+      'href',
+      '/terms?lang=en',
+    );
+    expect(within(dialog).getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
+      'href',
+      '/privacy?lang=en',
+    );
+    expect(within(dialog).getByRole('link', { name: 'Cookie policy' })).toHaveAttribute(
+      'href',
+      '/cookies?lang=en',
+    );
+    if (rememberMe) fireEvent.click(checkbox);
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Email' }), {
+      target: { value: account.email },
+    });
+    fireEvent.change(within(dialog).getByLabelText('Password'), {
+      target: { value: 'valid-password' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create account' }));
+
+    await screen.findByText('Unified public site audit station.');
+    const registerCall = fetchMock.mock.calls.find(([input]) => pathOf(input) === '/auth/register');
+    expect(registerCall).toBeDefined();
+    expect(JSON.parse(String((registerCall?.[1] as RequestInit | undefined)?.body))).toMatchObject({
+      email: account.email,
+      rememberMe,
+    });
+  });
+
   it('completes a password reset from the emailed deep link', async () => {
     const fetchMock = stubApi((path) => {
       if (path === '/auth/me') return failure(401, 'session required');
@@ -167,11 +213,16 @@ describe('authentication UI', () => {
     expect(screen.getByText('FluxRadar — Create account')).toBeInTheDocument();
     expect(within(dialog).getByRole('textbox', { name: 'Email' })).toBeInTheDocument();
     expect(within(dialog).getByLabelText('Password')).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(
+      'By creating an account, you agree to the terms and acknowledge the policies:',
+    );
 
     // Existing users can still switch to sign in from the same dialog.
     fireEvent.click(within(dialog).getByRole('button', { name: 'Back to sign in' }));
     expect(screen.getByText('FluxRadar — Sign in')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Create account' })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent('Sign-in uses a necessary cookie. Learn more:');
+    expect(dialog).not.toHaveTextContent('By creating an account');
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to home' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -262,10 +313,10 @@ describe('public legal pages', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Privacy policy' })).toBeInTheDocument();
-    expect(screen.getByText('How Google user data is used')).toBeInTheDocument();
+    expect(screen.getByText('Connected Google account data')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Terms of service →' })).toHaveAttribute(
       'href',
-      '/terms',
+      '/terms?lang=en',
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -276,11 +327,28 @@ describe('public legal pages', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Terms of service' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Free and paid scans' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'One-time audits, delivery and refunds' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Privacy policy →' })).toHaveAttribute(
       'href',
-      '/privacy',
+      '/privacy?lang=en',
     );
+  });
+
+  it('renders the cookie policy as a public page', async () => {
+    const fetchMock = stubApi(() => envelope(null));
+    window.history.replaceState(null, '', '/cookies');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Cookie policy' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'What is stored' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Privacy policy →' })).toHaveAttribute(
+      'href',
+      '/privacy?lang=en',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -1010,6 +1078,7 @@ describe('home pricing and workspace onboarding', () => {
   });
 
   it('switches the shell to Ukrainian and persists the language after remount', async () => {
+    saveCookieConsent(true);
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', { name: 'One URL. Every signal.' });
@@ -1798,10 +1867,16 @@ describe('NewScanScreen — paid availability and i18n', () => {
 
     // Internal-free labels appear in the plan selector.
     expect(screen.getByText('Basic · internal free')).toBeInTheDocument();
-    expect(screen.getByText('Complete · internal free')).toBeInTheDocument();
+    expect(screen.getAllByText('Complete · internal free').length).toBeGreaterThan(0);
 
     // Default plan is Complete for internal users → submit label is Run internal scan.
     expect(screen.getByRole('button', { name: 'Run internal scan' })).toBeInTheDocument();
+    const performance = screen.getByRole('region', {
+      name: 'External performance measurement',
+    });
+    expect(within(performance).getByText(/You do not connect a Google account/i)).toBeVisible();
+    expect(screen.getByText('Performance provider')).toBeVisible();
+    expect(screen.getByText('Google PageSpeed / CrUX · no sign-in')).toBeVisible();
   });
 
   it('renders New scan labels in Ukrainian after language switch', async () => {
@@ -1873,6 +1948,7 @@ describe('add-profile form', () => {
   it('shows the empty state without a second Add profile button in Ukrainian', async () => {
     stubApi(emptyProfiles);
     window.history.replaceState(null, '', '/profiles');
+    saveCookieConsent(true);
     window.localStorage.setItem('fluxradar.language', 'uk');
     render(<App />);
     await screen.findByText('Профілі сайтів');
@@ -1963,6 +2039,7 @@ describe('add-profile form', () => {
   it('fills the name from the address in Ukrainian too', async () => {
     stubApi(emptyProfiles);
     window.history.replaceState(null, '', '/profiles');
+    saveCookieConsent(true);
     window.localStorage.setItem('fluxradar.language', 'uk');
     render(<App />);
     await screen.findByText('Профілі сайтів');

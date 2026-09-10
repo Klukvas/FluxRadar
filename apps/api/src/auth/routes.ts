@@ -73,6 +73,10 @@ function accountDto(
 }
 
 const emailSchema = z.object({ email: z.email().max(254) });
+const sessionLoginSchema = loginInputSchema.extend({ rememberMe: z.boolean().default(false) });
+const sessionRegisterSchema = registerInputSchema.extend({
+  rememberMe: z.boolean().default(false),
+});
 const resetConfirmSchema = z.object({
   token: z.string().min(20).max(200),
   password: registerInputSchema.shape.password,
@@ -127,16 +131,17 @@ async function attachSessionCookie(
   deps: AuthRouterDeps,
   res: Response,
   accountId: string,
+  rememberMe: boolean,
 ): Promise<void> {
   const session = await createSession(deps.prisma, accountId, deps.now());
-  // Secure-флаг не ставится: v0.1 работает на локальном http (D-011);
-  // включается вместе с HTTPS-развёртыванием.
+  // Browser persistence is a per-login choice; server-side sessions still
+  // expire after seven days even when the browser keeps a session cookie.
   res.cookie(SESSION_COOKIE_NAME, session.token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    expires: session.expiresAt,
+    ...(rememberMe ? { expires: session.expiresAt } : {}),
   });
 }
 
@@ -146,7 +151,7 @@ export function authRouter(deps: AuthRouterDeps): Router {
   const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
 
   router.post('/auth/register', async (req, res) => {
-    const input = parseInput(registerInputSchema, req.body);
+    const input = parseInput(sessionRegisterSchema, req.body);
     const email = input.email.toLowerCase();
     // Before bcrypt, not after it. Hashing at cost 12 is ~250ms of CPU that the
     // caller gets for free on every request; a limit that runs afterwards lets a
@@ -165,7 +170,7 @@ export function authRouter(deps: AuthRouterDeps): Router {
     try {
       const account = await prisma.account.create({ data: { email, passwordHash } });
       const verificationStatus = await deliverVerification(deps, account, deps.now());
-      await attachSessionCookie(deps, res, account.id);
+      await attachSessionCookie(deps, res, account.id, input.rememberMe);
       sendOk(
         res,
         {
@@ -183,7 +188,7 @@ export function authRouter(deps: AuthRouterDeps): Router {
   });
 
   router.post('/auth/login', async (req, res) => {
-    const input = parseInput(loginInputSchema, req.body);
+    const input = parseInput(sessionLoginSchema, req.body);
     const email = input.email.toLowerCase();
     const ip = req.ip ?? 'unknown';
     deps.loginRateLimiter.assertAllowed(email, ip);
@@ -196,7 +201,7 @@ export function authRouter(deps: AuthRouterDeps): Router {
     }
 
     deps.loginRateLimiter.reset(email, ip);
-    await attachSessionCookie(deps, res, account.id);
+    await attachSessionCookie(deps, res, account.id, input.rememberMe);
     sendOk(res, accountDto(account, deps.internalFreeEmails));
   });
 

@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type InputHTMLAttributes,
   type ReactNode,
 } from 'react';
 
@@ -478,6 +479,9 @@ export function Field(props: {
   type?: string;
   error?: string;
   hint?: string;
+  name?: string;
+  autoComplete?: string;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
   /** Renders the value in monospace; see `controlClass`. */
   technical?: boolean;
   'data-tour-target'?: string;
@@ -503,9 +507,12 @@ export function Field(props: {
       <input
         className={controlClass({ technical: props.technical, error: invalid })}
         type={props.type ?? 'text'}
+        name={props.name}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
         placeholder={props.placeholder}
+        autoComplete={props.autoComplete}
+        inputMode={props.inputMode}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={invalid ? errorId : undefined}
       />
@@ -519,11 +526,40 @@ export function Field(props: {
   );
 }
 
+export function TextAreaField(props: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  hint?: string;
+  name?: string;
+  autoComplete?: string;
+  rows?: number;
+}) {
+  return (
+    <label className="field">
+      <span className="field__label">{props.label}</span>
+      <textarea
+        className="control"
+        name={props.name}
+        value={props.value}
+        onChange={(event) => props.onChange(event.target.value)}
+        placeholder={props.placeholder}
+        autoComplete={props.autoComplete}
+        rows={props.rows ?? 3}
+      />
+      {props.hint ? <span className="field__hint">{props.hint}</span> : null}
+    </label>
+  );
+}
+
 export function SelectField(props: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: readonly { value: string; label: string }[];
+  name?: string;
+  autoComplete?: string;
   /** Says what choosing an option actually means, in the same place `Field` says it. */
   hint?: string;
   /** Renders the options in monospace; see `controlClass`. */
@@ -534,8 +570,10 @@ export function SelectField(props: {
       <span className="field__label">{props.label}</span>
       <select
         className={controlClass({ technical: props.technical })}
+        name={props.name}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
+        autoComplete={props.autoComplete}
       >
         {props.options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -552,6 +590,7 @@ export function Checkbox(props: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  name?: string;
   describedBy?: string;
   className?: string;
 }) {
@@ -560,6 +599,7 @@ export function Checkbox(props: {
       <span className="checkbox__control">
         <input
           type="checkbox"
+          name={props.name}
           checked={props.checked}
           {...(props.describedBy === undefined ? {} : { 'aria-describedby': props.describedBy })}
           onChange={(event) => props.onChange(event.target.checked)}

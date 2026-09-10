@@ -10,17 +10,20 @@
 
 import { Router } from 'express';
 import type { PrismaClient, ScanModule } from '@prisma/client';
+import { z } from 'zod';
+import { parseInput } from '../../http/validate.ts';
 
 import { accountIdFrom, requireAuth } from '../../auth/middleware.ts';
 import { RequestRateLimiter, aiIdeaRules } from '../../auth/rate-limit.ts';
 import { sendOk } from '../../http/envelope.ts';
 import type { ApiLogger } from '../../http/logger.ts';
 import { requiredParam } from '../../http/params.ts';
-import { findOwnProfile } from '../../profiles/routes.ts';
+import { storedExecutionConfig } from '../../profiles/execution-config.ts';
 import { findOwnReportScan, readableModules } from '../../scans/routes.ts';
 import {
   createQueryIdeasProvider,
   generateQueryIdeas,
+  hasQueryIdeasContext,
   type QueryIdeasResult,
 } from './query-ideas.ts';
 import type { GoogleDataSnapshot, SearchConsoleSummary } from './types.ts';
@@ -65,21 +68,35 @@ export function queryIdeasRouter(deps: QueryIdeasRouterDeps): Router {
     // Ownership first, then the limit: an account may not spend another
     // account's budget by asking about a scan it cannot read.
     const scan = await findOwnReportScan(deps.prisma, accountId, scanId);
+    parseInput(z.object({ noticeVersion: z.literal('query-ideas-v2') }), req.body);
     requestRateLimiter.assertAllowedAll(aiIdeaRules(accountId, req.ip ?? 'unknown'));
 
+    const profile = storedExecutionConfig(scan.executionConfigJson)?.profile;
     const searchConsole = searchConsoleOf(readableModules(scan));
-    if (searchConsole === null || searchConsole.topQueries.length === 0) {
+    const profileContext = {
+      industry: profile?.industry ?? null,
+      region: profile?.region ?? null,
+      language: profile?.language ?? null,
+      businessDescription: profile?.businessDescription ?? null,
+      offerings: profile?.offerings ?? null,
+      targetLanguages: profile?.targetLanguages ?? null,
+      targetAudience: profile?.targetAudience ?? null,
+    } as const;
+    if (
+      (searchConsole === null || searchConsole.topQueries.length === 0) &&
+      !hasQueryIdeasContext(profileContext)
+    ) {
       sendOk<QueryIdeasResult>(res, { state: 'unavailable' });
       return;
     }
-    const profile = await findOwnProfile(deps.prisma, accountId, scan.siteProfileId);
     const result = await generateQueryIdeas(
       {
         scanId: scan.id,
-        siteUrl: searchConsole.siteUrl,
-        brand: profile.name,
-        measuredQueries: searchConsole.topQueries,
-        measuredPages: searchConsole.topPages,
+        siteUrl: searchConsole?.siteUrl ?? scan.domain,
+        brand: profile?.name ?? new URL(scan.domain).hostname,
+        measuredQueries: searchConsole?.topQueries ?? [],
+        measuredPages: searchConsole?.topPages ?? [],
+        profileContext,
       },
       { provider: createProvider(), now: deps.now },
     );

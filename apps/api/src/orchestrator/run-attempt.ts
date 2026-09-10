@@ -5,23 +5,40 @@
 
 import type { ModuleName, Plan, ScanScopeInput } from '@fluxradar/contracts';
 import { TARIFFS, scanScopeSchema } from '@fluxradar/contracts';
-import { AI_PROVIDER_NAMES, runGeoModule } from '@fluxradar/ai';
+import {
+  AI_PROVIDER_NAMES,
+  AiQuotaTracker,
+  CURRENT_AI_PROCESSING_NOTICE_VERSION,
+  runGeoModule,
+} from '@fluxradar/ai';
 import type { AiConsent, GeoModuleResult } from '@fluxradar/ai';
 import { crawl } from '@fluxradar/crawler';
 import type { CrawlScope } from '@fluxradar/crawler';
-import { assessAiCrawlerReadiness, createSiteContext, runModuleRules } from '@fluxradar/rules';
+import {
+  analyzeUxStatic,
+  assessAiCrawlerReadiness,
+  createSiteContext,
+  runModuleRules,
+} from '@fluxradar/rules';
 import type { SiteContext } from '@fluxradar/rules';
 import { computeCoverage } from '@fluxradar/scoring';
 import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
 
+import { executionProfile, storedExecutionConfig } from '../profiles/execution-config.ts';
+import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
 import type { WorkerDeps } from './deps.ts';
 import { freeCheckMetadata, runFreeCheck } from './free-check.ts';
-import { buildGeoRequests } from './geo.ts';
+import {
+  buildGeoRequests,
+  generateGeoDiscoveryQuestions,
+  type GeoQuestionGenerationResult,
+} from './geo.ts';
 import { initialIssueStatuses } from './issue-sync.ts';
 import { modulePlanFor } from './module-plan.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
 import type { IssueRowData } from './module-result.ts';
+import { runUxConversion } from './ux.ts';
 
 const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
 
@@ -136,7 +153,9 @@ function loadConsent(
   scan: Scan & { aiConsent?: { providersJson: string; noticeVersion: string } | null },
 ): AiConsent | null {
   const record = scan.aiConsent ?? null;
-  if (record === null) {
+  if (record === null || record.noticeVersion !== CURRENT_AI_PROCESSING_NOTICE_VERSION) {
+    // A historical record cannot establish that the disclosure for the current
+    // paid AI processing was shown before purchase.
     return null;
   }
   let rawProviders: unknown;
@@ -157,12 +176,34 @@ async function persistGeoModule(
   prisma: PrismaClient,
   scanId: string,
   geo: GeoModuleResult,
+  generation: GeoQuestionGenerationResult,
   aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
 ): Promise<void> {
+  const mentionSignals = (
+    aiRequestKey: string,
+  ): { readonly brand: boolean; readonly domain: boolean } | null => {
+    const brandEvaluation = geo.evaluations.find(
+      (evaluation) => evaluation.ruleId === 'GEO-VIS-003',
+    );
+    const domainEvaluation = geo.evaluations.find(
+      (evaluation) => evaluation.ruleId === 'GEO-VIS-004',
+    );
+    if (brandEvaluation === undefined || domainEvaluation === undefined) return null;
+    return {
+      brand: !brandEvaluation.findings.some((finding) => finding.aiRequestKey === aiRequestKey),
+      domain: !domainEvaluation.findings.some((finding) => finding.aiRequestKey === aiRequestKey),
+    };
+  };
+  const reasonParts = [
+    geo.statusReason,
+    generation.status === 'Unavailable' || generation.status === 'InvalidResponse'
+      ? `QueryGeneration${generation.status}: ${generation.statusReason ?? 'unknown reason'}`
+      : null,
+  ].filter((reason): reason is string => reason !== null);
   const coverage = computeCoverage({
-    applicableChecks: geo.outcomes.length,
-    completedApplicableChecks: geo.responses.length,
-    ...(geo.statusReason !== null ? { statusReason: geo.statusReason } : {}),
+    applicableChecks: geo.outcomes.length + generation.applicableChecks,
+    completedApplicableChecks: geo.responses.length + generation.completedApplicableChecks,
+    ...(reasonParts.length > 0 ? { statusReason: reasonParts.join('; ') } : {}),
   });
   // Informational-only модуль (D-109): штрафующих правил нет, поэтому score
   // Completed/Partial-ветки всегда 100 − 0; сами находки идут в ai_response
@@ -185,39 +226,100 @@ async function persistGeoModule(
       pages: aiCrawlerReadiness.pages,
       limitations: aiCrawlerReadiness.limitations,
       providerVisibility: {
-        status: geo.status,
-        statusReason: geo.statusReason,
+        status: coverage.status,
+        statusReason: coverage.statusReason,
         requiresConsent: true,
+        method: 'AI-generated neutral context questions plus direct brand-awareness questions',
+        interpretation: 'Prompt-specific observations; mentions do not prove remembered knowledge.',
+        queryGeneration: {
+          status: generation.status,
+          statusReason: generation.statusReason,
+          promptVersion: generation.outcome?.request.promptVersion ?? null,
+          generatedQuestions: redactEvidence(generation.questions),
+          ...(generation.outcome?.kind === 'response'
+            ? {
+                aiRequestKey: generation.outcome.aiRequestKey,
+                usage: generation.outcome.response.usage,
+              }
+            : generation.outcome?.kind === 'unavailable'
+              ? { reason: generation.outcome.reason }
+              : {}),
+        },
+        requests: geo.outcomes.map((outcome) => ({
+          purpose: outcome.request.promptVersion.endsWith('-discovery') ? 'discovery' : 'awareness',
+          promptVersion: outcome.request.promptVersion,
+          sequence: outcome.request.sequence,
+          status: outcome.kind,
+          question: redactEvidence(outcome.request.question),
+          ...(outcome.kind === 'response'
+            ? {
+                aiRequestKey: outcome.aiRequestKey,
+                usage: outcome.response.usage,
+                mentions: mentionSignals(outcome.aiRequestKey),
+              }
+            : { reason: outcome.reason }),
+        })),
       },
     }),
   });
 
+  if (generation.outcome?.kind === 'response') {
+    await persistAiResponse(prisma, scanId, 'AI SEO / GEO', generation.outcome);
+  }
   for (const outcome of geo.responses) {
-    const { response, request } = outcome;
-    await prisma.aiResponseRecord.upsert({
-      where: { aiRequestKey: outcome.aiRequestKey },
-      create: {
-        scanId,
-        provider: response.provider,
-        apiVersion: response.apiVersion,
-        modelId: response.modelId,
-        promptVersion: request.promptVersion,
-        requestId: response.requestId,
-        requestIdSource: response.requestIdSource,
-        aiRequestKey: outcome.aiRequestKey,
-        usageJson: JSON.stringify(response.usage),
-        usageSource: response.usageSource,
-        rawText: response.rawText,
-        citationsJson: JSON.stringify(response.citations),
-        finishReason: response.finishReason,
-        // §16/AI-001: непустая ссылка на deletion-control record создаётся
-        // одновременно с ai_response; сам контроль может быть Pending.
-        deletionEvidenceRef: `ai-001/deletion/${outcome.aiRequestKey}`,
-        createdAt: new Date(response.createdAt),
+    await persistAiResponse(prisma, scanId, 'AI SEO / GEO', outcome);
+  }
+}
+
+async function persistUxModule(
+  prisma: PrismaClient,
+  scanId: string,
+  ux: Awaited<ReturnType<typeof runUxConversion>>,
+): Promise<void> {
+  const deterministicChecks = 3;
+  const aiResponse = ux.ai.outcome.kind === 'response' ? ux.ai.outcome.response : null;
+  const aiRequestKey = ux.ai.outcome.kind === 'response' ? ux.ai.outcome.aiRequestKey : undefined;
+  // Coverage counts the three declared deterministic rules plus the one AI
+  // review, not the number of pages. Page count made a 12-page scan look 92%
+  // complete when its entire AI quarter had not run.
+  const completedApplicableChecks = deterministicChecks + (aiResponse === null ? 0 : 1);
+  const applicableChecks = deterministicChecks + 1;
+  const uxReason = ux.ai.statusReason === null ? null : `UxAi${ux.ai.statusReason}`;
+  await setModule(prisma, scanId, 'UX/Conversion', {
+    runtimeStatus: aiResponse === null ? 'Partial' : 'Completed',
+    statusReason: aiResponse === null ? uxReason : null,
+    coverage: completedApplicableChecks / applicableChecks,
+    score: null,
+    applicableChecks,
+    completedApplicableChecks,
+    usableOutput: ux.staticEvidence.pages.length > 0,
+    metadataJson: JSON.stringify({
+      standard: 'UX/Conversion',
+      automation: 'static-html + AI-assisted',
+      providerTokenRequired: true,
+      limitation: ux.staticEvidence.limitation,
+      staticSignals: ux.staticEvidence.summary,
+      staticFindings: ux.staticEvidence.findings.length,
+      pages: redactEvidence(ux.staticEvidence.pages),
+      ai: {
+        status: ux.ai.status,
+        statusReason: uxReason,
+        findings: ux.ai.findings.length,
+        ...(aiResponse === null
+          ? {}
+          : {
+              provider: aiResponse.provider,
+              modelId: aiResponse.modelId,
+              promptVersion: ux.ai.outcome.request.promptVersion,
+              requestId: aiResponse.requestId,
+              aiRequestKey,
+              usage: aiResponse.usage,
+            }),
       },
-      // Повтор с тем же ai_request_key — тот же ответ; ничего не перезаписываем.
-      update: {},
-    });
+    }),
+  });
+  if (ux.ai.outcome.kind === 'response') {
+    await persistAiResponse(prisma, scanId, 'UX/Conversion', ux.ai.outcome);
   }
 }
 
@@ -239,14 +341,17 @@ export async function runScanAttempt(
     throw new Error(`runScanAttempt: scan ${scanId} not found`);
   }
   const plan = scan.plan as Plan;
+  const profile = executionProfile(scan, scan.siteProfile);
   const modulePlan = modulePlanFor(plan);
-  const scope = parseScope(scan.scopeJson);
-  const origin = deps.crawl?.originOverride?.(scan) ?? scan.domain;
+  const scope =
+    storedExecutionConfig(scan.executionConfigJson)?.scope ?? parseScope(scan.scopeJson);
+  const origin = deps.crawl?.originOverride?.(scan) ?? profile.domain;
 
   const plannedModules = [
     ...modulePlan.runnable,
     ...(modulePlan.geo ? ['AI SEO / GEO'] : []),
     ...modulePlan.external,
+    ...(modulePlan.ux ? ['UX/Conversion'] : []),
   ];
   const targetModules = retryModule === undefined ? plannedModules : [retryModule];
   if (
@@ -260,8 +365,10 @@ export async function runScanAttempt(
   await prisma.issue.deleteMany({
     where: { scanId, ...(retryModule === undefined ? {} : { module: retryModule }) },
   });
-  if (retryModule === undefined || retryModule === 'AI SEO / GEO') {
+  if (retryModule === undefined) {
     await prisma.aiResponseRecord.deleteMany({ where: { scanId } });
+  } else if (retryModule === 'AI SEO / GEO' || retryModule === 'UX/Conversion') {
+    await prisma.aiResponseRecord.deleteMany({ where: { scanId, module: retryModule } });
   }
   await prisma.scanModule.deleteMany({
     where: { scanId, ...(retryModule === undefined ? {} : { module: retryModule }) },
@@ -285,6 +392,7 @@ export async function runScanAttempt(
 
   const observedAt = now();
   const issueRows: IssueRowData[] = [];
+  let aiQuota = AiQuotaTracker.forPlan(plan);
   for (const module of modulePlan.runnable.filter((candidate) =>
     targetModules.includes(candidate),
   )) {
@@ -308,19 +416,68 @@ export async function runScanAttempt(
   if (modulePlan.geo && targetModules.includes('AI SEO / GEO')) {
     await setModule(prisma, scanId, 'AI SEO / GEO', { runtimeStatus: 'Running' });
     const siteHostname = new URL(ctx.domain).hostname;
+    const consent = loadConsent(scan);
+    const provider = deps.createAiProvider(scan, profile);
+    const generation = await generateGeoDiscoveryQuestions({
+      scanId,
+      brand: profile.name,
+      siteHostname,
+      context: profile,
+      consent,
+      provider,
+      quota: aiQuota,
+    });
     const geo = await runGeoModule(
       {
         scanId,
         plan,
-        brand: scan.siteProfile.name,
+        brand: profile.name,
         siteOrigin: ctx.domain,
         siteDomain: siteHostname,
-        consent: loadConsent(scan),
-        requests: buildGeoRequests(scanId, scan.siteProfile.name, siteHostname),
+        consent,
+        requests: buildGeoRequests(scanId, profile.name, siteHostname, generation.questions),
       },
-      { provider: deps.createAiProvider(scan, scan.siteProfile) },
+      { provider, quota: generation.quota },
     );
-    await persistGeoModule(prisma, scanId, geo, assessAiCrawlerReadiness(crawlResult));
+    await persistGeoModule(prisma, scanId, geo, generation, assessAiCrawlerReadiness(crawlResult));
+    aiQuota = geo.quota;
+  }
+
+  if (modulePlan.ux && targetModules.includes('UX/Conversion')) {
+    await setModule(prisma, scanId, 'UX/Conversion', { runtimeStatus: 'Running' });
+    const uxEvidence = analyzeUxStatic(ctx);
+    if (uxEvidence.pages.length === 0) {
+      await setModule(prisma, scanId, 'UX/Conversion', {
+        runtimeStatus: 'Unavailable',
+        statusReason: 'TargetsUnreachable',
+        coverage: 0,
+        score: null,
+        applicableChecks: 1,
+        completedApplicableChecks: 0,
+        usableOutput: false,
+        metadataJson: JSON.stringify({
+          standard: 'UX/Conversion',
+          automation: 'static-html + AI-assisted',
+          providerTokenRequired: true,
+          limitation: 'static-html-only',
+        }),
+      });
+    } else {
+      const ux = await runUxConversion(
+        scanId,
+        'Complete',
+        profile.name,
+        ctx.domain,
+        ctx,
+        profile,
+        loadConsent(scan),
+        deps.createAiProvider(scan, profile),
+        aiQuota,
+        observedAt,
+      );
+      await persistUxModule(prisma, scanId, ux);
+      issueRows.push(...ux.issueRows);
+    }
   }
 
   for (const module of modulePlan.external.filter((candidate) =>

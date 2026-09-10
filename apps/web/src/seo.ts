@@ -2,8 +2,8 @@
 //
 // `index.html` is served for every route, so without this every public page
 // would inherit the home page's title, description and — worst of all — the
-// home page's canonical URL, which tells a crawler that /faq, /checks, /privacy
-// and /terms are all the same document and that only one of them deserves to be
+// home page's canonical URL, which tells a crawler that /faq, /checks, /privacy,
+// /terms and /cookies are all the same document and that only one deserves to be
 // indexed. Each page therefore states its own title, description, canonical and
 // social cards at runtime.
 //
@@ -16,7 +16,7 @@ import { copy, type Language } from './i18n';
 export const SITE_ORIGIN = 'https://fluxradar.net';
 
 /** Public pages that have their own URL, title and canonical. */
-export type PublicPageId = 'home' | 'faq' | 'checks' | 'privacy' | 'terms';
+export type PublicPageId = 'home' | 'faq' | 'checks' | 'privacy' | 'terms' | 'cookies';
 
 /** Everything else is behind sign-in and is deliberately not indexable. */
 export type SeoPageId = PublicPageId | 'workspace';
@@ -27,6 +27,7 @@ const PUBLIC_PAGE_PATHS: Readonly<Record<PublicPageId, string>> = {
   checks: '/checks',
   privacy: '/privacy',
   terms: '/terms',
+  cookies: '/cookies',
 };
 
 const OG_LOCALES: Readonly<Record<Language, string>> = { en: 'en_US', uk: 'uk_UA' };

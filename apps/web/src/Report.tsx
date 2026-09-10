@@ -6,7 +6,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { apiRequest, type Dashboard, type ExportPayload, type Scan, type ScanModule } from './api';
+import {
+  apiRequest,
+  type Dashboard,
+  type ExportPayload,
+  type GeoObservation,
+  type Scan,
+  type ScanModule,
+} from './api';
 import {
   Button,
   EmptyState,
@@ -21,6 +28,7 @@ import { GoogleDataPanel, googleSnapshotOf } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
 import { moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan } from './plan-modules';
+import { QueryIdeasPanel } from './QueryIdeas';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { statusKind } from './status-kind';
 
@@ -131,6 +139,12 @@ export function ResultsScreen(props: {
                 <small>{t.report}</small>
                 <strong className="technical">{scan.id}</strong>
               </span>
+              {scan.profileConfigVersion === undefined ? null : (
+                <span>
+                  <small>{t.configurationVersion}</small>
+                  <strong>v{scan.profileConfigVersion}</strong>
+                </span>
+              )}
             </div>
           </div>
           {unscoredPlan ? (
@@ -218,6 +232,7 @@ export function ResultsScreen(props: {
             </div>
           ))}
         </div>
+        <GeoObservations observations={dashboard.geoObservations ?? []} language={props.language} />
         <PlanScope modules={dashboard.modules} plan={scan.plan} language={props.language} />
         {dashboard.modules.some((module) => module.module === 'Accessibility') ? (
           <aside className="accessibility-note" aria-label={t.accessibilityLabel}>
@@ -226,12 +241,10 @@ export function ResultsScreen(props: {
             <small>{t.accessibilityNote}</small>
           </aside>
         ) : null}
-        {googleSnapshot === null ? null : (
-          <GoogleDataPanel
-            snapshot={googleSnapshot}
-            language={props.language}
-            scanId={scan.id}
-          />
+        {googleSnapshot === null ? (
+          <QueryIdeasPanel key={scan.id} scanId={scan.id} language={props.language} />
+        ) : (
+          <GoogleDataPanel snapshot={googleSnapshot} language={props.language} scanId={scan.id} />
         )}
         <p className="muted report-help__cta">{t.issuesCta}</p>
         <div className="button-row">
@@ -256,6 +269,102 @@ export function ResultsScreen(props: {
       </Window>
     </div>
   );
+}
+
+/**
+ * Prompt-level GEO evidence, not a claim about a model's memory or training.
+ *
+ * The answer and citation strings are provider output. React escapes their
+ * text, and only validated HTTP(S) citations become navigable links.
+ */
+function GeoObservations(props: { observations: readonly GeoObservation[]; language: Language }) {
+  if (props.observations.length === 0) return null;
+  const t = copy[props.language].report;
+  return (
+    <section className="geo-observations" aria-labelledby="geo-observations-title">
+      <h3 className="section-heading" id="geo-observations-title">
+        {t.geoObservationsHeading}
+      </h3>
+      <p className="muted geo-observations__lead">{t.geoObservationsLead}</p>
+      <div className="geo-observations__grid">
+        {props.observations.map((observation, index) => {
+          const citations = [
+            ...new Map(
+              observation.citations.flatMap((citation) => {
+                const href = safeHttpUrl(citation);
+                return href === null ? [] : [[href, { label: citation, href }] as const];
+              }),
+            ).values(),
+          ];
+          return (
+            <article
+              className="geo-observation"
+              key={`${observation.purpose}:${index}:${observation.question}`}
+            >
+              <div className="split geo-observation__header">
+                <strong>
+                  {observation.purpose === 'discovery'
+                    ? t.geoDiscoveryQuestion
+                    : t.geoAwarenessQuestion}
+                </strong>
+                {observation.provider === null || observation.modelId === null ? null : (
+                  <small className="technical">
+                    {t.geoProvider}: {observation.provider} · {observation.modelId}
+                  </small>
+                )}
+              </div>
+              <p className="geo-observation__question">{observation.question}</p>
+              {observation.status === 'answered' && observation.answer !== null ? (
+                <>
+                  <div className="geo-observation__answer">
+                    <strong>{t.geoAnswerLabel}</strong>
+                    <p>{observation.answer}</p>
+                  </div>
+                  {observation.mentions === null ? null : (
+                    <div className="geo-observation__mentions" aria-label={t.geoMentionSignals}>
+                      <span>
+                        {observation.mentions.brand ? t.geoBrandMentioned : t.geoBrandNotMentioned}
+                      </span>
+                      <span>
+                        {observation.mentions.domain
+                          ? t.geoDomainMentioned
+                          : t.geoDomainNotMentioned}
+                      </span>
+                    </div>
+                  )}
+                  {citations.length === 0 ? null : (
+                    <div className="geo-observation__citations">
+                      <strong>{t.geoCitations}</strong>
+                      <ul>
+                        {citations.map((citation) => (
+                          <li key={citation.href}>
+                            <a href={citation.href} target="_blank" rel="noreferrer">
+                              {citation.label}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="muted geo-observation__unavailable">{t.geoUnavailable}</p>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function safeHttpUrl(value: string): string | null {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -424,6 +533,9 @@ function ModuleMetadata({
           : ''}
       </small>
     );
+  }
+  if (module.module === 'UX/Conversion') {
+    return <small className="module-card__meta">{t.metaUx}</small>;
   }
   return null;
 }

@@ -24,7 +24,7 @@ export interface GeoFinding {
   readonly normalizedUrl: '';
   readonly normalizedResource: string;
   readonly normalizedSelector: '';
-  /** `q<sequence>` — стабильный между сканами номер вопроса библиотеки (D-176). */
+  /** Fixed question id or normalized generated-question identity (D-176). */
   readonly normalizedParameter: string;
   readonly ruleVariant: typeof GEO_RULE_VARIANT_V1;
   readonly targetUrl: string;

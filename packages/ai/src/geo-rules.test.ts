@@ -79,6 +79,34 @@ describe('GEO-VIS-003 — присутствие бренда', () => {
     expect(evaluation.findings).toEqual([]);
   });
 
+  it('разные сгенерированные discovery-вопросы не делят fingerprint-параметр', () => {
+    const first = makeResponseOutcome({
+      request: makeRequest({
+        sequence: 3,
+        promptVersion: 'geo-questions-v4-discovery',
+        question: '  Best   emergency dentist in Kyiv?  ',
+      }),
+      response: makeResponse({ rawText: 'Several local clinics are available.', citations: [] }),
+    });
+    const second = makeResponseOutcome({
+      request: makeRequest({
+        sequence: 3,
+        promptVersion: 'geo-questions-v4-discovery',
+        question: 'Best cosmetic dentist in Kyiv?',
+      }),
+      response: makeResponse({ rawText: 'Several local clinics are available.', citations: [] }),
+    });
+
+    const firstParameter = evaluateGeoVis003(input({ outcomes: [first] })).findings[0]
+      ?.normalizedParameter;
+    const secondParameter = evaluateGeoVis003(input({ outcomes: [second] })).findings[0]
+      ?.normalizedParameter;
+
+    expect(firstParameter).toBe('discovery:best emergency dentist in kyiv?');
+    expect(secondParameter).toBe('discovery:best cosmetic dentist in kyiv?');
+    expect(firstParameter).not.toBe(secondParameter);
+  });
+
   it('пустой бренд — ошибка конфигурации, не молчание', () => {
     expect(() => evaluateGeoVis003(input({ brand: '  ' }))).toThrow(AiModuleError);
   });

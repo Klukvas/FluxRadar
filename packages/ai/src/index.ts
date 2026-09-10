@@ -15,3 +15,4 @@ export * from './run-request.js';
 export * from './geo-findings.js';
 export * from './geo-rules.js';
 export * from './geo-module.js';
+export * from './ux-module.js';

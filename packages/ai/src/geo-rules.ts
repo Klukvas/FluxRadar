@@ -45,8 +45,16 @@ function responses(input: GeoRuleInput): readonly AiResponseOutcome[] {
   });
 }
 
-/** `q<sequence>` — стабильный идентификатор вопроса библиотеки (D-176). */
+/**
+ * Fixed awareness questions keep their sequence identifier. AI-generated discovery questions
+ * use their normalized text so unrelated questions from different scans cannot share a
+ * fingerprint merely because both happened to be third in the request list (D-176).
+ */
 function questionParameter(outcome: AiRequestOutcome): string {
+  if (outcome.request.promptVersion.endsWith('-discovery')) {
+    const question = outcome.request.question.normalize('NFKC').trim().replace(/\s+/g, ' ');
+    return `discovery:${question.toLowerCase()}`;
+  }
   return `q${outcome.request.sequence}`;
 }
 

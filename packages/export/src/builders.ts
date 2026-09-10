@@ -223,7 +223,7 @@ export function buildAiResponseRecord(
     ...identityFields(context, input.observedAt),
     ...NULL_ISSUE_FIELDS,
     record_type: 'ai_response',
-    module: 'AI SEO / GEO',
+    module: input.module ?? 'AI SEO / GEO',
     module_status: input.moduleStatus,
     scan_status: null,
     coverage: null,

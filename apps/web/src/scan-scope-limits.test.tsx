@@ -1,3 +1,4 @@
+import { saveCookieConsent } from './browser-consent';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -101,6 +102,7 @@ function renderNewScan(
     return Promise.resolve(envelope(null));
   });
   vi.stubGlobal('fetch', fetchMock);
+  saveCookieConsent(true);
   window.localStorage.setItem('fluxradar.language', language);
   window.history.replaceState(null, '', '/scan');
   render(<App />);
@@ -130,6 +132,7 @@ function renderNewScanWithTwoSites(): ReturnType<typeof vi.fn> {
     return Promise.resolve(envelope(null));
   });
   vi.stubGlobal('fetch', fetchMock);
+  saveCookieConsent(true);
   window.localStorage.setItem('fluxradar.language', 'en');
   window.history.replaceState(null, '', '/scan');
   render(<App />);
@@ -156,14 +159,7 @@ const depthField = () => screen.getByRole('spinbutton', { name: /^Maximum crawl 
 async function openedOn(maxPages: number): Promise<void> {
   await waitFor(() => expect(pagesField()).toHaveValue(maxPages));
 }
-/**
- * Starts the scan, ticking the AI-consent box first: a paid plan keeps the
- * button disabled without it, and a click on a disabled button would pass this
- * file's "nothing was requested" assertions for the wrong reason.
- */
 function runScan(): void {
-  const consent = screen.getByLabelText(/Allow sending public pages/) as HTMLInputElement;
-  if (!consent.checked) fireEvent.click(consent);
   fireEvent.click(screen.getByRole('button', { name: 'Run internal scan' }));
 }
 const checkoutCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
@@ -270,7 +266,6 @@ describe('a page count the API would refuse', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: /^Максимум сторінок/ }), {
       target: { value: '0' },
     });
-    fireEvent.click(screen.getByLabelText(/Дозволити надсилати публічні сторінки/));
     fireEvent.click(screen.getByRole('button', { name: 'Запустити внутрішню перевірку' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Введіть ціле число сторінок');

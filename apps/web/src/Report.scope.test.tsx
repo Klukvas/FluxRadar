@@ -286,4 +286,38 @@ describe('a section that has finished', () => {
     expect(screen.queryByRole('progressbar')).toBeNull();
     expect(screen.getByText(/coverage unavailable/)).toBeTruthy();
   });
+
+  it('shows the actual GEO questions, answers, and mention result', async () => {
+    const dashboard = {
+      ...dashboardOf('Complete', [moduleOf({ module: 'AI SEO / GEO' })]),
+      geoObservations: [
+        {
+          purpose: 'discovery' as const,
+          question: 'Which dental clinics offer emergency appointments in Kyiv?',
+          status: 'answered' as const,
+          reason: null,
+          provider: 'anthropic',
+          modelId: 'claude-sonnet-5',
+          answer: 'Smile Clinic offers emergency appointments in Kyiv.',
+          citations: ['https://smile.example/emergency'],
+          mentions: { brand: true, domain: true },
+        },
+      ],
+    };
+    await openReport(dashboard);
+
+    const region = screen.getByRole('region', { name: 'AI visibility observations' });
+    expect(within(region).getByText('Domain discovery question')).toBeInTheDocument();
+    expect(
+      within(region).getByText('Which dental clinics offer emergency appointments in Kyiv?'),
+    ).toBeInTheDocument();
+    expect(
+      within(region).getByText('Smile Clinic offers emergency appointments in Kyiv.'),
+    ).toBeInTheDocument();
+    expect(within(region).getByText('Brand mentioned')).toBeInTheDocument();
+    expect(within(region).getByText('Official domain referenced')).toBeInTheDocument();
+    expect(
+      within(region).getByRole('link', { name: 'https://smile.example/emergency' }),
+    ).toHaveAttribute('href', 'https://smile.example/emergency');
+  });
 });

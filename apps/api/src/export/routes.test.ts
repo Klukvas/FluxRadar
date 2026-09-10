@@ -163,7 +163,7 @@ describe('export route – storage failure regression', () => {
       objectKey: expect.stringContaining('accounts/account_xyz/scans/scan_abc123'),
     });
     // Upsert must be called to persist the artifact metadata.
-    expect((prisma.exportArtifact.upsert as Mock)).toHaveBeenCalledOnce();
+    expect(prisma.exportArtifact.upsert as Mock).toHaveBeenCalledOnce();
   });
 
   it('returns 403 for non-Complete scans', async () => {
@@ -184,6 +184,57 @@ describe('export route – storage failure regression', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('EXPORT_NOT_READY');
+  });
+
+  it('rejects an AI response whose stored module is unknown instead of relabelling it as GEO', async () => {
+    const prisma = makePrisma(
+      makeScan({
+        modules: [
+          {
+            id: 'module_geo',
+            scanId: 'scan_abc123',
+            module: 'AI SEO / GEO',
+            runtimeStatus: 'Completed',
+            statusReason: null,
+            coverage: 1,
+            score: 100,
+            applicableChecks: 1,
+            completedApplicableChecks: 1,
+            usableOutput: true,
+            metadataJson: '{}',
+          },
+        ],
+        aiResponses: [
+          {
+            id: 'ai_unknown',
+            scanId: 'scan_abc123',
+            module: 'unexpected-module',
+            promptText: 'question',
+            tokenizerVersion: null,
+            provider: 'anthropic',
+            apiVersion: '2023-06-01',
+            modelId: 'test-model',
+            promptVersion: 'test-v1',
+            requestId: 'request-1',
+            requestIdSource: 'provider',
+            aiRequestKey: 'ai:scan_abc123:test',
+            usageJson: '{"inputTokens":1,"outputTokens":1,"totalTokens":2}',
+            usageSource: 'provider',
+            rawText: 'answer',
+            citationsJson: '[]',
+            finishReason: 'stop',
+            deletionEvidenceRef: null,
+            createdAt: new Date('2026-09-05T01:04:00Z'),
+          },
+        ],
+      }),
+    );
+    const app = makeApp(prisma, null);
+
+    const res = await authed(request(app).get('/scans/scan_abc123/export?format=json'));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('EXPORT_INVALID');
   });
 
   // An export is the entire report in one file, so it is the last place a

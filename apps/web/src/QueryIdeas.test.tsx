@@ -77,8 +77,8 @@ describe('before anything is generated', () => {
     stubIdeas(GENERATED);
     render(<QueryIdeasPanel scanId="scan-1" language="en" />);
 
-    expect(t.idleBody).toMatch(/sends your site address and the queries above/i);
-    expect(copy.uk.report.queryIdeas.idleBody).toMatch(/надсилає адресу вашого сайту/);
+    expect(t.idleBody).toMatch(/allow Anthropic to process your site address and name/i);
+    expect(copy.uk.report.queryIdeas.idleBody).toMatch(/дозволяє Anthropic обробити адресу/);
   });
 
   it('is labelled as generated rather than measured, wherever it is read', () => {
@@ -103,6 +103,8 @@ describe('after the model answers', () => {
     await screen.findByText('website audit tool');
     expect(paths).toEqual(['/scans/scan-42/search-console/query-ideas']);
     expect(calls[0]?.method).toBe('POST');
+    expect(JSON.parse(String(calls[0]?.body))).toEqual({ noticeVersion: 'query-ideas-v2' });
+    expect(screen.getByText(t.idleBody)).toBeInTheDocument();
   });
 
   it('lists the three languages in a fixed order, each one named', async () => {
@@ -238,6 +240,18 @@ describe('where the block sits inside the Google panel', () => {
 
   // The measured rows and the generated ones live in different tables, in
   // different regions. Nothing generated is ever appended to a real one.
+  it('offers context-based ideas even without measured Search Console data', () => {
+    stubIdeas(GENERATED);
+    render(
+      <GoogleDataPanel
+        snapshot={{ ...SNAPSHOT, searchConsole: { state: 'no_data', detail: 'none', data: null } }}
+        language="en"
+        scanId="scan-1"
+      />,
+    );
+    expect(screen.getByRole('button', { name: t.generate })).toBeEnabled();
+  });
+
   it('never puts an idea in the measured Search Console table', async () => {
     stubIdeas(GENERATED);
     render(<GoogleDataPanel snapshot={SNAPSHOT} language="en" scanId="scan-1" />);

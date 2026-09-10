@@ -46,7 +46,8 @@ export function buildExportRecords(scan: ExportScan) {
   const summaries = scan.modules.flatMap((module) => moduleSummary(module));
   const overall = computeOverallScore(scan.plan as 'Complete', summaries);
   const scanStatus = scan.status as ScanExportStatus;
-  const statusReason = scanStatus === 'Completed' ? null : scan.statusReason ?? `Scan${scanStatus}`;
+  const statusReason =
+    scanStatus === 'Completed' ? null : (scan.statusReason ?? `Scan${scanStatus}`);
   return [
     buildSummaryRecord(context, {
       scanStatus,
@@ -55,25 +56,32 @@ export function buildExportRecords(scan: ExportScan) {
       score: overall.score,
       observedAt: completedAt,
     }),
-    ...scan.modules.map((module) => buildModuleRecord(context, {
-      module: module.module as ModuleName,
-      moduleStatus: module.runtimeStatus as ModuleExportStatus,
-      coverage: module.coverage ?? 0,
-      applicableChecks: module.applicableChecks ?? 0,
-      completedApplicableChecks: module.completedApplicableChecks ?? 0,
-      score: module.score,
-      statusReason: module.statusReason,
-      observedAt: completedAt,
-    })),
+    ...scan.modules.map((module) =>
+      buildModuleRecord(context, {
+        module: module.module as ModuleName,
+        moduleStatus: module.runtimeStatus as ModuleExportStatus,
+        coverage: module.coverage ?? 0,
+        applicableChecks: module.applicableChecks ?? 0,
+        completedApplicableChecks: module.completedApplicableChecks ?? 0,
+        score: module.score,
+        statusReason: module.statusReason,
+        observedAt: completedAt,
+      }),
+    ),
     ...scan.aiResponses.map((response) => {
-      const geo = moduleByName.get('AI SEO / GEO');
+      if (response.module !== 'AI SEO / GEO' && response.module !== 'UX/Conversion') {
+        throw conflict('EXPORT_INVALID', `AI response has unknown module ${response.module}`);
+      }
+      const responseModule = response.module;
+      const geo = moduleByName.get(responseModule);
       const moduleStatus = geo?.runtimeStatus as 'Completed' | 'Partial' | undefined;
       if (moduleStatus !== 'Completed' && moduleStatus !== 'Partial') {
-        throw conflict('EXPORT_INVALID', 'AI response exists without a completed GEO module');
+        throw conflict('EXPORT_INVALID', 'AI response exists without a usable AI module');
       }
       return buildAiResponseRecord(context, {
+        module: responseModule,
         moduleStatus,
-        statusReason: moduleStatus === 'Partial' ? geo?.statusReason ?? 'Partial' : null,
+        statusReason: moduleStatus === 'Partial' ? (geo?.statusReason ?? 'Partial') : null,
         provider: response.provider,
         apiVersion: response.apiVersion,
         modelId: response.modelId,
@@ -86,9 +94,11 @@ export function buildExportRecords(scan: ExportScan) {
         citations: parseStringArray(response.citationsJson),
         usage: parseUsage(response.usageJson),
         usageSource: response.usageSource as UsageSource,
-        tokenizerVersion: response.usageSource === 'estimated' ? 'unknown-v1' : null,
+        tokenizerVersion:
+          response.usageSource === 'estimated' ? (response.tokenizerVersion ?? 'unknown-v1') : null,
         finishReason: response.finishReason as AiFinishReason,
-        deletionEvidenceRef: response.deletionEvidenceRef ?? `ai-001/deletion/${response.aiRequestKey}`,
+        deletionEvidenceRef:
+          response.deletionEvidenceRef ?? `ai-001/deletion/${response.aiRequestKey}`,
         observedAt: completedAt,
       });
     }),
@@ -96,7 +106,10 @@ export function buildExportRecords(scan: ExportScan) {
       const module = moduleByName.get(issue.module);
       const moduleStatus = module?.runtimeStatus as 'Completed' | 'Partial' | undefined;
       if (moduleStatus !== 'Completed' && moduleStatus !== 'Partial') {
-        throw conflict('EXPORT_INVALID', `issue ${issue.id} belongs to unavailable module ${issue.module}`);
+        throw conflict(
+          'EXPORT_INVALID',
+          `issue ${issue.id} belongs to unavailable module ${issue.module}`,
+        );
       }
       return buildIssueRecord(context, {
         issueId: issue.id,
@@ -131,13 +144,16 @@ export function buildExportRecords(scan: ExportScan) {
 
 function moduleSummary(module: ScanModule) {
   if (!isModuleName(module.module)) return [];
-  return [{
-    module: module.module,
-    moduleStatus: module.runtimeStatus as 'Completed' | 'Partial' | 'Unavailable' | 'Not applicable',
-    coverage: module.coverage ?? 0,
-    score: module.score,
-    usableOutput: module.usableOutput,
-  }];
+  return [
+    {
+      module: module.module,
+      moduleStatus: module.runtimeStatus as
+        'Completed' | 'Partial' | 'Unavailable' | 'Not applicable',
+      coverage: module.coverage ?? 0,
+      score: module.score,
+      usableOutput: module.usableOutput,
+    },
+  ];
 }
 
 function parseStringArray(value: string): readonly string[] {
@@ -152,18 +168,26 @@ function parseStringArray(value: string): readonly string[] {
 function parseUsage(value: string) {
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>;
-    const inputTokens = numberOrZero(parsed.input_tokens);
-    const outputTokens = numberOrZero(parsed.output_tokens);
+    const inputTokens = numberOrZero(parsed.inputTokens ?? parsed.input_tokens);
+    const outputTokens = numberOrZero(parsed.outputTokens ?? parsed.output_tokens);
     return {
       inputTokens,
       outputTokens,
-      totalTokens: numberOrZero(parsed.total_tokens) || inputTokens + outputTokens,
-      reasoningUnits: numberOrNull(parsed.reasoning_units),
-      searchUnits: numberOrNull(parsed.search_units),
-      citationUnits: numberOrNull(parsed.citation_units),
+      totalTokens:
+        numberOrZero(parsed.totalTokens ?? parsed.total_tokens) || inputTokens + outputTokens,
+      reasoningUnits: numberOrNull(parsed.reasoningUnits ?? parsed.reasoning_units),
+      searchUnits: numberOrNull(parsed.searchUnits ?? parsed.search_units),
+      citationUnits: numberOrNull(parsed.citationUnits ?? parsed.citation_units),
     };
   } catch {
-    return { inputTokens: 0, outputTokens: 0, totalTokens: 0, reasoningUnits: null, searchUnits: null, citationUnits: null };
+    return {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      reasoningUnits: null,
+      searchUnits: null,
+      citationUnits: null,
+    };
   }
 }
 

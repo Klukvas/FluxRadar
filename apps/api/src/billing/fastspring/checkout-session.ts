@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import type { ScanScopeInput } from '@fluxradar/contracts';
+import { captureExecutionConfig, lockOwnProfile } from '../../profiles/execution-config.ts';
 
 import type { AiConsentInput } from '../checkout-metadata.ts';
 import { CHECKOUT_STATUS_REASONS, provisionalCheckoutDeadline } from '../checkout-lifecycle.ts';
@@ -31,6 +32,7 @@ export interface CheckoutSessionParams {
   readonly plan: PaidPlan;
   readonly scope: ScanScopeInput;
   readonly aiConsent?: AiConsentInput | undefined;
+  readonly expectedProfileConfigVersion?: number | undefined;
 }
 
 /** Exactly what the browser is allowed to learn about a checkout session. */
@@ -70,21 +72,33 @@ export async function createCheckoutSession(
   );
   // Committed before the provider call so an order.completed webhook — which can
   // arrive before our HTTP response reaches the browser — always finds its row.
-  const row = await deps.prisma.checkoutSession.create({
-    data: {
-      provider: FASTSPRING_PROVIDER,
-      reference,
-      accountId: params.accountId,
-      siteProfileId: profile.id,
-      plan: params.plan,
-      productPath,
-      expectedAmountUsd: planPriceUsd(params.plan),
-      liveMode: deps.config.liveMode,
-      scopeJson: JSON.stringify(params.scope),
-      aiConsentJson: params.aiConsent === undefined ? null : JSON.stringify(params.aiConsent),
-      createdAt,
-      expiresAt: provisionalExpiresAt,
-    },
+  const row = await deps.prisma.$transaction(async (tx) => {
+    const lockedProfile = await lockOwnProfile(
+      tx,
+      params.accountId,
+      params.siteProfileId,
+      params.expectedProfileConfigVersion,
+    );
+    return tx.checkoutSession.create({
+      data: {
+        provider: FASTSPRING_PROVIDER,
+        reference,
+        accountId: params.accountId,
+        siteProfileId: profile.id,
+        plan: params.plan,
+        productPath,
+        expectedAmountUsd: planPriceUsd(params.plan),
+        liveMode: deps.config.liveMode,
+        scopeJson: JSON.stringify(params.scope),
+        profileConfigVersion: lockedProfile.scanConfigVersion,
+        executionConfigJson: JSON.stringify(
+          captureExecutionConfig(lockedProfile, params.plan, params.scope),
+        ),
+        aiConsentJson: params.aiConsent === undefined ? null : JSON.stringify(params.aiConsent),
+        createdAt,
+        expiresAt: provisionalExpiresAt,
+      },
+    });
   });
 
   let session: CreatedSession;

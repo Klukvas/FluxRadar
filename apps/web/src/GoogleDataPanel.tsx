@@ -83,10 +83,7 @@ function Unavailable(props: { state: GoogleDataState; detail: string; language: 
   );
 }
 
-function Metrics(props: {
-  items: readonly { label: string; value: string }[];
-  label: string;
-}) {
+function Metrics(props: { items: readonly { label: string; value: string }[]; label: string }) {
   return (
     <div className="report-meta" aria-label={props.label}>
       {props.items.map((item) => (
@@ -153,8 +150,8 @@ export function GoogleDataPanel({
         <span className="technical">
           {snapshot.dateRange.startDate} → {snapshot.dateRange.endDate}
         </span>{' '}
-        · {t.lastFetched}{' '}
-        <span className="technical">{formatTimestamp(snapshot.fetchedAt)}</span> UTC
+        · {t.lastFetched} <span className="technical">{formatTimestamp(snapshot.fetchedAt)}</span>{' '}
+        UTC
       </p>
 
       <section aria-label={t.searchConsoleHeading}>
@@ -189,11 +186,6 @@ export function GoogleDataPanel({
               rows={searchConsole.data.topQueries}
               language={language}
             />
-            {/* Below the measured queries, in its own region: hypotheses next to
-                a table of measurements, never inside it. */}
-            {scanId === undefined ? null : (
-              <QueryIdeasPanel scanId={scanId} language={language} />
-            )}
             <RowTable
               caption={t.topPages}
               columnLabel={t.page}
@@ -204,6 +196,9 @@ export function GoogleDataPanel({
         )}
       </section>
 
+      {scanId === undefined ? null : (
+        <QueryIdeasPanel key={scanId} scanId={scanId} language={language} />
+      )}
       <section aria-label={t.analyticsHeading}>
         <h3 className="section-heading">{t.analyticsHeading}</h3>
         {analytics.data === null ? (

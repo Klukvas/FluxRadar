@@ -253,19 +253,19 @@ describe('legal pages', () => {
       await screen.findByRole('heading', { name: 'Політика приватності' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: copy.uk.legal.back })).toHaveAttribute('href', '/');
-    expect(screen.getByText(copy.uk.legal.englishNotice)).toBeInTheDocument();
+    expect(screen.getByText(copy.uk.legal.languageNotice)).toBeInTheDocument();
     expect(
       screen.getByRole('navigation', { name: copy.uk.legal.contentsLabel }),
     ).toBeInTheDocument();
   });
 
-  it('does not show the English-version notice to an English reader', async () => {
+  it('marks English as an informational translation', async () => {
     window.history.replaceState(null, '', '/terms');
     stubApi(signedOut);
     render(<App />);
     await screen.findByRole('heading', { name: 'Terms of service' });
 
-    expect(screen.queryByText(copy.en.legal.englishNotice)).not.toBeInTheDocument();
+    expect(screen.getByText(copy.en.legal.languageNotice)).toBeInTheDocument();
   });
 
   it('points every document-map entry at a section on the page', async () => {

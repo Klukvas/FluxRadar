@@ -36,6 +36,11 @@ import { modulePlanFor } from '../orchestrator/module-plan.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 import { freeScanScope } from './free-scan-scope.ts';
+import {
+  captureExecutionConfig,
+  lockOwnProfile,
+  storedExecutionConfig,
+} from '../profiles/execution-config.ts';
 
 export interface ScansRouterDeps {
   readonly prisma: PrismaClient;
@@ -46,7 +51,12 @@ export interface ScansRouterDeps {
   readonly freeCheckAllowedOrigins?: ReadonlySet<string>;
 }
 
-const freeCheckBodySchema = z.object({ scope: scanScopeSchema.optional() }).optional();
+const freeCheckBodySchema = z
+  .object({
+    scope: scanScopeSchema.optional(),
+    expectedProfileConfigVersion: z.number().int().min(1).optional(),
+  })
+  .optional();
 const scanListQuerySchema = pageQuerySchema.extend({
   profileId: z.string().min(1).optional(),
   history: z.enum(['true', 'false']).optional(),
@@ -85,6 +95,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       deps.now(),
       freeCheckAllowedOrigins,
       body?.scope,
+      body?.expectedProfileConfigVersion,
     );
     deps.enqueueScan(created.id);
     sendOk(res, toScanDto(created, []), { status: 201 });
@@ -177,6 +188,21 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   router.get('/scans/:scanId/dashboard', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
     const scan = await findOwnReportScan(deps.prisma, accountIdFrom(res), scanId);
+    const geoModule = scan.modules.find((module) => module.module === 'AI SEO / GEO');
+    const geoResponses =
+      geoModule === undefined
+        ? []
+        : await deps.prisma.aiResponseRecord.findMany({
+            where: { scanId, module: 'AI SEO / GEO' },
+            select: {
+              aiRequestKey: true,
+              provider: true,
+              modelId: true,
+              rawText: true,
+              citationsJson: true,
+            },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          });
     const moduleSummaries = scan.modules.flatMap((module) => {
       if (!isModuleName(module.module)) return [];
       return [
@@ -201,6 +227,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       scan: toScanDto(scan, scan.modules),
       overall,
       modules: scan.modules.map(toModuleDto),
+      geoObservations: geoObservationsFrom(geoModule?.metadataJson, geoResponses),
     });
   });
 
@@ -248,7 +275,8 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     const isPlanned =
       plan.runnable.some((module) => module === retryModule) ||
       plan.external.some((module) => module === retryModule) ||
-      (plan.geo && retryModule === 'AI SEO / GEO');
+      (plan.geo && retryModule === 'AI SEO / GEO') ||
+      (plan.ux && retryModule === 'UX/Conversion');
     const moduleRow = scan.modules.find((module) => module.module === retryModule);
     if (
       !isPlanned ||
@@ -314,12 +342,15 @@ export async function createFreeScan(
   now: Date,
   allowedOrigins: ReadonlySet<string> = new Set(),
   requestedScope?: ScanScopeInput,
+  expectedProfileConfigVersion?: number,
 ): Promise<Scan> {
   return prisma.$transaction(async (tx) => {
-    const profile = await tx.siteProfile.findFirst({ where: { id: siteProfileId, accountId } });
-    if (profile === null) {
-      throw notFound('site profile not found');
-    }
+    const profile = await lockOwnProfile(
+      tx,
+      accountId,
+      siteProfileId,
+      expectedProfileConfigVersion,
+    );
     if (!isFreeCheckAllowedOrigin(profile.domain, allowedOrigins)) {
       const claimed = await tx.account.updateMany({
         where: { id: accountId, freeCheckUsedAt: null },
@@ -348,6 +379,10 @@ export async function createFreeScan(
         domain: profile.domain,
         status: 'Pending',
         scopeJson: JSON.stringify(freeScanScope(requestedScope)),
+        profileConfigVersion: profile.scanConfigVersion,
+        executionConfigJson: JSON.stringify(
+          captureExecutionConfig(profile, 'Free', freeScanScope(requestedScope)),
+        ),
         rulesetVersion: RULESET_VERSION,
         createdAt: now,
       },
@@ -359,8 +394,7 @@ export async function createFreeScan(
   });
 }
 
-export type OwnScan = Scan &
-  PaidAccessScan & { readonly modules: readonly ScanModule[] };
+export type OwnScan = Scan & PaidAccessScan & { readonly modules: readonly ScanModule[] };
 
 /**
  * One scan of this account, or a 404 — the tenant boundary, unchanged.
@@ -417,6 +451,8 @@ function toScanDto(scan: Scan, modules: readonly ScanModule[]): Record<string, u
     status: scan.status,
     statusReason: scan.statusReason,
     scope: parseScope(scan.scopeJson),
+    profileConfigVersion: scan.profileConfigVersion,
+    executionConfig: storedExecutionConfig(scan.executionConfigJson),
     rulesetVersion: scan.rulesetVersion,
     retry: { platform: scan.platformRetryCount, module: scan.moduleRetryCount },
     progress: { completedModules: terminal, totalModules: modules.length },
@@ -446,6 +482,129 @@ function parseMetadata(value: string): unknown {
     return JSON.parse(value);
   } catch {
     return {};
+  }
+}
+
+interface GeoAiResponse {
+  readonly aiRequestKey: string;
+  readonly provider: string;
+  readonly modelId: string;
+  readonly rawText: string;
+  readonly citationsJson: string;
+}
+
+interface GeoMentions {
+  readonly brand: boolean;
+  readonly domain: boolean;
+}
+
+interface GeoObservation {
+  readonly purpose: 'awareness' | 'discovery';
+  readonly question: string;
+  readonly status: 'answered' | 'unavailable';
+  readonly reason: string | null;
+  readonly provider: string | null;
+  readonly modelId: string | null;
+  readonly answer: string | null;
+  readonly citations: readonly string[];
+  readonly mentions: GeoMentions | null;
+}
+
+/**
+ * Turns the GEO execution ledger into the evidence the report can display.
+ *
+ * The request list is authoritative: the generator response uses the same
+ * module but is an implementation detail, so it never appears as a visibility
+ * observation. A response row without a matching recorded request is ignored;
+ * a recorded response whose evidence row is missing is shown as unavailable
+ * instead of manufacturing an answer.
+ */
+function geoObservationsFrom(
+  metadataJson: string | undefined,
+  responses: readonly GeoAiResponse[],
+): readonly GeoObservation[] {
+  if (metadataJson === undefined) return [];
+  const metadata = recordValue(parseMetadata(metadataJson));
+  const visibility = recordValue(metadata?.providerVisibility);
+  const requests = visibility?.requests;
+  if (!Array.isArray(requests)) return [];
+  const responsesByKey = new Map(responses.map((response) => [response.aiRequestKey, response]));
+
+  return requests.flatMap((entry): GeoObservation[] => {
+    const request = recordValue(entry);
+    const purpose = request?.purpose;
+    const question = request?.question;
+    if (
+      request === null ||
+      (purpose !== 'awareness' && purpose !== 'discovery') ||
+      typeof question !== 'string' ||
+      question.trim() === ''
+    ) {
+      return [];
+    }
+    const reason = typeof request.reason === 'string' ? request.reason : null;
+    if (request.status !== 'response' || typeof request.aiRequestKey !== 'string') {
+      return [unavailableGeoObservation(purpose, question, reason)];
+    }
+    const response = responsesByKey.get(request.aiRequestKey);
+    if (response === undefined) {
+      return [unavailableGeoObservation(purpose, question, 'EvidenceUnavailable')];
+    }
+    return [
+      {
+        purpose,
+        question,
+        status: 'answered',
+        reason: null,
+        provider: response.provider,
+        modelId: response.modelId,
+        answer: response.rawText,
+        citations: stringArrayFromJson(response.citationsJson),
+        mentions: mentionsFrom(request.mentions),
+      },
+    ];
+  });
+}
+
+function unavailableGeoObservation(
+  purpose: GeoObservation['purpose'],
+  question: string,
+  reason: string | null,
+): GeoObservation {
+  return {
+    purpose,
+    question,
+    status: 'unavailable',
+    reason,
+    provider: null,
+    modelId: null,
+    answer: null,
+    citations: [],
+    mentions: null,
+  };
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function mentionsFrom(value: unknown): GeoMentions | null {
+  const mentions = recordValue(value);
+  return typeof mentions?.brand === 'boolean' && typeof mentions.domain === 'boolean'
+    ? { brand: mentions.brand, domain: mentions.domain }
+    : null;
+}
+
+function stringArrayFromJson(value: string): readonly string[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === 'string')
+      : [];
+  } catch {
+    return [];
   }
 }
 
@@ -530,6 +689,7 @@ function retryableModule(
     ...plan.runnable,
     ...plan.external,
     ...(plan.geo ? ['AI SEO / GEO' as const] : []),
+    ...(plan.ux ? ['UX/Conversion' as const] : []),
   ];
   for (const planned of orderedModules) {
     const candidate = modules.find(

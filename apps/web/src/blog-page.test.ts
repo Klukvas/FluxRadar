@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { copy } from './i18n';
+import { saveCookieConsent } from './browser-consent';
 
 // The blog is static HTML served straight from `public/`, so it has no
 // component to render in a test. These tests read the shipped files instead:
@@ -515,15 +516,108 @@ describe('blog language filter', () => {
   });
 
   it('remembers the choice under the key the product app reads', () => {
+    saveCookieConsent(true);
     bootIndex();
     filterButton('uk').click();
     expect(window.localStorage.getItem('fluxradar.language')).toBe('uk');
+  });
+
+  it('keeps the language filter usable without persisting it before cookie permission', () => {
+    bootIndex();
+    filterButton('uk').click();
+    expect(document.documentElement.lang).toBe('uk');
+    expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
   });
 
   it('honours ?lang=uk on entry so a shared link opens in the language it promises', () => {
     bootIndex('?lang=uk');
     expect(document.documentElement.getAttribute('data-blog-lang')).toBe('uk');
     expect(filterButton('uk').getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('blog cookie choices', () => {
+  const source = readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
+
+  function bootIndex(): void {
+    const html = readPage('index.html');
+    const body = /<body[^>]*>([\s\S]*)<\/body>/.exec(html)?.[1] ?? '';
+    window.history.replaceState(null, '', '/blog');
+    document.documentElement.setAttribute('data-blog-lang', 'en');
+    document.documentElement.lang = 'en';
+    document.body.setAttribute('data-blog-page', 'index');
+    document.body.innerHTML = body.replace(/<script[\s\S]*?<\/script>/g, '');
+    new Function(source)();
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    bootIndex();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    document.body.removeAttribute('data-blog-page');
+    document.documentElement.removeAttribute('data-blog-lang');
+    window.localStorage.clear();
+  });
+
+  it('offers equally direct necessary and preference choices on a first blog visit', () => {
+    const region = document.querySelector('[data-cookie-consent]');
+    expect(region?.getAttribute('role')).toBe('region');
+    expect(region?.textContent).toContain('Cookies & storage');
+    expect(region?.querySelector('[data-cookie-choice="necessary"]')).not.toBeNull();
+    expect(region?.querySelector('[data-cookie-choice="preferences"]')).not.toBeNull();
+    expect(region?.querySelector('a')?.getAttribute('href')).toBe('/cookies?lang=en');
+  });
+
+  it('stores the current language only after preference permission and lets it be withdrawn', () => {
+    document.querySelector<HTMLElement>('[data-language-filter="uk"]')?.click();
+    document.querySelector<HTMLElement>('[data-cookie-choice="preferences"]')?.click();
+
+    expect(
+      JSON.parse(window.localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
+    ).toMatchObject({
+      version: 'v1',
+      preferences: true,
+    });
+    expect(window.localStorage.getItem('fluxradar.language')).toBe('uk');
+    expect(document.querySelector('[data-cookie-consent]')).toBeNull();
+
+    window.localStorage.setItem('fluxradar.pendingCheckout', 'pending-test');
+    document.querySelector<HTMLElement>('[data-cookie-settings]')?.click();
+    document.querySelector<HTMLElement>('[data-cookie-choice="necessary"]')?.click();
+    expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
+    expect(window.localStorage.getItem('fluxradar.pendingCheckout')).toBe('pending-test');
+    expect(
+      JSON.parse(window.localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
+    ).toMatchObject({
+      version: 'v1',
+      preferences: false,
+    });
+  });
+
+  it('translates the cookie choice with the rest of the blog chrome', () => {
+    document.querySelector<HTMLElement>('[data-language-filter="uk"]')?.click();
+    const region = document.querySelector('[data-cookie-consent]');
+    expect(region?.textContent).toContain('Cookies і сховище');
+    expect(region?.textContent).toContain('Лише необхідні');
+    expect(region?.querySelector('a')?.getAttribute('href')).toBe('/cookies?lang=uk');
+  });
+
+  it('shows the choice on article pages as well as the blog index', () => {
+    document.body.innerHTML = '';
+    const html = readPage('ai-crawler-readiness/index.html');
+    const body = /<body[^>]*>([\s\S]*)<\/body>/.exec(html)?.[1] ?? '';
+    window.history.replaceState(null, '', '/blog/ai-crawler-readiness');
+    document.documentElement.lang = 'en';
+    document.body.setAttribute('data-blog-page', 'article');
+    document.body.innerHTML = body.replace(/<script[\s\S]*?<\/script>/g, '');
+    new Function(source)();
+
+    expect(document.querySelector('[data-cookie-consent]')?.textContent).toContain(
+      'Cookies & storage',
+    );
   });
 });
 

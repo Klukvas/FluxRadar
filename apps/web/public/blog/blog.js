@@ -19,6 +19,11 @@
   // The same key the app writes, so a language chosen here survives the jump
   // from /blog back to the product and the other way round.
   var STORAGE_KEY = 'fluxradar.language';
+  var CONSENT_KEY = 'fluxradar.cookieConsent';
+  var CONSENT_VERSION = 'v1';
+  var CONSENT_TTL_MS = 180 * 24 * 60 * 60 * 1000;
+  var MAX_TIMEOUT_MS = 2147483647;
+  var cookieSaveFailed = false;
 
   var TEXT = {
     'nav.navigate': { en: 'Navigate', uk: 'Навігація' },
@@ -88,12 +93,49 @@
 
   var LANGUAGE_LABELS = { en: 'English', uk: 'Українська' };
 
+  var COOKIE_TEXT = {
+    en: {
+      title: 'Cookies & storage',
+      description:
+        'Necessary storage keeps sign-in, checkout and this choice working. Allow preferences to remember your language on this device.',
+      duration:
+        'We remember your choice for 180 days. You can change it anytime in Cookie settings.',
+      necessary: 'Only necessary',
+      allow: 'Allow preferences',
+      details: 'Cookie details',
+      settings: 'Cookie settings',
+      saveError:
+        'Your choice could not be saved. Optional preferences are off in this tab. Check your browser storage settings and try again.',
+      languageError:
+        'Your language could not be saved. Optional preferences are off in this tab. Check your browser storage settings and try again.',
+    },
+    uk: {
+      title: 'Cookies і сховище',
+      description:
+        'Необхідне сховище забезпечує вхід, оплату та збереження цього вибору. Дозвольте налаштування, щоб запам’ятати вашу мову на цьому пристрої.',
+      duration:
+        'Ми зберігаємо ваш вибір 180 днів. Його можна змінити будь-коли в налаштуваннях cookies.',
+      necessary: 'Лише необхідні',
+      allow: 'Дозволити налаштування',
+      details: 'Докладніше про cookies',
+      settings: 'Налаштування cookies',
+      saveError:
+        'Не вдалося зберегти ваш вибір. Додаткові налаштування вимкнено в цій вкладці. Перевірте налаштування сховища браузера та спробуйте ще раз.',
+      languageError:
+        'Не вдалося зберегти мову. Додаткові налаштування вимкнено в цій вкладці. Перевірте налаштування сховища браузера та спробуйте ще раз.',
+    },
+  };
+
   function isLanguage(value) {
     return LANGUAGES.indexOf(value) !== -1;
   }
 
   function readStoredLanguage() {
     try {
+      if (!preferencesAllowed()) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
       return window.localStorage.getItem(STORAGE_KEY);
     } catch {
       return null;
@@ -102,6 +144,10 @@
 
   function storeLanguage(language) {
     try {
+      if (!preferencesAllowed()) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
       window.localStorage.setItem(STORAGE_KEY, language);
     } catch {
       // A blocked storage context must not break the filter itself.
@@ -113,8 +159,40 @@
     return isLanguage(value) ? value : null;
   }
 
+  // Match the app's versioned preference permission. Language links and the
+  // current filter remain usable without writing optional browser storage.
+  function readConsentRecord() {
+    if (cookieSaveFailed) return null;
+    try {
+      var record = JSON.parse(window.localStorage.getItem(CONSENT_KEY) || 'null');
+      return record !== null &&
+        record.version === CONSENT_VERSION &&
+        typeof record.preferences === 'boolean' &&
+        Number.isSafeInteger(record.updatedAt) &&
+        record.updatedAt > 0 &&
+        record.updatedAt <= Date.now() &&
+        Number.isSafeInteger(record.expiresAt) &&
+        record.expiresAt > Date.now() &&
+        record.expiresAt - record.updatedAt === CONSENT_TTL_MS
+        ? record
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function preferencesAllowed() {
+    return readConsentRecord()?.preferences === true;
+  }
+
   var root = document.documentElement;
   var isIndex = document.body.getAttribute('data-blog-page') === 'index';
+  var cookieDock = document.createElement('div');
+  cookieDock.className = 'blog-cookie-dock';
+  document.body.appendChild(cookieDock);
+  var cookieError = null;
+  var cookieSettingsOpen = false;
+  var cookieExpiryTimer;
 
   /**
    * The index offers both languages, so its filter decides; an article page is
@@ -161,7 +239,10 @@
   function applyLanguage(language, options) {
     currentLanguage = language;
     translateChrome(language);
-    if (!isIndex) return;
+    if (!isIndex) {
+      renderCookieControls(language);
+      return;
+    }
     root.setAttribute('data-blog-lang', language);
     root.lang = language;
     storeLanguage(language);
@@ -171,6 +252,144 @@
       var url = language === 'en' ? '/blog' : '/blog?lang=' + language;
       window.history.replaceState(null, '', url);
     }
+    renderCookieControls(language);
+  }
+
+  function saveConsentRecord(preferences) {
+    var updatedAt = Date.now();
+    var record = {
+      version: CONSENT_VERSION,
+      preferences: preferences,
+      updatedAt: updatedAt,
+      expiresAt: updatedAt + CONSENT_TTL_MS,
+    };
+    try {
+      if (!preferences) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(CONSENT_KEY);
+      }
+      var serialized = JSON.stringify(record);
+      window.localStorage.setItem(CONSENT_KEY, serialized);
+      if (window.localStorage.getItem(CONSENT_KEY) !== serialized) {
+        throw new Error('Consent was not stored');
+      }
+      cookieSaveFailed = false;
+      return true;
+    } catch {
+      cookieSaveFailed = true;
+      return false;
+    }
+  }
+
+  function chooseCookiePreferences(preferences) {
+    if (!saveConsentRecord(preferences)) {
+      cookieError = 'saveError';
+      cookieSettingsOpen = true;
+      renderCookieControls(currentLanguage);
+      return;
+    }
+    if (preferences) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, currentLanguage);
+      } catch {
+        saveConsentRecord(false);
+        cookieError = 'languageError';
+        cookieSettingsOpen = true;
+        renderCookieControls(currentLanguage);
+        return;
+      }
+    }
+    cookieError = null;
+    cookieSettingsOpen = false;
+    renderCookieControls(currentLanguage);
+  }
+
+  function cookieButton(label, dataName, onClick) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.setAttribute(dataName, '');
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function renderCookieControls(language) {
+    window.clearTimeout(cookieExpiryTimer);
+    cookieDock.replaceChildren();
+    var text = COOKIE_TEXT[language];
+    var consent = readConsentRecord();
+    if (consent !== null && cookieError === null && !cookieSettingsOpen) {
+      var launcher = cookieButton(text.settings, 'data-cookie-settings', function () {
+        window.clearTimeout(cookieExpiryTimer);
+        cookieError = null;
+        cookieSettingsOpen = true;
+        cookieDock.replaceChildren();
+        renderCookiePanel(currentLanguage);
+      });
+      launcher.className = 'blog-cookie-settings';
+      cookieDock.appendChild(launcher);
+      cookieExpiryTimer = window.setTimeout(
+        function () {
+          renderCookieControls(currentLanguage);
+        },
+        Math.min(consent.expiresAt - Date.now(), MAX_TIMEOUT_MS),
+      );
+      return;
+    }
+    renderCookiePanel(language);
+  }
+
+  function renderCookiePanel(language) {
+    var text = COOKIE_TEXT[language];
+    var panel = document.createElement('section');
+    panel.className = 'blog-cookie-consent';
+    panel.setAttribute('data-cookie-consent', '');
+    panel.setAttribute('role', 'region');
+    panel.setAttribute('aria-labelledby', 'blog-cookie-title');
+
+    var titlebar = document.createElement('div');
+    titlebar.className = 'blog-cookie-consent__titlebar';
+    var title = document.createElement('h2');
+    title.id = 'blog-cookie-title';
+    title.textContent = text.title;
+    titlebar.appendChild(title);
+    panel.appendChild(titlebar);
+
+    var body = document.createElement('div');
+    body.className = 'blog-cookie-consent__body';
+    for (const paragraphText of [text.description, text.duration]) {
+      var paragraph = document.createElement('p');
+      paragraph.textContent = paragraphText;
+      body.appendChild(paragraph);
+    }
+    var details = document.createElement('a');
+    details.href = '/cookies?lang=' + language;
+    details.textContent = text.details;
+    body.appendChild(details);
+    if (cookieError !== null) {
+      var error = document.createElement('p');
+      error.className = 'blog-cookie-consent__error';
+      error.setAttribute('role', 'alert');
+      error.textContent = text[cookieError];
+      body.appendChild(error);
+    }
+    var actions = document.createElement('div');
+    actions.className = 'blog-cookie-consent__actions';
+    actions.appendChild(
+      cookieButton(text.necessary, 'data-cookie-choice', function () {
+        chooseCookiePreferences(false);
+      }),
+    );
+    actions.lastElementChild.setAttribute('data-cookie-choice', 'necessary');
+    actions.appendChild(
+      cookieButton(text.allow, 'data-cookie-choice', function () {
+        chooseCookiePreferences(true);
+      }),
+    );
+    actions.lastElementChild.setAttribute('data-cookie-choice', 'preferences');
+    body.appendChild(actions);
+    panel.appendChild(body);
+    cookieDock.appendChild(panel);
   }
 
   function syncLanguageControls(language) {
@@ -305,4 +524,15 @@
 
   applyLanguage(currentLanguage, { pushUrl: false });
   syncLanguageControls(currentLanguage);
+  window.addEventListener('storage', function (event) {
+    if (event.key === CONSENT_KEY || event.key === null) {
+      cookieSaveFailed = false;
+      cookieError = null;
+      cookieSettingsOpen = false;
+      renderCookieControls(currentLanguage);
+    }
+  });
+  window.addEventListener('focus', function () {
+    if (readConsentRecord() === null) renderCookieControls(currentLanguage);
+  });
 })();

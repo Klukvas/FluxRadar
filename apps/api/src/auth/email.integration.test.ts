@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../index.ts';
 import { MockMailer } from '../email/mailer.ts';
@@ -64,7 +64,11 @@ describe('CR-02 email lifecycle', () => {
     expect(known.status).toBe(202);
     expect(unknown.status).toBe(202);
     expect(known.body).toEqual(unknown.body);
-    const token = /reset_token=([^\s]+)/.exec(mailer.messages.at(-1)?.text ?? '')?.[1];
+    await vi.waitFor(() => {
+      expect(mailer.messages.some((message) => message.text.includes('reset_token='))).toBe(true);
+    });
+    const resetMessage = mailer.messages.find((message) => message.text.includes('reset_token='));
+    const token = /reset_token=([^\s]+)/.exec(resetMessage?.text ?? '')?.[1];
     expect(token).toEqual(expect.any(String));
 
     const reset = await request(app)

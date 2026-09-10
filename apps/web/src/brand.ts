@@ -6,7 +6,7 @@ import type { Language } from './i18n';
 // edit rather than a grep across every public page.
 
 /** The published support address. Shown on every public contact surface. */
-export const SUPPORT_EMAIL = 'support@flux-lab.dev';
+export const SUPPORT_EMAIL = 'support@fluxradar.net';
 
 /** The studio site the footer attribution links to. */
 export const FLUXLAB_URL = 'https://flux-lab.dev';

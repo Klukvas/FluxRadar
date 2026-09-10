@@ -6,7 +6,7 @@
 // It is rendered inside the Google row of the integrations list, because what it
 // configures belongs to that one connection — not to integrations in general.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   apiRequest,
@@ -71,14 +71,33 @@ export function GoogleProperties(props: Props) {
   const [creatingProperty, setCreatingProperty] = useState<string | null>(null);
   const [searchConsoleSiteUrl, setSearchConsoleSiteUrl] = useState(NONE);
   const [ga4PropertyId, setGa4PropertyId] = useState(NONE);
+  // A profile can change while Google is answering. Generations distinguish
+  // A→B→A as well as A→B, so an older response can never repaint the current
+  // selectors or announce a save for the wrong profile.
+  const loadGeneration = useRef(0);
+  const saveGeneration = useRef(0);
 
   const hasProfiles = props.profiles.length > 0;
 
   useEffect(() => {
     if (hasProfiles && !props.profiles.some((profile) => profile.id === profileId)) {
+      loadGeneration.current += 1;
+      saveGeneration.current += 1;
       setProfileId(props.profiles[0]?.id ?? NONE);
+      setBinding(null);
+      setSearchConsoleSiteUrl(NONE);
+      setGa4PropertyId(NONE);
+      setMessage(null);
     }
   }, [props.profiles, profileId, hasProfiles]);
+
+  useEffect(
+    () => () => {
+      loadGeneration.current += 1;
+      saveGeneration.current += 1;
+    },
+    [],
+  );
 
   /**
    * Discovery runs as soon as Google is connected, with or without a profile:
@@ -92,7 +111,12 @@ export function GoogleProperties(props: Props) {
    */
   const load = useCallback(async () => {
     if (!props.connected) return;
+    const generation = loadGeneration.current + 1;
+    loadGeneration.current = generation;
     setLoading(true);
+    setBinding(null);
+    setSearchConsoleSiteUrl(NONE);
+    setGa4PropertyId(NONE);
     try {
       const [properties, current] = await Promise.all([
         apiRequest<GoogleDiscovery>('/integrations/google/properties'),
@@ -100,14 +124,17 @@ export function GoogleProperties(props: Props) {
           ? Promise.resolve(null)
           : apiRequest<GoogleBinding | null>(`/profiles/${profileId}/google-binding`),
       ]);
+      if (loadGeneration.current !== generation) return;
       setDiscovery(properties);
       setBinding(current);
       setSearchConsoleSiteUrl(current?.searchConsoleSiteUrl ?? NONE);
       setGa4PropertyId(current?.ga4PropertyId ?? NONE);
     } catch {
-      setMessage({ tone: 'error', text: t.loadFailed });
+      if (loadGeneration.current === generation) {
+        setMessage({ tone: 'error', text: t.loadFailed });
+      }
     } finally {
-      setLoading(false);
+      if (loadGeneration.current === generation) setLoading(false);
     }
   }, [profileId, props.connected, t.loadFailed]);
 
@@ -116,7 +143,15 @@ export function GoogleProperties(props: Props) {
   }, [load]);
 
   const selectProfile = (value: string) => {
+    if (value === profileId) return;
+    loadGeneration.current += 1;
+    saveGeneration.current += 1;
     setProfileId(value);
+    setBinding(null);
+    setSearchConsoleSiteUrl(NONE);
+    setGa4PropertyId(NONE);
+    setLoading(true);
+    setSaving(false);
     // Whatever the panel last said was about the previous profile.
     setMessage(null);
   };
@@ -127,6 +162,8 @@ export function GoogleProperties(props: Props) {
   };
 
   const save = async () => {
+    const generation = saveGeneration.current + 1;
+    saveGeneration.current = generation;
     setSaving(true);
     setMessage(null);
     try {
@@ -137,6 +174,7 @@ export function GoogleProperties(props: Props) {
           ga4PropertyId: ga4PropertyId === NONE ? null : ga4PropertyId,
         }),
       });
+      if (saveGeneration.current !== generation) return;
       setBinding(updated);
       setMessage({
         tone: 'ok',
@@ -146,6 +184,7 @@ export function GoogleProperties(props: Props) {
             : t.savedLinked,
       });
     } catch (caught) {
+      if (saveGeneration.current !== generation) return;
       // The "you do not have that property" refusal is already a sentence an
       // owner can act on, and it names the property; anything else is not.
       setMessage({
@@ -156,7 +195,7 @@ export function GoogleProperties(props: Props) {
             : t.saveFailed,
       });
     } finally {
-      setSaving(false);
+      if (saveGeneration.current === generation) setSaving(false);
     }
   };
 

@@ -93,6 +93,26 @@ describe('the prompt', () => {
     expect(request.pageTitles).toEqual(['https://example.com/pricing']);
   });
 
+  it('adds saved profile context so ideas are domain-specific', () => {
+    const request = buildQueryIdeasRequest({
+      ...INPUT,
+      profileContext: {
+        industry: 'Dental clinic',
+        region: 'Kyiv',
+        offerings: 'implants and emergency appointments',
+        targetAudience: 'families',
+        targetLanguages: 'Ukrainian, English',
+      },
+    });
+
+    expect(request.brandFacts).toContain('Business/site type: Dental clinic');
+    expect(request.brandFacts).toContain('Operating region: Kyiv');
+    expect(request.brandFacts).toContain(
+      'Services or products: implants and emergency appointments',
+    );
+    expect(request.systemInstructions).toContain("specific to the site's domain");
+  });
+
   it('bounds the context so a large property cannot build an unbounded prompt', () => {
     const many = Array.from({ length: 100 }, (_unused, index) => row(`query ${index}`));
     const request = buildQueryIdeasRequest({
@@ -268,6 +288,31 @@ describe('generating', () => {
 
     expect(result).toEqual({ state: 'unavailable' });
     expect(asked).toBe(false);
+  });
+
+  it('can generate profile-based ideas even when Search Console has no rows', async () => {
+    const result = await generateQueryIdeas(
+      {
+        ...INPUT,
+        measuredQueries: [],
+        measuredPages: [],
+        profileContext: { industry: 'Dental clinic', region: 'Kyiv' },
+      },
+      {
+        provider: providerReturning(
+          answer([
+            {
+              query: 'best dentist in Kyiv',
+              language: 'en',
+              rationale: 'Matches the saved industry and region.',
+            },
+          ]),
+        ),
+        now,
+      },
+    );
+
+    expect(result).toMatchObject({ state: 'generated' });
   });
 
   it('reports an answer that produced nothing usable as empty, not as ideas', async () => {

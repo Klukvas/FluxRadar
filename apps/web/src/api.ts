@@ -142,6 +142,27 @@ export interface SiteProfile {
   readonly industry?: string | null;
   readonly region?: string | null;
   readonly language?: string | null;
+  readonly businessDescription?: string | null;
+  readonly offerings?: string | null;
+  readonly targetLanguages?: string | null;
+  readonly targetAudience?: string | null;
+  readonly scanConfig?: ProfileScanConfig | null;
+  readonly scanConfigVersion?: number;
+}
+
+export interface ProfileScanConfig {
+  readonly plan: 'Free' | 'Basic' | 'Complete';
+  readonly scope: {
+    readonly includeSubdomains: boolean;
+    readonly maxPages?: number;
+    readonly maxDepth?: number;
+    readonly urlPatterns?: readonly string[];
+    readonly excludePatterns?: readonly string[];
+    readonly queryPolicy: 'include' | 'ignore';
+    readonly respectRobots: boolean;
+    readonly robotsOverrideConfirmed: boolean;
+    readonly userAgent: 'desktop' | 'mobile';
+  };
 }
 
 export interface ScanModule {
@@ -174,6 +195,7 @@ export interface Scan {
     readonly robotsOverrideConfirmed?: boolean;
     readonly userAgent?: 'desktop' | 'mobile';
   };
+  readonly profileConfigVersion?: number;
   readonly rulesetVersion: string;
   readonly progress: { readonly completedModules: number; readonly totalModules: number };
   readonly startedAt: string | null;
@@ -204,6 +226,21 @@ export interface Issue {
   readonly observedAt: string;
 }
 
+export interface GeoObservation {
+  readonly purpose: 'awareness' | 'discovery';
+  readonly question: string;
+  readonly status: 'answered' | 'unavailable';
+  readonly reason: string | null;
+  readonly provider: string | null;
+  readonly modelId: string | null;
+  readonly answer: string | null;
+  readonly citations: readonly string[];
+  readonly mentions: {
+    readonly brand: boolean;
+    readonly domain: boolean;
+  } | null;
+}
+
 export interface Dashboard {
   readonly scan: Scan;
   readonly overall: {
@@ -217,6 +254,8 @@ export interface Dashboard {
     }[];
   };
   readonly modules: readonly ScanModule[];
+  /** Absent on responses created by older API versions and empty without GEO. */
+  readonly geoObservations?: readonly GeoObservation[];
 }
 
 export interface ExportPayload {

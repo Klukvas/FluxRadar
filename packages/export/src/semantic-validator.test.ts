@@ -4,6 +4,7 @@
 // так тест доказывает, что срабатывает именно проверяемый инвариант.
 
 import type { AiResponseRecord, ModuleRecord, SummaryRecord } from '@fluxradar/contracts';
+import { buildIssueRecord, buildModuleRecord } from './builders.js';
 import { computeFingerprint } from '@fluxradar/fingerprint';
 import { describe, expect, it } from 'vitest';
 
@@ -14,6 +15,7 @@ import {
   canonicalIssueWithRealFingerprint,
   fixtureSecurityIssue,
   fixtureSeoIssue,
+  FIXTURE_CONTEXT,
 } from './testing/fixtures.js';
 
 function fixtureOfType<T>(recordType: string): T {
@@ -137,6 +139,87 @@ describe('validateExportSemantics', () => {
     const [summary, seo, ...rest] = buildFixtureRecords();
     const unusableSeo = { ...(seo as ModuleRecord), score: null };
     expectViolation([summary, unusableSeo, ...rest], 'EXPORT-001/5');
+  });
+
+  it('exports completed advisory UX findings without treating a null score as unusable', () => {
+    const module = buildModuleRecord(FIXTURE_CONTEXT, {
+      module: 'UX/Conversion',
+      moduleStatus: 'Completed',
+      coverage: 1,
+      applicableChecks: 2,
+      completedApplicableChecks: 2,
+      score: null,
+      statusReason: null,
+      observedAt: FIXTURE_CONTEXT.completedAt,
+    });
+    const issue = buildIssueRecord(FIXTURE_CONTEXT, {
+      issueId: 'ux-advisory',
+      module: 'UX/Conversion',
+      moduleStatus: 'Completed',
+      ruleId: 'UX-CONV-AI-001',
+      targetKind: 'page',
+      normalizedUrl: 'https://example.com/',
+      normalizedResource: '',
+      normalizedSelector: '',
+      normalizedParameter: '',
+      ruleVariant: 'v1',
+      category: 'ai-assisted-ux',
+      severity: 'Medium',
+      confidence: 0.9,
+      status: 'New',
+      targetUrl: 'https://example.com/',
+      evidenceType: 'mixed',
+      evidenceRef: '/evidence/ux',
+      evidenceExcerpt: 'Primary action is unclear.',
+      recommendation: 'Clarify the primary action.',
+      applicableTargets: 1,
+      affectedTargets: 1,
+      rulePenalty: 0,
+      observedAt: FIXTURE_CONTEXT.completedAt,
+    });
+    expect(validateExportRecords([module, issue])).toMatchObject({ ok: true });
+    expectViolation([module, { ...issue, rule_penalty: 5, score_delta: -5 }], 'EXPORT-001/5');
+  });
+
+  it('exports known deterministic UX findings from a completed unscored module', () => {
+    const module = buildModuleRecord(FIXTURE_CONTEXT, {
+      module: 'UX/Conversion',
+      moduleStatus: 'Completed',
+      coverage: 1,
+      applicableChecks: 2,
+      completedApplicableChecks: 2,
+      score: null,
+      statusReason: null,
+      observedAt: FIXTURE_CONTEXT.completedAt,
+    });
+    const issue = buildIssueRecord(FIXTURE_CONTEXT, {
+      issueId: 'ux-static',
+      module: 'UX/Conversion',
+      moduleStatus: 'Completed',
+      ruleId: 'UX-CONV-STATIC-001',
+      targetKind: 'page',
+      normalizedUrl: 'https://example.com/',
+      normalizedResource: '',
+      normalizedSelector: 'body',
+      normalizedParameter: '',
+      ruleVariant: 'v1',
+      category: 'deterministic-ux',
+      severity: 'Medium',
+      confidence: 1,
+      status: 'New',
+      targetUrl: 'https://example.com/',
+      evidenceType: 'dom',
+      evidenceRef: '/evidence/ux-static',
+      evidenceExcerpt: 'No h1 heading was present.',
+      recommendation: 'Add one visible h1.',
+      applicableTargets: 1,
+      affectedTargets: 1,
+      rulePenalty: 0,
+      observedAt: FIXTURE_CONTEXT.completedAt,
+    });
+
+    expect(validateExportRecords([module, issue])).toMatchObject({ ok: true });
+    expectViolation([module, { ...issue, rule_id: 'UX-CONV-OTHER-999' }], 'EXPORT-001/5');
   });
 
   it('инвариант 6: affected_targets > applicable_targets отклоняется', () => {

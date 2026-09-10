@@ -24,9 +24,9 @@
 - **D-005** — Очередь задач: DB-backed (таблица jobs + атомарный conditional-update claim по
   `scan_id`), worker — фоновый цикл внутри процесса API. Причина: план не выбирает брокер (§22);
   для локального MVP внешний Redis/BullMQ — лишняя инфраструктура; интерфейс позволяет замену.
-- **D-006** — Модули **вне v0.1** (в реальном скане получают `Unavailable`/`Not applicable` с
+- **D-006 (историческое решение; UX/Conversion superseded by D-217)** — Модули **вне v0.1** (в реальном скане получают `Unavailable`/`Not applicable` с
   `status_reason` — легальная ветка по §13/§15 плана): Performance (нет pinned runner/`PERF-001`),
-  Analytics (нет GSC/GA OAuth), UX/Conversion (правила без оракула), активный Security (за launch
+  Analytics (нет GSC/GA OAuth), активный Security (за launch
   gate по самому плану), SEO-advanced/SEO-content-эвристики без оракула. Score-математика
   честно нормализует веса доступных модулей — ровно как описано в §15.
 - **D-007** — Реализуемый субсет правил `rules-mvp-0.1` — 37 правил с детерминированным
@@ -494,9 +494,11 @@
   contract, → release резерва + outcome ProviderContract (adapter обязан вернуть
   Unavailable, а не fail-open данные); неожиданное исключение провайдера → release +
   AiModuleError наверх (баг интеграции, не легальная ветка §5).
-- **D-176 (T-10)** — Fingerprint-поля GEO findings: normalizedUrl='' (D-019),
-  normalizedResource = имя провайдера, normalizedParameter = `q<sequence>` —
-  стабильный между сканами номер вопроса библиотеки; ai_request_key хранится
+- **D-176 (T-10, amended for generated discovery queries)** — Fingerprint-поля GEO findings:
+  normalizedUrl='' (D-019), normalizedResource = имя провайдера. Для фиксированных
+  awareness-вопросов normalizedParameter = `q<sequence>`; для AI-generated
+  discovery-вопросов это `discovery:<normalized question>`, чтобы разные вопросы
+  с одинаковым порядковым номером не склеивались между сканами. ai_request_key хранится
   отдельным полем и в fingerprint не входит (D-015). evidence_type='trace' для
   выводов по AI-ответу, 'none' для METHOD-005. Регион/язык в GEO-METHOD-002 v0.1
   представлены версией библиотеки вопросов (promptVersion), отдельных полей нет.
@@ -794,3 +796,10 @@
   **cancel остаётся открытым** — он не отдаёт данных отчёта и это единственный
   способ остановить уже идущий скан; **Free никогда не блокируется** — покупки
   нет, отзывать нечего. Покрыто `billing-008-suspended-report-access.test.ts`.
+- **D-217 (UX/Conversion)** — Уточнение D-006: UX/Conversion больше не считается
+  модулем без оракула. Complete запускает гибридную проверку: bounded static HTML
+  evidence и один consent-gated Anthropic review со строгим JSON-контрактом. AI
+  и три детерминированных static findings остаются advisory, не влияют на общий
+  score; отсутствие consent/provider/валидного ответа честно сохраняется как
+  Partial с причиной. Экспорт разрешает при `score=null` только эти шесть
+  известных UX rule/category пар с нулевыми penalty и score delta.
