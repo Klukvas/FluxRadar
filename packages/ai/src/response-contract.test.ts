@@ -22,7 +22,7 @@ describe('validateNormalizedResponse', () => {
     const violations = validateNormalizedResponse(makeResponse({ usageSource: 'estimated' }));
     expect(violations.some((violation) => violation.includes('tokenizerVersion'))).toBe(true);
     expect(
-      validateNormalizedResponse(makeResponse({ usageSource: 'estimated', tokenizerVersion: 'approx-v1' })),
+      validateNormalizedResponse(makeResponse({ usageSource: 'estimated', tokenizerVersion: 'approx-v2' })),
     ).toEqual([]);
   });
 

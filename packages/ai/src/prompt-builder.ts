@@ -1,4 +1,4 @@
-// Сборка prompt и приближённый tokenizer 'approx-v1' (T-10, план §5).
+// Сборка prompt и приближённый tokenizer 'approx-v2' (T-10, план §5).
 // Порядок секций = порядок приоритета при truncation: system instructions →
 // вопрос → факты бренда → заголовки страниц; хвост режется по границе токена
 // с явным маркером [TRUNCATED]. Всё детерминировано.
@@ -7,13 +7,16 @@ import { AI_REQUEST_CAPS } from '@fluxradar/contracts';
 
 import type { AiRequest } from './types.js';
 
-export const TOKENIZER_VERSION = 'approx-v1';
+export const TOKENIZER_VERSION = 'approx-v2';
 export const TRUNCATION_MARKER = '[TRUNCATED]';
 
-/** approx-v1: один токен = 4 символа; оценка — ceil(chars / 4). */
-// Экспортируется для mock-провайдера: output cap режется по той же границе
-// токена, что и input truncation (иначе «4» дублировалась бы в двух файлах).
-export const CHARS_PER_TOKEN = 4;
+/**
+ * approx-v2: консервативно считаем один токен на два символа. Sonnet 5
+ * использует более плотный tokenizer, а prompt содержит смешанный Unicode.
+ */
+// Экспортируется для mock-провайдера: output cap режется по той же границе,
+// что и input truncation.
+export const CHARS_PER_TOKEN = 2;
 
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);

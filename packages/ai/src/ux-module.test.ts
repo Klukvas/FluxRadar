@@ -87,10 +87,23 @@ describe('UX AI contract', () => {
   });
 
   it('bounds the response so a multi-page review fits the provider output cap', () => {
-    const request = buildUxAiRequest(input);
-    expect(request.promptVersion).toBe('ux-conversion-v2');
+    const page = input.pages[0];
+    if (page === undefined) throw new Error('test fixture page is missing');
+    const request = buildUxAiRequest({
+      ...input,
+      pages: [{ ...page, visibleText: 'x'.repeat(1_200) }],
+    });
+    expect(request.promptVersion).toBe('ux-conversion-v3');
     expect(request.question).toContain('at most 6 actionable findings');
     expect(request.question).toContain('under 240 characters');
+    expect(request.reasoningMode).toBe('disabled');
+    expect(request.responseSchema).toMatchObject({
+      type: 'object',
+      required: ['findings'],
+      additionalProperties: false,
+    });
+    expect(request.brandFacts.join('\n')).toContain(`visibleText=${'x'.repeat(350)}`);
+    expect(request.brandFacts.join('\n')).not.toContain('x'.repeat(351));
 
     const finding = {
       ruleId: 'UX-CONV-AI-001',
@@ -148,6 +161,6 @@ describe('UX AI contract', () => {
     expect(result.status).toBe('Completed');
     expect(result.findings).toHaveLength(1);
     expect(result.outcome.kind).toBe('response');
-    expect(buildUxAiRequest(input).promptVersion).toBe('ux-conversion-v2');
+    expect(buildUxAiRequest(input).promptVersion).toBe('ux-conversion-v3');
   });
 });

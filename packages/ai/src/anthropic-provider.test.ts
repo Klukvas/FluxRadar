@@ -42,6 +42,8 @@ describe('AnthropicProvider', () => {
       max_tokens: 2000,
       messages: [{ role: 'user', content: 'redacted prompt' }],
     });
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('thinking');
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('output_config');
     expect(response).toMatchObject({
       provider: 'anthropic',
       requestId: 'msg_123',
@@ -50,6 +52,40 @@ describe('AnthropicProvider', () => {
       rawText: 'A useful answer.',
       usage: { inputTokens: 40, outputTokens: 12, totalTokens: 52 },
       finishReason: 'stop',
+    });
+  });
+
+  it('disables reasoning and requests schema-constrained JSON when configured', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'msg_structured',
+          model: 'claude-sonnet-5',
+          stop_reason: 'end_turn',
+          content: [{ type: 'text', text: '{"findings":[]}' }],
+          usage: { input_tokens: 40, output_tokens: 8 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+    const schema = {
+      type: 'object',
+      properties: { findings: { type: 'array', items: { type: 'object' } } },
+      required: ['findings'],
+      additionalProperties: false,
+    } as const;
+
+    await provider.send(
+      makeRequest({ provider: 'anthropic', reasoningMode: 'disabled', responseSchema: schema }),
+      'redacted prompt',
+    );
+
+    const init = fetcher.mock.calls[0]?.[1];
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      max_tokens: 2000,
+      thinking: { type: 'disabled' },
+      output_config: { format: { type: 'json_schema', schema } },
     });
   });
 

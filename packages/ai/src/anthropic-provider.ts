@@ -98,6 +98,16 @@ export class AnthropicProvider implements AiProvider {
           max_tokens: AI_REQUEST_CAPS.maxOutputTokens,
           system: request.systemInstructions,
           messages: [{ role: 'user', content: promptText }],
+          ...(request.reasoningMode === undefined
+            ? {}
+            : { thinking: { type: request.reasoningMode } }),
+          ...(request.responseSchema === undefined
+            ? {}
+            : {
+                output_config: {
+                  format: { type: 'json_schema', schema: request.responseSchema },
+                },
+              }),
         }),
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });

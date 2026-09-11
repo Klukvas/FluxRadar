@@ -12,7 +12,7 @@ import { runAiRequest } from './run-request.js';
 import type { AiRequest, AiProvider } from './types.js';
 import type { AiRequestOutcome } from './run-request.js';
 
-export const UX_PROMPT_VERSION = 'ux-conversion-v2';
+export const UX_PROMPT_VERSION = 'ux-conversion-v3';
 export const UX_SYSTEM_INSTRUCTIONS =
   'You are a careful UX and conversion reviewer. Use only the supplied evidence. ' +
   'Do not claim that a site converts or fails to convert, and do not invent missing facts. ' +
@@ -26,6 +26,35 @@ const SEVERITIES = new Set(['High', 'Medium', 'Low']);
 // valid provider response into an unusable contract failure.
 const MAX_FINDINGS = 6;
 const MAX_FIELD_LENGTH = 2_048;
+const MAX_AI_VISIBLE_TEXT = 350;
+
+const UX_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          ruleId: {
+            type: 'string',
+            enum: ['UX-CONV-AI-001', 'UX-CONV-AI-002', 'UX-CONV-AI-003'],
+          },
+          targetUrl: { type: 'string' },
+          severity: { type: 'string', enum: ['High', 'Medium', 'Low'] },
+          evidence: { type: 'string' },
+          recommendation: { type: 'string' },
+          confidence: { type: 'number' },
+          selector: { type: 'string' },
+        },
+        required: ['ruleId', 'targetUrl', 'severity', 'evidence', 'recommendation', 'confidence'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['findings'],
+  additionalProperties: false,
+} as const;
 
 export interface UxAiPageEvidence {
   readonly url: string;
@@ -110,7 +139,7 @@ function pageFacts(pages: readonly UxAiPageEvidence[]): readonly string[] {
       `links=${JSON.stringify(page.links)}`,
       `forms=${JSON.stringify(page.forms)}`,
       `contactSignals=${JSON.stringify(page.contactSignals)}`,
-      `visibleText=${page.visibleText || '(empty)'}`,
+      `visibleText=${page.visibleText.slice(0, MAX_AI_VISIBLE_TEXT) || '(empty)'}`,
     ].join(' | ');
   });
 }
@@ -133,6 +162,11 @@ export function buildUxAiRequest(input: UxAiInput): AiRequest {
     brandFacts: [...contextFacts(input.profileContext), ...pageFacts(input.pages)],
     pageTitles: input.pages.map((page) => page.title).filter((title) => title !== ''),
     systemInstructions: UX_SYSTEM_INSTRUCTIONS,
+    // Sonnet 5 enables adaptive thinking by default and counts it against the
+    // shared output budget. UX is bounded extraction, so reserve that budget
+    // for the response and constrain it to the parser's schema.
+    reasoningMode: 'disabled',
+    responseSchema: UX_RESPONSE_SCHEMA,
   };
 }
 

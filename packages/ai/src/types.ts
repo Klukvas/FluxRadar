@@ -43,7 +43,7 @@ export interface NormalizedAiResponse {
   readonly usage: NormalizedAiUsage;
   /** 'estimated' — usage посчитан pinned tokenizer-ом, а не провайдером (§5). */
   readonly usageSource: UsageSource;
-  /** Обязателен, когда usage оценивается локально; мок сообщает 'approx-v1'. */
+  /** Обязателен, когда usage оценивается локально; мок сообщает pinned approximation. */
   readonly tokenizerVersion?: string;
   readonly finishReason: AiFinishReason;
 }
@@ -59,6 +59,10 @@ export interface AiRequest {
   readonly brandFacts: readonly string[];
   readonly pageTitles: readonly string[];
   readonly systemInstructions: string;
+  /** Disable provider-side reasoning for deterministic extraction/classification requests. */
+  readonly reasoningMode?: 'disabled';
+  /** Optional JSON Schema used by providers that support constrained structured output. */
+  readonly responseSchema?: Readonly<Record<string, unknown>>;
 }
 
 /**

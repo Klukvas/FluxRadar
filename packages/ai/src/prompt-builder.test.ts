@@ -14,12 +14,12 @@ import {
 } from './prompt-builder.js';
 import { makeRequest } from './testing/harness.js';
 
-describe('estimateTokens (approx-v1)', () => {
-  it('оценивает ceil(chars / 4)', () => {
+describe('estimateTokens (approx-v2)', () => {
+  it('консервативно оценивает ceil(chars / 2)', () => {
     expect(estimateTokens('')).toBe(0);
-    expect(estimateTokens('abc')).toBe(1);
-    expect(estimateTokens('abcd')).toBe(1);
-    expect(estimateTokens('abcde')).toBe(2);
+    expect(estimateTokens('a')).toBe(1);
+    expect(estimateTokens('ab')).toBe(1);
+    expect(estimateTokens('abc')).toBe(2);
   });
 });
 
@@ -61,7 +61,7 @@ describe('buildPrompt — truncation', () => {
   it('маркер [TRUNCATED] завершает prompt, cap соблюдён ровно', () => {
     const prompt = buildPrompt(oversized);
     expect(prompt.promptText.endsWith(`\n${TRUNCATION_MARKER}`)).toBe(true);
-    // keepChars-математика даёт ровно cap: 8000 tokens × 4 chars.
+    // keepChars-математика даёт ровно cap: 8000 tokens × 2 chars.
     expect(prompt.promptText.length).toBe(AI_REQUEST_CAPS.maxInputTokens * CHARS_PER_TOKEN);
     expect(prompt.inputTokens).toBe(AI_REQUEST_CAPS.maxInputTokens);
   });
