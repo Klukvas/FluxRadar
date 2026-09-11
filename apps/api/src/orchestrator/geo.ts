@@ -21,7 +21,7 @@ import { AnthropicProvider, MockAiProvider, runAiRequest, UnavailableError } fro
 import { readIntegrationConfig } from '../integrations/config.ts';
 
 export const GEO_PROMPT_VERSION = 'geo-questions-v4';
-export const GEO_QUERY_GENERATOR_PROMPT_VERSION = 'geo-query-generation-v1';
+export const GEO_QUERY_GENERATOR_PROMPT_VERSION = 'geo-query-generation-v2';
 export const GEO_SYSTEM_INSTRUCTIONS =
   'Answer factually. Cite sources when possible. State uncertainty and do not invent facts. ' +
   'An answer is an observation from this request, not proof of remembered or training knowledge.';
@@ -37,6 +37,21 @@ export interface GeoProfileContext {
 }
 
 const MAX_CONTEXT_LENGTH = 360;
+
+const GEO_QUERY_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    questions: {
+      type: 'array',
+      // Anthropic's raw structured-output schema does not accept maxItems or
+      // string length constraints. The prompt requests 2–4 concise questions,
+      // and parseGeneratedQuestions enforces both limits after generation.
+      items: { type: 'string' },
+    },
+  },
+  required: ['questions'],
+  additionalProperties: false,
+} as const;
 
 function clean(value: string | null | undefined): string | null {
   const normalized = value?.replace(/\s+/g, ' ').trim() ?? '';
@@ -123,6 +138,12 @@ function buildQueryGenerationRequest(scanId: string, context: NeutralGeoContext)
     systemInstructions:
       'Generate realistic, neutral discovery questions from the supplied structured context. ' +
       'Do not answer the questions. Output valid JSON only.',
+    // Sonnet 5 enables adaptive thinking by default, which is unnecessary for
+    // this bounded extraction task and shares the response token budget. The
+    // JSON schema prevents otherwise useful generations from being discarded
+    // because the model wrapped or annotated the object.
+    reasoningMode: 'disabled',
+    responseSchema: GEO_QUERY_RESPONSE_SCHEMA,
   };
 }
 

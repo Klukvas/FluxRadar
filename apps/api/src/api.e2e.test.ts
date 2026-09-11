@@ -116,7 +116,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
           method: 'AI-generated neutral context questions plus direct brand-awareness questions',
           queryGeneration: {
             status: 'Completed',
-            promptVersion: 'geo-query-generation-v1',
+            promptVersion: 'geo-query-generation-v2',
             generatedQuestions: expect.arrayContaining([expect.stringContaining('providers')]),
           },
           requests: expect.arrayContaining([
@@ -182,7 +182,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         expect.objectContaining({
           record_type: 'ai_response',
           module: 'AI SEO / GEO',
-          prompt_version: 'geo-query-generation-v1',
+          prompt_version: 'geo-query-generation-v2',
           raw_text: expect.stringContaining('questions'),
         }),
       ]),

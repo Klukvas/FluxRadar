@@ -126,6 +126,15 @@ describe('default AI provider wiring', () => {
       quota: AiQuotaTracker.forPlan('Complete'),
     });
     expect(generation.status).toBe('Completed');
+    expect(send.mock.calls[0]?.[0]).toMatchObject({
+      promptVersion: 'geo-query-generation-v2',
+      reasoningMode: 'disabled',
+      responseSchema: {
+        type: 'object',
+        required: ['questions'],
+        additionalProperties: false,
+      },
+    });
 
     const requests = buildGeoRequests(
       'neutral-scan',
