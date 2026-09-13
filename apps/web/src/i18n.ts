@@ -236,6 +236,7 @@ export const copy = {
       updateProfile: 'Update profile',
       editProfile: 'Edit profile',
       cancelEdit: 'Cancel editing',
+      deleteProfileAction: 'Delete',
       deleteProfileHeading: 'Delete this profile',
       deleteProfileHelp:
         'Deleting removes the profile together with its audit history: every scan and report, exported files, AI answers and the purchase records of this site. It cannot be undone, and it is not possible while a scan is running, a checkout can still be paid or a refund is still being processed.',
@@ -1221,6 +1222,7 @@ export const copy = {
       updateProfile: 'Оновити профіль',
       editProfile: 'Редагувати профіль',
       cancelEdit: 'Скасувати редагування',
+      deleteProfileAction: 'Видалити',
       deleteProfileHeading: 'Видалити цей профіль',
       deleteProfileHelp:
         'Видалення прибирає профіль разом з історією аудитів: усі перевірки та звіти, експортовані файли, відповіді AI та записи про покупки цього сайту. Це не можна скасувати, і це неможливо, поки триває перевірка, оплату ще можна завершити або ще обробляється повернення коштів.',
