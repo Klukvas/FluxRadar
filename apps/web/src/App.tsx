@@ -1418,6 +1418,8 @@ function DesktopScreen(props: {
   const [targetLanguages, setTargetLanguages] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
   const [editingProfile, setEditingProfile] = useState<SiteProfile | null>(null);
+  /** The one row whose delete confirmation is open; opening another closes it. */
+  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
   // The last name this form filled in from the address. Anything else in the
   // name field was typed by the owner and is never overwritten.
   const [suggestedName, setSuggestedName] = useState('');
@@ -1525,25 +1527,52 @@ function DesktopScreen(props: {
                 // profile" button would only point at what is next to it.
                 <EmptyState title={t.workspace.noSites} description={t.workspace.noSitesHelp} />
               ) : (
-                props.profiles.map((profile) => (
-                  <div className="profile-row" key={profile.id}>
-                    <div>
-                      <strong>{profile.name}</strong>
-                      <span className="profile-row__domain">{profile.domain}</span>
+                props.profiles.map((profile) => {
+                  const isDeleting = deletingProfileId === profile.id;
+                  const deletionId = `profile-deletion-${profile.id}`;
+                  return (
+                    <div className="profile-row" key={profile.id}>
+                      <div>
+                        <strong>{profile.name}</strong>
+                        <span className="profile-row__domain">{profile.domain}</span>
+                      </div>
+                      <div className="profile-row__actions">
+                        <Button onClick={() => props.onNewScan(profile)} variant="primary">
+                          {t.workspace.newScan}
+                        </Button>
+                        <Button onClick={() => props.onSelectProfile(profile)}>
+                          {t.workspace.inspect}
+                        </Button>
+                        <Button onClick={() => editProfile(profile)}>
+                          {t.workspace.editProfile}
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={() => setDeletingProfileId(isDeleting ? null : profile.id)}
+                          aria-expanded={isDeleting}
+                          aria-controls={deletionId}
+                        >
+                          {t.workspace.deleteProfileAction}
+                        </Button>
+                      </div>
+                      {isDeleting ? (
+                        <div className="profile-row__deletion" id={deletionId}>
+                          <ProfileDeletion
+                            profile={profile}
+                            language={props.language}
+                            onDeleted={async (deleted) => {
+                              setDeletingProfileId(null);
+                              if (editingProfile?.id === deleted.id) resetForm();
+                              props.onProfileDeleted(deleted);
+                              await props.onRefresh();
+                            }}
+                            onError={props.onError}
+                          />
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="profile-row__actions">
-                      <Button onClick={() => props.onNewScan(profile)} variant="primary">
-                        {t.workspace.newScan}
-                      </Button>
-                      <Button onClick={() => props.onSelectProfile(profile)}>
-                        {t.workspace.inspect}
-                      </Button>
-                      <Button onClick={() => editProfile(profile)}>
-                        {t.workspace.editProfile}
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </Panel>
@@ -1650,21 +1679,6 @@ function DesktopScreen(props: {
                 </Button>
               ) : null}
             </form>
-            {/* Keyed by profile, so an address typed to confirm one site never
-                carries over to the next profile opened for editing. */}
-            {editingProfile !== null ? (
-              <ProfileDeletion
-                key={editingProfile.id}
-                profile={editingProfile}
-                language={props.language}
-                onDeleted={async (deleted) => {
-                  resetForm();
-                  props.onProfileDeleted(deleted);
-                  await props.onRefresh();
-                }}
-                onError={props.onError}
-              />
-            ) : null}
           </Panel>
         </Window>
         <Window title={t.workspace.notes} terminal>

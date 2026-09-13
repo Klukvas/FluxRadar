@@ -610,6 +610,10 @@ code,
   flex-wrap: wrap;
   justify-content: end;
 }
+/* The delete confirmation opens under its own row, across both columns. */
+.profile-row__deletion {
+  grid-column: 1 / -1;
+}
 /* Reports list — one raised card per audit.
  *
  * It used to be hairline-divided rows on the window's own platinum, which made
