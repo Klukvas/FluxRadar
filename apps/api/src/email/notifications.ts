@@ -1,9 +1,25 @@
 import type { PrismaClient } from '@prisma/client';
 
+import { FASTSPRING_PROVIDER } from '../billing/fastspring/config.ts';
 import { emailText, type Mailer } from './mailer.ts';
 
 export type ScanNotificationKind =
   'purchase_confirmed' | 'scan_started' | 'scan_completed' | 'scan_failed' | 'refund_created';
+
+interface NotifiedPurchase {
+  readonly provider: string;
+  readonly checkout: { readonly liveMode: boolean } | null;
+}
+
+/**
+ * FastSpring test-mode orders are production E2E runs, not customers: mailing
+ * them would deliver real purchase/scan emails for a payment that never
+ * happened. Only an explicit test-mode checkout is silenced, so a live, Free or
+ * legacy scan — or a purchase whose checkout row is gone — is still mailed.
+ */
+function isFastSpringTestModePurchase(purchase: NotifiedPurchase | null): boolean {
+  return purchase?.provider === FASTSPRING_PROVIDER && purchase.checkout?.liveMode === false;
+}
 
 /** Sends one idempotent scan notification on a best-effort basis. */
 export async function notifyScanEvent(
@@ -16,9 +32,14 @@ export async function notifyScanEvent(
   if (mailer === undefined) return;
   const scan = await prisma.scan.findUnique({
     where: { id: scanId },
-    select: { accountId: true, domain: true, account: { select: { email: true } } },
+    select: {
+      accountId: true,
+      domain: true,
+      account: { select: { email: true } },
+      purchase: { select: { provider: true, checkout: { select: { liveMode: true } } } },
+    },
   });
-  if (scan === null) return;
+  if (scan === null || isFastSpringTestModePurchase(scan.purchase)) return;
   const eventKey = `${kind}:${scanId}`;
   try {
     await prisma.emailNotification.create({ data: { accountId: scan.accountId, eventKey, kind } });
