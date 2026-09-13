@@ -309,7 +309,7 @@ describe('a section that has finished', () => {
     expect(screen.getByText(/coverage unavailable/)).toBeTruthy();
   });
 
-  it('shows the actual GEO questions, answers, and mention result', async () => {
+  it('opens the GEO card to the actual questions, answers, and mention result', async () => {
     const dashboard = {
       ...dashboardOf('Complete', [moduleOf({ module: 'AI SEO / GEO' })]),
       geoObservations: [
@@ -328,7 +328,12 @@ describe('a section that has finished', () => {
     };
     await openReport(dashboard);
 
-    const region = screen.getByRole('region', { name: 'AI visibility observations' });
+    // No separate block any more: what the model answered is part of what the
+    // section checked, so it opens from the section's own card.
+    expect(screen.queryByRole('region', { name: 'AI visibility observations' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+
+    const region = screen.getByRole('region', { name: 'AI SEO / GEO · checks performed' });
     expect(within(region).getByText('Domain discovery question')).toBeInTheDocument();
     expect(
       within(region).getByText('Which dental clinics offer emergency appointments in Kyiv?'),

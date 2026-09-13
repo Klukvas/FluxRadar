@@ -20,7 +20,7 @@ import {
   createSiteContext,
   runModuleRules,
 } from '@fluxradar/rules';
-import type { SiteContext } from '@fluxradar/rules';
+import type { ModuleRunResult, SiteContext } from '@fluxradar/rules';
 import { computeCoverage } from '@fluxradar/scoring';
 import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
@@ -38,6 +38,7 @@ import { initialIssueStatuses } from './issue-sync.ts';
 import { modulePlanFor } from './module-plan.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
 import type { IssueRowData } from './module-result.ts';
+import { ruleCheckSummaries } from './rule-checks.ts';
 import { runUxConversion } from './ux.ts';
 
 const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
@@ -88,12 +89,19 @@ type ModuleRowData = {
   readonly metadataJson?: string;
 };
 
-function metadataForRuleModule(module: ModuleName, plan: Plan): string | undefined {
+function metadataForRuleModule(
+  module: ModuleName,
+  plan: Plan,
+  evaluations: ModuleRunResult['evaluations'],
+): string {
+  // Every rule module records what each of its checks did, so the report can
+  // open a section card to that list instead of showing only its totals.
+  const ruleChecks = ruleCheckSummaries(evaluations);
   if (plan === 'Free' && module === 'SEO') {
     // Free runs the fixed four-rule homepage check, not the full SEO module:
     // the paid module's structured-data and social-preview metadata would
     // describe checks that never ran (see free-check.ts).
-    return JSON.stringify(freeCheckMetadata());
+    return JSON.stringify({ ...freeCheckMetadata(), ruleChecks });
   }
   const metadata =
     module === 'Accessibility'
@@ -127,7 +135,7 @@ function metadataForRuleModule(module: ModuleName, plan: Plan): string | undefin
                 clientRenderedMarkup: 'not verifiable without browser rendering',
               }
             : undefined;
-  return metadata === undefined ? undefined : JSON.stringify(metadata);
+  return JSON.stringify({ ...metadata, ruleChecks });
 }
 
 async function setModule(
@@ -399,7 +407,6 @@ export async function runScanAttempt(
     await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
     const result = plan === 'Free' ? runFreeCheck(ctx) : runModuleRules(module, ctx);
     const finalized = finalizeRuleModule(result, plan, siteReachable);
-    const metadataJson = metadataForRuleModule(module, plan);
     await setModule(prisma, scanId, module, {
       runtimeStatus: finalized.runtimeStatus,
       statusReason: finalized.statusReason,
@@ -408,7 +415,7 @@ export async function runScanAttempt(
       applicableChecks: finalized.applicableChecks,
       completedApplicableChecks: finalized.completedApplicableChecks,
       usableOutput: finalized.usableOutput,
-      ...(metadataJson !== undefined ? { metadataJson } : {}),
+      metadataJson: metadataForRuleModule(module, plan, result.evaluations),
     });
     issueRows.push(...issueRowsForModule(scanId, module, result.findings, finalized, observedAt));
   }

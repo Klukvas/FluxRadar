@@ -11,7 +11,6 @@
 import type { GoogleDataSnapshot, GoogleDataState, ScanModule, SearchConsoleRow } from './api';
 import { Panel } from './components';
 import { copy, fillCopy, type Language } from './i18n';
-import { QueryIdeasPanel } from './QueryIdeas';
 
 type GoogleCopy = (typeof copy)['en']['report']['google'];
 
@@ -134,12 +133,9 @@ function RowTable(props: {
 export function GoogleDataPanel({
   snapshot,
   language,
-  scanId,
 }: {
   snapshot: GoogleDataSnapshot;
   language: Language;
-  /** Absent on a report with no id to ask about; the ideas block is then omitted. */
-  scanId?: string;
 }) {
   const t = copy[language].report.google;
   const { searchConsole, analytics } = snapshot;
@@ -196,9 +192,6 @@ export function GoogleDataPanel({
         )}
       </section>
 
-      {scanId === undefined ? null : (
-        <QueryIdeasPanel key={scanId} scanId={scanId} language={language} />
-      )}
       <section aria-label={t.analyticsHeading}>
         <h3 className="section-heading">{t.analyticsHeading}</h3>
         {analytics.data === null ? (

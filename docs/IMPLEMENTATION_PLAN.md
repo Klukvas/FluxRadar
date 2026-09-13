@@ -118,8 +118,9 @@ proposal must be shown for confirmation before payment and scan launch. The impl
   the provider which site to mention;
 - keep generated GEO questions and observations separate from measured Search Console queries and
   metrics;
-- keep the on-demand AI query-ideas block separate from Search Console tables; it now uses both
-  measured rows and saved profile context and can work with profile context even without GSC rows.
+- ask the generated discovery questions during the scan instead of offering a separate on-demand
+  query-ideas generator; the report shows them, with the provider's answers, among the checks the
+  AI SEO / GEO card opens to.
 
 ### Implemented: hybrid UX/Conversion review
 

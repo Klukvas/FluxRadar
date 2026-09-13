@@ -65,15 +65,6 @@ export const SCAN_ACTION_WINDOW_MS = 10 * 60 * 1000;
 export const EXPORT_ACTION_LIMIT = 30;
 export const EXPORT_ACTION_IP_LIMIT = 90;
 export const EXPORT_ACTION_WINDOW_MS = 10 * 60 * 1000;
-/**
- * AI query ideas. Every allowed request is a paid call to an external model, so
- * this is the tightest ceiling in the API after login: an hour's window and a
- * ten-request account budget, which is far more than a person reading a report
- * needs and far less than a loop can spend.
- */
-export const AI_IDEAS_LIMIT = 10;
-export const AI_IDEAS_IP_LIMIT = 30;
-export const AI_IDEAS_WINDOW_MS = 60 * 60 * 1000;
 export const WEBHOOK_LIMIT = 6000;
 export const WEBHOOK_WINDOW_MS = 60 * 1000;
 export const RATE_LIMIT_MAX_TRACKED_KEYS = 10_000;
@@ -257,15 +248,6 @@ export function accountAndIpRules(
     { key: `${action}:account:${accountId}`, limit: limits.account, windowMs: limits.windowMs },
     { key: `${action}:ip:${ip}`, limit: limits.ip, windowMs: limits.windowMs },
   ];
-}
-
-/** Generating AI query ideas: an outbound, billable model call per request. */
-export function aiIdeaRules(accountId: string, ip: string): readonly RateLimitRule[] {
-  return accountAndIpRules('ai-query-ideas', accountId, ip, {
-    account: AI_IDEAS_LIMIT,
-    ip: AI_IDEAS_IP_LIMIT,
-    windowMs: AI_IDEAS_WINDOW_MS,
-  });
 }
 
 /** Действия со сканом: создание, запуск, повтор, отмена. */

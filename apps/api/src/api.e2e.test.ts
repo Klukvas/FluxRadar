@@ -84,6 +84,22 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
 
     const scan = await agent.get(`/scans/${scanId}`).set('Cookie', account.cookie);
     expect(scan.status).toBe(200);
+    const accessibility = scan.body.data.modules.find(
+      (module: { module: string }) => module.module === 'Accessibility',
+    );
+    // The report's Accessibility card opens to this list: the module totals
+    // alone could not say which checks ran or which of them found something.
+    expect(accessibility.metadata.ruleChecks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ruleId: 'A11Y-001',
+          title: 'text contrast',
+          applicableTargets: expect.any(Number),
+          affectedTargets: expect.any(Number),
+        }),
+        expect.objectContaining({ ruleId: 'A11Y-011', scoring: 'informational' }),
+      ]),
+    );
     const ux = scan.body.data.modules.find(
       (module: { module: string }) => module.module === 'UX/Conversion',
     );

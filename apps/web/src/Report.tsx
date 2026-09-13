@@ -4,16 +4,9 @@
 // findings are explained in place, and a section that could not be measured says
 // so instead of showing a zero that would read like a bad result.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState, type MouseEvent } from 'react';
 
-import {
-  apiRequest,
-  type Dashboard,
-  type ExportPayload,
-  type GeoObservation,
-  type Scan,
-  type ScanModule,
-} from './api';
+import { apiRequest, type Dashboard, type ExportPayload, type Scan, type ScanModule } from './api';
 import {
   Button,
   EmptyState,
@@ -26,9 +19,10 @@ import {
 } from './components';
 import { GoogleDataPanel, googleSnapshotOf } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
+import { asRecord, numberValue } from './module-metadata';
+import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
 import { moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan } from './plan-modules';
-import { QueryIdeasPanel } from './QueryIdeas';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { statusKind } from './status-kind';
 
@@ -47,6 +41,14 @@ export function ResultsScreen(props: {
   // could not be opened has to say so where the report would have been, and
   // offer the way back, rather than leaving an empty window behind an alert.
   const [failure, setFailure] = useState<string | null>(null);
+  // The section whose check list is open. One at a time, so the list always
+  // sits directly under the card that was clicked. Keyed by scan as well as by
+  // section name: a section of the same name on another report is not the one
+  // the reader opened, and must not arrive already open.
+  const [openChecks, setOpenChecks] = useState<{
+    readonly scanId: string;
+    readonly module: string;
+  } | null>(null);
   const scanId = props.scan?.id ?? null;
   const { onScan, onError } = props;
   const load = useCallback(async (): Promise<void> => {
@@ -124,6 +126,7 @@ export function ResultsScreen(props: {
   // aggregate is not a completed site score and must not wear a green verdict.
   const scoreUnavailable = /failed|cancelled/i.test(scan.status);
   const checksLine = checksSummary(dashboard.modules, props.language);
+  const geoObservations = dashboard.geoObservations ?? [];
   return (
     <div className="stack">
       <Window title={`${t.windowTitle} · ${displayDomain(scan.domain)}`}>
@@ -200,64 +203,85 @@ export function ResultsScreen(props: {
           </dl>
         </section>
         <div className="module-grid">
-          {dashboard.modules.map((module) => (
+          {dashboard.modules.map((module) => {
+            const expandable = hasModuleChecks(module, geoObservations);
+            const open =
+              expandable && openChecks?.scanId === scan.id && openChecks.module === module.module;
+            const toggle = (): void =>
+              setOpenChecks(open ? null : { scanId: scan.id, module: module.module });
             // The card wears its own result: a section on a finished report is a
             // terminal fact, and the accent edge says which kind before the chip
             // beside it is read. Colour is never the only carrier — the chip
             // carries the same fact in words.
-            <div
-              className={`module-card module-card--${statusKind(chipStatusFor(module))}`}
-              key={module.module}
-            >
-              <div className="split">
-                <strong>{module.module}</strong>
-                <StatusChip
-                  status={chipStatusFor(module)}
-                  label={moduleResultLabel(module, props.language)}
-                />
-              </div>
-              <div
-                className={
-                  module.score === null
-                    ? 'module-card__score module-card__score--null'
-                    : 'module-card__score'
-                }
-              >
-                {moduleScoreLabel(module, props.language)}
-              </div>
-              <ModuleMetadata module={module} scored={!unscoredPlan} language={props.language} />
-              {module.usableOutput && module.coverage !== null ? (
-                // Named, and drawn as a measurement rather than as progress: an
-                // unlabelled zebra bar at 100% beside a Completed chip was the
-                // one thing on this card that still looked like a running scan.
-                <ProgressBar
-                  variant="result"
-                  caption={t.helpCoverageTerm}
-                  value={module.coverage * 100}
-                  label={fillCopy(t.moduleCoverageLabel, { module: module.module })}
-                />
-              ) : (
-                <div className="module-card__coverage-unavailable" role="status">
-                  {moduleResultLabel(module, props.language)} · {t.coverageUnavailable}
+            return (
+              <Fragment key={module.module}>
+                <div
+                  className={moduleCardClass(module, expandable, open)}
+                  onClick={expandable ? (event) => toggleFromCard(event, toggle) : undefined}
+                >
+                  <div className="split">
+                    <strong>{module.module}</strong>
+                    <StatusChip
+                      status={chipStatusFor(module)}
+                      label={moduleResultLabel(module, props.language)}
+                    />
+                  </div>
+                  <div
+                    className={
+                      module.score === null
+                        ? 'module-card__score module-card__score--null'
+                        : 'module-card__score'
+                    }
+                  >
+                    {moduleScoreLabel(module, props.language)}
+                  </div>
+                  <ModuleMetadata
+                    module={module}
+                    scored={!unscoredPlan}
+                    language={props.language}
+                  />
+                  {module.usableOutput && module.coverage !== null ? (
+                    // Named, and drawn as a measurement rather than as progress: an
+                    // unlabelled zebra bar at 100% beside a Completed chip was the
+                    // one thing on this card that still looked like a running scan.
+                    <ProgressBar
+                      variant="result"
+                      caption={t.helpCoverageTerm}
+                      value={module.coverage * 100}
+                      label={fillCopy(t.moduleCoverageLabel, { module: module.module })}
+                    />
+                  ) : (
+                    <div className="module-card__coverage-unavailable" role="status">
+                      {moduleResultLabel(module, props.language)} · {t.coverageUnavailable}
+                    </div>
+                  )}
+                  <ModuleReasons module={module} language={props.language} />
+                  {expandable ? (
+                    <div className="module-card__actions">
+                      <Button
+                        aria-expanded={open}
+                        aria-controls={moduleChecksId(module.module)}
+                        onClick={toggle}
+                      >
+                        {open ? t.checks.hide : t.checks.show}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
-              )}
-              <ModuleReasons module={module} language={props.language} />
-            </div>
-          ))}
+                {open ? (
+                  <ModuleChecksPanel
+                    module={module}
+                    observations={geoObservations}
+                    language={props.language}
+                  />
+                ) : null}
+              </Fragment>
+            );
+          })}
         </div>
-        <GeoObservations observations={dashboard.geoObservations ?? []} language={props.language} />
         <PlanScope modules={dashboard.modules} plan={scan.plan} language={props.language} />
-        {dashboard.modules.some((module) => module.module === 'Accessibility') ? (
-          <aside className="accessibility-note" aria-label={t.accessibilityLabel}>
-            <strong>{t.accessibilityTitle}</strong>
-            <p>{t.accessibilityBody}</p>
-            <small>{t.accessibilityNote}</small>
-          </aside>
-        ) : null}
-        {googleSnapshot === null ? (
-          <QueryIdeasPanel key={scan.id} scanId={scan.id} language={props.language} />
-        ) : (
-          <GoogleDataPanel snapshot={googleSnapshot} language={props.language} scanId={scan.id} />
+        {googleSnapshot === null ? null : (
+          <GoogleDataPanel snapshot={googleSnapshot} language={props.language} />
         )}
         <p className="muted report-help__cta">{t.issuesCta}</p>
         <div className="button-row">
@@ -284,100 +308,23 @@ export function ResultsScreen(props: {
   );
 }
 
-/**
- * Prompt-level GEO evidence, not a claim about a model's memory or training.
- *
- * The answer and citation strings are provider output. React escapes their
- * text, and only validated HTTP(S) citations become navigable links.
- */
-function GeoObservations(props: { observations: readonly GeoObservation[]; language: Language }) {
-  if (props.observations.length === 0) return null;
-  const t = copy[props.language].report;
-  return (
-    <section className="geo-observations" aria-labelledby="geo-observations-title">
-      <h3 className="section-heading" id="geo-observations-title">
-        {t.geoObservationsHeading}
-      </h3>
-      <p className="muted geo-observations__lead">{t.geoObservationsLead}</p>
-      <div className="geo-observations__grid">
-        {props.observations.map((observation, index) => {
-          const citations = [
-            ...new Map(
-              observation.citations.flatMap((citation) => {
-                const href = safeHttpUrl(citation);
-                return href === null ? [] : [[href, { label: citation, href }] as const];
-              }),
-            ).values(),
-          ];
-          return (
-            <article
-              className="geo-observation"
-              key={`${observation.purpose}:${index}:${observation.question}`}
-            >
-              <div className="split geo-observation__header">
-                <strong>
-                  {observation.purpose === 'discovery'
-                    ? t.geoDiscoveryQuestion
-                    : t.geoAwarenessQuestion}
-                </strong>
-                {observation.provider === null || observation.modelId === null ? null : (
-                  <small className="technical">
-                    {t.geoProvider}: {observation.provider} · {observation.modelId}
-                  </small>
-                )}
-              </div>
-              <p className="geo-observation__question">{observation.question}</p>
-              {observation.status === 'answered' && observation.answer !== null ? (
-                <>
-                  <div className="geo-observation__answer">
-                    <strong>{t.geoAnswerLabel}</strong>
-                    <p>{observation.answer}</p>
-                  </div>
-                  {observation.mentions === null ? null : (
-                    <div className="geo-observation__mentions" aria-label={t.geoMentionSignals}>
-                      <span>
-                        {observation.mentions.brand ? t.geoBrandMentioned : t.geoBrandNotMentioned}
-                      </span>
-                      <span>
-                        {observation.mentions.domain
-                          ? t.geoDomainMentioned
-                          : t.geoDomainNotMentioned}
-                      </span>
-                    </div>
-                  )}
-                  {citations.length === 0 ? null : (
-                    <div className="geo-observation__citations">
-                      <strong>{t.geoCitations}</strong>
-                      <ul>
-                        {citations.map((citation) => (
-                          <li key={citation.href}>
-                            <a href={citation.href} target="_blank" rel="noreferrer">
-                              {citation.label}
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="muted geo-observation__unavailable">{t.geoUnavailable}</p>
-              )}
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
+function moduleCardClass(module: ScanModule, expandable: boolean, open: boolean): string {
+  return [
+    `module-card module-card--${statusKind(chipStatusFor(module))}`,
+    expandable ? 'module-card--expandable' : null,
+    open ? 'module-card--open' : null,
+  ]
+    .filter((part) => part !== null)
+    .join(' ');
 }
 
-function safeHttpUrl(value: string): string | null {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null;
-  } catch {
-    return null;
-  }
+/**
+ * A click anywhere on an openable card toggles its check list — except on the
+ * card's own button, which toggles it already and would otherwise do it twice.
+ */
+function toggleFromCard(event: MouseEvent<HTMLDivElement>, toggle: () => void): void {
+  if (event.target instanceof Element && event.target.closest('button') !== null) return;
+  toggle();
 }
 
 /**
@@ -585,16 +532,6 @@ function checkTitles(metadata: Readonly<Record<string, unknown>> | undefined): r
     const title = asRecord(entry)?.title;
     return typeof title === 'string' && title !== '' ? [title] : [];
   });
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function numberValue(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function ExportButtons(props: { scanId: string; onError: (value: string) => void }) {
