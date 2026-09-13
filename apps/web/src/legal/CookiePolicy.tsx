@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 
+import { CookieSettingsButton } from '../CookieConsent';
 import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink } from './SharedLegal';
 
@@ -107,11 +108,15 @@ function UkrainianCookiePolicy(): JSX.Element {
         <span className="legal-section__label">05 / КЕРУВАННЯ</span>
         <h2>Як змінити вибір</h2>
         <p>
-          Натисніть «Налаштування cookies» унизу сторінки, щоб дозволити або відкликати preferences.
-          Після відкликання FluxRadar видаляє збережену мову. Ви також можете очистити cookies та
-          site data у браузері; видалення необхідного storage може завершити вхід або перервати
-          відновлення незавершеного checkout.
+          Натисніть «Налаштування cookies» нижче, щоб дозволити або відкликати preferences. Поки
+          preferences не дозволено, ця кнопка також є внизу кожної сторінки. Після відкликання
+          FluxRadar видаляє збережену мову. Ви також можете очистити cookies та site data у
+          браузері; видалення необхідного storage може завершити вхід або перервати відновлення
+          незавершеного checkout.
         </p>
+        <div className="button-row">
+          <CookieSettingsButton language="uk" />
+        </div>
         <p>
           Питання або запити щодо cookies надсилайте на <SupportLink />. Українська версія є
           юридично пріоритетною; переклади надаються для зручності.
@@ -228,11 +233,15 @@ function EnglishCookiePolicy(): JSX.Element {
         <span className="legal-section__label">05 / CONTROLS</span>
         <h2>How to change your choice</h2>
         <p>
-          Select “Cookie settings” at the bottom of a page to allow or withdraw preferences.
-          FluxRadar removes the saved language when permission is withdrawn. You can also clear
-          cookies and site data in your browser; deleting necessary storage may sign you out or
-          interrupt recovery of an unfinished checkout.
+          Select “Cookie settings” below to allow or withdraw preferences. Until preferences are
+          allowed, the same button also sits at the bottom of every page. FluxRadar removes the
+          saved language when permission is withdrawn. You can also clear cookies and site data in
+          your browser; deleting necessary storage may sign you out or interrupt recovery of an
+          unfinished checkout.
         </p>
+        <div className="button-row">
+          <CookieSettingsButton language="en" />
+        </div>
         <p>
           Send cookie questions or requests to <SupportLink />. The Ukrainian version controls;
           translations are provided for convenience.

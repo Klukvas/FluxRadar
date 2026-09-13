@@ -30,6 +30,12 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
   const titleId = useId();
   const text = cookieCopy[language];
   const [isOpen, setIsOpen] = useState(() => readCookieConsent() === null);
+  // The floating launcher is there so a visitor can change their choice. Once
+  // everything is allowed it only covers the page, so it steps aside; withdrawal
+  // stays one click away on the cookie policy page every footer links to.
+  const [isEverythingAllowed, setIsEverythingAllowed] = useState(
+    () => readCookieConsent()?.preferences === true,
+  );
   const [error, setError] = useState<'saveError' | 'languageError' | null>(null);
 
   useEffect(() => {
@@ -38,6 +44,7 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
       window.clearTimeout(expiryTimer);
       const consent = readCookieConsent();
       setIsOpen(consent === null);
+      setIsEverythingAllowed(consent?.preferences === true);
       setError(null);
       if (consent !== null) {
         expiryTimer = window.setTimeout(
@@ -89,13 +96,16 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
     setIsOpen(false);
   }
 
+  const showsLauncher = !isOpen && !isEverythingAllowed;
+
   return (
     <div className="cookie-consent-dock">
-      {!isOpen ? (
+      {showsLauncher && (
         <div className="cookie-settings-launcher">
           <CookieSettingsButton language={language} />
         </div>
-      ) : (
+      )}
+      {isOpen && (
         <section className="cookie-consent" aria-labelledby={titleId}>
           <div className="cookie-consent__titlebar">
             <h2 id={titleId}>{text.title}</h2>
