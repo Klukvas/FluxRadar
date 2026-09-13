@@ -1157,19 +1157,97 @@ code,
   color: var(--plat-600);
   font-size: 14px;
 }
+/* A card with a recorded check list opens it from a click anywhere on the card;
+   the button inside is the keyboard and screen-reader route to the same toggle. */
+.module-card--expandable {
+  cursor: pointer;
+}
+.module-card--expandable:hover {
+  background: var(--plat-50);
+}
+/* A ring rather than a border colour: `border-color` would repaint the status
+   accent on the card's left edge. */
+.module-card--open {
+  box-shadow: 0 0 0 1px var(--plat-700);
+}
+.module-card__actions {
+  margin-top: 4px;
+}
 
-.geo-observations {
+/* What a section checked, opened directly under its card and across the whole
+   grid. Placed after the card in the markup so it is read right after it. The
+   cell beside an opened left-column card stays empty on purpose: dense packing
+   would fill it with the next card, drawn above the list but read after it. */
+.module-checks {
   display: grid;
-  gap: var(--sp-2);
-  margin-top: var(--sp-4);
+  grid-column: 1 / -1;
+  gap: var(--sp-3);
+  min-width: 0;
   padding: var(--sp-3);
   border: 1px solid var(--plat-700);
   background: var(--plat-100);
 }
-.geo-observations .section-heading,
-.geo-observations__lead,
+.module-checks .section-heading,
+.module-checks p,
 .geo-observation p {
   margin: 0;
+}
+.module-checks__group {
+  display: grid;
+  gap: var(--sp-2);
+}
+.module-checks__subheading {
+  margin: 0;
+  font-size: 13px;
+}
+.module-checks__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--plat-400);
+  background: #fff;
+}
+.module-checks__item {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 2px var(--sp-2);
+  align-items: baseline;
+  padding: 6px var(--sp-2);
+  border-top: 1px solid var(--plat-200);
+}
+.module-checks__item:first-child {
+  border-top: 0;
+}
+/* The result is written out; its colour is a second carrier, never the only one. */
+.module-checks__result {
+  grid-row: span 2;
+  font: bold 11px var(--mono-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.module-checks__result--passed {
+  color: #1a6b2f;
+}
+.module-checks__result--issues,
+.module-checks__result--missing {
+  color: #9b1c12;
+}
+.module-checks__result--noted,
+.module-checks__result--partial {
+  color: #8a5b00;
+}
+.module-checks__result--skipped {
+  color: var(--plat-600);
+}
+.module-checks__title {
+  overflow-wrap: anywhere;
+}
+.module-checks__detail {
+  grid-column: 2;
+  color: var(--plat-600);
+  font: 11px/1.35 var(--mono-font);
+  overflow-wrap: anywhere;
 }
 .geo-observations__grid {
   display: grid;
@@ -1312,20 +1390,6 @@ code,
   color: var(--plat-900);
   font-weight: 700;
   overflow-wrap: anywhere;
-}
-.accessibility-note {
-  margin-top: var(--sp-3);
-  padding: var(--sp-3);
-  border: 1px solid #8a5b00;
-  background: #fff5d6;
-  color: #5e4300;
-}
-.accessibility-note p {
-  margin: 5px 0;
-}
-.accessibility-note small {
-  color: #765b16;
-  font: 11px var(--mono-font);
 }
 .breadcrumb {
   margin-top: var(--sp-4);
@@ -3543,82 +3607,4 @@ code,
 .google-panel__table th:not(:first-child) {
   text-align: right;
   white-space: nowrap;
-}
-
-/* AI query ideas — hypotheses, sitting under the measured Search Console rows.
- *
- * Everything here is about not looking like the table above it. Its own inset
- * block with a dashed edge (the measured tables have none), a badge welded to
- * the heading, and no right-aligned numeric column at all: the alignment rule
- * above is what makes a Search Console row read as data, so this table's cells
- * stay left-aligned prose. */
-.query-ideas {
-  margin-top: var(--sp-4);
-  padding: var(--sp-3);
-  border: 1px dashed var(--plat-400);
-  border-left: 4px solid var(--plat-400);
-  background: var(--plat-50);
-}
-.query-ideas__heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-2);
-  font-size: 14px;
-}
-/* Says what the rows are, wherever the heading is read. */
-.query-ideas__badge {
-  padding: 1px 5px;
-  border: 1px solid var(--plat-600);
-  background: var(--plat-100);
-  color: var(--plat-600);
-  font: 10px var(--mono-font);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: normal;
-}
-.query-ideas__lead,
-.query-ideas__note {
-  margin: 0 0 var(--sp-2);
-  font-size: 12px;
-  line-height: 1.45;
-}
-.query-ideas__note {
-  margin: var(--sp-2) 0 0;
-}
-.query-ideas__unavailable {
-  padding: var(--sp-2) 0 0;
-}
-.query-ideas__unavailable p {
-  margin: 3px 0 0;
-}
-/* Overrides the numeric alignment `.google-panel__table` gives every column
-   after the first: nothing in this table is a measurement, so nothing in it is
-   set the way a measurement is.
- *
- * `table-layout: fixed` because the content is prose in three languages and an
- * automatic layout sizes columns to it: at 360px the Ukrainian column heading
- * ("Запропонований запит") widened the table past the viewport and scrolled the
- * whole report sideways. Fixed widths plus `overflow-wrap` make the cells wrap
- * instead of the page growing. */
-.query-ideas__table {
-  table-layout: fixed;
-}
-.query-ideas__table td,
-.query-ideas__table th,
-.query-ideas__table td:not(:first-child),
-.query-ideas__table th:not(:first-child) {
-  text-align: left;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.query-ideas__table th:nth-child(1) {
-  width: 38%;
-}
-.query-ideas__table th:nth-child(2) {
-  width: 18%;
-}
-.query-ideas__actions {
-  margin-top: var(--sp-3);
 }

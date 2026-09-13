@@ -298,30 +298,26 @@ describe('base.css layout rules', () => {
     expect(BASE_CSS).toMatch(/\.window:not\(\.window--terminal\) > \.window__content/);
   });
 
-  // The AI query-ideas table borrows the Google panel's table styling, which
-  // right-aligns and `nowrap`s every column after the first — the treatment that
-  // makes a Search Console row read as measured data. Nothing in this table is a
-  // measurement, so all of it is undone.
-  it('never sets a generated idea the way a measured row is set', () => {
-    const ideas = BASE_CSS.slice(
-      BASE_CSS.indexOf('.query-ideas__table td,'),
-      BASE_CSS.indexOf('.query-ideas__table th:nth-child(1)'),
-    );
-    expect(ideas).toMatch(/text-align: left;/);
-    expect(ideas).toMatch(/white-space: normal;/);
+  // A section's check list opens under the card that was clicked, not below the
+  // whole grid, where on a Complete report it would land rows away from the
+  // click. It spans the grid. Dense packing was tried to fill the cell beside an
+  // opened left-column card, but it pulled the next card above the list on
+  // screen while the list stayed before it in the markup — a reading order that
+  // no longer matched what was shown (WCAG 1.3.2).
+  it('opens a check list across the grid, without reordering the cards', () => {
+    expect(BASE_CSS).toMatch(/\.module-checks \{[^}]*grid-column: 1 \/ -1;/);
+    expect(BASE_CSS).not.toMatch(/grid-auto-flow:[^;]*dense/);
   });
 
-  // At 360px the Ukrainian column heading widened an auto-laid-out table past
-  // the viewport and scrolled the whole report sideways. Prose in three
-  // languages needs a layout that wraps rather than one that grows.
-  it('wraps the ideas table instead of letting it widen the report', () => {
-    expect(BASE_CSS).toMatch(/\.query-ideas__table \{\s*table-layout: fixed;/);
-    expect(
-      BASE_CSS.slice(
-        BASE_CSS.indexOf('.query-ideas__table td,'),
-        BASE_CSS.indexOf('.query-ideas__table th:nth-child(1)'),
-      ),
-    ).toMatch(/overflow-wrap: anywhere;/);
+  // `border-color` on the opened card would repaint the status accent on its
+  // left edge, and a failed section would stop reading as failed while open.
+  it('marks the opened card without repainting its status edge', () => {
+    const open = BASE_CSS.slice(
+      BASE_CSS.indexOf('.module-card--open {'),
+      BASE_CSS.indexOf('.module-card__actions {'),
+    );
+    expect(open).toMatch(/box-shadow:/);
+    expect(open).not.toMatch(/border[a-z-]*:/);
   });
 
   // A finished section's coverage was drawn with the design system's progress
