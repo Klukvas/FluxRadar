@@ -51,6 +51,7 @@ import { IntegrationsScreen } from './Integrations';
 import { IssuesScreen } from './Issues';
 import { ResultsScreen } from './Report';
 import { LegalDocumentScreen } from './LegalDocuments';
+import { ProfileDeletion } from './ProfileDeletion';
 import { ScanScreen } from './ScanProgress';
 import { ReportsScreen } from './Reports';
 import { isTerminalScanStatus } from './scan-status';
@@ -682,6 +683,11 @@ function AppContent({
             profiles={profiles}
             onRefresh={async () => {
               await loadProfiles(setProfiles);
+            }}
+            onProfileDeleted={(deleted) => {
+              // A deleted site must not stay the target of a new scan or the open report list.
+              setSelectedProfile((current) => (current?.id === deleted.id ? null : current));
+              setReportsProfile((current) => (current?.id === deleted.id ? null : current));
             }}
             onSelectProfile={(profile) => {
               setSelectedProfile(profile);
@@ -1395,6 +1401,8 @@ function HomeScreen(props: {
 function DesktopScreen(props: {
   profiles: readonly SiteProfile[];
   onRefresh: () => Promise<void>;
+  /** Called once a profile is gone, so screens still holding it can let it go. */
+  onProfileDeleted: (profile: SiteProfile) => void;
   onSelectProfile: (profile: SiteProfile) => void;
   onNewScan: (profile: SiteProfile) => void;
   onError: (value: string) => void;
@@ -1642,6 +1650,21 @@ function DesktopScreen(props: {
                 </Button>
               ) : null}
             </form>
+            {/* Keyed by profile, so an address typed to confirm one site never
+                carries over to the next profile opened for editing. */}
+            {editingProfile !== null ? (
+              <ProfileDeletion
+                key={editingProfile.id}
+                profile={editingProfile}
+                language={props.language}
+                onDeleted={async (deleted) => {
+                  resetForm();
+                  props.onProfileDeleted(deleted);
+                  await props.onRefresh();
+                }}
+                onError={props.onError}
+              />
+            ) : null}
           </Panel>
         </Window>
         <Window title={t.workspace.notes} terminal>

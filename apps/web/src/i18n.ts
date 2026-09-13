@@ -236,6 +236,19 @@ export const copy = {
       updateProfile: 'Update profile',
       editProfile: 'Edit profile',
       cancelEdit: 'Cancel editing',
+      deleteProfileHeading: 'Delete this profile',
+      deleteProfileHelp:
+        'Deleting removes the profile together with its audit history: every scan and report, exported files, AI answers and the purchase records of this site. It cannot be undone, and it is not possible while a scan is running, a checkout can still be paid or a refund is still being processed.',
+      deleteProfileConfirmLabel: 'Type {domain} to confirm',
+      deleteProfileButton: 'Delete profile',
+      deletingProfile: 'Deleting…',
+      deleteProfileActiveScan:
+        'This site has a scan in progress. Wait for it to finish or cancel it, then delete the profile.',
+      deleteProfileOpenCheckout:
+        'A checkout for this site can still be paid. Complete it or let it expire, then try again.',
+      deleteProfileOpenRefund:
+        'A refund for this site is still being processed. The profile can be deleted once it is complete.',
+      deleteProfileFailed: 'The profile could not be deleted. Try again in a moment.',
       saving: 'Saving…',
       newScan: 'New scan',
       inspect: 'Inspect',
@@ -1208,6 +1221,19 @@ export const copy = {
       updateProfile: 'Оновити профіль',
       editProfile: 'Редагувати профіль',
       cancelEdit: 'Скасувати редагування',
+      deleteProfileHeading: 'Видалити цей профіль',
+      deleteProfileHelp:
+        'Видалення прибирає профіль разом з історією аудитів: усі перевірки та звіти, експортовані файли, відповіді AI та записи про покупки цього сайту. Це не можна скасувати, і це неможливо, поки триває перевірка, оплату ще можна завершити або ще обробляється повернення коштів.',
+      deleteProfileConfirmLabel: 'Введіть {domain}, щоб підтвердити',
+      deleteProfileButton: 'Видалити профіль',
+      deletingProfile: 'Видалення…',
+      deleteProfileActiveScan:
+        'Для цього сайту триває перевірка. Дочекайтеся її завершення або скасуйте її, а потім видаліть профіль.',
+      deleteProfileOpenCheckout:
+        'Оплату для цього сайту ще можна завершити. Завершіть її або дочекайтеся, поки вона стане недійсною, і спробуйте знову.',
+      deleteProfileOpenRefund:
+        'Повернення коштів за цей сайт ще обробляється. Профіль можна буде видалити, щойно його буде завершено.',
+      deleteProfileFailed: 'Не вдалося видалити профіль. Спробуйте ще раз трохи згодом.',
       saving: 'Збереження…',
       newScan: 'Нова перевірка',
       inspect: 'Переглянути',

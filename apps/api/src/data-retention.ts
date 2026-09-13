@@ -135,7 +135,7 @@ export async function purgeExpiredScans(
  * S3 DELETE is idempotent, so a retried key is harmless; the count is what an
  * operator needs, and the keys themselves are private and never reported.
  */
-async function removeStoredObjects(
+export async function removeStoredObjects(
   objectStore: PrivateObjectStore | null,
   objectKeys: readonly string[],
 ): Promise<number> {
@@ -334,8 +334,8 @@ export async function sweepRetention(
   }
 }
 
-/** Webhook deliveries that belong to this account's purchases, provider by provider. */
-function purchaseDeliveryFilters(
+/** Webhook deliveries that belong to these purchases, provider by provider. */
+export function purchaseDeliveryFilters(
   purchases: readonly { readonly provider: string; readonly providerTransactionId: string }[],
 ): Prisma.WebhookEventWhereInput[] {
   const byProvider = new Map<string, string[]>();
@@ -351,6 +351,56 @@ function purchaseDeliveryFilters(
 /** Stable, content-free audit identifier retained after account deletion. */
 export function accountDeletionHash(accountId: string): string {
   return createHash('sha256').update(`fluxradar-account:${accountId}`).digest('hex');
+}
+
+/** What the DeletedScan fact left behind for each removed scan records. */
+export interface ScanDeletion {
+  readonly accountIdHash: string;
+  readonly reason: string;
+}
+
+/**
+ * Removes scans and every row that hangs off them, leaving a DeletedScan fact
+ * for each.
+ *
+ * Account and profile deletion share it so the ON DELETE RESTRICT order lives in
+ * one place. Object storage is not touched: the caller reads the export keys
+ * first and removes those objects only after its transaction commits.
+ */
+export async function deleteScanRows(
+  tx: Prisma.TransactionClient,
+  scanIds: readonly string[],
+  deletion: ScanDeletion,
+): Promise<void> {
+  if (scanIds.length === 0) return;
+  const ids = [...scanIds];
+  await tx.deletedScan.createMany({
+    data: ids.map((scanId) => ({ scanId, ...deletion })),
+    skipDuplicates: true,
+  });
+  await tx.exportArtifact.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.job.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.issue.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.scanModule.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.aiResponseRecord.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.aiConsent.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.scan.deleteMany({ where: { id: { in: ids } } });
+}
+
+/**
+ * Removes purchases with their refund lines, refund record and entitlement.
+ * Scans point at their purchase, so they must already be gone.
+ */
+export async function deletePurchaseRows(
+  tx: Prisma.TransactionClient,
+  purchaseIds: readonly string[],
+): Promise<void> {
+  if (purchaseIds.length === 0) return;
+  const ids = [...purchaseIds];
+  await tx.providerRefund.deleteMany({ where: { purchaseId: { in: ids } } });
+  await tx.refundRecord.deleteMany({ where: { purchaseId: { in: ids } } });
+  await tx.entitlement.deleteMany({ where: { purchaseId: { in: ids } } });
+  await tx.purchase.deleteMany({ where: { id: { in: ids } } });
 }
 
 export interface AccountDeletionResult {
@@ -403,31 +453,16 @@ export async function deleteAccountData(
       });
       const purchaseIds = purchases.map(({ id }) => id);
       const scans = await tx.scan.findMany({ where: { accountId }, select: { id: true } });
-      const scanIds = scans.map(({ id }) => id);
-      if (scanIds.length > 0) {
-        await tx.deletedScan.createMany({
-          data: scanIds.map((scanId) => ({
-            scanId,
-            accountIdHash: accountDeletionHash(accountId),
-            reason: 'account-deletion',
-          })),
-          skipDuplicates: true,
-        });
-      }
       await tx.exportArtifact.deleteMany({ where: { accountId } });
-      await tx.job.deleteMany({ where: { scanId: { in: scanIds } } });
-      await tx.issue.deleteMany({ where: { scanId: { in: scanIds } } });
-      await tx.scanModule.deleteMany({ where: { scanId: { in: scanIds } } });
-      await tx.aiResponseRecord.deleteMany({ where: { scanId: { in: scanIds } } });
-      await tx.aiConsent.deleteMany({ where: { scanId: { in: scanIds } } });
-      await tx.scan.deleteMany({ where: { id: { in: scanIds } } });
+      await deleteScanRows(
+        tx,
+        scans.map(({ id }) => id),
+        { accountIdHash: accountDeletionHash(accountId), reason: 'account-deletion' },
+      );
       // Checkout sessions reference the account, the profile and the purchase,
       // so they must go before any of the three.
       await tx.checkoutSession.deleteMany({ where: { accountId } });
-      await tx.providerRefund.deleteMany({ where: { purchaseId: { in: purchaseIds } } });
-      await tx.refundRecord.deleteMany({ where: { purchaseId: { in: purchaseIds } } });
-      await tx.entitlement.deleteMany({ where: { purchaseId: { in: purchaseIds } } });
-      await tx.purchase.deleteMany({ where: { id: { in: purchaseIds } } });
+      await deletePurchaseRows(tx, purchaseIds);
       await tx.siteGoogleBinding.deleteMany({ where: { accountId } });
       await tx.siteProfile.deleteMany({ where: { accountId } });
       await tx.session.deleteMany({ where: { accountId } });
