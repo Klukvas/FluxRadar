@@ -94,5 +94,14 @@ describe('public legal documents', () => {
     expect(screen.getByRole('navigation', { name: 'Document sections' })).toHaveTextContent(
       'Storage inventory',
     );
+    // Once every cookie is allowed the floating launcher is hidden, so the
+    // policy page itself has to offer the way to withdraw.
+    expect(screen.getByRole('button', { name: 'Cookie settings' })).toBeInTheDocument();
+  });
+
+  it('offers the cookie settings control on the Ukrainian cookie policy too', () => {
+    render(<LegalDocumentScreen kind="cookies" language="uk" onLanguageChange={() => {}} />);
+
+    expect(screen.getByRole('button', { name: 'Налаштування cookies' })).toBeInTheDocument();
   });
 });

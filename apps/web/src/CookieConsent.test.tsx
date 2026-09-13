@@ -54,8 +54,16 @@ describe('cookie choices', () => {
     expect(screen.queryByRole('region')).not.toBeInTheDocument();
     view.unmount();
 
-    render(<CookieConsent language="uk" />);
+    // The next visit: everything is allowed, so only the policy page's own
+    // settings button is offered — the floating launcher stays hidden.
+    render(
+      <>
+        <CookieSettingsButton language="uk" />
+        <CookieConsent language="uk" />
+      </>,
+    );
     expect(screen.queryByRole('region')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Налаштування cookies' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Налаштування cookies' }));
     expect(screen.getByRole('link', { name: 'Докладніше про cookies' })).toHaveAttribute(
       'href',
@@ -65,7 +73,30 @@ describe('cookie choices', () => {
     expect(preferencesAllowed()).toBe(false);
     expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
     expect(window.localStorage.getItem('fluxradar.pendingCheckout')).toBe('pending-test');
-    expect(screen.getByRole('button', { name: 'Налаштування cookies' })).toBeVisible();
+    expect(screen.getAllByRole('button', { name: 'Налаштування cookies' })).toHaveLength(2);
+  });
+
+  it('hides the floating launcher while everything is allowed and brings it back after a withdrawal', () => {
+    render(
+      <>
+        <CookieSettingsButton language="en" />
+        <CookieConsent language="en" />
+      </>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Allow preferences' }));
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Cookie settings' })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cookie settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Only necessary' }));
+
+    expect(screen.getAllByRole('button', { name: 'Cookie settings' })).toHaveLength(2);
+  });
+
+  it('keeps the floating launcher after choosing only necessary storage', () => {
+    render(<CookieConsent language="en" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Only necessary' }));
+    expect(screen.getByRole('button', { name: 'Cookie settings' })).toBeVisible();
   });
 
   it('keeps a visible error and allows retry when consent storage is blocked', () => {
