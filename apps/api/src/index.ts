@@ -200,7 +200,7 @@ export function createApp(options: CreateAppOptions): Express {
       logger,
     }),
   );
-  app.use(profilesRouter({ prisma: options.prisma, now, requestRateLimiter }));
+  app.use(profilesRouter({ prisma: options.prisma, now, requestRateLimiter, objectStore, logger }));
   app.use(integrationsRouter({ prisma: options.prisma, now }));
   app.use(googleIntegrationRouter({ prisma: options.prisma, now }));
   app.use(queryIdeasRouter({ prisma: options.prisma, now, logger, requestRateLimiter }));

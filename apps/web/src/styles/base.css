@@ -512,6 +512,25 @@ code,
   font-size: 11px;
   line-height: 1.4;
 }
+/* Deleting a profile takes its reports and purchase records with it, so the
+   block is set apart from the form in the danger button's own red. */
+.profile-deletion {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: 8px 10px;
+  border: 1px solid #9b1c12;
+  background: var(--plat-100);
+}
+.profile-deletion strong {
+  font-size: 12px;
+}
+.profile-deletion p {
+  margin: 0;
+  color: var(--plat-600);
+  font-size: 11px;
+  line-height: 1.4;
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -19,6 +19,7 @@ import { openCheckoutSessionWhere } from '../billing/checkout-lifecycle.ts';
 import { isUniqueViolation } from '../billing/prisma-errors.ts';
 import { sendOk } from '../http/envelope.ts';
 import { conflict, notFound } from '../http/errors.ts';
+import type { ApiLogger } from '../http/logger.ts';
 import {
   MAX_PAGE_SIZE,
   pageMetaFrom,
@@ -27,13 +28,24 @@ import {
 } from '../http/pagination.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
+import type { PrivateObjectStore } from '../integrations/s3.ts';
+import { deleteSiteProfileData, type ProfileDeletionBlocker } from './profile-deletion.ts';
 import { resolveOwnProfile } from './resolve.ts';
 
 export interface ProfilesRouterDeps {
   readonly prisma: PrismaClient;
   readonly now: () => Date;
   readonly requestRateLimiter?: RequestRateLimiter;
+  /** Where exported reports live; a deleted profile's reports are removed from it. */
+  readonly objectStore?: PrivateObjectStore | null;
+  readonly logger?: ApiLogger;
 }
+
+const PROFILE_DELETION_BLOCKED_MESSAGES: Readonly<Record<ProfileDeletionBlocker, string>> = {
+  PROFILE_HAS_ACTIVE_SCAN: 'profile has a scan in progress and cannot be deleted',
+  PROFILE_HAS_OPEN_CHECKOUT: 'profile has a checkout in progress and cannot be deleted',
+  PROFILE_HAS_OPEN_REFUND: 'profile has a refund in progress and cannot be deleted',
+};
 
 const siteProfilePatchSchema = siteProfilePatchInputSchema;
 
@@ -258,38 +270,38 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
     }
   });
 
+  /**
+   * Deletes the profile together with the audit and billing history of its site.
+   *
+   * Refused with a closed 409 code while a scan, a payable checkout or a refund
+   * still being processed depends on it. An open checkout blocks only
+   * while it can still be paid: a session past its provider deadline binds
+   * nothing chargeable, and an abandoned tab must never make a profile
+   * permanently undeletable. See profile-deletion.ts for what is removed.
+   */
   router.delete('/profiles/:profileId', auth, async (req, res) => {
-    const profile = await findOwnProfile(
+    const result = await deleteSiteProfileData(
       prisma,
-      accountIdFrom(res),
-      requiredParam(req.params.profileId, 'profileId'),
+      {
+        accountId: accountIdFrom(res),
+        profileId: requiredParam(req.params.profileId, 'profileId'),
+        now: deps.now(),
+      },
+      deps.objectStore,
     );
-    const [scanCount, purchaseCount, openCheckoutCount] = await Promise.all([
-      prisma.scan.count({ where: { siteProfileId: profile.id } }),
-      prisma.purchase.count({ where: { siteProfileId: profile.id } }),
-      prisma.checkoutSession.count({
-        where: { siteProfileId: profile.id, ...openCheckoutSessionWhere(deps.now()) },
-      }),
-    ]);
-    if (scanCount > 0 || purchaseCount > 0) {
-      // Сканы и покупки — финансовые/исторические записи (§18): профиль с ними
-      // не удаляется, чтобы не рвать FK и retention-обязательства.
-      throw conflict('PROFILE_HAS_HISTORY', 'profile has scans or purchases and cannot be deleted');
+    if (result.kind === 'not-found') {
+      // Someone else's profile is indistinguishable from a missing one.
+      throw notFound('site profile not found');
     }
-    // CheckoutSession cascades from SiteProfile (the rollback-safe foreign key),
-    // so deleting a profile mid-checkout would drop the binding the provider
-    // webhook needs and turn a real charge into a rejected order. An open
-    // checkout therefore blocks the deletion — but only while it can still be
-    // paid: a session past its provider deadline binds nothing chargeable, and
-    // an abandoned tab must never make a profile permanently undeletable.
-    if (openCheckoutCount > 0) {
-      throw conflict(
-        'PROFILE_HAS_OPEN_CHECKOUT',
-        'profile has a checkout in progress and cannot be deleted',
-      );
+    if (result.kind === 'blocked') {
+      throw conflict(result.blocker, PROFILE_DELETION_BLOCKED_MESSAGES[result.blocker]);
     }
-    await prisma.siteGoogleBinding.deleteMany({ where: { siteProfileId: profile.id } });
-    await prisma.siteProfile.delete({ where: { id: profile.id } });
+    if (result.orphanedArtifactCount > 0) {
+      deps.logger?.warn('profile artifact cleanup incomplete', {
+        deletedScanCount: result.deletedScanCount,
+        orphanedArtifactCount: result.orphanedArtifactCount,
+      });
+    }
     sendOk(res, null);
   });
 
