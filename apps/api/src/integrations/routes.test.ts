@@ -121,6 +121,12 @@ describe('integrations routes', () => {
     expect(googleUrl.searchParams.get('redirect_uri')).toBe(
       'https://fluxradar.net/api/integrations/google/callback',
     );
+    // Only the two read-only data scopes: Google's app verification requires the
+    // narrowest scopes an app uses, and nothing reads the Google identity.
+    expect(googleUrl.searchParams.get('scope')?.split(' ')).toEqual([
+      'https://www.googleapis.com/auth/webmasters.readonly',
+      'https://www.googleapis.com/auth/analytics.readonly',
+    ]);
 
     const bingStart = await agent
       .post('/integrations/bing/start')

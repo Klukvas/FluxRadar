@@ -38,15 +38,28 @@ export function OperatorDetails({ language }: { readonly language: Language }): 
   );
 }
 
+/** When a document's current wording took effect, written out in each language. */
+export interface EffectiveDate {
+  readonly uk: string;
+  readonly en: string;
+}
+
+/**
+ * The date the legal documents first took effect. A document whose wording
+ * changes later passes its own date, so the others keep the one that is still
+ * true for them.
+ */
+const FIRST_EFFECTIVE: EffectiveDate = { uk: '10 вересня 2026 року', en: '10 September 2026' };
+
 export function EffectiveNotice(props: {
   readonly language: Language;
   readonly documentName: string;
+  readonly effectiveOn?: EffectiveDate;
 }): JSX.Element {
+  const date = props.effectiveOn ?? FIRST_EFFECTIVE;
   return (
     <div className="legal-document__notice">
-      <strong>
-        {props.language === 'uk' ? 'Чинна з 10 вересня 2026 року' : 'Effective 10 September 2026'}
-      </strong>
+      <strong>{props.language === 'uk' ? `Чинна з ${date.uk}` : `Effective ${date.en}`}</strong>
       <span>{props.documentName}</span>
     </div>
   );

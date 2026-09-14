@@ -13,15 +13,11 @@ export interface OAuthTokens {
 export const GOOGLE_SEARCH_CONSOLE_SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
 export const GOOGLE_ANALYTICS_SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
 
-// Unchanged from the approved consent screen: both Google scopes are read-only
-// and neither the Search Console nor the GA4 flow asks for anything beyond them.
-const GOOGLE_SCOPES = [
-  'openid',
-  'email',
-  'profile',
-  GOOGLE_SEARCH_CONSOLE_SCOPE,
-  GOOGLE_ANALYTICS_SCOPE,
-] as const;
+// Only the two read-only data scopes. `openid email profile` used to be asked
+// for as well, but nothing reads the Google identity — no id_token, no userinfo
+// call — and Google's verification requires the narrowest scopes an app uses.
+// The consent screen's Data Access list must name exactly these two.
+const GOOGLE_SCOPES = [GOOGLE_SEARCH_CONSOLE_SCOPE, GOOGLE_ANALYTICS_SCOPE] as const;
 
 const BING_SCOPES = ['webmaster.read'] as const;
 

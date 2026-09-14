@@ -63,11 +63,16 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/production adapter uses Anthropic/i);
     expect(policy).toHaveTextContent(/OpenAI.*not used by the current production adapter/is);
-    expect(policy).toHaveTextContent(/Query Ideas is a separate user action/i);
+    // The Query Ideas generator that sent Search Console queries to the AI
+    // provider was removed; a policy still describing it would disclose a
+    // transfer of Google user data the product no longer makes.
+    expect(policy).not.toHaveTextContent(/Query Ideas/i);
     expect(policy).toHaveTextContent(
-      /up to 20 Search Console queries.*clicks, impressions and average position/is,
+      /Search Console and Analytics data.*not sent to an AI provider/is,
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
+    expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
+    expect(policy).toHaveTextContent(/Effective 14 September 2026/);
     expect(policy).toHaveTextContent(/PageSpeed Insights and CrUX.*public URL or origin/is);
     expect(policy).toHaveTextContent(
       /Free and Basic reports.*30 days.*Complete reports.*365 days/is,

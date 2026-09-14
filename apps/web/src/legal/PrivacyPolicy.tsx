@@ -1,7 +1,13 @@
 import type { JSX } from 'react';
 
 import type { Language } from '../i18n';
-import { EffectiveNotice, OperatorDetails, SupportLink } from './SharedLegal';
+import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
+
+/**
+ * Changed when the Google data section stopped describing the removed Query
+ * Ideas generator, which sent Search Console queries to the AI provider.
+ */
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '14 вересня 2026 року', en: '14 September 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -13,6 +19,7 @@ function UkrainianPrivacy(): JSX.Element {
       <EffectiveNotice
         language="uk"
         documentName="Політика приватності FluxRadar, що надається під найменуванням FluxLab."
+        effectiveOn={PRIVACY_EFFECTIVE}
       />
       <section id="privacy-controller" className="legal-section">
         <span className="legal-section__label">01 / КОНТРОЛЕР</span>
@@ -77,11 +84,11 @@ function UkrainianPrivacy(): JSX.Element {
           , включно з Limited Use requirements.
         </p>
         <p>
-          <strong>Query Ideas є окремою дією користувача.</strong> Перед кожною генерацією інтерфейс
-          пояснює, що поточний AI‑провайдер отримає домен, назву й контекст проєкту та, якщо
-          доступно, до 20 Search Console queries з clicks, impressions і average position та до 20
-          URL top pages. Google OAuth tokens ніколи не передаються AI‑провайдеру. Ідеї є гіпотезами,
-          а не виміряними Search Console даними, volumes, rankings чи forecasts.
+          Дані Search Console та Analytics показуються у ваших звітах і налаштуваннях інтеграцій та
+          не передаються AI‑провайдеру; Google OAuth tokens також ніколи не передаються
+          AI‑провайдеру. Прочитані дані зберігаються разом зі звітом, для якого їх отримано,
+          протягом описаного нижче строку зберігання звітів. Відключення Google видаляє збережені
+          tokens.
         </p>
       </section>
       <section id="privacy-use" className="legal-section">
@@ -131,9 +138,9 @@ function UkrainianPrivacy(): JSX.Element {
             для Complete performance check без підключення користувацького Google‑акаунта.
           </li>
           <li>
-            <strong>Anthropic</strong> — поточний AI‑провайдер для описаних вище core і Query Ideas
-            запитів. Retention і processing залежать від чинних API terms та налаштувань; ми не
-            обіцяємо zero retention у провайдера. Див.{' '}
+            <strong>Anthropic</strong> — поточний AI‑провайдер для описаних вище AI‑запитів.
+            Retention і processing залежать від чинних API terms та налаштувань; ми не обіцяємо zero
+            retention у провайдера. Див.{' '}
             <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">
               інформацію Anthropic про зберігання комерційних даних
             </a>
@@ -226,6 +233,7 @@ function EnglishPrivacy(): JSX.Element {
       <EffectiveNotice
         language="en"
         documentName="Privacy Policy for FluxRadar, provided under the FluxLab trade name."
+        effectiveOn={PRIVACY_EFFECTIVE}
       />
       <section id="privacy-controller" className="legal-section">
         <span className="legal-section__label">01 / CONTROLLER</span>
@@ -289,11 +297,10 @@ function EnglishPrivacy(): JSX.Element {
           , including its Limited Use requirements.
         </p>
         <p>
-          <strong>Query Ideas is a separate user action.</strong> Before each generation, the UI
-          explains that the current AI provider receives the domain, site name and project context
-          and, when available, up to 20 Search Console queries with clicks, impressions and average
-          position and up to 20 top-page URLs. Google OAuth tokens are never sent to an AI provider.
-          Ideas are hypotheses, not measured Search Console data, volumes, rankings or forecasts.
+          Search Console and Analytics data is shown in your reports and integration settings and is
+          not sent to an AI provider; Google OAuth tokens are never sent to an AI provider either.
+          The data read is kept with the report it was read for, for the report retention period
+          described below. Disconnecting Google deletes the stored tokens.
         </p>
       </section>
       <section id="privacy-use" className="legal-section">
@@ -344,9 +351,9 @@ function EnglishPrivacy(): JSX.Element {
             Complete performance checks without a connected user Google account.
           </li>
           <li>
-            <strong>Anthropic</strong> is the current AI provider for the core and Query Ideas
-            requests described above. Retention and processing depend on applicable API terms and
-            settings; we do not promise zero provider retention. See{' '}
+            <strong>Anthropic</strong> is the current AI provider for the AI requests described
+            above. Retention and processing depend on applicable API terms and settings; we do not
+            promise zero provider retention. See{' '}
             <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">
               Anthropic’s commercial retention information
             </a>
