@@ -305,8 +305,16 @@ describe('authentication UI', () => {
   });
 });
 
+/**
+ * The paths a public document asked the API for. It renders without waiting on
+ * any of them; the one it may ask for is the session its header follows.
+ */
+function requestedPaths(fetchMock: ReturnType<typeof vi.fn>): string[] {
+  return fetchMock.mock.calls.map((call) => new URL(String((call as unknown[])[0])).pathname);
+}
+
 describe('public legal pages', () => {
-  it('renders the privacy policy without calling the API', async () => {
+  it('renders the privacy policy with no request but the session read', async () => {
     const fetchMock = stubApi(() => envelope(null));
     window.history.replaceState(null, '', '/privacy');
 
@@ -318,10 +326,12 @@ describe('public legal pages', () => {
       'href',
       '/terms?lang=en',
     );
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestedPaths(fetchMock)).toEqual(['/auth/me']);
   });
 
   it('renders the terms of service as a public page', async () => {
+    // Stubbed so the header's background session read never reaches the network.
+    stubApi(() => envelope(null));
     window.history.replaceState(null, '', '/terms');
 
     render(<App />);
@@ -348,7 +358,7 @@ describe('public legal pages', () => {
       'href',
       '/privacy?lang=en',
     );
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestedPaths(fetchMock)).toEqual(['/auth/me']);
   });
 });
 
@@ -639,18 +649,19 @@ describe('new scan modal — Close window button', () => {
 
 // ─── Public /checks — audit coverage page ────────────────────────────────────
 //
-// The /checks page is a fully static public SPA route: no API calls, no login.
+// The /checks page is a public SPA route: no login, and it renders without
+// waiting on the API — the only request is the session read its header follows.
 // It must render all six audit-module sections, evidence, limitations, a
 // back-to-home link, and be discoverable from the homepage footer and the
 // homepage coverage-entry section.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('public /checks — audit coverage page', () => {
-  it('renders the audit coverage page without calling the API', async () => {
+  it('renders the audit coverage page with no request but the session read', async () => {
     const fetchMock = stubApi(() => envelope(null));
     window.history.replaceState(null, '', '/checks');
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Audit coverage' })).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestedPaths(fetchMock)).toEqual(['/auth/me']);
   });
 
   it('shows all six audit module section headings', async () => {

@@ -6,14 +6,17 @@ import { copy, type Language } from './i18n';
 // identical across /checks, /privacy, /terms and this page.
 //
 // The header is the shared `MenuBar` in its public variant: the same row of
-// destinations the home page, /checks and the legal documents show a signed-out
-// visitor, with FAQ marked as the page they are on. The public variant is what
-// links out with plain `href`s instead of an SPA callback this page does not
-// have — it is not a shorter menu.
+// destinations the home page, /checks and the legal documents show, with FAQ
+// marked as the page the reader is on. The public variant is what links out with
+// plain `href`s instead of an SPA callback this page does not have — it is not a
+// shorter menu. Its workspace tabs follow the reader's session, as they do on
+// every page the app renders; only the static blog header stays signed-out.
 
 export function FaqScreen(props: {
   language: Language;
   onLanguageChange: (language: Language) => void;
+  /** Whether the reader has a session; false until the app knows. See `MenuBar`. */
+  signedIn?: boolean;
 }) {
   const t = copy[props.language].faq;
 
@@ -22,6 +25,7 @@ export function FaqScreen(props: {
       <MenuBar
         variant="public"
         active="faq"
+        signedIn={props.signedIn}
         language={props.language}
         onLanguageChange={props.onLanguageChange}
       />

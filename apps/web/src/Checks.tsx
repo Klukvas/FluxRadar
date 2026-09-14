@@ -11,17 +11,17 @@ import { copy, type Language } from './i18n';
 export function AuditCoverageScreen(props: {
   language: Language;
   onLanguageChange: (language: Language) => void;
+  /** Whether the reader has a session; false until the app knows. See `MenuBar`. */
+  signedIn?: boolean;
 }) {
   const t = copy[props.language].checks;
 
   return (
     <div className="app-shell legal-shell">
       <MenuBar
-        active="home"
-        onNavigate={(next) => {
-          if (next === 'home') window.location.assign('/');
-        }}
-        signedIn={false}
+        variant="public"
+        active="checks"
+        signedIn={props.signedIn}
         language={props.language}
         onLanguageChange={props.onLanguageChange}
       />

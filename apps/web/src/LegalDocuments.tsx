@@ -15,6 +15,8 @@ export type LegalDocumentScreenProps = {
   readonly language: Language;
   readonly onLanguageChange: (language: Language) => void;
   readonly onHome?: () => void;
+  /** Whether the reader has a session; false until the app knows. See `MenuBar`. */
+  readonly signedIn?: boolean;
 };
 
 const DOCUMENT_MARKS: Readonly<Record<LegalDocumentKind, string>> = {
@@ -41,10 +43,6 @@ function LegalBody(props: {
 export function LegalDocumentScreen(props: LegalDocumentScreenProps): JSX.Element {
   const t = copy[props.language].legal;
   const documentCopy = t[props.kind];
-  const goHome = (): void => {
-    if (props.onHome) props.onHome();
-    else window.location.assign('/');
-  };
   const handleHomeClick = (event: MouseEvent<HTMLAnchorElement>): void => {
     if (
       !props.onHome ||
@@ -66,12 +64,12 @@ export function LegalDocumentScreen(props: LegalDocumentScreenProps): JSX.Elemen
 
   return (
     <div className="app-shell legal-shell">
+      {/* `active` is the document itself, which has no menu item, so no
+          destination is marked as the open page. */}
       <MenuBar
-        active="home"
-        onNavigate={(next) => {
-          if (next === 'home') goHome();
-        }}
-        signedIn={false}
+        variant="public"
+        active={props.kind}
+        signedIn={props.signedIn}
         language={props.language}
         onLanguageChange={props.onLanguageChange}
       />

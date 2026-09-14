@@ -38,15 +38,21 @@ afterEach(() => {
 });
 
 describe('/faq route', () => {
-  it('renders the FAQ for a visitor with no account and no session request', async () => {
-    const fetchMock = renderFaq();
+  it('renders the FAQ without waiting on a session, and asks for nothing else', async () => {
+    window.history.replaceState(null, '', '/faq');
+    // The session request never answers: a public document must not depend on it.
+    const fetchMock = vi.fn(() => new Promise<Response>(() => undefined));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
 
     expect(
       await screen.findByRole('heading', { name: 'Every check, explained in plain language' }),
     ).toBeInTheDocument();
     expect(window.location.pathname).toBe('/faq');
-    // A public document must not depend on being signed in.
-    expect(fetchMock).not.toHaveBeenCalled();
+    // The only request is the session read the header follows.
+    expect(
+      fetchMock.mock.calls.map((call) => new URL(String((call as unknown[])[0])).pathname),
+    ).toEqual(['/auth/me']);
   });
 
   it('links every index entry to a section that exists on the page', async () => {
@@ -112,9 +118,7 @@ describe('/faq header is the platform header', () => {
     render(<App />);
     await screen.findByRole('heading', { name: 'Audit coverage' });
 
-    expect(destinations(screen.getByRole('navigation', { name: 'Application menu' }))).toEqual(
-      faqRow,
-    );
+    expect(destinations(screen.getByRole('navigation', { name: 'Site menu' }))).toEqual(faqRow);
   });
 
   it('keeps the public destinations as real links, not scripted buttons', async () => {
@@ -127,8 +131,8 @@ describe('/faq header is the platform header', () => {
     expect(within(nav).getByRole('link', { name: 'Blog' })).toHaveAttribute('href', '/blog');
   });
 
-  // A public document never asks who the reader is, so its workspace tabs show
-  // the state every other page shows a visitor without a session.
+  // A visitor without a session sees the workspace tabs in the state every other
+  // page shows them; public-header-session.test.tsx covers a signed-in reader.
   it('shows the workspace tabs in the signed-out state the rest of the site shows', async () => {
     renderFaq();
     await screen.findByRole('heading', { name: 'Every check, explained in plain language' });

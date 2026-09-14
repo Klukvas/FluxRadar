@@ -22,6 +22,7 @@ import {
 } from './components';
 import {
   apiRequest,
+  ApiRequestError,
   type Account,
   type CheckoutConfig,
   type CheckoutSession,
@@ -70,6 +71,7 @@ import {
 import { normalizeSiteAddress, siteNameFromAddress } from './site-address-input';
 import { SiteStatusPanel } from './SiteStatus';
 import { TargetLanguagesField } from './TargetLanguagesField';
+import { WORKSPACE_PATHS, type WorkspaceTabScreen } from './workspace-paths';
 import './styles/base.css';
 
 type Screen =
@@ -121,13 +123,10 @@ function isWorkspaceScreen(screen: Screen): boolean {
 function pathForScreen(screen: Screen, scanId: string | null): string {
   switch (screen) {
     case 'desktop':
-      return '/profiles';
     case 'new-scan':
-      return '/scan';
     case 'reports':
-      return '/reports';
     case 'integrations':
-      return '/integrations';
+      return WORKSPACE_PATHS[screen];
     case 'checks':
       return '/checks';
     case 'faq':
@@ -157,13 +156,16 @@ interface InitialRoute {
   readonly scrollTo: 'pricing' | null;
 }
 
-/** Workspace paths that carry no identifier, in the order they are matched. */
-const WORKSPACE_PATHS: Readonly<Record<string, Screen>> = {
-  '/profiles': 'desktop',
-  '/scan': 'new-scan',
-  '/reports': 'reports',
-  '/integrations': 'integrations',
-};
+/**
+ * Workspace paths that carry no identifier, read back to their screens. Built
+ * from `WorkspaceTabScreen`, so an entry in the table that is not a `Screen`
+ * fails to compile here instead of routing to nothing.
+ */
+const SCREEN_BY_WORKSPACE_PATH: Readonly<Record<string, Screen>> = Object.fromEntries(
+  (Object.keys(WORKSPACE_PATHS) as WorkspaceTabScreen[]).map(
+    (screen) => [WORKSPACE_PATHS[screen], screen] as const,
+  ),
+);
 
 function readInitialRoute(): InitialRoute {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
@@ -191,7 +193,7 @@ function readInitialRoute(): InitialRoute {
   // /plans links keep working by landing there instead of on an unknown route.
   if (path === '/plans')
     return { screen: 'home', scanId: null, emailAction: null, scrollTo: 'pricing' };
-  const workspaceScreen = WORKSPACE_PATHS[path];
+  const workspaceScreen = SCREEN_BY_WORKSPACE_PATH[path];
   if (workspaceScreen !== undefined)
     return { screen: workspaceScreen, scanId: null, emailAction: null, scrollTo: null };
   const scanRoute = readScanRoute(path);
@@ -346,7 +348,18 @@ function AppContent({
 
   useEffect(() => {
     if (['privacy', 'terms', 'cookies', 'checks', 'faq'].includes(entryRoute.screen)) {
+      // A public document renders at once for anyone and never waits on the API.
+      // The session is read alongside only so its header can offer the workspace
+      // to a signed-in reader, as the header on every other page does.
       setBooting(false);
+      apiRequest<Account>('/auth/me')
+        .then(setAccount)
+        .catch((caught: unknown) => {
+          // Either way the header keeps its visitor state. A visitor with no
+          // session is the ordinary answer; anything else is worth a console line.
+          if (caught instanceof ApiRequestError && caught.status === 401) return;
+          console.error('FluxRadar session unavailable', caught);
+        });
       return;
     }
     apiRequest<Account>('/auth/me')
@@ -548,14 +561,31 @@ function AppContent({
   }
   if (screen === 'privacy' || screen === 'terms' || screen === 'cookies') {
     return (
-      <LegalDocumentScreen kind={screen} language={language} onLanguageChange={changeLanguage} />
+      <LegalDocumentScreen
+        kind={screen}
+        language={language}
+        onLanguageChange={changeLanguage}
+        signedIn={account !== null}
+      />
     );
   }
   if (screen === 'checks') {
-    return <AuditCoverageScreen language={language} onLanguageChange={changeLanguage} />;
+    return (
+      <AuditCoverageScreen
+        language={language}
+        onLanguageChange={changeLanguage}
+        signedIn={account !== null}
+      />
+    );
   }
   if (screen === 'faq') {
-    return <FaqScreen language={language} onLanguageChange={changeLanguage} />;
+    return (
+      <FaqScreen
+        language={language}
+        onLanguageChange={changeLanguage}
+        signedIn={account !== null}
+      />
+    );
   }
   if (booting) {
     return (
@@ -597,7 +627,6 @@ function AppContent({
           navigate('auth');
         }}
         onOpenWorkspace={() => undefined}
-        onOpenIntegrations={() => undefined}
         scrollTo={entryRoute.scrollTo}
         language={language}
         onLanguageChange={changeLanguage}
@@ -625,7 +654,7 @@ function AppContent({
         onLogin={() => undefined}
         onRegister={() => undefined}
         onOpenWorkspace={() => navigate('desktop')}
-        onOpenIntegrations={() => navigate('integrations')}
+        onOpenScreen={navigate}
         scrollTo={entryRoute.scrollTo}
         language={language}
         onLanguageChange={changeLanguage}
@@ -1055,7 +1084,11 @@ function HomeScreen(props: {
   onLogin: () => void;
   onRegister: () => void;
   onOpenWorkspace: () => void;
-  onOpenIntegrations: () => void;
+  /**
+   * Opens the workspace screen a header tab names. The header enables all four
+   * tabs for a signed-in reader, so each of them needs somewhere to go.
+   */
+  onOpenScreen?: (screen: string) => void;
   /** Section to reveal on entry when an old link pointed at a folded-in page. */
   scrollTo?: 'pricing' | null;
   language: Language;
@@ -1115,15 +1148,7 @@ function HomeScreen(props: {
     <div className="app-shell home-shell">
       <MenuBar
         active="home"
-        onNavigate={(next) =>
-          next === 'home'
-            ? scrollTo('top')
-            : next === 'desktop'
-              ? props.onOpenWorkspace()
-              : next === 'integrations'
-                ? props.onOpenIntegrations()
-                : undefined
-        }
+        onNavigate={(next) => (next === 'home' ? scrollTo('top') : props.onOpenScreen?.(next))}
         signedIn={props.signedIn}
         language={props.language}
         onLanguageChange={props.onLanguageChange}

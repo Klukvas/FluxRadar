@@ -1,8 +1,8 @@
 # Audit coverage — maintainer reference
 
 **Public URL:** `/checks`  
-**Source:** `AuditCoverageScreen` in `apps/web/src/App.tsx`  
-**Route type:** Static public SPA route — no authentication, no API calls.  
+**Source:** `AuditCoverageScreen` in `apps/web/src/Checks.tsx`  
+**Route type:** Public SPA route — no authentication. It renders without waiting on the API; the only request is a background session read for the site header.  
 **Ruleset version reflected:** v0.1
 
 ---

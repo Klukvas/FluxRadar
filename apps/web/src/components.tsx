@@ -12,6 +12,7 @@ import { FLUXLAB_URL, createdByFluxLab } from './brand';
 import { copy, fillCopy, languageOptions, type Language } from './i18n';
 import { statusKind } from './status-kind';
 import { tourTargets } from './tour-targets';
+import { WORKSPACE_PATHS, type WorkspaceTabScreen } from './workspace-paths';
 
 export function Window(props: {
   title: string;
@@ -88,7 +89,7 @@ export function CreatedByFluxLab(props: { language: Language }) {
  * still "in reports" on each of them.
  */
 const WORKSPACE_TABS: readonly {
-  readonly screen: string;
+  readonly screen: WorkspaceTabScreen;
   readonly label: 'profiles' | 'scan' | 'reports' | 'integrations';
   readonly matches: readonly string[];
 }[] = [
@@ -107,10 +108,11 @@ const WORKSPACE_TABS: readonly {
  * `variant` decides how those destinations are wired, not which of them exist.
  * The `app` variant lives inside the running SPA, so it navigates through
  * `onNavigate` and enables the workspace tabs once there is a session. The
- * `public` variant is for pages rendered without that callback — /faq, and the
- * static blog pages that hand-write this same markup — so it links out with
- * plain `href`s and shows the workspace tabs in the signed-out state every
- * public document already shows them in.
+ * `public` variant is for the public documents — /faq, /checks, /privacy,
+ * /terms, /cookies — and for the static blog pages that hand-write this same
+ * markup, so it links out with plain `href`s. Its workspace tabs are disabled
+ * for a visitor and become links into the workspace once the page learns the
+ * reader has a session. The static blog never learns it and stays signed-out.
  *
  * Known, and the same on every page: between the burger breakpoint and roughly
  * 1000px the row is wider than the bar, so `.menubar__nav` scrolls sideways and
@@ -122,6 +124,11 @@ export type MenuBarProps =
   | {
       variant: 'public';
       active: string;
+      /**
+       * Whether the reader has a session. A public document renders before it
+       * knows, so this starts false and turns true when the session answers.
+       */
+      signedIn?: boolean;
       language: Language;
       onLanguageChange: (language: Language) => void;
     }
@@ -136,9 +143,9 @@ export type MenuBarProps =
 
 export function MenuBar(props: MenuBarProps) {
   const isPublic = props.variant === 'public';
-  // A public page never knows about a session, so its workspace tabs render the
-  // way they do for a signed-out visitor on the home page.
-  const isSignedIn = props.variant === 'public' ? false : props.signedIn;
+  // A public page learns about a session after it renders; until it does, its
+  // workspace tabs look the way they do for a signed-out visitor on the home page.
+  const isSignedIn = props.variant === 'public' ? (props.signedIn ?? false) : props.signedIn;
   const labels = copy[props.language].nav;
   const [isMenuOpen, setMenuOpen] = useState(false);
 
@@ -236,20 +243,36 @@ export function MenuBar(props: MenuBarProps) {
               {labels.home}
             </button>
           )}
-          {WORKSPACE_TABS.map((tab) => (
-            <button
-              key={tab.screen}
-              className={
-                tab.matches.includes(props.active) ? 'menubar__item is-active' : 'menubar__item'
-              }
-              type="button"
-              title={labels.descriptions[tab.label]}
-              onClick={() => navigateAndClose(tab.screen)}
-              disabled={!isSignedIn}
-            >
-              {labels[tab.label]}
-            </button>
-          ))}
+          {WORKSPACE_TABS.map((tab) => {
+            const className = tab.matches.includes(props.active)
+              ? 'menubar__item is-active'
+              : 'menubar__item';
+            // A public page cannot switch the app's screen, so a signed-in reader
+            // gets a plain link; the workspace boots there with the session. The
+            // language rides along, since it is only stored with consent.
+            return isPublic && isSignedIn ? (
+              <a
+                key={tab.screen}
+                className={className}
+                href={`${WORKSPACE_PATHS[tab.screen]}?lang=${props.language}`}
+                title={labels.descriptions[tab.label]}
+                onClick={() => setMenuOpen(false)}
+              >
+                {labels[tab.label]}
+              </a>
+            ) : (
+              <button
+                key={tab.screen}
+                className={className}
+                type="button"
+                title={labels.descriptions[tab.label]}
+                onClick={() => navigateAndClose(tab.screen)}
+                disabled={!isSignedIn}
+              >
+                {labels[tab.label]}
+              </button>
+            );
+          })}
           <a
             className={props.active === 'faq' ? 'menubar__item is-active' : 'menubar__item'}
             href="/faq"
