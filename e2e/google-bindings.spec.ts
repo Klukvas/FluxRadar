@@ -138,6 +138,10 @@ async function installGoogleFixtures(
       await json(route, discovery);
       return;
     }
+    if (path === '/integrations/google/bindings' && request.method() === 'GET') {
+      await json(route, Object.values(savedBindings));
+      return;
+    }
     const bindingMatch = /^\/profiles\/([^/]+)\/google-binding$/.exec(path);
     if (bindingMatch !== null) {
       const profileId = bindingMatch[1];

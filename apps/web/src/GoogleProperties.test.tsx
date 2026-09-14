@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { apiRequest, type SiteProfile } from './api';
@@ -69,7 +69,8 @@ interface Call {
   readonly body: Record<string, unknown> | null;
 }
 
-type Handler = (call: Call) => Response;
+/** A promise lets a test hold a reply back and release it after the screen has moved on. */
+type Handler = (call: Call) => Response | Promise<Response>;
 
 function envelope<T>(data: T, status = 200): Response {
   return new Response(JSON.stringify({ success: true, data, error: null }), {
@@ -85,7 +86,12 @@ function failure(status: number, code: string, message: string): Response {
   });
 }
 
-function stubApi(handler: Handler): Call[] {
+/**
+ * Every panel load also reads the account's bindings for the domain overview,
+ * and fails without them. A scenario states its bindings here instead of
+ * answering that path in its own handler.
+ */
+function stubApi(handler: Handler, bindings: readonly unknown[] | 'unavailable' = []): Call[] {
   const calls: Call[] = [];
   vi.stubGlobal(
     'fetch',
@@ -97,10 +103,23 @@ function stubApi(handler: Handler): Call[] {
           typeof init.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : null,
       };
       calls.push(call);
+      if (call.path === '/integrations/google/bindings' && call.method === 'GET') {
+        return Promise.resolve(
+          bindings === 'unavailable'
+            ? failure(503, 'SERVICE_UNAVAILABLE', 'Bindings are unavailable.')
+            : envelope(bindings),
+        );
+      }
       return Promise.resolve(handler(call));
     }),
   );
   return calls;
+}
+
+/** The select a field label belongs to. */
+function selectFor(label: string): HTMLSelectElement {
+  const field = screen.getByText(label, { selector: '.field__label' }).closest('label');
+  return (field as HTMLElement).querySelector('select') as HTMLSelectElement;
 }
 
 /**
@@ -133,6 +152,222 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// ─── Two profiles, three Search Console domains ──────────────────────────────
+//
+// Shared by the domain overview tests below. shop.example.com is listed first,
+// so it is the profile selected when the panel opens and the free profile at
+// sc-domain:example.com; flux-lab.dev already reads its own domain; blog.test is
+// what a Create makes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const shop = { id: 'profile-shop', name: 'shop.example.com', domain: 'https://shop.example.com' };
+const flux = { id: 'profile-flux', name: 'flux-lab.dev', domain: 'https://flux-lab.dev' };
+const blog = { id: 'profile-blog', name: 'blog.test', domain: 'https://blog.test' };
+const fluxBinding = {
+  siteProfileId: flux.id,
+  searchConsoleSiteUrl: 'sc-domain:flux-lab.dev',
+  ga4PropertyId: null,
+  ga4PropertyName: null,
+  updatedAt: '2026-09-14T00:00:00.000Z',
+};
+
+const domainsHandler: Handler = ({ path, method, body }) => {
+  if (path === '/integrations') return envelope([googleRow, bingRow]);
+  if (path === '/profiles' && method === 'POST') return envelope(blog);
+  if (path === '/profiles') return envelope([shop, flux]);
+  if (path === '/integrations/google/properties')
+    return envelope(
+      discovery(['sc-domain:flux-lab.dev', 'sc-domain:example.com', 'https://blog.test/']),
+    );
+  const match = /^\/profiles\/([^/]+)\/google-binding$/.exec(path);
+  if (match !== null && method === 'PUT') {
+    return envelope({
+      siteProfileId: match[1],
+      ...body,
+      ga4PropertyName: null,
+      updatedAt: '2026-09-14T00:01:00.000Z',
+    });
+  }
+  if (match !== null) return envelope(match[1] === flux.id ? fluxBinding : null);
+  return envelope(null);
+};
+
+function domainRow(siteUrl: string): HTMLElement {
+  return screen
+    .getByText(siteUrl, { selector: '.technical' })
+    .closest('.google-properties__row') as HTMLElement;
+}
+
+describe('linking several Google domains to several profiles', () => {
+  // One Google account can read several domains, and an account can hold several
+  // profiles. The panel configured only the selected profile, and a domain could
+  // become a profile only while the account had none — so the second domain
+  // could never be turned into a linked profile from here.
+  const linkMessage = fillCopy(en.domainLinkedMessage, {
+    property: 'sc-domain:example.com',
+    name: shop.name,
+  });
+
+  it('shows which profile each domain feeds, with the action each row needs', async () => {
+    stubApi(domainsHandler, [fluxBinding]);
+    render(<Harness />);
+
+    expect(await screen.findByRole('heading', { name: en.domainsHeading })).toBeInTheDocument();
+    expect(domainRow('sc-domain:flux-lab.dev')).toHaveTextContent(
+      fillCopy(en.domainLinked, { profiles: flux.name }),
+    );
+    expect(domainRow('sc-domain:example.com')).toHaveTextContent(
+      fillCopy(en.domainMatching, { profile: shop.name }),
+    );
+    expect(
+      within(domainRow('https://blog.test/')).getByRole('button', {
+        name: `${en.create} · https://blog.test/`,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('links a domain to the free profile at its address and updates the row', async () => {
+    const calls = stubApi(domainsHandler, [fluxBinding]);
+    render(<Harness />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: `${en.domainLink} · sc-domain:example.com` }),
+    );
+
+    expect(await screen.findByText(linkMessage)).toBeInTheDocument();
+    expect(calls.find((call) => call.method === 'PUT')).toMatchObject({
+      path: `/profiles/${shop.id}/google-binding`,
+      body: { searchConsoleSiteUrl: 'sc-domain:example.com', ga4PropertyId: null },
+    });
+    expect(domainRow('sc-domain:example.com')).toHaveTextContent(
+      fillCopy(en.domainLinked, { profiles: shop.name }),
+    );
+  });
+
+  it('opens a linked domain’s profile in the pickers', async () => {
+    stubApi(domainsHandler, [fluxBinding]);
+    render(<Harness />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: `${en.domainConfigure} · sc-domain:flux-lab.dev` }),
+    );
+
+    await waitFor(() => expect(selectFor(en.profileLabel).value).toBe(flux.id));
+  });
+
+  // With profiles already saved, the new profile was selected before the profile
+  // list reloaded; the panel then took it for a deleted profile, jumped back to
+  // the first one and wiped the message about the create.
+  it('keeps a profile created from a domain selected when other profiles exist', async () => {
+    let isCreated = false;
+    const calls = stubApi(
+      (call) => {
+        if (call.path === '/profiles' && call.method === 'POST') {
+          isCreated = true;
+          return envelope(blog);
+        }
+        if (call.path === '/profiles')
+          return envelope(isCreated ? [shop, flux, blog] : [shop, flux]);
+        return domainsHandler(call);
+      },
+      [fluxBinding],
+    );
+    render(<Harness />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: `${en.create} · https://blog.test/` }),
+    );
+
+    const created = fillCopy(en.createdLinked, { name: blog.name, property: 'https://blog.test/' });
+    expect(await screen.findByText(created)).toBeInTheDocument();
+    await waitFor(() => expect(selectFor(en.profileLabel).value).toBe(blog.id));
+    expect(screen.getByText(created)).toBeInTheDocument();
+    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
+      name: 'blog.test',
+      domain: 'https://blog.test',
+    });
+  });
+});
+
+describe('the Google properties panel while it is busy or partly unreadable', () => {
+  // A reload or a second action that started before a link could finish after
+  // it and put the old binding back into the selectors — one Save away from
+  // undoing the link.
+  it('locks the profile choice, Save, Refresh and every domain action while a link runs', async () => {
+    stubApi(
+      (call) =>
+        call.method === 'PUT' ? new Promise<Response>(() => undefined) : domainsHandler(call),
+      [fluxBinding],
+    );
+    render(<Harness />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: `${en.domainLink} · sc-domain:example.com` }),
+    );
+
+    expect(selectFor(en.profileLabel)).toBeDisabled();
+    expect(screen.getByRole('button', { name: en.save })).toBeDisabled();
+    expect(screen.getByRole('button', { name: en.refresh })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: `${en.domainConfigure} · sc-domain:flux-lab.dev` }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: `${en.create} · https://blog.test/` }),
+    ).toBeDisabled();
+  });
+
+  // A failed reload left the selection on the new profile, which the picker did
+  // not list, so the next Save went to a profile the owner could not see.
+  it('returns to a listed profile and says the new one exists when the list cannot reload', async () => {
+    let isCreated = false;
+    stubApi(
+      (call) => {
+        if (call.path === '/profiles' && call.method === 'POST') isCreated = true;
+        if (call.path === '/profiles' && call.method === 'GET' && isCreated) {
+          return failure(503, 'SERVICE_UNAVAILABLE', 'Profiles are unavailable.');
+        }
+        return domainsHandler(call);
+      },
+      [fluxBinding],
+    );
+    render(<Harness />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: `${en.create} · https://blog.test/` }),
+    );
+
+    expect(
+      await screen.findByText(fillCopy(en.createdListFailed, { name: blog.name })),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(selectFor(en.profileLabel).value).toBe(shop.id));
+  });
+
+  it('keeps the selectors working and says so when the linked domains cannot be read', async () => {
+    stubApi(domainsHandler, 'unavailable');
+    render(<Harness />);
+
+    expect(await screen.findByText(en.domainsUnavailable)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: en.domainsHeading })).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: en.save })).toBeEnabled());
+  });
+
+  // After a failed load the selectors read "Not linked" for want of an answer;
+  // saving them would have unlinked what the profile really reads.
+  it('does not offer Save for a profile whose binding could not be loaded', async () => {
+    stubApi(
+      (call) =>
+        call.path === '/integrations/google/properties'
+          ? failure(503, 'GOOGLE_UNAVAILABLE', 'Google could not be reached.')
+          : domainsHandler(call),
+      [fluxBinding],
+    );
+    render(<Harness />);
+
+    expect(await screen.findByText(en.loadFailed)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: en.save })).toBeDisabled();
+  });
+});
+
 describe('why a Google property list is empty', () => {
   const savedProfile = { id: 'profile-1', name: 'flux-lab.dev', domain: 'https://flux-lab.dev' };
 
@@ -148,8 +383,7 @@ describe('why a Google property list is empty', () => {
 
   /** The select a field label belongs to, and the message it is described by. */
   function fieldParts(label: string): { select: HTMLSelectElement; described: string | null } {
-    const field = screen.getByText(label).closest('label') as HTMLElement;
-    const select = field.querySelector('select') as HTMLSelectElement;
+    const select = selectFor(label);
     const describedBy = select.getAttribute('aria-describedby');
     return {
       select,

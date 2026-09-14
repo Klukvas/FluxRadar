@@ -571,6 +571,7 @@ export function SelectField(props: {
    * `aria-invalid` — the choice is not wrong, the list behind it was not filled.
    */
   error?: string;
+  disabled?: boolean;
 }) {
   const errorId = useId();
   const hasError = props.error !== undefined && props.error !== '';
@@ -584,6 +585,7 @@ export function SelectField(props: {
         onChange={(event) => props.onChange(event.target.value)}
         autoComplete={props.autoComplete}
         aria-describedby={hasError ? errorId : undefined}
+        disabled={props.disabled}
       >
         {props.options.map((option) => (
           <option key={option.value} value={option.value}>

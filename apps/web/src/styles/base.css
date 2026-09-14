@@ -862,7 +862,8 @@ code,
   margin: 4px 0 0;
 }
 
-.google-properties__create {
+.google-properties__create,
+.google-properties__domains {
   margin-top: var(--sp-3);
 }
 .google-properties__list {
@@ -882,6 +883,20 @@ code,
 /* A Search Console property is a URL and can be longer than its column. */
 .google-properties__row > span {
   overflow-wrap: anywhere;
+}
+/* Which profile a domain feeds, under the domain it describes. */
+.google-properties__status {
+  display: block;
+  margin-top: 4px;
+  color: var(--plat-600);
+  font-size: 11px;
+}
+/* A domain read by several profiles has one Configure button per profile. */
+.google-properties__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
 }
 
 .terminal {

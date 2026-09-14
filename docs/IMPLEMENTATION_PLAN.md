@@ -153,16 +153,39 @@ binding for one profile does not silently change another profile. This is browse
 coverage, not a live OAuth or Google quota test; the authenticated provider contract remains
 covered by the API and component tests.
 
-### Planned follow-up: Google bindings overview
+### Implemented: Search Console domains overview
 
-The current Integrations screen configures only the selected profile and does not make the
-account's existing Google bindings visible as a list. The follow-up must:
+The Integrations screen configured only the selected profile, and a Search Console domain could
+become a profile only while the account had none, so a second domain of the same Google account
+could not be linked to a second profile from there. Once the account has a profile, the Google
+properties panel now:
 
-- show one row per FluxRadar profile with its Search Console and GA4 binding status;
-- distinguish linked, partially linked, and not linked profiles in the row itself;
-- provide a clear "Configure" action for each profile that opens the existing property selectors;
-- keep one binding per profile while allowing different profiles to use different Google
+- lists every Search Console domain the connected Google account can read, one row each, using
+  `GET /integrations/google/bindings` (all of the account's bindings in one request); when that
+  list cannot be read, the overview is replaced by a notice and the selectors keep working;
+- says per row whether profiles already read the domain, a free profile matches it, the profile at
+  that address already reads another domain, the domain cannot become an audited address (e.g.
+  `http://`), or no profile exists at its address (`apps/web/src/google-domains.ts`);
+- offers the row's action: "Configure" opens each linked profile in the existing selectors, "Link"
+  binds the domain to a free profile at its address (or, for a domain property, on one of its
+  subdomains) and keeps that profile's GA4 property, and "Create profile" creates and links a new
+  profile;
+- keeps one binding per profile while allowing different profiles to use different Google
   properties.
+
+Pairing a domain with a profile at an unrelated address still goes through the selectors of the
+selected profile. An account with no profile yet keeps the original list of Search Console
+properties to create a profile from, without per-row status.
+
+### Planned follow-up: per-profile Google bindings overview
+
+The domains overview is keyed by Search Console domain, so it does not yet cover what the original
+overview plan asked for per profile. The follow-up must:
+
+- show one row per FluxRadar profile with its Search Console and GA4 binding status, including a
+  profile whose domain is not in Google's list;
+- distinguish linked, partially linked, and not linked profiles in the row itself;
+- provide a clear "Configure" action for each profile that opens the existing property selectors.
 
 ### Implemented: profiles as saved Complete-run configurations
 

@@ -18,6 +18,11 @@ export type SearchConsoleOriginResult =
 
 const DOMAIN_PROPERTY_PREFIX = 'sc-domain:';
 
+/** A domain property (`sc-domain:example.com`) covers its host and every subdomain of it. */
+export function isDomainProperty(siteUrl: string): boolean {
+  return siteUrl.trim().toLowerCase().startsWith(DOMAIN_PROPERTY_PREFIX);
+}
+
 /** A public site needs a dotted host — `localhost` or a bare word cannot be one. */
 function isPublicHost(host: string): boolean {
   return host.includes('.') && !host.startsWith('.') && !host.endsWith('.');
@@ -40,7 +45,7 @@ export function originFromSearchConsoleProperty(siteUrl: string): SearchConsoleO
   const trimmed = siteUrl.trim();
   if (trimmed === '' || /\s/.test(trimmed)) return { ok: false, reason: 'unsupported' };
 
-  if (trimmed.toLowerCase().startsWith(DOMAIN_PROPERTY_PREFIX)) {
+  if (isDomainProperty(trimmed)) {
     const host = trimmed.slice(DOMAIN_PROPERTY_PREFIX.length);
     // A domain property is a bare registrable host: anything carrying a path,
     // port, credentials or scheme is not the shape Google documents, and

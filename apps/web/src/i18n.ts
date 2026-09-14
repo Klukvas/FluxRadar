@@ -1089,6 +1089,22 @@ export const copy = {
           'This Google account has no Search Console property FluxRadar can read, so there is nothing to create a profile from yet.',
         analyticsOnlyNote:
           'An Analytics property on its own does not create a profile: it carries no site address to audit. Add the profile manually, then link its Analytics property here.',
+        domainsHeading: 'Search Console domains',
+        domainsBody:
+          'Every domain this Google account can read, and the FluxRadar profile it feeds. Link a domain to the profile at the same address, or create a profile for it.',
+        domainLinked: 'Linked · {profiles}',
+        domainMatching: 'Profile {profile} matches this domain but is not linked yet',
+        domainOccupied: 'Profile {profile} is at this address and already reads another domain',
+        domainUnlinked: 'No profile at this address yet',
+        domainConfigure: 'Configure',
+        domainConfigureProfile: 'Configure {profile}',
+        domainLink: 'Link',
+        domainLinking: 'Linking…',
+        domainLinkedMessage: 'Domain {property} is linked to profile {name}.',
+        domainsUnavailable:
+          'The domains already linked to profiles could not be loaded. Refresh the list to try again.',
+        createdListFailed:
+          'Profile {name} was created, but the profile list could not be reloaded. Reload the page to see it.',
       },
       policyTitle: 'Current policy',
       policyBody:
@@ -2102,6 +2118,22 @@ export const copy = {
           'У цього акаунта Google немає ресурсів Search Console, доступних FluxRadar, тому створювати профіль поки що немає з чого.',
         analyticsOnlyNote:
           'Ресурс Analytics сам собою не створює профіль: у ньому немає адреси сайту для перевірки. Додайте профіль вручну, а потім звʼяжіть із ним ресурс Analytics тут.',
+        domainsHeading: 'Домени Search Console',
+        domainsBody:
+          'Усі домени, доступні цьому акаунту Google, і профіль FluxRadar, якому кожен із них передає дані. Звʼяжіть домен із профілем за тією ж адресою або створіть для нього профіль.',
+        domainLinked: 'Звʼязано · {profiles}',
+        domainMatching: 'Профіль {profile} підходить до цього домену, але ще не звʼязаний',
+        domainOccupied: 'Профіль {profile} має цю адресу, але вже читає інший домен',
+        domainUnlinked: 'За цією адресою ще немає профілю',
+        domainConfigure: 'Налаштувати',
+        domainConfigureProfile: 'Налаштувати {profile}',
+        domainLink: 'Звʼязати',
+        domainLinking: 'Звʼязуємо…',
+        domainLinkedMessage: 'Домен {property} звʼязано з профілем {name}.',
+        domainsUnavailable:
+          'Не вдалося завантажити, які домени вже звʼязано з профілями. Оновіть список, щоб спробувати ще раз.',
+        createdListFailed:
+          'Профіль {name} створено, але список профілів не вдалося оновити. Перезавантажте сторінку, щоб його побачити.',
       },
       policyTitle: 'Поточна політика',
       policyBody:

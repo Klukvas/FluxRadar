@@ -16,12 +16,12 @@ import {
   type SiteProfile,
 } from './api';
 import { Button, EmptyState, Panel, SelectField } from './components';
+import { GoogleDomains } from './GoogleDomains';
+import { originProblemCopy, type GoogleCopy } from './google-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { originFromSearchConsoleProperty } from './search-console-origin';
 
 const NONE = '';
-
-type GoogleCopy = (typeof copy)[Language]['integrations']['google'];
 
 /**
  * The one sentence the panel is currently saying about its own last action.
@@ -79,6 +79,35 @@ function discoveryNotice(
 }
 
 /**
+ * The sentence shown for a failed save or link.
+ *
+ * The "you do not have that property" refusal is already a sentence an owner
+ * can act on, and it names the property; anything else is not.
+ */
+function saveFailureCopy(t: GoogleCopy, error: unknown): string {
+  return error instanceof ApiRequestError && error.code === 'GOOGLE_PROPERTY_NOT_AVAILABLE'
+    ? error.message
+    : t.saveFailed;
+}
+
+/**
+ * Every binding of the account, or null when the list could not be read.
+ *
+ * The domain overview offers Link only for a profile it believes reads no
+ * domain, so an unreadable or malformed list must replace the overview with a
+ * notice rather than read as "nothing linked". The selectors of the chosen
+ * profile do not depend on it and keep working.
+ */
+async function loadBindings(): Promise<readonly GoogleBinding[] | null> {
+  try {
+    const bindings = await apiRequest<unknown>('/integrations/google/bindings');
+    return Array.isArray(bindings) ? (bindings as readonly GoogleBinding[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The sentence shown for a failed create, chosen by the API's own error code.
  *
  * Server prose is never rendered here: "a profile for this domain already
@@ -101,6 +130,18 @@ export function GoogleProperties(props: Props) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<PanelMessage>(null);
   const [creatingProperty, setCreatingProperty] = useState<string | null>(null);
+  const [linkingProperty, setLinkingProperty] = useState<string | null>(null);
+  /**
+   * Every profile's binding, for the domain overview; null until read, or when it
+   * could not be. `binding` is the selected profile's.
+   */
+  const [bindings, setBindings] = useState<readonly GoogleBinding[] | null>(null);
+  /**
+   * The profile whose binding the selectors were last filled from. Until it is
+   * the selected profile, the selectors show "Not linked" for want of an answer,
+   * and saving them would unlink whatever that profile really reads.
+   */
+  const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const [searchConsoleSiteUrl, setSearchConsoleSiteUrl] = useState(NONE);
   const [ga4PropertyId, setGa4PropertyId] = useState(NONE);
   // A profile can change while Google is answering. Generations distinguish
@@ -108,11 +149,25 @@ export function GoogleProperties(props: Props) {
   // selectors or announce a save for the wrong profile.
   const loadGeneration = useRef(0);
   const saveGeneration = useRef(0);
+  // Every binding change the panel made itself bumps this, so a reload that was
+  // already on its way cannot put back the list from before that change.
+  const bindingsRevision = useRef(0);
+  // The profile a create just made. The profile list reloads after the create,
+  // and until it contains the new profile, "the selected profile is gone" must
+  // not throw the selection back to the first profile and wipe the message.
+  const createdProfileId = useRef<string | null>(null);
 
   const hasProfiles = props.profiles.length > 0;
 
   useEffect(() => {
-    if (hasProfiles && !props.profiles.some((profile) => profile.id === profileId)) {
+    if (props.profiles.some((profile) => profile.id === createdProfileId.current)) {
+      createdProfileId.current = null;
+    }
+    if (
+      hasProfiles &&
+      profileId !== createdProfileId.current &&
+      !props.profiles.some((profile) => profile.id === profileId)
+    ) {
       loadGeneration.current += 1;
       saveGeneration.current += 1;
       setProfileId(props.profiles[0]?.id ?? NONE);
@@ -145,22 +200,31 @@ export function GoogleProperties(props: Props) {
     if (!props.connected) return;
     const generation = loadGeneration.current + 1;
     loadGeneration.current = generation;
+    const revision = bindingsRevision.current;
     setLoading(true);
+    setLoadedProfileId(null);
     setBinding(null);
     setSearchConsoleSiteUrl(NONE);
     setGa4PropertyId(NONE);
     try {
-      const [properties, current] = await Promise.all([
+      const [properties, current, all] = await Promise.all([
         apiRequest<GoogleDiscovery>('/integrations/google/properties'),
         profileId === NONE
           ? Promise.resolve(null)
           : apiRequest<GoogleBinding | null>(`/profiles/${profileId}/google-binding`),
+        loadBindings(),
       ]);
       if (loadGeneration.current !== generation) return;
       setDiscovery(properties);
+      if (bindingsRevision.current === revision) setBindings(all);
+      // The selectors take the fetched binding unconditionally. No save, link or
+      // create can start while a load runs, and none of them can start a load of
+      // the profile it is changing (see `isMutating` and `isLocked` below), so
+      // nothing newer than this answer can exist for the selected profile.
       setBinding(current);
       setSearchConsoleSiteUrl(current?.searchConsoleSiteUrl ?? NONE);
       setGa4PropertyId(current?.ga4PropertyId ?? NONE);
+      setLoadedProfileId(profileId);
     } catch {
       if (loadGeneration.current === generation) {
         setMessage({ tone: 'error', text: t.loadFailed });
@@ -193,6 +257,59 @@ export function GoogleProperties(props: Props) {
     void load();
   };
 
+  /** Keeps the domain overview in step with a binding the API just returned. */
+  const rememberBinding = (updated: GoogleBinding) => {
+    bindingsRevision.current += 1;
+    // A list that could not be read stays unknown: one known binding does not
+    // make the others known.
+    setBindings((current) =>
+      current === null
+        ? null
+        : [...current.filter((entry) => entry.siteProfileId !== updated.siteProfileId), updated],
+    );
+  };
+
+  /**
+   * Links a Search Console domain to the profile at its address, keeping that
+   * profile's Analytics property. The profile need not be the one selected in
+   * the pickers; when it is, the pickers follow.
+   *
+   * The overview always takes the answer. The pickers and the message take it
+   * only while nothing else moved the panel on: a profile switch or a save
+   * bumps the save generation, exactly as for `save`, so a late reply cannot
+   * paint one profile's domain into another profile's pickers.
+   */
+  const linkDomain = async (profile: SiteProfile, siteUrl: string) => {
+    const generation = saveGeneration.current;
+    setLinkingProperty(siteUrl);
+    setMessage(null);
+    try {
+      const current = bindings?.find((entry) => entry.siteProfileId === profile.id);
+      const linked = await apiRequest<GoogleBinding>(`/profiles/${profile.id}/google-binding`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          searchConsoleSiteUrl: siteUrl,
+          ga4PropertyId: current?.ga4PropertyId ?? null,
+        }),
+      });
+      rememberBinding(linked);
+      if (saveGeneration.current !== generation) return;
+      if (profile.id === profileId) {
+        setBinding(linked);
+        setSearchConsoleSiteUrl(linked.searchConsoleSiteUrl ?? NONE);
+      }
+      setMessage({
+        tone: 'ok',
+        text: fillCopy(t.domainLinkedMessage, { property: siteUrl, name: profile.name }),
+      });
+    } catch (caught) {
+      if (saveGeneration.current !== generation) return;
+      setMessage({ tone: 'error', text: saveFailureCopy(t, caught) });
+    } finally {
+      setLinkingProperty(null);
+    }
+  };
+
   const save = async () => {
     const generation = saveGeneration.current + 1;
     saveGeneration.current = generation;
@@ -206,6 +323,7 @@ export function GoogleProperties(props: Props) {
           ga4PropertyId: ga4PropertyId === NONE ? null : ga4PropertyId,
         }),
       });
+      rememberBinding(updated);
       if (saveGeneration.current !== generation) return;
       setBinding(updated);
       setMessage({
@@ -217,15 +335,7 @@ export function GoogleProperties(props: Props) {
       });
     } catch (caught) {
       if (saveGeneration.current !== generation) return;
-      // The "you do not have that property" refusal is already a sentence an
-      // owner can act on, and it names the property; anything else is not.
-      setMessage({
-        tone: 'error',
-        text:
-          caught instanceof ApiRequestError && caught.code === 'GOOGLE_PROPERTY_NOT_AVAILABLE'
-            ? caught.message
-            : t.saveFailed,
-      });
+      setMessage({ tone: 'error', text: saveFailureCopy(t, caught) });
     } finally {
       if (saveGeneration.current === generation) setSaving(false);
     }
@@ -244,10 +354,7 @@ export function GoogleProperties(props: Props) {
   const createFromProperty = async (siteUrl: string) => {
     const converted = originFromSearchConsoleProperty(siteUrl);
     if (!converted.ok) {
-      setMessage({
-        tone: 'error',
-        text: converted.reason === 'insecure_scheme' ? t.createInsecure : t.createUnsupported,
-      });
+      setMessage({ tone: 'error', text: originProblemCopy(t, converted.reason) });
       return;
     }
     setCreatingProperty(siteUrl);
@@ -268,6 +375,7 @@ export function GoogleProperties(props: Props) {
         method: 'PUT',
         body: JSON.stringify({ searchConsoleSiteUrl: siteUrl, ga4PropertyId: null }),
       });
+      rememberBinding(linked);
       setBinding(linked);
       setSearchConsoleSiteUrl(linked.searchConsoleSiteUrl ?? NONE);
       setGa4PropertyId(linked.ga4PropertyId ?? NONE);
@@ -282,10 +390,27 @@ export function GoogleProperties(props: Props) {
       setMessage({ tone: 'error', text: fillCopy(t.createdUnlinked, { name: created.name }) });
     } finally {
       // Selecting the new profile is what makes the pickers describe it, so it
-      // happens whether or not the link landed.
+      // happens whether or not the link landed. See `createdProfileId`.
+      createdProfileId.current = created.id;
       setProfileId(created.id);
-      setCreatingProperty(null);
-      await props.onProfilesChanged();
+      try {
+        await props.onProfilesChanged();
+      } catch {
+        // Without the reloaded list the new profile is not in the picker, and a
+        // selection the picker cannot show would send the next Save to it. The
+        // selection goes back to a profile the picker lists, and the owner is
+        // told the profile exists.
+        createdProfileId.current = null;
+        loadGeneration.current += 1;
+        saveGeneration.current += 1;
+        setProfileId(props.profiles[0]?.id ?? NONE);
+        setMessage({ tone: 'error', text: fillCopy(t.createdListFailed, { name: created.name }) });
+      } finally {
+        // The profile choice stays locked until the picker's list has caught up
+        // with the create: picked during the reload, a profile could be undone by
+        // the reset above and leave the panel waiting on a load it cancelled.
+        setCreatingProperty(null);
+      }
     }
   };
 
@@ -296,6 +421,13 @@ export function GoogleProperties(props: Props) {
       </Panel>
     );
   }
+
+  // A link or a create changes which profile reads what. While one runs, the
+  // profile choice, Save and Refresh wait, so no answer from before it can land
+  // after it. Every row action, and Refresh, also waits while the panel loads or
+  // saves.
+  const isMutating = linkingProperty !== null || creatingProperty !== null;
+  const isLocked = loading || saving || isMutating;
 
   const searchConsoleSites = discovery?.searchConsole.items ?? [];
   const searchConsoleNotice =
@@ -377,6 +509,7 @@ export function GoogleProperties(props: Props) {
         label={t.profileLabel}
         value={profileId}
         onChange={selectProfile}
+        disabled={isMutating}
         options={props.profiles.map((profile) => ({ value: profile.id, label: profile.name }))}
       />
       {messageBlock}
@@ -411,15 +544,39 @@ export function GoogleProperties(props: Props) {
             ]}
           />
           <div className="button-row">
-            <Button variant="primary" disabled={saving} onClick={() => void save()}>
+            <Button
+              variant="primary"
+              disabled={saving || isMutating || loadedProfileId !== profileId}
+              onClick={() => void save()}
+            >
               {saving ? t.saving : t.save}
             </Button>
-            <Button disabled={loading} onClick={refresh}>
+            <Button disabled={loading || saving || isMutating} onClick={refresh}>
               {t.refresh}
             </Button>
           </div>
           {binding === null && message === null ? <p className="muted">{t.noBinding}</p> : null}
         </>
+      )}
+      {/* Outside the loading branch: choosing Configure switches the profile
+          above, and a list that vanished while it reloaded would jump the
+          page away from the row that was just clicked. */}
+      {discovery === null ? null : bindings === null ? (
+        <p className="muted">{t.domainsUnavailable}</p>
+      ) : (
+        <GoogleDomains
+          sites={searchConsoleSites}
+          profiles={props.profiles}
+          bindings={bindings}
+          language={props.language}
+          actions={{
+            busySiteUrl: linkingProperty ?? creatingProperty,
+            isLocked,
+            onConfigure: selectProfile,
+            onLink: (profile, siteUrl) => void linkDomain(profile, siteUrl),
+            onCreate: (siteUrl) => void createFromProperty(siteUrl),
+          }}
+        />
       )}
     </Panel>
   );

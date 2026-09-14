@@ -6,7 +6,7 @@
 // account can never point a report at a property it does not own.
 
 import { Router } from 'express';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, SiteGoogleBinding } from '@prisma/client';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../../auth/middleware.ts';
@@ -72,6 +72,25 @@ function section<T>(
  * property", which is wrong while the owner is still choosing one.
  */
 const LISTING_DENIED_DETAIL = 'Google refused to list the properties this account can read.';
+
+/** A binding as the API returns it: provider identifiers and names, never tokens. */
+interface GoogleBindingView {
+  readonly siteProfileId: string;
+  readonly searchConsoleSiteUrl: string | null;
+  readonly ga4PropertyId: string | null;
+  readonly ga4PropertyName: string | null;
+  readonly updatedAt: string;
+}
+
+function bindingView(binding: SiteGoogleBinding): GoogleBindingView {
+  return {
+    siteProfileId: binding.siteProfileId,
+    searchConsoleSiteUrl: binding.searchConsoleSiteUrl,
+    ga4PropertyId: binding.ga4PropertyId,
+    ga4PropertyName: binding.ga4PropertyName,
+    updatedAt: binding.updatedAt.toISOString(),
+  };
+}
 
 function discoveryFailure<T>(error: unknown): DiscoverySection<T> {
   const state = stateOf(error);
@@ -175,6 +194,17 @@ export function googleIntegrationRouter(deps: GoogleRouterDeps): Router {
     });
   });
 
+  // Every profile's binding at once, so the panel can show which Search Console
+  // domain feeds which profile without one request per profile.
+  router.get('/integrations/google/bindings', auth, async (req, res) => {
+    const accountId = accountIdFrom(res);
+    const bindings = await deps.prisma.siteGoogleBinding.findMany({
+      where: { accountId },
+      orderBy: { createdAt: 'asc' },
+    });
+    sendOk(res, bindings.map(bindingView));
+  });
+
   router.get('/profiles/:profileId/google-binding', auth, async (req, res) => {
     const accountId = accountIdFrom(res);
     const profile = await findOwnProfile(
@@ -185,18 +215,7 @@ export function googleIntegrationRouter(deps: GoogleRouterDeps): Router {
     const binding = await deps.prisma.siteGoogleBinding.findFirst({
       where: { siteProfileId: profile.id, accountId },
     });
-    sendOk(
-      res,
-      binding === null
-        ? null
-        : {
-            siteProfileId: profile.id,
-            searchConsoleSiteUrl: binding.searchConsoleSiteUrl,
-            ga4PropertyId: binding.ga4PropertyId,
-            ga4PropertyName: binding.ga4PropertyName,
-            updatedAt: binding.updatedAt.toISOString(),
-          },
-    );
+    sendOk(res, binding === null ? null : bindingView(binding));
   });
 
   router.put('/profiles/:profileId/google-binding', auth, async (req, res) => {
@@ -247,13 +266,7 @@ export function googleIntegrationRouter(deps: GoogleRouterDeps): Router {
       create: { accountId, siteProfileId: profile.id, ...data },
       update: data,
     });
-    sendOk(res, {
-      siteProfileId: profile.id,
-      searchConsoleSiteUrl: saved.searchConsoleSiteUrl,
-      ga4PropertyId: saved.ga4PropertyId,
-      ga4PropertyName: saved.ga4PropertyName,
-      updatedAt: saved.updatedAt.toISOString(),
-    });
+    sendOk(res, bindingView(saved));
   });
 
   router.delete('/profiles/:profileId/google-binding', auth, async (req, res) => {

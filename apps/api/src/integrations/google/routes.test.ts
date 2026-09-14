@@ -268,4 +268,58 @@ describe('google integration routes', () => {
 
     expect(stolen.status).toBe(404);
   });
+
+  it('lists every binding of the account for the domain overview, and none of another account', async () => {
+    const app = appFor();
+    const owner = request.agent(app);
+    await register(owner, 'google-bindings-owner@example.com');
+    const ownerRow = await db.prisma.account.findFirstOrThrow({
+      where: { email: 'google-bindings-owner@example.com' },
+    });
+    const shop = await owner
+      .post('/profiles')
+      .send({ name: 'Shop', domain: 'https://shop.example.com' });
+    const blog = await owner
+      .post('/profiles')
+      .send({ name: 'Blog', domain: 'https://blog.example.com' });
+    await db.prisma.siteGoogleBinding.createMany({
+      data: [
+        {
+          accountId: ownerRow.id,
+          siteProfileId: shop.body.data.id,
+          searchConsoleSiteUrl: 'sc-domain:example.com',
+        },
+        {
+          accountId: ownerRow.id,
+          siteProfileId: blog.body.data.id,
+          ga4PropertyId: '999',
+          ga4PropertyName: 'Blog',
+        },
+      ],
+    });
+
+    const listed = await owner.get('/integrations/google/bindings');
+
+    expect(listed.status).toBe(200);
+    expect(listed.body.data).toHaveLength(2);
+    expect(listed.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          siteProfileId: shop.body.data.id,
+          searchConsoleSiteUrl: 'sc-domain:example.com',
+          ga4PropertyId: null,
+        }),
+        expect.objectContaining({
+          siteProfileId: blog.body.data.id,
+          searchConsoleSiteUrl: null,
+          ga4PropertyId: '999',
+        }),
+      ]),
+    );
+
+    const intruder = request.agent(app);
+    await register(intruder, 'google-bindings-intruder@example.com');
+    const foreign = await intruder.get('/integrations/google/bindings');
+    expect(foreign.body.data).toEqual([]);
+  });
 });
