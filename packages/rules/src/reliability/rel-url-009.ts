@@ -12,6 +12,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { hasHttpResponse } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 
 const descriptor = requireDescriptor('REL-URL-009');
 
@@ -29,12 +30,15 @@ export const relUrl009ResponseTime: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'http',
-        evidence:
-          `Время ответа ${page.timingMs} ms > ${RESPONSE_TIME_THRESHOLD_MS} ms ` +
-          `(HTTP ${page.status} ${page.finalUrl})`,
-        recommendation:
-          'Ускорьте ответ сервера: кэширование, CDN или оптимизация backend — ' +
-          'порог отчёта 1.8 s на страницу.',
+        evidence: findingMessage('rel-url-009.evidence', {
+          responseMs: page.timingMs,
+          thresholdMs: RESPONSE_TIME_THRESHOLD_MS,
+          status: page.status,
+          url: page.finalUrl,
+        }),
+        recommendation: findingMessage('rel-url-009.recommendation', {
+          thresholdMs: RESPONSE_TIME_THRESHOLD_MS,
+        }),
       }),
     ];
   },

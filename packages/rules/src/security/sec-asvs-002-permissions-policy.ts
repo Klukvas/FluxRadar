@@ -6,6 +6,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { headerValue } from '../shared/headers.js';
 
 const descriptor = requireDescriptor('SEC-ASVS-002');
@@ -20,10 +21,8 @@ export const secAsvs002PermissionsPolicy: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'http',
-        evidence: 'HTML-ответ без Permissions-Policy',
-        recommendation:
-          'Задайте Permissions-Policy и явно отключите неиспользуемые browser features, ' +
-          'например camera, microphone и geolocation.',
+        evidence: findingMessage('sec-asvs-002.evidence', {}),
+        recommendation: findingMessage('sec-asvs-002.recommendation', {}),
         resource: 'permissions-policy',
       }),
     ];

@@ -6,6 +6,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { accessibleName, elementSelector } from './helpers.js';
 import { parsePage } from '../seo/dom.js';
 
@@ -36,18 +37,16 @@ export const a11y008InteractiveNames: PageRule = {
       return [];
     }
     const tag = unnamed.rawTagName.toLowerCase();
-    const reason =
-      tag === 'a' && (unnamed.getAttribute('href')?.trim() ?? '') === ''
-        ? 'ссылка без href не является клавиатурно активной'
-        : 'интерактивный элемент не имеет доступного имени';
+    const selector = elementSelector(unnamed);
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence: `${elementSelector(unnamed)}: ${reason}`,
-        recommendation:
-          'Используйте ссылку с href или кнопку и задайте доступное имя через видимый текст, ' +
-          'aria-label, aria-labelledby или корректный label.',
-        selector: elementSelector(unnamed),
+        evidence:
+          tag === 'a' && (unnamed.getAttribute('href')?.trim() ?? '') === ''
+            ? findingMessage('a11y-008.evidence.link-without-href', { selector })
+            : findingMessage('a11y-008.evidence.missing-name', { selector }),
+        recommendation: findingMessage('a11y-008.recommendation', {}),
+        selector,
       }),
     ];
   },

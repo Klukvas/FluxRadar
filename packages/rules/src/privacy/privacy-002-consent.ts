@@ -9,6 +9,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage } from '../seo/dom.js';
 
 const descriptor = requireDescriptor('PRIVACY-002');
@@ -58,12 +59,10 @@ export const privacy002ConsentSignal: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence:
-          `Обнаружены потенциальные tracker-сигналы (${trackerSignals.join(', ')}), ` +
-          'но consent-маркер в исходном HTML не найден',
-        recommendation:
-          'Проверьте, что необязательные trackers загружаются после явного consent; ' +
-          'проверьте banner и поведение до/после согласия в браузере для нужной юрисдикции.',
+        evidence: findingMessage('privacy-002.evidence', {
+          trackers: trackerSignals.join(', '),
+        }),
+        recommendation: findingMessage('privacy-002.recommendation', {}),
         resource: 'consent-static-signal',
         confidence: 0.8,
       }),

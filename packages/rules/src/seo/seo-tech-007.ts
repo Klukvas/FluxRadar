@@ -9,6 +9,7 @@
 import { requireDescriptor } from '../engine/descriptor.js';
 import { siteFinding } from '../engine/finding.js';
 import type { SiteContext, SiteRule, SiteRuleResult } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-007');
 
@@ -20,11 +21,12 @@ export const seoTech007DuplicateUrls: SiteRule = {
     const findings = groups.map(([normalized, variants]) =>
       siteFinding(descriptor, normalized, {
         evidenceType: 'http',
-        evidence:
-          `${variants.length} raw-варианта схлопываются в ${normalized}: ` + variants.join(', '),
-        recommendation:
-          'Отдавайте каждую страницу под единственным каноническим URL: настройте redirect ' +
-          'или rel=canonical для вариантов с трекинг-параметрами и альтернативными формами.',
+        evidence: findingMessage('seo-tech-007.evidence', {
+          count: variants.length,
+          url: normalized,
+          variants: variants.join(', '),
+        }),
+        recommendation: findingMessage('seo-tech-007.recommendation', {}),
         parameter: normalized,
       }),
     );

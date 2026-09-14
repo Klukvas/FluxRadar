@@ -20,6 +20,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage, relTokens } from './dom.js';
 
 const descriptor = requireDescriptor('SEO-TECH-013');
@@ -112,10 +113,11 @@ function isInsecure(ref: SubresourceRef, pageUrl: URL): boolean {
 function insecureResourceFinding(page: PageSnapshot, ref: SubresourceRef): RuleFinding {
   return pageFinding(descriptor, page, {
     evidenceType: 'dom',
-    evidence: `${ref.selector} загружается по незашифрованному http:// (${ref.resolved.href})`,
-    recommendation:
-      'Загружайте субресурсы по https:// (или протокол-относительным URL того же origin) — ' +
-      'браузеры блокируют или помечают mixed content.',
+    evidence: findingMessage('seo-tech-013.evidence', {
+      selector: ref.selector,
+      url: ref.resolved.href,
+    }),
+    recommendation: findingMessage('seo-tech-013.recommendation', {}),
     selector: ref.selector,
     resource: ref.resolved.href,
   });

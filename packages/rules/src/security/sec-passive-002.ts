@@ -14,6 +14,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { headerValue } from '../shared/headers.js';
 
 const descriptor = requireDescriptor('SEC-PASSIVE-002');
@@ -30,10 +31,11 @@ export const secPassive002SecurityHeaders: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'http',
-        evidence: `HTML-ответ без security headers (${missing.length}): ${missing.join('; ')}`,
-        recommendation:
-          'Добавьте на HTML-ответы X-Content-Type-Options: nosniff, Referrer-Policy и ' +
-          'защиту от framing (X-Frame-Options либо CSP frame-ancestors).',
+        evidence: findingMessage('sec-passive-002.evidence', {
+          count: missing.length,
+          headers: missing.join('; '),
+        }),
+        recommendation: findingMessage('sec-passive-002.recommendation', {}),
         resource: 'security-headers',
       }),
     ];

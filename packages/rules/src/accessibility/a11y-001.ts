@@ -9,6 +9,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { elementSelector, parseInlineColorPair } from './helpers.js';
 import { parsePage } from '../seo/dom.js';
 
@@ -37,13 +38,12 @@ export const a11y001Contrast: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence:
-          `${selector} задаёт inline color/background-color с контрастом ` +
-          `${violation.pair.ratio.toFixed(2)}:1 — ниже порога ` +
-          `${requiredRatio(violation.element.getAttribute('style') ?? '').toFixed(1)}:1`,
-        recommendation:
-          'Увеличьте контраст текста и фона минимум до 4.5:1 для обычного текста ' +
-          'или 3:1 для крупного текста. Итоговые внешние CSS-правила проверьте вручную.',
+        evidence: findingMessage('a11y-001.evidence', {
+          selector,
+          ratio: violation.pair.ratio.toFixed(2),
+          threshold: requiredRatio(violation.element.getAttribute('style') ?? '').toFixed(1),
+        }),
+        recommendation: findingMessage('a11y-001.recommendation', {}),
         selector,
       }),
     ];

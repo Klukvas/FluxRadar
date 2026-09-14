@@ -10,7 +10,14 @@
 
 import { requireDescriptor } from '../engine/descriptor.js';
 import { apiFinding } from '../engine/finding.js';
-import type { ApiCheck, ApiRule, RuleFinding, SiteContext, SiteRuleResult } from '../engine/types.js';
+import type {
+  ApiCheck,
+  ApiRule,
+  RuleFinding,
+  SiteContext,
+  SiteRuleResult,
+} from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { credentialHeaderNames } from './api-checks.js';
 
 const descriptor = requireDescriptor('REL-API-005');
@@ -33,18 +40,16 @@ export const relApi005NoCredentials: ApiRule = {
 };
 
 function credentialsFinding(check: ApiCheck, offending: readonly string[]): RuleFinding {
-  const executedNote =
-    check.snapshot === undefined
-      ? 'запрос заблокирован policy и не выполнялся'
-      : 'запрос был выполнен вопреки policy';
+  const evidenceCode =
+    check.snapshot === undefined ? 'rel-api-005.evidence.blocked' : 'rel-api-005.evidence.sent';
   return apiFinding(descriptor, check, {
     evidenceType: 'http',
-    evidence:
-      `${check.method} ${check.url}: credentials-заголовки в конфиге проверки ` +
-      `(${offending.join(', ')}); ${executedNote}`,
-    recommendation:
-      'Уберите credentials из конфига проверки: v0.1 проверяет только публичные ' +
-      'endpoints без авторизации (§9 no-credentials policy).',
+    evidence: findingMessage(evidenceCode, {
+      method: check.method,
+      url: check.url,
+      headers: offending.join(', '),
+    }),
+    recommendation: findingMessage('rel-api-005.recommendation', {}),
     parameter: offending[0] ?? '',
   });
 }

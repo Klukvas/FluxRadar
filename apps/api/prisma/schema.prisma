@@ -352,6 +352,9 @@ model Issue {
   // Non-scoring cross-module evidence link (§14 cross-module policy, D-167).
   evidenceGroupId     String?
   recommendation      String
+  // Message codes and values behind evidenceExcerpt/recommendation, rendered per
+  // report language. NULL for findings that predate codes or carry AI-written text.
+  messagesJson        String?
   confidence          Float
   applicableTargets   Int
   affectedTargets     Int

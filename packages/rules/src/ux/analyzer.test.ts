@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { renderFindingMessage } from '../messages/index.js';
 import { analyzeUxStatic } from './analyzer.js';
 import { htmlContext, siteContext } from '../testing/fixture-harness.js';
 
@@ -49,20 +50,47 @@ describe('analyzeUxStatic', () => {
         ruleId: 'UX-CONV-STATIC-001',
         targetUrl: 'https://fixture.test/page.html',
         evidence: 'No h1 heading was present in the fetched entry-page HTML.',
+        messages: {
+          evidence: { code: 'ux-conv-static-001.evidence', params: {} },
+          recommendation: { code: 'ux-conv-static-001.recommendation', params: {} },
+        },
       }),
       expect.objectContaining({
         ruleId: 'UX-CONV-STATIC-002',
         targetUrl: 'https://fixture.test/page.html',
         evidence:
           'No link, button, or button-like input was present in the fetched entry-page HTML.',
+        messages: {
+          evidence: { code: 'ux-conv-static-002.evidence', params: {} },
+          recommendation: { code: 'ux-conv-static-002.recommendation', params: {} },
+        },
       }),
       expect.objectContaining({
         ruleId: 'UX-CONV-STATIC-003',
         targetUrl: 'https://fixture.test/page.html',
         selector: 'form:nth-of-type(1)',
-        evidence: 'Form 1 contained 1 control and no explicit submit control.',
+        evidence: 'Form 1 has no explicit submit control (form controls: 1).',
+        recommendation: 'Provide a clearly labelled submit control inside the form.',
+        messages: {
+          evidence: { code: 'ux-conv-static-003.evidence', params: { form: 1, controls: 1 } },
+          recommendation: { code: 'ux-conv-static-003.recommendation', params: {} },
+        },
       }),
     ]);
+  });
+
+  it('keeps the English text of a static finding in step with its messages', () => {
+    const [finding] = analyzeUxStatic(
+      htmlContext('<html><head><title>Bare</title></head><body><p>Text only.</p></body></html>'),
+    ).findings;
+
+    expect(finding?.messages).toBeDefined();
+    if (finding?.messages === undefined) return;
+    expect(renderFindingMessage(finding.messages.evidence, 'en')).toBe(finding.evidence);
+    expect(renderFindingMessage(finding.messages.recommendation, 'en')).toBe(
+      finding.recommendation,
+    );
+    expect(renderFindingMessage(finding.messages.evidence, 'uk')).toMatch(/\p{Script=Cyrillic}/u);
   });
 
   it('does not invent evidence for an unreachable or non-HTML page', () => {

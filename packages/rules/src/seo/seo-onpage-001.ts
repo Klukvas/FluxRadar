@@ -12,6 +12,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage, type CataloguedFindingMessage } from '../messages/index.js';
 import { codePointLength, parsePage } from './dom.js';
 
 const descriptor = requireDescriptor('SEO-ONPAGE-001');
@@ -27,26 +28,45 @@ export const seoOnpage001Title: PageRule = {
     const titleElement = parsePage(page).querySelector('title');
     const title = titleElement?.text.trim() ?? '';
     if (title === '') {
-      return [titleFinding(page, '<title> отсутствует или пуст')];
+      return [titleFinding(page, findingMessage('seo-onpage-001.evidence.missing', {}))];
     }
     const length = codePointLength(title);
     if (length < TITLE_MIN_CHARS) {
-      return [titleFinding(page, `title «${title}» — ${length} симв. (< ${TITLE_MIN_CHARS})`)];
+      return [
+        titleFinding(
+          page,
+          findingMessage('seo-onpage-001.evidence.too-short', {
+            title,
+            length,
+            min: TITLE_MIN_CHARS,
+          }),
+        ),
+      ];
     }
     if (length > TITLE_MAX_CHARS) {
-      return [titleFinding(page, `title из ${length} симв. (> ${TITLE_MAX_CHARS}): «${title}»`)];
+      return [
+        titleFinding(
+          page,
+          findingMessage('seo-onpage-001.evidence.too-long', {
+            title,
+            length,
+            max: TITLE_MAX_CHARS,
+          }),
+        ),
+      ];
     }
     return [];
   },
 };
 
-function titleFinding(page: PageSnapshot, evidence: string): RuleFinding {
+function titleFinding(page: PageSnapshot, evidence: CataloguedFindingMessage): RuleFinding {
   return pageFinding(descriptor, page, {
     evidenceType: 'dom',
     evidence,
-    recommendation:
-      `Дайте странице уникальный информативный <title> длиной ${TITLE_MIN_CHARS}–` +
-      `${TITLE_MAX_CHARS} символов.`,
+    recommendation: findingMessage('seo-onpage-001.recommendation', {
+      min: TITLE_MIN_CHARS,
+      max: TITLE_MAX_CHARS,
+    }),
     selector: 'title',
   });
 }

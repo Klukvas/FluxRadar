@@ -14,6 +14,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage } from '../seo/dom.js';
 
 const descriptor = requireDescriptor('A11Y-004');
@@ -95,12 +96,8 @@ function unlabelledControlFinding(
 ): RuleFinding {
   return pageFinding(descriptor, page, {
     evidenceType: 'dom',
-    evidence:
-      `Элемент управления без label: ${selector} — нет label[for], обёртки <label>, ` +
-      'aria-label и aria-labelledby',
-    recommendation:
-      'Свяжите каждый элемент формы с подписью: <label for="id">, обёртка <label> ' +
-      'или aria-label/aria-labelledby, если видимой подписи нет.',
+    evidence: findingMessage('a11y-004.evidence', { selector }),
+    recommendation: findingMessage('a11y-004.recommendation', {}),
     selector,
   });
 }

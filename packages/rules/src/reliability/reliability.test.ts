@@ -35,10 +35,7 @@ describe('REL-URL-001 доступность URL', () => {
   });
 
   it('недостижимый снимок — applicable и completed check (вердикт fail)', () => {
-    const run = runModuleRules(
-      'Reliability',
-      loadFixtureContext('fx-REL-URL-001-positive.json'),
-    );
+    const run = runModuleRules('Reliability', loadFixtureContext('fx-REL-URL-001-positive.json'));
     const evaluation = run.evaluations.find((entry) => entry.ruleId === 'REL-URL-001');
     expect(evaluation?.applicableTargets).toBe(1);
     expect(evaluation?.affectedTargets).toBe(1);
@@ -105,10 +102,7 @@ describe('REL-API-003 expected status', () => {
   });
 
   it('без apiChecks правило Not applicable: applicable=0', () => {
-    const run = runModuleRules(
-      'Reliability',
-      loadFixtureContext('fx-REL-URL-001-negative.json'),
-    );
+    const run = runModuleRules('Reliability', loadFixtureContext('fx-REL-URL-001-negative.json'));
     const evaluation = run.evaluations.find((entry) => entry.ruleId === 'REL-API-003');
     expect(evaluation?.applicableTargets).toBe(0);
     expect(evaluation?.findings).toEqual([]);
@@ -122,7 +116,7 @@ describe('REL-API-005 no-credentials policy', () => {
     );
     expect(finding.severity).toBe('High');
     expect(finding.normalizedParameter).toBe('Authorization');
-    expect(finding.evidenceExcerpt).toContain('не выполнялся');
+    expect(finding.evidenceExcerpt).toContain('the request was blocked by policy and not sent');
     // В evidence попадают только имена заголовков — не значения секретов.
     expect(finding.evidenceExcerpt).not.toContain('secret-token-value');
     expect(finding.evidenceExcerpt).not.toContain('Bearer');
@@ -135,14 +129,80 @@ describe('REL-API-005 no-credentials policy', () => {
   });
 
   it('заблокированная проверка не applicable для REL-API-003', () => {
-    const run = runModuleRules(
-      'Reliability',
-      loadFixtureContext('fx-REL-API-005-positive.json'),
-    );
+    const run = runModuleRules('Reliability', loadFixtureContext('fx-REL-API-005-positive.json'));
     const statusRule = run.evaluations.find((entry) => entry.ruleId === 'REL-API-003');
     const policyRule = run.evaluations.find((entry) => entry.ruleId === 'REL-API-005');
     expect(statusRule?.applicableTargets).toBe(0);
     expect(policyRule?.applicableTargets).toBe(1);
     expect(policyRule?.affectedTargets).toBe(1);
+  });
+});
+
+describe('Reliability findings carry translatable message codes', () => {
+  // A check sent with credentials despite the policy: the executed REL-API-003
+  // fixture plus a credential header in its configuration.
+  const sentWithCredentials = () => {
+    const ctx = loadFixtureContext('fx-REL-API-003-positive.json');
+    return {
+      ...ctx,
+      apiChecks: (ctx.apiChecks ?? []).map((check) => ({
+        ...check,
+        requestHeaders: { Authorization: 'redacted' },
+      })),
+    };
+  };
+
+  it.each([
+    {
+      ruleId: 'REL-URL-001',
+      context: () => loadFixtureContext('fx-REL-URL-001-positive.json'),
+      evidence: 'rel-url-001.evidence',
+      recommendation: 'rel-url-001.recommendation',
+    },
+    {
+      ruleId: 'REL-URL-003',
+      context: () => loadFixtureContext('fx-REL-URL-003-positive.json'),
+      evidence: 'rel-url-003.evidence',
+      recommendation: 'rel-url-003.recommendation',
+    },
+    {
+      ruleId: 'REL-URL-009',
+      context: () => loadFixtureContext('fx-REL-URL-009-positive.json'),
+      evidence: 'rel-url-009.evidence',
+      recommendation: 'rel-url-009.recommendation',
+    },
+    {
+      ruleId: 'REL-API-003',
+      context: () => loadFixtureContext('fx-REL-API-003-positive.json'),
+      evidence: 'rel-api-003.evidence',
+      recommendation: 'rel-api-003.recommendation',
+    },
+    {
+      ruleId: 'REL-API-005',
+      context: () => loadFixtureContext('fx-REL-API-005-positive.json'),
+      evidence: 'rel-api-005.evidence.blocked',
+      recommendation: 'rel-api-005.recommendation',
+    },
+    {
+      ruleId: 'REL-API-005',
+      context: sentWithCredentials,
+      evidence: 'rel-api-005.evidence.sent',
+      recommendation: 'rel-api-005.recommendation',
+    },
+  ])('$ruleId → $evidence', ({ ruleId, context, evidence, recommendation }) => {
+    const finding = single(runRule('Reliability', ruleId, context()));
+    expect(finding.messages?.evidence.code).toBe(evidence);
+    expect(finding.messages?.recommendation.code).toBe(recommendation);
+  });
+
+  it('renders the response-time evidence from neutral values', () => {
+    const finding = single(
+      runRule('Reliability', 'REL-URL-009', loadFixtureContext('fx-REL-URL-009-positive.json')),
+    );
+    expect(finding.messages?.evidence.params).toMatchObject({
+      responseMs: 2500,
+      thresholdMs: 1800,
+    });
+    expect(finding.evidenceExcerpt).toMatch(/^Response time 2500 ms exceeds 1800 ms \(HTTP \d+ /);
   });
 });

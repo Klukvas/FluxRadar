@@ -6,6 +6,8 @@ import { computeFingerprint, normalizeField, normalizeUrl } from '@fluxradar/fin
 import {
   analyzeUxStatic,
   truncateExcerpt,
+  type FindingMessageRef,
+  type FindingMessages,
   type SiteContext,
   type UxStaticEvidence,
   type UxStaticFinding,
@@ -58,6 +60,29 @@ function aiPageEvidence(staticEvidence: UxStaticEvidence) {
   }));
 }
 
+/**
+ * Message values pass through the same redaction as the stored English text:
+ * a localized rendering must not show what the stored excerpt hides.
+ */
+function redactedMessages(messages: FindingMessages): FindingMessages {
+  return {
+    evidence: redactedMessage(messages.evidence),
+    recommendation: redactedMessage(messages.recommendation),
+  };
+}
+
+function redactedMessage(message: FindingMessageRef): FindingMessageRef {
+  return {
+    code: message.code,
+    params: Object.fromEntries(
+      Object.entries(message.params).map(([name, value]) => [
+        name,
+        typeof value === 'string' ? redact(value).text : value,
+      ]),
+    ),
+  };
+}
+
 function validSeverity(value: Severity): Severity {
   if (value === 'High' || value === 'Medium' || value === 'Low') return value;
   throw new Error(`UX/Conversion returned invalid severity ${value}`);
@@ -102,6 +127,10 @@ export function uxIssueRows(
       evidenceExcerpt: truncateExcerpt(redact(finding.evidence).text),
       evidenceGroupId: null,
       recommendation: redact(finding.recommendation).text,
+      messagesJson:
+        'messages' in finding && finding.messages !== undefined
+          ? JSON.stringify(redactedMessages(finding.messages))
+          : null,
       confidence: finding.confidence,
       applicableTargets,
       affectedTargets: 1,

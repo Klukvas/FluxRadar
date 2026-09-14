@@ -13,11 +13,16 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage, type CataloguedFindingMessage } from '../messages/index.js';
 import { metaContent, parsePage } from './dom.js';
 import { internalLinkSources, sitemapNormalizedUrls } from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-008');
 const NOINDEX_TOKENS: ReadonlySet<string> = new Set(['noindex', 'none']);
+
+/** Что противоречит noindex: страница в sitemap или внутренние ссылки на неё. */
+type Contradiction =
+  { readonly kind: 'sitemap' } | { readonly kind: 'internal-links'; readonly sources: number };
 
 export const seoTech008Noindex: PageRule = {
   kind: 'page',
@@ -35,18 +40,20 @@ export const seoTech008Noindex: PageRule = {
     if (contradiction === null) {
       return [];
     }
-    return [noindexFinding(page, metaNoindex ? (metaRobots ?? '') : null, headerRobots, contradiction)];
+    return [
+      noindexFinding(page, metaNoindex ? (metaRobots ?? '') : null, headerRobots, contradiction),
+    ];
   },
 };
 
-function findContradiction(page: PageSnapshot, ctx: SiteContext): string | null {
+function findContradiction(page: PageSnapshot, ctx: SiteContext): Contradiction | null {
   if (sitemapNormalizedUrls(ctx.crawl).has(page.normalizedUrl)) {
-    return 'страница присутствует в sitemap';
+    return { kind: 'sitemap' };
   }
   const sources = internalLinkSources(ctx.crawl).get(page.normalizedUrl);
   const externalSources = [...(sources ?? [])].filter((source) => source !== page.normalizedUrl);
   if (externalSources.length > 0) {
-    return `на страницу ведут внутренние ссылки (${externalSources.length} источник(ов))`;
+    return { kind: 'internal-links', sources: externalSources.length };
   }
   return null;
 }
@@ -69,26 +76,44 @@ function noindexFinding(
   page: PageSnapshot,
   metaRobots: string | null,
   headerRobots: string | null,
-  contradiction: string,
+  contradiction: Contradiction,
 ): RuleFinding {
+  const recommendation = findingMessage('seo-tech-008.recommendation', {});
   if (metaRobots !== null) {
     return pageFinding(descriptor, page, {
       evidenceType: 'dom',
-      evidence: `<meta name="robots" content="${metaRobots}">, при этом ${contradiction}`,
-      recommendation: recommendationText(),
+      evidence: metaRobotsEvidence(metaRobots, contradiction),
+      recommendation,
       selector: 'meta[name="robots"]',
     });
   }
   return pageFinding(descriptor, page, {
     evidenceType: 'http',
-    evidence: `X-Robots-Tag: ${headerRobots ?? ''}, при этом ${contradiction}`,
-    recommendation: recommendationText(),
+    evidence: robotsHeaderEvidence(headerRobots ?? '', contradiction),
+    recommendation,
   });
 }
 
-function recommendationText(): string {
-  return (
-    'Устраните противоречие сигналов индексации: либо уберите noindex, либо исключите ' +
-    'страницу из sitemap и снимите внутренние ссылки на неё.'
-  );
+function metaRobotsEvidence(
+  content: string,
+  contradiction: Contradiction,
+): CataloguedFindingMessage {
+  return contradiction.kind === 'sitemap'
+    ? findingMessage('seo-tech-008.evidence.meta.sitemap', { content })
+    : findingMessage('seo-tech-008.evidence.meta.internal-links', {
+        content,
+        sources: contradiction.sources,
+      });
+}
+
+function robotsHeaderEvidence(
+  value: string,
+  contradiction: Contradiction,
+): CataloguedFindingMessage {
+  return contradiction.kind === 'sitemap'
+    ? findingMessage('seo-tech-008.evidence.header.sitemap', { value })
+    : findingMessage('seo-tech-008.evidence.header.internal-links', {
+        value,
+        sources: contradiction.sources,
+      });
 }

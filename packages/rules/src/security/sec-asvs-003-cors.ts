@@ -7,6 +7,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { hasHttpResponse } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { headerValue } from '../shared/headers.js';
 
 const descriptor = requireDescriptor('SEC-ASVS-003');
@@ -24,12 +25,8 @@ export const secAsvs003Cors: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'http',
-        evidence:
-          'Ответ сочетает Access-Control-Allow-Origin: * и ' +
-          'Access-Control-Allow-Credentials: true',
-        recommendation:
-          'Не сочетайте wildcard origin с credentialed CORS: перечисляйте доверенные origins ' +
-          'явно и включайте credentials только там, где это необходимо.',
+        evidence: findingMessage('sec-asvs-003.evidence', {}),
+        recommendation: findingMessage('sec-asvs-003.recommendation', {}),
         resource: 'cors',
       }),
     ];

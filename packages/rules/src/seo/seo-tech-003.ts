@@ -13,6 +13,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { hasHttpResponse } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-003');
 
@@ -27,10 +28,11 @@ export const seoTech003HttpStatus: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'http',
-        evidence: `HTTP ${page.status} ${page.finalUrl}`,
-        recommendation:
-          'Верните 200 для действующих страниц; для удалённых настройте 301-redirect ' +
-          'на замену или уберите внутренние ссылки на этот URL.',
+        evidence: findingMessage('seo-tech-003.evidence', {
+          status: page.status,
+          url: page.finalUrl,
+        }),
+        recommendation: findingMessage('seo-tech-003.recommendation', {}),
       }),
     ];
   },

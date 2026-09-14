@@ -4,6 +4,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { IssueCandidate } from '../engine/run-module.js';
+import type { SiteContext } from '../engine/types.js';
+import { renderFindingMessage } from '../messages/index.js';
 import { htmlContext, loadFixtureContext, runRule } from '../testing/fixture-harness.js';
 
 function single(candidates: readonly IssueCandidate[]): IssueCandidate {
@@ -149,7 +151,7 @@ describe('WCAG 2.2 AA static checks', () => {
         ),
       ),
     );
-    expect(finding.evidenceExcerpt).toContain('focus-state');
+    expect(finding.evidenceExcerpt).toContain(':focus rule');
   });
 
   it('A11Y-007 reports broken ARIA references and aria-hidden focusable controls', () => {
@@ -163,7 +165,7 @@ describe('WCAG 2.2 AA static checks', () => {
         ),
       ),
     );
-    expect(finding.evidenceExcerpt).toContain('отсутствующий ARIA id');
+    expect(finding.evidenceExcerpt).toContain('aria-labelledby=missing');
   });
 
   it('A11Y-008 reports unnamed interactive elements', () => {
@@ -227,5 +229,174 @@ describe('WCAG 2.2 AA static checks', () => {
       ),
     );
     expect(result).toEqual([]);
+  });
+});
+
+// Отчёт читают на английском и украинском, поэтому каждый finding должен нести
+// коды сообщений, а не готовый русский текст.
+function pageWith(body: string, htmlAttributes = ' lang="en"'): SiteContext {
+  return htmlContext(
+    `<!doctype html><html${htmlAttributes}><head><title>Messages</title></head>` +
+      `<body>${body}</body></html>`,
+  );
+}
+
+const LOW_CONTRAST_BODY = '<main><h1 style="color:#777;background-color:#fff">Low</h1></main>';
+
+interface MessageCase {
+  readonly ruleId: string;
+  readonly evidenceCode: string;
+  readonly context: () => SiteContext;
+}
+
+const MESSAGE_CASES: readonly MessageCase[] = [
+  {
+    ruleId: 'A11Y-001',
+    evidenceCode: 'a11y-001.evidence',
+    context: () => pageWith(LOW_CONTRAST_BODY),
+  },
+  {
+    ruleId: 'A11Y-002',
+    evidenceCode: 'a11y-002.evidence',
+    context: () => loadFixtureContext('fx-A11Y-002-positive.html'),
+  },
+  // Every combination of the three A11Y-003 problems: a wrong <h1> count must be
+  // named as a problem whatever else is wrong on the page.
+  {
+    ruleId: 'A11Y-003',
+    evidenceCode: 'a11y-003.evidence.missing-lang',
+    context: () => pageWith('<main><h1>Page</h1></main>', ''),
+  },
+  {
+    ruleId: 'A11Y-003',
+    evidenceCode: 'a11y-003.evidence.h1-count',
+    context: () => pageWith('<main><h2>No top heading</h2></main>'),
+  },
+  {
+    ruleId: 'A11Y-003',
+    evidenceCode: 'a11y-003.evidence.skipped-level',
+    context: () => pageWith('<main><h1>Page</h1><h3>Skipped</h3></main>'),
+  },
+  {
+    ruleId: 'A11Y-003',
+    evidenceCode: 'a11y-003.evidence.missing-lang.h1-count',
+    context: () => pageWith('<main><h2>No top heading</h2></main>', ''),
+  },
+  {
+    ruleId: 'A11Y-003',
+    evidenceCode: 'a11y-003.evidence.missing-lang.skipped-level',
+    context: () => pageWith('<main><h1>Page</h1><h3>Skipped</h3></main>', ''),
+  },
+  {
+    ruleId: 'A11Y-003',
+    evidenceCode: 'a11y-003.evidence.h1-count.skipped-level',
+    context: () => pageWith('<main><h1>One</h1><h1>Two</h1><h3>Skipped</h3></main>'),
+  },
+  {
+    ruleId: 'A11Y-003',
+    evidenceCode: 'a11y-003.evidence.missing-lang.h1-count.skipped-level',
+    context: () => pageWith('<main><h1>One</h1><h1>Two</h1><h3>Skipped</h3></main>', ''),
+  },
+  {
+    ruleId: 'A11Y-004',
+    evidenceCode: 'a11y-004.evidence',
+    context: () => loadFixtureContext('fx-A11Y-004-positive.html'),
+  },
+  {
+    ruleId: 'A11Y-005',
+    evidenceCode: 'a11y-005.evidence.positive-tabindex',
+    context: () => pageWith('<main><a href="/next" tabindex="2">Next</a></main>'),
+  },
+  {
+    ruleId: 'A11Y-005',
+    evidenceCode: 'a11y-005.evidence.mouse-only',
+    context: () => pageWith('<main><div onclick="openPanel()">Open</div></main>'),
+  },
+  {
+    ruleId: 'A11Y-006',
+    evidenceCode: 'a11y-006.evidence.stylesheet',
+    context: () => pageWith('<style>button:focus { outline: none; }</style><main></main>'),
+  },
+  {
+    ruleId: 'A11Y-006',
+    evidenceCode: 'a11y-006.evidence.inline',
+    context: () => pageWith('<main><button style="outline: none">Open</button></main>'),
+  },
+  {
+    ruleId: 'A11Y-007',
+    evidenceCode: 'a11y-007.evidence.unknown-role',
+    context: () => pageWith('<main><div role="banana">Fruit</div></main>'),
+  },
+  {
+    ruleId: 'A11Y-007',
+    evidenceCode: 'a11y-007.evidence.missing-reference',
+    context: () => pageWith('<main><button aria-labelledby="missing">Open</button></main>'),
+  },
+  {
+    ruleId: 'A11Y-008',
+    evidenceCode: 'a11y-008.evidence.link-without-href',
+    context: () => pageWith('<main><a>Read more</a></main>'),
+  },
+  {
+    ruleId: 'A11Y-008',
+    evidenceCode: 'a11y-008.evidence.missing-name',
+    context: () => pageWith('<main><button></button></main>'),
+  },
+  {
+    ruleId: 'A11Y-009',
+    evidenceCode: 'a11y-009.evidence',
+    context: () => pageWith('<main><input id="email" aria-invalid="true" /></main>'),
+  },
+  {
+    ruleId: 'A11Y-010',
+    evidenceCode: 'a11y-010.evidence.missing-main',
+    context: () => pageWith('<h1>Page</h1>'),
+  },
+  {
+    ruleId: 'A11Y-010',
+    evidenceCode: 'a11y-010.evidence.multiple-main',
+    context: () => pageWith('<main></main><main></main>'),
+  },
+  {
+    ruleId: 'A11Y-010',
+    evidenceCode: 'a11y-010.evidence.untitled-iframe',
+    context: () => pageWith('<main><iframe src="/embed"></iframe></main>'),
+  },
+  {
+    ruleId: 'A11Y-010',
+    evidenceCode: 'a11y-010.evidence.video-without-captions',
+    context: () => pageWith('<main><video src="/intro.mp4"></video></main>'),
+  },
+  {
+    ruleId: 'A11Y-010',
+    evidenceCode: 'a11y-010.evidence.unnamed-nav',
+    context: () => pageWith('<main></main><nav></nav><nav></nav>'),
+  },
+];
+
+describe('Accessibility finding messages', () => {
+  it.each(MESSAGE_CASES)('$ruleId → $evidenceCode', ({ ruleId, evidenceCode, context }) => {
+    const finding = single(runRule('Accessibility', ruleId, context()));
+    const messages = finding.messages;
+    expect(messages?.evidence.code).toBe(evidenceCode);
+    expect(messages?.recommendation.code).toBe(`${ruleId.toLowerCase()}.recommendation`);
+    expect(finding.evidenceExcerpt).not.toMatch(/\p{Script=Cyrillic}/u);
+    expect(finding.recommendation).not.toMatch(/\p{Script=Cyrillic}/u);
+    if (messages !== undefined) {
+      expect(renderFindingMessage(messages.evidence, 'uk')).not.toBeNull();
+      expect(renderFindingMessage(messages.recommendation, 'uk')).not.toBeNull();
+    }
+  });
+
+  it('A11Y-001 stores the ratio and threshold as data and renders them in English', () => {
+    const finding = single(runRule('Accessibility', 'A11Y-001', pageWith(LOW_CONTRAST_BODY)));
+    expect(finding.messages?.evidence.params).toEqual({
+      selector: 'h1',
+      ratio: '4.48',
+      threshold: '4.5',
+    });
+    expect(finding.evidenceExcerpt).toBe(
+      'h1 sets inline color/background-color with a contrast ratio of 4.48:1, below the 4.5:1 threshold.',
+    );
   });
 });

@@ -18,6 +18,7 @@ import { sendOk } from '../http/envelope.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import { findOwnReportScan } from '../scans/routes.ts';
+import { localizedFindingTexts } from './localized-text.ts';
 
 export interface IssuesRouterDeps {
   readonly prisma: PrismaClient;
@@ -118,7 +119,10 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
     const input = parseInput(issueStatusUpdateInputSchema, req.body);
     const issue = await findOwnIssue(deps.prisma, accountId, scanId, issueId);
     if (issue.status === 'Resolved' || issue.status === 'Reopened') {
-      throw forbidden('ISSUE_STATUS_OWNED_BY_WORKER', 'Resolved and Reopened are scan-derived statuses');
+      throw forbidden(
+        'ISSUE_STATUS_OWNED_BY_WORKER',
+        'Resolved and Reopened are scan-derived statuses',
+      );
     }
     const updated = await deps.prisma.issue.update({
       where: { id: issue.id },
@@ -167,6 +171,7 @@ function toIssueDto(issue: Issue): Record<string, unknown> {
     evidenceExcerpt: issue.evidenceExcerpt,
     evidenceGroupId: issue.evidenceGroupId,
     recommendation: issue.recommendation,
+    localized: localizedFindingTexts(issue.messagesJson),
     confidence: issue.confidence,
     applicableTargets: issue.applicableTargets,
     affectedTargets: issue.affectedTargets,

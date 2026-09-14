@@ -14,6 +14,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { pageLinks, snapshotByNormalizedUrl } from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-006');
@@ -41,17 +42,15 @@ export const seoTech006BrokenLinks: PageRule = {
   },
 };
 
-function brokenLinkFinding(
-  page: PageSnapshot,
-  rawHref: string,
-  target: PageSnapshot,
-): RuleFinding {
+function brokenLinkFinding(page: PageSnapshot, rawHref: string, target: PageSnapshot): RuleFinding {
   return pageFinding(descriptor, page, {
     evidenceType: 'http',
-    evidence: `a[href="${rawHref}"] → HTTP ${target.status} (${target.finalUrl})`,
-    recommendation:
-      'Уберите или обновите ссылку: ведите на действующий URL либо восстановите ' +
-      'целевую страницу.',
+    evidence: findingMessage('seo-tech-006.evidence', {
+      href: rawHref,
+      status: target.status,
+      url: target.finalUrl,
+    }),
+    recommendation: findingMessage('seo-tech-006.recommendation', {}),
     selector: rawHref,
     resource: target.normalizedUrl,
   });

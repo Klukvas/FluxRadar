@@ -30,6 +30,10 @@ describe('SEC-PASSIVE-002 security headers', () => {
     expect(finding.evidenceType).toBe('http');
     expect(finding.normalizedResource).toBe('security-headers');
     expect(finding.normalizedSelector).toBe('');
+    expect(finding.evidenceExcerpt).toBe(
+      'The HTML response is missing security headers (3): X-Content-Type-Options: nosniff; ' +
+        'X-Frame-Options / CSP frame-ancestors; Referrer-Policy',
+    );
     expect(finding.evidenceExcerpt).toContain('X-Content-Type-Options: nosniff');
     expect(finding.evidenceExcerpt).toContain('X-Frame-Options / CSP frame-ancestors');
     expect(finding.evidenceExcerpt).toContain('Referrer-Policy');
@@ -99,8 +103,9 @@ describe('SEC-PASSIVE-003 HSTS (https-моки)', () => {
         },
       ],
     });
-    expect(single(runRule('Security', 'SEC-PASSIVE-003', ctx)).evidenceExcerpt) //
-      .toContain('max-age');
+    expect(single(runRule('Security', 'SEC-PASSIVE-003', ctx)).evidenceExcerpt).toBe(
+      'Strict-Transport-Security has no positive max-age: max-age=0',
+    );
   });
 
   it('http-origin → Not applicable: applicable=0, findings нет', () => {
@@ -229,5 +234,86 @@ describe('OWASP ASVS Public Security Profile', () => {
       ],
     });
     expect(runRule('Security', 'SEC-ASVS-003', publicResource)).toEqual([]);
+  });
+});
+
+describe('Security findings carry translatable message codes', () => {
+  const htmlPage = (headers: Record<string, string>) =>
+    siteContext({
+      origin: 'https://fixture.test',
+      pages: [
+        {
+          path: '/',
+          html: '<!doctype html><html lang="en"><head><title>Messages page</title></head><body></body></html>',
+          headers,
+        },
+      ],
+    });
+
+  it.each([
+    {
+      ruleId: 'SEC-PASSIVE-002',
+      context: () => loadFixtureContext('fx-SEC-PASSIVE-002-positive.json'),
+      evidence: 'sec-passive-002.evidence',
+      recommendation: 'sec-passive-002.recommendation',
+    },
+    {
+      ruleId: 'SEC-PASSIVE-003',
+      context: () => loadFixtureContext('fx-SEC-PASSIVE-003-positive.json'),
+      evidence: 'sec-passive-003.evidence.missing',
+      recommendation: 'sec-passive-003.recommendation',
+    },
+    {
+      ruleId: 'SEC-PASSIVE-003',
+      context: () => htmlPage({ 'strict-transport-security': 'max-age=0' }),
+      evidence: 'sec-passive-003.evidence.no-max-age',
+      recommendation: 'sec-passive-003.recommendation',
+    },
+    {
+      ruleId: 'SEC-PASSIVE-005',
+      context: () => loadFixtureContext('fx-SEC-PASSIVE-005-positive.json'),
+      evidence: 'sec-passive-005.evidence',
+      recommendation: 'sec-passive-005.recommendation',
+    },
+    {
+      ruleId: 'SEC-ASVS-001',
+      context: () => loadFixtureContext('fx-SEC-PASSIVE-002-positive.json'),
+      evidence: 'sec-asvs-001.evidence',
+      recommendation: 'sec-asvs-001.recommendation',
+    },
+    {
+      ruleId: 'SEC-ASVS-002',
+      context: () => loadFixtureContext('fx-SEC-PASSIVE-002-positive.json'),
+      evidence: 'sec-asvs-002.evidence',
+      recommendation: 'sec-asvs-002.recommendation',
+    },
+    {
+      ruleId: 'SEC-ASVS-003',
+      context: () =>
+        htmlPage({
+          'access-control-allow-origin': '*',
+          'access-control-allow-credentials': 'true',
+        }),
+      evidence: 'sec-asvs-003.evidence',
+      recommendation: 'sec-asvs-003.recommendation',
+    },
+  ])('$ruleId → $evidence', ({ ruleId, context, evidence, recommendation }) => {
+    const finding = single(runRule('Security', ruleId, context()));
+    expect(finding.messages?.evidence.code).toBe(evidence);
+    expect(finding.messages?.recommendation.code).toBe(recommendation);
+  });
+
+  it('keeps the cookie value out of the message values', () => {
+    const finding = single(
+      runRule(
+        'Security',
+        'SEC-PASSIVE-005',
+        loadFixtureContext('fx-SEC-PASSIVE-005-positive.json'),
+      ),
+    );
+    expect(finding.messages?.evidence.params).toEqual({
+      cookie: 'session',
+      attributes: 'Secure, HttpOnly, SameSite',
+    });
   });
 });

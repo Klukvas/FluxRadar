@@ -14,6 +14,7 @@ import type { PageSnapshot } from '@fluxradar/crawler';
 import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 
 const descriptor = requireDescriptor('REL-URL-001');
 
@@ -30,10 +31,11 @@ export const relUrl001Availability: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'http',
-        evidence: `${page.requestedUrl} недоступен: ${page.fetchError}`,
-        recommendation:
-          'Проверьте DNS-записи, TLS-сертификат и доступность сервера: URL должен ' +
-          'отвечать в пределах таймаута (10 s на попытку, D-023).',
+        evidence: findingMessage('rel-url-001.evidence', {
+          url: page.requestedUrl,
+          error: page.fetchError,
+        }),
+        recommendation: findingMessage('rel-url-001.recommendation', {}),
         targetUnreachable: true,
       }),
     ];

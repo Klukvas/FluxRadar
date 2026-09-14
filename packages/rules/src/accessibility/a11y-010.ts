@@ -6,6 +6,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { accessibleName, elementSelector } from './helpers.js';
 import { parsePage } from '../seo/dom.js';
 
@@ -38,23 +39,22 @@ export const a11y010ScreenReaderEvidence: PageRule = {
     if (target === undefined) {
       return [];
     }
-    const reason = invalidMain
+    const selector = elementSelector(target);
+    const evidence = invalidMain
       ? mainLandmarks.length === 0
-        ? 'на странице отсутствует main landmark'
-        : 'на странице несколько main landmarks'
+        ? findingMessage('a11y-010.evidence.missing-main', { selector })
+        : findingMessage('a11y-010.evidence.multiple-main', { selector })
       : iframe !== undefined
-        ? 'iframe без title'
+        ? findingMessage('a11y-010.evidence.untitled-iframe', { selector })
         : video !== undefined
-          ? 'video без track captions/subtitles'
-          : 'один из нескольких nav landmarks не имеет доступного имени';
+          ? findingMessage('a11y-010.evidence.video-without-captions', { selector })
+          : findingMessage('a11y-010.evidence.unnamed-nav', { selector });
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence: `${elementSelector(target)}: ${reason}`,
-        recommendation:
-          'Добавьте единственный main landmark, назовите повторяющиеся nav landmarks и ' +
-          'предоставьте title для iframe и captions/subtitles для video.',
-        selector: elementSelector(target),
+        evidence,
+        recommendation: findingMessage('a11y-010.recommendation', {}),
+        selector,
       }),
     ];
   },

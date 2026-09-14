@@ -113,12 +113,16 @@ describe('SEO-ONPAGE-003 структура H1–H6', () => {
       '<!doctype html><html lang="en"><head><title>No h1 fixture page</title></head>' +
         '<body><h2>Second level only</h2></body></html>',
     );
-    expect(single(runSeoRule('SEO-ONPAGE-003', noH1)).evidenceExcerpt).toContain('нет h1');
+    expect(single(runSeoRule('SEO-ONPAGE-003', noH1)).evidenceExcerpt).toBe(
+      'The page has no h1. Heading outline: h2',
+    );
     const twoH1 = htmlContext(
       '<!doctype html><html lang="en"><head><title>Two h1 fixture page</title></head>' +
         '<body><h1>First</h1><h1>Second</h1></body></html>',
     );
-    expect(single(runSeoRule('SEO-ONPAGE-003', twoH1)).evidenceExcerpt).toContain('2 раз');
+    expect(single(runSeoRule('SEO-ONPAGE-003', twoH1)).evidenceExcerpt).toBe(
+      'The page has 2 h1 headings. Heading outline: h1 → h1',
+    );
   });
 });
 

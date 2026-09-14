@@ -7,14 +7,21 @@ import type { EvidenceType, RuleDescriptor } from '@fluxradar/contracts';
 import type { PageSnapshot } from '@fluxradar/crawler';
 import { normalizeField, normalizeUrl } from '@fluxradar/fingerprint';
 
+import type { FindingMessageRef } from '../messages/catalog.js';
+import { renderFindingMessage, type CataloguedFindingMessage } from '../messages/index.js';
 import { truncateExcerpt } from './evidence.js';
 import type { ApiCheck, RuleFinding } from './types.js';
 import { RULE_VARIANT_V1 } from './types.js';
 
 interface FindingDetails {
   readonly evidenceType: EvidenceType;
-  readonly evidence: string;
-  readonly recommendation: string;
+  /**
+   * References from `findingMessage`, never a finished sentence: the Issue
+   * Center renders them in the reader's language, and a plain string would
+   * reach an English or Ukrainian reader in whatever language it was written.
+   */
+  readonly evidence: CataloguedFindingMessage;
+  readonly recommendation: CataloguedFindingMessage;
   readonly confidence?: number;
   readonly resource?: string;
   readonly selector?: string;
@@ -62,6 +69,7 @@ function buildFinding(
       `finding ${descriptor.ruleId}: confidence ${confidence} вне диапазона 0..1 (§14)`,
     );
   }
+  const { evidence, recommendation } = details;
   return {
     ruleId: descriptor.ruleId,
     targetKind: descriptor.targetKind,
@@ -72,10 +80,26 @@ function buildFinding(
     ruleVariant: RULE_VARIANT_V1,
     targetUrl,
     evidenceType: details.evidenceType,
-    evidenceExcerpt: truncateExcerpt(details.evidence),
-    recommendation: details.recommendation,
+    evidenceExcerpt: truncateExcerpt(storedText(descriptor, evidence)),
+    recommendation: storedText(descriptor, recommendation),
+    messages: { evidence, recommendation },
     confidence,
     ...(details.targetUnreachable === true ? { targetUnreachable: true } : {}),
     ...(details.evidenceGroupId !== undefined ? { evidenceGroupId: details.evidenceGroupId } : {}),
   };
+}
+
+/**
+ * The English text stored with the finding.
+ *
+ * Exports, issue search and a report opened by an older client read it, so a
+ * message that cannot render is a bug in the rule: it fails that rule's own
+ * tests here instead of storing an empty sentence.
+ */
+function storedText(descriptor: RuleDescriptor, text: FindingMessageRef): string {
+  const rendered = renderFindingMessage(text, 'en');
+  if (rendered === null) {
+    throw new Error(`finding ${descriptor.ruleId}: message ${text.code} could not be rendered`);
+  }
+  return rendered;
 }

@@ -6,6 +6,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import {
   elementSelector,
   isFocusable,
@@ -103,26 +104,27 @@ export const a11y007Aria: PageRule = {
     if (first === undefined) {
       return [];
     }
-    const role = first.getAttribute('role')?.trim();
+    const role = first.getAttribute('role')?.trim() ?? '';
     const missing = referenceAttributes().flatMap((attribute) =>
       missingReferencedIds(first, attribute, root).map((id) => `${attribute}=${id}`),
     );
+    // first — это target, иначе brokenReference, иначе hiddenFocusable.
+    const selector = elementSelector(first);
     const evidence =
       target !== undefined
-        ? `${elementSelector(target)} содержит неизвестную ARIA role="${role}"`
+        ? findingMessage('a11y-007.evidence.unknown-role', { selector, role })
         : brokenReference !== undefined
-          ? `${elementSelector(brokenReference)} ссылается на отсутствующий ARIA id: ${missing.join(', ')}`
-          : hiddenFocusable === undefined
-            ? 'ARIA accessibility issue не определён'
-            : `${elementSelector(hiddenFocusable)} одновременно aria-hidden=true и находится в tab order`;
+          ? findingMessage('a11y-007.evidence.missing-reference', {
+              selector,
+              references: missing.join(', '),
+            })
+          : findingMessage('a11y-007.evidence.hidden-focusable', { selector });
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
         evidence,
-        recommendation:
-          'Используйте только валидные ARIA roles и проверяйте все ID-ссылки aria-атрибутов. ' +
-          'Не скрывайте доступные с клавиатуры элементы через aria-hidden="true".',
-        selector: elementSelector(first),
+        recommendation: findingMessage('a11y-007.recommendation', {}),
+        selector,
       }),
     ];
   },

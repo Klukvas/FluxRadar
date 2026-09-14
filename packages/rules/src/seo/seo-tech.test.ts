@@ -97,7 +97,9 @@ describe('SEO-TECH-004 canonical', () => {
       '<!doctype html><html lang="en"><head><title>No canonical here</title></head>' +
         '<body><h1>Page</h1></body></html>',
     );
-    expect(single(runSeoRule('SEO-TECH-004', ctx)).evidenceExcerpt).toContain('отсутствует');
+    expect(single(runSeoRule('SEO-TECH-004', ctx)).evidenceExcerpt).toContain(
+      'has no <link rel="canonical">',
+    );
   });
 
   it('относительный self-canonical разрешается против finalUrl → пусто', () => {
@@ -222,7 +224,7 @@ describe('SEO-TECH-008 index/noindex', () => {
     });
     const finding = single(runSeoRule('SEO-TECH-008', ctx));
     expect(finding.normalizedUrl).toBe('https://fixture.test/hidden.html');
-    expect(finding.evidenceExcerpt).toContain('внутренние ссылки');
+    expect(finding.evidenceExcerpt).toContain('other pages link to it internally');
   });
 
   it('X-Robots-Tag: noindex + sitemap → finding с http-evidence', () => {

@@ -8,6 +8,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { siteFinding } from '../engine/finding.js';
 import type { SiteContext, SiteRule, SiteRuleResult } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage } from '../seo/dom.js';
 
 const descriptor = requireDescriptor('PRIVACY-004');
@@ -36,10 +37,8 @@ export const privacy004PolicyDiscoverability: SiteRule = {
       findings: [
         siteFinding(descriptor, homepage.finalUrl, {
           evidenceType: 'dom',
-          evidence: 'На homepage не обнаружена ссылка на privacy/cookie policy',
-          recommendation:
-            'Добавьте доступную same-site ссылку на privacy policy и cookie information; ' +
-            'проверьте, что документы соответствуют вашим фактическим данным и регионам.',
+          evidence: findingMessage('privacy-004.evidence', {}),
+          recommendation: findingMessage('privacy-004.recommendation', {}),
           resource: 'privacy-policy-link',
           confidence: 0.9,
         }),
