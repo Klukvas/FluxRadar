@@ -3,6 +3,12 @@
 // The AI adapter consumes this bounded evidence and supplies the interpretation.
 
 import { isSuccessfulHtmlPage, type SiteContext } from '../engine/types.js';
+import {
+  findingMessage,
+  renderFindingMessage,
+  type FindingMessageRef,
+  type FindingMessages,
+} from '../messages/index.js';
 import { parsePage } from '../seo/dom.js';
 import { visibleText } from '../content/visible-text.js';
 
@@ -44,6 +50,13 @@ export interface UxStaticFinding {
   readonly recommendation: string;
   readonly confidence: 1;
   readonly selector?: string;
+  /**
+   * The same evidence and recommendation as codes, so the Issue Center can show
+   * them in the reader's language; `evidence`/`recommendation` are their English
+   * rendering. Optional because the UX issue-row writer also takes AI findings,
+   * whose text the model wrote and has no code.
+   */
+  readonly messages?: FindingMessages;
 }
 
 function clean(value: string): string {
@@ -142,34 +155,66 @@ function pagePriority(page: UxPageEvidence, index: number): number {
   return score;
 }
 
+/** A static finding whose English text is rendered from its messages, so the two cannot drift. */
+function staticFinding(
+  finding: Omit<UxStaticFinding, 'evidence' | 'recommendation' | 'messages'>,
+  messages: FindingMessages,
+): UxStaticFinding {
+  return {
+    ...finding,
+    evidence: englishText(messages.evidence),
+    recommendation: englishText(messages.recommendation),
+    messages,
+  };
+}
+
+function englishText(ref: FindingMessageRef): string {
+  const text = renderFindingMessage(ref, 'en');
+  if (text === null) {
+    throw new Error(`UX/Conversion static message ${ref.code} could not be rendered`);
+  }
+  return text;
+}
+
 function entryPageFindings(page: Parameters<typeof visibleText>[0]): readonly UxStaticFinding[] {
   const root = parsePage(page);
-  const findings: UxStaticFinding[] = [];
-  if (root.querySelector('h1') === null) {
-    findings.push({
-      ruleId: 'UX-CONV-STATIC-001',
-      targetUrl: page.finalUrl,
-      severity: 'Medium',
-      evidence: 'No h1 heading was present in the fetched entry-page HTML.',
-      recommendation:
-        'Add one visible h1 that states the page’s main offer or purpose in plain language.',
-      confidence: 1,
-      selector: 'body',
-    });
-  }
-  if (root.querySelector('a[href], button, input[type="submit"], input[type="button"]') === null) {
-    findings.push({
-      ruleId: 'UX-CONV-STATIC-002',
-      targetUrl: page.finalUrl,
-      severity: 'Medium',
-      evidence: 'No link, button, or button-like input was present in the fetched entry-page HTML.',
-      recommendation:
-        'Provide a visible action that lets visitors continue toward the page’s intended outcome.',
-      confidence: 1,
-      selector: 'body',
-    });
-  }
-  return findings;
+  const missingHeading =
+    root.querySelector('h1') === null
+      ? [
+          staticFinding(
+            {
+              ruleId: 'UX-CONV-STATIC-001',
+              targetUrl: page.finalUrl,
+              severity: 'Medium',
+              confidence: 1,
+              selector: 'body',
+            },
+            {
+              evidence: findingMessage('ux-conv-static-001.evidence', {}),
+              recommendation: findingMessage('ux-conv-static-001.recommendation', {}),
+            },
+          ),
+        ]
+      : [];
+  const missingAction =
+    root.querySelector('a[href], button, input[type="submit"], input[type="button"]') === null
+      ? [
+          staticFinding(
+            {
+              ruleId: 'UX-CONV-STATIC-002',
+              targetUrl: page.finalUrl,
+              severity: 'Medium',
+              confidence: 1,
+              selector: 'body',
+            },
+            {
+              evidence: findingMessage('ux-conv-static-002.evidence', {}),
+              recommendation: findingMessage('ux-conv-static-002.recommendation', {}),
+            },
+          ),
+        ]
+      : [];
+  return [...missingHeading, ...missingAction];
 }
 
 function formFindings(page: Parameters<typeof visibleText>[0]): readonly UxStaticFinding[] {
@@ -179,15 +224,22 @@ function formFindings(page: Parameters<typeof visibleText>[0]): readonly UxStati
     const submits = form.querySelectorAll('button[type="submit"], input[type="submit"]').length;
     if (controls === 0 || submits > 0) return [];
     return [
-      {
-        ruleId: 'UX-CONV-STATIC-003' as const,
-        targetUrl: page.finalUrl,
-        severity: 'Low' as const,
-        evidence: `Form ${index + 1} contained ${controls} ${controls === 1 ? 'control' : 'controls'} and no explicit submit control.`,
-        recommendation: 'Provide a clearly labelled submit control inside the form.',
-        confidence: 1 as const,
-        selector: `form:nth-of-type(${index + 1})`,
-      },
+      staticFinding(
+        {
+          ruleId: 'UX-CONV-STATIC-003',
+          targetUrl: page.finalUrl,
+          severity: 'Low',
+          confidence: 1,
+          selector: `form:nth-of-type(${index + 1})`,
+        },
+        {
+          evidence: findingMessage('ux-conv-static-003.evidence', {
+            form: index + 1,
+            controls,
+          }),
+          recommendation: findingMessage('ux-conv-static-003.recommendation', {}),
+        },
+      ),
     ];
   });
 }

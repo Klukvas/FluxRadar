@@ -42,7 +42,10 @@ function statusReasonFor(applicable: number, completed: number): string | undefi
   return undefined;
 }
 
-function outputSignals(result: ModuleRunResult, siteReachable: boolean): readonly ModuleOutputSignal[] {
+function outputSignals(
+  result: ModuleRunResult,
+  siteReachable: boolean,
+): readonly ModuleOutputSignal[] {
   const findingSignals = result.findings.map((finding) => ({
     kind: 'finding' as const,
     hasEvidence: finding.evidenceType !== 'none' || finding.evidenceExcerpt !== '',
@@ -111,6 +114,8 @@ export interface IssueRowData {
   readonly evidenceExcerpt: string | null;
   readonly evidenceGroupId: string | null;
   readonly recommendation: string;
+  /** Message codes behind the two texts above; null when the finding has none (AI text). */
+  readonly messagesJson: string | null;
   readonly confidence: number;
   readonly applicableTargets: number;
   readonly affectedTargets: number;
@@ -153,6 +158,7 @@ export function issueRowsForModule(
         evidenceExcerpt: candidate.evidenceExcerpt === '' ? null : candidate.evidenceExcerpt,
         evidenceGroupId: candidate.evidenceGroupId ?? null,
         recommendation: candidate.recommendation,
+        messagesJson: candidate.messages === undefined ? null : JSON.stringify(candidate.messages),
         confidence: candidate.confidence,
         applicableTargets: candidate.applicableTargets,
         affectedTargets: candidate.affectedTargets,

@@ -6,6 +6,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage } from './dom.js';
 
 const descriptor = requireDescriptor('SEO-SOCIAL-001');
@@ -28,10 +29,8 @@ export const seoSocial001Preview: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence: `Отсутствуют social preview поля: ${missing.join(', ')}`,
-        recommendation:
-          'Добавьте уникальные Open Graph og:title, og:description, og:image, og:url и ' +
-          'Twitter twitter:card; проверьте абсолютные URL и предпросмотр ссылки.',
+        evidence: findingMessage('seo-social-001.evidence', { fields: missing.join(', ') }),
+        recommendation: findingMessage('seo-social-001.recommendation', {}),
         resource: 'social-preview',
       }),
     ];

@@ -12,6 +12,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { hasHttpResponse } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-005');
 
@@ -45,10 +46,11 @@ function isRedirectLimitFailure(page: PageSnapshot): boolean {
 function redirectCycleFinding(page: PageSnapshot): RuleFinding {
   return pageFinding(descriptor, page, {
     evidenceType: 'http',
-    evidence: `${page.requestedUrl}: ${page.fetchError ?? 'redirect limit exceeded'}`,
-    recommendation:
-      'Разорвите цикл redirect-ов: каждый URL должен вести к финальному 200-ответу ' +
-      'не более чем за один переход.',
+    evidence: findingMessage('seo-tech-005.evidence.loop', {
+      url: page.requestedUrl,
+      error: page.fetchError ?? 'redirect limit exceeded',
+    }),
+    recommendation: findingMessage('seo-tech-005.recommendation.loop', {}),
     targetUnreachable: true,
   });
 }
@@ -59,11 +61,12 @@ function redirectChainFinding(page: PageSnapshot): RuleFinding {
     .join('; ');
   return pageFinding(descriptor, page, {
     evidenceType: 'http',
-    evidence:
-      `Цепочка из ${page.redirectChain.length} redirect-ов до ${page.finalUrl} ` +
-      `(HTTP ${page.status}): ${hops}`,
-    recommendation:
-      'Сократите цепочку до одного redirect-а: ссылайтесь сразу на финальный URL, ' +
-      'а старые адреса перенаправляйте на него напрямую.',
+    evidence: findingMessage('seo-tech-005.evidence.chain', {
+      count: page.redirectChain.length,
+      url: page.finalUrl,
+      status: page.status,
+      chain: hops,
+    }),
+    recommendation: findingMessage('seo-tech-005.recommendation.chain', {}),
   });
 }

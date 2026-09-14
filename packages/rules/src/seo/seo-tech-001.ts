@@ -9,6 +9,7 @@
 import { requireDescriptor } from '../engine/descriptor.js';
 import { siteFinding } from '../engine/finding.js';
 import type { SiteContext, SiteRule, SiteRuleResult } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-001');
 
@@ -23,10 +24,8 @@ export const seoTech001RobotsTxt: SiteRule = {
     const targetUrl = `${ctx.domain}/robots.txt`;
     const finding = siteFinding(descriptor, targetUrl, {
       evidenceType: 'http',
-      evidence: `GET ${targetUrl} не вернул HTTP 200 — robots.txt отсутствует или недоступен`,
-      recommendation:
-        'Опубликуйте /robots.txt с директивами обхода и ссылкой Sitemap — поисковые роботы ' +
-        'ориентируются на него при сканировании сайта.',
+      evidence: findingMessage('seo-tech-001.evidence', { url: targetUrl }),
+      recommendation: findingMessage('seo-tech-001.recommendation', {}),
       resource: '/robots.txt',
     });
     return { findings: [finding], applicableTargets: 1, affectedTargets: 1 };

@@ -32,6 +32,9 @@ describe('PRIVACY-001 cookies', () => {
     expect(finding.evidenceExcerpt).toContain('visitor_id (document.cookie)');
     // Значения кук в evidence не попадают.
     expect(finding.evidenceExcerpt).not.toContain('abc123');
+    expect(finding.evidenceExcerpt).toMatch(/^The page sets cookies \(\d+\): /);
+    expect(finding.messages?.evidence.code).toBe('privacy-001.evidence');
+    expect(finding.messages?.recommendation.code).toBe('privacy-001.recommendation');
   });
 
   it('negative: страница без кук (внешний script src — не кука) → пусто', () => {
@@ -79,6 +82,8 @@ describe('PRIVACY-003 third-party скрипты', () => {
     expect(finding.evidenceExcerpt).toContain('stats.example.com');
     // Same-origin скрипт /app.js доменом в excerpt не становится.
     expect(finding.evidenceExcerpt).not.toContain('fixture.test');
+    expect(finding.messages?.evidence.code).toBe('privacy-003.evidence');
+    expect(finding.messages?.recommendation.code).toBe('privacy-003.recommendation');
   });
 
   it('negative: same-origin и inline скрипты → пусто', () => {
@@ -107,7 +112,7 @@ describe('PRIVACY-003 third-party скрипты', () => {
         '<body><h1>Page</h1></body></html>',
     );
     expect(single(runRule('Privacy', 'PRIVACY-003', ctx)).evidenceExcerpt) //
-      .toContain('с 1 доменов: stats.example.com');
+      .toContain('Third-party scripts load from these domains (1): stats.example.com');
   });
 });
 
@@ -121,6 +126,11 @@ describe('PRIVACY-002/004 consent and policy signals', () => {
     const finding = single(runRule('Privacy', 'PRIVACY-002', ctx));
     expect(finding.confidence).toBe(0.8);
     expect(finding.evidenceExcerpt).toContain('googletagmanager.com');
+    expect(finding.messages?.evidence).toEqual({
+      code: 'privacy-002.evidence',
+      params: { trackers: 'googletagmanager.com' },
+    });
+    expect(finding.messages?.recommendation.code).toBe('privacy-002.recommendation');
   });
 
   it('does not report the consent signal when a banner marker exists', () => {
@@ -143,7 +153,14 @@ describe('PRIVACY-002/004 consent and policy signals', () => {
         },
       ],
     });
-    expect(runRule('Privacy', 'PRIVACY-004', missing)).toHaveLength(1);
+    const missingFinding = single(runRule('Privacy', 'PRIVACY-004', missing));
+    expect(missingFinding.evidenceExcerpt).toBe(
+      'No link to a privacy or cookie policy was found on the homepage.',
+    );
+    expect(missingFinding.messages).toEqual({
+      evidence: { code: 'privacy-004.evidence', params: {} },
+      recommendation: { code: 'privacy-004.recommendation', params: {} },
+    });
     const linked = siteContext({
       pages: [
         {

@@ -14,6 +14,7 @@ import { IMG_ALT_EVIDENCE_CATEGORY, evidenceGroupId } from '../engine/evidence-g
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage } from '../seo/dom.js';
 
 const descriptor = requireDescriptor('A11Y-002');
@@ -35,12 +36,11 @@ export const a11y002ImageAlt: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence:
-          `${missingAlt.length} <img> без alt — screen reader объявит такие ` +
-          `изображения как «image» без содержания; первый: <img src="${firstSrc}">`,
-        recommendation:
-          'Дайте каждому содержательному изображению информативный alt; ' +
-          'декоративным — явный пустой alt="", чтобы screen reader их пропускал.',
+        evidence: findingMessage('a11y-002.evidence', {
+          count: missingAlt.length,
+          src: firstSrc,
+        }),
+        recommendation: findingMessage('a11y-002.recommendation', {}),
         selector,
         evidenceGroupId: evidenceGroupId(IMG_ALT_EVIDENCE_CATEGORY, page.normalizedUrl),
       }),

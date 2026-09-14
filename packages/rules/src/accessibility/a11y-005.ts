@@ -6,6 +6,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { elementSelector } from './helpers.js';
 import { parsePage } from '../seo/dom.js';
 
@@ -35,20 +36,17 @@ export const a11y005KeyboardNavigation: PageRule = {
     if (target === undefined) {
       return [];
     }
-    const reason =
-      positiveTabindex !== undefined
-        ? `${elementSelector(positiveTabindex)} использует tabindex > 0`
-        : mouseOnly === undefined
-          ? 'интерактивный элемент не определён'
-          : `${elementSelector(mouseOnly)} имеет onclick без клавиатурного обработчика`;
+    // target — это positiveTabindex, если он есть, иначе mouseOnly.
+    const selector = elementSelector(target);
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence: reason,
-        recommendation:
-          'Не используйте tabindex больше нуля; для интерактивности применяйте нативные ' +
-          'button/link или добавьте эквивалентное управление с клавиатуры.',
-        selector: elementSelector(target),
+        evidence:
+          positiveTabindex !== undefined
+            ? findingMessage('a11y-005.evidence.positive-tabindex', { selector })
+            : findingMessage('a11y-005.evidence.mouse-only', { selector }),
+        recommendation: findingMessage('a11y-005.recommendation', {}),
+        selector,
       }),
     ];
   },

@@ -175,6 +175,27 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       ]),
     );
 
+    // Rule findings used to store one Russian sentence that every reader saw.
+    // A real scan now stores message codes, and the API renders them per report
+    // language; the AI-written UX finding has no codes and keeps its own text.
+    const allIssues = await agent
+      .get(`/scans/${scanId}/issues?limit=100`)
+      .set('Cookie', account.cookie);
+    expect(allIssues.status).toBe(200);
+    const ruleIssue = allIssues.body.data.find(
+      (issue: { module: string; localized: unknown }) =>
+        issue.module !== 'UX/Conversion' && issue.localized !== null,
+    );
+    expect(ruleIssue).toBeDefined();
+    expect(ruleIssue.recommendation).not.toMatch(/\p{Script=Cyrillic}/u);
+    expect(ruleIssue.localized.en.recommendation).toBe(ruleIssue.recommendation);
+    expect(ruleIssue.localized.uk.recommendation).toEqual(expect.any(String));
+    expect(ruleIssue.localized.uk.recommendation).not.toBe(ruleIssue.recommendation);
+    const aiIssue = allIssues.body.data.find(
+      (issue: { ruleId: string }) => issue.ruleId === 'UX-CONV-AI-001',
+    );
+    expect(aiIssue.localized).toBeNull();
+
     const jsonExport = await agent
       .get(`/scans/${scanId}/export?format=json`)
       .set('Cookie', account.cookie);

@@ -11,6 +11,7 @@
 import { requireDescriptor } from '../engine/descriptor.js';
 import { apiFinding } from '../engine/finding.js';
 import type { ApiCheck, ApiRule, SiteContext, SiteRuleResult } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { expectedStatusLabel, hasCredentialHeaders, isExpectedStatus } from './api-checks.js';
 
 const descriptor = requireDescriptor('REL-API-003');
@@ -40,12 +41,13 @@ export const relApi003ExpectedStatus: ApiRule = {
 function unexpectedStatusFinding(check: ApiCheck, status: number) {
   return apiFinding(descriptor, check, {
     evidenceType: 'http',
-    evidence:
-      `${check.method} ${check.url} → HTTP ${status}, ` +
-      `ожидалось ${expectedStatusLabel(check)} (§9 precedence)`,
-    recommendation:
-      'Верните endpoint к ожидаемому статусу либо обновите expected_status ' +
-      'проверки, если новое поведение намеренное.',
+    evidence: findingMessage('rel-api-003.evidence', {
+      method: check.method,
+      url: check.url,
+      status,
+      expected: expectedStatusLabel(check),
+    }),
+    recommendation: findingMessage('rel-api-003.recommendation', {}),
     parameter: check.method,
   });
 }

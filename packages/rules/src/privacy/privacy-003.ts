@@ -16,6 +16,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage } from '../seo/dom.js';
 
 const descriptor = requireDescriptor('PRIVACY-003');
@@ -32,10 +33,11 @@ export const privacy003ThirdPartyScripts: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence: `Third-party скрипты с ${domains.length} доменов: ${domains.join(', ')}`,
-        recommendation:
-          'Проверьте каждый сторонний скрипт: нужен ли он, упомянут ли в privacy ' +
-          'policy и требует ли согласия пользователя (трекеры — требуют).',
+        evidence: findingMessage('privacy-003.evidence', {
+          count: domains.length,
+          domains: domains.join(', '),
+        }),
+        recommendation: findingMessage('privacy-003.recommendation', {}),
       }),
     ];
   },

@@ -6,6 +6,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { inlineStyle, styleText } from './helpers.js';
 import { parsePage } from '../seo/dom.js';
 
@@ -37,11 +38,11 @@ export const a11y006FocusVisible: PageRule = {
         evidenceType: 'dom',
         evidence:
           inlineViolation === undefined
-            ? 'В style-блоке focus-state отключает outline без обнаруженной замены'
-            : `У ${inlineViolation.rawTagName.toLowerCase()} inline-style отключает outline без замены`,
-        recommendation:
-          'Сохраните видимый focus indicator с достаточным контрастом и убедитесь, что ' +
-          'фокус не скрывается под sticky/fixed-контентом (WCAG 2.4.11).',
+            ? findingMessage('a11y-006.evidence.stylesheet', {})
+            : findingMessage('a11y-006.evidence.inline', {
+                tag: inlineViolation.rawTagName.toLowerCase(),
+              }),
+        recommendation: findingMessage('a11y-006.recommendation', {}),
         ...(inlineViolation === undefined
           ? {}
           : { selector: inlineViolation.rawTagName.toLowerCase() }),

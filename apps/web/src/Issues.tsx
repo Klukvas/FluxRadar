@@ -175,11 +175,24 @@ export function IssuesScreen(props: {
                             value={<StatusChip status={issue.status} />}
                           />
                           <FieldRow label={t.columnTarget} value={issue.targetUrl} technical />
+                          {/* The reader's language when the API rendered one; the
+                              stored text otherwise, which is what an older
+                              finding or an AI-written one only has. */}
                           <FieldRow
                             label={t.evidence}
-                            value={issue.evidenceExcerpt ?? t.noExcerpt}
+                            value={
+                              issue.localized?.[props.language]?.evidenceExcerpt ??
+                              issue.evidenceExcerpt ??
+                              t.noExcerpt
+                            }
                           />
-                          <FieldRow label={t.recommendation} value={issue.recommendation} />
+                          <FieldRow
+                            label={t.recommendation}
+                            value={
+                              issue.localized?.[props.language]?.recommendation ??
+                              issue.recommendation
+                            }
+                          />
                           <FieldRow
                             label={t.impact}
                             value={fillCopy(t.impactValue, {

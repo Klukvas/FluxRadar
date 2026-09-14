@@ -14,6 +14,7 @@ import { IMG_ALT_EVIDENCE_CATEGORY, evidenceGroupId } from '../engine/evidence-g
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage } from './dom.js';
 
 const descriptor = requireDescriptor('SEO-ONPAGE-005');
@@ -35,12 +36,11 @@ export const seoOnpage005ImageAlt: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence:
-          `${missingAlt.length} <img> без атрибута alt; первый: ` +
-          `<img src="${firstSrc}"> (декоративным нужен пустой alt="")`,
-        recommendation:
-          'Добавьте информативный alt каждому содержательному изображению; ' +
-          'декоративным — явный пустой alt="".',
+        evidence: findingMessage('seo-onpage-005.evidence', {
+          count: missingAlt.length,
+          src: firstSrc,
+        }),
+        recommendation: findingMessage('seo-onpage-005.recommendation', {}),
         selector,
         evidenceGroupId: evidenceGroupId(IMG_ALT_EVIDENCE_CATEGORY, page.normalizedUrl),
       }),

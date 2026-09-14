@@ -8,6 +8,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { elementSelector } from './helpers.js';
 import { parsePage } from '../seo/dom.js';
 
@@ -30,10 +31,8 @@ export const a11y009FormErrors: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence: `${elementSelector(invalid)} имеет aria-invalid="true", но не связан с текстом ошибки`,
-        recommendation:
-          'Свяжите invalid-контрол с понятным сообщением об ошибке через aria-describedby ' +
-          'или aria-errormessage и обновляйте сообщение после валидации.',
+        evidence: findingMessage('a11y-009.evidence', { selector: elementSelector(invalid) }),
+        recommendation: findingMessage('a11y-009.recommendation', {}),
         selector: elementSelector(invalid),
       }),
     ];

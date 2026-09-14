@@ -13,6 +13,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { hasHttpResponse } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parseSetCookie, setCookieValues } from '../shared/headers.js';
 
 const descriptor = requireDescriptor('SEC-PASSIVE-005');
@@ -44,10 +45,11 @@ export const secPassive005CookieAttributes: PageRule = {
       return [
         pageFinding(descriptor, page, {
           evidenceType: 'http',
-          evidence: `Set-Cookie "${cookie.name}" без атрибутов: ${missing.join(', ')}`,
-          recommendation:
-            'Выставляйте кукам Secure, HttpOnly и SameSite (Lax или Strict); ' +
-            'исключения делайте осознанно и только для несессионных кук.',
+          evidence: findingMessage('sec-passive-005.evidence', {
+            cookie: cookie.name,
+            attributes: missing.join(', '),
+          }),
+          recommendation: findingMessage('sec-passive-005.recommendation', {}),
           parameter: cookie.name,
         }),
       ];

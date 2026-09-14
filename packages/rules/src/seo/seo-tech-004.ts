@@ -15,6 +15,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage, relTokens } from './dom.js';
 
 const descriptor = requireDescriptor('SEO-TECH-004');
@@ -63,10 +64,8 @@ function resolveCanonical(href: string, baseUrl: string): URL | null {
 function missingCanonicalFinding(page: PageSnapshot): RuleFinding {
   return pageFinding(descriptor, page, {
     evidenceType: 'dom',
-    evidence: `<link rel="canonical"> отсутствует в документе ${page.finalUrl}`,
-    recommendation:
-      'Добавьте <link rel="canonical"> с абсолютным URL самой страницы (или её ' +
-      'канонической версии на том же домене).',
+    evidence: findingMessage('seo-tech-004.evidence.missing', { url: page.finalUrl }),
+    recommendation: findingMessage('seo-tech-004.recommendation.missing', {}),
     selector: CANONICAL_SELECTOR,
   });
 }
@@ -74,8 +73,8 @@ function missingCanonicalFinding(page: PageSnapshot): RuleFinding {
 function unresolvableCanonicalFinding(page: PageSnapshot, href: string): RuleFinding {
   return pageFinding(descriptor, page, {
     evidenceType: 'dom',
-    evidence: `<link rel="canonical" href="${href}"> не разрешается в абсолютный http(s)-URL`,
-    recommendation: 'Укажите в rel=canonical корректный абсолютный http(s)-URL.',
+    evidence: findingMessage('seo-tech-004.evidence.invalid', { href }),
+    recommendation: findingMessage('seo-tech-004.recommendation.invalid', {}),
     selector: CANONICAL_SELECTOR,
     resource: href,
   });
@@ -84,12 +83,12 @@ function unresolvableCanonicalFinding(page: PageSnapshot, href: string): RuleFin
 function foreignCanonicalFinding(page: PageSnapshot, href: string, resolved: URL): RuleFinding {
   return pageFinding(descriptor, page, {
     evidenceType: 'dom',
-    evidence:
-      `<link rel="canonical" href="${href}"> указывает на чужой host ${resolved.hostname} — ` +
-      `страница живёт на ${new URL(page.finalUrl).hostname}`,
-    recommendation:
-      'Canonical должен указывать на URL в пределах того же host-а; кросс-доменный canonical ' +
-      'передаёт индексацию чужому домену — проверьте, что это сделано намеренно.',
+    evidence: findingMessage('seo-tech-004.evidence.foreign-host', {
+      href,
+      canonicalHost: resolved.hostname,
+      pageHost: new URL(page.finalUrl).hostname,
+    }),
+    recommendation: findingMessage('seo-tech-004.recommendation.foreign-host', {}),
     selector: CANONICAL_SELECTOR,
     resource: resolved.href,
   });

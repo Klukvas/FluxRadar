@@ -12,6 +12,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { codePointLength } from '../seo/dom.js';
 import { visibleText } from './visible-text.js';
 
@@ -37,12 +38,12 @@ export const content003LowValuePages: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence:
-          `Видимый текст: ${length} символов < ${VISIBLE_TEXT_MIN_CHARS} ` +
-          `(малосодержательная страница): "${preview}"`,
-        recommendation:
-          'Наполните страницу содержательным текстом или закройте её от индексации ' +
-          '(noindex), если она служебная.',
+        evidence: findingMessage('content-003.evidence', {
+          length,
+          minimum: VISIBLE_TEXT_MIN_CHARS,
+          preview,
+        }),
+        recommendation: findingMessage('content-003.recommendation', {}),
       }),
     ];
   },

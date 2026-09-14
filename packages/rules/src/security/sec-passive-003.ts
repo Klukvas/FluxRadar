@@ -15,6 +15,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { siteFinding } from '../engine/finding.js';
 import type { SiteContext, SiteRule, SiteRuleResult } from '../engine/types.js';
 import { hasHttpResponse } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { headerValue } from '../shared/headers.js';
 
 const descriptor = requireDescriptor('SEC-PASSIVE-003');
@@ -40,11 +41,9 @@ export const secPassive003Hsts: SiteRule = {
       evidenceType: 'http',
       evidence:
         hsts === null
-          ? 'Ответ https-homepage без заголовка Strict-Transport-Security'
-          : `Strict-Transport-Security без положительного max-age: ${hsts}`,
-      recommendation:
-        'Отдавайте Strict-Transport-Security: max-age=31536000; includeSubDomains ' +
-        'на всех https-ответах, начиная с homepage.',
+          ? findingMessage('sec-passive-003.evidence.missing', {})
+          : findingMessage('sec-passive-003.evidence.no-max-age', { header: hsts }),
+      recommendation: findingMessage('sec-passive-003.recommendation', {}),
       resource: 'strict-transport-security',
     });
     return { findings: [finding], applicableTargets: 1, affectedTargets: 1 };

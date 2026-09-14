@@ -11,6 +11,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage, type CataloguedFindingMessage } from '../messages/index.js';
 import { codePointLength, metaContent, parsePage } from './dom.js';
 
 const descriptor = requireDescriptor('SEO-ONPAGE-002');
@@ -25,14 +26,18 @@ export const seoOnpage002MetaDescription: PageRule = {
   evaluatePage(page: PageSnapshot): readonly RuleFinding[] {
     const description = metaContent(parsePage(page), 'description')?.trim() ?? '';
     if (description === '') {
-      return [descriptionFinding(page, '<meta name="description"> отсутствует или пуст')];
+      return [descriptionFinding(page, findingMessage('seo-onpage-002.evidence.missing', {}))];
     }
     const length = codePointLength(description);
     if (length < DESCRIPTION_MIN_CHARS) {
       return [
         descriptionFinding(
           page,
-          `meta description из ${length} симв. (< ${DESCRIPTION_MIN_CHARS}): «${description}»`,
+          findingMessage('seo-onpage-002.evidence.too-short', {
+            description,
+            length,
+            min: DESCRIPTION_MIN_CHARS,
+          }),
         ),
       ];
     }
@@ -40,7 +45,10 @@ export const seoOnpage002MetaDescription: PageRule = {
       return [
         descriptionFinding(
           page,
-          `meta description из ${length} симв. (> ${DESCRIPTION_MAX_CHARS})`,
+          findingMessage('seo-onpage-002.evidence.too-long', {
+            length,
+            max: DESCRIPTION_MAX_CHARS,
+          }),
         ),
       ];
     }
@@ -48,13 +56,14 @@ export const seoOnpage002MetaDescription: PageRule = {
   },
 };
 
-function descriptionFinding(page: PageSnapshot, evidence: string): RuleFinding {
+function descriptionFinding(page: PageSnapshot, evidence: CataloguedFindingMessage): RuleFinding {
   return pageFinding(descriptor, page, {
     evidenceType: 'dom',
     evidence,
-    recommendation:
-      `Опишите содержание страницы в meta description длиной ${DESCRIPTION_MIN_CHARS}–` +
-      `${DESCRIPTION_MAX_CHARS} символов — сниппет выдачи берётся отсюда.`,
+    recommendation: findingMessage('seo-onpage-002.recommendation', {
+      min: DESCRIPTION_MIN_CHARS,
+      max: DESCRIPTION_MAX_CHARS,
+    }),
     selector: 'meta[name="description"]',
   });
 }

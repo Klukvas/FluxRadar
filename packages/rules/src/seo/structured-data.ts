@@ -9,6 +9,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage } from './dom.js';
 
 const syntaxDescriptor = requireDescriptor('SEO-STRUCT-001');
@@ -49,12 +50,11 @@ export const seoStruct001JsonLdSyntax: PageRule = {
     return [
       pageFinding(syntaxDescriptor, page, {
         evidenceType: 'dom',
-        evidence:
-          `${invalid.length} JSON-LD block(s) не удалось разобрать как JSON; ` +
-          `первый селектор: ${invalid[0]?.selector ?? 'script[type="application/ld+json"]'}`,
-        recommendation:
-          'Проверьте JSON-LD через JSON parser и Rich Results Test; один сломанный блок ' +
-          'может сделать structured data недоступными поисковым системам.',
+        evidence: findingMessage('seo-struct-001.evidence', {
+          count: invalid.length,
+          selector: invalid[0]?.selector ?? 'script[type="application/ld+json"]',
+        }),
+        recommendation: findingMessage('seo-struct-001.recommendation', {}),
         selector: invalid[0]?.selector ?? 'script[type="application/ld+json"]',
         resource: 'json-ld',
       }),
@@ -72,10 +72,8 @@ export const seoStruct002JsonLdCompleteness: PageRule = {
     return [
       pageFinding(completenessDescriptor, page, {
         evidenceType: 'dom',
-        evidence: `${incomplete.length} JSON-LD block(s) не содержат одновременно непустые @context и @type`,
-        recommendation:
-          'Добавьте в каждый JSON-LD объект корректные @context и @type; значения должны ' +
-          'описывать видимую сущность страницы.',
+        evidence: findingMessage('seo-struct-002.evidence', { count: incomplete.length }),
+        recommendation: findingMessage('seo-struct-002.recommendation', {}),
         selector: incomplete[0]?.selector ?? 'script[type="application/ld+json"]',
         resource: 'json-ld',
       }),

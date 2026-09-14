@@ -5,6 +5,8 @@
 import type { EvidenceType, Plan, RuleDescriptor, TargetKind } from '@fluxradar/contracts';
 import type { CrawlResult, PageSnapshot } from '@fluxradar/crawler';
 
+import type { FindingMessages } from '../messages/catalog.js';
+
 /** Единственный вариант правил v0.1; смена трактовки оракула → 'v2'. */
 export const RULE_VARIANT_V1 = 'v1';
 export type RuleVariant = typeof RULE_VARIANT_V1;
@@ -66,6 +68,12 @@ export interface RuleFinding {
   /** Обрезан до EVIDENCE_EXCERPT_MAX_CHARS Unicode-символов (§16). */
   readonly evidenceExcerpt: string;
   readonly recommendation: string;
+  /**
+   * Message codes and values behind `evidenceExcerpt` and `recommendation`, so
+   * the report can render both in the reader's language. The two text fields
+   * hold the English rendering; absent while a rule still writes plain text.
+   */
+  readonly messages?: FindingMessages;
   /** Уверенность правила в находке, 0..1. */
   readonly confidence: number;
   /** true — единственное содержание находки это недоступность цели (D-026). */

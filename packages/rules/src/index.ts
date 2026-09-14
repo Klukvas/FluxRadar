@@ -25,6 +25,21 @@ export {
   isSuccessfulHtmlPage,
 } from './engine/types.js';
 export { truncateExcerpt } from './engine/evidence.js';
+export {
+  FINDING_LANGUAGES,
+  FINDING_MESSAGES,
+  MODULE_MESSAGE_CATALOGS,
+  findingMessage,
+  placeholdersOf,
+  renderFindingMessage,
+} from './messages/index.js';
+export type {
+  FindingLanguage,
+  FindingMessageCatalog,
+  FindingMessageCode,
+  FindingMessageRef,
+  FindingMessages,
+} from './messages/index.js';
 export { IMG_ALT_EVIDENCE_CATEGORY, evidenceGroupId } from './engine/evidence-group.js';
 export { apiFinding, pageFinding, siteFinding } from './engine/finding.js';
 export { requireDescriptor } from './engine/descriptor.js';

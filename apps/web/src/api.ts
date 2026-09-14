@@ -218,6 +218,17 @@ export interface Issue {
   readonly evidenceRef: string;
   readonly evidenceExcerpt: string | null;
   readonly recommendation: string;
+  /**
+   * The evidence and recommendation in each report language, rendered by the API
+   * from the finding's message codes. Null for a finding stored before codes
+   * existed, or written by AI, and absent from an older API: show the stored text.
+   */
+  readonly localized?: Readonly<
+    Record<
+      'en' | 'uk',
+      { readonly evidenceExcerpt: string | null; readonly recommendation: string | null }
+    >
+  > | null;
   readonly confidence: number;
   readonly affectedTargets: number;
   readonly applicableTargets: number;

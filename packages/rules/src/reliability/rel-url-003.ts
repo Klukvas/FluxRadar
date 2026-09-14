@@ -14,6 +14,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { hasHttpResponse } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 
 const descriptor = requireDescriptor('REL-URL-003');
 
@@ -28,10 +29,11 @@ export const relUrl003ServerErrors: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'http',
-        evidence: `HTTP ${page.status} ${page.finalUrl} — серверная ошибка (fail-verdict §9)`,
-        recommendation:
-          'Устраните причину 5xx-ответа: серверная ошибка на публичном URL — это отказ ' +
-          'доступности, а не контентная проблема.',
+        evidence: findingMessage('rel-url-003.evidence', {
+          status: page.status,
+          url: page.finalUrl,
+        }),
+        recommendation: findingMessage('rel-url-003.recommendation', {}),
       }),
     ];
   },

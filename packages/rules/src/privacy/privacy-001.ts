@@ -14,6 +14,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { hasHttpResponse } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { parsePage } from '../seo/dom.js';
 import { parseSetCookie, setCookieValues } from '../shared/headers.js';
 
@@ -47,10 +48,11 @@ export const privacy001Cookies: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType,
-        evidence: `Страница ставит cookies (${inventory.length}): ${inventory.join(', ')}`,
-        recommendation:
-          'Убедитесь, что каждая кука нужна, задокументирована в privacy policy и — ' +
-          'для нетехнических кук — ставится только после согласия пользователя.',
+        evidence: findingMessage('privacy-001.evidence', {
+          count: inventory.length,
+          cookies: inventory.join(', '),
+        }),
+        recommendation: findingMessage('privacy-001.recommendation', {}),
       }),
     ];
   },

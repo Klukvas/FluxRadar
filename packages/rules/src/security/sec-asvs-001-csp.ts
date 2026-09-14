@@ -8,6 +8,7 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { findingMessage } from '../messages/index.js';
 import { headerValue } from '../shared/headers.js';
 
 const descriptor = requireDescriptor('SEC-ASVS-001');
@@ -22,10 +23,8 @@ export const secAsvs001Csp: PageRule = {
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'http',
-        evidence: 'HTML-ответ без Content-Security-Policy',
-        recommendation:
-          'Добавьте Content-Security-Policy с минимально разрешёнными источниками и ' +
-          'внедряйте изменения через report-only режим перед ужесточением политики.',
+        evidence: findingMessage('sec-asvs-001.evidence', {}),
+        recommendation: findingMessage('sec-asvs-001.recommendation', {}),
         resource: 'content-security-policy',
       }),
     ];

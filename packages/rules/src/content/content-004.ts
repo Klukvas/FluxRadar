@@ -8,7 +8,7 @@
 //     media не фетчит, существование ресурса не подтверждено ничем —
 //     confidence снижен (D-165). Внешние media без снимка не оцениваются
 //     (их статус неизвестен, evidence нет — та же логика, что D-152).
-// Один finding на страницу: excerpt — перечень битых media с причинами,
+// Один finding на страницу: excerpt — перечень битых media по причинам,
 // selector — первый битый элемент.
 
 import type { PageSnapshot } from '@fluxradar/crawler';
@@ -18,6 +18,11 @@ import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
+import {
+  findingMessage,
+  type FindingMessageCode,
+  type CataloguedFindingMessage,
+} from '../messages/index.js';
 import { parsePage } from '../seo/dom.js';
 
 const descriptor = requireDescriptor('CONTENT-004');
@@ -27,9 +32,20 @@ const MEDIA_SELECTOR = 'img[src], source[src], video[src], audio[src]';
 /** Confidence для внутренних media без снимка: обход их не подтверждает. */
 const UNCONFIRMED_CONFIDENCE = 0.6;
 
+/** Shown for a failure kind no media on the page fell into; the same in every language. */
+const NONE_LISTED = '—';
+
+/**
+ * Why a media reference counts as broken. The evidence sentence names each
+ * kind in the reader's language, so the kind travels as data, not as text.
+ */
+type BrokenMediaKind = 'unreachable' | 'httpError' | 'htmlResponse' | 'unconfirmed';
+
 interface BrokenMedia {
   readonly selector: string;
-  readonly reason: string;
+  readonly kind: BrokenMediaKind;
+  /** Language-neutral technical detail: the fetch error or the HTTP status. */
+  readonly detail?: string;
   readonly confirmed: boolean;
 }
 
@@ -44,20 +60,56 @@ export const content004BrokenMedia: PageRule = {
       return [];
     }
     const confirmed = broken.some((media) => media.confirmed);
-    const listing = broken.map((media) => `${media.selector}: ${media.reason}`).join('; ');
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
-        evidence: `Битые media (${broken.length}): ${listing}`,
-        recommendation:
-          'Замените или удалите битые media-ссылки: битая картинка портит страницу ' +
-          'заметнее любой другой контентной проблемы.',
+        evidence: brokenMediaEvidence(broken),
+        recommendation: findingMessage('content-004.recommendation', {}),
         selector: first.selector,
         confidence: confirmed ? 1 : UNCONFIRMED_CONFIDENCE,
       }),
     ];
   },
 };
+
+const SINGLE_KIND_CODES = {
+  unreachable: 'content-004.evidence.unreachable',
+  httpError: 'content-004.evidence.http-error',
+  htmlResponse: 'content-004.evidence.html-response',
+  unconfirmed: 'content-004.evidence.unconfirmed',
+} as const satisfies Record<BrokenMediaKind, FindingMessageCode>;
+
+/**
+ * A page whose broken media all fail the same way — usually one broken image —
+ * gets the short sentence for that way. Only a mix gets the full breakdown: a
+ * single 404 used to be reported as four clauses, three of them "—".
+ */
+function brokenMediaEvidence(broken: readonly BrokenMedia[]): CataloguedFindingMessage {
+  const kinds = [...new Set(broken.map((media) => media.kind))];
+  const [onlyKind] = kinds;
+  if (kinds.length === 1 && onlyKind !== undefined) {
+    return findingMessage(SINGLE_KIND_CODES[onlyKind], {
+      count: broken.length,
+      items: listingOf(broken, onlyKind),
+    });
+  }
+  return findingMessage('content-004.evidence.mixed', {
+    count: broken.length,
+    unreachable: listingOf(broken, 'unreachable'),
+    httpErrors: listingOf(broken, 'httpError'),
+    htmlResponses: listingOf(broken, 'htmlResponse'),
+    unconfirmed: listingOf(broken, 'unconfirmed'),
+  });
+}
+
+function listingOf(broken: readonly BrokenMedia[], kind: BrokenMediaKind): string {
+  const entries = broken
+    .filter((media) => media.kind === kind)
+    .map((media) =>
+      media.detail === undefined ? media.selector : `${media.selector} (${media.detail})`,
+    );
+  return entries.length === 0 ? NONE_LISTED : entries.join(', ');
+}
 
 function collectBrokenMedia(page: PageSnapshot, ctx: SiteContext): readonly BrokenMedia[] {
   const snapshots = new Map(ctx.crawl.pages.map((snapshot) => [snapshot.normalizedUrl, snapshot]));
@@ -74,7 +126,7 @@ function collectBrokenMedia(page: PageSnapshot, ctx: SiteContext): readonly Brok
       seenTargets.add(target.href);
       const selector = `${element.rawTagName.toLowerCase()}[src="${rawSrc}"]`;
       const verdict = mediaVerdict(target, snapshots.get(normalizeUrl(target.href)), siteHost);
-      return verdict === null ? [] : [{ selector, reason: verdict.reason, confirmed: verdict.confirmed }];
+      return verdict === null ? [] : [{ selector, ...verdict }];
     });
 }
 
@@ -82,21 +134,21 @@ function mediaVerdict(
   target: URL,
   snapshot: PageSnapshot | undefined,
   siteHost: string,
-): { reason: string; confirmed: boolean } | null {
+): Omit<BrokenMedia, 'selector'> | null {
   if (snapshot !== undefined) {
     if (snapshot.fetchError !== undefined) {
-      return { reason: `недоступен (${snapshot.fetchError})`, confirmed: true };
+      return { kind: 'unreachable', detail: snapshot.fetchError, confirmed: true };
     }
     if (snapshot.status >= 400) {
-      return { reason: `HTTP ${snapshot.status}`, confirmed: true };
+      return { kind: 'httpError', detail: `HTTP ${snapshot.status}`, confirmed: true };
     }
     if (snapshot.contentType?.toLowerCase().startsWith('text/html') === true) {
-      return { reason: 'отвечает HTML-страницей, не media', confirmed: true };
+      return { kind: 'htmlResponse', confirmed: true };
     }
     return null;
   }
   if (target.host === siteHost) {
-    return { reason: 'внутренний ресурс не подтверждён обходом', confirmed: false };
+    return { kind: 'unconfirmed', confirmed: false };
   }
   return null;
 }
