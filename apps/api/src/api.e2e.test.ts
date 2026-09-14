@@ -191,9 +191,14 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
     expect(ruleIssue.localized.en.recommendation).toBe(ruleIssue.recommendation);
     expect(ruleIssue.localized.uk.recommendation).toEqual(expect.any(String));
     expect(ruleIssue.localized.uk.recommendation).not.toBe(ruleIssue.recommendation);
-    const aiIssue = allIssues.body.data.find(
+    // Taken from the UX-filtered page above, not from the unfiltered one: a
+    // Complete scan has more than 100 issues, ordered by severity and then by
+    // fingerprint — which hashes the fixture's random loopback port — so the AI
+    // finding lands on the first unfiltered page only in some runs.
+    const aiIssue = issues.body.data.find(
       (issue: { ruleId: string }) => issue.ruleId === 'UX-CONV-AI-001',
     );
+    expect(aiIssue).toBeDefined();
     expect(aiIssue.localized).toBeNull();
 
     const jsonExport = await agent
