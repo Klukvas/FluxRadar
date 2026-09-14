@@ -168,6 +168,102 @@ describe('WCAG 2.2 AA static checks', () => {
     expect(finding.evidenceExcerpt).toContain('aria-labelledby=missing');
   });
 
+  // aria-hidden hides an element from screen readers but not from the Tab key.
+  // The check for it could never fire: the focusability helper treated every
+  // aria-hidden element as unfocusable before A11Y-007 asked about it.
+  it.each([
+    ['a link with href', '<a href="/next" aria-hidden="true">Next</a>', 'a'],
+    [
+      'an element with tabindex="0"',
+      '<div id="panel" tabindex="0" aria-hidden="true"></div>',
+      'div#panel',
+    ],
+    [
+      'a native button',
+      '<button name="close" aria-hidden="true">Close</button>',
+      'button[name="close"]',
+    ],
+    // disabled has no effect on a link, so the link stays in the tab order.
+    [
+      'a link with a disabled attribute it ignores',
+      '<a href="/next" aria-hidden="true" disabled>Next</a>',
+      'a',
+    ],
+    ['an iframe', '<iframe id="player" src="/embed" aria-hidden="true"></iframe>', 'iframe#player'],
+    [
+      'an image-map area with href',
+      '<map name="nav"><area href="/next" alt="Next" aria-hidden="true" /></map>',
+      'area',
+    ],
+    [
+      'a video with controls',
+      '<video id="intro" controls aria-hidden="true"></video>',
+      'video#intro',
+    ],
+    [
+      'an editable region',
+      '<div id="notes" contenteditable="true" aria-hidden="true"></div>',
+      'div#notes',
+    ],
+  ])('A11Y-007 reports %s that is aria-hidden yet keyboard-focusable', (_case, body, selector) => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-007',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>ARIA</title></head><body>' +
+            `<main><h1>Page</h1>${body}</main></body></html>`,
+        ),
+      ),
+    );
+    expect(finding.normalizedSelector).toBe(selector);
+    expect(finding.messages?.evidence.code).toBe('a11y-007.evidence.hidden-focusable');
+    expect(finding.evidenceExcerpt).toBe(
+      `${selector} has aria-hidden="true" but is still in the tab order.`,
+    );
+  });
+
+  // An aria-hidden element that the Tab key cannot reach is a legitimate
+  // pattern (decorative icons, collapsed panels) and must not be reported.
+  it.each([
+    ['a decorative span', '<span aria-hidden="true">★</span>'],
+    ['tabindex="-1"', '<button aria-hidden="true" tabindex="-1">Close</button>'],
+    ['the hidden attribute', '<a href="/next" aria-hidden="true" hidden>Next</a>'],
+    ['the inert attribute', '<button aria-hidden="true" inert>Close</button>'],
+    ['inline display: none', '<a href="/next" aria-hidden="true" style="display: none">Next</a>'],
+    [
+      'inline visibility: hidden',
+      '<button aria-hidden="true" style="visibility:hidden">Close</button>',
+    ],
+    ['a link without href', '<a aria-hidden="true">Next</a>'],
+    ['a disabled button', '<button aria-hidden="true" disabled>Close</button>'],
+    ['an input of type hidden', '<input type="hidden" name="token" aria-hidden="true" />'],
+    [
+      'inline visibility: collapse',
+      '<button aria-hidden="true" style="visibility: collapse">Close</button>',
+    ],
+    ['a video without controls', '<video src="/intro.mp4" aria-hidden="true"></video>'],
+    [
+      'an image-map area without href',
+      '<map name="nav"><area alt="Nav" aria-hidden="true" /></map>',
+    ],
+    ['contenteditable="false"', '<div contenteditable="false" aria-hidden="true">Notes</div>'],
+  ])(
+    'A11Y-007 does not report an aria-hidden element the keyboard cannot reach: %s',
+    (_case, body) => {
+      expect(
+        runRule(
+          'Accessibility',
+          'A11Y-007',
+          htmlContext(
+            '<!doctype html><html lang="en"><head><title>ARIA</title></head><body>' +
+              `<main><h1>Page</h1>${body}</main></body></html>`,
+          ),
+        ),
+      ).toEqual([]);
+    },
+  );
+
   it('A11Y-008 reports unnamed interactive elements', () => {
     const finding = single(
       runRule(
@@ -331,6 +427,11 @@ const MESSAGE_CASES: readonly MessageCase[] = [
     ruleId: 'A11Y-007',
     evidenceCode: 'a11y-007.evidence.missing-reference',
     context: () => pageWith('<main><button aria-labelledby="missing">Open</button></main>'),
+  },
+  {
+    ruleId: 'A11Y-007',
+    evidenceCode: 'a11y-007.evidence.hidden-focusable',
+    context: () => pageWith('<main><a href="/next" aria-hidden="true">Next</a></main>'),
   },
   {
     ruleId: 'A11Y-008',
