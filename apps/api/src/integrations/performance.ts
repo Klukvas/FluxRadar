@@ -37,6 +37,12 @@ function numeric(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+/** CrUX writes CLS percentiles as decimal strings ("0.05"), unlike its millisecond metrics. */
+function numericOrDecimalString(value: unknown): number | null {
+  if (typeof value === 'string' && /^\d+(\.\d+)?$/.test(value)) return Number(value);
+  return numeric(value);
+}
+
 function metricValue(
   audits: Readonly<Record<string, { readonly numericValue?: unknown }>> | undefined,
   key: string,
@@ -104,7 +110,7 @@ async function crux(
   return {
     lcpP75Ms: numeric(metrics?.largest_contentful_paint?.percentiles?.p75),
     inpP75Ms: numeric(metrics?.interaction_to_next_paint?.percentiles?.p75),
-    clsP75: numeric(metrics?.cumulative_layout_shift?.percentiles?.p75),
+    clsP75: numericOrDecimalString(metrics?.cumulative_layout_shift?.percentiles?.p75),
   };
 }
 

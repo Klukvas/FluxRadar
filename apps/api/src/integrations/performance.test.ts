@@ -62,6 +62,29 @@ describe('performance integrations', () => {
     });
   });
 
+  it('reads the CLS percentile CrUX sends as a decimal string', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          record: {
+            metrics: {
+              largest_contentful_paint: { percentiles: { p75: 2300 } },
+              interaction_to_next_paint: { percentiles: { p75: 90 } },
+              cumulative_layout_shift: { percentiles: { p75: '0.05' } },
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    const runner = createPerformanceRunner({ cruxApiKey: 'crux-key', fetcher });
+
+    await expect(runner('https://example.com', 'desktop')).resolves.toMatchObject({
+      source: 'crux',
+      metrics: { lcpP75Ms: 2300, inpP75Ms: 90, clsP75: 0.05 },
+    });
+  });
+
   it('uses PageSpeed without a key and leaves the key optional', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
