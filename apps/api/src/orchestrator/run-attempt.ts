@@ -38,7 +38,7 @@ import { initialIssueStatuses } from './issue-sync.ts';
 import { modulePlanFor } from './module-plan.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
 import type { IssueRowData } from './module-result.ts';
-import { ruleCheckSummaries } from './rule-checks.ts';
+import { ruleCheckSummaries, uxRuleCheckSummaries } from './rule-checks.ts';
 import { runUxConversion } from './ux.ts';
 
 const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
@@ -308,6 +308,7 @@ async function persistUxModule(
       limitation: ux.staticEvidence.limitation,
       staticSignals: ux.staticEvidence.summary,
       staticFindings: ux.staticEvidence.findings.length,
+      ruleChecks: uxRuleCheckSummaries(ux.staticEvidence, ux.ai),
       pages: redactEvidence(ux.staticEvidence.pages),
       ai: {
         status: ux.ai.status,

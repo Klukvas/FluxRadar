@@ -273,6 +273,14 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         ai: { status: 'Unavailable', statusReason: 'UxAiConsentMissing', findings: 0 },
       },
     });
+    // The static checks are listed with their own counts; the AI ones are not,
+    // because a review without consent never looked at the pages.
+    expect(ux.metadata.ruleChecks.map((check: { ruleId: string }) => check.ruleId)).toEqual([
+      'UX-CONV-STATIC-001',
+      'UX-CONV-STATIC-002',
+      'UX-CONV-STATIC-003',
+    ]);
+    expect(ux.metadata.ruleChecks[0]).toMatchObject({ applicableTargets: 1, affectedTargets: 1 });
 
     const issues = await agent
       .get(`/scans/${scanId}/issues?limit=100`)
