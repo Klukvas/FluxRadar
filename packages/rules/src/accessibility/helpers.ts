@@ -6,7 +6,15 @@ export interface RgbColor {
   readonly blue: number;
 }
 
-const INTERACTIVE_TAGS = new Set(['a', 'button', 'input', 'select', 'textarea', 'summary']);
+const INTERACTIVE_TAGS = new Set([
+  'a',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'summary',
+  'iframe',
+]);
 const REFERENCE_ATTRIBUTES = [
   'aria-activedescendant',
   'aria-controls',
@@ -70,6 +78,17 @@ export function accessibleName(element: HTMLElement, root: HTMLElement): string 
   return element.textContent.replace(/\s+/g, ' ').trim();
 }
 
+/** The elements `disabled` applies to; on any other tag browsers ignore it. */
+const DISABLEABLE_TAGS = new Set([
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'fieldset',
+  'optgroup',
+  'option',
+]);
+
 /**
  * Whether the element is in the keyboard tab order, as far as static HTML shows.
  *
@@ -77,21 +96,23 @@ export function accessibleName(element: HTMLElement, root: HTMLElement): string 
  * technology, not from the Tab key, and "aria-hidden yet focusable" is exactly
  * what A11Y-007 looks for — treating aria-hidden as unfocusable here made that
  * check impossible to fire. What does take an element out of the tab order, and
- * can be read without a browser, is excluded instead: `hidden`, `inert`, and an
- * inline `display: none` / `visibility: hidden` on the element itself.
+ * can be read without a browser, is excluded instead: `hidden`, `inert`,
+ * `disabled` where the tag honours it, and an inline `display: none` or
+ * `visibility: hidden | collapse` on the element itself.
  */
 export function isFocusable(element: HTMLElement): boolean {
+  const tag = element.rawTagName.toLowerCase();
   if (
-    element.getAttribute('disabled') !== undefined ||
     element.getAttribute('hidden') !== undefined ||
-    element.getAttribute('inert') !== undefined
+    element.getAttribute('inert') !== undefined ||
+    (DISABLEABLE_TAGS.has(tag) && element.getAttribute('disabled') !== undefined)
   ) {
     return false;
   }
   const style = inlineStyle(element);
   if (
     /(?:^|;)\s*display\s*:\s*none\b/.test(style) ||
-    /(?:^|;)\s*visibility\s*:\s*hidden\b/.test(style)
+    /(?:^|;)\s*visibility\s*:\s*(?:hidden|collapse)\b/.test(style)
   ) {
     return false;
   }
@@ -99,12 +120,18 @@ export function isFocusable(element: HTMLElement): boolean {
   if (tabindex !== undefined) {
     return Number.parseInt(tabindex, 10) >= 0;
   }
-  const tag = element.rawTagName.toLowerCase();
-  if (tag === 'a') {
+  const contentEditable = element.getAttribute('contenteditable')?.trim().toLowerCase();
+  if (contentEditable !== undefined && contentEditable !== 'false') {
+    return true;
+  }
+  if (tag === 'a' || tag === 'area') {
     return (element.getAttribute('href')?.trim() ?? '') !== '';
   }
   if (tag === 'input') {
     return (element.getAttribute('type')?.trim().toLowerCase() ?? 'text') !== 'hidden';
+  }
+  if (tag === 'audio' || tag === 'video') {
+    return element.getAttribute('controls') !== undefined;
   }
   return INTERACTIVE_TAGS.has(tag);
 }

@@ -183,6 +183,28 @@ describe('WCAG 2.2 AA static checks', () => {
       '<button name="close" aria-hidden="true">Close</button>',
       'button[name="close"]',
     ],
+    // disabled has no effect on a link, so the link stays in the tab order.
+    [
+      'a link with a disabled attribute it ignores',
+      '<a href="/next" aria-hidden="true" disabled>Next</a>',
+      'a',
+    ],
+    ['an iframe', '<iframe id="player" src="/embed" aria-hidden="true"></iframe>', 'iframe#player'],
+    [
+      'an image-map area with href',
+      '<map name="nav"><area href="/next" alt="Next" aria-hidden="true" /></map>',
+      'area',
+    ],
+    [
+      'a video with controls',
+      '<video id="intro" controls aria-hidden="true"></video>',
+      'video#intro',
+    ],
+    [
+      'an editable region',
+      '<div id="notes" contenteditable="true" aria-hidden="true"></div>',
+      'div#notes',
+    ],
   ])('A11Y-007 reports %s that is aria-hidden yet keyboard-focusable', (_case, body, selector) => {
     const finding = single(
       runRule(
@@ -216,6 +238,16 @@ describe('WCAG 2.2 AA static checks', () => {
     ['a link without href', '<a aria-hidden="true">Next</a>'],
     ['a disabled button', '<button aria-hidden="true" disabled>Close</button>'],
     ['an input of type hidden', '<input type="hidden" name="token" aria-hidden="true" />'],
+    [
+      'inline visibility: collapse',
+      '<button aria-hidden="true" style="visibility: collapse">Close</button>',
+    ],
+    ['a video without controls', '<video src="/intro.mp4" aria-hidden="true"></video>'],
+    [
+      'an image-map area without href',
+      '<map name="nav"><area alt="Nav" aria-hidden="true" /></map>',
+    ],
+    ['contenteditable="false"', '<div contenteditable="false" aria-hidden="true">Notes</div>'],
   ])(
     'A11Y-007 does not report an aria-hidden element the keyboard cannot reach: %s',
     (_case, body) => {
