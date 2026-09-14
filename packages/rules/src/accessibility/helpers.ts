@@ -70,11 +70,29 @@ export function accessibleName(element: HTMLElement, root: HTMLElement): string 
   return element.textContent.replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Whether the element is in the keyboard tab order, as far as static HTML shows.
+ *
+ * aria-hidden is deliberately not consulted: it hides an element from assistive
+ * technology, not from the Tab key, and "aria-hidden yet focusable" is exactly
+ * what A11Y-007 looks for — treating aria-hidden as unfocusable here made that
+ * check impossible to fire. What does take an element out of the tab order, and
+ * can be read without a browser, is excluded instead: `hidden`, `inert`, and an
+ * inline `display: none` / `visibility: hidden` on the element itself.
+ */
 export function isFocusable(element: HTMLElement): boolean {
-  if (element.getAttribute('aria-hidden')?.trim().toLowerCase() === 'true') {
+  if (
+    element.getAttribute('disabled') !== undefined ||
+    element.getAttribute('hidden') !== undefined ||
+    element.getAttribute('inert') !== undefined
+  ) {
     return false;
   }
-  if (element.getAttribute('disabled') !== undefined) {
+  const style = inlineStyle(element);
+  if (
+    /(?:^|;)\s*display\s*:\s*none\b/.test(style) ||
+    /(?:^|;)\s*visibility\s*:\s*hidden\b/.test(style)
+  ) {
     return false;
   }
   const tabindex = element.getAttribute('tabindex');
