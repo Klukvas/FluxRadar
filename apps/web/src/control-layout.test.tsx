@@ -304,6 +304,28 @@ describe('base.css layout rules', () => {
   // opened left-column card, but it pulled the next card above the list on
   // screen while the list stayed before it in the markup — a reading order that
   // no longer matched what was shown (WCAG 1.3.2).
+  // Hung under its row and indented to the value column, the reason a section
+  // ended where it did read as a new, unlabelled row between two sections. It
+  // now follows the status word inside the same row.
+  it('keeps a section’s reason in its own row on the progress window', () => {
+    const reason = BASE_CSS.slice(
+      BASE_CSS.indexOf('.section-status__reason {'),
+      BASE_CSS.indexOf('.report-meta {'),
+    );
+    expect(reason).not.toMatch(/padding-left:/);
+    expect(reason).not.toMatch(/display: block;/);
+  });
+
+  // Floating over the form, the open language list would cover the next field;
+  // uncapped, thirty languages would push the save button a screen away.
+  it('opens the target-language list in the form’s flow, capped to scroll', () => {
+    const from = BASE_CSS.slice(BASE_CSS.indexOf('.language-picker__options {'));
+    const options = from.slice(0, from.indexOf('}'));
+    expect(options).toMatch(/max-height:/);
+    expect(options).toMatch(/overflow-y: auto;/);
+    expect(options).not.toMatch(/position: absolute;/);
+  });
+
   it('opens a check list across the grid, without reordering the cards', () => {
     expect(BASE_CSS).toMatch(/\.module-checks \{[^}]*grid-column: 1 \/ -1;/);
     expect(BASE_CSS).not.toMatch(/grid-auto-flow:[^;]*dense/);

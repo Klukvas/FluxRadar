@@ -69,6 +69,7 @@ import {
 } from './scan-scope';
 import { normalizeSiteAddress, siteNameFromAddress } from './site-address-input';
 import { SiteStatusPanel } from './SiteStatus';
+import { TargetLanguagesField } from './TargetLanguagesField';
 import './styles/base.css';
 
 type Screen =
@@ -1643,14 +1644,13 @@ function DesktopScreen(props: {
                 placeholder={t.workspace.operatingRegionPlaceholder}
                 hint={t.workspace.operatingRegionHint}
               />
-              <Field
+              <TargetLanguagesField
                 label={t.workspace.targetLanguages}
-                name="profile-languages"
-                autoComplete="off"
                 value={targetLanguages}
                 onChange={setTargetLanguages}
                 placeholder={t.workspace.targetLanguagesPlaceholder}
                 hint={t.workspace.targetLanguagesHint}
+                language={props.language}
               />
               <TextAreaField
                 label={t.workspace.targetAudience}

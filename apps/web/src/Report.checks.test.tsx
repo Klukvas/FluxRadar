@@ -327,3 +327,148 @@ describe('the AI SEO / GEO card', () => {
     expect(within(region).getByText(/^No questions were asked of the AI provider/)).toBeTruthy();
   });
 });
+
+describe('the Performance card', () => {
+  const performance = moduleOf({
+    module: 'Performance',
+    score: 91,
+    metadata: {
+      source: 'pagespeed+crux',
+      origin: 'https://smile.example',
+      strategy: 'mobile',
+      performanceScore: 91,
+      metrics: {
+        ttfbMs: 120,
+        lcpMs: 3100,
+        inpMs: null,
+        cls: 0.3,
+        htmlBytes: 1_460_000,
+        lcpP75Ms: 2300,
+        inpP75Ms: 90,
+        clsP75: 0.05,
+      },
+      fetchedAt: '2026-09-14T00:01:00.000Z',
+    },
+  });
+
+  it('opens to each measurement rated against its threshold', async () => {
+    await openReport(dashboardOf([performance]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    const lab = within(region)
+      .getByRole('heading', { name: 'Lab test · PageSpeed Insights · mobile' })
+      .closest('.module-checks__group') as HTMLElement;
+    const rows = within(lab).getAllByRole('listitem');
+    expect(rows).toHaveLength(5);
+    expect(rows[0]).toHaveTextContent('Needs improvement');
+    expect(rows[0]).toHaveTextContent('3.1 s · good ≤ 2.5 s, poor > 4 s');
+    // PageSpeed was asked and had no INP: that is missing data, not a pass.
+    expect(rows[1]).toHaveTextContent('No data');
+    expect(rows[2]).toHaveTextContent('Poor');
+    expect(rows[3]).toHaveTextContent('Good');
+    expect(rows[3]).toHaveTextContent('120 ms · good ≤ 800 ms, poor > 1.8 s');
+    // Page weight has no published boundary, so it is never rated.
+    expect(rows[4]).toHaveTextContent('Measured');
+    expect(rows[4]).toHaveTextContent('1.5 MB');
+
+    const field = within(region)
+      .getByRole('heading', { name: 'Real visitors · Chrome UX Report, 75th percentile' })
+      .closest('.module-checks__group') as HTMLElement;
+    expect(within(field).getAllByRole('listitem')).toHaveLength(3);
+  });
+
+  it('has nothing to open when the measurement service never answered', async () => {
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          module: 'Performance',
+          status: 'Unavailable',
+          statusReason: 'PerformanceProviderUnavailable',
+          score: null,
+          coverage: 0,
+          usableOutput: false,
+          metadata: {},
+        }),
+      ]),
+    );
+
+    expect(screen.queryByRole('button', { name: 'Show checks' })).toBeNull();
+  });
+});
+
+describe('the UX/Conversion card', () => {
+  const signals = {
+    pagesAnalyzed: 4,
+    pagesWithActions: 4,
+    pagesWithForms: 1,
+    pagesWithContactSignals: 2,
+    pagesWithHeadings: 3,
+  };
+
+  it('opens to its checks, what the page HTML showed and the AI review', async () => {
+    const ux = moduleOf({
+      module: 'UX/Conversion',
+      score: null,
+      metadata: {
+        staticSignals: signals,
+        ai: { status: 'Completed', findings: 2, provider: 'anthropic', modelId: 'claude-sonnet-5' },
+        ruleChecks: [
+          {
+            ruleId: 'UX-CONV-STATIC-001',
+            title: 'entry-page primary heading',
+            targetKind: 'page',
+            scoring: 'informational',
+            applicableTargets: 1,
+            affectedTargets: 1,
+          },
+          {
+            ruleId: 'UX-CONV-AI-002',
+            title: 'primary action clarity',
+            targetKind: 'page',
+            scoring: 'informational',
+            applicableTargets: 4,
+            affectedTargets: 0,
+          },
+        ],
+      },
+    });
+    await openReport(dashboardOf([ux]));
+
+    fireEvent.click(card('UX/Conversion'));
+
+    const region = screen.getByRole('region', { name: 'UX/Conversion · checks performed' });
+    const heading = within(region).getByText('Main heading on the entry page').closest('li');
+    expect(heading).toHaveTextContent('Noted');
+    expect(
+      within(region).getByText('Clear primary action · AI review').closest('li'),
+    ).toHaveTextContent('Passed');
+    expect(within(region).getByText('Pages with forms').closest('li')).toHaveTextContent('1 / 4');
+    expect(
+      within(region).getByText(/^anthropic · claude-sonnet-5 reviewed the pages/),
+    ).toHaveTextContent('Findings: 2');
+  });
+
+  it('opens a report written before the per-rule list to its signals and AI review', async () => {
+    const ux = moduleOf({
+      module: 'UX/Conversion',
+      status: 'Partial',
+      statusReason: 'UxAiConsentMissing',
+      score: null,
+      metadata: {
+        staticSignals: signals,
+        ai: { status: 'Unavailable', statusReason: 'UxAiConsentMissing', findings: 0 },
+      },
+    });
+    await openReport(dashboardOf([ux]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+
+    const region = screen.getByRole('region', { name: 'UX/Conversion · checks performed' });
+    expect(within(region).getByText('Pages with headings').closest('li')).toHaveTextContent(
+      '3 / 4',
+    );
+    expect(within(region).getByText(/^The AI review did not run in this scan/)).toBeTruthy();
+  });
+});

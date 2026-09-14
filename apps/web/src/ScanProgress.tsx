@@ -99,10 +99,7 @@ export function ScanScreen(props: {
         />
         {terminal ? (
           <div className="scan-complete" role="status" aria-live="polite">
-            <StatusChip
-              status={scan.status}
-              label={scanStateLabel(scan.status, props.language)}
-            />
+            <StatusChip status={scan.status} label={scanStateLabel(scan.status, props.language)} />
             <div>
               <strong>{scanOutcomeLabel(scan.status, props.language)}</strong>
               <p className="muted">
@@ -127,13 +124,16 @@ export function ScanScreen(props: {
         ) : (
           <div aria-label={t.sectionsLabel}>
             {scan.modules.map((module) => (
-              <div className="section-status" key={module.module}>
-                <FieldRow
-                  label={module.module}
-                  value={sectionStatusLabel(module.status, props.language)}
-                />
-                <SectionReasons module={module} language={props.language} />
-              </div>
+              <FieldRow
+                key={module.module}
+                label={module.module}
+                value={
+                  <>
+                    {sectionStatusLabel(module.status, props.language)}
+                    <SectionReasons module={module} language={props.language} />
+                  </>
+                }
+              />
             ))}
           </div>
         )}
@@ -155,7 +155,7 @@ export function ScanScreen(props: {
 }
 
 /**
- * Why one section ended where it did, under the row that says where.
+ * Why one section ended where it did, right after the status word it explains.
  *
  * The status word alone answered "Unavailable" for a Performance section with
  * no measurement service configured and for one whose provider had just gone
@@ -165,12 +165,5 @@ export function ScanScreen(props: {
 function SectionReasons({ module, language }: { module: ScanModule; language: Language }) {
   const reasons = moduleStatusReasons(module, language);
   if (reasons.length === 0) return null;
-  return (
-    <div className="section-status__reason">
-      <span className="section-status__reason-label">{copy[language].report.reasonLabel}</span>
-      {reasons.map((reason) => (
-        <p key={reason}>{reason}</p>
-      ))}
-    </div>
-  );
+  return <span className="section-status__reason"> — {reasons.join(' ')}</span>;
 }

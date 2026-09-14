@@ -5,25 +5,34 @@
 // check it ran and what each one found. The AI SEO / GEO section lists what
 // robots.txt lets AI crawlers read, how ready its pages are to be quoted, and
 // the questions it put to the AI provider together with the answers.
+// Performance lists each measurement against its threshold, and UX/Conversion
+// adds what the page HTML showed and whether its AI review ran.
 //
 // Everything is read from what the audit recorded, never filled in from the
 // plan: a scan run before a field existed shows less, not something assumed.
 
 import type { GeoObservation, ScanModule } from './api';
+import { CheckRow } from './CheckRow';
 import { copy, fillCopy, type Language } from './i18n';
 import {
   geoChecksOf,
   ruleCheckResult,
   ruleChecksOf,
+  uxChecksOf,
   type AiCrawlerStatus,
   type GeoChecks,
   type PageReadiness,
   type QueryGeneration,
   type RuleCheck,
   type RuleCheckResult,
+  type UxChecks,
 } from './module-metadata';
+import { performanceChecksOf } from './performance-checks';
+import { PerformanceChecksBody } from './PerformanceChecks';
 
 const GEO_MODULE = 'AI SEO / GEO';
+const PERFORMANCE_MODULE = 'Performance';
+const UX_MODULE = 'UX/Conversion';
 
 /** Class suffix per result. The colour repeats the word beside it, never replaces it. */
 const RESULT_CLASS: Readonly<Record<RuleCheckResult, string>> = {
@@ -47,6 +56,12 @@ export function hasModuleChecks(
   if (module.module === GEO_MODULE) {
     return observations.length > 0 || geoChecksOf(module.metadata) !== null;
   }
+  if (module.module === PERFORMANCE_MODULE) {
+    return performanceChecksOf(module.metadata) !== null;
+  }
+  if (module.module === UX_MODULE) {
+    return ruleChecksOf(module.metadata).length > 0 || uxChecksOf(module.metadata) !== null;
+  }
   return ruleChecksOf(module.metadata).length > 0;
 }
 
@@ -67,17 +82,43 @@ export function ModuleChecksPanel(props: {
       <h3 className="section-heading" id={`${id}-title`}>
         {fillCopy(t.heading, { module: props.module.module })}
       </h3>
-      {props.module.module === GEO_MODULE ? (
+      <ModuleChecksBody
+        module={props.module}
+        observations={props.observations}
+        language={props.language}
+      />
+    </section>
+  );
+}
+
+function ModuleChecksBody(props: {
+  module: ScanModule;
+  observations: readonly GeoObservation[];
+  language: Language;
+}) {
+  const { metadata } = props.module;
+  switch (props.module.module) {
+    case GEO_MODULE:
+      return (
         <GeoChecksBody
-          checks={geoChecksOf(props.module.metadata)}
+          checks={geoChecksOf(metadata)}
           observations={props.observations}
           language={props.language}
         />
-      ) : (
-        <RuleChecksList checks={ruleChecksOf(props.module.metadata)} language={props.language} />
-      )}
-    </section>
-  );
+      );
+    case PERFORMANCE_MODULE:
+      return <PerformanceChecksBody metadata={metadata} language={props.language} />;
+    case UX_MODULE:
+      return (
+        <UxChecksBody
+          checks={ruleChecksOf(metadata)}
+          ux={uxChecksOf(metadata)}
+          language={props.language}
+        />
+      );
+    default:
+      return <RuleChecksList checks={ruleChecksOf(metadata)} language={props.language} />;
+  }
 }
 
 function RuleChecksList(props: { checks: readonly RuleCheck[]; language: Language }) {
@@ -103,22 +144,72 @@ function RuleChecksList(props: { checks: readonly RuleCheck[]; language: Languag
   );
 }
 
-function CheckRow(props: {
-  resultClass: string;
-  resultLabel: string;
-  title: string;
-  detail?: string;
+/**
+ * The UX/Conversion checks, then what the page HTML showed and the AI review.
+ *
+ * A row written before the per-rule list existed still has its signals and its
+ * AI review, so it opens to those rather than to nothing.
+ */
+function UxChecksBody(props: {
+  checks: readonly RuleCheck[];
+  ux: UxChecks | null;
+  language: Language;
 }) {
+  const t = copy[props.language].report.checks;
   return (
-    <li className="module-checks__item">
-      <span className={`module-checks__result module-checks__result--${props.resultClass}`}>
-        {props.resultLabel}
-      </span>
-      <span className="module-checks__title">{props.title}</span>
-      {props.detail === undefined ? null : (
-        <small className="module-checks__detail">{props.detail}</small>
+    <>
+      {props.checks.length === 0 ? null : (
+        <RuleChecksList checks={props.checks} language={props.language} />
       )}
-    </li>
+      {props.ux === null ? null : (
+        <>
+          <UxSignalsList ux={props.ux} language={props.language} />
+          <div className="module-checks__group">
+            <h4 className="module-checks__subheading">{t.uxAiHeading}</h4>
+            <p className="muted">
+              {props.ux.aiReview === null
+                ? t.uxAiNotRan
+                : fillCopy(t.uxAiRan, {
+                    provider: props.ux.aiReview.provider,
+                    model: props.ux.aiReview.modelId,
+                    findings: props.ux.aiReview.findings,
+                  })}
+            </p>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/** Signals, not verdicts: the neutral colour keeps a page without a form from reading as a failure. */
+function UxSignalsList(props: { ux: UxChecks; language: Language }) {
+  const t = copy[props.language].report.checks;
+  const { signals } = props.ux;
+  const rows = [
+    { key: 'headings', title: t.uxSignalHeadings, count: signals.pagesWithHeadings },
+    { key: 'actions', title: t.uxSignalActions, count: signals.pagesWithActions },
+    { key: 'forms', title: t.uxSignalForms, count: signals.pagesWithForms },
+    { key: 'contact', title: t.uxSignalContact, count: signals.pagesWithContactSignals },
+  ];
+  return (
+    <div className="module-checks__group">
+      <h4 className="module-checks__subheading">{t.uxSignalsHeading}</h4>
+      <p className="muted">{t.uxSignalsLead}</p>
+      <ul className="module-checks__list">
+        {rows.map((row) => (
+          <CheckRow
+            key={row.key}
+            resultClass="skipped"
+            resultLabel={fillCopy(t.uxSignalCount, {
+              count: row.count,
+              checked: signals.pagesAnalyzed,
+            })}
+            title={row.title}
+          />
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -586,6 +586,39 @@ code,
 .checkbox input:checked + .checkbox__mark svg {
   display: block;
 }
+/* The target-language picker opens in the form's flow: floating over the fields
+   below, it would cover the one the owner fills in next. The list is capped and
+   scrolls, so thirty languages do not push the save button a screen away. */
+.language-picker__summary {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+.language-picker__summary::-webkit-details-marker {
+  display: none;
+}
+.language-picker__summary::after {
+  content: '▾';
+  margin-left: auto;
+  padding-left: var(--sp-2);
+}
+.language-picker[open] .language-picker__summary::after {
+  content: '▴';
+}
+.language-picker__placeholder {
+  color: var(--plat-600);
+}
+.language-picker__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--plat-400);
+  border-top: 0;
+  background: #fff;
+}
 
 .profile-row {
   display: grid;
@@ -1334,8 +1367,7 @@ code,
 .module-card__reason p:last-child {
   margin-bottom: 0;
 }
-.module-card__reason-label,
-.section-status__reason-label {
+.module-card__reason-label {
   display: block;
   margin-bottom: 2px;
   color: var(--plat-600);
@@ -1343,26 +1375,13 @@ code,
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-/* The same aside on the progress window, where the rows are `.field-row`s
-   rather than cards. It hangs under the row it belongs to and is indented to
-   the row's value column so it reads as an answer to that row's status, not as
-   a new row. */
+/* The same reason on the progress window, where the rows are `.field-row`s
+   rather than cards. It follows the status word inside the row's value cell:
+   hung under the row as a block of its own, it read as a new, unlabelled row
+   between two sections instead of as the answer to the status beside it. */
 .section-status__reason {
-  padding: 5px 0 8px 0;
   color: var(--plat-600);
-  font-size: 12px;
-  line-height: 1.4;
-}
-.section-status__reason p {
-  margin: 0 0 4px;
-}
-.section-status__reason p:last-child {
-  margin-bottom: 0;
-}
-@media (min-width: 700px) {
-  .section-status__reason {
-    padding-left: calc(180px + var(--sp-3));
-  }
+  font-weight: 400;
 }
 .report-meta {
   display: flex;

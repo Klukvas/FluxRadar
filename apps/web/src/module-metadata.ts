@@ -73,6 +73,76 @@ export function ruleCheckResult(check: RuleCheck): RuleCheckResult {
   return check.informational ? 'noted' : 'issues';
 }
 
+/** How many of the analysed pages showed each static UX signal. */
+export interface UxSignals {
+  readonly pagesAnalyzed: number;
+  readonly pagesWithHeadings: number;
+  readonly pagesWithActions: number;
+  readonly pagesWithForms: number;
+  readonly pagesWithContactSignals: number;
+}
+
+export interface UxAiReview {
+  readonly provider: string;
+  readonly modelId: string;
+  readonly findings: number;
+}
+
+export interface UxChecks {
+  readonly signals: UxSignals;
+  /** Null when the AI review got no answer in this scan. */
+  readonly aiReview: UxAiReview | null;
+}
+
+/**
+ * What UX/Conversion recorded besides its per-rule list.
+ *
+ * Every UX row that analysed a page carries its signals, including rows written
+ * before the per-rule list existed. A row with none analysed nothing, and has
+ * nothing to open.
+ */
+export function uxChecksOf(metadata: Metadata): UxChecks | null {
+  const signals = asRecord(metadata?.staticSignals);
+  const pagesAnalyzed = numberValue(signals?.pagesAnalyzed);
+  const pagesWithHeadings = numberValue(signals?.pagesWithHeadings);
+  const pagesWithActions = numberValue(signals?.pagesWithActions);
+  const pagesWithForms = numberValue(signals?.pagesWithForms);
+  const pagesWithContactSignals = numberValue(signals?.pagesWithContactSignals);
+  if (
+    pagesAnalyzed === null ||
+    pagesWithHeadings === null ||
+    pagesWithActions === null ||
+    pagesWithForms === null ||
+    pagesWithContactSignals === null
+  ) {
+    return null;
+  }
+  return {
+    signals: {
+      pagesAnalyzed,
+      pagesWithHeadings,
+      pagesWithActions,
+      pagesWithForms,
+      pagesWithContactSignals,
+    },
+    aiReview: uxAiReviewOf(metadata?.ai),
+  };
+}
+
+/** The provider and model are written only when the review was answered. */
+function uxAiReviewOf(value: unknown): UxAiReview | null {
+  const record = asRecord(value);
+  const findings = numberValue(record?.findings);
+  if (
+    typeof record?.provider !== 'string' ||
+    typeof record.modelId !== 'string' ||
+    findings === null
+  ) {
+    return null;
+  }
+  return { provider: record.provider, modelId: record.modelId, findings };
+}
+
 export type AiCrawlerStatus = 'allowed' | 'blocked' | 'unknown';
 
 export interface AiCrawlerAccess {
