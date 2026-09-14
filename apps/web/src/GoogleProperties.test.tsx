@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { apiRequest, type SiteProfile } from './api';
 import { IntegrationsScreen } from './Integrations';
-import { copy, type Language } from './i18n';
+import { copy, fillCopy, type Language } from './i18n';
 
 // ─── Google properties, inside the Google connection ─────────────────────────
 //
@@ -131,6 +131,71 @@ function Harness(props: { language?: Language; onAddProfile?: () => void }) {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+describe('why a Google property list is empty', () => {
+  const savedProfile = { id: 'profile-1', name: 'flux-lab.dev', domain: 'https://flux-lab.dev' };
+
+  function withAnalytics(analytics: Record<string, unknown>): Handler {
+    return ({ path }) => {
+      if (path === '/integrations') return envelope([googleRow, bingRow]);
+      if (path === '/profiles') return envelope([savedProfile]);
+      if (path === '/integrations/google/properties')
+        return envelope({ ...discovery(['sc-domain:flux-lab.dev']), analytics });
+      return envelope(null);
+    };
+  }
+
+  /** The select a field label belongs to, and the message it is described by. */
+  function fieldParts(label: string): { select: HTMLSelectElement; described: string | null } {
+    const field = screen.getByText(label).closest('label') as HTMLElement;
+    const select = field.querySelector('select') as HTMLSelectElement;
+    const describedBy = select.getAttribute('aria-describedby');
+    return {
+      select,
+      described:
+        describedBy === null ? null : (document.getElementById(describedBy)?.textContent ?? null),
+    };
+  }
+
+  // Google refused to list the Analytics properties. The screen showed the
+  // server's English "cannot read the selected property" with nothing selected,
+  // inside a Ukrainian page, just under the Search Console field — as if it were
+  // that field's error.
+  it('explains a refused listing in the reader’s language, under the Analytics field', async () => {
+    stubApi(
+      withAnalytics({
+        state: 'no_access',
+        reason: null,
+        detail: 'Google refused to list the properties this account can read.',
+        items: [],
+      }),
+    );
+    render(<Harness language="uk" />);
+
+    const expected = fillCopy(uk.discoveryDenied, { service: uk.serviceAnalytics });
+    await screen.findByText(expected);
+
+    expect(fieldParts(uk.analyticsLabel).described).toBe(expected);
+    expect(fieldParts(uk.searchConsoleLabel).described).toBeNull();
+    expect(screen.queryByText(/Google refused|selected property|^Analytics:/)).toBeNull();
+  });
+
+  it('asks for a reconnect when the grant never included Analytics', async () => {
+    stubApi(
+      withAnalytics({
+        state: 'no_access',
+        reason: 'missing_scope',
+        detail: 'The Google authorization does not include this service.',
+        items: [],
+      }),
+    );
+    render(<Harness />);
+
+    const expected = fillCopy(en.discoveryMissingScope, { service: en.serviceAnalytics });
+    await screen.findByText(expected);
+    expect(fieldParts(en.analyticsLabel).described).toBe(expected);
+  });
 });
 
 describe('Google properties sit inside the Google connection', () => {

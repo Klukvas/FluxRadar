@@ -1052,8 +1052,17 @@ export const copy = {
         savedUnlinked: 'Google properties unlinked. Reports will not include Google data.',
         noBinding:
           'No property is linked to this profile yet, so reports will show Google data as not configured.',
-        searchConsolePrefix: 'Search Console',
-        analyticsPrefix: 'Analytics',
+        serviceSearchConsole: 'Search Console',
+        serviceAnalytics: 'Google Analytics',
+        discoveryReconnect:
+          'Google access has expired or was revoked. Reconnect Google above, then refresh the list.',
+        discoveryMissingScope:
+          'The Google connection does not include read access to {service}. Reconnect Google above and allow it.',
+        discoveryDenied:
+          'Google refused to list this account’s {service} properties, so there is nothing to choose yet. Refresh the list; if it is refused again, reconnect Google above.',
+        discoveryEmptySearchConsole: 'This Google account has no verified Search Console property.',
+        discoveryEmptyAnalytics: 'This Google account has no Google Analytics 4 property.',
+        discoveryFailed: 'Google did not answer in time. Refresh the list to try again.',
         loadFailed: 'Google properties could not be loaded. Refresh the list to try again.',
         saveFailed: 'The selection could not be saved. Try again in a moment.',
         emptyTitle: 'No profile to link yet',
@@ -2055,8 +2064,18 @@ export const copy = {
         savedUnlinked: 'Ресурси Google відʼєднано. Звіти не міститимуть даних Google.',
         noBinding:
           'З цим профілем ще не звʼязано жодного ресурсу, тому у звітах дані Google будуть позначені як не налаштовані.',
-        searchConsolePrefix: 'Search Console',
-        analyticsPrefix: 'Analytics',
+        serviceSearchConsole: 'Search Console',
+        serviceAnalytics: 'Google Analytics',
+        discoveryReconnect:
+          'Доступ до Google завершився або його відкликано. Перепідключіть Google вище й оновіть список.',
+        discoveryMissingScope:
+          'Підключення Google не дає доступу на читання до {service}. Перепідключіть Google вище й надайте цей доступ.',
+        discoveryDenied:
+          'Google відмовився показати ресурси {service} цього акаунта, тож обрати поки немає з чого. Оновіть список; якщо відмова повториться, перепідключіть Google вище.',
+        discoveryEmptySearchConsole:
+          'У цього акаунта Google немає підтвердженого ресурсу Search Console.',
+        discoveryEmptyAnalytics: 'У цього акаунта Google немає ресурсу Google Analytics 4.',
+        discoveryFailed: 'Google не відповів вчасно. Оновіть список, щоб спробувати ще раз.',
         loadFailed: 'Не вдалося завантажити ресурси Google. Оновіть список, щоб спробувати ще раз.',
         saveFailed: 'Не вдалося зберегти вибір. Спробуйте за мить ще раз.',
         emptyTitle: 'Ще немає профілю для звʼязку',

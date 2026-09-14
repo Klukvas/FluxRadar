@@ -122,6 +122,60 @@ describe('google integration routes', () => {
     expect(response.body.data.analytics.items[0].propertyId).toBe('999');
   });
 
+  it('explains a refused Analytics listing without calling it a selected property', async () => {
+    const agent = request.agent(appFor());
+    await register(agent, 'google-denied@example.com');
+    const row = await db.prisma.account.findFirstOrThrow({
+      where: { email: 'google-denied@example.com' },
+    });
+    await connectGoogle(row.id, BOTH_SCOPES);
+    globalThis.fetch = vi.fn(async (url: unknown) =>
+      String(url).includes('webmasters')
+        ? json({ siteEntry: [{ siteUrl: 'sc-domain:example.com', permissionLevel: 'siteOwner' }] })
+        : json(
+            {
+              error: {
+                code: 403,
+                status: 'PERMISSION_DENIED',
+                details: [{ reason: 'SERVICE_DISABLED' }],
+              },
+            },
+            403,
+          ),
+    ) as unknown as typeof fetch;
+
+    const response = await agent.get('/integrations/google/properties');
+
+    expect(response.body.data.searchConsole.state).toBe('connected');
+    expect(response.body.data.analytics).toMatchObject({
+      state: 'no_access',
+      reason: null,
+      items: [],
+    });
+    // Nothing is selected while the list is being loaded.
+    expect(response.body.data.analytics.detail).not.toMatch(/selected property/);
+  });
+
+  it('tells a grant without the Analytics scope apart from a refusal', async () => {
+    const agent = request.agent(appFor());
+    await register(agent, 'google-scope@example.com');
+    const row = await db.prisma.account.findFirstOrThrow({
+      where: { email: 'google-scope@example.com' },
+    });
+    await connectGoogle(row.id, BOTH_SCOPES.slice(0, 1));
+    globalThis.fetch = vi.fn(async () =>
+      json({ siteEntry: [{ siteUrl: 'sc-domain:example.com', permissionLevel: 'siteOwner' }] }),
+    ) as unknown as typeof fetch;
+
+    const response = await agent.get('/integrations/google/properties');
+
+    expect(response.body.data.analytics).toMatchObject({
+      state: 'no_access',
+      reason: 'missing_scope',
+    });
+    expect(response.body.data.searchConsole.reason).toBeNull();
+  });
+
   it('explains a revoked grant instead of returning a technical error', async () => {
     const app = appFor();
     const agent = request.agent(app);

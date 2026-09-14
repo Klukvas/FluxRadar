@@ -114,7 +114,7 @@ export function createApp(options: CreateAppOptions): Express {
       options.createPerformanceRunner ?? (() => createDefaultPerformanceRunner()),
     createGoogleDataRunner:
       options.createGoogleDataRunner ??
-      (() => createGoogleDataRunner({ prisma: options.prisma, now })),
+      (() => createGoogleDataRunner({ prisma: options.prisma, now, requestOptions: { logger } })),
     ...(options.crawl !== undefined ? { crawl: options.crawl } : {}),
     mailer,
   };
@@ -201,7 +201,7 @@ export function createApp(options: CreateAppOptions): Express {
   );
   app.use(profilesRouter({ prisma: options.prisma, now, requestRateLimiter, objectStore, logger }));
   app.use(integrationsRouter({ prisma: options.prisma, now }));
-  app.use(googleIntegrationRouter({ prisma: options.prisma, now }));
+  app.use(googleIntegrationRouter({ prisma: options.prisma, now, logger }));
   app.use(
     fastSpringRouter({
       prisma: options.prisma,
@@ -275,7 +275,7 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
     createAiProvider: (scan, profile) =>
       createDefaultAiProvider(profile.name, new URL(scan.domain).hostname),
     createPerformanceRunner: () => createDefaultPerformanceRunner(),
-    createGoogleDataRunner: () => createGoogleDataRunner({ prisma }),
+    createGoogleDataRunner: () => createGoogleDataRunner({ prisma, requestOptions: { logger } }),
   };
   let queueDrainRunning = false;
   const drainQueue = async (): Promise<void> => {

@@ -65,6 +65,50 @@ describe('googleJson', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it('logs Google’s reason for a refusal, without its message, the token or the query', async () => {
+    // A bare 403 on the Analytics listing could be a disabled API, a missing
+    // scope or a hidden property; nothing in the log said which.
+    const fetcher = vi.fn(async () =>
+      jsonResponse(
+        {
+          error: {
+            code: 403,
+            message: 'Google Analytics Admin API has not been used in project 12345',
+            status: 'PERMISSION_DENIED',
+            details: [
+              {
+                '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+                reason: 'SERVICE_DISABLED',
+                metadata: { service: 'analyticsadmin.googleapis.com', consumer: 'projects/12345' },
+              },
+            ],
+          },
+        },
+        403,
+      ),
+    );
+    const warn = vi.fn();
+
+    await expect(
+      googleJson(
+        {
+          url: 'https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200',
+          accessToken: 'secret-token',
+        },
+        { fetcher: fetcher as unknown as typeof fetch, sleep: noSleep, logger: { warn } },
+      ),
+    ).rejects.toMatchObject({ state: 'no_access' });
+
+    expect(warn).toHaveBeenCalledWith('google request rejected', {
+      endpoint: 'analyticsadmin.googleapis.com/v1beta/accountSummaries',
+      status: 403,
+      googleStatus: 'PERMISSION_DENIED',
+      reasons: ['SERVICE_DISABLED'],
+      services: ['analyticsadmin.googleapis.com'],
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/12345|secret-token|pageSize/);
+  });
+
   it('reports an expired token as needs_reconnect without leaking the provider body', async () => {
     const fetcher = vi.fn(async () => jsonResponse({ error: 'invalid_credentials' }, 401));
 

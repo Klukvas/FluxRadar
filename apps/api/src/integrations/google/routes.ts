@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { accountIdFrom, requireAuth } from '../../auth/middleware.ts';
 import { sendOk } from '../../http/envelope.ts';
 import { ApiError, conflict } from '../../http/errors.ts';
+import type { ApiLogger } from '../../http/logger.ts';
 import { requiredParam } from '../../http/params.ts';
 import { parseInput } from '../../http/validate.ts';
 import { findOwnProfile } from '../../profiles/routes.ts';
@@ -29,6 +30,8 @@ export interface GoogleRouterDeps {
   readonly now: () => Date;
   readonly requestOptions?: GoogleRequestOptions;
   readonly tokenFetcher?: typeof fetch;
+  /** Where Google's reason for a refused discovery request is written. */
+  readonly logger?: ApiLogger;
 }
 
 const bindingInputSchema = z.object({
@@ -41,9 +44,17 @@ const bindingInputSchema = z.object({
     .optional(),
 });
 
+/**
+ * Why a list is unavailable, where the state alone does not say. `no_access`
+ * covers both a grant that never included the service and Google refusing the
+ * listing, and only the first is fixed by reconnecting with the right consent.
+ */
+type DiscoveryReason = 'missing_scope';
+
 interface DiscoverySection<T> {
   readonly state: GoogleDataState;
   readonly detail: string;
+  readonly reason: DiscoveryReason | null;
   readonly items: readonly T[];
 }
 
@@ -51,8 +62,20 @@ function section<T>(
   state: GoogleDataState,
   detail: string,
   items: readonly T[],
+  reason: DiscoveryReason | null = null,
 ): DiscoverySection<T> {
-  return { state, detail, items };
+  return { state, detail, reason, items };
+}
+
+/**
+ * A refused listing. The shared `no_access` sentence speaks of "the selected
+ * property", which is wrong while the owner is still choosing one.
+ */
+const LISTING_DENIED_DETAIL = 'Google refused to list the properties this account can read.';
+
+function discoveryFailure<T>(error: unknown): DiscoverySection<T> {
+  const state = stateOf(error);
+  return section(state, state === 'no_access' ? LISTING_DENIED_DETAIL : detailOf(error), []);
 }
 
 /**
@@ -78,14 +101,16 @@ async function discoverSearchConsole(
   access: GoogleAccess,
   options: GoogleRequestOptions,
 ): Promise<DiscoverySection<SearchConsoleSite>> {
-  if (!access.hasSearchConsoleScope) return section('no_access', MISSING_SCOPE_DETAIL, []);
+  if (!access.hasSearchConsoleScope) {
+    return section('no_access', MISSING_SCOPE_DETAIL, [], 'missing_scope');
+  }
   try {
     const sites = await listSearchConsoleSites(access.accessToken, options);
     return sites.length === 0
       ? section('no_data', 'This Google account has no verified Search Console properties.', sites)
       : section('connected', detailFor('connected'), sites);
   } catch (error) {
-    return section(stateOf(error), detailOf(error), []);
+    return discoveryFailure(error);
   }
 }
 
@@ -93,21 +118,26 @@ async function discoverAnalytics(
   access: GoogleAccess,
   options: GoogleRequestOptions,
 ): Promise<DiscoverySection<Ga4Property>> {
-  if (!access.hasAnalyticsScope) return section('no_access', MISSING_SCOPE_DETAIL, []);
+  if (!access.hasAnalyticsScope) {
+    return section('no_access', MISSING_SCOPE_DETAIL, [], 'missing_scope');
+  }
   try {
     const properties = await listGa4Properties(access.accessToken, options);
     return properties.length === 0
       ? section('no_data', 'This Google account has no Google Analytics 4 properties.', properties)
       : section('connected', detailFor('connected'), properties);
   } catch (error) {
-    return section(stateOf(error), detailOf(error), []);
+    return discoveryFailure(error);
   }
 }
 
 export function googleIntegrationRouter(deps: GoogleRouterDeps): Router {
   const router = Router();
   const auth = requireAuth(deps.prisma, deps.now);
-  const requestOptions = deps.requestOptions ?? {};
+  const requestOptions: GoogleRequestOptions = {
+    ...deps.requestOptions,
+    ...(deps.logger === undefined ? {} : { logger: deps.logger }),
+  };
 
   const accessFor = async (accountId: string): Promise<GoogleAccess> =>
     resolveGoogleAccess(

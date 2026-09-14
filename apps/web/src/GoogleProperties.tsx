@@ -42,8 +42,40 @@ interface Props {
   readonly onProfilesChanged: () => Promise<void>;
 }
 
-function sectionNotice(state: string, detail: string): string | null {
-  return state === 'connected' ? null : detail;
+type DiscoveryService = 'searchConsole' | 'analytics';
+
+/**
+ * Why a property list is empty or missing, in the reader's language.
+ *
+ * The server's English sentence used to be rendered as it came, so a Ukrainian
+ * screen said "This Google account cannot read the selected property" when
+ * Google had refused to *list* the Analytics properties and nothing was
+ * selected. The state and the reason code pick the sentence here instead.
+ */
+function discoveryNotice(
+  t: GoogleCopy,
+  service: DiscoveryService,
+  section: GoogleDiscovery[DiscoveryService],
+): string | null {
+  const name = service === 'searchConsole' ? t.serviceSearchConsole : t.serviceAnalytics;
+  switch (section.state) {
+    case 'connected':
+      return null;
+    case 'no_data':
+      return service === 'searchConsole'
+        ? t.discoveryEmptySearchConsole
+        : t.discoveryEmptyAnalytics;
+    case 'not_connected':
+    case 'needs_reconnect':
+      return t.discoveryReconnect;
+    case 'no_access':
+      return fillCopy(
+        section.reason === 'missing_scope' ? t.discoveryMissingScope : t.discoveryDenied,
+        { service: name },
+      );
+    default:
+      return t.discoveryFailed;
+  }
 }
 
 /**
@@ -267,13 +299,9 @@ export function GoogleProperties(props: Props) {
 
   const searchConsoleSites = discovery?.searchConsole.items ?? [];
   const searchConsoleNotice =
-    discovery === null
-      ? null
-      : sectionNotice(discovery.searchConsole.state, discovery.searchConsole.detail);
+    discovery === null ? null : discoveryNotice(t, 'searchConsole', discovery.searchConsole);
   const analyticsNotice =
-    discovery === null
-      ? null
-      : sectionNotice(discovery.analytics.state, discovery.analytics.detail);
+    discovery === null ? null : discoveryNotice(t, 'analytics', discovery.analytics);
 
   const messageBlock =
     message === null ? null : (
@@ -331,9 +359,9 @@ export function GoogleProperties(props: Props) {
           // not ask" are different facts, and only the error is known here.
           <>
             <p className="muted">
-              {searchConsoleNotice === null
+              {searchConsoleNotice === null || discovery.searchConsole.state === 'no_data'
                 ? t.noProperties
-                : `${t.searchConsolePrefix}: ${searchConsoleNotice}`}
+                : searchConsoleNotice}
             </p>
             <p className="muted">{t.analyticsOnlyNote}</p>
           </>
@@ -358,30 +386,22 @@ export function GoogleProperties(props: Props) {
         </p>
       ) : (
         <>
-          {searchConsoleNotice ? (
-            <p className="integration-row__error" role="status">
-              {t.searchConsolePrefix}: {searchConsoleNotice}
-            </p>
-          ) : null}
           <SelectField
             label={t.searchConsoleLabel}
             technical
             value={searchConsoleSiteUrl}
             onChange={setSearchConsoleSiteUrl}
+            error={searchConsoleNotice ?? undefined}
             options={[
               { value: NONE, label: t.notLinked },
               ...searchConsoleSites.map((site) => ({ value: site.siteUrl, label: site.siteUrl })),
             ]}
           />
-          {analyticsNotice ? (
-            <p className="integration-row__error" role="status">
-              {t.analyticsPrefix}: {analyticsNotice}
-            </p>
-          ) : null}
           <SelectField
             label={t.analyticsLabel}
             value={ga4PropertyId}
             onChange={setGa4PropertyId}
+            error={analyticsNotice ?? undefined}
             options={[
               { value: NONE, label: t.notLinked },
               ...(discovery?.analytics.items ?? []).map((property) => ({

@@ -564,7 +564,16 @@ export function SelectField(props: {
   hint?: string;
   /** Renders the options in monospace; see `controlClass`. */
   technical?: boolean;
+  /**
+   * Why the list has nothing current to choose from. It sits under this control
+   * and is tied to it with `aria-describedby`: placed above the label, the same
+   * message read as belonging to the field before it. There is no
+   * `aria-invalid` — the choice is not wrong, the list behind it was not filled.
+   */
+  error?: string;
 }) {
+  const errorId = useId();
+  const hasError = props.error !== undefined && props.error !== '';
   return (
     <label className="field">
       <span className="field__label">{props.label}</span>
@@ -574,6 +583,7 @@ export function SelectField(props: {
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
         autoComplete={props.autoComplete}
+        aria-describedby={hasError ? errorId : undefined}
       >
         {props.options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -582,6 +592,11 @@ export function SelectField(props: {
         ))}
       </select>
       {props.hint ? <span className="field__hint">{props.hint}</span> : null}
+      {hasError ? (
+        <span className="field__error" id={errorId} role="status">
+          {props.error}
+        </span>
+      ) : null}
     </label>
   );
 }

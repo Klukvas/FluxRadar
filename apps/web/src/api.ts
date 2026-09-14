@@ -297,7 +297,10 @@ export type GoogleDataState =
 
 export interface GoogleDiscoverySection<T> {
   readonly state: GoogleDataState;
+  /** English, for API clients; the panel explains `state` and `reason` in its own words. */
   readonly detail: string;
+  /** `missing_scope` when the grant never included the service; absent from older API versions. */
+  readonly reason?: 'missing_scope' | null;
   readonly items: readonly T[];
 }
 
