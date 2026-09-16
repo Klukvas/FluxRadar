@@ -72,7 +72,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 14 September 2026/);
+    expect(policy).toHaveTextContent(/Effective 16 September 2026/);
     expect(policy).toHaveTextContent(/PageSpeed Insights and CrUX.*public URL or origin/is);
     expect(policy).toHaveTextContent(
       /Free and Basic reports.*30 days.*Complete reports.*365 days/is,
@@ -82,6 +82,37 @@ describe('public legal documents', () => {
     expect(
       screen.getByRole('link', { name: /Google API Services User Data Policy/i }),
     ).toHaveAttribute('href', 'https://developers.google.com/terms/api-services-user-data-policy');
+  });
+
+  // Google's OAuth verification rejects a policy that does not say how Google
+  // user data is secured, so each protection it relies on stays pinned here.
+  it('states how Google user data is protected, in both languages', () => {
+    render(<LegalDocumentScreen kind="privacy" language="en" onLanguageChange={() => {}} />);
+
+    const policy = screen.getByRole('article');
+    expect(screen.getByRole('heading', { name: 'How we protect Google user data' })).toBeVisible();
+    expect(policy).toHaveTextContent(/served only over HTTPS with HSTS/i);
+    expect(policy).toHaveTextContent(/refresh tokens are encrypted at rest with AES-256-GCM/i);
+    expect(policy).toHaveTextContent(/Tokens are never sent to your browser/i);
+    expect(policy).toHaveTextContent(/cannot change or delete anything in your Google account/i);
+    expect(policy).toHaveTextContent(/does not read data about individual visitors/i);
+    expect(policy).toHaveTextContent(/available only to the account that connected Google/i);
+    expect(policy).toHaveTextContent(/database backups are encrypted with AES-256-GCM/i);
+    expect(screen.getByRole('link', { name: 'Google Account connections' })).toHaveAttribute(
+      'href',
+      'https://myaccount.google.com/connections',
+    );
+    expect(screen.getByRole('navigation', { name: 'Document sections' })).toHaveTextContent(
+      'Protecting Google data',
+    );
+
+    cleanup();
+    render(<LegalDocumentScreen kind="privacy" language="uk" onLanguageChange={() => {}} />);
+
+    expect(
+      screen.getByRole('heading', { name: 'Як ми захищаємо дані користувача Google' }),
+    ).toBeVisible();
+    expect(screen.getByRole('article')).toHaveTextContent(/AES‑256‑GCM/);
   });
 
   it('provides a standalone, accurate cookie and storage inventory', () => {

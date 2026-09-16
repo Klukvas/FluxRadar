@@ -4,10 +4,10 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
- * Changed when the Google data section stopped describing the removed Query
- * Ideas generator, which sent Search Console queries to the AI provider.
+ * Changed when the policy gained the section on how Google user data is
+ * protected, which Google's OAuth verification requires the policy to state.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '14 вересня 2026 року', en: '14 September 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '16 вересня 2026 року', en: '16 September 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -91,8 +91,49 @@ function UkrainianPrivacy(): JSX.Element {
           tokens.
         </p>
       </section>
+      <section id="privacy-security" className="legal-section">
+        <span className="legal-section__label">04 / БЕЗПЕКА</span>
+        <h2>Як ми захищаємо дані користувача Google</h2>
+        <ul>
+          <li>
+            <strong>Шифрування під час передавання:</strong> сайт і API FluxRadar працюють лише
+            через HTTPS з HSTS, а до Google API FluxRadar звертається лише через HTTPS.
+          </li>
+          <li>
+            <strong>Зашифровані tokens:</strong> Google OAuth access і refresh tokens зберігаються
+            зашифрованими за AES‑256‑GCM окремим ключем, який зберігається в серверних секретах, а
+            не в базі даних. Tokens ніколи не передаються у ваш браузер або AI‑провайдеру.
+          </li>
+          <li>
+            <strong>Мінімальні дозволи:</strong> FluxRadar запитує лише read‑only дозволи{' '}
+            <code>webmasters.readonly</code> і <code>analytics.readonly</code> та не може нічого
+            змінити чи видалити у вашому Google‑акаунті. З Google Analytics читаються список
+            доступних вам properties і агреговані показники вибраного property — users, sessions,
+            page views, events і key events; дані про окремих відвідувачів не читаються.
+          </li>
+          <li>
+            <strong>Контроль доступу:</strong> дані Google доступні лише акаунту, який підключив
+            Google, і кожен запит перевіряється щодо цього акаунта. Сесійні cookies мають атрибути
+            HttpOnly і Secure; у базі зберігаються лише SHA‑256 hash сесійного token і bcrypt hash
+            пароля. OAuth flow захищено одноразовим state з обмеженим строком дії.
+          </li>
+          <li>
+            <strong>Інфраструктура:</strong> база даних недоступна з Інтернету, файли звітів
+            зберігаються в приватному bucket, а резервні копії бази шифруються за AES‑256‑GCM ще до
+            того, як залишають сервер. Адміністративний доступ до production‑систем має лише
+            оператор.
+          </li>
+        </ul>
+        <p>
+          Якщо інцидент безпеки зачепить дані користувача Google, ми локалізуємо його, замінимо
+          скомпрометовані облікові дані й повідомимо зачеплених користувачів, а також компетентні
+          органи, якщо цього вимагає закон. Відкликати доступ FluxRadar можна будь‑коли у FluxRadar
+          або в розділі{' '}
+          <a href="https://myaccount.google.com/connections">підключень Google‑акаунта</a>.
+        </p>
+      </section>
       <section id="privacy-use" className="legal-section">
-        <span className="legal-section__label">04 / МЕТА</span>
+        <span className="legal-section__label">05 / МЕТА</span>
         <h2>Навіщо й на якій підставі ми використовуємо дані</h2>
         <p>
           Дані акаунта, профілю, аудиту, покупки та інтеграції потрібні для автентифікації,
@@ -125,7 +166,7 @@ function UkrainianPrivacy(): JSX.Element {
         </p>
       </section>
       <section id="privacy-providers" className="legal-section">
-        <span className="legal-section__label">05 / ОТРИМУВАЧІ</span>
+        <span className="legal-section__label">06 / ОТРИМУВАЧІ</span>
         <h2>Провайдери та міжнародна обробка</h2>
         <ul>
           <li>
@@ -169,7 +210,7 @@ function UkrainianPrivacy(): JSX.Element {
         </p>
       </section>
       <section id="privacy-retention" className="legal-section">
-        <span className="legal-section__label">06 / СТРОКИ</span>
+        <span className="legal-section__label">07 / СТРОКИ</span>
         <h2>Зберігання та видалення</h2>
         <ul>
           <li>Free і Basic reports — 30 днів від створення scan; Complete reports — 365 днів.</li>
@@ -196,7 +237,7 @@ function UkrainianPrivacy(): JSX.Element {
         </p>
       </section>
       <section id="privacy-cookies" className="legal-section">
-        <span className="legal-section__label">07 / COOKIES</span>
+        <span className="legal-section__label">08 / COOKIES</span>
         <h2>Cookies і browser storage</h2>
         <p>
           Необхідні засоби зберігання підтримують вхід, checkout recovery і ваш вибір cookies;
@@ -208,7 +249,7 @@ function UkrainianPrivacy(): JSX.Element {
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">
-        <span className="legal-section__label">08 / ВАШІ ПРАВА</span>
+        <span className="legal-section__label">09 / ВАШІ ПРАВА</span>
         <h2>Доступ, виправлення, заперечення та видалення</h2>
         <p>
           Ви можете від’єднати інтеграцію, видалити browser preferences або звернутися до{' '}
@@ -303,8 +344,49 @@ function EnglishPrivacy(): JSX.Element {
           described below. Disconnecting Google deletes the stored tokens.
         </p>
       </section>
+      <section id="privacy-security" className="legal-section">
+        <span className="legal-section__label">04 / SECURITY</span>
+        <h2>How we protect Google user data</h2>
+        <ul>
+          <li>
+            <strong>Encryption in transit:</strong> the FluxRadar site and API are served only over
+            HTTPS with HSTS, and FluxRadar calls Google APIs only over HTTPS.
+          </li>
+          <li>
+            <strong>Encrypted tokens:</strong> Google OAuth access and refresh tokens are encrypted
+            at rest with AES-256-GCM under a dedicated key that is kept in server secrets, not in
+            the database. Tokens are never sent to your browser or to an AI provider.
+          </li>
+          <li>
+            <strong>Least privilege:</strong> FluxRadar requests only the read-only{' '}
+            <code>webmasters.readonly</code> and <code>analytics.readonly</code> scopes and cannot
+            change or delete anything in your Google account. From Google Analytics it reads the
+            list of properties you can access and aggregate totals for the property you select —
+            users, sessions, page views, events and key events; it does not read data about
+            individual visitors.
+          </li>
+          <li>
+            <strong>Access control:</strong> Google data is available only to the account that
+            connected Google, and every request is checked against that account. Session cookies are
+            HttpOnly and Secure; only a SHA-256 hash of the session token and a bcrypt hash of the
+            password are stored. The OAuth flow is protected by a single-use, expiring state value.
+          </li>
+          <li>
+            <strong>Infrastructure:</strong> the database is not reachable from the Internet, report
+            files are kept in a private storage bucket, and database backups are encrypted with
+            AES-256-GCM before they leave the server. Administrative access to production systems is
+            limited to the operator.
+          </li>
+        </ul>
+        <p>
+          If a security incident affects Google user data, we contain it, rotate the affected
+          credentials and notify affected users and, where the law requires, the competent
+          authorities. You can remove FluxRadar’s access at any time in FluxRadar or in your{' '}
+          <a href="https://myaccount.google.com/connections">Google Account connections</a>.
+        </p>
+      </section>
       <section id="privacy-use" className="legal-section">
-        <span className="legal-section__label">04 / PURPOSE</span>
+        <span className="legal-section__label">05 / PURPOSE</span>
         <h2>Why and on what basis we use data</h2>
         <p>
           Account, profile, audit, purchase and integration data is used to authenticate you,
@@ -338,7 +420,7 @@ function EnglishPrivacy(): JSX.Element {
         </p>
       </section>
       <section id="privacy-providers" className="legal-section">
-        <span className="legal-section__label">05 / RECIPIENTS</span>
+        <span className="legal-section__label">06 / RECIPIENTS</span>
         <h2>Providers and international processing</h2>
         <ul>
           <li>
@@ -381,7 +463,7 @@ function EnglishPrivacy(): JSX.Element {
         </p>
       </section>
       <section id="privacy-retention" className="legal-section">
-        <span className="legal-section__label">06 / RETENTION</span>
+        <span className="legal-section__label">07 / RETENTION</span>
         <h2>Storage and deletion</h2>
         <ul>
           <li>Free and Basic reports: 30 days from scan creation; Complete reports: 365 days.</li>
@@ -407,7 +489,7 @@ function EnglishPrivacy(): JSX.Element {
         </p>
       </section>
       <section id="privacy-cookies" className="legal-section">
-        <span className="legal-section__label">07 / COOKIES</span>
+        <span className="legal-section__label">08 / COOKIES</span>
         <h2>Cookies and browser storage</h2>
         <p>
           Necessary storage supports sign-in, checkout recovery and the cookie choice; preference
@@ -419,7 +501,7 @@ function EnglishPrivacy(): JSX.Element {
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">
-        <span className="legal-section__label">08 / YOUR RIGHTS</span>
+        <span className="legal-section__label">09 / YOUR RIGHTS</span>
         <h2>Access, correction, objection and deletion</h2>
         <p>
           You can disconnect an integration, remove browser preferences or contact <SupportLink />
