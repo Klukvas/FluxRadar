@@ -114,11 +114,11 @@ const WORKSPACE_TABS: readonly {
  * for a visitor and become links into the workspace once the page learns the
  * reader has a session. The static blog never learns it and stays signed-out.
  *
- * Known, and the same on every page: between the burger breakpoint and roughly
- * 1000px the row is wider than the bar, so `.menubar__nav` scrolls sideways and
- * the last item sits past its right edge until the reader scrolls. Whatever
- * fixes that — an earlier burger, a wrapping row — has to move for the whole
- * site at once, or the headers drift apart again.
+ * The full row needs about 900px in English and 980px in Ukrainian, so the
+ * burger takes over below 1000px (`base.css` and `public/blog/blog.css`), not
+ * at the 700px phone breakpoint. Below it the row used to overflow the bar and
+ * hide FAQ and Blog behind a scrollbar. A new destination or a longer label has
+ * to fit that width, or the breakpoint moves in both stylesheets at once.
  */
 export type MenuBarProps =
   | {

@@ -554,6 +554,11 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
   .blog-cookie-consent__actions {
     grid-template-columns: 1fr;
   }
+}
+
+/* The header switches to the burger at the React header's width, below 1000px,
+   not with the page rules above: the full row does not fit the bar until then. */
+@media (max-width: 999px) {
   .menubar__system {
     display: none;
   }

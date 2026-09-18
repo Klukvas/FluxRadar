@@ -192,14 +192,19 @@ describe('blog header renders the same way on every page variant', () => {
   const BASE_CSS = readFileSync(resolve(process.cwd(), 'src/styles/base.css'), 'utf8');
   const BLOG_CSS = readFileSync(resolve(BLOG_ROOT, 'blog.css'), 'utf8');
 
-  /** The viewport width below which a stylesheet turns the burger on. */
-  function burgerBreakpoint(css: string): number {
+  /** The width of the first `max-width` query whose block holds `selector`. */
+  function breakpointOf(css: string, selector: string): number {
     for (const query of css.matchAll(/@media \(max-width: (\d+)px\) \{/g)) {
       const start = query.index ?? 0;
       const block = css.slice(start, css.indexOf('\n}', start));
-      if (block.includes('.menubar__toggle {')) return Number(query[1]);
+      if (block.includes(selector)) return Number(query[1]);
     }
-    throw new Error('no media query turns the burger on');
+    throw new Error(`no media query restyles ${selector}`);
+  }
+
+  /** The viewport width below which a stylesheet turns the burger on. */
+  function burgerBreakpoint(css: string): number {
+    return breakpointOf(css, '.menubar__toggle {');
   }
 
   /** Every destination the static header offers, in the order it offers them. */
@@ -282,11 +287,16 @@ describe('blog header renders the same way on every page variant', () => {
     expect(BLOG_CSS).toContain('.menubar__links.is-open .menubar__item:hover:not(:disabled)');
   });
 
-  it.each(ARTICLE_PAGES)('%s keeps its own responsive rules on that width', (name) => {
+  // An article's own phone rules are typography, so they follow the shared page
+  // rules at 700px. Only the header switches earlier, because only its row is
+  // too wide for a tablet.
+  it.each(ARTICLE_PAGES)('%s keeps its own responsive rules on the page width', (name) => {
     const inline = readPage(name).match(/@media\s*\(max-width:\s*\d+px\)/g) ?? [];
     expect(inline.length).toBeGreaterThan(0);
     for (const query of inline) {
-      expect(query.replace(/\s/g, '')).toBe(`@media(max-width:${burgerBreakpoint(BLOG_CSS)}px)`);
+      expect(query.replace(/\s/g, '')).toBe(
+        `@media(max-width:${breakpointOf(BLOG_CSS, '.blog-page {')}px)`,
+      );
     }
   });
 

@@ -144,9 +144,33 @@ describe('base.css layout rules', () => {
     expect(mobile).toMatch(/\.control \{\s*min-height: 40px;/);
   });
 
+  /** Every `@media (max-width: …)` block of that width, read together. */
+  function mediaBlocks(width: string): string {
+    const blocks: string[] = [];
+    const opening = `@media (max-width: ${width}) {`;
+    for (let at = BASE_CSS.indexOf(opening); at !== -1; at = BASE_CSS.indexOf(opening, at + 1)) {
+      blocks.push(BASE_CSS.slice(at, BASE_CSS.indexOf('\n}', at)));
+    }
+    if (blocks.length === 0) throw new Error(`base.css has no ${width} media query`);
+    return blocks.join('\n');
+  }
+
+  // Regression: the burger switched on with the phone rules at 700px, but the
+  // full row needs about 980px in Ukrainian, so between the two widths
+  // `.menubar__nav` scrolled sideways and hid FAQ and Blog behind a scrollbar.
+  it('turns the burger on below 1000px, where the full header row stops fitting', () => {
+    const burger = mediaBlocks('999px');
+    expect(burger).toMatch(/\.menubar__toggle \{\s*display: inline-flex;/);
+    expect(burger).toMatch(/\.menubar__links \{\s*display: none;/);
+    expect(burger).toMatch(/\.menubar__system \{\s*display: none;/);
+    // A header rule left behind in a phone block would split the header in two
+    // again, showing part of the sheet only below 700px.
+    expect(mediaBlocks('699px')).not.toMatch(/\.menubar/);
+  });
+
   // Every row in the open navigation sheet starts on one left edge.
   it('drives the mobile navigation sheet from a single inset token', () => {
-    const mobile = BASE_CSS.slice(BASE_CSS.indexOf('@media (max-width: 699px)'));
+    const mobile = mediaBlocks('999px');
     expect(mobile).toMatch(/--sheet-inset: var\(--sp-4\);/);
     for (const rule of [
       /\.menubar__sheet-head \{\s*padding: 0 var\(--sheet-inset\);/,

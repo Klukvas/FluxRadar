@@ -3233,165 +3233,6 @@ code,
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
-  .menubar__system {
-    display: none;
-  }
-  .menubar__toggle {
-    display: inline-flex;
-  }
-  .menubar__links {
-    display: none;
-  }
-  .menubar__links.is-open {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    background: var(--plat-100);
-    padding: 0 0 var(--sp-4);
-    overflow-y: auto;
-    animation: open-window 140ms ease-out;
-  }
-  .menubar__sheet-head {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    min-height: 44px;
-    padding: 0 var(--sp-3);
-    background: var(--term-bg);
-    color: var(--plat-50);
-    border-bottom: 2px solid var(--plat-900);
-  }
-  .menubar__sheet-brand {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 6px;
-    font: 700 13px var(--mono-font);
-    letter-spacing: 0.02em;
-  }
-  .menubar__sheet-brand svg {
-    width: 12px;
-    height: 12px;
-    fill: var(--term-green);
-  }
-  /* The Ukrainian station name is long enough to wrap and push the head to two
-     rows, which broke the alignment of the brand and the close box against the
-     44px strip. It is a subtitle, so it gives way with an ellipsis instead. */
-  .menubar__sheet-status {
-    min-width: 0;
-    overflow: hidden;
-    font: 10px var(--mono-font);
-    color: var(--term-green);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-left: var(--sp-2);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  /* One left edge for the whole sheet. The group labels, the navigation items,
-     the brand and the language control each used to compute their own inset
-     from a different mix of padding and margin, so their text started at 16px,
-     23px and 30px in the same column. `--sheet-inset` is that edge, and the
-     3px active rail is subtracted from the padding rather than added in front
-     of it, so a selected row's label stays on the line as the others. */
-  .menubar__links.is-open {
-    --sheet-inset: var(--sp-4);
-    --sheet-rail: 3px;
-  }
-  .menubar__sheet-head {
-    padding: 0 var(--sheet-inset);
-  }
-  .menubar__group-label {
-    display: block;
-    font: 700 10px var(--mono-font);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--plat-600);
-    padding: var(--sp-3) var(--sheet-inset) var(--sp-1);
-  }
-  .menubar__nav {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    overflow: visible;
-    white-space: normal;
-    border-bottom: 1px solid var(--plat-300);
-    padding-bottom: var(--sp-2);
-  }
-  .menubar__meta {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    margin-left: 0;
-    padding: var(--sp-1) 0 0;
-  }
-  .menubar__links.is-open .menubar__language {
-    min-height: 44px;
-    padding: 0 calc(var(--sheet-inset) - var(--sp-2));
-    align-self: stretch;
-    justify-content: flex-start;
-  }
-  /* The same 40px minimum tap target the rest of the sheet offers, so the
-     language control is not a 22px exception in a column of 44px rows. */
-  .menubar__links.is-open .menubar__language-button {
-    min-height: 40px;
-    padding: 0 var(--sp-2);
-    font-size: 14px;
-  }
-  .menubar__language-listbox {
-    left: calc(var(--sheet-inset) - var(--sp-2));
-    right: auto;
-    top: calc(100% + 2px);
-  }
-  .menubar__links.is-open .menubar__item,
-  .menubar__links.is-open .menubar__blog-link {
-    min-height: 44px;
-    justify-content: flex-start;
-    padding: 0 var(--sheet-inset) 0 calc(var(--sheet-inset) - var(--sheet-rail));
-    margin: 0;
-    font-size: 16px;
-    border-left: var(--sheet-rail) solid transparent;
-  }
-  .menubar__links.is-open .menubar__item:hover:not(:disabled),
-  .menubar__links.is-open .menubar__blog-link:hover {
-    background: var(--plat-200);
-    color: inherit;
-    border-left-color: var(--plat-300);
-  }
-  .menubar__links.is-open .is-active {
-    background: var(--selection);
-    color: #fff;
-    border-left-color: var(--term-green);
-    font-weight: 700;
-  }
-  .menubar__links.is-open .menubar__spacer {
-    display: none;
-  }
-  .menubar__sheet-head .menubar__close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    align-self: center;
-    margin-left: auto;
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--plat-300);
-    background: var(--plat-900);
-    color: var(--plat-50);
-  }
-  .menubar__sheet-head .menubar__close:hover {
-    background: var(--term-red);
-    border-color: var(--term-red);
-  }
-  .menubar__links.is-open .menubar__close svg {
-    width: 12px;
-    height: 12px;
-  }
   .button {
     min-height: 40px;
   }
@@ -3580,7 +3421,171 @@ code,
   }
 }
 
-@media (max-width: 699px) {
+/* The burger takes over below 1000px rather than with the phone rules at 700px.
+   The full row — seven destinations, the language switch and the station line —
+   needs about 900px in English and 980px in Ukrainian, so between the two widths
+   `.menubar__nav` clipped FAQ and Blog behind a scrollbar in the 22px bar.
+   `public/blog/blog.css` hand-writes this header and must switch at the same width. */
+@media (max-width: 999px) {
+  .menubar__system {
+    display: none;
+  }
+  .menubar__toggle {
+    display: inline-flex;
+  }
+  .menubar__links {
+    display: none;
+  }
+  .menubar__links.is-open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: var(--plat-100);
+    padding: 0 0 var(--sp-4);
+    overflow-y: auto;
+    animation: open-window 140ms ease-out;
+  }
+  .menubar__sheet-head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 44px;
+    padding: 0 var(--sp-3);
+    background: var(--term-bg);
+    color: var(--plat-50);
+    border-bottom: 2px solid var(--plat-900);
+  }
+  .menubar__sheet-brand {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    font: 700 13px var(--mono-font);
+    letter-spacing: 0.02em;
+  }
+  .menubar__sheet-brand svg {
+    width: 12px;
+    height: 12px;
+    fill: var(--term-green);
+  }
+  /* The Ukrainian station name is long enough to wrap and push the head to two
+     rows, which broke the alignment of the brand and the close box against the
+     44px strip. It is a subtitle, so it gives way with an ellipsis instead. */
+  .menubar__sheet-status {
+    min-width: 0;
+    overflow: hidden;
+    font: 10px var(--mono-font);
+    color: var(--term-green);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-left: var(--sp-2);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* One left edge for the whole sheet. The group labels, the navigation items,
+     the brand and the language control each used to compute their own inset
+     from a different mix of padding and margin, so their text started at 16px,
+     23px and 30px in the same column. `--sheet-inset` is that edge, and the
+     3px active rail is subtracted from the padding rather than added in front
+     of it, so a selected row's label stays on the line as the others. */
+  .menubar__links.is-open {
+    --sheet-inset: var(--sp-4);
+    --sheet-rail: 3px;
+  }
+  .menubar__sheet-head {
+    padding: 0 var(--sheet-inset);
+  }
+  .menubar__group-label {
+    display: block;
+    font: 700 10px var(--mono-font);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--plat-600);
+    padding: var(--sp-3) var(--sheet-inset) var(--sp-1);
+  }
+  .menubar__nav {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: visible;
+    white-space: normal;
+    border-bottom: 1px solid var(--plat-300);
+    padding-bottom: var(--sp-2);
+  }
+  .menubar__meta {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    margin-left: 0;
+    padding: var(--sp-1) 0 0;
+  }
+  .menubar__links.is-open .menubar__language {
+    min-height: 44px;
+    padding: 0 calc(var(--sheet-inset) - var(--sp-2));
+    align-self: stretch;
+    justify-content: flex-start;
+  }
+  /* The same 40px minimum tap target the rest of the sheet offers, so the
+     language control is not a 22px exception in a column of 44px rows. */
+  .menubar__links.is-open .menubar__language-button {
+    min-height: 40px;
+    padding: 0 var(--sp-2);
+    font-size: 14px;
+  }
+  .menubar__language-listbox {
+    left: calc(var(--sheet-inset) - var(--sp-2));
+    right: auto;
+    top: calc(100% + 2px);
+  }
+  .menubar__links.is-open .menubar__item,
+  .menubar__links.is-open .menubar__blog-link {
+    min-height: 44px;
+    justify-content: flex-start;
+    padding: 0 var(--sheet-inset) 0 calc(var(--sheet-inset) - var(--sheet-rail));
+    margin: 0;
+    font-size: 16px;
+    border-left: var(--sheet-rail) solid transparent;
+  }
+  .menubar__links.is-open .menubar__item:hover:not(:disabled),
+  .menubar__links.is-open .menubar__blog-link:hover {
+    background: var(--plat-200);
+    color: inherit;
+    border-left-color: var(--plat-300);
+  }
+  .menubar__links.is-open .is-active {
+    background: var(--selection);
+    color: #fff;
+    border-left-color: var(--term-green);
+    font-weight: 700;
+  }
+  .menubar__links.is-open .menubar__spacer {
+    display: none;
+  }
+  .menubar__sheet-head .menubar__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--plat-300);
+    background: var(--plat-900);
+    color: var(--plat-50);
+  }
+  .menubar__sheet-head .menubar__close:hover {
+    background: var(--term-red);
+    border-color: var(--term-red);
+  }
+  .menubar__links.is-open .menubar__close svg {
+    width: 12px;
+    height: 12px;
+  }
   .menubar__language {
     padding: 0 6px;
   }
@@ -3595,6 +3600,9 @@ code,
     white-space: nowrap;
     border: 0;
   }
+}
+
+@media (max-width: 699px) {
   .tour-dialog {
     width: calc(100vw - 24px);
     padding: 16px;
