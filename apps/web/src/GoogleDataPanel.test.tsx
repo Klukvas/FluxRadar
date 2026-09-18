@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { GoogleDataPanel, googleSnapshotOf } from './GoogleDataPanel';
+import { GoogleDataPanel, googleSnapshotIn } from './GoogleDataPanel';
 import type { GoogleDataSnapshot, ScanModule } from './api';
 import { copy } from './i18n';
 
@@ -67,17 +67,19 @@ function moduleWith(metadata: unknown): ScanModule {
   };
 }
 
-describe('googleSnapshotOf', () => {
+describe('googleSnapshotIn', () => {
   it('finds the snapshot the Analytics module stored', () => {
-    expect(googleSnapshotOf([moduleWith(POPULATED)])).toEqual(POPULATED);
+    expect(googleSnapshotIn(moduleWith(POPULATED))).toEqual(POPULATED);
   });
 
-  it('returns null for a plan without the Analytics module', () => {
-    expect(googleSnapshotOf([{ ...moduleWith(POPULATED), module: 'SEO' }])).toBeNull();
+  // Analytics stores its check list and analysis beside the snapshot (D-219).
+  it('still finds the snapshot with the Analytics checks stored beside it', () => {
+    const stored = { ...POPULATED, ruleChecks: [], analysis: { trend: null } };
+    expect(googleSnapshotIn(moduleWith(stored))?.searchConsole).toEqual(POPULATED.searchConsole);
   });
 
   it('returns null when the module metadata is not a Google snapshot', () => {
-    expect(googleSnapshotOf([moduleWith({ standard: 'WCAG 2.2 AA' })])).toBeNull();
+    expect(googleSnapshotIn(moduleWith({ standard: 'WCAG 2.2 AA' }))).toBeNull();
   });
 });
 

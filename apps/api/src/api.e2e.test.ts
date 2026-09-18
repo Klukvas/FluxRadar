@@ -9,6 +9,8 @@ import {
 import { validateExportRecords } from '@fluxradar/export';
 import type { Scan, SiteProfile } from '@prisma/client';
 import { buildExportRecords } from './export/build-records.ts';
+import type { GoogleScanData } from './integrations/google/types.ts';
+import type { WorkerDeps } from './orchestrator/deps.ts';
 import { defaultGeoFixtures } from './orchestrator/geo.ts';
 import { processScan } from './orchestrator/worker.ts';
 import { createApp } from './index.ts';
@@ -268,6 +270,9 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       applicableChecks: 4,
       completedApplicableChecks: 3,
       usableOutput: true,
+      // D-218: the three static checks that ran score the section — a missing
+      // h1 and a missing action on the entry page cost 3 each (Medium, 1 of 1).
+      score: 94,
       metadata: {
         staticSignals: { pagesAnalyzed: expect.any(Number) },
         ai: { status: 'Unavailable', statusReason: 'UxAiConsentMissing', findings: 0 },
@@ -304,6 +309,90 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       issues.body.data.some((issue: { ruleId: string }) => issue.ruleId.startsWith('UX-CONV-AI-')),
     ).toBe(false);
   }, 15_000);
+
+  // D-219: connecting Google used to add numbers to the report and check
+  // nothing. The Analytics section now runs its checks after the scan outcome is
+  // settled, scores them, and puts its findings in the Issue Center and export.
+  it('scores Analytics from the connected Google data and exports its findings', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      createPerformanceRunner: () => undefined,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'analytics-e2e@example.com');
+    const profile = await createProfile(agent, account.cookie);
+    const checkout = await agent
+      .post('/billing/dev-checkout')
+      .set('Cookie', account.cookie)
+      .send({
+        siteProfileId: profile.id,
+        plan: 'Complete',
+        scope: { includeSubdomains: false, maxPages: 3 },
+      });
+    expect(checkout.status).toBe(201);
+    const scanId = checkout.body.data.scanId as string;
+
+    await runScan(
+      scanId,
+      () => uxAwareProvider(profile.name),
+      fixture.origin,
+      connectedGoogle(fixture.origin),
+    );
+
+    const scan = await agent.get(`/scans/${scanId}`).set('Cookie', account.cookie);
+    expect(scan.status).toBe(200);
+    const analytics = scan.body.data.modules.find(
+      (module: { module: string }) => module.module === 'Analytics',
+    );
+    expect(analytics).toMatchObject({
+      status: 'Completed',
+      usableOutput: true,
+      applicableChecks: 8,
+      completedApplicableChecks: 8,
+      metadata: {
+        source: 'google',
+        analysis: {
+          trend: { metric: 'clicks', previous: 100, current: 40 },
+          nearTop: [{ query: 'fixture audit', impressions: 60, position: 14 }],
+        },
+      },
+    });
+    expect(analytics.metadata.ruleChecks).toHaveLength(8);
+    // The fall in clicks (High, 10) and the missing key events (Medium, 3) are
+    // site-level and cost in full; the crawled pages without impressions add a
+    // Low share on top.
+    expect(analytics.score).toBeLessThanOrEqual(87);
+    expect(analytics.score).toBeGreaterThanOrEqual(86);
+    // A side score (§15): it carries no weight in the overall score.
+    const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
+    expect(dashboard.status).toBe(200);
+    expect(
+      dashboard.body.data.overall.moduleWeights.map((weight: { module: string }) => weight.module),
+    ).not.toContain('Analytics');
+
+    const issues = await agent
+      .get(`/scans/${scanId}/issues?limit=100&module=Analytics`)
+      .set('Cookie', account.cookie);
+    expect(issues.status).toBe(200);
+    const trend = issues.body.data.find(
+      (issue: { ruleId: string }) => issue.ruleId === 'ANALYTICS-SC-001',
+    );
+    expect(trend).toMatchObject({ module: 'Analytics', severity: 'High' });
+    expect(trend.localized.uk.evidenceExcerpt).toContain('Органічні кліки впали');
+    expect(
+      issues.body.data.some((issue: { ruleId: string }) => issue.ruleId === 'ANALYTICS-GA-001'),
+    ).toBe(true);
+
+    const exportScan = await db.prisma.scan.findUniqueOrThrow({
+      where: { id: scanId },
+      include: { modules: true, issues: true, aiResponses: true },
+    });
+    const validation = validateExportRecords(buildExportRecords(exportScan));
+    expect(validation).toMatchObject({ ok: true });
+  }, 20_000);
 
   it('degrades an unavailable AI provider and still completes Performance', async () => {
     const app = createApp({
@@ -522,7 +611,12 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
     return { id: response.body.data.id as string, name: response.body.data.name as string };
   }
 
-  async function runScan(scanId: string, createAiProvider: AiFactory, origin = fixture.origin) {
+  async function runScan(
+    scanId: string,
+    createAiProvider: AiFactory,
+    origin = fixture.origin,
+    createGoogleDataRunner?: WorkerDeps['createGoogleDataRunner'],
+  ) {
     return processScan(
       {
         prisma: db.prisma,
@@ -530,9 +624,56 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         createAiProvider,
         createPerformanceRunner: () => undefined,
         crawl: { originOverride: () => origin, dangerouslyAllowLoopback: true },
+        ...(createGoogleDataRunner === undefined ? {} : { createGoogleDataRunner }),
       },
       scanId,
     );
+  }
+
+  /**
+   * Google data for the fixture site: organic clicks fell from 100 to 40, only
+   * the homepage earned impressions, and a busy GA4 property has no key events.
+   */
+  function connectedGoogle(origin: string): WorkerDeps['createGoogleDataRunner'] {
+    const home = `${origin}/`;
+    const data: GoogleScanData = {
+      snapshot: {
+        source: 'google',
+        readOnly: true,
+        fetchedAt: '2026-09-18T10:00:00.000Z',
+        dateRange: { startDate: '2026-08-19', endDate: '2026-09-15' },
+        searchConsole: {
+          state: 'connected',
+          detail: 'ok',
+          data: {
+            siteUrl: home,
+            totals: { clicks: 40, impressions: 3000, ctr: 0.013, position: 9 },
+            previousTotals: { clicks: 100, impressions: 3200, ctr: 0.031, position: 8 },
+            topQueries: [],
+            topPages: [{ key: home, clicks: 40, impressions: 3000, ctr: 0.013, position: 9 }],
+          },
+        },
+        analytics: {
+          state: 'connected',
+          detail: 'ok',
+          data: {
+            propertyId: '123456',
+            propertyName: 'Fixture GA4',
+            users: 400,
+            sessions: 520,
+            pageViews: 1400,
+            events: 3900,
+            keyEvents: 0,
+          },
+        },
+      },
+      searchConsoleDetail: {
+        queries: [{ key: 'fixture audit', clicks: 0, impressions: 60, ctr: 0, position: 14 }],
+        pages: [{ key: home, clicks: 40, impressions: 3000, ctr: 0.013, position: 9 }],
+        pagesComplete: true,
+      },
+    };
+    return () => async () => data;
   }
 
   function uxAwareProvider(brand: string): AiProvider {

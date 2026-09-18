@@ -5,14 +5,17 @@
 // check it ran and what each one found. The AI SEO / GEO section lists what
 // robots.txt lets AI crawlers read, how ready its pages are to be quoted, and
 // the questions it put to the AI provider together with the answers.
-// Performance lists each measurement against its threshold, and UX/Conversion
-// adds what the page HTML showed and whether its AI review ran.
+// Performance lists each measurement against its threshold, UX/Conversion
+// adds what the page HTML showed and whether its AI review ran, and Analytics
+// adds what its checks concluded and the Google data they read.
 //
 // Everything is read from what the audit recorded, never filled in from the
 // plan: a scan run before a field existed shows less, not something assumed.
 
+import { AnalyticsDetails } from './AnalyticsChecks';
 import type { GeoObservation, ScanModule } from './api';
 import { CheckRow } from './CheckRow';
+import { GoogleDataPanel, googleSnapshotIn } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
 import {
   geoChecksOf,
@@ -33,6 +36,7 @@ import { PerformanceChecksBody } from './PerformanceChecks';
 const GEO_MODULE = 'AI SEO / GEO';
 const PERFORMANCE_MODULE = 'Performance';
 const UX_MODULE = 'UX/Conversion';
+const ANALYTICS_MODULE = 'Analytics';
 
 /** Class suffix per result. The colour repeats the word beside it, never replaces it. */
 const RESULT_CLASS: Readonly<Record<RuleCheckResult, string>> = {
@@ -61,6 +65,10 @@ export function hasModuleChecks(
   }
   if (module.module === UX_MODULE) {
     return ruleChecksOf(module.metadata).length > 0 || uxChecksOf(module.metadata) !== null;
+  }
+  if (module.module === ANALYTICS_MODULE) {
+    // A report from before the Analytics checks still opens to its Google data.
+    return ruleChecksOf(module.metadata).length > 0 || googleSnapshotIn(module) !== null;
   }
   return ruleChecksOf(module.metadata).length > 0;
 }
@@ -116,16 +124,22 @@ function ModuleChecksBody(props: {
           language={props.language}
         />
       );
+    case ANALYTICS_MODULE:
+      return <AnalyticsChecksBody module={props.module} language={props.language} />;
     default:
       return <RuleChecksList checks={ruleChecksOf(metadata)} language={props.language} />;
   }
 }
 
-function RuleChecksList(props: { checks: readonly RuleCheck[]; language: Language }) {
+function RuleChecksList(props: {
+  checks: readonly RuleCheck[];
+  language: Language;
+  lead?: string;
+}) {
   const t = copy[props.language].report.checks;
   return (
     <>
-      <p className="muted">{t.ruleLead}</p>
+      <p className="muted">{props.lead ?? t.ruleLead}</p>
       <ul className="module-checks__list">
         {props.checks.map((check) => {
           const result = ruleCheckResult(check);
@@ -178,6 +192,33 @@ function UxChecksBody(props: {
           </div>
         </>
       )}
+    </>
+  );
+}
+
+/**
+ * The Analytics checks, what they concluded, then the Google data they read.
+ *
+ * Only the checks that ran are listed; when a Google service gave no data the
+ * rest did not run, and a sentence says so rather than a row per missing check.
+ */
+function AnalyticsChecksBody(props: { module: ScanModule; language: Language }) {
+  const t = copy[props.language].report.checks;
+  const checks = ruleChecksOf(props.module.metadata);
+  const snapshot = googleSnapshotIn(props.module);
+  const someDidNotRun =
+    checks.length > 0 &&
+    props.module.completedApplicableChecks !== null &&
+    props.module.applicableChecks !== null &&
+    props.module.completedApplicableChecks < props.module.applicableChecks;
+  return (
+    <>
+      {checks.length === 0 ? null : (
+        <RuleChecksList checks={checks} language={props.language} lead={t.analyticsLead} />
+      )}
+      {someDidNotRun ? <p className="muted">{t.analyticsNotRan}</p> : null}
+      <AnalyticsDetails module={props.module} language={props.language} />
+      {snapshot === null ? null : <GoogleDataPanel snapshot={snapshot} language={props.language} />}
     </>
   );
 }
@@ -240,8 +281,10 @@ function checkDetail(check: RuleCheck, result: RuleCheckResult, language: Langua
   const counts = { affected: check.affectedTargets, applicable: check.applicableTargets };
   const perPage = check.targetKind === 'page';
   switch (result) {
-    case 'notApplicable':
-      return t.detailNotApplicable;
+    case 'notApplicable': {
+      const reasons: Readonly<Record<string, string | undefined>> = t.notApplicableReasons;
+      return reasons[check.ruleId] ?? t.detailNotApplicable;
+    }
     case 'passed':
       return perPage ? fillCopy(t.detailPassedPages, counts) : t.detailPassed;
     case 'issues':

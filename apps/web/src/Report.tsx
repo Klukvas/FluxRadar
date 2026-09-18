@@ -17,7 +17,6 @@ import {
   StatusChip,
   Window,
 } from './components';
-import { GoogleDataPanel, googleSnapshotOf } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
 import { asRecord, numberValue } from './module-metadata';
 import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
@@ -110,9 +109,6 @@ export function ResultsScreen(props: {
       </Window>
     );
   const { scan, overall } = dashboard;
-  // Present only when the scan actually stored a Google snapshot; a plan without
-  // the Analytics module renders no Google section at all.
-  const googleSnapshot = googleSnapshotOf(dashboard.modules);
   // No weighted module at all means the plan carries no score by definition —
   // not that this particular scan came back empty. Read from the tariff weights
   // the API already sends rather than from the plan name, so a plan that gains
@@ -280,9 +276,6 @@ export function ResultsScreen(props: {
           })}
         </div>
         <PlanScope modules={dashboard.modules} plan={scan.plan} language={props.language} />
-        {googleSnapshot === null ? null : (
-          <GoogleDataPanel snapshot={googleSnapshot} language={props.language} />
-        )}
         <p className="muted report-help__cta">{t.issuesCta}</p>
         <div className="button-row">
           <Button onClick={props.onIssues} variant="primary">
@@ -479,7 +472,7 @@ function ModuleMetadata({
     return scored ? <small className="module-card__meta">{t.metaSeo}</small> : null;
   }
   if (module.module === 'Analytics') {
-    return <small className="module-card__meta">{t.metaAnalytics}</small>;
+    return <SideScoreMeta line={t.metaAnalytics} language={language} />;
   }
   if (module.module === 'AI SEO / GEO') {
     const pages = asRecord(module.metadata?.pages);
@@ -495,9 +488,24 @@ function ModuleMetadata({
     );
   }
   if (module.module === 'UX/Conversion') {
-    return <small className="module-card__meta">{t.metaUx}</small>;
+    return <SideScoreMeta line={t.metaUx} language={language} />;
   }
   return null;
+}
+
+/**
+ * UX/Conversion and Analytics score their own findings (§15) but carry no weight
+ * in the overall score. Said on the card, so a finding there that leaves the
+ * overall number unmoved does not read as a bug.
+ */
+function SideScoreMeta({ line, language }: { line: string; language: Language }) {
+  return (
+    <small className="module-card__meta">
+      {line}
+      <br />
+      {copy[language].report.metaSideScore}
+    </small>
+  );
 }
 
 /**

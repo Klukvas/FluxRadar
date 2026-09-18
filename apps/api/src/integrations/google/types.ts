@@ -62,8 +62,27 @@ export interface SearchConsoleTotals {
 export interface SearchConsoleSummary {
   readonly siteUrl: string;
   readonly totals: SearchConsoleTotals;
+  /**
+   * The same totals for the 28 days before the report period; null when that
+   * period had no rows. Absent from snapshots taken before D-219.
+   */
+  readonly previousTotals?: SearchConsoleTotals | null;
   readonly topQueries: readonly SearchConsoleRow[];
   readonly topPages: readonly SearchConsoleRow[];
+}
+
+/**
+ * Every query and page row of the report period, for the Analytics checks.
+ * Never stored: the report keeps the top rows and what the checks concluded.
+ */
+export interface SearchConsoleDetail {
+  readonly queries: readonly SearchConsoleRow[];
+  readonly pages: readonly SearchConsoleRow[];
+  /**
+   * False when the page list reached the row limit, so a page missing from it
+   * may still have had impressions.
+   */
+  readonly pagesComplete: boolean;
 }
 
 export interface Ga4Summary {
@@ -99,4 +118,11 @@ export interface GoogleDataSnapshot {
   readonly dateRange: DateRange;
   readonly searchConsole: GoogleServiceResult<SearchConsoleSummary>;
   readonly analytics: GoogleServiceResult<Ga4Summary>;
+}
+
+/** What one scan collected from Google: the stored snapshot and the rows behind it. */
+export interface GoogleScanData {
+  readonly snapshot: GoogleDataSnapshot;
+  /** Null whenever the snapshot has no Search Console data. */
+  readonly searchConsoleDetail: SearchConsoleDetail | null;
 }

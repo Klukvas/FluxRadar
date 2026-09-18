@@ -472,3 +472,228 @@ describe('the UX/Conversion card', () => {
     expect(within(region).getByText(/^The AI review did not run in this scan/)).toBeTruthy();
   });
 });
+
+// D-218/D-219: UX/Conversion and Analytics used to read "No score" beside
+// findings, and the Google data sat in a block of its own below every card.
+// Both now score their findings outside the overall score, and the Google data
+// opens inside the Analytics card, under the checks that read it.
+
+describe('the side-score cards', () => {
+  it('say their score is separate from the overall score', async () => {
+    const ux = moduleOf({ module: 'UX/Conversion', score: 97.5 });
+    await openReport(dashboardOf([ux]));
+
+    expect(card('UX/Conversion')).toHaveTextContent('97.50');
+    expect(card('UX/Conversion')).toHaveTextContent(
+      'Separate score, not part of the overall score',
+    );
+  });
+
+  it('lists a scored UX finding as an issue, not a neutral note', async () => {
+    const ux = moduleOf({
+      module: 'UX/Conversion',
+      score: 97,
+      metadata: {
+        ruleChecks: [
+          {
+            ruleId: 'UX-CONV-AI-003',
+            title: 'conversion friction and trust',
+            targetKind: 'page',
+            scoring: 'scored',
+            applicableTargets: 12,
+            affectedTargets: 3,
+          },
+        ],
+      },
+    });
+    await openReport(dashboardOf([ux]));
+
+    fireEvent.click(card('UX/Conversion'));
+
+    expect(
+      screen.getByText('Conversion friction and trust · AI review').closest('li'),
+    ).toHaveTextContent('Issues found');
+  });
+});
+
+describe('the Analytics card', () => {
+  const snapshot = {
+    source: 'google',
+    readOnly: true,
+    fetchedAt: '2026-09-17T22:35:00.000Z',
+    dateRange: { startDate: '2026-08-18', endDate: '2026-09-14' },
+    searchConsole: {
+      state: 'connected',
+      detail: 'ok',
+      data: {
+        siteUrl: 'sc-domain:smile.example',
+        totals: { clicks: 0, impressions: 130, ctr: 0, position: 22.6 },
+        topQueries: [{ key: 'jobber ai', clicks: 0, impressions: 13, ctr: 0, position: 21.3 }],
+        topPages: [],
+      },
+    },
+    analytics: {
+      state: 'connected',
+      detail: 'ok',
+      data: {
+        propertyId: '1',
+        propertyName: 'Smile GA4',
+        users: 7,
+        sessions: 9,
+        pageViews: 26,
+        events: 46,
+        keyEvents: null,
+      },
+    },
+  };
+
+  const checks = [
+    {
+      ruleId: 'ANALYTICS-SC-001',
+      title: 'organic search trend',
+      targetKind: 'site',
+      scoring: 'scored',
+      applicableTargets: 1,
+      affectedTargets: 1,
+    },
+    {
+      ruleId: 'ANALYTICS-SC-003',
+      title: 'queries close to the top results',
+      targetKind: 'site',
+      scoring: 'informational',
+      applicableTargets: 1,
+      affectedTargets: 1,
+    },
+  ];
+
+  const analysis = {
+    trend: { metric: 'impressions', previous: 400, current: 130 },
+    nearTop: [{ query: 'job cover', impressions: 90, position: 18.5 }],
+    topPages: [
+      {
+        url: 'https://smile.example/',
+        impressions: 37,
+        clicks: 0,
+        findings: 4,
+        highestSeverity: 'High',
+        ruleIds: ['SEO-TECH-004', 'A11Y-002'],
+      },
+    ],
+  };
+
+  function analyticsModule(overrides: Partial<ScanModule> = {}): ScanModule {
+    return moduleOf({
+      module: 'Analytics',
+      score: 90,
+      applicableChecks: 7,
+      completedApplicableChecks: 7,
+      metadata: { ...snapshot, ruleChecks: checks, analysis },
+      ...overrides,
+    });
+  }
+
+  it('keeps the Google data inside the card instead of a block of its own', async () => {
+    await openReport(dashboardOf([analyticsModule()]));
+
+    expect(screen.queryByText('Search Console')).toBeNull();
+
+    fireEvent.click(card('Analytics'));
+
+    const region = screen.getByRole('region', { name: 'Analytics · checks performed' });
+    expect(within(region).getByText('Google data')).toBeTruthy();
+    expect(within(region).getByText('Search Console')).toBeTruthy();
+    expect(within(region).getByText('Smile GA4')).toBeTruthy();
+  });
+
+  it('opens to its checks and what they concluded', async () => {
+    await openReport(dashboardOf([analyticsModule()]));
+
+    fireEvent.click(card('Analytics'));
+
+    const region = screen.getByRole('region', { name: 'Analytics · checks performed' });
+    expect(within(region).getByText('Organic search trend').closest('li')).toHaveTextContent(
+      'Issues found',
+    );
+    expect(
+      within(region)
+        .getByText('Queries close to the top results', { selector: 'li *' })
+        .closest('li'),
+    ).toHaveTextContent('Noted');
+    expect(within(region).getByText('Impressions: 400 → 130 (−68%)')).toBeTruthy();
+    expect(within(region).getByText('job cover').closest('tr')).toHaveTextContent('18.5');
+    const topPage = within(region).getByText('https://smile.example/').closest('tr');
+    expect(topPage).toHaveTextContent('High');
+    // Which checks found them, by the id the Issue Center searches by.
+    expect(topPage).toHaveTextContent('SEO-TECH-004 · A11Y-002');
+  });
+
+  it('names why a Google check could not judge, instead of blaming the pages', async () => {
+    await openReport(
+      dashboardOf([
+        analyticsModule({
+          metadata: {
+            ...snapshot,
+            analysis,
+            ruleChecks: [
+              {
+                ruleId: 'ANALYTICS-GA-001',
+                title: 'key events recorded',
+                targetKind: 'site',
+                scoring: 'scored',
+                applicableTargets: 0,
+                affectedTargets: 0,
+              },
+            ],
+          },
+        }),
+      ]),
+    );
+
+    fireEvent.click(card('Analytics'));
+
+    const row = screen.getByText('Key events recorded in GA4').closest('li');
+    expect(row).toHaveTextContent('Not applicable');
+    expect(row).toHaveTextContent('No sessions in the period');
+    expect(row).not.toHaveTextContent('Nothing on the pages read');
+  });
+
+  it('says when the checks of a Google service without data did not run', async () => {
+    await openReport(
+      dashboardOf([
+        analyticsModule({
+          status: 'Partial',
+          statusReason: 'AnalyticsPropertyNotSelected',
+          completedApplicableChecks: 5,
+        }),
+      ]),
+    );
+
+    fireEvent.click(card('Analytics'));
+
+    expect(
+      screen.getByText(/Checks that need a Google service this scan got no data from/),
+    ).toBeTruthy();
+  });
+
+  it('opens a report from before the checks to its Google data alone', async () => {
+    await openReport(
+      dashboardOf([analyticsModule({ score: null, applicableChecks: 2, metadata: snapshot })]),
+    );
+
+    fireEvent.click(card('Analytics'));
+
+    const region = screen.getByRole('region', { name: 'Analytics · checks performed' });
+    expect(within(region).getByText('Search Console')).toBeTruthy();
+    expect(within(region).queryByText('Organic search trend')).toBeNull();
+  });
+
+  it('names its checks and conclusions in Ukrainian', async () => {
+    await openReport(dashboardOf([analyticsModule()]), 'uk');
+
+    fireEvent.click(card('Analytics'));
+
+    expect(screen.getByText('Динаміка органічного пошуку')).toBeTruthy();
+    expect(screen.getByText('Покази: 400 → 130 (−68%)')).toBeTruthy();
+    expect(screen.getByText('Дані Google')).toBeTruthy();
+  });
+});

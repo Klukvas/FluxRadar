@@ -14,6 +14,16 @@ The current implementation includes the following integration surface:
 | Anthropic | Platform API | Real Messages API adapter when `ANTHROPIC_API_KEY` is configured; tests use a deterministic mock, while a production deployment without the key fails closed. |
 | Hetzner Object Storage | Platform S3 | Complete JSON/CSV exports are archived as private tenant-scoped objects when S3 configuration is present. |
 
+On a Complete scan the Analytics section reads the linked Search Console property and GA4
+property for the 28 days ending three days before the scan, and checks that data next to the
+crawl (D-219): an organic traffic drop against the previous 28 days, first-page results nobody
+clicks, a site shown in search that nobody clicks through to, queries close to the top results,
+crawled pages Google never showed, key events missing in GA4, pages without the Google tag the
+rest of the site carries, and the findings of the rest of the report on the pages with the most
+impressions. The findings go to the Issue Center and make up the section's own score, which is
+not part of the overall score. GA4 is read with the same two report calls as before; the checks
+add no Google Analytics API request.
+
 Google and Bing OAuth state is one-time, expires after ten minutes and is stored only as a SHA-256 hash. Access and refresh tokens are encrypted before they reach PostgreSQL. The UI never receives the raw tokens.
 
 The user-facing **Integrations** screen lists only customer-connectable sources: Google data

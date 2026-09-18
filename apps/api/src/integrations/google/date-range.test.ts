@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { REPORT_PERIOD_DAYS, reportDateRange } from './date-range.ts';
+import { REPORT_PERIOD_DAYS, previousDateRange, reportDateRange } from './date-range.ts';
 
 describe('reportDateRange', () => {
   it('ends three days back so the Search Console tail is finalized', () => {
@@ -20,6 +20,15 @@ describe('reportDateRange', () => {
     expect(reportDateRange(new Date('2026-01-02T00:30:00.000Z'))).toEqual({
       startDate: '2025-12-03',
       endDate: '2025-12-30',
+    });
+  });
+});
+
+describe('previousDateRange', () => {
+  it('is the equally long period that ends the day before the report period', () => {
+    expect(previousDateRange({ startDate: '2026-08-07', endDate: '2026-09-03' })).toEqual({
+      startDate: '2026-07-10',
+      endDate: '2026-08-06',
     });
   });
 });

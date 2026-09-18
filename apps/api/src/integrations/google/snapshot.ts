@@ -5,7 +5,7 @@
 import { fetchGa4Summary } from './analytics.ts';
 import { detailFor, detailOf, stateOf } from './errors.ts';
 import type { GoogleRequestOptions } from './http.ts';
-import { fetchSearchConsoleSummary } from './search-console.ts';
+import { fetchSearchConsoleData } from './search-console.ts';
 import type { GoogleAccess } from './tokens.ts';
 import { reportDateRange } from './date-range.ts';
 import type {
@@ -13,7 +13,9 @@ import type {
   Ga4Summary,
   GoogleDataSnapshot,
   GoogleDataState,
+  GoogleScanData,
   GoogleServiceResult,
+  SearchConsoleDetail,
   SearchConsoleSummary,
 } from './types.ts';
 
@@ -50,30 +52,42 @@ export function connectionStateSnapshot(
   };
 }
 
+interface SearchConsoleSection {
+  readonly result: GoogleServiceResult<SearchConsoleSummary>;
+  readonly detail: SearchConsoleDetail | null;
+}
+
+function withoutDetail(result: GoogleServiceResult<SearchConsoleSummary>): SearchConsoleSection {
+  return { result, detail: null };
+}
+
 async function searchConsoleSection(
   access: GoogleAccess,
   binding: GoogleBinding,
   range: DateRange,
   options: GoogleRequestOptions,
-): Promise<GoogleServiceResult<SearchConsoleSummary>> {
+): Promise<SearchConsoleSection> {
   if (binding.searchConsoleSiteUrl === null) {
-    return unavailable<SearchConsoleSummary>('no_property_selected');
+    return withoutDetail(unavailable<SearchConsoleSummary>('no_property_selected'));
   }
   if (!access.hasSearchConsoleScope) {
-    return result<SearchConsoleSummary>('no_access', MISSING_SCOPE_DETAIL, null);
+    return withoutDetail(result<SearchConsoleSummary>('no_access', MISSING_SCOPE_DETAIL, null));
   }
   try {
-    const summary = await fetchSearchConsoleSummary(
+    const data = await fetchSearchConsoleData(
       access.accessToken,
       binding.searchConsoleSiteUrl,
       range,
       options,
     );
-    return summary === null
-      ? unavailable<SearchConsoleSummary>('no_data')
-      : result<SearchConsoleSummary>('connected', detailFor('connected'), summary);
+    return data === null
+      ? withoutDetail(unavailable<SearchConsoleSummary>('no_data'))
+      : {
+          result: result<SearchConsoleSummary>('connected', detailFor('connected'), data.summary),
+          detail: data.detail,
+        };
   } catch (error) {
-    return result<SearchConsoleSummary>(stateOf(error), detailOf(error), null);
+    return withoutDetail(result<SearchConsoleSummary>(stateOf(error), detailOf(error), null));
   }
 }
 
@@ -110,7 +124,7 @@ export interface SnapshotParams {
   readonly requestOptions?: GoogleRequestOptions;
 }
 
-export async function fetchGoogleDataSnapshot(params: SnapshotParams): Promise<GoogleDataSnapshot> {
+export async function fetchGoogleScanData(params: SnapshotParams): Promise<GoogleScanData> {
   const range = reportDateRange(params.now);
   const options = params.requestOptions ?? {};
   const [searchConsole, analytics] = await Promise.all([
@@ -118,12 +132,15 @@ export async function fetchGoogleDataSnapshot(params: SnapshotParams): Promise<G
     analyticsSection(params.access, params.binding, range, options),
   ]);
   return {
-    source: 'google',
-    readOnly: true,
-    fetchedAt: params.now.toISOString(),
-    dateRange: range,
-    searchConsole,
-    analytics,
+    snapshot: {
+      source: 'google',
+      readOnly: true,
+      fetchedAt: params.now.toISOString(),
+      dateRange: range,
+      searchConsole: searchConsole.result,
+      analytics,
+    },
+    searchConsoleDetail: searchConsole.detail,
   };
 }
 

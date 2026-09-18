@@ -355,6 +355,16 @@ describe('base.css layout rules', () => {
     expect(BASE_CSS).not.toMatch(/grid-auto-flow:[^;]*dense/);
   });
 
+  // The Google data moved into the Analytics checks panel (D-219). Its tables
+  // carry full URLs and up to five columns; a grid item keeps its content's
+  // width by default, so one table widened the whole panel past a 375px screen
+  // and clipped the check list above it.
+  it('lets a wide Google table scroll inside the checks panel instead of widening it', () => {
+    expect(BASE_CSS).toMatch(/\.module-checks__group \{[^}]*minmax\(0, 1fr\)/);
+    expect(BASE_CSS).toMatch(/\.module-checks__group \{[^}]*min-width: 0;/);
+    expect(BASE_CSS).toMatch(/\.google-panel__scroll \{[^}]*overflow-x: auto;/);
+  });
+
   // `border-color` on the opened card would repaint the status accent on its
   // left edge, and a failed section would stop reading as failed while open.
   it('marks the opened card without repainting its status edge', () => {

@@ -59,9 +59,11 @@ describe('UX/Conversion check summaries', () => {
       { ruleId: 'UX-CONV-STATIC-002', applicableTargets: 1, affectedTargets: 0 },
       { ruleId: 'UX-CONV-STATIC-003', applicableTargets: 2, affectedTargets: 1 },
     ]);
+    // D-218: UX findings now cost the section's own score, so the list shows
+    // them as issues rather than neutral observations.
     expect(summaries[0]).toMatchObject({
       title: ruleById('UX-CONV-STATIC-001')?.title,
-      scoring: 'informational',
+      scoring: 'scored',
     });
   });
 

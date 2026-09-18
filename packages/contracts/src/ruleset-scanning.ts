@@ -529,8 +529,11 @@ const PRIVACY_RULES: readonly RuleDescriptor[] = [
 ];
 
 // UX/Conversion combines narrow DOM facts with AI-assisted interpretations of
-// the same bounded evidence package. All are informational: the module never
-// claims a real conversion rate and these findings stay outside the overall score.
+// the same bounded evidence package. Its findings score the section's own 0–100
+// result (§15, D-218) but stay outside the overall score (SIDE_SCORE_MODULES):
+// the module never claims a real conversion rate. The AI review grades each
+// finding High, Medium or Low itself; the severity declared here is the
+// baseline for its rules, and the stored issue carries the grade the review gave.
 const UX_CONVERSION_RULES: readonly RuleDescriptor[] = [
   {
     ruleId: 'UX-CONV-STATIC-001',
@@ -538,8 +541,8 @@ const UX_CONVERSION_RULES: readonly RuleDescriptor[] = [
     title: 'entry-page primary heading',
     category: 'value-proposition',
     targetKind: 'page',
-    severity: null,
-    scoring: 'informational',
+    severity: 'Medium',
+    scoring: 'scored',
     oracle: 'fetched entry-page HTML contains an h1 heading',
   },
   {
@@ -548,8 +551,8 @@ const UX_CONVERSION_RULES: readonly RuleDescriptor[] = [
     title: 'entry-page action path',
     category: 'call-to-action',
     targetKind: 'page',
-    severity: null,
-    scoring: 'informational',
+    severity: 'Medium',
+    scoring: 'scored',
     oracle: 'fetched entry-page HTML contains a link, button, or button-like input',
   },
   {
@@ -558,8 +561,8 @@ const UX_CONVERSION_RULES: readonly RuleDescriptor[] = [
     title: 'explicit form submission control',
     category: 'conversion-friction',
     targetKind: 'page',
-    severity: null,
-    scoring: 'informational',
+    severity: 'Low',
+    scoring: 'scored',
     oracle: 'a form with controls contains an explicit submit control in static HTML',
   },
   {
@@ -568,8 +571,8 @@ const UX_CONVERSION_RULES: readonly RuleDescriptor[] = [
     title: 'value proposition clarity',
     category: 'value-proposition',
     targetKind: 'page',
-    severity: null,
-    scoring: 'informational',
+    severity: 'Medium',
+    scoring: 'scored',
     oracle: 'AI interpretation of visible page copy against the saved profile context',
   },
   {
@@ -578,8 +581,8 @@ const UX_CONVERSION_RULES: readonly RuleDescriptor[] = [
     title: 'primary action clarity',
     category: 'call-to-action',
     targetKind: 'page',
-    severity: null,
-    scoring: 'informational',
+    severity: 'Medium',
+    scoring: 'scored',
     oracle: 'AI interpretation of detected actions, forms, and links against the intended audience',
   },
   {
@@ -588,9 +591,101 @@ const UX_CONVERSION_RULES: readonly RuleDescriptor[] = [
     title: 'conversion friction and trust',
     category: 'conversion-friction',
     targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'AI interpretation of visible steps, contact paths, and trust signals in static HTML',
+  },
+];
+
+// Analytics reads the Search Console and GA4 data of the connected Google
+// account next to what the crawl saw (D-219). Like UX/Conversion it scores its
+// own 0–100 result and stays outside the overall score (SIDE_SCORE_MODULES):
+// Google data is optional and must not move the technical score. The two
+// informational rules list opportunities and priorities; they cost nothing.
+const ANALYTICS_RULES: readonly RuleDescriptor[] = [
+  {
+    ruleId: 'ANALYTICS-SC-001',
+    module: 'Analytics',
+    title: 'organic search trend',
+    category: 'search-traffic',
+    targetKind: 'site',
+    severity: 'High',
+    scoring: 'scored',
+    oracle:
+      'Search Console clicks (impressions below 10 clicks) fell by 30% or more against the previous 28 days',
+  },
+  {
+    ruleId: 'ANALYTICS-SC-002',
+    module: 'Analytics',
+    title: 'first-page impressions without clicks',
+    category: 'search-traffic',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle:
+      'a page with at least 50 impressions at an average position of 10 or better received no clicks',
+  },
+  {
+    ruleId: 'ANALYTICS-SC-003',
+    module: 'Analytics',
+    title: 'queries close to the top results',
+    category: 'search-opportunity',
+    targetKind: 'site',
     severity: null,
     scoring: 'informational',
-    oracle: 'AI interpretation of visible steps, contact paths, and trust signals in static HTML',
+    oracle: 'queries with at least 10 impressions at an average position from 8 to 20',
+  },
+  {
+    ruleId: 'ANALYTICS-SC-004',
+    module: 'Analytics',
+    title: 'crawled pages without search impressions',
+    category: 'search-coverage',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle:
+      'an indexable crawled page inside the Search Console property had no impressions in the period',
+  },
+  {
+    ruleId: 'ANALYTICS-SC-005',
+    module: 'Analytics',
+    title: 'search impressions without clicks',
+    category: 'search-traffic',
+    targetKind: 'site',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'the site had at least 100 search impressions in the period and not one click',
+  },
+  {
+    ruleId: 'ANALYTICS-GA-001',
+    module: 'Analytics',
+    title: 'key events recorded',
+    category: 'conversion-tracking',
+    targetKind: 'site',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'GA4 recorded sessions but not one key event in the period',
+  },
+  {
+    ruleId: 'ANALYTICS-GA-002',
+    module: 'Analytics',
+    title: 'Google tag on crawled pages',
+    category: 'measurement',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle:
+      'a crawled page carries no Google tag (gtag.js or Tag Manager) in its HTML while other crawled pages do',
+  },
+  {
+    ruleId: 'ANALYTICS-LINK-001',
+    module: 'Analytics',
+    title: 'findings on top search pages',
+    category: 'business-impact',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle: 'the pages with the most search impressions matched against this report’s findings',
   },
 ];
 
@@ -606,4 +701,5 @@ export const RULES_MVP_01: readonly RuleDescriptor[] = [
   ...CONTENT_RULES,
   ...PRIVACY_RULES,
   ...UX_CONVERSION_RULES,
+  ...ANALYTICS_RULES,
 ];

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { fetchGoogleDataSnapshot, hasGoogleData, type GoogleBinding } from './snapshot.ts';
+import { fetchGoogleScanData, hasGoogleData, type GoogleBinding } from './snapshot.ts';
 import type { GoogleAccess } from './tokens.ts';
 
 const NOW = new Date('2026-09-06T12:00:00.000Z');
@@ -35,14 +35,14 @@ function routedFetcher(routes: Readonly<Record<string, () => Response>>) {
   });
 }
 
-describe('fetchGoogleDataSnapshot', () => {
+describe('fetchGoogleScanData', () => {
   it('reports each service independently when only one of them fails', async () => {
     const fetcher = routedFetcher({
       'webmasters/v3': () => json({ rows: [{ clicks: 1, impressions: 2, ctr: 0.5, position: 3 }] }),
       analyticsdata: () => json({ error: {} }, 403),
     });
 
-    const snapshot = await fetchGoogleDataSnapshot({
+    const { snapshot } = await fetchGoogleScanData({
       access: FULL_ACCESS,
       binding: BOUND,
       now: NOW,
@@ -56,12 +56,53 @@ describe('fetchGoogleDataSnapshot', () => {
     expect(hasGoogleData(snapshot)).toBe(true);
   });
 
+  // D-219: the checks read every Search Console row, the report keeps only the
+  // top ones — the full lists travel beside the snapshot, never inside it.
+  it('hands the full Search Console rows to the checks without storing them', async () => {
+    const fetcher = routedFetcher({
+      'webmasters/v3': () =>
+        json({
+          rows: [
+            { keys: ['https://example.com/'], clicks: 1, impressions: 2, ctr: 0.5, position: 3 },
+          ],
+        }),
+      analyticsdata: () => json({ rows: [] }),
+    });
+
+    const data = await fetchGoogleScanData({
+      access: FULL_ACCESS,
+      binding: BOUND,
+      now: NOW,
+      requestOptions: { fetcher: fetcher as unknown as typeof fetch, sleep: noSleep },
+    });
+
+    expect(data.searchConsoleDetail?.pages).toHaveLength(1);
+    expect(JSON.stringify(data.snapshot)).not.toContain('pagesComplete');
+  });
+
+  it('has no Search Console rows for the checks when Search Console gave no data', async () => {
+    const fetcher = routedFetcher({
+      'webmasters/v3': () => json({ error: {} }, 403),
+      analyticsdata: () => json({ rows: [] }),
+    });
+
+    const data = await fetchGoogleScanData({
+      access: FULL_ACCESS,
+      binding: BOUND,
+      now: NOW,
+      requestOptions: { fetcher: fetcher as unknown as typeof fetch, sleep: noSleep },
+    });
+
+    expect(data.snapshot.searchConsole.state).toBe('no_access');
+    expect(data.searchConsoleDetail).toBeNull();
+  });
+
   it('marks an unbound service as no_property_selected without calling Google', async () => {
     const fetcher = routedFetcher({
       analyticsdata: () => json({ rows: [{ metricValues: [{ value: '1' }] }] }),
     });
 
-    const snapshot = await fetchGoogleDataSnapshot({
+    const { snapshot } = await fetchGoogleScanData({
       access: FULL_ACCESS,
       binding: { ...BOUND, searchConsoleSiteUrl: null },
       now: NOW,
@@ -77,7 +118,7 @@ describe('fetchGoogleDataSnapshot', () => {
       'webmasters/v3': () => json({ rows: [{ clicks: 1, impressions: 2, ctr: 0.5, position: 3 }] }),
     });
 
-    const snapshot = await fetchGoogleDataSnapshot({
+    const { snapshot } = await fetchGoogleScanData({
       access: { ...FULL_ACCESS, hasAnalyticsScope: false },
       binding: BOUND,
       now: NOW,
@@ -94,7 +135,7 @@ describe('fetchGoogleDataSnapshot', () => {
       analyticsdata: () => json({ rows: [] }),
     });
 
-    const snapshot = await fetchGoogleDataSnapshot({
+    const { snapshot } = await fetchGoogleScanData({
       access: FULL_ACCESS,
       binding: BOUND,
       now: NOW,

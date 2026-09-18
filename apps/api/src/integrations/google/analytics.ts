@@ -79,6 +79,7 @@ async function runReport(
   range: DateRange,
   metrics: readonly string[],
   options: GoogleRequestOptions,
+  { keepEmptyRows = false }: { readonly keepEmptyRows?: boolean } = {},
 ): Promise<RunReportResponse> {
   return googleJson<RunReportResponse>(
     {
@@ -88,6 +89,7 @@ async function runReport(
         dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
         metrics: metrics.map((name) => ({ name })),
         limit: 1,
+        ...(keepEmptyRows ? { keepEmptyRows: true } : {}),
       },
     },
     options,
@@ -101,8 +103,15 @@ async function optionalKeyEvents(
   options: GoogleRequestOptions,
 ): Promise<number | null> {
   try {
-    const response = await runReport(accessToken, propertyId, range, [KEY_EVENTS_METRIC], options);
-    return metricValues(response)?.[0] ?? null;
+    // GA4 leaves out a row whose metrics are all zero, so "no key events" came
+    // back as no row and read as "unknown" — hiding the very case the Analytics
+    // key-events check exists for (D-219). Asked for explicitly, the zero is
+    // returned; and since this runs only after the core metrics returned a row,
+    // an accepted request that still has no row means zero as well.
+    const response = await runReport(accessToken, propertyId, range, [KEY_EVENTS_METRIC], options, {
+      keepEmptyRows: true,
+    });
+    return metricValues(response)?.[0] ?? 0;
   } catch (error) {
     // A revoked grant still has to surface; only a rejected metric is ignored.
     if (error instanceof GoogleApiError && error.state === 'needs_reconnect') throw error;

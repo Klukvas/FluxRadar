@@ -14,11 +14,12 @@ import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
 import { findingMessage, type CataloguedFindingMessage } from '../messages/index.js';
+import { headerValue } from '../shared/headers.js';
 import { metaContent, parsePage } from './dom.js';
+import { hasNoindexToken } from './indexing.js';
 import { internalLinkSources, sitemapNormalizedUrls } from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-008');
-const NOINDEX_TOKENS: ReadonlySet<string> = new Set(['noindex', 'none']);
 
 /** Что противоречит noindex: страница в sitemap или внутренние ссылки на неё. */
 type Contradiction =
@@ -31,7 +32,7 @@ export const seoTech008Noindex: PageRule = {
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[] {
     const metaRobots = metaContent(parsePage(page), 'robots');
     const metaNoindex = metaRobots !== null && hasNoindexToken(metaRobots);
-    const headerRobots = headerValue(page.headers, 'x-robots-tag');
+    const headerRobots = headerValue(page, 'x-robots-tag');
     const headerNoindex = headerRobots !== null && hasNoindexToken(headerRobots);
     if (!metaNoindex && !headerNoindex) {
       return [];
@@ -56,20 +57,6 @@ function findContradiction(page: PageSnapshot, ctx: SiteContext): Contradiction 
     return { kind: 'internal-links', sources: externalSources.length };
   }
   return null;
-}
-
-/** Токены noindex/none в comma/colon-separated значении (case-insensitive). */
-function hasNoindexToken(value: string): boolean {
-  return value
-    .toLowerCase()
-    .split(/[,:;]/)
-    .map((token) => token.trim())
-    .some((token) => NOINDEX_TOKENS.has(token));
-}
-
-function headerValue(headers: Readonly<Record<string, string>>, name: string): string | null {
-  const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name);
-  return entry?.[1] ?? null;
 }
 
 function noindexFinding(

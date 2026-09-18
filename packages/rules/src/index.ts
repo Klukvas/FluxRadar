@@ -57,6 +57,8 @@ export { PRIVACY_RULES } from './privacy/index.js';
 export { hasCompleteJsonLd, jsonLdBlocks, validJsonLdObjects } from './seo/structured-data.js';
 export { hasSocialPreview } from './seo/social-preview.js';
 export { analyzeUxStatic } from './ux/index.js';
+export { analyticsPageFacts } from './analytics/page-facts.js';
+export type { AnalyticsPageFact } from './analytics/page-facts.js';
 export type { UxPageEvidence, UxStaticEvidence, UxStaticFinding } from './ux/index.js';
 export { AI_CRAWLER_USER_AGENTS, assessAiCrawlerReadiness } from './ai-readiness.js';
 export type {
