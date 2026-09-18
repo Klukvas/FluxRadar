@@ -6,6 +6,7 @@
 
 import { truncateExcerpt } from '../engine/evidence.js';
 import { ACCESSIBILITY_MESSAGES } from './accessibility.js';
+import { ANALYTICS_MESSAGES } from './analytics.js';
 import {
   renderTemplate,
   type FindingLanguage,
@@ -41,6 +42,7 @@ export const MODULE_MESSAGE_CATALOGS: readonly FindingMessageCatalog[] = [
   CONTENT_MESSAGES,
   PRIVACY_MESSAGES,
   UX_MESSAGES,
+  ANALYTICS_MESSAGES,
 ];
 
 export const FINDING_MESSAGES = {
@@ -51,6 +53,7 @@ export const FINDING_MESSAGES = {
   ...CONTENT_MESSAGES,
   ...PRIVACY_MESSAGES,
   ...UX_MESSAGES,
+  ...ANALYTICS_MESSAGES,
 } as const;
 
 export type FindingMessageCode = keyof typeof FINDING_MESSAGES;

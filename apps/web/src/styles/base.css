@@ -1242,7 +1242,12 @@ code,
 }
 .module-checks__group {
   display: grid;
+  /* A grid item keeps its content's width by default: one wide table inside —
+     even a level down, in the Google data's per-service sections — would widen
+     the group, and the whole panel, past a phone screen. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-2);
+  min-width: 0;
 }
 .module-checks__subheading {
   margin: 0;
@@ -3609,9 +3614,35 @@ code,
   }
 }
 
-/* Google data section of a report. */
+/* Google data, opened inside the Analytics card under its checks. */
 .google-panel section + section {
   margin-top: 1.25rem;
+}
+
+.google-panel__service {
+  margin: 0 0 0.35rem;
+  font-size: 12px;
+}
+
+/* On the checks panel's grey the tables sit on white, like the check list. */
+.module-checks .google-panel__table {
+  background: #fff;
+}
+
+/* The checks behind a top page's findings, under their count: a list of ids,
+   so it wraps rather than inheriting the number column's single line. */
+.google-panel__rules {
+  display: block;
+  color: var(--plat-600);
+  font-size: 10px;
+  white-space: normal;
+}
+
+/* A long URL or query scrolls its own table sideways; it must never widen the
+   Analytics checks panel, and with it the page, on a phone. */
+.google-panel__scroll {
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .google-panel__unavailable {

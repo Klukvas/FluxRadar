@@ -2,6 +2,10 @@
 // returned them; every other case gets its own explanation, so "no property
 // selected", "no access" and "Google was unreachable" never look alike.
 //
+// It opens inside the Analytics card, under the checks that read this data:
+// shown as a block of its own below every card, it read as a section apart from
+// the one it belongs to.
+//
 // Every word on it used to be an English literal — the headings, the column
 // names, the metric labels and the sentence under a state that had no data — so
 // a Ukrainian report switched language for one panel. All of it now comes from
@@ -9,7 +13,6 @@
 // with the snapshot and it is used only for a state this build does not know.
 
 import type { GoogleDataSnapshot, GoogleDataState, ScanModule, SearchConsoleRow } from './api';
-import { Panel } from './components';
 import { copy, fillCopy, type Language } from './i18n';
 
 type GoogleCopy = (typeof copy)['en']['report']['google'];
@@ -42,17 +45,16 @@ function isSnapshot(value: unknown): value is GoogleDataSnapshot {
   );
 }
 
-/** Reads the Google snapshot the Analytics module stored, if the scan produced one. */
-export function googleSnapshotOf(modules: readonly ScanModule[]): GoogleDataSnapshot | null {
-  const analytics = modules.find((module) => module.module === 'Analytics');
-  return isSnapshot(analytics?.metadata) ? analytics.metadata : null;
+/** The Google snapshot the Analytics section stored; null for any other metadata. */
+export function googleSnapshotIn(module: ScanModule): GoogleDataSnapshot | null {
+  return isSnapshot(module.metadata) ? module.metadata : null;
 }
 
 function formatPercent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function formatCount(value: number): string {
+export function formatCount(value: number): string {
   return value.toLocaleString('en-US');
 }
 
@@ -104,29 +106,31 @@ function RowTable(props: {
   const t = copy[props.language].report.google;
   if (props.rows.length === 0) return null;
   return (
-    <table className="google-panel__table">
-      <caption>{props.caption}</caption>
-      <thead>
-        <tr>
-          <th scope="col">{props.columnLabel}</th>
-          <th scope="col">{t.clicks}</th>
-          <th scope="col">{t.impressions}</th>
-          <th scope="col">{t.ctr}</th>
-          <th scope="col">{t.position}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {props.rows.map((row) => (
-          <tr key={row.key}>
-            <td className="technical">{row.key}</td>
-            <td>{formatCount(row.clicks)}</td>
-            <td>{formatCount(row.impressions)}</td>
-            <td>{formatPercent(row.ctr)}</td>
-            <td>{row.position.toFixed(1)}</td>
+    <div className="google-panel__scroll">
+      <table className="google-panel__table">
+        <caption>{props.caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{props.columnLabel}</th>
+            <th scope="col">{t.clicks}</th>
+            <th scope="col">{t.impressions}</th>
+            <th scope="col">{t.ctr}</th>
+            <th scope="col">{t.position}</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {props.rows.map((row) => (
+            <tr key={row.key}>
+              <td className="technical">{row.key}</td>
+              <td>{formatCount(row.clicks)}</td>
+              <td>{formatCount(row.impressions)}</td>
+              <td>{formatPercent(row.ctr)}</td>
+              <td>{row.position.toFixed(1)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -140,7 +144,8 @@ export function GoogleDataPanel({
   const t = copy[language].report.google;
   const { searchConsole, analytics } = snapshot;
   return (
-    <Panel title={t.panelTitle} className="google-panel">
+    <div className="module-checks__group google-panel">
+      <h4 className="module-checks__subheading">{t.panelTitle}</h4>
       <p className="muted">
         {t.sourceNote}{' '}
         <span className="technical">
@@ -151,7 +156,7 @@ export function GoogleDataPanel({
       </p>
 
       <section aria-label={t.searchConsoleHeading}>
-        <h3 className="section-heading">{t.searchConsoleHeading}</h3>
+        <h5 className="google-panel__service">{t.searchConsoleHeading}</h5>
         {searchConsole.data === null ? (
           <Unavailable
             state={searchConsole.state}
@@ -193,7 +198,7 @@ export function GoogleDataPanel({
       </section>
 
       <section aria-label={t.analyticsHeading}>
-        <h3 className="section-heading">{t.analyticsHeading}</h3>
+        <h5 className="google-panel__service">{t.analyticsHeading}</h5>
         {analytics.data === null ? (
           <Unavailable state={analytics.state} detail={analytics.detail} language={language} />
         ) : (
@@ -217,6 +222,6 @@ export function GoogleDataPanel({
           </>
         )}
       </section>
-    </Panel>
+    </div>
   );
 }

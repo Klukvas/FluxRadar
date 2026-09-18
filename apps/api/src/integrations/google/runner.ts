@@ -1,4 +1,4 @@
-// Scan-time entry point. Produces the Google snapshot for one scan and never
+// Scan-time entry point. Produces the Google data for one scan and never
 // throws: a Google problem is data in the report, not a scan failure.
 
 import type { PrismaClient } from '@prisma/client';
@@ -6,19 +6,15 @@ import type { PrismaClient } from '@prisma/client';
 import { oauthConfigFor, readIntegrationConfig } from '../config.ts';
 import { detailOf, stateOf } from './errors.ts';
 import type { GoogleRequestOptions } from './http.ts';
-import {
-  connectionStateSnapshot,
-  fetchGoogleDataSnapshot,
-  type GoogleBinding,
-} from './snapshot.ts';
+import { connectionStateSnapshot, fetchGoogleScanData, type GoogleBinding } from './snapshot.ts';
 import { isEmptyBinding, loadGoogleBinding, prismaGoogleConnectionStore } from './store.ts';
 import { resolveGoogleAccess } from './tokens.ts';
-import type { GoogleDataSnapshot } from './types.ts';
+import type { GoogleScanData } from './types.ts';
 
 export type GoogleDataRunner = (
   accountId: string,
   siteProfileId: string,
-) => Promise<GoogleDataSnapshot>;
+) => Promise<GoogleScanData>;
 
 export interface GoogleDataRunnerOptions {
   readonly prisma: PrismaClient;
@@ -50,20 +46,26 @@ export function createGoogleDataRunner(options: GoogleDataRunnerOptions): Google
       if (isEmptyBinding(binding)) {
         // Connected but unbound is a distinct, actionable state: the report tells
         // the user to pick a property instead of implying Google has no data.
-        return connectionStateSnapshot(
-          'no_property_selected',
-          'No Google property is linked to this profile yet. Choose one in Integrations.',
-          timestamp,
-        );
+        return {
+          snapshot: connectionStateSnapshot(
+            'no_property_selected',
+            'No Google property is linked to this profile yet. Choose one in Integrations.',
+            timestamp,
+          ),
+          searchConsoleDetail: null,
+        };
       }
-      return await fetchGoogleDataSnapshot({
+      return await fetchGoogleScanData({
         access,
         binding,
         now: timestamp,
         ...(options.requestOptions === undefined ? {} : { requestOptions: options.requestOptions }),
       });
     } catch (error) {
-      return connectionStateSnapshot(stateOf(error), detailOf(error), timestamp);
+      return {
+        snapshot: connectionStateSnapshot(stateOf(error), detailOf(error), timestamp),
+        searchConsoleDetail: null,
+      };
     }
   };
 }

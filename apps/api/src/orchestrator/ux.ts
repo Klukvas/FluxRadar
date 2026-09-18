@@ -1,6 +1,7 @@
 // Orchestration seam for the UX/Conversion module. Static evidence is produced
-// by @fluxradar/rules; the AI adapter only interprets that evidence and its
-// validated findings become ordinary Issue rows with zero score penalty.
+// by @fluxradar/rules; the AI adapter only interprets that evidence. Both kinds
+// of finding become ordinary Issue rows and score the section's own 0–100
+// result (D-218), which stays outside the overall score.
 
 import { computeFingerprint, normalizeField, normalizeUrl } from '@fluxradar/fingerprint';
 import {
@@ -25,12 +26,13 @@ import type { Severity } from '@fluxradar/contracts';
 import type { SiteProfile } from '@prisma/client';
 
 import type { IssueRowData } from './module-result.ts';
+import { uxRuleCounts } from './rule-checks.ts';
+import { scoreIssueRows, type ScoredIssueRows } from './rule-penalties.ts';
 import { redact } from '@fluxradar/ai';
 
-export interface UxConversionRun {
+export interface UxConversionRun extends ScoredIssueRows {
   readonly staticEvidence: UxStaticEvidence;
   readonly ai: UxAiResponseResult;
-  readonly issueRows: readonly IssueRowData[];
 }
 
 type UxFinding = UxAiFinding | UxStaticFinding;
@@ -88,58 +90,87 @@ function validSeverity(value: Severity): Severity {
   throw new Error(`UX/Conversion returned invalid severity ${value}`);
 }
 
-export function uxIssueRows(
+function candidateRow(
   scanId: string,
   domain: string,
-  findings: readonly UxFinding[],
-  applicableTargets: number,
+  finding: UxFinding,
+  source: 'static' | 'ai',
   observedAt: Date,
-  source: 'static' | 'ai' = 'ai',
-): readonly IssueRowData[] {
-  const rows = findings.map((finding) => {
-    const normalizedUrl = normalizeUrl(finding.targetUrl);
-    const selector = normalizeField(finding.selector ?? '');
-    const ruleVariant = 'v1';
-    return {
-      scanId,
+): IssueRowData {
+  const normalizedUrl = normalizeUrl(finding.targetUrl);
+  const selector = normalizeField(finding.selector ?? '');
+  const ruleVariant = 'v1';
+  return {
+    scanId,
+    ruleId: finding.ruleId,
+    module: 'UX/Conversion',
+    fingerprint: computeFingerprint({
+      domain,
       ruleId: finding.ruleId,
-      module: 'UX/Conversion',
-      fingerprint: computeFingerprint({
-        domain,
-        ruleId: finding.ruleId,
-        targetKind: 'page',
-        normalizedUrl,
-        normalizedResource: '',
-        normalizedSelector: selector,
-        normalizedParameter: '',
-        ruleVariant,
-      }),
-      severity: validSeverity(finding.severity),
-      category: source === 'static' ? 'deterministic-ux' : 'ai-assisted-ux',
       targetKind: 'page',
       normalizedUrl,
       normalizedResource: '',
       normalizedSelector: selector,
       normalizedParameter: '',
       ruleVariant,
-      targetUrl: finding.targetUrl,
-      evidenceType: source === 'static' ? 'dom' : 'mixed',
-      evidenceExcerpt: truncateExcerpt(redact(finding.evidence).text),
-      evidenceGroupId: null,
-      recommendation: redact(finding.recommendation).text,
-      messagesJson:
-        'messages' in finding && finding.messages !== undefined
-          ? JSON.stringify(redactedMessages(finding.messages))
-          : null,
-      confidence: finding.confidence,
-      applicableTargets,
-      affectedTargets: 1,
-      rulePenalty: 0,
-      scoreDelta: 0,
-      observedAt,
-    } satisfies IssueRowData;
-  });
-  return [...new Map(rows.map((row) => [row.fingerprint, row])).values()];
+    }),
+    severity: validSeverity(finding.severity),
+    category: source === 'static' ? 'deterministic-ux' : 'ai-assisted-ux',
+    targetKind: 'page',
+    normalizedUrl,
+    normalizedResource: '',
+    normalizedSelector: selector,
+    normalizedParameter: '',
+    ruleVariant,
+    targetUrl: finding.targetUrl,
+    evidenceType: source === 'static' ? 'dom' : 'mixed',
+    evidenceExcerpt: truncateExcerpt(redact(finding.evidence).text),
+    evidenceGroupId: null,
+    recommendation: redact(finding.recommendation).text,
+    messagesJson:
+      'messages' in finding && finding.messages !== undefined
+        ? JSON.stringify(redactedMessages(finding.messages))
+        : null,
+    confidence: finding.confidence,
+    // Rule-level aggregates are filled in by scoredUxIssues, the penalty by scoreIssueRows.
+    applicableTargets: 0,
+    affectedTargets: 0,
+    rulePenalty: 0,
+    scoreDelta: 0,
+    observedAt,
+  };
+}
+
+/**
+ * Issue rows for every UX finding, and the score they add up to (D-218).
+ *
+ * The same §15 formula as every other section: each rule costs its highest
+ * severity's weight times the share of the pages it looked at that it flagged.
+ */
+export function scoredUxIssues(
+  scanId: string,
+  domain: string,
+  evidence: UxStaticEvidence,
+  aiFindings: readonly UxAiFinding[],
+  observedAt: Date,
+): ScoredIssueRows {
+  const findings = [...evidence.findings, ...aiFindings];
+  const candidates = [
+    ...evidence.findings.map((finding) =>
+      candidateRow(scanId, domain, finding, 'static', observedAt),
+    ),
+    ...aiFindings.map((finding) => candidateRow(scanId, domain, finding, 'ai', observedAt)),
+  ];
+  return scoreIssueRows(
+    candidates.map((row) => {
+      const counts = uxRuleCounts(evidence, findings, row.ruleId);
+      return {
+        ...row,
+        applicableTargets: counts.applicableTargets,
+        affectedTargets: counts.affectedTargets,
+      };
+    }),
+  );
 }
 
 export async function runUxConversion(
@@ -173,16 +204,6 @@ export async function runUxConversion(
   return {
     staticEvidence,
     ai,
-    issueRows: [
-      ...uxIssueRows(
-        scanId,
-        ctx.domain,
-        staticEvidence.findings,
-        staticEvidence.pages.length,
-        observedAt,
-        'static',
-      ),
-      ...uxIssueRows(scanId, ctx.domain, ai.findings, staticEvidence.pages.length, observedAt),
-    ],
+    ...scoredUxIssues(scanId, ctx.domain, staticEvidence, ai.findings, observedAt),
   };
 }

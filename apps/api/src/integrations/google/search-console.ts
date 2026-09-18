@@ -1,10 +1,12 @@
 // Google Search Console read-only client (Search Console API v3). Only the two
 // endpoints the product needs are implemented: site listing for discovery and
-// searchAnalytics.query for the report period.
+// searchAnalytics.query for the report period and the one before it.
 
 import { googleJson, type GoogleRequestOptions } from './http.ts';
+import { previousDateRange } from './date-range.ts';
 import type {
   DateRange,
+  SearchConsoleDetail,
   SearchConsoleRow,
   SearchConsoleSite,
   SearchConsoleSummary,
@@ -12,7 +14,16 @@ import type {
 } from './types.ts';
 
 const SITES_URL = 'https://www.googleapis.com/webmasters/v3/sites';
+/** Rows the report shows per table. */
 const TOP_ROW_LIMIT = 10;
+/**
+ * Rows the Analytics checks read (D-219). Search Console sorts by clicks, so the
+ * top rows the report shows are the head of these lists and need no request of
+ * their own. The page list is longer because the no-impressions check has to see
+ * every page with impressions to call one missing.
+ */
+const QUERY_ROW_LIMIT = 1_000;
+const PAGE_ROW_LIMIT = 5_000;
 
 /** Verified-but-unreadable entries would only produce 403s later. */
 const READABLE_PERMISSIONS = new Set(['siteOwner', 'siteFullUser', 'siteRestrictedUser']);
@@ -61,6 +72,7 @@ async function query(
   siteUrl: string,
   range: DateRange,
   dimensions: readonly string[],
+  rowLimit: number,
   options: GoogleRequestOptions,
 ): Promise<QueryResponse> {
   return googleJson<QueryResponse>(
@@ -71,7 +83,7 @@ async function query(
         startDate: range.startDate,
         endDate: range.endDate,
         dimensions,
-        rowLimit: dimensions.length === 0 ? 1 : TOP_ROW_LIMIT,
+        rowLimit,
       },
     },
     options,
@@ -105,30 +117,41 @@ function toTotals(response: QueryResponse): SearchConsoleTotals | null {
   };
 }
 
+export interface SearchConsoleData {
+  readonly summary: SearchConsoleSummary;
+  readonly detail: SearchConsoleDetail;
+}
+
 /**
- * Period totals plus the top queries and pages. Returns null when Search
- * Console has no rows at all for the period — an authorized property with no
- * traffic is "no data", not a failure.
+ * Period totals, the previous period's totals, and every query and page row.
+ * Returns null when Search Console has no rows at all for the period — an
+ * authorized property with no traffic is "no data", not a failure.
  */
-export async function fetchSearchConsoleSummary(
+export async function fetchSearchConsoleData(
   accessToken: string,
   siteUrl: string,
   range: DateRange,
   options: GoogleRequestOptions = {},
-): Promise<SearchConsoleSummary | null> {
-  const totalsResponse = await query(accessToken, siteUrl, range, [], options);
-  const totals = toTotals(totalsResponse);
+): Promise<SearchConsoleData | null> {
+  const totals = toTotals(await query(accessToken, siteUrl, range, [], 1, options));
   if (totals === null) {
     return null;
   }
-  const [queries, pages] = await Promise.all([
-    query(accessToken, siteUrl, range, ['query'], options),
-    query(accessToken, siteUrl, range, ['page'], options),
+  const [previous, queriesResponse, pagesResponse] = await Promise.all([
+    query(accessToken, siteUrl, previousDateRange(range), [], 1, options),
+    query(accessToken, siteUrl, range, ['query'], QUERY_ROW_LIMIT, options),
+    query(accessToken, siteUrl, range, ['page'], PAGE_ROW_LIMIT, options),
   ]);
+  const queries = toRows(queriesResponse);
+  const pages = toRows(pagesResponse);
   return {
-    siteUrl,
-    totals,
-    topQueries: toRows(queries),
-    topPages: toRows(pages),
+    summary: {
+      siteUrl,
+      totals,
+      previousTotals: toTotals(previous),
+      topQueries: queries.slice(0, TOP_ROW_LIMIT),
+      topPages: pages.slice(0, TOP_ROW_LIMIT),
+    },
+    detail: { queries, pages, pagesComplete: pages.length < PAGE_ROW_LIMIT },
   };
 }

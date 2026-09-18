@@ -9,6 +9,7 @@
 // фичи, и не должны переводить успешный скан в Partial (см. D-192).
 
 import type { ModuleName, ModuleRuntimeStatus, Plan } from '@fluxradar/contracts';
+import { TARIFFS } from '@fluxradar/contracts';
 
 export interface StubModule {
   readonly module: ModuleName;
@@ -48,4 +49,14 @@ const PLANS_TO_MODULES: Readonly<Record<Plan, ModulePlan>> = {
 
 export function modulePlanFor(plan: Plan): ModulePlan {
   return PLANS_TO_MODULES[plan];
+}
+
+/**
+ * Whether the plan runs Analytics. Read from the tariff, not from the matrix
+ * above: Analytics is written after the scan outcome (analytics-module.ts), so
+ * it is not one of the modules an attempt runs.
+ */
+export function includesAnalytics(plan: string): boolean {
+  const tariff = TARIFFS[plan as Plan] as (typeof TARIFFS)[Plan] | undefined;
+  return tariff?.modules.includes('Analytics') ?? false;
 }

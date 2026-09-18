@@ -31,6 +31,8 @@ describe('rules-mvp-0.1 registry', () => {
     expect(countByPrefix('A11Y-')).toBe(11);
     expect(countByPrefix('CONTENT-')).toBe(2);
     expect(countByPrefix('PRIVACY-')).toBe(4);
+    expect(countByPrefix('UX-CONV-')).toBe(6);
+    expect(countByPrefix('ANALYTICS-')).toBe(8);
     expect(countByPrefix('BILLING-')).toBe(6);
     expect(countByPrefix('EXPORT-')).toBe(3);
     expect(countByPrefix('ECON-')).toBe(1);
@@ -40,10 +42,11 @@ describe('rules-mvp-0.1 registry', () => {
   // The public-only discovery/security/privacy extensions add eight descriptors.
   // omits the GEO group (13 SEO + 14 passive + 10 platform). The registry keeps
   // every enumerated rule because T-08/T-09/T-10 depend on each of them.
-  it('splits into 55 scanning+GEO+UX rules and 10 platform contracts, 65 in total', () => {
-    expect(RULES_MVP_01).toHaveLength(55);
+  // D-219 adds the eight Analytics rules.
+  it('splits into 63 scanning+GEO+UX+Analytics rules and 10 platform contracts, 73 in total', () => {
+    expect(RULES_MVP_01).toHaveLength(63);
     expect(PLATFORM_CONTRACTS).toHaveLength(10);
-    expect(RULESET_ALL).toHaveLength(65);
+    expect(RULESET_ALL).toHaveLength(73);
   });
 
   it('has a unique ruleId for every descriptor', () => {
@@ -81,13 +84,32 @@ describe('rules-mvp-0.1 registry', () => {
     }
   });
 
-  it('marks all UX/Conversion rules informational (no score penalty in v0.1)', () => {
+  // D-218: §15 promises UX/Conversion its own 0–100 score; "outside the overall
+  // score" is SIDE_SCORE_MODULES' job, not a reason to score nothing at all.
+  it('scores all six UX/Conversion rules so the section has its own score', () => {
     const uxRules = rulesForModule('UX/Conversion');
     expect(uxRules).toHaveLength(6);
     for (const rule of uxRules) {
-      expect(rule.scoring).toBe('informational');
-      expect(rule.severity).toBeNull();
+      expect(rule.scoring).toBe('scored');
+      expect(rule.targetKind).toBe('page');
     }
+  });
+
+  it('scores six Analytics rules and keeps the two opportunity lists informational', () => {
+    const analyticsRules = rulesForModule('Analytics');
+    expect(
+      analyticsRules.filter((rule) => rule.scoring === 'scored').map((rule) => rule.ruleId),
+    ).toEqual([
+      'ANALYTICS-SC-001',
+      'ANALYTICS-SC-002',
+      'ANALYTICS-SC-004',
+      'ANALYTICS-SC-005',
+      'ANALYTICS-GA-001',
+      'ANALYTICS-GA-002',
+    ]);
+    expect(
+      analyticsRules.filter((rule) => rule.scoring === 'informational').map((rule) => rule.ruleId),
+    ).toEqual(['ANALYTICS-SC-003', 'ANALYTICS-LINK-001']);
   });
 
   it('looks rules up by id', () => {

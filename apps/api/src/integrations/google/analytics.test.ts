@@ -66,6 +66,27 @@ describe('fetchGa4Summary', () => {
     });
   });
 
+  // D-219: GA4 omits an all-zero row, so a property with no key events used to
+  // read as "does not report key events" and the key-events check never fired.
+  it('reads a period without key events as zero, not as unknown', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(report(['7', '9', '26', '46']))
+      .mockResolvedValueOnce(json({ rows: [] }));
+
+    const summary = await fetchGa4Summary('token', '123456', null, RANGE, {
+      fetcher: fetcher as unknown as typeof fetch,
+      sleep: noSleep,
+    });
+
+    expect(summary?.keyEvents).toBe(0);
+    const [, init] = fetcher.mock.calls[1] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      metrics: [{ name: 'keyEvents' }],
+      keepEmptyRows: true,
+    });
+  });
+
   it('keeps the core metrics when the property rejects keyEvents', async () => {
     const fetcher = vi
       .fn()

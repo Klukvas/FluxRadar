@@ -26,3 +26,16 @@ export function reportDateRange(now: Date): DateRange {
     endDate: isoDate(end),
   };
 }
+
+/**
+ * The period of the same length that ends the day before `range` starts — what
+ * the organic-trend check compares the report period against.
+ */
+export function previousDateRange(range: DateRange): DateRange {
+  const start = new Date(`${range.startDate}T00:00:00.000Z`);
+  const end = shiftDays(start, -1);
+  return {
+    startDate: isoDate(shiftDays(end, -(REPORT_PERIOD_DAYS - 1))),
+    endDate: isoDate(end),
+  };
+}

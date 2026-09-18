@@ -256,7 +256,11 @@ const ADVISORY_UX_RULES: Readonly<Record<string, ReadonlySet<string>>> = {
   'ai-assisted-ux': new Set(['UX-CONV-AI-001', 'UX-CONV-AI-002', 'UX-CONV-AI-003']),
 };
 
-/** D-217: only the six known non-scoring UX findings may accompany a null score. */
+/**
+ * D-217: only the six known non-scoring UX findings may accompany a null score.
+ * Since D-218 a UX section scores its findings, so only reports produced before
+ * that still take this path — and they must stay exportable.
+ */
 function isAdvisoryUxIssue(record: IndexedIssue['record']): boolean {
   return (
     record.module === 'UX/Conversion' &&

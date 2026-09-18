@@ -15,12 +15,13 @@ import type { AiConsent, GeoModuleResult } from '@fluxradar/ai';
 import { crawl } from '@fluxradar/crawler';
 import type { CrawlScope } from '@fluxradar/crawler';
 import {
+  analyticsPageFacts,
   analyzeUxStatic,
   assessAiCrawlerReadiness,
   createSiteContext,
   runModuleRules,
 } from '@fluxradar/rules';
-import type { ModuleRunResult, SiteContext } from '@fluxradar/rules';
+import type { AnalyticsPageFact, ModuleRunResult, SiteContext } from '@fluxradar/rules';
 import { computeCoverage } from '@fluxradar/scoring';
 import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
@@ -35,7 +36,7 @@ import {
   type GeoQuestionGenerationResult,
 } from './geo.ts';
 import { initialIssueStatuses } from './issue-sync.ts';
-import { modulePlanFor } from './module-plan.ts';
+import { includesAnalytics, modulePlanFor } from './module-plan.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
 import type { IssueRowData } from './module-result.ts';
 import { ruleCheckSummaries, uxRuleCheckSummaries } from './rule-checks.ts';
@@ -297,7 +298,9 @@ async function persistUxModule(
     runtimeStatus: aiResponse === null ? 'Partial' : 'Completed',
     statusReason: aiResponse === null ? uxReason : null,
     coverage: completedApplicableChecks / applicableChecks,
-    score: null,
+    // A Partial run scores only the checks that ran (§15): without the AI review
+    // that is the three static rules, and the coverage above says so.
+    score: ux.score,
     applicableChecks,
     completedApplicableChecks,
     usableOutput: ux.staticEvidence.pages.length > 0,
@@ -332,12 +335,21 @@ async function persistUxModule(
   }
 }
 
+/**
+ * What an attempt hands to the post-outcome phase. Analytics runs after the
+ * scan outcome is settled (analytics-module.ts), when the crawl is gone, so the
+ * attempt passes on the per-page facts its checks compare with Google data.
+ */
+export interface ScanAttemptFacts {
+  readonly analyticsPages: readonly AnalyticsPageFact[];
+}
+
 /** Полная попытка прогона; бросает только при platform-сбое (обрабатывает вызывающий). */
 export async function runScanAttempt(
   deps: WorkerDeps,
   scanId: string,
   retryModule?: string,
-): Promise<void> {
+): Promise<ScanAttemptFacts> {
   const { prisma } = deps;
   const now = deps.now ?? ((): Date => new Date());
   const scan = (await prisma.scan.findUnique({
@@ -549,4 +561,7 @@ export async function runScanAttempt(
       })),
     });
   }
+  return {
+    analyticsPages: includesAnalytics(plan) ? analyticsPageFacts(ctx) : [],
+  };
 }

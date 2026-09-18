@@ -164,7 +164,7 @@ async function processClaimedJob(
       }
 
       try {
-        await runScanAttempt(deps, scanId, moduleFromRetryJob(jobType));
+        const facts = await runScanAttempt(deps, scanId, moduleFromRetryJob(jobType));
         const outcome = await resolveScanOutcome(prisma, scanId);
         if (outcome.kind === 'ExternalRetryGranted') {
           // The retry is represented as a real Partial→Running budget in the
@@ -173,7 +173,7 @@ async function processClaimedJob(
         }
 
         await persistUnavailableModules(prisma, scanId);
-        await persistAnalyticsModule(deps, scanId);
+        await persistAnalyticsModule(deps, scanId, facts.analyticsPages);
         if (outcome.kind === 'Completed') {
           await markResolvedAgainstPrevious(
             prisma,

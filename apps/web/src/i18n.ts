@@ -837,6 +837,7 @@ export const copy = {
       metaAiStructured: '{structured}/{checked} pages with structured data',
       metaPrivacy: 'Public technical consent signals',
       metaAnalytics: 'Google Search Console · Analytics 4 · read-only',
+      metaSideScore: 'Separate score, not part of the overall score',
       metaSeo: 'JSON-LD · Open Graph · Twitter Cards',
       metaUx: 'Static HTML signals · AI-assisted review',
       // ── The Google panel ──────────────────────────────────────────────────
@@ -906,6 +907,20 @@ export const copy = {
         detailIssues: 'An issue was found',
         detailNoted: 'An observation was recorded',
         detailNotApplicable: 'Nothing on the pages read matched this check',
+        // Checks that read Google data, not pages: "nothing on the pages read"
+        // would name the wrong reason for each of them.
+        notApplicableReasons: {
+          'ANALYTICS-SC-001': 'Too little search traffic in the previous 28 days to call a trend',
+          'ANALYTICS-SC-002': 'No page had enough first-page impressions to judge its clicks',
+          'ANALYTICS-SC-004':
+            'No indexable crawled page inside the property, or its page list was too long to compare',
+          'ANALYTICS-SC-005': 'Too few search impressions to judge',
+          'ANALYTICS-GA-001':
+            'No sessions in the period, or GA4 does not report key events for this property',
+          'ANALYTICS-GA-002':
+            'No crawled page has the tag in its HTML; it may load from a script, which a static read cannot see',
+          'ANALYTICS-LINK-001': 'No page had search impressions in the period',
+        },
         titles: {
           'A11Y-001': 'Text contrast',
           'A11Y-002': 'Image alt text',
@@ -924,6 +939,14 @@ export const copy = {
           'UX-CONV-AI-001': 'Clear value proposition · AI review',
           'UX-CONV-AI-002': 'Clear primary action · AI review',
           'UX-CONV-AI-003': 'Conversion friction and trust · AI review',
+          'ANALYTICS-SC-001': 'Organic search trend',
+          'ANALYTICS-SC-002': 'First-page results nobody clicks',
+          'ANALYTICS-SC-003': 'Queries close to the top results',
+          'ANALYTICS-SC-004': 'Crawled pages Google never showed',
+          'ANALYTICS-SC-005': 'Search impressions that bring no clicks',
+          'ANALYTICS-GA-001': 'Key events recorded in GA4',
+          'ANALYTICS-GA-002': 'Google tag on every page',
+          'ANALYTICS-LINK-001': 'Findings on the pages with the most search impressions',
         },
         geoCrawlersHeading: 'AI crawler access · robots.txt',
         geoCrawlersLead:
@@ -983,6 +1006,24 @@ export const copy = {
           '{provider} · {model} reviewed the pages against the saved profile context. Findings: {findings}. They are in the Issue Center.',
         uxAiNotRan:
           'The AI review did not run in this scan, so only the static checks were made. The card explains why.',
+        analyticsLead:
+          'Checks run on the connected Search Console and Google Analytics 4 data, next to the pages FluxRadar read. They make up this section’s own score, which is not part of the overall score. The Issue Center has the evidence behind each finding.',
+        analyticsNotRan:
+          'Checks that need a Google service this scan got no data from did not run. The card explains why.',
+        analyticsTrendHeading: 'Organic search · last 28 days against the 28 before',
+        analyticsTrendClicks: 'Clicks: {previous} → {current} ({change})',
+        analyticsTrendImpressions: 'Impressions: {previous} → {current} ({change})',
+        analyticsTrendNone:
+          'Too little search traffic in the previous 28 days to call a trend in either direction.',
+        analyticsNearHeading: 'Queries close to the top results',
+        analyticsNearLead:
+          'Searches where Google shows the site at positions 8 to 20 — the bottom of the first results page or the second. A clearer title, a section that answers the query or a few internal links are often enough to climb.',
+        analyticsNearNone: 'No query with enough impressions sits at positions 8 to 20.',
+        analyticsTopPagesHeading: 'Pages with the most search impressions',
+        analyticsTopPagesLead:
+          'The findings the rest of this report raised on each of them, with the checks that found them — search the Issue Center by a check’s id to open them. Fixing these first reaches the most visitors.',
+        analyticsFindingsColumn: 'Findings',
+        analyticsSeverityColumn: 'Most severe',
       },
     },
     issues: {
@@ -1873,6 +1914,7 @@ export const copy = {
       metaAiStructured: 'сторінок зі структурованими даними: {structured}/{checked}',
       metaPrivacy: 'Публічні технічні сигнали згоди',
       metaAnalytics: 'Google Search Console · Analytics 4 · лише читання',
+      metaSideScore: 'Окрема оцінка, не входить до загальної',
       metaSeo: 'JSON-LD · Open Graph · Twitter Cards',
       metaUx: 'Статичні сигнали HTML · AI-аналіз',
       google: {
@@ -1932,6 +1974,20 @@ export const copy = {
         detailIssues: 'Знайдено проблему',
         detailNoted: 'Спостереження зафіксовано',
         detailNotApplicable: 'На прочитаних сторінках немає нічого, що підпадає під цю перевірку',
+        notApplicableReasons: {
+          'ANALYTICS-SC-001':
+            'За попередні 28 днів пошукового трафіку замало, щоб говорити про динаміку',
+          'ANALYTICS-SC-002':
+            'Жодна сторінка не мала достатньо показів на першій сторінці, щоб оцінити кліки',
+          'ANALYTICS-SC-004':
+            'Немає індексованих сторінок у межах ресурсу або його список сторінок задовгий для порівняння',
+          'ANALYTICS-SC-005': 'Замало показів у пошуку, щоб оцінити',
+          'ANALYTICS-GA-001':
+            'За період не було сесій або GA4 не повідомляє ключові події для цього ресурсу',
+          'ANALYTICS-GA-002':
+            'Жодна сторінка не містить тегу в HTML; він може завантажуватися скриптом, чого статичне читання не бачить',
+          'ANALYTICS-LINK-001': 'За період жодна сторінка не мала показів у пошуку',
+        },
         titles: {
           'A11Y-001': 'Контраст тексту',
           'A11Y-002': 'Альтернативний текст зображень',
@@ -1950,6 +2006,14 @@ export const copy = {
           'UX-CONV-AI-001': 'Зрозуміла ціннісна пропозиція · AI-розбір',
           'UX-CONV-AI-002': 'Зрозуміла головна дія · AI-розбір',
           'UX-CONV-AI-003': 'Перешкоди до конверсії та довіра · AI-розбір',
+          'ANALYTICS-SC-001': 'Динаміка органічного пошуку',
+          'ANALYTICS-SC-002': 'Результати на першій сторінці без кліків',
+          'ANALYTICS-SC-003': 'Запити, близькі до топу пошуку',
+          'ANALYTICS-SC-004': 'Сторінки, яких Google не показував',
+          'ANALYTICS-SC-005': 'Покази в пошуку без жодного кліку',
+          'ANALYTICS-GA-001': 'Ключові події в GA4',
+          'ANALYTICS-GA-002': 'Тег Google на кожній сторінці',
+          'ANALYTICS-LINK-001': 'Знахідки на сторінках із найбільшою кількістю показів',
         },
         geoCrawlersHeading: 'Доступ AI-роботів · robots.txt',
         geoCrawlersLead:
@@ -2012,6 +2076,25 @@ export const copy = {
           '{provider} · {model} розібрав сторінки з урахуванням контексту профілю. Знахідок: {findings}. Вони в Центрі проблем.',
         uxAiNotRan:
           'AI-розбір у цій перевірці не виконувався, тож зроблено лише статичні перевірки. Причину пояснено на картці.',
+        analyticsLead:
+          'Перевірки на даних підключених Search Console і Google Analytics 4 поряд зі сторінками, які прочитав FluxRadar. З них складається власна оцінка цього розділу, яка не входить до загальної. Докази до кожної знахідки — у Центрі проблем.',
+        analyticsNotRan:
+          'Перевірки, яким потрібен сервіс Google без даних у цій перевірці, не виконувалися. Причину пояснено на картці.',
+        analyticsTrendHeading: 'Органічний пошук · останні 28 днів проти попередніх 28',
+        analyticsTrendClicks: 'Кліки: {previous} → {current} ({change})',
+        analyticsTrendImpressions: 'Покази: {previous} → {current} ({change})',
+        analyticsTrendNone:
+          'За попередні 28 днів пошукового трафіку замало, щоб говорити про динаміку.',
+        analyticsNearHeading: 'Запити, близькі до топу пошуку',
+        analyticsNearLead:
+          'Пошукові запити, за якими Google показує сайт на позиціях 8–20 — унизу першої сторінки результатів або на другій. Часто достатньо чіткішого заголовка, розділу, що відповідає на запит, або кількох внутрішніх посилань, щоб піднятися вище.',
+        analyticsNearNone:
+          'Жоден запит із достатньою кількістю показів не стоїть на позиціях 8–20.',
+        analyticsTopPagesHeading: 'Сторінки з найбільшою кількістю показів у пошуку',
+        analyticsTopPagesLead:
+          'Знахідки решти цього звіту на кожній із них і перевірки, що їх знайшли, — знайдіть перевірку в Центрі проблем за її id. Виправлення саме тут дістанеться найбільшій кількості відвідувачів.',
+        analyticsFindingsColumn: 'Знахідки',
+        analyticsSeverityColumn: 'Найсерйозніша',
       },
     },
     issues: {
