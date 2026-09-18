@@ -16,7 +16,7 @@ import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
-import { parsePage, relTokens } from './dom.js';
+import { canonicalHref, resolveCanonical } from './indexing.js';
 
 const descriptor = requireDescriptor('SEO-TECH-004');
 const CANONICAL_SELECTOR = 'link[rel="canonical"]';
@@ -41,25 +41,6 @@ export const seoTech004Canonical: PageRule = {
     return [];
   },
 };
-
-function canonicalHref(page: PageSnapshot): string | null {
-  const links = parsePage(page)
-    .querySelectorAll('link')
-    .filter((link) => relTokens(link).includes('canonical'));
-  const href = links
-    .map((link) => link.getAttribute('href')?.trim())
-    .find((value): value is string => value !== undefined && value !== '');
-  return href ?? null;
-}
-
-function resolveCanonical(href: string, baseUrl: string): URL | null {
-  try {
-    const resolved = new URL(href, baseUrl);
-    return resolved.protocol === 'http:' || resolved.protocol === 'https:' ? resolved : null;
-  } catch {
-    return null;
-  }
-}
 
 function missingCanonicalFinding(page: PageSnapshot): RuleFinding {
   return pageFinding(descriptor, page, {
