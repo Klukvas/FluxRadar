@@ -161,6 +161,21 @@ describe('the Content-Security-Policy', () => {
     expect(policy.get('script-src')).toEqual(["'self'", sblOrigin]);
   });
 
+  // Allowing the script origin is not enough, and this is how that was found.
+  // The library also injects `<link rel="stylesheet">` for its own CSS, built
+  // from the script's own src as `…/sbl/<version>/fastspring.css`. That file is
+  // the only thing that gives `.fs-popup-background` — the container the
+  // checkout iframe lives in — its `position: fixed` and its size. Blocked, the
+  // container collapses and the iframe renders 0px tall at the foot of the
+  // document: the library loads, `builder.push` resolves, `#fsc-popup-frame` is
+  // in the DOM with a z-index of 2147483647, and the buyer sees nothing at all.
+  // It fails exactly like a blocked script, one directive further along.
+  it('also allows the SBL origin to serve the stylesheet the library injects', () => {
+    const sblOrigin = constantFrom(SBL_MODULE_PATH, 'SBL_ORIGIN');
+
+    expect(policy.get('style-src')).toEqual(["'self'", "'unsafe-inline'", sblOrigin]);
+  });
+
   // The checkout renders in a FastSpring iframe over our page, and the library
   // calls the storefront host from our page while it is open. Both are scoped to
   // the one domain every FastSpring storefront lives under — the same suffix the
@@ -173,12 +188,16 @@ describe('the Content-Security-Policy', () => {
     expect(policy.get('connect-src')).toEqual(["'self'", storefront]);
   });
 
-  it('grants FastSpring nothing beyond those three directives', () => {
+  // Four now, not three: `style-src` joined the list when the popup turned out
+  // to need the library's own stylesheet. The guard is the point — every new
+  // directive here widens what a compromised FastSpring could do to this page,
+  // so the list is enumerated rather than pattern-matched.
+  it('grants FastSpring nothing beyond those four directives', () => {
     const withFastSpring = [...policy]
       .filter(([, sources]) => sources.some((source) => source.includes('onfastspring.com')))
       .map(([directive]) => directive);
 
-    expect(withFastSpring.sort()).toEqual(['connect-src', 'frame-src', 'script-src']);
+    expect(withFastSpring.sort()).toEqual(['connect-src', 'frame-src', 'script-src', 'style-src']);
   });
 });
 
