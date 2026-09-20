@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { FAKE_TELEGRAM_BOT_TOKEN as TOKEN } from '../test-utils/fake-credentials.ts';
 import { readTelegramConfig } from './telegram-config.ts';
-
-const TOKEN = '123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsawQ';
 
 describe('Telegram support configuration', () => {
   it('is not configured when neither variable holds a value', () => {
