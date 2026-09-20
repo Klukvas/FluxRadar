@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { silentLogger } from '../http/logger.ts';
+import { FAKE_TELEGRAM_BOT_TOKEN as TOKEN } from '../test-utils/fake-credentials.ts';
 import {
   LoggingSupportChannel,
   TelegramSupportChannel,
@@ -8,7 +9,6 @@ import {
 } from './support-channel.ts';
 import { formatSupportMessage, type SupportRequest } from './support-message.ts';
 
-const TOKEN = '123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsawQ';
 const CHAT_ID = '-1001234567890';
 
 const GUEST_REQUEST: SupportRequest = {

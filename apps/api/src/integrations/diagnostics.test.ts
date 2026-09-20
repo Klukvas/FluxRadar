@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ApiLogger } from '../http/logger.ts';
+import { FAKE_TELEGRAM_BOT_TOKEN } from '../test-utils/fake-credentials.ts';
 import { logIntegrationStatuses, readIntegrationStatuses } from './diagnostics.ts';
 import { OBJECT_STORAGE_ENV_VARS } from './object-storage-config.ts';
 import { OAUTH_ENV_VARS } from './oauth-config.ts';
@@ -75,7 +76,7 @@ describe('startup integration diagnostics', () => {
     expect(
       statusOf(
         {
-          TELEGRAM_BOT_TOKEN: '123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsawQ',
+          TELEGRAM_BOT_TOKEN: FAKE_TELEGRAM_BOT_TOKEN,
           TELEGRAM_SUPPORT_CHAT_ID: '-1001234567890',
         },
         'telegram',
