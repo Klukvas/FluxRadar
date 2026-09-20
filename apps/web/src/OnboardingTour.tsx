@@ -10,17 +10,17 @@ const SPOTLIGHT_PADDING = 6;
 // Smallest spotlight the overlay draws, so a target that is not laid out yet
 // (or an environment without layout) still shows where the tour is pointing.
 const MIN_SPOTLIGHT_SIZE = 24;
-const POPOVER_WIDTH = 380;
-const POPOVER_GAP = 18;
-const ESTIMATED_POPOVER_HEIGHT = 230;
+/**
+ * Room kept free above the docked dialog. A step whose target would sit under
+ * the dialog is scrolled up past it.
+ */
+const DOCK_CLEARANCE = 280;
 
 interface SpotlightRect {
   top: number;
   left: number;
   width: number;
   height: number;
-  popoverTop: number;
-  popoverLeft: number;
   /** Name of the `data-tour-target` the spotlight resolved to, for diagnostics. */
   target: string | null;
 }
@@ -78,20 +78,11 @@ export function OnboardingTour(props: {
       const bottom = Math.min(window.innerHeight, rect.bottom + SPOTLIGHT_PADDING);
       const width = Math.max(right - left, MIN_SPOTLIGHT_SIZE);
       const height = Math.max(bottom - top, MIN_SPOTLIGHT_SIZE);
-      const popoverWidth = Math.min(POPOVER_WIDTH, window.innerWidth - 32);
-      const spotlightBottom = top + height;
-      const popoverTop =
-        spotlightBottom + POPOVER_GAP + ESTIMATED_POPOVER_HEIGHT <= window.innerHeight
-          ? spotlightBottom + POPOVER_GAP
-          : Math.max(16, top - ESTIMATED_POPOVER_HEIGHT - POPOVER_GAP);
-      const popoverLeft = Math.max(16, Math.min(left, window.innerWidth - popoverWidth - 16));
       setSpotlight({
         top,
         left,
         width,
         height,
-        popoverTop,
-        popoverLeft,
         target: target.dataset.tourTarget ?? null,
       });
     };
@@ -101,7 +92,9 @@ export function OnboardingTour(props: {
     // screen, and scrolling it "into view" would jump the page for no reason.
     if (target !== null && typeof target.scrollIntoView === 'function') {
       const rect = target.getBoundingClientRect();
-      const isOnScreen = rect.top >= 0 && rect.bottom <= window.innerHeight;
+      // The dialog is docked at the bottom of the viewport, so "on screen"
+      // means clear of it, not merely inside the window.
+      const isOnScreen = rect.top >= 0 && rect.bottom <= window.innerHeight - DOCK_CLEARANCE;
       if (!isOnScreen) target.scrollIntoView({ block: 'center', inline: 'nearest' });
     }
     updatePosition();
@@ -215,12 +208,13 @@ export function OnboardingTour(props: {
       )}
       <div
         ref={dialogRef}
-        className="tour-dialog"
+        // Docked in one place for every step. It used to follow each step's
+        // target, so Next, Back and Skip landed somewhere new after every click.
+        className="tour-dialog tour-dialog--docked"
         role="dialog"
         aria-modal="true"
         aria-labelledby="tour-title"
         aria-describedby="tour-description"
-        style={spotlight ? { top: spotlight.popoverTop, left: spotlight.popoverLeft } : undefined}
       >
         <div className="tour-dialog__kicker">
           <span>{t.tour.label}</span>

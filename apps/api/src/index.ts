@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 
 import { LoginRateLimiter, RequestRateLimiter } from './auth/rate-limit.ts';
+import { accountRouter } from './auth/account-routes.ts';
 import { authRouter } from './auth/routes.ts';
 import {
   FREE_CHECK_ALLOWED_ORIGINS_ENV,
@@ -44,6 +45,8 @@ import { recoverClaimedJobs } from './orchestrator/claim.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { profilesRouter } from './profiles/routes.ts';
 import { scansRouter } from './scans/routes.ts';
+import { supportRouter } from './support/routes.ts';
+import { createSupportChannel, type SupportChannel } from './support/support-channel.ts';
 import { createConfiguredObjectStore, type PrivateObjectStore } from './integrations/s3.ts';
 
 export const packageName = '@fluxradar/api';
@@ -76,6 +79,11 @@ export interface CreateAppOptions {
   readonly fastSpring?: FastSpringConfigResult;
   /** Test seam for the FastSpring Sessions API call. */
   readonly fastSpringFetch?: FetchLike;
+  /**
+   * Test seam; production reads TELEGRAM_*. An explicit null is a deployment
+   * with no support channel, which is not the same as leaving it out.
+   */
+  readonly supportChannel?: SupportChannel | null;
 }
 
 export interface StartedApi {
@@ -95,6 +103,8 @@ export function createApp(options: CreateAppOptions): Express {
   const requestRateLimiter = options.requestRateLimiter ?? new RequestRateLimiter();
   const mailer = options.mailer ?? createMailer();
   const fastSpring = options.fastSpring ?? readFastSpringConfig();
+  const supportChannel =
+    options.supportChannel !== undefined ? options.supportChannel : createSupportChannel(logger);
   // Undefined means "this deployment did not say", which is the production path:
   // sweepRetention then builds the configured store itself. An explicit null is a
   // caller that wants no storage at all, and must stay null.
@@ -196,6 +206,16 @@ export function createApp(options: CreateAppOptions): Express {
       now,
       internalFreeEmails,
       objectStore,
+      logger,
+    }),
+  );
+  app.use(accountRouter({ prisma: options.prisma, now, requestRateLimiter }));
+  app.use(
+    supportRouter({
+      prisma: options.prisma,
+      now,
+      channel: supportChannel,
+      requestRateLimiter,
       logger,
     }),
   );

@@ -50,6 +50,8 @@ export interface SiteStatusPanelProps {
   readonly language: Language;
   /** The profiles already loaded by the screen; no second request for them. */
   readonly profiles: readonly SiteProfile[];
+  /** Hands the latest scan to the screen, which picks the owner's next step from it. */
+  readonly onLatest?: (latest: Scan | null) => void;
 }
 
 export function SiteStatusPanel(props: SiteStatusPanelProps) {
@@ -68,6 +70,7 @@ export function SiteStatusPanel(props: SiteStatusPanelProps) {
    */
   const [failed, setFailed] = useState(false);
 
+  const { onLatest } = props;
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     setFailed(false);
@@ -76,6 +79,7 @@ export function SiteStatusPanel(props: SiteStatusPanelProps) {
       const page = await apiRequestWithMeta<Scan[] | null>('/scans?limit=1&offset=0');
       const scans = Array.isArray(page.data) ? page.data : [];
       const latest = scans[0] ?? null;
+      onLatest?.(latest);
       setData({
         latest,
         totalScans: page.meta?.total ?? scans.length,
@@ -87,7 +91,7 @@ export function SiteStatusPanel(props: SiteStatusPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onLatest]);
 
   useEffect(() => {
     void load();

@@ -2610,6 +2610,24 @@ code,
 .tour-dialog[style] {
   transform: none;
 }
+/* One place for every step, anchored by its bottom edge: a longer step grows
+   upwards, so the action row — Skip, Back, Next — never moves under the
+   pointer between clicks. The spotlight still marks the step's target. */
+.tour-dialog--docked {
+  top: auto;
+  left: auto;
+  right: 24px;
+  bottom: 24px;
+  transform: none;
+}
+@media (max-width: 699px) {
+  .tour-dialog--docked {
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    width: auto;
+  }
+}
 .tour-dialog__kicker,
 .tour-dialog__actions {
   display: flex;

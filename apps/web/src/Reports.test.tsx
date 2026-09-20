@@ -328,9 +328,10 @@ describe('Reports scoped to one website', () => {
     window.history.replaceState(null, '', '/profiles');
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Inspect' }));
+    // Named after the site, so two rows' "Reports" buttons are told apart.
+    fireEvent.click(await screen.findByRole('button', { name: 'Reports: Product website' }));
 
-    // Inspect produces a visible result, not a silent state change.
+    // The button produces a visible result, not a silent state change.
     expect(await screen.findByText('Reports for Product website')).toBeInTheDocument();
     expect(screen.getByText('Every check of example.com, newest first.')).toBeInTheDocument();
     expect(window.location.pathname).toBe('/reports');

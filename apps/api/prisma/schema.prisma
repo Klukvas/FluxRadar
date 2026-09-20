@@ -337,6 +337,9 @@ model Issue {
   module              String
   fingerprint         String
   severity            String
+  /// Urgency order of `severity` (0 Critical … 3 Low, 4 unknown). Text sorts
+  /// alphabetically and put Low above Medium; lists order by this instead.
+  severityRank        Int      @default(4)
   category            String
   status              String
   targetKind          String
@@ -365,6 +368,7 @@ model Issue {
   scan Scan @relation(fields: [scanId], references: [id])
 
   @@index([scanId, fingerprint])
+  @@index([scanId, severityRank, fingerprint])
   @@index([fingerprint])
 }
 

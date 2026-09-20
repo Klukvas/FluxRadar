@@ -1,0 +1,73 @@
+/* The workspace desktop's additions: the header's way into the account, the
+   profile row's separated delete, the folded add-site form and the next-step
+   panel. */
+
+.desktop__account-link {
+  padding: 2px 0;
+  border: 0;
+  border-bottom: 1px dotted #e2e8f0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.desktop__account-link:hover,
+.desktop__account-link.is-active {
+  border-bottom-style: solid;
+  color: var(--term-green);
+  border-color: var(--term-green);
+}
+
+/* Delete stands apart from the everyday actions of the row. */
+.profile-row__danger {
+  margin-left: var(--sp-3);
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--plat-300);
+}
+.profile-add-toggle {
+  margin-top: var(--sp-3);
+}
+
+.profile-context {
+  border: 1px solid var(--plat-400);
+  background: var(--plat-100);
+}
+.profile-context > summary {
+  padding: 6px 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.profile-context > .stack {
+  padding: 0 10px 10px;
+}
+
+.next-step {
+  margin-bottom: var(--sp-3);
+  border-color: var(--plat-900);
+  background: #fff;
+}
+.next-step p {
+  margin-top: 0;
+}
+
+/* On a phone the four row actions were a ragged ladder of right-aligned
+   buttons; they become an even two-by-two grid, delete last. Scoped under
+   `.desktop` because base.css loads after this file and declares the same
+   selectors at the same weight. */
+@media (max-width: 699px) {
+  .desktop .profile-row {
+    grid-template-columns: 1fr;
+  }
+  .desktop .profile-row__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    justify-content: stretch;
+  }
+  .desktop .profile-row__actions .button {
+    width: 100%;
+  }
+  .desktop .profile-row__danger {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+}

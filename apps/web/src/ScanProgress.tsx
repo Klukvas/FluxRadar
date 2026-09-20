@@ -111,10 +111,14 @@ export function ScanScreen(props: {
           </div>
         ) : (
           <p className="muted">
-            {fillCopy(t.running, {
-              done: scan.progress.completedModules,
-              total: scan.progress.totalModules,
-            })}
+            {/* Before the sections are planned there is nothing to count, and
+                "0 of 0 audit sections done" read like a scan with no work. */}
+            {scan.progress.totalModules === 0
+              ? t.runningPreparing
+              : fillCopy(t.running, {
+                  done: scan.progress.completedModules,
+                  total: scan.progress.totalModules,
+                })}
           </p>
         )}
       </Panel>

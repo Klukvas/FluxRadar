@@ -19,6 +19,7 @@ import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import { findOwnReportScan } from '../scans/routes.ts';
 import { localizedFindingTexts } from './localized-text.ts';
+import { scanChanges, summarizeIssues } from './summary.ts';
 
 export interface IssuesRouterDeps {
   readonly prisma: PrismaClient;
@@ -27,6 +28,7 @@ export interface IssuesRouterDeps {
 
 const issueQuerySchema = z.object({
   module: z.string().min(1).optional(),
+  ruleId: z.string().min(1).max(64).optional(),
   severity: z.enum(SEVERITIES).optional(),
   status: z.enum(ISSUE_STATUSES).optional(),
   search: z.string().trim().max(120).optional(),
@@ -45,15 +47,16 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
     const where = {
       scanId,
       ...(query.module !== undefined ? { module: query.module } : {}),
+      ...(query.ruleId !== undefined ? { ruleId: query.ruleId } : {}),
       ...(query.severity !== undefined ? { severity: query.severity } : {}),
       ...(query.status !== undefined ? { status: query.status } : {}),
       ...(query.search !== undefined
         ? {
             OR: [
-              { ruleId: { contains: query.search } },
-              { targetUrl: { contains: query.search } },
-              { evidenceExcerpt: { contains: query.search } },
-              { recommendation: { contains: query.search } },
+              { ruleId: { contains: query.search, mode: 'insensitive' as const } },
+              { targetUrl: { contains: query.search, mode: 'insensitive' as const } },
+              { evidenceExcerpt: { contains: query.search, mode: 'insensitive' as const } },
+              { recommendation: { contains: query.search, mode: 'insensitive' as const } },
             ],
           }
         : {}),
@@ -61,7 +64,9 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
     const [issues, total] = await Promise.all([
       deps.prisma.issue.findMany({
         where,
-        orderBy: [{ severity: 'asc' }, { fingerprint: 'asc' }],
+        // By urgency, not by the text of the severity: alphabetical order put
+        // Low above Medium (see severityRank in @fluxradar/contracts).
+        orderBy: [{ severityRank: 'asc' }, { fingerprint: 'asc' }],
         skip: query.offset,
         take: query.limit,
       }),
@@ -70,6 +75,19 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
     sendOk(res, issues.map(toIssueDto), {
       meta: { total, page: Math.floor(query.offset / query.limit) + 1, limit: query.limit },
     });
+  });
+
+  // Registered before /issues/:issueId so "summary" is never read as an issue id.
+  router.get('/scans/:scanId/issues/summary', auth, async (req, res) => {
+    const scanId = requiredParam(req.params.scanId, 'scanId');
+    await findOwnReportScan(deps.prisma, accountIdFrom(res), scanId);
+    sendOk(res, await summarizeIssues(deps.prisma, scanId));
+  });
+
+  router.get('/scans/:scanId/changes', auth, async (req, res) => {
+    const scanId = requiredParam(req.params.scanId, 'scanId');
+    const scan = await findOwnReportScan(deps.prisma, accountIdFrom(res), scanId);
+    sendOk(res, await scanChanges(deps.prisma, scan));
   });
 
   router.get('/scans/:scanId/issues/:issueId', auth, async (req, res) => {

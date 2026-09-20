@@ -112,7 +112,8 @@ describe('Ukrainian result screens', () => {
     renderUkrainianAt(`/scans/${completedScan.id}/issues`);
 
     expect(await screen.findByText('Знахідки та докази')).toBeInTheDocument();
-    expect(screen.getByText('У цьому звіті немає знахідок')).toBeInTheDocument();
+    // The heading is drawn at once; the list under it arrives with the API.
+    expect(await screen.findByText('У цьому звіті немає знахідок')).toBeInTheDocument();
     expect(screen.queryByText('Findings and evidence')).not.toBeInTheDocument();
   });
 

@@ -1,0 +1,70 @@
+/* The account screen, and the workspace notices that point to it. */
+
+.account {
+  display: grid;
+  gap: var(--sp-4);
+  max-width: 760px;
+}
+.account-list {
+  margin: 0;
+  padding-left: var(--sp-4);
+}
+.account-password {
+  max-width: 420px;
+}
+.account-note {
+  margin-top: var(--sp-1);
+  font-size: 11px;
+}
+/* The one irreversible action on the screen is fenced off from the rest. */
+.account-danger {
+  border-color: #9b1c12;
+}
+
+/* ─── Workspace notices ─────────────────────────────────────────────────── */
+
+/* An unconfirmed email is a standing fact about the account, so it sits in
+   the page flow under the header rather than floating over the work. */
+.verify-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid #8a5b00;
+  background: #ffe9c2;
+  color: #4d3300;
+}
+.verify-banner p {
+  margin: 0;
+  flex: 1 1 320px;
+}
+
+/* An error or a confirmation answers the button that was just pressed, which
+   can be a long way down a long page. Pinned to the viewport, it is seen where
+   the owner is looking instead of at the top of the document, out of view. */
+.alert--floating,
+.notice {
+  position: fixed;
+  z-index: 60;
+  top: 40px;
+  left: 50%;
+  width: min(560px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+}
+.notice {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid #1a6b2f;
+  background: #d6efd9;
+  color: #0f3f1c;
+}
+.notice p {
+  margin: 0;
+}

@@ -8,3 +8,7 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 client_secret_*.json
+
+# Stray installer downloads — a 275 MB DMG in the repo root is one `git add -A`
+# away from living in the history forever.
+*.dmg

@@ -141,12 +141,18 @@ export type MenuBarProps =
       onLanguageChange: (language: Language) => void;
     };
 
+const MENU_LABELS: Record<Language, { site: string; app: string; open: string; close: string }> = {
+  en: { site: 'Site menu', app: 'Application menu', open: 'Open menu', close: 'Close menu' },
+  uk: { site: 'Меню сайту', app: 'Меню застосунку', open: 'Відкрити меню', close: 'Закрити меню' },
+};
+
 export function MenuBar(props: MenuBarProps) {
   const isPublic = props.variant === 'public';
   // A public page learns about a session after it renders; until it does, its
   // workspace tabs look the way they do for a signed-out visitor on the home page.
   const isSignedIn = props.variant === 'public' ? (props.signedIn ?? false) : props.signedIn;
   const labels = copy[props.language].nav;
+  const menuLabels = MENU_LABELS[props.language];
   const [isMenuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -169,7 +175,7 @@ export function MenuBar(props: MenuBarProps) {
   return (
     <nav
       className="menubar"
-      aria-label={isPublic ? 'Site menu' : 'Application menu'}
+      aria-label={isPublic ? menuLabels.site : menuLabels.app}
       data-tour-target={tourTargets.workspaceHeader}
     >
       {isPublic ? (
@@ -192,7 +198,7 @@ export function MenuBar(props: MenuBarProps) {
         type="button"
         aria-expanded={isMenuOpen}
         aria-controls="menubar-links"
-        aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+        aria-label={isMenuOpen ? menuLabels.close : menuLabels.open}
         onClick={() => setMenuOpen((open) => !open)}
       >
         <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -215,7 +221,7 @@ export function MenuBar(props: MenuBarProps) {
           <button
             className="menubar__close"
             type="button"
-            aria-label="Close menu"
+            aria-label={menuLabels.close}
             onClick={() => setMenuOpen(false)}
           >
             <svg viewBox="0 0 12 12" aria-hidden="true">
@@ -505,6 +511,7 @@ export function Field(props: {
   name?: string;
   autoComplete?: string;
   inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
+  maxLength?: number;
   /** Renders the value in monospace; see `controlClass`. */
   technical?: boolean;
   'data-tour-target'?: string;
@@ -536,6 +543,7 @@ export function Field(props: {
         placeholder={props.placeholder}
         autoComplete={props.autoComplete}
         inputMode={props.inputMode}
+        maxLength={props.maxLength}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={invalid ? errorId : undefined}
       />
@@ -554,24 +562,37 @@ export function TextAreaField(props: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  error?: string;
   hint?: string;
   name?: string;
   autoComplete?: string;
   rows?: number;
+  maxLength?: number;
 }) {
+  // The same error contract as `Field`; see the note there.
+  const invalid = props.error !== undefined && props.error !== '';
+  const errorId = useId();
   return (
     <label className="field">
       <span className="field__label">{props.label}</span>
       <textarea
-        className="control"
+        className={controlClass({ error: invalid })}
         name={props.name}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
         placeholder={props.placeholder}
         autoComplete={props.autoComplete}
         rows={props.rows ?? 3}
+        maxLength={props.maxLength}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={invalid ? errorId : undefined}
       />
       {props.hint ? <span className="field__hint">{props.hint}</span> : null}
+      {invalid ? (
+        <span className="field__error" id={errorId} role="alert">
+          {props.error}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -783,29 +804,91 @@ export function Terminal(props: { lines: readonly string[]; active?: boolean }) 
   );
 }
 
-export function AlertDialog(props: { message: string; details?: string; onClose?: () => void }) {
+const ALERT_COPY: Record<Language, { title: string; close: string; details: string }> = {
+  en: { title: 'FluxRadar alert', close: 'OK', details: 'Technical details' },
+  uk: { title: 'Повідомлення FluxRadar', close: 'Гаразд', details: 'Технічні подробиці' },
+};
+
+export function AlertDialog(props: {
+  message: string;
+  details?: string;
+  onClose?: () => void;
+  language?: Language;
+  /**
+   * Pinned to the viewport and focused on arrival. The workspace's alert used to
+   * render at the top of the document, so a failure answering a button at the
+   * bottom of a long form appeared out of view and the click looked ignored.
+   */
+  floating?: boolean;
+}) {
+  const t = ALERT_COPY[props.language ?? 'en'];
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const { floating, message } = props;
+  useEffect(() => {
+    if (floating === true) closeRef.current?.focus();
+  }, [floating, message]);
   return (
-    <div className="alert" role="alert">
+    <div className={floating === true ? 'alert alert--floating' : 'alert'} role="alert">
       <div className="alert__icon">
         <svg viewBox="0 0 12 12" aria-hidden="true">
           <path d="M5 1h2v7H5zM5 10h2v2H5z" />
         </svg>
       </div>
       <div className="alert__body">
-        <strong>FluxRadar alert</strong>
+        <strong>{t.title}</strong>
         <p>{props.message}</p>
         {props.details ? (
           <details>
-            <summary>Technical details</summary>
+            <summary>{t.details}</summary>
             <Terminal lines={[props.details]} />
           </details>
         ) : null}
         <div className="alert__actions">
-          <Button variant="primary" onClick={props.onClose}>
-            OK
-          </Button>
+          <button
+            ref={closeRef}
+            className="button button--primary"
+            type="button"
+            onClick={props.onClose}
+          >
+            {t.close}
+          </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** How long a confirmation stays up before it clears itself. */
+export const NOTICE_TIMEOUT_MS = 5000;
+
+/**
+ * A confirmation that something worked — "Password changed", "Status saved".
+ * Pinned to the viewport for the same reason as a floating alert, announced
+ * politely rather than interrupting, and gone on its own after a few seconds —
+ * unless the pointer or keyboard focus is on it, which holds it for as long as
+ * someone is reading it (WCAG 2.2.1); leaving restarts the full timeout.
+ */
+export function Notice(props: { message: string; onClose: () => void; closeLabel: string }) {
+  const { message, onClose } = props;
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (held) return undefined;
+    const timer = window.setTimeout(onClose, NOTICE_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [message, onClose, held]);
+  return (
+    <div
+      className="notice"
+      role="status"
+      onMouseEnter={() => setHeld(true)}
+      onMouseLeave={() => setHeld(false)}
+      onFocus={() => setHeld(true)}
+      onBlur={() => setHeld(false)}
+    >
+      <p>{message}</p>
+      <button className="button" type="button" onClick={onClose}>
+        {props.closeLabel}
+      </button>
     </div>
   );
 }

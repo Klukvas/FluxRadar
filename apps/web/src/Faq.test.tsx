@@ -49,10 +49,12 @@ describe('/faq route', () => {
       await screen.findByRole('heading', { name: 'Every check, explained in plain language' }),
     ).toBeInTheDocument();
     expect(window.location.pathname).toBe('/faq');
-    // The only request is the session read the header follows.
+    // The only requests are the session read the header follows and the support
+    // launcher asking whether to show itself — neither answers here, and the
+    // document rendered anyway.
     expect(
       fetchMock.mock.calls.map((call) => new URL(String((call as unknown[])[0])).pathname),
-    ).toEqual(['/auth/me']);
+    ).toEqual(['/auth/me', '/support/status']);
   });
 
   it('links every index entry to a section that exists on the page', async () => {
@@ -83,11 +85,15 @@ describe('/faq route', () => {
 // documents and the workspace — lists the full row, so a reader moving between
 // them watched the navigation shrink and lost the way back to their workspace.
 // The row is now the same everywhere; what differs is only how it is wired.
+// The menu is named in the page's language, so a Ukrainian page is found by its
+// Ukrainian name.
+const SITE_MENU = /^(Site menu|Меню сайту)$/;
+
 describe('/faq header is the platform header', () => {
   const ENGLISH_ROW = ['Home', 'Profiles', 'Scan', 'Reports', 'Integrations', 'FAQ', 'Blog'];
 
   function headerNav(): HTMLElement {
-    return screen.getByRole('navigation', { name: 'Site menu' });
+    return screen.getByRole('navigation', { name: SITE_MENU });
   }
 
   /** Every destination the header offers, in the order it offers them. */

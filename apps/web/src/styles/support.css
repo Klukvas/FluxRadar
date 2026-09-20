@@ -1,0 +1,73 @@
+/* The launcher floats in the bottom-LEFT corner because the bottom-right one
+   belongs to the cookie dock: its settings launcher stays there until every
+   preference is allowed, and two floating controls in one corner overlap on a
+   phone. It sits under .modal-backdrop (z-index 20), so an open dialog — sign-in
+   or support itself — covers it instead of offering a second modal on top, and
+   under the mobile menu sheet (50) and the onboarding tour (60).
+
+   `.button.support-launcher`, not the bare class: this file and base.css reach
+   the page in module order, and the button's own padding must not win. */
+.button.support-launcher {
+  position: fixed;
+  z-index: 15;
+  left: var(--sp-3);
+  bottom: max(var(--sp-3), env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 44px;
+  padding: 0 var(--sp-4);
+  font: bold 13px/1 var(--ui-font);
+  box-shadow:
+    2px 2px 0 rgb(0 0 0 / 35%),
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 var(--plat-300);
+}
+
+.support-launcher:focus-visible {
+  outline: 2px solid var(--selection);
+  outline-offset: 3px;
+}
+
+.support-launcher__icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.support-modal {
+  width: min(100%, 520px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+}
+
+.support-modal .window--dialog {
+  margin: 0;
+}
+
+.support-modal textarea.control {
+  resize: vertical;
+}
+
+/* On a phone the label would sit over the footer links it floats above; the
+   icon alone keeps the 44px target, and the accessible name stays on the button
+   through its aria-label. */
+@media (max-width: 640px) {
+  .button.support-launcher {
+    left: var(--sp-2);
+    bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+    justify-content: center;
+    width: 44px;
+    padding: 0;
+  }
+
+  .support-launcher__label {
+    display: none;
+  }
+
+  .support-modal {
+    max-height: calc(100dvh - 24px);
+  }
+}

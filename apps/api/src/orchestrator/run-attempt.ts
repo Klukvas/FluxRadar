@@ -4,7 +4,7 @@
 // Терминализацию выполняет process-scan через resolveScanOutcome.
 
 import type { ModuleName, Plan, ScanScopeInput } from '@fluxradar/contracts';
-import { TARIFFS, scanScopeSchema } from '@fluxradar/contracts';
+import { TARIFFS, scanScopeSchema, severityRank } from '@fluxradar/contracts';
 import {
   AI_PROVIDER_NAMES,
   AiQuotaTracker,
@@ -557,6 +557,7 @@ export async function runScanAttempt(
     await prisma.issue.createMany({
       data: issueRows.map((row): Prisma.IssueCreateManyInput => ({
         ...row,
+        severityRank: severityRank(row.severity),
         status: statuses.get(row.fingerprint) ?? 'New',
       })),
     });

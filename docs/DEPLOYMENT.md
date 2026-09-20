@@ -219,6 +219,39 @@ and run scans. They appear in the `integration configuration` line and in an
 not visible here at all** — it is an HTTP error on the first send, which the
 caller reports as `provider-error`.
 
+### Support requests
+
+The floating **Support** button on every page opens a form that guests and
+signed-in owners can both send. The API forwards each request to a Telegram
+channel through a bot (`apps/api/src/support/`). Until the bot is connected,
+production offers no button at all: `GET /support/status` answers
+`available: false` and `POST /support` answers `503 SUPPORT_UNAVAILABLE`. Local
+development without a bot writes each request to the API log instead.
+
+To connect it, set both `TELEGRAM_BOT_TOKEN` and `TELEGRAM_SUPPORT_CHAT_ID` in
+`PRODUCTION_ENV_FILE`. There is no deploy secret override for them in this
+release.
+
+1. Create a bot with @BotFather and copy the token it prints.
+2. Add the bot to the support channel as an **administrator** allowed to post
+   messages.
+3. Take the channel's `@username` if it is public, or its numeric id — which
+   starts with `-100` — if it is private.
+4. Deploy, open the site signed out, send one message, and confirm it arrives in
+   the channel. This is the only end-to-end proof; CI never sends a real message.
+
+What is checked at startup, by name and never by value
+(`apps/api/src/support/telegram-config.ts`): exactly one of the pair present, a
+token that is not shaped like a BotFather token, or a chat id that is neither
+numeric nor an `@username` is reported `invalid`, and the form stays off. None of
+these fails the boot. **A bot that is not an admin of the channel is not visible
+here** — it is a `support request delivery failed` error line with Telegram's
+reason on the first send, and the visitor is asked to try again.
+
+The reply address of a signed-in request is the account's own; a guest's is
+labelled unverified in the channel. Each sender (account, or a guest's address)
+may send 3 requests per 15 minutes, and each client address 10.
+
 ## Optional integration secrets
 
 **Precedence, and there is only one rule:** `PRODUCTION_ENV_FILE` is the base,

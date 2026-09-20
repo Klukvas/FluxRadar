@@ -1,0 +1,212 @@
+/* Reading findings: the Issue Center's problem view and filters, and the
+   report's "fix these first", "since your last scan" and next-step blocks.
+   Same Platinum language as base.css — bevelled controls, 1px rules, mono for
+   anything technical. */
+
+.issues-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.issues-head > div:first-child {
+  flex: 1 1 360px;
+}
+.issues-summary-line {
+  margin: var(--sp-2) 0 0;
+  font-weight: 700;
+}
+
+/* Two mutually exclusive views, drawn as one bevelled control. */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--plat-900);
+  border-radius: var(--r-1);
+  overflow: hidden;
+}
+.segmented__option {
+  min-height: 24px;
+  padding: 2px 12px;
+  border: 0;
+  border-right: 1px solid var(--plat-900);
+  background: var(--plat-100);
+  color: var(--button-fg);
+  font: inherit;
+  cursor: pointer;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 var(--plat-300);
+}
+.segmented__option:last-child {
+  border-right: 0;
+}
+.segmented__option[aria-pressed='true'] {
+  background: var(--selection);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.issue-filters {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) repeat(3, minmax(130px, 1fr));
+  gap: var(--sp-3);
+  align-items: end;
+  margin: var(--sp-3) 0;
+}
+.issue-rule-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--selection);
+  background: #e1e1f2;
+}
+.issues-count {
+  margin: 0 0 var(--sp-2);
+}
+.issues-more {
+  justify-content: center;
+  margin-top: var(--sp-3);
+}
+.issue-title {
+  display: inline-block;
+  line-height: 1.35;
+}
+/* A URL is one long word; without this it widens the table past the window. */
+.issue-target {
+  overflow-wrap: anywhere;
+}
+.issue-group--settled td {
+  color: var(--plat-600);
+}
+.issue-detail__learn {
+  margin: var(--sp-2) 0 0;
+}
+
+/* ─── Report blocks ─────────────────────────────────────────────────────── */
+
+.report-block {
+  margin-top: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: var(--plat-50);
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 var(--plat-300);
+}
+.report-block > h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: 14px;
+}
+.report-block > p {
+  margin: 0 0 var(--sp-3);
+}
+
+.fix-first {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--plat-300);
+}
+.fix-first__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: var(--sp-3);
+  align-items: center;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--plat-300);
+}
+.fix-first__title {
+  font-weight: 700;
+}
+.fix-first__count {
+  white-space: nowrap;
+}
+
+.changes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.changes-stat {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: #fff;
+}
+.changes-stat strong {
+  display: block;
+  font: 700 22px var(--mono-font);
+}
+.changes-stat--fixed strong {
+  color: #1a6b2f;
+}
+.changes-stat--introduced strong {
+  color: #9b1c12;
+}
+.changes-lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+.changes-lists h4 {
+  margin: 0 0 var(--sp-1);
+  font-size: 12px;
+}
+.changes-lists ul {
+  margin: 0;
+  padding-left: var(--sp-4);
+}
+
+.upsell {
+  border-color: var(--plat-900);
+  background: #fff;
+}
+.upsell ul {
+  margin: 0 0 var(--sp-3);
+  padding-left: var(--sp-4);
+}
+.upsell li + li {
+  margin-top: var(--sp-1);
+}
+
+@media (max-width: 699px) {
+  .issue-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .issue-filters > .field:first-child {
+    grid-column: 1 / -1;
+  }
+  .fix-first__item {
+    grid-template-columns: auto 1fr;
+  }
+  .fix-first__count {
+    grid-column: 2;
+  }
+  .fix-first__item > .button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .changes-grid,
+  .changes-lists {
+    grid-template-columns: 1fr;
+  }
+}
+.fix-first__more {
+  margin-top: var(--sp-3);
+}
+.report-print-hint {
+  margin: var(--sp-2) 0 0;
+  font-size: 12px;
+}
+.report-block--warning {
+  border-color: #8a5b00;
+  background: #fff4de;
+}

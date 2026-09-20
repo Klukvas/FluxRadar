@@ -218,9 +218,9 @@ describe('authentication UI', () => {
     );
 
     // Existing users can still switch to sign in from the same dialog.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Back to sign in' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I already have an account' }));
     expect(screen.getByText('FluxRadar — Sign in')).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Create account' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Create an account' })).toBeInTheDocument();
     expect(dialog).toHaveTextContent('Sign-in uses a necessary cookie. Learn more:');
     expect(dialog).not.toHaveTextContent('By creating an account');
 
@@ -243,7 +243,7 @@ describe('authentication UI', () => {
     openAuth();
     const dialog = screen.getByRole('dialog');
     // The CTA opens registration; switch to sign in to exercise the login path.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Back to sign in' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I already have an account' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Email' }), {
       target: { value: 'operator@example.com' },
     });
@@ -326,7 +326,9 @@ describe('public legal pages', () => {
       'href',
       '/terms?lang=en',
     );
-    expect(requestedPaths(fetchMock)).toEqual(['/auth/me']);
+    // The second read is the site-wide support launcher asking whether to show
+    // itself; like the session read, it never holds the document back.
+    expect(requestedPaths(fetchMock)).toEqual(['/auth/me', '/support/status']);
   });
 
   it('renders the terms of service as a public page', async () => {
@@ -358,7 +360,9 @@ describe('public legal pages', () => {
       'href',
       '/privacy?lang=en',
     );
-    expect(requestedPaths(fetchMock)).toEqual(['/auth/me']);
+    // The second read is the site-wide support launcher asking whether to show
+    // itself; like the session read, it never holds the document back.
+    expect(requestedPaths(fetchMock)).toEqual(['/auth/me', '/support/status']);
   });
 });
 
@@ -661,7 +665,9 @@ describe('public /checks — audit coverage page', () => {
     window.history.replaceState(null, '', '/checks');
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Audit coverage' })).toBeInTheDocument();
-    expect(requestedPaths(fetchMock)).toEqual(['/auth/me']);
+    // The second read is the site-wide support launcher asking whether to show
+    // itself; like the session read, it never holds the document back.
+    expect(requestedPaths(fetchMock)).toEqual(['/auth/me', '/support/status']);
   });
 
   it('shows all six audit module section headings', async () => {
@@ -932,7 +938,7 @@ describe('Issue Center — inline detail row', () => {
 
     // A non-technical owner is told what a finding is and how to act on it.
     expect(
-      screen.getByText(/Each finding is something FluxRadar detected on a public page/i),
+      screen.getByText(/Findings are grouped by the problem behind them, most urgent first/i),
     ).toBeInTheDocument();
     // Severity is explained rather than left as bare Critical/High/Medium/Low chips.
     expect(
@@ -993,8 +999,10 @@ describe('home pricing and workspace onboarding', () => {
     const complete = within(pricing).getByRole('heading', { name: 'Complete' }).closest('article');
     if (basic === null || complete === null) throw new Error('expected both product cards');
 
-    expect(within(basic).getByText('$55')).toBeInTheDocument();
-    expect(within(complete).getByText('$120')).toBeInTheDocument();
+    // The currency is stated, not implied: the checkout localises, so a bare "$"
+    // is a figure the buyer may not see again.
+    expect(within(basic).getByText('$55 USD')).toBeInTheDocument();
+    expect(within(complete).getByText('$120 USD')).toBeInTheDocument();
 
     // Each card says what it does, who it is for and where it stops.
     expect(within(basic).getByText('What you get')).toBeInTheDocument();

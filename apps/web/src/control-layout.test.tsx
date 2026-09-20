@@ -421,3 +421,38 @@ describe('base.css layout rules', () => {
     expect(readout).toMatch(/overflow-wrap: anywhere/);
   });
 });
+
+const stylesheet = (name: string): string =>
+  readFileSync(join(resolve(process.cwd()), 'src', 'styles', name), 'utf8');
+
+describe('journey layout decisions', () => {
+  // The tour dialog followed each step's target, so Next, Back and Skip landed
+  // somewhere new after every click. It is docked by its bottom edge now: a
+  // longer step grows upwards and the action row stays under the pointer.
+  it('docks the tour dialog by its bottom edge', () => {
+    const docked = BASE_CSS.slice(BASE_CSS.indexOf('.tour-dialog--docked {'));
+    expect(docked).toMatch(/^\.tour-dialog--docked \{[^}]*top: auto;[^}]*bottom: 24px;/);
+    expect(docked).toMatch(/^\.tour-dialog--docked \{[^}]*transform: none;/);
+  });
+
+  // On a phone the four profile-row actions were a ragged right-aligned ladder.
+  // base.css loads after desktop.css and declares the same selectors, so the
+  // phone rule only wins while it is scoped more tightly than base.css's.
+  it('lays the profile-row actions out as a grid on a phone, above base.css', () => {
+    const desktop = stylesheet('desktop.css');
+    const phone = desktop.slice(desktop.indexOf('@media (max-width: 699px)'));
+    expect(phone).toMatch(
+      /\.desktop \.profile-row__actions \{[^}]*display: grid;[^}]*grid-template-columns: 1fr 1fr;/,
+    );
+    expect(phone).toMatch(/\.desktop \.profile-row \{[^}]*grid-template-columns: 1fr;/);
+  });
+
+  // An error or a confirmation answers a button that can be far down a long
+  // page; rendered in the document flow it appeared out of view, and the click
+  // looked ignored.
+  it('pins the workspace alert and notice to the viewport', () => {
+    expect(stylesheet('account.css')).toMatch(
+      /\.alert--floating,\s*\.notice \{[^}]*position: fixed;/,
+    );
+  });
+});
