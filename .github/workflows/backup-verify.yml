@@ -75,7 +75,14 @@ jobs:
           ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "${SNAPSHOT_KEY:-}" <<'REMOTE'
           set -eu
           APP_DIR="$1"
-          SNAPSHOT_KEY="$2"
+          # "${2:-}", not "$2": ssh joins its arguments into a single command
+          # string that the remote shell parses again, and an empty argument has
+          # no quoting left to survive that — it disappears. A scheduled run
+          # passes no snapshot key, so the remote script saw one argument and
+          # `set -u` aborted right here, on every scheduled verification since
+          # this workflow was added. A manual run with a key was unaffected,
+          # which is why it stayed unnoticed.
+          SNAPSHOT_KEY="${2:-}"
           RESTORE_SCRIPT="$APP_DIR/current/deploy/backup/pg-restore.sh"
           if [ ! -x "$RESTORE_SCRIPT" ]; then
             echo "ERROR: $RESTORE_SCRIPT is missing or not executable on the server." >&2
