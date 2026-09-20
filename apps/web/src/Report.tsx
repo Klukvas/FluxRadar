@@ -17,12 +17,14 @@ import {
   StatusChip,
   Window,
 } from './components';
+import { findingsCopy } from './findings-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { asRecord, numberValue } from './module-metadata';
 import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
 import { moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
+import { ReportNextSteps } from './ReportNextSteps';
 import { statusKind } from './status-kind';
 
 export function ResultsScreen(props: {
@@ -30,6 +32,14 @@ export function ResultsScreen(props: {
   language: Language;
   onScan: (scan: Scan) => void;
   onIssues: () => void;
+  /** Opens the Issue Center on one problem's findings. */
+  onOpenProblem?: (ruleId: string) => void;
+  /** Starts a paid scan of the same site, from a Free report. */
+  onUpgrade?: (scan: Scan) => void;
+  /** Opens the printable client report. */
+  onPrint?: (scan: Scan) => void;
+  /** Retries the one unfinished section of a Partial scan. */
+  onRetry?: (scan: Scan) => Promise<void>;
   onReports: () => void;
   onError: (value: string) => void;
 }) {
@@ -49,7 +59,7 @@ export function ResultsScreen(props: {
     readonly module: string;
   } | null>(null);
   const scanId = props.scan?.id ?? null;
-  const { onScan, onError } = props;
+  const { onScan, onError, onRetry } = props;
   const load = useCallback(async (): Promise<void> => {
     if (scanId === null) {
       setLoading(false);
@@ -177,6 +187,14 @@ export function ResultsScreen(props: {
         {unscoredPlan ? (
           <p className="muted">{fillCopy(t.unscoredLead, { plan: scan.plan })}</p>
         ) : null}
+        <ReportNextSteps
+          scan={scan}
+          language={props.language}
+          onOpenProblem={props.onOpenProblem ?? (() => props.onIssues())}
+          onAllProblems={props.onIssues}
+          onUpgrade={() => props.onUpgrade?.(scan)}
+          onRetry={onRetry === undefined ? undefined : () => onRetry(scan)}
+        />
         <section className="report-help" aria-label={t.helpHeading}>
           <h3 className="section-heading">{t.helpHeading}</h3>
           <dl className="report-help__list">
@@ -281,13 +299,23 @@ export function ResultsScreen(props: {
           <Button onClick={props.onIssues} variant="primary">
             {t.openIssues}
           </Button>
+          {props.onPrint === undefined ? null : (
+            <Button onClick={() => props.onPrint?.(scan)} aria-describedby="print-hint">
+              {findingsCopy[props.language].print.open}
+            </Button>
+          )}
           {scan.plan === 'Complete' ? (
-            <ExportButtons scanId={scan.id} onError={props.onError} />
+            <ExportButtons scan={scan} onError={props.onError} />
           ) : (
             <span className="muted">{t.exportComplete}</span>
           )}
           <Button onClick={props.onReports}>{copy[props.language].reports.windowTitle}</Button>
         </div>
+        {props.onPrint === undefined ? null : (
+          <p id="print-hint" className="muted report-print-hint">
+            {findingsCopy[props.language].print.openHint}
+          </p>
+        )}
         <div className="breadcrumb">
           {scan.id} · {scan.rulesetVersion} ·{' '}
           {unscoredPlan
@@ -542,23 +570,32 @@ function checkTitles(metadata: Readonly<Record<string, unknown>> | undefined): r
   });
 }
 
-function ExportButtons(props: { scanId: string; onError: (value: string) => void }) {
+/**
+ * `fluxradar-shop.example.com-2026-09-18`: the site and the day of the scan.
+ * The file used to be named after the scan's database id, so a folder of
+ * exports could not be told apart without opening each one.
+ */
+export function exportBaseName(scan: Pick<Scan, 'domain' | 'completedAt' | 'createdAt'>): string {
+  const day = (scan.completedAt ?? scan.createdAt).slice(0, 10);
+  const host = displayDomain(scan.domain).replace(/[^a-z0-9.-]+/gi, '-');
+  return `fluxradar-${host}-${day}`;
+}
+
+function ExportButtons(props: { scan: Scan; onError: (value: string) => void }) {
+  const scanId = props.scan.id;
+  const baseName = exportBaseName(props.scan);
   const downloadJson = async () => {
     try {
-      const value = await apiRequest<ExportPayload>(`/scans/${props.scanId}/export?format=json`);
-      download(
-        `fluxradar-${props.scanId}.json`,
-        JSON.stringify(value.records, null, 2),
-        'application/json',
-      );
+      const value = await apiRequest<ExportPayload>(`/scans/${scanId}/export?format=json`);
+      download(`${baseName}.json`, JSON.stringify(value.records, null, 2), 'application/json');
     } catch (caught) {
       props.onError(caught instanceof Error ? caught.message : 'JSON export failed');
     }
   };
   const downloadCsv = async () => {
     try {
-      const value = await apiRequest<string>(`/scans/${props.scanId}/export?format=csv`);
-      download(`fluxradar-${props.scanId}.csv`, value, 'text/csv');
+      const value = await apiRequest<string>(`/scans/${scanId}/export?format=csv`);
+      download(`${baseName}.csv`, value, 'text/csv');
     } catch (caught) {
       props.onError(caught instanceof Error ? caught.message : 'CSV export failed');
     }

@@ -4,6 +4,7 @@ import type { FormEvent } from 'react';
 import {
   AlertDialog,
   Button,
+  Notice,
   Checkbox,
   DataTable,
   EmptyState,
@@ -17,7 +18,6 @@ import {
   SelectField,
   StatusChip,
   Terminal,
-  TextAreaField,
   Window,
 } from './components';
 import {
@@ -29,7 +29,11 @@ import {
   type Scan,
   type SiteProfile,
 } from './api';
+import { AccountScreen, resendVerification } from './AccountScreen';
+import { accountCopy } from './account-copy';
 import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
+import { AuthScreen } from './AuthScreen';
+import { authCopy } from './auth-copy';
 import {
   CheckoutPending,
   clearPendingCheckout,
@@ -41,20 +45,23 @@ import {
 } from './Checkout';
 import { CoverageTicker } from './CoverageTicker';
 import { CookieConsent } from './CookieConsent';
+import { DesktopScreen } from './DesktopScreen';
+import { HeroSiteForm } from './HeroSiteForm';
 import { HeroTitle } from './HeroTitle';
 import { copy, fillCopy, readInitialLanguage, storeLanguage, type Language } from './i18n';
 import { applyPageMetadata, type SeoPageId } from './seo';
 import { OnboardingTour } from './OnboardingTour';
 import { FaqScreen } from './Faq';
 import { AuditCoverageScreen } from './Checks';
-import { PricingCards, PricingExplainer } from './Pricing';
+import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
+import { PrintReport } from './PrintReport';
 import { IntegrationsScreen } from './Integrations';
 import { IssuesScreen } from './Issues';
 import { ResultsScreen } from './Report';
 import { LegalDocumentScreen } from './LegalDocuments';
-import { ProfileDeletion } from './ProfileDeletion';
 import { ScanScreen } from './ScanProgress';
 import { ReportsScreen } from './Reports';
+import { SupportWidget } from './SupportWidget';
 import { isTerminalScanStatus } from './scan-status';
 import {
   clampScopeToPlan,
@@ -68,11 +75,10 @@ import {
   type ScanScopeForm,
   type ScopeNumberField,
 } from './scan-scope';
-import { normalizeSiteAddress, siteNameFromAddress } from './site-address-input';
-import { SiteStatusPanel } from './SiteStatus';
-import { TargetLanguagesField } from './TargetLanguagesField';
+import { normalizeSiteAddress } from './site-address-input';
 import { WORKSPACE_PATHS, type WorkspaceTabScreen } from './workspace-paths';
 import './styles/base.css';
+import './styles/account.css';
 
 type Screen =
   | 'home'
@@ -89,6 +95,8 @@ type Screen =
   | 'terms'
   | 'cookies'
   | 'checks'
+  | 'account'
+  | 'print'
   | 'styleguide';
 
 /**
@@ -106,7 +114,12 @@ const WORKSPACE_SCREENS: readonly Screen[] = [
   'results',
   'issues',
   'integrations',
+  'account',
+  'print',
 ];
+
+/** The account screen's URL. Not a menu tab: it is reached from the header's address. */
+const ACCOUNT_PATH = '/account';
 
 function isWorkspaceScreen(screen: Screen): boolean {
   return WORKSPACE_SCREENS.includes(screen);
@@ -143,6 +156,10 @@ function pathForScreen(screen: Screen, scanId: string | null): string {
       return scanId === null ? '/reports' : `/scans/${encodeURIComponent(scanId)}`;
     case 'issues':
       return scanId === null ? '/reports' : `/scans/${encodeURIComponent(scanId)}/issues`;
+    case 'print':
+      return scanId === null ? '/reports' : `/scans/${encodeURIComponent(scanId)}/report`;
+    case 'account':
+      return ACCOUNT_PATH;
     default:
       return '/';
   }
@@ -189,6 +206,8 @@ function readInitialRoute(): InitialRoute {
   if (path === '/cookies') return publicRoute('cookies');
   if (path === '/checks') return publicRoute('checks');
   if (path === '/faq') return publicRoute('faq');
+  if (path === ACCOUNT_PATH)
+    return { screen: 'account', scanId: null, emailAction: null, scrollTo: null };
   // The standalone plans screen was folded into the home pricing section. Old
   // /plans links keep working by landing there instead of on an unknown route.
   if (path === '/plans')
@@ -214,15 +233,15 @@ function readInitialRoute(): InitialRoute {
   };
 }
 
-/** `/scans/:id` and `/scans/:id/issues`, or null when the path is neither. */
+/** `/scans/:id`, `/scans/:id/issues` and `/scans/:id/report`, or null when the path is none. */
 function readScanRoute(path: string): InitialRoute | null {
-  const match = /^\/scans\/([^/]+)(\/issues)?$/.exec(path);
+  const match = /^\/scans\/([^/]+)(\/issues|\/report)?$/.exec(path);
   if (match?.[1] === undefined) return null;
   try {
     const scanId = decodeURIComponent(match[1]);
     if (scanId.length === 0) return null;
     return {
-      screen: match[2] === undefined ? 'scan' : 'issues',
+      screen: match[2] === undefined ? 'scan' : match[2] === '/report' ? 'print' : 'issues',
       scanId,
       emailAction: null,
       scrollTo: null,
@@ -231,6 +250,11 @@ function readScanRoute(path: string): InitialRoute | null {
     // Treat a malformed deep link like any other unknown public route.
     return null;
   }
+}
+
+/** Which screen of a scan a scan URL asked for. */
+function scanRoutePreference(screen: Screen): 'auto' | 'issues' | 'print' {
+  return screen === 'issues' || screen === 'print' ? screen : 'auto';
 }
 
 function isTerminalScan(scan: Scan): boolean {
@@ -271,9 +295,21 @@ export function App() {
     setLanguage(next);
     storeLanguage(next);
   }, []);
+  // The support form floats over every screen, so it lives beside the screens
+  // rather than in each of them; all it needs from the session is whose
+  // address a reply goes to.
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const changeAccount = useCallback((next: Account | null) => {
+    setAccountEmail(next?.email ?? null);
+  }, []);
   return (
     <>
-      <AppContent language={language} changeLanguage={changeLanguage} />
+      <AppContent
+        language={language}
+        changeLanguage={changeLanguage}
+        onAccountChange={changeAccount}
+      />
+      <SupportWidget language={language} accountEmail={accountEmail} />
       <CookieConsent language={language} />
     </>
   );
@@ -282,9 +318,11 @@ export function App() {
 function AppContent({
   language,
   changeLanguage,
+  onAccountChange,
 }: {
   language: Language;
   changeLanguage: (language: Language) => void;
+  onAccountChange: (account: Account | null) => void;
 }) {
   const [entryRoute] = useState<InitialRoute>(readInitialRoute);
   const [screen, setScreen] = useState<Screen>(entryRoute.screen);
@@ -303,7 +341,46 @@ function AppContent({
   // may reload or navigate away before the provider webhook lands, and the
   // "confirming payment" window has to survive that from any screen.
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(null);
+  // A confirmation for what just worked — "Password changed", "Status saved" —
+  // pinned where the owner is looking, like the error alert.
+  const [notice, setNotice] = useState<string | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
+  // The problem the Issue Center opens on, when "Fix these first" sent the owner there.
+  const [issueRuleFilter, setIssueRuleFilter] = useState<string | null>(null);
+  // The plan the scan form opens on: chosen on the pricing cards, or from a Free
+  // report's "Run Complete for this site".
+  const [newScanPlan, setNewScanPlan] = useState<'Free' | 'Basic' | 'Complete' | null>(null);
+  // What a visitor asked for before they had an account — the site typed on the
+  // home page, or a plan picked on its pricing cards. Kept in memory only:
+  // registration happens in a dialog over the same page, so nothing is stored.
+  const [intent, setIntent] = useState<{
+    readonly site: string | null;
+    readonly plan: ChosenPlan | null;
+  } | null>(null);
+  const [verifyBannerHidden, setVerifyBannerHidden] = useState(false);
   const updateSelectedScan = useCallback((scan: Scan) => setSelectedScan(scan), []);
+  // Read by the boot effect, which runs once and must not re-run on a language switch.
+  const languageRef = useRef(language);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
+
+  const confirmEmailSignedIn = useCallback(async (token: string, current: Account) => {
+    setEmailAction(null);
+    setScreen('desktop');
+    window.history.replaceState(null, '', pathForScreen('desktop', null));
+    try {
+      await apiRequest<{ status: string }>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
+      setAccount({ ...current, emailVerified: true });
+      setNotice(authCopy[languageRef.current].leads.verified);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Verification failed');
+    }
+  }, []);
+
+  useEffect(() => {
+    onAccountChange(account);
+  }, [account, onAccountChange]);
 
   // The document language is what a screen reader announces the page in and what
   // a browser offers to translate; leaving it on the served default silently
@@ -329,12 +406,16 @@ function AppContent({
    * reports list, which explains itself, rather than to a blank screen.
    */
   const openScanById = useCallback(
-    async (scanId: string, preferred: 'auto' | 'issues' = 'auto'): Promise<void> => {
+    async (scanId: string, preferred: 'auto' | 'issues' | 'print' = 'auto'): Promise<void> => {
       try {
         const scan = await apiRequest<Scan>(`/scans/${scanId}`);
         setSelectedScan(scan);
         const target: Screen =
-          preferred === 'issues' ? 'issues' : isTerminalScan(scan) ? 'results' : 'scan';
+          preferred === 'issues' || preferred === 'print'
+            ? preferred
+            : isTerminalScan(scan)
+              ? 'results'
+              : 'scan';
         setScreen(target);
         window.history.replaceState(null, '', pathForScreen(target, scan.id));
       } catch (caught) {
@@ -367,11 +448,17 @@ function AppContent({
         setAccount(value);
         try {
           await loadProfiles(setProfiles);
+          // The confirmation link is usually opened in the browser the owner is
+          // already signed in to. That session used to land on an empty
+          // workspace — the sign-in dialog that confirms the link is only drawn
+          // for visitors — and the address stayed unconfirmed.
+          if (entryRoute.emailAction?.kind === 'verify') {
+            await confirmEmailSignedIn(entryRoute.emailAction.token, value);
+            return;
+          }
+          if (entryRoute.emailAction?.kind === 'reset') return;
           if (entryRoute.scanId !== null) {
-            await openScanById(
-              entryRoute.scanId,
-              entryRoute.screen === 'issues' ? 'issues' : 'auto',
-            );
+            await openScanById(entryRoute.scanId, scanRoutePreference(entryRoute.screen));
             return;
           }
           if (value.onboarding?.status === 'pending') {
@@ -402,7 +489,13 @@ function AppContent({
         if (entryRoute.scanId !== null || isWorkspaceScreen(entryRoute.screen)) setScreen('auth');
       })
       .finally(() => setBooting(false));
-  }, [entryRoute.scanId, entryRoute.screen, openScanById]);
+  }, [
+    entryRoute.scanId,
+    entryRoute.screen,
+    entryRoute.emailAction,
+    openScanById,
+    confirmEmailSignedIn,
+  ]);
 
   useEffect(() => {
     const restored = account === null ? null : readPendingCheckout(account.accountId);
@@ -446,6 +539,8 @@ function AppContent({
       'issues',
       'integrations',
       'checks',
+      'account',
+      'print',
     ].includes(requested)
       ? (requested as Screen)
       : 'desktop';
@@ -485,17 +580,74 @@ function AppContent({
       }
       const loaded = selectedScanRef.current;
       if (loaded === null || loaded.id !== route.scanId) {
-        void openScanById(route.scanId, route.screen === 'issues' ? 'issues' : 'auto');
+        void openScanById(route.scanId, scanRoutePreference(route.screen));
         return;
       }
       // `/scans/:id` is the report once the scan has one and the progress window
       // while it is still running — the same rule the deep link is resolved by,
       // so going back to a URL shows what going forward to it showed.
-      setScreen(route.screen === 'issues' ? 'issues' : isTerminalScan(loaded) ? 'results' : 'scan');
+      setScreen(
+        route.screen === 'issues' || route.screen === 'print'
+          ? route.screen
+          : isTerminalScan(loaded)
+            ? 'results'
+            : 'scan',
+      );
     }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [openScanById]);
+
+  /**
+   * Carries out what the visitor asked for before they had an account.
+   *
+   * A typed site becomes a profile and, unless a paid plan was picked, its free
+   * homepage check starts at once — that is the promise the home page's form
+   * made. A picked plan opens the scan form on that plan. Returns false when
+   * there was nothing to carry out.
+   */
+  const followIntent = async (pending: NonNullable<typeof intent>): Promise<boolean> => {
+    if (pending.site === null) {
+      if (pending.plan === null) return false;
+      setNewScanPlan(pending.plan);
+      navigate('new-scan');
+      return true;
+    }
+    let profile: SiteProfile;
+    try {
+      const resolved = await apiRequest<{ profile: SiteProfile; created: boolean }>(
+        '/profiles/resolve',
+        { method: 'POST', body: JSON.stringify({ domain: pending.site }) },
+      );
+      profile = resolved.profile;
+      await loadProfiles(setProfiles);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Profile creation failed');
+      navigate('desktop');
+      return true;
+    }
+    setSelectedProfile(profile);
+    if (pending.plan !== null) {
+      setNewScanPlan(pending.plan);
+      navigate('new-scan');
+      return true;
+    }
+    try {
+      const scan = await apiRequest<Scan>(`/profiles/${profile.id}/free-check`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      onScanCreated(scan);
+    } catch (caught) {
+      // The free check is once per account and once per site. When it is
+      // spent, the scan form for this site is the next useful place — with
+      // the reason on top of it.
+      setError(caught instanceof Error ? caught.message : 'The free check could not start');
+      setNewScanPlan(null);
+      navigate('new-scan');
+    }
+    return true;
+  };
 
   const onAuthed = async (value: Account) => {
     setEmailAction(null);
@@ -503,13 +655,57 @@ function AppContent({
     setError(null);
     await loadProfiles(setProfiles);
     if (entryRoute.scanId !== null) {
-      await openScanById(entryRoute.scanId, entryRoute.screen === 'issues' ? 'issues' : 'auto');
+      await openScanById(entryRoute.scanId, scanRoutePreference(entryRoute.screen));
       return;
     }
+    const pending = intent;
+    setIntent(null);
+    // The owner is in the middle of something they asked for; the tour waits
+    // for their next visit (the account stays "pending" until it is seen).
+    if (pending !== null && (await followIntent(pending))) return;
     // Sign-in is a detour, not a destination: whoever followed a workspace link
     // gets that screen, and everyone else gets the workspace they signed in for.
     navigate(isWorkspaceScreen(entryRoute.screen) ? entryRoute.screen : 'desktop');
     if (value.onboarding?.status === 'pending') setTourOpen(true);
+  };
+
+  /**
+   * Runs a Partial scan's unfinished section once more and follows it on the
+   * progress screen. The API refuses a second retry and one after the purchase
+   * window, in words the alert can show as they are.
+   */
+  const retryScan = async (scanId: string): Promise<void> => {
+    try {
+      await apiRequest<{ scanId: string; status: string }>(
+        `/scans/${encodeURIComponent(scanId)}/retry`,
+        { method: 'POST', body: JSON.stringify({}) },
+      );
+      await openScanById(scanId);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The retry could not start');
+    }
+  };
+
+  const signOutLocally = (): void => {
+    setAccount(null);
+    setProfiles([]);
+    setSelectedScan(null);
+    setReportsProfile(null);
+    setSelectedProfile(null);
+    setVerifyBannerHidden(false);
+    // Back to the public home: staying on a workspace URL with no account
+    // would render the marketing page under /profiles.
+    navigate('home');
+  };
+
+  const resendFromBanner = async (): Promise<void> => {
+    if (account === null) return;
+    try {
+      await resendVerification(account.email);
+      setNotice(accountCopy[language].email.resent(account.email));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Email could not be sent');
+    }
   };
 
   const finishOnboarding = async (): Promise<void> => {
@@ -543,10 +739,11 @@ function AppContent({
     }
   };
 
-  const onScanCreated = (scan: Scan) => {
+  function onScanCreated(scan: Scan): void {
     setSelectedScan(scan);
+    setNewScanPlan(null);
     navigate('scan', scan.id);
-  };
+  }
 
   /** Opens a scan from the reports list, on whichever screen that scan has. */
   const openReport = (scan: Scan) => {
@@ -605,43 +802,71 @@ function AppContent({
       </div>
     );
   }
+  // Shown over whichever surface is current: "your account was deleted" is said
+  // on the home page the owner lands on.
+  const noticeElement = notice ? (
+    <Notice
+      message={notice}
+      onClose={clearNotice}
+      closeLabel={accountCopy[language].banner.dismiss}
+    />
+  ) : null;
+
   if (account === null) {
     return (
-      <HomeScreen
-        signedIn={false}
-        onStart={() => {
-          // A new owner starting a free check needs an account first, so the
-          // "run a free homepage check" CTA opens registration (not sign in).
-          setError(null);
-          setAuthMode('register');
-          navigate('auth');
-        }}
-        onLogin={() => {
-          setError(null);
-          setAuthMode('login');
-          navigate('auth');
-        }}
-        onRegister={() => {
-          setError(null);
-          setAuthMode('register');
-          navigate('auth');
-        }}
-        onOpenWorkspace={() => undefined}
-        scrollTo={entryRoute.scrollTo}
-        language={language}
-        onLanguageChange={changeLanguage}
-        authOpen={screen === 'auth'}
-        authAction={emailAction}
-        authMode={authMode}
-        authError={error}
-        onAuthError={setError}
-        onAuthed={onAuthed}
-        onCloseAuth={() => {
-          setError(null);
-          setEmailAction(null);
-          navigate('home');
-        }}
-      />
+      <>
+        {noticeElement}
+        <HomeScreen
+          signedIn={false}
+          onStart={() => {
+            // A new owner starting a free check needs an account first, so the
+            // "run a free homepage check" CTA opens registration (not sign in).
+            setError(null);
+            setIntent(null);
+            setAuthMode('register');
+            navigate('auth');
+          }}
+          onStartSite={(site) => {
+            setError(null);
+            setIntent(site === null ? null : { site, plan: null });
+            setAuthMode('register');
+            navigate('auth');
+          }}
+          onChoosePlan={(plan) => {
+            setError(null);
+            setIntent({ site: null, plan });
+            setAuthMode('register');
+            navigate('auth');
+          }}
+          pendingSite={intent?.site ?? null}
+          onLogin={() => {
+            setError(null);
+            setAuthMode('login');
+            navigate('auth');
+          }}
+          onRegister={() => {
+            setError(null);
+            setAuthMode('register');
+            navigate('auth');
+          }}
+          onOpenWorkspace={() => undefined}
+          scrollTo={entryRoute.scrollTo}
+          language={language}
+          onLanguageChange={changeLanguage}
+          authOpen={screen === 'auth'}
+          authAction={emailAction}
+          authMode={authMode}
+          authError={error}
+          onAuthError={setError}
+          onAuthed={onAuthed}
+          onCloseAuth={() => {
+            setError(null);
+            setEmailAction(null);
+            setIntent(null);
+            navigate('home');
+          }}
+        />
+      </>
     );
   }
 
@@ -651,6 +876,17 @@ function AppContent({
         signedIn
         accountEmail={account.email}
         onStart={() => navigate('desktop')}
+        onStartSite={(site) => {
+          if (site === null) {
+            navigate('desktop');
+            return;
+          }
+          void followIntent({ site, plan: null });
+        }}
+        onChoosePlan={(plan) => {
+          setNewScanPlan(plan);
+          navigate('new-scan');
+        }}
         onLogin={() => undefined}
         onRegister={() => undefined}
         onOpenWorkspace={() => navigate('desktop')}
@@ -669,6 +905,33 @@ function AppContent({
     );
   }
 
+  // The client report is a document, not a workspace window: it is drawn on its
+  // own so what prints is the report and nothing around it.
+  if (screen === 'print') {
+    const printScanId = selectedScan?.id ?? entryRoute.scanId;
+    if (printScanId !== null) {
+      return (
+        <>
+          {error ? (
+            <AlertDialog
+              message={error}
+              language={language}
+              floating
+              onClose={() => setError(null)}
+            />
+          ) : null}
+          <PrintReport
+            scanId={printScanId}
+            language={language}
+            onBack={() => navigate('results', printScanId)}
+            onError={setError}
+          />
+        </>
+      );
+    }
+  }
+
+  const ac = accountCopy[language];
   return (
     // `workspace-shell` makes the shell a column the desktop stretches to fill,
     // which is what gives the footer below a floor to sink to on a report short
@@ -688,18 +951,24 @@ function AppContent({
             <p>{copy[language].workspace.intro}</p>
           </div>
           <div className="button-row">
-            <span className="technical">{account.email}</span>
+            {/* The address is the way into the account: it is what the owner
+                recognises as "me", and the menu bar's width is already spent. */}
+            <button
+              type="button"
+              className={
+                screen === 'account'
+                  ? 'desktop__account-link technical is-active'
+                  : 'desktop__account-link technical'
+              }
+              aria-label={`${ac.navLabel}: ${account.email}`}
+              aria-current={screen === 'account' ? 'page' : undefined}
+              onClick={() => navigate('account')}
+            >
+              {account.email}
+            </button>
             <Button
               onClick={() => {
-                void apiRequest<null>('/auth/logout', { method: 'POST' }).then(() => {
-                  setAccount(null);
-                  setProfiles([]);
-                  setSelectedScan(null);
-                  setReportsProfile(null);
-                  // Back to the public home: staying on a workspace URL with no
-                  // account would render the marketing page under /profiles.
-                  navigate('home');
-                });
+                void apiRequest<null>('/auth/logout', { method: 'POST' }).then(signOutLocally);
               }}
               variant="danger"
             >
@@ -707,10 +976,61 @@ function AppContent({
             </Button>
           </div>
         </header>
-        {error ? <AlertDialog message={error} onClose={() => setError(null)} /> : null}
+        {account.emailVerified === false && !verifyBannerHidden && screen !== 'account' ? (
+          <div className="verify-banner" role="status">
+            <p>{ac.banner.body(account.email)}</p>
+            <div className="button-row">
+              <Button onClick={() => void resendFromBanner()}>{ac.banner.resend}</Button>
+              <Button onClick={() => setVerifyBannerHidden(true)}>{ac.banner.dismiss}</Button>
+            </div>
+          </div>
+        ) : null}
+        {error ? (
+          <AlertDialog
+            message={error}
+            language={language}
+            floating
+            onClose={() => setError(null)}
+          />
+        ) : null}
+        {noticeElement}
+        {screen === 'auth' && emailAction?.kind === 'reset' ? (
+          <AuthScreen
+            language={language}
+            onAuthed={onAuthed}
+            error={null}
+            onError={setError}
+            onBack={() => {
+              setEmailAction(null);
+              // A reset ends every session, this one included.
+              void apiRequest<Account>('/auth/me')
+                .then(() => navigate('desktop'))
+                .catch(signOutLocally);
+            }}
+            initialMode="login"
+            emailAction={emailAction}
+          />
+        ) : null}
+        {screen === 'account' ? (
+          <AccountScreen
+            account={account}
+            language={language}
+            onOpenScan={(scanId) => void openScanById(scanId)}
+            onDeleted={() => {
+              signOutLocally();
+              setNotice(ac.deletion.deleted);
+            }}
+            onNotice={setNotice}
+            onError={setError}
+          />
+        ) : null}
         {screen === 'desktop' ? (
           <DesktopScreen
             profiles={profiles}
+            onOpenScan={(scanId) => void openScanById(scanId)}
+            onRetryScan={retryScan}
+            onNotice={setNotice}
+            tourActive={tourOpen}
             onRefresh={async () => {
               await loadProfiles(setProfiles);
             }}
@@ -724,8 +1044,9 @@ function AppContent({
               setReportsProfile(profile);
               navigate('reports');
             }}
-            onNewScan={(profile) => {
+            onNewScan={(profile, plan) => {
               setSelectedProfile(profile);
+              setNewScanPlan(plan ?? null);
               navigate('new-scan');
             }}
             onError={setError}
@@ -741,7 +1062,10 @@ function AppContent({
             language={language}
             profile={reportsProfile}
             onOpenScan={openReport}
-            onNewScan={() => navigate('new-scan')}
+            onNewScan={() => {
+              setNewScanPlan(null);
+              navigate('new-scan');
+            }}
             onShowAll={() => {
               setReportsProfile(null);
               navigate('reports');
@@ -768,6 +1092,7 @@ function AppContent({
             internalFreeAccess={account.internalFreeAccess === true}
             language={language}
             onCreated={onScanCreated}
+            initialPlan={newScanPlan}
             onCheckoutStarted={startCheckout}
             onProfilesChanged={async () => {
               await loadProfiles(setProfiles);
@@ -793,15 +1118,38 @@ function AppContent({
             scan={selectedScan}
             language={language}
             onScan={updateSelectedScan}
-            onIssues={() =>
-              selectedScan ? navigate('issues', selectedScan.id) : navigate('reports')
-            }
+            onIssues={() => {
+              setIssueRuleFilter(null);
+              if (selectedScan) navigate('issues', selectedScan.id);
+              else navigate('reports');
+            }}
+            onOpenProblem={(ruleId) => {
+              setIssueRuleFilter(ruleId);
+              if (selectedScan) navigate('issues', selectedScan.id);
+            }}
+            onUpgrade={(scan) => {
+              const profile = profiles.find((candidate) => candidate.id === scan.profileId);
+              if (profile) setSelectedProfile(profile);
+              setNewScanPlan('Complete');
+              navigate('new-scan');
+            }}
+            onPrint={(scan) => navigate('print', scan.id)}
+            onRetry={(scan) => retryScan(scan.id)}
             onReports={() => navigate('reports')}
             onError={setError}
           />
         ) : null}
         {screen === 'issues' ? (
-          <IssuesScreen scan={selectedScan} language={language} onError={setError} />
+          <IssuesScreen
+            // Remounted per report and per problem, so a filter from one never
+            // leaks into another.
+            key={`${selectedScan?.id ?? 'none'}:${issueRuleFilter ?? ''}`}
+            scan={selectedScan}
+            language={language}
+            initialRuleId={issueRuleFilter}
+            onError={setError}
+            onNotice={setNotice}
+          />
         ) : null}
         {screen === 'integrations' ? (
           <IntegrationsScreen
@@ -832,6 +1180,7 @@ function AppContent({
             <a href="/faq">{copy[language].nav.faq}</a>
             <a href="/privacy">{copy[language].home.footer.privacyLink}</a>
             <a href="/terms">{copy[language].home.footer.termsLink}</a>
+            <a href="/terms#terms-paid">{copy[language].home.footer.refundLink}</a>
             <a href="/cookies">{copy[language].legal.cookies.title}</a>
             <a href="/blog">{copy[language].home.footer.fieldNotes}</a>
           </span>
@@ -846,241 +1195,15 @@ function AppContent({
 
 // ─── /integrations ────────────────────────────────────────────────────────────
 
-function AuthScreen(props: {
-  language: Language;
-  onAuthed: (account: Account) => Promise<void>;
-  error: string | null;
-  onError: (value: string | null) => void;
-  onBack: () => void;
-  initialMode: 'login' | 'register';
-  emailAction: { readonly kind: 'verify' | 'reset'; readonly token: string } | null;
-}) {
-  const [mode, setMode] = useState<'login' | 'register'>(props.initialMode);
-  const [forgotPassword, setForgotPassword] = useState(false);
-  const [resetDone, setResetDone] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'working' | 'verified'>(
-    'idle',
-  );
-  const verificationStarted = useRef(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
-  const isReset = props.emailAction?.kind === 'reset';
-  const isVerification = props.emailAction?.kind === 'verify';
-
-  useEffect(() => {
-    if (!isVerification || props.emailAction === null || verificationStarted.current) return;
-    verificationStarted.current = true;
-    setVerificationStatus('working');
-    void apiRequest<{ status: string }>(
-      `/auth/verify-email?token=${encodeURIComponent(props.emailAction.token)}`,
-    )
-      .then(() => setVerificationStatus('verified'))
-      .catch((caught) =>
-        props.onError(caught instanceof Error ? caught.message : 'Verification failed'),
-      );
-  }, [isVerification, props.emailAction, props.onError]);
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    props.onError(null);
-    try {
-      if (forgotPassword) {
-        await apiRequest<{ status: string }>('/auth/password-reset/request', {
-          method: 'POST',
-          body: JSON.stringify({ email }),
-        });
-        setSent(true);
-        return;
-      }
-      if (isReset && props.emailAction !== null) {
-        await apiRequest<{ status: string }>('/auth/password-reset/confirm', {
-          method: 'POST',
-          body: JSON.stringify({ token: props.emailAction.token, password }),
-        });
-        setResetDone(true);
-        return;
-      }
-      const account = await apiRequest<Account>(`/auth/${mode}`, {
-        method: 'POST',
-        body: JSON.stringify({ email, password, rememberMe }),
-      });
-      await props.onAuthed(account);
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Authentication failed');
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Window
-      title={
-        isVerification
-          ? 'FluxRadar — Verify email'
-          : isReset
-            ? 'FluxRadar — Set password'
-            : forgotPassword
-              ? 'FluxRadar — Reset password'
-              : mode === 'login'
-                ? 'FluxRadar — Sign in'
-                : 'FluxRadar — Create account'
-      }
-      className="window--dialog"
-      onClose={props.onBack}
-    >
-      <form className="stack" onSubmit={submit}>
-        <div>
-          <h1 id="auth-title" className="section-heading">
-            {isVerification
-              ? verificationStatus === 'verified'
-                ? 'Email verified'
-                : 'Verify your email'
-              : isReset
-                ? resetDone
-                  ? 'Password updated'
-                  : 'Set a new password'
-                : forgotPassword
-                  ? 'Reset your password'
-                  : 'Public web audit station'}
-          </h1>
-          <p className="muted">
-            {isVerification
-              ? verificationStatus === 'working'
-                ? 'Checking your one-time link…'
-                : verificationStatus === 'verified'
-                  ? 'Your email is verified. You can return to FluxRadar.'
-                  : 'The verification link is being checked.'
-              : isReset
-                ? resetDone
-                  ? 'Your password was changed. Sign in again with the new password.'
-                  : 'Choose a new password for your FluxRadar account.'
-                : forgotPassword
-                  ? sent
-                    ? 'If an account exists, a reset link has been sent. Check your inbox.'
-                    : 'Enter your account email. We never reveal whether an address is registered.'
-                  : 'Sign in to keep scan results and issue history in one workspace.'}
-          </p>
-        </div>
-        {!isVerification && !isReset ? (
-          <Field
-            label="Email"
-            name="email"
-            autoComplete={mode === 'login' ? 'username' : 'email'}
-            value={email}
-            onChange={setEmail}
-            type="email"
-            placeholder="operator@example.com"
-          />
-        ) : null}
-        {!isVerification && !forgotPassword && !sent && !resetDone ? (
-          <Field
-            label="Password"
-            name="password"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            value={password}
-            onChange={setPassword}
-            type="password"
-            placeholder="8+ characters"
-          />
-        ) : null}
-        {!isVerification && !isReset && !forgotPassword && !sent ? (
-          <>
-            <Checkbox
-              name="remember-me"
-              label={
-                props.language === 'uk' ? 'Запамʼятати вхід на 7 днів' : 'Remember me for 7 days'
-              }
-              checked={rememberMe}
-              onChange={setRememberMe}
-            />
-            <p className="muted">
-              {mode === 'login'
-                ? props.language === 'uk'
-                  ? 'Вхід використовує необхідний cookie. Докладніше: '
-                  : 'Sign-in uses a necessary cookie. Learn more: '
-                : props.language === 'uk'
-                  ? 'Створюючи акаунт, ви погоджуєтеся з умовами та підтверджуєте ознайомлення з політиками: '
-                  : 'By creating an account, you agree to the terms and acknowledge the policies: '}
-              <a href={`/terms?lang=${props.language}`}>{copy[props.language].legal.terms.title}</a>
-              {' · '}
-              <a href={`/privacy?lang=${props.language}`}>
-                {copy[props.language].legal.privacy.title}
-              </a>
-              {' · '}
-              <a href={`/cookies?lang=${props.language}`}>
-                {copy[props.language].legal.cookies.title}
-              </a>
-            </p>
-          </>
-        ) : null}
-        {!isVerification && isReset && !resetDone ? (
-          <Field
-            label="New password"
-            name="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={setPassword}
-            type="password"
-            placeholder="8+ characters"
-          />
-        ) : null}
-        <div className="button-row">
-          {!isVerification && !sent && !resetDone ? (
-            <Button type="submit" variant="primary" disabled={busy}>
-              {busy
-                ? 'Working…'
-                : isReset
-                  ? 'Update password'
-                  : forgotPassword
-                    ? 'Send reset link'
-                    : mode === 'login'
-                      ? 'Sign in'
-                      : 'Create account'}
-            </Button>
-          ) : null}
-          {isVerification || isReset || resetDone ? null : !forgotPassword ? (
-            <Button onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
-              {mode === 'login' ? 'Create account' : 'Back to sign in'}
-            </Button>
-          ) : (
-            <Button
-              onClick={() => {
-                setForgotPassword(false);
-                setSent(false);
-              }}
-            >
-              Back to sign in
-            </Button>
-          )}
-          <Button onClick={props.onBack}>Back to home</Button>
-        </div>
-        {mode === 'login' && !forgotPassword && !isVerification && !isReset ? (
-          <button
-            className="home__text-action"
-            type="button"
-            onClick={() => {
-              setForgotPassword(true);
-              props.onError(null);
-            }}
-          >
-            Forgot password?
-          </button>
-        ) : null}
-        {props.error ? (
-          <AlertDialog message={props.error} onClose={() => props.onError(null)} />
-        ) : null}
-      </form>
-    </Window>
-  );
-}
-
 function HomeScreen(props: {
   signedIn: boolean;
   accountEmail?: string;
   onStart: () => void;
+  /** The hero form: the site the visitor typed, or null for an empty field. */
+  onStartSite: (site: string | null) => void;
+  onChoosePlan: (plan: ChosenPlan) => void;
+  /** The site the visitor typed, named in the registration dialog. */
+  pendingSite?: string | null;
   onLogin: () => void;
   onRegister: () => void;
   onOpenWorkspace: () => void;
@@ -1186,10 +1309,12 @@ function HomeScreen(props: {
               emphasis={t.home.hero.titleEm}
             />
             <p className="home__lede">{t.home.hero.lede}</p>
+            <HeroSiteForm
+              language={props.language}
+              submitLabel={t.home.freeCta}
+              onStart={props.onStartSite}
+            />
             <div className="home__actions">
-              <Button variant="primary" onClick={props.onStart}>
-                {t.home.freeCta}
-              </Button>
               <button
                 className="home__text-action"
                 type="button"
@@ -1361,7 +1486,7 @@ function HomeScreen(props: {
               {t.pricing.publicOnly}
             </span>
           </div>
-          <PricingCards language={props.language} onChoose={props.onStart} />
+          <PricingCards language={props.language} onChoose={props.onChoosePlan} />
           <PricingExplainer language={props.language} />
         </section>
 
@@ -1387,6 +1512,7 @@ function HomeScreen(props: {
             <a href="/faq">{t.nav.faq}</a>
             <a href="/privacy">{t.home.footer.privacyLink}</a>
             <a href="/terms">{t.home.footer.termsLink}</a>
+            <a href="/terms#terms-paid">{t.home.footer.refundLink}</a>
             <a href="/cookies">{t.legal.cookies.title}</a>
             <a href="/blog">{t.home.footer.fieldNotes}</a>
             <span>{t.nav.system}</span>
@@ -1416,318 +1542,11 @@ function HomeScreen(props: {
               onBack={props.onCloseAuth}
               initialMode={props.authMode}
               emailAction={props.authAction}
+              pendingSite={props.pendingSite ? new URL(props.pendingSite).hostname : null}
             />
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function DesktopScreen(props: {
-  profiles: readonly SiteProfile[];
-  onRefresh: () => Promise<void>;
-  /** Called once a profile is gone, so screens still holding it can let it go. */
-  onProfileDeleted: (profile: SiteProfile) => void;
-  onSelectProfile: (profile: SiteProfile) => void;
-  onNewScan: (profile: SiteProfile) => void;
-  onError: (value: string) => void;
-  onOnboarding: () => void;
-  language: Language;
-}) {
-  const t = copy[props.language];
-  const [name, setName] = useState('');
-  const [industry, setIndustry] = useState('');
-  const [businessDescription, setBusinessDescription] = useState('');
-  const [offerings, setOfferings] = useState('');
-  const [region, setRegion] = useState('');
-  const [targetLanguages, setTargetLanguages] = useState('');
-  const [targetAudience, setTargetAudience] = useState('');
-  const [editingProfile, setEditingProfile] = useState<SiteProfile | null>(null);
-  /** The one row whose delete confirmation is open; opening another closes it. */
-  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
-  // The last name this form filled in from the address. Anything else in the
-  // name field was typed by the owner and is never overwritten.
-  const [suggestedName, setSuggestedName] = useState('');
-  const [domain, setDomain] = useState('');
-  const [domainError, setDomainError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  /**
-   * Keep the display name in step with the address until the owner takes it
-   * over: an empty name, or one this form suggested, follows what is typed;
-   * a name the owner edited stays exactly as they left it.
-   */
-  const updateSuggestedName = (address: string) => {
-    if (name !== '' && name !== suggestedName) return;
-    const next = siteNameFromAddress(address) ?? '';
-    setSuggestedName(next);
-    setName(next);
-  };
-
-  const resetForm = () => {
-    setEditingProfile(null);
-    setName('');
-    setSuggestedName('');
-    setDomain('');
-    setIndustry('');
-    setBusinessDescription('');
-    setOfferings('');
-    setRegion('');
-    setTargetLanguages('');
-    setTargetAudience('');
-    setDomainError(null);
-  };
-
-  const editProfile = (profile: SiteProfile) => {
-    setEditingProfile(profile);
-    setName(profile.name);
-    setSuggestedName('');
-    setDomain(profile.domain);
-    setIndustry(profile.industry ?? '');
-    setBusinessDescription(profile.businessDescription ?? '');
-    setOfferings(profile.offerings ?? '');
-    setRegion(profile.region ?? '');
-    setTargetLanguages(profile.targetLanguages ?? profile.language ?? '');
-    setTargetAudience(profile.targetAudience ?? '');
-    setDomainError(null);
-  };
-
-  const optionalText = (value: string): string | undefined => {
-    const trimmed = value.trim();
-    return trimmed === '' ? undefined : trimmed;
-  };
-
-  const create = async (event: FormEvent) => {
-    event.preventDefault();
-    const normalized = normalizeSiteAddress(domain);
-    if (!normalized.ok) {
-      setDomainError(t.workspace.siteAddressError);
-      return;
-    }
-    setDomainError(null);
-    setBusy(true);
-    try {
-      const context = {
-        industry: optionalText(industry),
-        businessDescription: optionalText(businessDescription),
-        offerings: optionalText(offerings),
-        region: optionalText(region),
-        targetLanguages: optionalText(targetLanguages),
-        targetAudience: optionalText(targetAudience),
-      };
-      await apiRequest<SiteProfile>(
-        editingProfile === null ? '/profiles' : `/profiles/${editingProfile.id}`,
-        {
-          method: editingProfile === null ? 'POST' : 'PATCH',
-          body: JSON.stringify(
-            editingProfile === null
-              ? { name: name.trim(), domain: normalized.origin, ...context }
-              : {
-                  name: name.trim(),
-                  domain: normalized.origin,
-                  expectedProfileConfigVersion: editingProfile.scanConfigVersion,
-                  ...Object.fromEntries(
-                    Object.entries(context).map(([key, value]) => [key, value ?? null]),
-                  ),
-                },
-          ),
-        },
-      );
-      resetForm();
-      await props.onRefresh();
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Profile creation failed');
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="stack">
-      <div className="desktop__grid">
-        <Window title={t.workspace.sites}>
-          <Panel title={t.workspace.registered}>
-            <div>
-              {props.profiles.length === 0 ? (
-                // No call to action here: the add-profile form with its own
-                // save button is already on this screen, so a second "Add
-                // profile" button would only point at what is next to it.
-                <EmptyState title={t.workspace.noSites} description={t.workspace.noSitesHelp} />
-              ) : (
-                props.profiles.map((profile) => {
-                  const isDeleting = deletingProfileId === profile.id;
-                  const deletionId = `profile-deletion-${profile.id}`;
-                  return (
-                    <div className="profile-row" key={profile.id}>
-                      <div>
-                        <strong>{profile.name}</strong>
-                        <span className="profile-row__domain">{profile.domain}</span>
-                      </div>
-                      <div className="profile-row__actions">
-                        <Button onClick={() => props.onNewScan(profile)} variant="primary">
-                          {t.workspace.newScan}
-                        </Button>
-                        <Button onClick={() => props.onSelectProfile(profile)}>
-                          {t.workspace.inspect}
-                        </Button>
-                        <Button onClick={() => editProfile(profile)}>
-                          {t.workspace.editProfile}
-                        </Button>
-                        <Button
-                          variant="danger"
-                          onClick={() => setDeletingProfileId(isDeleting ? null : profile.id)}
-                          aria-expanded={isDeleting}
-                          aria-controls={deletionId}
-                        >
-                          {t.workspace.deleteProfileAction}
-                        </Button>
-                      </div>
-                      {isDeleting ? (
-                        <div className="profile-row__deletion" id={deletionId}>
-                          <ProfileDeletion
-                            profile={profile}
-                            language={props.language}
-                            onDeleted={async (deleted) => {
-                              setDeletingProfileId(null);
-                              if (editingProfile?.id === deleted.id) resetForm();
-                              props.onProfileDeleted(deleted);
-                              await props.onRefresh();
-                            }}
-                            onError={props.onError}
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </Panel>
-          <Panel title={editingProfile === null ? t.workspace.addSite : t.workspace.editProfile}>
-            <form className="stack" onSubmit={create}>
-              <p className="muted panel-help">{t.workspace.addSiteHelp}</p>
-              <Field
-                label={t.workspace.displayName}
-                name="profile-name"
-                autoComplete="off"
-                value={name}
-                onChange={setName}
-                placeholder={t.workspace.displayNamePlaceholder}
-              />
-              <Field
-                label={t.workspace.siteAddressLabel}
-                name="profile-domain"
-                autoComplete="url"
-                technical
-                value={domain}
-                onChange={(value) => {
-                  setDomain(value);
-                  if (domainError !== null) setDomainError(null);
-                  updateSuggestedName(value);
-                }}
-                placeholder={t.workspace.siteAddressPlaceholder}
-                hint={t.workspace.siteAddressHint}
-                error={domainError ?? undefined}
-                data-tour-target="profile-domain"
-              />
-              <div className="onboarding-note">
-                <strong>{t.workspace.profileContextHeading}</strong>
-                <p>{t.workspace.profileContextHelp}</p>
-              </div>
-              <Field
-                label={t.workspace.businessType}
-                name="profile-industry"
-                autoComplete="off"
-                value={industry}
-                onChange={setIndustry}
-                placeholder={t.workspace.businessTypePlaceholder}
-                hint={t.workspace.businessTypeHint}
-              />
-              <TextAreaField
-                label={t.workspace.businessDescription}
-                name="profile-description"
-                autoComplete="off"
-                value={businessDescription}
-                onChange={setBusinessDescription}
-                placeholder={t.workspace.businessDescriptionPlaceholder}
-                hint={t.workspace.businessDescriptionHint}
-              />
-              <TextAreaField
-                label={t.workspace.offerings}
-                name="profile-offerings"
-                autoComplete="off"
-                value={offerings}
-                onChange={setOfferings}
-                placeholder={t.workspace.offeringsPlaceholder}
-                hint={t.workspace.offeringsHint}
-              />
-              <Field
-                label={t.workspace.operatingRegion}
-                name="profile-region"
-                autoComplete="off"
-                value={region}
-                onChange={setRegion}
-                placeholder={t.workspace.operatingRegionPlaceholder}
-                hint={t.workspace.operatingRegionHint}
-              />
-              <TargetLanguagesField
-                label={t.workspace.targetLanguages}
-                value={targetLanguages}
-                onChange={setTargetLanguages}
-                placeholder={t.workspace.targetLanguagesPlaceholder}
-                hint={t.workspace.targetLanguagesHint}
-                language={props.language}
-              />
-              <TextAreaField
-                label={t.workspace.targetAudience}
-                name="profile-audience"
-                autoComplete="off"
-                value={targetAudience}
-                onChange={setTargetAudience}
-                placeholder={t.workspace.targetAudiencePlaceholder}
-                hint={t.workspace.targetAudienceHint}
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={busy || name.trim() === ''}
-                data-tour-target="save-profile"
-              >
-                {busy
-                  ? t.workspace.saving
-                  : editingProfile === null
-                    ? t.workspace.saveProfile
-                    : t.workspace.updateProfile}
-              </Button>
-              {editingProfile !== null ? (
-                <Button type="button" onClick={resetForm}>
-                  {t.workspace.cancelEdit}
-                </Button>
-              ) : null}
-            </form>
-          </Panel>
-        </Window>
-        <Window title={t.workspace.notes} terminal>
-          <Terminal
-            lines={[
-              'ready: public-origin mode',
-              'free: one homepage check',
-              'basic: seo + ai seo / geo',
-              'complete: all available modules + export',
-            ]}
-          />
-          {/* Replaces a hardcoded "Subscription model" panel that stated three
-              constants and read nothing. This one reports the account's own
-              last check, how many there have been and what Google data the
-              checked site is linked to — and says so in its own words when any
-              of that is still loading, absent or unreadable. */}
-          <SiteStatusPanel language={props.language} profiles={props.profiles} />
-          <div className="button-row">
-            <Button variant="primary" onClick={props.onOnboarding}>
-              {t.workspace.guide}
-            </Button>
-          </div>
-        </Window>
-      </div>
     </div>
   );
 }
@@ -1768,6 +1587,12 @@ function NewScanScreen(props: {
   onProfilesChanged: () => Promise<void>;
   onClose: () => void;
   onError: (value: string) => void;
+  /**
+   * The plan the owner already chose — on the pricing cards before signing up,
+   * or with "Run Complete for this site" on a Free report. Applied once, and
+   * only when that plan can actually be bought here.
+   */
+  initialPlan?: 'Free' | 'Basic' | 'Complete' | null;
 }) {
   const t = copy[props.language];
   // Whether a real checkout exists is a server fact, not a build-time flag: an
@@ -1819,6 +1644,11 @@ function NewScanScreen(props: {
   const [savedConfigVersion, setSavedConfigVersion] = useState<number | null>(
     props.selectedProfile?.scanConfigVersion ?? null,
   );
+  // Whether the compatibility read below is still in flight. "Loading" used to
+  // be inferred from the absence of a saved fingerprint, which every profile
+  // that never stored a configuration has for good — so a brand-new profile
+  // said "Configuration is loading…" forever.
+  const [configLoading, setConfigLoading] = useState(false);
   const usingSavedProfile = target !== NEW_ADDRESS_TARGET;
   const resolvedProfileVersion = useRef<number | undefined>(undefined);
   const selected = props.profiles.find((profile) => profile.id === target);
@@ -1850,9 +1680,11 @@ function NewScanScreen(props: {
       setCarriedOver(false);
       setSavedConfigFingerprint(null);
       setSavedConfigVersion(null);
+      setConfigLoading(false);
       return;
     }
     if (selected?.scanConfig != null) {
+      setConfigLoading(false);
       const restoredPlan = paidAvailable ? selected.scanConfig.plan : 'Free';
       setPlan(restoredPlan);
       setScope(
@@ -1864,6 +1696,7 @@ function NewScanScreen(props: {
       return;
     }
     let cancelled = false;
+    setConfigLoading(true);
     void (async () => {
       let latest: Scan | undefined;
       try {
@@ -1888,11 +1721,23 @@ function NewScanScreen(props: {
       setCarriedOver(latest !== undefined);
       setSavedConfigFingerprint(null);
       setSavedConfigVersion(null);
+      setConfigLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [paidAvailable, props.internalFreeAccess, selected, target, usingSavedProfile]);
+
+  // After the profile's own settings above, so the owner's explicit choice wins.
+  const initialPlanApplied = useRef(false);
+  const { initialPlan } = props;
+  useEffect(() => {
+    if (initialPlanApplied.current || initialPlan == null) return;
+    if (initialPlan !== 'Free' && !paidAvailable) return;
+    initialPlanApplied.current = true;
+    setPlan(initialPlan);
+    setScope((current) => clampScopeToPlan(current, initialPlan));
+  }, [initialPlan, paidAvailable, target]);
 
   /**
    * The profile this scan runs against, creating one from a typed address.
@@ -2085,11 +1930,13 @@ function NewScanScreen(props: {
       : t.newScan.noAddress;
   const configurationState = !usingSavedProfile
     ? 'new'
-    : savedConfigFingerprint === null
+    : configLoading
       ? 'loading'
-      : configurationDirty
-        ? 'dirty'
-        : 'saved';
+      : savedConfigFingerprint === null
+        ? 'new'
+        : configurationDirty
+          ? 'dirty'
+          : 'saved';
   const configurationStatusLabel =
     configurationState === 'dirty'
       ? t.newScan.configurationUnsaved

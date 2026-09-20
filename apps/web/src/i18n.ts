@@ -1,7 +1,7 @@
 import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
-import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
+import { BASIC_PRICE, BASIC_PRICE_USD, COMPLETE_PRICE, COMPLETE_PRICE_USD } from './tariff-prices';
 import { tourStepCopy } from './tour-steps';
 
 export type Language = 'en' | 'uk';
@@ -253,7 +253,7 @@ export const copy = {
       deleteProfileFailed: 'The profile could not be deleted. Try again in a moment.',
       saving: 'Saving…',
       newScan: 'New scan',
-      inspect: 'Inspect',
+      inspect: 'Reports',
       notes: 'Operator notes',
       guide: 'Open setup guide',
       logOut: 'Log out',
@@ -385,6 +385,7 @@ export const copy = {
         coverageLink: 'Audit coverage',
         privacyLink: 'Privacy policy',
         termsLink: 'Terms of service',
+        refundLink: 'Refund policy',
         fieldNotes: 'Field notes',
       },
     },
@@ -437,9 +438,9 @@ export const copy = {
       faqLink: 'Read the FAQ →',
       cards: {
         basic: {
-          eyebrow: 'BASIC / SEARCH + AI VISIBILITY',
+          eyebrow: 'FLUXRADAR BASIC AUDIT / SEARCH + AI VISIBILITY',
           title: 'Basic',
-          price: BASIC_PRICE,
+          price: BASIC_PRICE_USD,
           description: 'One report on how search engines and AI systems read your website.',
           included:
             'The full SEO analysis — 16 checks covering titles, meta descriptions, headings, canonicals, robots.txt, sitemap, redirects, broken links, duplicate URLs, structured data and social previews — plus AI crawler readiness: which AI crawlers your robots.txt allows and whether your pages are machine-readable.',
@@ -450,9 +451,9 @@ export const copy = {
           limits: 'One scan of one website · up to 5,000 crawled pages · results kept for 30 days.',
         },
         complete: {
-          eyebrow: 'COMPLETE / EVERY MODULE',
+          eyebrow: 'FLUXRADAR COMPLETE AUDIT / EVERY MODULE',
           title: 'Complete',
-          price: COMPLETE_PRICE,
+          price: COMPLETE_PRICE_USD,
           description: 'Everything FluxRadar can read about a public website, in one report.',
           included:
             'Everything in Basic plus security (public OWASP ASVS profile), accessibility (WCAG 2.2 AA), performance, reliability, privacy and consent, and content quality — with the Issue Center, scan history and JSON/CSV export. Every module FluxRadar runs is already in this price; there is nothing extra to add at checkout.',
@@ -495,8 +496,8 @@ export const copy = {
           },
           price: {
             label: 'What you pay',
-            basic: `${BASIC_PRICE}, once, for one scan of one website.`,
-            complete: `${COMPLETE_PRICE}, once, for one scan of one website.`,
+            basic: `${BASIC_PRICE_USD}, once, for one scan of one website.`,
+            complete: `${COMPLETE_PRICE_USD}, once, for one scan of one website.`,
           },
           difference: {
             label: 'The difference in one line',
@@ -655,6 +656,7 @@ export const copy = {
       finishedAt: 'Finished {time}.',
       finishedUnknown: 'The scan has finished processing.',
       running: 'Checking your site — {done} of {total} audit sections done.',
+      runningPreparing: 'Checking your site — preparing the audit sections…',
       sectionsTitle: 'What we’re checking',
       sectionsPreparing: 'Getting your checks ready…',
       sectionsLabel: 'Audit sections',
@@ -1365,7 +1367,7 @@ export const copy = {
       deleteProfileFailed: 'Не вдалося видалити профіль. Спробуйте ще раз трохи згодом.',
       saving: 'Збереження…',
       newScan: 'Нова перевірка',
-      inspect: 'Переглянути',
+      inspect: 'Звіти',
       notes: 'Нотатки оператора',
       guide: 'Відкрити інструкцію',
       logOut: 'Вийти',
@@ -1498,6 +1500,7 @@ export const copy = {
         coverageLink: 'Покриття аудиту',
         privacyLink: 'Політика приватності',
         termsLink: 'Умови використання',
+        refundLink: 'Політика повернень',
         fieldNotes: 'Нотатки з практики',
       },
     },
@@ -1550,9 +1553,9 @@ export const copy = {
       faqLink: 'Читати FAQ →',
       cards: {
         basic: {
-          eyebrow: 'BASIC / ПОШУК + AI',
+          eyebrow: 'FLUXRADAR BASIC AUDIT / ПОШУК + AI',
           title: 'Basic',
-          price: BASIC_PRICE,
+          price: BASIC_PRICE_USD,
           description: 'Один звіт про те, як ваш сайт читають пошукові системи та AI-системи.',
           included:
             'Повний SEO-аналіз — 16 перевірок: заголовки, meta description, структура заголовків, канонічні теги, robots.txt, мапа сайту, редиректи, биті посилання, дублікати адрес, структуровані дані та соціальні прев’ю — плюс готовність до AI-роботів: яким AI-роботам дозволяє ваш robots.txt і чи придатні ваші сторінки для машинного читання.',
@@ -1563,9 +1566,9 @@ export const copy = {
           limits: 'Одна перевірка одного сайту · до 5 000 сторінок обходу · результати 30 днів.',
         },
         complete: {
-          eyebrow: 'COMPLETE / УСІ МОДУЛІ',
+          eyebrow: 'FLUXRADAR COMPLETE AUDIT / УСІ МОДУЛІ',
           title: 'Complete',
-          price: COMPLETE_PRICE,
+          price: COMPLETE_PRICE_USD,
           description: 'Усе, що FluxRadar може прочитати про публічний сайт, в одному звіті.',
           included:
             'Усе з Basic плюс безпека (публічний профіль OWASP ASVS), доступність (WCAG 2.2 AA), продуктивність, надійність, приватність і згода та якість контенту — разом з Issue Center, історією перевірок і експортом JSON/CSV. Усі модулі, які запускає FluxRadar, уже входять у цю ціну; нічого додавати на етапі оплати не потрібно.',
@@ -1607,8 +1610,8 @@ export const copy = {
           },
           price: {
             label: 'Скільки коштує',
-            basic: `${BASIC_PRICE}, один раз, за одну перевірку одного сайту.`,
-            complete: `${COMPLETE_PRICE}, один раз, за одну перевірку одного сайту.`,
+            basic: `${BASIC_PRICE_USD}, один раз, за одну перевірку одного сайту.`,
+            complete: `${COMPLETE_PRICE_USD}, один раз, за одну перевірку одного сайту.`,
           },
           difference: {
             label: 'Різниця в одному рядку',
@@ -1769,6 +1772,7 @@ export const copy = {
       finishedAt: 'Завершено: {time}.',
       finishedUnknown: 'Перевірку завершено.',
       running: 'Перевіряємо ваш сайт — готово {done} з {total} розділів аудиту.',
+      runningPreparing: 'Перевіряємо ваш сайт — готуємо розділи аудиту…',
       sectionsTitle: 'Що ми перевіряємо',
       sectionsPreparing: 'Готуємо ваші перевірки…',
       sectionsLabel: 'Розділи аудиту',

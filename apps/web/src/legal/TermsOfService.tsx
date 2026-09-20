@@ -1,9 +1,19 @@
-import type { JSX } from 'react';
+import { useEffect, type JSX } from 'react';
 
 import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink } from './SharedLegal';
 
 export function TermsOfService({ language }: { readonly language: Language }): JSX.Element {
+  // The footer's refund link points straight at the purchases section, and the
+  // browser looks for that anchor before this document has rendered. The jump
+  // the link promised is made here, once the sections exist. Same reason as the
+  // one in `Checks`.
+  useEffect(() => {
+    const anchor = window.location.hash.slice(1);
+    if (!anchor.startsWith('terms-')) return;
+    document.getElementById(anchor)?.scrollIntoView({ block: 'start' });
+  }, []);
+
   return language === 'uk' ? <UkrainianTerms /> : <EnglishTerms />;
 }
 

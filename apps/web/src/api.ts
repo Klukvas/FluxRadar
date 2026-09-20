@@ -198,10 +198,20 @@ export interface Scan {
   readonly profileConfigVersion?: number;
   readonly rulesetVersion: string;
   readonly progress: { readonly completedModules: number; readonly totalModules: number };
+  /**
+   * Retries already used. A Partial scan may retry one unfinished section once
+   * (`moduleRetryCount < 1` on the server); absent from an older API.
+   */
+  readonly retry?: { readonly platform: number; readonly module: number };
   readonly startedAt: string | null;
   readonly completedAt: string | null;
   readonly createdAt: string;
   readonly modules: readonly ScanModule[];
+}
+
+/** Whether a finished scan can still retry one unfinished section. */
+export function canRetrySection(scan: Pick<Scan, 'status' | 'retry'>): boolean {
+  return scan.status === 'Partial' && (scan.retry?.module ?? 0) < 1;
 }
 
 export interface Issue {
@@ -235,6 +245,60 @@ export interface Issue {
   readonly rulePenalty: number;
   readonly scoreDelta: number;
   readonly observedAt: string;
+}
+
+/** One problem in a report: every finding of one rule, as `/issues/summary` folds them. */
+export interface IssueRuleGroup {
+  readonly ruleId: string;
+  readonly module: string;
+  readonly severity: string;
+  readonly issues: number;
+  /** Findings of this rule still asking for work: New, Acknowledged or Reopened. */
+  readonly openIssues: number;
+}
+
+export interface IssueSummary {
+  readonly total: number;
+  readonly open: number;
+  readonly bySeverity: Readonly<Record<string, number>>;
+  /** Most urgent first; within a severity, the rule with the most open findings first. */
+  readonly groups: readonly IssueRuleGroup[];
+}
+
+export interface ChangedRule {
+  readonly ruleId: string;
+  readonly module: string;
+  readonly severity: string;
+  readonly count: number;
+}
+
+/** What a report changed against the previous finished scan of the same profile and plan. */
+export interface ScanChanges {
+  readonly previous: {
+    readonly id: string;
+    readonly plan: string;
+    readonly completedAt: string | null;
+  } | null;
+  readonly introduced: number;
+  readonly fixed: number;
+  readonly persisting: number;
+  readonly introducedByRule: readonly ChangedRule[];
+  readonly fixedByRule: readonly ChangedRule[];
+}
+
+/** One purchase on the account screen. `amount` is what the card was charged. */
+export interface Purchase {
+  readonly id: string;
+  readonly plan: 'Basic' | 'Complete' | string;
+  readonly status: string;
+  readonly amount: number;
+  readonly currency: string;
+  readonly createdAt: string;
+  readonly domain: string;
+  readonly profileName: string;
+  readonly entitlementExpiresAt: string | null;
+  readonly scanId: string | null;
+  readonly scanStatus: string | null;
 }
 
 export interface GeoObservation {

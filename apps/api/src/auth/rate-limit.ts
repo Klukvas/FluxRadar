@@ -54,6 +54,10 @@ export const EMAIL_ACTION_LIMIT = 5;
 export const EMAIL_ACTION_WINDOW_MS = 60 * 60 * 1000;
 export const EMAIL_IP_ACTION_LIMIT = 30;
 export const EMAIL_TOKEN_ACTION_LIMIT = 20;
+// Wrong current passwords on a signed-in password change: the same budget as a
+// login, so a stolen session cannot be used to brute-force the password.
+export const PASSWORD_CHANGE_LIMIT = 5;
+export const PASSWORD_CHANGE_WINDOW_MS = 15 * 60 * 1000;
 export const SCAN_ACTION_LIMIT = 10;
 /** Один адрес может стоять за целой командой; аккаунтный лимит держит абьюз. */
 export const SCAN_ACTION_IP_LIMIT = 40;
@@ -65,6 +69,15 @@ export const SCAN_ACTION_WINDOW_MS = 10 * 60 * 1000;
 export const EXPORT_ACTION_LIMIT = 30;
 export const EXPORT_ACTION_IP_LIMIT = 90;
 export const EXPORT_ACTION_WINDOW_MS = 10 * 60 * 1000;
+/**
+ * A support request is open to guests and lands in a person's Telegram channel,
+ * so the ceiling per sender (account, or a guest's typed address) is low. The
+ * address ceiling is higher for the usual NAT reason, and still stops one client
+ * from filling the channel by typing a new address each time.
+ */
+export const SUPPORT_REQUEST_LIMIT = 3;
+export const SUPPORT_REQUEST_IP_LIMIT = 10;
+export const SUPPORT_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 export const WEBHOOK_LIMIT = 6000;
 export const WEBHOOK_WINDOW_MS = 60 * 1000;
 export const RATE_LIMIT_MAX_TRACKED_KEYS = 10_000;

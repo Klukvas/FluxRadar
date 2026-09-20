@@ -42,6 +42,7 @@ describe('startup integration diagnostics', () => {
       'pagespeed',
       'crux',
       'resend',
+      'telegram',
       'google',
       'bing',
       'fastspring',
@@ -65,6 +66,21 @@ describe('startup integration diagnostics', () => {
     expect(statusOf({ RESEND_API_KEY: 'key', RESEND_FROM_EMAIL: 'a@b.c' }, 'resend')).toBe(
       'configured',
     );
+  });
+
+  it('reports a half-configured Telegram support pair', () => {
+    expect(statusOf({ TELEGRAM_SUPPORT_CHAT_ID: '@fluxradar_support' }, 'telegram')).toBe(
+      'invalid',
+    );
+    expect(
+      statusOf(
+        {
+          TELEGRAM_BOT_TOKEN: '123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsawQ',
+          TELEGRAM_SUPPORT_CHAT_ID: '-1001234567890',
+        },
+        'telegram',
+      ),
+    ).toBe('configured');
   });
 
   it('reports a retired Anthropic model as invalid once a key is present', () => {

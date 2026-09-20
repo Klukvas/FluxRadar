@@ -1,0 +1,66 @@
+/* The home page's address field: the first thing a visitor types. It sits on
+   the dark hero, so it takes the hero's terminal-green primary button and a
+   light field with a hard 1px edge, like the rest of the page's controls. */
+
+.home__site-form {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+  margin-top: 30px;
+}
+.home__site-label {
+  color: #e2e8f0;
+  font: 11px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.home__site-row {
+  display: flex;
+  gap: 8px;
+}
+.home__site-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--term-bg);
+  background: #fff;
+  color: var(--plat-900);
+  font-size: 15px;
+}
+.home__site-input[aria-invalid='true'] {
+  outline: 2px solid var(--term-red);
+  outline-offset: 1px;
+}
+.home__site-form .button--primary {
+  min-height: 32px;
+  background: var(--term-green);
+  color: var(--term-bg);
+  border-color: var(--term-bg);
+  white-space: nowrap;
+}
+.home__site-form .button--primary:hover:not(:disabled) {
+  background: #b8ffc8;
+}
+.home__site-hint {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+.home__site-hint--error {
+  color: #ffd9d4;
+  font-weight: 700;
+}
+/* The "see what you get" link moves under the form. */
+.home__site-form + .home__actions {
+  margin-top: 14px;
+}
+
+@media (max-width: 699px) {
+  .home__site-row {
+    flex-direction: column;
+  }
+  .home__site-form .button--primary {
+    width: 100%;
+  }
+}

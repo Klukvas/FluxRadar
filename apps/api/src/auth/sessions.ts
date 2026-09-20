@@ -46,3 +46,21 @@ export async function findSessionAccountId(
 export async function deleteSessionByToken(prisma: PrismaClient, token: string): Promise<void> {
   await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
 }
+
+/**
+ * Signs the account out everywhere except the session that asked. A password
+ * change is the moment an owner who suspects someone else is signed in acts on
+ * it, so the other sessions must end — but not the one they are looking at.
+ */
+export async function deleteOtherSessions(
+  prisma: PrismaClient,
+  accountId: string,
+  keepToken: string | null,
+): Promise<void> {
+  await prisma.session.deleteMany({
+    where: {
+      accountId,
+      ...(keepToken === null ? {} : { tokenHash: { not: hashToken(keepToken) } }),
+    },
+  });
+}

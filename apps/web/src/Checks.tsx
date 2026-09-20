@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 import { MenuBar, CreatedByFluxLab } from './components';
 import { CHECKS_INDEX_RULE_BEFORE, type ChecksBullet } from './checks-copy';
@@ -15,6 +15,14 @@ export function AuditCoverageScreen(props: {
   signedIn?: boolean;
 }) {
   const t = copy[props.language].checks;
+  // A finding in a report links to the section that explains its check. The
+  // page renders after the browser has already looked for the anchor, so the
+  // jump the link promised is made here once the section exists.
+  useEffect(() => {
+    const anchor = window.location.hash.slice(1);
+    if (!anchor.startsWith('checks-')) return;
+    document.getElementById(anchor)?.scrollIntoView({ block: 'start' });
+  }, []);
 
   return (
     <div className="app-shell legal-shell">

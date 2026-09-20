@@ -56,8 +56,12 @@ function openAs(url: string, isSignedIn: boolean): ReturnType<typeof vi.fn> {
   return fetchMock;
 }
 
+// The menu is named in the page's language, so a Ukrainian page is found by its
+// Ukrainian name.
+const SITE_MENU = /^(Site menu|Меню сайту)$/;
+
 function siteMenu(): HTMLElement {
-  return screen.getByRole('navigation', { name: 'Site menu' });
+  return screen.getByRole('navigation', { name: SITE_MENU });
 }
 
 afterEach(() => {

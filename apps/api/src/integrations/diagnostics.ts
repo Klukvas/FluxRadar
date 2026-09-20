@@ -10,6 +10,7 @@
 import { readFastSpringConfig } from '../billing/fastspring/config.ts';
 import { readResendConfig } from '../email/resend-config.ts';
 import type { ApiLogger } from '../http/logger.ts';
+import { readTelegramConfig } from '../support/telegram-config.ts';
 import { readAnthropicConfig } from './anthropic-config.ts';
 import { readObjectStorageConfig } from './object-storage-config.ts';
 import { readOAuthConfig } from './oauth-config.ts';
@@ -56,6 +57,9 @@ export function readIntegrationStatuses(
     // Optional as a pair, and reported — never fatal: a deployment that cannot
     // send email can still sell and run scans (email/resend-config.ts).
     status('resend', readResendConfig(env)),
+    // Optional as a pair and never fatal either: without it the support form is
+    // not offered, and everything else works (support/telegram-config.ts).
+    status('telegram', readTelegramConfig(env)),
     status('google', readOAuthConfig('google', env)),
     status('bing', readOAuthConfig('bing', env)),
     status('fastspring', readFastSpringConfig(env)),

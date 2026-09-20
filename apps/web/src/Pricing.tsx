@@ -5,7 +5,10 @@ import { copy, type Language } from './i18n';
 // screen to navigate to, so everything a buyer needs to choose between Basic
 // and Complete has to be readable in one place.
 
-export function PricingCards(props: { language: Language; onChoose: () => void }) {
+/** A plan chosen on the pricing cards, carried through sign-up to the scan form. */
+export type ChosenPlan = 'Basic' | 'Complete';
+
+export function PricingCards(props: { language: Language; onChoose: (plan: ChosenPlan) => void }) {
   const t = copy[props.language].pricing;
   return (
     <div className="home__pricing-grid">
@@ -32,7 +35,7 @@ export function PricingCards(props: { language: Language; onChoose: () => void }
             <dd>{t.cards.basic.limits}</dd>
           </div>
         </dl>
-        <Button onClick={props.onChoose}>{t.chooseBasic}</Button>
+        <Button onClick={() => props.onChoose('Basic')}>{t.chooseBasic}</Button>
       </article>
       <article className="home__plan home__plan--complete">
         <span className="home__card-index">{t.cards.complete.eyebrow}</span>
@@ -53,7 +56,7 @@ export function PricingCards(props: { language: Language; onChoose: () => void }
             <dd>{t.cards.complete.limits}</dd>
           </div>
         </dl>
-        <Button variant="primary" onClick={props.onChoose}>
+        <Button variant="primary" onClick={() => props.onChoose('Complete')}>
           {t.chooseComplete}
         </Button>
       </article>
