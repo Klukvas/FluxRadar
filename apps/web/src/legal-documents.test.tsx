@@ -63,6 +63,10 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/production adapter uses Anthropic/i);
     expect(policy).toHaveTextContent(/OpenAI.*not used by the current production adapter/is);
+    // D-232: the Action Plan is its own AI purpose, sent only on the owner's click.
+    expect(policy).toHaveTextContent(
+      /AI Action Plan.*until the owner presses the button.*Evidence excerpts, screenshots and traces are\s+not sent.*Analytics section/is,
+    );
     // The Query Ideas generator that sent Search Console queries to the AI
     // provider was removed; a policy still describing it would disclose a
     // transfer of Google user data the product no longer makes.
