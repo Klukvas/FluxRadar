@@ -13,9 +13,12 @@ fluxradar.net {
         # FastSpring popup checkout (docs/FASTSPRING.md §5): the Store Builder
         # Library is served from sbl.onfastspring.com, renders the checkout in an
         # iframe on the storefront host, and talks to that host from this page.
-        # Those three origins are the only additions — no wildcard, no inline
-        # script, and `frame-ancestors 'none'` still forbids framing FluxRadar.
-        Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://sbl.onfastspring.com; style-src 'self' 'unsafe-inline' https://sbl.onfastspring.com; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*.onfastspring.com; frame-src https://*.onfastspring.com"
+        # Google Analytics 4 (docs/DEPLOYMENT.md, "Content Security Policy"):
+        # gtag.js from exactly www.googletagmanager.com, and hits to Google's
+        # regional collection hosts — only once a visitor allows analytics.
+        # No wildcard script source, no inline script, and
+        # `frame-ancestors 'none'` still forbids framing FluxRadar.
+        Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://sbl.onfastspring.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://sbl.onfastspring.com; img-src 'self' data: https://*.google-analytics.com https://*.googletagmanager.com; font-src 'self' data:; connect-src 'self' https://*.onfastspring.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; frame-src https://*.onfastspring.com"
         Permissions-Policy "camera=(), microphone=(), geolocation=()"
         -Server
     }

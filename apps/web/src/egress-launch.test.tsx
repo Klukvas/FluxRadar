@@ -69,7 +69,7 @@ function renderNewScan(egress: EgressLaunchConfig): ReturnType<typeof vi.fn> {
     return Promise.resolve(envelope(null));
   });
   vi.stubGlobal('fetch', fetchMock);
-  saveCookieConsent(true);
+  saveCookieConsent({ preferences: true, analytics: false });
   window.localStorage.setItem('fluxradar.language', 'en');
   window.history.replaceState(null, '', '/scan');
   render(<App />);

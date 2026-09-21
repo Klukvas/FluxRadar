@@ -521,8 +521,11 @@ describe('paid checkout flow', () => {
       />,
     );
 
-    await waitFor(() => expect(requested).toHaveLength(1));
-    expect(requested[0]).toBe('/billing/checkout-session/..%2F..%2Fscans%2Fsomeone-elses-scan');
+    // The window also reads the checkout config (store mode and prices, for the
+    // purchase report). Every other request it makes must be the poll, encoded.
+    const polls = (): string[] => requested.filter((path) => path !== '/billing/checkout-config');
+    await waitFor(() => expect(polls()).toHaveLength(1));
+    expect(polls()).toEqual(['/billing/checkout-session/..%2F..%2Fscans%2Fsomeone-elses-scan']);
   });
 
   // The contract every caller depends on: "false" must mean the browser refused

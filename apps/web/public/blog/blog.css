@@ -449,9 +449,9 @@ article p {
   color: var(--plat-600);
 }
 
-/* The static blog uses the same necessary-vs-preferences choice as the React
-   shell. It is a non-modal dock, so reading and keyboard focus are never
-   trapped behind it. */
+/* The static blog offers the same choice as the React shell: necessary storage,
+   plus preferences and analytics, both off until ticked. It is a non-modal dock,
+   so reading and keyboard focus are never trapped behind it. */
 .blog-cookie-dock {
   position: fixed;
   z-index: 80;
@@ -494,11 +494,47 @@ article p {
 .blog-cookie-consent__body a {
   color: var(--selection);
 }
-.blog-cookie-consent__actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.blog-cookie-consent__options {
+  min-width: 0;
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--plat-400);
+}
+.blog-cookie-consent__options legend {
+  padding: 0 var(--sp-1);
+  font-weight: 700;
+}
+.blog-cookie-consent__option {
+  display: flex;
+  align-items: center;
   gap: var(--sp-2);
-  margin-top: var(--sp-3);
+  min-height: 24px;
+  font-weight: 700;
+}
+.blog-cookie-consent__option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--plat-900);
+}
+/* Indented to the label text, not the box. */
+.blog-cookie-consent__body .blog-cookie-consent__hint {
+  margin: 0 0 var(--sp-2);
+  padding-left: 24px;
+  color: var(--plat-600);
+}
+/* Three equal buttons: refusing everything is exactly as direct as allowing it.
+   Pinned to the foot of the banner like the app's, so on a phone the choice
+   never scrolls out of reach behind the category descriptions. */
+.blog-cookie-consent__actions {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 calc(-1 * var(--sp-3));
+  padding: var(--sp-2) 0 var(--sp-3);
+  background: var(--plat-100);
 }
 .blog-cookie-consent__actions button,
 .blog-cookie-settings {

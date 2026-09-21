@@ -32,6 +32,7 @@ import { AccountScreen, resendVerification } from './AccountScreen';
 import { AdminStatsScreen } from './AdminStats';
 import { ADMIN_STATS_PATH } from './admin-stats';
 import { accountCopy } from './account-copy';
+import { trackPageView } from './analytics';
 import { AuthScreen } from './AuthScreen';
 import { authCopy } from './auth-copy';
 import {
@@ -401,6 +402,14 @@ function AppContent({
   useEffect(() => {
     applyPageMetadata(seoPageForScreen(screen), language);
   }, [screen, language]);
+
+  // One page view per screen the visitor lands on, sent after the metadata above
+  // so it carries this screen's title. Until the visitor allows analytics the
+  // call does nothing at all.
+  const selectedScanId = selectedScan?.id ?? null;
+  useEffect(() => {
+    trackPageView();
+  }, [screen, selectedScanId]);
 
   /**
    * Opens a scan by id and lands on the screen that scan actually has.

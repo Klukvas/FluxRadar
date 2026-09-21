@@ -10,6 +10,8 @@ import {
 } from './api';
 import { openCheckoutWindow, useCheckoutConfig, type PendingCheckout } from './Checkout';
 import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
+import { trackEvent } from './analytics';
+import { trackBeginCheckout } from './checkout-analytics';
 import { effectiveEgressLocation, freeEgressLocation, useLaunchConfig } from './egress-location';
 import { copy, fillCopy, type Language } from './i18n';
 import { normalizeSiteAddress } from './site-address-input';
@@ -411,6 +413,7 @@ export function useNewScanForm(props: NewScanFormProps) {
           method: 'POST',
           body: JSON.stringify({ scope: scopePayload, expectedProfileConfigVersion }),
         });
+        trackEvent('free_scan_started');
       } else if (props.internalFreeAccess) {
         // Internal allowlist only: creates a scan without a purchase, and is
         // refused for everyone else, in every environment (D-229).
@@ -443,6 +446,7 @@ export function useNewScanForm(props: NewScanFormProps) {
         // Without one (the older hosted storefront), the provider page opens in a
         // tab as before.
         const storefront = checkoutConfig?.popup?.storefront ?? null;
+        trackBeginCheckout(session);
         props.onCheckoutStarted({
           accountId: props.accountId,
           reference: session.reference,
