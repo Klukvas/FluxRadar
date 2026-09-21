@@ -18,6 +18,7 @@ import {
   SelectField,
   StatusChip,
   Terminal,
+  TextAreaField,
   Window,
 } from './components';
 import {
@@ -53,6 +54,8 @@ import { applyPageMetadata, type SeoPageId } from './seo';
 import { OnboardingTour } from './OnboardingTour';
 import { FaqScreen } from './Faq';
 import { AuditCoverageScreen } from './Checks';
+import { BotScreen } from './Bot';
+import { SiteReachabilityPanel } from './SiteReachability';
 import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
 import { PrintReport } from './PrintReport';
 import { IntegrationsScreen } from './Integrations';
@@ -95,6 +98,7 @@ type Screen =
   | 'terms'
   | 'cookies'
   | 'checks'
+  | 'bot'
   | 'account'
   | 'print'
   | 'styleguide';
@@ -142,6 +146,8 @@ function pathForScreen(screen: Screen, scanId: string | null): string {
       return WORKSPACE_PATHS[screen];
     case 'checks':
       return '/checks';
+    case 'bot':
+      return '/bot';
     case 'faq':
       return '/faq';
     case 'privacy':
@@ -205,6 +211,7 @@ function readInitialRoute(): InitialRoute {
   if (path === '/terms') return publicRoute('terms');
   if (path === '/cookies') return publicRoute('cookies');
   if (path === '/checks') return publicRoute('checks');
+  if (path === '/bot') return publicRoute('bot');
   if (path === '/faq') return publicRoute('faq');
   if (path === ACCOUNT_PATH)
     return { screen: 'account', scanId: null, emailAction: null, scrollTo: null };
@@ -278,6 +285,8 @@ function seoPageForScreen(screen: Screen): SeoPageId {
       return 'faq';
     case 'checks':
       return 'checks';
+    case 'bot':
+      return 'bot';
     case 'privacy':
       return 'privacy';
     case 'terms':
@@ -428,7 +437,7 @@ function AppContent({
   );
 
   useEffect(() => {
-    if (['privacy', 'terms', 'cookies', 'checks', 'faq'].includes(entryRoute.screen)) {
+    if (['privacy', 'terms', 'cookies', 'checks', 'faq', 'bot'].includes(entryRoute.screen)) {
       // A public document renders at once for anyone and never waits on the API.
       // The session is read alongside only so its header can offer the workspace
       // to a signed-in reader, as the header on every other page does.
@@ -778,6 +787,15 @@ function AppContent({
   if (screen === 'faq') {
     return (
       <FaqScreen
+        language={language}
+        onLanguageChange={changeLanguage}
+        signedIn={account !== null}
+      />
+    );
+  }
+  if (screen === 'bot') {
+    return (
+      <BotScreen
         language={language}
         onLanguageChange={changeLanguage}
         signedIn={account !== null}
@@ -1182,6 +1200,7 @@ function AppContent({
             <a href="/terms">{copy[language].home.footer.termsLink}</a>
             <a href="/terms#terms-paid">{copy[language].home.footer.refundLink}</a>
             <a href="/cookies">{copy[language].legal.cookies.title}</a>
+            <a href="/bot">{copy[language].home.footer.crawlerLink}</a>
             <a href="/blog">{copy[language].home.footer.fieldNotes}</a>
           </span>
           <CreatedByFluxLab language={language} />
@@ -1514,6 +1533,7 @@ function HomeScreen(props: {
             <a href="/terms">{t.home.footer.termsLink}</a>
             <a href="/terms#terms-paid">{t.home.footer.refundLink}</a>
             <a href="/cookies">{t.legal.cookies.title}</a>
+            <a href="/bot">{t.home.footer.crawlerLink}</a>
             <a href="/blog">{t.home.footer.fieldNotes}</a>
             <span>{t.nav.system}</span>
           </span>
@@ -1636,6 +1656,27 @@ function NewScanScreen(props: {
   const [carriedOver, setCarriedOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [savingConfiguration, setSavingConfiguration] = useState(false);
+  /**
+   * Whether the API says this site can be audited right now.
+   *
+   * Only the paid path reads it — a Free check is not a purchase, and gating it
+   * would turn the one thing a stranger can try into a two-step form. The
+   * server refuses the sale regardless (`createCheckoutSession`); this is what
+   * keeps a buyer from meeting that refusal at the pay button.
+   */
+  const [siteReachable, setSiteReachable] = useState(false);
+  /**
+   * What this site sells, and the industry it sells it in.
+   *
+   * Asked here, on the paid form, and not only in the profile editor: without
+   * both of these the AI visibility section has no neutral topic to build
+   * discovery questions from (`neutralContext`), so it falls back to the two
+   * questions that name the brand — and those measure nothing (D-8). A buyer
+   * paying for AI visibility should be told that before paying, not read it as
+   * a status reason afterwards.
+   */
+  const [aiIndustry, setAiIndustry] = useState('');
+  const [aiOfferings, setAiOfferings] = useState('');
   const [savedConfigFingerprint, setSavedConfigFingerprint] = useState<string | null>(() =>
     props.selectedProfile?.scanConfig == null
       ? null
@@ -1739,6 +1780,13 @@ function NewScanScreen(props: {
     setScope((current) => clampScopeToPlan(current, initialPlan));
   }, [initialPlan, paidAvailable, target]);
 
+  // The selected profile's saved context, so the form asks only for what is
+  // missing and never silently overwrites what an owner already wrote.
+  useEffect(() => {
+    setAiIndustry(selected?.industry ?? '');
+    setAiOfferings(selected?.offerings ?? '');
+  }, [selected?.id, selected?.industry, selected?.offerings]);
+
   /**
    * The profile this scan runs against, creating one from a typed address.
    *
@@ -1770,10 +1818,16 @@ function NewScanScreen(props: {
   };
 
   const persistProfileConfiguration = async (profileId: string): Promise<SiteProfile | null> => {
+    const industry = aiIndustry.trim();
+    const offerings = aiOfferings.trim();
     return apiRequest<SiteProfile | null>(`/profiles/${encodeURIComponent(profileId)}`, {
       method: 'PATCH',
       body: JSON.stringify({
         scanConfig: currentProfileConfig,
+        // Saved on the profile, not on the scan: the next check of this site
+        // starts from what its owner already told us.
+        ...(industry === '' ? {} : { industry }),
+        ...(offerings === '' ? {} : { offerings }),
         expectedProfileConfigVersion: usingSavedProfile
           ? (savedConfigVersion ?? selected?.scanConfigVersion)
           : resolvedProfileVersion.current,
@@ -2252,6 +2306,52 @@ function NewScanScreen(props: {
             ) : null}
           </div>
         </Panel>
+        {/* What the AI visibility section needs before it can ask anything
+            neutral. Without both fields `neutralContext` has no topic, the
+            discovery questions are never generated, and the section falls back
+            to two questions that name the brand — which measure nothing. The
+            fields are optional; what is not optional is saying so first. */}
+        {plan === 'Free' ? null : (
+          <Panel title={t.newScan.aiContextTitle}>
+            <p className="muted panel-help">
+              {/* Either field is enough for `neutralContext` to build a topic,
+                  so the warning is only true when both are empty. */}
+              {aiIndustry.trim() === '' && aiOfferings.trim() === ''
+                ? t.newScan.aiContextMissing
+                : t.newScan.aiContextHelp}
+            </p>
+            <Field
+              label={t.workspace.businessType}
+              name="scan-ai-industry"
+              autoComplete="off"
+              value={aiIndustry}
+              onChange={setAiIndustry}
+              placeholder={t.workspace.businessTypePlaceholder}
+              hint={t.workspace.businessTypeHint}
+            />
+            <TextAreaField
+              label={t.workspace.offerings}
+              name="scan-ai-offerings"
+              autoComplete="off"
+              value={aiOfferings}
+              onChange={setAiOfferings}
+              placeholder={t.workspace.offeringsPlaceholder}
+              hint={t.workspace.offeringsHint}
+            />
+          </Panel>
+        )}
+        {/* Before the terms note and the pay button, because it is the one
+            thing on this form that can stop the purchase — and a buyer should
+            meet that here rather than as a 409 after pressing pay. Free is not
+            a purchase, so it is not gated. */}
+        {plan === 'Free' || props.internalFreeAccess ? null : (
+          <SiteReachabilityPanel
+            language={props.language}
+            profileId={usingSavedProfile ? target : null}
+            resolveProfileId={resolveTargetProfileId}
+            onResult={setSiteReachable}
+          />
+        )}
         {plan === 'Free' || props.internalFreeAccess ? null : (
           <p
             className="muted checkout-legal-note"
@@ -2278,7 +2378,10 @@ function NewScanScreen(props: {
               busy ||
               savingConfiguration ||
               (usingSavedProfile ? target === '' : address.trim() === '') ||
-              (paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed)
+              (paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed) ||
+              // A paid scan of a site the crawler cannot read is a refund
+              // waiting to happen, and the server refuses to sell it.
+              (plan !== 'Free' && !props.internalFreeAccess && !siteReachable)
             }
           >
             {busy

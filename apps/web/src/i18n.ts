@@ -1,3 +1,4 @@
+import { botCopyEn, botCopyUk } from './bot-copy';
 import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
@@ -189,6 +190,11 @@ export const copy = {
         title: 'Cookie policy | FluxRadar',
         description:
           'The cookies and browser storage FluxRadar uses, why they are needed, how long they remain and how to control them.',
+      },
+      bot: {
+        title: 'FluxRadarBot — the FluxRadar crawler | FluxRadar',
+        description:
+          'What FluxRadarBot is, the address it crawls from, the user agent it sends, that it obeys robots.txt, and the Cloudflare rule to allow it through.',
       },
       workspaceTitle: 'Workspace — FluxRadar',
     },
@@ -388,6 +394,7 @@ export const copy = {
         termsLink: 'Terms of service',
         refundLink: 'Refund policy',
         fieldNotes: 'Field notes',
+        crawlerLink: 'Our crawler',
       },
     },
     tour: {
@@ -423,6 +430,7 @@ export const copy = {
     },
     faq: faqCopyEn,
     checks: checksCopyEn,
+    bot: botCopyEn,
     pricing: {
       publicOnly: 'Public pages only — no customer credentials required',
       included: 'What you get',
@@ -595,6 +603,11 @@ export const copy = {
       configurationNew: 'New configuration',
       configurationNewBody: 'It will be saved to this profile before the check starts.',
       configurationLoading: 'Configuration is loading…',
+      aiContextTitle: 'What this site offers',
+      aiContextHelp:
+        'Used to ask AI models neutral questions about your topic — questions that never name your brand or domain, so a mention in the answer means the model knows you rather than that we told it.',
+      aiContextMissing:
+        'Without these, the AI visibility section can only ask questions that name your brand — and an answer repeating a name we supplied measures nothing. Fill them in to get neutral questions about your topic. They are saved with the site.',
       launchSummaryTitle: 'What will run',
       launchSummarySite: 'Site',
       launchSummaryPlan: 'Plan',
@@ -614,6 +627,47 @@ export const copy = {
       launchSummaryIgnored: 'Ignored',
       launchSummaryRespected: 'Respected',
       launchSummaryOverridden: 'Override confirmed',
+    },
+    reachability: {
+      title: 'Can we read your site?',
+      lead: 'We check this before you pay, with the same crawler that will run the audit. A site that refuses it cannot be audited, and we would rather tell you now than refund you later.',
+      check: 'Check the site',
+      again: 'Check again',
+      checking: 'Asking your site…',
+      unchecked: 'Not checked yet.',
+      failed: 'The check could not be run. Try again in a moment.',
+      answeredWith: 'Your site answered with HTTP {status}.',
+      signals: 'Sent by: {signals}',
+      states: {
+        reachable: {
+          label: 'Reachable',
+          body: 'Your site answered and let our crawler read a page. The audit can run.',
+        },
+        accessDenied: {
+          label: 'Blocked',
+          body: 'Something in front of your site refused our crawler — usually a WAF or bot protection. Allow FluxRadarBot and the address it comes from, then check again. Our crawler page has the rule to paste.',
+        },
+        blockedByRobots: {
+          label: 'Disallowed by robots.txt',
+          body: 'Your robots.txt tells FluxRadarBot not to read the site, and we obey it. Allow it there, then check again.',
+        },
+        unreachable: {
+          label: 'No answer',
+          body: 'We could not reach your site at all — the name did not resolve, the connection failed, or it timed out. Check that the address is right and the site is up.',
+        },
+        badResponse: {
+          label: 'No readable page',
+          body: 'Your site answered, but not with a page we could read. Open the address in a browser and check what it returns.',
+        },
+        expired: {
+          label: 'Out of date',
+          body: 'This check is more than fifteen minutes old. Run it again before paying.',
+        },
+        unknown: {
+          label: 'Unclear',
+          body: 'The check did not come back with a state we recognise. Run it again.',
+        },
+      },
     },
     reports: {
       windowTitle: 'Reports',
@@ -740,6 +794,9 @@ export const copy = {
       geoBrandNotMentioned: 'Brand not mentioned',
       geoDomainMentioned: 'Official domain referenced',
       geoDomainNotMentioned: 'Official domain not referenced',
+      geoBrandNamedInQuestion: 'Brand awareness — not measured (named in the question)',
+      geoDomainNamedInQuestion: 'Official domain — not measured (named in the question)',
+      geoBrandIsHostname: 'Brand awareness — not measurable (this site’s brand name is its domain)',
       geoCitations: 'Provider citations',
       geoUnavailable: 'The model did not return a usable answer for this question.',
       issuesCta:
@@ -1323,6 +1380,11 @@ export const copy = {
         description:
           'Які cookies і browser storage використовує FluxRadar, навіщо вони потрібні, скільки зберігаються та як ними керувати.',
       },
+      bot: {
+        title: 'FluxRadarBot — краулер FluxRadar | FluxRadar',
+        description:
+          'Що таке FluxRadarBot, з якої адреси він приходить, який user agent надсилає, що він поважає robots.txt, і правило Cloudflare, щоб його пропустити.',
+      },
       workspaceTitle: 'Робочий простір — FluxRadar',
     },
     workspace: {
@@ -1520,6 +1582,7 @@ export const copy = {
         termsLink: 'Умови використання',
         refundLink: 'Політика повернень',
         fieldNotes: 'Нотатки з практики',
+        crawlerLink: 'Наш краулер',
       },
     },
     tour: {
@@ -1555,6 +1618,7 @@ export const copy = {
     },
     faq: faqCopyUk,
     checks: checksCopyUk,
+    bot: botCopyUk,
     pricing: {
       publicOnly: 'Лише публічні сторінки — облікові дані клієнта не потрібні',
       included: 'Що ви отримуєте',
@@ -1727,6 +1791,11 @@ export const copy = {
       configurationNew: 'Нова конфігурація',
       configurationNewBody: 'Її буде збережено в цьому профілі перед запуском перевірки.',
       configurationLoading: 'Завантажуємо конфігурацію…',
+      aiContextTitle: 'Що пропонує цей сайт',
+      aiContextHelp:
+        'Використовується, щоб ставити AI-моделям нейтральні питання про вашу тему — питання, які не називають ні бренд, ні домен, тож згадка у відповіді означає, що модель вас знає, а не що ми їй підказали.',
+      aiContextMissing:
+        'Без цього розділ AI-видимості зможе ставити лише питання, які називають ваш бренд, — а відповідь, що повторює підказане нами імʼя, нічого не вимірює. Заповніть поля, щоб отримати нейтральні питання про вашу тему. Вони зберігаються разом із сайтом.',
       launchSummaryTitle: 'Що буде запущено',
       launchSummarySite: 'Сайт',
       launchSummaryPlan: 'Тариф',
@@ -1746,6 +1815,47 @@ export const copy = {
       launchSummaryIgnored: 'Ігноруються',
       launchSummaryRespected: 'Дотримуємось',
       launchSummaryOverridden: 'Відхилення підтверджено',
+    },
+    reachability: {
+      title: 'Чи можемо ми прочитати ваш сайт?',
+      lead: 'Ми перевіряємо це до оплати тим самим краулером, який робитиме аудит. Сайт, який його не пускає, перевірити неможливо, і краще сказати про це зараз, ніж повертати кошти потім.',
+      check: 'Перевірити сайт',
+      again: 'Перевірити ще раз',
+      checking: 'Запитуємо ваш сайт…',
+      unchecked: 'Ще не перевірено.',
+      failed: 'Перевірку виконати не вдалося. Спробуйте за хвилину.',
+      answeredWith: 'Ваш сайт відповів кодом HTTP {status}.',
+      signals: 'Надіслано: {signals}',
+      states: {
+        reachable: {
+          label: 'Доступний',
+          body: 'Ваш сайт відповів і дозволив нашому краулеру прочитати сторінку. Аудит можна запускати.',
+        },
+        accessDenied: {
+          label: 'Заблоковано',
+          body: 'Щось перед вашим сайтом відмовило нашому краулеру — зазвичай це WAF або захист від ботів. Дозвольте FluxRadarBot і адресу, з якої він приходить, і перевірте ще раз. Готове правило є на сторінці нашого краулера.',
+        },
+        blockedByRobots: {
+          label: 'Заборонено robots.txt',
+          body: 'Ваш robots.txt забороняє FluxRadarBot читати сайт, і ми це поважаємо. Дозвольте його там і перевірте ще раз.',
+        },
+        unreachable: {
+          label: 'Немає відповіді',
+          body: 'Ми взагалі не змогли достукатися до вашого сайту — імʼя не розвʼязалось, зʼєднання не встановилось або вичерпався час. Перевірте, чи правильна адреса і чи працює сайт.',
+        },
+        badResponse: {
+          label: 'Немає читабельної сторінки',
+          body: 'Ваш сайт відповів, але не сторінкою, яку ми змогли прочитати. Відкрийте адресу в браузері й подивіться, що вона повертає.',
+        },
+        expired: {
+          label: 'Застаріла перевірка',
+          body: 'Цій перевірці більше пʼятнадцяти хвилин. Виконайте її ще раз перед оплатою.',
+        },
+        unknown: {
+          label: 'Незрозуміло',
+          body: 'Перевірка повернула стан, якого ми не розпізнаємо. Виконайте її ще раз.',
+        },
+      },
     },
     reports: {
       windowTitle: 'Звіти',
@@ -1863,6 +1973,10 @@ export const copy = {
       geoBrandNotMentioned: 'Бренд не згадано',
       geoDomainMentioned: 'Офіційний домен наведено',
       geoDomainNotMentioned: 'Офіційний домен не наведено',
+      geoBrandNamedInQuestion: 'Впізнаваність бренду — не вимірюється (назване в питанні)',
+      geoDomainNamedInQuestion: 'Офіційний домен — не вимірюється (назване в питанні)',
+      geoBrandIsHostname:
+        'Впізнаваність бренду — не вимірюється (назва бренду цього сайту збігається з доменом)',
       geoCitations: 'Посилання від постачальника',
       geoUnavailable: 'Модель не повернула придатної відповіді на це питання.',
       issuesCta:
