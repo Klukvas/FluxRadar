@@ -442,10 +442,42 @@ job, which is where a wrong or expired one is actually visible.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request and on `main`: lint, build,
-typecheck, the full test suite against a real PostgreSQL service, and a build of
-both production images. `deploy.yml` repeats the same quality gates before it
-touches the server, so a red test never reaches production.
+The quality gates live in **one** place, `.github/workflows/quality.yml`, and are
+called twice: by `ci.yml` on every pull request, and by `deploy.yml` on `main`
+before it touches the server — so a red test never reaches production, and the
+merge gate and the release gate cannot drift apart the way two copies had.
+
+They are separate jobs rather than one list of steps, because one job gives one
+verdict: a lint error in the web app used to hide every backend test result
+behind it, and a run took as long as the sum of parts that mostly do not depend
+on each other.
+
+| Job | Needs | Notes |
+| --- | --- | --- |
+| `build-backend` | — | Builds `packages/*` and the API, and publishes the `workspace-dist` artifact. |
+| `build-frontend` | — | `vite build`, so a broken web build is not found at deploy time. |
+| `lint-backend` | — | `eslint .` minus `apps/web` and `e2e`. |
+| `lint-frontend` | — | `eslint apps/web e2e`. |
+| `typecheck-backend` | `build-backend` | |
+| `typecheck-frontend` | — | The web app has no workspace dependency, so it waits for nothing. |
+| `test-backend` | `build-backend` | The only job that needs the PostgreSQL service. |
+| `test-packages` | `build-backend` | |
+| `test-frontend` | — | No database, no compiled workspace. |
+| `images` | — | Both Dockerfiles, on pull requests only. |
+
+The two lint jobs are defined as a partition — the backend job is *everything the
+frontend job does not take* — so splitting the lint in two cannot quietly leave a
+directory unlinted by either half.
+
+The workspace packages resolve through their `exports` to `dist/index.js`, which
+is the whole reason `build-backend` exists as a job: everything that imports one
+downloads that single build instead of compiling its own, so every gate tests the
+same output.
+
+`ci.yml` deliberately does **not** run on a push to `main`. The same gates run
+inside the deploy for that commit, and running both meant paying for two full
+test suites to learn the same thing twice. The advisory job below keeps a weekly
+schedule of its own for the same reason it exists at all.
 
 A second CI job, **Dependency advisories**, checks the packages against the
 public advisory database:
@@ -458,8 +490,9 @@ public advisory database:
 
 It is deliberately **not** part of `deploy.yml`. An advisory is published against
 code that is already merged and already running, so gating the deploy on it would
-block the hotfix. It gates the merge instead. It needs no secret and no
-production credential — and it proves nothing about a vulnerability nobody has
+block the hotfix. It gates the merge instead — on every pull request, and weekly
+on a schedule, because an advisory against code nobody has touched would
+otherwise never be seen. It needs no secret and no production credential — and it proves nothing about a vulnerability nobody has
 reported yet. There is no container image scanning and no runtime monitoring in
 this repository; both are still manual (see *What is not automated*).
 
@@ -490,6 +523,15 @@ Stated plainly so nothing here is mistaken for a control that exists:
   vulnerabilities. The base images (`node:24-bookworm-slim`, `nginx:1.27-alpine`,
   `postgres:17-alpine`, `caddy:2.10-alpine`) are pinned and must be bumped by
   hand.
+- **An image registry** — there is none, so every deploy rebuilds both images
+  from scratch, `docker save`s them and `scp`s the tar to the server. The API
+  image carries the whole workspace and its `node_modules`, which is larger than
+  this repository's entire GitHub artifact allowance; that is why the build and
+  the upload are one stage each rather than a build stage handing an artifact to
+  an upload stage. A registry would make them separate, make the upload
+  incremental, and make a rollback to an evicted release possible — at the cost
+  of a `packages: write` permission that `DEPLOY-009` currently forbids outright,
+  and a pull credential on the server.
 - **Uptime and error monitoring** — there is none. Nothing pages anyone when the
   site goes down between deploys; the only automated outside-in check is the
   public smoke test at the end of a deploy, and the nightly backup verification.
@@ -630,6 +672,37 @@ what an operator has to set up once.
 | 02:17 UTC daily (cron) | `pg-backup.sh` — dump, encrypt, upload, prune | reads it with `pg_dump` |
 | 03:30 UTC Sunday (cron) | `pg-restore.sh --verify-latest` | no — restores into a throwaway database |
 | 04:20 UTC daily (GitHub Actions) | `backup-verify` workflow, the same verification over SSH | no |
+| Every deploy that adds a migration | the `backup` stage of `deploy.yml`, running the same `pg-backup.sh` | reads it with `pg_dump` |
+
+### The snapshot before a migration
+
+`prisma migrate deploy` runs in the `release` stage and **cannot be undone**.
+Everything else the deploy does about rollback is about the *code*: the
+compatibility gate proves the previous release can still read the migrated
+schema, and `rollback-release.sh` puts that release back in front of traffic.
+None of it restores a column a migration dropped or a value it rewrote. For that
+the only answer is a dump, and the newest scheduled one can be up to 26 hours old
+(*Freshness*, below).
+
+So the `backup` stage takes one, from the release that is still running,
+immediately before the schema changes under it. It runs **only when this release
+carries a migration directory the active release does not** — a deploy that
+changes no migration runs nothing, which keeps the common case as fast as it was
+— and it is compared by directory name, so a migration edited in place after it
+has been applied is not detected (nor should it be: Prisma refuses that anyway).
+
+A failure here **stops the deploy**, with the previous release still serving and
+the schema untouched. That is the point: the alternative is applying an
+irreversible migration with a safety net nobody checked. The same applies when
+the active release predates the backup tooling and has no `pg-backup.sh`.
+
+`ALLOW_MIGRATION_WITHOUT_BACKUP` is the escape hatch. Set the
+repository/environment variable to `true` to downgrade that failure to a loud
+warning, on the day that trade is knowingly the right one — an empty database, a
+snapshot taken by hand minutes earlier, an outage where the migration *is* the
+fix. Anything other than `true` keeps the gate. Unset it again afterwards: it
+turns off the one control that stands between a bad migration and a day of lost
+customer data.
 
 `pg_dump` runs **inside the running PostgreSQL container**, so the dump is always
 taken by the exact server version that wrote the data and the host needs no
@@ -799,12 +872,57 @@ the next backup run instead of a later restore.
 `DEPLOY-004` and `DEPLOY-005` run all of this in CI against a stub bucket and a
 recorded `docker`, including every refusal on the destructive path.
 
+## The deploy, stage by stage
+
+`deploy.yml` is a chain of jobs, not one long step, so a red run says *which*
+phase failed and the two image builds that dominate its wall clock happen at the
+same time.
+
+| Stage | Needs | What it does | Can it break production? |
+| --- | --- | --- | --- |
+| `quality` | — | `quality.yml`, without the image build | No |
+| `preflight` | `quality` | Reclaims this workflow's own stale staging dirs under `incoming/` | No |
+| `image-api` | `preflight` | Builds, saves, ships and `docker load`s the API image | No |
+| `image-web` | `preflight` | The same for the web image, in parallel | No |
+| `package` | `preflight` | Builds the release archive and the env file, uploads both, extracts into `releases/<commit>` | No |
+| `backup` | the three above | Snapshots the database **if** this release adds migrations | No |
+| `release` | `backup` | Migrates, proves a rollback is possible, starts the containers, switches traffic | Yes, from the switch onwards |
+| `verify` | `release` | The public smoke test, and the rollback when it fails | It undoes one |
+
+Everything up to and including `backup` leaves the previous release serving and
+untouched; a failure there is a workflow that went red and a production that
+never noticed. `release` is where that stops being true, and it is the stage that
+carries the rollback machinery described below.
+
+**There is deliberately no "roll back on failure" job.** It is the obvious
+refactor and it is wrong: a rollback is only correct once traffic has been
+switched, and a job-level `if: failure()` cannot tell. After a failure that never
+reached production it would read `runtime/rollback.env` — written by the
+*previous* deploy — and restore that target over a release that is serving
+perfectly well. Only two callers can tell the difference, and both already do:
+the release script's exit handler, and the public smoke test.
+
 ## Release rollback
 
 The deploy workflow builds immutable API/web images in GitHub Actions, loads
 them on Hetzner, keeps each extracted release under `releases/<commit>` and
 updates `current` only after the new API passes the database-aware readiness
 probe.
+
+### Rolling back on purpose
+
+A release that passed every check and turned out to be wrong an hour later is not
+a failed rollout, and nothing in the deploy covers it. Run the **Roll back
+production** workflow (`.github/workflows/rollback.yml`) from the Actions tab and
+type `roll back production` to confirm. It runs `deploy/rollback-release.sh` —
+the same script the deploy runs, from the release that is live — against the
+target that release recorded before it switched traffic, and then re-checks
+`fluxradar.net` from outside. It shares the `production-deploy` concurrency
+group, so it can never run while a release is switching traffic underneath it.
+
+It never invents a target: when `runtime/rollback.env` names no earlier release
+the script changes nothing and the workflow fails loudly, because the answer then
+is to deploy a known-good commit, not to tear down the only release there is.
 
 ### What a failed rollout does, exactly
 

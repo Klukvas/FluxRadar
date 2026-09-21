@@ -1,0 +1,144 @@
+name: Remote upload
+description: >-
+  Stage one deploy artifact on the server: prove the disk can hold it, scp it
+  into this release's own staging directory, run the command that installs it,
+  and remove the staging directory again — on success or on failure.
+
+# The three artifacts a release is made of (the API image, the web image and the
+# source/env bundle) are built by three jobs that run at the same time, and every
+# one of them has to answer the same two questions before it writes: is there
+# room, and who cleans up if this fails. That answer was written once, inline,
+# for a single job that uploaded all three; it is here so the three cannot drift.
+#
+# Each caller gets its OWN subdirectory under incoming/<commit>/, so a failing
+# upload cleans up after itself without touching an upload running beside it.
+# The parent is the commit id, which is exactly what the deploy's preflight sweep
+# recognises as its own stale staging directory.
+
+inputs:
+  host:
+    description: Server hostname.
+    required: true
+  user:
+    description: SSH user.
+    required: true
+  app-dir:
+    description: Application root on the server.
+    required: true
+  release-id:
+    description: The commit being released; names the staging directory.
+    required: true
+  stage:
+    description: Short name for this artifact's staging subdirectory (e.g. "api-image").
+    required: true
+  files:
+    description: Local paths to upload, one per line.
+    required: true
+  install:
+    description: >-
+      Bash run on the server once every file has arrived. It is given APP_DIR,
+      RELEASE_ID and STAGE_DIR as positional-derived variables and must exit
+      non-zero when the artifact was not installed.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Upload and install
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.host }}
+        SSH_USER: ${{ inputs.user }}
+        APP_DIR: ${{ inputs.app-dir }}
+        RELEASE_ID: ${{ inputs.release-id }}
+        STAGE: ${{ inputs.stage }}
+        UPLOAD_FILES: ${{ inputs.files }}
+        INSTALL_SCRIPT: ${{ inputs.install }}
+      run: |
+        set -euo pipefail
+        STAGE_DIR="$APP_DIR/incoming/$RELEASE_ID/$STAGE"
+
+        # One path per line, blanks dropped, so the caller can write the list as
+        # a YAML block scalar and still get exact filenames (paths here are
+        # runner temp paths, never anything with a space in it).
+        files=()
+        while IFS= read -r file; do
+          [ -n "$file" ] || continue
+          files+=("$file")
+        done <<< "$UPLOAD_FILES"
+        if [ "${#files[@]}" -eq 0 ]; then
+          echo "ERROR: remote-upload was given no files to upload." >&2
+          exit 1
+        fi
+
+        # Measure exactly what is about to be written, rather than guessing with
+        # a constant. `du -ck` reports block usage, which rounds up, so the gate
+        # can only ever be conservative.
+        required_kb="$(du -ck "${files[@]}" | tail -n 1 | cut -f1)"
+        case "$required_kb" in
+          ''|*[!0-9]*)
+            echo "ERROR: could not determine the upload size for $STAGE (got '$required_kb')" >&2
+            exit 1
+            ;;
+        esac
+        # The staged artifact lives on the root filesystem only briefly: it is
+        # extracted or loaded into Docker, which transiently roughly doubles the
+        # footprint. Reserve headroom equal to the artifact (floored at 512 MiB).
+        margin_kb="$required_kb"
+        floor_kb=524288
+        if [ "$margin_kb" -lt "$floor_kb" ]; then margin_kb="$floor_kb"; fi
+        need_kb=$(( required_kb + margin_kb ))
+
+        # On ANY failure below, remove ONLY this artifact's staging subdirectory.
+        # Releases, current, runtime, Docker data/volumes, PostgreSQL and the
+        # uploads running beside this one are all outside it.
+        cleanup_stage() {
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$SSH_HOST" "rm -rf -- '$STAGE_DIR'; rmdir --ignore-fail-on-non-empty -- '$APP_DIR/incoming/$RELEASE_ID' 2>/dev/null || true" || true
+        }
+        trap 'rc=$?; cleanup_stage; exit "$rc"' ERR
+
+        # shellcheck disable=SC2029
+        ssh "$SSH_USER@$SSH_HOST" bash -s -- "$need_kb" "$APP_DIR" "$RELEASE_ID" "$STAGE" <<'REMOTE'
+        set -eu
+        NEED_KB="$1"
+        APP_DIR="$2"
+        RELEASE_ID="$3"
+        STAGE="$4"
+        install -m 700 -d "$APP_DIR/incoming" "$APP_DIR/incoming/$RELEASE_ID" "$APP_DIR/incoming/$RELEASE_ID/$STAGE"
+        # df prints the mount point in its last column, not the path given to it,
+        # so APP_DIR is not written to the log here.
+        df -P -h "$APP_DIR" || true
+        avail_kb="$(df -P -k "$APP_DIR" | awk 'NR==2 {print $4}')"
+        case "$avail_kb" in
+          ''|*[!0-9]*)
+            echo "ERROR: could not determine free space on the APP_DIR filesystem (got '$avail_kb')" >&2
+            exit 1
+            ;;
+        esac
+        if [ "$avail_kb" -lt "$NEED_KB" ]; then
+          echo "ERROR: insufficient free space for the $STAGE artifact: ${avail_kb} KiB free but ${NEED_KB} KiB required (artifact + extraction/load headroom)." >&2
+          echo "Refusing to upload. No releases, current symlink, runtime, Docker data/volumes, or PostgreSQL were touched." >&2
+          exit 1
+        fi
+        echo "OK: ${avail_kb} KiB free, ${NEED_KB} KiB required for $STAGE; uploading."
+        REMOTE
+
+        for file in "${files[@]}"; do
+          scp "$file" "$SSH_USER@$SSH_HOST:$STAGE_DIR/$(basename "$file")"
+        done
+
+        # The install script is written as a bare body; the preamble gives it the
+        # three names its contract promises, so no caller has to re-derive them.
+        {
+          printf 'set -eu\n'
+          printf 'APP_DIR="$1"\nRELEASE_ID="$2"\nSTAGE="$3"\n'
+          printf 'STAGE_DIR="$APP_DIR/incoming/$RELEASE_ID/$STAGE"\n'
+          printf '%s\n' "$INSTALL_SCRIPT"
+        } > "$RUNNER_TEMP/install-$STAGE.sh"
+        # shellcheck disable=SC2029
+        ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "$RELEASE_ID" "$STAGE" \
+          < "$RUNNER_TEMP/install-$STAGE.sh"
+
+        trap - ERR
+        cleanup_stage

@@ -1,0 +1,223 @@
+name: Quality gates
+
+# The gates, once, as jobs that can fail independently.
+#
+# They used to be one job — install, lint, build, typecheck, test, in that order
+# — and that shape costs twice. A lint error on the web app hid every backend
+# test result behind it, so a red run said one thing was wrong when three were;
+# and the run was as long as the sum of its parts even though almost none of them
+# depend on each other.
+#
+# Split, the graph says what actually depends on what: the workspace packages
+# resolve through their `exports` to `dist/index.js`, so anything importing one
+# waits for `build-backend` and nothing else does. The web app has no workspace
+# dependency at all, which is why its tests and its type check start immediately.
+#
+# Reusable on purpose: `ci.yml` runs it on pull requests and `deploy.yml` runs it
+# again on main before it touches the server, from this one definition. They had
+# a copy each, and the copies had already drifted.
+
+on:
+  workflow_call:
+    inputs:
+      build-images:
+        description: >-
+          Also build both production images. Worth it on a pull request, where a
+          broken Dockerfile is otherwise found at deploy time; pointless in the
+          deploy itself, which builds them for real a minute later.
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  PNPM_VERSION: 10.11.0
+
+jobs:
+  build-backend:
+    name: Build workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+
+      - name: Build packages and API
+        run: pnpm --filter "./packages/*" --filter @fluxradar/api build
+
+      # One build, consumed by every job that needs `dist` — so they all test the
+      # same output instead of each compiling its own.
+      - name: Publish compiled workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-dist
+          path: |
+            packages/*/dist
+            apps/api/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  build-frontend:
+    name: Build web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+
+      - name: Build web
+        run: pnpm --filter @fluxradar/web build
+
+  lint-backend:
+    name: Lint backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+
+      # Defined as "everything the frontend job does not take", so splitting the
+      # lint in two cannot quietly leave a directory unlinted by either.
+      - name: Lint
+        run: pnpm lint:backend
+
+  lint-frontend:
+    name: Lint frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+
+      - name: Lint
+        run: pnpm lint:frontend
+
+  typecheck-backend:
+    name: Typecheck backend
+    needs: build-backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+        with:
+          download-dist: 'true'
+
+      - name: Typecheck
+        run: pnpm --filter "./packages/*" --filter @fluxradar/api typecheck
+
+  typecheck-frontend:
+    name: Typecheck frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+
+      - name: Typecheck
+        run: pnpm --filter @fluxradar/web typecheck
+
+  test-frontend:
+    name: Test frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+
+      # No PostgreSQL service and no compiled workspace: the web app depends on
+      # neither, and asking for either would only make this slower and flakier.
+      - name: Test
+        run: pnpm --filter @fluxradar/web test
+
+  test-packages:
+    name: Test packages
+    needs: build-backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+        with:
+          download-dist: 'true'
+
+      - name: Test
+        run: pnpm --filter "./packages/*" test
+
+  test-backend:
+    name: Test backend
+    needs: build-backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://fluxradar:fluxradar-test@localhost:5432/fluxradar_test
+      TEST_DATABASE_URL: postgresql://fluxradar:fluxradar-test@localhost:5432/fluxradar_test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: fluxradar_test
+          POSTGRES_USER: fluxradar
+          POSTGRES_PASSWORD: fluxradar-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fluxradar -d fluxradar_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+        with:
+          download-dist: 'true'
+
+      - name: Test
+        run: pnpm --filter @fluxradar/api test
+
+  images:
+    name: Build production images
+    if: inputs.build-images
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Nothing is pushed and nothing is kept: the question this answers is only
+      # whether both Dockerfiles still build from a clean checkout.
+      - name: Build API image
+        run: docker build --file Dockerfile.api --tag fluxradar-api:ci .
+
+      - name: Build web image
+        run: docker build --file Dockerfile.web --build-arg VITE_API_URL=/api --tag fluxradar-web:ci .
