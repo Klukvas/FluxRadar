@@ -9,8 +9,12 @@
 
 import type { Language } from './i18n';
 
-/** ISO 639-1 codes, in the order the picker lists them. */
-const LANGUAGE_CODES = [
+/**
+ * ISO 639-1 codes, in the order the picker lists them. The Action Plan offers
+ * the same list; the API declares it again as `ACTION_PLAN_LANGUAGES` in
+ * `@fluxradar/contracts`, and a contract test there fails when the two drift.
+ */
+export const LANGUAGE_CODES = [
   'uk',
   'en',
   'ru',
