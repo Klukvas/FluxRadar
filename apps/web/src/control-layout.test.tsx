@@ -410,6 +410,34 @@ describe('base.css layout rules', () => {
     expect(BASE_CSS).toMatch(/\.plan-scope__detail \{[^}]*overflow-wrap: anywhere;/);
   });
 
+  // The new-scan screen was a 520px column 2309px tall at 1440x900, with the
+  // pay button under every word of it. The settings and the launch column are
+  // side by side from 1100px, and the launch column stays on screen.
+  it('lays the new-scan form out in a settings column and a launch column', () => {
+    expect(BASE_CSS).toMatch(/\.launch-form \{[^}]*grid-template-columns: minmax\(0, 1fr\) 360px;/);
+    expect(BASE_CSS).toMatch(/\.launch-form \{[^}]*align-items: start;/);
+    expect(BASE_CSS).toMatch(/\.launch-form__launch \{[^}]*position: sticky;/);
+  });
+
+  // Narrower than two columns the launch column is simply the end of the form,
+  // and the window goes back to the reading width the modals share.
+  it('collapses the launch column below 1100px', () => {
+    const narrow = BASE_CSS.slice(
+      BASE_CSS.indexOf('@media (max-width: 1099px)'),
+      BASE_CSS.indexOf('@media (max-width: 900px)'),
+    );
+    expect(narrow).toMatch(/\.launch-form \{\s*grid-template-columns: minmax\(0, 1fr\);/);
+    expect(narrow).toMatch(/\.launch-form__launch \{\s*position: static;/);
+    expect(narrow).toMatch(/\.window--launch \{\s*max-width: 520px;/);
+  });
+
+  // The extra room belongs to the one dialog-shaped window that is a whole
+  // page. Widening the shared rule would have widened sign-in and support too.
+  it('widens the launch window without widening every dialog', () => {
+    expect(BASE_CSS).toMatch(/\.window--dialog \{\s*max-width: 520px;/);
+    expect(BASE_CSS).toMatch(/\.window--launch \{\s*max-width: 1040px;/);
+  });
+
   // The Ukrainian hints under the hero figures are about twice as long as the
   // English ones; clipped to a single line they lost most of their sentence.
   it('wraps the hero readout hints instead of clipping them', () => {

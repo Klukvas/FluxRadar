@@ -1890,7 +1890,7 @@ describe('NewScanScreen — paid availability and i18n', () => {
 
     // Default plan is Complete for internal users → submit label is Run internal scan.
     expect(screen.getByRole('button', { name: 'Run internal scan' })).toBeInTheDocument();
-    const performance = screen.getByRole('region', {
+    const performance = screen.getByRole('group', {
       name: 'External performance measurement',
     });
     expect(within(performance).getByText(/You do not connect a Google account/i)).toBeVisible();

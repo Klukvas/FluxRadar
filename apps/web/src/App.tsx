@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
 
 import {
   AlertDialog,
@@ -25,30 +24,28 @@ import {
   ApiRequestError,
   type Account,
   type CheckoutConfig,
-  type CheckoutSession,
   type Scan,
   type SiteProfile,
 } from './api';
 import { AccountScreen, resendVerification } from './AccountScreen';
 import { accountCopy } from './account-copy';
-import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
 import { AuthScreen } from './AuthScreen';
 import { authCopy } from './auth-copy';
 import {
   CheckoutPending,
   clearPendingCheckout,
-  openCheckoutWindow,
   readPendingCheckout,
   storePendingCheckout,
-  useCheckoutConfig,
   type PendingCheckout,
 } from './Checkout';
 import { CoverageTicker } from './CoverageTicker';
 import { CookieConsent } from './CookieConsent';
 import { DesktopScreen } from './DesktopScreen';
+import { LaunchSummary } from './LaunchSummary';
+import { ScanCallout } from './ScanCallout';
 import { HeroSiteForm } from './HeroSiteForm';
 import { HeroTitle } from './HeroTitle';
-import { copy, fillCopy, readInitialLanguage, storeLanguage, type Language } from './i18n';
+import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
 import { applyPageMetadata, type SeoPageId } from './seo';
 import { OnboardingTour } from './OnboardingTour';
 import { FaqScreen } from './Faq';
@@ -62,20 +59,9 @@ import { LegalDocumentScreen } from './LegalDocuments';
 import { ScanScreen } from './ScanProgress';
 import { ReportsScreen } from './Reports';
 import { SupportWidget } from './SupportWidget';
+import { NEW_ADDRESS_TARGET, useNewScanForm, type NewScanFormProps } from './new-scan-form';
 import { isTerminalScanStatus } from './scan-status';
-import {
-  clampScopeToPlan,
-  DEFAULT_SCOPE_FORM,
-  invalidScopeFields,
-  profileScanConfigFingerprint,
-  profileScanConfigFromForm,
-  scanScopeFrom,
-  scopeFormFromProfileConfig,
-  scopeFormFromScan,
-  type ScanScopeForm,
-  type ScopeNumberField,
-} from './scan-scope';
-import { normalizeSiteAddress } from './site-address-input';
+import { clampScopeToPlan, invalidScopeFields, type ScanScopeForm } from './scan-scope';
 import { WORKSPACE_PATHS, type WorkspaceTabScreen } from './workspace-paths';
 import './styles/base.css';
 import './styles/account.css';
@@ -1566,746 +1552,391 @@ function paidUnavailableCopy(t: (typeof copy)[Language], config: CheckoutConfig 
     : t.checkout.unavailable;
 }
 
-/**
- * The select value that means "a site this account has not saved yet".
- *
- * It is a sentinel rather than an empty string because an empty select value is
- * also what "nothing chosen" looks like, and the two have to be told apart: one
- * of them is a valid way to start a scan.
- */
-const NEW_ADDRESS_TARGET = 'new-address';
-
-function NewScanScreen(props: {
-  accountId: string;
-  onCheckoutStarted: (pending: PendingCheckout) => void;
-  profiles: readonly SiteProfile[];
-  selectedProfile: SiteProfile | null;
-  internalFreeAccess: boolean;
-  language: Language;
-  onCreated: (scan: Scan) => void;
-  /** Called after an address became a profile, so the workspace lists it. */
-  onProfilesChanged: () => Promise<void>;
-  onClose: () => void;
-  onError: (value: string) => void;
-  /**
-   * The plan the owner already chose — on the pricing cards before signing up,
-   * or with "Run Complete for this site" on a Free report. Applied once, and
-   * only when that plan can actually be bought here.
-   */
-  initialPlan?: 'Free' | 'Basic' | 'Complete' | null;
-}) {
+function NewScanScreen(props: NewScanFormProps) {
   const t = copy[props.language];
-  // Whether a real checkout exists is a server fact, not a build-time flag: an
-  // unreachable or unconfigured provider must never look like a working one.
-  const checkout = useCheckoutConfig(!props.internalFreeAccess);
-  const checkoutConfig = checkout.status === 'ready' ? checkout.config : null;
-  const paidAvailable = props.internalFreeAccess || checkoutConfig?.available === true;
-  // Until the server has answered, the screen says it is still asking rather
-  // than announcing an absence it cannot yet know about.
-  const checkoutPending = checkout.status === 'loading';
-  // An account with nothing saved starts on the address field: a scan no longer
-  // needs a profile to exist first, so this screen no longer refuses to open.
-  const [target, setTarget] = useState(
-    props.selectedProfile?.id ?? props.profiles[0]?.id ?? NEW_ADDRESS_TARGET,
-  );
-  const [address, setAddress] = useState('');
-  const [addressError, setAddressError] = useState<string | null>(null);
-  // A saved profile owns its preferred plan. New addresses keep the existing
-  // free-first flow; internal accounts start on Complete so they can exercise
-  // the full report without a payment.
-  const [plan, setPlan] = useState<'Free' | 'Basic' | 'Complete'>(
-    props.selectedProfile?.scanConfig?.plan ?? (props.internalFreeAccess ? 'Complete' : 'Free'),
-  );
-  // Legacy profile fixtures and profiles created before the migration still
-  // fall back to the last scan while their saved config is absent. Keep the
-  // plan the owner chose while that compatibility read is in flight.
-  const planRef = useRef(plan);
-  useEffect(() => {
-    planRef.current = plan;
-  }, [plan]);
-  const [scope, setScope] = useState<ScanScopeForm>(() =>
-    props.selectedProfile?.scanConfig == null
-      ? DEFAULT_SCOPE_FORM
-      : scopeFormFromProfileConfig(props.selectedProfile.scanConfig),
-  );
-  // The number fields the owner has been told to fix, empty until a submission
-  // finds one: a form that reddens while someone is still typing into it is
-  // telling them they are wrong before they have finished being right.
-  const [invalidScope, setInvalidScope] = useState<readonly ScopeNumberField[]>([]);
-  // True once the settings below came from the reusable profile configuration.
-  const [carriedOver, setCarriedOver] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [savingConfiguration, setSavingConfiguration] = useState(false);
-  const [savedConfigFingerprint, setSavedConfigFingerprint] = useState<string | null>(() =>
-    props.selectedProfile?.scanConfig == null
-      ? null
-      : profileScanConfigFingerprint(props.selectedProfile.scanConfig),
-  );
-  const [savedConfigVersion, setSavedConfigVersion] = useState<number | null>(
-    props.selectedProfile?.scanConfigVersion ?? null,
-  );
-  // Whether the compatibility read below is still in flight. "Loading" used to
-  // be inferred from the absence of a saved fingerprint, which every profile
-  // that never stored a configuration has for good — so a brand-new profile
-  // said "Configuration is loading…" forever.
-  const [configLoading, setConfigLoading] = useState(false);
-  const usingSavedProfile = target !== NEW_ADDRESS_TARGET;
-  const resolvedProfileVersion = useRef<number | undefined>(undefined);
-  const selected = props.profiles.find((profile) => profile.id === target);
-  const currentProfileConfig = profileScanConfigFromForm(scope, plan);
-  const unavailablePlanFallback =
-    usingSavedProfile &&
-    !paidAvailable &&
-    plan === 'Free' &&
-    selected?.scanConfig != null &&
-    selected.scanConfig.plan !== 'Free';
-  const configurationDirty =
-    usingSavedProfile &&
-    !unavailablePlanFallback &&
-    savedConfigFingerprint !== null &&
-    profileScanConfigFingerprint(currentProfileConfig) !== savedConfigFingerprint;
-  const updateScope = (change: Partial<ScanScopeForm>): void => {
-    setScope((current) => ({ ...current, ...change }));
-    // Editing a field withdraws the complaint about it, as the address field
-    // does: the message described the value that has just been replaced.
-    const edited = Object.keys(change);
-    setInvalidScope((current) => current.filter((field) => !edited.includes(field)));
-  };
-
-  /** Opens the form on the reusable settings stored with the selected profile. */
-  useEffect(() => {
-    if (!usingSavedProfile) {
-      setPlan(props.internalFreeAccess ? 'Complete' : 'Free');
-      setScope(DEFAULT_SCOPE_FORM);
-      setCarriedOver(false);
-      setSavedConfigFingerprint(null);
-      setSavedConfigVersion(null);
-      setConfigLoading(false);
-      return;
-    }
-    if (selected?.scanConfig != null) {
-      setConfigLoading(false);
-      const restoredPlan = paidAvailable ? selected.scanConfig.plan : 'Free';
-      setPlan(restoredPlan);
-      setScope(
-        clampScopeToPlan(scopeFormFromProfileConfig(selected.scanConfig), selected.scanConfig.plan),
-      );
-      setCarriedOver(true);
-      setSavedConfigFingerprint(profileScanConfigFingerprint(selected.scanConfig));
-      setSavedConfigVersion(selected.scanConfigVersion ?? 1);
-      return;
-    }
-    let cancelled = false;
-    setConfigLoading(true);
-    void (async () => {
-      let latest: Scan | undefined;
-      try {
-        const scans = await apiRequest<readonly Scan[] | null>(
-          `/profiles/${encodeURIComponent(target)}/scans?limit=1&offset=0`,
-        );
-        latest = Array.isArray(scans) ? scans[0] : undefined;
-      } catch {
-        latest = undefined;
-      }
-      if (cancelled) return;
-      // Brought inside the chosen plan on the way in, not only on the way out:
-      // the payload is clamped as well (`scanScopeFrom`), but a form that shows
-      // a Complete-sized page count while Basic is selected is offering a scan
-      // that is not the one the checkout would open on.
-      const legacyPlan = planRef.current;
-      setScope(
-        latest === undefined
-          ? DEFAULT_SCOPE_FORM
-          : clampScopeToPlan(scopeFormFromScan(latest), legacyPlan),
-      );
-      setCarriedOver(latest !== undefined);
-      setSavedConfigFingerprint(null);
-      setSavedConfigVersion(null);
-      setConfigLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [paidAvailable, props.internalFreeAccess, selected, target, usingSavedProfile]);
-
-  // After the profile's own settings above, so the owner's explicit choice wins.
-  const initialPlanApplied = useRef(false);
-  const { initialPlan } = props;
-  useEffect(() => {
-    if (initialPlanApplied.current || initialPlan == null) return;
-    if (initialPlan !== 'Free' && !paidAvailable) return;
-    initialPlanApplied.current = true;
-    setPlan(initialPlan);
-    setScope((current) => clampScopeToPlan(current, initialPlan));
-  }, [initialPlan, paidAvailable, target]);
-
-  /**
-   * The profile this scan runs against, creating one from a typed address.
-   *
-   * Returns null when the address is not a site address — the field says so and
-   * the submission stops there, without a request. The server normalizes and
-   * re-checks the origin as well; this step exists so the owner never meets
-   * backend validation prose.
-   */
-  const resolveTargetProfileId = async (): Promise<string | null> => {
-    if (usingSavedProfile) return target;
-    const normalized = normalizeSiteAddress(address);
-    if (!normalized.ok) {
-      setAddressError(t.workspace.siteAddressError);
-      return null;
-    }
-    setAddressError(null);
-    const resolved = await apiRequest<{ profile: SiteProfile; created: boolean }>(
-      '/profiles/resolve',
-      { method: 'POST', body: JSON.stringify({ domain: normalized.origin }) },
-    );
-    // The workspace has one more site now, and the panels that list them are
-    // rendered from the app's copy of that list. Refreshing it is a convenience
-    // and is deliberately not awaited or allowed to fail the submission: the
-    // profile exists either way, and a list that could not be re-read must not
-    // cancel the check it was created for.
-    void props.onProfilesChanged().catch(() => undefined);
-    resolvedProfileVersion.current = resolved.profile.scanConfigVersion;
-    return resolved.profile.id;
-  };
-
-  const persistProfileConfiguration = async (profileId: string): Promise<SiteProfile | null> => {
-    return apiRequest<SiteProfile | null>(`/profiles/${encodeURIComponent(profileId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        scanConfig: currentProfileConfig,
-        expectedProfileConfigVersion: usingSavedProfile
-          ? (savedConfigVersion ?? selected?.scanConfigVersion)
-          : resolvedProfileVersion.current,
-      }),
-    });
-  };
-
-  const saveConfiguration = async (): Promise<void> => {
-    setSavingConfiguration(true);
-    try {
-      const profileId = await resolveTargetProfileId();
-      if (profileId === null) return;
-      const updated = unavailablePlanFallback
-        ? selected
-        : await persistProfileConfiguration(profileId);
-      setSavedConfigFingerprint(
-        profileScanConfigFingerprint(updated?.scanConfig ?? currentProfileConfig),
-      );
-      setSavedConfigVersion(updated?.scanConfigVersion ?? (savedConfigVersion ?? 0) + 1);
-      setCarriedOver(true);
-      await props.onProfilesChanged().catch(() => undefined);
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Configuration could not be saved');
-    } finally {
-      setSavingConfiguration(false);
-    }
-  };
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    // A page count of 0 or 2.5 is a typo, and the request it would become asks
-    // for a scan nobody chose. It is said here, on the field, rather than left
-    // to the API — by then a paid checkout has already opened.
-    const invalid = invalidScopeFields(scope, plan);
-    setInvalidScope(invalid);
-    if (invalid.length > 0) return;
-    setBusy(true);
-    try {
-      const profileId = await resolveTargetProfileId();
-      if (profileId === null) return;
-      let scan: Scan;
-      const updated = unavailablePlanFallback
-        ? selected
-        : await persistProfileConfiguration(profileId);
-      const expectedProfileConfigVersion =
-        updated?.scanConfigVersion ?? savedConfigVersion ?? undefined;
-      setSavedConfigFingerprint(
-        profileScanConfigFingerprint(updated?.scanConfig ?? currentProfileConfig),
-      );
-      setSavedConfigVersion(updated?.scanConfigVersion ?? (savedConfigVersion ?? 0) + 1);
-      await props.onProfilesChanged().catch(() => undefined);
-      // Free sends the settings it will actually run with, not the ones the
-      // form happens to hold; the server stores its own answer either way.
-      const scopePayload = scanScopeFrom(scope, plan);
-      // Basic and Complete include provider-backed AI checks as part of the
-      // purchased audit. The UI presents the data-transfer notice before
-      // checkout; this compatibility field records which notice applied to the
-      // scan so the orchestrator can enforce that contract boundary.
-      const aiConsent =
-        plan === 'Free'
-          ? {}
-          : {
-              aiConsent: {
-                providers: ['anthropic'],
-                noticeVersion: AI_PROCESSING_NOTICE_VERSION,
-              },
-            };
-      if (plan === 'Free') {
-        scan = await apiRequest<Scan>(`/profiles/${profileId}/free-check`, {
-          method: 'POST',
-          body: JSON.stringify({ scope: scopePayload, expectedProfileConfigVersion }),
-        });
-      } else if (props.internalFreeAccess) {
-        // Internal allowlist only: creates a scan without a purchase, and is
-        // refused for everyone else (and in production).
-        scan = await apiRequest<{ scanId: string } & Record<string, unknown>>(
-          '/billing/dev-checkout',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              siteProfileId: profileId,
-              plan,
-              scope: scopePayload,
-              expectedProfileConfigVersion,
-              ...aiConsent,
-            }),
-          },
-        ).then((value) => apiRequest<Scan>(`/scans/${value.scanId}`));
-      } else {
-        // Paid plans hand off to the provider. No scan exists until the signed
-        // provider webhook creates one, so nothing is created here.
-        const session = await apiRequest<CheckoutSession>('/billing/checkout-session', {
-          method: 'POST',
-          body: JSON.stringify({
-            siteProfileId: profileId,
-            plan,
-            scope: scopePayload,
-            expectedProfileConfigVersion,
-            ...aiConsent,
-          }),
-        });
-        // With a popup checkout configured, the FastSpring iframe opens over this
-        // page from `CheckoutPending` and the hosted URL is never opened by us —
-        // it stays only as the link the buyer clicks if the popup could not load.
-        // Without one (the older hosted storefront), the provider page opens in a
-        // tab as before.
-        const storefront = checkoutConfig?.popup?.storefront ?? null;
-        props.onCheckoutStarted({
-          accountId: props.accountId,
-          reference: session.reference,
-          sessionId: session.sessionId,
-          checkoutUrl: session.checkoutUrl,
-          storefront,
-          restored: false,
-          popupBlocked: storefront === null && !openCheckoutWindow(session.checkoutUrl),
-        });
-        return;
-      }
-      props.onCreated(scan);
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Scan could not be created');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const planOptions = [
-    { value: 'Free', label: t.newScan.planFree },
-    ...(paidAvailable
-      ? [
-          {
-            value: 'Basic',
-            label: props.internalFreeAccess ? t.newScan.planBasicInternal : t.newScan.planBasicPaid,
-          },
-          {
-            value: 'Complete',
-            label: props.internalFreeAccess
-              ? t.newScan.planCompleteInternal
-              : t.newScan.planCompletePaid,
-          },
-        ]
-      : []),
-  ];
-  // Free is the fixed homepage check: the crawl controls below do not reach it,
-  // so they are not offered on it. The server enforces the same thing whatever
-  // is sent (orchestrator/run-attempt.ts); this is the form telling the truth
-  // about it instead of collecting settings that would be discarded.
-  const paidScopeControls = plan !== 'Free';
-  // The status line names what is about to be checked. Asking for a profile
-  // when there is no profile picker on screen is the one thing it may not say.
-  const targetLabel = usingSavedProfile
-    ? (selected?.domain ?? t.newScan.noProfile)
-    : normalizeSiteAddress(address).ok
-      ? address.trim()
-      : t.newScan.noAddress;
-  const configurationState = !usingSavedProfile
-    ? 'new'
-    : configLoading
-      ? 'loading'
-      : savedConfigFingerprint === null
-        ? 'new'
-        : configurationDirty
-          ? 'dirty'
-          : 'saved';
-  const configurationStatusLabel =
-    configurationState === 'dirty'
-      ? t.newScan.configurationUnsaved
-      : configurationState === 'new'
-        ? t.newScan.configurationNew
-        : configurationState === 'loading'
-          ? t.newScan.configurationLoading
-          : fillCopy(t.newScan.configurationSaved, {
-              version: savedConfigVersion ?? 1,
-            });
-  const planLabel = planOptions.find((option) => option.value === plan)?.label ?? plan;
-  const launchSite = usingSavedProfile ? targetLabel : address.trim() || '—';
-  const launchPages =
-    plan === 'Free' ? t.newScan.launchSummaryHomepage : scope.maxPages.trim() || '—';
-  const launchDepth = plan === 'Free' ? '—' : scope.maxDepth.trim() || '—';
-  const launchRobots =
-    plan === 'Free'
-      ? t.newScan.launchSummaryRespected
-      : scope.respectRobots
-        ? t.newScan.launchSummaryRespected
-        : scope.robotsOverrideConfirmed
-          ? t.newScan.launchSummaryOverridden
-          : t.newScan.launchSummaryDisabled;
+  // The form's state, its saved-configuration sync and its submission live in
+  // new-scan-form.ts. Destructured rather than read off an object, so what this
+  // screen renders reads the same as when the two were one function.
+  const {
+    address,
+    addressError,
+    advancedOpen,
+    busy,
+    carriedOver,
+    checkoutConfig,
+    checkoutPending,
+    configurationState,
+    configurationStatusLabel,
+    invalidScope,
+    launchSite,
+    paidAvailable,
+    paidScopeControls,
+    plan,
+    planLabel,
+    planOptions,
+    robotsUnconfirmed,
+    saveConfiguration,
+    savingConfiguration,
+    scope,
+    setAddress,
+    setAddressError,
+    setAdvancedChoice,
+    setInvalidScope,
+    setPlan,
+    setScope,
+    setTarget,
+    submit,
+    target,
+    targetLabel,
+    unavailablePlanFallback,
+    updateScope,
+    usingSavedProfile,
+  } = useNewScanForm(props);
   return (
-    <Window title={t.newScan.windowTitle} className="window--dialog" onClose={props.onClose}>
-      <form className="stack" onSubmit={submit}>
-        <Panel title={t.newScan.panelTarget}>
-          {/* The field picks a saved profile, so it is named after what it
-              picks. The public-site semantics the old "Public origin" label
-              carried live in the hint, where they describe the scan rather than
-              renaming the thing being chosen. The last option is the way out of
-              the list entirely: an address nobody has saved yet. */}
-          {props.profiles.length === 0 ? (
-            <p className="muted panel-help">{t.newScan.noProfilesLead}</p>
-          ) : (
-            <SelectField
-              label={t.newScan.labelProfile}
-              name="scan-profile"
-              autoComplete="off"
-              // The hint describes a saved profile, so it goes away with the
-              // profile: the address field below states its own terms.
-              {...(usingSavedProfile ? { hint: t.newScan.hintProfile } : {})}
-              value={target}
-              onChange={setTarget}
-              options={[
-                ...props.profiles.map((profile) => ({
-                  value: profile.id,
-                  label: `${profile.name} · ${profile.domain}`,
-                })),
-                { value: NEW_ADDRESS_TARGET, label: t.newScan.optionNewAddress },
-              ]}
-            />
-          )}
-          {usingSavedProfile ? null : (
-            <Field
-              label={t.newScan.labelAddress}
-              name="scan-address"
-              autoComplete="url"
-              technical
-              value={address}
-              onChange={(value) => {
-                setAddress(value);
-                if (addressError !== null) setAddressError(null);
-              }}
-              placeholder={t.newScan.addressPlaceholder}
-              hint={t.newScan.hintAddress}
-              error={addressError ?? undefined}
-            />
-          )}
-          {carriedOver ? <p className="muted panel-help">{t.newScan.prefillNote}</p> : null}
-          <section
-            className={`configuration-status configuration-status--${configurationState}`}
-            aria-live="polite"
-          >
-            <div className="configuration-status__header">
-              <strong>{t.newScan.configurationTitle}</strong>
-              <StatusChip
-                status={
-                  configurationState === 'dirty'
-                    ? 'warning'
-                    : configurationState === 'saved'
-                      ? 'Completed'
-                      : 'info'
-                }
-                label={configurationStatusLabel}
-              />
-            </div>
-            {configurationState === 'dirty' ? (
-              <p>{t.newScan.configurationUnsavedBody}</p>
-            ) : configurationState === 'new' ? (
-              <p>{t.newScan.configurationNewBody}</p>
-            ) : null}
-          </section>
-          {paidScopeControls ? (
-            <Checkbox
-              name="scan-include-subdomains"
-              label={t.newScan.labelSubdomains}
-              checked={scope.includeSubdomains}
-              onChange={(checked) => updateScope({ includeSubdomains: checked })}
-            />
-          ) : null}
-          <SelectField
-            label={t.newScan.labelUserAgent}
-            name="scan-user-agent"
-            autoComplete="off"
-            value={scope.userAgent}
-            onChange={(value) => updateScope({ userAgent: value as ScanScopeForm['userAgent'] })}
-            options={[
-              { value: 'desktop', label: t.newScan.userAgentDesktop },
-              { value: 'mobile', label: t.newScan.userAgentMobile },
-            ]}
-          />
-        </Panel>
-        <Panel title={t.newScan.panelDepth}>
-          <SelectField
-            label={t.newScan.labelScanPlan}
-            name="scan-plan"
-            autoComplete="off"
-            value={plan}
-            onChange={(value) => {
-              const chosen = value as typeof plan;
-              setPlan(chosen);
-              // A site last checked on Complete opens on Complete-sized limits;
-              // carrying those into Basic asks for more pages than Basic sells,
-              // which the API refuses. The numbers move to the chosen plan here,
-              // where the owner can see what they are about to buy.
-              setScope((current) => clampScopeToPlan(current, chosen));
-              setInvalidScope([]);
-            }}
-            options={planOptions}
-          />
-          {paidAvailable ? null : checkoutPending ? (
-            <p className="muted">{t.newScan.paidChecking}</p>
-          ) : (
-            <p className="muted">{paidUnavailableCopy(t, checkoutConfig)}</p>
-          )}
-          {paidAvailable && checkoutConfig?.mode === 'test' ? (
-            <p className="muted">{t.checkout.testMode}</p>
-          ) : null}
-          {paidScopeControls ? (
-            <>
-              <Field
-                label={t.newScan.labelMaxPages}
-                name="scan-max-pages"
-                autoComplete="off"
-                technical
-                value={scope.maxPages}
-                onChange={(value) => updateScope({ maxPages: value })}
-                type="number"
-                error={invalidScope.includes('maxPages') ? t.newScan.maxPagesError : undefined}
-              />
-              <Field
-                label={t.newScan.labelMaxDepth}
-                name="scan-max-depth"
-                autoComplete="off"
-                technical
-                value={scope.maxDepth}
-                onChange={(value) => updateScope({ maxDepth: value })}
-                type="number"
-                error={invalidScope.includes('maxDepth') ? t.newScan.maxDepthError : undefined}
-              />
-              <Field
-                label={t.newScan.labelIncludePatterns}
-                name="scan-include-patterns"
-                autoComplete="off"
-                technical
-                value={scope.includePatterns}
-                onChange={(value) => updateScope({ includePatterns: value })}
-                placeholder="/docs/*, /blog/*"
-              />
-              <Field
-                label={t.newScan.labelExcludePatterns}
-                name="scan-exclude-patterns"
-                autoComplete="off"
-                technical
-                value={scope.excludePatterns}
-                onChange={(value) => updateScope({ excludePatterns: value })}
-                placeholder="/admin/*, /private/*"
-              />
+    <Window
+      title={t.newScan.windowTitle}
+      className="window--dialog window--launch"
+      onClose={props.onClose}
+    >
+      {/* Two columns from 1100px: the settings on the left, and on the right a
+          sticky launch column holding the summary, the purchase terms and the
+          buttons. The screen was a 520px ribbon 2300px tall with the pay button
+          under every word of it; below 1100px it collapses back to that single
+          stack, which is the right shape for a phone. */}
+      <form className="launch-form" onSubmit={submit}>
+        <div className="launch-form__controls">
+          <Panel title={t.newScan.panelTarget}>
+            {/* The field picks a saved profile, so it is named after what it
+                picks. The public-site semantics the old "Public origin" label
+                carried live in the hint, where they describe the scan rather than
+                renaming the thing being chosen. The last option is the way out of
+                the list entirely: an address nobody has saved yet. */}
+            {props.profiles.length === 0 ? (
+              <p className="muted panel-help">{t.newScan.noProfilesLead}</p>
+            ) : (
               <SelectField
-                label={t.newScan.labelQueryPolicy}
-                name="scan-query-policy"
+                label={t.newScan.labelProfile}
+                name="scan-profile"
                 autoComplete="off"
-                value={scope.queryPolicy}
-                onChange={(value) =>
-                  updateScope({ queryPolicy: value as ScanScopeForm['queryPolicy'] })
-                }
+                // The hint describes a saved profile, so it goes away with the
+                // profile: the address field below states its own terms.
+                {...(usingSavedProfile ? { hint: t.newScan.hintProfile } : {})}
+                value={target}
+                onChange={setTarget}
                 options={[
-                  { value: 'ignore', label: t.newScan.queryIgnore },
-                  { value: 'include', label: t.newScan.queryInclude },
+                  ...props.profiles.map((profile) => ({
+                    value: profile.id,
+                    label: `${profile.name} · ${profile.domain}`,
+                  })),
+                  { value: NEW_ADDRESS_TARGET, label: t.newScan.optionNewAddress },
                 ]}
               />
-              <section className="scan-option-callout" aria-labelledby="robots-info-title">
-                <div className="scan-option-callout__header">
-                  <span className="scan-option-callout__eyebrow">robots.txt</span>
-                  <span className="status-chip status-chip--neutral">
-                    {t.newScan.robotsInfoMode}
-                  </span>
-                </div>
-                <h3 id="robots-info-title">{t.newScan.robotsInfoTitle}</h3>
-                <p id="robots-info-description" className="scan-option-callout__body">
-                  {t.newScan.robotsInfoBody}
-                </p>
-              </section>
-              <Checkbox
-                name="scan-respect-robots"
-                label={t.newScan.labelRespectRobots}
-                checked={scope.respectRobots}
-                describedBy="robots-info-description"
-                onChange={(checked) =>
-                  updateScope({
-                    respectRobots: checked,
-                    // Turning the rule back on withdraws the override with it.
-                    ...(checked ? { robotsOverrideConfirmed: false } : {}),
-                  })
-                }
+            )}
+            {usingSavedProfile ? null : (
+              <Field
+                label={t.newScan.labelAddress}
+                name="scan-address"
+                autoComplete="url"
+                technical
+                value={address}
+                onChange={(value) => {
+                  setAddress(value);
+                  if (addressError !== null) setAddressError(null);
+                }}
+                placeholder={t.newScan.addressPlaceholder}
+                hint={t.newScan.hintAddress}
+                error={addressError ?? undefined}
               />
-              {scope.respectRobots ? null : (
-                <Checkbox
-                  label={t.newScan.labelRobotsOverride}
-                  name="scan-robots-override"
-                  checked={scope.robotsOverrideConfirmed}
-                  describedBy="robots-info-description"
-                  onChange={(checked) => updateScope({ robotsOverrideConfirmed: checked })}
+            )}
+            {carriedOver ? <p className="muted panel-help">{t.newScan.prefillNote}</p> : null}
+            <section
+              className={`configuration-status configuration-status--${configurationState}`}
+              aria-live="polite"
+            >
+              <div className="configuration-status__header">
+                <strong>{t.newScan.configurationTitle}</strong>
+                <StatusChip
+                  status={
+                    configurationState === 'dirty'
+                      ? 'warning'
+                      : configurationState === 'saved'
+                        ? 'Completed'
+                        : 'info'
+                  }
+                  label={configurationStatusLabel}
                 />
-              )}
-              <section className="ai-consent-callout" aria-labelledby="ai-consent-title">
-                <div className="ai-consent-callout__header">
-                  <span className="ai-consent-callout__eyebrow">AI SEO / GEO · UX</span>
-                  <span className="status-chip status-chip--neutral">
-                    {t.newScan.aiConsentOptional}
-                  </span>
-                </div>
-                <h3 id="ai-consent-title">{t.newScan.aiConsentTitle}</h3>
-                <p id="ai-consent-description" className="ai-consent-callout__body">
+              </div>
+              {configurationState === 'dirty' ? (
+                <p>{t.newScan.configurationUnsavedBody}</p>
+              ) : configurationState === 'new' ? (
+                <p>{t.newScan.configurationNewBody}</p>
+              ) : null}
+            </section>
+            {paidScopeControls ? (
+              <Checkbox
+                name="scan-include-subdomains"
+                label={t.newScan.labelSubdomains}
+                checked={scope.includeSubdomains}
+                onChange={(checked) => updateScope({ includeSubdomains: checked })}
+              />
+            ) : null}
+            <SelectField
+              label={t.newScan.labelUserAgent}
+              name="scan-user-agent"
+              autoComplete="off"
+              value={scope.userAgent}
+              onChange={(value) => updateScope({ userAgent: value as ScanScopeForm['userAgent'] })}
+              options={[
+                { value: 'desktop', label: t.newScan.userAgentDesktop },
+                { value: 'mobile', label: t.newScan.userAgentMobile },
+              ]}
+            />
+          </Panel>
+          <Panel title={t.newScan.panelDepth}>
+            <SelectField
+              label={t.newScan.labelScanPlan}
+              name="scan-plan"
+              autoComplete="off"
+              value={plan}
+              onChange={(value) => {
+                const chosen = value as typeof plan;
+                setPlan(chosen);
+                // A site last checked on Complete opens on Complete-sized limits;
+                // carrying those into Basic asks for more pages than Basic sells,
+                // which the API refuses. The numbers move to the chosen plan here,
+                // where the owner can see what they are about to buy.
+                setScope((current) => clampScopeToPlan(current, chosen));
+                setInvalidScope([]);
+              }}
+              options={planOptions}
+            />
+            {paidAvailable ? null : checkoutPending ? (
+              <p className="muted">{t.newScan.paidChecking}</p>
+            ) : (
+              <p className="muted">{paidUnavailableCopy(t, checkoutConfig)}</p>
+            )}
+            {paidAvailable && checkoutConfig?.mode === 'test' ? (
+              <p className="muted">{t.checkout.testMode}</p>
+            ) : null}
+            {paidScopeControls ? (
+              <>
+                <Field
+                  label={t.newScan.labelMaxPages}
+                  name="scan-max-pages"
+                  autoComplete="off"
+                  technical
+                  value={scope.maxPages}
+                  onChange={(value) => updateScope({ maxPages: value })}
+                  type="number"
+                  error={invalidScope.includes('maxPages') ? t.newScan.maxPagesError : undefined}
+                />
+                <Field
+                  label={t.newScan.labelMaxDepth}
+                  name="scan-max-depth"
+                  autoComplete="off"
+                  technical
+                  value={scope.maxDepth}
+                  onChange={(value) => updateScope({ maxDepth: value })}
+                  type="number"
+                  error={invalidScope.includes('maxDepth') ? t.newScan.maxDepthError : undefined}
+                />
+                {/* Path patterns and the query policy shape which URLs the
+                    crawler takes, and most scans ship with the defaults. They
+                    stay behind a disclosure so the plan and its two limits —
+                    the numbers being bought — are what the panel opens on. */}
+                <details
+                  className="scan-advanced"
+                  open={advancedOpen}
+                  onToggle={(event) => setAdvancedChoice(event.currentTarget.open)}
+                >
+                  <summary className="scan-advanced__summary">{t.newScan.advancedTitle}</summary>
+                  <div className="scan-advanced__fields">
+                    <Field
+                      label={t.newScan.labelIncludePatterns}
+                      name="scan-include-patterns"
+                      autoComplete="off"
+                      technical
+                      value={scope.includePatterns}
+                      onChange={(value) => updateScope({ includePatterns: value })}
+                      placeholder="/docs/*, /blog/*"
+                    />
+                    <Field
+                      label={t.newScan.labelExcludePatterns}
+                      name="scan-exclude-patterns"
+                      autoComplete="off"
+                      technical
+                      value={scope.excludePatterns}
+                      onChange={(value) => updateScope({ excludePatterns: value })}
+                      placeholder="/admin/*, /private/*"
+                    />
+                    <SelectField
+                      label={t.newScan.labelQueryPolicy}
+                      name="scan-query-policy"
+                      autoComplete="off"
+                      value={scope.queryPolicy}
+                      onChange={(value) =>
+                        updateScope({ queryPolicy: value as ScanScopeForm['queryPolicy'] })
+                      }
+                      options={[
+                        { value: 'ignore', label: t.newScan.queryIgnore },
+                        { value: 'include', label: t.newScan.queryInclude },
+                      ]}
+                    />
+                  </div>
+                </details>
+                <ScanCallout
+                  eyebrow="robots.txt"
+                  title={t.newScan.robotsInfoTitle}
+                  titleId="robots-info-title"
+                  mode={t.newScan.robotsInfoMode}
+                  bodyId="robots-info-description"
+                >
+                  {t.newScan.robotsInfoBody}
+                </ScanCallout>
+                <Checkbox
+                  name="scan-respect-robots"
+                  label={t.newScan.labelRespectRobots}
+                  checked={scope.respectRobots}
+                  describedBy="robots-info-description"
+                  onChange={(checked) =>
+                    updateScope({
+                      respectRobots: checked,
+                      // Turning the rule back on withdraws the override with it.
+                      ...(checked ? { robotsOverrideConfirmed: false } : {}),
+                    })
+                  }
+                />
+                {scope.respectRobots ? null : (
+                  <Checkbox
+                    label={t.newScan.labelRobotsOverride}
+                    name="scan-robots-override"
+                    checked={scope.robotsOverrideConfirmed}
+                    describedBy="robots-info-description"
+                    onChange={(checked) => updateScope({ robotsOverrideConfirmed: checked })}
+                  />
+                )}
+                {/* Open, unlike the robots.txt explanation above it: this one
+                    and the performance disclosure below say what leaves the
+                    site and who processes it, and the buyer agrees to both by
+                    paying. Folding them would trade a guarantee for height. */}
+                <ScanCallout
+                  eyebrow="AI SEO / GEO · UX"
+                  title={t.newScan.aiConsentTitle}
+                  titleId="ai-consent-title"
+                  mode={t.newScan.aiConsentOptional}
+                  bodyId="ai-consent-description"
+                  defaultOpen
+                >
                   {t.newScan.aiConsentBody}{' '}
                   <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
                   {' · '}
                   <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>
-                </p>
-              </section>
-              {plan === 'Complete' ? (
-                <section className="scan-option-callout" aria-labelledby="performance-info-title">
-                  <div className="scan-option-callout__header">
-                    <span className="scan-option-callout__eyebrow">PERFORMANCE · GOOGLE</span>
-                    <span className="status-chip status-chip--neutral">
-                      {t.newScan.performanceInfoMode}
-                    </span>
-                  </div>
-                  <h3 id="performance-info-title">{t.newScan.performanceInfoTitle}</h3>
-                  <p className="scan-option-callout__body">{t.newScan.performanceInfoBody}</p>
-                </section>
-              ) : null}
-            </>
-          ) : null}
-        </Panel>
-        {/* What Free actually is, in place of the controls it does not have.
-            The two rows are the enforced settings, not suggestions: the crawler
-            reads the homepage and obeys robots.txt on this plan whatever the
-            request says. */}
-        {paidScopeControls ? null : (
-          <Panel title={t.newScan.freeScopeTitle}>
-            <p className="muted panel-help">{t.newScan.freeScopeNote}</p>
-            <FieldRow label={t.newScan.freeScopePages} value={t.newScan.freeScopePagesValue} />
-            <FieldRow label={t.newScan.freeScopeRobots} value={t.newScan.freeScopeRobotsValue} />
-            <p className="muted panel-help">{t.newScan.freeScopeLocked}</p>
-          </Panel>
-        )}
-        <Panel title={t.newScan.launchSummaryTitle}>
-          <div className="launch-summary">
-            <FieldRow label={t.newScan.launchSummarySite} value={launchSite} technical />
-            <FieldRow label={t.newScan.launchSummaryPlan} value={planLabel} />
-            <FieldRow label={t.newScan.launchSummaryPages} value={launchPages} />
-            <FieldRow label={t.newScan.launchSummaryDepth} value={launchDepth} />
-            <FieldRow
-              label={t.newScan.launchSummarySubdomains}
-              value={
-                scope.includeSubdomains
-                  ? t.newScan.launchSummaryEnabled
-                  : t.newScan.launchSummaryDisabled
-              }
-            />
-            <FieldRow label={t.newScan.launchSummaryRobots} value={launchRobots} />
-            <FieldRow
-              label={t.newScan.launchSummaryQueries}
-              value={
-                plan === 'Free'
-                  ? t.newScan.launchSummaryIgnored
-                  : scope.queryPolicy === 'include'
-                    ? t.newScan.launchSummaryIncluded
-                    : t.newScan.launchSummaryIgnored
-              }
-            />
-            <FieldRow
-              label={t.newScan.launchSummaryUserAgent}
-              value={
-                scope.userAgent === 'desktop'
-                  ? t.newScan.userAgentDesktop
-                  : t.newScan.userAgentMobile
-              }
-            />
-            <FieldRow
-              label={t.newScan.launchSummaryAi}
-              value={
-                plan === 'Free' ? t.newScan.launchSummaryDisabled : t.newScan.launchSummaryEnabled
-              }
-            />
-            {plan === 'Complete' ? (
-              <FieldRow
-                label={t.newScan.launchSummaryPerformance}
-                value={t.newScan.launchSummaryPerformanceValue}
-              />
+                </ScanCallout>
+                {plan === 'Complete' ? (
+                  <ScanCallout
+                    eyebrow="PERFORMANCE · GOOGLE"
+                    title={t.newScan.performanceInfoTitle}
+                    titleId="performance-info-title"
+                    mode={t.newScan.performanceInfoMode}
+                    defaultOpen
+                  >
+                    {t.newScan.performanceInfoBody}
+                  </ScanCallout>
+                ) : null}
+              </>
             ) : null}
-          </div>
-        </Panel>
-        {plan === 'Free' || props.internalFreeAccess ? null : (
-          <p
-            className="muted checkout-legal-note"
-            role="note"
-            aria-label={t.newScan.purchaseTermsLabel}
-          >
-            {t.newScan.purchaseTermsPrefix}{' '}
-            <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>{' '}
-            {t.newScan.purchaseTermsJoin}{' '}
-            <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
-            {' · '}
-            <a href={`/cookies?lang=${props.language}`}>{t.legal.cookies.title}</a>
-            {t.newScan.purchaseTermsSuffix}
-          </p>
-        )}
-        <div className="split">
-          <span className="muted">
-            {targetLabel} {t.newScan.publicSiteOnly}
-          </span>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={
-              busy ||
-              savingConfiguration ||
-              (usingSavedProfile ? target === '' : address.trim() === '') ||
-              (paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed)
-            }
-          >
-            {busy
-              ? plan !== 'Free' && !props.internalFreeAccess
-                ? t.newScan.openingCheckout
-                : t.newScan.creating
-              : plan === 'Free'
-                ? t.newScan.runFree
-                : props.internalFreeAccess
-                  ? t.newScan.runInternal
-                  : t.newScan.runPaid}
-          </Button>
+          </Panel>
+          {/* What Free actually is, in place of the controls it does not have.
+              The two rows are the enforced settings, not suggestions: the crawler
+              reads the homepage and obeys robots.txt on this plan whatever the
+              request says. */}
+          {paidScopeControls ? null : (
+            <Panel title={t.newScan.freeScopeTitle}>
+              <p className="muted panel-help">{t.newScan.freeScopeNote}</p>
+              <FieldRow label={t.newScan.freeScopePages} value={t.newScan.freeScopePagesValue} />
+              <FieldRow label={t.newScan.freeScopeRobots} value={t.newScan.freeScopeRobotsValue} />
+              <p className="muted panel-help">{t.newScan.freeScopeLocked}</p>
+            </Panel>
+          )}
         </div>
-        <Button
-          type="button"
-          disabled={
-            unavailablePlanFallback ||
-            busy ||
-            savingConfiguration ||
-            (usingSavedProfile ? target === '' : address.trim() === '') ||
-            invalidScopeFields(scope, plan).length > 0 ||
-            (paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed)
-          }
-          onClick={() => void saveConfiguration()}
-        >
-          {savingConfiguration ? t.newScan.savingConfiguration : t.newScan.saveConfiguration}
-        </Button>
+        {/* Not an `aside`: a complementary landmark is content beside the page,
+            and this column carries the form's own submit. */}
+        <div className="launch-form__launch">
+          {/* The part that may scroll inside the pinned column, so the actions
+              below it cannot be pushed off a short viewport. */}
+          <div className="launch-form__review">
+            <LaunchSummary
+              language={props.language}
+              site={launchSite}
+              plan={plan}
+              planLabel={planLabel}
+              scope={scope}
+            />
+            {plan === 'Free' || props.internalFreeAccess ? null : (
+              <p
+                className="muted checkout-legal-note"
+                role="note"
+                aria-label={t.newScan.purchaseTermsLabel}
+              >
+                {t.newScan.purchaseTermsPrefix}{' '}
+                <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>{' '}
+                {t.newScan.purchaseTermsJoin}{' '}
+                <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
+                {' · '}
+                <a href={`/cookies?lang=${props.language}`}>{t.legal.cookies.title}</a>
+                {t.newScan.purchaseTermsSuffix}
+              </p>
+            )}
+          </div>
+          {/* The buy button first, then the way to keep the settings without
+              buying anything. They used to sit the other way round, with the
+              secondary action spanning the full width under the primary one. */}
+          <div className="launch-form__actions">
+            <span className="muted">
+              {targetLabel} {t.newScan.publicSiteOnly}
+            </span>
+            {robotsUnconfirmed ? (
+              <p className="muted launch-form__blocked" id="launch-blocked" role="note">
+                {t.newScan.blockedByRobots}
+              </p>
+            ) : null}
+            <Button
+              type="submit"
+              variant="primary"
+              {...(robotsUnconfirmed ? { 'aria-describedby': 'launch-blocked' } : {})}
+              disabled={
+                busy ||
+                savingConfiguration ||
+                (usingSavedProfile ? target === '' : address.trim() === '') ||
+                robotsUnconfirmed
+              }
+            >
+              {busy
+                ? plan !== 'Free' && !props.internalFreeAccess
+                  ? t.newScan.openingCheckout
+                  : t.newScan.creating
+                : plan === 'Free'
+                  ? t.newScan.runFree
+                  : props.internalFreeAccess
+                    ? t.newScan.runInternal
+                    : t.newScan.runPaid}
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                unavailablePlanFallback ||
+                busy ||
+                savingConfiguration ||
+                (usingSavedProfile ? target === '' : address.trim() === '') ||
+                invalidScopeFields(scope, plan).length > 0 ||
+                robotsUnconfirmed
+              }
+              onClick={() => void saveConfiguration()}
+            >
+              {savingConfiguration ? t.newScan.savingConfiguration : t.newScan.saveConfiguration}
+            </Button>
+          </div>
+        </div>
       </form>
     </Window>
   );

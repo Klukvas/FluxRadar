@@ -309,6 +309,13 @@ summary:focus-visible {
   max-width: 520px;
   margin: 8vh auto;
 }
+/* The new-scan screen is the one dialog-shaped window that is a whole page: it
+   carries the settings and the purchase side by side. 520px is still the right
+   reading width for the modals that share the class (sign-in, support), so the
+   extra room is a modifier rather than a change to the shared rule. */
+.window--launch {
+  max-width: 1040px;
+}
 /* FastSpring's Store Builder creates this backdrop outside React and mounts the
    checkout iframe inside it. Keep the checkout itself untouched while making
    the page underneath feel intentionally de-emphasized. */
@@ -1492,6 +1499,54 @@ code,
   line-height: 1.45;
 }
 
+/* The new-scan form. Settings on the left, and a launch column that holds the
+   summary, the purchase terms and the buttons: what is about to be bought stays
+   beside the fields that decide it instead of 2300px below them. */
+.launch-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  align-items: start;
+  gap: var(--sp-4);
+}
+.launch-form__controls {
+  display: grid;
+  /* minmax(0, 1fr), not 1fr, for the same reason `.stack` uses it: a grid item
+     defaults to min-width:auto, and an unbreakable technical value would widen
+     the settings column past its share of the window. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+.launch-form__launch {
+  position: sticky;
+  /* Nothing is pinned to the top of the workspace, so this is breathing room
+     rather than clearance for a bar. */
+  top: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  /* Never taller than the viewport it is pinned to. A column that overflowed
+     held the pay button below the fold for the whole sticky range — measured
+     at 1440x560, where the Ukrainian column runs 597px against 560px of
+     viewport — which is the exact thing two columns exist to prevent. */
+  max-height: calc(100vh - var(--sp-4) * 2);
+}
+/* The summary and the purchase terms give up their height first; the actions
+   below them keep theirs, so the button is on screen whenever the column is. */
+.launch-form__review {
+  display: grid;
+  gap: var(--sp-3);
+  min-height: 0;
+  overflow-y: auto;
+}
+.launch-form__actions {
+  display: grid;
+  gap: var(--sp-2);
+  flex: none;
+}
+.launch-form__blocked {
+  margin: 0;
+}
+
 .launch-summary {
   border-top: 1px solid var(--plat-300);
 }
@@ -1507,6 +1562,13 @@ code,
     inset 2px 0 0 var(--selection),
     inset 1px 1px 0 #fff;
 }
+.scan-option-callout__summary {
+  cursor: pointer;
+  list-style: none;
+}
+.scan-option-callout__summary::-webkit-details-marker {
+  display: none;
+}
 .scan-option-callout__header {
   display: flex;
   flex-wrap: wrap;
@@ -1520,6 +1582,14 @@ code,
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+/* The disclosure marker rides the eyebrow. The summary is a two-row block, and
+   a list marker of its own sat in front of the empty space beside the chip. */
+.scan-option-callout__eyebrow::before {
+  content: '\25b8  ';
+}
+.scan-option-callout[open] .scan-option-callout__eyebrow::before {
+  content: '\25be  ';
+}
 .scan-option-callout h3 {
   margin: var(--sp-2) 0 0;
   font-size: 14px;
@@ -1530,48 +1600,35 @@ code,
   font-size: 12px;
   line-height: 1.45;
 }
+.scan-option-callout__body a {
+  color: var(--selection);
+}
 
-.ai-consent-callout {
-  padding: var(--sp-3);
-  border: 1px solid var(--selection);
-  background: #eef4ff;
-  box-shadow:
-    inset 2px 0 0 var(--selection),
-    inset 1px 1px 0 #fff;
+/* Path patterns and the URL query policy. Most scans run on the defaults, so
+   the group opens only when it holds something other than them. */
+.scan-advanced {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--plat-300);
 }
-.ai-consent-callout__header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-}
-.ai-consent-callout__eyebrow {
-  color: var(--selection);
-  font: 11px var(--mono-font);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.ai-consent-callout h3 {
-  margin: var(--sp-2) 0 0;
-  font-size: 14px;
-}
-.ai-consent-callout__checkbox {
-  margin-top: var(--sp-2);
-  min-height: 32px;
-}
-.ai-consent-callout__checkbox:focus-within {
-  outline: 2px solid var(--selection);
-  outline-offset: 2px;
-}
-.ai-consent-callout__body {
-  margin: var(--sp-2) 0 0;
-  color: var(--plat-700);
+.scan-advanced__summary {
+  cursor: pointer;
   font-size: 12px;
-  line-height: 1.45;
+  list-style: none;
 }
-.ai-consent-callout__body a {
+.scan-advanced__summary::-webkit-details-marker {
+  display: none;
+}
+.scan-advanced__summary::before {
+  content: '\25b8  ';
   color: var(--selection);
+}
+.scan-advanced[open] > .scan-advanced__summary::before {
+  content: '\25be  ';
+}
+.scan-advanced__fields {
+  display: grid;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
 }
 
 /* "How to read this report" definitions and the findings call-to-action. */
@@ -3073,6 +3130,20 @@ code,
   }
 }
 @media (max-width: 1099px) {
+  .window--launch {
+    max-width: 520px;
+  }
+  .launch-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3);
+  }
+  .launch-form__launch {
+    position: static;
+    max-height: none;
+  }
+  .launch-form__review {
+    overflow-y: visible;
+  }
   .desktop {
     padding: var(--sp-4);
   }
