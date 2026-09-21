@@ -205,7 +205,7 @@ describe('paid checkout flow', () => {
       screen.queryByText('Your browser blocked the checkout tab. Use the link below to continue.'),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open the checkout page' })).not.toBeInTheDocument();
-    // The mock checkout endpoint must not be reachable from this path any more.
+    // A buyer pays through FastSpring; the internal allowlist's route is not on this path.
     expect(called(fetchMock, '/billing/dev-checkout')).toBe(false);
     expect(called(fetchMock, `/profiles/${profile.id}/free-check`)).toBe(false);
 

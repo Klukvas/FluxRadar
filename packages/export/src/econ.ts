@@ -1,6 +1,6 @@
 // ECON-001 (план §18): чистый валидатор 30-дневного launch forecast.
 // Пересчитывает gross revenue из цен тарифов и mix, проверяет support-reserve
-// floor max($500, 10% gross), потолки p95 variable cost ($24.25/$53.50),
+// floor max($500, 10% gross), потолки p95 variable cost (VARIABLE_COST_CEILING_USD),
 // положительную weighted contribution margin (после комиссии FastSpring, p95
 // cost и non-pass-through tax), risk-adjusted break-even и operational floor 45.
 // Потолки p95 выводятся из цены, целевой маржи и комиссии, а не задаются
@@ -29,7 +29,8 @@ export const FASTSPRING_FEE_FLAT_USD = 0.95;
 export const TARGET_CONTRIBUTION_MARGIN_SHARE = 0.5;
 /**
  * Hard ceiling всей переменной себестоимости одного прогона: то, что остаётся
- * от цены после комиссии FastSpring и целевой маржи (Basic $23.30, Complete $51.97).
+ * от цены после комиссии FastSpring и целевой маржи. Числа здесь не пишутся —
+ * их считает `variableCostCeilingUsd`, а текущие значения закреплены в econ.test.ts.
  */
 export const VARIABLE_COST_CEILING_USD = {
   basic: variableCostCeilingUsd(TARIFFS.Basic.priceUsd),

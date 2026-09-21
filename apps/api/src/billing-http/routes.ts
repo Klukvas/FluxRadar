@@ -78,7 +78,7 @@ export function billingRouter(deps: BillingRouterDeps): Router {
     // account. Everyone else pays the provider.
     if (!isInternalFreeEmail(account.email, deps.internalFreeEmails)) {
       throw paymentRequired(
-        'paid scans must be purchased through /billing/checkout-session in this environment',
+        'paid scans must be purchased through /billing/checkout-session; this route serves internal accounts only',
       );
     }
     const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);
