@@ -394,16 +394,21 @@ Test-mode orders are counted separately and never appear as revenue. It is not
 linked from any menu; open the URL directly while signed in.
 
 Access is an exact, comma-separated list of account emails in
-`FLUXRADAR_ADMIN_EMAILS`, set in `PRODUCTION_ENV_FILE` — for example
-`FLUXRADAR_ADMIN_EMAILS=owner@example.com`. Entries are trimmed and matched
+`FLUXRADAR_ADMIN_EMAILS` — for example `owner@example.com`. Set it through the
+`production` environment **secret** `PRODUCTION_ADMIN_EMAILS`, which the deploy
+writes into the env file (see *Optional integration secrets*); a line in
+`PRODUCTION_ENV_FILE` works too, but that secret cannot be read back, so adding
+one address there means retyping every other variable. Entries are trimmed and matched
 case-insensitively, and the account must have **confirmed** its address: the
 list names addresses, not accounts, so an unconfirmed registration of a listed
 address gets nothing. Unset or empty switches the dashboard off.
 
 To everyone else — signed out, not listed, unconfirmed, or the variable empty —
 `GET /admin/stats` answers `404 NOT_FOUND` exactly as an unknown route does, so
-its existence is not disclosed. The list lives in the base env file only — the
-workflow merges no override for it — and the normalizer needs no change for it
+its existence is not disclosed. It is a secret rather than a variable for the
+same reason as `PRODUCTION_RESEND_FROM_EMAIL`: the deploy log never prints a
+mailbox address, and the admin's is the one a targeted phishing attempt would
+start from. The normalizer needs no change for it
 (`deploy/normalize-env-file.cjs` accepts any well-formed key). At boot the API
 logs `admin stats enabled` with the number of listed addresses, never the
 addresses themselves; no line at all means the list is empty.
@@ -435,6 +440,7 @@ workflow log):
 | `PRODUCTION_CRAWL_EGRESS_PROXY_URL`       | `CRAWL_EGRESS_PROXY_URL`   |
 | `PRODUCTION_RESEND_API_KEY`               | `RESEND_API_KEY`           |
 | `PRODUCTION_RESEND_FROM_EMAIL`            | `RESEND_FROM_EMAIL`        |
+| `PRODUCTION_ADMIN_EMAILS`                 | `FLUXRADAR_ADMIN_EMAILS`   |
 | `PRODUCTION_HETZNER_S3_ACCESS_KEY`        | `HETZNER_S3_ACCESS_KEY`    |
 | `PRODUCTION_HETZNER_S3_SECRET_KEY`        | `HETZNER_S3_SECRET_KEY`    |
 | `PRODUCTION_HETZNER_S3_ENDPOINT`         | `HETZNER_S3_ENDPOINT`      |
