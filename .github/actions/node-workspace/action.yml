@@ -5,10 +5,11 @@ description: >-
 
 # Every quality job needs the same four steps, and when they were copied per job
 # they drifted: a Node version bumped in one place, a pnpm version in another.
-# The Node version lives here once. The pnpm version lives in exactly one place
-# for the whole repository — `packageManager` in package.json, which corepack and
-# the Dockerfiles' own `corepack prepare` already read — so it is not repeated
-# here: pnpm/action-setup reads it from there when `version` is left out.
+# The Node version lives here once. The pnpm version is not repeated here:
+# pnpm/action-setup reads `packageManager` from package.json when `version` is
+# left out, so CI follows package.json. It is NOT the only copy — Dockerfile.api
+# and Dockerfile.web each pin it again in `corepack prepare pnpm@…`, so a pnpm
+# bump is still three edits: package.json and both Dockerfiles.
 
 inputs:
   download-dist:
