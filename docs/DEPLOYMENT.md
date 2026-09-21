@@ -5,6 +5,9 @@ FluxRadar is deployed to one Hetzner Cloud server through GitHub Actions.
 ## Runtime layout
 
 - Caddy terminates HTTPS on the server and routes `fluxradar.net/api/*` to the API.
+  It also writes a privacy-filtered access log (masked IPs, no one-time secrets,
+  at most 30 days) to the `caddy_data` volume; `scripts/traffic-report.sh` turns
+  it into a traffic report — see [Traffic logs](TRAFFIC_LOGS.md).
 - Nginx serves the React SPA from the web container.
 - PostgreSQL runs as an internal Docker service and persists data in the
   `fluxradar_postgres` volume; port 5432 is not published to the Internet.
