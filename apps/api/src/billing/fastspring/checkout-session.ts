@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { captureExecutionConfig, lockOwnProfile } from '../../profiles/execution-config.ts';
+import { isExpired, isProbeUsable } from '../../profiles/reachability-routes.ts';
 
 import type { AiConsentInput } from '../checkout-metadata.ts';
 import { CHECKOUT_STATUS_REASONS, provisionalCheckoutDeadline } from '../checkout-lifecycle.ts';
 import { checkoutReasonCode, type CheckoutReasonCode } from '../checkout-status-reason.ts';
 import { CHECKOUT_SESSION_STATUSES } from '../constants.ts';
-import { BillingNotFoundError, WebhookValidationError } from '../errors.ts';
+import { BillingNotFoundError, SitePreconditionError, WebhookValidationError } from '../errors.ts';
 import { planPriceUsd, planUrlLimit, type PaidPlan } from '../plans.ts';
 import { createFastSpringSession, type CreatedSession, type FetchLike } from './client.ts';
 import { FASTSPRING_PROVIDER, type FastSpringConfig } from './config.ts';
@@ -58,6 +59,7 @@ export async function createCheckoutSession(
     throw new BillingNotFoundError('site profile not found');
   }
   assertScopeWithinPlan(params.plan, params.scope);
+  await assertSiteIsReachable(deps, profile.id);
 
   const productPath = deps.config.productPaths[params.plan];
   const reference = `frcs_${randomUUID()}`;
@@ -212,6 +214,42 @@ export async function findCheckoutStatus(
  * A scope that exceeds the plan's URL limit must be rejected at checkout, not
  * silently trimmed after payment.
  */
+/**
+ * Refuses the sale unless a recent probe says the crawler can read this site.
+ *
+ * Read from our own table, never from the request: the browser showed the buyer
+ * a reachability panel, but a browser can be told anything, and "I checked, it
+ * was fine" is not evidence. The panel exists to explain the refusal before the
+ * buyer meets it; this is the refusal.
+ *
+ * A stale probe is refused too, with its own message. A site that was reachable
+ * an hour ago and is now behind a challenge would otherwise sell exactly the
+ * audit this whole precondition exists to prevent.
+ */
+async function assertSiteIsReachable(
+  deps: CheckoutSessionDeps,
+  siteProfileId: string,
+): Promise<void> {
+  const probe = await deps.prisma.siteReachabilityProbe.findUnique({ where: { siteProfileId } });
+  if (isProbeUsable(probe, deps.now())) return;
+  if (probe === null) {
+    throw new SitePreconditionError(
+      'unchecked',
+      'This site has not been checked yet. Run the reachability check before paying.',
+    );
+  }
+  if (isExpired(probe.checkedAt, deps.now())) {
+    throw new SitePreconditionError(
+      'stale',
+      'The reachability check is out of date. Run it again before paying.',
+    );
+  }
+  throw new SitePreconditionError(
+    probe.state,
+    'The last check could not read this site, so an audit of it cannot be sold yet.',
+  );
+}
+
 function assertScopeWithinPlan(plan: PaidPlan, scope: ScanScopeInput): void {
   const urlLimit = planUrlLimit(plan);
   if (scope.maxPages !== undefined && scope.maxPages > urlLimit) {

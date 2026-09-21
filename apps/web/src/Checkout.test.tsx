@@ -74,9 +74,27 @@ function envelope<T>(data: T, status = 200): Response {
   });
 }
 
+/**
+ * The pay button is disabled until the API says this site lets the crawler in,
+ * so every paid-checkout stub has to answer the reachability read. Answered
+ * here rather than in each handler: these tests are about the checkout, and a
+ * site that cannot be read is FASTSPRING-009's subject, not theirs.
+ */
+function reachabilityEnvelope(): Response {
+  return envelope({
+    state: 'reachable',
+    startStatus: 200,
+    accessControlSignals: [],
+    checkedAt: new Date().toISOString(),
+    expired: false,
+    canPurchase: true,
+  });
+}
+
 function stubApi(handler: (path: string, init?: RequestInit) => Response) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = new URL(String(input)).pathname;
+    if (path.endsWith('/reachability')) return Promise.resolve(reachabilityEnvelope());
     return Promise.resolve(handler(path, init));
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -85,6 +103,19 @@ function stubApi(handler: (path: string, init?: RequestInit) => Response) {
 
 function selectPlan(plan: string): void {
   fireEvent.change(screen.getByLabelText('Scan plan'), { target: { value: plan } });
+}
+
+/**
+ * Waits for the pay button to become usable.
+ *
+ * A paid scan is not offered until the API answers that this site lets the
+ * crawler in (FASTSPRING-009), so pressing the button in the same tick as
+ * selecting the plan would press a disabled one.
+ */
+async function awaitPayable(): Promise<void> {
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Pay and run scan' })).toBeEnabled(),
+  );
 }
 
 function called(fetchMock: ReturnType<typeof stubApi>, path: string): boolean {
@@ -146,6 +177,7 @@ describe('paid checkout flow', () => {
     // The paid default is never pre-selected: the plan stays Free until the
     // buyer picks a paid one themselves.
     selectPlan('Complete');
+    await awaitPayable();
     const legalNotice = screen.getByRole('note', { name: 'Purchase terms' });
     expect(legalNotice).toHaveTextContent(
       'By selecting “Pay and run scan”, you agree to the Terms of service and acknowledge the Privacy policy · Cookie policy.',
@@ -224,6 +256,7 @@ describe('paid checkout flow', () => {
 
     await screen.findByText('Complete · $120');
     selectPlan('Complete');
+    await awaitPayable();
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 
     const link = await screen.findByRole('link', { name: 'Open the checkout page' });
@@ -260,6 +293,7 @@ describe('paid checkout flow', () => {
 
     await screen.findByText('Complete · $120');
     selectPlan('Complete');
+    await awaitPayable();
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 
     expect(
@@ -393,6 +427,7 @@ describe('paid checkout flow', () => {
     await openNewScan(handler);
     await screen.findByText('Complete · $120');
     selectPlan('Complete');
+    await awaitPayable();
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
     await screen.findByText('Payment — confirming');
 

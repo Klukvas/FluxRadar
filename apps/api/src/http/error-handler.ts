@@ -12,6 +12,7 @@ import {
   InvalidSignatureError,
   InvalidTransitionError,
   RefundPolicyError,
+  SitePreconditionError,
   WebhookValidationError,
 } from '../billing/index.ts';
 import { errorEnvelope } from './envelope.ts';
@@ -30,6 +31,8 @@ function billingErrorStatus(error: BillingError): number {
   if (error instanceof BillingNotFoundError) return 404;
   if (error instanceof InvalidTransitionError) return 409;
   if (error instanceof RefundPolicyError) return 409;
+  // The request is well formed; the site it names is not ready to be audited.
+  if (error instanceof SitePreconditionError) return 409;
   if (error instanceof BillingUnavailableError) return 503;
   // The provider refused or was unreachable: this side of the call is healthy.
   if (error instanceof FastSpringApiError) return error.status === 429 ? 429 : 502;
