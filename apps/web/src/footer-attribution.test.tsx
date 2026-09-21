@@ -282,7 +282,7 @@ describe('the site footer on a report', () => {
   });
 
   it('is translated with the rest of the workspace', async () => {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     renderAt(`/scans/${reportScan.id}`, signedInReport);
     await screen.findByText('Звіт аудиту сайту');

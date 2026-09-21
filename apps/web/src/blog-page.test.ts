@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { ANALYTICS_HOSTNAME, GA_MEASUREMENT_ID, GA_SCRIPT_ORIGIN } from './analytics-config';
 import { copy } from './i18n';
 import { saveCookieConsent } from './browser-consent';
 
@@ -526,7 +527,7 @@ describe('blog language filter', () => {
   });
 
   it('remembers the choice under the key the product app reads', () => {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     bootIndex();
     filterButton('uk').click();
     expect(window.localStorage.getItem('fluxradar.language')).toBe('uk');
@@ -570,41 +571,136 @@ describe('blog cookie choices', () => {
     document.body.removeAttribute('data-blog-page');
     document.documentElement.removeAttribute('data-blog-lang');
     window.localStorage.clear();
+    document.getElementById('fluxradar-ga')?.remove();
+    delete window.dataLayer;
+    visit('http://localhost:3000/');
   });
 
-  it('offers equally direct necessary and preference choices on a first blog visit', () => {
+  function visit(url: string): void {
+    (window as unknown as { happyDOM: { setURL: (url: string) => void } }).happyDOM.setURL(url);
+  }
+
+  function choose(choice: 'necessary' | 'save' | 'all'): void {
+    document.querySelector<HTMLElement>(`[data-cookie-choice="${choice}"]`)?.click();
+  }
+
+  function storedConsent(): unknown {
+    return JSON.parse(window.localStorage.getItem('fluxradar.cookieConsent') ?? 'null');
+  }
+
+  function pageViews(): unknown[] {
+    return (window.dataLayer ?? [])
+      .map((entry) => Array.from(entry as ArrayLike<unknown>))
+      .filter((call) => call[0] === 'event' && call[1] === 'page_view')
+      .map((call) => call[2]);
+  }
+
+  it('offers equally direct choices with nothing optional ticked on a first blog visit', () => {
     const region = document.querySelector('[data-cookie-consent]');
     expect(region?.getAttribute('role')).toBe('region');
     expect(region?.textContent).toContain('Cookies & storage');
     expect(region?.querySelector('[data-cookie-choice="necessary"]')).not.toBeNull();
-    expect(region?.querySelector('[data-cookie-choice="preferences"]')).not.toBeNull();
+    expect(region?.querySelector('[data-cookie-choice="save"]')).not.toBeNull();
+    expect(region?.querySelector('[data-cookie-choice="all"]')).not.toBeNull();
+    const options = [...(region?.querySelectorAll<HTMLInputElement>('[data-cookie-option]') ?? [])];
+    expect(options.map((option) => [option.dataset.cookieOption, option.checked])).toEqual([
+      ['preferences', false],
+      ['analytics', false],
+    ]);
     expect(region?.querySelector('a')?.getAttribute('href')).toBe('/cookies?lang=en');
   });
 
   it('stores the current language only after preference permission and lets it be withdrawn', () => {
     document.querySelector<HTMLElement>('[data-language-filter="uk"]')?.click();
-    document.querySelector<HTMLElement>('[data-cookie-choice="preferences"]')?.click();
+    choose('all');
 
-    expect(
-      JSON.parse(window.localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
-    ).toMatchObject({
-      version: 'v1',
-      preferences: true,
-    });
+    expect(storedConsent()).toMatchObject({ version: 'v2', preferences: true, analytics: true });
     expect(window.localStorage.getItem('fluxradar.language')).toBe('uk');
     expect(document.querySelector('[data-cookie-consent]')).toBeNull();
 
     window.localStorage.setItem('fluxradar.pendingCheckout', 'pending-test');
     document.querySelector<HTMLElement>('[data-cookie-settings]')?.click();
-    document.querySelector<HTMLElement>('[data-cookie-choice="necessary"]')?.click();
+    choose('necessary');
     expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
     expect(window.localStorage.getItem('fluxradar.pendingCheckout')).toBe('pending-test');
+    expect(storedConsent()).toMatchObject({ version: 'v2', preferences: false, analytics: false });
+  });
+
+  it('saves only the categories that were ticked', () => {
+    document.querySelector<HTMLElement>('[data-cookie-option="analytics"]')?.click();
+    choose('save');
+
+    expect(storedConsent()).toMatchObject({ version: 'v2', preferences: false, analytics: true });
+    expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
+  });
+
+  it('keeps the language a v1 visitor allowed while asking about analytics', () => {
+    window.localStorage.setItem(
+      'fluxradar.cookieConsent',
+      JSON.stringify({
+        version: 'v1',
+        preferences: true,
+        updatedAt: Date.now() - 1000,
+        expiresAt: Date.now() - 1000 + 15_552_000_000,
+      }),
+    );
+    window.localStorage.setItem('fluxradar.language', 'uk');
+    document.body.innerHTML = '';
+    bootIndex();
+
+    expect(document.documentElement.getAttribute('data-blog-lang')).toBe('uk');
     expect(
-      JSON.parse(window.localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
-    ).toMatchObject({
-      version: 'v1',
-      preferences: false,
-    });
+      document.querySelector<HTMLInputElement>('[data-cookie-option="preferences"]')?.checked,
+    ).toBe(true);
+    expect(
+      document.querySelector<HTMLInputElement>('[data-cookie-option="analytics"]')?.checked,
+    ).toBe(false);
+  });
+
+  it('requests nothing from Google until analytics is allowed, then reports the page', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog');
+    bootIndex();
+    window.history.replaceState(null, '', '/blog?lang=uk');
+    expect(document.getElementById('fluxradar-ga')).toBeNull();
+    expect(window.dataLayer).toBeUndefined();
+
+    document.querySelector<HTMLElement>('[data-cookie-option="analytics"]')?.click();
+    choose('save');
+
+    expect(document.getElementById('fluxradar-ga')?.getAttribute('src')).toBe(
+      `${GA_SCRIPT_ORIGIN}/gtag/js?id=${GA_MEASUREMENT_ID}`,
+    );
+    // The page view carries the path only: no ?lang=, and nothing a query could hold.
+    expect(pageViews()).toEqual([
+      expect.objectContaining({ page_location: 'https://fluxradar.net/blog' }),
+    ]);
+  });
+
+  it('stops reporting when analytics is withdrawn', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog');
+    bootIndex();
+    choose('all');
+    document.querySelector<HTMLElement>('[data-cookie-settings]')?.click();
+    choose('necessary');
+
+    expect((window as unknown as Record<string, unknown>)[`ga-disable-${GA_MEASUREMENT_ID}`]).toBe(
+      true,
+    );
+  });
+
+  it('never reports from a host other than production', () => {
+    choose('all');
+    expect(document.getElementById('fluxradar-ga')).toBeNull();
+    expect(window.dataLayer).toBeUndefined();
+  });
+
+  // blog.js is not part of the bundle, so it carries its own copy of the stream.
+  it('reports into the same GA4 stream as the app', () => {
+    expect(source).toContain(`var GA_MEASUREMENT_ID = '${GA_MEASUREMENT_ID}';`);
+    expect(source).toContain(`var GA_SCRIPT_ORIGIN = '${GA_SCRIPT_ORIGIN}';`);
+    expect(source).toContain(`var ANALYTICS_HOSTNAME = '${ANALYTICS_HOSTNAME}';`);
   });
 
   it('translates the cookie choice with the rest of the blog chrome', () => {

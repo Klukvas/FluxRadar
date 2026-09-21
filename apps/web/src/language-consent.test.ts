@@ -23,10 +23,10 @@ describe('language preference requires optional storage permission', () => {
   });
 
   it('persists only after allow and stops after withdrawal', () => {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     storeLanguage('uk');
     expect(readStoredLanguage()).toBe('uk');
-    saveCookieConsent(false);
+    saveCookieConsent({ preferences: false, analytics: false });
     storeLanguage('uk');
     expect(localStorage.getItem('fluxradar.language')).toBeNull();
   });

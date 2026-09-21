@@ -3,9 +3,15 @@ import { useEffect, useId, useState } from 'react';
 import {
   COOKIE_CONSENT_CHANGE_EVENT,
   COOKIE_CONSENT_KEY,
+  EVERYTHING_ALLOWED,
+  NECESSARY_ONLY,
+  analyticsAllowed,
+  preferencesAllowed,
   readCookieConsent,
   saveCookieConsent,
+  type CookieConsentChoice,
 } from './browser-consent';
+import { Checkbox } from './components';
 import { cookieCopy } from './cookie-copy';
 import type { Language } from './i18n';
 import './styles/cookie-consent.css';
@@ -13,6 +19,29 @@ import './styles/cookie-consent.css';
 type CookieConsentProps = { readonly language: Language };
 const OPEN_SETTINGS_EVENT = 'fluxradar:open-cookie-settings';
 const MAX_TIMEOUT_MS = 2_147_483_647;
+
+/**
+ * What the checkboxes start from: the visitor's standing permissions, so
+ * reopening the settings shows the choice they made rather than a blank form.
+ * Nothing is ticked for someone who has not chosen yet.
+ */
+function standingChoice(): CookieConsentChoice {
+  return { preferences: preferencesAllowed(), analytics: analyticsAllowed() };
+}
+
+function allowsEverything(): boolean {
+  const consent = readCookieConsent();
+  return consent !== null && consent.preferences && consent.analytics;
+}
+
+function rememberLanguage(language: Language): boolean {
+  try {
+    window.localStorage.setItem('fluxradar.language', language);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function CookieSettingsButton({ language }: CookieConsentProps): React.JSX.Element {
   return (
@@ -28,14 +57,15 @@ export function CookieSettingsButton({ language }: CookieConsentProps): React.JS
 
 export function CookieConsent({ language }: CookieConsentProps): React.JSX.Element {
   const titleId = useId();
+  const preferencesHintId = useId();
+  const analyticsHintId = useId();
   const text = cookieCopy[language];
   const [isOpen, setIsOpen] = useState(() => readCookieConsent() === null);
   // The floating launcher is there so a visitor can change their choice. Once
   // everything is allowed it only covers the page, so it steps aside; withdrawal
   // stays one click away on the cookie policy page every footer links to.
-  const [isEverythingAllowed, setIsEverythingAllowed] = useState(
-    () => readCookieConsent()?.preferences === true,
-  );
+  const [isEverythingAllowed, setIsEverythingAllowed] = useState(allowsEverything);
+  const [draft, setDraft] = useState<CookieConsentChoice>(standingChoice);
   const [error, setError] = useState<'saveError' | 'languageError' | null>(null);
 
   useEffect(() => {
@@ -44,7 +74,8 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
       window.clearTimeout(expiryTimer);
       const consent = readCookieConsent();
       setIsOpen(consent === null);
-      setIsEverythingAllowed(consent?.preferences === true);
+      setIsEverythingAllowed(allowsEverything());
+      setDraft(standingChoice());
       setError(null);
       if (consent !== null) {
         expiryTimer = window.setTimeout(
@@ -56,7 +87,10 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
     const onStorage = (event: StorageEvent) => {
       if (event.key === COOKIE_CONSENT_KEY || event.key === null) sync();
     };
-    const open = () => setIsOpen(true);
+    const open = () => {
+      setDraft(standingChoice());
+      setIsOpen(true);
+    };
     const checkExpiry = () => {
       if (readCookieConsent() === null) sync();
     };
@@ -76,21 +110,19 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
     };
   }, []);
 
-  function choose(preferences: boolean): void {
-    if (!saveCookieConsent(preferences)) {
+  function choose(choice: CookieConsentChoice): void {
+    if (!saveCookieConsent(choice)) {
       setIsOpen(true);
       setError('saveError');
       return;
     }
-    if (preferences) {
-      try {
-        window.localStorage.setItem('fluxradar.language', language);
-      } catch {
-        saveCookieConsent(false);
-        setIsOpen(true);
-        setError('languageError');
-        return;
-      }
+    if (choice.preferences && !rememberLanguage(language)) {
+      // The language is the whole of the preferences category: if it cannot be
+      // stored, the category is not in effect, and the record must not say it is.
+      saveCookieConsent({ ...choice, preferences: false });
+      setIsOpen(true);
+      setError('languageError');
+      return;
     }
     setError(null);
     setIsOpen(false);
@@ -112,6 +144,27 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
           </div>
           <div className="cookie-consent__body">
             <p>{text.description}</p>
+            <fieldset className="cookie-consent__options">
+              <legend>{text.optionalLegend}</legend>
+              <Checkbox
+                label={text.preferences}
+                checked={draft.preferences}
+                describedBy={preferencesHintId}
+                onChange={(preferences) => setDraft({ ...draft, preferences })}
+              />
+              <p id={preferencesHintId} className="cookie-consent__hint">
+                {text.preferencesHint}
+              </p>
+              <Checkbox
+                label={text.analytics}
+                checked={draft.analytics}
+                describedBy={analyticsHintId}
+                onChange={(analytics) => setDraft({ ...draft, analytics })}
+              />
+              <p id={analyticsHintId} className="cookie-consent__hint">
+                {text.analyticsHint}
+              </p>
+            </fieldset>
             <p>{text.duration}</p>
             <a href={`/cookies?lang=${language}`}>{text.details}</a>
             {error !== null && (
@@ -120,10 +173,13 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
               </p>
             )}
             <div className="cookie-consent__actions">
-              <button className="button" type="button" onClick={() => choose(false)}>
+              <button className="button" type="button" onClick={() => choose(NECESSARY_ONLY)}>
                 {text.necessary}
               </button>
-              <button className="button" type="button" onClick={() => choose(true)}>
+              <button className="button" type="button" onClick={() => choose(draft)}>
+                {text.save}
+              </button>
+              <button className="button" type="button" onClick={() => choose(EVERYTHING_ALLOWED)}>
                 {text.allow}
               </button>
             </div>

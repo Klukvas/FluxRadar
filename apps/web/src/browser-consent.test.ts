@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   COOKIE_CONSENT_CHANGE_EVENT,
+  analyticsAllowed,
   preferencesAllowed,
   readCookieConsent,
   saveCookieConsent,
@@ -22,7 +23,7 @@ function replaceStorageMethod(
 
 beforeEach(() => {
   window.localStorage.clear();
-  saveCookieConsent(false);
+  saveCookieConsent({ preferences: false, analytics: false });
   window.localStorage.clear();
 });
 
@@ -49,24 +50,68 @@ describe('browser storage consent', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-10T12:00:00Z'));
 
-    expect(saveCookieConsent(true)).toBe(true);
+    expect(saveCookieConsent({ preferences: true, analytics: false })).toBe(true);
     expect(readCookieConsent()).toEqual({
-      version: 'v1',
+      version: 'v2',
       preferences: true,
+      analytics: false,
       updatedAt: Date.parse('2026-09-10T12:00:00Z'),
       expiresAt: Date.parse('2027-03-09T12:00:00Z'),
     });
     expect(preferencesAllowed()).toBe(true);
+    expect(analyticsAllowed()).toBe(false);
+  });
+
+  it('keeps the two optional categories independent', () => {
+    saveCookieConsent({ preferences: false, analytics: true });
+    expect(analyticsAllowed()).toBe(true);
+    expect(preferencesAllowed()).toBe(false);
+
+    saveCookieConsent({ preferences: true, analytics: false });
+    expect(analyticsAllowed()).toBe(false);
+    expect(preferencesAllowed()).toBe(true);
+  });
+
+  // v1 was saved before the analytics category existed, so it is not an answer
+  // to it — but the language permission it did give still stands.
+  it('asks a v1 visitor again while honouring the preference they already allowed', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T12:00:00Z'));
+    window.localStorage.setItem(
+      'fluxradar.cookieConsent',
+      JSON.stringify({
+        version: 'v1',
+        preferences: true,
+        updatedAt: Date.parse('2026-08-01T12:00:00Z'),
+        expiresAt: Date.parse('2026-08-01T12:00:00Z') + 180 * 24 * 60 * 60 * 1000,
+      }),
+    );
+
+    expect(readCookieConsent()).toBeNull();
+    expect(preferencesAllowed()).toBe(true);
+    expect(analyticsAllowed()).toBe(false);
+  });
+
+  it('removes an earlier allowance before writing an analytics refusal', () => {
+    saveCookieConsent({ preferences: true, analytics: true });
+    replaceStorageMethod('setItem', () => {
+      throw new DOMException('Storage is blocked', 'SecurityError');
+    });
+
+    expect(saveCookieConsent({ preferences: true, analytics: false })).toBe(false);
+    expect(analyticsAllowed()).toBe(false);
+    vi.restoreAllMocks();
+    expect(window.localStorage.getItem('fluxradar.cookieConsent')).toBeNull();
   });
 
   it('withdraws language storage while preserving checkout and login storage', () => {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     window.localStorage.setItem('fluxradar.pendingCheckout', 'pending-test');
     window.sessionStorage.setItem('fluxradar.pendingCheckout', 'session-pending-test');
     document.cookie = 'consent-test-session=present; path=/';
 
-    expect(saveCookieConsent(false)).toBe(true);
+    expect(saveCookieConsent({ preferences: false, analytics: false })).toBe(true);
     expect(preferencesAllowed()).toBe(false);
     expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
     expect(window.localStorage.getItem('fluxradar.pendingCheckout')).toBe('pending-test');
@@ -79,10 +124,10 @@ describe('browser storage consent', () => {
     const listener = () => observed.push(preferencesAllowed());
     window.addEventListener(COOKIE_CONSENT_CHANGE_EVENT, listener);
     try {
-      saveCookieConsent(true);
+      saveCookieConsent({ preferences: true, analytics: false });
       readCookieConsent();
       preferencesAllowed();
-      saveCookieConsent(false);
+      saveCookieConsent({ preferences: false, analytics: false });
       expect(observed).toEqual([true, false]);
     } finally {
       window.removeEventListener(COOKIE_CONSENT_CHANGE_EVENT, listener);
@@ -90,29 +135,29 @@ describe('browser storage consent', () => {
   });
 
   it('fails closed after a withdrawal cannot overwrite a previous allowance', () => {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     replaceStorageMethod('setItem', () => {
       throw new DOMException('Storage is blocked', 'SecurityError');
     });
-    expect(saveCookieConsent(false)).toBe(false);
+    expect(saveCookieConsent({ preferences: false, analytics: false })).toBe(false);
     expect(preferencesAllowed()).toBe(false);
     expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
   });
 
   it('reports failure when the choice cannot actually be written', () => {
     replaceStorageMethod('setItem', () => undefined);
-    expect(saveCookieConsent(true)).toBe(false);
+    expect(saveCookieConsent({ preferences: true, analytics: false })).toBe(false);
     expect(preferencesAllowed()).toBe(false);
   });
 
   it('reports withdrawal cleanup failure without allowing preferences', () => {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     replaceStorageMethod('removeItem', () => {
       throw new DOMException('Storage blocked');
     });
-    expect(saveCookieConsent(false)).toBe(false);
+    expect(saveCookieConsent({ preferences: false, analytics: false })).toBe(false);
     expect(preferencesAllowed()).toBe(false);
   });
 
@@ -130,6 +175,19 @@ describe('browser storage consent', () => {
     JSON.stringify({
       version: 'v1',
       preferences: 'true',
+      updatedAt: 1789041600000,
+      expiresAt: 1804593600000,
+    }),
+    JSON.stringify({
+      version: 'v2',
+      preferences: true,
+      updatedAt: 1789041600000,
+      expiresAt: 1804593600000,
+    }),
+    JSON.stringify({
+      version: 'v2',
+      preferences: true,
+      analytics: 'true',
       updatedAt: 1789041600000,
       expiresAt: 1804593600000,
     }),
@@ -158,12 +216,13 @@ describe('browser storage consent', () => {
     window.localStorage.setItem('fluxradar.cookieConsent', stored);
     expect(readCookieConsent()).toBeNull();
     expect(preferencesAllowed()).toBe(false);
+    expect(analyticsAllowed()).toBe(false);
   });
 
   it('expires at the 180-day boundary without refreshing on reads', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-10T12:00:00Z'));
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     vi.setSystemTime(new Date('2027-03-09T11:59:59.999Z'));
     expect(preferencesAllowed()).toBe(true);
     vi.advanceTimersByTime(1);
@@ -172,7 +231,7 @@ describe('browser storage consent', () => {
   });
 
   it('denies preferences when storage cannot be read', () => {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     replaceStorageMethod('getItem', () => {
       throw new DOMException('Storage is blocked', 'SecurityError');
     });

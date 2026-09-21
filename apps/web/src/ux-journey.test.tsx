@@ -333,7 +333,7 @@ describe('the account screen', () => {
 
 describe('a Free report', () => {
   function renderReport() {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     return stubApi((path) => {
       if (path === '/auth/me') return envelope({ ...account, emailVerified: true });
       if (path === '/profiles') return envelope([profile]);

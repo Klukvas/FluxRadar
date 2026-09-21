@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('cookie preferences on public legal pages', () => {
+test.describe('cookie choices on public legal pages', () => {
   test('offers equal first-visit choices, persists refusal, and reopens settings', async ({
     page,
   }) => {
@@ -8,7 +8,7 @@ test.describe('cookie preferences on public legal pages', () => {
 
     const banner = page.getByRole('region', { name: 'Cookies & storage' });
     const necessary = banner.getByRole('button', { name: 'Only necessary' });
-    const preferences = banner.getByRole('button', { name: 'Allow preferences' });
+    const preferences = banner.getByRole('button', { name: 'Allow all' });
     await expect(banner).toBeVisible();
     await expect(necessary).toBeVisible();
     await expect(preferences).toBeVisible();
@@ -40,7 +40,7 @@ test.describe('cookie preferences on public legal pages', () => {
 
     const banner = page.getByRole('region', { name: 'Cookies & storage' });
     const necessary = banner.getByRole('button', { name: 'Only necessary' });
-    const preferences = banner.getByRole('button', { name: 'Allow preferences' });
+    const preferences = banner.getByRole('button', { name: 'Allow all' });
     await expect(banner).toBeVisible();
     await expect(necessary).toBeVisible();
     await expect(preferences).toBeVisible();
@@ -64,7 +64,7 @@ test.describe('cookie preferences on public legal pages', () => {
 
     const banner = page.getByRole('region', { name: 'Cookies і сховище' });
     const necessary = banner.getByRole('button', { name: 'Лише необхідні' });
-    const preferences = banner.getByRole('button', { name: 'Дозволити налаштування' });
+    const preferences = banner.getByRole('button', { name: 'Дозволити все' });
     await expect(banner).toBeVisible();
     await expect(banner.getByRole('link', { name: 'Докладніше про cookies' })).toHaveAttribute(
       'href',
@@ -89,6 +89,9 @@ test.describe('cookie preferences on public legal pages', () => {
         language: localStorage.getItem('fluxradar.language'),
         consent: JSON.parse(localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
       })),
-    ).toMatchObject({ language: 'uk', consent: { version: 'v1', preferences: true } });
+    ).toMatchObject({
+      language: 'uk',
+      consent: { version: 'v2', preferences: true, analytics: true },
+    });
   });
 });

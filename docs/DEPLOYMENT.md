@@ -719,17 +719,22 @@ scanning for anyone who registers and adds that domain as a profile.
 
 ### Content Security Policy
 
-`deploy/Caddyfile` is `default-src 'self'` with three deliberate exceptions, all
-of them for FastSpring's popup checkout:
+`deploy/Caddyfile` is `default-src 'self'` with deliberate exceptions for two
+things: FastSpring's popup checkout, and consent-based Google Analytics 4.
 
 | Directive | Addition | Why |
 | --- | --- | --- |
 | `script-src` | `https://sbl.onfastspring.com` | The Store Builder Library the browser loads to open the popup. Pinned to one version in `apps/web/src/fastspring-sbl.ts`. |
 | `frame-src` | `https://*.onfastspring.com` | The checkout itself renders in a FastSpring iframe over our page. |
 | `connect-src` | `https://*.onfastspring.com` | The library talks to the storefront from our page while the checkout is open. |
+| `script-src` | `https://www.googletagmanager.com` | gtag.js, requested only after a visitor allows analytics. Exactly `GA_SCRIPT_ORIGIN` in `apps/web/src/analytics-config.ts` — no wildcard. |
+| `connect-src` | `https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com` | Where gtag.js sends hits: Google's regional collection hosts. |
+| `img-src` | `https://*.google-analytics.com https://*.googletagmanager.com` | gtag.js falls back to image beacons when `fetch`/`sendBeacon` cannot be used. |
 
 `frame-ancestors 'none'` is unchanged: FluxRadar still may not be framed by
-anyone. No inline script is allowed, and nothing else was widened.
+anyone. No inline script is allowed, and nothing else was widened. What
+analytics sends, and the property settings the code relies on, are in
+[`docs/ANALYTICS.md`](ANALYTICS.md).
 
 Removing any of the three breaks paid checkout in a way that is visible to the
 buyer but not to the server: the popup does not open, the browser console carries
@@ -746,7 +751,10 @@ That sentence used to be the whole safety net. Three things now check it:
   against `SBL_ORIGIN` in `apps/web/src/fastspring-sbl.ts`, `frame-src` and
   `connect-src` against the storefront domain
   `apps/api/src/billing/fastspring/popup-storefront.ts` validates. Bumping the
-  SBL origin without the Caddyfile now fails CI instead of the checkout.
+  SBL origin without the Caddyfile now fails CI instead of the checkout. The
+  Google Analytics additions are pinned the same way: `script-src` against
+  `GA_SCRIPT_ORIGIN`, and Google appears in no directive but `script-src`,
+  `connect-src` and `img-src`.
 - **The web container repeats the same headers** (`deploy/nginx.conf`), so a
   document served straight off it still carries them. Caddy's `header` directive
   *sets* a field, so on the public path the browser sees one of each; DEPLOY-008

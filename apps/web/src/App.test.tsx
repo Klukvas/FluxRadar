@@ -1097,7 +1097,7 @@ describe('home pricing and workspace onboarding', () => {
   });
 
   it('switches the shell to Ukrainian and persists the language after remount', async () => {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', { name: 'One URL. Every signal.' });
@@ -1967,7 +1967,7 @@ describe('add-profile form', () => {
   it('shows the empty state without a second Add profile button in Ukrainian', async () => {
     stubApi(emptyProfiles);
     window.history.replaceState(null, '', '/profiles');
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     render(<App />);
     await screen.findByText('Профілі сайтів');
@@ -2058,7 +2058,7 @@ describe('add-profile form', () => {
   it('fills the name from the address in Ukrainian too', async () => {
     stubApi(emptyProfiles);
     window.history.replaceState(null, '', '/profiles');
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     render(<App />);
     await screen.findByText('Профілі сайтів');
