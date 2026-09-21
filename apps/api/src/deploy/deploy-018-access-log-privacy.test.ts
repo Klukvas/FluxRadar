@@ -38,6 +38,7 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const CADDYFILE_PATH = join(REPO_ROOT, 'deploy', 'Caddyfile');
 const COMPOSE_PATH = join(REPO_ROOT, 'docker-compose.yml');
+const NGINX_PATH = join(REPO_ROOT, 'deploy', 'nginx.conf');
 const RELEASE_PATH = join(REPO_ROOT, 'deploy', 'release.sh');
 const SCRIPT_PATH = join(REPO_ROOT, 'scripts', 'traffic-report.sh');
 const AUTH_ROUTES_PATH = join(REPO_ROOT, 'apps', 'api', 'src', 'auth', 'routes.ts');
@@ -208,6 +209,13 @@ describe('the production access log', () => {
       expect(filterOf(field), field).not.toBe('delete');
     }
     expect(filterOf('request>headers>User-Agent')).toBeNull();
+  });
+
+  // Caddy proxies every page request to the web container. Filtering Caddy's
+  // log is pointless if nginx behind it writes the same request line — reset
+  // token, full forwarded address — into Docker's unbounded stdout log.
+  it('is the only access log: the web container behind it writes none', () => {
+    expect(readFileSync(NGINX_PATH, 'utf8')).toMatch(/^\s*access_log\s+off;\s*$/m);
   });
 });
 
