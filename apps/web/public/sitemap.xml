@@ -29,6 +29,18 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/faq"/>
   </url>
   <url>
+    <loc>https://fluxradar.net/bot</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/bot"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/bot?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/bot"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/bot?lang=uk</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/bot"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/bot?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/bot"/>
+  </url>
+  <url>
     <loc>https://fluxradar.net/checks</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/checks"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/checks?lang=uk"/>
