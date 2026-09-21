@@ -1048,5 +1048,5 @@ ours, so no account deletion will ever reach the row. Requiring
 > deploy workflow proves it by booting the previous image against the migrated
 > schema before switching traffic. The **contract phase** — dropping the retired
 > columns, their indexes and the triggers — is migration
-> `20260923100000_drop_retired_payment_columns` (D-229); see `docs/DEPLOYMENT.md`
+> `20260923100000_drop_retired_payment_columns` (D-231); see `docs/DEPLOYMENT.md`
 > for when it may ship.
