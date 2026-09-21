@@ -43,7 +43,7 @@ import { validationError } from '../http/errors.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
-import { resolveLaunchEgressLocation, scopeWithEgressLocation } from '../scans/launch-egress.ts';
+import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 
 export const FASTSPRING_SIGNATURE_HEADER_NAME = 'x-fs-signature';
 
@@ -151,10 +151,7 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
     );
     // Before a session row exists or the provider is called: a buyer must not
     // pay for a scan from a country whose network is down right now.
-    const egressLocation = await resolveLaunchEgressLocation(
-      deps.egress,
-      input.scope.egressLocation,
-    );
+    const egress = await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation);
     const session = await createCheckoutSession(
       {
         prisma: deps.prisma,
@@ -166,7 +163,8 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
         accountId,
         siteProfileId: input.siteProfileId,
         plan: input.plan,
-        scope: scopeWithEgressLocation(input.scope, egressLocation),
+        scope: input.scope,
+        egress,
         aiConsent: input.aiConsent,
         expectedProfileConfigVersion: input.expectedProfileConfigVersion,
       },

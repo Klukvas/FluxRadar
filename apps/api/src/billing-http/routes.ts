@@ -135,10 +135,7 @@ export function billingRouter(deps: BillingRouterDeps): Router {
       );
     }
     const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);
-    const scope = scopeWithEgressLocation(
-      input.scope,
-      await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation),
-    );
+    const egress = await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation);
 
     if (internalFreeAccess) {
       const scan = await createInternalFreeScan({
@@ -146,7 +143,8 @@ export function billingRouter(deps: BillingRouterDeps): Router {
         accountId,
         siteProfileId: profile.id,
         plan: input.plan,
-        scope,
+        scope: input.scope,
+        egress,
         aiConsent: input.aiConsent,
         expectedProfileConfigVersion: input.expectedProfileConfigVersion,
         now: deps.now(),
@@ -182,7 +180,9 @@ export function billingRouter(deps: BillingRouterDeps): Router {
       plan: input.plan,
       secret: deps.webhookSecret,
       customData: {
-        scope,
+        // The mock webhook reads the scope back from here, so it carries the
+        // checked location exactly as a real checkout session row does.
+        scope: scopeWithEgressLocation(input.scope, egress),
         ...(input.expectedProfileConfigVersion === undefined
           ? {}
           : { expectedProfileConfigVersion: input.expectedProfileConfigVersion }),

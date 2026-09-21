@@ -10,6 +10,11 @@
 // Every scan path goes through here: the Free check, the FastSpring checkout,
 // the internal and mock checkouts. What it returns is written into the scope,
 // so the stored execution config records the location actually used.
+//
+// That is enforced by type rather than by each caller remembering it: the
+// functions that create a scan or a checkout session take a `LaunchEgress`,
+// and only `resolveLaunchEgressLocation` makes one. A new caller cannot hand
+// them an id nobody checked.
 
 import type { ScanScopeInput } from '@fluxradar/contracts';
 
@@ -22,6 +27,18 @@ import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor
 export const EGRESS_LOCATION_UNKNOWN = 'EGRESS_LOCATION_UNKNOWN';
 export const EGRESS_LOCATION_UNAVAILABLE = 'EGRESS_LOCATION_UNAVAILABLE';
 
+declare const checkedAtLaunch: unique symbol;
+
+/**
+ * Where a new scan leaves from, as checked at launch: a configured location
+ * that answered, or null for a deployment that crawls directly. Branded, so
+ * the only way to hold one is to have gone through `resolveLaunchEgressLocation`.
+ */
+export interface LaunchEgress {
+  readonly location: ConfiguredEgressLocation | null;
+  readonly [checkedAtLaunch]: true;
+}
+
 /**
  * The configured location a launch leaves from, or null for a deployment that
  * crawls directly. `requested` absent means "the default" — what a Free check
@@ -30,8 +47,8 @@ export const EGRESS_LOCATION_UNAVAILABLE = 'EGRESS_LOCATION_UNAVAILABLE';
 export async function resolveLaunchEgressLocation(
   monitor: EgressLocationMonitor,
   requested: string | undefined,
-): Promise<ConfiguredEgressLocation | null> {
-  if (requested === undefined && monitor.configured.length === 0) return null;
+): Promise<LaunchEgress> {
+  if (requested === undefined && monitor.configured.length === 0) return checked(null);
   const chosen = requested === undefined ? monitor.defaultLocation : monitor.find(requested);
   if (chosen === null) {
     throw new ApiError(
@@ -48,15 +65,24 @@ export async function resolveLaunchEgressLocation(
       `Checks from ${chosen.location.label.en} are unavailable right now: the network they leave from is not answering. Nothing was charged. Try again in a few minutes.`,
     );
   }
-  return chosen;
+  return checked(chosen);
 }
 
-/** The scope as it will be stored: naming the location it resolved to. */
+function checked(location: ConfiguredEgressLocation | null): LaunchEgress {
+  return { location } as LaunchEgress;
+}
+
+/**
+ * The scope as it will be stored: naming the location that was checked, and
+ * nothing else. Whatever location the request carried is replaced — or
+ * dropped, for a direct crawl — so a stored scope can only ever name a
+ * location that answered at launch.
+ */
 export function scopeWithEgressLocation(
   scope: ScanScopeInput,
-  location: ConfiguredEgressLocation | null,
+  egress: LaunchEgress,
 ): ScanScopeInput {
-  return location === null ? scope : { ...scope, egressLocation: location.location.id };
+  return { ...scope, egressLocation: egress.location?.location.id };
 }
 
 /** What the launch screen is told about the locations it may offer. */

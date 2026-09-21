@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { captureExecutionConfig, lockOwnProfile } from '../../profiles/execution-config.ts';
 import { isExpired, isProbeUsable } from '../../profiles/reachability-routes.ts';
+import { scopeWithEgressLocation, type LaunchEgress } from '../../scans/launch-egress.ts';
 
 import type { AiConsentInput } from '../checkout-metadata.ts';
 import { CHECKOUT_STATUS_REASONS, provisionalCheckoutDeadline } from '../checkout-lifecycle.ts';
@@ -32,6 +33,8 @@ export interface CheckoutSessionParams {
   readonly siteProfileId: string;
   readonly plan: PaidPlan;
   readonly scope: ScanScopeInput;
+  /** The egress location checked at launch; it, not `scope`, names where the scan goes. */
+  readonly egress: LaunchEgress;
   readonly aiConsent?: AiConsentInput | undefined;
   readonly expectedProfileConfigVersion?: number | undefined;
 }
@@ -58,13 +61,9 @@ export async function createCheckoutSession(
   if (profile === null) {
     throw new BillingNotFoundError('site profile not found');
   }
-  assertScopeWithinPlan(params.plan, params.scope);
-  await assertSiteIsReachable(
-    deps,
-    profile.id,
-    profile.domain,
-    params.scope.egressLocation ?? null,
-  );
+  const scope = scopeWithEgressLocation(params.scope, params.egress);
+  assertScopeWithinPlan(params.plan, scope);
+  await assertSiteIsReachable(deps, profile.id, profile.domain, scope.egressLocation ?? null);
 
   const productPath = deps.config.productPaths[params.plan];
   const reference = `frcs_${randomUUID()}`;
@@ -96,10 +95,10 @@ export async function createCheckoutSession(
         productPath,
         expectedAmountUsd: planPriceUsd(params.plan),
         liveMode: deps.config.liveMode,
-        scopeJson: JSON.stringify(params.scope),
+        scopeJson: JSON.stringify(scope),
         profileConfigVersion: lockedProfile.scanConfigVersion,
         executionConfigJson: JSON.stringify(
-          captureExecutionConfig(lockedProfile, params.plan, params.scope),
+          captureExecutionConfig(lockedProfile, params.plan, scope),
         ),
         aiConsentJson: params.aiConsent === undefined ? null : JSON.stringify(params.aiConsent),
         createdAt,

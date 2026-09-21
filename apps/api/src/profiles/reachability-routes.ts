@@ -96,7 +96,7 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
     );
     // Checked before the probe, not read from it: through a proxy that is down
     // every site is unreachable, and storing that would blame this one for it.
-    const location = await resolveLaunchEgressLocation(deps.egress, body?.egressLocation);
+    const { location } = await resolveLaunchEgressLocation(deps.egress, body?.egressLocation);
     const result = await probeSiteReachability(profile.domain, {
       egressProxy: location?.proxy ?? null,
       ...deps.probe,

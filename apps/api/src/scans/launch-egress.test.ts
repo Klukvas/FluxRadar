@@ -1,3 +1,4 @@
+import { scanScopeSchema } from '@fluxradar/contracts';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -8,6 +9,11 @@ import type { EgressHealth } from '../integrations/crawl-egress-health.ts';
 import { EGRESS_LOCATIONS, egressLocation } from '../integrations/crawl-egress-locations.ts';
 import { createEgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import {
+  resolveLaunchEgressLocation,
+  scopeWithEgressLocation,
+  type LaunchEgress,
+} from './launch-egress.ts';
 
 // The owner chooses the country a check leaves from (D-228). The server checks
 // the choice rather than trusting it: a location that does not exist here, or
@@ -244,5 +250,42 @@ describe('launching a scan from a chosen egress location', () => {
 
     expect(recorded).toBe('ua');
     expect(scan.body.data.egressLocation).toBeNull();
+  });
+});
+
+describe('the location a stored scope may name', () => {
+  const SCOPE = scanScopeSchema.parse({ includeSubdomains: false, egressLocation: 'de' });
+
+  function monitorOf(locations: readonly ConfiguredEgressLocation[]) {
+    return createEgressLocationMonitor({
+      locations,
+      logger: silentLogger,
+      probe: async () => health('healthy'),
+    });
+  }
+
+  it('is the one checked at launch, whatever the request carried', async () => {
+    const egress = await resolveLaunchEgressLocation(monitorOf([KYIV, FRANKFURT]), undefined);
+
+    // The request said Frankfurt, the check (the default) said Kyiv: Kyiv is stored.
+    expect(scopeWithEgressLocation({ ...SCOPE }, egress).egressLocation).toBe('ua');
+  });
+
+  it('is none at all on a deployment that crawls directly', async () => {
+    const egress = await resolveLaunchEgressLocation(monitorOf([]), undefined);
+    const stored = JSON.parse(JSON.stringify(scopeWithEgressLocation({ ...SCOPE }, egress)));
+
+    expect(stored).not.toHaveProperty('egressLocation');
+  });
+
+  it('cannot come from a location nobody checked', () => {
+    // The functions that create a scan or a checkout session take a
+    // `LaunchEgress`, and only `resolveLaunchEgressLocation` makes one. If this
+    // line ever compiles, that guarantee is gone and tsc fails on the unused
+    // directive.
+    // @ts-expect-error — a bare location is not a checked one
+    const forged: LaunchEgress = { location: KYIV };
+
+    expect(forged.location).toBe(KYIV);
   });
 });
