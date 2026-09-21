@@ -472,6 +472,19 @@ export async function runScanAttempt(
   await prisma.scanModule.deleteMany({
     where: { scanId, ...(retryModule === undefined ? {} : { module: retryModule }) },
   });
+  // Either way the Action Plans were written from issues deleted above, so
+  // they go, and the scan's plan budget starts over with the new snapshot. A
+  // generation still in flight loses its token here and cannot write (D-232).
+  await prisma.actionPlan.deleteMany({ where: { scanId } });
+  await prisma.scan.update({
+    where: { id: scanId },
+    data: {
+      actionPlanAttempts: 0,
+      actionPlanSuccesses: 0,
+      actionPlanRunStartedAt: null,
+      actionPlanRunLanguage: null,
+    },
+  });
   for (const module of targetModules) {
     await setModule(prisma, scanId, module, { runtimeStatus: 'Pending' });
   }
