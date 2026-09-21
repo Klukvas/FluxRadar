@@ -51,11 +51,17 @@ function bodyOf(init?: RequestInit): Record<string, unknown> {
   return JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
 }
 
-function renderNewScan(acct: object, language: 'en' | 'uk' = 'en'): ReturnType<typeof vi.fn> {
+function renderNewScan(
+  acct: object,
+  language: 'en' | 'uk' = 'en',
+  // The saved profiles the workspace opens on. Only the tests about a stored
+  // configuration pass their own; everything else runs on the bare profile.
+  profiles: readonly object[] = [profile],
+): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = pathOf(input);
     if (path === '/auth/me') return Promise.resolve(envelope(acct));
-    if (path === '/profiles') return Promise.resolve(envelope([profile]));
+    if (path === '/profiles') return Promise.resolve(envelope(profiles));
     if (path === '/scans/active') return Promise.resolve(envelope(null));
     if (path === '/profiles/profile-1/scans') return Promise.resolve(envelope([]));
     if (path.endsWith('/free-check')) return Promise.resolve(envelope(scan));
@@ -161,7 +167,7 @@ describe('paid plan controls', () => {
       expect(screen.getByLabelText(pattern)).toBeInTheDocument();
     }
     expect(
-      screen.getByRole('region', { name: 'AI processing included in this audit' }),
+      screen.getByRole('group', { name: 'AI processing included in this audit' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('What the free check does')).not.toBeInTheDocument();
   });
@@ -170,7 +176,7 @@ describe('paid plan controls', () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan — scope and tariff');
 
-    const callout = screen.getByRole('region', {
+    const callout = screen.getByRole('group', {
       name: 'AI processing included in this audit',
     });
     expect(within(callout).getByText(/instruct FluxRadar to use Anthropic/)).toBeInTheDocument();
@@ -192,7 +198,7 @@ describe('paid plan controls', () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan — scope and tariff');
 
-    const callout = screen.getByRole('region', { name: 'External performance measurement' });
+    const callout = screen.getByRole('group', { name: 'External performance measurement' });
     expect(within(callout).getByText(/Google PageSpeed Insights/)).toHaveTextContent(
       /do not connect a Google account or install anything/i,
     );
@@ -203,7 +209,7 @@ describe('paid plan controls', () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan — scope and tariff');
 
-    const callout = screen.getByRole('region', { name: 'How robots.txt affects this scan' });
+    const callout = screen.getByRole('group', { name: 'How robots.txt affects this scan' });
     expect(within(callout).getByText(/reads the site’s public robots\.txt/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Respect robots\.txt/)).toHaveAttribute(
       'aria-describedby',
@@ -220,7 +226,7 @@ describe('paid plan controls', () => {
     renderNewScan(internalAccount, 'uk');
     await screen.findByText('Нова перевірка — область і тариф');
 
-    const callout = screen.getByRole('region', { name: 'AI-обробка включена в цей аудит' });
+    const callout = screen.getByRole('group', { name: 'AI-обробка включена в цей аудит' });
     expect(within(callout).getByRole('link', { name: 'Політика приватності' })).toHaveAttribute(
       'href',
       '/privacy?lang=uk',
@@ -231,7 +237,7 @@ describe('paid plan controls', () => {
     renderNewScan(internalAccount, 'uk');
     await screen.findByText('Нова перевірка — область і тариф');
 
-    const callout = screen.getByRole('region', { name: 'Як robots.txt впливає на перевірку' });
+    const callout = screen.getByRole('group', { name: 'Як robots.txt впливає на перевірку' });
     expect(within(callout).getByText(/читає публічний robots\.txt сайту/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Дотримуватись robots\.txt/)).toHaveAttribute(
       'aria-describedby',
@@ -306,5 +312,152 @@ describe('paid plan controls', () => {
         userAgent: 'desktop',
       },
     });
+  });
+});
+
+// Path patterns and the URL query policy sit behind a disclosure: most scans
+// run on the defaults, and the three fields were 138px between the limits being
+// bought and the robots.txt rule that governs them. A saved configuration that
+// set them is the case that must not stay hidden — the owner pays for exactly
+// the crawl the group describes.
+describe('advanced crawl rules', () => {
+  function renderWithConfig(scanConfig: object): void {
+    renderNewScan(internalAccount, 'en', [{ ...profile, scanConfig }]);
+  }
+
+  const defaultScope = {
+    includeSubdomains: false,
+    queryPolicy: 'ignore' as const,
+    respectRobots: true,
+    robotsOverrideConfirmed: false,
+    userAgent: 'desktop' as const,
+  };
+
+  it('starts folded when the saved configuration holds the defaults', async () => {
+    renderWithConfig({ plan: 'Complete', scope: defaultScope });
+    await screen.findByText('New scan — scope and tariff');
+
+    expect(screen.getByText('Advanced crawl rules')).toBeVisible();
+    expect(screen.getByLabelText(/^Include path patterns/)).not.toBeVisible();
+  });
+
+  it('opens on a saved configuration that set a path pattern', async () => {
+    renderWithConfig({
+      plan: 'Complete',
+      scope: { ...defaultScope, excludePatterns: ['/admin/*'] },
+    });
+    await screen.findByText('New scan — scope and tariff');
+
+    // The group opens from an effect, a tick after the saved values land, so
+    // both facts are awaited together rather than read between the two renders.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^Exclude path patterns/)).toHaveValue('/admin/*');
+      expect(screen.getByLabelText(/^Exclude path patterns/)).toBeVisible();
+    });
+  });
+
+  // Regression: the group used to be opened by a one-way effect watching the
+  // live scope. Moving from one configured profile to another never changed
+  // that flag, so a second profile's own patterns stayed folded away under a
+  // group the owner had closed on the first one.
+  it('opens again for the next profile that sets its own patterns', async () => {
+    const second = {
+      id: 'profile-2',
+      name: 'Other Site',
+      domain: 'https://other.example',
+      scanConfig: { plan: 'Complete', scope: { ...defaultScope, excludePatterns: ['/private/*'] } },
+    };
+    renderNewScan(internalAccount, 'en', [
+      {
+        ...profile,
+        scanConfig: { plan: 'Complete', scope: { ...defaultScope, excludePatterns: ['/admin/*'] } },
+      },
+      second,
+    ]);
+    await screen.findByText('New scan — scope and tariff');
+    await waitFor(() => expect(screen.getByLabelText(/^Exclude path patterns/)).toBeVisible());
+
+    fireEvent.click(screen.getByText('Advanced crawl rules'));
+    await waitFor(() => expect(screen.getByLabelText(/^Exclude path patterns/)).not.toBeVisible());
+
+    fireEvent.change(screen.getByLabelText(/^Profile/), { target: { value: 'profile-2' } });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/^Exclude path patterns/)).toHaveValue('/private/*'),
+    );
+    expect(screen.getByLabelText(/^Exclude path patterns/)).toBeVisible();
+  });
+
+  it('opens on a saved configuration that keeps URL query parameters', async () => {
+    renderWithConfig({
+      plan: 'Complete',
+      scope: { ...defaultScope, queryPolicy: 'include' as const },
+    });
+    await screen.findByText('New scan — scope and tariff');
+
+    await waitFor(() => expect(screen.getByLabelText(/^URL query parameters/)).toBeVisible());
+  });
+});
+
+// Which callouts start open is a decision about disclosure, not about height:
+// the two that say what leaves the site and who processes it are read before
+// money changes hands, and the operational one is not. Both directions are
+// pinned, because folding either of the first two would otherwise be a silent
+// change that no test noticed (see ScanCallout.tsx).
+describe('what a callout discloses before the purchase', () => {
+  it('opens the AI-processing disclosure and folds the robots.txt explanation', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+
+    expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).toBeVisible();
+    expect(screen.getByText(/do not connect a Google account/)).toBeVisible();
+    expect(screen.getByText(/reads the site’s public robots\.txt/)).not.toBeVisible();
+  });
+
+  it('opens the AI-processing disclosure in Ukrainian too', async () => {
+    renderNewScan(internalAccount, 'uk');
+    await screen.findByText('Нова перевірка — область і тариф');
+
+    expect(screen.getByText(/доручаєте FluxRadar/)).toBeVisible();
+  });
+});
+
+// The robots.txt override lives in the settings column and the button it blocks
+// is pinned in the launch column beside it, so a disabled button with no reason
+// beside it is a dead end two columns wide.
+describe('a submit the settings are blocking', () => {
+  it('says which setting is holding the scan back', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+    fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
+
+    const button = screen.getByRole('button', { name: 'Run internal scan' });
+    expect(button).toBeDisabled();
+    const reason = screen.getByText(/To start this scan/);
+    expect(reason).toBeVisible();
+    expect(button).toHaveAttribute('aria-describedby', reason.id);
+  });
+
+  it('drops the reason once the override is confirmed', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+    fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
+    fireEvent.click(screen.getByLabelText(/I confirm the robots\.txt override/));
+
+    const button = screen.getByRole('button', { name: 'Run internal scan' });
+    expect(button).toBeEnabled();
+    expect(screen.queryByText(/To start this scan/)).not.toBeInTheDocument();
+    expect(button).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('moves to the field a rejected page count is reported on', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+    const pages = screen.getByLabelText(/^Maximum pages/);
+    fireEvent.change(pages, { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run internal scan' }));
+
+    await screen.findByText(/Enter a whole number of pages/);
+    expect(pages).toHaveFocus();
   });
 });

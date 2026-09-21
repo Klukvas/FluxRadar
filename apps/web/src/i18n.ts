@@ -561,6 +561,8 @@ export const copy = {
       labelQueryPolicy: 'URL query parameters',
       queryIgnore: 'Ignore parameters',
       queryInclude: 'Include parameters',
+      advancedTitle: 'Advanced crawl rules',
+      blockedByRobots: 'To start this scan, confirm the robots.txt override under Audit depth.',
       labelRespectRobots: 'Respect robots.txt',
       labelRobotsOverride: 'I confirm the robots.txt override',
       robotsInfoTitle: 'How robots.txt affects this scan',
@@ -1749,6 +1751,9 @@ export const copy = {
       labelQueryPolicy: 'Параметри URL-запиту',
       queryIgnore: 'Ігнорувати параметри',
       queryInclude: 'Включати параметри',
+      advancedTitle: 'Додаткові правила обходу',
+      blockedByRobots:
+        'Щоб запустити перевірку, підтвердіть заміну robots.txt у розділі «Глибина аудиту».',
       labelRespectRobots: 'Дотримуватись robots.txt',
       labelRobotsOverride: 'Підтверджую відхилення robots.txt',
       robotsInfoTitle: 'Як robots.txt впливає на перевірку',
