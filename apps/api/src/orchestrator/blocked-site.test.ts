@@ -186,3 +186,97 @@ describe('a paid scan of a site that blocks the crawler', () => {
     expect(await db.prisma.aiResponseRecord.count({ where: { scanId } })).toBe(0);
   });
 });
+
+// Our own outage, told apart from the customer's site being down.
+//
+// Every paid crawl leaves through one VPS. When it stops answering, every fetch
+// fails — and without this the scan would read that as "the site is
+// unreachable", spend the customer's paid scan on our outage, and tell them
+// their site is broken. Crawling directly instead is not the answer either:
+// that is the Hetzner block the proxy exists to avoid (D-220).
+describe('a scan whose egress proxy is down', () => {
+  let db: TestDb;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+  });
+
+  afterEach(async () => {
+    await db.cleanup();
+  });
+
+  it('fails as a platform failure, and never blames the site or goes direct', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      webhookSecret: TEST_WEBHOOK_SECRET,
+      autoProcess: false,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const registration = await agent
+      .post('/auth/register')
+      .send({ email: 'egress@example.com', password: 'correct-horse-1' });
+    const cookie = registration.headers['set-cookie']?.[0]?.split(';', 1)[0] ?? '';
+    const profile = await agent
+      .post('/profiles')
+      .set('Cookie', cookie)
+      .send({ name: 'Healthy Site', domain: 'https://example.com' });
+    const checkout = await agent
+      .post('/billing/dev-checkout')
+      .set('Cookie', cookie)
+      .send({
+        siteProfileId: profile.body.data.id as string,
+        plan: 'Complete',
+        scope: { includeSubdomains: false },
+      });
+    const scanId = checkout.body.data.scanId as string;
+
+    let fetched = 0;
+    const result = await processScan(
+      {
+        prisma: db.prisma,
+        logger: silentLogger,
+        createAiProvider: (scan, siteProfile) =>
+          createDefaultAiProvider(siteProfile.name, new URL(scan.domain).hostname),
+        crawl: {
+          egressProxy: { url: 'http://proxy.test:13128' } as never,
+          fetcher: async (url) => {
+            fetched += 1;
+            return {
+              finalUrl: url,
+              status: 200,
+              headers: { 'content-type': 'text/html' },
+              body: '<html><body>the site is perfectly fine</body></html>',
+              redirectChain: [],
+              timingMs: 4,
+              truncated: false,
+            };
+          },
+        },
+        probeEgress: async () => ({
+          state: 'unreachable' as const,
+          observedIp: null,
+          expectedIp: null,
+          latencyMs: null,
+          detail: 'ECONNREFUSED',
+          checkedAt: new Date(),
+        }),
+      },
+      scanId,
+    );
+
+    expect(result.outcome).toBe('Failed');
+    // Not one request left the process: going direct is what the proxy exists
+    // to prevent, and a site that is up must never be recorded as down.
+    expect(fetched).toBe(0);
+    const scan = await db.prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
+    expect(scan.crawlSummaryJson).toBeNull();
+    expect(scan.statusReason).not.toBe('SiteUnreachable');
+    // Our platform, our retry, our refund reason.
+    expect(scan.platformRetryCount).toBe(1);
+    const refund = await db.prisma.refundRecord.findUniqueOrThrow({
+      where: { purchaseId: scan.purchaseId as string },
+    });
+    expect(refund.reasonCode).toBe('PLATFORM_FAILURE_AFTER_RETRY');
+  });
+});

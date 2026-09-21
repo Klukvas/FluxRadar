@@ -32,6 +32,7 @@ model Account {
   aiConsents         AiConsent[]
   integrations       IntegrationConnection[]
   googleBindings     SiteGoogleBinding[]
+  reachabilityProbes SiteReachabilityProbe[]
   oauthStates        IntegrationOAuthState[]
   artifacts          ExportArtifact[]
   emailTokens        EmailToken[]
@@ -121,6 +122,7 @@ model SiteProfile {
   checkoutSessions CheckoutSession[]
   scans            Scan[]
   googleBinding    SiteGoogleBinding?
+  reachabilityProbe SiteReachabilityProbe?
 
   // T-12: one profile per (account, domain) — a second profile for the same
   // origin would split scan history and break Resolved/Reopened comparison.
@@ -465,6 +467,55 @@ model SiteGoogleBinding {
   siteProfile SiteProfile @relation(fields: [siteProfileId], references: [id])
 
   @@index([accountId])
+}
+
+// The last time we asked a site whether it will let our crawler read it, and
+// what it answered. One row per profile: only the freshest answer matters, and
+// keeping a history of refusals would be a log, not a precondition.
+//
+// This exists so a purchase can be refused before it happens. `createCheckoutSession`
+// requires a row here that is recent and says `reachable`; the browser's word is
+// not evidence, so the server re-reads this rather than trusting a request field.
+model SiteReachabilityProbe {
+  id            String   @id @default(cuid())
+  accountId     String
+  siteProfileId String   @unique
+  /**
+   * One of the crawler's own reach verdicts: 'reachable' | 'access-denied' |
+   * 'blocked-by-robots' | 'unreachable' | 'bad-response'. Produced by
+   * @fluxradar/crawler assessSiteReach, so the probe and the scan cannot
+   * disagree about what the same response means.
+   */
+  state         String
+  /** Start page status, or null when no response arrived at all. */
+  startStatus   Int?
+  /** safe-fetch's reason when nothing came back; null when something did. */
+  fetchError    String?
+  /** `server: cloudflare` and the other vendor headers, as a JSON array. */
+  signalsJson   String   @default("[]")
+  checkedAt     DateTime
+  createdAt     DateTime @default(now())
+
+  account     Account     @relation(fields: [accountId], references: [id])
+  siteProfile SiteProfile @relation(fields: [siteProfileId], references: [id])
+
+  @@index([accountId])
+}
+
+// How much of the egress proxy's monthly traffic allowance the crawl has spent.
+//
+// The VPS the crawl leaves through sells 1 TB a month and nothing counted it,
+// so the first sign of running out would have been every scan failing at once.
+// One row per calendar month (UTC), incremented in the database so two scans
+// finishing together cannot lose each other's bytes.
+model CrawlEgressUsage {
+  /// `YYYY-MM` in UTC — the unit the hosting plan resets on.
+  month     String   @id
+  /// Page and media bodies read through the proxy. A floor, not a bill:
+  /// headers, TLS and retries are not in it, and vnstat on the VPS remains
+  /// the authority. The threshold is set low enough that the gap is covered.
+  bytes     BigInt   @default(0)
+  updatedAt DateTime @updatedAt
 }
 
 // One-time OAuth state prevents callback CSRF and replay. Only a SHA-256 hash

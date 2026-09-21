@@ -18,12 +18,17 @@ export interface TestDb {
 /**
  * Isolated test state in the shared disposable PostgreSQL database.
  * Vitest runs DB-backed files sequentially; truncation keeps each file isolated.
+ *
+ * Tables reached by CASCADE from the ones named here do not need naming
+ * themselves — but a table with no foreign key does, or it carries state from
+ * one test file into the next. `CrawlEgressUsage` is keyed by month alone and
+ * is exactly that case.
  */
 export async function createTestDb(): Promise<TestDb> {
   const databaseUrl = testDatabaseUrl();
   const prisma = createPrismaClient(databaseUrl);
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "FreeCheckClaim", "Session", "EmailToken", "EmailNotification", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "ProviderRefund", "CheckoutSession", "Job" CASCADE',
+    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "FreeCheckClaim", "Session", "EmailToken", "EmailNotification", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "ProviderRefund", "CheckoutSession", "Job", "CrawlEgressUsage" CASCADE',
   );
   return {
     prisma,
@@ -131,5 +136,26 @@ export async function seedScanModule(
       applicableChecks: params.applicableChecks ?? null,
       completedApplicableChecks: params.completedApplicableChecks ?? null,
     },
+  });
+}
+
+/**
+ * Records that this site let the crawler in, so a checkout may open.
+ *
+ * `createCheckoutSession` refuses to sell an audit of a site whose last
+ * reachability probe is missing, stale, or negative (FASTSPRING-009). Tests
+ * about the checkout itself state the precondition here rather than running a
+ * probe, so a failure names the thing they are actually testing.
+ */
+export async function seedReachableSite(
+  prisma: PrismaClient,
+  accountId: string,
+  siteProfileId: string,
+  checkedAt = new Date(),
+): Promise<void> {
+  await prisma.siteReachabilityProbe.upsert({
+    where: { siteProfileId },
+    create: { accountId, siteProfileId, state: 'reachable', checkedAt },
+    update: { accountId, state: 'reachable', checkedAt },
   });
 }
