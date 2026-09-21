@@ -114,6 +114,46 @@ error message, not even by length; the SSRF guard does not move to the proxy,
 which is asked to tunnel to an address this process already resolved and
 approved (`packages/safe-fetch/src/proxy.ts`).
 
+#### The proxy host
+
+It is a proxy, not a VPN: only the crawl's own requests go through it, one at a
+time, addressed explicitly. Everything else the API does — Anthropic, PageSpeed,
+FastSpring, Resend, object storage, backups — leaves from the production server
+directly, and the server's own routing is untouched.
+
+| | |
+| --- | --- |
+| Host | `173.242.53.147`, Kyiv |
+| Network | AS200000 Hosting Ukraine — a Ukrainian ASN, which is the whole point |
+| Provider / plan | ukraine.com.ua, VPS 2G — 315 UAH per month, 1 TB of traffic |
+| Software | Ubuntu, tinyproxy on port 13128, basic auth, `ConnectPort` 443 and 80 |
+| Config | `/etc/tinyproxy/tinyproxy.conf` (the stock file is kept as `.orig`) |
+| Access | SSH by key only (`~/.ssh/fluxradar_egress` on the maintainer's Mac); password login is off and the provider's VNC console is the way back in |
+| Firewall | inbound: 22 open, 13128 **only** from the production host `138.201.172.158`; outbound: every private range denied |
+| Traffic | `vnstat -m` on the host is the authority for the 1 TB cap; the API's own monthly counter is a lower-bound estimate (D-225) |
+
+Ukraine was chosen because the block follows the network, not the agent: the
+same `FluxRadarBot/0.1` request that a Ukrainian address answers with 200 is
+refused from this server's hosting network, and our customers' sites are
+Ukrainian. Do not "fix" an outage by pointing the variable at a box on the
+production server's own hosting network — that is the state this whole
+arrangement exists to leave.
+
+The password lives in exactly two places, neither of them this repository: the
+GitHub environment secret `PRODUCTION_CRAWL_EGRESS_PROXY_URL` and two
+`chmod 600` files on the maintainer's Mac. To rotate it: change `BasicAuth` in
+the tinyproxy config, restart the service, update the secret, redeploy.
+
+An unreachable proxy is not a silent condition. The API checks it at startup and
+every five minutes, and a scan attempt checks before its first request; the
+check confirms both that the proxy answers and that the public internet sees its
+address and not the server's own (D-225). A failure fails the scan as a platform
+failure — ours, refundable — instead of reporting the customer's site as
+unreachable. Restoring service means fixing that host or building a replacement
+the same way: a VPS whose IP `whois` shows on a Ukrainian ASN, tinyproxy with
+the same config, the firewall reduced to the production host, then the secret
+and a redeploy.
+
 PageSpeed, CrUX and Resend cannot fail the boot (Resend is reported as `invalid`
 when only one half of the key/sender pair is present, but transactional email
 stays optional). PageSpeed remains enabled without `PAGESPEED_API_KEY`; the key
