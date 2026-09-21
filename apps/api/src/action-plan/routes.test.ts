@@ -298,6 +298,10 @@ describe('GET /scans/:scanId/action-plan — what the report reads', () => {
       ['Turn on HSTS', 1, 1],
       ['Fix the page head', 3, 3],
     ]);
+    expect(view.plan.actions[1].rules).toEqual([
+      { ruleId: 'SEO-TECH-004', openIssues: 2, totalIssues: 2 },
+      { ruleId: 'SEO-ONPAGE-002', openIssues: 1, totalIssues: 1 },
+    ]);
   });
 
   it('offers the plan of another language by listing it, without returning it', async () => {

@@ -91,12 +91,20 @@ const storedContentSchema = z.object({
   ),
 });
 
+/** One rule of an Action with its live counts; the report links each to its issues. */
+export interface PlannedRule {
+  readonly ruleId: string;
+  readonly openIssues: number;
+  readonly totalIssues: number;
+}
+
 export interface PlannedAction {
   readonly title: string;
   readonly why: string;
   readonly steps: readonly string[];
   readonly effort: (typeof ACTION_PLAN_EFFORTS)[number];
   readonly ruleIds: readonly string[];
+  readonly rules: readonly PlannedRule[];
   readonly openIssues: number;
   readonly totalIssues: number;
   /** No open issue left among its rules; not "fixed" — see the note at the top. */
@@ -180,9 +188,14 @@ function withOverlay(
   counts: ReadonlyMap<string, StatusCounts>,
 ): Pick<ActionPlanDto, 'actions' | 'reach'> {
   const actions = content.actions.map((action): PlannedAction => {
-    const openIssues = action.ruleIds.reduce((sum, id) => sum + (counts.get(id)?.open ?? 0), 0);
-    const totalIssues = action.ruleIds.reduce((sum, id) => sum + (counts.get(id)?.total ?? 0), 0);
-    return { ...action, openIssues, totalIssues, settled: openIssues === 0 };
+    const rules = action.ruleIds.map((ruleId) => ({
+      ruleId,
+      openIssues: counts.get(ruleId)?.open ?? 0,
+      totalIssues: counts.get(ruleId)?.total ?? 0,
+    }));
+    const openIssues = rules.reduce((sum, rule) => sum + rule.openIssues, 0);
+    const totalIssues = rules.reduce((sum, rule) => sum + rule.totalIssues, 0);
+    return { ...action, rules, openIssues, totalIssues, settled: openIssues === 0 };
   });
   const rules = new Set(content.actions.flatMap((action) => action.ruleIds));
   return {
