@@ -32,9 +32,6 @@ on:
 permissions:
   contents: read
 
-env:
-  PNPM_VERSION: 10.11.0
-
 jobs:
   build-backend:
     name: Build workspace

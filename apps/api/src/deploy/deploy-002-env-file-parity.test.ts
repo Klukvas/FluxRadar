@@ -21,6 +21,8 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');
+/** The one line that ships the env file to the server. */
+const ENV_FILE_UPLOAD = '${{ runner.temp }}/production.env';
 const SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'normalize-env-file.cjs');
 
 const require_ = createRequire(import.meta.url);
@@ -231,9 +233,12 @@ describe('DEPLOY-002 production env file parity', () => {
 
     expect(workflow).toContain('node deploy/normalize-env-file.cjs "$RUNNER_TEMP/production.env"');
     const normalizeAt = workflow.indexOf('node deploy/normalize-env-file.cjs');
-    const uploadAt = workflow.indexOf('scp "$RUNNER_TEMP/production.env"');
+    // The env file ships as a `files:` entry of the remote-upload action — and
+    // from that one place only, or the order below would prove nothing.
+    const uploadAt = workflow.indexOf(ENV_FILE_UPLOAD);
     expect(normalizeAt).toBeGreaterThan(-1);
     expect(uploadAt).toBeGreaterThan(normalizeAt);
+    expect(workflow.split(ENV_FILE_UPLOAD)).toHaveLength(2);
   });
 
   // INTEGRATION_ENCRYPTION_KEY encrypts every stored Google/Bing token, and

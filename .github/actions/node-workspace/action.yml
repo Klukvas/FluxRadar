@@ -5,7 +5,10 @@ description: >-
 
 # Every quality job needs the same four steps, and when they were copied per job
 # they drifted: a Node version bumped in one place, a pnpm version in another.
-# The versions live here once, so a bump is one edit and every job moves with it.
+# The Node version lives here once. The pnpm version lives in exactly one place
+# for the whole repository — `packageManager` in package.json, which corepack and
+# the Dockerfiles' own `corepack prepare` already read — so it is not repeated
+# here: pnpm/action-setup reads it from there when `version` is left out.
 
 inputs:
   download-dist:
@@ -21,8 +24,6 @@ runs:
   steps:
     - name: Setup pnpm
       uses: pnpm/action-setup@v6
-      with:
-        version: 10.11.0
 
     - name: Setup Node.js
       uses: actions/setup-node@v7

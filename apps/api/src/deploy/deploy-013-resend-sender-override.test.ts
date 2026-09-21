@@ -114,7 +114,8 @@ describe('DEPLOY-013 the Resend overrides', () => {
   // an override exists in the workflow and not in production.
   it('are applied before the env file is normalised and shipped', () => {
     const normalizeAt = WORKFLOW.indexOf('node deploy/normalize-env-file.cjs');
-    const uploadAt = WORKFLOW.indexOf('scp "$RUNNER_TEMP/production.env"');
+    // Where the env file ships: a `files:` entry of the remote-upload action.
+    const uploadAt = WORKFLOW.indexOf('${{ runner.temp }}/production.env');
 
     for (const key of Object.keys(SOURCES)) {
       const upsertAt = WORKFLOW.indexOf(`upsert_env ${key} `);

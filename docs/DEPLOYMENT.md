@@ -932,10 +932,9 @@ same time.
 | --- | --- | --- | --- |
 | `quality` | — | `quality.yml`, without the image build | No |
 | `preflight` | `quality` | Reclaims this workflow's own stale staging dirs under `incoming/` | No |
-| `image-api` | `preflight` | Builds, saves, ships and `docker load`s the API image | No |
-| `image-web` | `preflight` | The same for the web image, in parallel | No |
+| `image` | `preflight` | A matrix (`api`, `web`): builds, saves, ships and `docker load`s each image, in parallel | No |
 | `package` | `preflight` | Builds the release archive and the env file, uploads both, extracts into `releases/<commit>` | No |
-| `backup` | the three above | Snapshots the database **if** this release adds migrations | No |
+| `backup` | `image`, `package` | Snapshots the database **if** this release adds migrations | No |
 | `release` | `backup` | Runs `deploy/release.sh` from the new release directory: migrates, proves a rollback is possible, starts the containers, switches traffic | Yes, from the switch onwards |
 | `verify` | `release` | `deploy/verify-release.sh`: the public smoke test, and the rollback when it fails | It undoes one |
 | `recover` | `release`, `verify` | Runs `verify-release.sh` again when the release is live and `verify` did not finish green | It undoes one |
