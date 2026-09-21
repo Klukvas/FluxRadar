@@ -62,6 +62,8 @@ interface Options {
   readonly allow?: string;
   /** The new release does not carry deploy/contract-phase-gate.sh. */
   readonly noGateScript?: boolean;
+  /** The package stage did not install the new release's .env.production. */
+  readonly noNextEnvFile?: boolean;
   /** Makes this migration of the new release contract-phase, requiring `requires`. */
   readonly contract?: { readonly name: string; readonly requires: string };
 }
@@ -147,6 +149,10 @@ function runGate(options: Options = {}): GateRun {
   if (!options.noGateScript) {
     copyFileSync(GATE_PATH, join(nextDir, 'deploy', 'contract-phase-gate.sh'));
   }
+  // As the package stage leaves it: the environment this deploy was built with.
+  if (!options.noNextEnvFile) {
+    writeFileSync(join(nextDir, '.env.production'), 'FLUXRADAR_BACKUP_ENCRYPTION_KEY=new\n');
+  }
   const backupLog = join(appDir, 'backup.log');
   writeFileSync(backupLog, '');
 
@@ -205,6 +211,24 @@ describe('DEPLOY-015 pre-migration snapshot', () => {
       expect(gate.output).toContain(
         'OK: a snapshot of the pre-migration database is in the bucket',
       );
+    });
+
+    // The active .env.production is whatever the last SUCCESSFUL deploy wrote,
+    // so a key added to the secrets since could never reach this snapshot: the
+    // deploy carrying it was refused here, forever. That is how the first
+    // release with a migration after the backup tooling stopped.
+    it("snapshots with the NEW release's environment, which carries a key added since", () => {
+      const gate = runGate(withNewMigration);
+      expect(gate.exitCode).toBe(0);
+      expect(gate.backupCalls[0]).toMatch(
+        new RegExp(`--env-file \\S*/releases/${NEXT_ID}/\\.env\\.production$`),
+      );
+    });
+
+    it("falls back to the active release's environment when the new one has none", () => {
+      const gate = runGate({ ...withNewMigration, noNextEnvFile: true });
+      expect(gate.exitCode).toBe(0);
+      expect(gate.backupCalls[0]).not.toContain('--env-file');
     });
 
     it('refuses to migrate when the snapshot fails', () => {

@@ -133,10 +133,21 @@ fi
 echo "Taking a snapshot of the live database before anything is migrated."
 
 BACKUP_SCRIPT="$APP_DIR/current/deploy/backup/pg-backup.sh"
+# The snapshot runs with the NEW release's .env.production, not the active
+# one's. The active file is whatever the last SUCCESSFUL deploy wrote, so a
+# backup setting added since — the encryption key above all — could never reach
+# the snapshot that has to come before the first deploy carrying it: that
+# deploy is refused here, and nothing else ever rewrites the active file. The
+# first release that needed a snapshot stopped exactly there. The database is
+# the same one either way. pg-backup.sh has taken --env-file since it shipped.
+BACKUP_ARGS=(--app-dir "$APP_DIR")
+if [ -f "$RELEASE_DIR/.env.production" ]; then
+  BACKUP_ARGS+=(--env-file "$RELEASE_DIR/.env.production")
+fi
 if [ ! -f "$BACKUP_SCRIPT" ]; then
   echo "ERROR: $BACKUP_SCRIPT is missing on the server." >&2
   echo "The active release predates the backup tooling, so no pre-migration snapshot can be taken." >&2
-elif bash "$BACKUP_SCRIPT" --app-dir "$APP_DIR"; then
+elif bash "$BACKUP_SCRIPT" "${BACKUP_ARGS[@]}"; then
   echo "OK: a snapshot of the pre-migration database is in the bucket."
   exit 0
 else

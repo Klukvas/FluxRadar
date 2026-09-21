@@ -852,6 +852,17 @@ fix. Anything other than `true` keeps the gate. Unset it again afterwards: it
 turns off the one control that stands between a bad migration and a day of lost
 customer data.
 
+**The snapshot uses the new release's `.env.production`**, passed to the active
+release's `pg-backup.sh` with `--env-file`. The active release's own file is
+whatever the last *successful* deploy wrote, so a backup setting added since —
+the encryption key above all — could never reach the snapshot that must precede
+the first deploy carrying it: that deploy is refused here, and nothing else
+rewrites the active file. The D-229 release stopped exactly there on
+2026-09-21 (`FLUXRADAR_BACKUP_ENCRYPTION_KEY is not set in …/current/.env.production`),
+with production left on the previous release. The database is the same either
+way; a release without the file falls back to the active one's. `DEPLOY-015`
+covers both.
+
 `pg_dump` runs **inside the running PostgreSQL container**, so the dump is always
 taken by the exact server version that wrote the data and the host needs no
 PostgreSQL packages. The dump is written to `$APP_DIR/backups/work`, encrypted
@@ -984,7 +995,9 @@ Nothing below can be done by a deploy, and until it is done there are no backups
    a fresh 32-byte base64 key, and store the same key in the password manager.
    Optionally set the `PRODUCTION_BACKUP_*` repository variables to override the
    prefix and the retention numbers.
-2. Deploy once, so `.env.production` on the server carries the key.
+2. Deploy once, so `.env.production` on the server carries the key. The
+   pre-migration snapshot of that same deploy already reads the key from the
+   release being deployed, so this works even when the deploy adds a migration.
 3. Install the schedule as root. The log directory is created first, because
    cron opens the log file *before* running the script and a missing directory
    would make the job fail without ever starting:
