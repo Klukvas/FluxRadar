@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { captureExecutionConfig, lockOwnProfile } from '../../profiles/execution-config.ts';
 import { isExpired, isProbeUsable } from '../../profiles/reachability-routes.ts';
+import { scopeWithEgressLocation, type LaunchEgress } from '../../scans/launch-egress.ts';
 
 import type { AiConsentInput } from '../checkout-metadata.ts';
 import { CHECKOUT_STATUS_REASONS, provisionalCheckoutDeadline } from '../checkout-lifecycle.ts';
@@ -32,6 +33,8 @@ export interface CheckoutSessionParams {
   readonly siteProfileId: string;
   readonly plan: PaidPlan;
   readonly scope: ScanScopeInput;
+  /** The egress location checked at launch; it, not `scope`, names where the scan goes. */
+  readonly egress: LaunchEgress;
   readonly aiConsent?: AiConsentInput | undefined;
   readonly expectedProfileConfigVersion?: number | undefined;
 }
@@ -58,8 +61,9 @@ export async function createCheckoutSession(
   if (profile === null) {
     throw new BillingNotFoundError('site profile not found');
   }
-  assertScopeWithinPlan(params.plan, params.scope);
-  await assertSiteIsReachable(deps, profile.id, profile.domain);
+  const scope = scopeWithEgressLocation(params.scope, params.egress);
+  assertScopeWithinPlan(params.plan, scope);
+  await assertSiteIsReachable(deps, profile.id, profile.domain, scope.egressLocation ?? null);
 
   const productPath = deps.config.productPaths[params.plan];
   const reference = `frcs_${randomUUID()}`;
@@ -91,10 +95,10 @@ export async function createCheckoutSession(
         productPath,
         expectedAmountUsd: planPriceUsd(params.plan),
         liveMode: deps.config.liveMode,
-        scopeJson: JSON.stringify(params.scope),
+        scopeJson: JSON.stringify(scope),
         profileConfigVersion: lockedProfile.scanConfigVersion,
         executionConfigJson: JSON.stringify(
-          captureExecutionConfig(lockedProfile, params.plan, params.scope),
+          captureExecutionConfig(lockedProfile, params.plan, scope),
         ),
         aiConsentJson: params.aiConsent === undefined ? null : JSON.stringify(params.aiConsent),
         createdAt,
@@ -225,19 +229,25 @@ export async function findCheckoutStatus(
  * A stale probe is refused too, with its own message. A site that was reachable
  * an hour ago and is now behind a challenge would otherwise sell exactly the
  * audit this whole precondition exists to prevent.
+ *
+ * So is a probe from another egress location (D-228): a site can let Kyiv in
+ * and refuse Frankfurt, so a yes from one country is not evidence about the
+ * country being bought. `egressLocation` is the location the scope resolved
+ * to, null for a deployment that crawls directly.
  */
 async function assertSiteIsReachable(
   deps: CheckoutSessionDeps,
   siteProfileId: string,
   domain: string,
+  egressLocation: string | null,
 ): Promise<void> {
   const probe = await deps.prisma.siteReachabilityProbe.findUnique({ where: { siteProfileId } });
-  if (isProbeUsable(probe, domain, deps.now())) return;
+  if (isProbeUsable(probe, domain, egressLocation, deps.now())) return;
   // A probe of a domain this profile no longer points at is not a result about
   // the site being bought. The profile's domain can be changed whenever no
   // checkout is open, so without this the gate is bypassed by probing an easy
   // site, repointing the profile, and paying inside the same 15 minutes.
-  if (probe === null || probe.origin !== domain) {
+  if (probe === null || probe.origin !== domain || probe.egressLocation !== egressLocation) {
     throw new SitePreconditionError(
       'unchecked',
       'This site has not been checked yet. Run the reachability check before paying.',

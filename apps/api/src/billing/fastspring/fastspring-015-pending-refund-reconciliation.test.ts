@@ -257,7 +257,7 @@ describe('FASTSPRING-015 pending refund reconciliation', () => {
         accountId: account.accountId,
         siteProfileId: account.siteProfileId,
         plan: 'Basic',
-        provider: 'paddle',
+        provider: 'retired-provider',
         providerTransactionId: 'ord_shared_id',
         amountUsd: BASIC_PRICE,
         currency: 'USD',

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { silentLogger } from './logger.ts';
 import { checkDatabaseReady } from './health.ts';
-import { createTestDb, type TestDb, TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 // CR-04: liveness stays cheap and DB-free; readiness runs a bounded SELECT 1 and
 // fails closed with a safe 503 that never exposes connection detail.
@@ -22,7 +22,6 @@ describe('CR-04 DB-aware health', () => {
   it('serves liveness without touching the database', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -34,7 +33,6 @@ describe('CR-04 DB-aware health', () => {
   it('reports ready when SELECT 1 succeeds', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -50,7 +48,6 @@ describe('CR-04 DB-aware health', () => {
     } as unknown as TestDb['prisma'];
     const app = createApp({
       prisma: unreachable,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -78,7 +75,6 @@ describe('CR-04 DB-aware health', () => {
     } as unknown as TestDb['prisma'];
     const app = createApp({
       prisma: unreachable,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -99,7 +95,6 @@ describe('CR-04 DB-aware health', () => {
   it('answers readiness within the timeout when the database never replies', async () => {
     const app = createApp({
       prisma: { $queryRaw: () => new Promise(() => undefined) } as unknown as TestDb['prisma'],
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       readinessTimeoutMs: 50,
@@ -123,7 +118,6 @@ describe('CR-04 DB-aware health', () => {
     } as unknown as TestDb['prisma'];
     const app = createApp({
       prisma: unreachable,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -141,7 +135,6 @@ describe('CR-04 DB-aware health', () => {
   it('keeps the response shapes the deploy gate greps for', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });

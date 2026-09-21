@@ -2,7 +2,8 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import { purchaseScan } from '../test-utils/purchase-scan.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 describe('execution configuration HTTP contract', () => {
   let db: TestDb;
@@ -16,7 +17,6 @@ describe('execution configuration HTTP contract', () => {
   it('captures identity/context and effective Free scope, rejecting stale launches without reverting the profile', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -61,20 +61,17 @@ describe('execution configuration HTTP contract', () => {
       profile: { name: 'Dental Brand', offerings: 'Family dentistry' },
       scope: { maxPages: 1, maxDepth: 0 },
     });
-    const paid = await agent
-      .post('/billing/dev-checkout')
-      .send({
-        siteProfileId: profileId,
-        expectedProfileConfigVersion: 2,
-        plan: 'Complete',
-        scope: { includeSubdomains: true, maxPages: 80 },
-      });
-    expect(paid.status).toBe(201);
+    const paid = await purchaseScan(db.prisma, {
+      siteProfileId: profileId,
+      expectedProfileConfigVersion: 2,
+      plan: 'Complete',
+      scope: { includeSubdomains: true, maxPages: 80 },
+    });
     const changed = await agent
       .patch(`/profiles/${profileId}`)
       .send({ expectedProfileConfigVersion: 2, name: 'Plumbing Brand', offerings: 'Leak repairs' });
     expect(changed.status).toBe(200);
-    const scan = await agent.get(`/scans/${paid.body.data.scanId}`);
+    const scan = await agent.get(`/scans/${paid.scanId}`);
     expect(scan.body.data.executionConfig).toMatchObject({
       profileConfigVersion: 2,
       profile: { name: 'Dental Brand', offerings: 'Family dentistry' },

@@ -26,6 +26,12 @@ export interface ScanScopeForm {
   readonly respectRobots: boolean;
   readonly robotsOverrideConfirmed: boolean;
   readonly userAgent: 'desktop' | 'mobile';
+  /**
+   * The egress location the owner chose, or '' for "the default". Held as the
+   * owner's preference: the location a launch actually asks for is resolved
+   * against what is on offer right now (`effectiveEgressLocation`).
+   */
+  readonly egressLocation: string;
 }
 
 /**
@@ -49,6 +55,7 @@ export const DEFAULT_SCOPE_FORM: ScanScopeForm = {
   respectRobots: true,
   robotsOverrideConfirmed: false,
   userAgent: 'desktop',
+  egressLocation: '',
 };
 
 /**
@@ -142,6 +149,7 @@ export interface ScanScopePayload {
   readonly respectRobots: boolean;
   readonly robotsOverrideConfirmed: boolean;
   readonly userAgent: 'desktop' | 'mobile';
+  readonly egressLocation?: string;
 }
 
 /**
@@ -149,10 +157,20 @@ export interface ScanScopePayload {
  *
  * Free is the fixed homepage check, so its payload is the fixed scope plus the
  * one setting it does honour — the crawler's user agent, which applies to a
- * single page exactly as it applies to a thousand. A paid plan sends everything
- * the owner set.
+ * single page exactly as it applies to a thousand. It names no egress location
+ * either: a Free check leaves from the default one (D-228). A paid plan sends
+ * everything the owner set.
+ *
+ * `egressLocation` is the location to send — by default the owner's saved
+ * preference, which is what a profile configuration stores; a launch passes
+ * the location actually on offer (`effectiveEgressLocation`) instead. Null or
+ * empty leaves it out, and the server uses its default.
  */
-export function scanScopeFrom(form: ScanScopeForm, plan: Plan): ScanScopePayload {
+export function scanScopeFrom(
+  form: ScanScopeForm,
+  plan: Plan,
+  egressLocation: string | null = form.egressLocation,
+): ScanScopePayload {
   if (plan === 'Free') {
     return { ...FREE_FIXED_SCOPE, userAgent: form.userAgent };
   }
@@ -174,6 +192,7 @@ export function scanScopeFrom(form: ScanScopeForm, plan: Plan): ScanScopePayload
     respectRobots: form.respectRobots,
     robotsOverrideConfirmed: form.robotsOverrideConfirmed,
     userAgent: form.userAgent,
+    ...(egressLocation === null || egressLocation === '' ? {} : { egressLocation }),
   };
 }
 
@@ -206,6 +225,7 @@ export function scopeFormFromScan(scan: Scan): ScanScopeForm {
     // explicit saved settings separately.
     robotsOverrideConfirmed: false,
     userAgent: scope?.userAgent ?? DEFAULT_SCOPE_FORM.userAgent,
+    egressLocation: scope?.egressLocation ?? DEFAULT_SCOPE_FORM.egressLocation,
   };
 }
 
@@ -225,6 +245,7 @@ export function scopeFormFromProfileConfig(config: ProfileScanConfig): ScanScope
     respectRobots: scope.respectRobots,
     robotsOverrideConfirmed: scope.robotsOverrideConfirmed,
     userAgent: scope.userAgent,
+    egressLocation: scope.egressLocation ?? DEFAULT_SCOPE_FORM.egressLocation,
   };
 }
 

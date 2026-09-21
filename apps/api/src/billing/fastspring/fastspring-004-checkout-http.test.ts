@@ -3,12 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../../index.ts';
 import { silentLogger, type ApiLogger } from '../../http/logger.ts';
-import {
-  createTestDb,
-  seedReachableSite,
-  TEST_WEBHOOK_SECRET,
-  type TestDb,
-} from '../../test-utils/test-db.ts';
+import { createTestDb, seedReachableSite, type TestDb } from '../../test-utils/test-db.ts';
 import { readFastSpringConfig, type FastSpringConfigResult } from './config.ts';
 import type { FetchLike } from './client.ts';
 import {
@@ -98,7 +93,6 @@ describe('FASTSPRING-004 checkout HTTP surface', () => {
   ) {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: options.logger ?? silentLogger,
       fastSpring: options.fastSpring ?? configured(),
@@ -474,7 +468,6 @@ describe('FASTSPRING-004 checkout HTTP surface', () => {
     const errorLog = vi.fn();
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: { info: vi.fn(), warn: vi.fn(), error: errorLog },
       fastSpring: configured(),
@@ -508,7 +501,6 @@ describe('FASTSPRING-004 checkout HTTP surface', () => {
     const errorLog = vi.fn();
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: { info: vi.fn(), warn: vi.fn(), error: errorLog },
       fastSpring: configured(),

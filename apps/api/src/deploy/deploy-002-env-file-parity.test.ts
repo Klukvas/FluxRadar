@@ -52,7 +52,6 @@ const BASE_ENV: Readonly<Record<string, string>> = {
   DATABASE_URL: `postgresql://fluxradar:${PASSWORD}@postgres:5432/fluxradar`,
   FLUXRADAR_ENV_FILE: '.env.production',
   INTEGRATION_ENCRYPTION_KEY: ENCRYPTION_KEY,
-  PADDLE_WEBHOOK_SECRET: 'legacy-secret',
 };
 
 const workspaces: string[] = [];
@@ -140,7 +139,6 @@ describe('DEPLOY-002 production env file parity', () => {
       `DATABASE_URL="postgresql://fluxradar:${PASSWORD}@postgres:5432/fluxradar"`,
       'FLUXRADAR_ENV_FILE=.env.production',
       'INTEGRATION_ENCRYPTION_KEY=integration-key',
-      'PADDLE_WEBHOOK_SECRET=legacy-secret',
     ]);
 
     normalizeEnvFile(path);
@@ -206,17 +204,6 @@ describe('DEPLOY-002 production env file parity', () => {
     const lines = baseLines().filter((line) => !line.startsWith('INTEGRATION_ENCRYPTION_KEY='));
 
     expect(expectFailure(lines)).toContain('INTEGRATION_ENCRYPTION_KEY');
-  });
-
-  // PADDLE_WEBHOOK_SECRET is unused by this release but still required at
-  // startup by older ones, so its absence is a warning, not a refusal: only the
-  // rollback probe knows which release would actually come back.
-  it('warns, but does not fail, when PADDLE_WEBHOOK_SECRET is absent', () => {
-    const path = writeEnvFile(baseLines().filter((line) => !line.startsWith('PADDLE_')));
-
-    const { warnings } = normalizeEnvFile(path);
-
-    expect(warnings.join('\n')).toContain('PADDLE_WEBHOOK_SECRET');
   });
 
   it('reports variable names only, never values', () => {

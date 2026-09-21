@@ -80,14 +80,6 @@ const DISTINCT_SECRET_PAIRS = [['INTEGRATION_ENCRYPTION_KEY', 'SESSION_SECRET']]
 const MIN_ENCRYPTION_KEY_LENGTH = 32;
 
 /**
- * Kept until every release that reads it at startup has been retired: an older
- * release crash-loops without it, which would turn an automatic rollback into an
- * outage. A warning, not an error, because only the rollback probe knows which
- * release would actually come back.
- */
-const ROLLBACK_ONLY_KEYS = ['PADDLE_WEBHOOK_SECRET'];
-
-/**
  * Everything deploy/backup/* needs before a snapshot can be taken.
  *
  * Absent, backups simply do not run — and nothing else in the deploy says so,
@@ -374,14 +366,6 @@ function checkBackupConfiguration(entries) {
   return { errors, warnings };
 }
 
-function checkRollbackKeys(entries) {
-  return ROLLBACK_ONLY_KEYS.filter((key) => !entries.has(key)).map(
-    (key) =>
-      `${key} is absent. It is unused by this release but required at startup by older ones, ` +
-      'so a rollback to such a release would crash-loop (docs/DEPLOYMENT.md).',
-  );
-}
-
 /** The normalized file content: one `KEY=value` per line, insertion order. */
 function render(entries) {
   return `${[...entries].map(([key, value]) => `${key}=${value}`).join('\n')}\n`;
@@ -404,7 +388,6 @@ function normalizeEnvFile(path) {
   ];
   const warnings = [
     ...parsed.warnings,
-    ...checkRollbackKeys(parsed.entries),
     ...checkEncryptionKeyStrength(parsed.entries),
     ...backups.warnings,
   ];

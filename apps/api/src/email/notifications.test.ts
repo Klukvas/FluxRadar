@@ -137,9 +137,12 @@ describe('scan notifications by purchase mode', () => {
     expect(mailer.messages.map((message) => message.subject)).toEqual(PAID_FLOW_SUBJECTS);
   });
 
-  it('still mails a legacy Paddle purchase', async () => {
+  it('still mails a purchase from a provider no longer in use', async () => {
     const { scan, purchase } = await seedScan(db.prisma, { account, status: 'Pending' });
-    expect(purchase?.provider).toBe('paddle');
+    await db.prisma.purchase.update({
+      where: { id: purchase?.id ?? '' },
+      data: { provider: 'retired-provider' },
+    });
 
     await notifyPaidFlow(scan.id);
 

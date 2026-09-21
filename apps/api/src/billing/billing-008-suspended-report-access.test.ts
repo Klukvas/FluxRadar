@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { processScan } from '../orchestrator/worker.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import { purchaseScan } from '../test-utils/purchase-scan.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { PURCHASE_STATUSES } from './constants.ts';
 
 // BILLING-008: a refund takes the report back.
@@ -43,7 +44,6 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
   function makeApp() {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       now: () => NOW,
@@ -144,18 +144,13 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
     const agent = request.agent(app);
     const cookie = await register(agent, email);
     const profileId = await createProfile(agent, cookie, `https://${email.split('@')[0]}.example.com`);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', cookie)
-      .send({
-        siteProfileId: profileId,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 15 },
-      });
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const { scanId, purchaseId } = await purchaseScan(db.prisma, {
+      siteProfileId: profileId,
+      plan: 'Complete',
+      scope: { maxPages: 15 },
+    });
     const issueId = await seedReport(db.prisma, scanId);
-    return { agent, cookie, scanId, purchaseId: checkout.body.data.purchaseId as string, issueId };
+    return { agent, cookie, scanId, purchaseId, issueId };
   }
 
   /** Every read of the paid report, as the customer's browser would ask for it. */

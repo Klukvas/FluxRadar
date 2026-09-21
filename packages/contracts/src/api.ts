@@ -84,6 +84,26 @@ export const siteProfileInputSchema = z.object({
 });
 export type SiteProfileInput = z.infer<typeof siteProfileInputSchema>;
 
+/**
+ * The egress location a crawl leaves from: an ISO 3166-1 country code in lower
+ * case, optionally narrowed (`de-fra`). Only the shape is checked here — which
+ * locations exist, and which of them are up, is a fact of the deployment the
+ * API checks at launch (apps/api/src/integrations/crawl-egress-locations.ts).
+ */
+export const egressLocationIdSchema = z
+  .string()
+  .max(16)
+  .regex(/^[a-z]{2}(?:-[a-z0-9]{1,12})?$/, {
+    message: 'egressLocation must be a lower-case country code, as in "ua" or "de-fra"',
+  });
+export type EgressLocationId = z.infer<typeof egressLocationIdSchema>;
+
+/**
+ * Where a scan leaves from when nobody chose: the Kyiv proxy every paid crawl
+ * used before a choice existed (D-220, D-228).
+ */
+export const DEFAULT_EGRESS_LOCATION = 'ua' satisfies EgressLocationId;
+
 export const scanScopeSchema = z
   .object({
     includeSubdomains: z.boolean(),
@@ -101,6 +121,13 @@ export const scanScopeSchema = z
     respectRobots: z.boolean().default(true),
     robotsOverrideConfirmed: z.boolean().default(false),
     userAgent: z.enum(['desktop', 'mobile']).default('desktop'),
+    /**
+     * Absent means different things in different places, and none of them is
+     * "Ukraine": a request that leaves it out gets the default location, and a
+     * stored scan without it predates the choice — its location was never
+     * recorded, and before the proxy existed it was not Kyiv at all.
+     */
+    egressLocation: egressLocationIdSchema.optional(),
   })
   .superRefine((scope, ctx) => {
     if (!scope.respectRobots && !scope.robotsOverrideConfirmed) {
@@ -150,6 +177,7 @@ export const defaultProfileScanConfig = {
     respectRobots: true,
     robotsOverrideConfirmed: false,
     userAgent: 'desktop',
+    egressLocation: DEFAULT_EGRESS_LOCATION,
   },
 } as const satisfies z.input<typeof scanConfigSchema>;
 

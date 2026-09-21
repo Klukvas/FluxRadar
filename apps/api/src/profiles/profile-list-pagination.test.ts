@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { MAX_PAGE_SIZE } from '../http/pagination.ts';
-import { createTestDb, type TestDb, TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 const PASSWORD = 'sufficiently-long-password';
 
@@ -22,7 +22,6 @@ describe('profile list pagination', () => {
   async function seedProfiles(count: number) {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });

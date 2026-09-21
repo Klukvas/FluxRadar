@@ -70,6 +70,7 @@ describe('scanScopeFrom', () => {
     respectRobots: false,
     robotsOverrideConfirmed: true,
     userAgent: 'mobile' as const,
+    egressLocation: 'ua',
   };
 
   it('sends everything the owner set on a paid plan', () => {
@@ -83,10 +84,22 @@ describe('scanScopeFrom', () => {
       respectRobots: false,
       robotsOverrideConfirmed: true,
       userAgent: 'mobile',
+      egressLocation: 'ua',
     });
   });
 
+  // The saved preference is what a profile stores; a launch sends the location
+  // actually on offer, which is the one the screen shows.
+  it('sends the location it is given for a launch, and leaves out none at all', () => {
+    expect(scanScopeFrom(filledForm, 'Basic', 'de').egressLocation).toBe('de');
+    expect(scanScopeFrom(filledForm, 'Basic', null)).not.toHaveProperty('egressLocation');
+    expect(scanScopeFrom({ ...filledForm, egressLocation: '' }, 'Basic')).not.toHaveProperty(
+      'egressLocation',
+    );
+  });
+
   // Free honours the user agent and nothing else, so that is all it may claim.
+  // It does not choose a country either: it leaves from the default one.
   it('sends the fixed homepage check on Free, whatever the form holds', () => {
     expect(scanScopeFrom(filledForm, 'Free')).toEqual({
       includeSubdomains: false,
@@ -167,6 +180,7 @@ describe('scopeFormFromScan', () => {
         queryPolicy: 'include',
         respectRobots: true,
         userAgent: 'mobile',
+        egressLocation: 'ua',
       }),
     );
 
@@ -180,6 +194,7 @@ describe('scopeFormFromScan', () => {
       respectRobots: true,
       robotsOverrideConfirmed: false,
       userAgent: 'mobile',
+      egressLocation: 'ua',
     });
   });
 

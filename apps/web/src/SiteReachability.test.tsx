@@ -64,6 +64,41 @@ function renderPanel(profileId: string | null, onResult = vi.fn()) {
 }
 
 describe('the site reachability panel', () => {
+  it('asks about the country the scan will leave from, and asks again when it changes', async () => {
+    // A site can let Kyiv in and refuse Frankfurt; a yes from one says nothing
+    // about the other (D-228).
+    const fetchMock = stubApi({ get: NEVER_CHECKED, post: REACHABLE });
+    const props = {
+      language: 'en' as const,
+      profileId: 'profile-1',
+      resolveProfileId: async () => 'profile-1',
+      onResult: vi.fn(),
+    };
+    const { rerender } = render(<SiteReachabilityPanel {...props} egressLocationId="ua" />);
+    await waitFor(() =>
+      expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+        '/profiles/profile-1/reachability?egressLocation=ua',
+      ),
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /check/i }));
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === 'POST',
+      );
+      expect(JSON.parse(String((post?.[1] as RequestInit).body))).toEqual({ egressLocation: 'ua' });
+    });
+
+    rerender(<SiteReachabilityPanel {...props} egressLocationId="de" />);
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).endsWith('reachability?egressLocation=de'),
+        ),
+      ).toBe(true),
+    );
+  });
+
   it('reads the last answer for a saved profile without being asked', async () => {
     const fetchMock = stubApi({ get: REACHABLE });
     const onResult = renderPanel('profile-1');

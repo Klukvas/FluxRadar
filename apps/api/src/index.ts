@@ -11,9 +11,7 @@ import {
   readFreeCheckAllowlist,
 } from './billing/free-check-allowlist.ts';
 import { getInternalFreeEmails } from './billing/internal-access.ts';
-import { isMockCheckoutEnabled } from './billing/mock-checkout.ts';
-import { resolvePaddleWebhookSecret } from './billing/paddle-signature.ts';
-import { billingRouter, webhookHandler } from './billing-http/routes.ts';
+import { billingRouter } from './billing-http/routes.ts';
 import { fastSpringRouter, fastSpringWebhookHandler } from './billing-http/fastspring-routes.ts';
 import {
   FASTSPRING_PROVIDER,
@@ -35,12 +33,12 @@ import { googleIntegrationRouter } from './integrations/google/routes.ts';
 import { createGoogleDataRunner } from './integrations/google/runner.ts';
 import { integrationsRouter } from './integrations/routes.ts';
 import { validateRuntimeConfig } from './integrations/config.ts';
-import { readCrawlEgressProxy } from './integrations/crawl-egress-config.ts';
+import { readCrawlEgressLocations } from './integrations/crawl-egress-config.ts';
+import { readEgressProbeOptions } from './integrations/crawl-egress-health.ts';
 import {
-  logEgressHealth,
-  probeEgressProxy,
-  readEgressProbeOptions,
-} from './integrations/crawl-egress-health.ts';
+  createEgressLocationMonitor,
+  type EgressLocationMonitor,
+} from './integrations/crawl-egress-monitor.ts';
 import { logEgressUsage, readEgressUsage } from './integrations/crawl-egress-usage.ts';
 import { logIntegrationStatuses } from './integrations/diagnostics.ts';
 import { createMailer, type Mailer } from './email/mailer.ts';
@@ -61,7 +59,7 @@ export const packageName = '@fluxradar/api';
 
 const QUEUE_RECOVERY_INTERVAL_MS = 30_000;
 /**
- * How often the crawl's egress proxy is re-checked.
+ * How often every egress location's proxy is re-checked.
  *
  * Five minutes: long enough not to be traffic of its own, short enough that an
  * outage is found by us rather than by the customer whose scan it broke.
@@ -70,7 +68,6 @@ const EGRESS_HEALTH_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface CreateAppOptions {
   readonly prisma: PrismaClient;
-  readonly webhookSecret: string;
   readonly logger?: ApiLogger;
   readonly now?: () => Date;
   readonly autoProcess?: boolean;
@@ -83,8 +80,6 @@ export interface CreateAppOptions {
   readonly internalFreeEmails?: ReadonlySet<string>;
   /** Test seam; production reads FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS. */
   readonly freeCheckAllowedOrigins?: ReadonlySet<string>;
-  /** Test seam; production reads FLUXRADAR_ENABLE_MOCK_CHECKOUT. */
-  readonly mockCheckoutEnabled?: boolean;
   /** Test seam; production uses READINESS_TIMEOUT_MS. */
   readonly readinessTimeoutMs?: number;
   readonly mailer?: Mailer;
@@ -99,6 +94,24 @@ export interface CreateAppOptions {
    * with no support channel, which is not the same as leaving it out.
    */
   readonly supportChannel?: SupportChannel | null;
+  /**
+   * The egress locations and their health. Test seam; production builds one
+   * from the CRAWL_EGRESS_PROXY_URL* environment and re-checks it on a timer.
+   */
+  readonly egress?: EgressLocationMonitor;
+}
+
+/** The monitor of every egress location this environment configures. */
+export function createConfiguredEgressMonitor(
+  logger: ApiLogger,
+  now: () => Date = () => new Date(),
+): EgressLocationMonitor {
+  return createEgressLocationMonitor({
+    locations: readCrawlEgressLocations(),
+    logger,
+    now,
+    probeOptions: readEgressProbeOptions(),
+  });
 }
 
 export interface StartedApi {
@@ -114,7 +127,6 @@ export function createApp(options: CreateAppOptions): Express {
   const internalFreeEmails = options.internalFreeEmails ?? getInternalFreeEmails();
   const freeCheckAllowedOrigins =
     options.freeCheckAllowedOrigins ?? resolveFreeCheckAllowedOrigins(logger);
-  const mockCheckoutEnabled = options.mockCheckoutEnabled ?? isMockCheckoutEnabled();
   const requestRateLimiter = options.requestRateLimiter ?? new RequestRateLimiter();
   const mailer = options.mailer ?? createMailer();
   const fastSpring = options.fastSpring ?? readFastSpringConfig();
@@ -124,6 +136,7 @@ export function createApp(options: CreateAppOptions): Express {
   // sweepRetention then builds the configured store itself. An explicit null is a
   // caller that wants no storage at all, and must stay null.
   const objectStore = options.objectStore;
+  const egress = options.egress ?? createConfiguredEgressMonitor(logger, now);
   logFastSpringState(logger, fastSpring);
   // Names and statuses only; see integrations/diagnostics.ts.
   logIntegrationStatuses(logger);
@@ -141,6 +154,9 @@ export function createApp(options: CreateAppOptions): Express {
       options.createGoogleDataRunner ??
       (() => createGoogleDataRunner({ prisma: options.prisma, now, requestOptions: { logger } })),
     ...(options.crawl !== undefined ? { crawl: options.crawl } : {}),
+    // The same locations the launch was checked against, so a scan cannot be
+    // accepted for a location its worker does not know.
+    egressLocations: egress.configured,
     mailer,
   };
   void sweepRetention(options.prisma, now(), logger, objectStore);
@@ -179,7 +195,7 @@ export function createApp(options: CreateAppOptions): Express {
     }),
   );
 
-  // Providers sign the exact request bytes, so both webhook routes must take the
+  // FastSpring signs the exact request bytes, so its webhook route must take the
   // raw body and therefore precede express.json.
   app.post(
     '/webhooks/fastspring',
@@ -193,22 +209,6 @@ export function createApp(options: CreateAppOptions): Express {
       requestRateLimiter,
     }),
   );
-  // The MockPaddle webhook is a development affordance: mounting it anywhere
-  // real would leave a second, non-provider way to mint an entitlement. It is
-  // therefore mounted only where the deployment explicitly asked for the mock
-  // surface — see billing/mock-checkout.ts for why this is no longer NODE_ENV.
-  if (mockCheckoutEnabled) {
-    app.post(
-      '/webhooks/paddle',
-      express.raw({ type: 'application/json', limit: '1mb' }),
-      webhookHandler({
-        prisma: options.prisma,
-        webhookSecret: options.webhookSecret,
-        now,
-        requestRateLimiter,
-      }),
-    );
-  }
   app.use(express.json({ limit: '1mb' }));
 
   app.use(
@@ -243,6 +243,7 @@ export function createApp(options: CreateAppOptions): Express {
       now,
       requestRateLimiter,
       logger,
+      egress,
       // The probe leaves from the network the crawl will, including the test
       // seams a fixture site needs, so the two cannot answer differently.
       ...(options.crawl === undefined
@@ -270,19 +271,19 @@ export function createApp(options: CreateAppOptions): Express {
       fastSpring,
       now,
       requestRateLimiter,
+      egress,
       ...(options.fastSpringFetch !== undefined ? { fetchImpl: options.fastSpringFetch } : {}),
     }),
   );
   app.use(
     billingRouter({
       prisma: options.prisma,
-      webhookSecret: options.webhookSecret,
       now,
       enqueueScan,
       internalFreeEmails,
       requestRateLimiter,
       mailer,
-      mockCheckoutEnabled,
+      egress,
     }),
   );
   app.use(
@@ -292,6 +293,7 @@ export function createApp(options: CreateAppOptions): Express {
       enqueueScan,
       requestRateLimiter,
       freeCheckAllowedOrigins,
+      egress,
     }),
   );
   app.use(issuesRouter({ prisma: options.prisma, now }));
@@ -315,12 +317,14 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   validateRuntimeConfig();
   const prisma = createPrismaClient();
   const logger = stdoutLogger;
-  const webhookSecret = resolvePaddleWebhookSecret();
   const mailer = createMailer();
   // One store for the whole process: the export route, account deletion and the
   // retention sweep all address the same bucket.
   const objectStore = createConfiguredObjectStore();
-  const app = createApp({ prisma, webhookSecret, logger, mailer, objectStore });
+  // One monitor for the process: the timer below refreshes the same answers
+  // the launch routes read.
+  const egress = createConfiguredEgressMonitor(logger);
+  const app = createApp({ prisma, logger, mailer, objectStore, egress });
   // Recover before listen so a newly submitted scan cannot be claimed by the
   // HTTP path while startup is requeueing jobs left by the previous process.
   const recovered = await recoverClaimedJobs(prisma);
@@ -338,6 +342,7 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       createDefaultAiProvider(profile.name, new URL(scan.domain).hostname),
     createPerformanceRunner: () => createDefaultPerformanceRunner(),
     createGoogleDataRunner: () => createGoogleDataRunner({ prisma, requestOptions: { logger } }),
+    egressLocations: egress.configured,
   };
   let queueDrainRunning = false;
   const drainQueue = async (): Promise<void> => {
@@ -379,15 +384,17 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   }, PENDING_REFUND_SWEEP_INTERVAL_MS);
   pendingRefundTimer.unref();
   void sweepPending();
-  // The crawl's egress proxy is one VPS, and every paid scan depends on it.
+  // Each egress location is one VPS, and every scan from it depends on it.
   // Checked at boot and then periodically, so an outage is a log line here
-  // rather than a customer telling us their scans stopped working — and so the
-  // traffic against the hosting plan's monthly allowance is watched before it
+  // rather than a customer telling us their scans stopped working — and a
+  // location that is down stops being offered on the launch screen. Each
+  // location's traffic against its own plan's allowance is watched before it
   // runs out rather than after.
   const checkEgress = async (): Promise<void> => {
-    const health = await probeEgressProxy(readCrawlEgressProxy(), readEgressProbeOptions());
-    logEgressHealth(logger, health);
-    logEgressUsage(logger, await readEgressUsage(prisma, new Date()));
+    await egress.checkAll();
+    for (const configured of egress.configured) {
+      logEgressUsage(logger, await readEgressUsage(prisma, configured.location, new Date()));
+    }
   };
   const egressHealthTimer = setInterval(() => {
     void checkEgress().catch((error: unknown) => {
@@ -495,10 +502,7 @@ function corsMiddleware(origin: string) {
     }
     if (req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-      res.setHeader(
-        'Access-Control-Allow-Headers',
-        'Content-Type, paddle-signature, x-fs-signature',
-      );
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-fs-signature');
       res.status(204).end();
       return;
     }

@@ -258,11 +258,10 @@ refuses to start in production and the checkout endpoints answer `503`.
 | `FASTSPRING_API_BASE_URL` | no (default `https://api.fastspring.com`) | Override only for tests. |
 | `FASTSPRING_SESSION_EXPIRATION_DAYS` | no (default `1`) | v1 only; 1–7 days of buyer-link validity. Sent as the Sessions v1 `expiration` field, which FastSpring documents on *Sessions v1 → Session expiration* ("Sessions are valid for 24 hours by default. To extend this window, pass an `expiration` value of up to 7 days.") although that page's OpenAPI schema omits it. Our own `CheckoutSession.expiresAt` never depends on FastSpring honouring it: the row is written with this deadline and only overwritten by the `expires` FastSpring reports back. |
 
-Legacy, unrelated to FastSpring:
+Unrelated to FastSpring:
 
 | Variable | Meaning |
 | --- | --- |
-| `PADDLE_WEBHOOK_SECRET` | MockPaddle development flow only. `/webhooks/paddle` is **not mounted** in production and `/billing/dev-checkout` refuses paid scans there. This release no longer requires it — but **keep it in the production env file** until the previous release is retired: that release still reads it at startup, so removing it would make an automatic rollback crash-loop. The deploy workflow's rollback probe fails the deploy if it is missing. |
 | `FLUXRADAR_INTERNAL_FREE_EMAILS` | Exact comma-separated allowlist that may run Basic/Complete without paying. Those scans deliberately create **no** Purchase or Entitlement. |
 
 ---

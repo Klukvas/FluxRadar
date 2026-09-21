@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 
 import { apiRequest, canRetrySection, type IssueSummary, type Scan, type ScanChanges } from './api';
 import { Button, StatusChip } from './components';
+import { egressLocationLabel } from './egress-location';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
@@ -112,31 +113,64 @@ export function ScanChangesBlock(props: { scanId: string; language: Language }) 
     );
   }
   const title = (ruleId: string) => ruleTitle(ruleId, props.language);
+  // Two crawls from two countries are two measurements, not a trend (D-228):
+  // what one found and the other did not is a difference between places, so
+  // it is not called fixed or new.
+  const acrossCountries =
+    changes.egressComparison === 'different' &&
+    changes.egressLocation != null &&
+    changes.previous.egressLocation != null;
+  const labels = acrossCountries
+    ? {
+        fixed: f.changes.onlyPrevious,
+        introduced: f.changes.onlyCurrent,
+        persisting: f.changes.inBoth,
+        fixedList: f.changes.onlyPreviousList,
+        introducedList: f.changes.onlyCurrentList,
+      }
+    : f.changes;
   return (
-    <section className="report-block" aria-labelledby="changes-heading">
+    <section
+      className={`report-block${acrossCountries ? ' report-block--warning' : ''}`}
+      aria-labelledby="changes-heading"
+    >
       <h3 id="changes-heading">{f.changes.heading}</h3>
       <p className="muted">
         {f.changes.since(formatDate(changes.previous.completedAt, props.language))}
       </p>
+      {acrossCountries &&
+      changes.egressLocation != null &&
+      changes.previous.egressLocation != null ? (
+        <p role="note">
+          {f.changes.egressDifferent(
+            egressLocationLabel(changes.egressLocation, props.language),
+            egressLocationLabel(changes.previous.egressLocation, props.language),
+          )}
+        </p>
+      ) : changes.egressComparison === 'unrecorded' ? (
+        <p className="muted" role="note">
+          {f.changes.egressUnrecorded}
+        </p>
+      ) : null}
       <div className="changes-grid">
-        <div className="changes-stat changes-stat--fixed">
+        <div className={`changes-stat${acrossCountries ? '' : ' changes-stat--fixed'}`}>
           <strong>{changes.fixed}</strong>
-          {f.changes.fixed}
+          {labels.fixed}
         </div>
-        <div className="changes-stat changes-stat--introduced">
+        <div className={`changes-stat${acrossCountries ? '' : ' changes-stat--introduced'}`}>
           <strong>{changes.introduced}</strong>
-          {f.changes.introduced}
+          {labels.introduced}
         </div>
         <div className="changes-stat">
           <strong>{changes.persisting}</strong>
-          {f.changes.persisting}
+          {labels.persisting}
         </div>
       </div>
       {changes.fixedByRule.length > 0 || changes.introducedByRule.length > 0 ? (
         <div className="changes-lists">
           {changes.fixedByRule.length > 0 ? (
             <div>
-              <h4>{f.changes.fixedList}</h4>
+              <h4>{labels.fixedList}</h4>
               <ul>
                 {changes.fixedByRule.slice(0, FIX_FIRST_LIMIT).map((rule) => (
                   <li key={rule.ruleId}>
@@ -148,7 +182,7 @@ export function ScanChangesBlock(props: { scanId: string; language: Language }) 
           ) : null}
           {changes.introducedByRule.length > 0 ? (
             <div>
-              <h4>{f.changes.introducedList}</h4>
+              <h4>{labels.introducedList}</h4>
               <ul>
                 {changes.introducedByRule.slice(0, FIX_FIRST_LIMIT).map((rule) => (
                   <li key={rule.ruleId}>

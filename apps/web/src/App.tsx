@@ -42,6 +42,7 @@ import {
 import { CoverageTicker } from './CoverageTicker';
 import { CookieConsent } from './CookieConsent';
 import { DesktopScreen } from './DesktopScreen';
+import { EgressLocationField } from './EgressLocationField';
 import { LaunchSummary } from './LaunchSummary';
 import { ScanCallout } from './ScanCallout';
 import { HeroSiteForm } from './HeroSiteForm';
@@ -1589,7 +1590,10 @@ function NewScanScreen(props: NewScanFormProps) {
     checkoutPending,
     configurationState,
     configurationStatusLabel,
+    egressBlocked,
+    egressLocation,
     invalidScope,
+    launchConfig,
     launchSite,
     paidAvailable,
     paidScopeControls,
@@ -1718,6 +1722,16 @@ function NewScanScreen(props: NewScanFormProps) {
                 { value: 'mobile', label: t.newScan.userAgentMobile },
               ]}
             />
+            {/* Free does not choose a country: it leaves from the default one,
+                which the launch summary names. */}
+            {paidScopeControls ? (
+              <EgressLocationField
+                language={props.language}
+                config={launchConfig}
+                selected={egressLocation}
+                onChange={(value) => updateScope({ egressLocation: value })}
+              />
+            ) : null}
           </Panel>
           <Panel title={t.newScan.panelDepth}>
             <SelectField
@@ -1934,6 +1948,10 @@ function NewScanScreen(props: NewScanFormProps) {
               plan={plan}
               planLabel={planLabel}
               scope={scope}
+              egressLocation={egressLocation}
+              egressDirect={
+                launchConfig.status === 'ready' && launchConfig.egress.mode === 'direct'
+              }
             />
             {/* In the launch column, directly above the button it gates: this
                 is the one thing on the form that can stop the purchase, and a
@@ -1943,6 +1961,7 @@ function NewScanScreen(props: NewScanFormProps) {
               <SiteReachabilityPanel
                 language={props.language}
                 profileId={usingSavedProfile ? target : null}
+                egressLocationId={egressLocation?.id ?? null}
                 resolveProfileId={resolveTargetProfileId}
                 onResult={setSiteReachable}
               />
@@ -1974,16 +1993,23 @@ function NewScanScreen(props: NewScanFormProps) {
               <p className="muted launch-form__blocked" id="launch-blocked" role="note">
                 {t.newScan.blockedByRobots}
               </p>
+            ) : egressBlocked ? (
+              <p className="muted launch-form__blocked" id="launch-blocked" role="note">
+                {t.newScan.blockedByEgress}
+              </p>
             ) : null}
             <Button
               type="submit"
               variant="primary"
-              {...(robotsUnconfirmed ? { 'aria-describedby': 'launch-blocked' } : {})}
+              {...(robotsUnconfirmed || egressBlocked
+                ? { 'aria-describedby': 'launch-blocked' }
+                : {})}
               disabled={
                 busy ||
                 savingConfiguration ||
                 (usingSavedProfile ? target === '' : address.trim() === '') ||
                 robotsUnconfirmed ||
+                egressBlocked ||
                 // A paid scan of a site the crawler cannot read is a refund
                 // waiting to happen, and the server refuses to sell it.
                 (plan !== 'Free' && !props.internalFreeAccess && !siteReachable)

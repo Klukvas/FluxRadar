@@ -123,46 +123,57 @@ describe('probeEgressProxy', () => {
 });
 
 describe('readEgressProbeOptions', () => {
-  it('reads the overrides, and treats blank as absent', () => {
-    expect(
-      readEgressProbeOptions({
-        CRAWL_EGRESS_PROBE_URL: 'https://probe.test/trace',
-        CRAWL_EGRESS_EXPECTED_IP: EXPECTED_IP,
-      }),
-    ).toEqual({ probeUrl: 'https://probe.test/trace', expectedIp: EXPECTED_IP });
-    expect(readEgressProbeOptions({ CRAWL_EGRESS_EXPECTED_IP: '  ' })).toEqual({});
+  it('reads the shared probe endpoint, and treats blank as absent', () => {
+    expect(readEgressProbeOptions({ CRAWL_EGRESS_PROBE_URL: 'https://probe.test/trace' })).toEqual({
+      probeUrl: 'https://probe.test/trace',
+    });
+    expect(readEgressProbeOptions({ CRAWL_EGRESS_PROBE_URL: '  ' })).toEqual({});
+  });
+
+  it('leaves the expected address to each location', () => {
+    // It is per proxy now (crawl-egress-config.ts); one shared value would
+    // call every other location's healthy proxy "wrong egress".
+    expect(readEgressProbeOptions({ CRAWL_EGRESS_EXPECTED_IP: EXPECTED_IP })).toEqual({});
   });
 });
 
 describe('logEgressHealth', () => {
-  it('logs an unusable proxy as an error naming that scans are blocked', () => {
+  it('logs an unusable proxy as an error naming the location whose scans are blocked', () => {
     const error = vi.fn();
-    logEgressHealth({ ...silentLogger, error } as never, {
-      state: 'unreachable',
-      observedIp: null,
-      expectedIp: null,
-      latencyMs: null,
-      detail: 'ECONNREFUSED',
-      checkedAt: new Date(),
-    });
+    logEgressHealth(
+      { ...silentLogger, error } as never,
+      {
+        state: 'unreachable',
+        observedIp: null,
+        expectedIp: null,
+        latencyMs: null,
+        detail: 'ECONNREFUSED',
+        checkedAt: new Date(),
+      },
+      'ua',
+    );
 
     expect(error).toHaveBeenCalledWith(
-      expect.stringContaining('paid scans are blocked'),
-      expect.objectContaining({ state: 'unreachable' }),
+      expect.stringContaining('scans from this location are blocked'),
+      expect.objectContaining({ state: 'unreachable', location: 'ua' }),
     );
   });
 
   it('logs a healthy proxy without raising an error', () => {
     const error = vi.fn();
     const info = vi.fn();
-    logEgressHealth({ ...silentLogger, error, info } as never, {
-      state: 'healthy',
-      observedIp: EXPECTED_IP,
-      expectedIp: EXPECTED_IP,
-      latencyMs: 30,
-      detail: null,
-      checkedAt: new Date(),
-    });
+    logEgressHealth(
+      { ...silentLogger, error, info } as never,
+      {
+        state: 'healthy',
+        observedIp: EXPECTED_IP,
+        expectedIp: EXPECTED_IP,
+        latencyMs: 30,
+        detail: null,
+        checkedAt: new Date(),
+      },
+      'ua',
+    );
 
     expect(error).not.toHaveBeenCalled();
     expect(info).toHaveBeenCalled();

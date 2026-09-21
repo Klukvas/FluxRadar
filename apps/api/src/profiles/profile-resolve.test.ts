@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
-import { createTestDb, type TestDb, TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { resolveOwnProfile } from './resolve.ts';
 import { siteProfileNameFor } from './site-profile-name.ts';
 
@@ -33,7 +33,6 @@ describe('POST /profiles/resolve', () => {
   function app() {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });

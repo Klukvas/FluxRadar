@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../../index.ts';
 import { silentLogger } from '../../http/logger.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../../test-utils/test-db.ts';
 import { FASTSPRING_ENV_VARS, readFastSpringConfig } from './config.ts';
 import { TEST_FASTSPRING_SECRET } from './test-payloads.ts';
 
@@ -155,7 +155,6 @@ describe('FASTSPRING-017 popup storefront', () => {
       const app = createApp({
         prisma: db.prisma,
         logger: silentLogger,
-        webhookSecret: TEST_WEBHOOK_SECRET,
         autoProcess: false,
         fastSpring: readFastSpringConfig(env),
       });

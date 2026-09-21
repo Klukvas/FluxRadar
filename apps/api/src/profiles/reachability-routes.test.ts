@@ -5,7 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { RequestRateLimiter } from '../auth/rate-limit.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import type { ConfiguredEgressLocation } from '../integrations/crawl-egress-config.ts';
+import { EGRESS_LOCATIONS, egressLocation } from '../integrations/crawl-egress-locations.ts';
+import {
+  createEgressLocationMonitor,
+  type EgressLocationMonitor,
+} from '../integrations/crawl-egress-monitor.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { REACHABILITY_PROBE_TTL_MS } from './reachability-routes.ts';
 
 // Whether a site will let our crawler in, asked before the owner pays.
@@ -55,13 +61,14 @@ describe('site reachability before a purchase', () => {
     fetcher?: (url: string) => Promise<SafeFetchResult>;
     now?: () => Date;
     requestRateLimiter?: RequestRateLimiter;
+    egress?: EgressLocationMonitor;
   }) {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       ...(options.now !== undefined ? { now: options.now } : {}),
+      ...(options.egress !== undefined ? { egress: options.egress } : {}),
       ...(options.requestRateLimiter !== undefined
         ? { requestRateLimiter: options.requestRateLimiter }
         : {}),
@@ -197,6 +204,92 @@ describe('site reachability before a purchase', () => {
     expect(read.body.data.state).toBe('reachable');
     expect(read.body.data.expired).toBe(true);
     expect(read.body.data.canPurchase).toBe(false);
+  });
+
+  describe('from a chosen egress location (D-228)', () => {
+    const kyiv: ConfiguredEgressLocation = {
+      location: EGRESS_LOCATIONS[0]!,
+      proxy: { host: '203.0.113.10', port: 13128, credentials: null },
+      expectedIp: null,
+    };
+    const frankfurt: ConfiguredEgressLocation = {
+      location: egressLocation({
+        id: 'de',
+        countryCode: 'DE',
+        city: 'Frankfurt',
+        label: { en: 'Germany, Frankfurt', uk: 'Німеччина, Франкфурт' },
+      }),
+      proxy: { host: '198.51.100.20', port: 3128, credentials: null },
+      expectedIp: null,
+    };
+
+    function twoCountries(frankfurtUp: boolean): EgressLocationMonitor {
+      return createEgressLocationMonitor({
+        locations: [kyiv, frankfurt],
+        logger: silentLogger,
+        probe: async (proxy) => ({
+          state: proxy?.host === frankfurt.proxy.host && !frankfurtUp ? 'unreachable' : 'healthy',
+          observedIp: null,
+          expectedIp: null,
+          latencyMs: 10,
+          detail: null,
+          checkedAt: new Date(),
+        }),
+      });
+    }
+
+    it('records the country it asked from, and answers only for that country', async () => {
+      const app = buildApp({
+        fetcher: async (url) => htmlResponse(url),
+        egress: twoCountries(true),
+      });
+      const { agent, cookie, profileId } = await signIn(app);
+
+      const probe = await agent
+        .post(PROBE_PATH(profileId))
+        .set('Cookie', cookie)
+        .send({ egressLocation: 'de' });
+
+      expect(probe.body.data.canPurchase).toBe(true);
+      const stored = await db.prisma.siteReachabilityProbe.findUniqueOrThrow({
+        where: { siteProfileId: profileId },
+      });
+      expect(stored.egressLocation).toBe('de');
+      // Read for Frankfurt it is an answer; read for Kyiv (the default) it is not one.
+      const forFrankfurt = await agent
+        .get(`${PROBE_PATH(profileId)}?egressLocation=de`)
+        .set('Cookie', cookie);
+      const forKyiv = await agent.get(PROBE_PATH(profileId)).set('Cookie', cookie);
+      expect(forFrankfurt.body.data.canPurchase).toBe(true);
+      expect(forKyiv.body.data.state).toBeNull();
+      expect(forKyiv.body.data.canPurchase).toBe(false);
+    });
+
+    it('does not blame the site when the country it would ask from is down', async () => {
+      // Through a proxy that is down every site is unreachable; storing that
+      // would record our outage as the customer's problem.
+      let fetched = 0;
+      const app = buildApp({
+        fetcher: async (url) => {
+          fetched += 1;
+          return htmlResponse(url);
+        },
+        egress: twoCountries(false),
+      });
+      const { agent, cookie, profileId } = await signIn(app);
+
+      const probe = await agent
+        .post(PROBE_PATH(profileId))
+        .set('Cookie', cookie)
+        .send({ egressLocation: 'de' });
+
+      expect(probe.status).toBe(503);
+      expect(probe.body.error.code).toBe('EGRESS_LOCATION_UNAVAILABLE');
+      expect(fetched).toBe(0);
+      expect(
+        await db.prisma.siteReachabilityProbe.findUnique({ where: { siteProfileId: profileId } }),
+      ).toBeNull();
+    });
   });
 
   it('rate-limits the check, because each call reaches somebody else’s server', async () => {

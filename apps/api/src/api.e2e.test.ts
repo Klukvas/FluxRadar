@@ -15,7 +15,8 @@ import { defaultGeoFixtures } from './orchestrator/geo.ts';
 import { processScan } from './orchestrator/worker.ts';
 import { createApp } from './index.ts';
 import { silentLogger } from './http/logger.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from './test-utils/test-db.ts';
+import { purchaseScan } from './test-utils/purchase-scan.ts';
+import { createTestDb, type TestDb } from './test-utils/test-db.ts';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 
 type TestAgent = ReturnType<typeof request.agent>;
@@ -52,7 +53,6 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
   it('runs Complete from checkout through UX findings, Issue Center, and export', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       createPerformanceRunner: () => undefined,
       logger: silentLogger,
@@ -60,21 +60,17 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
     const agent = request.agent(app);
     const account = await register(agent, 'ux-e2e@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 15 },
-        aiConsent: {
-          providers: ['anthropic'],
-          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
-        },
-      });
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 15 },
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+    });
 
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const scanId = checkout.scanId;
     const edit = await agent.patch(`/profiles/${profile.id}`).set('Cookie', account.cookie).send({
       expectedProfileConfigVersion: 1,
       name: 'Changed Plumbing',
@@ -242,7 +238,6 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
   it('keeps static UX evidence when AI consent is absent and explains the partial result', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       createPerformanceRunner: () => undefined,
       logger: silentLogger,
@@ -250,17 +245,13 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
     const agent = request.agent(app);
     const account = await register(agent, 'ux-no-consent-e2e@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
-      });
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
+    });
 
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const scanId = checkout.scanId;
     await runScan(scanId, () => uxAwareProvider(profile.name), `${fixture.origin}/empty.html`);
 
     const scan = await agent.get(`/scans/${scanId}`).set('Cookie', account.cookie);
@@ -322,7 +313,6 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
   it('scores Analytics from the connected Google data and exports its findings', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       createPerformanceRunner: () => undefined,
       logger: silentLogger,
@@ -330,16 +320,12 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
     const agent = request.agent(app);
     const account = await register(agent, 'analytics-e2e@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 3 },
-      });
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 3 },
+    });
+    const scanId = checkout.scanId;
 
     await runScan(
       scanId,
@@ -403,28 +389,23 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
   it('degrades an unavailable AI provider and still completes Performance', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
     const agent = request.agent(app);
     const account = await register(agent, 'ux-provider-timeout@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
-        aiConsent: {
-          providers: ['anthropic'],
-          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
-        },
-      });
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+    });
 
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const scanId = checkout.scanId;
     const result = await processScan(
       {
         prisma: db.prisma,
@@ -471,28 +452,23 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
   it('terminalizes incomplete modules after an exhausted platform retry so export stays valid', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
     const agent = request.agent(app);
     const account = await register(agent, 'ux-platform-failure@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
-        aiConsent: {
-          providers: ['anthropic'],
-          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
-        },
-      });
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+    });
 
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const scanId = checkout.scanId;
     const result = await runScan(scanId, () => ({
       config: AI_CONFIG,
       send: () => {
@@ -536,7 +512,6 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
   it('treats an obsolete AI notice as no consent and never calls the provider', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       createPerformanceRunner: () => undefined,
       logger: silentLogger,
@@ -544,18 +519,14 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
     const agent = request.agent(app);
     const account = await register(agent, 'ux-obsolete-consent-e2e@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
-        aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
-      });
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
+      aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
+    });
 
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const scanId = checkout.scanId;
     await runScan(scanId, () => ({
       config: AI_CONFIG,
       send: () => {

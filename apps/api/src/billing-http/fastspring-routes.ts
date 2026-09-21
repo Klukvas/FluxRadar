@@ -42,6 +42,8 @@ import { sendOk } from '../http/envelope.ts';
 import { validationError } from '../http/errors.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
+import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
+import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 
 export const FASTSPRING_SIGNATURE_HEADER_NAME = 'x-fs-signature';
 
@@ -75,6 +77,8 @@ export interface FastSpringRouterDeps {
   readonly prisma: PrismaClient;
   readonly fastSpring: FastSpringConfigResult;
   readonly now: () => Date;
+  /** Checks the chosen egress location before a buyer is sent to pay (D-228). */
+  readonly egress: EgressLocationMonitor;
   readonly requestRateLimiter?: RequestRateLimiter;
   /** Test seam for the provider HTTP call. */
   readonly fetchImpl?: FetchLike;
@@ -145,6 +149,9 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
     requestRateLimiter.assertAllowedAll(
       scanActionRules('checkout', accountId, req.ip ?? 'unknown'),
     );
+    // Before a session row exists or the provider is called: a buyer must not
+    // pay for a scan from a country whose network is down right now.
+    const egress = await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation);
     const session = await createCheckoutSession(
       {
         prisma: deps.prisma,
@@ -157,6 +164,7 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
         siteProfileId: input.siteProfileId,
         plan: input.plan,
         scope: input.scope,
+        egress,
         aiConsent: input.aiConsent,
         expectedProfileConfigVersion: input.expectedProfileConfigVersion,
       },

@@ -9,7 +9,9 @@
 // The changes read compares a scan with the previous finished scan of the same
 // profile and plan by fingerprint (fingerprint-v1 is stable across scans by
 // construction), so a re-scan can say what was fixed and what is new instead of
-// handing back a second list to diff by eye.
+// handing back a second list to diff by eye — unless the two crawls left from
+// different countries, in which case the difference is not "fixed" or "new"
+// and the answer says so (D-228).
 
 import { SEVERITIES, severityRank, type Severity } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
@@ -19,6 +21,11 @@ import {
   isPaidAccessActive,
   type PaidAccessScan,
 } from '../billing/report-access.ts';
+import {
+  egressLocationView,
+  type EgressLocationView,
+} from '../integrations/crawl-egress-locations.ts';
+import { recordedEgressLocation } from '../profiles/execution-config.ts';
 
 /** Statuses that still ask the owner for work. The rest are settled. */
 export const OPEN_ISSUE_STATUSES = ['New', 'Acknowledged', 'Reopened'] as const;
@@ -158,12 +165,28 @@ export interface ChangedRule {
   readonly count: number;
 }
 
+/**
+ * Whether the two crawls left from the same place.
+ *
+ * `different` means both recorded a location and they are not the same: a site
+ * can answer two countries differently, so a finding present in one report and
+ * absent from the other is a difference, not a fix. `unrecorded` means at least
+ * one of them predates the choice, so nobody can say — which is not the same as
+ * saying they matched.
+ */
+export type EgressComparison = 'same' | 'different' | 'unrecorded';
+
 export interface ScanChanges {
   readonly previous: {
     readonly id: string;
     readonly plan: string;
     readonly completedAt: string | null;
+    readonly egressLocation: EgressLocationView | null;
   } | null;
+  /** This scan's location, beside the previous one's; null when not recorded. */
+  readonly egressLocation: EgressLocationView | null;
+  /** Null when there is no previous scan to compare with. */
+  readonly egressComparison: EgressComparison | null;
   readonly introduced: number;
   readonly fixed: number;
   readonly persisting: number;
@@ -173,12 +196,22 @@ export interface ScanChanges {
 
 const NO_CHANGES: ScanChanges = {
   previous: null,
+  egressLocation: null,
+  egressComparison: null,
   introduced: 0,
   fixed: 0,
   persisting: 0,
   introducedByRule: [],
   fixedByRule: [],
 };
+
+export function compareEgressLocations(
+  current: string | undefined,
+  previous: string | undefined,
+): EgressComparison {
+  if (current === undefined || previous === undefined) return 'unrecorded';
+  return current === previous ? 'same' : 'different';
+}
 
 interface FingerprintedIssue {
   readonly fingerprint: string;
@@ -242,8 +275,12 @@ async function previousComparableScan(prisma: PrismaClient, scan: Scan): Promise
 
 export async function scanChanges(prisma: PrismaClient, scan: Scan): Promise<ScanChanges> {
   if (scan.plan === 'Free') return NO_CHANGES;
+  const currentLocation = recordedEgressLocation(scan);
   const previous = await previousComparableScan(prisma, scan);
-  if (previous === null) return NO_CHANGES;
+  if (previous === null) {
+    return { ...NO_CHANGES, egressLocation: egressLocationView(currentLocation) };
+  }
+  const previousLocation = recordedEgressLocation(previous);
   const select = { fingerprint: true, ruleId: true, module: true, severity: true } as const;
   const [current, earlier] = await Promise.all([
     prisma.issue.findMany({ where: { scanId: scan.id }, select }),
@@ -258,7 +295,10 @@ export async function scanChanges(prisma: PrismaClient, scan: Scan): Promise<Sca
       id: previous.id,
       plan: previous.plan,
       completedAt: previous.completedAt?.toISOString() ?? null,
+      egressLocation: egressLocationView(previousLocation),
     },
+    egressLocation: egressLocationView(currentLocation),
+    egressComparison: compareEgressLocations(currentLocation, previousLocation),
     introduced: introduced.length,
     fixed: fixed.length,
     persisting: current.length - introduced.length,

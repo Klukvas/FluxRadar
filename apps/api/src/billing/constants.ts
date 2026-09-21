@@ -87,10 +87,4 @@ export const REFUND_STATUSES = {
   failed: 'failed',
 } as const;
 
-/**
- * Scope stored on webhook-created scans. The real scope arrives with the scan
- * request wired in T-12; the webhook itself only knows the plan (§18).
- */
-export const DEFAULT_SCOPE_JSON = JSON.stringify({ includeSubdomains: false });
-
 export const refundIdempotencyKey = (purchaseId: string): string => `refund:${purchaseId}`;

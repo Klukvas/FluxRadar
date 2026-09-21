@@ -1,8 +1,10 @@
 // ECON-001 (план §18): чистый валидатор 30-дневного launch forecast.
 // Пересчитывает gross revenue из цен тарифов и mix, проверяет support-reserve
 // floor max($500, 10% gross), потолки p95 variable cost ($24.25/$53.50),
-// положительную weighted contribution margin (после Paddle fee, p95 cost и
-// non-pass-through tax), risk-adjusted break-even и operational floor 45.
+// положительную weighted contribution margin (после комиссии FastSpring, p95
+// cost и non-pass-through tax), risk-adjusted break-even и operational floor 45.
+// Потолки p95 выводятся из цены, целевой маржи и комиссии, а не задаются
+// числами: сменилась комиссия — сдвинулись и потолки (D-229).
 // Денежная арифметика — в целых центах, деление только в break-even.
 
 import { TARIFFS } from '@fluxradar/contracts';
@@ -13,11 +15,26 @@ export const ECON_OPERATIONAL_FLOOR_SCANS = 45;
 /** Support reserve floor: max($500/month, 10% × forecast gross revenue). */
 export const SUPPORT_RESERVE_MIN_USD = 500;
 export const SUPPORT_RESERVE_GROSS_SHARE = 0.1;
-/** Модель Paddle для предварительного расчёта: 5% + $0.50 за транзакцию (§18). */
-export const PADDLE_FEE_RATE = 0.05;
-export const PADDLE_FEE_FLAT_USD = 0.5;
-/** Hard ceiling всей переменной себестоимости одного прогона (§18). */
-export const VARIABLE_COST_CEILING_USD = { basic: 24.25, complete: 53.5 } as const;
+/**
+ * Комиссия FastSpring за транзакцию: 5.9% + $0.95 (D-229).
+ *
+ * FastSpring не публикует ставку — она договорная. Это самая часто
+ * цитируемая базовая ставка, а не цифра из договора: когда договор скажет
+ * иное, меняются только эти два числа. Процент хранится в базисных пунктах,
+ * чтобы 5.9% от $55 считалось в центах точно, без ошибки float.
+ */
+export const FASTSPRING_FEE_BASIS_POINTS = 590;
+export const FASTSPRING_FEE_FLAT_USD = 0.95;
+/** Целевая contribution margin до постоянных расходов: 50% цены (§18). */
+export const TARGET_CONTRIBUTION_MARGIN_SHARE = 0.5;
+/**
+ * Hard ceiling всей переменной себестоимости одного прогона: то, что остаётся
+ * от цены после комиссии FastSpring и целевой маржи (Basic $23.30, Complete $51.97).
+ */
+export const VARIABLE_COST_CEILING_USD = {
+  basic: variableCostCeilingUsd(TARIFFS.Basic.priceUsd),
+  complete: variableCostCeilingUsd(TARIFFS.Complete.priceUsd),
+} as const;
 
 /** Погрешность сравнения долей/центов, пересчитанных через float-умножение. */
 const EPSILON = 1e-9;
@@ -37,12 +54,12 @@ export interface EconForecastInput {
   readonly expected_refund_loss: number;
   readonly expected_chargeback_loss: number;
   readonly fx_buffer: number;
-  /** Налог по receipt Paddle: pass-through не входит в margin, expense — входит. */
+  /** Налог по receipt FastSpring: pass-through не входит в margin, expense — входит. */
   readonly tax_treatment: 'pass-through' | 'expense';
   readonly tax_expense_per_scan?: number;
   readonly variable_cost_basic_p95: number;
   readonly variable_cost_complete_p95: number;
-  /** Если задан — сверяется с пересчётом (после Paddle fee и p95 cost). */
+  /** Если задан — сверяется с пересчётом (после комиссии FastSpring и p95 cost). */
   readonly weighted_average_contribution_margin?: number;
   /** Без счетов всех provider ECON-001 автоматически не проходит (§18). */
   readonly provider_invoices_confirmed: boolean;
@@ -262,7 +279,7 @@ function marginFailures(input: EconForecastInput): readonly EconFailure[] {
       code: 'margin',
       message:
         `заявленная weighted_average_contribution_margin $${declared} не совпадает с пересчётом ` +
-        `$${fromCents(weightedMarginCents(input))} (после Paddle fee и p95 variable cost)`,
+        `$${fromCents(weightedMarginCents(input))} (после комиссии FastSpring и p95 variable cost)`,
     });
   }
   return found;
@@ -330,11 +347,25 @@ function reserveFloorCents(input: EconForecastInput): number {
   );
 }
 
-/** Margin плана: цена − Paddle fee (5% + $0.50) − p95 cost − non-pass-through tax. */
+/** Комиссия FastSpring с одной транзакции по цене тарифа, в центах. */
+function paymentFeeCents(priceCents: number): number {
+  return (
+    Math.round((priceCents * FASTSPRING_FEE_BASIS_POINTS) / 10_000) +
+    toCents(FASTSPRING_FEE_FLAT_USD)
+  );
+}
+
+/** Потолок p95 для тарифа: цена − комиссия FastSpring − целевая маржа. */
+function variableCostCeilingUsd(priceUsd: number): number {
+  const priceCents = toCents(priceUsd);
+  const targetMarginCents = Math.round(priceCents * TARGET_CONTRIBUTION_MARGIN_SHARE);
+  return fromCents(priceCents - paymentFeeCents(priceCents) - targetMarginCents);
+}
+
+/** Margin плана: цена − комиссия FastSpring − p95 cost − non-pass-through tax. */
 function planMarginCents(priceUsd: number, variableCostUsd: number, taxCents: number): number {
   const priceCents = toCents(priceUsd);
-  const paddleFeeCents = Math.round(priceCents * PADDLE_FEE_RATE) + toCents(PADDLE_FEE_FLAT_USD);
-  return priceCents - paddleFeeCents - toCents(variableCostUsd) - taxCents;
+  return priceCents - paymentFeeCents(priceCents) - toCents(variableCostUsd) - taxCents;
 }
 
 function weightedMarginCents(input: EconForecastInput): number {

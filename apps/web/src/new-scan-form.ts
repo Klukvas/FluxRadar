@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { apiRequest, type CheckoutSession, type Scan, type SiteProfile } from './api';
+import {
+  ApiRequestError,
+  apiRequest,
+  type CheckoutSession,
+  type Scan,
+  type SiteProfile,
+} from './api';
 import { openCheckoutWindow, useCheckoutConfig, type PendingCheckout } from './Checkout';
 import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
+import { effectiveEgressLocation, freeEgressLocation, useLaunchConfig } from './egress-location';
 import { copy, fillCopy, type Language } from './i18n';
 import { normalizeSiteAddress } from './site-address-input';
 import {
@@ -75,6 +82,10 @@ export function useNewScanForm(props: NewScanFormProps) {
   // Until the server has answered, the screen says it is still asking rather
   // than announcing an absence it cannot yet know about.
   const checkoutPending = checkout.status === 'loading';
+  // Which countries a check can leave from right now (D-228) — the server's
+  // answer, like the checkout's, never a list built into the bundle.
+  const launchConfig = useLaunchConfig();
+  const egressConfig = launchConfig.status === 'ready' ? launchConfig.egress : null;
   // An account with nothing saved starts on the address field: a scan no longer
   // needs a profile to exist first, so this screen no longer refuses to open.
   const [target, setTarget] = useState(
@@ -325,6 +336,28 @@ export function useNewScanForm(props: NewScanFormProps) {
     }
   };
 
+  // The location this launch will actually ask for: Free always leaves from the
+  // default one; a paid plan from the owner's choice while it is on offer.
+  const egressLocation =
+    plan === 'Free'
+      ? freeEgressLocation(egressConfig)
+      : effectiveEgressLocation(scope.egressLocation, egressConfig);
+  // The server refuses such a launch anyway; this keeps the owner from meeting
+  // that refusal at the button.
+  const egressBlocked =
+    egressConfig !== null && egressConfig.mode === 'proxy' && egressLocation === null;
+
+  /** What went wrong, in the reader's language where the API gave a reason code. */
+  const launchErrorMessage = (caught: unknown): string => {
+    if (caught instanceof ApiRequestError && caught.code === 'EGRESS_LOCATION_UNAVAILABLE') {
+      return t.newScan.egressUnavailableError;
+    }
+    if (caught instanceof ApiRequestError && caught.code === 'EGRESS_LOCATION_UNKNOWN') {
+      return t.newScan.egressUnknownError;
+    }
+    return caught instanceof Error ? caught.message : 'Scan could not be created';
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     // A page count of 0 or 2.5 is a typo, and the request it would become asks
@@ -357,8 +390,9 @@ export function useNewScanForm(props: NewScanFormProps) {
       setSavedConfigVersion(updated?.scanConfigVersion ?? (savedConfigVersion ?? 0) + 1);
       await props.onProfilesChanged().catch(() => undefined);
       // Free sends the settings it will actually run with, not the ones the
-      // form happens to hold; the server stores its own answer either way.
-      const scopePayload = scanScopeFrom(scope, plan);
+      // form happens to hold; the server stores its own answer either way. A
+      // paid plan names the location on screen, not a saved one that is down.
+      const scopePayload = scanScopeFrom(scope, plan, egressLocation?.id ?? null);
       // Basic and Complete include provider-backed AI checks as part of the
       // purchased audit. The UI presents the data-transfer notice before
       // checkout; this compatibility field records which notice applied to the
@@ -425,7 +459,7 @@ export function useNewScanForm(props: NewScanFormProps) {
       }
       props.onCreated(scan);
     } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Scan could not be created');
+      props.onError(launchErrorMessage(caught));
     } finally {
       setBusy(false);
     }
@@ -496,7 +530,10 @@ export function useNewScanForm(props: NewScanFormProps) {
     checkoutPending,
     configurationState,
     configurationStatusLabel,
+    egressBlocked,
+    egressLocation,
     invalidScope,
+    launchConfig,
     launchSite,
     paidAvailable,
     paidScopeControls,

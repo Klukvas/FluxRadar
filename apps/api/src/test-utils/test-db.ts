@@ -5,9 +5,8 @@ import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 
 import { createPrismaClient } from '../db.ts';
 import { PURCHASE_STATUSES } from '../billing/constants.ts';
+import { FASTSPRING_PROVIDER } from '../billing/fastspring/config.ts';
 import { testDatabaseUrl } from './template-db.ts';
-
-export const TEST_WEBHOOK_SECRET = 'test-paddle-webhook-secret';
 
 export interface TestDb {
   readonly prisma: PrismaClient;
@@ -21,14 +20,14 @@ export interface TestDb {
  *
  * Tables reached by CASCADE from the ones named here do not need naming
  * themselves — but a table with no foreign key does, or it carries state from
- * one test file into the next. `CrawlEgressUsage` is keyed by month alone and
- * is exactly that case.
+ * one test file into the next. `CrawlEgressUsage` and `CrawlEgressLocationUsage`
+ * are keyed by month and location alone and are exactly that case.
  */
 export async function createTestDb(): Promise<TestDb> {
   const databaseUrl = testDatabaseUrl();
   const prisma = createPrismaClient(databaseUrl);
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "FreeCheckClaim", "Session", "EmailToken", "EmailNotification", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "ProviderRefund", "CheckoutSession", "Job", "CrawlEgressUsage" CASCADE',
+    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "FreeCheckClaim", "Session", "EmailToken", "EmailNotification", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "ProviderRefund", "CheckoutSession", "Job", "CrawlEgressUsage", "CrawlEgressLocationUsage" CASCADE',
   );
   return {
     prisma,
@@ -88,8 +87,8 @@ export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Pr
             accountId: params.account.accountId,
             siteProfileId: params.account.siteProfileId,
             plan,
-            provider: 'paddle',
-            providerTransactionId: `txn_${randomUUID()}`,
+            provider: FASTSPRING_PROVIDER,
+            providerTransactionId: `ord_${randomUUID()}`,
             amountUsd: TARIFFS[plan].priceUsd,
             currency: 'USD',
             status: PURCHASE_STATUSES.paid,

@@ -99,12 +99,14 @@ describe('BILLING-007 migration rollback safety', () => {
     }
   });
 
-  it('still declares the expand-phase compatibility columns the previous release reads', () => {
+  it('no longer declares the retired compatibility columns, so the next release may drop them', () => {
     const schema = readFileSync(SCHEMA_PATH, 'utf8');
-    // Removing any of these is the contract phase, and it may only ship in a
-    // release after this one — together with the migration that drops them.
+    // The rollback probe runs the PREVIOUS release's client. The release that
+    // drops these columns can only pass it if the release before it no longer
+    // selects them — which is this one (D-229). The columns themselves stay in
+    // the database, filled by their triggers, until that migration.
     for (const field of ['paddleTransactionId', 'paddleEventId', 'paddleSignature']) {
-      expect(schema).toContain(field);
+      expect(schema).not.toContain(field);
     }
   });
 
@@ -508,9 +510,9 @@ describe('BILLING-007 migration rollback safety', () => {
       async () => {
         const scratch = createPrismaClient(scratchUrl);
         try {
-          // Exactly the contract phase documented in docs/DEPLOYMENT.md, shipped
-          // one release too early: the previous image still selects paddleEventId.
-          await scratch.$executeRawUnsafe('ALTER TABLE "WebhookEvent" DROP COLUMN "paddleEventId"');
+          // A contract-phase migration shipped one release too early: the
+          // previous image still selects the column it drops.
+          await scratch.$executeRawUnsafe('ALTER TABLE "WebhookEvent" DROP COLUMN "outcomeReason"');
         } finally {
           await scratch.$disconnect();
         }
@@ -547,9 +549,7 @@ describe('BILLING-007 migration rollback safety', () => {
       async () => {
         const scratch = createPrismaClient(scratchUrl);
         try {
-          await scratch.$executeRawUnsafe(
-            'ALTER TABLE "Purchase" DROP COLUMN "paddleTransactionId"',
-          );
+          await scratch.$executeRawUnsafe('ALTER TABLE "Purchase" DROP COLUMN "settledCurrency"');
           await expect(scratch.$queryRawUnsafe('SELECT 1')).resolves.toBeDefined();
         } finally {
           await scratch.$disconnect();

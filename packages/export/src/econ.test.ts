@@ -8,7 +8,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import type { EconForecastInput } from './econ.js';
-import { ECON_OPERATIONAL_FLOOR_SCANS, validateEconForecast } from './econ.js';
+import {
+  ECON_OPERATIONAL_FLOOR_SCANS,
+  VARIABLE_COST_CEILING_USD,
+  validateEconForecast,
+} from './econ.js';
 
 function loadFixture(name: string): EconForecastInput {
   const path = fileURLToPath(new URL(`../fixtures/econ/${name}`, import.meta.url));
@@ -35,7 +39,8 @@ describe('validateEconForecast', () => {
     const result = validateEconForecast(VALID);
     expect(result.pass).toBe(true);
     if (!result.pass) return;
-    // margin: Basic 55−3.25−24.25=27.50, Complete 120−6.50−53.50=60.00 → 0.8/0.2 = 34.
+    // FastSpring 5.9% + $0.95: Basic $4.20, Complete $8.03.
+    // margin: Basic 55−4.20−23.30=27.50, Complete 120−8.03−51.97=60.00 → 0.8/0.2 = 34.
     expect(result.report.weightedContributionMarginUsd).toBe(34);
     // break-even: ceil((1000+500+68+17+50)/34) = ceil(48.09) = 49 <= 50 прогонов.
     expect(result.report.breakEvenScans).toBe(49);
@@ -78,8 +83,14 @@ describe('validateEconForecast', () => {
     expect(failureCodes({ ...VALID, forecast_gross_revenue: 3500 })).toContain('gross-revenue');
   });
 
+  it('потолки p95 — то, что остаётся от цены после комиссии FastSpring и маржи 50%', () => {
+    // 55 − (3.245→3.25 + 0.95) − 27.50 и 120 − (7.08 + 0.95) − 60.00, в центах без float.
+    expect(VARIABLE_COST_CEILING_USD).toEqual({ basic: 23.3, complete: 51.97 });
+  });
+
   it('p95 variable cost выше hard ceiling отклоняется', () => {
-    expect(failureCodes({ ...VALID, variable_cost_complete_p95: 53.51 })).toContain('cost-ceiling');
+    expect(failureCodes({ ...VALID, variable_cost_complete_p95: 51.98 })).toContain('cost-ceiling');
+    expect(failureCodes({ ...VALID, variable_cost_basic_p95: 23.31 })).toContain('cost-ceiling');
   });
 
   it('нулевая или отрицательная contribution margin отклоняется', () => {

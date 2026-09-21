@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_EGRESS_LOCATION,
+  executionConfigSchema,
   issueStatusUpdateInputSchema,
   loginInputSchema,
   registerInputSchema,
@@ -230,6 +232,66 @@ describe('scanRequestInputSchema', () => {
       scanRequestInputSchema.safeParse({ plan: 'Basic', scope: { includeSubdomains: 'yes' } })
         .success,
     ).toBe(false);
+  });
+});
+
+describe('the egress location in a scan scope', () => {
+  it('accepts a scope that names its location, and one that does not', () => {
+    const withLocation = scanRequestInputSchema.safeParse({
+      plan: 'Complete',
+      scope: { includeSubdomains: false, egressLocation: 'ua' },
+    });
+    expect(withLocation.success).toBe(true);
+    if (withLocation.success) expect(withLocation.data.scope.egressLocation).toBe('ua');
+
+    const withoutLocation = scanRequestInputSchema.safeParse({
+      plan: 'Complete',
+      scope: { includeSubdomains: false },
+    });
+    expect(withoutLocation.success).toBe(true);
+    // Absent stays absent: nothing here decides that an unnamed location was
+    // Ukraine. The API picks the default for a launch; a stored scan without
+    // the field reads as "not recorded".
+    if (withoutLocation.success) expect(withoutLocation.data.scope.egressLocation).toBeUndefined();
+  });
+
+  it.each([['UA'], ['ukraine'], ['u'], ['ua_kyiv'], ['../ua'], [''], [7]])(
+    'rejects %j as a location id',
+    (egressLocation) => {
+      expect(
+        scanRequestInputSchema.safeParse({
+          plan: 'Complete',
+          scope: { includeSubdomains: false, egressLocation },
+        }).success,
+      ).toBe(false);
+    },
+  );
+
+  it('accepts a narrowed location for a second point in one country', () => {
+    expect(
+      scanRequestInputSchema.safeParse({
+        plan: 'Basic',
+        scope: { includeSubdomains: false, egressLocation: 'de-fra' },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('starts a new profile on the default location', () => {
+    expect(defaultProfileScanConfig.scope.egressLocation).toBe(DEFAULT_EGRESS_LOCATION);
+    expect(DEFAULT_EGRESS_LOCATION).toBe('ua');
+  });
+
+  it('reads a stored execution config that predates the field', () => {
+    const parsed = executionConfigSchema.safeParse({
+      schemaVersion: 1,
+      source: 'launch',
+      profileConfigVersion: 1,
+      profile: { name: 'Example', domain: 'https://example.com' },
+      plan: 'Complete',
+      scope: { includeSubdomains: false },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.scope.egressLocation).toBeUndefined();
   });
 });
 

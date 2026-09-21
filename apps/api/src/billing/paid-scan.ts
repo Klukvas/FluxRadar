@@ -29,7 +29,7 @@ export interface PaidScanParams {
   /** What the buyer was actually charged, when the provider localised it. */
   readonly settledAmount?: number | undefined;
   readonly settledCurrency?: string | undefined;
-  /** Provider product identifier (FastSpring product path / MockPaddle price id). */
+  /** Provider product identifier: the FastSpring product path. */
   readonly priceId: string;
   readonly scopeJson: string;
   readonly profileConfigVersion?: number | undefined;

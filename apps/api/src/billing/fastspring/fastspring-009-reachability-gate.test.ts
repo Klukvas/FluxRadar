@@ -3,8 +3,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../../index.ts';
 import { silentLogger } from '../../http/logger.ts';
+import type { ConfiguredEgressLocation } from '../../integrations/crawl-egress-config.ts';
+import { EGRESS_LOCATIONS, egressLocation } from '../../integrations/crawl-egress-locations.ts';
+import {
+  createEgressLocationMonitor,
+  type EgressLocationMonitor,
+} from '../../integrations/crawl-egress-monitor.ts';
 import { REACHABILITY_PROBE_TTL_MS } from '../../profiles/reachability-routes.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../../test-utils/test-db.ts';
 import type { FetchLike } from './client.ts';
 import { readFastSpringConfig } from './config.ts';
 import { TEST_FASTSPRING_SECRET } from './test-payloads.ts';
@@ -66,15 +72,15 @@ describe('FASTSPRING-009 a blocked site cannot be bought', () => {
     await db.cleanup();
   });
 
-  function buildApp() {
+  function buildApp(egress?: EgressLocationMonitor) {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       now: () => NOW,
       fastSpring: readFastSpringConfig(CONFIG_ENV),
       fastSpringFetch: stubFastSpring(),
+      ...(egress === undefined ? {} : { egress }),
     });
   }
 
@@ -102,12 +108,20 @@ describe('FASTSPRING-009 a blocked site cannot be bought', () => {
     siteProfileId: string,
     state: string,
     checkedAt = NOW,
+    egressLocationId: string | null = null,
   ): Promise<void> {
     const profile = await db.prisma.siteProfile.findUniqueOrThrow({
       where: { id: siteProfileId },
     });
     await db.prisma.siteReachabilityProbe.create({
-      data: { accountId, siteProfileId, origin: profile.domain, state, checkedAt },
+      data: {
+        accountId,
+        siteProfileId,
+        origin: profile.domain,
+        egressLocation: egressLocationId,
+        state,
+        checkedAt,
+      },
     });
   }
 
@@ -224,6 +238,89 @@ describe('FASTSPRING-009 a blocked site cannot be bought', () => {
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe('SITE_NOT_READY');
     expect(await db.prisma.checkoutSession.count()).toBe(0);
+  });
+
+  describe('with a choice of egress locations (D-228)', () => {
+    const kyiv: ConfiguredEgressLocation = {
+      location: EGRESS_LOCATIONS[0]!,
+      proxy: { host: '203.0.113.10', port: 13128, credentials: null },
+      expectedIp: null,
+    };
+    const frankfurt: ConfiguredEgressLocation = {
+      location: egressLocation({
+        id: 'de',
+        countryCode: 'DE',
+        city: 'Frankfurt',
+        label: { en: 'Germany, Frankfurt', uk: 'Німеччина, Франкфурт' },
+      }),
+      proxy: { host: '198.51.100.20', port: 3128, credentials: null },
+      expectedIp: null,
+    };
+
+    function twoCountries(frankfurtUp: boolean): EgressLocationMonitor {
+      return createEgressLocationMonitor({
+        locations: [kyiv, frankfurt],
+        logger: silentLogger,
+        now: () => NOW,
+        probe: async (proxy) => ({
+          state: proxy?.host === frankfurt.proxy.host && !frankfurtUp ? 'unreachable' : 'healthy',
+          observedIp: null,
+          expectedIp: null,
+          latencyMs: 10,
+          detail: null,
+          checkedAt: NOW,
+        }),
+      });
+    }
+
+    function checkoutFrom(session: Awaited<ReturnType<typeof signIn>>, location: string) {
+      return session.agent
+        .post('/billing/checkout-session')
+        .set('Cookie', session.cookie)
+        .send({
+          siteProfileId: session.profileId,
+          plan: 'Complete',
+          scope: { ...SCOPE, egressLocation: location },
+        });
+    }
+
+    it('sells a scan from the country the site was checked from, and records it', async () => {
+      const session = await signIn(buildApp(twoCountries(true)));
+      await seedProbe(session.accountId, session.profileId, 'reachable', NOW, 'de');
+
+      const response = await checkoutFrom(session, 'de');
+
+      expect(response.status).toBe(201);
+      const row = await db.prisma.checkoutSession.findFirstOrThrow();
+      expect(JSON.parse(row.scopeJson)).toMatchObject({ egressLocation: 'de' });
+      expect(JSON.parse(row.executionConfigJson ?? '{}')).toMatchObject({
+        scope: { egressLocation: 'de' },
+      });
+    });
+
+    it('refuses a yes from Kyiv as evidence about Frankfurt', async () => {
+      // A site can let one country in and refuse another; the gate is about the
+      // crawl being bought, and that crawl leaves from Frankfurt.
+      const session = await signIn(buildApp(twoCountries(true)));
+      await seedProbe(session.accountId, session.profileId, 'reachable', NOW, 'ua');
+
+      const response = await checkoutFrom(session, 'de');
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('SITE_NOT_READY');
+      expect(await db.prisma.checkoutSession.count()).toBe(0);
+    });
+
+    it('opens no checkout for a country whose network is down', async () => {
+      const session = await signIn(buildApp(twoCountries(false)));
+      await seedProbe(session.accountId, session.profileId, 'reachable', NOW, 'de');
+
+      const response = await checkoutFrom(session, 'de');
+
+      expect(response.status).toBe(503);
+      expect(response.body.error.code).toBe('EGRESS_LOCATION_UNAVAILABLE');
+      expect(await db.prisma.checkoutSession.count()).toBe(0);
+    });
   });
 
   it("refuses another account's probe for the same profile id", async () => {

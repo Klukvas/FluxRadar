@@ -11,7 +11,6 @@ import {
   createTestDb,
   seedScan,
   seedScanModule,
-  TEST_WEBHOOK_SECRET,
   type SeededAccount,
   type TestDb,
 } from '../test-utils/test-db.ts';
@@ -56,7 +55,6 @@ describe('site profile deletion', () => {
   async function signIn(email: string) {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       objectStore,
@@ -115,6 +113,7 @@ describe('site profile deletion', () => {
         reasonCode: 'TEST',
         status: REFUND_STATUSES.paid,
         amountUsd: 10,
+        provider: purchase.provider,
       },
     });
     await db.prisma.webhookEvent.create({

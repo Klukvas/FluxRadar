@@ -7,22 +7,31 @@
 //
 // The probe leaves from the same network, with the same user agent, as the paid
 // crawl will (`site-reachability.ts`). Anything cheaper would answer a different
-// question.
+// question. With a choice of egress locations (D-228) "the same network" is the
+// location the owner picked, so the probe takes it, records it, and counts only
+// for it.
 
 import { Router } from 'express';
+import { egressLocationIdSchema } from '@fluxradar/contracts';
 import type { PrismaClient, SiteReachabilityProbe } from '@prisma/client';
+import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
 import { accountAndIpRules, RequestRateLimiter } from '../auth/rate-limit.ts';
 import { sendOk } from '../http/envelope.ts';
 import type { ApiLogger } from '../http/logger.ts';
 import { requiredParam } from '../http/params.ts';
-import { readCrawlEgressProxy } from '../integrations/crawl-egress-config.ts';
+import { parseInput } from '../http/validate.ts';
+import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import {
   probeSiteReachability,
   type SiteReachabilityOptions,
 } from '../integrations/site-reachability.ts';
+import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 import { findOwnProfile } from './routes.ts';
+
+const egressLocationQuerySchema = z.object({ egressLocation: egressLocationIdSchema.optional() });
+const probeBodySchema = z.object({ egressLocation: egressLocationIdSchema.optional() }).optional();
 
 /**
  * How long a probe counts as current.
@@ -47,6 +56,8 @@ export interface ReachabilityRouterDeps {
   readonly logger?: ApiLogger;
   /** Test seam: the same shape `WorkerDeps.crawl` uses for the paid crawl. */
   readonly probe?: SiteReachabilityOptions;
+  /** The egress locations a probe can leave from, and whether they are up. */
+  readonly egress: EgressLocationMonitor;
 }
 
 export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
@@ -56,6 +67,7 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
   const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
 
   router.get('/profiles/:profileId/reachability', auth, async (req, res) => {
+    const query = parseInput(egressLocationQuerySchema, req.query);
     const accountId = accountIdFrom(res);
     const profile = await findOwnProfile(
       prisma,
@@ -65,10 +77,14 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
     const stored = await prisma.siteReachabilityProbe.findUnique({
       where: { siteProfileId: profile.id },
     });
-    sendOk(res, toDto(stored, profile.domain, deps.now()));
+    // The location the reader is about to buy from: the one they named, or
+    // the one a scan gets when nobody names any.
+    const location = query.egressLocation ?? deps.egress.defaultLocation?.location.id ?? null;
+    sendOk(res, toDto(stored, profile.domain, location, deps.now()));
   });
 
   router.post('/profiles/:profileId/reachability', auth, async (req, res) => {
+    const body = parseInput(probeBodySchema, req.body);
     const accountId = accountIdFrom(res);
     requestRateLimiter.assertAllowedAll(
       accountAndIpRules('reachability-probe', accountId, req.ip ?? 'unknown', PROBE_RATE_LIMIT),
@@ -78,13 +94,17 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
       accountId,
       requiredParam(req.params.profileId, 'profileId'),
     );
+    // Checked before the probe, not read from it: through a proxy that is down
+    // every site is unreachable, and storing that would blame this one for it.
+    const { location } = await resolveLaunchEgressLocation(deps.egress, body?.egressLocation);
     const result = await probeSiteReachability(profile.domain, {
-      egressProxy: readCrawlEgressProxy(),
+      egressProxy: location?.proxy ?? null,
       ...deps.probe,
       now: deps.now,
     });
     deps.logger?.info('site reachability probed', {
       siteProfileId: profile.id,
+      egressLocation: location?.location.id ?? null,
       state: result.state,
       startStatus: result.startStatus,
     });
@@ -94,6 +114,7 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
       // while no checkout is open, and a row that does not say which domain it
       // tested would keep authorising purchases after the site was swapped.
       origin: profile.domain,
+      egressLocation: location?.location.id ?? null,
       state: result.state,
       startStatus: result.startStatus,
       fetchError: result.fetchError,
@@ -105,7 +126,7 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
       create: { siteProfileId: profile.id, ...row },
       update: row,
     });
-    sendOk(res, toDto(stored, profile.domain, deps.now()));
+    sendOk(res, toDto(stored, profile.domain, location?.location.id ?? null, deps.now()));
   });
 
   return router;
@@ -119,8 +140,9 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
  * allowed.
  */
 export function isProbeUsable(
-  probe: Pick<SiteReachabilityProbe, 'state' | 'checkedAt' | 'origin'> | null,
+  probe: Pick<SiteReachabilityProbe, 'state' | 'checkedAt' | 'origin' | 'egressLocation'> | null,
   expectedOrigin: string,
+  expectedEgressLocation: string | null,
   now: Date,
 ): boolean {
   if (probe === null) return false;
@@ -129,6 +151,9 @@ export function isProbeUsable(
   // stop counting the moment the profile points somewhere else — and a row
   // written before the column existed does not say what it tested at all.
   if (probe.origin === null || probe.origin !== expectedOrigin) return false;
+  // Then the location: a yes from Kyiv says nothing about Frankfurt. NULL is
+  // "direct", so an older row matches only a deployment that crawls directly.
+  if (probe.egressLocation !== expectedEgressLocation) return false;
   return probe.state === 'reachable' && !isExpired(probe.checkedAt, now);
 }
 
@@ -139,11 +164,17 @@ export function isExpired(checkedAt: Date, now: Date): boolean {
 function toDto(
   probe: SiteReachabilityProbe | null,
   expectedOrigin: string,
+  expectedEgressLocation: string | null,
   now: Date,
 ): Record<string, unknown> {
-  // A probe of a domain this profile no longer points at is not a result about
-  // this site, so it reads exactly like never having been checked.
-  if (probe === null || probe.origin !== expectedOrigin) {
+  // A probe of a domain this profile no longer points at, or from another
+  // country, is not a result about this purchase, so it reads exactly like
+  // never having been checked.
+  if (
+    probe === null ||
+    probe.origin !== expectedOrigin ||
+    probe.egressLocation !== expectedEgressLocation
+  ) {
     return { state: null, checkedAt: null, expired: false, canPurchase: false };
   }
   return {
@@ -152,7 +183,7 @@ function toDto(
     accessControlSignals: parseSignals(probe.signalsJson),
     checkedAt: probe.checkedAt.toISOString(),
     expired: isExpired(probe.checkedAt, now),
-    canPurchase: isProbeUsable(probe, expectedOrigin, now),
+    canPurchase: isProbeUsable(probe, expectedOrigin, expectedEgressLocation, now),
   };
 }
 

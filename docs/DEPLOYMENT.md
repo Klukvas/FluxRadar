@@ -107,9 +107,21 @@ answer 403 to everything — start page, `robots.txt`, `sitemap.xml` — and a
 report can only describe that as a site with no robots.txt that never returns
 200. Absent is supported and means a direct crawl, which is the local default.
 
+Each proxy is an **egress location**, and the owner chooses on the launch
+screen which one a scan leaves from (D-228), because a site can answer visitors
+from different countries differently. `CRAWL_EGRESS_PROXY_URL` is the Ukrainian
+location (Kyiv) and the default one — a Free check always uses it — and every
+further country is `CRAWL_EGRESS_PROXY_URL_<CODE>` plus a registry entry (see
+*Adding a country* below). The choice is stored in the scan's execution config,
+the report prints it beside the plan, and a scan is never moved to another
+location: a launch naming a location that is not configured or not answering is
+refused (`EGRESS_LOCATION_UNKNOWN` 400, `EGRESS_LOCATION_UNAVAILABLE` 503), and
+a started scan whose location goes down fails as a platform failure.
+
 It fails the boot when it is present but unreadable, by variable name: the
 alternative is falling back to the blocked network and producing that same
-report again. The value carries a password and appears in no log line and no
+report again. So does a `CRAWL_EGRESS_PROXY_URL_<CODE>` for which no location
+is registered. The value carries a password and appears in no log line and no
 error message, not even by length; the SSRF guard does not move to the proxy,
 which is asked to tunnel to an address this process already resolved and
 approved (`packages/safe-fetch/src/proxy.ts`).
@@ -144,15 +156,70 @@ GitHub environment secret `PRODUCTION_CRAWL_EGRESS_PROXY_URL` and two
 `chmod 600` files on the maintainer's Mac. To rotate it: change `BasicAuth` in
 the tinyproxy config, restart the service, update the secret, redeploy.
 
-An unreachable proxy is not a silent condition. The API checks it at startup and
-every five minutes, and a scan attempt checks before its first request; the
-check confirms both that the proxy answers and that the public internet sees its
-address and not the server's own (D-225). A failure fails the scan as a platform
-failure — ours, refundable — instead of reporting the customer's site as
-unreachable. Restoring service means fixing that host or building a replacement
-the same way: a VPS whose IP `whois` shows on a Ukrainian ASN, tinyproxy with
-the same config, the firewall reduced to the production host, then the secret
-and a redeploy.
+An unreachable proxy is not a silent condition. The API checks every location
+at startup and every five minutes, and a scan attempt checks its own location
+before its first request; the check confirms both that the proxy answers and
+that the public internet sees its address and not the server's own (D-225). A
+location that fails is logged as an error naming it
+(`crawl egress proxy is unreachable — scans from this location are blocked`,
+with `location` in the context), stops being offered on the launch screen, and
+refuses launches until it answers again. A scan already running fails as a
+platform failure — ours, refundable — instead of reporting the customer's site
+as unreachable. Restoring service means fixing that host or building a
+replacement the same way: a VPS whose IP `whois` shows on a Ukrainian ASN,
+tinyproxy with the same config, the firewall reduced to the production host,
+then the secret and a redeploy.
+
+Traffic is counted per location and month (`CrawlEgressLocationUsage`, a warning
+at 80% of that location's `monthlyTrafficBytes` in the registry). The older
+`CrawlEgressUsage` table is what the previous release writes and nothing here
+reads it; it goes in a contract-phase migration once that release cannot return.
+
+#### Adding a country
+
+A country is one VPS, one variable and one registry entry. Nothing in the
+rules, the crawler or the orchestrator changes, and the launch screen lists it
+as soon as its proxy answers.
+
+1. **Rent a VPS whose address sits in that country's own network.** The block
+   this exists to avoid follows the network, not the flag on a provider's
+   website, so check the address before paying for a year of it:
+   `whois <ip>` must show an ASN registered in that country (`country:` and the
+   `origin:` AS's own `country:`), and a geolocation lookup should agree.
+   Resellers of "local" proxies and VPSes very often route through somebody
+   else's network — a "Polish" box on a German ASN is a German crawl with a
+   Polish label on the report. Prefer a small local hosting company over a
+   global cloud's regional zone for the same reason. Note the plan's monthly
+   traffic allowance.
+2. **Build the proxy exactly like the Kyiv one** (*The proxy host* above):
+   tinyproxy on a non-default port, basic auth with a fresh password,
+   `ConnectPort` 443 and 80, key-only SSH, inbound open for that port **only**
+   from the production host `138.201.172.158`, every private range denied
+   outbound, `vnstat` installed. From the production host,
+   `curl -x http://user:pass@<ip>:<port> https://www.cloudflare.com/cdn-cgi/trace`
+   must print `ip=<ip>` — the address the check will expect.
+3. **Register it** in `apps/api/src/integrations/crawl-egress-locations.ts`:
+   `egressLocation({ id: 'de', countryCode: 'DE', city: 'Frankfurt', label: { en: 'Germany, Frankfurt', uk: 'Німеччина, Франкфурт' }, monthlyTrafficBytes: … })`.
+   The id is the lower-case country code (`de-fra` if a second point in the
+   same country is ever needed), and it is written into every scan that uses
+   it — so an entry is never removed or re-pointed at another city afterwards;
+   a retired location just loses its variable, and a new city is a new id.
+   The labels are what the launch screen and every report print.
+4. **Set the secret.** The variable is `CRAWL_EGRESS_PROXY_URL_<CODE>` (and
+   optionally `CRAWL_EGRESS_EXPECTED_IP_<CODE>` = the address from step 2).
+   Add both lines to `PRODUCTION_ENV_FILE`, which needs no workflow change. A
+   separate `PRODUCTION_CRAWL_EGRESS_PROXY_URL_<CODE>` secret, rotated on its
+   own like the Ukrainian one, also needs its `upsert_env` line in
+   `.github/workflows/deploy.yml` — whose steps are pinned by the `DEPLOY-*`
+   tests, so update them in the same change. Keep the password in the same two
+   places as Kyiv's: the GitHub secret and a `chmod 600` file on the
+   maintainer's Mac, never this repository. Deploying the variable before the
+   registry entry fails the boot by name, which is the intended order of events.
+5. **Deploy and watch it arrive.** The startup log's `crawl egress proxy checked`
+   line should carry the new `location` with `state: healthy`, and the
+   country appears on the launch screen. Add the host to this document's table
+   the way the Kyiv host is described, and watch its traffic with `vnstat -m`
+   on the box — the API's own counter is a lower bound (D-225).
 
 PageSpeed, CrUX and Resend cannot fail the boot (Resend is reported as `invalid`
 when only one half of the key/sender pair is present, but transactional email
@@ -210,20 +277,16 @@ So: write plain `KEY=value` lines, and if a generated password would need quotin
 (`apps/api/src/deploy/deploy-002-env-file-parity.test.ts`) runs the shipped script
 against both parser behaviours in CI.
 
-### `PADDLE_WEBHOOK_SECRET`
+### Retired variables
 
-`PADDLE_WEBHOOK_SECRET` is not required by *this* release: the MockPaddle webhook
-is a development affordance and its route is not mounted in production. **Keep the
-value in `PRODUCTION_ENV_FILE`** anyway — releases that predate this one read it
-during startup, so removing it would turn a rollback into a crash loop. The
-normalizer warns (by name) when it is absent, and the rollback probe described
-under *Release rollback* fails the deploy if the previous release cannot boot
-without it.
-
-It may be removed from the environment only once **no release that requires it can
-be started again** — concretely, in or after the same release that ships the
-`paddle*` contract-phase migration described at the end of this document, when the
-retained rollback candidates no longer include such a release.
+Paddle is gone from the code (D-229), and with it two variables that nothing
+reads any more: `PADDLE_WEBHOOK_SECRET` and `FLUXRADAR_ENABLE_MOCK_CHECKOUT`.
+Delete `PADDLE_WEBHOOK_SECRET` from `PRODUCTION_ENV_FILE`: no release a rollback
+could return to requires it — since 2026-09-06 a missing value is replaced by a
+random one at startup — so the normalizer no longer warns about it and the
+rollback probe no longer asks. `FLUXRADAR_ENABLE_MOCK_CHECKOUT` must simply stay
+unset: releases before this one refuse to boot in production with it set, and
+the rollback probe runs their validators.
 
 ### Transactional email
 
@@ -611,10 +674,10 @@ owner. The short version:
   `FASTSPRING_STOREFRONT_URL`. A test-mode order can never grant access on a
   live deployment.
 
-The deployed application still rejects `/billing/dev-checkout` in production for
-ordinary accounts, and the legacy `/webhooks/paddle` route is not mounted there
-at all. An exact, comma-separated `FLUXRADAR_INTERNAL_FREE_EMAILS` allowlist may
-be supplied in the private production environment file for internal testing.
+`/billing/dev-checkout` refuses every account that is not internal, in every
+environment: a signed FastSpring order is the only thing that creates a purchase.
+An exact, comma-separated `FLUXRADAR_INTERNAL_FREE_EMAILS` allowlist may be
+supplied in the private production environment file for internal testing.
 Matching accounts can create Basic/Complete scans without a payment; those scans
 deliberately do not create Purchase or Entitlement records. Keep the allowlist
 limited to team accounts because the scan still consumes server and AI
@@ -1178,9 +1241,8 @@ from the release being deployed and executed against the **old image's** modules
 
 1. **`deploy/rollback-readonly-probe.cjs` — would it start, and can it reach the
    database?** It calls the previous release's own boot-time validators
-   (`validateRuntimeConfig`, `readFastSpringConfig`,
-   `resolvePaddleWebhookSecret`), which is what catches an environment variable it
-   requires and the new release no longer does, and then runs `SELECT 1` inside a
+   (`validateRuntimeConfig`, `readFastSpringConfig`), which is what catches an
+   environment variable it requires and the new release no longer does, and then runs `SELECT 1` inside a
    transaction it first marks `READ ONLY` — verifying the mark before it queries.
    A validator that this release's layout does not contain is skipped by name; a
    validator that is present and throws fails the deploy, and finding none at all
@@ -1275,8 +1337,17 @@ ALTER TABLE "RefundRecord"
   DROP COLUMN "paddleTransactionId", DROP COLUMN "paddleEventId", DROP COLUMN "paddleSignature";
 ```
 
-The matching `paddle*` fields must be removed from `schema.prisma` in the same
-release, and `PADDLE_WEBHOOK_SECRET` may be dropped from the environment then too.
+The rollback probe runs the *previous* release's Prisma client, so this can only
+ship after a release whose client no longer selects these columns. That release
+is D-229: it removed the `paddle*` fields from `schema.prisma` (the columns stay,
+filled by their triggers) and every other trace of Paddle from the code. The
+probe checks only the previous release, but the workflow keeps **two** rollback
+candidates, and a manual rollback to one that still selects these columns would
+fail. So ship the contract phase once both retained candidates are D-229 or
+later — one ordinary release after D-229 is enough. It also removes the
+`paddle*` index names `billing/prisma-errors.ts` still recognises, the trigger
+tests in `BILLING-007`, and the `'paddle'` default of the three `provider`
+columns.
 
 Keep the previous release until the replacement has passed the internal and
 public smoke tests. The workflow retains the active release and two rollback

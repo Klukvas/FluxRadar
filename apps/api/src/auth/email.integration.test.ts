@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../index.ts';
 import { MockMailer } from '../email/mailer.ts';
 import { silentLogger } from '../http/logger.ts';
-import { createTestDb, type TestDb, TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 describe('CR-02 email lifecycle', () => {
   let db: TestDb;
@@ -21,7 +21,6 @@ describe('CR-02 email lifecycle', () => {
     const mailer = new MockMailer();
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       mailer,
@@ -46,7 +45,6 @@ describe('CR-02 email lifecycle', () => {
     const mailer = new MockMailer();
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       mailer,
