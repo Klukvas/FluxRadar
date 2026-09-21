@@ -1,0 +1,13 @@
+-- Additive: what the crawl of one scan actually achieved.
+--
+-- Two numbers a finished report could not previously state. How much of the
+-- site was read: module coverage counts checks, not addresses, so a scan that
+-- read 15 pages of a 334-page site still showed 100%. And whether the site was
+-- read at all: a WAF answering 403 to every request arrives over a healthy
+-- connection, so it counted as a reachable site with no robots.txt.
+--
+-- Nullable with no default and no backfill: scans that ran before this column
+-- existed genuinely have no record of their crawl, and the report says "not
+-- recorded" for them rather than showing a number nobody measured
+-- (@fluxradar/contracts parseCrawlSummary returns null for NULL).
+ALTER TABLE "Scan" ADD COLUMN "crawlSummaryJson" TEXT;

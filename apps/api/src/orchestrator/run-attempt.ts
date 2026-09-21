@@ -3,8 +3,14 @@
 // перезаписывает результат предыдущей (module retry / external retry, D-024).
 // Терминализацию выполняет process-scan через resolveScanOutcome.
 
-import type { ModuleName, Plan, ScanScopeInput } from '@fluxradar/contracts';
-import { TARIFFS, scanScopeSchema, severityRank } from '@fluxradar/contracts';
+import type { CrawlSummary, ModuleName, Plan, ScanScopeInput } from '@fluxradar/contracts';
+import {
+  TARIFFS,
+  isSiteRead,
+  scanScopeSchema,
+  severityRank,
+  siteReachStatusReason,
+} from '@fluxradar/contracts';
 import {
   AI_PROVIDER_NAMES,
   AiQuotaTracker,
@@ -26,7 +32,10 @@ import { computeCoverage } from '@fluxradar/scoring';
 import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
 
+const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
+
 import { readCrawlEgressProxy } from '../integrations/crawl-egress-config.ts';
+import { buildCrawlSummary } from './crawl-summary.ts';
 import { executionProfile, storedExecutionConfig } from '../profiles/execution-config.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
 import type { WorkerDeps } from './deps.ts';
@@ -43,8 +52,6 @@ import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
 import type { IssueRowData } from './module-result.ts';
 import { ruleCheckSummaries, uxRuleCheckSummaries } from './rule-checks.ts';
 import { runUxConversion } from './ux.ts';
-
-const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
 
 const providersJsonSchema = z.array(z.enum(AI_PROVIDER_NAMES));
 
@@ -338,6 +345,36 @@ async function persistUxModule(
 }
 
 /**
+ * Every module of the attempt reports the same thing: there was no site to read.
+ *
+ * `Unavailable` rather than `Not applicable` is the honest status — the checks
+ * are applicable to this site, they simply had nothing to run on — and §15
+ * requires `applicable > 0, completed = 0` for it, which is what the single
+ * "could the site be read" check stands for. No score, because scoring a site
+ * we never saw is the whole failure being fixed here.
+ */
+async function markEveryModuleUnreadable(
+  prisma: PrismaClient,
+  scanId: string,
+  modules: readonly string[],
+  summary: CrawlSummary,
+): Promise<void> {
+  const statusReason = siteReachStatusReason(summary) ?? 'SiteUnreachable';
+  for (const module of modules) {
+    await setModule(prisma, scanId, module, {
+      runtimeStatus: 'Unavailable',
+      statusReason,
+      coverage: 0,
+      score: null,
+      applicableChecks: 1,
+      completedApplicableChecks: 0,
+      usableOutput: false,
+      metadataJson: JSON.stringify({ crawl: summary }),
+    });
+  }
+}
+
+/**
  * What an attempt hands to the post-outcome phase. Analytics runs after the
  * scan outcome is settled (analytics-module.ts), when the crawl is gone, so the
  * attempt passes on the per-page facts its checks compare with Google data.
@@ -401,7 +438,8 @@ export async function runScanAttempt(
   }
 
   const egressProxy = resolveEgressProxy(deps.crawl, readCrawlEgressProxy());
-  const crawlResult = await crawl(buildCrawlScope(origin, scope, plan), {
+  const crawlScope = buildCrawlScope(origin, scope, plan);
+  const crawlResult = await crawl(crawlScope, {
     ...(deps.crawl?.fetcher !== undefined ? { fetcher: deps.crawl.fetcher } : {}),
     ...(egressProxy === null ? {} : { egressProxy }),
     ...(deps.crawl?.dangerouslyAllowLoopback === true ? { dangerouslyAllowLoopback: true } : {}),
@@ -410,10 +448,28 @@ export async function runScanAttempt(
     userAgent: scope.userAgent === 'mobile' ? `${CRAWLER_USER_AGENT} Mobile` : CRAWLER_USER_AGENT,
   });
   const ctx: SiteContext = createSiteContext({ origin, crawl: crawlResult, plan });
-  const siteReachable = crawlResult.pages.some((page) => page.fetchError === undefined);
+  const crawlSummary = buildCrawlSummary(crawlResult, origin, scope, plan, crawlScope.maxPages);
+  // A site is read when at least one page of it was read — a 2xx response that
+  // carried a document. It used to be "at least one request did not throw",
+  // which a WAF challenge page satisfies: the 403 arrives over a perfectly
+  // healthy connection, so a site that had blocked us entirely was audited as
+  // a site with no robots.txt and no 200 responses, and scored 96.95.
+  const siteReachable = isSiteRead(crawlSummary);
   // Эффективный normalized origin — поле domain fingerprint-ов и export context
   // (в тестах обходится fixture-origin, а не https-домен профиля).
-  await prisma.scan.update({ where: { id: scanId }, data: { domain: ctx.domain } });
+  await prisma.scan.update({
+    where: { id: scanId },
+    data: { domain: ctx.domain, crawlSummaryJson: JSON.stringify(crawlSummary) },
+  });
+
+  if (!siteReachable) {
+    // Nothing downstream has a site to work on, so nothing downstream runs: no
+    // rules over a challenge page, no AI quota spent on a scan that is about to
+    // be refunded, and no PSI number that would make this Partial instead of
+    // Failed. Every planned module says the same thing, and says why.
+    await markEveryModuleUnreadable(prisma, scanId, targetModules, crawlSummary);
+    return { analyticsPages: [] };
+  }
 
   const observedAt = now();
   const issueRows: IssueRowData[] = [];
@@ -423,7 +479,7 @@ export async function runScanAttempt(
   )) {
     await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
     const result = plan === 'Free' ? runFreeCheck(ctx) : runModuleRules(module, ctx);
-    const finalized = finalizeRuleModule(result, plan, siteReachable);
+    const finalized = finalizeRuleModule(result, plan);
     await setModule(prisma, scanId, module, {
       runtimeStatus: finalized.runtimeStatus,
       statusReason: finalized.statusReason,

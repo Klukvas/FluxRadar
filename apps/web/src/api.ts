@@ -177,6 +177,21 @@ export interface ScanModule {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
+/** Mirrors `crawlSummarySchema` in @fluxradar/contracts. */
+export interface CrawlSummary {
+  readonly reach:
+    'reachable' | 'access-denied' | 'blocked-by-robots' | 'unreachable' | 'bad-response';
+  readonly startStatus: number | null;
+  readonly accessControlSignals: readonly string[];
+  readonly pagesRead: number;
+  readonly pagesFetched: number;
+  readonly urlsDiscovered: number;
+  readonly urlsOverLimit: number;
+  readonly urlsBlockedByRobots: number;
+  readonly limitedBy: 'owner' | 'plan' | null;
+  readonly maxPages: number;
+}
+
 export interface Scan {
   readonly id: string;
   readonly profileId: string;
@@ -195,6 +210,12 @@ export interface Scan {
     readonly robotsOverrideConfirmed?: boolean;
     readonly userAgent?: 'desktop' | 'mobile';
   };
+  /**
+   * How much of the site the crawl read, in addresses rather than in checks.
+   * Null when a scan predates the record — the report then shows no coverage
+   * line at all, rather than a number nobody measured.
+   */
+  readonly crawlSummary?: CrawlSummary | null;
   readonly profileConfigVersion?: number;
   readonly rulesetVersion: string;
   readonly progress: { readonly completedModules: number; readonly totalModules: number };

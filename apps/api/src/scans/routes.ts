@@ -5,7 +5,7 @@ import { Router } from 'express';
 import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
 import { computeOverallScore } from '@fluxradar/scoring';
 import { RULESET_VERSION, scanRequestInputSchema, scanScopeSchema } from '@fluxradar/contracts';
-import { isModuleName } from '@fluxradar/contracts';
+import { isModuleName, parseCrawlSummary } from '@fluxradar/contracts';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
 
@@ -451,6 +451,11 @@ function toScanDto(scan: Scan, modules: readonly ScanModule[]): Record<string, u
     status: scan.status,
     statusReason: scan.statusReason,
     scope: parseScope(scan.scopeJson),
+    // How much of the site the crawl actually read, so the report can say
+    // "15 of 334 addresses" instead of a module coverage that counts checks.
+    // Null on scans that ran before the column existed — not recorded, which
+    // the report states rather than rendering as a measured zero.
+    crawlSummary: parseCrawlSummary(scan.crawlSummaryJson),
     profileConfigVersion: scan.profileConfigVersion,
     executionConfig: storedExecutionConfig(scan.executionConfigJson),
     rulesetVersion: scan.rulesetVersion,

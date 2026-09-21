@@ -25,6 +25,7 @@ import { moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { ReportNextSteps } from './ReportNextSteps';
+import { SiteCoveragePanel } from './SiteCoverage';
 import { statusKind } from './status-kind';
 
 export function ResultsScreen(props: {
@@ -216,6 +217,9 @@ export function ResultsScreen(props: {
             </div>
           </dl>
         </section>
+        {/* Before the section cards, because every coverage figure on them is
+            module coverage and means something narrower than a reader assumes. */}
+        <SiteCoveragePanel summary={scan.crawlSummary} language={props.language} />
         <div className="module-grid">
           {dashboard.modules.map((module) => {
             const expandable = hasModuleChecks(module, geoObservations);

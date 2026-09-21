@@ -713,6 +713,22 @@ export const copy = {
         'Specific issues we detected, each with the evidence behind it. Open the findings list below to review them and see recommended fixes.',
       noScore: 'No score',
       coverageUnavailable: 'coverage unavailable',
+      siteCoverageTitle: 'How much of the site was read',
+      siteCoverageCaption: 'Addresses read',
+      siteCoverageRead: 'We read {read} of the {found} addresses we found on your site.',
+      siteCoverageComplete:
+        'That is every address the crawl found, so the sections below cover the whole site.',
+      siteCoveragePartial:
+        'The sections below describe only the pages we read, not the whole site.',
+      siteCoverageLimitedByOwner:
+        'Your scan settings limit this check to {limit} pages, so the rest of the site was not read. Raise the page limit before the next check to cover more of it.',
+      siteCoverageLimitedByPlan:
+        'This plan covers up to {limit} pages, and your site has more. A larger plan is needed to read the rest.',
+      siteCoverageRobots:
+        'A further {count} addresses are disallowed by your robots.txt. We respect that, so they are not counted as missing.',
+      siteCoverageUnread:
+        'No page of the site could be read, so nothing below describes your site. See the scan status for what the site answered.',
+      siteCoverageNoAddresses: 'The crawl found no addresses to read.',
       geoObservationsLead:
         'These are the model’s answers to this scan’s exact prompts. They show whether the answer mentioned your brand or official domain in this run; they do not prove what the model has memorized or will answer later.',
       geoAwarenessQuestion: 'Direct awareness question',
@@ -1821,6 +1837,21 @@ export const copy = {
         'Конкретні проблеми, які ми виявили, кожна з доказом. Відкрийте список знахідок нижче, щоб переглянути їх і побачити рекомендовані виправлення.',
       noScore: 'Без оцінки',
       coverageUnavailable: 'покриття недоступне',
+      siteCoverageTitle: 'Яку частину сайту прочитано',
+      siteCoverageCaption: 'Прочитано адрес',
+      siteCoverageRead: 'Ми прочитали {read} з {found} адрес, які знайшли на вашому сайті.',
+      siteCoverageComplete:
+        'Це всі адреси, які знайшов обхід, тож розділи нижче охоплюють увесь сайт.',
+      siteCoveragePartial: 'Розділи нижче описують лише прочитані сторінки, а не весь сайт.',
+      siteCoverageLimitedByOwner:
+        'Ваші налаштування перевірки обмежують її {limit} сторінками, тому решту сайту не прочитано. Підніміть ліміт сторінок перед наступною перевіркою, щоб охопити більше.',
+      siteCoverageLimitedByPlan:
+        'Цей тариф охоплює до {limit} сторінок, а на вашому сайті їх більше. Щоб прочитати решту, потрібен більший тариф.',
+      siteCoverageRobots:
+        'Ще {count} адрес заборонено вашим robots.txt. Ми це поважаємо, тож вони не рахуються як пропущені.',
+      siteCoverageUnread:
+        'Жодної сторінки сайту прочитати не вдалося, тому ніщо нижче не описує ваш сайт. Що саме відповів сайт — дивіться у стані перевірки.',
+      siteCoverageNoAddresses: 'Обхід не знайшов жодної адреси для читання.',
       geoObservationsLead:
         'Це відповіді моделі на конкретні запити цієї перевірки. Вони показують, чи згадала відповідь ваш бренд або офіційний домен саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
       geoAwarenessQuestion: 'Пряме питання про впізнаваність',

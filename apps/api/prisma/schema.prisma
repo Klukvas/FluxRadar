@@ -272,6 +272,11 @@ model Scan {
   status             String    @default("Pending")
   statusReason       String?
   scopeJson          String
+  /// What the crawl of this scan achieved: how much of the site was read, and
+  /// whether it was read at all (@fluxradar/contracts crawlSummarySchema).
+  /// NULL on scans that ran before the column existed — "not recorded", which
+  /// the report states rather than rendering as a measured zero.
+  crawlSummaryJson   String?
   profileConfigVersion Int @default(1)
   executionConfigJson String?
   rulesetVersion     String
