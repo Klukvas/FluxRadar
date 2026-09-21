@@ -192,7 +192,11 @@ describe('DEPLOY-004 backup archive', () => {
     it('refuses a key that is not 32 bytes, naming the variable and not the value', () => {
       const shortKey = randomBytes(16).toString('base64');
       expect(() => crypto.parseKey(shortKey)).toThrow(/FLUXRADAR_BACKUP_ENCRYPTION_KEY/);
-      expect(() => crypto.parseKey(shortKey)).not.toThrow(new RegExp(shortKey));
+      // Compared as a string: a base64 key can start with `+` or hold `++`, and
+      // as a RegExp that is a syntax error — which failed this test at random.
+      expect(() => crypto.parseKey(shortKey)).toThrow(
+        expect.objectContaining({ message: expect.not.stringContaining(shortKey) }),
+      );
       expect(() => crypto.parseKey(undefined)).toThrow(/refusing to write an unencrypted backup/);
     });
 
