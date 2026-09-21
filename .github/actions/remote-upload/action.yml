@@ -4,11 +4,12 @@ description: >-
   into this release's own staging directory, run the command that installs it,
   and remove the staging directory again — on success or on failure.
 
-# The three artifacts a release is made of (the API image, the web image and the
-# source/env bundle) are built by three jobs that run at the same time, and every
-# one of them has to answer the same two questions before it writes: is there
-# room, and who cleans up if this fails. That answer was written once, inline,
-# for a single job that uploaded all three; it is here so the three cannot drift.
+# The three artifacts a release is made of — the API image and the web image
+# (the two legs of deploy.yml's `image` matrix) and the source/env bundle (the
+# `package` job) — are uploaded at the same time, and every upload has to answer
+# the same two questions before it writes: is there room, and who cleans up if
+# this fails. All three call this action, so there is one answer and it cannot
+# drift. (The `package` job used to carry its own inline copy, which had.)
 #
 # Each caller gets its OWN subdirectory under incoming/<commit>/, so a failing
 # upload cleans up after itself without touching an upload running beside it.
@@ -37,8 +38,8 @@ inputs:
   install:
     description: >-
       Bash run on the server once every file has arrived. It is given APP_DIR,
-      RELEASE_ID and STAGE_DIR as positional-derived variables and must exit
-      non-zero when the artifact was not installed.
+      RELEASE_ID, STAGE (this input's stage name) and STAGE_DIR (where the files
+      landed), and must exit non-zero when the artifact was not installed.
     required: true
 
 runs:
@@ -92,9 +93,14 @@ runs:
         # On ANY failure below, remove ONLY this artifact's staging subdirectory.
         # Releases, current, runtime, Docker data/volumes, PostgreSQL and the
         # uploads running beside this one are all outside it.
+        # A cleanup that fails is not a failed upload, so it does not fail the
+        # step — but it is said out loud: the preflight sweep reclaims the
+        # directory on the next deploy, and until then it holds disk space.
         cleanup_stage() {
           # shellcheck disable=SC2029
-          ssh "$SSH_USER@$SSH_HOST" "rm -rf -- '$STAGE_DIR'; rmdir --ignore-fail-on-non-empty -- '$APP_DIR/incoming/$RELEASE_ID' 2>/dev/null || true" || true
+          if ! ssh "$SSH_USER@$SSH_HOST" "rm -rf -- '$STAGE_DIR' && { rmdir --ignore-fail-on-non-empty -- '$APP_DIR/incoming/$RELEASE_ID' 2>/dev/null || true; }"; then
+            echo "::warning title=Staging directory not removed::incoming/$RELEASE_ID/$STAGE could not be removed from the server; the next deploy's preflight sweep reclaims it."
+          fi
         }
         trap 'rc=$?; cleanup_stage; exit "$rc"' ERR
 

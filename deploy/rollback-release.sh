@@ -44,6 +44,9 @@
 #   2  usage error.
 #   3  ROLLBACK IMPOSSIBLE — no target exists, so NOTHING was changed and the
 #      release that failed is still whatever is in front of traffic.
+#   4  NOTHING TO ROLL BACK — the release named as failed IS the recorded
+#      target, so NOTHING was changed: a previous rollback already restored it,
+#      or this was a redeploy of the commit that was already live.
 #
 # The target is read from <app-dir>/runtime/rollback.env, which the release
 # script writes before it switches traffic. Run by hand to undo the release that
@@ -100,13 +103,34 @@ if [ -z "$TARGET_RELEASE" ]; then
   exit 3
 fi
 
+# BEFORE ANYTHING IS TOUCHED, part two: is the release being rolled back the very
+# release a rollback would restore?
+#
+# runtime/rollback.env records ONE step back, and nothing rewrites it after a
+# rollback. So once a rollback has run, `current` IS the recorded target, and a
+# second rollback named the live release as the failed one. It then did to it
+# exactly what it does to a failed release: `docker rm -f` on the containers
+# serving production, a recreate from the same image, and ROLLBACK OK after up to
+# a minute of downtime. The likeliest way here is an operator pressing "Roll back
+# production" after a deploy that had already rolled itself back; a redeploy of
+# the commit that is already live arrives at the same state from the other side.
+#
+# There is nothing further back to go to, so NOTHING is changed.
+failed_id="${FAILED_RELEASE%/}"
+failed_id="${failed_id##*/}"
+if [ -n "$failed_id" ] && [ "$failed_id" = "$TARGET_ID" ]; then
+  echo "NOTHING TO ROLL BACK: $TARGET_ID is both the release named as failed and the recorded rollback target." >&2
+  echo "$TARGET_FILE records one step back and a previous rollback has already taken it (or this was a redeploy of the live commit). NOTHING has been changed; $TARGET_ID keeps whatever containers and proxy configuration it had." >&2
+  echo "To go further back, deploy a known-good commit (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+  exit 4
+fi
+
 # From here a target exists, so the failed release is genuinely being replaced
 # and its containers go first, whatever else this script can do. They run with
 # `--restart unless-stopped` against the production database, so leaving them up
 # means a release that is being rolled back keeps claiming jobs and sending
 # customer email.
 if [ -n "$FAILED_RELEASE" ]; then
-  failed_id="${FAILED_RELEASE##*/}"
   docker rm -f "fluxradar-api-$failed_id" "fluxradar-web-$failed_id" >/dev/null 2>&1 || true
   docker rm -f "fluxradar-rollback-probe-$failed_id" >/dev/null 2>&1 || true
 fi

@@ -5,7 +5,11 @@ description: >-
 
 # Every quality job needs the same four steps, and when they were copied per job
 # they drifted: a Node version bumped in one place, a pnpm version in another.
-# The versions live here once, so a bump is one edit and every job moves with it.
+# The Node version lives here once. The pnpm version is not repeated here:
+# pnpm/action-setup reads `packageManager` from package.json when `version` is
+# left out, so CI follows package.json. It is NOT the only copy — Dockerfile.api
+# and Dockerfile.web each pin it again in `corepack prepare pnpm@…`, so a pnpm
+# bump is still three edits: package.json and both Dockerfiles.
 
 inputs:
   download-dist:
@@ -20,12 +24,10 @@ runs:
   using: composite
   steps:
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10.11.0
+      uses: pnpm/action-setup@v6
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: 24
         cache: pnpm
@@ -36,6 +38,6 @@ runs:
 
     - name: Download compiled workspace
       if: inputs.download-dist == 'true'
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: workspace-dist

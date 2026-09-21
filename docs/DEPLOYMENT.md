@@ -507,7 +507,9 @@ on each other.
 
 The two lint jobs are defined as a partition — the backend job is *everything the
 frontend job does not take* — so splitting the lint in two cannot quietly leave a
-directory unlinted by either half.
+directory unlinted by either half. `DEPLOY-017` holds the two lists to each
+other, and runs the `remote-upload` action and the manual rollback workflow the
+same way the other deploy tests run their scripts.
 
 The workspace packages resolve through their `exports` to `dist/index.js`, which
 is the whole reason `build-backend` exists as a job: everything that imports one
@@ -713,6 +715,23 @@ what an operator has to set up once.
 | 03:30 UTC Sunday (cron) | `pg-restore.sh --verify-latest` | no — restores into a throwaway database |
 | 04:20 UTC daily (GitHub Actions) | `backup-verify` workflow, the same verification over SSH | no |
 | Every deploy that adds a migration | the `backup` stage of `deploy.yml`, running the same `pg-backup.sh` | reads it with `pg_dump` |
+| Every deploy | `check-backup-config.sh` on the env file the `package` stage ships | no |
+
+### Whether a release can be backed up at all
+
+Production once ran for two weeks with `FLUXRADAR_BACKUP_ENCRYPTION_KEY` set
+nowhere: `pg-backup.sh` refused to run every night, `backup-verify` failed every
+night, and every deploy in that time went green, because nothing in the deploy
+asked. The `package` stage now runs `deploy/backup/check-backup-config.sh` on the
+env file it is about to ship, and when anything a backup needs is missing — the
+encryption key, `POSTGRES_DB`/`POSTGRES_USER`, any `HETZNER_S3_*` — the run
+carries a **"Production cannot be backed up"** warning naming the variables
+(names only, never values).
+
+It warns rather than blocks: a deploy gated on the backup configuration would
+also block the fix for whatever else is wrong in production. The list it checks
+is compared with `pg-backup.sh` and `backup-cli.cjs` by `DEPLOY-016`, so a
+variable added to either cannot go unchecked.
 
 ### The snapshot before a migration
 
@@ -725,11 +744,21 @@ the only answer is a dump, and the newest scheduled one can be up to 26 hours ol
 (*Freshness*, below).
 
 So the `backup` stage takes one, from the release that is still running,
-immediately before the schema changes under it. It runs **only when this release
-carries a migration directory the active release does not** — a deploy that
-changes no migration runs nothing, which keeps the common case as fast as it was
-— and it is compared by directory name, so a migration edited in place after it
-has been applied is not detected (nor should it be: Prisma refuses that anyway).
+immediately before the schema changes under it
+(`deploy/backup/pre-migration-snapshot.sh`). It is skipped **only when both
+releases' migration directories were listed successfully and the new one adds
+nothing** — a deploy that changes no migration runs nothing, which keeps the
+common case as fast as it was. The comparison is by directory name, so a
+migration edited in place after it has been applied is not detected (nor should
+it be: Prisma refuses that anyway).
+
+**When in doubt, it snapshots.** A release without its migrations directory, an
+active release without one, a listing or a comparison that fails — each means
+"cannot tell what this release will migrate", and the answer to that is the
+snapshot, never "no snapshot needed". The first, inline version got this
+backwards: `comm … || true` over listings nothing checked, so any error there
+read as "no new migrations". `DEPLOY-015` runs the script through every one of
+those cases, and each fails if the gate is made to fail open again.
 
 A failure here **stops the deploy**, with the previous release still serving and
 the schema untouched. That is the point: the alternative is applying an
@@ -922,25 +951,43 @@ same time.
 | --- | --- | --- | --- |
 | `quality` | — | `quality.yml`, without the image build | No |
 | `preflight` | `quality` | Reclaims this workflow's own stale staging dirs under `incoming/` | No |
-| `image-api` | `preflight` | Builds, saves, ships and `docker load`s the API image | No |
-| `image-web` | `preflight` | The same for the web image, in parallel | No |
+| `image` | `preflight` | A matrix (`api`, `web`): builds, saves, ships and `docker load`s each image, in parallel | No |
 | `package` | `preflight` | Builds the release archive and the env file, uploads both, extracts into `releases/<commit>` | No |
-| `backup` | the three above | Snapshots the database **if** this release adds migrations | No |
-| `release` | `backup` | Migrates, proves a rollback is possible, starts the containers, switches traffic | Yes, from the switch onwards |
-| `verify` | `release` | The public smoke test, and the rollback when it fails | It undoes one |
+| `backup` | `image`, `package` | Snapshots the database **if** this release adds migrations | No |
+| `release` | `backup` | Runs `deploy/release.sh` from the new release directory: migrates, proves a rollback is possible, starts the containers, switches traffic | Yes, from the switch onwards |
+| `verify` | `release` | `deploy/verify-release.sh`: the public smoke test, and the rollback when it fails | It undoes one |
+| `recover` | `release`, `verify` | Runs `verify-release.sh` again when the release is live and `verify` did not finish green | It undoes one |
 
 Everything up to and including `backup` leaves the previous release serving and
 untouched; a failure there is a workflow that went red and a production that
 never noticed. `release` is where that stops being true, and it is the stage that
 carries the rollback machinery described below.
 
-**There is deliberately no "roll back on failure" job.** It is the obvious
-refactor and it is wrong: a rollback is only correct once traffic has been
-switched, and a job-level `if: failure()` cannot tell. After a failure that never
-reached production it would read `runtime/rollback.env` — written by the
-*previous* deploy — and restore that target over a release that is serving
-perfectly well. Only two callers can tell the difference, and both already do:
-the release script's exit handler, and the public smoke test.
+**Why `recover` is conditioned the way it is.** A rollback is only correct once
+traffic has been switched. A bare `if: failure()` cannot tell whether that
+happened: after a failure that never reached production it would read
+`runtime/rollback.env` — written by the *previous* deploy — and restore that
+target over a release serving perfectly well. `needs.release.result == 'success'`
+*can* tell, because the release script exits 0 only after the switch and every
+check after it. So `recover` runs with
+
+```yaml
+if: always() && needs.release.result == 'success' && needs.verify.result != 'success'
+```
+
+— exactly when a release is live and its outside verification did not finish
+green. That is the gap the staged pipeline opened: a job boundary now sits
+between the traffic switch and the public smoke test, and a `verify` job that
+failed *before* its smoke test ran (checkout, SSH setup, a lost runner), was
+cancelled or timed out used to leave a switched, never-verified release in front
+of traffic. `always()` is what keeps `recover` running on a cancellation, and the
+release condition is what keeps that safe.
+
+`recover` runs the same `deploy/verify-release.sh` as `verify`, and it asks the
+site **first**: after a `verify` that already rolled back, the previous release
+answers and nothing is touched. A rollback it does start is refused by
+`rollback-release.sh` (exit `4`) when the live release is already the target.
+`DEPLOY-012` runs the script and asserts the condition.
 
 ## Release rollback
 
@@ -964,6 +1011,25 @@ It never invents a target: when `runtime/rollback.env` names no earlier release
 the script changes nothing and the workflow fails loudly, because the answer then
 is to deploy a known-good commit, not to tear down the only release there is.
 
+**Pressing it twice does nothing the second time.** `runtime/rollback.env`
+records one step back and no rollback rewrites it, so once a rollback has run —
+by hand, or by a deploy that rolled itself back — the release that is live *is*
+the recorded target. `rollback-release.sh` refuses that case before it touches
+anything and exits `4` (*nothing to roll back*); the workflow says so, reports
+whether the live release passes the public smoke test, and fails, because the
+rollback that was asked for did not happen. Before this guard, the second run
+removed the containers serving production and recreated them — up to a minute of
+downtime reported as `ROLLBACK OK`. A redeploy of the commit that is already
+live arrives at the same state, and both deploy-time callers report it the same
+way. `DEPLOY-011` covers it.
+
+| `rollback-release.sh` exit | Meaning |
+| --- | --- |
+| `0` | The target is serving again, proven by a readiness probe. |
+| `1` | It tried and could not restore; production needs manual recovery. |
+| `3` | There is no target (a first deploy); nothing was changed. |
+| `4` | The release named as failed *is* the target; nothing was changed. |
+
 ### What a failed rollout does, exactly
 
 There are three phases, and the contract is different in each. `DEPLOY-010`,
@@ -974,6 +1040,7 @@ There are three phases, and the contract is different in each. `DEPLOY-010`,
 | Before the traffic switch | migration, rollback compatibility gate, readiness | The previous release never stops serving. The new containers are removed; nothing else is touched. |
 | After the traffic switch, while the release script runs | Caddy, `caddy validate`, the loopback smoke, the `current` symlink | `deploy/rollback-release.sh` restores the previous release and the workflow fails. |
 | After the release script exits — the public smoke test | DNS, certificate, the site as seen from outside | The same `deploy/rollback-release.sh` runs over SSH, the site is re-checked from the runner, and the workflow fails. |
+| After the release script exits — `verify` never finished | `verify`'s own checkout or SSH setup, a lost runner, a cancellation, a timeout | `recover` runs the public smoke test; if it fails, the same rollback, and the workflow fails. |
 | Either of those, on the **first** deploy of a host | anything post-switch | There is no earlier release, so the rollback changes **nothing** and reports `ROLLBACK IMPOSSIBLE`. The release that failed keeps serving — tearing it down would leave the host serving nothing — and the workflow fails with a CRITICAL line asking for manual action. |
 
 Once the release is live and recorded, the retention sweep that trims old
@@ -1130,7 +1197,7 @@ from the release being deployed and executed against the **old image's** modules
 
 If either check fails the deploy stops with production untouched, and the failing
 variables or models are printed in the workflow log. `DEPLOY-006` extracts the
-workflow's own `docker run` lines and asserts the entrypoint override, and runs
+release script's own `docker run` lines and asserts the entrypoint override, and runs
 the probe against a real database to prove it passes, fails closed, and writes
 nothing.
 
@@ -1150,7 +1217,7 @@ is missing, so a first deploy used to yield the rollback target `current` and ab
 looking for the image `fluxradar-api:current`. Anything that exists — a live
 symlink, a dangling one, even a plain directory — counts as a rollback target and
 keeps the gate running (fail closed). `DEPLOY-001` extracts those exact lines from
-the workflow and runs them against both GNU and BSD `readlink`.
+`deploy/release.sh` and runs them against both GNU and BSD `readlink`.
 
 Two rules follow, and `BILLING-007` enforces the first one in CI:
 

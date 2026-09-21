@@ -31,6 +31,12 @@ concurrency:
   group: production-deploy
   cancel-in-progress: false
 
+env:
+  # Must match the phrase the `confirm` input's description asks for; an input
+  # description cannot read a variable, so that one is written out by hand.
+  CONFIRMATION_PHRASE: roll back production
+  PUBLIC_HOST: fluxradar.net
+
 jobs:
   rollback:
     name: Restore the previous release
@@ -40,16 +46,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check the confirmation
         env:
           CONFIRM: ${{ inputs.confirm }}
         run: |
           set -euo pipefail
-          if [ "$CONFIRM" != "roll back production" ]; then
+          if [ "$CONFIRM" != "$CONFIRMATION_PHRASE" ]; then
             echo 'ERROR: this workflow changes what production serves and was not confirmed.' >&2
-            echo 'Re-run it and type: roll back production' >&2
+            echo "Re-run it and type: $CONFIRMATION_PHRASE" >&2
             exit 1
           fi
 
@@ -87,14 +93,26 @@ jobs:
             echo 'CRITICAL: runtime/rollback.env names no earlier release, so NOTHING was changed and the release you wanted to undo is still live. Deploy a known-good commit instead (docs/DEPLOYMENT.md, "Release rollback").' >&2
             exit 1
           fi
+          if [ "$rollback_status" -eq 4 ]; then
+            # The case the guard in rollback-release.sh exists for: the deploy
+            # already rolled itself back, and the release that is live now IS the
+            # recorded target. There is nothing further back to go to.
+            echo 'Nothing was rolled back: the release that is live IS the recorded rollback target — a previous rollback already restored it, and runtime/rollback.env records only one step back. Nothing was changed. To go further back, deploy a known-good commit (docs/DEPLOYMENT.md, "Release rollback").' >&2
+            if bash deploy/public-smoke.sh --host "$PUBLIC_HOST"; then
+              echo "For the record: that release is serving $PUBLIC_HOST correctly." >&2
+            else
+              echo 'CRITICAL: and that release fails the public smoke test too. Production needs manual recovery (docs/DEPLOYMENT.md, "Release rollback").' >&2
+            fi
+            exit 1
+          fi
           if [ "$rollback_status" -ne 0 ]; then
             echo 'CRITICAL: the rollback failed; production may still be serving the release you wanted to undo. Recover by hand (docs/DEPLOYMENT.md, "Release rollback").' >&2
             exit 1
           fi
 
           # Restored is a claim, not a fact, until the site answers from outside.
-          if ! bash deploy/public-smoke.sh --host fluxradar.net; then
-            echo 'CRITICAL: the rollback ran but fluxradar.net still fails the public smoke test. Production needs manual recovery (docs/DEPLOYMENT.md, "Release rollback").' >&2
+          if ! bash deploy/public-smoke.sh --host "$PUBLIC_HOST"; then
+            echo "CRITICAL: the rollback ran but $PUBLIC_HOST still fails the public smoke test. Production needs manual recovery (docs/DEPLOYMENT.md, \"Release rollback\")." >&2
             exit 1
           fi
-          echo 'Rolled back: the previous release is serving fluxradar.net again.'
+          echo "Rolled back: the previous release is serving $PUBLIC_HOST again."
