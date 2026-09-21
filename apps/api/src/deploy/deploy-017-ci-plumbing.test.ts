@@ -67,7 +67,9 @@ function runBodyAfter(file: string, anchor: string): string {
     body.push(line);
   }
   const indent = Math.min(
-    ...body.filter((line) => line.trim() !== '').map((line) => line.length - line.trimStart().length),
+    ...body
+      .filter((line) => line.trim() !== '')
+      .map((line) => line.length - line.trimStart().length),
   );
   const script = body.map((line) => (line.trim() === '' ? '' : line.slice(indent))).join('\n');
   expect(script).not.toContain('${{');
@@ -224,7 +226,10 @@ exit "${'$'}{code:-0}"
       const smokeLog = join(root, 'smoke.log');
       writeFileSync(sshLog, '');
       writeFileSync(smokeLog, '');
-      writeFileSync(join(root, 'step.sh'), runBodyAfter(ROLLBACK_WORKFLOW_PATH, '      - name: Roll back'));
+      writeFileSync(
+        join(root, 'step.sh'),
+        runBodyAfter(ROLLBACK_WORKFLOW_PATH, '      - name: Roll back'),
+      );
       const result = spawnSync('bash', ['step.sh'], {
         cwd: root,
         encoding: 'utf8',
@@ -251,13 +256,17 @@ exit "${'$'}{code:-0}"
     it('rolls back the release `current` points at, with the shipped script', () => {
       const run = rollback(0);
       expect(run.sshLog).toContain('SSH ARGS: fluxradar@server.invalid bash -s -- /opt/fluxradar');
-      expect(run.sshLog).toContain('bash "$CURRENT/deploy/rollback-release.sh" "$APP_DIR" "$CURRENT"');
+      expect(run.sshLog).toContain(
+        'bash "$CURRENT/deploy/rollback-release.sh" "$APP_DIR" "$CURRENT"',
+      );
     });
 
     it('passes only when the restored release answers from outside', () => {
       const run = rollback(0, '0');
       expect(run.exitCode).toBe(0);
-      expect(run.output).toContain('Rolled back: the previous release is serving fluxradar.net again.');
+      expect(run.output).toContain(
+        'Rolled back: the previous release is serving fluxradar.net again.',
+      );
       expect(run.smokeCalls).toEqual(['SMOKE --host fluxradar.net']);
 
       const stillBroken = rollback(0, '1');
@@ -296,10 +305,18 @@ exit "${'$'}{code:-0}"
 
     it('does nothing at all unless the operator typed the phrase', () => {
       const confirm = (typed: string) =>
-        spawnSync('bash', ['-c', runBodyAfter(ROLLBACK_WORKFLOW_PATH, '      - name: Check the confirmation')], {
-          encoding: 'utf8',
-          env: { PATH: process.env.PATH ?? '', CONFIRM: typed, CONFIRMATION_PHRASE: 'roll back production' },
-        }).status;
+        spawnSync(
+          'bash',
+          ['-c', runBodyAfter(ROLLBACK_WORKFLOW_PATH, '      - name: Check the confirmation')],
+          {
+            encoding: 'utf8',
+            env: {
+              PATH: process.env.PATH ?? '',
+              CONFIRM: typed,
+              CONFIRMATION_PHRASE: 'roll back production',
+            },
+          },
+        ).status;
       expect(confirm('roll back production')).toBe(0);
       expect(confirm('yes')).toBe(1);
       expect(confirm('')).toBe(1);

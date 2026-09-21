@@ -32,7 +32,6 @@ const VERIFY_SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'verify-release.sh');
 const APP_DIR = '/opt/fluxradar';
 const RELEASE_ID = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 
-
 const workspaces: string[] = [];
 
 afterEach(() => {
@@ -94,7 +93,10 @@ function runStep(options: { smokeResults: string; sshExit?: number }): StepRun {
 
   // Beside the stubbed smoke test, exactly where it ships: the script finds
   // public-smoke.sh relative to itself, not to the working directory.
-  writeExecutable(join(workspace, 'deploy', 'verify-release.sh'), readFileSync(VERIFY_SCRIPT_PATH, 'utf8'));
+  writeExecutable(
+    join(workspace, 'deploy', 'verify-release.sh'),
+    readFileSync(VERIFY_SCRIPT_PATH, 'utf8'),
+  );
 
   const result = spawnSync('bash', ['deploy/verify-release.sh', '--host', 'fluxradar.net'], {
     cwd: workspace,

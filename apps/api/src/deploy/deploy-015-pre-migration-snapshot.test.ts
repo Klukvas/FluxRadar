@@ -90,7 +90,8 @@ function makeRelease(
       mkdirSync(join(migrationsDir, name));
       writeFileSync(join(migrationsDir, name, 'migration.sql'), '-- migration\n');
     }
-    if (withLockFile) writeFileSync(join(migrationsDir, 'migration_lock.toml'), 'provider = "postgresql"\n');
+    if (withLockFile)
+      writeFileSync(join(migrationsDir, 'migration_lock.toml'), 'provider = "postgresql"\n');
   }
   return releaseDir;
 }
@@ -102,7 +103,9 @@ function runGate(options: Options = {}): GateRun {
   const currentDir = makeRelease(
     appDir,
     CURRENT_ID,
-    options.current === undefined ? ['20260101000000_init', '20260201000000_billing'] : options.current,
+    options.current === undefined
+      ? ['20260101000000_init', '20260201000000_billing']
+      : options.current,
     true,
   );
   if (!options.noBackupScript) {
@@ -185,7 +188,9 @@ describe('DEPLOY-015 pre-migration snapshot', () => {
       expect(gate.backupCalls).toHaveLength(1);
       expect(gate.backupCalls[0]).toMatch(/^--app-dir \S+/);
       expect(gate.output).toContain(NEW_MIGRATION);
-      expect(gate.output).toContain('OK: a snapshot of the pre-migration database is in the bucket');
+      expect(gate.output).toContain(
+        'OK: a snapshot of the pre-migration database is in the bucket',
+      );
     });
 
     it('refuses to migrate when the snapshot fails', () => {
