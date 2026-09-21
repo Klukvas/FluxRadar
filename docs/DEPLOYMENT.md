@@ -1415,38 +1415,17 @@ actually changed (the provider-neutral column wins a tie) and keeps the INSERT
 behaviour. It only runs `CREATE OR REPLACE FUNCTION`, so it adds no object the
 contract phase below does not already drop.
 
-Its **contract phase** ships later, as its own migration marked
-`-- fluxradar:contract-phase`, once the FastSpring release has been stable long
-enough that no earlier release can come back:
-
-```sql
--- fluxradar:contract-phase — only after no release reading paddle* can return.
-DROP TRIGGER "Purchase_sync_provider_ids" ON "Purchase";
-DROP TRIGGER "WebhookEvent_sync_provider_ids" ON "WebhookEvent";
-DROP TRIGGER "RefundRecord_sync_provider_ids" ON "RefundRecord";
-DROP FUNCTION "fluxradar_sync_purchase_ids"();
-DROP FUNCTION "fluxradar_sync_webhook_event_ids"();
-DROP FUNCTION "fluxradar_sync_refund_record_ids"();
-DROP INDEX "Purchase_paddleTransactionId_key";
-DROP INDEX "WebhookEvent_paddleEventId_key";
-DROP INDEX "WebhookEvent_paddleTransactionId_idx";
-ALTER TABLE "Purchase" DROP COLUMN "paddleTransactionId";
-ALTER TABLE "WebhookEvent" DROP COLUMN "paddleEventId", DROP COLUMN "paddleTransactionId";
-ALTER TABLE "RefundRecord"
-  DROP COLUMN "paddleTransactionId", DROP COLUMN "paddleEventId", DROP COLUMN "paddleSignature";
-```
-
-The rollback probe runs the *previous* release's Prisma client, so this can only
-ship after a release whose client no longer selects these columns. That release
-is D-229: it removed the `paddle*` fields from `schema.prisma` (the columns stay,
-filled by their triggers) and every other trace of Paddle from the code. The
-probe checks only the previous release, but the workflow keeps **two** rollback
-candidates, and a manual rollback to one that still selects these columns would
-fail. So ship the contract phase once both retained candidates are D-229 or
-later — one ordinary release after D-229 is enough. It also removes the
-`paddle*` index names `billing/prisma-errors.ts` still recognises, the trigger
-tests in `BILLING-007`, and the `'paddle'` default of the three `provider`
-columns.
+Its **contract phase** is
+**`20260923100000_drop_retired_payment_columns`**, marked
+`-- fluxradar:contract-phase`: it drops the mirroring triggers and functions, the
+retired columns and their indexes, and the retired-provider default of the three
+`provider` columns. It could only follow a release whose Prisma client no longer
+selects those columns — D-229, which stopped declaring them in `schema.prisma` —
+and it may only ship once **both** retained rollback candidates are D-229 or
+later: the rollback probe checks the previous release, but the workflow keeps
+two, and a manual rollback to one that still selects the columns would fail. One
+ordinary release after D-229 is enough. Nothing is lost: every dropped value was a
+copy of a column that stays.
 
 Keep the previous release until the replacement has passed the internal and
 public smoke tests. The workflow retains the active release and two rollback

@@ -13,23 +13,12 @@ export function isUniqueViolation(error: unknown, field: string): boolean {
   return JSON.stringify(target ?? '').includes(field);
 }
 
-// Until the contract-phase migration drops them (D-229), the retired
-// compatibility unique indexes still exist in the database beside the
-// provider-neutral ones, and a trigger fills both columns. A duplicate event or
-// order can therefore be reported against either index, and which one
-// PostgreSQL names first is not something the handlers may depend on.
-// These two helpers ask the only question the handlers actually have: "is this a
-// redelivery?" — never "which index noticed".
-
-/** A webhook event id that has already been stored, under either index. */
+/** A webhook event id that has already been stored: a redelivery. */
 export function isDuplicateEventId(error: unknown): boolean {
-  return isUniqueViolation(error, 'providerEventId') || isUniqueViolation(error, 'paddleEventId');
+  return isUniqueViolation(error, 'providerEventId');
 }
 
-/** A transaction/order id that already has a purchase, under either index. */
+/** A transaction/order id that already has a purchase. */
 export function isDuplicateTransactionId(error: unknown): boolean {
-  return (
-    isUniqueViolation(error, 'providerTransactionId') ||
-    isUniqueViolation(error, 'paddleTransactionId')
-  );
+  return isUniqueViolation(error, 'providerTransactionId');
 }
