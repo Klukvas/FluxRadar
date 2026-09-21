@@ -8,6 +8,7 @@ import {
   type CheckoutStatus,
   type Scan,
 } from './api';
+import { trackPurchase } from './checkout-analytics';
 import { openPopupCheckout, releasePopupCheckout, type PopupFailureReason } from './fastspring-sbl';
 import type { PendingCheckout } from './checkout-storage';
 import { copy, type Language } from './i18n';
@@ -156,6 +157,16 @@ export function CheckoutPending(props: CheckoutPendingProps) {
   useEffect(() => {
     handlers.current = { onConfirmed, onError, pollFailed: t.pollFailed };
   });
+
+  // Prices and the store's test/live mode, for the purchase report below.
+  const checkoutConfig = useCheckoutConfig(true);
+  const readyConfig = checkoutConfig.status === 'ready' ? checkoutConfig.config : null;
+  const confirmedPurchase = status?.scanId == null ? null : status;
+  useEffect(() => {
+    if (confirmedPurchase !== null) trackPurchase(confirmedPurchase, readyConfig);
+    // Keyed on the purchase id, not the status object: polling that returns the
+    // same order again must not report it again.
+  }, [confirmedPurchase?.purchaseId, readyConfig]);
 
   const { storefront, sessionId, reference } = checkout;
   const opening = popup.kind === 'opening';

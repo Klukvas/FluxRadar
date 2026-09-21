@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { trackEvent } from './analytics';
 import { apiRequest, type Account } from './api';
 import { authCopy } from './auth-copy';
 import { AlertDialog, Button, Checkbox, Field, Window } from './components';
@@ -82,6 +83,8 @@ export function AuthScreen(props: {
         method: 'POST',
         body: JSON.stringify({ email, password, rememberMe }),
       });
+      // GA4's recommended names, so both land in the standard acquisition reports.
+      trackEvent(mode === 'register' ? 'sign_up' : 'login', { method: 'email' });
       await props.onAuthed(account);
     } catch (caught) {
       props.onError(caught instanceof Error ? caught.message : t.failed);
