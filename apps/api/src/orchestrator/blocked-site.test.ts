@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import type { PerformanceSnapshot } from '../integrations/performance.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import { purchaseScan } from '../test-utils/purchase-scan.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { createDefaultAiProvider } from './geo.ts';
 import { processScan } from './worker.ts';
 
@@ -76,7 +77,6 @@ describe('a paid scan of a site that blocks the crawler', () => {
   async function runBlockedScan() {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -89,15 +89,11 @@ describe('a paid scan of a site that blocks the crawler', () => {
       .post('/profiles')
       .set('Cookie', cookie)
       .send({ name: 'Blocked Site', domain: 'https://example.com' });
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', cookie)
-      .send({
-        siteProfileId: profile.body.data.id as string,
-        plan: 'Complete',
-        scope: { includeSubdomains: false },
-      });
-    const scanId = checkout.body.data.scanId as string;
+    const { scanId } = await purchaseScan(db.prisma, {
+      siteProfileId: profile.body.data.id as string,
+      plan: 'Complete',
+      scope: {},
+    });
 
     const result = await processScan(
       {
@@ -208,7 +204,6 @@ describe('a scan whose egress proxy is down', () => {
   it('fails as a platform failure, and never blames the site or goes direct', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -221,15 +216,11 @@ describe('a scan whose egress proxy is down', () => {
       .post('/profiles')
       .set('Cookie', cookie)
       .send({ name: 'Healthy Site', domain: 'https://example.com' });
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', cookie)
-      .send({
-        siteProfileId: profile.body.data.id as string,
-        plan: 'Complete',
-        scope: { includeSubdomains: false },
-      });
-    const scanId = checkout.body.data.scanId as string;
+    const { scanId } = await purchaseScan(db.prisma, {
+      siteProfileId: profile.body.data.id as string,
+      plan: 'Complete',
+      scope: {},
+    });
 
     let fetched = 0;
     const result = await processScan(

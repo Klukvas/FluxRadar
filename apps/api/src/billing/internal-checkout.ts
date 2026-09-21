@@ -3,7 +3,8 @@ import type { ScanScopeInput } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
 
 import { JOB_TYPES } from './constants.ts';
-import type { PaddleCustomData, PaidPlan } from './webhook-schema.ts';
+import type { AiConsentInput } from './checkout-metadata.ts';
+import type { PaidPlan } from './plans.ts';
 import { captureExecutionConfig, lockOwnProfile } from '../profiles/execution-config.ts';
 import { scopeWithEgressLocation, type LaunchEgress } from '../scans/launch-egress.ts';
 
@@ -15,7 +16,7 @@ export interface InternalCheckoutParams {
   readonly scope: ScanScopeInput;
   /** The egress location checked at launch; it, not `scope`, names where the scan goes. */
   readonly egress: LaunchEgress;
-  readonly aiConsent: PaddleCustomData['aiConsent'];
+  readonly aiConsent: AiConsentInput | undefined;
   readonly now: Date;
   readonly expectedProfileConfigVersion?: number | undefined;
 }

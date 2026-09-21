@@ -8,7 +8,7 @@ import type { EgressHealth } from '../integrations/crawl-egress-health.ts';
 import { EGRESS_LOCATIONS, egressLocation } from '../integrations/crawl-egress-locations.ts';
 import { createEgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import { usageMonthOf } from '../integrations/crawl-egress-usage.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import type { WorkerDeps } from './deps.ts';
 import { createDefaultAiProvider } from './geo.ts';
 import { processScan } from './worker.ts';
@@ -64,7 +64,6 @@ describe('a scan crawls from the location it recorded', () => {
   async function launchFrom(location: string): Promise<string> {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       internalFreeEmails: new Set([OWNER]),

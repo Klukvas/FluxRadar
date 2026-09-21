@@ -11,7 +11,7 @@ import {
   createEgressLocationMonitor,
   type EgressLocationMonitor,
 } from '../integrations/crawl-egress-monitor.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { REACHABILITY_PROBE_TTL_MS } from './reachability-routes.ts';
 
 // Whether a site will let our crawler in, asked before the owner pays.
@@ -65,7 +65,6 @@ describe('site reachability before a purchase', () => {
   }) {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       ...(options.now !== undefined ? { now: options.now } : {}),

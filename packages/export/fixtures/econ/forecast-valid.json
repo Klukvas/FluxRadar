@@ -11,8 +11,8 @@
   "expected_chargeback_loss": 17,
   "fx_buffer": 50,
   "tax_treatment": "pass-through",
-  "variable_cost_basic_p95": 24.25,
-  "variable_cost_complete_p95": 53.5,
+  "variable_cost_basic_p95": 23.3,
+  "variable_cost_complete_p95": 51.97,
   "weighted_average_contribution_margin": 34,
   "provider_invoices_confirmed": true
 }

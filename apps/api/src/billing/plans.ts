@@ -1,7 +1,7 @@
 import { TARIFFS } from '@fluxradar/contracts';
 
-// Provider-neutral paid-plan vocabulary. Both the legacy MockPaddle path and the
-// FastSpring path speak these literals; neither owns them.
+// The paid-plan vocabulary. The checkout, the webhook and the internal
+// free-access path all speak these literals; none of them owns them.
 
 export const PAID_PLANS = ['Basic', 'Complete'] as const;
 export type PaidPlan = (typeof PAID_PLANS)[number];

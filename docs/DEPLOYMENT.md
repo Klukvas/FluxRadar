@@ -277,20 +277,16 @@ So: write plain `KEY=value` lines, and if a generated password would need quotin
 (`apps/api/src/deploy/deploy-002-env-file-parity.test.ts`) runs the shipped script
 against both parser behaviours in CI.
 
-### `PADDLE_WEBHOOK_SECRET`
+### Retired variables
 
-`PADDLE_WEBHOOK_SECRET` is not required by *this* release: the MockPaddle webhook
-is a development affordance and its route is not mounted in production. **Keep the
-value in `PRODUCTION_ENV_FILE`** anyway — releases that predate this one read it
-during startup, so removing it would turn a rollback into a crash loop. The
-normalizer warns (by name) when it is absent, and the rollback probe described
-under *Release rollback* fails the deploy if the previous release cannot boot
-without it.
-
-It may be removed from the environment only once **no release that requires it can
-be started again** — concretely, in or after the same release that ships the
-`paddle*` contract-phase migration described at the end of this document, when the
-retained rollback candidates no longer include such a release.
+Paddle is gone from the code (D-229), and with it two variables that nothing
+reads any more: `PADDLE_WEBHOOK_SECRET` and `FLUXRADAR_ENABLE_MOCK_CHECKOUT`.
+Delete `PADDLE_WEBHOOK_SECRET` from `PRODUCTION_ENV_FILE`: no release a rollback
+could return to requires it — since 2026-09-06 a missing value is replaced by a
+random one at startup — so the normalizer no longer warns about it and the
+rollback probe no longer asks. `FLUXRADAR_ENABLE_MOCK_CHECKOUT` must simply stay
+unset: releases before this one refuse to boot in production with it set, and
+the rollback probe runs their validators.
 
 ### Transactional email
 
@@ -678,10 +674,10 @@ owner. The short version:
   `FASTSPRING_STOREFRONT_URL`. A test-mode order can never grant access on a
   live deployment.
 
-The deployed application still rejects `/billing/dev-checkout` in production for
-ordinary accounts, and the legacy `/webhooks/paddle` route is not mounted there
-at all. An exact, comma-separated `FLUXRADAR_INTERNAL_FREE_EMAILS` allowlist may
-be supplied in the private production environment file for internal testing.
+`/billing/dev-checkout` refuses every account that is not internal, in every
+environment: a signed FastSpring order is the only thing that creates a purchase.
+An exact, comma-separated `FLUXRADAR_INTERNAL_FREE_EMAILS` allowlist may be
+supplied in the private production environment file for internal testing.
 Matching accounts can create Basic/Complete scans without a payment; those scans
 deliberately do not create Purchase or Entitlement records. Keep the allowlist
 limited to team accounts because the scan still consumes server and AI
@@ -1245,9 +1241,8 @@ from the release being deployed and executed against the **old image's** modules
 
 1. **`deploy/rollback-readonly-probe.cjs` — would it start, and can it reach the
    database?** It calls the previous release's own boot-time validators
-   (`validateRuntimeConfig`, `readFastSpringConfig`,
-   `resolvePaddleWebhookSecret`), which is what catches an environment variable it
-   requires and the new release no longer does, and then runs `SELECT 1` inside a
+   (`validateRuntimeConfig`, `readFastSpringConfig`), which is what catches an
+   environment variable it requires and the new release no longer does, and then runs `SELECT 1` inside a
    transaction it first marks `READ ONLY` — verifying the mark before it queries.
    A validator that this release's layout does not contain is skipped by name; a
    validator that is present and throws fails the deploy, and finding none at all
@@ -1342,8 +1337,17 @@ ALTER TABLE "RefundRecord"
   DROP COLUMN "paddleTransactionId", DROP COLUMN "paddleEventId", DROP COLUMN "paddleSignature";
 ```
 
-The matching `paddle*` fields must be removed from `schema.prisma` in the same
-release, and `PADDLE_WEBHOOK_SECRET` may be dropped from the environment then too.
+The rollback probe runs the *previous* release's Prisma client, so this can only
+ship after a release whose client no longer selects these columns. That release
+is D-229: it removed the `paddle*` fields from `schema.prisma` (the columns stay,
+filled by their triggers) and every other trace of Paddle from the code. The
+probe checks only the previous release, but the workflow keeps **two** rollback
+candidates, and a manual rollback to one that still selects these columns would
+fail. So ship the contract phase once both retained candidates are D-229 or
+later — one ordinary release after D-229 is enough. It also removes the
+`paddle*` index names `billing/prisma-errors.ts` still recognises, the trigger
+tests in `BILLING-007`, and the `'paddle'` default of the three `provider`
+columns.
 
 Keep the previous release until the replacement has passed the internal and
 public smoke tests. The workflow retains the active release and two rollback

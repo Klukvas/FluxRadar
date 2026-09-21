@@ -208,7 +208,7 @@ interface WebhookEventBinding {
 /**
  * An order id identifies a purchase only together with its provider: uniqueness
  * is on the pair (see `@@unique([provider, providerTransactionId])`), so a
- * FastSpring order id may equal a legacy MockPaddle transaction id and mean
+ * FastSpring order id may equal another provider's transaction id and mean
  * something entirely different. Matching on the id alone made a foreign
  * provider's purchase look like a binding and kept the buyer payload forever —
  * which is the one thing this purge exists to prevent.

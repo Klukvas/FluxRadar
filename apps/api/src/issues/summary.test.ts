@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { PURCHASE_STATUSES } from '../billing/constants.ts';
 import { silentLogger } from '../http/logger.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import { purchaseScan } from '../test-utils/purchase-scan.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 // The Issue Center's order, its rule view and the "what changed" read.
 //
@@ -14,8 +15,6 @@ import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/te
 // Low, Medium — Low findings above Medium ones, right under a legend promising
 // the opposite. The rule summary and the scan comparison are what the report's
 // "fix these first" and "since last scan" blocks read.
-
-type TestAgent = ReturnType<typeof request.agent>;
 
 const NOW = new Date('2026-09-18T12:00:00.000Z');
 
@@ -41,7 +40,6 @@ describe('issue order, rule summary and scan changes', () => {
   function makeApp() {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       now: () => NOW,
@@ -64,17 +62,13 @@ describe('issue order, rule summary and scan changes', () => {
     return { agent, cookie, profileId: profile.body.data.id as string };
   }
 
-  async function paidScan(agent: TestAgent, cookie: string, profileId: string): Promise<string> {
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', cookie)
-      .send({
-        siteProfileId: profileId,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 15 },
-      });
-    expect(checkout.status).toBe(201);
-    return checkout.body.data.scanId as string;
+  async function paidScan(profileId: string): Promise<string> {
+    const { scanId } = await purchaseScan(db.prisma, {
+      siteProfileId: profileId,
+      plan: 'Complete',
+      scope: { maxPages: 15 },
+    });
+    return scanId;
   }
 
   async function seed(prisma: PrismaClient, scanId: string, issues: readonly SeedIssue[]) {
@@ -115,7 +109,7 @@ describe('issue order, rule summary and scan changes', () => {
   it('lists findings by urgency, not by the alphabetical order of the severity', async () => {
     const app = makeApp();
     const owner = await signUp(app, 'order@example.com');
-    const scanId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    const scanId = await paidScan(owner.profileId);
     await seed(db.prisma, scanId, [
       { ruleId: 'SEO-ONPAGE-002', severity: 'Low', fingerprint: 'fp-a' },
       { ruleId: 'SEO-ONPAGE-001', severity: 'Medium', fingerprint: 'fp-b' },
@@ -137,7 +131,7 @@ describe('issue order, rule summary and scan changes', () => {
   it('filters by rule and searches without regard to case', async () => {
     const app = makeApp();
     const owner = await signUp(app, 'filter@example.com');
-    const scanId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    const scanId = await paidScan(owner.profileId);
     await seed(db.prisma, scanId, [
       { ruleId: 'SEO-ONPAGE-002', severity: 'Medium', fingerprint: 'fp-1' },
       { ruleId: 'SEO-ONPAGE-002', severity: 'Medium', fingerprint: 'fp-2' },
@@ -161,7 +155,7 @@ describe('issue order, rule summary and scan changes', () => {
   it('folds findings by rule, most urgent first, counting only open ones as work', async () => {
     const app = makeApp();
     const owner = await signUp(app, 'summary@example.com');
-    const scanId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    const scanId = await paidScan(owner.profileId);
     await seed(db.prisma, scanId, [
       { ruleId: 'SEO-ONPAGE-002', severity: 'Medium', fingerprint: 'fp-1' },
       { ruleId: 'SEO-ONPAGE-002', severity: 'Medium', fingerprint: 'fp-2' },
@@ -196,7 +190,7 @@ describe('issue order, rule summary and scan changes', () => {
   it('lists a rule once, however many severities its findings carry', async () => {
     const app = makeApp();
     const owner = await signUp(app, 'duplicates@example.com');
-    const scanId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    const scanId = await paidScan(owner.profileId);
     // The UX AI rules take their severity from the model, per finding, so one
     // rule legitimately produces findings at several severities. Grouping by
     // rule + severity listed UX-CONV-AI-002 twice — a Medium row and a Low row,
@@ -234,13 +228,13 @@ describe('issue order, rule summary and scan changes', () => {
   it('says what a re-scan fixed, introduced and kept, against the previous scan of the profile', async () => {
     const app = makeApp();
     const owner = await signUp(app, 'changes@example.com');
-    const firstId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    const firstId = await paidScan(owner.profileId);
     await seed(db.prisma, firstId, [
       { ruleId: 'SEO-ONPAGE-002', severity: 'Medium', fingerprint: 'kept' },
       { ruleId: 'SEC-ASVS-001', severity: 'Critical', fingerprint: 'fixed-1' },
       { ruleId: 'SEC-ASVS-001', severity: 'Critical', fingerprint: 'fixed-2' },
     ]);
-    const secondId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    const secondId = await paidScan(owner.profileId);
     await seed(db.prisma, secondId, [
       { ruleId: 'SEO-ONPAGE-002', severity: 'Medium', fingerprint: 'kept' },
       { ruleId: 'SEO-TECH-001', severity: 'Low', fingerprint: 'new-1' },
@@ -295,12 +289,12 @@ describe('issue order, rule summary and scan changes', () => {
       // can show Kyiv one language, redirect and banner, and Frankfurt another.
       const app = makeApp();
       const owner = await signUp(app, `egress-${comparison}-${String(earlier)}@example.com`);
-      const firstId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+      const firstId = await paidScan(owner.profileId);
       await seed(db.prisma, firstId, [
         { ruleId: 'SEO-TECH-001', severity: 'Low', fingerprint: 'a' },
       ]);
       await recordLocation(firstId, earlier);
-      const secondId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+      const secondId = await paidScan(owner.profileId);
       await seed(db.prisma, secondId, []);
       await recordLocation(secondId, later);
 
@@ -317,11 +311,11 @@ describe('issue order, rule summary and scan changes', () => {
   it('does not compare with a previous report whose payment was returned', async () => {
     const app = makeApp();
     const owner = await signUp(app, 'refunded-previous@example.com');
-    const firstId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    const firstId = await paidScan(owner.profileId);
     await seed(db.prisma, firstId, [
       { ruleId: 'SEC-ASVS-001', severity: 'Critical', fingerprint: 'x' },
     ]);
-    const secondId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    const secondId = await paidScan(owner.profileId);
     await seed(db.prisma, secondId, []);
     const first = await db.prisma.scan.findUniqueOrThrow({ where: { id: firstId } });
     await db.prisma.purchase.update({
@@ -340,7 +334,7 @@ describe('issue order, rule summary and scan changes', () => {
     const app = makeApp();
     const owner = await signUp(app, 'owner@example.com');
     const stranger = await signUp(app, 'stranger@example.com');
-    const scanId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    const scanId = await paidScan(owner.profileId);
     await seed(db.prisma, scanId, [{ ruleId: 'SEO-TECH-001', severity: 'Low', fingerprint: 'fp' }]);
 
     const summary = await stranger.agent

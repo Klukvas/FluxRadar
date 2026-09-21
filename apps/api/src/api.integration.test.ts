@@ -8,11 +8,11 @@ import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { silentLogger } from './http/logger.ts';
 import { deleteAccountData } from './data-retention.ts';
 import { FREE_CHECK_SCORING_REASON } from './orchestrator/free-check.ts';
+import { purchaseScan } from './test-utils/purchase-scan.ts';
 import { createTestDb, type TestDb } from './test-utils/test-db.ts';
 import { FREE_CHECK_RULE_IDS } from '@fluxradar/contracts';
 import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
-import { TEST_WEBHOOK_SECRET } from './test-utils/test-db.ts';
 
 type TestAgent = ReturnType<typeof request.agent>;
 
@@ -39,7 +39,6 @@ describe('T-12 API happy paths', () => {
   it('registers, creates a profile, runs one Free check, and enforces the one-time limit', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -121,7 +120,6 @@ describe('T-12 API happy paths', () => {
   it('allows only one account to claim a domain under concurrent Free checks', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -159,7 +157,6 @@ describe('T-12 API happy paths', () => {
   it('lets an allowlisted origin run the Free check repeatedly, from any account', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       freeCheckAllowedOrigins: new Set(['https://demo.example.com']),
@@ -208,7 +205,6 @@ describe('T-12 API happy paths', () => {
   it('keeps both Free-check limits for an origin the allowlist does not name', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       // A near miss on purpose: the allowlist is exact, so a subdomain of an
@@ -255,7 +251,6 @@ describe('T-12 API happy paths', () => {
     try {
       const app = createApp({
         prisma: db.prisma,
-        webhookSecret: TEST_WEBHOOK_SECRET,
         autoProcess: false,
         logger: silentLogger,
         internalFreeEmails: new Set(['pavlenkoandrey56@gmail.com']),
@@ -299,27 +294,22 @@ describe('T-12 API happy paths', () => {
   it('runs Complete through the worker, exposes issues/dashboard, and exports JSON/CSV', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
     const agent = request.agent(app);
     const account = await register(agent, 'complete@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 15 },
-        aiConsent: {
-          providers: ['anthropic'],
-          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
-        },
-      });
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 15 },
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+    });
+    const scanId = checkout.scanId;
     await runScan(db, scanId);
 
     const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
@@ -388,26 +378,22 @@ describe('T-12 API happy paths', () => {
   it('runs Basic but rejects export', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
     const agent = request.agent(app);
     const account = await register(agent, 'basic@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Basic',
-        scope: { includeSubdomains: false, maxPages: 15 },
-        aiConsent: {
-          providers: ['anthropic'],
-          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
-        },
-      });
-    const scanId = checkout.body.data.scanId as string;
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Basic',
+      scope: { includeSubdomains: false, maxPages: 15 },
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+    });
+    const scanId = checkout.scanId;
     await runScan(db, scanId);
     const scan = await agent.get(`/scans/${scanId}`).set('Cookie', account.cookie);
     expect(scan.body.data.status).toBe('Completed');
@@ -419,22 +405,18 @@ describe('T-12 API happy paths', () => {
   it('retries an unreachable paid scan once and records the external-output refund', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
     const agent = request.agent(app);
     const account = await register(agent, 'offline@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 15 },
-      });
-    const scanId = checkout.body.data.scanId as string;
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 15 },
+    });
+    const scanId = checkout.scanId;
     const result = await processScan(
       {
         prisma: db.prisma,
@@ -465,7 +447,6 @@ describe('T-12 API happy paths', () => {
     const now = new Date('2026-09-03T12:00:00.000Z');
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       now: () => now,
@@ -473,16 +454,13 @@ describe('T-12 API happy paths', () => {
     const agent = request.agent(app);
     const account = await register(agent, 'expired@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Basic',
-        scope: { includeSubdomains: false, maxPages: 15 },
-      });
-    const scanId = checkout.body.data.scanId as string;
-    const purchaseId = checkout.body.data.purchaseId as string;
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Basic',
+      scope: { includeSubdomains: false, maxPages: 15 },
+    });
+    const scanId = checkout.scanId;
+    const purchaseId = checkout.purchaseId;
     await db.prisma.scan.update({ where: { id: scanId }, data: { status: 'Partial' } });
     await db.prisma.entitlement.update({
       where: { purchaseId },
@@ -497,22 +475,18 @@ describe('T-12 API happy paths', () => {
   it('automatically selects a retryable planned module instead of an unavailable stub', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
     const agent = request.agent(app);
     const account = await register(agent, 'module-retry@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 15 },
-      });
-    const scanId = checkout.body.data.scanId as string;
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 15 },
+    });
+    const scanId = checkout.scanId;
     await db.prisma.scan.update({ where: { id: scanId }, data: { status: 'Partial' } });
     await db.prisma.scanModule.createMany({
       data: [
@@ -545,22 +519,18 @@ describe('T-12 API happy paths', () => {
   it('allows an unavailable UX/Conversion module to be retried on Complete', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
     const agent = request.agent(app);
     const account = await register(agent, 'ux-module-retry@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Complete',
-        scope: { includeSubdomains: false, maxPages: 15 },
-      });
-    const scanId = checkout.body.data.scanId as string;
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 15 },
+    });
+    const scanId = checkout.scanId;
     await db.prisma.scan.update({ where: { id: scanId }, data: { status: 'Partial' } });
     await db.prisma.scanModule.create({
       data: {
@@ -588,32 +558,25 @@ describe('T-12 API happy paths', () => {
   it('returns only the current Basic result and rejects explicit history access', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
     const agent = request.agent(app);
     const account = await register(agent, 'basic-history@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = (transactionId: string) =>
-      agent
-        .post('/billing/dev-checkout')
-        .set('Cookie', account.cookie)
-        .send({
-          siteProfileId: profile.id,
-          plan: 'Basic',
-          scope: { includeSubdomains: false, maxPages: 15 },
-          transactionId,
-        });
-    const first = await checkout('txn_history_1');
-    const second = await checkout('txn_history_2');
-    expect(first.status).toBe(201);
-    expect(second.status).toBe(201);
+    const buyBasic = () =>
+      purchaseScan(db.prisma, {
+        siteProfileId: profile.id,
+        plan: 'Basic',
+        scope: { maxPages: 15 },
+      });
+    await buyBasic();
+    const second = await buyBasic();
 
     const current = await agent.get('/scans').set('Cookie', account.cookie);
     expect(current.status).toBe(200);
     expect(current.body.data).toHaveLength(1);
-    expect(current.body.data[0].id).toBe(second.body.data.scanId);
+    expect(current.body.data[0].id).toBe(second.scanId);
     const history = await agent.get('/scans?history=true').set('Cookie', account.cookie);
     expect(history.status).toBe(403);
     expect(history.body.error.code).toBe('HISTORY_REQUIRES_COMPLETE');
@@ -622,7 +585,6 @@ describe('T-12 API happy paths', () => {
   it('restores only the current account active scan and keeps scan IDs tenant-scoped', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -631,16 +593,12 @@ describe('T-12 API happy paths', () => {
     const accountA = await register(agentA, 'active-a@example.com');
     const accountB = await register(agentB, 'active-b@example.com');
     const profileA = await createProfile(agentA, accountA.cookie);
-    const checkout = await agentA
-      .post('/billing/dev-checkout')
-      .set('Cookie', accountA.cookie)
-      .send({
-        siteProfileId: profileA.id,
-        plan: 'Basic',
-        scope: { includeSubdomains: false, maxPages: 15 },
-      });
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profileA.id,
+      plan: 'Basic',
+      scope: { includeSubdomains: false, maxPages: 15 },
+    });
+    const scanId = checkout.scanId;
 
     const active = await agentA.get('/scans/active').set('Cookie', accountA.cookie);
     expect(active.status).toBe(200);
@@ -661,7 +619,6 @@ describe('T-12 API happy paths', () => {
   it('recovers a claimed job and drains it once without creating another job', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -714,7 +671,6 @@ describe('T-12 API happy paths', () => {
     };
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       objectStore,
@@ -722,16 +678,12 @@ describe('T-12 API happy paths', () => {
     const agent = request.agent(app);
     const account = await register(agent, 'delete-me@example.com');
     const profile = await createProfile(agent, account.cookie);
-    const checkout = await agent
-      .post('/billing/dev-checkout')
-      .set('Cookie', account.cookie)
-      .send({
-        siteProfileId: profile.id,
-        plan: 'Basic',
-        scope: { includeSubdomains: false, maxPages: 15 },
-      });
-    expect(checkout.status).toBe(201);
-    const scanId = checkout.body.data.scanId as string;
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Basic',
+      scope: { includeSubdomains: false, maxPages: 15 },
+    });
+    const scanId = checkout.scanId;
     await db.prisma.integrationConnection.create({
       data: {
         accountId: account.id,
@@ -802,7 +754,6 @@ describe('T-12 API happy paths', () => {
   it('refuses to delete a site profile with a checkout in progress', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });

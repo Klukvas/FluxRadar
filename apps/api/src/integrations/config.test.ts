@@ -7,7 +7,6 @@ import { OBJECT_STORAGE_ENV_VARS } from './object-storage-config.ts';
 const completeProductionEnv = {
   NODE_ENV: 'production',
   DATABASE_URL: 'postgresql://user:pass@db:5432/fluxradar',
-  PADDLE_WEBHOOK_SECRET: 'paddle-secret',
   INTEGRATION_ENCRYPTION_KEY: 'dedicated-key',
 } satisfies NodeJS.ProcessEnv;
 
@@ -32,18 +31,15 @@ describe('runtime secret validation', () => {
     const message = messageFrom({
       NODE_ENV: 'production',
       DATABASE_URL: 'postgresql://user:pass@db:5432/fluxradar',
-      PADDLE_WEBHOOK_SECRET: 'paddle-secret',
     });
     expect(message).toContain('INTEGRATION_ENCRYPTION_KEY');
-    expect(message).not.toContain('PADDLE_WEBHOOK_SECRET');
     expect(message).not.toContain('DATABASE_URL');
   });
 
   it('never puts a secret value in the error message', () => {
     const message = messageFrom({
       NODE_ENV: 'production',
-      DATABASE_URL: 'postgresql://user:pass@db:5432/fluxradar',
-      PADDLE_WEBHOOK_SECRET: 'super-secret-value',
+      DATABASE_URL: 'postgresql://user:super-secret-value@db:5432/fluxradar',
     });
     expect(message).toContain('INTEGRATION_ENCRYPTION_KEY');
     expect(message).not.toContain('super-secret-value');
@@ -58,7 +54,6 @@ describe('runtime secret validation', () => {
       messageFrom({
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://user:pass@db:5432/fluxradar',
-        PADDLE_WEBHOOK_SECRET: 'paddle-secret',
         INTEGRATION_ENCRYPTION_KEY: 'dedicated-key',
         // RESEND_API_KEY / RESEND_FROM_EMAIL intentionally absent.
       }),
@@ -154,29 +149,10 @@ describe('production fail-closed integration checks', () => {
   });
 });
 
-// The MockPaddle surface mints purchases, entitlements and paid scans from a
-// locally signed event. It is off unless a deployment asks for it; a production
-// deployment that asks for it anyway must fail to boot rather than start selling
-// nothing.
-describe('production refuses the mock checkout surface', () => {
-  it('names the variable and stops the boot', () => {
-    const message = messageFrom({
-      ...completeProductionEnv,
-      FLUXRADAR_ENABLE_MOCK_CHECKOUT: 'true',
-    });
-
-    expect(message).toContain('FLUXRADAR_ENABLE_MOCK_CHECKOUT');
-  });
-
-  it('boots when it is absent or off', () => {
-    expect(messageFrom(completeProductionEnv)).toBe('');
-    expect(messageFrom({ ...completeProductionEnv, FLUXRADAR_ENABLE_MOCK_CHECKOUT: 'false' })).toBe(
-      '',
-    );
-  });
-
-  // The internal allowlist is the production free-access path and is unaffected.
-  it('leaves the internal free allowlist alone', () => {
+// The internal allowlist is the production free-access path: naming accounts
+// there must never stop a production boot.
+describe('the internal free-access allowlist', () => {
+  it('boots production with it set', () => {
     expect(
       messageFrom({
         ...completeProductionEnv,

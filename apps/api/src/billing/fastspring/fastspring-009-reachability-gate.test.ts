@@ -10,7 +10,7 @@ import {
   type EgressLocationMonitor,
 } from '../../integrations/crawl-egress-monitor.ts';
 import { REACHABILITY_PROBE_TTL_MS } from '../../profiles/reachability-routes.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../../test-utils/test-db.ts';
 import type { FetchLike } from './client.ts';
 import { readFastSpringConfig } from './config.ts';
 import { TEST_FASTSPRING_SECRET } from './test-payloads.ts';
@@ -75,7 +75,6 @@ describe('FASTSPRING-009 a blocked site cannot be bought', () => {
   function buildApp(egress?: EgressLocationMonitor) {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       now: () => NOW,

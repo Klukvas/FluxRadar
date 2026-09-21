@@ -8,7 +8,7 @@ import type { ConfiguredEgressLocation } from '../integrations/crawl-egress-conf
 import type { EgressHealth } from '../integrations/crawl-egress-health.ts';
 import { EGRESS_LOCATIONS, egressLocation } from '../integrations/crawl-egress-locations.ts';
 import { createEgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import {
   resolveLaunchEgressLocation,
   scopeWithEgressLocation,
@@ -76,7 +76,6 @@ describe('launching a scan from a chosen egress location', () => {
     });
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       internalFreeEmails: new Set([OWNER]),

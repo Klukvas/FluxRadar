@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import { purchaseScan } from '../test-utils/purchase-scan.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 // The account screen's two server reads: a signed-in password change, and the
 // owner's purchase history.
@@ -31,7 +32,6 @@ describe('account routes', () => {
   function makeApp() {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       now: () => NOW,
@@ -127,15 +127,11 @@ describe('account routes', () => {
         .set('Cookie', cookie)
         .send({ name: 'Shop', domain: 'https://shop.example.com' });
       expect(profile.status).toBe(201);
-      const checkout = await request(app)
-        .post('/billing/dev-checkout')
-        .set('Cookie', cookie)
-        .send({
-          siteProfileId: profile.body.data.id,
-          plan: 'Basic',
-          scope: { includeSubdomains: false, maxPages: 15 },
-        });
-      expect(checkout.status).toBe(201);
+      const bought = await purchaseScan(db.prisma, {
+        siteProfileId: profile.body.data.id as string,
+        plan: 'Basic',
+        scope: { maxPages: 15 },
+      });
 
       const mine = await request(app).get('/account/purchases').set('Cookie', cookie);
       const theirs = await request(app).get('/account/purchases').set('Cookie', otherCookie);
@@ -147,7 +143,7 @@ describe('account routes', () => {
         status: 'paid',
         domain: 'https://shop.example.com',
         profileName: 'Shop',
-        scanId: checkout.body.data.scanId,
+        scanId: bought.scanId,
       });
       expect(typeof mine.body.data[0].amount).toBe('number');
       expect(theirs.body.data).toEqual([]);

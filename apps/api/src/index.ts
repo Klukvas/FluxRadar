@@ -11,9 +11,7 @@ import {
   readFreeCheckAllowlist,
 } from './billing/free-check-allowlist.ts';
 import { getInternalFreeEmails } from './billing/internal-access.ts';
-import { isMockCheckoutEnabled } from './billing/mock-checkout.ts';
-import { resolvePaddleWebhookSecret } from './billing/paddle-signature.ts';
-import { billingRouter, webhookHandler } from './billing-http/routes.ts';
+import { billingRouter } from './billing-http/routes.ts';
 import { fastSpringRouter, fastSpringWebhookHandler } from './billing-http/fastspring-routes.ts';
 import {
   FASTSPRING_PROVIDER,
@@ -70,7 +68,6 @@ const EGRESS_HEALTH_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface CreateAppOptions {
   readonly prisma: PrismaClient;
-  readonly webhookSecret: string;
   readonly logger?: ApiLogger;
   readonly now?: () => Date;
   readonly autoProcess?: boolean;
@@ -83,8 +80,6 @@ export interface CreateAppOptions {
   readonly internalFreeEmails?: ReadonlySet<string>;
   /** Test seam; production reads FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS. */
   readonly freeCheckAllowedOrigins?: ReadonlySet<string>;
-  /** Test seam; production reads FLUXRADAR_ENABLE_MOCK_CHECKOUT. */
-  readonly mockCheckoutEnabled?: boolean;
   /** Test seam; production uses READINESS_TIMEOUT_MS. */
   readonly readinessTimeoutMs?: number;
   readonly mailer?: Mailer;
@@ -132,7 +127,6 @@ export function createApp(options: CreateAppOptions): Express {
   const internalFreeEmails = options.internalFreeEmails ?? getInternalFreeEmails();
   const freeCheckAllowedOrigins =
     options.freeCheckAllowedOrigins ?? resolveFreeCheckAllowedOrigins(logger);
-  const mockCheckoutEnabled = options.mockCheckoutEnabled ?? isMockCheckoutEnabled();
   const requestRateLimiter = options.requestRateLimiter ?? new RequestRateLimiter();
   const mailer = options.mailer ?? createMailer();
   const fastSpring = options.fastSpring ?? readFastSpringConfig();
@@ -201,7 +195,7 @@ export function createApp(options: CreateAppOptions): Express {
     }),
   );
 
-  // Providers sign the exact request bytes, so both webhook routes must take the
+  // FastSpring signs the exact request bytes, so its webhook route must take the
   // raw body and therefore precede express.json.
   app.post(
     '/webhooks/fastspring',
@@ -215,22 +209,6 @@ export function createApp(options: CreateAppOptions): Express {
       requestRateLimiter,
     }),
   );
-  // The MockPaddle webhook is a development affordance: mounting it anywhere
-  // real would leave a second, non-provider way to mint an entitlement. It is
-  // therefore mounted only where the deployment explicitly asked for the mock
-  // surface — see billing/mock-checkout.ts for why this is no longer NODE_ENV.
-  if (mockCheckoutEnabled) {
-    app.post(
-      '/webhooks/paddle',
-      express.raw({ type: 'application/json', limit: '1mb' }),
-      webhookHandler({
-        prisma: options.prisma,
-        webhookSecret: options.webhookSecret,
-        now,
-        requestRateLimiter,
-      }),
-    );
-  }
   app.use(express.json({ limit: '1mb' }));
 
   app.use(
@@ -300,13 +278,11 @@ export function createApp(options: CreateAppOptions): Express {
   app.use(
     billingRouter({
       prisma: options.prisma,
-      webhookSecret: options.webhookSecret,
       now,
       enqueueScan,
       internalFreeEmails,
       requestRateLimiter,
       mailer,
-      mockCheckoutEnabled,
       egress,
     }),
   );
@@ -341,7 +317,6 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   validateRuntimeConfig();
   const prisma = createPrismaClient();
   const logger = stdoutLogger;
-  const webhookSecret = resolvePaddleWebhookSecret();
   const mailer = createMailer();
   // One store for the whole process: the export route, account deletion and the
   // retention sweep all address the same bucket.
@@ -349,7 +324,7 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   // One monitor for the process: the timer below refreshes the same answers
   // the launch routes read.
   const egress = createConfiguredEgressMonitor(logger);
-  const app = createApp({ prisma, webhookSecret, logger, mailer, objectStore, egress });
+  const app = createApp({ prisma, logger, mailer, objectStore, egress });
   // Recover before listen so a newly submitted scan cannot be claimed by the
   // HTTP path while startup is requeueing jobs left by the previous process.
   const recovered = await recoverClaimedJobs(prisma);
@@ -527,10 +502,7 @@ function corsMiddleware(origin: string) {
     }
     if (req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-      res.setHeader(
-        'Access-Control-Allow-Headers',
-        'Content-Type, paddle-signature, x-fs-signature',
-      );
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-fs-signature');
       res.status(204).end();
       return;
     }

@@ -86,7 +86,6 @@ async function runProbe(
         FLUXRADAR_PROBE_APP_DIR: REPO_ROOT,
         DATABASE_URL: databaseUrl,
         INTEGRATION_ENCRYPTION_KEY: 'probe-test-integration-key',
-        PADDLE_WEBHOOK_SECRET: 'probe-test-webhook-secret',
         ...env,
       },
     });
@@ -218,7 +217,6 @@ describe('DEPLOY-006 rollback probe is read-only', () => {
       const secret = `sentinel-${randomUUID()}`;
       const result = await runProbe(testDatabaseUrl(), {
         INTEGRATION_ENCRYPTION_KEY: secret,
-        PADDLE_WEBHOOK_SECRET: secret,
       });
       expect(result.ok).toBe(true);
       expect(result.output).not.toContain(secret);
