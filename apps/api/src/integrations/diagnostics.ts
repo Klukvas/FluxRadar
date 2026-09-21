@@ -12,6 +12,7 @@ import { readResendConfig } from '../email/resend-config.ts';
 import type { ApiLogger } from '../http/logger.ts';
 import { readTelegramConfig } from '../support/telegram-config.ts';
 import { readAnthropicConfig } from './anthropic-config.ts';
+import { readCrawlEgressConfig } from './crawl-egress-config.ts';
 import { readObjectStorageConfig } from './object-storage-config.ts';
 import { readOAuthConfig } from './oauth-config.ts';
 
@@ -44,6 +45,9 @@ export function readIntegrationStatuses(
 ): readonly IntegrationStatus[] {
   return [
     status('storage', readObjectStorageConfig(env)),
+    // Not an outside service but the same kind of fact: "not_configured" means
+    // every crawl leaves from this server's own network (crawl-egress-config.ts).
+    status('crawl-egress', readCrawlEgressConfig(env)),
     status('anthropic', readAnthropicConfig(env)),
     // PageSpeed Insights is usable without a key. PAGESPEED_API_KEY only
     // raises the platform quota, so the provider is enabled even when it is

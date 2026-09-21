@@ -118,6 +118,16 @@ jobs:
           PRODUCTION_ANTHROPIC_MODEL: ${{ vars.PRODUCTION_ANTHROPIC_MODEL }}
           PRODUCTION_PAGESPEED_API_KEY: ${{ secrets.PRODUCTION_PAGESPEED_API_KEY }}
           PRODUCTION_CRUX_API_KEY: ${{ secrets.PRODUCTION_CRUX_API_KEY }}
+          # The network the crawl leaves from. Sites that block this server's
+          # hosting network answer 403 to every request, which a report can only
+          # describe as a site with no robots.txt that never returns 200 — so the
+          # crawl goes out through a proxy those sites accept. Empty keeps what
+          # PRODUCTION_ENV_FILE defines; with neither present the crawl is
+          # direct, as before. It carries the proxy password, so it is a secret,
+          # and a value that is present but unreadable fails the boot by name
+          # (integrations/crawl-egress-config.ts) instead of quietly crawling
+          # from the blocked network again.
+          PRODUCTION_CRAWL_EGRESS_PROXY_URL: ${{ secrets.PRODUCTION_CRAWL_EGRESS_PROXY_URL }}
           # Transactional email (Resend). Overridable as a PAIR, and that is the
           # whole point: the key and the sender are useless apart. Setting one
           # without the other is the state this codebase refuses to let happen
@@ -221,6 +231,7 @@ jobs:
           upsert_env ANTHROPIC_MODEL PRODUCTION_ANTHROPIC_MODEL
           upsert_env PAGESPEED_API_KEY PRODUCTION_PAGESPEED_API_KEY
           upsert_env CRUX_API_KEY PRODUCTION_CRUX_API_KEY
+          upsert_env CRAWL_EGRESS_PROXY_URL PRODUCTION_CRAWL_EGRESS_PROXY_URL
           upsert_env RESEND_API_KEY PRODUCTION_RESEND_API_KEY
           upsert_env RESEND_FROM_EMAIL PRODUCTION_RESEND_FROM_EMAIL
           upsert_env HETZNER_S3_ACCESS_KEY PRODUCTION_HETZNER_S3_ACCESS_KEY

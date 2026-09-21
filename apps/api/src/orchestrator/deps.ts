@@ -4,7 +4,7 @@
 
 import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import type { AiProvider } from '@fluxradar/ai';
-import type { HostLimiter } from '@fluxradar/safe-fetch';
+import type { EgressProxy, HostLimiter } from '@fluxradar/safe-fetch';
 import type { CrawlFetcher } from '@fluxradar/crawler';
 import type { PerformanceSnapshot } from '../integrations/performance.ts';
 import type { GoogleDataRunner } from '../integrations/google/runner.ts';
@@ -24,6 +24,11 @@ export interface WorkerCrawlOptions {
   readonly limiter?: HostLimiter;
   /** Test-only transport seam for deterministic unreachable/partial fixtures. */
   readonly fetcher?: CrawlFetcher;
+  /**
+   * Overrides the egress proxy the environment configures; `null` forces a
+   * direct crawl. Absent means "whatever CRAWL_EGRESS_PROXY_URL says".
+   */
+  readonly egressProxy?: EgressProxy | null;
 }
 
 export interface WorkerDeps {

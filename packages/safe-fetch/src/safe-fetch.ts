@@ -6,8 +6,9 @@
 import type { IncomingHttpHeaders, IncomingMessage } from 'node:http';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import type { LookupFunction } from 'node:net';
+import type { LookupFunction, Socket } from 'node:net';
 import { isIP } from 'node:net';
+import { connect as tlsConnect } from 'node:tls';
 
 import { CRAWL_LIMITS } from '@fluxradar/contracts';
 
@@ -20,6 +21,8 @@ import {
   UrlValidationError,
 } from './errors.js';
 import { classifyIp } from './ip-guard.js';
+import type { EgressProxy } from './proxy.js';
+import { openProxyTunnel } from './proxy.js';
 import type { DnsResolver } from './resolver.js';
 import { stripIpv6Brackets, systemDnsResolver } from './resolver.js';
 
@@ -42,6 +45,12 @@ export interface SafeFetchOptions {
    * link-local/metadata, CGNAT и т.д. — блокируются даже с этим флагом (D-126).
    */
   readonly dangerouslyAllowLoopback?: boolean;
+  /**
+   * Egress-прокси запроса. SSRF-гард работает в любом случае: прокси просят
+   * открыть тоннель на адрес, который этот процесс сам резолвил и проверил
+   * (proxy.ts). Отсутствует — прямое соединение с pin адресов.
+   */
+  readonly proxy?: EgressProxy;
 }
 
 export interface RedirectHop {
@@ -95,6 +104,7 @@ export async function safeFetch(
         method,
         options.headers,
         deadline.signal,
+        options.proxy,
       );
       const status = response.statusCode ?? 0;
       const location = response.headers.location;
@@ -197,35 +207,81 @@ async function resolveAndGuard(
  * Запрос с pin проверенных адресов: lookup-callback подменяет DNS на список
  * из resolveAndGuard, поэтому соединение физически не может уйти на другой IP
  * (DNS rebinding закрыт — D-125). TLS SNI/cert проверяются по hostname как обычно.
+ *
+ * Через egress-прокси действует тот же инвариант: тоннель открывается на уже
+ * проверенный адрес, а TLS поверх тоннеля мы поднимаем сами, по hostname.
  */
-function performRequest(
+async function performRequest(
   url: URL,
   addresses: readonly string[],
   method: 'GET' | 'HEAD',
   headers: Readonly<Record<string, string>> | undefined,
   signal: AbortSignal,
+  proxy: EgressProxy | undefined,
 ): Promise<IncomingMessage> {
   const isHttps = url.protocol === 'https:';
-  const requestFn = isHttps ? httpsRequest : httpRequest;
+  const hostname = stripIpv6Brackets(url.hostname);
   const port = url.port !== '' ? Number(url.port) : isHttps ? 443 : 80;
+  // `agent: false` и `createConnection` несовместимы: на `agent: false` node
+  // создаёт новый Agent, а тот резолвит хост сам и игнорирует переданный сокет.
+  // Поэтому ветка с прокси не передаёт agent вовсе — только так node использует
+  // наш тоннель.
+  const connection =
+    proxy === undefined
+      ? { agent: false as const, lookup: pinnedLookup(addresses) }
+      : await tunnelledConnection(proxy, addresses, hostname, port, isHttps, signal);
+  const requestFn = isHttps ? httpsRequest : httpRequest;
   return new Promise((resolve, reject) => {
     const request = requestFn(
       {
-        hostname: stripIpv6Brackets(url.hostname),
+        hostname,
         port,
         path: `${url.pathname}${url.search}`,
         method,
         // identity: лимит maxBodyBytes считается по байтам тела на проводе (D-125)
         headers: { 'accept-encoding': 'identity', ...headers },
         signal,
-        agent: false,
-        lookup: pinnedLookup(addresses),
+        ...connection,
       },
       resolve,
     );
     request.on('error', reject);
     request.end();
   });
+}
+
+/**
+ * Тоннель открывается на проверенные адреса по очереди — так же, как прямой
+ * путь перебирает их через pinnedLookup. Один адрес на тоннель: мёртвый первый
+ * адрес хоста не должен выглядеть как недоступный сайт (это ровно тот симптом,
+ * ради которого прокси и появился). Наверх уходит ошибка последней попытки.
+ */
+async function tunnelledConnection(
+  proxy: EgressProxy,
+  addresses: readonly string[],
+  hostname: string,
+  port: number,
+  isHttps: boolean,
+  signal: AbortSignal,
+): Promise<{ createConnection: () => Socket }> {
+  let lastError: unknown = null;
+  for (const address of addresses) {
+    try {
+      const tunnel = await openProxyTunnel({ proxy, address, port, signal });
+      return {
+        createConnection: (): Socket =>
+          isHttps
+            ? tlsConnect({ socket: tunnel, host: hostname, servername: hostname, port })
+            : tunnel,
+      };
+    } catch (error) {
+      // Дедлайн запроса — общий на все адреса: дальше перебирать нечего.
+      if (signal.aborted) throw error;
+      lastError = error;
+    }
+  }
+  if (lastError !== null) throw lastError;
+  throw new NetworkError(`safe-fetch: no verified address to tunnel to for host "${hostname}"`);
 }
 
 function pinnedLookup(addresses: readonly string[]): LookupFunction {

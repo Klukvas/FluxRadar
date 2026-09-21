@@ -39,6 +39,7 @@ describe('startup integration diagnostics', () => {
 
     expect(statuses.map((entry) => entry.integration)).toEqual([
       'storage',
+      'crawl-egress',
       'anthropic',
       'pagespeed',
       'crux',
@@ -54,6 +55,16 @@ describe('startup integration diagnostics', () => {
         .filter((entry) => entry.integration !== 'pagespeed')
         .every((entry) => entry.status === 'not_configured'),
     ).toBe(true);
+  });
+
+  it('reports the crawl egress network, including an unusable setting', () => {
+    expect(statusOf({}, 'crawl-egress')).toBe('not_configured');
+    expect(
+      statusOf({ CRAWL_EGRESS_PROXY_URL: 'http://bot:pass@203.0.113.10:13128' }, 'crawl-egress'),
+    ).toBe('configured');
+    expect(statusOf({ CRAWL_EGRESS_PROXY_URL: 'http://203.0.113.10' }, 'crawl-egress')).toBe(
+      'invalid',
+    );
   });
 
   it('reports a configured single-key integration', () => {

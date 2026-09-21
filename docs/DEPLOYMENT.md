@@ -98,6 +98,22 @@ Object storage is the other one: a partial `HETZNER_S3_*` set used to disable th
 store silently, so exports kept working, nothing was archived, and the deploy
 looked healthy.
 
+### The network the crawl leaves from
+
+`CRAWL_EGRESS_PROXY_URL` (`http://user:password@host:port`, port required) sends
+every crawl request through an HTTP CONNECT proxy instead of this server's own
+network. It exists because sites behind a WAF that rejects this hosting network
+answer 403 to everything — start page, `robots.txt`, `sitemap.xml` — and a
+report can only describe that as a site with no robots.txt that never returns
+200. Absent is supported and means a direct crawl, which is the local default.
+
+It fails the boot when it is present but unreadable, by variable name: the
+alternative is falling back to the blocked network and producing that same
+report again. The value carries a password and appears in no log line and no
+error message, not even by length; the SSRF guard does not move to the proxy,
+which is asked to tunnel to an address this process already resolved and
+approved (`packages/safe-fetch/src/proxy.ts`).
+
 PageSpeed, CrUX and Resend cannot fail the boot (Resend is reported as `invalid`
 when only one half of the key/sender pair is present, but transactional email
 stays optional). PageSpeed remains enabled without `PAGESPEED_API_KEY`; the key
@@ -276,6 +292,7 @@ workflow log):
 | `PRODUCTION_ANTHROPIC_API_KEY`            | `ANTHROPIC_API_KEY`        |
 | `PRODUCTION_PAGESPEED_API_KEY`            | `PAGESPEED_API_KEY`        |
 | `PRODUCTION_CRUX_API_KEY`                 | `CRUX_API_KEY`             |
+| `PRODUCTION_CRAWL_EGRESS_PROXY_URL`       | `CRAWL_EGRESS_PROXY_URL`   |
 | `PRODUCTION_RESEND_API_KEY`               | `RESEND_API_KEY`           |
 | `PRODUCTION_RESEND_FROM_EMAIL`            | `RESEND_FROM_EMAIL`        |
 | `PRODUCTION_HETZNER_S3_ACCESS_KEY`        | `HETZNER_S3_ACCESS_KEY`    |

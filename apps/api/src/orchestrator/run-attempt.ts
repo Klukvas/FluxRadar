@@ -26,6 +26,7 @@ import { computeCoverage } from '@fluxradar/scoring';
 import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
 
+import { readCrawlEgressProxy } from '../integrations/crawl-egress-config.ts';
 import { executionProfile, storedExecutionConfig } from '../profiles/execution-config.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
 import type { WorkerDeps } from './deps.ts';
@@ -35,6 +36,7 @@ import {
   generateGeoDiscoveryQuestions,
   type GeoQuestionGenerationResult,
 } from './geo.ts';
+import { resolveEgressProxy } from './egress.ts';
 import { initialIssueStatuses } from './issue-sync.ts';
 import { includesAnalytics, modulePlanFor } from './module-plan.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
@@ -398,8 +400,10 @@ export async function runScanAttempt(
     await setModule(prisma, scanId, module, { runtimeStatus: 'Pending' });
   }
 
+  const egressProxy = resolveEgressProxy(deps.crawl, readCrawlEgressProxy());
   const crawlResult = await crawl(buildCrawlScope(origin, scope, plan), {
     ...(deps.crawl?.fetcher !== undefined ? { fetcher: deps.crawl.fetcher } : {}),
+    ...(egressProxy === null ? {} : { egressProxy }),
     ...(deps.crawl?.dangerouslyAllowLoopback === true ? { dangerouslyAllowLoopback: true } : {}),
     ...(deps.crawl?.limiter !== undefined ? { limiter: deps.crawl.limiter } : {}),
     logger: { warn: (message, context) => deps.logger.warn(message, context) },
