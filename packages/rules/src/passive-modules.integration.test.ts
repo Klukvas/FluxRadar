@@ -6,6 +6,7 @@
 // form.html без label. Fixture-сайт живёт на loopback-http → SEC-PASSIVE-003
 // (HSTS) здесь Not applicable (юниты правила используют https-моки).
 
+import { CRAWL_LIMITS } from '@fluxradar/contracts';
 import type { ModuleName } from '@fluxradar/contracts';
 import type { CrawlResult, FixtureSite } from '@fluxradar/crawler';
 import { crawl, startFixtureSite } from '@fluxradar/crawler';
@@ -40,6 +41,10 @@ beforeAll(async () => {
       dangerouslyAllowLoopback: true,
       limiter: new HostLimiter({ rps: 1000, concurrency: 4 }),
       logger: { warn: () => undefined },
+      // As a paid scan runs. CONTENT-004 only reports media the crawl actually
+      // asked about, so a crawl with no media budget has nothing to report —
+      // which is the point: it used to report unrequested files as broken.
+      maxMediaChecks: CRAWL_LIMITS.maxMediaChecks,
     },
   );
   ctx = createSiteContext({ origin, crawl: crawlResult, plan: 'Complete' });
@@ -155,9 +160,13 @@ describe('passive-модули на fixture-сайте краулера', () => 
     const media = moduleResult('Content Quality').findings.find(
       (finding) => finding.ruleId === 'CONTENT-004',
     );
-    // Краулер v0.1 media не фетчит → оба img не подтверждены обходом (D-165).
+    // Обход спросил про оба img: /img/pixel.png отдаёт 200 image/png и в
+    // находку не попадает, /img/missing.png отдаёт 404 и попадает. Раньше
+    // краулер media не фетчил вовсе, и правило выдавало обе картинки как
+    // «не підтверджені обходом» с confidence 0.6 — штраф за непроверенное.
     expect(media?.evidenceExcerpt).toContain('/img/missing.png');
-    expect(media?.confidence).toBe(0.6);
+    expect(media?.evidenceExcerpt).not.toContain('/img/pixel.png');
+    expect(media?.confidence).toBe(1);
   });
 
   it('Privacy: cookies на / и trackers.html, third-party скрипт на trackers.html', () => {

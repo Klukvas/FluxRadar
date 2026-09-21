@@ -89,16 +89,53 @@ describe('CONTENT-004 битые media', () => {
     ).toEqual([]);
   });
 
-  it('внутренняя media без снимка → finding со сниженным confidence (D-165)', () => {
+  it('внутренняя media, которую никто не запрашивал, → ничего', () => {
+    // The finding this replaces: "Internal media the crawl could not confirm",
+    // Medium severity and a score penalty, on a file the crawler never fetched.
+    // Checked by hand on 2026-09-21, every such file answered 200.
     const ctx = htmlContext(
-      '<!doctype html><html lang="en"><head><title>Unconfirmed media page</title></head>' +
+      '<!doctype html><html lang="en"><head><title>Unverified media page</title></head>' +
         '<body><img src="/img/unknown.png" alt="Unknown picture" /></body></html>',
     );
+
+    expect(runRule('Content Quality', 'CONTENT-004', ctx)).toEqual([]);
+  });
+
+  it('media, проверенная HEAD-ом и ответившая 404, → finding c confidence 1', () => {
+    const ctx = siteContext({
+      pages: [
+        {
+          path: '/page.html',
+          html:
+            '<!doctype html><html lang="en"><head><title>Verified media page</title></head>' +
+            '<body><img src="/img/gone.png" alt="Gone" /></body></html>',
+        },
+      ],
+      // What the crawl's media pass records: the file was asked for, and said no.
+      mediaChecks: [{ path: '/img/gone.png', status: 404, contentType: 'text/plain', html: '' }],
+    });
+
     const finding = single(runRule('Content Quality', 'CONTENT-004', ctx));
-    expect(finding.confidence).toBe(0.6);
+    expect(finding.confidence).toBe(1);
     expect(finding.evidenceExcerpt).toBe(
-      'Internal media the crawl could not confirm (1): img[src="/img/unknown.png"]',
+      'Media that returns an HTTP error (1): img[src="/img/gone.png"] (HTTP 404)',
     );
+  });
+
+  it('media, проверенная HEAD-ом и ответившая 200, → ничего', () => {
+    const ctx = siteContext({
+      pages: [
+        {
+          path: '/page.html',
+          html:
+            '<!doctype html><html lang="en"><head><title>Working media page</title></head>' +
+            '<body><img src="/img/logo.png" alt="Logo" /></body></html>',
+        },
+      ],
+      mediaChecks: [{ path: '/img/logo.png', status: 200, contentType: 'image/png', html: '' }],
+    });
+
+    expect(runRule('Content Quality', 'CONTENT-004', ctx)).toEqual([]);
   });
 
   it('media на HTML-страницу (2xx) — битая: img не может отдавать text/html', () => {
@@ -131,22 +168,26 @@ describe('CONTENT-004 битые media', () => {
           html:
             '<!doctype html><html lang="en"><head><title>Mixed media page</title></head>' +
             '<body><img src="/other.html" alt="Wrong target" />' +
-            '<img src="/img/unknown.png" alt="Unknown picture" /></body></html>',
+            '<img src="/img/gone.png" alt="Gone" />' +
+            '<img src="/img/unknown.png" alt="Never asked about" /></body></html>',
         },
         {
           path: '/other.html',
           html: '<!doctype html><html lang="en"><head><title>Other page</title></head><body><p>Other</p></body></html>',
         },
       ],
+      mediaChecks: [{ path: '/img/gone.png', status: 404, contentType: 'text/plain', html: '' }],
     });
     const finding = runRule('Content Quality', 'CONTENT-004', ctx).find((entry) =>
       entry.normalizedUrl.endsWith('/page.html'),
     );
     expect(finding?.messages?.evidence.code).toBe('content-004.evidence.mixed');
+    // Two verified failures are named. The third image was never requested, so
+    // it appears nowhere: the breakdown lists what was checked, not what was
+    // referenced.
     expect(finding?.evidenceExcerpt).toBe(
-      'Broken media: 2. Unreachable: —. HTTP error: —. ' +
-        'Returns an HTML page instead of media: img[src="/other.html"]. ' +
-        'Internal, not confirmed by the crawl: img[src="/img/unknown.png"].',
+      'Broken media: 2. Unreachable: —. HTTP error: img[src="/img/gone.png"] (HTTP 404). ' +
+        'Returns an HTML page instead of media: img[src="/other.html"].',
     );
   });
 });

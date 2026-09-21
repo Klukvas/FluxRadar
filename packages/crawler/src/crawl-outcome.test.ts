@@ -30,6 +30,8 @@ function result(overrides: Partial<CrawlResult> = {}): CrawlResult {
     errors: [],
     urlVariants: {},
     sitemapUrls: [],
+    mediaChecks: [],
+    mediaOverBudget: [],
     ...overrides,
   };
 }

@@ -54,6 +54,13 @@ const SiteFixtureSchema = z.object({
   sitemapUrls: z.array(z.string()).default([]),
   urlVariants: z.record(z.string(), z.array(z.string())).default({}),
   pages: z.array(FixturePageSchema),
+  /**
+   * HEAD results for the media the pages reference (crawler media-check.ts).
+   * Same shape as a page, because that is how the crawl records them; an empty
+   * list means the media was never verified, and CONTENT-004 then says nothing
+   * about it rather than calling it broken.
+   */
+  mediaChecks: z.array(FixturePageSchema).default([]),
   apiChecks: z.array(ApiCheckSchema).default([]),
 });
 
@@ -108,6 +115,8 @@ function siteContextFromFixture(fixture: z.output<typeof SiteFixtureSchema>): Si
     urlVariants: fixture.urlVariants,
     ...(fixture.robotsTxt !== undefined ? { robotsTxt: fixture.robotsTxt } : {}),
     sitemapUrls: fixture.sitemapUrls,
+    mediaChecks: fixture.mediaChecks.map((media) => toSnapshot(fixture.origin, media)),
+    mediaOverBudget: [],
   };
   return createSiteContext({
     origin: fixture.origin,

@@ -33,6 +33,8 @@ function crawl(pageCount: number, overCount: number): CrawlResult {
     errors: [],
     urlVariants: {},
     sitemapUrls: [],
+    mediaChecks: [],
+    mediaOverBudget: [],
   };
 }
 

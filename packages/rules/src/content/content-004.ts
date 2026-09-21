@@ -1,17 +1,24 @@
 // CONTENT-004 — битые изображения и media (page-level; severity из реестра).
 //
 // Оракул: media-ссылки (img/source/video/audio [src]) успешной HTML-страницы,
-// разрешённые против finalUrl. Media битая, если:
-// (a) её цель имеет снимок обхода с 4xx/5xx, fetchError или text/html
-//     content-type (img, ведущий на HTML-страницу) — confidence 1;
-// (b) цель внутренняя (host сайта), но снимка в обходе нет — краулер v0.1
-//     media не фетчит, существование ресурса не подтверждено ничем —
-//     confidence снижен (D-165). Внешние media без снимка не оцениваются
-//     (их статус неизвестен, evidence нет — та же логика, что D-152).
+// разрешённые против finalUrl. Media битая ТОЛЬКО если её цель проверена и
+// ответила плохо: снимок с 4xx/5xx, fetchError или text/html content-type
+// (img, ведущий на HTML-страницу). Снимок даёт либо сам обход (media-адрес
+// попал в очередь страниц), либо HEAD-проверка media (crawler media-check.ts).
+//
+// Ветки «внутренняя media без снимка» (D-165, confidence 0.6) больше нет.
+// Она штрафовала за непроверенное: краулер media не фетчил вообще, а правило
+// выдавало Medium-находку «Биті зображення або медіа» с доказательством
+// «не підтверджені обходом». 21.09.2026 все три файла из такого доказательства
+// руками отдали 200. Непроверенное теперь и называется непроверенным —
+// `unverifiedMedia` считает такие адреса, и модуль показывает их как охват
+// проверки, без severity и без −3 балла.
+//
 // Один finding на страницу: excerpt — перечень битых media по причинам,
 // selector — первый битый элемент.
 
 import type { PageSnapshot } from '@fluxradar/crawler';
+import { MEDIA_SELECTOR } from '@fluxradar/crawler';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
 import { requireDescriptor } from '../engine/descriptor.js';
@@ -27,11 +34,6 @@ import { parsePage } from '../seo/dom.js';
 
 const descriptor = requireDescriptor('CONTENT-004');
 
-const MEDIA_SELECTOR = 'img[src], source[src], video[src], audio[src]';
-
-/** Confidence для внутренних media без снимка: обход их не подтверждает. */
-const UNCONFIRMED_CONFIDENCE = 0.6;
-
 /** Shown for a failure kind no media on the page fell into; the same in every language. */
 const NONE_LISTED = '—';
 
@@ -39,14 +41,13 @@ const NONE_LISTED = '—';
  * Why a media reference counts as broken. The evidence sentence names each
  * kind in the reader's language, so the kind travels as data, not as text.
  */
-type BrokenMediaKind = 'unreachable' | 'httpError' | 'htmlResponse' | 'unconfirmed';
+type BrokenMediaKind = 'unreachable' | 'httpError' | 'htmlResponse';
 
 interface BrokenMedia {
   readonly selector: string;
   readonly kind: BrokenMediaKind;
   /** Language-neutral technical detail: the fetch error or the HTTP status. */
   readonly detail?: string;
-  readonly confirmed: boolean;
 }
 
 export const content004BrokenMedia: PageRule = {
@@ -59,14 +60,15 @@ export const content004BrokenMedia: PageRule = {
     if (first === undefined) {
       return [];
     }
-    const confirmed = broken.some((media) => media.confirmed);
     return [
       pageFinding(descriptor, page, {
         evidenceType: 'dom',
         evidence: brokenMediaEvidence(broken),
         recommendation: findingMessage('content-004.recommendation', {}),
         selector: first.selector,
-        confidence: confirmed ? 1 : UNCONFIRMED_CONFIDENCE,
+        // Every finding here is a file that was asked for and answered badly,
+        // so there is nothing left to be uncertain about.
+        confidence: 1,
       }),
     ];
   },
@@ -76,7 +78,6 @@ const SINGLE_KIND_CODES = {
   unreachable: 'content-004.evidence.unreachable',
   httpError: 'content-004.evidence.http-error',
   htmlResponse: 'content-004.evidence.html-response',
-  unconfirmed: 'content-004.evidence.unconfirmed',
 } as const satisfies Record<BrokenMediaKind, FindingMessageCode>;
 
 /**
@@ -98,7 +99,6 @@ function brokenMediaEvidence(broken: readonly BrokenMedia[]): CataloguedFindingM
     unreachable: listingOf(broken, 'unreachable'),
     httpErrors: listingOf(broken, 'httpError'),
     htmlResponses: listingOf(broken, 'htmlResponse'),
-    unconfirmed: listingOf(broken, 'unconfirmed'),
   });
 }
 
@@ -112,8 +112,7 @@ function listingOf(broken: readonly BrokenMedia[], kind: BrokenMediaKind): strin
 }
 
 function collectBrokenMedia(page: PageSnapshot, ctx: SiteContext): readonly BrokenMedia[] {
-  const snapshots = new Map(ctx.crawl.pages.map((snapshot) => [snapshot.normalizedUrl, snapshot]));
-  const siteHost = new URL(ctx.domain).host;
+  const snapshots = mediaSnapshots(ctx);
   const seenTargets = new Set<string>();
   return parsePage(page)
     .querySelectorAll(MEDIA_SELECTOR)
@@ -125,30 +124,40 @@ function collectBrokenMedia(page: PageSnapshot, ctx: SiteContext): readonly Brok
       }
       seenTargets.add(target.href);
       const selector = `${element.rawTagName.toLowerCase()}[src="${rawSrc}"]`;
-      const verdict = mediaVerdict(target, snapshots.get(normalizeUrl(target.href)), siteHost);
+      const verdict = mediaVerdict(snapshots.get(normalizeUrl(target.href)));
       return verdict === null ? [] : [{ selector, ...verdict }];
     });
 }
 
-function mediaVerdict(
-  target: URL,
-  snapshot: PageSnapshot | undefined,
-  siteHost: string,
-): Omit<BrokenMedia, 'selector'> | null {
-  if (snapshot !== undefined) {
-    if (snapshot.fetchError !== undefined) {
-      return { kind: 'unreachable', detail: snapshot.fetchError, confirmed: true };
-    }
-    if (snapshot.status >= 400) {
-      return { kind: 'httpError', detail: `HTTP ${snapshot.status}`, confirmed: true };
-    }
-    if (snapshot.contentType?.toLowerCase().startsWith('text/html') === true) {
-      return { kind: 'htmlResponse', confirmed: true };
-    }
+/**
+ * Everything the crawl holds an answer for: pages it fetched, plus the media it
+ * verified with a HEAD. A media address in neither was never asked about, and
+ * this rule has nothing to say about it.
+ */
+function mediaSnapshots(ctx: SiteContext): ReadonlyMap<string, PageSnapshot> {
+  return new Map(
+    [...ctx.crawl.pages, ...ctx.crawl.mediaChecks].map((snapshot) => [
+      snapshot.normalizedUrl,
+      snapshot,
+    ]),
+  );
+}
+
+/** The verdict on one media file, or null when it answered fine or was never asked. */
+function mediaVerdict(snapshot: PageSnapshot | undefined): Omit<BrokenMedia, 'selector'> | null {
+  if (snapshot === undefined) {
+    // Not verified. Saying nothing is the whole fix: this branch used to return
+    // a Medium finding about a file the crawler had never requested.
     return null;
   }
-  if (target.host === siteHost) {
-    return { kind: 'unconfirmed', confirmed: false };
+  if (snapshot.fetchError !== undefined) {
+    return { kind: 'unreachable', detail: snapshot.fetchError };
+  }
+  if (snapshot.status >= 400) {
+    return { kind: 'httpError', detail: `HTTP ${snapshot.status}` };
+  }
+  if (snapshot.contentType?.toLowerCase().startsWith('text/html') === true) {
+    return { kind: 'htmlResponse' };
   }
   return null;
 }

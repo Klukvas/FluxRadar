@@ -27,13 +27,9 @@ export const CONTENT_MESSAGES = {
     en: 'Media links that return an HTML page instead of a file ({count}): {items}',
     uk: 'Посилання на медіафайли, що повертають HTML-сторінку замість файлу ({count}): {items}',
   },
-  'content-004.evidence.unconfirmed': {
-    en: 'Internal media the crawl could not confirm ({count}): {items}',
-    uk: 'Внутрішні медіафайли, не підтверджені обходом ({count}): {items}',
-  },
   'content-004.evidence.mixed': {
-    en: 'Broken media: {count}. Unreachable: {unreachable}. HTTP error: {httpErrors}. Returns an HTML page instead of media: {htmlResponses}. Internal, not confirmed by the crawl: {unconfirmed}.',
-    uk: 'Битих медіафайлів: {count}. Недоступні: {unreachable}. Помилка HTTP: {httpErrors}. Повертають HTML-сторінку замість медіафайлу: {htmlResponses}. Внутрішні, не підтверджені обходом: {unconfirmed}.',
+    en: 'Broken media: {count}. Unreachable: {unreachable}. HTTP error: {httpErrors}. Returns an HTML page instead of media: {htmlResponses}.',
+    uk: 'Битих медіафайлів: {count}. Недоступні: {unreachable}. Помилка HTTP: {httpErrors}. Повертають HTML-сторінку замість медіафайлу: {htmlResponses}.',
   },
   'content-004.recommendation': {
     en: 'Replace or remove the broken media links: a broken image spoils a page more visibly than any other content problem.',

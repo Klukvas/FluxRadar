@@ -6,6 +6,16 @@ export const CRAWL_LIMITS = {
   pageTimeoutMs: 10_000,
   perHostRps: 5,
   perHostConcurrency: 4,
+  /**
+   * How many internal media files one crawl may verify with a HEAD request.
+   *
+   * CONTENT-004 used to report "internal media not confirmed by the crawl" as a
+   * Medium finding worth a score penalty, on a crawler that fetched no media at
+   * all — a penalty for something nobody had looked at. The crawl now looks,
+   * within this budget, and anything past it is reported as unchecked rather
+   * than as broken.
+   */
+  maxMediaChecks: 200,
 } as const;
 
 // Hard caps per single AI request (§5). Exceeding input is truncated deterministically
