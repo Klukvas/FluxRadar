@@ -72,13 +72,23 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 16 September 2026/);
+    expect(policy).toHaveTextContent(/Effective 21 September 2026/);
     expect(policy).toHaveTextContent(/PageSpeed Insights and CrUX.*public URL or origin/is);
     expect(policy).toHaveTextContent(
       /Free and Basic reports.*30 days.*Complete reports.*365 days/is,
     );
     expect(policy).toHaveTextContent(/account-deletion request.*within 30 days/is);
-    expect(policy).toHaveTextContent(/does not currently load Google Analytics 4/i);
+    // Site analytics is disclosed as consent-based, with the settings the
+    // property actually has (Signals, ads and remarketing off, 2-month retention).
+    expect(policy).toHaveTextContent(/Site analytics, only if you allow it/i);
+    expect(policy).toHaveTextContent(/without query strings or check identifiers/i);
+    expect(policy).toHaveTextContent(/Google \(Google Analytics 4\).*as our processor/is);
+    expect(policy).toHaveTextContent(/does not start before you allow it/i);
+    expect(policy).toHaveTextContent(
+      /Google Signals, ads personalization and remarketing are disabled.*2 months/is,
+    );
+    expect(policy).toHaveTextContent(/uses no advertising trackers/i);
+    expect(policy).not.toHaveTextContent(/does not currently load Google Analytics 4/i);
     expect(
       screen.getByRole('link', { name: /Google API Services User Data Policy/i }),
     ).toHaveAttribute('href', 'https://developers.google.com/terms/api-services-user-data-policy');
@@ -125,11 +135,20 @@ describe('public legal documents', () => {
     expect(policy).toHaveTextContent(/fluxradar\.pendingCheckout/);
     expect(policy).toHaveTextContent(/fluxradar\.cookieConsent.*180 days/is);
     expect(policy).toHaveTextContent(/fluxradar\.language/);
-    expect(policy).toHaveTextContent(/does not currently load Google Analytics 4/i);
-    expect(policy).toHaveTextContent(/FastSpring is the separate merchant of record/i);
-    expect(screen.getByRole('navigation', { name: 'Document sections' })).toHaveTextContent(
-      'Storage inventory',
+    expect(policy).toHaveTextContent(/Google Analytics 4 does not load until you allow analytics/i);
+    // Both cookies gtag sets, the second named after the stream it reports to.
+    expect(policy).toHaveTextContent(
+      /_ga.*random identifier.*Up to 180 days from your last visit/is,
     );
+    expect(policy).toHaveTextContent(/_ga_0N0B548CGE/);
+    expect(policy).toHaveTextContent(
+      /Google Signals, ads personalization and remarketing are disabled.*2 months/is,
+    );
+    expect(policy).toHaveTextContent(/FastSpring is the separate merchant of record/i);
+    expect(policy).toHaveTextContent(/Effective 21 September 2026/);
+    const sections = screen.getByRole('navigation', { name: 'Document sections' });
+    expect(sections).toHaveTextContent('Storage inventory');
+    expect(sections).toHaveTextContent('Google Analytics');
     // Once every cookie is allowed the floating launcher is hidden, so the
     // policy page itself has to offer the way to withdraw.
     expect(screen.getByRole('button', { name: 'Cookie settings' })).toBeInTheDocument();
@@ -139,5 +158,22 @@ describe('public legal documents', () => {
     render(<LegalDocumentScreen kind="cookies" language="uk" onLanguageChange={() => {}} />);
 
     expect(screen.getByRole('button', { name: 'Налаштування cookies' })).toBeInTheDocument();
+  });
+
+  // The Ukrainian text is the controlling one, so the analytics disclosure is
+  // pinned there as well as in the translation.
+  it('discloses consent-based Google Analytics in the controlling Ukrainian text', () => {
+    render(<LegalDocumentScreen kind="cookies" language="uk" onLanguageChange={() => {}} />);
+    const cookies = screen.getByRole('article');
+    expect(cookies).toHaveTextContent(/Google Analytics 4 не завантажується, доки ви не дозволите/);
+    expect(cookies).toHaveTextContent(/_ga_0N0B548CGE/);
+    expect(cookies).toHaveTextContent(/user та event data зберігаються 2 місяці/);
+
+    cleanup();
+    render(<LegalDocumentScreen kind="privacy" language="uk" onLanguageChange={() => {}} />);
+    const privacy = screen.getByRole('article');
+    expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
+    expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
+    expect(privacy).toHaveTextContent(/Чинна з 21 вересня 2026 року/);
   });
 });

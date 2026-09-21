@@ -4,10 +4,11 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
- * Changed when the policy gained the section on how Google user data is
+ * Changed when the site gained consent-based Google Analytics 4. The previous
+ * change (16 September 2026) added the section on how Google user data is
  * protected, which Google's OAuth verification requires the policy to state.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '16 вересня 2026 року', en: '16 September 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '21 вересня 2026 року', en: '21 September 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -60,6 +61,14 @@ function UkrainianPrivacy(): JSX.Element {
             <strong>Безпека й робота сервісу:</strong> IP‑адреса, request/error data та rate‑limit
             записи для захисту акаунтів, запобігання повторному використанню безкоштовної перевірки
             й діагностики несправностей.
+          </li>
+          <li>
+            <strong>Аналітика сайту — лише з вашого дозволу:</strong> переглянуті сторінки
+            fluxradar.net (без query string та ідентифікаторів перевірок), сайт, з якого ви
+            перейшли, приблизне місцезнаходження, яке Google визначає за IP‑адресою, тип пристрою й
+            браузера та кроки в продукті — реєстрація, запуск безкоштовної перевірки, початок
+            оплати, завершена покупка (тариф і ціна). Google Analytics зберігає випадковий
+            ідентифікатор у cookies <code>_ga</code>.
           </li>
         </ul>
         <p>
@@ -141,8 +150,9 @@ function UkrainianPrivacy(): JSX.Element {
           підтримки. Правовою підставою обробки, об’єктивно необхідної для вибраної основної
           функції, є виконання договору. Безпека, запобігання зловживанням і захист прав є нашими
           законними інтересами з урахуванням прав користувача; окремі записи зберігаються через
-          правовий обов’язок. Необов’язкове browser storage і майбутня site analytics потребують
-          окремого вибору в налаштуваннях cookies.
+          правовий обов’язок. Необов’язкове browser storage й аналітика сайту ґрунтуються на вашій
+          згоді, яку ви надаєте й відкликаєте в налаштуваннях cookies; аналітику ми використовуємо
+          лише щоб розуміти, які сторінки й кроки допомагають відвідувачам і де вони зупиняються.
         </p>
         <p>
           Платні аудити включають застосовний AI‑аналіз: Basic — AI SEO / GEO, Complete — AI SEO /
@@ -202,6 +212,15 @@ function UkrainianPrivacy(): JSX.Element {
             сервісного листа. Див.{' '}
             <a href="https://resend.com/legal/privacy-policy">Resend Privacy Policy</a>.
           </li>
+          <li>
+            <strong>Google (Google Analytics 4)</strong> — лише після вашого дозволу аналітики
+            обробляє описані вище дані аналітики сайту як наш обробник. Google Signals, ads
+            personalization і remarketing вимкнені; user та event data зберігаються 2 місяці. Див.{' '}
+            <a href="https://policies.google.com/technologies/partner-sites">
+              як Google використовує дані сайтів, що користуються його сервісами
+            </a>
+            .
+          </li>
         </ul>
         <p>
           Окремі провайдери можуть обробляти дані за межами вашої країни, зокрема у США, за власними
@@ -241,11 +260,11 @@ function UkrainianPrivacy(): JSX.Element {
         <h2>Cookies і browser storage</h2>
         <p>
           Необхідні засоби зберігання підтримують вхід, checkout recovery і ваш вибір cookies;
-          preference storage запам’ятовує мову лише після дозволу. FluxRadar зараз не завантажує
-          Google Analytics 4 або рекламні trackers. Якщо site analytics буде додано, вона
-          запускатиметься лише після дозволу; Google Signals, ads personalization і remarketing
-          будуть вимкнені, а user/event data зберігатимуться 2 місяці. Повний перелік, строки й
-          керування наведено в <a href="/cookies?lang=uk">Політиці cookies</a>.
+          preference storage запам’ятовує мову лише після дозволу. З вашого дозволу FluxRadar також
+          завантажує Google Analytics 4. До дозволу вона не запускається, а відкликання зупиняє її й
+          видаляє її cookies. Google Signals, ads personalization і remarketing вимкнені, а user та
+          event data зберігаються 2 місяці. Рекламних trackers FluxRadar не використовує. Повний
+          перелік, строки й керування наведено в <a href="/cookies?lang=uk">Політиці cookies</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">
@@ -315,6 +334,13 @@ function EnglishPrivacy(): JSX.Element {
           <li>
             <strong>Security and operations:</strong> IP address, request/error data and rate-limit
             records used to protect accounts, prevent repeated free checks and diagnose failures.
+          </li>
+          <li>
+            <strong>Site analytics, only if you allow it:</strong> pages viewed on fluxradar.net
+            (without query strings or check identifiers), the referring site, an approximate
+            location Google derives from your IP address, device and browser type, and product steps
+            — sign-up, starting a free check, starting checkout and a completed purchase (plan and
+            price). Google Analytics keeps a random identifier in the <code>_ga</code> cookies.
           </li>
         </ul>
         <p>
@@ -394,8 +420,9 @@ function EnglishPrivacy(): JSX.Element {
           support. Processing objectively necessary for a chosen core feature is based on
           performance of the service contract. Security, abuse prevention and protection of rights
           serve our legitimate interests, subject to user rights; some records are kept to meet a
-          legal obligation. Optional browser storage and future site analytics require a separate
-          cookie choice.
+          legal obligation. Optional browser storage and site analytics rely on your consent, which
+          you give and withdraw in cookie settings; we use site analytics only to understand which
+          pages and steps help visitors and where they stop.
         </p>
         <p>
           Paid audits include the applicable AI analysis: Basic includes AI SEO / GEO, while
@@ -455,6 +482,15 @@ function EnglishPrivacy(): JSX.Element {
             email and service-message content. See the{' '}
             <a href="https://resend.com/legal/privacy-policy">Resend Privacy Policy</a>.
           </li>
+          <li>
+            <strong>Google (Google Analytics 4)</strong>, only after you allow analytics, processes
+            the site-analytics data above as our processor. Google Signals, ads personalization and
+            remarketing are disabled; user and event data are kept for 2 months. See{' '}
+            <a href="https://policies.google.com/technologies/partner-sites">
+              how Google uses information from sites that use its services
+            </a>
+            .
+          </li>
         </ul>
         <p>
           Some providers may process data outside your country, including in the United States,
@@ -493,11 +529,12 @@ function EnglishPrivacy(): JSX.Element {
         <h2>Cookies and browser storage</h2>
         <p>
           Necessary storage supports sign-in, checkout recovery and the cookie choice; preference
-          storage remembers language only after permission. FluxRadar does not currently load Google
-          Analytics 4 or advertising trackers. If site analytics is added, it will start only after
-          permission; Google Signals, ads personalization and remarketing will remain disabled, and
-          user/event data retention will be set to 2 months. See the full inventory, durations and
-          controls in the <a href="/cookies?lang=en">Cookie Policy</a>.
+          storage remembers language only after permission. With your permission FluxRadar also
+          loads Google Analytics 4. It does not start before you allow it, and withdrawing stops it
+          and deletes its cookies. Google Signals, ads personalization and remarketing are disabled,
+          and user and event data are kept for 2 months. FluxRadar uses no advertising trackers. See
+          the full inventory, durations and controls in the{' '}
+          <a href="/cookies?lang=en">Cookie Policy</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">
