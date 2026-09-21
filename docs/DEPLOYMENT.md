@@ -927,20 +927,39 @@ same time.
 | `package` | `preflight` | Builds the release archive and the env file, uploads both, extracts into `releases/<commit>` | No |
 | `backup` | the three above | Snapshots the database **if** this release adds migrations | No |
 | `release` | `backup` | Runs `deploy/release.sh` from the new release directory: migrates, proves a rollback is possible, starts the containers, switches traffic | Yes, from the switch onwards |
-| `verify` | `release` | The public smoke test, and the rollback when it fails | It undoes one |
+| `verify` | `release` | `deploy/verify-release.sh`: the public smoke test, and the rollback when it fails | It undoes one |
+| `recover` | `release`, `verify` | Runs `verify-release.sh` again when the release is live and `verify` did not finish green | It undoes one |
 
 Everything up to and including `backup` leaves the previous release serving and
 untouched; a failure there is a workflow that went red and a production that
 never noticed. `release` is where that stops being true, and it is the stage that
 carries the rollback machinery described below.
 
-**There is deliberately no "roll back on failure" job.** It is the obvious
-refactor and it is wrong: a rollback is only correct once traffic has been
-switched, and a job-level `if: failure()` cannot tell. After a failure that never
-reached production it would read `runtime/rollback.env` — written by the
-*previous* deploy — and restore that target over a release that is serving
-perfectly well. Only two callers can tell the difference, and both already do:
-the release script's exit handler, and the public smoke test.
+**Why `recover` is conditioned the way it is.** A rollback is only correct once
+traffic has been switched. A bare `if: failure()` cannot tell whether that
+happened: after a failure that never reached production it would read
+`runtime/rollback.env` — written by the *previous* deploy — and restore that
+target over a release serving perfectly well. `needs.release.result == 'success'`
+*can* tell, because the release script exits 0 only after the switch and every
+check after it. So `recover` runs with
+
+```yaml
+if: always() && needs.release.result == 'success' && needs.verify.result != 'success'
+```
+
+— exactly when a release is live and its outside verification did not finish
+green. That is the gap the staged pipeline opened: a job boundary now sits
+between the traffic switch and the public smoke test, and a `verify` job that
+failed *before* its smoke test ran (checkout, SSH setup, a lost runner), was
+cancelled or timed out used to leave a switched, never-verified release in front
+of traffic. `always()` is what keeps `recover` running on a cancellation, and the
+release condition is what keeps that safe.
+
+`recover` runs the same `deploy/verify-release.sh` as `verify`, and it asks the
+site **first**: after a `verify` that already rolled back, the previous release
+answers and nothing is touched. A rollback it does start is refused by
+`rollback-release.sh` (exit `4`) when the live release is already the target.
+`DEPLOY-012` runs the script and asserts the condition.
 
 ## Release rollback
 
@@ -993,6 +1012,7 @@ There are three phases, and the contract is different in each. `DEPLOY-010`,
 | Before the traffic switch | migration, rollback compatibility gate, readiness | The previous release never stops serving. The new containers are removed; nothing else is touched. |
 | After the traffic switch, while the release script runs | Caddy, `caddy validate`, the loopback smoke, the `current` symlink | `deploy/rollback-release.sh` restores the previous release and the workflow fails. |
 | After the release script exits — the public smoke test | DNS, certificate, the site as seen from outside | The same `deploy/rollback-release.sh` runs over SSH, the site is re-checked from the runner, and the workflow fails. |
+| After the release script exits — `verify` never finished | `verify`'s own checkout or SSH setup, a lost runner, a cancellation, a timeout | `recover` runs the public smoke test; if it fails, the same rollback, and the workflow fails. |
 | Either of those, on the **first** deploy of a host | anything post-switch | There is no earlier release, so the rollback changes **nothing** and reports `ROLLBACK IMPOSSIBLE`. The release that failed keeps serving — tearing it down would leave the host serving nothing — and the workflow fails with a CRITICAL line asking for manual action. |
 
 Once the release is live and recorded, the retention sweep that trims old

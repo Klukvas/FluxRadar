@@ -21,34 +21,17 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 // restores the previous images/release and switches the symlink back
 // automatically".
 //
-// The step is EXTRACTED from the workflow and RUN here against a recorded `ssh`
-// and a scripted smoke test, so what is asserted is what the deploy does.
+// The logic lives in deploy/verify-release.sh, which both post-release stages
+// run. It is RUN here against a recorded `ssh` and a scripted smoke test, so
+// what is asserted is what the deploy does.
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');
-const STEP_NAME = '      - name: Public smoke test';
+const VERIFY_SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'verify-release.sh');
 
 const APP_DIR = '/opt/fluxradar';
 const RELEASE_ID = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 
-/** The step's `run:` body, dedented out of the YAML block scalar. */
-function extractStep(): string {
-  const lines = readFileSync(WORKFLOW_PATH, 'utf8').split('\n');
-  const stepIndex = lines.findIndex((line) => line === STEP_NAME);
-  expect(stepIndex, 'the Public smoke test step is missing from the workflow').toBeGreaterThan(-1);
-  const runIndex = lines.findIndex((line, index) => index > stepIndex && /^\s*run: \|/.test(line));
-  expect(runIndex).toBeGreaterThan(stepIndex);
-  const body: string[] = [];
-  for (let index = runIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index] as string;
-    if (line.trim() !== '' && line.length - line.trimStart().length <= 8) break;
-    body.push(line);
-  }
-  const indent = Math.min(
-    ...body.filter((line) => line.trim() !== '').map((l) => l.length - l.trimStart().length),
-  );
-  return body.map((line) => (line.trim() === '' ? '' : line.slice(indent))).join('\n');
-}
 
 const workspaces: string[] = [];
 
@@ -109,10 +92,11 @@ function runStep(options: { smokeResults: string; sshExit?: number }): StepRun {
   writeExecutable(join(binDir, 'ssh'), SSH_RECORDER);
   writeExecutable(join(workspace, 'deploy', 'public-smoke.sh'), SMOKE_STUB);
 
-  const scriptPath = join(workspace, 'step.sh');
-  writeFileSync(scriptPath, extractStep());
+  // Beside the stubbed smoke test, exactly where it ships: the script finds
+  // public-smoke.sh relative to itself, not to the working directory.
+  writeExecutable(join(workspace, 'deploy', 'verify-release.sh'), readFileSync(VERIFY_SCRIPT_PATH, 'utf8'));
 
-  const result = spawnSync('bash', [scriptPath], {
+  const result = spawnSync('bash', ['deploy/verify-release.sh', '--host', 'fluxradar.net'], {
     cwd: workspace,
     encoding: 'utf8',
     env: {
@@ -226,9 +210,46 @@ describe('DEPLOY-012 public smoke rollback', () => {
     });
   });
 
-  it('keeps the rollback markers the workflow contract is read from', () => {
+  it('keeps the rollback markers the contract is read from', () => {
+    const verifier = readFileSync(VERIFY_SCRIPT_PATH, 'utf8');
+    expect(verifier).toContain('# fluxradar:public-smoke-rollback');
+    expect(verifier).toContain('# fluxradar:end-public-smoke-rollback');
+  });
+
+  it('refuses to run without the host or the server it would roll back', () => {
+    const noHost = spawnSync('bash', [VERIFY_SCRIPT_PATH], { encoding: 'utf8', env: {} });
+    expect(noHost.status).toBe(2);
+    expect(noHost.stderr).toContain('--host is required');
+    const noServer = spawnSync('bash', [VERIFY_SCRIPT_PATH, '--host', 'fluxradar.net'], {
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH ?? '' },
+    });
+    expect(noServer.status).toBe(2);
+    expect(noServer.stderr).toContain('SSH_HOST is not set');
+  });
+
+  // Splitting the deploy into stages put a job boundary between the traffic
+  // switch and this check. A `verify` job that fails BEFORE its smoke test —
+  // checkout, SSH setup, a lost runner — or is cancelled or times out would
+  // leave a switched, never-verified release live. `recover` closes that.
+  describe('the recover stage', () => {
     const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
-    expect(workflow).toContain('# fluxradar:public-smoke-rollback');
-    expect(workflow).toContain('# fluxradar:end-public-smoke-rollback');
+    const recover = workflow.slice(workflow.indexOf('\n  recover:\n'));
+
+    it('runs only for a release that is live and was not verified green', () => {
+      expect(recover).toContain('needs: [release, verify]');
+      // `release` succeeds only after the traffic switch, which is what makes it
+      // safe to run on a cancellation too.
+      expect(recover).toContain('always()');
+      expect(recover).toContain("needs.release.result == 'success'");
+      expect(recover).toContain("needs.verify.result != 'success'");
+      // A bare `if: failure()` would also fire after a failure that never
+      // reached production, and roll back a release serving perfectly well.
+      expect(recover).not.toMatch(/if:\s*failure\(\)\s*$/m);
+    });
+
+    it('runs the same verifier, so there is one rollback path to trust', () => {
+      expect(recover).toContain('bash deploy/verify-release.sh --host fluxradar.net');
+    });
   });
 });

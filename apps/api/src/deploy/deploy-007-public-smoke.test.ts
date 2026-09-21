@@ -27,6 +27,7 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'public-smoke.sh');
 const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');
+const VERIFY_SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'verify-release.sh');
 
 const execFileAsync = promisify(execFile);
 
@@ -265,29 +266,36 @@ describe('DEPLOY-007 public smoke test', () => {
     });
   });
 
-  describe('the deploy workflow step', () => {
+  // The check runs in deploy/verify-release.sh, which both post-release stages
+  // run — `verify`, and `recover` when `verify` did not finish green.
+  describe('what the deploy runs after the release', () => {
     const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
-    const begin = workflow.indexOf('# fluxradar:public-smoke-invocation');
-    const end = workflow.indexOf('# fluxradar:end-public-smoke-invocation');
-    const invocation = workflow.slice(begin, end);
+    const verifier = readFileSync(VERIFY_SCRIPT_PATH, 'utf8');
+    const begin = verifier.indexOf('# fluxradar:public-smoke-invocation');
+    const end = verifier.indexOf('# fluxradar:end-public-smoke-invocation');
+    const invocation = verifier.slice(begin, end);
 
-    it('calls the script for the production hostname', () => {
+    it('verifies the production hostname from both stages that verify', () => {
+      expect(workflow.split('bash deploy/verify-release.sh --host fluxradar.net')).toHaveLength(3);
+    });
+
+    it('calls the smoke test for the host it was given', () => {
       expect(begin).toBeGreaterThan(-1);
       expect(end).toBeGreaterThan(begin);
-      expect(invocation).toContain('deploy/public-smoke.sh --host fluxradar.net');
+      expect(invocation).toContain('public-smoke.sh" --host "$HOST"');
     });
 
     it('runs it from the runner, not over SSH on the server itself', () => {
       expect(invocation).not.toContain('ssh ');
+      expect(workflow).not.toMatch(/ssh[^\n]*verify-release\.sh/);
     });
 
     it('has no way left to pass while DNS or TLS is broken', () => {
-      const step = workflow.slice(workflow.indexOf('      - name: Public smoke test'));
-      expect(step).not.toContain('DNS for fluxradar.net is not configured yet');
-      expect(step).not.toContain('internal smoke test passed');
-      // The only `exit 0` is the one the script's own success produces.
-      expect(step.split('exit 0')).toHaveLength(2);
-      expect(step.trimEnd().endsWith('exit 1')).toBe(true);
+      expect(verifier).not.toContain('DNS for fluxradar.net is not configured yet');
+      expect(verifier).not.toContain('internal smoke test passed');
+      // The only `exit 0` is the one the smoke test's own success produces.
+      expect(verifier.split('exit 0')).toHaveLength(2);
+      expect(verifier.trimEnd().endsWith('exit 1')).toBe(true);
     });
   });
 });
