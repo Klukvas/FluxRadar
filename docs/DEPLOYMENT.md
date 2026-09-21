@@ -964,6 +964,25 @@ It never invents a target: when `runtime/rollback.env` names no earlier release
 the script changes nothing and the workflow fails loudly, because the answer then
 is to deploy a known-good commit, not to tear down the only release there is.
 
+**Pressing it twice does nothing the second time.** `runtime/rollback.env`
+records one step back and no rollback rewrites it, so once a rollback has run —
+by hand, or by a deploy that rolled itself back — the release that is live *is*
+the recorded target. `rollback-release.sh` refuses that case before it touches
+anything and exits `4` (*nothing to roll back*); the workflow says so, reports
+whether the live release passes the public smoke test, and fails, because the
+rollback that was asked for did not happen. Before this guard, the second run
+removed the containers serving production and recreated them — up to a minute of
+downtime reported as `ROLLBACK OK`. A redeploy of the commit that is already
+live arrives at the same state, and both deploy-time callers report it the same
+way. `DEPLOY-011` covers it.
+
+| `rollback-release.sh` exit | Meaning |
+| --- | --- |
+| `0` | The target is serving again, proven by a readiness probe. |
+| `1` | It tried and could not restore; production needs manual recovery. |
+| `3` | There is no target (a first deploy); nothing was changed. |
+| `4` | The release named as failed *is* the target; nothing was changed. |
+
 ### What a failed rollout does, exactly
 
 There are three phases, and the contract is different in each. `DEPLOY-010`,

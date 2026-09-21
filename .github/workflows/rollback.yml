@@ -87,6 +87,18 @@ jobs:
             echo 'CRITICAL: runtime/rollback.env names no earlier release, so NOTHING was changed and the release you wanted to undo is still live. Deploy a known-good commit instead (docs/DEPLOYMENT.md, "Release rollback").' >&2
             exit 1
           fi
+          if [ "$rollback_status" -eq 4 ]; then
+            # The case the guard in rollback-release.sh exists for: the deploy
+            # already rolled itself back, and the release that is live now IS the
+            # recorded target. There is nothing further back to go to.
+            echo 'Nothing was rolled back: the release that is live IS the recorded rollback target — a previous rollback already restored it, and runtime/rollback.env records only one step back. Nothing was changed. To go further back, deploy a known-good commit (docs/DEPLOYMENT.md, "Release rollback").' >&2
+            if bash deploy/public-smoke.sh --host fluxradar.net; then
+              echo 'For the record: that release is serving fluxradar.net correctly.' >&2
+            else
+              echo 'CRITICAL: and that release fails the public smoke test too. Production needs manual recovery (docs/DEPLOYMENT.md, "Release rollback").' >&2
+            fi
+            exit 1
+          fi
           if [ "$rollback_status" -ne 0 ]; then
             echo 'CRITICAL: the rollback failed; production may still be serving the release you wanted to undo. Recover by hand (docs/DEPLOYMENT.md, "Release rollback").' >&2
             exit 1
