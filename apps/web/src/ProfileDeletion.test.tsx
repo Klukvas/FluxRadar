@@ -45,7 +45,13 @@ function renderDeletion() {
   const onDeleted = vi.fn<(profile: SiteProfile) => Promise<void>>(() => Promise.resolve());
   const onError = vi.fn<(message: string) => void>();
   render(
-    <ProfileDeletion profile={PROFILE} language="en" onDeleted={onDeleted} onError={onError} />,
+    <ProfileDeletion
+      profile={PROFILE}
+      language="en"
+      onDeleted={onDeleted}
+      onError={onError}
+      onCancel={() => undefined}
+    />,
   );
   const confirmation = screen.getByLabelText(fillLabel('example.com'));
   const button = screen.getByRole('button', { name: t.deleteProfileButton });

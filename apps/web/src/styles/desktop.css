@@ -1,6 +1,6 @@
 /* The workspace desktop's additions: the header's way into the account, the
-   profile row's separated delete, the folded add-site form and the next-step
-   panel. */
+   profile row, the folded add-site form, the next-step panel and the
+   site-status rows. */
 
 .desktop__account-link {
   padding: 2px 0;
@@ -17,14 +17,30 @@
   border-color: var(--term-green);
 }
 
-/* Delete stands apart from the everyday actions of the row. */
-.profile-row__danger {
-  margin-left: var(--sp-3);
-  padding-left: var(--sp-3);
-  border-left: 1px solid var(--plat-300);
+/* A long unbroken domain wraps inside its column instead of widening the row. */
+.profile-row__site {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
+/* Centred under the list rather than tucked into it, where it read as one more
+   action of the last site's row. */
 .profile-add-toggle {
-  margin-top: var(--sp-3);
+  justify-content: center;
+}
+
+/* The site-status rows share one pair of columns. Each `.field-row` sized its
+   own at 180px + 1fr, so in this narrow column the value got ~120px and the
+   "Checked with limits" chip ran out of the panel. The labels now take only
+   the width of the longest one (never more than half), the values the rest. */
+.site-status__rows {
+  display: grid;
+  grid-template-columns: fit-content(50%) minmax(0, 1fr);
+  column-gap: var(--sp-3);
+}
+.site-status__rows > .field-row {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  column-gap: var(--sp-3);
 }
 
 .profile-context {
@@ -49,25 +65,20 @@
   margin-top: 0;
 }
 
-/* On a phone the four row actions were a ragged ladder of right-aligned
-   buttons; they become an even two-by-two grid, delete last. Scoped under
-   `.desktop` because base.css loads after this file and declares the same
-   selectors at the same weight. */
+/* On a phone the row's actions go under the site's name: New scan takes the
+   line, the "⋯" menu keeps its own width beside it. Scoped under `.desktop`
+   because base.css loads after this file and declares the same selectors at
+   the same weight. */
 @media (max-width: 699px) {
   .desktop .profile-row {
     grid-template-columns: 1fr;
   }
   .desktop .profile-row__actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr auto;
     justify-content: stretch;
   }
-  .desktop .profile-row__actions .button {
+  .desktop .profile-row__actions > .button {
     width: 100%;
-  }
-  .desktop .profile-row__danger {
-    margin-left: 0;
-    padding-left: 0;
-    border-left: 0;
   }
 }

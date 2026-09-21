@@ -1,6 +1,6 @@
-// Deleting a site from the workspace list. The action sits on the site's own row
-// next to New scan / Inspect / Edit profile — hidden inside the edit form it was
-// not found at all — and it still asks for the site address before deleting.
+// Deleting a site from the workspace list. The action sits in the site's own row
+// menu, below Reports and Edit profile — hidden inside the edit form it was not
+// found at all — and it still asks for the site address before deleting.
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -52,6 +52,12 @@ function rowOf(name: string): HTMLElement {
   return row;
 }
 
+/** Opens a row's "⋯" menu and picks one of its items. */
+function chooseFromRowMenu(name: string, item: string): void {
+  fireEvent.click(within(rowOf(name)).getByRole('button', { name: `Actions for ${name}` }));
+  fireEvent.click(screen.getByRole('menuitem', { name: item }));
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -64,12 +70,11 @@ describe('site profile rows', () => {
     const { deletedPaths } = stubWorkspace();
     await openSiteProfiles();
 
-    const row = rowOf('Gone site');
-    const toggle = within(row).getByRole('button', { name: 'Delete' });
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    chooseFromRowMenu('Gone site', 'Delete');
 
+    const row = rowOf('Gone site');
+    // The confirmation takes focus into the one field it asks for.
+    expect(within(row).getByLabelText('Type gone.example.com to confirm')).toHaveFocus();
     const confirm = within(row).getByRole('button', { name: 'Delete profile' });
     expect(confirm).toBeDisabled();
     fireEvent.change(within(row).getByLabelText('Type gone.example.com to confirm'), {
@@ -86,10 +91,52 @@ describe('site profile rows', () => {
     stubWorkspace();
     await openSiteProfiles();
 
-    fireEvent.click(within(rowOf('Gone site')).getByRole('button', { name: 'Delete' }));
-    fireEvent.click(within(rowOf('Kept site')).getByRole('button', { name: 'Delete' }));
+    chooseFromRowMenu('Gone site', 'Delete');
+    chooseFromRowMenu('Kept site', 'Delete');
 
-    expect(within(rowOf('Kept site')).getByLabelText('Type kept.example.com to confirm')).toBeVisible();
+    expect(
+      within(rowOf('Kept site')).getByLabelText('Type kept.example.com to confirm'),
+    ).toBeVisible();
     expect(within(rowOf('Gone site')).queryByRole('button', { name: 'Delete profile' })).toBeNull();
+  });
+
+  it('closes the confirmation on Cancel and hands focus back to the row menu', async () => {
+    stubWorkspace();
+    await openSiteProfiles();
+
+    chooseFromRowMenu('Gone site', 'Delete');
+    fireEvent.click(within(rowOf('Gone site')).getByRole('button', { name: 'Cancel' }));
+
+    expect(within(rowOf('Gone site')).queryByRole('button', { name: 'Delete profile' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Actions for Gone site' })).toHaveFocus();
+  });
+
+  it('keeps the row to New scan and one menu, walked with the arrow keys', async () => {
+    stubWorkspace();
+    await openSiteProfiles();
+
+    const row = rowOf('Kept site');
+    expect(
+      within(row)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['New scan', '']);
+
+    const menuButton = within(row).getByRole('button', { name: 'Actions for Kept site' });
+    expect(menuButton).toHaveAttribute('aria-haspopup', 'menu');
+    fireEvent.click(menuButton);
+    expect(menuButton).toHaveAttribute('aria-expanded', 'true');
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual(['Reports', 'Edit profile', 'Delete']);
+    expect(items[0]).toHaveFocus();
+
+    fireEvent.keyDown(items[0] as HTMLElement, { key: 'ArrowUp' });
+    expect(items[2]).toHaveFocus();
+    fireEvent.keyDown(items[2] as HTMLElement, { key: 'ArrowDown' });
+    expect(items[0]).toHaveFocus();
+
+    fireEvent.keyDown(items[0] as HTMLElement, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(menuButton).toHaveFocus();
   });
 });

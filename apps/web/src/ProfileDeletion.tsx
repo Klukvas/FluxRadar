@@ -7,7 +7,7 @@
 // answers with a closed code, so the sentence the owner reads is chosen here
 // rather than taken from server prose.
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { ApiRequestError, apiRequest, type SiteProfile } from './api';
 import { Button, Field } from './components';
@@ -38,13 +38,20 @@ export function ProfileDeletion(props: {
   language: Language;
   onDeleted: (profile: SiteProfile) => Promise<void>;
   onError: (message: string) => void;
+  onCancel: () => void;
 }) {
   const t = copy[props.language].workspace;
   const headingId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
   const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const hostname = hostnameOf(props.profile.domain);
   const isConfirmed = confirmation.trim().toLowerCase() === hostname.toLowerCase();
+
+  // Opened from a menu, the confirmation takes focus into the one field it asks for.
+  useEffect(() => {
+    sectionRef.current?.querySelector<HTMLInputElement>('input')?.focus();
+  }, []);
 
   const remove = async () => {
     setBusy(true);
@@ -61,7 +68,7 @@ export function ProfileDeletion(props: {
   };
 
   return (
-    <section className="profile-deletion" aria-labelledby={headingId}>
+    <section className="profile-deletion" aria-labelledby={headingId} ref={sectionRef}>
       <strong id={headingId}>{t.deleteProfileHeading}</strong>
       <p>{t.deleteProfileHelp}</p>
       <Field
@@ -73,9 +80,14 @@ export function ProfileDeletion(props: {
         onChange={setConfirmation}
         placeholder={hostname}
       />
-      <Button variant="danger" disabled={busy || !isConfirmed} onClick={() => void remove()}>
-        {busy ? t.deletingProfile : t.deleteProfileButton}
-      </Button>
+      <div className="button-row">
+        <Button variant="danger" disabled={busy || !isConfirmed} onClick={() => void remove()}>
+          {busy ? t.deletingProfile : t.deleteProfileButton}
+        </Button>
+        <Button onClick={props.onCancel} disabled={busy}>
+          {t.deleteProfileCancel}
+        </Button>
+      </div>
     </section>
   );
 }

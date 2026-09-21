@@ -328,8 +328,9 @@ describe('Reports scoped to one website', () => {
     window.history.replaceState(null, '', '/profiles');
     render(<App />);
 
-    // Named after the site, so two rows' "Reports" buttons are told apart.
-    fireEvent.click(await screen.findByRole('button', { name: 'Reports: Product website' }));
+    // The row's menu is named after the site, so two rows' menus are told apart.
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Product website' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reports' }));
 
     // The button produces a visible result, not a silent state change.
     expect(await screen.findByText('Reports for Product website')).toBeInTheDocument();

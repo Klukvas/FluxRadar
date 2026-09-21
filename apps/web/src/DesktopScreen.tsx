@@ -4,13 +4,15 @@
 // Three things changed here. The add-profile form was always open — eight
 // fields under every list, however many sites it already held — so it now
 // folds behind "+ Add a site" once there is a site, with the six AI-context
-// fields folded again inside it. A site's delete button stood shoulder to
-// shoulder with "Edit" at the same weight; it now sits apart. And the right
-// column's terminal repeated the price list in four hard-coded English lines;
-// it now names the owner's next step, worked out from their own last scan.
+// fields folded again inside it. A site row carried four labelled buttons; it
+// now keeps New scan and folds Reports, Edit and — below a divider — Delete
+// into one "⋯" menu. And the right column's terminal repeated the price list
+// in four hard-coded English lines; it now names the owner's next step, worked
+// out from their own last scan.
 
 import { useCallback, useRef, useState, type FormEvent } from 'react';
 
+import { ActionMenu } from './ActionMenu';
 import { apiRequest, canRetrySection, type Scan, type SiteProfile } from './api';
 import { Button, EmptyState, Field, Panel, TextAreaField, Window } from './components';
 import { desktopCopy, type NextStepKind } from './desktop-copy';
@@ -213,11 +215,8 @@ export function DesktopScreen(props: DesktopScreenProps) {
                       profile={profile}
                       language={props.language}
                       deleting={deletingProfileId === profile.id}
-                      onToggleDelete={() =>
-                        setDeletingProfileId((current) =>
-                          current === profile.id ? null : profile.id,
-                        )
-                      }
+                      onOpenDelete={() => setDeletingProfileId(profile.id)}
+                      onCancelDelete={() => setDeletingProfileId(null)}
                       onNewScan={() => props.onNewScan(profile)}
                       onReports={() => props.onSelectProfile(profile)}
                       onEdit={() => editProfile(profile)}
@@ -232,13 +231,15 @@ export function DesktopScreen(props: DesktopScreenProps) {
                   ))
                 )}
               </div>
-              {formOpen ? null : (
-                <div className="button-row profile-add-toggle">
-                  <Button onClick={openForm}>{d.addSiteToggle}</Button>
-                </div>
-              )}
             </Panel>
           </div>
+          {/* Under the list, not inside it: in the panel it read as one more
+              action of the last site's row. */}
+          {formOpen ? null : (
+            <div className="button-row profile-add-toggle">
+              <Button onClick={openForm}>{d.addSiteToggle}</Button>
+            </div>
+          )}
           {formOpen ? (
             <div ref={formRef}>
               <Panel
@@ -386,7 +387,8 @@ function ProfileRow(props: {
   profile: SiteProfile;
   language: Language;
   deleting: boolean;
-  onToggleDelete: () => void;
+  onOpenDelete: () => void;
+  onCancelDelete: () => void;
   onNewScan: () => void;
   onReports: () => void;
   onEdit: () => void;
@@ -395,10 +397,10 @@ function ProfileRow(props: {
 }) {
   const t = copy[props.language].workspace;
   const { profile } = props;
-  const deletionId = `profile-deletion-${profile.id}`;
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   return (
     <div className="profile-row">
-      <div>
+      <div className="profile-row__site">
         <strong>{profile.name}</strong>
         <span className="profile-row__domain">{profile.domain}</span>
       </div>
@@ -406,30 +408,32 @@ function ProfileRow(props: {
         <Button onClick={props.onNewScan} variant="primary">
           {t.newScan}
         </Button>
-        <Button onClick={props.onReports} aria-label={`${t.inspect}: ${profile.name}`}>
-          {t.inspect}
-        </Button>
-        <Button onClick={props.onEdit}>{t.editProfile}</Button>
-        {/* Apart from the rest, so the irreversible action is never the
-            neighbour of an everyday one. */}
-        <span className="profile-row__danger">
-          <Button
-            variant="danger"
-            onClick={props.onToggleDelete}
-            aria-expanded={props.deleting}
-            aria-controls={deletionId}
-          >
-            {t.deleteProfileAction}
-          </Button>
-        </span>
+        <ActionMenu
+          label={desktopCopy[props.language].rowActions(profile.name)}
+          buttonRef={menuButtonRef}
+          items={[
+            { id: 'reports', label: t.inspect, onSelect: props.onReports },
+            { id: 'edit', label: t.editProfile, onSelect: props.onEdit },
+            {
+              id: 'delete',
+              label: t.deleteProfileAction,
+              onSelect: props.onOpenDelete,
+              danger: true,
+            },
+          ]}
+        />
       </div>
       {props.deleting ? (
-        <div className="profile-row__deletion" id={deletionId}>
+        <div className="profile-row__deletion">
           <ProfileDeletion
             profile={profile}
             language={props.language}
             onDeleted={props.onDeleted}
             onError={props.onError}
+            onCancel={() => {
+              props.onCancelDelete();
+              menuButtonRef.current?.focus();
+            }}
           />
         </div>
       ) : null}
