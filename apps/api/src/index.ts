@@ -11,7 +11,7 @@ import {
   readFreeCheckAllowlist,
 } from './billing/free-check-allowlist.ts';
 import { getInternalFreeEmails } from './billing/internal-access.ts';
-import { billingRouter } from './billing-http/routes.ts';
+import { internalCheckoutRouter } from './billing-http/internal-checkout-routes.ts';
 import { fastSpringRouter, fastSpringWebhookHandler } from './billing-http/fastspring-routes.ts';
 import {
   FASTSPRING_PROVIDER,
@@ -276,7 +276,7 @@ export function createApp(options: CreateAppOptions): Express {
     }),
   );
   app.use(
-    billingRouter({
+    internalCheckoutRouter({
       prisma: options.prisma,
       now,
       enqueueScan,

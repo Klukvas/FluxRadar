@@ -414,19 +414,16 @@ export function useNewScanForm(props: NewScanFormProps) {
       } else if (props.internalFreeAccess) {
         // Internal allowlist only: creates a scan without a purchase, and is
         // refused for everyone else, in every environment (D-229).
-        scan = await apiRequest<{ scanId: string } & Record<string, unknown>>(
-          '/billing/dev-checkout',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              siteProfileId: profileId,
-              plan,
-              scope: scopePayload,
-              expectedProfileConfigVersion,
-              ...aiConsent,
-            }),
-          },
-        ).then((value) => apiRequest<Scan>(`/scans/${value.scanId}`));
+        scan = await apiRequest<{ scanId: string }>('/billing/internal-checkout', {
+          method: 'POST',
+          body: JSON.stringify({
+            siteProfileId: profileId,
+            plan,
+            scope: scopePayload,
+            expectedProfileConfigVersion,
+            ...aiConsent,
+          }),
+        }).then((value) => apiRequest<Scan>(`/scans/${value.scanId}`));
       } else {
         // Paid plans hand off to the provider. No scan exists until the signed
         // provider webhook creates one, so nothing is created here.

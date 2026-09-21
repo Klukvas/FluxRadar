@@ -1,4 +1,4 @@
-// The internal free-access checkout: `/billing/dev-checkout`.
+// The internal free-access checkout: `/billing/internal-checkout`.
 //
 // It runs a paid plan without a payment, and only for a named internal account
 // — the FLUXRADAR_INTERNAL_FREE_EMAILS allowlist, which fails closed when unset
@@ -26,7 +26,7 @@ import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 import type { Mailer } from '../email/mailer.ts';
 import { notifyScanEvent } from '../email/notifications.ts';
 
-const devCheckoutInputSchema = z
+const internalCheckoutInputSchema = z
   .object({
     siteProfileId: z.string().min(1),
     plan: z.enum(PAID_PLANS),
@@ -45,7 +45,7 @@ const devCheckoutInputSchema = z
     }
   });
 
-export interface BillingRouterDeps {
+export interface InternalCheckoutRouterDeps {
   readonly prisma: PrismaClient;
   readonly now: () => Date;
   readonly enqueueScan?: (scanId: string) => void;
@@ -56,13 +56,13 @@ export interface BillingRouterDeps {
   readonly egress: EgressLocationMonitor;
 }
 
-export function billingRouter(deps: BillingRouterDeps): Router {
+export function internalCheckoutRouter(deps: InternalCheckoutRouterDeps): Router {
   const router = Router();
   const auth = requireAuth(deps.prisma, deps.now);
   const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
 
-  router.post('/billing/dev-checkout', auth, async (req, res) => {
-    const input = parseInput(devCheckoutInputSchema, req.body);
+  router.post('/billing/internal-checkout', auth, async (req, res) => {
+    const input = parseInput(internalCheckoutInputSchema, req.body);
     const accountId = accountIdFrom(res);
     requestRateLimiter.assertAllowedAll(
       scanActionRules('checkout', accountId, req.ip ?? 'unknown'),
@@ -94,19 +94,9 @@ export function billingRouter(deps: BillingRouterDeps): Router {
       expectedProfileConfigVersion: input.expectedProfileConfigVersion,
       now: deps.now(),
     });
-    sendOk(
-      res,
-      {
-        purchaseId: null,
-        entitlementId: null,
-        scanId: scan.id,
-        transactionId: null,
-        eventId: null,
-        plan: input.plan,
-        billing: 'internal-free',
-      },
-      { status: 201 },
-    );
+    // No purchase, entitlement or provider event exists for this scan, so the
+    // response names none; `billing` says why.
+    sendOk(res, { scanId: scan.id, plan: input.plan, billing: 'internal-free' }, { status: 201 });
     deps.enqueueScan?.(scan.id);
     void notifyScanEvent(
       deps.prisma,

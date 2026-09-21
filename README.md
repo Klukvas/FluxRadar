@@ -52,7 +52,7 @@ without a signed FastSpring order, in every environment (D-229):
    (comma-separated for several; matching ignores case).
 2. Restart the API, then register or sign in with that email.
 3. The new-scan screen now offers **Basic · internal free** and **Complete · internal free**.
-   Launching one calls `POST /billing/dev-checkout`, which queues the scan straight away.
+   Launching one calls `POST /billing/internal-checkout`, which queues the scan straight away.
 
 Such a scan writes no `Purchase` or `Entitlement` (the response says
 `billing: "internal-free"`), so refunds, receipts and the reachability gate in front of a sale are

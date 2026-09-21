@@ -1056,4 +1056,8 @@
   («Retired variables» и expand/contract-миграция) и модель данных в
   `FASTSPRING.md` (колонки `paddle*`, пока их не удалит contract-миграция).
   Остальные живые документы описывают FastSpring и allowlist; как запустить
-  платный скан локально — `README.md`, «Paid scans locally».
+  платный скан локально — `README.md`, «Paid scans locally». Маршрут allowlist
+  переименован из `/billing/dev-checkout` в `/billing/internal-checkout`: «dev»
+  в имени осталось от MockPaddle, а работает он во всех окружениях. Его ответ —
+  `{ scanId, plan, billing: 'internal-free' }`: поля `purchaseId`,
+  `entitlementId`, `transactionId` и `eventId` были всегда `null` — покупки нет.

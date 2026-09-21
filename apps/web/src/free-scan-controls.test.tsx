@@ -65,7 +65,8 @@ function renderNewScan(
     if (path === '/scans/active') return Promise.resolve(envelope(null));
     if (path === '/profiles/profile-1/scans') return Promise.resolve(envelope([]));
     if (path.endsWith('/free-check')) return Promise.resolve(envelope(scan));
-    if (path === '/billing/dev-checkout') return Promise.resolve(envelope({ scanId: scan.id }));
+    if (path === '/billing/internal-checkout')
+      return Promise.resolve(envelope({ scanId: scan.id }));
     if (path.startsWith('/scans/')) return Promise.resolve(envelope(scan));
     void init;
     return Promise.resolve(envelope(null));
@@ -259,10 +260,12 @@ describe('paid plan controls', () => {
 
     await waitFor(() =>
       expect(
-        fetchMock.mock.calls.some(([input]) => pathOf(input) === '/billing/dev-checkout'),
+        fetchMock.mock.calls.some(([input]) => pathOf(input) === '/billing/internal-checkout'),
       ).toBe(true),
     );
-    const call = fetchMock.mock.calls.find(([input]) => pathOf(input) === '/billing/dev-checkout');
+    const call = fetchMock.mock.calls.find(
+      ([input]) => pathOf(input) === '/billing/internal-checkout',
+    );
     expect(bodyOf(call?.[1] as RequestInit)).toMatchObject({
       siteProfileId: profile.id,
       plan: 'Complete',

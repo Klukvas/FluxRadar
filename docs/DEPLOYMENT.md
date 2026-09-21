@@ -682,7 +682,7 @@ owner. The short version:
   `FASTSPRING_STOREFRONT_URL`. A test-mode order can never grant access on a
   live deployment.
 
-`/billing/dev-checkout` refuses every account that is not internal, in every
+`/billing/internal-checkout` refuses every account that is not internal, in every
 environment: a signed FastSpring order is the only thing that creates a purchase.
 An exact, comma-separated `FLUXRADAR_INTERNAL_FREE_EMAILS` allowlist may be
 supplied in the private production environment file for internal testing.

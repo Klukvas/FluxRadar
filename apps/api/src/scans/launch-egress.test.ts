@@ -94,7 +94,7 @@ describe('launching a scan from a chosen egress location', () => {
     profileId: string,
     scope: Record<string, unknown>,
   ) {
-    return agent.post('/billing/dev-checkout').send({
+    return agent.post('/billing/internal-checkout').send({
       siteProfileId: profileId,
       plan: 'Complete',
       scope: { includeSubdomains: false, ...scope },

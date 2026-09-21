@@ -78,7 +78,7 @@ describe('a scan crawls from the location it recorded', () => {
     const profile = await agent
       .post('/profiles')
       .send({ name: 'Example', domain: 'https://example.com' });
-    const launched = await agent.post('/billing/dev-checkout').send({
+    const launched = await agent.post('/billing/internal-checkout').send({
       siteProfileId: profile.body.data.id as string,
       plan: 'Basic',
       scope: { includeSubdomains: false, maxPages: 1, egressLocation: location },

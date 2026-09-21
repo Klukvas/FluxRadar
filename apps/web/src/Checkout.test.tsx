@@ -206,7 +206,7 @@ describe('paid checkout flow', () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open the checkout page' })).not.toBeInTheDocument();
     // A buyer pays through FastSpring; the internal allowlist's route is not on this path.
-    expect(called(fetchMock, '/billing/dev-checkout')).toBe(false);
+    expect(called(fetchMock, '/billing/internal-checkout')).toBe(false);
     expect(called(fetchMock, `/profiles/${profile.id}/free-check`)).toBe(false);
 
     const posted = fetchMock.mock.calls.find(
@@ -333,7 +333,7 @@ describe('paid checkout flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
     await waitFor(() => expect(called(fetchMock, `/profiles/${profile.id}/free-check`)).toBe(true));
     expect(called(fetchMock, '/billing/checkout-session')).toBe(false);
-    expect(called(fetchMock, '/billing/dev-checkout')).toBe(false);
+    expect(called(fetchMock, '/billing/internal-checkout')).toBe(false);
   });
 
   // A provider that is set up but broken is an operator problem, and the server
@@ -379,19 +379,19 @@ describe('paid checkout flow', () => {
     expect(screen.queryByText('Complete · $120')).not.toBeInTheDocument();
   });
 
-  it('keeps the internal free allowlist on the dev-checkout path', async () => {
+  it('keeps the internal free allowlist on the internal-checkout path', async () => {
     const fetchMock = await openNewScan((path) => {
       if (path === '/auth/me') return envelope({ ...account, internalFreeAccess: true });
       if (path === '/profiles') return envelope([profile]);
       if (path === '/scans/active') return envelope(null);
-      if (path === '/billing/dev-checkout') return envelope({ scanId: paidScan.id }, 201);
+      if (path === '/billing/internal-checkout') return envelope({ scanId: paidScan.id }, 201);
       if (path === `/scans/${paidScan.id}`) return envelope(paidScan);
       return envelope(null);
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Run internal scan' }));
 
-    await waitFor(() => expect(called(fetchMock, '/billing/dev-checkout')).toBe(true));
+    await waitFor(() => expect(called(fetchMock, '/billing/internal-checkout')).toBe(true));
     // Internal accounts never touch the paid provider, and never ask for config.
     expect(called(fetchMock, '/billing/checkout-session')).toBe(false);
     expect(called(fetchMock, '/billing/checkout-config')).toBe(false);

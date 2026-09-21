@@ -63,7 +63,8 @@ function renderNewScan(egress: EgressLaunchConfig): ReturnType<typeof vi.fn> {
     if (path === '/scans/active') return Promise.resolve(envelope(null));
     if (path === '/scans/launch-config') return Promise.resolve(envelope({ egress }));
     if (path === '/profiles/profile-1/scans') return Promise.resolve(envelope([]));
-    if (path === '/billing/dev-checkout') return Promise.resolve(envelope({ scanId: scan.id }));
+    if (path === '/billing/internal-checkout')
+      return Promise.resolve(envelope({ scanId: scan.id }));
     if (path.startsWith('/scans/')) return Promise.resolve(envelope(scan));
     return Promise.resolve(envelope(null));
   });
@@ -103,10 +104,12 @@ describe('choosing the country a check runs from', () => {
 
     await waitFor(() =>
       expect(
-        fetchMock.mock.calls.some(([input]) => pathOf(input) === '/billing/dev-checkout'),
+        fetchMock.mock.calls.some(([input]) => pathOf(input) === '/billing/internal-checkout'),
       ).toBe(true),
     );
-    const call = fetchMock.mock.calls.find(([input]) => pathOf(input) === '/billing/dev-checkout');
+    const call = fetchMock.mock.calls.find(
+      ([input]) => pathOf(input) === '/billing/internal-checkout',
+    );
     const body = JSON.parse(String((call?.[1] as RequestInit).body)) as {
       scope: Record<string, unknown>;
     };

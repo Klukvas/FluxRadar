@@ -118,7 +118,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
 
   // A single generic creation endpoint is kept for clients that only expose a
   // plan picker. Paid plans must go through a checkout — a signed FastSpring
-  // order, or the internal allowlist's /billing/dev-checkout — so a paid scan
+  // order, or the internal allowlist's /billing/internal-checkout — so a paid scan
   // can never be created by a bare scan request.
   router.post('/profiles/:profileId/scans', auth, async (req, res) => {
     const input = parseInput(scanRequestInputSchema, req.body);

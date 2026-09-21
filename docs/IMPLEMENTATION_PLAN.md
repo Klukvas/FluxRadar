@@ -242,7 +242,7 @@ API/оркестратор → дизайн-система UI → экраны �
   JSON Schema + semantic validator; CSV корректен.
 - [ ] Тарифное гейтирование: Free — только homepage-проверка; Basic — без экспорта/истории;
   Complete — история/сравнение/CSV.
-- [ ] UI: happy path (регистрация → профиль → dev-checkout → скан → дашборд → Issue Center →
+- [ ] UI: happy path (регистрация → профиль → чекаут → скан → дашборд → Issue Center →
   CSV) работает вручную; стиль соответствует `DESIGN_SYSTEM.md`.
 - [ ] Секреты только в env, `.env.example` без значений; логи без raw HTML/credentials.
 - [x] До публичных продаж Terms, Privacy и Cookie Policy называют фактического продавца/контролёра: полное

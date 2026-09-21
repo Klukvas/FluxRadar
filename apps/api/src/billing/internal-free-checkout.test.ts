@@ -7,7 +7,7 @@ import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 // Who may run a paid plan without paying.
 //
-// Since D-229 `POST /billing/dev-checkout` is the only way to a Basic/Complete
+// Since D-229 `POST /billing/internal-checkout` is the only way to a Basic/Complete
 // scan that does not go through a signed FastSpring order, and the one thing in
 // front of it is the FLUXRADAR_INTERNAL_FREE_EMAILS allowlist. An account the
 // allowlist does not name must be refused and leave nothing behind — no scan,
@@ -29,7 +29,7 @@ describe('internal free checkout access', () => {
     await db.cleanup();
   });
 
-  async function devCheckout(email: string, internalFreeEmails?: ReadonlySet<string>) {
+  async function internalCheckout(email: string, internalFreeEmails?: ReadonlySet<string>) {
     const app = createApp({
       prisma: db.prisma,
       autoProcess: false,
@@ -49,7 +49,7 @@ describe('internal free checkout access', () => {
       .send({ name: 'Fixture Site', domain: 'https://buyer.example.com' });
     expect(profile.status).toBe(201);
     return agent
-      .post('/billing/dev-checkout')
+      .post('/billing/internal-checkout')
       .set('Cookie', cookie)
       .send({
         siteProfileId: profile.body.data.id,
@@ -71,7 +71,7 @@ describe('internal free checkout access', () => {
     async (nodeEnv) => {
       vi.stubEnv('NODE_ENV', nodeEnv);
 
-      const response = await devCheckout(OUTSIDER_EMAIL, new Set([INTERNAL_EMAIL]));
+      const response = await internalCheckout(OUTSIDER_EMAIL, new Set([INTERNAL_EMAIL]));
 
       expect(response.status).toBe(402);
       expect(response.body.error.code).toBe('PAYMENT_REQUIRED');
@@ -83,7 +83,7 @@ describe('internal free checkout access', () => {
   it('refuses every account when the allowlist is unset', async () => {
     vi.stubEnv('FLUXRADAR_INTERNAL_FREE_EMAILS', undefined);
 
-    const response = await devCheckout(INTERNAL_EMAIL);
+    const response = await internalCheckout(INTERNAL_EMAIL);
 
     expect(response.status).toBe(402);
     expect(await paidRecords()).toEqual({ scans: 0, purchases: 0, entitlements: 0 });
@@ -93,7 +93,7 @@ describe('internal free checkout access', () => {
   it('runs the plan for the named account, still without a purchase', async () => {
     vi.stubEnv('NODE_ENV', 'production');
 
-    const response = await devCheckout(INTERNAL_EMAIL, new Set([INTERNAL_EMAIL]));
+    const response = await internalCheckout(INTERNAL_EMAIL, new Set([INTERNAL_EMAIL]));
 
     expect(response.status).toBe(201);
     expect(response.body.data).toMatchObject({ billing: 'internal-free', plan: 'Complete' });
