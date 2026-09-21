@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fluxradar/contracts": "workspace:*"
+    "@fluxradar/contracts": "workspace:*",
+    "zod": "^4.5.4"
   }
 }
