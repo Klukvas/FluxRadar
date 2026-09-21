@@ -173,3 +173,22 @@
     break-after: avoid;
   }
 }
+
+/* The Action Plan section: the model's text, labelled as such, kept together. */
+.print-ai-label {
+  padding: 0 6px;
+  border: 1px solid #111;
+  font: 700 10px var(--mono-font);
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+.print-plan-actions {
+  padding-left: 20px;
+}
+.print-plan-action {
+  margin-bottom: var(--sp-3);
+  break-inside: avoid;
+}
+.print-plan-action p {
+  margin: var(--sp-1) 0;
+}

@@ -7,6 +7,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { ActionPlan, LockedActionPlan, useActionPlan } from './ActionPlan';
+import { planLanguageOptions } from './action-plan';
 import { apiRequest, canRetrySection, type IssueSummary, type Scan, type ScanChanges } from './api';
 import { Button, StatusChip } from './components';
 import { egressLocationLabel } from './egress-location';
@@ -247,13 +249,19 @@ export function FreeUpsell(props: { scan: Scan; language: Language; onUpgrade: (
 }
 
 /**
- * The report's next-step blocks, in order: what to fix first, then either what
- * changed since the last scan (a paid report) or what the free check left
- * unread (a Free one).
+ * The report's next-step blocks, in order: what to fix first — the AI Action
+ * Plan when one is ready in the chosen language, "Fix these first" otherwise —
+ * then either what changed since the last scan (a paid report) or what the
+ * free check left unread (a Free one).
  */
 export function ReportNextSteps(props: {
   scan: Scan;
   language: Language;
+  /** The Action Plan language the report shows; the print view follows it. */
+  planLanguage: string;
+  onPlanLanguage: (code: string) => void;
+  /** The site profile's target languages, listed first in the plan's picker. */
+  profileTargetLanguages?: string | null;
   onOpenProblem: (ruleId: string) => void;
   onAllProblems: () => void;
   onUpgrade: () => void;
@@ -261,12 +269,15 @@ export function ReportNextSteps(props: {
   onRetry?: () => Promise<void>;
 }) {
   const summary = useIssueSummary(props.scan.id);
+  const complete = props.scan.plan === 'Complete';
+  const actionPlan = useActionPlan(complete ? props.scan.id : null, props.planLanguage);
+  const readyPlan = actionPlan.state?.plan ?? null;
   return (
     <>
       {props.onRetry !== undefined && canRetrySection(props.scan) ? (
         <SectionRetry language={props.language} onRetry={props.onRetry} />
       ) : null}
-      {summary === null ? null : (
+      {summary === null || readyPlan !== null ? null : (
         <FixFirst
           summary={summary}
           language={props.language}
@@ -274,6 +285,20 @@ export function ReportNextSteps(props: {
           onAll={props.onAllProblems}
         />
       )}
+      {complete ? (
+        <ActionPlan
+          scanId={props.scan.id}
+          language={props.language}
+          handle={actionPlan}
+          planLanguage={props.planLanguage}
+          planLanguageOptions={planLanguageOptions(props.language, props.profileTargetLanguages)}
+          onPlanLanguage={props.onPlanLanguage}
+          onOpenProblem={props.onOpenProblem}
+        />
+      ) : null}
+      {props.scan.plan === 'Basic' && summary !== null && summary.open > 0 ? (
+        <LockedActionPlan language={props.language} onUpgrade={props.onUpgrade} />
+      ) : null}
       {props.scan.plan === 'Free' ? (
         <FreeUpsell scan={props.scan} language={props.language} onUpgrade={props.onUpgrade} />
       ) : (

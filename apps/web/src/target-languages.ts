@@ -86,10 +86,22 @@ export function formatTargetLanguages(names: readonly string[]): string {
   return names.join(', ');
 }
 
+/** A listed language's code as the reader's language names it, capitalised. */
+export function languageCodeLabel(code: string, language: Language): string {
+  const label = languageName(code, language);
+  return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+}
+
 /** A stored name as the reader's language spells it; an unlisted entry stays as written. */
 export function targetLanguageLabel(name: string, language: Language): string {
   const code = CODE_BY_NAME.get(name);
-  if (code === undefined) return name;
-  const label = languageName(code, language);
-  return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+  return code === undefined ? name : languageCodeLabel(code, language);
+}
+
+/** The codes of the listed languages a profile's value names, in its order; others are skipped. */
+export function targetLanguageCodes(value: string): readonly string[] {
+  return parseTargetLanguages(value).flatMap((name) => {
+    const code = CODE_BY_NAME.get(name);
+    return code === undefined ? [] : [code];
+  });
 }

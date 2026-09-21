@@ -100,6 +100,22 @@ describe('workspace deep links survive a reload', () => {
     expect(window.location.pathname).toBe(`/scans/${runningScan.id}/issues`);
   });
 
+  it.each([
+    ['the language its address names', '?plan=de', 'de'],
+    ['the reader’s language for a code the picker does not list', '?plan=xx', 'en'],
+  ])('asks the client report for the Action Plan in %s', async (_case, search, language) => {
+    const fetchMock = stubApi(signedIn);
+    window.history.replaceState(null, '', `/scans/${runningScan.id}/report${search}`);
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.map(([input]) => String(input))).toContainEqual(
+        expect.stringContaining(`/scans/${runningScan.id}/action-plan?language=${language}`),
+      ),
+    );
+  });
+
   it('does not hijack a workspace URL with whatever scan happens to be running', async () => {
     const fetchMock = stubApi((path) =>
       path === '/scans/active' ? envelope(runningScan) : signedIn(path),

@@ -59,6 +59,7 @@ import { BotScreen } from './Bot';
 import { SiteReachabilityPanel } from './SiteReachability';
 import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
 import { PrintReport } from './PrintReport';
+import { listedPlanLanguage } from './action-plan';
 import { IntegrationsScreen } from './Integrations';
 import { IssuesScreen } from './Issues';
 import { ResultsScreen } from './Report';
@@ -431,7 +432,10 @@ function AppContent({
               ? 'results'
               : 'scan';
         setScreen(target);
-        window.history.replaceState(null, '', pathForScreen(target, scan.id));
+        // The print view reads its plan language from `?plan=`; every other
+        // scan screen's address is the path alone.
+        const search = target === 'print' ? window.location.search : '';
+        window.history.replaceState(null, '', pathForScreen(target, scan.id) + search);
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : 'Scan could not be restored');
         window.history.replaceState(null, '', pathForScreen('reports', null));
@@ -533,7 +537,9 @@ function AppContent({
     setPendingCheckout(null);
   }, []);
 
-  const navigate = useCallback((next: string, scanId?: string) => {
+  // `search` rides along for the one screen that reads a query: the print view's
+  // plan language.
+  const navigate = useCallback((next: string, scanId?: string, search = '') => {
     if (next === 'styleguide') {
       window.location.hash = 'styleguide';
       setScreen('styleguide');
@@ -563,8 +569,8 @@ function AppContent({
     // Pushed, not replaced, so that Back returns to the previous screen instead
     // of leaving the workspace entirely. Re-entering the screen you are already
     // on replaces instead, so a repeated tab click does not fill the history.
-    if (path === window.location.pathname) window.history.replaceState(null, '', path);
-    else window.history.pushState(null, '', path);
+    if (path === window.location.pathname) window.history.replaceState(null, '', path + search);
+    else window.history.pushState(null, '', path + search);
     setScreen(valid);
   }, []);
 
@@ -947,6 +953,10 @@ function AppContent({
           <PrintReport
             scanId={printScanId}
             language={language}
+            planLanguage={
+              listedPlanLanguage(new URLSearchParams(window.location.search).get('plan')) ??
+              language
+            }
             onBack={() => navigate('results', printScanId)}
             onError={setError}
           />
@@ -1158,7 +1168,12 @@ function AppContent({
               setNewScanPlan('Complete');
               navigate('new-scan');
             }}
-            onPrint={(scan) => navigate('print', scan.id)}
+            onPrint={(scan, planLanguage) =>
+              navigate('print', scan.id, `?plan=${encodeURIComponent(planLanguage)}`)
+            }
+            profileTargetLanguages={
+              profiles.find((profile) => profile.id === selectedScan?.profileId)?.targetLanguages
+            }
             onRetry={(scan) => retryScan(scan.id)}
             onReports={() => navigate('reports')}
             onError={setError}

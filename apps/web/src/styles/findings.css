@@ -210,3 +210,95 @@
   border-color: #8a5b00;
   background: #fff4de;
 }
+
+/* ─── AI Action Plan (D-232) ─────────────────────────────────────────────── */
+
+.action-plan h4 {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: 12px;
+}
+.action-plan__meta {
+  margin: 0 0 var(--sp-2);
+}
+/* Marks the text as written by a model before anything in it is read. */
+.action-plan__ai-label {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--plat-900);
+  background: #fff;
+  font: 700 11px var(--mono-font);
+  letter-spacing: 0.04em;
+}
+.action-plan__caveat,
+.action-plan__error {
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid #8a5b00;
+  background: #fff4de;
+}
+.action-plan__overview {
+  margin: 0;
+}
+.action-plan__actions {
+  margin: 0;
+  padding-left: var(--sp-4);
+}
+.action-plan__action {
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--plat-300);
+}
+.action-plan__action-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+.action-plan__title {
+  font-weight: 700;
+}
+.action-plan__facts {
+  white-space: nowrap;
+}
+.action-plan__why {
+  margin: var(--sp-1) 0;
+}
+.action-plan__steps {
+  margin: 0 0 var(--sp-2);
+  padding-left: var(--sp-4);
+}
+.action-plan__rules {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.action-plan__rules li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+.action-plan__action--settled summary {
+  cursor: pointer;
+  color: var(--plat-600);
+}
+.action-plan__reach {
+  margin: var(--sp-3) 0 0;
+  font-weight: 700;
+}
+.action-plan__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: flex-end;
+  margin-top: var(--sp-3);
+}
+.action-plan__generate {
+  flex: 1 1 260px;
+}
+.action-plan__consent {
+  margin: var(--sp-1) 0 0;
+  font-size: 12px;
+}

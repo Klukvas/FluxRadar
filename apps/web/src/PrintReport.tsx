@@ -9,6 +9,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { fetchActionPlan, type ActionPlanContent } from './action-plan';
+import { actionPlanCopy } from './action-plan-copy';
 import {
   apiRequest,
   apiRequestWithMeta,
@@ -36,6 +38,8 @@ interface PrintData {
   readonly summary: IssueSummary | null;
   readonly issues: readonly Issue[];
   readonly totalIssues: number;
+  /** The Action Plan in the language the report showed; null when there is none. */
+  readonly actionPlan: ActionPlanContent | null;
 }
 
 async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: number }> {
@@ -52,15 +56,20 @@ async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: 
   return { issues: collected, total };
 }
 
-async function loadPrintData(scanId: string): Promise<PrintData> {
-  const [dashboard, summary, findings] = await Promise.all([
+async function loadPrintData(scanId: string, planLanguage: string): Promise<PrintData> {
+  const [dashboard, summary, findings, actionPlan] = await Promise.all([
     apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`),
     apiRequest<IssueSummary>(`/scans/${encodeURIComponent(scanId)}/issues/summary`).catch(
       () => null,
     ),
     loadAllIssues(scanId),
+    // Only a Complete scan has a plan; anything else answers 403, and the
+    // document prints without the section rather than failing.
+    fetchActionPlan(scanId, planLanguage)
+      .then((state) => state?.plan ?? null)
+      .catch(() => null),
   ]);
-  return { dashboard, summary, issues: findings.issues, totalIssues: findings.total };
+  return { dashboard, summary, issues: findings.issues, totalIssues: findings.total, actionPlan };
 }
 
 /** The problems in summary order, or — without a summary — in the order findings arrived. */
@@ -83,6 +92,8 @@ function problemGroups(data: PrintData): readonly IssueRuleGroup[] {
 export function PrintReport(props: {
   scanId: string;
   language: Language;
+  /** The Action Plan language the report showed; `?plan=` in the address. */
+  planLanguage: string;
   onBack: () => void;
   onError: (value: string) => void;
 }) {
@@ -92,7 +103,7 @@ export function PrintReport(props: {
 
   useEffect(() => {
     let current = true;
-    loadPrintData(props.scanId)
+    loadPrintData(props.scanId, props.planLanguage)
       .then((value) => {
         if (!current) return;
         setData(value);
@@ -105,7 +116,7 @@ export function PrintReport(props: {
     return () => {
       current = false;
     };
-  }, [props.scanId, onError, f]);
+  }, [props.scanId, props.planLanguage, onError, f]);
 
   return (
     <div className="print-shell">
@@ -189,6 +200,10 @@ function PrintDocument(props: { data: PrintData; language: Language }) {
           </ul>
         )}
       </section>
+
+      {props.data.actionPlan === null ? null : (
+        <PrintActionPlan plan={props.data.actionPlan} language={props.language} />
+      )}
 
       <section className="print-section">
         <h2>{f.print.sectionsHeading}</h2>
@@ -292,5 +307,50 @@ function PrintProblem(props: {
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** The Action Plan after the summary: labelled as AI-written, with the counts as printed. */
+function PrintActionPlan(props: { plan: ActionPlanContent; language: Language }) {
+  const c = actionPlanCopy[props.language];
+  const { plan } = props;
+  return (
+    <section className="print-section print-action-plan">
+      <h2>
+        {c.print.heading} <span className="print-ai-label">{c.aiLabel}</span>
+      </h2>
+      <p className="muted">
+        {c.print.lead} {c.generatedAt(formatDate(plan.generatedAt, props.language))}.
+      </p>
+      {plan.caveats.map((caveat) => (
+        <p key={caveat.module} className="print-note">
+          {c.caveat(moduleLabel(caveat.module, props.language), caveat.status)}
+        </p>
+      ))}
+      <h3>{c.overviewHeading}</h3>
+      <p>{plan.overview}</p>
+      <h3>{c.actionsHeading}</h3>
+      <ol className="print-plan-actions">
+        {plan.actions.map((action, index) => (
+          <li key={index} className="print-plan-action">
+            <strong>{action.title}</strong>
+            <span className="muted">
+              {' '}
+              · {c.effort[action.effort]} ·{' '}
+              {action.settled ? c.settled : c.counts(action.openIssues, action.totalIssues)}
+            </span>
+            <p>{action.why}</p>
+            <ol>
+              {action.steps.map((step, stepIndex) => (
+                <li key={stepIndex}>{step}</li>
+              ))}
+            </ol>
+            <p className="muted">
+              {action.rules.map((rule) => ruleTitle(rule.ruleId, props.language)).join(' · ')}
+            </p>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

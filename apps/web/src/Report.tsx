@@ -36,10 +36,12 @@ export function ResultsScreen(props: {
   onIssues: () => void;
   /** Opens the Issue Center on one problem's findings. */
   onOpenProblem?: (ruleId: string) => void;
-  /** Starts a paid scan of the same site, from a Free report. */
+  /** Starts a paid scan of the same site, from a Free or Basic report. */
   onUpgrade?: (scan: Scan) => void;
-  /** Opens the printable client report. */
-  onPrint?: (scan: Scan) => void;
+  /** Opens the printable client report, with the Action Plan in the language shown. */
+  onPrint?: (scan: Scan, planLanguage: string) => void;
+  /** The site profile's target languages, listed first in the Action Plan's picker. */
+  profileTargetLanguages?: string | null;
   /** Retries the one unfinished section of a Partial scan. */
   onRetry?: (scan: Scan) => Promise<void>;
   onReports: () => void;
@@ -60,6 +62,8 @@ export function ResultsScreen(props: {
     readonly scanId: string;
     readonly module: string;
   } | null>(null);
+  // The Action Plan's language starts as the reader's and stays theirs to change.
+  const [planLanguage, setPlanLanguage] = useState<string>(props.language);
   const scanId = props.scan?.id ?? null;
   const { onScan, onError, onRetry } = props;
   const load = useCallback(async (): Promise<void> => {
@@ -203,6 +207,9 @@ export function ResultsScreen(props: {
         <ReportNextSteps
           scan={scan}
           language={props.language}
+          planLanguage={planLanguage}
+          onPlanLanguage={setPlanLanguage}
+          profileTargetLanguages={props.profileTargetLanguages}
           onOpenProblem={props.onOpenProblem ?? (() => props.onIssues())}
           onAllProblems={props.onIssues}
           onUpgrade={() => props.onUpgrade?.(scan)}
@@ -316,7 +323,10 @@ export function ResultsScreen(props: {
             {t.openIssues}
           </Button>
           {props.onPrint === undefined ? null : (
-            <Button onClick={() => props.onPrint?.(scan)} aria-describedby="print-hint">
+            <Button
+              onClick={() => props.onPrint?.(scan, planLanguage)}
+              aria-describedby="print-hint"
+            >
               {findingsCopy[props.language].print.open}
             </Button>
           )}
