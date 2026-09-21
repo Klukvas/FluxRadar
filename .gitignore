@@ -12,3 +12,7 @@ client_secret_*.json
 # Stray installer downloads — a 275 MB DMG in the repo root is one `git add -A`
 # away from living in the history forever.
 *.dmg
+
+# GoAccess reports from scripts/traffic-report.sh: masked IPs and user agents
+# from production, never meant for the repository.
+traffic-reports/

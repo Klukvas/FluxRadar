@@ -1,4 +1,4 @@
-// DEPLOY-018: the access log is private by construction.
+// DEPLOY-018: the access log is private by construction, and the report reads it.
 //
 // deploy/Caddyfile writes every request fluxradar.net serves to a JSON log, so
 // the owner has a cookieless count of traffic — GA4 sees only the visitors who
@@ -13,22 +13,41 @@
 //      cross-checked against the places the app builds those URLs.
 //   2. Retention stays inside the Privacy Policy's 30 days (the arithmetic is
 //      at the retention test: Caddy 2.10 rolls by size, not by time).
+//   3. scripts/traffic-report.sh reads the container and directory production
+//      actually uses, refuses bad arguments before it touches a server, and —
+//      against a stubbed ssh, docker and goaccess — reports the right window
+//      out of both the rotated and the live files.
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const CADDYFILE_PATH = join(REPO_ROOT, 'deploy', 'Caddyfile');
 const COMPOSE_PATH = join(REPO_ROOT, 'docker-compose.yml');
+const RELEASE_PATH = join(REPO_ROOT, 'deploy', 'release.sh');
+const SCRIPT_PATH = join(REPO_ROOT, 'scripts', 'traffic-report.sh');
 const AUTH_ROUTES_PATH = join(REPO_ROOT, 'apps', 'api', 'src', 'auth', 'routes.ts');
 const AUTH_SCREEN_PATH = join(REPO_ROOT, 'apps', 'web', 'src', 'AuthScreen.tsx');
+const AI_READINESS_PATH = join(REPO_ROOT, 'packages', 'rules', 'src', 'ai-readiness.ts');
 
 // apps/web/src/legal/PrivacyPolicy.tsx: "Ordinary application and security
 // logs: up to 30 days."
 const PRIVACY_POLICY_LOG_DAYS = 30;
+const SECONDS_PER_DAY = 86_400;
 
 // OAuth 2.0 returns the authorization code and the CSRF state to the callback
 // as query parameters (RFC 6749 §4.1.2), and an email address is personal data
@@ -52,6 +71,7 @@ const GOACCESS_FIELDS = [
 ] as const;
 
 const caddyfile = readFileSync(CADDYFILE_PATH, 'utf8');
+const script = readFileSync(SCRIPT_PATH, 'utf8');
 
 /** Non-comment lines of the Caddyfile from `opener` to its closing brace, trimmed. */
 function blockOf(lines: readonly string[], opener: string): readonly string[] {
@@ -102,6 +122,13 @@ function regexpOf(field: string): { pattern: RegExp; replacement: string } {
 
 function rollSetting(name: string): string | null {
   return outputBlock.find((line) => line.startsWith(`${name} `))?.split(/\s+/)[1] ?? null;
+}
+
+/** A `readonly NAME='value'` constant of the report script. */
+function scriptConstant(name: string): string {
+  const value = new RegExp(`^readonly ${name}='([^']*)'$`, 'm').exec(script)?.[1];
+  if (value === undefined) expect.unreachable(`${name} is not a plain constant in ${SCRIPT_PATH}`);
+  return value;
 }
 
 describe('the production access log', () => {
@@ -190,7 +217,7 @@ describe('access log retention', () => {
   // restart after it turns roll_keep_for old — within one more fill. The worst
   // case is 2F + roll_keep_for. Keeping roll_keep_for to half the policy
   // leaves 15 days for 2F; at 2 MiB of ~2 KB lines that holds for anything
-  // above ~140 requests a day.
+  // above ~140 requests a day. The report script warns if it ever does not.
   it('keeps rolled files for at most half the Privacy Policy window', () => {
     const keepFor = /^(\d+)([hd])$/.exec(rollSetting('roll_keep_for') ?? '');
     if (keepFor?.[1] === undefined) expect.unreachable('roll_keep_for is not set in hours or days');
@@ -210,5 +237,213 @@ describe('access log retention', () => {
 
   it('bounds the number of rolled files, so a crawler storm cannot fill the disk', () => {
     expect(Number(rollSetting('roll_keep'))).toBeGreaterThan(0);
+  });
+});
+
+describe('scripts/traffic-report.sh', () => {
+  it('reads the compose project and the directory production writes to', () => {
+    const release = readFileSync(RELEASE_PATH, 'utf8');
+    const project = scriptConstant('COMPOSE_PROJECT');
+
+    expect(release).toContain(`-p ${project} up -d --no-deps --force-recreate caddy`);
+    expect(readFileSync(COMPOSE_PATH, 'utf8')).toMatch(new RegExp(`^name: ${project}$`, 'm'));
+    expect(scriptConstant('LOG_DIR')).toBe(dirname('/data/logs/access.log'));
+  });
+
+  // FluxRadar sells AI-crawler readiness; the report should show the owner
+  // every agent the audit reports on. Google-Extended is a robots.txt token
+  // only — no request ever carries it as a user agent.
+  it('groups every AI agent the audit checks under AI Crawlers', () => {
+    const audited = /AI_CRAWLER_USER_AGENTS = \[([^\]]*)\]/.exec(
+      readFileSync(AI_READINESS_PATH, 'utf8'),
+    )?.[1];
+    const grouped = /^readonly AI_CRAWLERS=\(([^)]*)\)$/m.exec(script)?.[1]?.split(/\s+/) ?? [];
+    const robotsOnlyTokens = ['Google-Extended'];
+
+    const agents = [...(audited ?? '').matchAll(/'([^']+)'/g)].map((match) => match[1] ?? '');
+    expect(agents.length).toBeGreaterThan(0);
+    for (const agent of agents.filter((name) => !robotsOnlyTokens.includes(name))) {
+      expect(grouped).toContain(agent);
+    }
+  });
+});
+
+describe('scripts/traffic-report.sh, run', () => {
+  const workspaces: string[] = [];
+
+  afterEach(() => {
+    for (const workspace of workspaces.splice(0))
+      rmSync(workspace, { recursive: true, force: true });
+  });
+
+  // Runs the remote command on this machine: the script arrives on stdin, as
+  // it does over a real connection.
+  const SSH_STUB = `#!/bin/sh
+printf '%s\\n' "$@" > "$FAKE_RECORD_DIR/ssh-args"
+while [ "$#" -gt 0 ] && [ "$1" != "--" ]; do shift; done
+shift 2
+exec "$@"
+`;
+
+  // `docker exec <id> sh -c <script> sh /data/logs` runs the script against
+  // the fixture directory instead of the container's.
+  const DOCKER_STUB = `#!/bin/sh
+printf '%s\\n' "$*" >> "$FAKE_RECORD_DIR/docker-calls"
+case "$1" in
+  ps) echo 0123456789ab ;;
+  exec) shift 2; exec "$1" "$2" "$3" "$4" "$FAKE_LOG_DIR" ;;
+  *) exit 1 ;;
+esac
+`;
+
+  const GOACCESS_STUB = `#!/bin/sh
+printf '%s\\n' "$@" > "$FAKE_RECORD_DIR/goaccess-args"
+for arg in "$@"; do
+  case "$arg" in
+    --output=*) output="\${arg#--output=}" ;;
+    --browsers-file=*) cp "\${arg#--browsers-file=}" "$FAKE_RECORD_DIR/browsers.list" ;;
+  esac
+done
+cp "$1" "$output"
+`;
+
+  interface Fixture {
+    readonly bin: string;
+    readonly records: string;
+    readonly logs: string;
+    readonly reports: string;
+    readonly workspace: string;
+  }
+
+  function fixture(options: { withGoaccess: boolean }): Fixture {
+    const workspace = mkdtempSync(join(tmpdir(), 'fluxradar-traffic-report-'));
+    workspaces.push(workspace);
+    const paths = {
+      bin: join(workspace, 'bin'),
+      records: join(workspace, 'records'),
+      logs: join(workspace, 'logs'),
+      reports: join(workspace, 'reports'),
+      workspace,
+    };
+    for (const dir of [paths.bin, paths.records, paths.logs]) mkdirSync(dir);
+    const stubs = {
+      ssh: SSH_STUB,
+      docker: DOCKER_STUB,
+      ...(options.withGoaccess ? { goaccess: GOACCESS_STUB } : {}),
+    };
+    for (const [name, body] of Object.entries(stubs)) {
+      writeFileSync(join(paths.bin, name), body);
+      chmodSync(join(paths.bin, name), 0o755);
+    }
+    return paths;
+  }
+
+  function run(
+    paths: Fixture,
+    args: readonly string[],
+    systemPath = '/usr/bin:/bin',
+  ): { status: number; stdout: string; stderr: string } {
+    const result = spawnSync('/bin/bash', [SCRIPT_PATH, ...args], {
+      encoding: 'utf8',
+      timeout: 20_000,
+      env: {
+        PATH: systemPath === '' ? paths.bin : `${paths.bin}:${systemPath}`,
+        TMPDIR: paths.workspace,
+        TRAFFIC_REPORT_DIR: paths.reports,
+        FAKE_RECORD_DIR: paths.records,
+        FAKE_LOG_DIR: paths.logs,
+      },
+    });
+    return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr };
+  }
+
+  function accessLine(ageSeconds: number, uri: string): string {
+    return JSON.stringify({
+      level: 'info',
+      ts: Date.now() / 1000 - ageSeconds,
+      logger: 'http.log.access.log0',
+      msg: 'handled request',
+      request: {
+        remote_ip: '203.0.113.0',
+        client_ip: '203.0.113.0',
+        proto: 'HTTP/2.0',
+        method: 'GET',
+        host: 'fluxradar.net',
+        uri,
+        headers: { 'User-Agent': ['Mozilla/5.0 (compatible; GPTBot/1.2)'] },
+      },
+      duration: 0.001,
+      size: 512,
+      status: 200,
+    });
+  }
+
+  it.each([
+    ['no arguments', []],
+    ['too many arguments', ['deploy@example.test', '7', 'extra']],
+    ['a target that ssh would read as an option', ['-oProxyCommand=touch /tmp/pwned']],
+    ['a zero-day window', ['deploy@example.test', '0']],
+    ['a window past the retention period', ['deploy@example.test', '31']],
+    ['a window that is not a number', ['deploy@example.test', 'week']],
+  ])('refuses %s before it touches the server', (_case, args) => {
+    const paths = fixture({ withGoaccess: true });
+
+    const result = run(paths, args);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('Usage: scripts/traffic-report.sh <user@host> [days]');
+    expect(existsSync(join(paths.records, 'ssh-args'))).toBe(false);
+  });
+
+  it('says how to install goaccess when it is missing, before touching the server', () => {
+    const paths = fixture({ withGoaccess: false });
+
+    // Only the stubs on PATH: everything up to the goaccess check is a builtin.
+    const result = run(paths, ['deploy@example.test'], '');
+
+    expect(result.status).toBe(127);
+    expect(result.stderr).toContain('brew install goaccess');
+    expect(existsSync(join(paths.records, 'ssh-args'))).toBe(false);
+  });
+
+  it('reports the last N days out of the rotated and the live logs, and warns about an overdue entry', () => {
+    const paths = fixture({ withGoaccess: true });
+    const expired = accessLine(40 * SECONDS_PER_DAY, '/expired');
+    const rotated = accessLine(3 * SECONDS_PER_DAY, '/rotated');
+    const live = accessLine(3600, '/live');
+    writeFileSync(
+      join(paths.logs, 'access-2026-09-18T00-00-00.000.log.gz'),
+      gzipSync(`${expired}\n${rotated}\n`),
+    );
+    writeFileSync(join(paths.logs, 'access.log'), `${live}\n`);
+
+    const result = run(paths, ['deploy@example.test', '7']);
+
+    expect(result.stderr).toContain('past the 30 days the Privacy Policy allows');
+    expect(result.status).toBe(0);
+    const reportPath = /: (\/\S+\.html)$/m.exec(result.stdout)?.[1] ?? '';
+    expect(result.stdout).toContain('Traffic report (2 requests, last 7 days)');
+    expect(dirname(reportPath)).toBe(paths.reports);
+    expect(readFileSync(reportPath, 'utf8')).toBe(`${rotated}\n${live}\n`);
+
+    const sshArgs = readFileSync(join(paths.records, 'ssh-args'), 'utf8').split('\n');
+    expect(sshArgs.slice(sshArgs.indexOf('--'), sshArgs.indexOf('--') + 6)).toEqual([
+      '--',
+      'deploy@example.test',
+      'sh',
+      '-s',
+      '--',
+      'fluxradar',
+    ]);
+    const dockerCalls = readFileSync(join(paths.records, 'docker-calls'), 'utf8');
+    expect(dockerCalls).toContain('label=com.docker.compose.project=fluxradar');
+    expect(dockerCalls).toContain('label=com.docker.compose.service=caddy');
+    expect(dockerCalls).toMatch(/sh \/data\/logs$/m);
+    expect(readFileSync(join(paths.records, 'goaccess-args'), 'utf8')).toContain(
+      '--log-format=CADDY',
+    );
+    expect(readFileSync(join(paths.records, 'browsers.list'), 'utf8')).toContain(
+      'GPTBot\tAI Crawlers\n',
+    );
   });
 });
