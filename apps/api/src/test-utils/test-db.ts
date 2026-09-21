@@ -21,14 +21,14 @@ export interface TestDb {
  *
  * Tables reached by CASCADE from the ones named here do not need naming
  * themselves — but a table with no foreign key does, or it carries state from
- * one test file into the next. `CrawlEgressUsage` is keyed by month alone and
- * is exactly that case.
+ * one test file into the next. `CrawlEgressUsage` and `CrawlEgressLocationUsage`
+ * are keyed by month and location alone and are exactly that case.
  */
 export async function createTestDb(): Promise<TestDb> {
   const databaseUrl = testDatabaseUrl();
   const prisma = createPrismaClient(databaseUrl);
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "FreeCheckClaim", "Session", "EmailToken", "EmailNotification", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "ProviderRefund", "CheckoutSession", "Job", "CrawlEgressUsage" CASCADE',
+    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "FreeCheckClaim", "Session", "EmailToken", "EmailNotification", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "ProviderRefund", "CheckoutSession", "Job", "CrawlEgressUsage", "CrawlEgressLocationUsage" CASCADE',
   );
   return {
     prisma,

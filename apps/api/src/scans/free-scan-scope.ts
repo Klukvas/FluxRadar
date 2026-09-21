@@ -24,8 +24,13 @@ import { scanScopeSchema } from '@fluxradar/contracts';
  * header, which applies to a single page exactly as it applies to a thousand.
  * Everything else is the fixed homepage check: one page, no link following, no
  * subdomains, no patterns, robots.txt respected.
+ *
+ * The egress location is not the caller's either: a Free check does not choose
+ * a country and leaves from the default location (D-228). `egressLocation` is
+ * the one the server resolved, and absent for a deployment that crawls
+ * directly — so the record names where the check actually went.
  */
-export function freeScanScope(requested?: ScanScopeInput): ScanScopeInput {
+export function freeScanScope(requested?: ScanScopeInput, egressLocation?: string): ScanScopeInput {
   return scanScopeSchema.parse({
     includeSubdomains: false,
     maxPages: 1,
@@ -34,5 +39,6 @@ export function freeScanScope(requested?: ScanScopeInput): ScanScopeInput {
     respectRobots: true,
     robotsOverrideConfirmed: false,
     userAgent: requested?.userAgent ?? 'desktop',
+    ...(egressLocation === undefined ? {} : { egressLocation }),
   });
 }

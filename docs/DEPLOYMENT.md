@@ -107,9 +107,21 @@ answer 403 to everything — start page, `robots.txt`, `sitemap.xml` — and a
 report can only describe that as a site with no robots.txt that never returns
 200. Absent is supported and means a direct crawl, which is the local default.
 
+Each proxy is an **egress location**, and the owner chooses on the launch
+screen which one a scan leaves from (D-228), because a site can answer visitors
+from different countries differently. `CRAWL_EGRESS_PROXY_URL` is the Ukrainian
+location (Kyiv) and the default one — a Free check always uses it — and every
+further country is `CRAWL_EGRESS_PROXY_URL_<CODE>` plus a registry entry (see
+*Adding a country* below). The choice is stored in the scan's execution config,
+the report prints it beside the plan, and a scan is never moved to another
+location: a launch naming a location that is not configured or not answering is
+refused (`EGRESS_LOCATION_UNKNOWN` 400, `EGRESS_LOCATION_UNAVAILABLE` 503), and
+a started scan whose location goes down fails as a platform failure.
+
 It fails the boot when it is present but unreadable, by variable name: the
 alternative is falling back to the blocked network and producing that same
-report again. The value carries a password and appears in no log line and no
+report again. So does a `CRAWL_EGRESS_PROXY_URL_<CODE>` for which no location
+is registered. The value carries a password and appears in no log line and no
 error message, not even by length; the SSRF guard does not move to the proxy,
 which is asked to tunnel to an address this process already resolved and
 approved (`packages/safe-fetch/src/proxy.ts`).
@@ -144,15 +156,70 @@ GitHub environment secret `PRODUCTION_CRAWL_EGRESS_PROXY_URL` and two
 `chmod 600` files on the maintainer's Mac. To rotate it: change `BasicAuth` in
 the tinyproxy config, restart the service, update the secret, redeploy.
 
-An unreachable proxy is not a silent condition. The API checks it at startup and
-every five minutes, and a scan attempt checks before its first request; the
-check confirms both that the proxy answers and that the public internet sees its
-address and not the server's own (D-225). A failure fails the scan as a platform
-failure — ours, refundable — instead of reporting the customer's site as
-unreachable. Restoring service means fixing that host or building a replacement
-the same way: a VPS whose IP `whois` shows on a Ukrainian ASN, tinyproxy with
-the same config, the firewall reduced to the production host, then the secret
-and a redeploy.
+An unreachable proxy is not a silent condition. The API checks every location
+at startup and every five minutes, and a scan attempt checks its own location
+before its first request; the check confirms both that the proxy answers and
+that the public internet sees its address and not the server's own (D-225). A
+location that fails is logged as an error naming it
+(`crawl egress proxy is unreachable — scans from this location are blocked`,
+with `location` in the context), stops being offered on the launch screen, and
+refuses launches until it answers again. A scan already running fails as a
+platform failure — ours, refundable — instead of reporting the customer's site
+as unreachable. Restoring service means fixing that host or building a
+replacement the same way: a VPS whose IP `whois` shows on a Ukrainian ASN,
+tinyproxy with the same config, the firewall reduced to the production host,
+then the secret and a redeploy.
+
+Traffic is counted per location and month (`CrawlEgressLocationUsage`, a warning
+at 80% of that location's `monthlyTrafficBytes` in the registry). The older
+`CrawlEgressUsage` table is what the previous release writes and nothing here
+reads it; it goes in a contract-phase migration once that release cannot return.
+
+#### Adding a country
+
+A country is one VPS, one variable and one registry entry. Nothing in the
+rules, the crawler or the orchestrator changes, and the launch screen lists it
+as soon as its proxy answers.
+
+1. **Rent a VPS whose address sits in that country's own network.** The block
+   this exists to avoid follows the network, not the flag on a provider's
+   website, so check the address before paying for a year of it:
+   `whois <ip>` must show an ASN registered in that country (`country:` and the
+   `origin:` AS's own `country:`), and a geolocation lookup should agree.
+   Resellers of "local" proxies and VPSes very often route through somebody
+   else's network — a "Polish" box on a German ASN is a German crawl with a
+   Polish label on the report. Prefer a small local hosting company over a
+   global cloud's regional zone for the same reason. Note the plan's monthly
+   traffic allowance.
+2. **Build the proxy exactly like the Kyiv one** (*The proxy host* above):
+   tinyproxy on a non-default port, basic auth with a fresh password,
+   `ConnectPort` 443 and 80, key-only SSH, inbound open for that port **only**
+   from the production host `138.201.172.158`, every private range denied
+   outbound, `vnstat` installed. From the production host,
+   `curl -x http://user:pass@<ip>:<port> https://www.cloudflare.com/cdn-cgi/trace`
+   must print `ip=<ip>` — the address the check will expect.
+3. **Register it** in `apps/api/src/integrations/crawl-egress-locations.ts`:
+   `egressLocation({ id: 'de', countryCode: 'DE', city: 'Frankfurt', label: { en: 'Germany, Frankfurt', uk: 'Німеччина, Франкфурт' }, monthlyTrafficBytes: … })`.
+   The id is the lower-case country code (`de-fra` if a second point in the
+   same country is ever needed), and it is written into every scan that uses
+   it — so an entry is never removed or re-pointed at another city afterwards;
+   a retired location just loses its variable, and a new city is a new id.
+   The labels are what the launch screen and every report print.
+4. **Set the secret.** The variable is `CRAWL_EGRESS_PROXY_URL_<CODE>` (and
+   optionally `CRAWL_EGRESS_EXPECTED_IP_<CODE>` = the address from step 2).
+   Add both lines to `PRODUCTION_ENV_FILE`, which needs no workflow change. A
+   separate `PRODUCTION_CRAWL_EGRESS_PROXY_URL_<CODE>` secret, rotated on its
+   own like the Ukrainian one, also needs its `upsert_env` line in
+   `.github/workflows/deploy.yml` — whose steps are pinned by the `DEPLOY-*`
+   tests, so update them in the same change. Keep the password in the same two
+   places as Kyiv's: the GitHub secret and a `chmod 600` file on the
+   maintainer's Mac, never this repository. Deploying the variable before the
+   registry entry fails the boot by name, which is the intended order of events.
+5. **Deploy and watch it arrive.** The startup log's `crawl egress proxy checked`
+   line should carry the new `location` with `state: healthy`, and the
+   country appears on the launch screen. Add the host to this document's table
+   the way the Kyiv host is described, and watch its traffic with `vnstat -m`
+   on the box — the API's own counter is a lower bound (D-225).
 
 PageSpeed, CrUX and Resend cannot fail the boot (Resend is reported as `invalid`
 when only one half of the key/sender pair is present, but transactional email

@@ -27,6 +27,12 @@ export interface SiteReachabilityPanelProps {
   readonly resolveProfileId: () => Promise<string | null>;
   /** The saved profile currently selected, so a change re-reads its last answer. */
   readonly profileId: string | null;
+  /**
+   * The egress location the scan will leave from, or null for the default. A
+   * site can let one country in and refuse another, so the probe leaves from
+   * the same one — and a change of country re-reads the answer for it.
+   */
+  readonly egressLocationId?: string | null;
   /** Tells the form whether the purchase may proceed. */
   readonly onResult: (canPurchase: boolean) => void;
 }
@@ -40,7 +46,7 @@ type PanelState =
 export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
   const t = copy[props.language].reachability;
   const [state, setState] = useState<PanelState>({ kind: 'idle' });
-  const { onResult, profileId, resolveProfileId } = props;
+  const { egressLocationId = null, onResult, profileId, resolveProfileId } = props;
 
   // A saved profile may already have been checked. Reading that costs nothing
   // and is not rate-limited, so the reader does not press a button to be told
@@ -52,7 +58,9 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
       return;
     }
     let current = true;
-    apiRequest<SiteReachability>(`/profiles/${encodeURIComponent(profileId)}/reachability`)
+    const query =
+      egressLocationId === null ? '' : `?egressLocation=${encodeURIComponent(egressLocationId)}`;
+    apiRequest<SiteReachability>(`/profiles/${encodeURIComponent(profileId)}/reachability${query}`)
       .then((result) => {
         if (!current) return;
         setState(result.state === null ? { kind: 'idle' } : { kind: 'result', result });
@@ -68,7 +76,7 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
     return () => {
       current = false;
     };
-  }, [profileId, onResult]);
+  }, [egressLocationId, profileId, onResult]);
 
   const check = useCallback(async (): Promise<void> => {
     setState({ kind: 'checking' });
@@ -82,7 +90,12 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
       }
       const result = await apiRequest<SiteReachability>(
         `/profiles/${encodeURIComponent(id)}/reachability`,
-        { method: 'POST' },
+        {
+          method: 'POST',
+          body: JSON.stringify(
+            egressLocationId === null ? {} : { egressLocation: egressLocationId },
+          ),
+        },
       );
       setState({ kind: 'result', result });
       onResult(result.canPurchase);
@@ -93,7 +106,7 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
       setState({ kind: 'failed' });
       onResult(false);
     }
-  }, [onResult, resolveProfileId]);
+  }, [egressLocationId, onResult, resolveProfileId]);
 
   return (
     <Panel title={t.title}>

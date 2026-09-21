@@ -264,6 +264,56 @@ describe('issue order, rule summary and scan changes', () => {
     expect(first.body.data.previous).toBeNull();
   });
 
+  /** Rewrites where a scan's crawl is recorded as having left from; undefined = before D-228. */
+  async function recordLocation(scanId: string, location: string | undefined): Promise<void> {
+    const scan = await db.prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
+    const config = JSON.parse(scan.executionConfigJson ?? '{}') as {
+      scope: Record<string, unknown>;
+    };
+    const scope = Object.fromEntries(
+      Object.entries(config.scope).filter(([key]) => key !== 'egressLocation'),
+    );
+    const recorded = location === undefined ? scope : { ...scope, egressLocation: location };
+    await db.prisma.scan.update({
+      where: { id: scanId },
+      data: {
+        executionConfigJson: JSON.stringify({ ...config, scope: recorded }),
+        scopeJson: JSON.stringify(recorded),
+      },
+    });
+  }
+
+  it.each([
+    ['ua', 'ua', 'same'],
+    ['de', 'ua', 'different'],
+    [undefined, 'ua', 'unrecorded'],
+    [undefined, undefined, 'unrecorded'],
+  ] as const)(
+    'says whether the two crawls left from the same place (%s then %s: %s)',
+    async (earlier, later, comparison) => {
+      // Findings from two countries are two measurements, not a trend: a site
+      // can show Kyiv one language, redirect and banner, and Frankfurt another.
+      const app = makeApp();
+      const owner = await signUp(app, `egress-${comparison}-${String(earlier)}@example.com`);
+      const firstId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+      await seed(db.prisma, firstId, [
+        { ruleId: 'SEO-TECH-001', severity: 'Low', fingerprint: 'a' },
+      ]);
+      await recordLocation(firstId, earlier);
+      const secondId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+      await seed(db.prisma, secondId, []);
+      await recordLocation(secondId, later);
+
+      const response = await owner.agent
+        .get(`/scans/${secondId}/changes`)
+        .set('Cookie', owner.cookie);
+
+      expect(response.body.data.egressComparison).toBe(comparison);
+      expect(response.body.data.previous.egressLocation?.id ?? null).toBe(earlier ?? null);
+      expect(response.body.data.egressLocation?.id ?? null).toBe(later ?? null);
+    },
+  );
+
   it('does not compare with a previous report whose payment was returned', async () => {
     const app = makeApp();
     const owner = await signUp(app, 'refunded-previous@example.com');

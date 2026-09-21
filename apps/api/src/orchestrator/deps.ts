@@ -6,6 +6,7 @@ import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import type { AiProvider } from '@fluxradar/ai';
 import type { EgressProxy, HostLimiter } from '@fluxradar/safe-fetch';
 import type { CrawlFetcher } from '@fluxradar/crawler';
+import type { ConfiguredEgressLocation } from '../integrations/crawl-egress-config.ts';
 import type { EgressHealth, EgressProbeOptions } from '../integrations/crawl-egress-health.ts';
 import type { PerformanceSnapshot } from '../integrations/performance.ts';
 import type { GoogleDataRunner } from '../integrations/google/runner.ts';
@@ -26,8 +27,8 @@ export interface WorkerCrawlOptions {
   /** Test-only transport seam for deterministic unreachable/partial fixtures. */
   readonly fetcher?: CrawlFetcher;
   /**
-   * Overrides the egress proxy the environment configures; `null` forces a
-   * direct crawl. Absent means "whatever CRAWL_EGRESS_PROXY_URL says".
+   * Overrides the egress proxy the scan's location resolves to; `null` forces
+   * a direct crawl. Absent means "the location the scan recorded" (egress.ts).
    */
   readonly egressProxy?: EgressProxy | null;
 }
@@ -46,6 +47,11 @@ export interface WorkerDeps {
    */
   readonly createGoogleDataRunner?: () => GoogleDataRunner | undefined;
   readonly crawl?: WorkerCrawlOptions;
+  /**
+   * The egress locations this deployment can crawl from. Test seam; production
+   * reads the CRAWL_EGRESS_PROXY_URL* environment (crawl-egress-config.ts).
+   */
+  readonly egressLocations?: readonly ConfiguredEgressLocation[];
   /**
    * Checks the crawl's egress proxy before an attempt fetches anything.
    * Test seam; production uses `probeEgressProxy`.

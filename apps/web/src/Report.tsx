@@ -17,6 +17,7 @@ import {
   StatusChip,
   Window,
 } from './components';
+import { egressLocationLabel } from './egress-location';
 import { findingsCopy } from './findings-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { asRecord, numberValue } from './module-metadata';
@@ -159,6 +160,17 @@ export function ResultsScreen(props: {
                   <strong>v{scan.profileConfigVersion}</strong>
                 </span>
               )}
+              {/* Where the crawl left from (D-228). A scan from before the
+                  choice says so plainly: some of those left from Kyiv, the
+                  earliest from a server in Germany, and nothing recorded which. */}
+              <span>
+                <small>{t.egressLocation}</small>
+                <strong>
+                  {scan.egressLocation == null
+                    ? t.egressLocationUnrecorded
+                    : egressLocationLabel(scan.egressLocation, props.language)}
+                </strong>
+              </span>
             </div>
           </div>
           {unscoredPlan || scoreUnavailable ? (

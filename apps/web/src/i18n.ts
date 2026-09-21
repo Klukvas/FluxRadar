@@ -545,6 +545,21 @@ export const copy = {
       labelUserAgent: 'User agent',
       userAgentDesktop: 'Desktop',
       userAgentMobile: 'Mobile',
+      labelEgressLocation: 'Country the check runs from',
+      hintEgressLocation:
+        'A site can answer visitors from different countries differently — language, redirects, consent banners, blocks. The crawler reads it from this country.',
+      egressPerformanceNote:
+        'Speed is measured by Google PageSpeed Insights from Google’s own network, so the country you choose does not change the Performance section.',
+      egressMoreCountries: 'More countries will be added later.',
+      egressNone:
+        'No check location is answering right now, so a scan cannot start. Try again in a few minutes.',
+      egressLoadFailed:
+        'The list of countries could not be loaded. The check will run from the default location.',
+      egressUnavailableError:
+        'The network this check leaves from is not answering right now. Nothing was charged — try again in a few minutes.',
+      egressUnknownError:
+        'That country is no longer offered. Choose one from the list and try again.',
+      blockedByEgress: 'A scan cannot start while no check location is answering.',
       panelDepth: 'Audit depth',
       labelScanPlan: 'Scan plan',
       planFree: 'Free · homepage only',
@@ -622,6 +637,8 @@ export const copy = {
       launchSummaryAi: 'AI visibility',
       launchSummaryPerformance: 'Performance provider',
       launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · no sign-in',
+      launchSummaryEgress: 'Checked from',
+      launchSummaryEgressDefault: 'default for Free',
       launchSummaryEnabled: 'Enabled',
       launchSummaryDisabled: 'Off',
       launchSummaryHomepage: 'Homepage only',
@@ -758,6 +775,8 @@ export const copy = {
       plan: 'Plan',
       report: 'Report',
       configurationVersion: 'Configuration version',
+      egressLocation: 'Checked from',
+      egressLocationUnrecorded: 'Not recorded',
       helpHeading: 'How to read this report',
       helpScoreTerm: 'Score',
       helpScoreBody:
@@ -1735,6 +1754,21 @@ export const copy = {
       labelUserAgent: 'Агент користувача',
       userAgentDesktop: 'Десктоп',
       userAgentMobile: 'Мобільний',
+      labelEgressLocation: 'Країна, з якої йде перевірка',
+      hintEgressLocation:
+        'Сайт може по-різному відповідати відвідувачам з різних країн — мова, редиректи, банери згоди, блокування. Краулер читатиме сайт із цієї країни.',
+      egressPerformanceNote:
+        'Швидкість вимірює Google PageSpeed Insights зі своєї мережі, тому вибір країни на розділ «Швидкодія» не впливає.',
+      egressMoreCountries: 'Інші країни з’являться пізніше.',
+      egressNone:
+        'Зараз жодна точка перевірки не відповідає, тому запустити перевірку не можна. Спробуйте за кілька хвилин.',
+      egressLoadFailed:
+        'Не вдалося завантажити список країн. Перевірка піде з точки за замовчуванням.',
+      egressUnavailableError:
+        'Мережа, з якої йде перевірка, зараз не відповідає. Нічого не списано — спробуйте за кілька хвилин.',
+      egressUnknownError:
+        'Цієї країни більше немає у списку. Оберіть країну зі списку й спробуйте ще раз.',
+      blockedByEgress: 'Перевірку не можна запустити, поки жодна точка перевірки не відповідає.',
       panelDepth: 'Глибина аудиту',
       labelScanPlan: 'Тариф перевірки',
       planFree: 'Free · лише головна',
@@ -1813,6 +1847,8 @@ export const copy = {
       launchSummaryAi: 'Видимість в AI',
       launchSummaryPerformance: 'Провайдер швидкодії',
       launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · без входу',
+      launchSummaryEgress: 'Країна перевірки',
+      launchSummaryEgressDefault: 'за замовчуванням для Free',
       launchSummaryEnabled: 'Увімкнено',
       launchSummaryDisabled: 'Вимкнено',
       launchSummaryHomepage: 'Лише головна',
@@ -1941,6 +1977,8 @@ export const copy = {
       plan: 'Тариф',
       report: 'Звіт',
       configurationVersion: 'Версія конфігурації',
+      egressLocation: 'Країна перевірки',
+      egressLocationUnrecorded: 'Не зафіксовано',
       helpHeading: 'Як читати цей звіт',
       helpScoreTerm: 'Оцінка',
       helpScoreBody:

@@ -162,7 +162,34 @@ export interface ProfileScanConfig {
     readonly respectRobots: boolean;
     readonly robotsOverrideConfirmed: boolean;
     readonly userAgent: 'desktop' | 'mobile';
+    /** The owner's preferred egress location id; absent means "the default". */
+    readonly egressLocation?: string;
   };
+}
+
+/**
+ * A place a crawl can leave from. Mirrors `EgressLocationView` in
+ * apps/api/src/integrations/crawl-egress-locations.ts: `label` and the rest are
+ * null for an id the API no longer knows, which is still printed as its code.
+ */
+export interface EgressLocation {
+  readonly id: string;
+  readonly countryCode: string | null;
+  readonly city: string | null;
+  readonly label: { readonly en: string; readonly uk: string } | null;
+}
+
+/** What the launch screen may offer, as `GET /scans/launch-config` answers it. */
+export interface EgressLaunchConfig {
+  /** `direct`: this deployment has no egress location, and nothing to choose. */
+  readonly mode: 'direct' | 'proxy';
+  /** Configured and answering right now; nothing else is offered. */
+  readonly locations: readonly EgressLocation[];
+  readonly defaultLocationId: string | null;
+}
+
+export interface LaunchConfig {
+  readonly egress: EgressLaunchConfig;
 }
 
 export interface ScanModule {
@@ -230,7 +257,14 @@ export interface Scan {
     readonly respectRobots?: boolean;
     readonly robotsOverrideConfirmed?: boolean;
     readonly userAgent?: 'desktop' | 'mobile';
+    readonly egressLocation?: string;
   };
+  /**
+   * Where the crawl left from. Null — and absent from an older API — when the
+   * scan predates the choice: its location was never recorded, and the report
+   * says so rather than assuming one.
+   */
+  readonly egressLocation?: EgressLocation | null;
   /**
    * How much of the site the crawl read, in addresses rather than in checks.
    * Null when a scan predates the record — the report then shows no coverage
@@ -320,7 +354,15 @@ export interface ScanChanges {
     readonly id: string;
     readonly plan: string;
     readonly completedAt: string | null;
+    readonly egressLocation?: EgressLocation | null;
   } | null;
+  readonly egressLocation?: EgressLocation | null;
+  /**
+   * Whether both crawls left from the same place. `different`: the numbers
+   * below are differences between two countries, not fixes. `unrecorded`: at
+   * least one scan predates the choice. Absent from an older API.
+   */
+  readonly egressComparison?: 'same' | 'different' | 'unrecorded' | null;
   readonly introduced: number;
   readonly fixed: number;
   readonly persisting: number;

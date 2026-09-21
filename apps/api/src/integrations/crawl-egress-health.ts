@@ -1,6 +1,7 @@
-// Is the crawl's egress proxy up, and are we actually leaving through it?
+// Is a crawl egress proxy up, and are we actually leaving through it?
 //
-// Every paid crawl leaves through one VPS in Kyiv (D-220). Nothing watched it.
+// Every paid crawl leaves through a proxy VPS (D-220) — one per egress location
+// the owner can choose (D-228). Nothing used to watch it.
 // If it went down, `safeFetch` failed on every request, every page became a
 // fetch error, and the scan reported the customer's site as unreachable —
 // blaming their site for our outage, and spending their one paid scan on it.
@@ -26,7 +27,6 @@ import type { ApiLogger } from '../http/logger.ts';
 export const DEFAULT_EGRESS_PROBE_URL = 'https://www.cloudflare.com/cdn-cgi/trace';
 
 export const EGRESS_PROBE_URL_ENV_VAR = 'CRAWL_EGRESS_PROBE_URL';
-export const EGRESS_EXPECTED_IP_ENV_VAR = 'CRAWL_EGRESS_EXPECTED_IP';
 
 const PROBE_TIMEOUT_MS = 8_000;
 
@@ -132,25 +132,32 @@ function traceIp(body: string): string | null {
   return null;
 }
 
+/**
+ * The probe endpoint override, shared by every location. The address each
+ * proxy should present is per location, and travels with it
+ * (`ConfiguredEgressLocation.expectedIp`).
+ */
 export function readEgressProbeOptions(
   env: NodeJS.ProcessEnv = process.env,
-): Pick<EgressProbeOptions, 'probeUrl' | 'expectedIp'> {
+): Pick<EgressProbeOptions, 'probeUrl'> {
   const probeUrl = env[EGRESS_PROBE_URL_ENV_VAR]?.trim();
-  const expectedIp = env[EGRESS_EXPECTED_IP_ENV_VAR]?.trim();
-  return {
-    ...(probeUrl === undefined || probeUrl === '' ? {} : { probeUrl }),
-    ...(expectedIp === undefined || expectedIp === '' ? {} : { expectedIp }),
-  };
+  return probeUrl === undefined || probeUrl === '' ? {} : { probeUrl };
 }
 
 /**
  * One log line an operator can act on.
  *
- * `error` for a proxy that is down or in the wrong place, because every paid
- * scan is blocked until it is fixed; `info` for the two states that are fine.
+ * `error` for a proxy that is down or in the wrong place, because every scan
+ * from that location is blocked until it is fixed; `info` for the two states
+ * that are fine. `location` is the registry id, or null for a direct crawl.
  */
-export function logEgressHealth(logger: ApiLogger, health: EgressHealth): void {
+export function logEgressHealth(
+  logger: ApiLogger,
+  health: EgressHealth,
+  location: string | null,
+): void {
   const context = {
+    location,
     state: health.state,
     observedIp: health.observedIp,
     expectedIp: health.expectedIp,
@@ -163,8 +170,8 @@ export function logEgressHealth(logger: ApiLogger, health: EgressHealth): void {
   }
   logger.error(
     health.state === 'wrong-egress'
-      ? 'crawl egress proxy is answering from the wrong address — paid scans are blocked'
-      : 'crawl egress proxy is unreachable — paid scans are blocked',
+      ? 'crawl egress proxy is answering from the wrong address — scans from this location are blocked'
+      : 'crawl egress proxy is unreachable — scans from this location are blocked',
     context,
   );
 }

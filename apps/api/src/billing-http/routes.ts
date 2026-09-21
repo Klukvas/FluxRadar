@@ -28,6 +28,8 @@ import { sendOk } from '../http/envelope.ts';
 import { paymentRequired, unauthorized, validationError } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
+import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
+import { resolveLaunchEgressLocation, scopeWithEgressLocation } from '../scans/launch-egress.ts';
 import {
   WEBHOOK_LIMIT,
   WEBHOOK_WINDOW_MS,
@@ -68,6 +70,8 @@ export interface BillingRouterDeps {
   readonly mailer?: Mailer;
   /** Test seam; production reads FLUXRADAR_ENABLE_MOCK_CHECKOUT. */
   readonly mockCheckoutEnabled?: boolean;
+  /** Checks the chosen egress location before a scan is created (D-228). */
+  readonly egress: EgressLocationMonitor;
 }
 
 type WebhookHandlerDeps = Pick<BillingRouterDeps, 'prisma' | 'webhookSecret' | 'now'> & {
@@ -131,6 +135,10 @@ export function billingRouter(deps: BillingRouterDeps): Router {
       );
     }
     const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);
+    const scope = scopeWithEgressLocation(
+      input.scope,
+      await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation),
+    );
 
     if (internalFreeAccess) {
       const scan = await createInternalFreeScan({
@@ -138,7 +146,7 @@ export function billingRouter(deps: BillingRouterDeps): Router {
         accountId,
         siteProfileId: profile.id,
         plan: input.plan,
-        scope: input.scope,
+        scope,
         aiConsent: input.aiConsent,
         expectedProfileConfigVersion: input.expectedProfileConfigVersion,
         now: deps.now(),
@@ -174,7 +182,7 @@ export function billingRouter(deps: BillingRouterDeps): Router {
       plan: input.plan,
       secret: deps.webhookSecret,
       customData: {
-        scope: input.scope,
+        scope,
         ...(input.expectedProfileConfigVersion === undefined
           ? {}
           : { expectedProfileConfigVersion: input.expectedProfileConfigVersion }),

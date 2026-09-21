@@ -47,6 +47,8 @@ ANTHROPIC_MODEL=claude-sonnet-5
 PAGESPEED_API_KEY=
 CRUX_API_KEY=
 CRAWL_EGRESS_PROXY_URL=
+CRAWL_EGRESS_EXPECTED_IP=
+CRAWL_EGRESS_PROBE_URL=
 HETZNER_S3_ENDPOINT=
 HETZNER_S3_REGION=
 HETZNER_S3_BUCKET=
@@ -72,6 +74,22 @@ the HTTPS callbacks shown above; only development falls back to
 defaults to `DEFAULT_ANTHROPIC_MODEL` in `apps/api/src/integrations/anthropic-config.ts`.
 The API logs one `integration configuration` line at startup listing which of these are
 configured, disabled or half-configured.
+
+`CRAWL_EGRESS_PROXY_URL` is not one variable any more but one per **egress location** — the
+country a check leaves from, which the owner chooses on the launch screen (D-228). The plain
+name is Ukraine (Kyiv), the default location, so existing deployments keep crawling from
+exactly where they did. Every other country is `CRAWL_EGRESS_PROXY_URL_<CODE>` (for example
+`CRAWL_EGRESS_PROXY_URL_DE`, or `CRAWL_EGRESS_PROXY_URL_DE_FRA` for an id `de-fra`) together
+with its entry in `apps/api/src/integrations/crawl-egress-locations.ts`, which holds the
+country, the city and the interface label in both languages. The optional
+`CRAWL_EGRESS_EXPECTED_IP` / `CRAWL_EGRESS_EXPECTED_IP_<CODE>` states the address the internet
+should see through that proxy; `CRAWL_EGRESS_PROBE_URL` overrides the endpoint the health check
+asks for it, for every location at once. A country with no variable is simply not offered.
+An unreadable value, an expected address that is not an IP, and a
+`CRAWL_EGRESS_PROXY_URL_<CODE>` with no registry entry each fail a production boot by
+variable name. Which countries are configured *and answering* reaches the browser through
+`GET /scans/launch-config` — it is never built into the bundle. How to add a country, VPS
+included, is in `docs/DEPLOYMENT.md` under *Adding a country*.
 
 ## User-facing flow
 

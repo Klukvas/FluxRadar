@@ -33,7 +33,7 @@ import { computeCoverage } from '@fluxradar/scoring';
 import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
 
-import { readCrawlEgressProxy } from '../integrations/crawl-egress-config.ts';
+import { readCrawlEgressLocations } from '../integrations/crawl-egress-config.ts';
 import {
   isEgressUsable,
   logEgressHealth,
@@ -51,7 +51,7 @@ import {
   generateGeoDiscoveryQuestions,
   type GeoQuestionGenerationResult,
 } from './geo.ts';
-import { resolveEgressProxy } from './egress.ts';
+import { resolveScanEgress } from './egress.ts';
 import { initialIssueStatuses } from './issue-sync.ts';
 import { includesAnalytics, modulePlanFor } from './module-plan.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
@@ -476,21 +476,32 @@ export async function runScanAttempt(
     await setModule(prisma, scanId, module, { runtimeStatus: 'Pending' });
   }
 
-  const egressProxy = resolveEgressProxy(deps.crawl, readCrawlEgressProxy());
-  // Before a single request. The proxy is one VPS, and when it is down every
+  // The location recorded at launch (D-228). A location that has since been
+  // unconfigured throws here, before a request: crawling it from somewhere
+  // else would put a country on the report that the crawl never left from.
+  const egress = resolveScanEgress(
+    deps.crawl,
+    scope.egressLocation,
+    deps.egressLocations ?? readCrawlEgressLocations(),
+  );
+  const egressProxy = egress.proxy;
+  const egressLocationId = egress.location?.location.id ?? null;
+  // Before a single request. Each proxy is one VPS, and when it is down every
   // fetch fails — which the crawl would otherwise read as "the customer's site
   // is unreachable", spending their paid scan on our outage and telling them
   // their site is broken. Going direct instead is not an option either: that
-  // is the Hetzner block the proxy exists to avoid (D-220). So the attempt
-  // stops, loudly, and the worker treats it as the platform failure it is.
-  const egressHealth = await (deps.probeEgress ?? probeEgressProxy)(
-    egressProxy,
-    readEgressProbeOptions(),
-  );
-  logEgressHealth(deps.logger, egressHealth);
+  // is the Hetzner block the proxy exists to avoid (D-220), and another
+  // location is a different country from the one the owner chose. So the
+  // attempt stops, loudly, and the worker treats it as the platform failure it is.
+  const egressHealth = await (deps.probeEgress ?? probeEgressProxy)(egressProxy, {
+    ...readEgressProbeOptions(),
+    expectedIp: egress.location?.expectedIp ?? null,
+  });
+  logEgressHealth(deps.logger, egressHealth, egressLocationId);
   if (!isEgressUsable(egressHealth)) {
     throw new Error(
-      `runScanAttempt: crawl egress proxy is ${egressHealth.state}` +
+      `runScanAttempt: crawl egress proxy${egressLocationId === null ? '' : ` for ${egressLocationId}`}` +
+        ` is ${egressHealth.state}` +
         `${egressHealth.detail === null ? '' : ` (${egressHealth.detail})`}`,
     );
   }
@@ -510,10 +521,14 @@ export async function runScanAttempt(
   });
   const ctx: SiteContext = createSiteContext({ origin, crawl: crawlResult, plan });
   const crawlSummary = buildCrawlSummary(crawlResult, origin, scope, plan, crawlScope.maxPages);
-  if (egressProxy !== null) {
-    // Counted only when it actually crossed the proxy, so a local fixture run
-    // and a direct crawl never inflate the hosting plan's usage.
-    logEgressUsage(deps.logger, await recordEgressUsage(prisma, bytesRead(crawlResult), now()));
+  if (egress.location !== null) {
+    // Counted only when it actually crossed a configured location's proxy, and
+    // against that location's plan, so a local fixture run and a direct crawl
+    // never inflate a hosting plan's usage.
+    logEgressUsage(
+      deps.logger,
+      await recordEgressUsage(prisma, egress.location.location, bytesRead(crawlResult), now()),
+    );
   }
   // A site is read when at least one page of it was read — a 2xx response that
   // carried a document. It used to be "at least one request did not throw",

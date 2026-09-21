@@ -40,8 +40,12 @@ import { freeScanScope } from './free-scan-scope.ts';
 import {
   captureExecutionConfig,
   lockOwnProfile,
+  recordedEgressLocation,
   storedExecutionConfig,
 } from '../profiles/execution-config.ts';
+import { egressLocationView } from '../integrations/crawl-egress-locations.ts';
+import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
+import { egressLaunchConfig, resolveLaunchEgressLocation } from './launch-egress.ts';
 
 export interface ScansRouterDeps {
   readonly prisma: PrismaClient;
@@ -50,6 +54,8 @@ export interface ScansRouterDeps {
   readonly requestRateLimiter?: RequestRateLimiter;
   /** Origins exempt from both Free-check limits; empty keeps the one-time rule. */
   readonly freeCheckAllowedOrigins?: ReadonlySet<string>;
+  /** Which egress locations exist here and which are up (D-228). */
+  readonly egress: EgressLocationMonitor;
 }
 
 const freeCheckBodySchema = z
@@ -89,6 +95,10 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     );
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
+    // Free does not choose a country: whatever the body says, it leaves from
+    // the default location — and is refused, like any launch, while that
+    // location is down, rather than spending the one free check on our outage.
+    const egressLocation = await resolveLaunchEgressLocation(deps.egress, undefined);
     const created = await createFreeScan(
       deps.prisma,
       accountId,
@@ -97,6 +107,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       freeCheckAllowedOrigins,
       body?.scope,
       body?.expectedProfileConfigVersion,
+      egressLocation?.location.id,
     );
     deps.enqueueScan(created.id);
     sendOk(res, toScanDto(created, []), { status: 201 });
@@ -116,6 +127,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     if (input.plan !== 'Free') {
       throw paymentRequired('Basic and Complete scans must be purchased before creation');
     }
+    const egressLocation = await resolveLaunchEgressLocation(deps.egress, undefined);
     const scan = await createFreeScan(
       deps.prisma,
       accountId,
@@ -123,6 +135,8 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       deps.now(),
       freeCheckAllowedOrigins,
       input.scope,
+      undefined,
+      egressLocation?.location.id,
     );
     deps.enqueueScan(scan.id);
     sendOk(res, toScanDto(scan, []), { status: 201 });
@@ -145,6 +159,13 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       listed.scans.map((scan) => toScanDto(scan, readableModules(scan))),
       { meta: listed.meta },
     );
+  });
+
+  // What the launch screen may offer. Server-issued rather than built into the
+  // bundle: which countries exist is a fact of this deployment, and which of
+  // them are answering is a fact of the last few minutes (D-228).
+  router.get('/scans/launch-config', auth, async (_req, res) => {
+    sendOk(res, { egress: await egressLaunchConfig(deps.egress) });
   });
 
   // This endpoint is deliberately separate from the history list: returning
@@ -334,7 +355,8 @@ export function scansRouter(deps: ScansRouterDeps): Router {
  *
  * `requestedScope` is what the caller asked for, not what is stored: Free runs a
  * fixed homepage check, so the row records the settings that check will actually
- * apply (see free-scan-scope.ts).
+ * apply (see free-scan-scope.ts). `egressLocation` is the location the route
+ * resolved and checked; absent for a deployment that crawls directly.
  */
 export async function createFreeScan(
   prisma: PrismaClient,
@@ -344,6 +366,7 @@ export async function createFreeScan(
   allowedOrigins: ReadonlySet<string> = new Set(),
   requestedScope?: ScanScopeInput,
   expectedProfileConfigVersion?: number,
+  egressLocation?: string,
 ): Promise<Scan> {
   return prisma.$transaction(async (tx) => {
     const profile = await lockOwnProfile(
@@ -379,10 +402,10 @@ export async function createFreeScan(
         plan: 'Free',
         domain: profile.domain,
         status: 'Pending',
-        scopeJson: JSON.stringify(freeScanScope(requestedScope)),
+        scopeJson: JSON.stringify(freeScanScope(requestedScope, egressLocation)),
         profileConfigVersion: profile.scanConfigVersion,
         executionConfigJson: JSON.stringify(
-          captureExecutionConfig(profile, 'Free', freeScanScope(requestedScope)),
+          captureExecutionConfig(profile, 'Free', freeScanScope(requestedScope, egressLocation)),
         ),
         rulesetVersion: RULESET_VERSION,
         createdAt: now,
@@ -459,6 +482,9 @@ function toScanDto(scan: Scan, modules: readonly ScanModule[]): Record<string, u
     crawlSummary: parseCrawlSummary(scan.crawlSummaryJson),
     profileConfigVersion: scan.profileConfigVersion,
     executionConfig: storedExecutionConfig(scan.executionConfigJson),
+    // Where the crawl left from, with its country and city; null when the
+    // scan predates the choice and nothing was recorded (D-228).
+    egressLocation: egressLocationView(recordedEgressLocation(scan)),
     rulesetVersion: scan.rulesetVersion,
     retry: { platform: scan.platformRetryCount, module: scan.moduleRetryCount },
     progress: { completedModules: terminal, totalModules: modules.length },

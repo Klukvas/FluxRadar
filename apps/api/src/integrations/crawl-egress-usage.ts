@@ -1,8 +1,10 @@
-// How much of the egress proxy's monthly traffic allowance we have spent.
+// How much of each egress proxy's monthly traffic allowance we have spent.
 //
 // The Kyiv VPS the crawl leaves through sells 1 TB a month. Nothing counted it,
 // so the first sign of running out would have been every scan failing at once,
-// reported to us by a customer.
+// reported to us by a customer. With a choice of locations (D-228) each proxy
+// is its own VPS on its own plan, so each is counted — and warned about —
+// against its own allowance.
 //
 // What is counted here is the page and media bodies a crawl read — which is the
 // overwhelming majority of what crosses the proxy, and all of it attributable
@@ -13,12 +15,13 @@
 import type { PrismaClient } from '@prisma/client';
 
 import type { ApiLogger } from '../http/logger.ts';
-
-/** The VPS plan's monthly allowance. */
-export const EGRESS_MONTHLY_BYTE_LIMIT = 1_000_000_000_000;
+import type { EgressLocationDefinition } from './crawl-egress-locations.ts';
 
 /** Share of the allowance at which the log starts asking for attention. */
 export const EGRESS_WARNING_RATIO = 0.8;
+
+/** The part of a location the counter needs: its id and its plan's allowance. */
+export type MeteredEgressLocation = Pick<EgressLocationDefinition, 'id' | 'monthlyTrafficBytes'>;
 
 /** `YYYY-MM` in UTC — the unit the hosting plan resets on. */
 export function usageMonthOf(now: Date): string {
@@ -26,6 +29,7 @@ export function usageMonthOf(now: Date): string {
 }
 
 export interface EgressUsage {
+  readonly location: string;
   readonly month: string;
   readonly bytes: number;
   readonly limitBytes: number;
@@ -35,47 +39,58 @@ export interface EgressUsage {
 }
 
 /**
- * Adds one crawl's bytes to this month's total and reports where that leaves us.
+ * Adds one crawl's bytes to its location's total for this month, and reports
+ * where that leaves the location.
  *
- * Upsert on the month, incremented in the database rather than read-modify-write,
- * so two scans finishing at once cannot lose each other's traffic.
+ * Upsert on location and month, incremented in the database rather than
+ * read-modify-write, so two scans finishing at once cannot lose each other's
+ * traffic.
  */
 export async function recordEgressUsage(
   prisma: PrismaClient,
+  location: MeteredEgressLocation,
   bytes: number,
   now: Date,
 ): Promise<EgressUsage> {
   const month = usageMonthOf(now);
   const safeBytes = Number.isFinite(bytes) && bytes > 0 ? Math.round(bytes) : 0;
-  const row = await prisma.crawlEgressUsage.upsert({
-    where: { month },
-    create: { month, bytes: BigInt(safeBytes) },
+  const row = await prisma.crawlEgressLocationUsage.upsert({
+    where: { location_month: { location: location.id, month } },
+    create: { location: location.id, month, bytes: BigInt(safeBytes) },
     update: { bytes: { increment: BigInt(safeBytes) } },
   });
-  return usageOf(month, Number(row.bytes));
+  return usageOf(location, month, Number(row.bytes));
 }
 
-export async function readEgressUsage(prisma: PrismaClient, now: Date): Promise<EgressUsage> {
+export async function readEgressUsage(
+  prisma: PrismaClient,
+  location: MeteredEgressLocation,
+  now: Date,
+): Promise<EgressUsage> {
   const month = usageMonthOf(now);
-  const row = await prisma.crawlEgressUsage.findUnique({ where: { month } });
-  return usageOf(month, row === null ? 0 : Number(row.bytes));
+  const row = await prisma.crawlEgressLocationUsage.findUnique({
+    where: { location_month: { location: location.id, month } },
+  });
+  return usageOf(location, month, row === null ? 0 : Number(row.bytes));
 }
 
-function usageOf(month: string, bytes: number): EgressUsage {
-  const usedRatio = bytes / EGRESS_MONTHLY_BYTE_LIMIT;
+function usageOf(location: MeteredEgressLocation, month: string, bytes: number): EgressUsage {
+  const usedRatio = bytes / location.monthlyTrafficBytes;
   return {
+    location: location.id,
     month,
     bytes,
-    limitBytes: EGRESS_MONTHLY_BYTE_LIMIT,
+    limitBytes: location.monthlyTrafficBytes,
     usedRatio,
     nearingLimit: usedRatio >= EGRESS_WARNING_RATIO,
   };
 }
 
-/** Warns once the allowance is running out; says nothing while it is not. */
+/** Warns once a location's allowance is running out; says nothing while it is not. */
 export function logEgressUsage(logger: ApiLogger, usage: EgressUsage): void {
   if (!usage.nearingLimit) return;
   logger.warn('crawl egress traffic is nearing the monthly allowance', {
+    location: usage.location,
     month: usage.month,
     bytes: usage.bytes,
     limitBytes: usage.limitBytes,
