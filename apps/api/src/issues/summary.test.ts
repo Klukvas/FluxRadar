@@ -193,6 +193,44 @@ describe('issue order, rule summary and scan changes', () => {
     });
   });
 
+  it('lists a rule once, however many severities its findings carry', async () => {
+    const app = makeApp();
+    const owner = await signUp(app, 'duplicates@example.com');
+    const scanId = await paidScan(owner.agent, owner.cookie, owner.profileId);
+    // The UX AI rules take their severity from the model, per finding, so one
+    // rule legitimately produces findings at several severities. Grouping by
+    // rule + severity listed UX-CONV-AI-002 twice — a Medium row and a Low row,
+    // both opening the same findings, which reads as broken data.
+    await seed(db.prisma, scanId, [
+      {
+        ruleId: 'UX-CONV-AI-002',
+        module: 'UX/Conversion',
+        severity: 'Medium',
+        fingerprint: 'ux-1',
+      },
+      { ruleId: 'UX-CONV-AI-002', module: 'UX/Conversion', severity: 'Low', fingerprint: 'ux-2' },
+      { ruleId: 'UX-CONV-AI-002', module: 'UX/Conversion', severity: 'Low', fingerprint: 'ux-3' },
+    ]);
+
+    const response = await owner.agent
+      .get(`/scans/${scanId}/issues/summary`)
+      .set('Cookie', owner.cookie);
+
+    expect(response.body.data.groups).toEqual([
+      {
+        ruleId: 'UX-CONV-AI-002',
+        module: 'UX/Conversion',
+        // The row wears the worst of them: that is the urgency being asked for.
+        severity: 'Medium',
+        issues: 3,
+        openIssues: 3,
+      },
+    ]);
+    // The breakdown still counts each finding under its own severity — folding
+    // the row must not move two Low findings into the Medium column.
+    expect(response.body.data.bySeverity).toEqual({ Critical: 0, High: 0, Medium: 1, Low: 2 });
+  });
+
   it('says what a re-scan fixed, introduced and kept, against the previous scan of the profile', async () => {
     const app = makeApp();
     const owner = await signUp(app, 'changes@example.com');

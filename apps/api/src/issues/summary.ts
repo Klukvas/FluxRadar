@@ -41,11 +41,52 @@ export interface IssueSummary {
 interface GroupKey {
   readonly ruleId: string;
   readonly module: string;
-  readonly severity: string;
 }
 
+/**
+ * The Issue Center's row identity: one row per rule, per section.
+ *
+ * Severity used to be part of this key, so a rule whose findings do not all
+ * share one severity was listed twice — UX-CONV-AI-002 appeared as a Medium row
+ * and a Low row, both opening the same list of findings. Only the UX AI rules
+ * can do that (their severity comes from the model, per finding, rather than
+ * from the rule registry), which is why it looked like broken data rather than
+ * a grouping bug.
+ */
 function groupKey(group: GroupKey): string {
-  return `${group.ruleId}\u0000${group.module}\u0000${group.severity}`;
+  return `${group.ruleId}\u0000${group.module}`;
+}
+
+/** Most severe wins: `severityRank` puts Critical at 0 and Low at 3. */
+function mostSevere(left: string, right: string): string {
+  return severityRank(left) <= severityRank(right) ? left : right;
+}
+
+/**
+ * Folds per-severity counts into one row per rule.
+ *
+ * The row wears its worst severity, because that is the urgency the owner is
+ * being asked to act on; the severity breakdown above the list is counted from
+ * the findings themselves, so nothing is reassigned to a severity it never had.
+ */
+function foldByRule(
+  rows: readonly { ruleId: string; module: string; severity: string; count: number }[],
+): ReadonlyMap<string, { ruleId: string; module: string; severity: string; count: number }> {
+  const folded = new Map<
+    string,
+    { ruleId: string; module: string; severity: string; count: number }
+  >();
+  for (const row of rows) {
+    const key = groupKey(row);
+    const current = folded.get(key);
+    folded.set(key, {
+      ruleId: row.ruleId,
+      module: row.module,
+      severity: current === undefined ? row.severity : mostSevere(current.severity, row.severity),
+      count: (current?.count ?? 0) + row.count,
+    });
+  }
+  return folded;
 }
 
 /** Most urgent first; within a severity, the rule touching the most targets first. */
@@ -56,6 +97,16 @@ export function compareGroups(left: RuleGroup, right: RuleGroup): number {
     right.issues - left.issues ||
     left.ruleId.localeCompare(right.ruleId)
   );
+}
+
+/** A Prisma groupBy row in the shape `foldByRule` folds. */
+function toCountedRow(row: {
+  ruleId: string;
+  module: string;
+  severity: string;
+  _count: { _all: number };
+}): { ruleId: string; module: string; severity: string; count: number } {
+  return { ruleId: row.ruleId, module: row.module, severity: row.severity, count: row._count._all };
 }
 
 export async function summarizeIssues(prisma: PrismaClient, scanId: string): Promise<IssueSummary> {
@@ -71,22 +122,25 @@ export async function summarizeIssues(prisma: PrismaClient, scanId: string): Pro
       _count: { _all: true },
     }),
   ]);
-  const openByKey = new Map(open.map((row) => [groupKey(row), row._count._all]));
-  const groups = all
+  const openByKey = foldByRule(open.map(toCountedRow));
+  const groups = [...foldByRule(all.map(toCountedRow)).values()]
     .map((row): RuleGroup => ({
       ruleId: row.ruleId,
       module: row.module,
       severity: row.severity,
-      issues: row._count._all,
-      openIssues: openByKey.get(groupKey(row)) ?? 0,
+      issues: row.count,
+      openIssues: openByKey.get(groupKey(row))?.count ?? 0,
     }))
     .sort(compareGroups);
+  // Counted from the findings' own severities, not from the folded rows: a rule
+  // whose row now wears its worst severity must not move its milder findings
+  // into that column.
   const bySeverity = Object.fromEntries(
     SEVERITIES.map((severity) => [
       severity,
-      groups
-        .filter((group) => group.severity === severity)
-        .reduce((sum, group) => sum + group.openIssues, 0),
+      open
+        .filter((row) => row.severity === severity)
+        .reduce((sum, row) => sum + row._count._all, 0),
     ]),
   ) as Record<Severity, number>;
   return {
@@ -141,7 +195,8 @@ function byRule(issues: readonly FingerprintedIssue[]): readonly ChangedRule[] {
     counts.set(key, {
       ruleId: issue.ruleId,
       module: issue.module,
-      severity: issue.severity,
+      severity:
+        current === undefined ? issue.severity : mostSevere(current.severity, issue.severity),
       count: (current?.count ?? 0) + 1,
     });
   }
