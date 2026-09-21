@@ -871,6 +871,35 @@ NODE_ENV=test npx vitest run src/billing/fastspring
 
 Frontend: `cd apps/web && npx vitest run src/Checkout.test.tsx`.
 
+### Test mode does not work from localhost
+
+`FASTSPRING_MODE=test` is a mode of the one real store, not a local sandbox: a
+test order is an order in `fluxlab_store` paid with a test card. It cannot be
+completed against a local dev server, for three independent reasons — checked
+2026-09-21 against the code and the store settings recorded in §5a (the
+FastSpring app itself was not re-opened for this):
+
+1. **The popup does not accept the origin.** *Allow Listed Website Domains* on
+   the popup checkout holds `https://fluxradar.net` and `https://www.fluxradar.net`
+   only (§5a, 1b). Store Builder Library 1.0.9 posts the page's origin onto the
+   session before it opens the checkout, so a page served from
+   `http://localhost:<port>` is not an origin this checkout was allowed for.
+2. **The order would be delivered to production.** The store has one webhook
+   endpoint, `https://fluxradar.net/api/webhooks/fastspring`, for live and test
+   orders alike. A test order paid from a local session is posted there, where no
+   `CheckoutSession` carries its reference, so nothing is granted anywhere.
+   Receiving it locally would take a tunnel and a second endpoint in the store —
+   both changes to the FastSpring account, not to this repository.
+3. **A local `.env` has no `FASTSPRING_*` values**, and should not: the API
+   credentials are the store's. Without them `GET /billing/checkout-config`
+   answers `available: false` and the new-scan screen offers paid plans only to
+   an allowlisted account.
+
+So, locally: run a paid scan through `FLUXRADAR_INTERNAL_FREE_EMAILS`
+([README](../README.md#paid-scans-locally)), and the payment path through the
+tests above. The real test-mode checkout is the §5 item 10 smoke test, on the
+production host.
+
 ---
 
 ## 7. Data model

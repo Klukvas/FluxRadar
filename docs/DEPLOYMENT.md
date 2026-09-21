@@ -288,6 +288,14 @@ rollback probe no longer asks. `FLUXRADAR_ENABLE_MOCK_CHECKOUT` must simply stay
 unset: releases before this one refuse to boot in production with it set, and
 the rollback probe runs their validators.
 
+**Delete the `PADDLE_WEBHOOK_SECRET` line whole, or leave it with its value —
+never leave it present and empty** (`PADDLE_WEBHOOK_SECRET=`). The releases
+before D-229 tell the two apart: `resolvePaddleWebhookSecret` substitutes a
+random secret only when the variable is *undefined*, and hands an empty string
+on to `getPaddleWebhookSecret`, whose `!secret` check throws. `startServer` calls
+it on every boot, so an empty value keeps such a release from starting — which
+is exactly the release a rollback would start.
+
 ### Transactional email
 
 Email verification and password reset are implemented and ship in this release;
