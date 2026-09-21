@@ -37,7 +37,7 @@ fluxradar/
 
 - `contracts` — единственный общий низ, без зависимостей.
 - `fingerprint`, `scoring`, `export` — чистые пакеты без I/O, покрыты golden-фикстурами.
-- Внешние сервисы только через интерфейсы: `BillingProvider` (FastSpring; MockPaddle — dev-only), `AiProvider`
+- Внешние сервисы только через интерфейсы: оплата — FastSpring (`billing/fastspring/`, других провайдеров нет, D-229), `AiProvider`
   (Anthropic/Mock), OAuth connections and private object storage. Cloudflare и
   WordPress не входят в текущий scope.
 
@@ -48,7 +48,7 @@ fluxradar/
 | fingerprint-v1 + нормализация URL (§14) | ✅ полностью | golden vectors 6/6 + equivalence table как CI-тесты |
 | Score engine (§15) | ✅ полностью | все формулы, coverage, Provisional/Insufficient data, Basic 60/40 |
 | Scan/billing state machine (§18) | ✅ полностью | все переходы, идемпотентность, refund-инварианты |
-| Оплата FastSpring | 🔶 код готов, live-режим закрыт | Серверная checkout-сессия + подписанный webhook (`X-FS-Signature`, base64 HMAC-SHA256), см. [FASTSPRING.md](FASTSPRING.md). `FASTSPRING_MODE=live` не включается, пока владелец аккаунта FastSpring не проверит магазин и не выставит `FASTSPRING_STORE_VERIFIED=verified` — этот шаг вне репозитория. MockPaddle остаётся только для локальной разработки |
+| Оплата FastSpring | 🔶 код готов, live-режим закрыт | Серверная checkout-сессия + подписанный webhook (`X-FS-Signature`, base64 HMAC-SHA256), см. [FASTSPRING.md](FASTSPRING.md). `FASTSPRING_MODE=live` не включается, пока владелец аккаунта FastSpring не проверит магазин и не выставит `FASTSPRING_STORE_VERIFIED=verified` — этот шаг вне репозитория. Без оплаты платный план запускает только внутренний allowlist `FLUXRADAR_INTERNAL_FREE_EMAILS` — и в проде, и локально (D-229, [README](../README.md#paid-scans-locally)) |
 | Crawler (§3) | ✅ базово | HTTP, robots.txt, sitemap, лимиты; без JS-рендеринга |
 | SEO (§4) | ✅ субсет | SEO-TECH-001..008,013 + SEO-ONPAGE-001,002,003,005 + JSON-LD/social preview |
 | AI SEO/GEO (§5) | ✅ Anthropic, fail-closed when absent | AI генерирует neutral domain-specific вопросы из сохранённого профиля, затем отдельные provider-вызовы проверяют упоминание бренда/домена; caps, truncation, quota, consent; production без ключа не подменяется фиктивными ответами |
@@ -242,7 +242,7 @@ API/оркестратор → дизайн-система UI → экраны �
   JSON Schema + semantic validator; CSV корректен.
 - [ ] Тарифное гейтирование: Free — только homepage-проверка; Basic — без экспорта/истории;
   Complete — история/сравнение/CSV.
-- [ ] UI: happy path (регистрация → профиль → dev-checkout → скан → дашборд → Issue Center →
+- [ ] UI: happy path (регистрация → профиль → чекаут → скан → дашборд → Issue Center →
   CSV) работает вручную; стиль соответствует `DESIGN_SYSTEM.md`.
 - [ ] Секреты только в env, `.env.example` без значений; логи без raw HTML/credentials.
 - [x] До публичных продаж Terms, Privacy и Cookie Policy называют фактического продавца/контролёра: полное

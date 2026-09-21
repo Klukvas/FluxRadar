@@ -215,10 +215,6 @@ export async function findCheckoutStatus(
 }
 
 /**
- * A scope that exceeds the plan's URL limit must be rejected at checkout, not
- * silently trimmed after payment.
- */
-/**
  * Refuses the sale unless a recent probe says the crawler can read this site.
  *
  * Read from our own table, never from the request: the browser showed the buyer
@@ -265,6 +261,10 @@ async function assertSiteIsReachable(
   );
 }
 
+/**
+ * A scope that exceeds the plan's URL limit must be rejected at checkout, not
+ * silently trimmed after payment.
+ */
 function assertScopeWithinPlan(plan: PaidPlan, scope: ScanScopeInput): void {
   const urlLimit = planUrlLimit(plan);
   if (scope.maxPages !== undefined && scope.maxPages > urlLimit) {

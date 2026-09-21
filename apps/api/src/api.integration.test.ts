@@ -260,7 +260,7 @@ describe('T-12 API happy paths', () => {
       const profile = await createProfile(agent, account.cookie);
 
       const checkout = await agent
-        .post('/billing/dev-checkout')
+        .post('/billing/internal-checkout')
         .set('Cookie', account.cookie)
         .send({
           siteProfileId: profile.id,
@@ -270,13 +270,12 @@ describe('T-12 API happy paths', () => {
         });
 
       expect(checkout.status).toBe(201);
-      expect(checkout.body.data).toMatchObject({
-        billing: 'internal-free',
+      // Exactly these fields: no purchase exists, so the response names none.
+      expect(checkout.body.data).toEqual({
+        scanId: expect.any(String),
         plan: 'Complete',
-        purchaseId: null,
-        entitlementId: null,
+        billing: 'internal-free',
       });
-      expect(checkout.body.data.scanId).toEqual(expect.any(String));
       expect((await agent.get('/auth/me').set('Cookie', account.cookie)).body.data).toMatchObject({
         email: 'pavlenkoandrey56@gmail.com',
         internalFreeAccess: true,

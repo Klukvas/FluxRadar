@@ -51,7 +51,7 @@ export const FASTSPRING_SIGNATURE_HEADER_NAME = 'x-fs-signature';
 // bought, so it cannot be checked by `scanScopeSchema` alone — and a checkout
 // that opened on a scope the plan does not sell would be a payment for a scan
 // this side would then have to trim. It is refused here, on the input, the way
-// `/billing/dev-checkout` refuses it: before the profile is read, before a
+// `/billing/internal-checkout` refuses it: before the profile is read, before a
 // session row exists, and as the same 400 VALIDATION any other malformed field
 // earns. `createCheckoutSession` re-checks it as the floor under this.
 const checkoutSessionInputSchema = z

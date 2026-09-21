@@ -40,3 +40,21 @@ pnpm typecheck      # tsc --noEmit in every package
 ```
 
 Copy `.env.example` to `.env` and fill in values before running the API.
+
+## Paid scans locally
+
+FastSpring cannot complete a checkout from localhost (see
+[`docs/FASTSPRING.md` §6](docs/FASTSPRING.md#test-mode-does-not-work-from-localhost)), so a
+local Basic or Complete scan runs through the internal allowlist — the only way to a paid plan
+without a signed FastSpring order, in every environment (D-229):
+
+1. In `.env`, set `FLUXRADAR_INTERNAL_FREE_EMAILS` to the email you register with locally
+   (comma-separated for several; matching ignores case).
+2. Restart the API, then register or sign in with that email.
+3. The new-scan screen now offers **Basic · internal free** and **Complete · internal free**.
+   Launching one calls `POST /billing/internal-checkout`, which queues the scan straight away.
+
+Such a scan writes no `Purchase` or `Entitlement` (the response says
+`billing: "internal-free"`), so refunds, receipts and the reachability gate in front of a sale are
+not exercised this way — the tests cover those (`apps/api/src/billing/fastspring`). Any account
+not on the list gets `402` from that route.

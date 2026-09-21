@@ -616,7 +616,7 @@ describe('new scan modal — Close window button', () => {
     // Record API calls up to this point (auth + profiles + active scan).
     const callCountBefore = fetchMock.mock.calls.length;
 
-    // Clicking Close must NOT POST /billing/dev-checkout or /profiles/*/free-check.
+    // Clicking Close must NOT POST /billing/internal-checkout or /profiles/*/free-check.
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
 
     // Desktop is restored. Landing on it is no longer call-free — the site
@@ -1196,7 +1196,7 @@ describe('home pricing and workspace onboarding', () => {
     expect(fetchMock.mock.calls.some(([input]) => pathOf(input).includes('/free-check'))).toBe(
       false,
     );
-    expect(calledMethod(fetchMock, '/billing/dev-checkout', 'POST')).toBe(false);
+    expect(calledMethod(fetchMock, '/billing/internal-checkout', 'POST')).toBe(false);
   });
 
   it('exposes the tour as an accessible dialog and moves between steps via its controls', async () => {
@@ -1759,7 +1759,7 @@ describe('workspace tour copy', () => {
 //  1. Ordinary user (no internalFreeAccess, and /billing/checkout-config reports
 //     no provider) sees the paid-unavailable note, only the Free plan option,
 //     and the "Run free check" button — and can actually submit (calls
-//     free-check, never dev-checkout). The paid flow itself lives in
+//     free-check, never internal-checkout). The paid flow itself lives in
 //     Checkout.test.tsx.
 //
 //  2. internalFreeAccess user sees "Basic · internal free" / "Complete · internal
@@ -1811,7 +1811,7 @@ describe('NewScanScreen — paid availability and i18n', () => {
     const runBtn = screen.getByRole('button', { name: 'Run free check' });
     expect(runBtn).toBeEnabled();
 
-    // Submitting calls free-check, never dev-checkout.
+    // Submitting calls free-check, never internal-checkout.
     fireEvent.click(runBtn);
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1820,7 +1820,7 @@ describe('NewScanScreen — paid availability and i18n', () => {
       ),
     );
     expect(fetchMock).not.toHaveBeenCalledWith(
-      expect.stringMatching(/\/billing\/dev-checkout/),
+      expect.stringMatching(/\/billing\/internal-checkout/),
       expect.anything(),
     );
   });

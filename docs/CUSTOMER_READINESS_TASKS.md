@@ -110,13 +110,14 @@ HTML, уникальные metadata, Article JSON-LD и descriptive internal lin
 
 Добавить browser-level tests для: register → profile → free scan → report;
 refresh active scan; refresh completed report; free abuse block; auth errors;
-paid checkout boundary (пока live Paddle deferred); Complete export; account
+paid checkout boundary (пока live FastSpring закрыт); Complete export; account
 deletion; Resend verification/reset через mock mailer. Реальные payment,
 Resend и AI requests в CI не выполнять.
 
 ## Deferred / не входит в реализацию сейчас
 
-- Live Paddle checkout — ждём отдельного подключения и проверки merchant flow.
+- Live FastSpring checkout — ждём активации магазина и проверки merchant flow:
+  live-гейт `FASTSPRING_STORE_VERIFIED`, блокеры — [FASTSPRING.md §5a](FASTSPRING.md).
 - Automated PostgreSQL backups/restore — отдельный infrastructure track.
 - Monitoring, error tracking and alerting — отдельный operations track.
 

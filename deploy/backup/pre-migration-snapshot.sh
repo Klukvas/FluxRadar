@@ -30,8 +30,15 @@
 # a safety net nobody checked. ALLOW_MIGRATION_WITHOUT_BACKUP=true is the escape
 # hatch for the day that trade is knowingly the right one.
 #
+# BEFORE THE SNAPSHOT, the contract-phase gate (deploy/contract-phase-gate.sh,
+# D-230): a migration that drops what an older release reads may not run until
+# every release a rollback could return to ships its prerequisites. That refusal
+# has no escape hatch — ALLOW_MIGRATION_WITHOUT_BACKUP is about the backup, and
+# does not reach it.
+#
 # Exit: 0 — snapshot taken, none needed, or explicitly allowed to go without.
-#       1 — refused: nothing was migrated and the previous release keeps serving.
+#       1 — refused (no snapshot, or the contract-phase gate): nothing was
+#           migrated and the previous release keeps serving.
 #       2 — usage error.
 #
 # Portable on purpose (GNU and BSD userland): DEPLOY-015 runs it on developer
@@ -53,6 +60,19 @@ MIGRATIONS_SUBPATH="apps/api/prisma/migrations"
 if [ ! -L "$APP_DIR/current" ] && [ ! -e "$APP_DIR/current" ]; then
   echo "First deploy: there is no running release and no database to snapshot."
   exit 0
+fi
+
+# The contract-phase gate ships with this release and runs from it, like this
+# script. A release without it cannot say its contract migrations are safe.
+GATE_SCRIPT="$RELEASE_DIR/deploy/contract-phase-gate.sh"
+if [ ! -f "$GATE_SCRIPT" ]; then
+  echo "ERROR: $GATE_SCRIPT is missing, so this release's contract-phase migrations cannot be checked." >&2
+  echo "Refusing to migrate. Nothing has been changed: the previous release is still serving and the schema is untouched." >&2
+  exit 1
+fi
+if ! bash "$GATE_SCRIPT" before-migrate "$APP_DIR" "$RELEASE_ID"; then
+  echo "Nothing has been changed: the previous release is still serving and the schema is untouched." >&2
+  exit 1
 fi
 
 WORK_DIR="$(mktemp -d)" || {
@@ -113,10 +133,21 @@ fi
 echo "Taking a snapshot of the live database before anything is migrated."
 
 BACKUP_SCRIPT="$APP_DIR/current/deploy/backup/pg-backup.sh"
+# The snapshot runs with the NEW release's .env.production, not the active
+# one's. The active file is whatever the last SUCCESSFUL deploy wrote, so a
+# backup setting added since — the encryption key above all — could never reach
+# the snapshot that has to come before the first deploy carrying it: that
+# deploy is refused here, and nothing else ever rewrites the active file. The
+# first release that needed a snapshot stopped exactly there. The database is
+# the same one either way. pg-backup.sh has taken --env-file since it shipped.
+BACKUP_ARGS=(--app-dir "$APP_DIR")
+if [ -f "$RELEASE_DIR/.env.production" ]; then
+  BACKUP_ARGS+=(--env-file "$RELEASE_DIR/.env.production")
+fi
 if [ ! -f "$BACKUP_SCRIPT" ]; then
   echo "ERROR: $BACKUP_SCRIPT is missing on the server." >&2
   echo "The active release predates the backup tooling, so no pre-migration snapshot can be taken." >&2
-elif bash "$BACKUP_SCRIPT" --app-dir "$APP_DIR"; then
+elif bash "$BACKUP_SCRIPT" "${BACKUP_ARGS[@]}"; then
   echo "OK: a snapshot of the pre-migration database is in the bucket."
   exit 0
 else

@@ -288,6 +288,14 @@ rollback probe no longer asks. `FLUXRADAR_ENABLE_MOCK_CHECKOUT` must simply stay
 unset: releases before this one refuse to boot in production with it set, and
 the rollback probe runs their validators.
 
+**Delete the `PADDLE_WEBHOOK_SECRET` line whole, or leave it with its value —
+never leave it present and empty** (`PADDLE_WEBHOOK_SECRET=`). The releases
+before D-229 tell the two apart: `resolvePaddleWebhookSecret` substitutes a
+random secret only when the variable is *undefined*, and hands an empty string
+on to `getPaddleWebhookSecret`, whose `!secret` check throws. `startServer` calls
+it on every boot, so an empty value keeps such a release from starting — which
+is exactly the release a rollback would start.
+
 ### Transactional email
 
 Email verification and password reset are implemented and ship in this release;
@@ -674,7 +682,7 @@ owner. The short version:
   `FASTSPRING_STOREFRONT_URL`. A test-mode order can never grant access on a
   live deployment.
 
-`/billing/dev-checkout` refuses every account that is not internal, in every
+`/billing/internal-checkout` refuses every account that is not internal, in every
 environment: a signed FastSpring order is the only thing that creates a purchase.
 An exact, comma-separated `FLUXRADAR_INTERNAL_FREE_EMAILS` allowlist may be
 supplied in the private production environment file for internal testing.
@@ -823,6 +831,14 @@ backwards: `comm … || true` over listings nothing checked, so any error there
 read as "no new migrations". `DEPLOY-015` runs the script through every one of
 those cases, and each fails if the gate is made to fail open again.
 
+**Before the snapshot, the contract-phase gate** (`deploy/contract-phase-gate.sh`,
+D-230) checks that a contract-phase migration in this release is not running
+ahead of a release a rollback could still return to — *The rollback
+compatibility gate*, rule 1. A release that does not carry the gate is refused
+too. That refusal is not about the backup, so `ALLOW_MIGRATION_WITHOUT_BACKUP`
+does not reach it; the only way past it is to deploy the release the migration
+waits for first.
+
 A failure here **stops the deploy**, with the previous release still serving and
 the schema untouched. That is the point: the alternative is applying an
 irreversible migration with a safety net nobody checked. The same applies when
@@ -835,6 +851,17 @@ snapshot taken by hand minutes earlier, an outage where the migration *is* the
 fix. Anything other than `true` keeps the gate. Unset it again afterwards: it
 turns off the one control that stands between a bad migration and a day of lost
 customer data.
+
+**The snapshot uses the new release's `.env.production`**, passed to the active
+release's `pg-backup.sh` with `--env-file`. The active release's own file is
+whatever the last *successful* deploy wrote, so a backup setting added since —
+the encryption key above all — could never reach the snapshot that must precede
+the first deploy carrying it: that deploy is refused here, and nothing else
+rewrites the active file. The D-229 release stopped exactly there on
+2026-09-21 (`FLUXRADAR_BACKUP_ENCRYPTION_KEY is not set in …/current/.env.production`),
+with production left on the previous release. The database is the same either
+way; a release without the file falls back to the active one's. `DEPLOY-015`
+covers both.
 
 `pg_dump` runs **inside the running PostgreSQL container**, so the dump is always
 taken by the exact server version that wrote the data and the host needs no
@@ -968,7 +995,9 @@ Nothing below can be done by a deploy, and until it is done there are no backups
    a fresh 32-byte base64 key, and store the same key in the password manager.
    Optionally set the `PRODUCTION_BACKUP_*` repository variables to override the
    prefix and the retention numbers.
-2. Deploy once, so `.env.production` on the server carries the key.
+2. Deploy once, so `.env.production` on the server carries the key. The
+   pre-migration snapshot of that same deploy already reads the key from the
+   release being deployed, so this works even when the deploy adds a migration.
 3. Install the schedule as root. The log directory is created first, because
    cron opens the log file *before* running the script and a missing directory
    would make the job fail without ever starting:
@@ -1160,8 +1189,21 @@ bash "$APP_DIR/releases/$RELEASE_ID/deploy/rollback-release.sh" \
   "$APP_DIR" "$APP_DIR/releases/$RELEASE_ID"
 ```
 
-To go back to some *other* known-good commit whose image is still loaded, SSH to
-the server and run the following. During a normal rollout the previous
+To go back to some *other* known-good commit whose image is still loaded, first
+ask the contract-phase gate whether that release can still read the schema. A
+contract deploy that failed after migrating never pruned, so a release from
+before the contract's prerequisite can still be on disk, image and all; this
+refuses it, and changes nothing either way:
+
+```sh
+APP_DIR=/opt/fluxradar
+RELEASE_ID=<known-good-commit>
+bash "$APP_DIR/current/deploy/contract-phase-gate.sh" rollback-target \
+  "$APP_DIR" "$APP_DIR/releases/$RELEASE_ID"
+```
+
+Only when it answers `can be rolled back to`, SSH to the server and run the
+following. During a normal rollout the previous
 containers remain available until the new smoke test passes; after success they
 are removed, so this procedure recreates them only when needed:
 
@@ -1290,6 +1332,26 @@ Two rules follow, and `BILLING-007` enforces the first one in CI:
    of any release that reads the old shape can be started again. `BILLING-007` also
    runs the schema-surface probe against a throwaway migrated database — once with
    a column dropped, once with a table dropped — so the gate itself is covered.
+
+   **The order is enforced, not remembered (D-230).** A contract migration also
+   names, one line each, the migrations a release must already ship for the change
+   to be safe under it — the first migration of the release that stopped reading
+   the old shape:
+
+   ```sql
+   -- fluxradar:contract-requires 20260922100000_egress_locations
+   ```
+
+   `BILLING-007` fails a contract migration that names none, or names one that is
+   missing or later than itself. On the server, `deploy/contract-phase-gate.sh`
+   runs from the `backup` stage **before anything is migrated** (see *The snapshot
+   before a migration*) and refuses the deploy unless every release a rollback
+   could return to once it completes ships each named migration: the live release,
+   the target it recorded in `runtime/rollback.env`, and the two newest other
+   release directories, which are the ones pruning keeps. The rollback probe below
+   cannot do this: it runs after `migrate deploy` and checks only the live
+   release. `DEPLOY-018` runs the gate through the real sequence — a contract
+   deploy straight after its prerequisite is refused, one a release later passes.
 
    **A new table needs `ON DELETE CASCADE` from the parents an older release
    deletes.** The old release cannot clear rows in a table it does not know about,
