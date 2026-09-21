@@ -6,6 +6,7 @@ import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
 import { computeOverallScore } from '@fluxradar/scoring';
 import { RULESET_VERSION, scanRequestInputSchema, scanScopeSchema } from '@fluxradar/contracts';
 import { isModuleName, parseCrawlSummary } from '@fluxradar/contracts';
+import { MENTION_SIGNALS, type MentionSignal } from '@fluxradar/ai';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
 
@@ -498,9 +499,16 @@ interface GeoAiResponse {
   readonly citationsJson: string;
 }
 
+/**
+ * What one answer showed about brand and domain visibility.
+ *
+ * Not booleans: a question that already named the brand or spelled out the
+ * domain cannot be evidence that the model knows either, and reporting that as
+ * a pass is how both badges came to be green on every scan.
+ */
 interface GeoMentions {
-  readonly brand: boolean;
-  readonly domain: boolean;
+  readonly brand: MentionSignal;
+  readonly domain: MentionSignal;
 }
 
 interface GeoObservation {
@@ -597,9 +605,23 @@ function recordValue(value: unknown): Record<string, unknown> | null {
 
 function mentionsFrom(value: unknown): GeoMentions | null {
   const mentions = recordValue(value);
-  return typeof mentions?.brand === 'boolean' && typeof mentions.domain === 'boolean'
-    ? { brand: mentions.brand, domain: mentions.domain }
-    : null;
+  const brand = mentionSignal(mentions?.brand);
+  const domain = mentionSignal(mentions?.domain);
+  return brand === null || domain === null ? null : { brand, domain };
+}
+
+/**
+ * A stored signal, or null when the record predates the field.
+ *
+ * Reports written before this release stored `true`/`false`, which meant
+ * "no finding for this answer" and not "the model knew this". They are read as
+ * unmeasurable rather than rewritten into a verdict they never carried.
+ */
+function mentionSignal(value: unknown): MentionSignal | null {
+  if (typeof value === 'string' && (MENTION_SIGNALS as readonly string[]).includes(value)) {
+    return value as MentionSignal;
+  }
+  return typeof value === 'boolean' ? 'named-in-question' : null;
 }
 
 function stringArrayFromJson(value: string): readonly string[] {

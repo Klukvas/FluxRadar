@@ -317,12 +317,22 @@ export async function generateGeoDiscoveryQuestions(
 export function buildGeoRequests(
   scanId: string,
   brand: string,
-  siteHostname: string,
   discoveryQuestions: readonly string[] = [],
 ): readonly AiRequest[] {
+  // The domain is deliberately absent. These questions used to read "What is
+  // <brand>, what does its official website https://<hostname> offer…", and
+  // then GEO-VIS-004 checked the answer for that hostname — so a model
+  // repeating the subject of the question scored "official domain cited" on
+  // every site we ever scanned. Asked this way, naming the site is something
+  // the model has to know.
+  //
+  // The brand still appears, because a question about a brand has to name it;
+  // GEO-VIS-003 therefore treats these two as unmeasurable for brand awareness
+  // (`geoMentionSignals`), and measures that on the neutral discovery questions
+  // instead, which is the only place it ever meant anything.
   const questions = [
-    `What is ${brand}, what does its official website https://${siteHostname} offer, and who is it for?`,
-    `What independently verifiable facts can you report about ${brand} and its official website https://${siteHostname}? State what you cannot verify.`,
+    `What is ${brand}? What is its official website, and who is it for?`,
+    `What independently verifiable facts can you report about ${brand}? Name its official website if you know it, and state what you cannot verify.`,
     ...discoveryQuestions,
   ];
   const shared = {

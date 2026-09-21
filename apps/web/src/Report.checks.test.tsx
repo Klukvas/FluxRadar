@@ -66,7 +66,7 @@ const DISCOVERY: GeoObservation = {
   modelId: 'claude-sonnet-5',
   answer: 'Smile Clinic offers implants in Kyiv.',
   citations: [],
-  mentions: { brand: true, domain: false },
+  mentions: { brand: 'mentioned', domain: 'not-mentioned' },
 };
 
 function moduleOf(overrides: Partial<ScanModule>): ScanModule {

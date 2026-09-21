@@ -177,6 +177,27 @@ export interface ScanModule {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * The last answer a site gave about whether it will let the crawler read it.
+ *
+ * `canPurchase` is the API's own verdict — fresh enough and `reachable` — and
+ * is re-derived on the server when a checkout opens. Nothing the browser does
+ * with this field can widen what may be bought.
+ */
+export interface SiteReachability {
+  readonly state:
+    'reachable' | 'access-denied' | 'blocked-by-robots' | 'unreachable' | 'bad-response' | null;
+  readonly startStatus?: number | null;
+  readonly accessControlSignals?: readonly string[];
+  readonly checkedAt: string | null;
+  readonly expired?: boolean;
+  readonly canPurchase: boolean;
+}
+
+/** Mirrors `MentionSignal` in @fluxradar/ai. */
+export type MentionSignal =
+  'mentioned' | 'not-mentioned' | 'named-in-question' | 'brand-is-hostname';
+
 /** Mirrors `crawlSummarySchema` in @fluxradar/contracts. */
 export interface CrawlSummary {
   readonly reach:
@@ -331,9 +352,19 @@ export interface GeoObservation {
   readonly modelId: string | null;
   readonly answer: string | null;
   readonly citations: readonly string[];
+  /**
+   * What this answer showed about brand and domain visibility.
+   *
+   * Not booleans. An awareness question names the brand by construction, and
+   * the question used to spell the domain out too, so "no finding for this
+   * answer" — which is what these fields used to be — meant both badges were
+   * green on every scan ever run. `named-in-question` and `brand-is-hostname`
+   * are the two ways a signal can have no meaning, and both must read as "not
+   * measured" rather than as a pass.
+   */
   readonly mentions: {
-    readonly brand: boolean;
-    readonly domain: boolean;
+    readonly brand: MentionSignal;
+    readonly domain: MentionSignal;
   } | null;
 }
 

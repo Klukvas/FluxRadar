@@ -9,6 +9,7 @@ import type { RuleDescriptor } from '@fluxradar/contracts';
 
 import { AiModuleError } from './errors.js';
 import { geoFinding } from './geo-findings.js';
+import { brandSignal, domainSignal, isMeasured, type MentionSignal } from './geo-measurability.js';
 import type { GeoFinding } from './geo-findings.js';
 import { validateNormalizedResponse } from './response-contract.js';
 import type { AiRequestOutcome, AiResponseOutcome } from './run-request.js';
@@ -21,6 +22,40 @@ export interface GeoRuleInput {
   readonly siteUrl: string;
   readonly brand: string;
   readonly outcomes: readonly AiRequestOutcome[];
+}
+
+/** One answer's verdict on both visibility signals, with why each was skipped. */
+export interface GeoMentionSignals {
+  readonly brand: MentionSignal;
+  readonly domain: MentionSignal;
+}
+
+/**
+ * What each answer showed about brand and domain visibility.
+ *
+ * The single place these two are decided, so the rules, the stored metadata and
+ * the badges in the report cannot disagree about whether an answer counted.
+ */
+export function geoMentionSignals(input: GeoRuleInput): ReadonlyMap<string, GeoMentionSignals> {
+  const domain = input.domain.trim().toLowerCase();
+  return new Map(
+    responses(input).map((outcome) => [
+      outcome.aiRequestKey,
+      {
+        brand: brandSignal({
+          question: outcome.request.question,
+          answer: outcome.response.rawText,
+          brand: input.brand,
+          hostname: domain,
+        }),
+        domain: domainSignal({
+          question: outcome.request.question,
+          domain,
+          mentionsDomain: mentionsSiteLink(outcome, domain),
+        }),
+      },
+    ]),
+  );
 }
 
 /** Итог одного правила — форма зеркалит RuleEvaluation движка rules (D-121). */
@@ -108,10 +143,16 @@ export function evaluateGeoVis003(input: GeoRuleInput): GeoRuleEvaluation {
   if (brand === '') {
     throw new AiModuleError('ai: GEO-VIS-003 требует непустое имя бренда');
   }
-  const needle = brand.toLowerCase();
-  const applicable = responses(input);
+  const signals = geoMentionSignals(input);
+  // Only answers to questions that did NOT name the brand can say anything
+  // about brand visibility. An awareness question names it by construction, so
+  // it is not an applicable target — counting it made the badge permanently
+  // green and the "applicable targets" figure a fiction.
+  const applicable = responses(input).filter((outcome) =>
+    isMeasured(signals.get(outcome.aiRequestKey)?.brand ?? 'named-in-question'),
+  );
   const findings = applicable
-    .filter((outcome) => !outcome.response.rawText.toLowerCase().includes(needle))
+    .filter((outcome) => signals.get(outcome.aiRequestKey)?.brand === 'not-mentioned')
     .map((outcome) =>
       geoFinding(descriptor, {
         targetUrl: input.siteUrl,
@@ -180,9 +221,14 @@ export function evaluateGeoVis004(input: GeoRuleInput): GeoRuleEvaluation {
   if (domain === '') {
     throw new AiModuleError('ai: GEO-VIS-004 требует непустой домен сайта');
   }
-  const applicable = responses(input);
+  const signals = geoMentionSignals(input);
+  // Same rule as the brand: a question that spelled the domain out cannot be
+  // evidence that the model knows it.
+  const applicable = responses(input).filter((outcome) =>
+    isMeasured(signals.get(outcome.aiRequestKey)?.domain ?? 'named-in-question'),
+  );
   const findings = applicable
-    .filter((outcome) => !mentionsSiteLink(outcome, domain))
+    .filter((outcome) => signals.get(outcome.aiRequestKey)?.domain === 'not-mentioned')
     .map((outcome) =>
       geoFinding(descriptor, {
         targetUrl: input.siteUrl,

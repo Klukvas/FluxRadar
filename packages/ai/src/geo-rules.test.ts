@@ -113,6 +113,23 @@ describe('GEO-VIS-003 — присутствие бренда', () => {
 });
 
 describe('GEO-VIS-004 — ссылка на домен', () => {
+  it('вопрос, содержащий домен, не является applicable-целью', () => {
+    // The exact shape of the old awareness question: it handed the model the
+    // hostname and then scored the model for repeating it.
+    const spelledOut = makeResponseOutcome({
+      request: makeRequest({
+        sequence: 4,
+        question: `What does its official website https://${DOMAIN} offer?`,
+      }),
+      response: makeResponse({ rawText: 'No idea.', citations: [] }),
+    });
+
+    const evaluation = evaluateGeoVis004(input({ outcomes: [spelledOut] }));
+
+    expect(evaluation.applicableTargets).toBe(0);
+    expect(evaluation.findings).toEqual([]);
+  });
+
   it('домен в тексте ответа → без findings', () => {
     expect(evaluateGeoVis004(input()).affectedTargets).toBe(0);
   });

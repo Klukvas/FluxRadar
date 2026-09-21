@@ -58,12 +58,7 @@ describe('default AI provider wiring', () => {
     ]);
     expect(generation.quota.spent).toBe(1);
 
-    const requests = buildGeoRequests(
-      'scan-context',
-      'Smile Clinic',
-      'smile.example',
-      generation.questions,
-    );
+    const requests = buildGeoRequests('scan-context', 'Smile Clinic', generation.questions);
 
     expect(requests).toHaveLength(4);
     expect(requests[0]?.question).toContain('official website');
@@ -136,12 +131,9 @@ describe('default AI provider wiring', () => {
       },
     });
 
-    const requests = buildGeoRequests(
-      'neutral-scan',
-      'SableOrchid',
-      'sableorchid.example',
-      generation.questions,
-    ).filter((request) => request.promptVersion.includes('discovery'));
+    const requests = buildGeoRequests('neutral-scan', 'SableOrchid', generation.questions).filter(
+      (request) => request.promptVersion.includes('discovery'),
+    );
     await runGeoModule(
       {
         scanId: 'neutral-scan',
@@ -262,7 +254,7 @@ describe('default AI provider wiring', () => {
         siteOrigin: 'https://example.com',
         siteDomain: 'example.com',
         consent: { scanId, providers: ['anthropic'], noticeVersion: 'v1' },
-        requests: buildGeoRequests(scanId, 'Example', 'example.com'),
+        requests: buildGeoRequests(scanId, 'Example'),
       },
       { provider: createDefaultAiProvider('Example', 'example.com') },
     );
