@@ -926,7 +926,7 @@ same time.
 | `image-web` | `preflight` | The same for the web image, in parallel | No |
 | `package` | `preflight` | Builds the release archive and the env file, uploads both, extracts into `releases/<commit>` | No |
 | `backup` | the three above | Snapshots the database **if** this release adds migrations | No |
-| `release` | `backup` | Migrates, proves a rollback is possible, starts the containers, switches traffic | Yes, from the switch onwards |
+| `release` | `backup` | Runs `deploy/release.sh` from the new release directory: migrates, proves a rollback is possible, starts the containers, switches traffic | Yes, from the switch onwards |
 | `verify` | `release` | The public smoke test, and the rollback when it fails | It undoes one |
 
 Everything up to and including `backup` leaves the previous release serving and
@@ -1149,7 +1149,7 @@ from the release being deployed and executed against the **old image's** modules
 
 If either check fails the deploy stops with production untouched, and the failing
 variables or models are printed in the workflow log. `DEPLOY-006` extracts the
-workflow's own `docker run` lines and asserts the entrypoint override, and runs
+release script's own `docker run` lines and asserts the entrypoint override, and runs
 the probe against a real database to prove it passes, fails closed, and writes
 nothing.
 
@@ -1169,7 +1169,7 @@ is missing, so a first deploy used to yield the rollback target `current` and ab
 looking for the image `fluxradar-api:current`. Anything that exists — a live
 symlink, a dangling one, even a plain directory — counts as a rollback target and
 keeps the gate running (fail closed). `DEPLOY-001` extracts those exact lines from
-the workflow and runs them against both GNU and BSD `readlink`.
+`deploy/release.sh` and runs them against both GNU and BSD `readlink`.
 
 Two rules follow, and `BILLING-007` enforces the first one in CI:
 
