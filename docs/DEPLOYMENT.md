@@ -507,7 +507,9 @@ on each other.
 
 The two lint jobs are defined as a partition — the backend job is *everything the
 frontend job does not take* — so splitting the lint in two cannot quietly leave a
-directory unlinted by either half.
+directory unlinted by either half. `DEPLOY-017` holds the two lists to each
+other, and runs the `remote-upload` action and the manual rollback workflow the
+same way the other deploy tests run their scripts.
 
 The workspace packages resolve through their `exports` to `dist/index.js`, which
 is the whole reason `build-backend` exists as a job: everything that imports one
