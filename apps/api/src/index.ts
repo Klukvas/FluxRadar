@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 
+import { readAdminEmails } from './admin/admin-emails.ts';
+import { adminStatsRouter } from './admin/routes.ts';
 import { LoginRateLimiter, RequestRateLimiter } from './auth/rate-limit.ts';
 import { accountRouter } from './auth/account-routes.ts';
 import { authRouter } from './auth/routes.ts';
@@ -80,6 +82,8 @@ export interface CreateAppOptions {
   readonly internalFreeEmails?: ReadonlySet<string>;
   /** Test seam; production reads FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS. */
   readonly freeCheckAllowedOrigins?: ReadonlySet<string>;
+  /** Test seam; production reads FLUXRADAR_ADMIN_EMAILS. */
+  readonly adminEmails?: ReadonlySet<string>;
   /** Test seam; production uses READINESS_TIMEOUT_MS. */
   readonly readinessTimeoutMs?: number;
   readonly mailer?: Mailer;
@@ -304,6 +308,16 @@ export function createApp(options: CreateAppOptions): Express {
       logger,
       objectStore,
       requestRateLimiter,
+    }),
+  );
+  // Last before the 404: a request it refuses falls through to notFoundHandler,
+  // which is what makes a refusal indistinguishable from an unknown route.
+  app.use(
+    adminStatsRouter({
+      prisma: options.prisma,
+      now,
+      adminEmails: options.adminEmails ?? readAdminEmails(),
+      logger,
     }),
   );
 
