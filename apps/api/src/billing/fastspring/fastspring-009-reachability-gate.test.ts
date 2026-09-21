@@ -96,14 +96,18 @@ describe('FASTSPRING-009 a blocked site cannot be bought', () => {
     };
   }
 
+  /** Probes the profile's own domain unless a test deliberately says otherwise. */
   async function seedProbe(
     accountId: string,
     siteProfileId: string,
     state: string,
     checkedAt = NOW,
   ): Promise<void> {
+    const profile = await db.prisma.siteProfile.findUniqueOrThrow({
+      where: { id: siteProfileId },
+    });
     await db.prisma.siteReachabilityProbe.create({
-      data: { accountId, siteProfileId, state, checkedAt },
+      data: { accountId, siteProfileId, origin: profile.domain, state, checkedAt },
     });
   }
 
@@ -196,6 +200,29 @@ describe('FASTSPRING-009 a blocked site cannot be bought', () => {
       });
 
     expect(response.status).toBe(409);
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+  });
+
+  it('refuses a probe taken for a domain the profile no longer points at', async () => {
+    // The gate is only worth anything if it is about the site being bought.
+    // A probe row keyed by profile alone says "this profile was reachable",
+    // and a profile's domain can be changed while no checkout is open — so
+    // probing an easy site, repointing the profile and paying would buy a scan
+    // of a site nobody checked.
+    const app = buildApp();
+    const session = await signIn(app);
+    await seedProbe(session.accountId, session.profileId, 'reachable');
+
+    const moved = await session.agent
+      .patch(`/profiles/${session.profileId}`)
+      .set('Cookie', session.cookie)
+      .send({ domain: 'https://somewhere-else.example.com' });
+    expect(moved.status).toBe(200);
+
+    const response = await checkout(session);
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('SITE_NOT_READY');
     expect(await db.prisma.checkoutSession.count()).toBe(0);
   });
 

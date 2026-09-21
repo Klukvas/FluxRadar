@@ -153,9 +153,14 @@ export async function seedReachableSite(
   siteProfileId: string,
   checkedAt = new Date(),
 ): Promise<void> {
+  // The probe is only usable for the domain it recorded, so the seed reads the
+  // profile's own domain rather than inventing one — a mismatch here would
+  // refuse the checkout for a reason the test is not about.
+  const profile = await prisma.siteProfile.findUniqueOrThrow({ where: { id: siteProfileId } });
+  const row = { accountId, origin: profile.domain, state: 'reachable', checkedAt };
   await prisma.siteReachabilityProbe.upsert({
     where: { siteProfileId },
-    create: { accountId, siteProfileId, state: 'reachable', checkedAt },
-    update: { accountId, state: 'reachable', checkedAt },
+    create: { siteProfileId, ...row },
+    update: row,
   });
 }

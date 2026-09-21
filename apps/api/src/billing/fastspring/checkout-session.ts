@@ -59,7 +59,7 @@ export async function createCheckoutSession(
     throw new BillingNotFoundError('site profile not found');
   }
   assertScopeWithinPlan(params.plan, params.scope);
-  await assertSiteIsReachable(deps, profile.id);
+  await assertSiteIsReachable(deps, profile.id, profile.domain);
 
   const productPath = deps.config.productPaths[params.plan];
   const reference = `frcs_${randomUUID()}`;
@@ -229,10 +229,15 @@ export async function findCheckoutStatus(
 async function assertSiteIsReachable(
   deps: CheckoutSessionDeps,
   siteProfileId: string,
+  domain: string,
 ): Promise<void> {
   const probe = await deps.prisma.siteReachabilityProbe.findUnique({ where: { siteProfileId } });
-  if (isProbeUsable(probe, deps.now())) return;
-  if (probe === null) {
+  if (isProbeUsable(probe, domain, deps.now())) return;
+  // A probe of a domain this profile no longer points at is not a result about
+  // the site being bought. The profile's domain can be changed whenever no
+  // checkout is open, so without this the gate is bypassed by probing an easy
+  // site, repointing the profile, and paying inside the same 15 minutes.
+  if (probe === null || probe.origin !== domain) {
     throw new SitePreconditionError(
       'unchecked',
       'This site has not been checked yet. Run the reachability check before paying.',

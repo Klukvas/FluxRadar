@@ -165,6 +165,25 @@ describe('site reachability before a purchase', () => {
     ).toBe(1);
   });
 
+  it('forgets a result the moment the profile points somewhere else', async () => {
+    const app = buildApp({ fetcher: async (url) => htmlResponse(url) });
+    const { agent, cookie, profileId } = await signIn(app);
+    const probe = await agent.post(PROBE_PATH(profileId)).set('Cookie', cookie);
+    expect(probe.body.data.canPurchase).toBe(true);
+
+    await agent
+      .patch(`/profiles/${profileId}`)
+      .set('Cookie', cookie)
+      .send({ domain: 'https://somewhere-else.example.com' });
+
+    // The stored answer was about the old domain. Reporting it for the new one
+    // would let an owner probe an easy site, repoint the profile and buy a scan
+    // of a site nobody checked.
+    const read = await agent.get(PROBE_PATH(profileId)).set('Cookie', cookie);
+    expect(read.body.data.state).toBeNull();
+    expect(read.body.data.canPurchase).toBe(false);
+  });
+
   it('stops counting a probe once it is out of date', async () => {
     let clock = new Date('2026-09-21T10:00:00.000Z');
     const app = buildApp({ fetcher: async (url) => htmlResponse(url), now: () => clock });

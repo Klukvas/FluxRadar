@@ -481,6 +481,14 @@ model SiteReachabilityProbe {
   accountId     String
   siteProfileId String   @unique
   /**
+   * The origin actually probed, as the profile's domain read at the time.
+   * Compared with the profile's current domain before a purchase is allowed:
+   * without it the row says only "this profile was reachable", and a domain
+   * changed after a passing probe would sell a scan of an unchecked site.
+   * NULL on rows written before the column existed — treated as unusable.
+   */
+  origin        String?
+  /**
    * One of the crawler's own reach verdicts: 'reachable' | 'access-denied' |
    * 'blocked-by-robots' | 'unreachable' | 'bad-response'. Produced by
    * @fluxradar/crawler assessSiteReach, so the probe and the scan cannot

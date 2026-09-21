@@ -65,7 +65,7 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
     const stored = await prisma.siteReachabilityProbe.findUnique({
       where: { siteProfileId: profile.id },
     });
-    sendOk(res, toDto(stored, deps.now()));
+    sendOk(res, toDto(stored, profile.domain, deps.now()));
   });
 
   router.post('/profiles/:profileId/reachability', auth, async (req, res) => {
@@ -90,6 +90,10 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
     });
     const row = {
       accountId,
+      // What was asked, not just who asked it. A profile's domain can change
+      // while no checkout is open, and a row that does not say which domain it
+      // tested would keep authorising purchases after the site was swapped.
+      origin: profile.domain,
       state: result.state,
       startStatus: result.startStatus,
       fetchError: result.fetchError,
@@ -101,7 +105,7 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
       create: { siteProfileId: profile.id, ...row },
       update: row,
     });
-    sendOk(res, toDto(stored, deps.now()));
+    sendOk(res, toDto(stored, profile.domain, deps.now()));
   });
 
   return router;
@@ -115,10 +119,16 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
  * allowed.
  */
 export function isProbeUsable(
-  probe: Pick<SiteReachabilityProbe, 'state' | 'checkedAt'> | null,
+  probe: Pick<SiteReachabilityProbe, 'state' | 'checkedAt' | 'origin'> | null,
+  expectedOrigin: string,
   now: Date,
 ): boolean {
   if (probe === null) return false;
+  // The origin is checked first and fails closed. A profile's domain can be
+  // changed whenever no checkout is open, so a probe of the old domain must
+  // stop counting the moment the profile points somewhere else — and a row
+  // written before the column existed does not say what it tested at all.
+  if (probe.origin === null || probe.origin !== expectedOrigin) return false;
   return probe.state === 'reachable' && !isExpired(probe.checkedAt, now);
 }
 
@@ -126,10 +136,14 @@ export function isExpired(checkedAt: Date, now: Date): boolean {
   return now.getTime() - checkedAt.getTime() > REACHABILITY_PROBE_TTL_MS;
 }
 
-function toDto(probe: SiteReachabilityProbe | null, now: Date): Record<string, unknown> {
-  if (probe === null) {
-    // Never checked is its own answer, and the form says so rather than showing
-    // a stale-looking empty result.
+function toDto(
+  probe: SiteReachabilityProbe | null,
+  expectedOrigin: string,
+  now: Date,
+): Record<string, unknown> {
+  // A probe of a domain this profile no longer points at is not a result about
+  // this site, so it reads exactly like never having been checked.
+  if (probe === null || probe.origin !== expectedOrigin) {
     return { state: null, checkedAt: null, expired: false, canPurchase: false };
   }
   return {
@@ -138,7 +152,7 @@ function toDto(probe: SiteReachabilityProbe | null, now: Date): Record<string, u
     accessControlSignals: parseSignals(probe.signalsJson),
     checkedAt: probe.checkedAt.toISOString(),
     expired: isExpired(probe.checkedAt, now),
-    canPurchase: isProbeUsable(probe, now),
+    canPurchase: isProbeUsable(probe, expectedOrigin, now),
   };
 }
 
