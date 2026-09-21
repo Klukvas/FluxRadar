@@ -1,0 +1,98 @@
+/* The owner dashboard (/admin/stats). Same Platinum language as base.css —
+   bevelled panels, 1px rules, mono for figures. The per-day chart is plain CSS
+   bars rather than a chart library: one owner-only page does not justify a
+   dependency in every visitor's bundle. */
+
+.admin-stats__tiles {
+  display: grid;
+  /* Two tiles abreast on a phone; min(100%, …) so one still fits at 320px. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+/* base.css spaces stacked panels with a top margin; in a grid the gap does it,
+   and the margin would push every tile after the first out of line. */
+.admin-stats__tiles > .panel + .panel,
+.admin-stats__pair > .panel + .panel {
+  margin-top: 0;
+}
+.admin-stats__value {
+  display: block;
+  font: 700 28px/1.1 var(--mono-font);
+}
+.admin-stats__detail {
+  font-size: 11px;
+}
+.admin-stats__section {
+  margin-top: var(--sp-4);
+}
+.admin-stats__pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+/* Through `.data-table`, or its left-aligned `th` rule would win for the headers
+   and every figure would sit under the wrong edge of its column name. */
+.data-table .admin-stats__num {
+  font-family: var(--mono-font);
+  text-align: right;
+  white-space: nowrap;
+}
+/* On a phone base.css stacks each row and labels every cell from `data-label`;
+   the label stays on the left edge like every other stacked table's. */
+.data-table .admin-stats__num::before {
+  text-align: left;
+}
+.admin-stats__note {
+  margin: var(--sp-4) 0 0;
+  font-size: 11px;
+}
+
+.admin-stats__charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: var(--sp-3);
+}
+.admin-chart {
+  margin: 0;
+}
+.admin-chart__caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-2);
+  color: var(--plat-600);
+  font: 11px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.admin-chart__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 88px;
+  margin-top: var(--sp-2);
+  padding: 2px;
+  background: #fff;
+  border: 1px solid var(--plat-400);
+  box-shadow:
+    inset 1px 1px 0 var(--plat-300),
+    inset -1px -1px 0 #fff;
+}
+.admin-chart__bar {
+  flex: 1 1 0;
+  min-width: 0;
+  background: var(--selection);
+}
+/* A day with one sign-up next to a day with a hundred still has to show up. */
+.admin-chart__bar[data-empty='false'] {
+  min-height: 2px;
+}
+.admin-chart__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--sp-1);
+  color: var(--plat-600);
+  font-size: 11px;
+}
