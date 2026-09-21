@@ -413,7 +413,7 @@ export function useNewScanForm(props: NewScanFormProps) {
         });
       } else if (props.internalFreeAccess) {
         // Internal allowlist only: creates a scan without a purchase, and is
-        // refused for everyone else (and in production).
+        // refused for everyone else, in every environment (D-229).
         scan = await apiRequest<{ scanId: string } & Record<string, unknown>>(
           '/billing/dev-checkout',
           {
