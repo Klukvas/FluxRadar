@@ -725,11 +725,21 @@ the only answer is a dump, and the newest scheduled one can be up to 26 hours ol
 (*Freshness*, below).
 
 So the `backup` stage takes one, from the release that is still running,
-immediately before the schema changes under it. It runs **only when this release
-carries a migration directory the active release does not** — a deploy that
-changes no migration runs nothing, which keeps the common case as fast as it was
-— and it is compared by directory name, so a migration edited in place after it
-has been applied is not detected (nor should it be: Prisma refuses that anyway).
+immediately before the schema changes under it
+(`deploy/backup/pre-migration-snapshot.sh`). It is skipped **only when both
+releases' migration directories were listed successfully and the new one adds
+nothing** — a deploy that changes no migration runs nothing, which keeps the
+common case as fast as it was. The comparison is by directory name, so a
+migration edited in place after it has been applied is not detected (nor should
+it be: Prisma refuses that anyway).
+
+**When in doubt, it snapshots.** A release without its migrations directory, an
+active release without one, a listing or a comparison that fails — each means
+"cannot tell what this release will migrate", and the answer to that is the
+snapshot, never "no snapshot needed". The first, inline version got this
+backwards: `comm … || true` over listings nothing checked, so any error there
+read as "no new migrations". `DEPLOY-015` runs the script through every one of
+those cases, and each fails if the gate is made to fail open again.
 
 A failure here **stops the deploy**, with the previous release still serving and
 the schema untouched. That is the point: the alternative is applying an

@@ -542,24 +542,10 @@ jobs:
           known-hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
 
       - name: Snapshot if this release adds migrations
-        # THE GAP THIS CLOSES. `prisma migrate deploy` runs in the next stage and
-        # cannot be undone. Everything the rollback machinery protects is about
-        # the CODE: the compatibility gate proves the previous release can still
-        # read the migrated schema, and rollback-release.sh puts that release back
-        # in front of traffic. None of it restores a column a migration dropped or
-        # a value a migration rewrote — for that the only answer is a dump, and
-        # the newest one could be up to 26 hours old (docs/DEPLOYMENT.md,
-        # "Freshness"). So one is taken here, from the release that is still
-        # running, immediately before the schema changes under it.
-        #
-        # Only when there is something to protect against: the snapshot is taken
-        # when this release carries a migration directory the active release does
-        # not. A deploy that changes no migration runs nothing here, which keeps
-        # the common case as fast as it was.
-        #
-        # A failure is fatal on purpose. Proceeding would run an irreversible
-        # migration with a safety net nobody checked. ALLOW_MIGRATION_WITHOUT_BACKUP
-        # is the escape hatch for the day that trade is knowingly the right one.
+        # deploy/backup/pre-migration-snapshot.sh, from the release the package
+        # stage extracted. It snapshots whenever it cannot PROVE the release adds
+        # no migration, and a failed snapshot stops the deploy before anything is
+        # migrated; its header has the reasons.
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
@@ -572,57 +558,7 @@ jobs:
           ssh "$SSH_USER@$SSH_HOST" bash -s -- \
             "$APP_DIR" "$RELEASE_ID" "${ALLOW_MIGRATION_WITHOUT_BACKUP:-false}" <<'REMOTE'
           set -eu
-          APP_DIR="$1"
-          RELEASE_ID="$2"
-          ALLOW_WITHOUT_BACKUP="$3"
-          RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
-          MIGRATIONS_SUBPATH="apps/api/prisma/migrations"
-
-          if [ ! -L "$APP_DIR/current" ] && [ ! -e "$APP_DIR/current" ]; then
-            echo "First deploy: there is no running release and no database to snapshot."
-            exit 0
-          fi
-
-          list_migrations() {
-            # Directory names only, sorted. A missing directory is not an error:
-            # it means that release carried no migrations at all.
-            if [ -d "$1/$MIGRATIONS_SUBPATH" ]; then
-              find "$1/$MIGRATIONS_SUBPATH" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort
-            fi
-          }
-
-          added="$(comm -13 \
-            <(list_migrations "$APP_DIR/current") \
-            <(list_migrations "$RELEASE_DIR") || true)"
-
-          if [ -z "$added" ]; then
-            echo "No new migrations in $RELEASE_ID; the schema is unchanged and no snapshot is needed."
-            exit 0
-          fi
-
-          echo "This release adds the following migrations:"
-          printf '  %s\n' $added
-          echo "Taking a snapshot of the live database before they are applied."
-
-          BACKUP_SCRIPT="$APP_DIR/current/deploy/backup/pg-backup.sh"
-          if [ ! -x "$BACKUP_SCRIPT" ]; then
-            echo "ERROR: $BACKUP_SCRIPT is missing or not executable on the server." >&2
-            echo "The active release predates the backup tooling, so no pre-migration snapshot can be taken." >&2
-          elif "$BACKUP_SCRIPT" --app-dir "$APP_DIR"; then
-            echo "OK: a snapshot of the pre-migration database is in the bucket."
-            exit 0
-          else
-            echo "ERROR: the pre-migration snapshot failed." >&2
-          fi
-
-          # Either the script was missing or it failed. Both mean the same thing.
-          if [ "$ALLOW_WITHOUT_BACKUP" = "true" ]; then
-            echo "WARNING: ALLOW_MIGRATION_WITHOUT_BACKUP=true — applying an irreversible migration with NO verified snapshot taken immediately before it." >&2
-            exit 0
-          fi
-          echo "Refusing to migrate without one. Nothing has been changed: the previous release is still serving and the schema is untouched." >&2
-          echo "Fix the backup (docs/DEPLOYMENT.md, 'Database backup and restore'), or set the ALLOW_MIGRATION_WITHOUT_BACKUP variable to 'true' to deploy anyway." >&2
-          exit 1
+          exec bash "$1/releases/$2/deploy/backup/pre-migration-snapshot.sh" "$1" "$2" "$3"
           REMOTE
 
   release:
