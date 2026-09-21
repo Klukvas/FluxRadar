@@ -48,6 +48,13 @@ export interface NormalizedAiResponse {
   readonly finishReason: AiFinishReason;
 }
 
+/** Token caps одного запроса (§5); по умолчанию — общие AI_REQUEST_CAPS. */
+export interface AiRequestCaps {
+  readonly maxInputTokens: number;
+  /** Уходит провайдеру как max_tokens: у думающей модели thinking и ответ делят этот бюджет. */
+  readonly maxOutputTokens: number;
+}
+
 /** Мета-данные одного AI-запроса; текст запроса собирает prompt-builder. */
 export interface AiRequest {
   readonly scanId: string;
@@ -63,6 +70,17 @@ export interface AiRequest {
   readonly reasoningMode?: 'disabled';
   /** Optional JSON Schema used by providers that support constrained structured output. */
   readonly responseSchema?: Readonly<Record<string, unknown>>;
+  /**
+   * Caps for this request instead of the shared AI_REQUEST_CAPS, for a request
+   * whose input or answer does not fit them. Honoured wherever a cap is enforced.
+   */
+  readonly caps?: AiRequestCaps;
+  /**
+   * Ask Anthropic to re-run a declined request on the fallback model it
+   * recommends for the refusal's category, instead of returning the refusal.
+   * Providers without server-side fallback ignore it.
+   */
+  readonly refusalFallback?: 'default';
 }
 
 /**

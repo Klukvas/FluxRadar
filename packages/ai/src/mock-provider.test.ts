@@ -147,3 +147,36 @@ describe('MockAiProvider — недоступность (GEO-METHOD-005)', () =>
     );
   });
 });
+
+describe('MockAiProvider — caps запроса', () => {
+  const question = 'Give me an oversized answer';
+
+  it('усекает по output cap самого запроса', async () => {
+    const mock = new MockAiProvider([
+      {
+        questionIncludes: 'oversized',
+        response: { status: 'completed', output_text: 'x'.repeat(100) },
+      },
+    ]);
+    const response = await mock.send(
+      makeRequest({ question, caps: { maxInputTokens: 8000, maxOutputTokens: 10 } }),
+      PROMPT,
+    );
+    expect(response.rawText.length).toBe(10 * CHARS_PER_TOKEN);
+    expect(response.finishReason).toBe('length');
+    expect(response.usage.outputTokens).toBe(10);
+  });
+
+  it('не усекает ответ длиннее общего cap, когда caps запроса его вмещают', async () => {
+    const text = 'x'.repeat(AI_REQUEST_CAPS.maxOutputTokens * CHARS_PER_TOKEN + 500);
+    const mock = new MockAiProvider([
+      { questionIncludes: 'oversized', response: { status: 'completed', output_text: text } },
+    ]);
+    const response = await mock.send(
+      makeRequest({ question, caps: { maxInputTokens: 8000, maxOutputTokens: 16_000 } }),
+      PROMPT,
+    );
+    expect(response.rawText).toBe(text);
+    expect(response.finishReason).toBe('stop');
+  });
+});

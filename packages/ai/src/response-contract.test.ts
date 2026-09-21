@@ -70,3 +70,18 @@ describe('validateNormalizedResponse', () => {
     expect(validateNormalizedResponse(broken).length).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe('validateNormalizedResponse — caps запроса', () => {
+  const usage = { inputTokens: 12_000, outputTokens: 15_000, totalTokens: 27_000 };
+
+  it('usage сверяется с caps запроса, когда они переданы', () => {
+    const response = makeResponse({ usage });
+    expect(validateNormalizedResponse(response)).toHaveLength(2);
+    expect(
+      validateNormalizedResponse(response, { maxInputTokens: 20_000, maxOutputTokens: 16_000 }),
+    ).toEqual([]);
+    expect(
+      validateNormalizedResponse(response, { maxInputTokens: 10_000, maxOutputTokens: 16_000 }),
+    ).toEqual(['usage.inputTokens 12000 exceeds cap 10000']);
+  });
+});

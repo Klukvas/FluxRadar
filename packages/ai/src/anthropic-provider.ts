@@ -1,8 +1,13 @@
-import { AI_REQUEST_CAPS } from '@fluxradar/contracts';
-
+import { requestCaps } from './caps.js';
 import { UnavailableError } from './errors.js';
 import { CHARS_PER_TOKEN, estimateTokens, TOKENIZER_VERSION } from './prompt-builder.js';
-import type { AiProvider, AiProviderConfig, AiRequest, NormalizedAiResponse } from './types.js';
+import type {
+  AiProvider,
+  AiProviderConfig,
+  AiRequest,
+  AiRequestCaps,
+  NormalizedAiResponse,
+} from './types.js';
 
 export interface AnthropicProviderOptions {
   readonly apiKey: string;
@@ -22,6 +27,9 @@ interface AnthropicMessageResponse {
 }
 
 const ANTHROPIC_REQUEST_TIMEOUT_MS = 45_000;
+
+/** The beta that accepts `fallbacks: "default"` (server-side refusal fallback). */
+export const SERVER_SIDE_FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
 function transportFailureReason(error: unknown): string {
   if (
@@ -58,6 +66,46 @@ function finishReason(value: unknown): NormalizedAiResponse['finishReason'] {
   return 'safety';
 }
 
+function requestHeaders(
+  apiKey: string,
+  apiVersion: string,
+  request: AiRequest,
+): Record<string, string> {
+  return {
+    'content-type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': apiVersion,
+    ...(request.refusalFallback === undefined
+      ? {}
+      : { 'anthropic-beta': SERVER_SIDE_FALLBACK_BETA }),
+  };
+}
+
+function requestBody(
+  modelId: string,
+  request: AiRequest,
+  promptText: string,
+  caps: AiRequestCaps,
+): string {
+  return JSON.stringify({
+    model: modelId,
+    max_tokens: caps.maxOutputTokens,
+    system: request.systemInstructions,
+    messages: [{ role: 'user', content: promptText }],
+    ...(request.reasoningMode === undefined ? {} : { thinking: { type: request.reasoningMode } }),
+    ...(request.responseSchema === undefined
+      ? {}
+      : {
+          output_config: {
+            format: { type: 'json_schema', schema: request.responseSchema },
+          },
+        }),
+    // A declined request is re-run on the model Anthropic recommends for the
+    // refusal's category; the answer's `model` then names the one that served it.
+    ...(request.refusalFallback === undefined ? {} : { fallbacks: request.refusalFallback }),
+  });
+}
+
 export class AnthropicProvider implements AiProvider {
   readonly config: AiProviderConfig;
   private readonly apiKey: string;
@@ -84,31 +132,13 @@ export class AnthropicProvider implements AiProvider {
     if (request.provider !== 'anthropic') {
       throw new Error(`ai: anthropic adapter received ${request.provider} request`);
     }
+    const caps = requestCaps(request);
     let response: Response;
     try {
       response = await this.fetcher('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': this.config.apiVersion,
-        },
-        body: JSON.stringify({
-          model: this.config.modelId,
-          max_tokens: AI_REQUEST_CAPS.maxOutputTokens,
-          system: request.systemInstructions,
-          messages: [{ role: 'user', content: promptText }],
-          ...(request.reasoningMode === undefined
-            ? {}
-            : { thinking: { type: request.reasoningMode } }),
-          ...(request.responseSchema === undefined
-            ? {}
-            : {
-                output_config: {
-                  format: { type: 'json_schema', schema: request.responseSchema },
-                },
-              }),
-        }),
+        headers: requestHeaders(this.apiKey, this.config.apiVersion, request),
+        body: requestBody(this.config.modelId, request, promptText, caps),
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });
     } catch (error) {
@@ -126,18 +156,36 @@ export class AnthropicProvider implements AiProvider {
     }
     const rawText = textFromContent(payload?.content);
     if (payload === null || rawText === '') {
-      throw new UnavailableError('Anthropic returned no text content');
+      // A non-streaming answer drops a declined partial, so a refusal nothing
+      // rescued arrives without text.
+      throw new UnavailableError(
+        payload?.stop_reason === 'refusal'
+          ? 'Anthropic declined the request'
+          : 'Anthropic returned no text content',
+      );
     }
-    const inputTokens = countOrEstimate(payload?.usage?.input_tokens, estimateTokens(promptText));
-    const reportedOutputTokens = countOrEstimate(
-      payload?.usage?.output_tokens,
-      estimateTokens(rawText),
+    return this.normalize(payload, rawText, promptText, caps);
+  }
+
+  private normalize(
+    payload: AnthropicMessageResponse,
+    rawText: string,
+    promptText: string,
+    caps: AiRequestCaps,
+  ): NormalizedAiResponse {
+    const outputChars = caps.maxOutputTokens * CHARS_PER_TOKEN;
+    const truncated = rawText.length > outputChars;
+    const inputTokens = Math.min(
+      countOrEstimate(payload.usage?.input_tokens, estimateTokens(promptText)),
+      caps.maxInputTokens,
     );
-    const outputTokens = Math.min(reportedOutputTokens, AI_REQUEST_CAPS.maxOutputTokens);
-    const cappedText =
-      rawText.length > AI_REQUEST_CAPS.maxOutputTokens * CHARS_PER_TOKEN
-        ? rawText.slice(0, AI_REQUEST_CAPS.maxOutputTokens * CHARS_PER_TOKEN)
-        : rawText;
+    const outputTokens = truncated
+      ? caps.maxOutputTokens
+      : Math.min(
+          countOrEstimate(payload.usage?.output_tokens, estimateTokens(rawText)),
+          caps.maxOutputTokens,
+        );
+    const requestId = typeof payload.id === 'string' && payload.id !== '' ? payload.id : null;
     return {
       provider: 'anthropic',
       apiVersion: this.config.apiVersion,
@@ -145,26 +193,15 @@ export class AnthropicProvider implements AiProvider {
         typeof payload.model === 'string' && payload.model !== ''
           ? payload.model
           : this.config.modelId,
-      requestId:
-        typeof payload.id === 'string' && payload.id !== ''
-          ? payload.id
-          : `local-${this.now().getTime()}`,
-      requestIdSource: typeof payload.id === 'string' && payload.id !== '' ? 'provider' : 'local',
+      requestId: requestId ?? `local-${this.now().getTime()}`,
+      requestIdSource: requestId === null ? 'local' : 'provider',
       createdAt: this.now().toISOString(),
-      rawText: cappedText,
+      rawText: truncated ? rawText.slice(0, outputChars) : rawText,
       citations: [],
-      usage: {
-        inputTokens: Math.min(inputTokens, AI_REQUEST_CAPS.maxInputTokens),
-        outputTokens:
-          cappedText.length < rawText.length ? AI_REQUEST_CAPS.maxOutputTokens : outputTokens,
-        totalTokens:
-          Math.min(inputTokens, AI_REQUEST_CAPS.maxInputTokens) +
-          (cappedText.length < rawText.length ? AI_REQUEST_CAPS.maxOutputTokens : outputTokens),
-      },
-      usageSource: payload?.usage !== undefined ? 'provider' : 'estimated',
-      ...(payload?.usage === undefined ? { tokenizerVersion: TOKENIZER_VERSION } : {}),
-      finishReason:
-        cappedText.length < rawText.length ? 'length' : finishReason(payload.stop_reason),
+      usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+      usageSource: payload.usage !== undefined ? 'provider' : 'estimated',
+      ...(payload.usage === undefined ? { tokenizerVersion: TOKENIZER_VERSION } : {}),
+      finishReason: truncated ? 'length' : finishReason(payload.stop_reason),
     };
   }
 }

@@ -7,9 +7,9 @@
 
 import { createHash } from 'node:crypto';
 
-import { AI_REQUEST_CAPS } from '@fluxradar/contracts';
 import type { AiFinishReason } from '@fluxradar/contracts';
 
+import { requestCaps } from './caps.js';
 import { AiModuleError, UnavailableError } from './errors.js';
 import { CHARS_PER_TOKEN, estimateTokens, TOKENIZER_VERSION } from './prompt-builder.js';
 import type { AiProvider, AiProviderConfig, AiRequest, NormalizedAiResponse } from './types.js';
@@ -78,9 +78,9 @@ interface CappedOutput {
   readonly truncated: boolean;
 }
 
-/** Output cap §5: усечение по границе токена, finish_reason='length'. */
-function applyOutputCap(body: OpenAiShapedResponse): CappedOutput {
-  const capChars = AI_REQUEST_CAPS.maxOutputTokens * CHARS_PER_TOKEN;
+/** Output cap §5 (caps запроса): усечение по границе токена, finish_reason='length'. */
+function applyOutputCap(body: OpenAiShapedResponse, maxOutputTokens: number): CappedOutput {
+  const capChars = maxOutputTokens * CHARS_PER_TOKEN;
   if (body.output_text.length > capChars) {
     return { text: body.output_text.slice(0, capChars), finishReason: 'length', truncated: true };
   }
@@ -124,22 +124,23 @@ export class MockAiProvider implements AiProvider {
       throw new UnavailableError(fixture.unavailable ?? 'fixture has no response body');
     }
 
-    return this.normalize(fixture.response, promptText, request.sequence);
+    return this.normalize(fixture.response, promptText, request);
   }
 
   private normalize(
     body: OpenAiShapedResponse,
     promptText: string,
-    sequence: number,
+    request: AiRequest,
   ): NormalizedAiResponse {
-    const output = applyOutputCap(body);
+    const { maxOutputTokens } = requestCaps(request);
+    const output = applyOutputCap(body, maxOutputTokens);
     const hasProviderUsage = body.usage !== undefined;
     const inputTokens = body.usage?.input_tokens ?? estimateTokens(promptText);
     // Усечённый нами output фактически равен cap-у независимо от заявки провайдера.
     const reportedOutput = body.usage?.output_tokens ?? estimateTokens(output.text);
     const outputTokens = output.truncated
-      ? AI_REQUEST_CAPS.maxOutputTokens
-      : Math.min(reportedOutput, AI_REQUEST_CAPS.maxOutputTokens);
+      ? maxOutputTokens
+      : Math.min(reportedOutput, maxOutputTokens);
     const createdAt =
       body.created_at !== undefined
         ? new Date(body.created_at * 1000).toISOString()
@@ -149,7 +150,7 @@ export class MockAiProvider implements AiProvider {
       provider: this.config.provider,
       apiVersion: this.config.apiVersion,
       modelId: body.model ?? this.config.modelId,
-      requestId: body.id ?? localRequestId(promptText, sequence),
+      requestId: body.id ?? localRequestId(promptText, request.sequence),
       requestIdSource: body.id !== undefined ? 'provider' : 'local',
       createdAt,
       rawText: output.text,

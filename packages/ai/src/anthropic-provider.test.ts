@@ -122,3 +122,126 @@ describe('AnthropicProvider', () => {
     expect(provider.config.timeoutMs).toBe(45_000);
   });
 });
+
+function messagesResponse(body: Record<string, unknown>): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+describe('AnthropicProvider — per-request caps', () => {
+  it('sends the request cap as max_tokens and clamps usage to it, not to the shared caps', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      messagesResponse({
+        id: 'msg_caps',
+        model: 'claude-opus-5',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: '{"overview":"ok","actions":[]}' }],
+        // Adaptive thinking counts against output_tokens: far above the shared
+        // 2,000 cap, within this request's own.
+        usage: { input_tokens: 12_345, output_tokens: 15_000 },
+      }),
+    );
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    const response = await provider.send(
+      makeRequest({
+        provider: 'anthropic',
+        caps: { maxInputTokens: 20_000, maxOutputTokens: 16_000 },
+      }),
+      'prompt',
+    );
+
+    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))).toMatchObject({
+      max_tokens: 16_000,
+    });
+    expect(response.usage).toEqual({
+      inputTokens: 12_345,
+      outputTokens: 15_000,
+      totalTokens: 27_345,
+    });
+    expect(response.finishReason).toBe('stop');
+  });
+
+  it('truncates text and clamps usage at a request cap smaller than the shared one', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      messagesResponse({
+        id: 'msg_small',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'a'.repeat(50) }],
+        usage: { input_tokens: 500, output_tokens: 30 },
+      }),
+    );
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    const response = await provider.send(
+      makeRequest({ provider: 'anthropic', caps: { maxInputTokens: 100, maxOutputTokens: 10 } }),
+      'prompt',
+    );
+
+    expect(response.rawText).toBe('a'.repeat(20));
+    expect(response.finishReason).toBe('length');
+    expect(response.usage).toEqual({ inputTokens: 100, outputTokens: 10, totalTokens: 110 });
+  });
+});
+
+describe('AnthropicProvider — refusal fallback', () => {
+  it('asks for the default fallback with its beta header only when the request opts in', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () =>
+      messagesResponse({
+        id: 'msg_fallback',
+        model: 'claude-opus-4-8',
+        stop_reason: 'end_turn',
+        content: [
+          { type: 'fallback', from: { model: 'claude-opus-5' }, to: { model: 'claude-opus-4-8' } },
+          { type: 'text', text: 'Answered by the fallback model.' },
+        ],
+        usage: { input_tokens: 40, output_tokens: 12 },
+      }),
+    );
+    const provider = new AnthropicProvider({
+      apiKey: 'sk-test',
+      fetcher,
+      modelId: 'claude-opus-5',
+    });
+
+    const rescued = await provider.send(
+      makeRequest({ provider: 'anthropic', refusalFallback: 'default' }),
+      'prompt',
+    );
+    await provider.send(makeRequest({ provider: 'anthropic' }), 'prompt');
+
+    const [optedIn, plain] = fetcher.mock.calls.map(([, init]) => init);
+    expect(optedIn?.headers).toMatchObject({ 'anthropic-beta': 'server-side-fallback-2026-07-01' });
+    expect(JSON.parse(String(optedIn?.body))).toMatchObject({
+      model: 'claude-opus-5',
+      fallbacks: 'default',
+    });
+    expect(plain?.headers).not.toHaveProperty('anthropic-beta');
+    expect(JSON.parse(String(plain?.body))).not.toHaveProperty('fallbacks');
+    // The model that served the answer, not the one that was asked.
+    expect(rescued.modelId).toBe('claude-opus-4-8');
+    expect(rescued.rawText).toBe('Answered by the fallback model.');
+  });
+
+  it('treats a refusal nothing rescued as Unavailable', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      messagesResponse({
+        id: 'msg_refused',
+        model: 'claude-opus-4-8',
+        stop_reason: 'refusal',
+        stop_details: { type: 'refusal', category: 'cyber', explanation: null },
+        content: [
+          { type: 'fallback', from: { model: 'claude-opus-5' }, to: { model: 'claude-opus-4-8' } },
+        ],
+        usage: { input_tokens: 40, output_tokens: 0 },
+      }),
+    );
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    await expect(
+      provider.send(makeRequest({ provider: 'anthropic', refusalFallback: 'default' }), 'prompt'),
+    ).rejects.toMatchObject({ name: 'UnavailableError', reason: 'Anthropic declined the request' });
+  });
+});

@@ -211,3 +211,48 @@ describe('runAiRequest — ошибки провайдера', () => {
     );
   });
 });
+
+describe('runAiRequest — caps запроса', () => {
+  it('повторное усечение после redaction держит input cap самого запроса', async () => {
+    const { provider } = countingProvider();
+    const request = makeRequest({
+      question: 'What are alternatives to manual website audits?',
+      pageTitles: Array.from({ length: 400 }, (_, index) => `u${index}@x.co`),
+      caps: { maxInputTokens: 300, maxOutputTokens: AI_REQUEST_CAPS.maxOutputTokens },
+    });
+    const result = await runAiRequest(request, baseOptions(provider));
+    expect(result.outcome.kind).toBe('response');
+    if (result.outcome.kind !== 'response') return;
+    expect(result.outcome.promptText.length).toBeLessThanOrEqual(300 * CHARS_PER_TOKEN);
+    expect(result.outcome.inputTruncated).toBe(true);
+  });
+
+  it('usage проверяется по caps запроса: выше общего cap, но в пределах своего — ответ', async () => {
+    const answer = 'y'.repeat(6000);
+    const provider = new MockAiProvider([
+      {
+        questionIncludes: 'long answer',
+        response: {
+          status: 'completed',
+          output_text: answer,
+          usage: { input_tokens: 9000, output_tokens: 3000 },
+        },
+      },
+    ]);
+    const question = 'A long answer, please';
+
+    const roomy = await runAiRequest(
+      makeRequest({ question, caps: { maxInputTokens: 20_000, maxOutputTokens: 16_000 } }),
+      baseOptions(provider),
+    );
+    expect(roomy.outcome.kind).toBe('response');
+    if (roomy.outcome.kind === 'response') {
+      expect(roomy.outcome.response.rawText).toBe(answer);
+      expect(roomy.outcome.response.usage).toMatchObject({ inputTokens: 9000, outputTokens: 3000 });
+    }
+
+    // Под общими caps тот же ответ нарушает контракт §5: input 9000 > 8000.
+    const shared = await runAiRequest(makeRequest({ question }), baseOptions(provider));
+    expect(shared.outcome).toMatchObject({ kind: 'unavailable', reason: 'ProviderContract' });
+  });
+});
