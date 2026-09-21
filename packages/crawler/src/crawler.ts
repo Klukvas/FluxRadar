@@ -3,7 +3,7 @@
 // maxPages/maxDepth, per-host авто-throttle по последовательным 5xx (D-030).
 
 import { normalizeUrl } from '@fluxradar/fingerprint';
-import type { SafeFetchResult } from '@fluxradar/safe-fetch';
+import type { EgressProxy, SafeFetchResult } from '@fluxradar/safe-fetch';
 import { HostLimiter, safeFetch } from '@fluxradar/safe-fetch';
 
 import { extractLinks } from './link-extractor.js';
@@ -37,6 +37,11 @@ export interface CrawlOptions {
   readonly onProgress?: (url: string, done: number, total: number) => void;
   /** Имя агента для матчинга User-agent групп robots.txt. */
   readonly userAgent?: string;
+  /**
+   * Egress-прокси обхода: сайты клиентов видят его адрес, а не адрес сервера
+   * FluxRadar. Отсутствует — запросы идут напрямую.
+   */
+  readonly egressProxy?: EgressProxy;
 }
 
 interface QueueEntry {
@@ -81,7 +86,11 @@ class CrawlRun {
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
     this.fetcher =
       options.fetcher ??
-      buildDefaultFetcher(this.userAgent, options.dangerouslyAllowLoopback ?? false);
+      buildDefaultFetcher(
+        this.userAgent,
+        options.dangerouslyAllowLoopback ?? false,
+        options.egressProxy,
+      );
     this.limiter = options.limiter ?? new HostLimiter();
     this.robotsCache = new RobotsHostCache(
       (url) => this.fetchThrottled(url),
@@ -369,11 +378,16 @@ function buildUrlVariants(
   return Object.fromEntries(duplicates);
 }
 
-function buildDefaultFetcher(userAgent: string, dangerouslyAllowLoopback: boolean): CrawlFetcher {
+function buildDefaultFetcher(
+  userAgent: string,
+  dangerouslyAllowLoopback: boolean,
+  egressProxy: EgressProxy | undefined,
+): CrawlFetcher {
   return (url) =>
     safeFetch(url, {
       headers: { 'user-agent': userAgent },
       dangerouslyAllowLoopback,
+      ...(egressProxy === undefined ? {} : { proxy: egressProxy }),
     });
 }
 

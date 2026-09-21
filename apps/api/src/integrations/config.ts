@@ -1,6 +1,7 @@
 import { readFastSpringConfig } from '../billing/fastspring/config.ts';
 import { isMockCheckoutEnabled } from '../billing/mock-checkout.ts';
 import { DEFAULT_ANTHROPIC_MODEL, readAnthropicConfig } from './anthropic-config.ts';
+import { readCrawlEgressConfig } from './crawl-egress-config.ts';
 import { readIntegrationEncryptionKey } from './encryption-key.ts';
 import { readObjectStorageConfig, type ObjectStorageConfig } from './object-storage-config.ts';
 import { readOAuthConfig, type OAuthProviderConfig } from './oauth-config.ts';
@@ -99,6 +100,7 @@ function partialIntegrationFailures(env: NodeJS.ProcessEnv): readonly string[] {
     readOAuthConfig('bing', env),
     readObjectStorageConfig(env),
     readAnthropicConfig(env),
+    readCrawlEgressConfig(env),
   ];
   return results.flatMap((result) => (result.state === 'invalid' ? [result.reason] : []));
 }
