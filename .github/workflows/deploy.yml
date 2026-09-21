@@ -402,6 +402,19 @@ jobs:
           # both. It prints variable NAMES and problems only, never a value.
           node deploy/normalize-env-file.cjs "$RUNNER_TEMP/production.env"
 
+      # Not a gate — a deploy blocked on the backup config would also block the
+      # fix for whatever else is wrong — but production without these has NO
+      # database backups, and every deploy says so where it is seen.
+      - name: Check the release can be backed up
+        run: |
+          set -uo pipefail
+          missing="$(bash deploy/backup/check-backup-config.sh "$RUNNER_TEMP/production.env")"
+          case "$?" in
+            0) echo 'Every variable a database backup needs is set in the release env file.' ;;
+            1) echo "::warning title=Production cannot be backed up::The release env file lacks: $missing. pg-backup.sh refuses to run without them, so no snapshot is taken and backup-verify fails every night. Set them (docs/DEPLOYMENT.md, 'Database backup and restore')." ;;
+            *) echo '::warning title=Backup config not checked::check-backup-config.sh could not read the release env file.' ;;
+          esac
+
       # The env file ships from exactly one place, and only after the overrides
       # and the normalizer above have run on it: DEPLOY-002 and DEPLOY-013
       # assert that order against this `files:` entry.

@@ -713,6 +713,23 @@ what an operator has to set up once.
 | 03:30 UTC Sunday (cron) | `pg-restore.sh --verify-latest` | no — restores into a throwaway database |
 | 04:20 UTC daily (GitHub Actions) | `backup-verify` workflow, the same verification over SSH | no |
 | Every deploy that adds a migration | the `backup` stage of `deploy.yml`, running the same `pg-backup.sh` | reads it with `pg_dump` |
+| Every deploy | `check-backup-config.sh` on the env file the `package` stage ships | no |
+
+### Whether a release can be backed up at all
+
+Production once ran for two weeks with `FLUXRADAR_BACKUP_ENCRYPTION_KEY` set
+nowhere: `pg-backup.sh` refused to run every night, `backup-verify` failed every
+night, and every deploy in that time went green, because nothing in the deploy
+asked. The `package` stage now runs `deploy/backup/check-backup-config.sh` on the
+env file it is about to ship, and when anything a backup needs is missing — the
+encryption key, `POSTGRES_DB`/`POSTGRES_USER`, any `HETZNER_S3_*` — the run
+carries a **"Production cannot be backed up"** warning naming the variables
+(names only, never values).
+
+It warns rather than blocks: a deploy gated on the backup configuration would
+also block the fix for whatever else is wrong in production. The list it checks
+is compared with `pg-backup.sh` and `backup-cli.cjs` by `DEPLOY-016`, so a
+variable added to either cannot go unchecked.
 
 ### The snapshot before a migration
 
