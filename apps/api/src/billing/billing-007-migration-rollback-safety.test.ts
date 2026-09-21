@@ -83,6 +83,32 @@ describe('BILLING-007 migration rollback safety', () => {
     }
   });
 
+  // D-230: the deploy lets a contract-phase migration run only once every
+  // rollback candidate ships what it names here (deploy/contract-phase-gate.sh).
+  // One that names nothing would be refused on the server; one that names a
+  // later or missing migration could never pass. Both are caught here instead.
+  it('names, in every contract-phase migration, an earlier migration a rollback candidate must ship', () => {
+    const migrations = migrationFiles();
+    const names = new Set(migrations.map((migration) => migration.name));
+    for (const migration of migrations) {
+      if (!migration.sql.includes(CONTRACT_PHASE_MARKER)) continue;
+      const required = [
+        ...migration.sql.matchAll(/^--\s*fluxradar:contract-requires\s+(\S+)/gm),
+      ].map((match) => String(match[1]));
+      expect(
+        required.length,
+        `${migration.name} is contract-phase but names no prerequisite: add ` +
+          '`-- fluxradar:contract-requires <migration>` for the release that stopped reading the old shape.',
+      ).toBeGreaterThan(0);
+      for (const name of required) {
+        expect(names.has(name), `${migration.name} requires ${name}, which does not exist`).toBe(
+          true,
+        );
+        expect(name < migration.name, `${migration.name} requires the later ${name}`).toBe(true);
+      }
+    }
+  });
+
   it('only makes a column NOT NULL when the same migration added it', () => {
     for (const migration of migrationFiles()) {
       const body = statements(migration.sql).join('\n');

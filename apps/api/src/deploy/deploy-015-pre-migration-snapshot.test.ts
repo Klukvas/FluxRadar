@@ -34,6 +34,7 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'backup', 'pre-migration-snapshot.sh');
+const GATE_PATH = join(REPO_ROOT, 'deploy', 'contract-phase-gate.sh');
 const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');
 const MIGRATIONS = join('apps', 'api', 'prisma', 'migrations');
 
@@ -59,6 +60,10 @@ interface Options {
   readonly noBackupScript?: boolean;
   readonly backupExit?: number;
   readonly allow?: string;
+  /** The new release does not carry deploy/contract-phase-gate.sh. */
+  readonly noGateScript?: boolean;
+  /** Makes this migration of the new release contract-phase, requiring `requires`. */
+  readonly contract?: { readonly name: string; readonly requires: string };
 }
 
 interface GateRun {
@@ -80,6 +85,7 @@ function makeRelease(
   releaseId: string,
   migrations: readonly string[] | null,
   withLockFile: boolean,
+  contract?: Options['contract'],
 ): string {
   const releaseDir = join(appDir, 'releases', releaseId);
   mkdirSync(join(releaseDir, 'deploy', 'backup'), { recursive: true });
@@ -88,7 +94,11 @@ function makeRelease(
     mkdirSync(migrationsDir, { recursive: true });
     for (const name of migrations) {
       mkdirSync(join(migrationsDir, name));
-      writeFileSync(join(migrationsDir, name, 'migration.sql'), '-- migration\n');
+      const sql =
+        contract?.name === name
+          ? `-- fluxradar:contract-phase\n-- fluxradar:contract-requires ${contract.requires}\n`
+          : '-- migration\n';
+      writeFileSync(join(migrationsDir, name, 'migration.sql'), sql);
     }
     if (withLockFile)
       writeFileSync(join(migrationsDir, 'migration_lock.toml'), 'provider = "postgresql"\n');
@@ -120,6 +130,7 @@ function runGate(options: Options = {}): GateRun {
     NEXT_ID,
     options.next === undefined ? ['20260101000000_init', '20260201000000_billing'] : options.next,
     options.lockFileOnlyInNext ?? true,
+    options.contract,
   );
   if (options.lockFileOnlyInNext) {
     rmSync(join(currentDir, MIGRATIONS, 'migration_lock.toml'), { force: true });
@@ -133,6 +144,9 @@ function runGate(options: Options = {}): GateRun {
   // Run from where the backup stage runs it: the NEW release's own copy.
   const scriptPath = join(nextDir, 'deploy', 'backup', 'pre-migration-snapshot.sh');
   copyFileSync(SCRIPT_PATH, scriptPath);
+  if (!options.noGateScript) {
+    copyFileSync(GATE_PATH, join(nextDir, 'deploy', 'contract-phase-gate.sh'));
+  }
   const backupLog = join(appDir, 'backup.log');
   writeFileSync(backupLog, '');
 
@@ -229,14 +243,47 @@ describe('DEPLOY-015 pre-migration snapshot', () => {
     });
 
     // Root reads a mode-000 directory anyway, so the failure cannot be staged.
+    // Stricter since D-230: whether such a release carries a contract-phase
+    // migration cannot be told either, so the gate refuses it outright — before
+    // a snapshot, with nothing migrated.
     it.skipIf(process.getuid?.() === 0)('for a migrations directory that cannot be listed', () => {
       const gate = runGate({ unreadableNext: true });
-      expect(gate.backupCalls).toHaveLength(1);
-      expect(gate.output).toContain('could not be listed');
+      expect(gate.exitCode).toBe(1);
+      expect(gate.output).toContain('could not be read');
+      expect(gate.backupCalls).toEqual([]);
     });
 
     it('and still refuses to migrate when that snapshot fails', () => {
       expect(runGate({ next: null, backupExit: 1 }).exitCode).toBe(1);
+    });
+  });
+
+  // D-230: a contract migration that ships before every rollback candidate can
+  // read its result is refused before anything else happens — and the backup
+  // escape hatch does not reach it. deploy-018 covers the gate itself.
+  describe('the contract-phase gate runs first', () => {
+    const CONTRACT = '20260401000000_drop_column';
+    const tooEarly = {
+      next: ['20260101000000_init', '20260201000000_billing', NEW_MIGRATION, CONTRACT],
+      contract: { name: CONTRACT, requires: NEW_MIGRATION },
+    };
+
+    it('refuses before any snapshot, whatever ALLOW_MIGRATION_WITHOUT_BACKUP says', () => {
+      const gate = runGate({ ...tooEarly, allow: 'true' });
+      expect(gate.exitCode).toBe(1);
+      expect(gate.output).toContain('REFUSED: the contract-phase gate');
+      expect(gate.output).toContain(`${CONTRACT} requires ${NEW_MIGRATION}`);
+      expect(gate.backupCalls).toEqual([]);
+    });
+
+    it('refuses a release that does not carry the gate', () => {
+      const gate = runGate({
+        next: ['20260101000000_init', '20260201000000_billing', NEW_MIGRATION],
+        noGateScript: true,
+      });
+      expect(gate.exitCode).toBe(1);
+      expect(gate.output).toContain('contract-phase-gate.sh is missing');
+      expect(gate.backupCalls).toEqual([]);
     });
   });
 

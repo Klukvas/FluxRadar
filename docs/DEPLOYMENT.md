@@ -831,6 +831,14 @@ backwards: `comm … || true` over listings nothing checked, so any error there
 read as "no new migrations". `DEPLOY-015` runs the script through every one of
 those cases, and each fails if the gate is made to fail open again.
 
+**Before the snapshot, the contract-phase gate** (`deploy/contract-phase-gate.sh`,
+D-230) checks that a contract-phase migration in this release is not running
+ahead of a release a rollback could still return to — *The rollback
+compatibility gate*, rule 1. A release that does not carry the gate is refused
+too. That refusal is not about the backup, so `ALLOW_MIGRATION_WITHOUT_BACKUP`
+does not reach it; the only way past it is to deploy the release the migration
+waits for first.
+
 A failure here **stops the deploy**, with the previous release still serving and
 the schema untouched. That is the point: the alternative is applying an
 irreversible migration with a safety net nobody checked. The same applies when
@@ -1168,8 +1176,21 @@ bash "$APP_DIR/releases/$RELEASE_ID/deploy/rollback-release.sh" \
   "$APP_DIR" "$APP_DIR/releases/$RELEASE_ID"
 ```
 
-To go back to some *other* known-good commit whose image is still loaded, SSH to
-the server and run the following. During a normal rollout the previous
+To go back to some *other* known-good commit whose image is still loaded, first
+ask the contract-phase gate whether that release can still read the schema. A
+contract deploy that failed after migrating never pruned, so a release from
+before the contract's prerequisite can still be on disk, image and all; this
+refuses it, and changes nothing either way:
+
+```sh
+APP_DIR=/opt/fluxradar
+RELEASE_ID=<known-good-commit>
+bash "$APP_DIR/current/deploy/contract-phase-gate.sh" rollback-target \
+  "$APP_DIR" "$APP_DIR/releases/$RELEASE_ID"
+```
+
+Only when it answers `can be rolled back to`, SSH to the server and run the
+following. During a normal rollout the previous
 containers remain available until the new smoke test passes; after success they
 are removed, so this procedure recreates them only when needed:
 
@@ -1298,6 +1319,26 @@ Two rules follow, and `BILLING-007` enforces the first one in CI:
    of any release that reads the old shape can be started again. `BILLING-007` also
    runs the schema-surface probe against a throwaway migrated database — once with
    a column dropped, once with a table dropped — so the gate itself is covered.
+
+   **The order is enforced, not remembered (D-230).** A contract migration also
+   names, one line each, the migrations a release must already ship for the change
+   to be safe under it — the first migration of the release that stopped reading
+   the old shape:
+
+   ```sql
+   -- fluxradar:contract-requires 20260922100000_egress_locations
+   ```
+
+   `BILLING-007` fails a contract migration that names none, or names one that is
+   missing or later than itself. On the server, `deploy/contract-phase-gate.sh`
+   runs from the `backup` stage **before anything is migrated** (see *The snapshot
+   before a migration*) and refuses the deploy unless every release a rollback
+   could return to once it completes ships each named migration: the live release,
+   the target it recorded in `runtime/rollback.env`, and the two newest other
+   release directories, which are the ones pruning keeps. The rollback probe below
+   cannot do this: it runs after `migrate deploy` and checks only the live
+   release. `DEPLOY-018` runs the gate through the real sequence — a contract
+   deploy straight after its prerequisite is refused, one a release later passes.
 
    **A new table needs `ON DELETE CASCADE` from the parents an older release
    deletes.** The old release cannot clear rows in a table it does not know about,
