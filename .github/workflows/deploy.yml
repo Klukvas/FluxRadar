@@ -408,8 +408,13 @@ jobs:
       - name: Check the release can be backed up
         run: |
           set -uo pipefail
-          missing="$(bash deploy/backup/check-backup-config.sh "$RUNNER_TEMP/production.env")"
-          case "$?" in
+          # GitHub runs this step as `bash -e`, and `set -uo pipefail` does not
+          # turn that off: without the `|| status=$?` the check's "1 = something
+          # is missing" ends the step right here — the one outcome it exists to
+          # WARN about. DEPLOY-016 runs this step the way GitHub does.
+          status=0
+          missing="$(bash deploy/backup/check-backup-config.sh "$RUNNER_TEMP/production.env")" || status=$?
+          case "$status" in
             0) echo 'Every variable a database backup needs is set in the release env file.' ;;
             1) echo "::warning title=Production cannot be backed up::The release env file lacks: $missing. pg-backup.sh refuses to run without them, so no snapshot is taken and backup-verify fails every night. Set them (docs/DEPLOYMENT.md, 'Database backup and restore')." ;;
             *) echo '::warning title=Backup config not checked::check-backup-config.sh could not read the release env file.' ;;

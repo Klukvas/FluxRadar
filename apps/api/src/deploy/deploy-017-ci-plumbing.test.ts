@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
+import { extractWorkflowStep } from '../test-utils/workflow-step.ts';
 
 // DEPLOY-017: the CI plumbing the staged pipeline added, run rather than read.
 //
@@ -47,33 +48,6 @@ function workspace(prefix: string): string {
 function writeExecutable(path: string, body: string): void {
   writeFileSync(path, body);
   chmodSync(path, 0o755);
-}
-
-/**
- * The `run: |` body that follows `anchor`, dedented. It has to be pure bash —
- * every GitHub expression mapped through `env:` — or running it outside GitHub
- * would prove nothing about what GitHub runs.
- */
-function runBodyAfter(file: string, anchor: string): string {
-  const lines = readFileSync(file, 'utf8').split('\n');
-  const at = lines.findIndex((line) => line.trimEnd() === anchor);
-  expect(at, `${anchor} is missing from ${file}`).toBeGreaterThan(-1);
-  const run = lines.findIndex((line, index) => index > at && /^\s*run: \|\s*$/.test(line));
-  expect(run).toBeGreaterThan(at);
-  const runIndent = (lines[run] ?? '').length - (lines[run] ?? '').trimStart().length;
-  const body: string[] = [];
-  for (const line of lines.slice(run + 1)) {
-    if (line.trim() !== '' && line.length - line.trimStart().length <= runIndent) break;
-    body.push(line);
-  }
-  const indent = Math.min(
-    ...body
-      .filter((line) => line.trim() !== '')
-      .map((line) => line.length - line.trimStart().length),
-  );
-  const script = body.map((line) => (line.trim() === '' ? '' : line.slice(indent))).join('\n');
-  expect(script).not.toContain('${{');
-  return script;
 }
 
 describe('DEPLOY-017 CI plumbing', () => {
@@ -133,8 +107,9 @@ exec /bin/df "$@"
       writeFileSync(sshLog, '');
 
       const scriptPath = join(root, 'upload.sh');
-      writeFileSync(scriptPath, runBodyAfter(REMOTE_UPLOAD_PATH, '    - name: Upload and install'));
-      const result = spawnSync('bash', [scriptPath], {
+      const step = extractWorkflowStep(REMOTE_UPLOAD_PATH, '    - name: Upload and install');
+      writeFileSync(scriptPath, step.script);
+      const result = spawnSync('bash', [...step.bashArgs, scriptPath], {
         encoding: 'utf8',
         env: {
           PATH: `${binDir}:${process.env.PATH ?? ''}`,
@@ -226,11 +201,9 @@ exit "${'$'}{code:-0}"
       const smokeLog = join(root, 'smoke.log');
       writeFileSync(sshLog, '');
       writeFileSync(smokeLog, '');
-      writeFileSync(
-        join(root, 'step.sh'),
-        runBodyAfter(ROLLBACK_WORKFLOW_PATH, '      - name: Roll back'),
-      );
-      const result = spawnSync('bash', ['step.sh'], {
+      const step = extractWorkflowStep(ROLLBACK_WORKFLOW_PATH, '      - name: Roll back');
+      writeFileSync(join(root, 'step.sh'), step.script);
+      const result = spawnSync('bash', [...step.bashArgs, 'step.sh'], {
         cwd: root,
         encoding: 'utf8',
         env: {
@@ -304,19 +277,19 @@ exit "${'$'}{code:-0}"
     });
 
     it('does nothing at all unless the operator typed the phrase', () => {
+      const confirmStep = extractWorkflowStep(
+        ROLLBACK_WORKFLOW_PATH,
+        '      - name: Check the confirmation',
+      );
       const confirm = (typed: string) =>
-        spawnSync(
-          'bash',
-          ['-c', runBodyAfter(ROLLBACK_WORKFLOW_PATH, '      - name: Check the confirmation')],
-          {
-            encoding: 'utf8',
-            env: {
-              PATH: process.env.PATH ?? '',
-              CONFIRM: typed,
-              CONFIRMATION_PHRASE: 'roll back production',
-            },
+        spawnSync('bash', [...confirmStep.bashArgs, '-c', confirmStep.script], {
+          encoding: 'utf8',
+          env: {
+            PATH: process.env.PATH ?? '',
+            CONFIRM: typed,
+            CONFIRMATION_PHRASE: 'roll back production',
           },
-        ).status;
+        }).status;
       expect(confirm('roll back production')).toBe(0);
       expect(confirm('yes')).toBe(1);
       expect(confirm('')).toBe(1);

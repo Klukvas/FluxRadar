@@ -1,10 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
+import { extractWorkflowStep } from '../test-utils/workflow-step.ts';
 
 // DEPLOY-016: every deploy says whether the release it ships can be backed up.
 //
@@ -108,6 +109,79 @@ describe('DEPLOY-016 backup configuration check', () => {
       const s3 = [...block.matchAll(/'([A-Z0-9_]+)'/g)].map((match) => match[1] ?? '');
       expect(s3.length).toBeGreaterThan(0);
       for (const name of s3) expect(checkedNames()).toContain(name);
+    });
+  });
+
+  // THE PRODUCTION FAILURE, on the first deploy after this check shipped.
+  // GitHub runs a step with no `shell:` as `bash -e {0}`, and `set -uo pipefail`
+  // does not turn errexit off. The step read the check's answer as
+  //
+  //   missing="$(bash deploy/backup/check-backup-config.sh …)"
+  //   case "$?" in …
+  //
+  // so the moment the check returned 1 — the key was missing — errexit ended
+  // the step on the assignment, before `case` could turn it into a warning. The
+  // step written to WARN blocked every deploy, on exactly the condition it
+  // exists for. The script's own tests passed; nothing ran the step as GitHub does.
+  describe('the workflow step, run the way GitHub runs it', () => {
+    function runStep(values: Readonly<Record<string, string>>): {
+      exitCode: number;
+      output: string;
+    } {
+      const workspace = mkdtempSync(join(tmpdir(), 'fluxradar-backup-config-step-'));
+      workspaces.push(workspace);
+      mkdirSync(join(workspace, 'deploy', 'backup'), { recursive: true });
+      copyFileSync(SCRIPT_PATH, join(workspace, 'deploy', 'backup', 'check-backup-config.sh'));
+      writeFileSync(
+        join(workspace, 'production.env'),
+        Object.entries(values)
+          .map(([key, value]) => `${key}=${value}`)
+          .join('\n') + '\n',
+      );
+      const step = extractWorkflowStep(
+        WORKFLOW_PATH,
+        '      - name: Check the release can be backed up',
+      );
+      writeFileSync(join(workspace, 'step.sh'), step.script);
+      const result = spawnSync('bash', [...step.bashArgs, 'step.sh'], {
+        cwd: workspace,
+        encoding: 'utf8',
+        env: { PATH: process.env.PATH ?? '', RUNNER_TEMP: workspace },
+      });
+      return { exitCode: result.status ?? 1, output: `${result.stdout}${result.stderr}` };
+    }
+
+    it('warns, and lets the deploy continue, when the backup key is missing', () => {
+      const step = runStep(without('FLUXRADAR_BACKUP_ENCRYPTION_KEY'));
+      expect(step.exitCode).toBe(0);
+      expect(step.output).toContain('::warning title=Production cannot be backed up::');
+      expect(step.output).toContain('FLUXRADAR_BACKUP_ENCRYPTION_KEY');
+    });
+
+    it('says so, and continues, when everything is set', () => {
+      const step = runStep(COMPLETE);
+      expect(step.exitCode).toBe(0);
+      expect(step.output).toContain('Every variable a database backup needs is set');
+      expect(step.output).not.toContain('::warning');
+    });
+
+    it('never fails the deploy, even when the env file cannot be read', () => {
+      const workspace = mkdtempSync(join(tmpdir(), 'fluxradar-backup-config-step-'));
+      workspaces.push(workspace);
+      mkdirSync(join(workspace, 'deploy', 'backup'), { recursive: true });
+      copyFileSync(SCRIPT_PATH, join(workspace, 'deploy', 'backup', 'check-backup-config.sh'));
+      const step = extractWorkflowStep(
+        WORKFLOW_PATH,
+        '      - name: Check the release can be backed up',
+      );
+      writeFileSync(join(workspace, 'step.sh'), step.script);
+      const result = spawnSync('bash', [...step.bashArgs, 'step.sh'], {
+        cwd: workspace,
+        encoding: 'utf8',
+        env: { PATH: process.env.PATH ?? '', RUNNER_TEMP: workspace },
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('::warning title=Backup config not checked::');
     });
   });
 
