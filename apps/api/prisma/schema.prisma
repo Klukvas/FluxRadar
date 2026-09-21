@@ -132,13 +132,6 @@ model SiteProfile {
 // Idempotency contract §18: (provider, providerTransactionId) admits exactly one
 // purchase. The pair — not the id alone — is the key, so a FastSpring order id can
 // never be mistaken for another provider's transaction id (and vice versa).
-//
-// The database still holds retired compatibility columns on this table, on
-// WebhookEvent and on RefundRecord, filled by triggers from the columns below
-// (migrations 20260906180000 and 20260906190000). They are deliberately absent
-// here, so this release's client never selects them and the next release's
-// contract-phase migration can drop them without failing the rollback probe
-// (D-229). Nothing in the application reads or writes them.
 model Purchase {
   id                    String   @id @default(cuid())
   accountId             String
@@ -146,8 +139,8 @@ model Purchase {
   plan                  String
   /**
    * Payment provider that produced this purchase: 'fastspring', or the name of a
-   * retired provider on a historical row. Always set explicitly — the database
-   * default is a leftover the contract-phase migration removes.
+   * retired provider on a historical row. Always set explicitly; there is no
+   * default to fall back on.
    */
   provider              String
   /**

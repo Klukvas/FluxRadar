@@ -931,7 +931,8 @@ The rule now is "whichever side the statement changed wins, and the
 provider-neutral column wins a tie". That is what makes the
 rollout reversible: a row written by the new release is fully readable by the
 previous one, and a row written by the previous release is fully readable by the
-new one. Application code never touches the `paddle*` columns.
+new one. Application code never touches the `paddle*` columns, and the contract
+phase (`20260923100000_drop_retired_payment_columns`) drops them.
 
 The new `CheckoutSession` table holds the server-side binding described in §1. Its
 `accountId` and `siteProfileId` foreign keys are `ON DELETE CASCADE`, not Prisma's
@@ -1045,7 +1046,7 @@ ours, so no account deletion will ever reach the row. Requiring
 > **Deploy note.** Every migration in this release is additive and backward
 > compatible, so an automatic rollback to the previous release is safe — the
 > deploy workflow proves it by booting the previous image against the migrated
-> schema before switching traffic. The **contract phase** (dropping the `paddle*` columns, their indexes
-> and the triggers) must ship as a separate migration in a later release, once no
-> container of the previous release can be started again. See
-> `docs/DEPLOYMENT.md`.
+> schema before switching traffic. The **contract phase** — dropping the retired
+> columns, their indexes and the triggers — is migration
+> `20260923100000_drop_retired_payment_columns` (D-231); see `docs/DEPLOYMENT.md`
+> for when it may ship.

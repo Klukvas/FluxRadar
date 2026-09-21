@@ -1415,38 +1415,53 @@ actually changed (the provider-neutral column wins a tie) and keeps the INSERT
 behaviour. It only runs `CREATE OR REPLACE FUNCTION`, so it adds no object the
 contract phase below does not already drop.
 
-Its **contract phase** ships later, as its own migration marked
-`-- fluxradar:contract-phase`, once the FastSpring release has been stable long
-enough that no earlier release can come back:
+Its **contract phase** is
+**`20260923100000_drop_retired_payment_columns`**, marked
+`-- fluxradar:contract-phase`: it drops the mirroring triggers and functions, the
+retired columns and their indexes, and the retired-provider default of the three
+`provider` columns. It could only follow a release whose Prisma client no longer
+selects those columns — D-229, which stopped declaring them in `schema.prisma`.
+Nothing is lost: every dropped value was a copy of a column that stays.
 
-```sql
--- fluxradar:contract-phase — only after no release reading paddle* can return.
-DROP TRIGGER "Purchase_sync_provider_ids" ON "Purchase";
-DROP TRIGGER "WebhookEvent_sync_provider_ids" ON "WebhookEvent";
-DROP TRIGGER "RefundRecord_sync_provider_ids" ON "RefundRecord";
-DROP FUNCTION "fluxradar_sync_purchase_ids"();
-DROP FUNCTION "fluxradar_sync_webhook_event_ids"();
-DROP FUNCTION "fluxradar_sync_refund_record_ids"();
-DROP INDEX "Purchase_paddleTransactionId_key";
-DROP INDEX "WebhookEvent_paddleEventId_key";
-DROP INDEX "WebhookEvent_paddleTransactionId_idx";
-ALTER TABLE "Purchase" DROP COLUMN "paddleTransactionId";
-ALTER TABLE "WebhookEvent" DROP COLUMN "paddleEventId", DROP COLUMN "paddleTransactionId";
-ALTER TABLE "RefundRecord"
-  DROP COLUMN "paddleTransactionId", DROP COLUMN "paddleEventId", DROP COLUMN "paddleSignature";
-```
+**When it may ship.** After a successful deploy the server keeps the active
+release and two rollback candidates: the release that was live when it deployed,
+and the one before that. For this migration **both** must be D-229 or later, so
+the order is fixed:
 
-The rollback probe runs the *previous* release's Prisma client, so this can only
-ship after a release whose client no longer selects these columns. That release
-is D-229: it removed the `paddle*` fields from `schema.prisma` (the columns stay,
-filled by their triggers) and every other trace of Paddle from the code. The
-probe checks only the previous release, but the workflow keeps **two** rollback
-candidates, and a manual rollback to one that still selects these columns would
-fail. So ship the contract phase once both retained candidates are D-229 or
-later — one ordinary release after D-229 is enough. It also removes the
-`paddle*` index names `billing/prisma-errors.ts` still recognises, the trigger
-tests in `BILLING-007`, and the `'paddle'` default of the three `provider`
-columns.
+1. the first release carrying D-229 — `fda0eaa` (#21), because the deploy of
+   #20 itself stopped at the pre-migration snapshot;
+2. at least one ordinary release, deployed successfully;
+3. only then the release carrying the contract migration.
+
+Shipped straight after D-229, the older candidate would be a release from before
+D-229, whose Prisma client still selects the dropped columns: a rollback to it
+(*Rolling back by hand*) would fail on its first query. The rollback probe does
+not catch that — it checks only the release that is live.
+
+**If the contract deploy fails after `migrate deploy`**, the old release
+directories are not pruned — that happens only once a deploy completes — so the
+oldest one, a release from before D-229, is still on disk with its image loaded.
+The schema is already contracted by then: **never roll back to that release** —
+`contract-phase-gate.sh rollback-target` refuses it (*Rolling back by hand*).
+The one that is live keeps serving; the probe has just proved it reads the new
+schema.
+
+**The contract-phase gate holds this order** (rule 1 above, D-230). The migration
+names `20260922100000_egress_locations` as its prerequisite — the one migration
+the D-229 release added — so the `backup` stage refuses it, before anything is
+migrated, until every rollback candidate ships that migration, that is, until
+all of them are D-229 or later. Merged too early, it fails the deploy with
+production untouched instead of shipping.
+
+**There is no way back in SQL**, and deliberately no `down.sql`. Re-running the
+earlier migrations does not rebuild the old shape: the `paddle*` columns come from
+`20260904110000_init`, the expand migration's `ADD COLUMN "provider"` fails on
+columns that are still there, and its backfill runs the other way, from `paddle*`
+into the provider-neutral columns. The way back is the snapshot the `backup`
+stage takes just before this migration (*The snapshot before a migration*,
+*Restoring*), and a restore loses everything written after it. So this migration
+must not ship with `ALLOW_MIGRATION_WITHOUT_BACKUP=true`: while production cannot
+be backed up, the `backup` stage stops the deploy, and that is correct.
 
 Keep the previous release until the replacement has passed the internal and
 public smoke tests. The workflow retains the active release and two rollback

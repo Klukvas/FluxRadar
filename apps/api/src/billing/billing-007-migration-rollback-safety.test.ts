@@ -20,22 +20,20 @@ import { createTestDb, seedAccountWithProfile, type TestDb } from '../test-utils
 // that renames or removes one turns a failed deploy into a broken production.
 //
 // Two halves are checked here:
-//   1. statically — no checked-in migration contains destructive DDL, and the
-//      expand-phase compatibility columns are still declared;
-//   2. against a real database — the sync triggers keep the legacy and the
-//      provider-neutral id columns equal no matter which release wrote the row,
-//      the previous release's account deletion still succeeds against tables it
-//      does not know about, and the deploy's schema-surface probe actually
-//      rejects a schema the previous release could not read.
+//   1. statically — no checked-in migration contains destructive DDL unless it
+//      declares itself a contract phase;
+//   2. against a real database — the previous release's account deletion still
+//      succeeds against tables it does not know about, and the deploy's
+//      schema-surface probe actually rejects a schema the previous release could
+//      not read.
 
 const MIGRATIONS_DIR = join(API_PACKAGE_ROOT, 'prisma', 'migrations');
-const SCHEMA_PATH = join(API_PACKAGE_ROOT, 'prisma', 'schema.prisma');
 
 /**
- * A migration that genuinely has to be destructive (the contract phase that drops
- * the paddle* columns) declares it in its header. Shipping one is a deliberate
- * act: it may only be released once no container of any release that still reads
- * those columns can be started again.
+ * A migration that genuinely has to be destructive (a contract phase that drops
+ * columns an expand phase retired) declares it in its header. Shipping one is a
+ * deliberate act: it may only be released once no container of any release that
+ * still reads those columns can be started again.
  */
 const CONTRACT_PHASE_MARKER = 'fluxradar:contract-phase';
 
@@ -125,17 +123,6 @@ describe('BILLING-007 migration rollback safety', () => {
     }
   });
 
-  it('no longer declares the retired compatibility columns, so the next release may drop them', () => {
-    const schema = readFileSync(SCHEMA_PATH, 'utf8');
-    // The rollback probe runs the PREVIOUS release's client. The release that
-    // drops these columns can only pass it if the release before it no longer
-    // selects them — which is this one (D-229). The columns themselves stay in
-    // the database, filled by their triggers, until that migration.
-    for (const field of ['paddleTransactionId', 'paddleEventId', 'paddleSignature']) {
-      expect(schema).not.toContain(field);
-    }
-  });
-
   describe('with a database', () => {
     let db: TestDb;
 
@@ -145,227 +132,6 @@ describe('BILLING-007 migration rollback safety', () => {
 
     afterEach(async () => {
       await db.cleanup();
-    });
-
-    it('fills the provider-neutral columns when only the legacy ones are written', async () => {
-      const account = await seedAccountWithProfile(db.prisma);
-      const transactionId = `txn_${randomUUID()}`;
-      // Exactly the INSERT the previous release issues: it knows nothing about
-      // provider/providerTransactionId.
-      await db.prisma.$executeRawUnsafe(
-        'INSERT INTO "Purchase" ("id","accountId","siteProfileId","plan","paddleTransactionId","amountUsd","currency") VALUES ($1,$2,$3,$4,$5,$6,$7)',
-        'purchase-legacy-write',
-        account.accountId,
-        account.siteProfileId,
-        'Basic',
-        transactionId,
-        55,
-        'USD',
-      );
-
-      const purchase = await db.prisma.purchase.findUniqueOrThrow({
-        where: { id: 'purchase-legacy-write' },
-      });
-      expect(purchase.provider).toBe('paddle');
-      expect(purchase.providerTransactionId).toBe(transactionId);
-    });
-
-    it('fills the legacy columns when only the provider-neutral ones are written', async () => {
-      const account = await seedAccountWithProfile(db.prisma);
-      const orderId = `ord_${randomUUID()}`;
-      await db.prisma.purchase.create({
-        data: {
-          accountId: account.accountId,
-          siteProfileId: account.siteProfileId,
-          plan: 'Basic',
-          provider: 'fastspring',
-          providerTransactionId: orderId,
-          amountUsd: 55,
-          currency: 'USD',
-        },
-      });
-
-      // The previous release selects paddleTransactionId and requires a value.
-      const [row] = await db.prisma.$queryRawUnsafe<{ paddleTransactionId: string | null }[]>(
-        'SELECT "paddleTransactionId" FROM "Purchase" WHERE "providerTransactionId" = $1',
-        orderId,
-      );
-      expect(row?.paddleTransactionId).toBe(orderId);
-    });
-
-    // An UPDATE is where COALESCE mirroring silently stops working: both columns
-    // already hold a value, so a write to one of them keeps the other's old value
-    // and the two column families start describing different orders.
-    it('mirrors an UPDATE written by the previous release into the provider columns', async () => {
-      const account = await seedAccountWithProfile(db.prisma);
-      const purchase = await db.prisma.purchase.create({
-        data: {
-          accountId: account.accountId,
-          siteProfileId: account.siteProfileId,
-          plan: 'Basic',
-          provider: 'paddle',
-          providerTransactionId: `txn_${randomUUID()}`,
-          amountUsd: 55,
-          currency: 'USD',
-        },
-      });
-      const corrected = `txn_${randomUUID()}`;
-
-      // The previous release only knows the legacy column.
-      await db.prisma.$executeRawUnsafe(
-        'UPDATE "Purchase" SET "paddleTransactionId" = $1 WHERE "id" = $2',
-        corrected,
-        purchase.id,
-      );
-
-      const after = await db.prisma.purchase.findUniqueOrThrow({ where: { id: purchase.id } });
-      expect(after.providerTransactionId).toBe(corrected);
-    });
-
-    it('mirrors an UPDATE written by this release into the legacy columns', async () => {
-      const account = await seedAccountWithProfile(db.prisma);
-      const purchase = await db.prisma.purchase.create({
-        data: {
-          accountId: account.accountId,
-          siteProfileId: account.siteProfileId,
-          plan: 'Basic',
-          provider: 'fastspring',
-          providerTransactionId: `ord_${randomUUID()}`,
-          amountUsd: 55,
-          currency: 'USD',
-        },
-      });
-      const refund = await db.prisma.refundRecord.create({
-        data: {
-          purchaseId: purchase.id,
-          idempotencyKey: `refund:${purchase.id}`,
-          reasonCode: 'LEGAL_SUPPORT',
-          status: 'requested',
-          amountUsd: 55,
-          provider: 'fastspring',
-          providerTransactionId: purchase.providerTransactionId,
-          providerEventId: 'fs_evt_before',
-          providerSignature: 'sig-before',
-        },
-      });
-      const settledOrderId = `ord_${randomUUID()}`;
-
-      await db.prisma.purchase.update({
-        where: { id: purchase.id },
-        data: { providerTransactionId: settledOrderId },
-      });
-      await db.prisma.refundRecord.update({
-        where: { id: refund.id },
-        data: {
-          providerTransactionId: settledOrderId,
-          providerEventId: 'fs_evt_after',
-          providerSignature: 'sig-after',
-        },
-      });
-
-      const [updatedPurchase] = await db.prisma.$queryRawUnsafe<
-        { paddleTransactionId: string | null }[]
-      >('SELECT "paddleTransactionId" FROM "Purchase" WHERE "id" = $1', purchase.id);
-      expect(updatedPurchase?.paddleTransactionId).toBe(settledOrderId);
-
-      const [updatedRefund] = await db.prisma.$queryRawUnsafe<
-        {
-          paddleTransactionId: string | null;
-          paddleEventId: string | null;
-          paddleSignature: string | null;
-        }[]
-      >(
-        'SELECT "paddleTransactionId", "paddleEventId", "paddleSignature" FROM "RefundRecord" WHERE "id" = $1',
-        refund.id,
-      );
-      expect(updatedRefund?.paddleTransactionId).toBe(settledOrderId);
-      expect(updatedRefund?.paddleEventId).toBe('fs_evt_after');
-      expect(updatedRefund?.paddleSignature).toBe('sig-after');
-    });
-
-    it('mirrors an UPDATE of a webhook event in both directions', async () => {
-      const event = await db.prisma.webhookEvent.create({
-        data: {
-          provider: 'fastspring',
-          providerEventId: `fs_evt_${randomUUID()}`,
-          eventType: 'order.completed',
-          rawBody: '{}',
-          signature: 'sig',
-        },
-      });
-      const orderId = `ord_${randomUUID()}`;
-
-      // Exactly what the webhook handler does once it knows the order.
-      await db.prisma.webhookEvent.update({
-        where: { id: event.id },
-        data: { providerTransactionId: orderId },
-      });
-      const [mirrored] = await db.prisma.$queryRawUnsafe<{ paddleTransactionId: string | null }[]>(
-        'SELECT "paddleTransactionId" FROM "WebhookEvent" WHERE "id" = $1',
-        event.id,
-      );
-      expect(mirrored?.paddleTransactionId).toBe(orderId);
-
-      const legacyOrderId = `txn_${randomUUID()}`;
-      await db.prisma.$executeRawUnsafe(
-        'UPDATE "WebhookEvent" SET "paddleTransactionId" = $1 WHERE "id" = $2',
-        legacyOrderId,
-        event.id,
-      );
-      const back = await db.prisma.webhookEvent.findUniqueOrThrow({ where: { id: event.id } });
-      expect(back.providerTransactionId).toBe(legacyOrderId);
-    });
-
-    it('keeps webhook events and refund records readable from both column families', async () => {
-      const account = await seedAccountWithProfile(db.prisma);
-      const purchase = await db.prisma.purchase.create({
-        data: {
-          accountId: account.accountId,
-          siteProfileId: account.siteProfileId,
-          plan: 'Basic',
-          provider: 'fastspring',
-          providerTransactionId: `ord_${randomUUID()}`,
-          amountUsd: 55,
-          currency: 'USD',
-        },
-      });
-      await db.prisma.webhookEvent.create({
-        data: {
-          provider: 'fastspring',
-          providerEventId: 'fs_evt_sync',
-          eventType: 'order.completed',
-          rawBody: '{}',
-          signature: 'sig',
-        },
-      });
-      await db.prisma.refundRecord.create({
-        data: {
-          purchaseId: purchase.id,
-          idempotencyKey: `refund:${purchase.id}`,
-          reasonCode: 'LEGAL_SUPPORT',
-          status: 'paid',
-          amountUsd: 55,
-          provider: 'fastspring',
-          providerTransactionId: purchase.providerTransactionId,
-          providerEventId: 'fs_evt_sync',
-          providerSignature: 'sig',
-        },
-      });
-
-      const [event] = await db.prisma.$queryRawUnsafe<{ paddleEventId: string | null }[]>(
-        'SELECT "paddleEventId" FROM "WebhookEvent" WHERE "providerEventId" = $1',
-        'fs_evt_sync',
-      );
-      expect(event?.paddleEventId).toBe('fs_evt_sync');
-
-      const [refund] = await db.prisma.$queryRawUnsafe<
-        { paddleTransactionId: string | null; paddleSignature: string | null }[]
-      >(
-        'SELECT "paddleTransactionId", "paddleSignature" FROM "RefundRecord" WHERE "purchaseId" = $1',
-        purchase.id,
-      );
-      expect(refund?.paddleTransactionId).toBe(purchase.providerTransactionId);
-      expect(refund?.paddleSignature).toBe('sig');
     });
 
     // The previous release has no CheckoutSession model, so after a rollback its
@@ -522,7 +288,7 @@ describe('BILLING-007 migration rollback safety', () => {
     }, SETUP_TIMEOUT_MS);
 
     it(
-      'passes against the schema this expand-phase migration produces',
+      'passes against the schema the migrations produce',
       () => {
         const result = runProbe(scratchUrl);
         expect(result.output).toContain('schema-surface probe OK');
