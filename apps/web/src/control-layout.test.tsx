@@ -435,16 +435,44 @@ describe('journey layout decisions', () => {
     expect(docked).toMatch(/^\.tour-dialog--docked \{[^}]*transform: none;/);
   });
 
-  // On a phone the four profile-row actions were a ragged right-aligned ladder.
-  // base.css loads after desktop.css and declares the same selectors, so the
-  // phone rule only wins while it is scoped more tightly than base.css's.
+  // On a phone the profile-row actions go under the site's name: New scan takes
+  // the line and the "⋯" menu keeps its width. base.css loads after
+  // desktop.css and declares the same selectors, so the phone rule only wins
+  // while it is scoped more tightly than base.css's.
   it('lays the profile-row actions out as a grid on a phone, above base.css', () => {
     const desktop = stylesheet('desktop.css');
     const phone = desktop.slice(desktop.indexOf('@media (max-width: 699px)'));
     expect(phone).toMatch(
-      /\.desktop \.profile-row__actions \{[^}]*display: grid;[^}]*grid-template-columns: 1fr 1fr;/,
+      /\.desktop \.profile-row__actions \{[^}]*display: grid;[^}]*grid-template-columns: 1fr auto;/,
     );
     expect(phone).toMatch(/\.desktop \.profile-row \{[^}]*grid-template-columns: 1fr;/);
+  });
+
+  // Each site-status row sized its own columns at 180px + 1fr, so in the narrow
+  // right column "Перевірено з обмеженнями" ran out of the panel. The rows now
+  // share one grid whose label column is only as wide as the longest label.
+  it('gives the site-status rows one shared pair of columns', () => {
+    const desktop = stylesheet('desktop.css');
+    expect(desktop).toMatch(
+      /\.site-status__rows \{[^}]*grid-template-columns: fit-content\(50%\) minmax\(0, 1fr\);/,
+    );
+    expect(desktop).toMatch(
+      /\.site-status__rows > \.field-row \{[^}]*grid-template-columns: subgrid;/,
+    );
+  });
+
+  // Where the value column is still too narrow, the chip wraps inside it rather
+  // than running out of the panel.
+  it('lets a status chip wrap inside a field row', () => {
+    expect(BASE_CSS).toMatch(/\.field-row \.status-chip \{[^}]*white-space: normal;/);
+  });
+
+  // Inside the list panel "+ Add a site" read as one more action of the last
+  // site's row; it stands centred under the list instead.
+  it('centres the add-site button under the site list', () => {
+    expect(stylesheet('desktop.css')).toMatch(
+      /\.profile-add-toggle \{[^}]*justify-content: center;/,
+    );
   });
 
   // An error or a confirmation answers a button that can be far down a long

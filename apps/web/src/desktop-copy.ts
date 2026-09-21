@@ -5,6 +5,8 @@ export type NextStepKind =
 
 export type DesktopCopy = {
   readonly addSiteToggle: string;
+  /** Names the "⋯" button of a site row, which shows only an icon. */
+  readonly rowActions: (name: string) => string;
   readonly contextSummary: string;
   readonly profileSaved: (name: string) => string;
   readonly profileUpdated: (name: string) => string;
@@ -21,6 +23,7 @@ export type DesktopCopy = {
 export const desktopCopy: Record<Language, DesktopCopy> = {
   en: {
     addSiteToggle: '+ Add a site',
+    rowActions: (name) => `Actions for ${name}`,
     contextSummary: 'Describe the site for AI visibility checks (optional)',
     profileSaved: (name) => `“${name}” saved. Start a check from its row.`,
     profileUpdated: (name) => `“${name}” updated.`,
@@ -65,6 +68,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
   },
   uk: {
     addSiteToggle: '+ Додати сайт',
+    rowActions: (name) => `Дії для ${name}`,
     contextSummary: 'Опишіть сайт для перевірок видимості в AI (необовʼязково)',
     profileSaved: (name) => `«${name}» збережено. Запустіть перевірку з його рядка.`,
     profileUpdated: (name) => `«${name}» оновлено.`,

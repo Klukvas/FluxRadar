@@ -1089,6 +1089,12 @@ code,
 .field-row strong {
   overflow-wrap: anywhere;
 }
+/* A chip never wraps in a table cell, but a field row's value column can be
+   narrower than a long label — "Перевірено з обмеженнями" — and a chip that
+   cannot wrap there runs out of the panel. */
+.field-row .status-chip {
+  white-space: normal;
+}
 .empty {
   display: grid;
   justify-items: center;

@@ -149,7 +149,7 @@ function SiteStatusBody(props: {
   const finished = formatTimestamp(scan.completedAt, props.language);
   const started = formatTimestamp(scan.startedAt ?? scan.createdAt, props.language);
   return (
-    <>
+    <div className="site-status__rows">
       <FieldRow label={t.lastSite} value={displayDomain(scan.domain)} technical />
       <FieldRow
         label={t.lastResult}
@@ -166,7 +166,7 @@ function SiteStatusBody(props: {
       <FieldRow label={t.totalChecks} value={String(data.totalScans)} />
       <FieldRow label={t.sitesSaved} value={String(props.profiles.length)} />
       <FieldRow label={t.googleLabel} value={googleValue(data.binding, props.language)} />
-    </>
+    </div>
   );
 }
 

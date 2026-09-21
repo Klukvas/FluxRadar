@@ -244,6 +244,7 @@ export const copy = {
       deleteProfileConfirmLabel: 'Type {domain} to confirm',
       deleteProfileButton: 'Delete profile',
       deletingProfile: 'Deleting…',
+      deleteProfileCancel: 'Cancel',
       deleteProfileActiveScan:
         'This site has a scan in progress. Wait for it to finish or cancel it, then delete the profile.',
       deleteProfileOpenCheckout:
@@ -1358,6 +1359,7 @@ export const copy = {
       deleteProfileConfirmLabel: 'Введіть {domain}, щоб підтвердити',
       deleteProfileButton: 'Видалити профіль',
       deletingProfile: 'Видалення…',
+      deleteProfileCancel: 'Скасувати',
       deleteProfileActiveScan:
         'Для цього сайту триває перевірка. Дочекайтеся її завершення або скасуйте її, а потім видаліть профіль.',
       deleteProfileOpenCheckout:

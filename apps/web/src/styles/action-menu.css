@@ -1,0 +1,60 @@
+/* The "⋯" menu button and the pull-down it opens. The pull-down is drawn like
+   the menu bar's language list, so the two menus on a screen look like one
+   system. */
+
+.action-menu {
+  position: relative;
+  display: inline-block;
+}
+.action-menu__button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  padding: 2px 8px;
+}
+.action-menu__icon {
+  width: 16px;
+  height: 4px;
+  fill: currentColor;
+}
+
+.action-menu__list {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  min-width: 180px;
+  margin: 2px 0 0;
+  padding: 2px 0;
+  list-style: none;
+  border: 1px solid var(--plat-900);
+  background: var(--plat-50);
+  box-shadow: 2px 2px 0 rgb(0 0 0 / 35%);
+}
+/* The irreversible action is set apart from the everyday ones above it. */
+.action-menu__divided {
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 1px solid var(--plat-300);
+}
+.action-menu__item {
+  display: block;
+  width: 100%;
+  padding: 4px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--plat-900);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.action-menu__item--danger {
+  color: #9b1c12;
+}
+.action-menu__item:hover,
+.action-menu__item:focus {
+  background: var(--selection);
+  color: var(--plat-50);
+  outline: none;
+}
