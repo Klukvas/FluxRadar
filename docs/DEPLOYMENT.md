@@ -379,6 +379,32 @@ The reply address of a signed-in request is the account's own; a guest's is
 labelled unverified in the channel. Each sender (account, or a guest's address)
 may send 3 requests per 15 minutes, and each client address 10.
 
+### Owner dashboard
+
+`/admin/stats` is a private page with the business numbers read from this
+deployment's own database — accounts and confirmed addresses, free checks,
+scans by status and plan, live checkouts and their conversion, purchases,
+revenue and refunds **per currency** (never added across currencies), and a
+per-day chart. Unlike GA4 it counts every visitor, not only the ones who accepted
+analytics cookies, and it knows whether a FastSpring order was actually paid.
+Test-mode orders are counted separately and never appear as revenue. It is not
+linked from any menu; open the URL directly while signed in.
+
+Access is an exact, comma-separated list of account emails in
+`FLUXRADAR_ADMIN_EMAILS`, set in `PRODUCTION_ENV_FILE` — for example
+`FLUXRADAR_ADMIN_EMAILS=owner@example.com`. Entries are trimmed and matched
+case-insensitively, and the account must have **confirmed** its address: the
+list names addresses, not accounts, so an unconfirmed registration of a listed
+address gets nothing. Unset or empty switches the dashboard off.
+
+To everyone else — signed out, not listed, unconfirmed, or the variable empty —
+`GET /admin/stats` answers `404 NOT_FOUND` exactly as an unknown route does, so
+its existence is not disclosed. The list lives in the base env file only — the
+workflow merges no override for it — and the normalizer needs no change for it
+(`deploy/normalize-env-file.cjs` accepts any well-formed key). At boot the API
+logs `admin stats enabled` with the number of listed addresses, never the
+addresses themselves; no line at all means the list is empty.
+
 ## Optional integration secrets
 
 **Precedence, and there is only one rule:** `PRODUCTION_ENV_FILE` is the base,

@@ -29,6 +29,8 @@ import {
   type SiteProfile,
 } from './api';
 import { AccountScreen, resendVerification } from './AccountScreen';
+import { AdminStatsScreen } from './AdminStats';
+import { ADMIN_STATS_PATH } from './admin-stats';
 import { accountCopy } from './account-copy';
 import { AuthScreen } from './AuthScreen';
 import { authCopy } from './auth-copy';
@@ -87,6 +89,7 @@ type Screen =
   | 'checks'
   | 'bot'
   | 'account'
+  | 'admin-stats'
   | 'print'
   | 'styleguide';
 
@@ -106,6 +109,7 @@ const WORKSPACE_SCREENS: readonly Screen[] = [
   'issues',
   'integrations',
   'account',
+  'admin-stats',
   'print',
 ];
 
@@ -153,6 +157,8 @@ function pathForScreen(screen: Screen, scanId: string | null): string {
       return scanId === null ? '/reports' : `/scans/${encodeURIComponent(scanId)}/report`;
     case 'account':
       return ACCOUNT_PATH;
+    case 'admin-stats':
+      return ADMIN_STATS_PATH;
     default:
       return '/';
   }
@@ -202,6 +208,9 @@ function readInitialRoute(): InitialRoute {
   if (path === '/faq') return publicRoute('faq');
   if (path === ACCOUNT_PATH)
     return { screen: 'account', scanId: null, emailAction: null, scrollTo: null };
+  // Owner-only and linked from no menu; the API decides who sees numbers.
+  if (path === ADMIN_STATS_PATH)
+    return { screen: 'admin-stats', scanId: null, emailAction: null, scrollTo: null };
   // The standalone plans screen was folded into the home pricing section. Old
   // /plans links keep working by landing there instead of on an unknown route.
   if (path === '/plans')
@@ -536,6 +545,7 @@ function AppContent({
       'integrations',
       'checks',
       'account',
+      'admin-stats',
       'print',
     ].includes(requested)
       ? (requested as Screen)
@@ -1029,6 +1039,7 @@ function AppContent({
             onError={setError}
           />
         ) : null}
+        {screen === 'admin-stats' ? <AdminStatsScreen /> : null}
         {screen === 'desktop' ? (
           <DesktopScreen
             profiles={profiles}
