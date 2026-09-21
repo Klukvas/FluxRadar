@@ -16,7 +16,7 @@ import { copy, type Language } from './i18n';
 export const SITE_ORIGIN = 'https://fluxradar.net';
 
 /** Public pages that have their own URL, title and canonical. */
-export type PublicPageId = 'home' | 'faq' | 'checks' | 'privacy' | 'terms' | 'cookies';
+export type PublicPageId = 'home' | 'faq' | 'checks' | 'bot' | 'privacy' | 'terms' | 'cookies';
 
 /** Everything else is behind sign-in and is deliberately not indexable. */
 export type SeoPageId = PublicPageId | 'workspace';
@@ -25,6 +25,7 @@ const PUBLIC_PAGE_PATHS: Readonly<Record<PublicPageId, string>> = {
   home: '/',
   faq: '/faq',
   checks: '/checks',
+  bot: '/bot',
   privacy: '/privacy',
   terms: '/terms',
   cookies: '/cookies',

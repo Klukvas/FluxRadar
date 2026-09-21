@@ -129,6 +129,9 @@ async function deleteProfileRows(
     await tx.webhookEvent.deleteMany({ where: { OR: purchaseDeliveryFilters(purchases) } });
   }
   await tx.siteGoogleBinding.deleteMany({ where: { siteProfileId } });
+  // The last thing this site said about letting our crawler in. It is a
+  // precondition for a purchase, not a record worth keeping past the profile.
+  await tx.siteReachabilityProbe.deleteMany({ where: { siteProfileId } });
   await tx.siteProfile.delete({ where: { id: siteProfileId } });
   return {
     kind: 'deleted',

@@ -3,7 +3,7 @@
 // never requires customer credentials or an AI API token.
 
 import type { CrawlResult, PageSnapshot, RobotsTxt } from '@fluxradar/crawler';
-import { isPathAllowed, parseRobotsTxt } from '@fluxradar/crawler';
+import { isPathAllowed, isSuccessfulHtmlPage, parseRobotsTxt } from '@fluxradar/crawler';
 
 import { codePointLength, parsePage } from './seo/dom.js';
 import { hasSocialPreview } from './seo/social-preview.js';
@@ -98,10 +98,4 @@ function toPageCheck(page: PageSnapshot): AiReadinessPageCheck {
 
 function crawlerStatus(robots: RobotsTxt, userAgent: string): AiCrawlerAgentStatus {
   return isPathAllowed(robots, userAgent, '/') ? 'allowed' : 'blocked';
-}
-
-function isSuccessfulHtmlPage(page: PageSnapshot): boolean {
-  return (
-    page.fetchError === undefined && page.status >= 200 && page.status < 300 && page.html !== null
-  );
 }

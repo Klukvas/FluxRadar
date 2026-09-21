@@ -13,7 +13,7 @@
 // plan: a scan run before a field existed shows less, not something assumed.
 
 import { AnalyticsDetails } from './AnalyticsChecks';
-import type { GeoObservation, ScanModule } from './api';
+import type { GeoObservation, MentionSignal, ScanModule } from './api';
 import { CheckRow } from './CheckRow';
 import { GoogleDataPanel, googleSnapshotIn } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
@@ -432,6 +432,46 @@ function generationNote(generation: QueryGeneration, language: Language): string
  * The answer and citation strings are provider output. React escapes their
  * text, and only validated HTTP(S) citations become navigable links.
  */
+/**
+ * Whether a visibility badge reads as a measurement or as "not measured".
+ *
+ * Both used to be a plain yes, and both were yes on every scan: the question
+ * named the brand and spelled out the domain, so the answer repeating them
+ * proved nothing. A signal we could not measure now says so rather than
+ * borrowing the colour of one we could.
+ */
+function signalClass(signal: MentionSignal): string {
+  return signal === 'mentioned' || signal === 'not-mentioned'
+    ? 'geo-observation__signal'
+    : 'geo-observation__signal geo-observation__signal--unmeasured';
+}
+
+function brandSignalLabel(signal: MentionSignal, language: Language): string {
+  const t = copy[language].report;
+  switch (signal) {
+    case 'mentioned':
+      return t.geoBrandMentioned;
+    case 'not-mentioned':
+      return t.geoBrandNotMentioned;
+    case 'brand-is-hostname':
+      return t.geoBrandIsHostname;
+    default:
+      return t.geoBrandNamedInQuestion;
+  }
+}
+
+function domainSignalLabel(signal: MentionSignal, language: Language): string {
+  const t = copy[language].report;
+  switch (signal) {
+    case 'mentioned':
+      return t.geoDomainMentioned;
+    case 'not-mentioned':
+      return t.geoDomainNotMentioned;
+    default:
+      return t.geoDomainNamedInQuestion;
+  }
+}
+
 function GeoObservationCard(props: { observation: GeoObservation; language: Language }) {
   const t = copy[props.language].report;
   const { observation } = props;
@@ -464,11 +504,11 @@ function GeoObservationCard(props: { observation: GeoObservation; language: Lang
           </div>
           {observation.mentions === null ? null : (
             <div className="geo-observation__mentions" aria-label={t.geoMentionSignals}>
-              <span>
-                {observation.mentions.brand ? t.geoBrandMentioned : t.geoBrandNotMentioned}
+              <span className={signalClass(observation.mentions.brand)}>
+                {brandSignalLabel(observation.mentions.brand, props.language)}
               </span>
-              <span>
-                {observation.mentions.domain ? t.geoDomainMentioned : t.geoDomainNotMentioned}
+              <span className={signalClass(observation.mentions.domain)}>
+                {domainSignalLabel(observation.mentions.domain, props.language)}
               </span>
             </div>
           )}

@@ -17,6 +17,7 @@ import {
   SelectField,
   StatusChip,
   Terminal,
+  TextAreaField,
   Window,
 } from './components';
 import {
@@ -50,6 +51,8 @@ import { applyPageMetadata, type SeoPageId } from './seo';
 import { OnboardingTour } from './OnboardingTour';
 import { FaqScreen } from './Faq';
 import { AuditCoverageScreen } from './Checks';
+import { BotScreen } from './Bot';
+import { SiteReachabilityPanel } from './SiteReachability';
 import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
 import { PrintReport } from './PrintReport';
 import { IntegrationsScreen } from './Integrations';
@@ -81,6 +84,7 @@ type Screen =
   | 'terms'
   | 'cookies'
   | 'checks'
+  | 'bot'
   | 'account'
   | 'print'
   | 'styleguide';
@@ -128,6 +132,8 @@ function pathForScreen(screen: Screen, scanId: string | null): string {
       return WORKSPACE_PATHS[screen];
     case 'checks':
       return '/checks';
+    case 'bot':
+      return '/bot';
     case 'faq':
       return '/faq';
     case 'privacy':
@@ -191,6 +197,7 @@ function readInitialRoute(): InitialRoute {
   if (path === '/terms') return publicRoute('terms');
   if (path === '/cookies') return publicRoute('cookies');
   if (path === '/checks') return publicRoute('checks');
+  if (path === '/bot') return publicRoute('bot');
   if (path === '/faq') return publicRoute('faq');
   if (path === ACCOUNT_PATH)
     return { screen: 'account', scanId: null, emailAction: null, scrollTo: null };
@@ -264,6 +271,8 @@ function seoPageForScreen(screen: Screen): SeoPageId {
       return 'faq';
     case 'checks':
       return 'checks';
+    case 'bot':
+      return 'bot';
     case 'privacy':
       return 'privacy';
     case 'terms':
@@ -414,7 +423,7 @@ function AppContent({
   );
 
   useEffect(() => {
-    if (['privacy', 'terms', 'cookies', 'checks', 'faq'].includes(entryRoute.screen)) {
+    if (['privacy', 'terms', 'cookies', 'checks', 'faq', 'bot'].includes(entryRoute.screen)) {
       // A public document renders at once for anyone and never waits on the API.
       // The session is read alongside only so its header can offer the workspace
       // to a signed-in reader, as the header on every other page does.
@@ -764,6 +773,15 @@ function AppContent({
   if (screen === 'faq') {
     return (
       <FaqScreen
+        language={language}
+        onLanguageChange={changeLanguage}
+        signedIn={account !== null}
+      />
+    );
+  }
+  if (screen === 'bot') {
+    return (
+      <BotScreen
         language={language}
         onLanguageChange={changeLanguage}
         signedIn={account !== null}
@@ -1168,6 +1186,7 @@ function AppContent({
             <a href="/terms">{copy[language].home.footer.termsLink}</a>
             <a href="/terms#terms-paid">{copy[language].home.footer.refundLink}</a>
             <a href="/cookies">{copy[language].legal.cookies.title}</a>
+            <a href="/bot">{copy[language].home.footer.crawlerLink}</a>
             <a href="/blog">{copy[language].home.footer.fieldNotes}</a>
           </span>
           <CreatedByFluxLab language={language} />
@@ -1500,6 +1519,7 @@ function HomeScreen(props: {
             <a href="/terms">{t.home.footer.termsLink}</a>
             <a href="/terms#terms-paid">{t.home.footer.refundLink}</a>
             <a href="/cookies">{t.legal.cookies.title}</a>
+            <a href="/bot">{t.home.footer.crawlerLink}</a>
             <a href="/blog">{t.home.footer.fieldNotes}</a>
             <span>{t.nav.system}</span>
           </span>
@@ -1561,6 +1581,8 @@ function NewScanScreen(props: NewScanFormProps) {
     address,
     addressError,
     advancedOpen,
+    aiIndustry,
+    aiOfferings,
     busy,
     carriedOver,
     checkoutConfig,
@@ -1575,16 +1597,21 @@ function NewScanScreen(props: NewScanFormProps) {
     planLabel,
     planOptions,
     robotsUnconfirmed,
+    resolveTargetProfileId,
     saveConfiguration,
     savingConfiguration,
     scope,
     setAddress,
     setAddressError,
     setAdvancedChoice,
+    setAiIndustry,
+    setAiOfferings,
     setInvalidScope,
+    setSiteReachable,
     setPlan,
     setScope,
     setTarget,
+    siteReachable,
     submit,
     target,
     targetLabel,
@@ -1858,6 +1885,42 @@ function NewScanScreen(props: NewScanFormProps) {
               <p className="muted panel-help">{t.newScan.freeScopeLocked}</p>
             </Panel>
           )}
+          {/* What the AI visibility section needs before it can ask anything
+              neutral. Without either field `neutralContext` has no topic, the
+              discovery questions are never generated, and the section falls
+              back to two questions that name the brand — which measure nothing.
+              The fields are optional; what is not optional is saying so first.
+              With the settings rather than in the launch column: these are
+              inputs the owner fills, not a summary of what they chose. */}
+          {plan === 'Free' ? null : (
+            <Panel title={t.newScan.aiContextTitle}>
+              <p className="muted panel-help">
+                {/* Either field is enough for `neutralContext` to build a topic,
+                    so the warning is only true when both are empty. */}
+                {aiIndustry.trim() === '' && aiOfferings.trim() === ''
+                  ? t.newScan.aiContextMissing
+                  : t.newScan.aiContextHelp}
+              </p>
+              <Field
+                label={t.workspace.businessType}
+                name="scan-ai-industry"
+                autoComplete="off"
+                value={aiIndustry}
+                onChange={setAiIndustry}
+                placeholder={t.workspace.businessTypePlaceholder}
+                hint={t.workspace.businessTypeHint}
+              />
+              <TextAreaField
+                label={t.workspace.offerings}
+                name="scan-ai-offerings"
+                autoComplete="off"
+                value={aiOfferings}
+                onChange={setAiOfferings}
+                placeholder={t.workspace.offeringsPlaceholder}
+                hint={t.workspace.offeringsHint}
+              />
+            </Panel>
+          )}
         </div>
         {/* Not an `aside`: a complementary landmark is content beside the page,
             and this column carries the form's own submit. */}
@@ -1872,6 +1935,18 @@ function NewScanScreen(props: NewScanFormProps) {
               planLabel={planLabel}
               scope={scope}
             />
+            {/* In the launch column, directly above the button it gates: this
+                is the one thing on the form that can stop the purchase, and a
+                buyer should meet it here rather than as a 409 after pressing
+                pay. Free is not a purchase, so it is not gated. */}
+            {plan === 'Free' || props.internalFreeAccess ? null : (
+              <SiteReachabilityPanel
+                language={props.language}
+                profileId={usingSavedProfile ? target : null}
+                resolveProfileId={resolveTargetProfileId}
+                onResult={setSiteReachable}
+              />
+            )}
             {plan === 'Free' || props.internalFreeAccess ? null : (
               <p
                 className="muted checkout-legal-note"
@@ -1908,7 +1983,10 @@ function NewScanScreen(props: NewScanFormProps) {
                 busy ||
                 savingConfiguration ||
                 (usingSavedProfile ? target === '' : address.trim() === '') ||
-                robotsUnconfirmed
+                robotsUnconfirmed ||
+                // A paid scan of a site the crawler cannot read is a refund
+                // waiting to happen, and the server refuses to sell it.
+                (plan !== 'Free' && !props.internalFreeAccess && !siteReachable)
               }
             >
               {busy

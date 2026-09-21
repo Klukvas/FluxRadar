@@ -7,9 +7,11 @@ import type { EgressProxy, SafeFetchResult } from '@fluxradar/safe-fetch';
 import { HostLimiter, safeFetch } from '@fluxradar/safe-fetch';
 
 import { extractLinks } from './link-extractor.js';
+import { checkReferencedMedia } from './media-check.js';
 import { hostKey, RobotsHostCache } from './robots-host-cache.js';
 import { isPathAllowed } from './robots.js';
 import { isHostInScope, isPathnameAllowedByPatterns, validateScope } from './scope.js';
+import { CRAWLER_USER_AGENT } from './user-agent.js';
 import { fetchSitemapUrls, SITEMAP_MAX_URLS } from './sitemap.js';
 import type {
   CrawlError,
@@ -23,8 +25,6 @@ import type {
 /** ≥ стольких 5xx подряд на host → host останавливается (D-030). */
 export const CONSECUTIVE_5XX_HOST_STOP = 5;
 
-const DEFAULT_USER_AGENT = 'FluxRadarBot/0.1';
-
 export interface CrawlOptions {
   /** Инъекция транспорта (тесты/моки); default — safeFetch с UA краулера. */
   readonly fetcher?: CrawlFetcher;
@@ -37,6 +37,12 @@ export interface CrawlOptions {
   readonly onProgress?: (url: string, done: number, total: number) => void;
   /** Имя агента для матчинга User-agent групп robots.txt. */
   readonly userAgent?: string;
+  /**
+   * How many internal media files to verify with a HEAD request after the page
+   * crawl. Absent or 0 skips media verification — which is what every caller
+   * did implicitly before CONTENT-004 was found penalising unverified files.
+   */
+  readonly maxMediaChecks?: number;
   /**
    * Egress-прокси обхода: сайты клиентов видят его адрес, а не адрес сервера
    * FluxRadar. Отсутствует — запросы идут напрямую.
@@ -59,6 +65,9 @@ class CrawlRun {
   private readonly scope: CrawlScope;
   private readonly origin: URL;
   private readonly fetcher: CrawlFetcher;
+  /** HEAD transport for media verification; a test's stub serves both. */
+  private readonly mediaFetcher: CrawlFetcher;
+  private readonly maxMediaChecks: number;
   private readonly limiter: HostLimiter;
   private readonly logger: CrawlerLogger;
   private readonly userAgent: string;
@@ -83,7 +92,7 @@ class CrawlRun {
   constructor(scope: CrawlScope, options: CrawlOptions) {
     this.scope = scope;
     this.origin = validateScope(scope);
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
+    this.userAgent = options.userAgent ?? CRAWLER_USER_AGENT;
     this.fetcher =
       options.fetcher ??
       buildDefaultFetcher(
@@ -91,6 +100,16 @@ class CrawlRun {
         options.dangerouslyAllowLoopback ?? false,
         options.egressProxy,
       );
+    this.mediaFetcher =
+      options.fetcher ??
+      buildDefaultFetcher(
+        this.userAgent,
+        options.dangerouslyAllowLoopback ?? false,
+        options.egressProxy,
+        // A media check asks whether the file is there, not what is in it.
+        'HEAD',
+      );
+    this.maxMediaChecks = options.maxMediaChecks ?? 0;
     this.limiter = options.limiter ?? new HostLimiter();
     this.robotsCache = new RobotsHostCache(
       (url) => this.fetchThrottled(url),
@@ -132,6 +151,7 @@ class CrawlRun {
       this.processedCount += 1;
       this.onProgress?.(entry.rawUrl, this.processedCount, this.processedCount + this.queue.length);
     }
+    const media = await this.verifyMedia();
     const robotsTxtRaw = this.robotsCache.rawFor(hostKey(this.origin));
     return {
       pages: this.pages,
@@ -141,7 +161,35 @@ class CrawlRun {
       urlVariants: buildUrlVariants(this.variantsByNormalized),
       ...(robotsTxtRaw !== undefined ? { robotsTxt: robotsTxtRaw } : {}),
       sitemapUrls: this.sitemapUrls,
+      mediaChecks: media.checks,
+      mediaOverBudget: media.overBudget,
     };
+  }
+
+  /**
+   * Asks whether the media the read pages reference actually exists.
+   *
+   * Runs after the page crawl, through the same fetcher and the same per-host
+   * limiter, so a media sweep cannot outpace the crawl that preceded it. Scope
+   * is the crawl's own scope: someone else's CDN is not ours to poll.
+   */
+  private async verifyMedia(): Promise<Awaited<ReturnType<typeof checkReferencedMedia>>> {
+    return checkReferencedMedia(
+      this.pages,
+      async (url) => {
+        const release = await this.limiter.acquire(new URL(url).hostname);
+        try {
+          return await this.mediaFetcher(url);
+        } finally {
+          release();
+        }
+      },
+      {
+        budget: this.maxMediaChecks,
+        isInScope: (hostname) =>
+          isHostInScope(hostname, this.origin.hostname, this.scope.includeSubdomains),
+      },
+    );
   }
 
   /** Кандидат в очередь: нормализация → scope-фильтры → варианты → дедуп → глубина. */
@@ -382,9 +430,11 @@ function buildDefaultFetcher(
   userAgent: string,
   dangerouslyAllowLoopback: boolean,
   egressProxy: EgressProxy | undefined,
+  method: 'GET' | 'HEAD' = 'GET',
 ): CrawlFetcher {
   return (url) =>
     safeFetch(url, {
+      method,
       headers: { 'user-agent': userAgent },
       dangerouslyAllowLoopback,
       ...(egressProxy === undefined ? {} : { proxy: egressProxy }),

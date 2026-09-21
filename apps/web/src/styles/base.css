@@ -1359,6 +1359,16 @@ code,
   background: var(--plat-100);
   font-size: 11px;
 }
+/* A signal the question made unmeasurable. Drawn back rather than out: it is
+   not a result, and it must not read as one — the previous version of these
+   badges looked like a pass and was one on every scan ever run. The words say
+   so too; the colour is never the only carrier. */
+.geo-observation__signal--unmeasured {
+  border-style: dashed;
+  background: transparent;
+  color: var(--plat-600);
+  font-style: italic;
+}
 .geo-observation__citations {
   display: grid;
   gap: 4px;
@@ -2942,6 +2952,34 @@ code,
 }
 .legal-section strong {
   font-weight: 700;
+}
+/* Configuration a reader is meant to copy into their own WAF or robots.txt
+   (/bot). It is deliberately not wrapped: a rule that folds across lines is a
+   rule that gets pasted broken, so a long one scrolls sideways instead. */
+.legal-snippet {
+  max-width: 760px;
+  margin: 0 0 16px;
+  border: 1px solid var(--plat-300);
+  background: var(--term-bg);
+}
+.legal-snippet figcaption {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--plat-300);
+  color: #b3d1bc;
+  font: 11px/1.4 var(--mono-font);
+  letter-spacing: 0.04em;
+}
+.legal-snippet pre {
+  margin: 0;
+  padding: 14px;
+  overflow-x: auto;
+  color: var(--term-green);
+  font: 13px/1.6 var(--mono-font);
+}
+.legal-snippet code {
+  background: none;
+  color: inherit;
+  white-space: pre;
 }
 .legal-section a,
 .legal-footer a {

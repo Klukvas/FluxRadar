@@ -1,8 +1,11 @@
 // Финализация одного rules-модуля: coverage (§15 contract), module score
-// (T-04), usable output (§18 + D-026) и материал Issue-строк. Единственная
-// нетривиальная политика здесь — D-026 на уровне скана: если НИ ОДНА страница
-// обхода не загрузилась, любые findings деривативны от недоступности цели и
-// usable output не создают (сигналы помечаются targetUnreachable).
+// (T-04), usable output (§18 + D-026) и материал Issue-строк.
+//
+// D-026 на уровне скана сюда больше не доходит: если сайт не прочитан ни одной
+// страницей, run-attempt не запускает модуль вообще (markEveryModuleUnreadable)
+// — раньше модуль прогонялся по странице-заглушке WAF, а этот файл пытался
+// задним числом обесценить порождённые ею findings. Остаётся per-finding
+// targetUnreachable: отдельные страницы, не загрузившиеся на достижимом сайте.
 
 import type { ModuleName, Plan, Severity } from '@fluxradar/contracts';
 import { ruleById } from '@fluxradar/contracts';
@@ -42,27 +45,19 @@ function statusReasonFor(applicable: number, completed: number): string | undefi
   return undefined;
 }
 
-function outputSignals(
-  result: ModuleRunResult,
-  siteReachable: boolean,
-): readonly ModuleOutputSignal[] {
+function outputSignals(result: ModuleRunResult): readonly ModuleOutputSignal[] {
   const findingSignals = result.findings.map((finding) => ({
     kind: 'finding' as const,
     hasEvidence: finding.evidenceType !== 'none' || finding.evidenceExcerpt !== '',
-    // D-026: на полностью недоступном сайте каждый finding — производная
-    // недоступности цели и в usable output не засчитывается.
-    targetUnreachable: siteReachable ? finding.targetUnreachable === true : true,
+    targetUnreachable: finding.targetUnreachable === true,
   }));
   // Сам вычисленный score/вердикт модуля — валидный сохранённый результат
-  // (§18: «валидный metric, score или finding»), но только на достижимом сайте.
-  return [...findingSignals, { kind: 'score', hasEvidence: siteReachable }];
+  // (§18: «валидный metric, score или finding»). Модуль сюда доходит только
+  // на прочитанном сайте.
+  return [...findingSignals, { kind: 'score', hasEvidence: true }];
 }
 
-export function finalizeRuleModule(
-  result: ModuleRunResult,
-  plan: Plan,
-  siteReachable: boolean,
-): FinalizedModule {
+export function finalizeRuleModule(result: ModuleRunResult, plan: Plan): FinalizedModule {
   const { applicableChecks, completedApplicableChecks } = result;
   const reason = statusReasonFor(applicableChecks, completedApplicableChecks);
   const coverage = computeCoverage({
@@ -78,7 +73,7 @@ export function finalizeRuleModule(
 
   const usableOutput = hasUsableOutput({
     completedApplicableChecks,
-    signals: outputSignals(result, siteReachable),
+    signals: outputSignals(result),
   });
 
   return {

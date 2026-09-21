@@ -78,6 +78,19 @@ export interface CrawlResult {
   readonly robotsTxt?: string;
   /** URL страниц, извлечённые из sitemap (использованы как seed обхода). */
   readonly sitemapUrls: readonly string[];
+  /**
+   * HEAD-снимки внутренних media, на которые ссылаются прочитанные страницы.
+   *
+   * Отдельно от `pages`, а не внутри: `pages` — это охват сайта, и media в нём
+   * испортили бы «прочитано N из M адрес». CONTENT-004 смотрит в оба списка.
+   * Пустой, если проверка media выключена (`maxMediaChecks: 0`).
+   */
+  readonly mediaChecks: readonly PageSnapshot[];
+  /**
+   * Внутренние media, найденные, но не запрошенные — бюджет проверок кончился.
+   * Их статус неизвестен, и отчёт обязан говорить «не перевірено», а не «бите».
+   */
+  readonly mediaOverBudget: readonly string[];
 }
 
 /** Инъектируемый транспорт: контракт — SafeFetchResult либо throw SafeFetchError. */

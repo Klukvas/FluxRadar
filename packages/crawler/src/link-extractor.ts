@@ -1,5 +1,8 @@
 // Извлечение ссылок обхода из HTML (T-07): href всех <a>,
 // разрешение относительных URL против finalUrl, только http(s).
+// Плюс адреса media (`extractMediaUrls`) — их проверяет media-check.ts тем же
+// селектором, что читает CONTENT-004, чтобы правило и проверка не расходились
+// в том, что считается media страницы.
 
 import { parse } from 'node-html-parser';
 
@@ -30,4 +33,26 @@ function resolveHttpUrl(href: string, baseUrl: string): string | null {
     return null;
   }
   return resolved.href;
+}
+
+/**
+ * The media selector CONTENT-004 reads.
+ *
+ * One constant, used by the rule and by the crawl's media verification, so the
+ * set of files a report calls broken is exactly the set the crawl asked about.
+ */
+export const MEDIA_SELECTOR = 'img[src], source[src], video[src], audio[src]';
+
+/**
+ * Absolute http(s) addresses of the media a document references, in document
+ * order. Same resolution rules as `extractLinks`.
+ */
+export function extractMediaUrls(html: string, baseUrl: string): readonly string[] {
+  const root = parse(html);
+  return root
+    .querySelectorAll(MEDIA_SELECTOR)
+    .map((element) => element.getAttribute('src'))
+    .filter((src): src is string => src !== undefined && src.trim() !== '')
+    .map((src) => resolveHttpUrl(src.trim(), baseUrl))
+    .filter((url): url is string => url !== null);
 }

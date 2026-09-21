@@ -28,10 +28,20 @@ export interface ScanScopeForm {
   readonly userAgent: 'desktop' | 'mobile';
 }
 
-/** What a first-time scan of a site starts from. */
+/**
+ * What a first-time scan of a site starts from.
+ *
+ * `maxPages` is empty on purpose, and empty means "no limit of my own": the
+ * crawl runs to the plan's own ceiling (`scopeNumber` omits the field, the API
+ * falls back to the tariff). It used to read `15`, which is how a $120 Complete
+ * scan of a 334-page site came to read fifteen pages and call it a full audit.
+ *
+ * An owner who wants a smaller crawl types one, and the report then names that
+ * number as theirs instead of presenting it as everything there was to read.
+ */
 export const DEFAULT_SCOPE_FORM: ScanScopeForm = {
   includeSubdomains: false,
-  maxPages: '15',
+  maxPages: '',
   maxDepth: '5',
   includePatterns: '',
   excludePatterns: '',

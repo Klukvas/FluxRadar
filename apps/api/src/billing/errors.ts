@@ -57,6 +57,24 @@ export class BillingNotFoundError extends BillingError {
 }
 
 /**
+ * The site itself is not in a state that can be audited, so the sale is refused.
+ *
+ * Distinct from a validation error because nothing about the request is wrong:
+ * the buyer filled the form correctly and their site is refusing our crawler.
+ * `state` is the crawler's own reach verdict, so a client can write the right
+ * sentence — an allowlist entry, a robots.txt line, or a site that is simply
+ * down — instead of one apology for all of them.
+ */
+export class SitePreconditionError extends BillingError {
+  readonly state: string;
+
+  constructor(state: string, message: string) {
+    super('SITE_NOT_READY', message);
+    this.state = state;
+  }
+}
+
+/**
  * A billing provider is not configured (or only partially): fail closed, 503.
  *
  * `reason` is the same closed code `/billing/checkout-config` reports, so a

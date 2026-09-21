@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -83,11 +86,31 @@ describe('public page metadata', () => {
 
   it('gives each public page a distinct title and description in both languages', () => {
     for (const language of ['en', 'uk'] as const) {
-      const titles = (['home', 'faq', 'checks', 'privacy', 'terms'] as const).map(
+      const titles = (['home', 'faq', 'checks', 'bot', 'privacy', 'terms'] as const).map(
         (page) => pageMetadata(page, language).title,
       );
       expect(new Set(titles).size).toBe(titles.length);
       for (const title of titles) expect(title.length).toBeGreaterThan(10);
+    }
+  });
+
+  it('gives the crawler page its own indexable URL in both languages', () => {
+    // The user agent every request carries points here, so the address has to
+    // resolve to a page a stranger can read and a crawler can index.
+    expect(publicPageUrl('bot', 'en')).toBe('https://fluxradar.net/bot');
+    expect(publicPageUrl('bot', 'uk')).toBe('https://fluxradar.net/bot?lang=uk');
+    expect(pageMetadata('bot', 'en').indexable).toBe(true);
+  });
+
+  it('lists every public page in the sitemap, in both languages', () => {
+    // A page that exists but is not listed is a page nobody finds. The list is
+    // a file rather than generated code, so nothing else would catch a page
+    // added to the app and forgotten here.
+    const sitemap = readFileSync(resolve(__dirname, '../public/sitemap.xml'), 'utf8');
+    for (const page of ['home', 'faq', 'checks', 'bot', 'privacy', 'terms', 'cookies'] as const) {
+      for (const language of ['en', 'uk'] as const) {
+        expect(sitemap).toContain(`<loc>${publicPageUrl(page, language)}</loc>`);
+      }
     }
   });
 
@@ -131,6 +154,7 @@ describe('public page metadata', () => {
     expect(pageStructuredData('privacy', 'en')).toBeNull();
     expect(pageStructuredData('terms', 'uk')).toBeNull();
     expect(pageStructuredData('checks', 'en')).toBeNull();
+    expect(pageStructuredData('bot', 'en')).toBeNull();
   });
 });
 

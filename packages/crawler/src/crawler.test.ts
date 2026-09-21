@@ -37,6 +37,42 @@ function fixtureScope(overrides: Partial<CrawlScope> = {}): CrawlScope {
   return { origin: site.origin, includeSubdomains: false, maxPages: 50, ...overrides };
 }
 
+describe('crawl: проверка media (CONTENT-004)', () => {
+  it('asks the real server about each referenced image, and records what it said', async () => {
+    const result = await crawl(fixtureScope(), fastOptions({ maxMediaChecks: 10 }));
+
+    const byPath = new Map(
+      result.mediaChecks.map((media) => [new URL(media.finalUrl).pathname, media]),
+    );
+    // /img/pixel.png is served as a real 1×1 PNG; /img/missing.png is not there.
+    // Before this pass the crawl requested neither, and CONTENT-004 called both
+    // "internal media not confirmed by the crawl" — a Medium finding and −3.
+    expect(byPath.get('/img/pixel.png')?.status).toBe(200);
+    expect(byPath.get('/img/pixel.png')?.contentType).toBe('image/png');
+    expect(byPath.get('/img/missing.png')?.status).toBe(404);
+    expect(result.mediaOverBudget).toEqual([]);
+  });
+
+  it('checks no media at all when the budget is zero', async () => {
+    const result = await crawl(fixtureScope(), fastOptions());
+
+    expect(result.mediaChecks).toEqual([]);
+  });
+
+  it('leaves media over the budget unchecked rather than unmentioned', async () => {
+    const result = await crawl(fixtureScope(), fastOptions({ maxMediaChecks: 1 }));
+
+    expect(result.mediaChecks).toHaveLength(1);
+    expect(result.mediaOverBudget).toHaveLength(1);
+  });
+
+  it('keeps media out of the page count, so site coverage stays about pages', async () => {
+    const result = await crawl(fixtureScope(), fastOptions({ maxMediaChecks: 10 }));
+
+    expect(result.pages.every((page) => !page.finalUrl.includes('/img/'))).toBe(true);
+  });
+});
+
 describe('crawl: fixture-сайт', () => {
   it('обходит точный ожидаемый набор normalizedUrl с дедупом utm-дублей', async () => {
     const result = await crawl(fixtureScope(), fastOptions());

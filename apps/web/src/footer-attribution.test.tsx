@@ -164,6 +164,7 @@ describe('published contact address', () => {
   it.each([
     ['/faq', signedOut],
     ['/checks', signedOut],
+    ['/bot', signedOut],
     ['/privacy', signedOut],
     ['/terms', signedOut],
     ['/cookies', signedOut],
@@ -203,6 +204,7 @@ describe('Created by FluxLab attribution', () => {
     ['the home page', '/', signedOut],
     ['the FAQ', '/faq', signedOut],
     ['the coverage page', '/checks', signedOut],
+    ['the crawler page', '/bot', signedOut],
     ['the privacy policy', '/privacy', signedOut],
     ['the terms', '/terms', signedOut],
     ['a signed-in workspace screen', '/profiles', signedIn],
@@ -256,6 +258,10 @@ describe('the site footer on a report', () => {
       // FastSpring's activation checklist asks for a clear link to the refund
       // policy, which lives as a section of the terms rather than a page.
       ['Refund policy', '/terms#terms-paid'],
+      // The page the crawler's own user agent points at. Somebody whose site
+      // refused FluxRadarBot has to be able to reach it from anywhere on the
+      // site, not only from the +URL in an access log.
+      ['Our crawler', '/bot'],
       ['Field notes', '/blog'],
     ] as const;
     for (const [label, href] of links) {

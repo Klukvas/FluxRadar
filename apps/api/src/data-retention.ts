@@ -464,6 +464,7 @@ export async function deleteAccountData(
       await tx.checkoutSession.deleteMany({ where: { accountId } });
       await deletePurchaseRows(tx, purchaseIds);
       await tx.siteGoogleBinding.deleteMany({ where: { accountId } });
+      await tx.siteReachabilityProbe.deleteMany({ where: { accountId } });
       await tx.siteProfile.deleteMany({ where: { accountId } });
       await tx.session.deleteMany({ where: { accountId } });
       await tx.aiConsent.deleteMany({ where: { accountId } });

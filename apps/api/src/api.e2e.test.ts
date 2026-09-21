@@ -158,7 +158,13 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
           // The fixture names the real profile brand but cites smile.example,
           // not the scan's loopback test domain. The report must not turn that
           // unrelated URL into an official-domain mention.
-          mentions: { brand: true, domain: false },
+          //
+          // A discovery question is neutral — it names neither the brand nor
+          // the domain — so both signals are real measurements here. The two
+          // awareness questions name the brand by construction and are reported
+          // as `named-in-question` instead, which is what stopped both badges
+          // being green on every scan.
+          mentions: { brand: 'mentioned', domain: 'not-mentioned' },
         }),
       ]),
     );

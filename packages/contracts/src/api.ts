@@ -128,11 +128,23 @@ const scanConfigSchema = z
       });
     }
   });
+/**
+ * What a site is checked with until its owner says otherwise.
+ *
+ * `maxPages` is deliberately absent, and absent means "the whole plan" — the
+ * crawl stops at the tariff's URL limit (`buildCrawlScope`), not at a number
+ * this file invented. It used to be 15. A Complete scan costs $120 and sells
+ * 50,000 URLs, so every site with more than fifteen addresses was audited at a
+ * few percent of itself by default, and the report had no way to say so.
+ *
+ * An owner who wants a smaller crawl still sets one; the difference is that the
+ * limit is then theirs, is stored as theirs, and is named as theirs in the
+ * report (see `crawlSummarySchema.limitedBy`).
+ */
 export const defaultProfileScanConfig = {
   plan: 'Complete',
   scope: {
     includeSubdomains: false,
-    maxPages: 15,
     maxDepth: 5,
     queryPolicy: 'ignore',
     respectRobots: true,

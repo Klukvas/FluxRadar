@@ -35,6 +35,13 @@ import { googleIntegrationRouter } from './integrations/google/routes.ts';
 import { createGoogleDataRunner } from './integrations/google/runner.ts';
 import { integrationsRouter } from './integrations/routes.ts';
 import { validateRuntimeConfig } from './integrations/config.ts';
+import { readCrawlEgressProxy } from './integrations/crawl-egress-config.ts';
+import {
+  logEgressHealth,
+  probeEgressProxy,
+  readEgressProbeOptions,
+} from './integrations/crawl-egress-health.ts';
+import { logEgressUsage, readEgressUsage } from './integrations/crawl-egress-usage.ts';
 import { logIntegrationStatuses } from './integrations/diagnostics.ts';
 import { createMailer, type Mailer } from './email/mailer.ts';
 import { createDefaultPerformanceRunner } from './integrations/performance.ts';
@@ -43,6 +50,7 @@ import { sweepRetention } from './data-retention.ts';
 import type { WorkerCrawlOptions, WorkerDeps } from './orchestrator/deps.ts';
 import { recoverClaimedJobs } from './orchestrator/claim.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
+import { reachabilityRouter } from './profiles/reachability-routes.ts';
 import { profilesRouter } from './profiles/routes.ts';
 import { scansRouter } from './scans/routes.ts';
 import { supportRouter } from './support/routes.ts';
@@ -52,6 +60,13 @@ import { createConfiguredObjectStore, type PrivateObjectStore } from './integrat
 export const packageName = '@fluxradar/api';
 
 const QUEUE_RECOVERY_INTERVAL_MS = 30_000;
+/**
+ * How often the crawl's egress proxy is re-checked.
+ *
+ * Five minutes: long enough not to be traffic of its own, short enough that an
+ * outage is found by us rather than by the customer whose scan it broke.
+ */
+const EGRESS_HEALTH_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface CreateAppOptions {
   readonly prisma: PrismaClient;
@@ -220,6 +235,33 @@ export function createApp(options: CreateAppOptions): Express {
     }),
   );
   app.use(profilesRouter({ prisma: options.prisma, now, requestRateLimiter, objectStore, logger }));
+  // Before the router that sells a scan: a buyer has to be able to find out
+  // whether the site will let the crawler in before they are charged for it.
+  app.use(
+    reachabilityRouter({
+      prisma: options.prisma,
+      now,
+      requestRateLimiter,
+      logger,
+      // The probe leaves from the network the crawl will, including the test
+      // seams a fixture site needs, so the two cannot answer differently.
+      ...(options.crawl === undefined
+        ? {}
+        : {
+            probe: {
+              ...(options.crawl.egressProxy === undefined
+                ? {}
+                : { egressProxy: options.crawl.egressProxy }),
+              ...(options.crawl.dangerouslyAllowLoopback === true
+                ? { dangerouslyAllowLoopback: true }
+                : {}),
+              // A test that stubs the crawl's transport stubs the probe's too:
+              // one seam, so the two cannot be given different sites to read.
+              ...(options.crawl.fetcher === undefined ? {} : { fetcher: options.crawl.fetcher }),
+            },
+          }),
+    }),
+  );
   app.use(integrationsRouter({ prisma: options.prisma, now }));
   app.use(googleIntegrationRouter({ prisma: options.prisma, now, logger }));
   app.use(
@@ -337,6 +379,25 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   }, PENDING_REFUND_SWEEP_INTERVAL_MS);
   pendingRefundTimer.unref();
   void sweepPending();
+  // The crawl's egress proxy is one VPS, and every paid scan depends on it.
+  // Checked at boot and then periodically, so an outage is a log line here
+  // rather than a customer telling us their scans stopped working — and so the
+  // traffic against the hosting plan's monthly allowance is watched before it
+  // runs out rather than after.
+  const checkEgress = async (): Promise<void> => {
+    const health = await probeEgressProxy(readCrawlEgressProxy(), readEgressProbeOptions());
+    logEgressHealth(logger, health);
+    logEgressUsage(logger, await readEgressUsage(prisma, new Date()));
+  };
+  const egressHealthTimer = setInterval(() => {
+    void checkEgress().catch((error: unknown) => {
+      logger.error('crawl egress health check failed', {
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      });
+    });
+  }, EGRESS_HEALTH_INTERVAL_MS);
+  egressHealthTimer.unref();
+  void checkEgress().catch(() => undefined);
   const queueRecoveryTimer = setInterval(() => {
     void recoverClaimedJobs(prisma)
       .then((recoveredCount) => {
@@ -358,6 +419,7 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       clearInterval(retentionTimer);
       clearInterval(pendingRefundTimer);
       clearInterval(queueRecoveryTimer);
+      clearInterval(egressHealthTimer);
       await new Promise<void>((resolveClose, reject) => {
         server.close((error) => (error ? reject(error) : resolveClose()));
       });

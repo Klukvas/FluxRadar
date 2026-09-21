@@ -3,17 +3,24 @@
 // перезаписывает результат предыдущей (module retry / external retry, D-024).
 // Терминализацию выполняет process-scan через resolveScanOutcome.
 
-import type { ModuleName, Plan, ScanScopeInput } from '@fluxradar/contracts';
-import { TARIFFS, scanScopeSchema, severityRank } from '@fluxradar/contracts';
+import type { CrawlSummary, ModuleName, Plan, ScanScopeInput } from '@fluxradar/contracts';
+import {
+  CRAWL_LIMITS,
+  TARIFFS,
+  isSiteRead,
+  scanScopeSchema,
+  severityRank,
+  siteReachStatusReason,
+} from '@fluxradar/contracts';
 import {
   AI_PROVIDER_NAMES,
   AiQuotaTracker,
   CURRENT_AI_PROCESSING_NOTICE_VERSION,
   runGeoModule,
 } from '@fluxradar/ai';
-import type { AiConsent, GeoModuleResult } from '@fluxradar/ai';
-import { crawl } from '@fluxradar/crawler';
-import type { CrawlScope } from '@fluxradar/crawler';
+import type { AiConsent, GeoMentionSignals, GeoModuleResult } from '@fluxradar/ai';
+import { crawl, crawlerUserAgent } from '@fluxradar/crawler';
+import type { CrawlResult, CrawlScope } from '@fluxradar/crawler';
 import {
   analyticsPageFacts,
   analyzeUxStatic,
@@ -27,6 +34,14 @@ import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
 
 import { readCrawlEgressProxy } from '../integrations/crawl-egress-config.ts';
+import {
+  isEgressUsable,
+  logEgressHealth,
+  probeEgressProxy,
+  readEgressProbeOptions,
+} from '../integrations/crawl-egress-health.ts';
+import { logEgressUsage, recordEgressUsage } from '../integrations/crawl-egress-usage.ts';
+import { buildCrawlSummary } from './crawl-summary.ts';
 import { executionProfile, storedExecutionConfig } from '../profiles/execution-config.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
 import type { WorkerDeps } from './deps.ts';
@@ -43,8 +58,6 @@ import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
 import type { IssueRowData } from './module-result.ts';
 import { ruleCheckSummaries, uxRuleCheckSummaries } from './rule-checks.ts';
 import { runUxConversion } from './ux.ts';
-
-const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
 
 const providersJsonSchema = z.array(z.enum(AI_PROVIDER_NAMES));
 
@@ -92,10 +105,42 @@ type ModuleRowData = {
   readonly metadataJson?: string;
 };
 
+/**
+ * Bytes of page and media bodies this crawl pulled.
+ *
+ * A floor for the proxy's traffic, not a bill: headers, TLS and retries are not
+ * in it. It is what we can attribute to a scan, and the warning threshold is
+ * set low enough that the gap is covered.
+ */
+function bytesRead(crawlResult: CrawlResult): number {
+  return [...crawlResult.pages, ...crawlResult.mediaChecks].reduce(
+    (total, page) => total + (page.html === null ? 0 : Buffer.byteLength(page.html, 'utf8')),
+    0,
+  );
+}
+
+/** How much of a site's media the crawl actually asked about. */
+export interface MediaCoverage {
+  readonly checked: number;
+  readonly broken: number;
+  readonly notChecked: number;
+}
+
+function mediaCoverageOf(crawlResult: CrawlResult): MediaCoverage {
+  return {
+    checked: crawlResult.mediaChecks.length,
+    broken: crawlResult.mediaChecks.filter(
+      (media) => media.fetchError !== undefined || media.status >= 400,
+    ).length,
+    notChecked: crawlResult.mediaOverBudget.length,
+  };
+}
+
 function metadataForRuleModule(
   module: ModuleName,
   plan: Plan,
   evaluations: ModuleRunResult['evaluations'],
+  mediaCoverage: MediaCoverage,
 ): string {
   // Every rule module records what each of its checks did, so the report can
   // open a section card to that list instead of showing only its totals.
@@ -107,37 +152,46 @@ function metadataForRuleModule(
     return JSON.stringify({ ...freeCheckMetadata(), ruleChecks });
   }
   const metadata =
-    module === 'Accessibility'
+    module === 'Content Quality'
       ? {
-          standard: 'WCAG 2.2 AA',
-          profiles: ['EN 301 549', 'Section 508'],
-          automation: 'static-dom-css',
-          manualReviewRequired: true,
-          legalCertification: false,
+          standard: 'Content Quality',
+          automation: 'static-html + media HEAD checks',
+          // What CONTENT-004 is allowed to have an opinion about. `notChecked`
+          // is the honest name for media the budget did not reach: the rule
+          // says nothing about those, and this is where the report can.
+          media: mediaCoverage,
         }
-      : module === 'Security'
+      : module === 'Accessibility'
         ? {
-            standard: 'OWASP ASVS',
-            profile: 'Public Security Profile',
-            automation: 'public-http-headers-dom',
+            standard: 'WCAG 2.2 AA',
+            profiles: ['EN 301 549', 'Section 508'],
+            automation: 'static-dom-css',
             manualReviewRequired: true,
-            notVerifiable: ['source code', 'authenticated flows', 'server-side configuration'],
+            legalCertification: false,
           }
-        : module === 'Privacy'
+        : module === 'Security'
           ? {
-              standard: 'Privacy & Consent',
-              scope: 'public technical signals',
-              automation: 'static-http-dom',
+              standard: 'OWASP ASVS',
+              profile: 'Public Security Profile',
+              automation: 'public-http-headers-dom',
               manualReviewRequired: true,
-              legalAdvice: false,
+              notVerifiable: ['source code', 'authenticated flows', 'server-side configuration'],
             }
-          : module === 'SEO'
+          : module === 'Privacy'
             ? {
-                structuredData: 'static-html-json-ld',
-                socialPreview: 'static-html-meta',
-                clientRenderedMarkup: 'not verifiable without browser rendering',
+                standard: 'Privacy & Consent',
+                scope: 'public technical signals',
+                automation: 'static-http-dom',
+                manualReviewRequired: true,
+                legalAdvice: false,
               }
-            : undefined;
+            : module === 'SEO'
+              ? {
+                  structuredData: 'static-html-json-ld',
+                  socialPreview: 'static-html-meta',
+                  clientRenderedMarkup: 'not verifiable without browser rendering',
+                }
+              : undefined;
   return JSON.stringify({ ...metadata, ruleChecks });
 }
 
@@ -190,21 +244,13 @@ async function persistGeoModule(
   generation: GeoQuestionGenerationResult,
   aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
 ): Promise<void> {
-  const mentionSignals = (
-    aiRequestKey: string,
-  ): { readonly brand: boolean; readonly domain: boolean } | null => {
-    const brandEvaluation = geo.evaluations.find(
-      (evaluation) => evaluation.ruleId === 'GEO-VIS-003',
-    );
-    const domainEvaluation = geo.evaluations.find(
-      (evaluation) => evaluation.ruleId === 'GEO-VIS-004',
-    );
-    if (brandEvaluation === undefined || domainEvaluation === undefined) return null;
-    return {
-      brand: !brandEvaluation.findings.some((finding) => finding.aiRequestKey === aiRequestKey),
-      domain: !domainEvaluation.findings.some((finding) => finding.aiRequestKey === aiRequestKey),
-    };
-  };
+  // Both badges used to be "no finding for this answer means yes". A question
+  // that named the brand and spelled out the domain produces no finding for
+  // either, so "brand mentioned" and "official domain cited" were green on
+  // every scan — we were reading back our own question. The signals now come
+  // from the same function the rules use, and carry why a signal was skipped.
+  const mentionSignals = (aiRequestKey: string): GeoMentionSignals | null =>
+    geo.mentions.get(aiRequestKey) ?? null;
   const reasonParts = [
     geo.statusReason,
     generation.status === 'Unavailable' || generation.status === 'InvalidResponse'
@@ -338,6 +384,36 @@ async function persistUxModule(
 }
 
 /**
+ * Every module of the attempt reports the same thing: there was no site to read.
+ *
+ * `Unavailable` rather than `Not applicable` is the honest status — the checks
+ * are applicable to this site, they simply had nothing to run on — and §15
+ * requires `applicable > 0, completed = 0` for it, which is what the single
+ * "could the site be read" check stands for. No score, because scoring a site
+ * we never saw is the whole failure being fixed here.
+ */
+async function markEveryModuleUnreadable(
+  prisma: PrismaClient,
+  scanId: string,
+  modules: readonly string[],
+  summary: CrawlSummary,
+): Promise<void> {
+  const statusReason = siteReachStatusReason(summary) ?? 'SiteUnreachable';
+  for (const module of modules) {
+    await setModule(prisma, scanId, module, {
+      runtimeStatus: 'Unavailable',
+      statusReason,
+      coverage: 0,
+      score: null,
+      applicableChecks: 1,
+      completedApplicableChecks: 0,
+      usableOutput: false,
+      metadataJson: JSON.stringify({ crawl: summary }),
+    });
+  }
+}
+
+/**
  * What an attempt hands to the post-outcome phase. Analytics runs after the
  * scan outcome is settled (analytics-module.ts), when the crawl is gone, so the
  * attempt passes on the per-page facts its checks compare with Google data.
@@ -401,21 +477,68 @@ export async function runScanAttempt(
   }
 
   const egressProxy = resolveEgressProxy(deps.crawl, readCrawlEgressProxy());
-  const crawlResult = await crawl(buildCrawlScope(origin, scope, plan), {
+  // Before a single request. The proxy is one VPS, and when it is down every
+  // fetch fails — which the crawl would otherwise read as "the customer's site
+  // is unreachable", spending their paid scan on our outage and telling them
+  // their site is broken. Going direct instead is not an option either: that
+  // is the Hetzner block the proxy exists to avoid (D-220). So the attempt
+  // stops, loudly, and the worker treats it as the platform failure it is.
+  const egressHealth = await (deps.probeEgress ?? probeEgressProxy)(
+    egressProxy,
+    readEgressProbeOptions(),
+  );
+  logEgressHealth(deps.logger, egressHealth);
+  if (!isEgressUsable(egressHealth)) {
+    throw new Error(
+      `runScanAttempt: crawl egress proxy is ${egressHealth.state}` +
+        `${egressHealth.detail === null ? '' : ` (${egressHealth.detail})`}`,
+    );
+  }
+  const crawlScope = buildCrawlScope(origin, scope, plan);
+  const crawlResult = await crawl(crawlScope, {
     ...(deps.crawl?.fetcher !== undefined ? { fetcher: deps.crawl.fetcher } : {}),
     ...(egressProxy === null ? {} : { egressProxy }),
     ...(deps.crawl?.dangerouslyAllowLoopback === true ? { dangerouslyAllowLoopback: true } : {}),
     ...(deps.crawl?.limiter !== undefined ? { limiter: deps.crawl.limiter } : {}),
     logger: { warn: (message, context) => deps.logger.warn(message, context) },
-    userAgent: scope.userAgent === 'mobile' ? `${CRAWLER_USER_AGENT} Mobile` : CRAWLER_USER_AGENT,
+    userAgent: crawlerUserAgent(scope.userAgent),
+    // Ask whether the site's own images and media exist, within a budget.
+    // CONTENT-004 reports only what this verified; before it, the rule
+    // penalised "media not confirmed by the crawl" on a crawl that requested
+    // no media at all. A Free check is the homepage and nothing else.
+    maxMediaChecks: plan === 'Free' ? 0 : CRAWL_LIMITS.maxMediaChecks,
   });
   const ctx: SiteContext = createSiteContext({ origin, crawl: crawlResult, plan });
-  const siteReachable = crawlResult.pages.some((page) => page.fetchError === undefined);
+  const crawlSummary = buildCrawlSummary(crawlResult, origin, scope, plan, crawlScope.maxPages);
+  if (egressProxy !== null) {
+    // Counted only when it actually crossed the proxy, so a local fixture run
+    // and a direct crawl never inflate the hosting plan's usage.
+    logEgressUsage(deps.logger, await recordEgressUsage(prisma, bytesRead(crawlResult), now()));
+  }
+  // A site is read when at least one page of it was read — a 2xx response that
+  // carried a document. It used to be "at least one request did not throw",
+  // which a WAF challenge page satisfies: the 403 arrives over a perfectly
+  // healthy connection, so a site that had blocked us entirely was audited as
+  // a site with no robots.txt and no 200 responses, and scored 96.95.
+  const siteReachable = isSiteRead(crawlSummary);
   // Эффективный normalized origin — поле domain fingerprint-ов и export context
   // (в тестах обходится fixture-origin, а не https-домен профиля).
-  await prisma.scan.update({ where: { id: scanId }, data: { domain: ctx.domain } });
+  await prisma.scan.update({
+    where: { id: scanId },
+    data: { domain: ctx.domain, crawlSummaryJson: JSON.stringify(crawlSummary) },
+  });
+
+  if (!siteReachable) {
+    // Nothing downstream has a site to work on, so nothing downstream runs: no
+    // rules over a challenge page, no AI quota spent on a scan that is about to
+    // be refunded, and no PSI number that would make this Partial instead of
+    // Failed. Every planned module says the same thing, and says why.
+    await markEveryModuleUnreadable(prisma, scanId, targetModules, crawlSummary);
+    return { analyticsPages: [] };
+  }
 
   const observedAt = now();
+  const mediaCoverage = mediaCoverageOf(crawlResult);
   const issueRows: IssueRowData[] = [];
   let aiQuota = AiQuotaTracker.forPlan(plan);
   for (const module of modulePlan.runnable.filter((candidate) =>
@@ -423,7 +546,7 @@ export async function runScanAttempt(
   )) {
     await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
     const result = plan === 'Free' ? runFreeCheck(ctx) : runModuleRules(module, ctx);
-    const finalized = finalizeRuleModule(result, plan, siteReachable);
+    const finalized = finalizeRuleModule(result, plan);
     await setModule(prisma, scanId, module, {
       runtimeStatus: finalized.runtimeStatus,
       statusReason: finalized.statusReason,
@@ -432,7 +555,7 @@ export async function runScanAttempt(
       applicableChecks: finalized.applicableChecks,
       completedApplicableChecks: finalized.completedApplicableChecks,
       usableOutput: finalized.usableOutput,
-      metadataJson: metadataForRuleModule(module, plan, result.evaluations),
+      metadataJson: metadataForRuleModule(module, plan, result.evaluations, mediaCoverage),
     });
     issueRows.push(...issueRowsForModule(scanId, module, result.findings, finalized, observedAt));
   }
@@ -459,7 +582,7 @@ export async function runScanAttempt(
         siteOrigin: ctx.domain,
         siteDomain: siteHostname,
         consent,
-        requests: buildGeoRequests(scanId, profile.name, siteHostname, generation.questions),
+        requests: buildGeoRequests(scanId, profile.name, generation.questions),
       },
       { provider, quota: generation.quota },
     );

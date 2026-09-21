@@ -138,6 +138,27 @@ export function useNewScanForm(props: NewScanFormProps) {
   // that never stored a configuration has for good — so a brand-new profile
   // said "Configuration is loading…" forever.
   const [configLoading, setConfigLoading] = useState(false);
+  /**
+   * Whether the API says this site can be audited right now.
+   *
+   * Only the paid path reads it — a Free check is not a purchase, and gating it
+   * would turn the one thing a stranger can try into a two-step form. The
+   * server refuses the sale regardless (`createCheckoutSession`); this is what
+   * keeps a buyer from meeting that refusal at the pay button.
+   */
+  const [siteReachable, setSiteReachable] = useState(false);
+  /**
+   * What this site sells, and the industry it sells it in.
+   *
+   * Asked on the paid form, not only in the profile editor: without either of
+   * them the AI visibility section has no neutral topic to build discovery
+   * questions from (`neutralContext`), so it falls back to the two questions
+   * that name the brand — and those measure nothing (D-227). A buyer paying for
+   * AI visibility should be told that before paying, not read it as a status
+   * reason afterwards.
+   */
+  const [aiIndustry, setAiIndustry] = useState('');
+  const [aiOfferings, setAiOfferings] = useState('');
   const usingSavedProfile = target !== NEW_ADDRESS_TARGET;
   const resolvedProfileVersion = useRef<number | undefined>(undefined);
   const selected = props.profiles.find((profile) => profile.id === target);
@@ -217,6 +238,13 @@ export function useNewScanForm(props: NewScanFormProps) {
     };
   }, [paidAvailable, props.internalFreeAccess, selected, target, usingSavedProfile]);
 
+  // The selected profile's saved context, so the form asks only for what is
+  // missing and never silently overwrites what an owner already wrote.
+  useEffect(() => {
+    setAiIndustry(selected?.industry ?? '');
+    setAiOfferings(selected?.offerings ?? '');
+  }, [selected?.id, selected?.industry, selected?.offerings]);
+
   // After the profile's own settings above, so the owner's explicit choice wins.
   const initialPlanApplied = useRef(false);
   const { initialPlan } = props;
@@ -259,10 +287,16 @@ export function useNewScanForm(props: NewScanFormProps) {
   };
 
   const persistProfileConfiguration = async (profileId: string): Promise<SiteProfile | null> => {
+    const industry = aiIndustry.trim();
+    const offerings = aiOfferings.trim();
     return apiRequest<SiteProfile | null>(`/profiles/${encodeURIComponent(profileId)}`, {
       method: 'PATCH',
       body: JSON.stringify({
         scanConfig: currentProfileConfig,
+        // Saved on the profile, not on the scan: the next check of this site
+        // starts from what its owner already told us.
+        ...(industry === '' ? {} : { industry }),
+        ...(offerings === '' ? {} : { offerings }),
         expectedProfileConfigVersion: usingSavedProfile
           ? (savedConfigVersion ?? selected?.scanConfigVersion)
           : resolvedProfileVersion.current,
@@ -454,6 +488,8 @@ export function useNewScanForm(props: NewScanFormProps) {
     address,
     addressError,
     advancedOpen,
+    aiIndustry,
+    aiOfferings,
     busy,
     carriedOver,
     checkoutConfig,
@@ -468,16 +504,23 @@ export function useNewScanForm(props: NewScanFormProps) {
     planLabel,
     planOptions,
     robotsUnconfirmed,
+    // Exposed for the reachability panel, which needs the same profile the
+    // submission will use — and must not create one just by being rendered.
+    resolveTargetProfileId,
     saveConfiguration,
     savingConfiguration,
     scope,
     setAddress,
     setAddressError,
     setAdvancedChoice,
+    setAiIndustry,
+    setAiOfferings,
     setInvalidScope,
+    setSiteReachable,
     setPlan,
     setScope,
     setTarget,
+    siteReachable,
     submit,
     target,
     targetLabel,

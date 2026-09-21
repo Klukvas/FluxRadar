@@ -6,6 +6,7 @@ import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import type { AiProvider } from '@fluxradar/ai';
 import type { EgressProxy, HostLimiter } from '@fluxradar/safe-fetch';
 import type { CrawlFetcher } from '@fluxradar/crawler';
+import type { EgressHealth, EgressProbeOptions } from '../integrations/crawl-egress-health.ts';
 import type { PerformanceSnapshot } from '../integrations/performance.ts';
 import type { GoogleDataRunner } from '../integrations/google/runner.ts';
 
@@ -45,6 +46,14 @@ export interface WorkerDeps {
    */
   readonly createGoogleDataRunner?: () => GoogleDataRunner | undefined;
   readonly crawl?: WorkerCrawlOptions;
+  /**
+   * Checks the crawl's egress proxy before an attempt fetches anything.
+   * Test seam; production uses `probeEgressProxy`.
+   */
+  readonly probeEgress?: (
+    proxy: EgressProxy | null,
+    options: EgressProbeOptions,
+  ) => Promise<EgressHealth>;
   readonly now?: () => Date;
   readonly mailer?: Mailer;
 }
