@@ -10,6 +10,7 @@ import {
   withoutQueryAndFragment,
 } from './action-plan-module.js';
 import type { ActionPlanInput, ActionPlanRuleInput } from './action-plan-module.js';
+import { AnthropicProvider } from './anthropic-provider.js';
 import { AiModuleError } from './errors.js';
 import { MockAiProvider } from './mock-provider.js';
 import type { OpenAiShapedResponse } from './mock-provider.js';
@@ -230,6 +231,21 @@ describe('Action Plan request', () => {
     expect(prompt).not.toMatch(/session|other=1|#top|#section|user:pass|example\.com\/d/);
   });
 
+  it('sends every distinct recommendation of a rule, each whole up to the finding-text limit', () => {
+    const texts = Array.from({ length: 7 }, (_, index) => `Recommendation number ${index + 1}.`);
+    const prompt = promptOf(
+      buildActionPlanRequest(
+        input({
+          rules: [rule({ recommendations: [...texts, texts[0] ?? '', 'x'.repeat(3_000)] })],
+        }),
+      ),
+    );
+
+    for (const text of texts) expect(prompt).toContain(text);
+    expect(prompt).toContain(`${'x'.repeat(2_047)}…`);
+    expect(prompt).not.toContain('x'.repeat(2_048));
+  });
+
   it('removes query string and fragment from any address', () => {
     expect(withoutQueryAndFragment('https://example.com/path?q=1#x')).toBe(
       'https://example.com/path',
@@ -357,6 +373,37 @@ describe('runActionPlan', () => {
 
     expect(result).toMatchObject({ status: 'failed', failureCode: 'refused' });
     expect(result.status === 'failed' ? result.response?.usage.totalTokens : null).toBe(150);
+  });
+
+  it('records a refusal the fallback could not rescue as refused, not as an outage', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'msg_refused',
+          model: 'claude-opus-4-8',
+          stop_reason: 'refusal',
+          content: [
+            {
+              type: 'fallback',
+              from: { model: 'claude-opus-5' },
+              to: { model: 'claude-opus-4-8' },
+            },
+          ],
+          usage: { input_tokens: 900, output_tokens: 0 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const provider = new AnthropicProvider({
+      apiKey: 'sk-test',
+      fetcher,
+      modelId: 'claude-opus-5',
+    });
+
+    const result = await runActionPlan(input(), { provider });
+
+    expect(result).toMatchObject({ status: 'failed', failureCode: 'refused' });
+    expect(result.status === 'failed' ? result.response?.modelId : null).toBe('claude-opus-4-8');
   });
 
   it('fails on an answer cut off at the output cap', async () => {

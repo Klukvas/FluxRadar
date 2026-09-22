@@ -14,12 +14,17 @@ export const ACTION_PLAN_MAX_STEPS = 5;
 export const ACTION_PLAN_EFFORTS = ['small', 'medium', 'large'] as const;
 export type ActionPlanEffort = (typeof ACTION_PLAN_EFFORTS)[number];
 
-// Roughly three times what the instructions ask for: room for a language that
-// needs more characters, not for an essay.
+/** The lengths the instructions ask for, in characters. */
+export const ACTION_PLAN_TEXT_TARGETS = { title: 80, why: 300, step: 200 } as const;
+
+// Three times what the instructions ask for: room for a language that needs
+// more characters, not for an essay. The overview has no number in the
+// instructions (three to five sentences), so it gets a ceiling of its own.
+const PARSER_HEADROOM = 3;
 const MAX_OVERVIEW_CHARS = 2_000;
-const MAX_TITLE_CHARS = 200;
-const MAX_WHY_CHARS = 1_000;
-const MAX_STEP_CHARS = 600;
+const MAX_TITLE_CHARS = ACTION_PLAN_TEXT_TARGETS.title * PARSER_HEADROOM;
+const MAX_WHY_CHARS = ACTION_PLAN_TEXT_TARGETS.why * PARSER_HEADROOM;
+const MAX_STEP_CHARS = ACTION_PLAN_TEXT_TARGETS.step * PARSER_HEADROOM;
 
 /**
  * JSON Schema for `output_config.format`. Structured outputs reject count and

@@ -155,9 +155,14 @@ export class AnthropicProvider implements AiProvider {
       throw new UnavailableError('Anthropic rejected the request');
     }
     const rawText = textFromContent(payload?.content);
+    // A non-streaming answer drops a declined partial, so a refusal nothing
+    // rescued arrives without text. A request that opted into the fallback gets
+    // it back as a `safety` finish, so its caller can tell a refusal from an
+    // outage; for every other request it stays Unavailable, as before.
+    if (payload?.stop_reason === 'refusal' && request.refusalFallback !== undefined) {
+      return this.normalize(payload, rawText, promptText, caps);
+    }
     if (payload === null || rawText === '') {
-      // A non-streaming answer drops a declined partial, so a refusal nothing
-      // rescued arrives without text.
       throw new UnavailableError(
         payload?.stop_reason === 'refusal'
           ? 'Anthropic declined the request'

@@ -50,7 +50,6 @@ export const actionPlanLanguageSchema = z.enum(ACTION_PLAN_LANGUAGES);
 
 /** The plan language, as POST sends it in the body and GET in the query string. */
 export const actionPlanLanguageInputSchema = z.object({ language: actionPlanLanguageSchema });
-export type ActionPlanLanguageInput = z.infer<typeof actionPlanLanguageInputSchema>;
 
 /**
  * The notice under the Generate and Regenerate buttons says that rule names,
