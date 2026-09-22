@@ -8,7 +8,7 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * change (16 September 2026) added the section on how Google user data is
  * protected, which Google's OAuth verification requires the policy to state.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '21 вересня 2026 року', en: '21 September 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '22 вересня 2026 року', en: '22 September 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -156,11 +156,13 @@ function UkrainianPrivacy(): JSX.Element {
         </p>
         <p>
           Платні аудити включають застосовний AI‑аналіз: Basic — AI SEO / GEO, Complete — AI SEO /
-          GEO та UX/Conversion. До оплати й запуску помітний дисклеймер називає активного провайдера
+          GEO та UX/Conversion. До оплати й запуску помітний дисклеймер називає активних провайдерів
           та пояснює передачу публічних сторінок і введеного контексту. На дату цієї Політики
-          production‑адаптер використовує Anthropic. OpenAI може бути доданий лише після оновлення
-          цього повідомлення; ми не стверджуємо, що він уже отримує дані. Дані акаунта, оплати,
-          повний номер картки та Google/Bing tokens не входять до AI‑запиту.
+          production‑адаптери використовують Anthropic (Claude) та OpenAI (ChatGPT): обидва
+          отримують ті самі запитання про видимість і відповідають із увімкненим власним вебпошуком,
+          тобто кожен провайдер під час відповіді сам звертається до публічного вебу. UX/Conversion
+          і AI‑план дій виконує лише Anthropic. Дані акаунта, оплати, повний номер картки та
+          Google/Bing tokens не входять до AI‑запиту.
         </p>
         <p>
           GEO може надсилати нейтралізований контекст для створення discovery questions без назви й
@@ -200,19 +202,25 @@ function UkrainianPrivacy(): JSX.Element {
             для Complete performance check без підключення користувацького Google‑акаунта.
           </li>
           <li>
-            <strong>Anthropic</strong> — поточний AI‑провайдер для описаних вище AI‑запитів.
-            Retention і processing залежать від чинних API terms та налаштувань; ми не обіцяємо zero
-            retention у провайдера. Див.{' '}
+            <strong>Anthropic</strong> — AI‑провайдер для описаних вище AI‑запитів, включно із
+            запитами про видимість, які виконуються з увімкненим вебпошуком провайдера. Retention і
+            processing залежать від чинних API terms та налаштувань; ми не обіцяємо zero retention у
+            провайдера. Див.{' '}
             <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">
               інформацію Anthropic про зберігання комерційних даних
             </a>
             .
           </li>
           <li>
-            <strong>OpenAI</strong> не використовується поточним production‑адаптером. Якщо його
-            буде підключено, активний pre‑purchase notice і ця Політика будуть оновлені до першої
-            передачі. Див.{' '}
-            <a href="https://openai.com/policies/privacy-policy/">Privacy Policy OpenAI</a>.
+            <strong>OpenAI</strong> — AI‑провайдер запитів про видимість у модулі AI SEO / GEO,
+            поруч із Anthropic. Запити надсилаються з <code>store: false</code>; за умовами API
+            введені дані не використовуються для навчання моделей, а копія для контролю зловживань
+            може зберігатися до 30 днів. Ми не обіцяємо zero retention у провайдера: вебпошук в
+            OpenAI не підпадає під zero‑data‑retention. Див.{' '}
+            <a href="https://developers.openai.com/api/docs/guides/your-data">
+              керування даними OpenAI API
+            </a>{' '}
+            і <a href="https://openai.com/policies/privacy-policy/">Privacy Policy OpenAI</a>.
           </li>
           <li>
             <strong>FastSpring</strong> — merchant of record і checkout provider. Див.{' '}
@@ -438,11 +446,12 @@ function EnglishPrivacy(): JSX.Element {
         <p>
           Paid audits include the applicable AI analysis: Basic includes AI SEO / GEO, while
           Complete includes AI SEO / GEO and UX/Conversion. Before payment and launch, a prominent
-          disclaimer names the active provider and explains the transfer of public pages and
-          supplied project context. At this Policy’s effective date the production adapter uses
-          Anthropic. OpenAI may be added only after that notice is updated; we do not claim it
-          currently receives data. Account details, payment data, the full card number and
-          Google/Bing tokens are not AI inputs.
+          disclaimer names the active providers and explains the transfer of public pages and
+          supplied project context. At this Policy’s effective date the production adapters use
+          Anthropic (Claude) and OpenAI (ChatGPT): both receive the same visibility questions and
+          answer with their own web search turned on, so each provider reaches the public web while
+          answering. UX/Conversion and the AI Action Plan run at Anthropic only. Account details,
+          payment data, the full card number and Google/Bing tokens are not AI inputs.
         </p>
         <p>
           GEO can send neutralized context to generate discovery questions without the name or
@@ -482,18 +491,25 @@ function EnglishPrivacy(): JSX.Element {
             Complete performance checks without a connected user Google account.
           </li>
           <li>
-            <strong>Anthropic</strong> is the current AI provider for the AI requests described
-            above. Retention and processing depend on applicable API terms and settings; we do not
-            promise zero provider retention. See{' '}
+            <strong>Anthropic</strong> is an AI provider for the AI requests described above,
+            including the visibility requests, which run with the provider’s web search turned on.
+            Retention and processing depend on applicable API terms and settings; we do not promise
+            zero provider retention. See{' '}
             <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">
               Anthropic’s commercial retention information
             </a>
             .
           </li>
           <li>
-            <strong>OpenAI</strong> is not used by the current production adapter. If enabled, the
-            active pre-purchase notice and this Policy will be updated before the first transfer.
-            See <a href="https://openai.com/policies/privacy-policy/">OpenAI Privacy Policy</a>.
+            <strong>OpenAI</strong> is an AI provider for the AI SEO / GEO visibility requests,
+            alongside Anthropic. Requests are sent with <code>store: false</code>; under the API
+            terms inputs are not used to train models, and an abuse-monitoring copy may be retained
+            for up to 30 days. We do not promise zero provider retention: web search at OpenAI is
+            not zero-data-retention eligible. See{' '}
+            <a href="https://developers.openai.com/api/docs/guides/your-data">
+              OpenAI API data controls
+            </a>{' '}
+            and <a href="https://openai.com/policies/privacy-policy/">OpenAI Privacy Policy</a>.
           </li>
           <li>
             <strong>FastSpring</strong> is the merchant of record and checkout provider. See the{' '}
