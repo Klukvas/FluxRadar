@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { apiRequest, ApiRequestError, type Account, type Scan, type SiteProfile } from './api';
 import type { OpenScanById } from './app-navigation';
 import {
+  isPublicDocument,
   isTerminalScan,
   isWorkspaceScreen,
   pathForScreen,
@@ -84,7 +85,7 @@ export function useSessionBoot(boot: SessionBoot): void {
   const { entryRoute, setAccount, setBooting, setScreen } = boot;
   const { openScanById, confirmEmailSignedIn } = boot;
   useEffect(() => {
-    if (['privacy', 'terms', 'cookies', 'checks', 'faq', 'bot'].includes(entryRoute.screen)) {
+    if (isPublicDocument(entryRoute.screen)) {
       // A public document renders at once for anyone and never waits on the API.
       // The session is read alongside only so its header can offer the workspace
       // to a signed-in reader, as the header on every other page does.

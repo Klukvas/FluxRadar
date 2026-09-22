@@ -59,6 +59,15 @@ export function isWorkspaceScreen(screen: Screen): boolean {
   return WORKSPACE_SCREENS.includes(screen);
 }
 
+/** The pages anyone can read. They render at once and never wait on the API. */
+const PUBLIC_DOCUMENTS = ['privacy', 'terms', 'cookies', 'checks', 'faq', 'bot'] as const;
+
+export type PublicDocumentScreen = (typeof PUBLIC_DOCUMENTS)[number];
+
+export function isPublicDocument(screen: Screen): screen is PublicDocumentScreen {
+  return (PUBLIC_DOCUMENTS as readonly Screen[]).includes(screen);
+}
+
 /**
  * The URL a screen lives at.
  *

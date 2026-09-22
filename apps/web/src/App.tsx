@@ -5,6 +5,7 @@ import { apiRequest, type Account } from './api';
 import { AccountScreen } from './AccountScreen';
 import { AdminStatsScreen } from './AdminStats';
 import { useAppModel, type AppModelProps } from './app-model';
+import { isPublicDocument } from './app-routes';
 import { loadProfiles } from './app-session';
 import { accountCopy } from './account-copy';
 import { AuthScreen } from './AuthScreen';
@@ -15,15 +16,12 @@ import { NewScanScreen } from './NewScanScreen';
 import { HomeScreen } from './HomeScreen';
 import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
 import { OnboardingTour } from './OnboardingTour';
-import { FaqScreen } from './Faq';
-import { AuditCoverageScreen } from './Checks';
-import { BotScreen } from './Bot';
+import { PublicDocument } from './PublicDocument';
 import { PrintReport } from './PrintReport';
 import { planLanguageFromSearch, planSearch } from './action-plan';
 import { IntegrationsScreen } from './Integrations';
 import { IssuesScreen } from './Issues';
 import { ResultsScreen } from './Report';
-import { LegalDocumentScreen } from './LegalDocuments';
 import { ScanScreen } from './ScanProgress';
 import { ReportsScreen } from './Reports';
 import { Styleguide } from './Styleguide';
@@ -114,37 +112,10 @@ function AppContent(props: AppModelProps) {
       <Styleguide onNavigate={navigate} language={language} onLanguageChange={changeLanguage} />
     );
   }
-  if (screen === 'privacy' || screen === 'terms' || screen === 'cookies') {
+  if (isPublicDocument(screen)) {
     return (
-      <LegalDocumentScreen
-        kind={screen}
-        language={language}
-        onLanguageChange={changeLanguage}
-        signedIn={account !== null}
-      />
-    );
-  }
-  if (screen === 'checks') {
-    return (
-      <AuditCoverageScreen
-        language={language}
-        onLanguageChange={changeLanguage}
-        signedIn={account !== null}
-      />
-    );
-  }
-  if (screen === 'faq') {
-    return (
-      <FaqScreen
-        language={language}
-        onLanguageChange={changeLanguage}
-        signedIn={account !== null}
-      />
-    );
-  }
-  if (screen === 'bot') {
-    return (
-      <BotScreen
+      <PublicDocument
+        screen={screen}
         language={language}
         onLanguageChange={changeLanguage}
         signedIn={account !== null}
