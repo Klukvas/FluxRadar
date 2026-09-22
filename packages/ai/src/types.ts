@@ -81,6 +81,14 @@ export interface AiRequest {
    * Providers without server-side fallback ignore it.
    */
   readonly refusalFallback?: 'default';
+  /**
+   * Let the provider search the web before answering, bounded by
+   * AI_REQUEST_CAPS.maxSearchUnits. Only GEO visibility requests set it: a
+   * question about what an assistant says about a site has to be answered the
+   * way an assistant answers it. Question generation and the UX review never
+   * do — their neutrality and their evidence come from us, not from a search.
+   */
+  readonly webSearch?: true;
 }
 
 /**

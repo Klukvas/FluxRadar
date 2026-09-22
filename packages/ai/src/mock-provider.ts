@@ -12,7 +12,14 @@ import type { AiFinishReason } from '@fluxradar/contracts';
 import { requestCaps } from './caps.js';
 import { AiModuleError, UnavailableError } from './errors.js';
 import { CHARS_PER_TOKEN, estimateTokens, TOKENIZER_VERSION } from './prompt-builder.js';
-import type { AiProvider, AiProviderConfig, AiRequest, NormalizedAiResponse } from './types.js';
+import { RoutingAiProvider } from './routing-provider.js';
+import type {
+  AiProvider,
+  AiProviderConfig,
+  AiProviderName,
+  AiRequest,
+  NormalizedAiResponse,
+} from './types.js';
 
 /** Registry v1 production defaults для OpenAI (план §5 / AI-001). */
 export const MOCK_PROVIDER_CONFIG: AiProviderConfig = {
@@ -43,6 +50,8 @@ export interface OpenAiShapedResponse {
   readonly output_text: string;
   /** URL-ы источников; у реального OpenAI живут в annotations, мок упрощает. */
   readonly citations?: readonly string[];
+  /** Сколько web-поисков «сделал» бы провайдер: становится usage.searchUnits. */
+  readonly web_search_calls?: number;
   readonly usage?: OpenAiShapedUsage;
 }
 
@@ -160,6 +169,8 @@ export class MockAiProvider implements AiProvider {
         outputTokens,
         // §5 дословно: total_tokens всегда равен input + output.
         totalTokens: inputTokens + outputTokens,
+        // Мок не ищет в сети — фикстура просто заявляет, сколько поисков было бы.
+        ...(body.web_search_calls === undefined ? {} : { searchUnits: body.web_search_calls }),
       },
       usageSource: hasProviderUsage ? 'provider' : 'estimated',
       ...(hasProviderUsage ? {} : { tokenizerVersion: TOKENIZER_VERSION }),
@@ -200,4 +211,53 @@ export function geoVisibilityFixtures(brand: string, domain: string): readonly M
       },
     },
   ];
+}
+
+/**
+ * Registry-дефолты моделей для мока: `testing/harness.ts` пакетом не
+ * экспортируется, а apps/* не могут импортировать конфиг API, поэтому имена
+ * моделей по провайдерам живут здесь. Совпадать с production-константами
+ * обязаны только те, чьи значения проверяют тесты.
+ */
+const MOCK_MODEL_IDS: Partial<Record<AiProviderName, string>> = {
+  anthropic: 'claude-sonnet-5',
+  openai: 'gpt-5.6-terra',
+};
+
+const MOCK_API_VERSIONS: Partial<Record<AiProviderName, string>> = {
+  anthropic: '2023-06-01',
+  openai: 'v1',
+};
+
+export interface MockRoutingProviderOptions extends MockAiProviderOptions {
+  /** Переопределение модели по провайдеру (например, из env теста). */
+  readonly models?: Partial<Record<AiProviderName, string>>;
+}
+
+/**
+ * RoutingAiProvider поверх одного MockAiProvider на каждого названного
+ * провайдера: фикстуры общие, конфиг — свой у каждого. Это то, что тест
+ * получает вместо реальных адаптеров, чтобы multi-provider прогон проверялся
+ * без единого сетевого запроса.
+ */
+export function mockRoutingProvider(
+  fixtures: readonly MockAiFixture[],
+  providers: readonly AiProviderName[],
+  options: MockRoutingProviderOptions = {},
+): RoutingAiProvider {
+  return new RoutingAiProvider(
+    providers.map(
+      (provider) =>
+        new MockAiProvider(fixtures, {
+          ...(options.now === undefined ? {} : { now: options.now }),
+          config: {
+            provider,
+            apiVersion: MOCK_API_VERSIONS[provider] ?? 'v1',
+            modelId: options.models?.[provider] ?? MOCK_MODEL_IDS[provider] ?? `${provider}-mock`,
+            timeoutMs: 10_000,
+            maxRetries: 1,
+          },
+        }),
+    ),
+  );
 }

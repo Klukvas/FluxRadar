@@ -180,3 +180,33 @@ describe('MockAiProvider — caps запроса', () => {
     expect(response.finishReason).toBe('stop');
   });
 });
+
+describe('MockAiProvider — заявленный web search', () => {
+  it('web_search_calls фикстуры становится usage.searchUnits', async () => {
+    const mock = new MockAiProvider([
+      {
+        questionIncludes: 'searched',
+        response: {
+          status: 'completed',
+          output_text: 'Answered after searching.',
+          citations: ['https://fluxradar.test/'],
+          web_search_calls: 3,
+          usage: { input_tokens: 18_000, output_tokens: 60 },
+        },
+      },
+    ]);
+
+    const response = await mock.send(
+      makeRequest({ question: 'What did you find when you searched?', webSearch: true }),
+      PROMPT,
+    );
+
+    expect(response.usage.searchUnits).toBe(3);
+    expect(response.citations).toEqual(['https://fluxradar.test/']);
+  });
+
+  it('фикстура без web_search_calls не сообщает searchUnits', async () => {
+    const response = await provider.send(makeRequest(), PROMPT);
+    expect(response.usage.searchUnits).toBeUndefined();
+  });
+});
