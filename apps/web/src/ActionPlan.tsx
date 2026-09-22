@@ -18,6 +18,7 @@ import {
   requestActionPlan,
   shouldPoll,
   type ActionPlanState,
+  type PlanLanguage,
   type PlanLanguageChoice,
 } from './action-plan';
 import { actionPlanCopy, type ActionPlanCopy } from './action-plan-copy';
@@ -25,7 +26,7 @@ import { ApiRequestError } from './api';
 import { Button, SelectField } from './components';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
-import { languageCodeLabel } from './target-languages';
+import { isLanguageCode, languageCodeLabel } from './target-languages';
 
 export interface ActionPlanHandle {
   /**
@@ -62,7 +63,7 @@ function withAnswer(previous: PlanAnswers, next: ActionPlanState | null): PlanAn
  * at a time: the next poll is scheduled only once the previous answer is in,
  * and a failed request (a refund, a lost session) stops the polling.
  */
-export function useActionPlan(scanId: string | null, language: string): ActionPlanHandle {
+export function useActionPlan(scanId: string | null, language: PlanLanguage): ActionPlanHandle {
   const [answers, setAnswers] = useState<PlanAnswers>(NO_ANSWERS);
   // What the report shows now. Every request asks about it — a click that
   // started before a language switch refreshes the new language — and an
@@ -133,7 +134,7 @@ interface Generation {
 /** A click on Generate: the POST, then the state read again whatever it answered. */
 function useGeneration(
   scanId: string,
-  planLanguage: string,
+  planLanguage: PlanLanguage,
   handle: ActionPlanHandle,
   copy: ActionPlanCopy,
 ): Generation {
@@ -155,7 +156,7 @@ function useGeneration(
 }
 
 /** The last attempt, in the language shown, failed and left no plan to show instead. */
-function failedIn(state: ActionPlanState, planLanguage: string): boolean {
+function failedIn(state: ActionPlanState, planLanguage: PlanLanguage): boolean {
   return (
     state.run === null &&
     planIn(state, planLanguage) === null &&
@@ -248,6 +249,7 @@ function PlanControls(props: {
         label={c.languageLabel}
         value={planLanguage.value}
         onChange={(code) => {
+          if (!isLanguageCode(code)) return;
           generation.clearFailure();
           planLanguage.onChange(code);
         }}

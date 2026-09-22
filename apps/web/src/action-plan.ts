@@ -8,8 +8,14 @@
 
 import { ACTION_PLAN_NOTICE_VERSION } from './action-plan-notice';
 import { apiRequest } from './api';
-import { asRecord } from './module-metadata';
-import { LANGUAGE_CODES, targetLanguageCodes } from './target-languages';
+import { asRecord, isCount } from './module-metadata';
+import type { Language } from './i18n';
+import {
+  LANGUAGE_CODES,
+  isLanguageCode,
+  targetLanguageCodes,
+  type LanguageCode,
+} from './target-languages';
 
 /** How long the report waits after one answer before asking again. */
 export const PLAN_POLL_INTERVAL_MS = 3000;
@@ -41,6 +47,9 @@ export type PlanEffort = (typeof PLAN_EFFORTS)[number];
 /** The failure the report explains on its own: Claude declined to write the plan. */
 export const PLAN_REFUSED_FAILURE = 'refused';
 
+/** A language a plan can be written in: one the target-language picker lists. */
+export type PlanLanguage = LanguageCode;
+
 export interface PlanRule {
   readonly ruleId: string;
   readonly openIssues: number;
@@ -67,7 +76,7 @@ export interface PlanCaveat {
 
 /** A stored plan under its live counts, as the API returns it. */
 export interface PlanWithOverlay {
-  readonly language: string;
+  readonly language: PlanLanguage;
   readonly generatedAt: string;
   readonly modelId: string;
   readonly overview: string;
@@ -78,13 +87,13 @@ export interface PlanWithOverlay {
 
 export interface ActionPlanState {
   /** The language asked for; everything but `plan` is the same in every language. */
-  readonly language: string;
+  readonly language: PlanLanguage;
   readonly availability: PlanAvailability;
-  readonly languages: readonly string[];
-  readonly run: { readonly language: string; readonly startedAt: string } | null;
+  readonly languages: readonly PlanLanguage[];
+  readonly run: { readonly language: PlanLanguage; readonly startedAt: string } | null;
   readonly lastFailure: {
     readonly code: string;
-    readonly language: string;
+    readonly language: PlanLanguage;
     readonly at: string;
   } | null;
   readonly remaining: { readonly successes: number; readonly attempts: number };
@@ -94,17 +103,19 @@ export interface ActionPlanState {
 
 /** The plan language a report shows, the languages it offers, and how to change it. */
 export interface PlanLanguageChoice {
-  readonly value: string;
-  readonly options: readonly string[];
-  readonly onChange: (code: string) => void;
+  readonly value: PlanLanguage;
+  readonly options: readonly PlanLanguage[];
+  readonly onChange: (code: PlanLanguage) => void;
 }
 
 const isString = (value: unknown): value is string => typeof value === 'string';
-const isCount = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isInteger(value) && value >= 0;
 
 function strings(value: unknown): readonly string[] | null {
   return Array.isArray(value) && value.every(isString) ? value : null;
+}
+
+function planLanguages(value: unknown): readonly PlanLanguage[] | null {
+  return Array.isArray(value) && value.every(isLanguageCode) ? value : null;
 }
 
 /** Every entry read, or null when any of them is not the expected shape. */
@@ -167,7 +178,7 @@ function readPlan(value: unknown): PlanWithOverlay | null {
   const actions = readAll(fields.actions, readAction);
   const caveats = readAll(fields.caveats, readCaveat);
   if (
-    !isString(fields.language) ||
+    !isLanguageCode(fields.language) ||
     !isString(fields.generatedAt) ||
     !isString(fields.modelId) ||
     !isString(fields.overview) ||
@@ -193,7 +204,7 @@ function readPlan(value: unknown): PlanWithOverlay | null {
 function readRun(value: unknown): ActionPlanState['run'] | undefined {
   if (value === null) return null;
   const fields = asRecord(value);
-  return fields !== null && isString(fields.language) && isString(fields.startedAt)
+  return fields !== null && isLanguageCode(fields.language) && isString(fields.startedAt)
     ? { language: fields.language, startedAt: fields.startedAt }
     : undefined;
 }
@@ -203,7 +214,7 @@ function readFailure(value: unknown): ActionPlanState['lastFailure'] | undefined
   const fields = asRecord(value);
   return fields !== null &&
     isString(fields.code) &&
-    isString(fields.language) &&
+    isLanguageCode(fields.language) &&
     isString(fields.at)
     ? { code: fields.code, language: fields.language, at: fields.at }
     : undefined;
@@ -215,13 +226,13 @@ export function readActionPlanState(value: unknown): ActionPlanState | null {
   const remaining = asRecord(fields?.remaining);
   if (fields === null || remaining === null) return null;
   const availability = PLAN_AVAILABILITIES.find((known) => known === fields.availability);
-  const languages = strings(fields.languages);
+  const languages = planLanguages(fields.languages);
   const run = readRun(fields.run);
   const lastFailure = readFailure(fields.lastFailure);
   const plan = fields.plan === null ? null : readPlan(fields.plan);
   const windowEndsAt = fields.windowEndsAt;
   if (
-    !isString(fields.language) ||
+    !isLanguageCode(fields.language) ||
     availability === undefined ||
     languages === null ||
     run === undefined ||
@@ -261,7 +272,10 @@ export function shouldPoll(state: ActionPlanState, notReadyStreak: number): bool
 }
 
 /** The plan `state` holds for `language`; null while the answer is another language's. */
-export function planIn(state: ActionPlanState | null, language: string): PlanWithOverlay | null {
+export function planIn(
+  state: ActionPlanState | null,
+  language: PlanLanguage,
+): PlanWithOverlay | null {
   return state !== null && state.language === language ? state.plan : null;
 }
 
@@ -278,31 +292,29 @@ export function actionKey(action: PlanAction): string {
  * first, then the reader's, then every other listed one in picker order.
  */
 export function planLanguageOptions(
-  uiLanguage: string,
+  uiLanguage: Language,
   profileTargetLanguages: string | null | undefined,
-): readonly string[] {
+): readonly PlanLanguage[] {
   const first = [...targetLanguageCodes(profileTargetLanguages ?? ''), uiLanguage];
-  return [...new Set([...first, ...LANGUAGE_CODES])].filter((code) =>
-    (LANGUAGE_CODES as readonly string[]).includes(code),
-  );
+  return [...new Set([...first, ...LANGUAGE_CODES])].filter(isLanguageCode);
 }
 
 const PLAN_QUERY_PARAMETER = 'plan';
 
 /** The query the print view reads its plan language from. */
-export function planSearch(language: string): string {
+export function planSearch(language: PlanLanguage): string {
   return `?${new URLSearchParams({ [PLAN_QUERY_PARAMETER]: language }).toString()}`;
 }
 
 /** The plan language a print address names, or null when it names none the picker lists. */
-export function planLanguageFromSearch(search: string): string | null {
+export function planLanguageFromSearch(search: string): PlanLanguage | null {
   const code = new URLSearchParams(search).get(PLAN_QUERY_PARAMETER);
-  return code !== null && (LANGUAGE_CODES as readonly string[]).includes(code) ? code : null;
+  return isLanguageCode(code) ? code : null;
 }
 
 export async function fetchActionPlan(
   scanId: string,
-  language: string,
+  language: PlanLanguage,
 ): Promise<ActionPlanState | null> {
   const value = await apiRequest<unknown>(
     `/scans/${encodeURIComponent(scanId)}/action-plan?language=${encodeURIComponent(language)}`,
@@ -311,7 +323,7 @@ export async function fetchActionPlan(
 }
 
 /** Starts a generation; the click is the consent, under the notice the button shows. */
-export async function requestActionPlan(scanId: string, language: string): Promise<void> {
+export async function requestActionPlan(scanId: string, language: PlanLanguage): Promise<void> {
   await apiRequest<unknown>(`/scans/${encodeURIComponent(scanId)}/action-plan`, {
     method: 'POST',
     body: JSON.stringify({ language, noticeVersion: ACTION_PLAN_NOTICE_VERSION }),

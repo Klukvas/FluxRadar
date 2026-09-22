@@ -46,6 +46,12 @@ export const LANGUAGE_CODES = [
   'ja',
   'ko',
 ] as const;
+export type LanguageCode = (typeof LANGUAGE_CODES)[number];
+
+/** Whether a code is one the picker lists — for a code read from a URL or an answer. */
+export function isLanguageCode(code: unknown): code is LanguageCode {
+  return (LANGUAGE_CODES as readonly unknown[]).includes(code);
+}
 
 function languageName(code: string, locale: string): string {
   return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code;

@@ -7,6 +7,7 @@
 // same as the API's own 404: the dashboard is not available here.
 
 import { ApiRequestError, apiRequest } from './api';
+import { isCount } from './module-metadata';
 
 /** The screen's URL. The API route has the same path under the API origin. */
 export const ADMIN_STATS_PATH = '/admin/stats';
@@ -90,10 +91,6 @@ type Shape = Readonly<Record<string, unknown>>;
 
 function isShape(value: unknown): value is Shape {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isCount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
 function isAmount(value: unknown): value is number {

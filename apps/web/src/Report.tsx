@@ -6,7 +6,7 @@
 
 import { Fragment, useCallback, useEffect, useState, type MouseEvent } from 'react';
 
-import { planLanguageOptions } from './action-plan';
+import { planLanguageOptions, type PlanLanguage } from './action-plan';
 import { apiRequest, type Dashboard, type ExportPayload, type Scan, type ScanModule } from './api';
 import {
   Button,
@@ -40,7 +40,7 @@ export function ResultsScreen(props: {
   /** Starts a paid scan of the same site, from a Free or Basic report. */
   onUpgrade?: (scan: Scan) => void;
   /** Opens the printable client report, with the Action Plan in the language shown. */
-  onPrint?: (scan: Scan, planLanguage: string) => void;
+  onPrint?: (scan: Scan, planLanguage: PlanLanguage) => void;
   /** The site profile's target languages, listed first in the Action Plan's picker. */
   profileTargetLanguages?: string | null;
   /** Retries the one unfinished section of a Partial scan. */
@@ -64,7 +64,7 @@ export function ResultsScreen(props: {
     readonly module: string;
   } | null>(null);
   // The Action Plan's language starts as the reader's and stays theirs to change.
-  const [planLanguage, setPlanLanguage] = useState<string>(props.language);
+  const [planLanguage, setPlanLanguage] = useState<PlanLanguage>(props.language);
   const scanId = props.scan?.id ?? null;
   const { onScan, onError, onRetry } = props;
   const load = useCallback(async (): Promise<void> => {

@@ -2,6 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PrintReport } from './PrintReport';
+import type { PlanLanguage } from './action-plan';
 import type { Dashboard, Scan } from './api';
 
 // The client report with its AI Action Plan (D-232): the plan follows the scan
@@ -92,7 +93,7 @@ function mockApi(actionPlan: () => Response) {
   return fetchMock;
 }
 
-function renderPrint(planLanguage: string) {
+function renderPrint(planLanguage: PlanLanguage) {
   render(
     <PrintReport
       scanId="scan-print"

@@ -2,9 +2,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ResultsScreen } from './Report';
-import { PLAN_POLL_INTERVAL_MS, type ActionPlanState } from './action-plan';
+import { PLAN_POLL_INTERVAL_MS, type ActionPlanState, type PlanLanguage } from './action-plan';
 import type { Dashboard, IssueSummary, Scan } from './api';
 import type { Language } from './i18n';
+import { isLanguageCode } from './target-languages';
 
 // The AI Action Plan on a report (D-232): every state the block can be in, the
 // "Fix these first" block it replaces only when a plan is ready in the chosen
@@ -95,7 +96,7 @@ const PLAN = {
   caveats: [{ module: 'Performance', status: 'Partial' }],
 };
 
-const RUN = { language: 'en', startedAt: '2026-09-21T12:00:00Z' };
+const RUN = { language: 'en', startedAt: '2026-09-21T12:00:00Z' } as const;
 
 function stateOf(overrides: Partial<ActionPlanState> = {}): ActionPlanState {
   return {
@@ -125,9 +126,9 @@ function envelope(data: unknown, status = 200, code: string | null = null): Resp
 interface MockOptions {
   readonly plan?: Scan['plan'];
   /** The Action Plan state per requested language; a function may change over time. */
-  readonly states?: (language: string) => ActionPlanState;
+  readonly states?: (language: PlanLanguage) => ActionPlanState;
   /** The whole answer to a GET, for a failure or one that arrives late; wins over `states`. */
-  readonly planResponse?: (language: string) => Response | Promise<Response>;
+  readonly planResponse?: (language: PlanLanguage) => Response | Promise<Response>;
   readonly post?: () => Response | Promise<Response>;
 }
 
@@ -142,7 +143,10 @@ function mockApi(options: MockOptions = {}) {
       return Promise.resolve(options.post?.() ?? envelope({ scanId: scan.id }, 202));
     }
     if (url.pathname.endsWith('/action-plan')) {
-      const language = url.searchParams.get('language') ?? '';
+      const language = url.searchParams.get('language');
+      if (!isLanguageCode(language)) {
+        throw new Error(`the report asked for an unlisted plan language: ${String(language)}`);
+      }
       if (options.planResponse !== undefined) {
         return Promise.resolve(options.planResponse(language));
       }

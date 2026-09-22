@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { actionKey, fetchActionPlan, type PlanWithOverlay } from './action-plan';
+import { actionKey, fetchActionPlan, type PlanLanguage, type PlanWithOverlay } from './action-plan';
 import { actionPlanCopy } from './action-plan-copy';
 import {
   ApiRequestError,
@@ -64,7 +64,7 @@ async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: 
  */
 async function loadPrintedPlan(
   scanId: string,
-  planLanguage: string,
+  planLanguage: PlanLanguage,
 ): Promise<PlanWithOverlay | null> {
   try {
     return (await fetchActionPlan(scanId, planLanguage))?.plan ?? null;
@@ -76,7 +76,7 @@ async function loadPrintedPlan(
   }
 }
 
-async function loadPrintData(scanId: string, planLanguage: string): Promise<PrintData> {
+async function loadPrintData(scanId: string, planLanguage: PlanLanguage): Promise<PrintData> {
   const [dashboard, summary, findings, actionPlan] = await Promise.all([
     apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`),
     apiRequest<IssueSummary>(`/scans/${encodeURIComponent(scanId)}/issues/summary`).catch(
@@ -109,7 +109,7 @@ export function PrintReport(props: {
   scanId: string;
   language: Language;
   /** The Action Plan language the report showed; `?plan=` in the address. */
-  planLanguage: string;
+  planLanguage: PlanLanguage;
   onBack: () => void;
   onError: (value: string) => void;
 }) {
