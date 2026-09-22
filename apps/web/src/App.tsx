@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import {
   AlertDialog,
@@ -12,10 +12,8 @@ import {
 import { apiRequest, type Account } from './api';
 import { AccountScreen } from './AccountScreen';
 import { AdminStatsScreen } from './AdminStats';
-import { appActions } from './app-actions';
-import { useBackAndForward, useNavigate, useOpenScanById } from './app-navigation';
-import { loadProfiles, useConfirmEmailSignedIn, useSessionBoot } from './app-session';
-import { useAppState } from './app-state';
+import { useAppModel, type AppModelProps } from './app-model';
+import { loadProfiles } from './app-session';
 import { accountCopy } from './account-copy';
 import { AuthScreen } from './AuthScreen';
 import { CheckoutPending } from './Checkout';
@@ -25,8 +23,6 @@ import { NewScanScreen } from './NewScanScreen';
 import { HomeScreen } from './HomeScreen';
 import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
 import { OnboardingTour } from './OnboardingTour';
-import { usePageMetadata } from './page-metadata';
-import { usePendingCheckout } from './pending-checkout';
 import { FaqScreen } from './Faq';
 import { AuditCoverageScreen } from './Checks';
 import { BotScreen } from './Bot';
@@ -69,20 +65,13 @@ export function App() {
   );
 }
 
-function AppContent({
-  language,
-  changeLanguage,
-  onAccountChange,
-}: {
-  language: Language;
-  changeLanguage: (language: Language) => void;
-  onAccountChange: (account: Account | null) => void;
-}) {
-  const state = useAppState();
+function AppContent(props: AppModelProps) {
+  const app = useAppModel(props);
   const {
+    language,
+    changeLanguage,
     entryRoute,
     screen,
-    setScreen,
     emailAction,
     setEmailAction,
     authMode,
@@ -90,11 +79,9 @@ function AppContent({
     intent,
     setIntent,
     account,
-    setAccount,
     profiles,
     setProfiles,
     booting,
-    setBooting,
     tourOpen,
     setTourOpen,
     verifyBannerHidden,
@@ -115,45 +102,11 @@ function AppContent({
     notice,
     setNotice,
     clearNotice,
-  } = state;
-  const confirmEmailSignedIn = useConfirmEmailSignedIn(language, {
-    setAccount,
-    setEmailAction,
-    setError,
-    setNotice,
-    setScreen,
-  });
-
-  useEffect(() => {
-    onAccountChange(account);
-  }, [account, onAccountChange]);
-
-  usePageMetadata(screen, language, selectedScan?.id ?? null);
-
-  const openScanById = useOpenScanById({ setError, setScreen, setSelectedScan });
-
-  useSessionBoot({
-    entryRoute,
-    setAccount,
-    setBooting,
-    setProfiles,
-    setScreen,
-    setSelectedScan,
-    setTourOpen,
+    pendingCheckout,
+    startCheckout,
+    endCheckout,
+    navigate,
     openScanById,
-    confirmEmailSignedIn,
-  });
-
-  const { pendingCheckout, startCheckout, endCheckout } = usePendingCheckout({
-    account,
-    setScreen,
-  });
-
-  const navigate = useNavigate({ setScreen, setTourOpen });
-
-  useBackAndForward({ account, selectedScan, setScreen }, openScanById);
-
-  const {
     followIntent,
     onAuthed,
     retryScan,
@@ -163,7 +116,7 @@ function AppContent({
     skipOnboarding,
     onScanCreated,
     openReport,
-  } = appActions({ ...state, language, navigate, openScanById });
+  } = app;
 
   if (screen === 'styleguide') {
     return (
