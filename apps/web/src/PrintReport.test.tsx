@@ -92,23 +92,28 @@ function mockApi(actionPlan: () => Response) {
   return fetchMock;
 }
 
+function renderPrint(planLanguage: string) {
+  render(
+    <PrintReport
+      scanId="scan-print"
+      language="en"
+      planLanguage={planLanguage}
+      onBack={() => {}}
+      onError={() => {}}
+    />,
+  );
+}
+
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe('the printable client report', () => {
   it('prints the Action Plan in the report’s language after the summary, labelled as AI-written', async () => {
     const fetchMock = mockApi(() => envelope(PLAN_STATE));
-    render(
-      <PrintReport
-        scanId="scan-print"
-        language="en"
-        planLanguage="de"
-        onBack={() => {}}
-        onError={() => {}}
-      />,
-    );
+    renderPrint('de');
 
     const overview = await screen.findByText(PLAN_STATE.plan.overview);
     const heading = screen.getByRole('heading', { name: /Action Plan/ });
@@ -132,19 +137,27 @@ describe('the printable client report', () => {
     ).toBe(true);
   });
 
-  it('prints without the section when there is no plan to read', async () => {
+  it('prints without the section when the scan has no plan to read', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mockApi(() => envelope(null, 403));
-    render(
-      <PrintReport
-        scanId="scan-print"
-        language="en"
-        planLanguage="en"
-        onBack={() => {}}
-        onError={() => {}}
-      />,
-    );
+    renderPrint('en');
 
     expect(await screen.findByRole('heading', { name: 'Sections' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /Action Plan/ })).not.toBeInTheDocument();
+    // A Basic scan answers 403 by design: nothing went wrong.
+    expect(errors).not.toHaveBeenCalled();
+  });
+
+  it('prints without the section when the plan cannot be read, and logs why', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockApi(() => envelope(null, 500));
+    renderPrint('en');
+
+    expect(await screen.findByRole('heading', { name: 'Sections' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Action Plan/ })).not.toBeInTheDocument();
+    expect(errors).toHaveBeenCalledWith(
+      'FluxRadar action plan could not be printed',
+      expect.any(Error),
+    );
   });
 });

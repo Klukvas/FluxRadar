@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 
 import { ActionPlan, LockedActionPlan, useActionPlan } from './ActionPlan';
-import { planLanguageOptions } from './action-plan';
+import { planIn, type PlanLanguageChoice } from './action-plan';
 import { apiRequest, canRetrySection, type IssueSummary, type Scan, type ScanChanges } from './api';
 import { Button, StatusChip } from './components';
 import { egressLocationLabel } from './egress-location';
@@ -258,10 +258,7 @@ export function ReportNextSteps(props: {
   scan: Scan;
   language: Language;
   /** The Action Plan language the report shows; the print view follows it. */
-  planLanguage: string;
-  onPlanLanguage: (code: string) => void;
-  /** The site profile's target languages, listed first in the plan's picker. */
-  profileTargetLanguages?: string | null;
+  planLanguage: PlanLanguageChoice;
   onOpenProblem: (ruleId: string) => void;
   onAllProblems: () => void;
   onUpgrade: () => void;
@@ -270,8 +267,8 @@ export function ReportNextSteps(props: {
 }) {
   const summary = useIssueSummary(props.scan.id);
   const complete = props.scan.plan === 'Complete';
-  const actionPlan = useActionPlan(complete ? props.scan.id : null, props.planLanguage);
-  const readyPlan = actionPlan.state?.plan ?? null;
+  const actionPlan = useActionPlan(complete ? props.scan.id : null, props.planLanguage.value);
+  const readyPlan = planIn(actionPlan.state, props.planLanguage.value);
   return (
     <>
       {props.onRetry !== undefined && canRetrySection(props.scan) ? (
@@ -291,8 +288,6 @@ export function ReportNextSteps(props: {
           language={props.language}
           handle={actionPlan}
           planLanguage={props.planLanguage}
-          planLanguageOptions={planLanguageOptions(props.language, props.profileTargetLanguages)}
-          onPlanLanguage={props.onPlanLanguage}
           onOpenProblem={props.onOpenProblem}
         />
       ) : null}

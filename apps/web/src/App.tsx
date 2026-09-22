@@ -59,7 +59,7 @@ import { BotScreen } from './Bot';
 import { SiteReachabilityPanel } from './SiteReachability';
 import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
 import { PrintReport } from './PrintReport';
-import { listedPlanLanguage } from './action-plan';
+import { planLanguageFromSearch, planSearch } from './action-plan';
 import { IntegrationsScreen } from './Integrations';
 import { IssuesScreen } from './Issues';
 import { ResultsScreen } from './Report';
@@ -953,10 +953,7 @@ function AppContent({
           <PrintReport
             scanId={printScanId}
             language={language}
-            planLanguage={
-              listedPlanLanguage(new URLSearchParams(window.location.search).get('plan')) ??
-              language
-            }
+            planLanguage={planLanguageFromSearch(window.location.search) ?? language}
             onBack={() => navigate('results', printScanId)}
             onError={setError}
           />
@@ -1168,9 +1165,7 @@ function AppContent({
               setNewScanPlan('Complete');
               navigate('new-scan');
             }}
-            onPrint={(scan, planLanguage) =>
-              navigate('print', scan.id, `?plan=${encodeURIComponent(planLanguage)}`)
-            }
+            onPrint={(scan, planLanguage) => navigate('print', scan.id, planSearch(planLanguage))}
             profileTargetLanguages={
               profiles.find((profile) => profile.id === selectedScan?.profileId)?.targetLanguages
             }

@@ -3,8 +3,9 @@
 //
 // Beside `findings-copy.ts` rather than inside it, as that file is: the plan is
 // read together with the findings but has a vocabulary of its own — an Action
-// is "settled", never "fixed", because within one scan its count only moves
-// when the owner ignores issues or marks them false positives (D-232).
+// is "settled", never "fixed", because its count moves only when the owner
+// ignores issues or marks them false positives, or a later scan no longer finds
+// them: nothing says the site was changed (D-232).
 
 import type { Language } from './i18n';
 import type { PlanEffort } from './action-plan';
@@ -22,7 +23,10 @@ export type ActionPlanCopy = {
   readonly consent: string;
   readonly running: (language: string) => string;
   readonly failed: string;
+  /** Claude declined the request: another attempt may well be declined too. */
+  readonly refused: string;
   readonly nothingToPlan: string;
+  /** The date is the Plan Window's end, or the purchase's when that came first. */
   readonly windowClosed: (date: string) => string;
   readonly windowClosedUndated: string;
   readonly limitReached: string;
@@ -72,9 +76,10 @@ export const actionPlanCopy: Record<Language, ActionPlanCopy> = {
     running: (language) =>
       `Writing the plan in ${language}… This usually takes a minute or two. You can leave this page and come back.`,
     failed: 'The last attempt did not produce a plan.',
+    refused:
+      'Claude declined to write a plan from this report, so none was made. Another attempt may be declined as well.',
     nothingToPlan: 'Nothing in this report is left open to plan.',
-    windowClosed: (date) =>
-      `A plan can be written within 3 days after a scan finishes; for this report that ended on ${date}.`,
+    windowClosed: (date) => `A plan could be written for this report until ${date}.`,
     windowClosedUndated: 'A plan can no longer be written for this report.',
     limitReached: 'This report has used all of its Action Plans.',
     otherLanguage: (language) => `There is a plan for this report in ${language}.`,
@@ -88,7 +93,7 @@ export const actionPlanCopy: Record<Language, ActionPlanCopy> = {
       `→ ${open === total ? total : `${open} of ${total}`} ${total === 1 ? 'issue' : 'issues'}`,
     settled: 'Settled',
     settledNote:
-      'No issue of this Action is open any more: each was ignored, marked a false positive or resolved.',
+      'No issue of this Action is open any more: each was ignored, marked a false positive or no longer found by a later scan.',
     reach: (percent, rules) =>
       `The plan addresses ${percent}% of this report’s open issues, across ${rules} ${rules === 1 ? 'rule' : 'rules'}.`,
     reachAllSettled: (rules) =>
@@ -128,9 +133,10 @@ export const actionPlanCopy: Record<Language, ActionPlanCopy> = {
     running: (language) =>
       `Складаємо план мовою «${language}»… Зазвичай це хвилина-дві. Можна піти з цієї сторінки й повернутися.`,
     failed: 'Остання спроба не дала плану.',
+    refused:
+      'Claude відмовився складати план за цим звітом, тож його не створено. Наступну спробу теж може бути відхилено.',
     nothingToPlan: 'У цьому звіті не лишилося відкритих проблем, які можна спланувати.',
-    windowClosed: (date) =>
-      `План можна скласти впродовж 3 днів після завершення перевірки; для цього звіту цей строк сплив ${date}.`,
+    windowClosed: (date) => `План для цього звіту можна було скласти до ${date}.`,
     windowClosedUndated: 'Для цього звіту план уже не можна скласти.',
     limitReached: 'Цей звіт використав усі свої плани дій.',
     otherLanguage: (language) => `Для цього звіту є план мовою «${language}».`,
@@ -144,7 +150,7 @@ export const actionPlanCopy: Record<Language, ActionPlanCopy> = {
       `→ ${open === total ? `знахідок: ${total}` : `відкрито ${open} з ${total} знахідок`}`,
     settled: 'Закрито',
     settledNote:
-      'Жодна знахідка цієї дії більше не відкрита: кожну проігноровано, позначено хибною або виправлено.',
+      'Жодна знахідка цієї дії більше не відкрита: кожну проігноровано, позначено хибною або наступна перевірка її вже не знайшла.',
     reach: (percent, rules) =>
       `План охоплює ${percent}% відкритих проблем цього звіту (правил: ${rules}).`,
     reachAllSettled: (rules) => `Усі знахідки правил цього плану (${rules}) закрито.`,

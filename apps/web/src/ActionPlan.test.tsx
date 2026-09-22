@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ResultsScreen } from './Report';
-import type { ActionPlanState } from './action-plan';
+import { PLAN_POLL_INTERVAL_MS, type ActionPlanState } from './action-plan';
 import type { Dashboard, IssueSummary, Scan } from './api';
 import type { Language } from './i18n';
 
@@ -95,6 +95,8 @@ const PLAN = {
   caveats: [{ module: 'Performance', status: 'Partial' }],
 };
 
+const RUN = { language: 'en', startedAt: '2026-09-21T12:00:00Z' };
+
 function stateOf(overrides: Partial<ActionPlanState> = {}): ActionPlanState {
   return {
     language: 'en',
@@ -124,7 +126,9 @@ interface MockOptions {
   readonly plan?: Scan['plan'];
   /** The Action Plan state per requested language; a function may change over time. */
   readonly states?: (language: string) => ActionPlanState;
-  readonly post?: () => Response;
+  /** The whole answer to a GET, for a failure or one that arrives late; wins over `states`. */
+  readonly planResponse?: (language: string) => Response | Promise<Response>;
+  readonly post?: () => Response | Promise<Response>;
 }
 
 function mockApi(options: MockOptions = {}) {
@@ -139,6 +143,9 @@ function mockApi(options: MockOptions = {}) {
     }
     if (url.pathname.endsWith('/action-plan')) {
       const language = url.searchParams.get('language') ?? '';
+      if (options.planResponse !== undefined) {
+        return Promise.resolve(options.planResponse(language));
+      }
       return Promise.resolve(envelope((options.states ?? (() => stateOf()))(language)));
     }
     return Promise.resolve(envelope(null));
@@ -183,8 +190,24 @@ function actionPlanRequests(fetchMock: ReturnType<typeof vi.fn>): string[] {
     .filter((url) => url.includes('/action-plan'));
 }
 
+/** A response the test hands over when it chooses. */
+function deferredResponse() {
+  let resolve: (response: Response) => void = () => undefined;
+  const promise = new Promise<Response>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+/** Moves the report's clock past one poll interval, letting the answers in. */
+async function nextPoll(): Promise<void> {
+  await act(() => vi.advanceTimersByTimeAsync(PLAN_POLL_INTERVAL_MS));
+}
+
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -309,22 +332,128 @@ describe('the Action Plan on a Complete report', () => {
     expect(actionPlanRequests(fetchMock).some((url) => url.includes('language=uk'))).toBe(true);
   });
 
-  it('shows a run in flight and the plan once the poll finds it', async () => {
+  it('shows a run in flight, asks again once each answer is in, and stops at the plan', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     let polls = 0;
-    const { scan } = mockApi({
+    const { scan, fetchMock } = mockApi({
       states: () => {
         polls += 1;
-        return polls < 2
-          ? stateOf({ run: { language: 'de', startedAt: '2026-09-21T12:00:00Z' } })
+        return polls < 3
+          ? stateOf({ run: { language: 'de', startedAt: RUN.startedAt } })
           : stateOf({ languages: ['en'], plan: PLAN as ActionPlanState['plan'] });
       },
     });
     await openReport(scan);
 
-    expect(await screen.findByRole('status', { name: '' })).toHaveTextContent(
-      /Writing the plan in German/,
+    expect(await screen.findByText(/Writing the plan in German/)).toBeInTheDocument();
+    await nextPoll();
+    await waitFor(() => expect(actionPlanRequests(fetchMock)).toHaveLength(2));
+    await nextPoll();
+
+    expect(await screen.findByText(PLAN.overview)).toBeInTheDocument();
+    await nextPoll();
+    await nextPoll();
+    expect(actionPlanRequests(fetchMock)).toHaveLength(3);
+  });
+
+  it('asks again while the scan is not ready, and offers the plan once it is', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let ready = false;
+    const { scan, fetchMock } = mockApi({
+      states: () => stateOf({ availability: ready ? 'available' : 'not_ready' }),
+    });
+    await openReport(scan);
+    await waitFor(() => expect(actionPlanRequests(fetchMock)).toHaveLength(1));
+    expect(screen.queryByRole('region', { name: 'Action Plan' })).not.toBeInTheDocument();
+
+    ready = true;
+    await nextPoll();
+
+    expect(
+      await within(await screen.findByRole('region', { name: 'Action Plan' })).findByRole(
+        'button',
+        { name: 'Write the Action Plan' },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('stops asking once a request fails', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let polls = 0;
+    const { scan, fetchMock } = mockApi({
+      planResponse: () => {
+        polls += 1;
+        return polls === 1 ? envelope(stateOf({ run: RUN })) : envelope(null, 403, 'FORBIDDEN');
+      },
+    });
+    await openReport(scan);
+    expect(await screen.findByText(/Writing the plan in English/)).toBeInTheDocument();
+
+    await nextPoll();
+    await waitFor(() => expect(errors).toHaveBeenCalled());
+    await nextPoll();
+    await nextPoll();
+
+    expect(actionPlanRequests(fetchMock)).toHaveLength(2);
+    expect(errors).toHaveBeenCalledWith('FluxRadar action plan unavailable', expect.any(Error));
+  });
+
+  it('keeps the picker, and its focus, through a language switch', async () => {
+    const { scan, fetchMock } = mockApi({ states: (language) => stateOf({ language }) });
+    await openReport(scan);
+    const block = await screen.findByRole('region', { name: 'Action Plan' });
+    const picker = await within(block).findByLabelText('Plan language');
+    picker.focus();
+
+    fireEvent.change(picker, { target: { value: 'uk' } });
+    await waitFor(() =>
+      expect(actionPlanRequests(fetchMock).some((url) => url.includes('language=uk'))).toBe(true),
     );
-    expect(await screen.findByText(PLAN.overview, {}, { timeout: 5_000 })).toBeInTheDocument();
+
+    expect(screen.getByRole('region', { name: 'Action Plan' })).toBe(block);
+    expect(within(block).getByLabelText('Plan language')).toBe(picker);
+    expect(picker).toHaveFocus();
+    expect(picker).toHaveValue('uk');
+  });
+
+  it('asks about the language shown after a click, not the one clicked in', async () => {
+    const post = deferredResponse();
+    let started = false;
+    const { scan, fetchMock } = mockApi({
+      states: (language) => stateOf({ language, run: started ? RUN : null }),
+      post: () => post.promise,
+    });
+    await openReport(scan);
+    const block = await screen.findByRole('region', { name: 'Action Plan' });
+    fireEvent.click(await within(block).findByRole('button', { name: 'Write the Action Plan' }));
+
+    fireEvent.change(within(block).getByLabelText('Plan language'), { target: { value: 'uk' } });
+    await waitFor(() =>
+      expect(actionPlanRequests(fetchMock).some((url) => url.includes('language=uk'))).toBe(true),
+    );
+    started = true;
+    post.resolve(envelope({ scanId: scan.id }, 202));
+
+    expect(await within(block).findByText(/Writing the plan in English/)).toBeInTheDocument();
+    const requests = actionPlanRequests(fetchMock).filter((url) => !url.endsWith('/action-plan'));
+    expect(requests.at(-1)).toContain('language=uk');
+  });
+
+  it('says so when Claude declined to write the plan', async () => {
+    const { scan } = mockApi({
+      states: () =>
+        stateOf({
+          lastFailure: { code: 'refused', language: 'en', at: '2026-09-21T12:00:00Z' },
+          remaining: { successes: 3, attempts: 5 },
+        }),
+    });
+    await openReport(scan);
+
+    const block = await screen.findByRole('region', { name: 'Action Plan' });
+    expect(within(block).getByRole('note')).toHaveTextContent(
+      'Claude declined to write a plan from this report, so none was made.',
+    );
   });
 
   it('offers another try after a failed attempt', async () => {
@@ -362,7 +491,7 @@ describe('the Action Plan on a Complete report', () => {
     [
       'the Plan Window closed',
       stateOf({ availability: 'window_closed' }),
-      /within 3 days after a scan finishes/,
+      'A plan could be written for this report until 24 September 2026.',
     ],
     ['nothing left to plan', stateOf({ availability: 'nothing_to_plan' }), /left open to plan/],
     [
@@ -461,5 +590,7 @@ describe('the Action Plan on other plans', () => {
       within(block).getByRole('button', { name: 'Скласти заново (лишилося 3)' }),
     ).toBeInTheDocument();
     expect(within(block).getByLabelText('Мова плану')).toHaveValue('uk');
+    // Ukrainian for "fixed" is not a word the plan uses either.
+    expect(block).not.toHaveTextContent(/виправ/i);
   });
 });

@@ -8,11 +8,24 @@
 
 import { ACTION_PLAN_NOTICE_VERSION } from './action-plan-notice';
 import { apiRequest } from './api';
+import { asRecord } from './module-metadata';
 import { LANGUAGE_CODES, targetLanguageCodes } from './target-languages';
 
-/** How often the report asks again while a plan is being written. */
+/** How long the report waits after one answer before asking again. */
 export const PLAN_POLL_INTERVAL_MS = 3000;
+/**
+ * Answers in a row that may say "not ready" before the report stops asking —
+ * about two minutes. A finished scan's last step (Google data) takes seconds;
+ * a scan whose job never finishes must not be asked about for as long as the
+ * page stays open.
+ */
+export const PLAN_NOT_READY_POLL_LIMIT = 40;
 
+/**
+ * The API declares both lists again (apps/api/src/action-plan/policy.ts and
+ * @fluxradar/ai), and its web-contract test fails when they drift: an answer
+ * with a value missing here reads as no answer, and the block disappears.
+ */
 export const PLAN_AVAILABILITIES = [
   'available',
   'not_ready',
@@ -25,6 +38,9 @@ export type PlanAvailability = (typeof PLAN_AVAILABILITIES)[number];
 export const PLAN_EFFORTS = ['small', 'medium', 'large'] as const;
 export type PlanEffort = (typeof PLAN_EFFORTS)[number];
 
+/** The failure the report explains on its own: Claude declined to write the plan. */
+export const PLAN_REFUSED_FAILURE = 'refused';
+
 export interface PlanRule {
   readonly ruleId: string;
   readonly openIssues: number;
@@ -34,6 +50,7 @@ export interface PlanRule {
 export interface PlanAction {
   readonly title: string;
   readonly why: string;
+  /** Distinct: a repeated step is dropped, so each step's text is its key. */
   readonly steps: readonly string[];
   readonly effort: PlanEffort;
   readonly rules: readonly PlanRule[];
@@ -48,7 +65,8 @@ export interface PlanCaveat {
   readonly status: string;
 }
 
-export interface ActionPlanContent {
+/** A stored plan under its live counts, as the API returns it. */
+export interface PlanWithOverlay {
   readonly language: string;
   readonly generatedAt: string;
   readonly modelId: string;
@@ -59,6 +77,7 @@ export interface ActionPlanContent {
 }
 
 export interface ActionPlanState {
+  /** The language asked for; everything but `plan` is the same in every language. */
   readonly language: string;
   readonly availability: PlanAvailability;
   readonly languages: readonly string[];
@@ -70,15 +89,14 @@ export interface ActionPlanState {
   } | null;
   readonly remaining: { readonly successes: number; readonly attempts: number };
   readonly windowEndsAt: string | null;
-  readonly plan: ActionPlanContent | null;
+  readonly plan: PlanWithOverlay | null;
 }
 
-type Fields = Readonly<Record<string, unknown>>;
-
-function record(value: unknown): Fields | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Fields)
-    : null;
+/** The plan language a report shows, the languages it offers, and how to change it. */
+export interface PlanLanguageChoice {
+  readonly value: string;
+  readonly options: readonly string[];
+  readonly onChange: (code: string) => void;
 }
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -89,8 +107,15 @@ function strings(value: unknown): readonly string[] | null {
   return Array.isArray(value) && value.every(isString) ? value : null;
 }
 
+/** Every entry read, or null when any of them is not the expected shape. */
+function readAll<T>(value: unknown, read: (entry: unknown) => T | null): readonly T[] | null {
+  if (!Array.isArray(value)) return null;
+  const entries = value.map(read);
+  return entries.every((entry): entry is T => entry !== null) ? entries : null;
+}
+
 function readRule(value: unknown): PlanRule | null {
-  const fields = record(value);
+  const fields = asRecord(value);
   if (fields === null) return null;
   const { ruleId, openIssues, totalIssues } = fields;
   return isString(ruleId) && isCount(openIssues) && isCount(totalIssues)
@@ -99,10 +124,10 @@ function readRule(value: unknown): PlanRule | null {
 }
 
 function readAction(value: unknown): PlanAction | null {
-  const fields = record(value);
+  const fields = asRecord(value);
   if (fields === null) return null;
   const steps = strings(fields.steps);
-  const rules = Array.isArray(fields.rules) ? fields.rules.map(readRule) : null;
+  const rules = readAll(fields.rules, readRule);
   const effort = PLAN_EFFORTS.find((known) => known === fields.effort);
   if (
     !isString(fields.title) ||
@@ -110,7 +135,6 @@ function readAction(value: unknown): PlanAction | null {
     steps === null ||
     effort === undefined ||
     rules === null ||
-    rules.some((rule) => rule === null) ||
     !isCount(fields.openIssues) ||
     !isCount(fields.totalIssues) ||
     typeof fields.settled !== 'boolean'
@@ -120,9 +144,9 @@ function readAction(value: unknown): PlanAction | null {
   return {
     title: fields.title,
     why: fields.why,
-    steps,
+    steps: [...new Set(steps)],
     effort,
-    rules: rules as PlanRule[],
+    rules,
     openIssues: fields.openIssues,
     totalIssues: fields.totalIssues,
     settled: fields.settled,
@@ -130,27 +154,25 @@ function readAction(value: unknown): PlanAction | null {
 }
 
 function readCaveat(value: unknown): PlanCaveat | null {
-  const fields = record(value);
+  const fields = asRecord(value);
   return fields !== null && isString(fields.module) && isString(fields.status)
     ? { module: fields.module, status: fields.status }
     : null;
 }
 
-function readPlan(value: unknown): ActionPlanContent | null {
-  const fields = record(value);
-  const reach = record(fields?.reach);
+function readPlan(value: unknown): PlanWithOverlay | null {
+  const fields = asRecord(value);
+  const reach = asRecord(fields?.reach);
   if (fields === null || reach === null) return null;
-  const actions = Array.isArray(fields.actions) ? fields.actions.map(readAction) : null;
-  const caveats = Array.isArray(fields.caveats) ? fields.caveats.map(readCaveat) : null;
+  const actions = readAll(fields.actions, readAction);
+  const caveats = readAll(fields.caveats, readCaveat);
   if (
     !isString(fields.language) ||
     !isString(fields.generatedAt) ||
     !isString(fields.modelId) ||
     !isString(fields.overview) ||
     actions === null ||
-    actions.some((action) => action === null) ||
     caveats === null ||
-    caveats.some((caveat) => caveat === null) ||
     !isCount(reach.addressed) ||
     !isCount(reach.open) ||
     !isCount(reach.rules)
@@ -162,15 +184,15 @@ function readPlan(value: unknown): ActionPlanContent | null {
     generatedAt: fields.generatedAt,
     modelId: fields.modelId,
     overview: fields.overview,
-    actions: actions as PlanAction[],
+    actions,
     reach: { addressed: reach.addressed, open: reach.open, rules: reach.rules },
-    caveats: caveats as PlanCaveat[],
+    caveats,
   };
 }
 
 function readRun(value: unknown): ActionPlanState['run'] | undefined {
   if (value === null) return null;
-  const fields = record(value);
+  const fields = asRecord(value);
   return fields !== null && isString(fields.language) && isString(fields.startedAt)
     ? { language: fields.language, startedAt: fields.startedAt }
     : undefined;
@@ -178,7 +200,7 @@ function readRun(value: unknown): ActionPlanState['run'] | undefined {
 
 function readFailure(value: unknown): ActionPlanState['lastFailure'] | undefined {
   if (value === null) return null;
-  const fields = record(value);
+  const fields = asRecord(value);
   return fields !== null &&
     isString(fields.code) &&
     isString(fields.language) &&
@@ -189,14 +211,15 @@ function readFailure(value: unknown): ActionPlanState['lastFailure'] | undefined
 
 /** The API's answer, or null when it is not an Action Plan state at all. */
 export function readActionPlanState(value: unknown): ActionPlanState | null {
-  const fields = record(value);
-  const remaining = record(fields?.remaining);
+  const fields = asRecord(value);
+  const remaining = asRecord(fields?.remaining);
   if (fields === null || remaining === null) return null;
   const availability = PLAN_AVAILABILITIES.find((known) => known === fields.availability);
   const languages = strings(fields.languages);
   const run = readRun(fields.run);
   const lastFailure = readFailure(fields.lastFailure);
   const plan = fields.plan === null ? null : readPlan(fields.plan);
+  const windowEndsAt = fields.windowEndsAt;
   if (
     !isString(fields.language) ||
     availability === undefined ||
@@ -205,7 +228,7 @@ export function readActionPlanState(value: unknown): ActionPlanState | null {
     lastFailure === undefined ||
     !isCount(remaining.successes) ||
     !isCount(remaining.attempts) ||
-    !(fields.windowEndsAt === null || isString(fields.windowEndsAt)) ||
+    !(windowEndsAt === null || isString(windowEndsAt)) ||
     (fields.plan !== null && plan === null)
   ) {
     return null;
@@ -217,7 +240,7 @@ export function readActionPlanState(value: unknown): ActionPlanState | null {
     run,
     lastFailure,
     remaining: { successes: remaining.successes, attempts: remaining.attempts },
-    windowEndsAt: fields.windowEndsAt as string | null,
+    windowEndsAt,
     plan,
   };
 }
@@ -225,6 +248,29 @@ export function readActionPlanState(value: unknown): ActionPlanState | null {
 /** Plans still to be had: each costs a success and an attempt. */
 export function plansLeft(state: ActionPlanState): number {
   return Math.min(state.remaining.successes, state.remaining.attempts);
+}
+
+/**
+ * Whether the report should ask again: a plan is being written, or the scan
+ * is finished but its last step (Google data) is not, so a plan may be asked
+ * for in a moment. `notReadyStreak` counts the answers in a row that said so.
+ */
+export function shouldPoll(state: ActionPlanState, notReadyStreak: number): boolean {
+  if (state.run !== null) return true;
+  return state.availability === 'not_ready' && notReadyStreak < PLAN_NOT_READY_POLL_LIMIT;
+}
+
+/** The plan `state` holds for `language`; null while the answer is another language's. */
+export function planIn(state: ActionPlanState | null, language: string): PlanWithOverlay | null {
+  return state !== null && state.language === language ? state.plan : null;
+}
+
+/**
+ * A key of an Action's own: a rule belongs to one Action only (the API keeps
+ * it in the first that names it), so its rules name it.
+ */
+export function actionKey(action: PlanAction): string {
+  return action.rules.map((rule) => rule.ruleId).join(' ');
 }
 
 /**
@@ -241,8 +287,16 @@ export function planLanguageOptions(
   );
 }
 
-/** A language code the picker lists, or null — for a code read from a URL. */
-export function listedPlanLanguage(code: string | null): string | null {
+const PLAN_QUERY_PARAMETER = 'plan';
+
+/** The query the print view reads its plan language from. */
+export function planSearch(language: string): string {
+  return `?${new URLSearchParams({ [PLAN_QUERY_PARAMETER]: language }).toString()}`;
+}
+
+/** The plan language a print address names, or null when it names none the picker lists. */
+export function planLanguageFromSearch(search: string): string | null {
+  const code = new URLSearchParams(search).get(PLAN_QUERY_PARAMETER);
   return code !== null && (LANGUAGE_CODES as readonly string[]).includes(code) ? code : null;
 }
 

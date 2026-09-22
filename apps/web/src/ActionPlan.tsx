@@ -1,75 +1,111 @@
-// The AI Action Plan on a report (D-232).
+// The AI Action Plan block on a report (D-232).
 //
 // On a Complete report the owner picks a language and asks Claude for a short,
 // ordered list of changes; the API writes it in the background and this block
 // polls until it is there, across a reload too. A ready plan in the chosen
-// language takes the place of "Fix these first" (see ReportNextSteps). Its
-// text is a snapshot, its counts are live, and an Action whose issues are all
-// settled folds away — it is never called "fixed", because within one scan
-// only the owner's Ignored and False Positive move it.
+// language takes the place of "Fix these first" (see ReportNextSteps), and
+// ActionPlanBody draws it.
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
+import { ActionPlanBody } from './ActionPlanBody';
 import {
   PLAN_POLL_INTERVAL_MS,
+  PLAN_REFUSED_FAILURE,
   fetchActionPlan,
+  planIn,
   plansLeft,
   requestActionPlan,
-  type ActionPlanContent,
+  shouldPoll,
   type ActionPlanState,
-  type PlanAction,
+  type PlanLanguageChoice,
 } from './action-plan';
 import { actionPlanCopy, type ActionPlanCopy } from './action-plan-copy';
 import { ApiRequestError } from './api';
-import { Button, SelectField, StatusChip } from './components';
+import { Button, SelectField } from './components';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
-import { moduleLabel, ruleTitle } from './rule-titles';
 import { languageCodeLabel } from './target-languages';
 
 export interface ActionPlanHandle {
-  /** Null while loading, and whenever the answer is not an Action Plan state. */
+  /**
+   * The latest answer: null while loading, and whenever the answer is not an
+   * Action Plan state. Right after a language switch it is still the previous
+   * language's; `planIn` reads the plan of the language shown.
+   */
   readonly state: ActionPlanState | null;
+  /** Asks again about the scan and the language shown when it is called. */
   readonly refresh: () => Promise<void>;
 }
 
-/** Reads the plan state of one scan in one language, polling while a run is in flight. */
+interface PlanAnswers {
+  readonly state: ActionPlanState | null;
+  /** Answers in a row that said "not ready yet"; see PLAN_NOT_READY_POLL_LIMIT. */
+  readonly notReadyStreak: number;
+  /** The last request failed: nothing is asked again until something else asks. */
+  readonly failed: boolean;
+}
+
+const NO_ANSWERS: PlanAnswers = { state: null, notReadyStreak: 0, failed: false };
+
+function withAnswer(previous: PlanAnswers, next: ActionPlanState | null): PlanAnswers {
+  return {
+    state: next,
+    notReadyStreak: next?.availability === 'not_ready' ? previous.notReadyStreak + 1 : 0,
+    failed: false,
+  };
+}
+
+/**
+ * Reads the plan state of one scan in one language, and asks again while a
+ * plan is being written or the scan is about to be ready for one. One request
+ * at a time: the next poll is scheduled only once the previous answer is in,
+ * and a failed request (a refund, a lost session) stops the polling.
+ */
 export function useActionPlan(scanId: string | null, language: string): ActionPlanHandle {
-  const [state, setState] = useState<ActionPlanState | null>(null);
-  // Answers can overtake each other (a poll and a language switch); only the
-  // latest request may set the state.
-  const latest = useRef(0);
+  const [answers, setAnswers] = useState<PlanAnswers>(NO_ANSWERS);
+  // What the report shows now. Every request asks about it — a click that
+  // started before a language switch refreshes the new language — and an
+  // answer that arrives after the reader moved on is dropped.
+  const shown = useRef({ scanId, language });
   const refresh = useCallback(async (): Promise<void> => {
-    if (scanId === null) return;
-    latest.current += 1;
-    const request = latest.current;
+    const asked = shown.current;
+    if (asked.scanId === null) return;
+    const isStillShown = () => shown.current === asked;
     try {
-      const next = await fetchActionPlan(scanId, language);
-      if (request === latest.current) setState(next);
+      const next = await fetchActionPlan(asked.scanId, asked.language);
+      if (isStillShown()) setAnswers((previous) => withAnswer(previous, next));
     } catch (caught) {
       // The report reads without this block; the findings are all still there.
       console.error('FluxRadar action plan unavailable', caught);
+      if (isStillShown()) setAnswers((previous) => ({ ...previous, failed: true }));
     }
-  }, [scanId, language]);
+  }, []);
   useEffect(() => {
-    setState(null);
+    shown.current = { scanId, language };
     void refresh();
-    return () => {
-      latest.current += 1;
-    };
-  }, [refresh]);
-  const running = state?.run != null;
+  }, [scanId, language, refresh]);
+  // Another scan starts from nothing. Another language keeps the block, and
+  // the picker with its focus, until its own answer arrives.
   useEffect(() => {
-    if (!running) return undefined;
-    const timer = setInterval(() => void refresh(), PLAN_POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [running, refresh]);
-  return { state, refresh };
+    setAnswers(NO_ANSWERS);
+  }, [scanId]);
+  useEffect(() => {
+    const { state, notReadyStreak, failed } = answers;
+    if (failed || state === null || !shouldPoll(state, notReadyStreak)) return undefined;
+    const timer = setTimeout(() => void refresh(), PLAN_POLL_INTERVAL_MS);
+    return () => clearTimeout(timer);
+  }, [answers, refresh]);
+  return { state: answers.state, refresh };
 }
 
-function errorMessage(caught: unknown, copy: ActionPlanCopy): string {
-  const code = caught instanceof ApiRequestError ? caught.code : null;
-  switch (code) {
+/** What the owner is told when the API would not start a plan. */
+function startFailureMessage(caught: unknown, copy: ActionPlanCopy): string {
+  if (!(caught instanceof ApiRequestError)) {
+    console.error('FluxRadar action plan could not be started', caught);
+    return copy.errors.generic;
+  }
+  switch (caught.code) {
     case 'ACTION_PLAN_BUSY':
     case 'ACTION_PLAN_AI_UNAVAILABLE':
       return copy.errors.busy;
@@ -82,157 +118,101 @@ function errorMessage(caught: unknown, copy: ActionPlanCopy): string {
     case 'RATE_LIMITED':
       return copy.errors.rateLimited;
     default:
+      // The refreshed state says why (the window closed, nothing left to plan).
       return copy.errors.generic;
   }
 }
 
+interface Generation {
+  readonly working: boolean;
+  readonly failure: string | null;
+  readonly start: () => Promise<void>;
+  readonly clearFailure: () => void;
+}
+
+/** A click on Generate: the POST, then the state read again whatever it answered. */
+function useGeneration(
+  scanId: string,
+  planLanguage: string,
+  handle: ActionPlanHandle,
+  copy: ActionPlanCopy,
+): Generation {
+  const [working, setWorking] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const start = async (): Promise<void> => {
+    setWorking(true);
+    setFailure(null);
+    try {
+      await requestActionPlan(scanId, planLanguage);
+    } catch (caught) {
+      setFailure(startFailureMessage(caught, copy));
+    } finally {
+      setWorking(false);
+      await handle.refresh();
+    }
+  };
+  return { working, failure, start, clearFailure: () => setFailure(null) };
+}
+
 /** The last attempt, in the language shown, failed and left no plan to show instead. */
 function failedIn(state: ActionPlanState, planLanguage: string): boolean {
-  return state.run === null && state.plan === null && state.lastFailure?.language === planLanguage;
-}
-
-function reachPercent(plan: ActionPlanContent): number {
-  return plan.reach.open === 0 ? 100 : Math.round((plan.reach.addressed / plan.reach.open) * 100);
-}
-
-function ActionDetails(props: {
-  action: PlanAction;
-  language: Language;
-  onOpenProblem: (ruleId: string) => void;
-}) {
-  const c = actionPlanCopy[props.language];
   return (
-    <>
-      <p className="action-plan__why">{props.action.why}</p>
-      <ol className="action-plan__steps">
-        {props.action.steps.map((step, index) => (
-          <li key={index}>{step}</li>
-        ))}
-      </ol>
-      <ul className="action-plan__rules">
-        {props.action.rules.map((rule) => {
-          const title = ruleTitle(rule.ruleId, props.language);
-          return (
-            <li key={rule.ruleId}>
-              <span>{title}</span>
-              <Button
-                onClick={() => props.onOpenProblem(rule.ruleId)}
-                aria-label={`${title}: ${c.ruleLink(rule.openIssues, rule.totalIssues)}`}
-              >
-                {c.ruleLink(rule.openIssues, rule.totalIssues)}
-              </Button>
-            </li>
-          );
-        })}
-      </ul>
-    </>
+    state.run === null &&
+    planIn(state, planLanguage) === null &&
+    state.lastFailure?.language === planLanguage
   );
 }
 
-/** The plan itself: caveats, the Overview, the Actions with live counts, and Reach. */
-export function ActionPlanView(props: {
-  plan: ActionPlanContent;
-  language: Language;
-  onOpenProblem: (ruleId: string) => void;
-}) {
-  const c = actionPlanCopy[props.language];
-  const { plan } = props;
-  return (
-    <div className="action-plan__plan">
-      <p className="action-plan__meta">
-        <span className="action-plan__ai-label">{c.aiLabel}</span>{' '}
-        <span className="muted">{c.generatedAt(formatDate(plan.generatedAt, props.language))}</span>
-      </p>
-      {plan.caveats.map((caveat) => (
-        <p key={caveat.module} className="action-plan__caveat" role="note">
-          {c.caveat(moduleLabel(caveat.module, props.language), caveat.status)}
-        </p>
-      ))}
-      <h4>{c.overviewHeading}</h4>
-      <p className="action-plan__overview">{plan.overview}</p>
-      <h4>{c.actionsHeading}</h4>
-      <ol className="action-plan__actions">
-        {plan.actions.map((action, index) => (
-          <li
-            key={index}
-            className={`action-plan__action${action.settled ? ' action-plan__action--settled' : ''}`}
-          >
-            {action.settled ? (
-              <details>
-                <summary>
-                  <span className="action-plan__title">{action.title}</span>{' '}
-                  <StatusChip status="Settled" label={c.settled} />
-                </summary>
-                <p className="muted">{c.settledNote}</p>
-                <ActionDetails
-                  action={action}
-                  language={props.language}
-                  onOpenProblem={props.onOpenProblem}
-                />
-              </details>
-            ) : (
-              <>
-                <div className="action-plan__action-head">
-                  <span className="action-plan__title">{action.title}</span>
-                  <span className="muted action-plan__facts">
-                    {c.effort[action.effort]} · {c.counts(action.openIssues, action.totalIssues)}
-                  </span>
-                </div>
-                <ActionDetails
-                  action={action}
-                  language={props.language}
-                  onOpenProblem={props.onOpenProblem}
-                />
-              </>
-            )}
-          </li>
-        ))}
-      </ol>
-      <p className="action-plan__reach">
-        {plan.reach.open === 0
-          ? c.reachAllSettled(plan.reach.rules)
-          : c.reach(reachPercent(plan), plan.reach.rules)}
-      </p>
-    </div>
-  );
+/** Why nothing can be asked for right now, when that is the case. */
+function unavailableNotice(
+  state: ActionPlanState,
+  language: Language,
+  copy: ActionPlanCopy,
+): string | null {
+  if (state.run !== null) return null;
+  switch (state.availability) {
+    case 'window_closed':
+      return state.windowEndsAt === null
+        ? copy.windowClosedUndated
+        : copy.windowClosed(formatDate(state.windowEndsAt, language));
+    case 'limit_reached':
+      return copy.limitReached;
+    default:
+      return null;
+  }
 }
 
 /** What the block says above the plan: a run in flight, a failure, or why nothing can be asked. */
 function PlanNotices(props: {
   state: ActionPlanState;
-  planLanguage: string;
+  planLanguage: PlanLanguageChoice;
   language: Language;
-  onPlanLanguage: (code: string) => void;
 }) {
   const c = actionPlanCopy[props.language];
   const { state } = props;
+  const shown = props.planLanguage.value;
   const label = (code: string) => languageCodeLabel(code, props.language);
-  const otherLanguages = state.plan === null ? state.languages : [];
+  const planShown = planIn(state, shown) !== null;
+  const otherLanguages = planShown ? [] : state.languages.filter((code) => code !== shown);
+  const unavailable = unavailableNotice(state, props.language, c);
   return (
     <>
-      {state.run !== null ? (
+      {state.run === null ? null : (
         <p className="action-plan__running" role="status">
           {c.running(label(state.run.language))}
         </p>
+      )}
+      {failedIn(state, shown) ? (
+        <p role="note">{state.lastFailure?.code === PLAN_REFUSED_FAILURE ? c.refused : c.failed}</p>
       ) : null}
-      {failedIn(state, props.planLanguage) ? <p role="note">{c.failed}</p> : null}
-      {state.plan === null && state.availability === 'nothing_to_plan' ? (
+      {!planShown && state.availability === 'nothing_to_plan' ? (
         <p className="muted">{c.nothingToPlan}</p>
       ) : null}
-      {state.run === null && state.availability === 'window_closed' ? (
-        <p className="muted">
-          {state.windowEndsAt === null
-            ? c.windowClosedUndated
-            : c.windowClosed(formatDate(state.windowEndsAt, props.language))}
-        </p>
-      ) : null}
-      {state.run === null && state.availability === 'limit_reached' ? (
-        <p className="muted">{c.limitReached}</p>
-      ) : null}
+      {unavailable === null ? null : <p className="muted">{unavailable}</p>}
       {otherLanguages.map((code) => (
         <p key={code} className="action-plan__other">
           {c.otherLanguage(label(code))}{' '}
-          <Button onClick={() => props.onPlanLanguage(code)}>
+          <Button onClick={() => props.planLanguage.onChange(code)}>
             {c.openOtherLanguage(label(code))}
           </Button>
         </p>
@@ -241,98 +221,96 @@ function PlanNotices(props: {
   );
 }
 
+/** The language picker and, when a plan can be asked for, the button with its consent line. */
+function PlanControls(props: {
+  state: ActionPlanState;
+  hasPlan: boolean;
+  canGenerate: boolean;
+  language: Language;
+  planLanguage: PlanLanguageChoice;
+  generation: Generation;
+}) {
+  const c = actionPlanCopy[props.language];
+  const consentId = useId();
+  const { state, planLanguage, generation } = props;
+  // Switching languages means something only when a plan can be asked for or
+  // one exists in another language.
+  if (!props.canGenerate && state.languages.length === 0) return null;
+  const left = plansLeft(state);
+  const idleLabel = props.hasPlan
+    ? c.regenerate(left)
+    : failedIn(state, planLanguage.value)
+      ? c.retry(left)
+      : c.generate;
+  return (
+    <div className="action-plan__controls">
+      <SelectField
+        label={c.languageLabel}
+        value={planLanguage.value}
+        onChange={(code) => {
+          generation.clearFailure();
+          planLanguage.onChange(code);
+        }}
+        options={planLanguage.options.map((code) => ({
+          value: code,
+          label: languageCodeLabel(code, props.language),
+        }))}
+      />
+      {props.canGenerate ? (
+        <div className="action-plan__generate">
+          <Button
+            variant={props.hasPlan ? 'default' : 'primary'}
+            disabled={generation.working}
+            onClick={() => void generation.start()}
+            aria-describedby={consentId}
+          >
+            {generation.working ? c.working : idleLabel}
+          </Button>
+          <p className="muted action-plan__consent" id={consentId}>
+            {c.consent}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** The block on a Complete report. Draws nothing while the state is unknown. */
 export function ActionPlan(props: {
   scanId: string;
   language: Language;
   handle: ActionPlanHandle;
-  planLanguage: string;
-  planLanguageOptions: readonly string[];
-  onPlanLanguage: (code: string) => void;
+  planLanguage: PlanLanguageChoice;
   onOpenProblem: (ruleId: string) => void;
 }) {
   const c = actionPlanCopy[props.language];
-  const consentId = useId();
-  const [working, setWorking] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-  const { state, refresh } = props.handle;
+  const shown = props.planLanguage.value;
+  const generation = useGeneration(props.scanId, shown, props.handle, c);
+  const { state } = props.handle;
   if (state === null || state.availability === 'not_ready') return null;
+  const plan = planIn(state, shown);
   const canGenerate = state.availability === 'available' && state.run === null;
-  const failedHere = failedIn(state, props.planLanguage);
-  // Switching languages means something only when a plan can be asked for or
-  // one exists in another language.
-  const showPicker = canGenerate || state.languages.length > 0;
-  const buttonLabel =
-    state.plan !== null
-      ? c.regenerate(plansLeft(state))
-      : failedHere
-        ? c.retry(plansLeft(state))
-        : c.generate;
-  const generate = async (): Promise<void> => {
-    setWorking(true);
-    setFailure(null);
-    try {
-      await requestActionPlan(props.scanId, props.planLanguage);
-    } catch (caught) {
-      setFailure(errorMessage(caught, c));
-    } finally {
-      setWorking(false);
-      await refresh();
-    }
-  };
   return (
     <section className="report-block action-plan" aria-labelledby="action-plan-heading">
       <h3 id="action-plan-heading">{c.heading}</h3>
-      {state.plan === null && canGenerate && !failedHere ? <p>{c.lead}</p> : null}
-      <PlanNotices
-        state={state}
-        planLanguage={props.planLanguage}
-        language={props.language}
-        onPlanLanguage={props.onPlanLanguage}
-      />
-      {state.plan === null ? null : (
-        <ActionPlanView
-          plan={state.plan}
-          language={props.language}
-          onOpenProblem={props.onOpenProblem}
-        />
+      {plan === null && canGenerate && !failedIn(state, shown) ? <p>{c.lead}</p> : null}
+      <PlanNotices state={state} planLanguage={props.planLanguage} language={props.language} />
+      {plan === null ? null : (
+        <ActionPlanBody plan={plan} language={props.language} onOpenProblem={props.onOpenProblem} />
       )}
-      {failure === null ? null : (
+      {generation.failure === null ? null : (
         <p className="action-plan__error" role="alert">
-          {failure}
+          {generation.failure}
         </p>
       )}
-      {showPicker ? (
-        <div className="action-plan__controls">
-          <SelectField
-            label={c.languageLabel}
-            value={props.planLanguage}
-            onChange={(code) => {
-              setFailure(null);
-              props.onPlanLanguage(code);
-            }}
-            options={props.planLanguageOptions.map((code) => ({
-              value: code,
-              label: languageCodeLabel(code, props.language),
-            }))}
-          />
-          {canGenerate ? (
-            <div className="action-plan__generate">
-              <Button
-                variant={state.plan === null ? 'primary' : 'default'}
-                disabled={working}
-                onClick={() => void generate()}
-                aria-describedby={consentId}
-              >
-                {working ? c.working : buttonLabel}
-              </Button>
-              <p className="muted action-plan__consent" id={consentId}>
-                {c.consent}
-              </p>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      <PlanControls
+        state={state}
+        hasPlan={plan !== null}
+        canGenerate={canGenerate}
+        language={props.language}
+        planLanguage={props.planLanguage}
+        generation={generation}
+      />
     </section>
   );
 }

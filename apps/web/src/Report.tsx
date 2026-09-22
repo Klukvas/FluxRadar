@@ -6,6 +6,7 @@
 
 import { Fragment, useCallback, useEffect, useState, type MouseEvent } from 'react';
 
+import { planLanguageOptions } from './action-plan';
 import { apiRequest, type Dashboard, type ExportPayload, type Scan, type ScanModule } from './api';
 import {
   Button,
@@ -207,9 +208,11 @@ export function ResultsScreen(props: {
         <ReportNextSteps
           scan={scan}
           language={props.language}
-          planLanguage={planLanguage}
-          onPlanLanguage={setPlanLanguage}
-          profileTargetLanguages={props.profileTargetLanguages}
+          planLanguage={{
+            value: planLanguage,
+            options: planLanguageOptions(props.language, props.profileTargetLanguages),
+            onChange: setPlanLanguage,
+          }}
           onOpenProblem={props.onOpenProblem ?? (() => props.onIssues())}
           onAllProblems={props.onIssues}
           onUpgrade={() => props.onUpgrade?.(scan)}

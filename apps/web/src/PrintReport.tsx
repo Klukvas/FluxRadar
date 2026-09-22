@@ -9,9 +9,10 @@
 
 import { useEffect, useState } from 'react';
 
-import { fetchActionPlan, type ActionPlanContent } from './action-plan';
+import { actionKey, fetchActionPlan, type PlanWithOverlay } from './action-plan';
 import { actionPlanCopy } from './action-plan-copy';
 import {
+  ApiRequestError,
   apiRequest,
   apiRequestWithMeta,
   type Dashboard,
@@ -39,7 +40,7 @@ interface PrintData {
   readonly issues: readonly Issue[];
   readonly totalIssues: number;
   /** The Action Plan in the language the report showed; null when there is none. */
-  readonly actionPlan: ActionPlanContent | null;
+  readonly actionPlan: PlanWithOverlay | null;
 }
 
 async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: number }> {
@@ -56,6 +57,25 @@ async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: 
   return { issues: collected, total };
 }
 
+/**
+ * The plan in the language the report showed, or null. Only a Complete scan
+ * has one and anything else answers 403: the document then prints without the
+ * section. Any other failure prints without it too, and is logged.
+ */
+async function loadPrintedPlan(
+  scanId: string,
+  planLanguage: string,
+): Promise<PlanWithOverlay | null> {
+  try {
+    return (await fetchActionPlan(scanId, planLanguage))?.plan ?? null;
+  } catch (caught) {
+    if (!(caught instanceof ApiRequestError && caught.status === 403)) {
+      console.error('FluxRadar action plan could not be printed', caught);
+    }
+    return null;
+  }
+}
+
 async function loadPrintData(scanId: string, planLanguage: string): Promise<PrintData> {
   const [dashboard, summary, findings, actionPlan] = await Promise.all([
     apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`),
@@ -63,11 +83,7 @@ async function loadPrintData(scanId: string, planLanguage: string): Promise<Prin
       () => null,
     ),
     loadAllIssues(scanId),
-    // Only a Complete scan has a plan; anything else answers 403, and the
-    // document prints without the section rather than failing.
-    fetchActionPlan(scanId, planLanguage)
-      .then((state) => state?.plan ?? null)
-      .catch(() => null),
+    loadPrintedPlan(scanId, planLanguage),
   ]);
   return { dashboard, summary, issues: findings.issues, totalIssues: findings.total, actionPlan };
 }
@@ -311,7 +327,7 @@ function PrintProblem(props: {
 }
 
 /** The Action Plan after the summary: labelled as AI-written, with the counts as printed. */
-function PrintActionPlan(props: { plan: ActionPlanContent; language: Language }) {
+function PrintActionPlan(props: { plan: PlanWithOverlay; language: Language }) {
   const c = actionPlanCopy[props.language];
   const { plan } = props;
   return (
@@ -331,8 +347,8 @@ function PrintActionPlan(props: { plan: ActionPlanContent; language: Language })
       <p>{plan.overview}</p>
       <h3>{c.actionsHeading}</h3>
       <ol className="print-plan-actions">
-        {plan.actions.map((action, index) => (
-          <li key={index} className="print-plan-action">
+        {plan.actions.map((action) => (
+          <li key={actionKey(action)} className="print-plan-action">
             <strong>{action.title}</strong>
             <span className="muted">
               {' '}
@@ -341,8 +357,8 @@ function PrintActionPlan(props: { plan: ActionPlanContent; language: Language })
             </span>
             <p>{action.why}</p>
             <ol>
-              {action.steps.map((step, stepIndex) => (
-                <li key={stepIndex}>{step}</li>
+              {action.steps.map((step) => (
+                <li key={step}>{step}</li>
               ))}
             </ol>
             <p className="muted">
