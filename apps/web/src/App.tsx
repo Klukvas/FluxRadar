@@ -19,9 +19,9 @@ import {
   readInitialRoute,
   scanRoutePreference,
   seoPageForScreen,
-  type InitialRoute,
   type Screen,
 } from './app-routes';
+import { useAppState } from './app-state';
 import { accountCopy } from './account-copy';
 import { trackPageView } from './analytics';
 import { AuthScreen } from './AuthScreen';
@@ -43,7 +43,6 @@ import { OnboardingTour } from './OnboardingTour';
 import { FaqScreen } from './Faq';
 import { AuditCoverageScreen } from './Checks';
 import { BotScreen } from './Bot';
-import type { ChosenPlan } from './Pricing';
 import { PrintReport } from './PrintReport';
 import { planLanguageFromSearch, planSearch } from './action-plan';
 import { IntegrationsScreen } from './Integrations';
@@ -92,41 +91,47 @@ function AppContent({
   changeLanguage: (language: Language) => void;
   onAccountChange: (account: Account | null) => void;
 }) {
-  const [entryRoute] = useState<InitialRoute>(readInitialRoute);
-  const [screen, setScreen] = useState<Screen>(entryRoute.screen);
-  const [emailAction, setEmailAction] = useState(entryRoute.emailAction);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [account, setAccount] = useState<Account | null>(null);
-  const [profiles, setProfiles] = useState<SiteProfile[]>([]);
-  const [selectedProfile, setSelectedProfile] = useState<SiteProfile | null>(null);
-  // Which profile the reports list is scoped to; null lists the whole account.
-  const [reportsProfile, setReportsProfile] = useState<SiteProfile | null>(null);
-  const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [booting, setBooting] = useState(true);
-  const [tourOpen, setTourOpen] = useState(false);
+  const {
+    entryRoute,
+    screen,
+    setScreen,
+    emailAction,
+    setEmailAction,
+    authMode,
+    setAuthMode,
+    intent,
+    setIntent,
+    account,
+    setAccount,
+    profiles,
+    setProfiles,
+    booting,
+    setBooting,
+    tourOpen,
+    setTourOpen,
+    verifyBannerHidden,
+    setVerifyBannerHidden,
+    selectedProfile,
+    setSelectedProfile,
+    reportsProfile,
+    setReportsProfile,
+    selectedScan,
+    setSelectedScan,
+    updateSelectedScan,
+    issueRuleFilter,
+    setIssueRuleFilter,
+    newScanPlan,
+    setNewScanPlan,
+    error,
+    setError,
+    notice,
+    setNotice,
+    clearNotice,
+  } = useAppState();
   // Held here, not inside the new-scan screen: the buyer pays in another tab and
   // may reload or navigate away before the provider webhook lands, and the
   // "confirming payment" window has to survive that from any screen.
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(null);
-  // A confirmation for what just worked — "Password changed", "Status saved" —
-  // pinned where the owner is looking, like the error alert.
-  const [notice, setNotice] = useState<string | null>(null);
-  const clearNotice = useCallback(() => setNotice(null), []);
-  // The problem the Issue Center opens on, when "Fix these first" sent the owner there.
-  const [issueRuleFilter, setIssueRuleFilter] = useState<string | null>(null);
-  // The plan the scan form opens on: chosen on the pricing cards, or from a Free
-  // report's "Run Complete for this site".
-  const [newScanPlan, setNewScanPlan] = useState<'Free' | 'Basic' | 'Complete' | null>(null);
-  // What a visitor asked for before they had an account — the site typed on the
-  // home page, or a plan picked on its pricing cards. Kept in memory only:
-  // registration happens in a dialog over the same page, so nothing is stored.
-  const [intent, setIntent] = useState<{
-    readonly site: string | null;
-    readonly plan: ChosenPlan | null;
-  } | null>(null);
-  const [verifyBannerHidden, setVerifyBannerHidden] = useState(false);
-  const updateSelectedScan = useCallback((scan: Scan) => setSelectedScan(scan), []);
   // Read by the boot effect, which runs once and must not re-run on a language switch.
   const languageRef = useRef(language);
   useEffect(() => {
