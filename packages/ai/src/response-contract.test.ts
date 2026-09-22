@@ -93,10 +93,10 @@ describe('validateNormalizedResponse — провайдерский web search',
         usage: { inputTokens, outputTokens: 40, totalTokens: inputTokens + 40, searchUnits },
       });
 
-    // 8000 (prompt) + 2 * 8000 (search content) = 24 000.
-    expect(validateNormalizedResponse(searched(24_000, 2))).toEqual([]);
-    expect(validateNormalizedResponse(searched(24_001, 2))).toEqual([
-      'usage.inputTokens 24001 exceeds cap 24000',
+    // 8000 (prompt) + 2 * 16 000 (search content) = 40 000.
+    expect(validateNormalizedResponse(searched(40_000, 2))).toEqual([]);
+    expect(validateNormalizedResponse(searched(40_001, 2))).toEqual([
+      'usage.inputTokens 40001 exceeds cap 40000',
     ]);
     // Без поиска allowance-а нет — ответ держат прежние 8000.
     expect(validateNormalizedResponse(searched(8_001, 0))).toEqual([

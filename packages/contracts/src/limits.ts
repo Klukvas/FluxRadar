@@ -31,8 +31,11 @@ export const AI_REQUEST_CAPS = {
    * Search content is billed and reported as input, so a search-enabled answer
    * legitimately exceeds the prompt cap; the response contract allows
    * maxInputTokens + searchUnits * maxSearchContentTokens and nothing more.
+   * One Anthropic search measured 10-13k input tokens on 2026-09-22, so 8000
+   * left no margin and a slightly fuller result page would have discarded a
+   * valid answer as a contract violation; 16000 keeps that headroom.
    */
-  maxSearchContentTokens: 8000,
+  maxSearchContentTokens: 16000,
 } as const;
 
 // §16 data dictionary: evidence_excerpt is capped in Unicode characters, not bytes.

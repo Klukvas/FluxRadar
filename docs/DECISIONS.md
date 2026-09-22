@@ -1261,7 +1261,7 @@
   **Usage — правда провайдера.** Input-clamp в Anthropic-адаптере снят: контент
   поиска биллится как input, и clamp прятал бы бо́льшую часть расхода. Вместо
   него контракт §5 разрешает `maxInputTokens + searchUnits ×
-  maxSearchContentTokens` (8000 на поиск) и проверяет счётчики
+  maxSearchContentTokens` (16 000 на поиск: один поиск Anthropic приносит 10–13 тысяч входных токенов, замерено 2026-09-22) и проверяет счётчики
   `searchUnits`/`citationUnits`/`reasoningUnits` и длину `citations`. Output-cap
   (2000) не изменился: видимостные запросы отдают весь бюджет ответу, посылая
   `thinking: { type: 'disabled' }` Anthropic и `reasoning: { effort: 'low' }`
