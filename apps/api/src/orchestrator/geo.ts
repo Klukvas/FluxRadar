@@ -11,19 +11,40 @@ import type {
   AiConsent,
   AiProvider,
   AiProviderConfig,
+  AiProviderName,
   AiQuotaTracker,
   AiRequest,
   AiRequestOutcome,
   MockAiFixture,
 } from '@fluxradar/ai';
-import { AnthropicProvider, MockAiProvider, runAiRequest, UnavailableError } from '@fluxradar/ai';
+import {
+  AnthropicProvider,
+  mockRoutingProvider,
+  OpenAiProvider,
+  RoutingAiProvider,
+  runAiRequest,
+  UnavailableError,
+} from '@fluxradar/ai';
 
+import type { IntegrationConfig } from '../integrations/config.ts';
 import { readIntegrationConfig } from '../integrations/config.ts';
 
-export const GEO_PROMPT_VERSION = 'geo-questions-v4';
+/**
+ * Who is asked the visibility questions, in execution order (D-233). Every
+ * provider here answers every question, so the report can say what a
+ * ChatGPT-class and a Claude-class assistant each say about the site.
+ */
+export const GEO_VISIBILITY_PROVIDERS = [
+  'anthropic',
+  'openai',
+] as const satisfies readonly AiProviderName[];
+
+export const GEO_PROMPT_VERSION = 'geo-questions-v5';
 export const GEO_QUERY_GENERATOR_PROMPT_VERSION = 'geo-query-generation-v2';
 export const GEO_SYSTEM_INSTRUCTIONS =
-  'Answer factually. Cite sources when possible. State uncertainty and do not invent facts. ' +
+  'Search the web before answering, and cite the pages you rely on. ' +
+  'Answer factually in at most 200 words. Do not narrate your searches. ' +
+  'State what you could not verify and do not invent facts. ' +
   'An answer is an observation from this request, not proof of remembered or training knowledge.';
 
 export interface GeoProfileContext {
@@ -318,6 +339,7 @@ export function buildGeoRequests(
   scanId: string,
   brand: string,
   discoveryQuestions: readonly string[] = [],
+  providers: readonly AiProviderName[] = GEO_VISIBILITY_PROVIDERS,
 ): readonly AiRequest[] {
   // The domain is deliberately absent. These questions used to read "What is
   // <brand>, what does its official website https://<hostname> offer…", and
@@ -337,23 +359,35 @@ export function buildGeoRequests(
   ];
   const shared = {
     scanId,
-    provider: 'anthropic' as const,
     brandFacts: [],
     pageTitles: [],
     systemInstructions: GEO_SYSTEM_INSTRUCTIONS,
+    // A visibility question asks what an assistant says about this site today,
+    // which only a searching assistant can answer. Sonnet 5 thinks by default,
+    // and thinking shares the answer's token budget it does not need here.
+    webSearch: true as const,
+    reasoningMode: 'disabled' as const,
   };
-  return questions.map((question, index) => ({
-    ...shared,
-    sequence: index + 1,
-    question,
-    promptVersion: `${GEO_PROMPT_VERSION}-${index < 2 ? 'awareness' : 'discovery'}`,
-  }));
+  // Sequence restarts per provider: it is part of ai_request_key together with
+  // the provider (D-015), so the same question asked of two vendors stays two
+  // distinct requests for quota, idempotency and fingerprints.
+  return providers.flatMap((provider) =>
+    questions.map((question, index) => ({
+      ...shared,
+      provider,
+      sequence: index + 1,
+      question,
+      promptVersion: `${GEO_PROMPT_VERSION}-${index < 2 ? 'awareness' : 'discovery'}`,
+    })),
+  );
 }
 
 /**
  * Дефолтные фикстуры мока покрывают awareness-вопрос и оба варианта
  * контекстного вопроса; ответы упоминают бренд и ссылаются на сайт, чтобы
- * локальный Complete-flow проверял именно успешную видимость.
+ * локальный Complete-flow проверял именно успешную видимость. Вопросы
+ * видимости идут с web search, поэтому фикстуры заявляют и число поисков — так
+ * `search_units` доходит до экспорта в тестах, как дошёл бы в проде.
  */
 export function defaultGeoFixtures(brand: string, siteHostname: string): readonly MockAiFixture[] {
   return [
@@ -378,6 +412,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
           `${brand} is a strong option for small teams — ` +
           `see https://${siteHostname}/ for scan pricing and module coverage.`,
         citations: [`https://${siteHostname}/`],
+        web_search_calls: 2,
         usage: { input_tokens: 120, output_tokens: 42 },
       },
     },
@@ -388,6 +423,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
         output_text:
           `${brand} is a relevant option for this search intent. ` +
           `The official website is https://${siteHostname}/.`,
+        web_search_calls: 1,
         usage: { input_tokens: 96, output_tokens: 31 },
       },
     },
@@ -399,6 +435,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
           `${brand} could be relevant for this audience. ` +
           `See https://${siteHostname}/ for the official details.`,
         citations: [`https://${siteHostname}/`],
+        web_search_calls: 2,
         usage: { input_tokens: 104, output_tokens: 28 },
       },
     },
@@ -408,56 +445,76 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
         status: 'completed',
         output_text: `${brand} is one option: https://${siteHostname}/.`,
         citations: [`https://${siteHostname}/`],
+        web_search_calls: 3,
         usage: { input_tokens: 104, output_tokens: 28 },
       },
     },
   ];
 }
 
-export function createDefaultAiProvider(brand: string, siteHostname: string): AiProvider {
+/** How each provider is named to an operator reading a status reason. */
+const PROVIDER_DISPLAY_NAMES: Readonly<Record<AiProviderName, string>> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  google: 'Google',
+  perplexity: 'Perplexity',
+};
+
+function productionProvider(provider: AiProviderName, config: IntegrationConfig): AiProvider {
+  if (provider === 'anthropic') {
+    return config.anthropicApiKey === null
+      ? new UnconfiguredProvider(provider, config.anthropicModel, config.anthropicApiVersion)
+      : new AnthropicProvider({
+          apiKey: config.anthropicApiKey,
+          modelId: config.anthropicModel,
+          apiVersion: config.anthropicApiVersion,
+        });
+  }
+  if (provider === 'openai') {
+    return config.openAiApiKey === null
+      ? new UnconfiguredProvider(provider, config.openAiModel, 'v1')
+      : new OpenAiProvider({ apiKey: config.openAiApiKey, modelId: config.openAiModel });
+  }
+  // No adapter exists for the remaining registry names yet; fail closed rather
+  // than let a future GEO_VISIBILITY_PROVIDERS entry silently skip its questions.
+  return new UnconfiguredProvider(provider, 'unknown', 'unknown');
+}
+
+export function createDefaultAiProvider(brand: string, siteHostname: string): RoutingAiProvider {
   // Never spend money or send customer context during tests, even when a
   // developer has a real key in the local .env file.
   if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true') {
-    return new MockAiProvider(defaultGeoFixtures(brand, siteHostname), {
-      config: {
-        provider: 'anthropic',
-        apiVersion: process.env.ANTHROPIC_API_VERSION ?? '2023-06-01',
-        modelId: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5',
-        timeoutMs: 10_000,
-        maxRetries: 1,
+    const anthropicModel = process.env.ANTHROPIC_MODEL;
+    const openAiModel = process.env.OPENAI_MODEL;
+    return mockRoutingProvider(defaultGeoFixtures(brand, siteHostname), GEO_VISIBILITY_PROVIDERS, {
+      models: {
+        ...(anthropicModel === undefined ? {} : { anthropic: anthropicModel }),
+        ...(openAiModel === undefined ? {} : { openai: openAiModel }),
       },
     });
   }
   const config = readIntegrationConfig();
-  if (config.anthropicApiKey !== null) {
-    return new AnthropicProvider({
-      apiKey: config.anthropicApiKey,
-      modelId: config.anthropicModel,
-      apiVersion: config.anthropicApiVersion,
-    });
-  }
-  return new UnconfiguredAnthropicProvider(config.anthropicModel, config.anthropicApiVersion);
+  return new RoutingAiProvider(
+    GEO_VISIBILITY_PROVIDERS.map((provider) => productionProvider(provider, config)),
+  );
 }
 
 /**
  * Production must never turn a missing external key into a fake visibility
  * result. Keeping the refusal as an AiProvider lets the normal GEO pipeline
- * record `ProviderUnavailable`, release quota, and keep the scan itself alive.
+ * record `ProviderUnavailable`, release quota, and keep the scan itself alive —
+ * the module reports Partial and the score does not move.
  */
-class UnconfiguredAnthropicProvider implements AiProvider {
+class UnconfiguredProvider implements AiProvider {
   readonly config: AiProviderConfig;
+  private readonly reason: string;
 
-  constructor(modelId: string, apiVersion: string) {
-    this.config = {
-      provider: 'anthropic',
-      apiVersion,
-      modelId,
-      timeoutMs: 15_000,
-      maxRetries: 1,
-    };
+  constructor(provider: AiProviderName, modelId: string, apiVersion: string) {
+    this.config = { provider, apiVersion, modelId, timeoutMs: 15_000, maxRetries: 1 };
+    this.reason = `${PROVIDER_DISPLAY_NAMES[provider]} API key is not configured`;
   }
 
   async send(): Promise<never> {
-    throw new UnavailableError('Anthropic API key is not configured');
+    throw new UnavailableError(this.reason);
   }
 }

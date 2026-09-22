@@ -85,3 +85,41 @@ describe('validateNormalizedResponse — caps запроса', () => {
     ).toEqual(['usage.inputTokens 12000 exceeds cap 10000']);
   });
 });
+
+describe('validateNormalizedResponse — провайдерский web search', () => {
+  it('разрешает input сверх cap-а ровно на search content выполненных поисков', () => {
+    const searched = (inputTokens: number, searchUnits: number) =>
+      makeResponse({
+        usage: { inputTokens, outputTokens: 40, totalTokens: inputTokens + 40, searchUnits },
+      });
+
+    // 8000 (prompt) + 2 * 16 000 (search content) = 40 000.
+    expect(validateNormalizedResponse(searched(40_000, 2))).toEqual([]);
+    expect(validateNormalizedResponse(searched(40_001, 2))).toEqual([
+      'usage.inputTokens 40001 exceeds cap 40000',
+    ]);
+    // Без поиска allowance-а нет — ответ держат прежние 8000.
+    expect(validateNormalizedResponse(searched(8_001, 0))).toEqual([
+      'usage.inputTokens 8001 exceeds cap 8000',
+    ]);
+  });
+
+  it('отклоняет счётчики и число цитат сверх caps §5', () => {
+    const overSearched = makeResponse({
+      usage: { inputTokens: 100, outputTokens: 40, totalTokens: 140, searchUnits: 9 },
+    });
+    expect(validateNormalizedResponse(overSearched)).toContain('usage.searchUnits 9 exceeds cap 8');
+
+    const overCounted = makeResponse({
+      usage: { inputTokens: 100, outputTokens: 40, totalTokens: 140, citationUnits: 33 },
+    });
+    expect(validateNormalizedResponse(overCounted)).toContain(
+      'usage.citationUnits 33 exceeds cap 32',
+    );
+
+    const overCited = makeResponse({
+      citations: Array.from({ length: 33 }, (_unused, index) => `https://example.test/${index}`),
+    });
+    expect(validateNormalizedResponse(overCited)).toContain('citations 33 exceeds cap 32');
+  });
+});

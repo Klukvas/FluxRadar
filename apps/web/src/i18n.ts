@@ -586,11 +586,11 @@ export const copy = {
       robotsInfoBody:
         'Before crawling, FluxRadar reads the site’s public robots.txt. When “Respect robots.txt” is on, pages disallowed for crawlers are skipped. Turn it off only when you are authorized to inspect those paths; the confirmation below records that choice.',
       labelAiConsent:
-        'Anthropic processes site context and public-page evidence for the included AI checks',
+        'Anthropic and OpenAI process site context and public-page evidence for the included AI checks',
       aiConsentTitle: 'AI processing included in this audit',
       aiConsentOptional: 'Included',
       aiConsentBody:
-        'By starting this paid audit, you instruct FluxRadar to use Anthropic for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain. Separate awareness questions include the brand and domain; on Complete, UX review can include saved context and bounded public-page evidence. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
+        'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain. Both providers are then asked the same visibility questions — separate awareness questions include the brand and domain — and both answer with their own web search turned on, so each one searches the public web and cites the pages it used. On Complete, the UX review runs at Anthropic only and can include saved context and bounded public-page evidence. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
       aiConsentPrivacy: 'Privacy policy',
       aiConsentTerms: 'Terms of service',
       performanceInfoTitle: 'External performance measurement',
@@ -806,10 +806,15 @@ export const copy = {
         'No page of the site could be read, so nothing below describes your site. See the scan status for what the site answered.',
       siteCoverageNoAddresses: 'The crawl found no addresses to read.',
       geoObservationsLead:
-        'These are the model’s answers to this scan’s exact prompts. They show whether the answer mentioned your brand or official domain in this run; they do not prove what the model has memorized or will answer later.',
+        'These are each assistant’s answers to this scan’s exact prompts, produced with that provider’s own web search turned on; the citations are the pages it used. They show whether the answer mentioned your brand or official domain in this run; they do not prove what the model has memorized or will answer later.',
       geoAwarenessQuestion: 'Direct awareness question',
       geoDiscoveryQuestion: 'Domain discovery question',
       geoProvider: 'Provider/model',
+      geoProviderOpenai: 'ChatGPT · OpenAI',
+      geoProviderAnthropic: 'Claude · Anthropic',
+      geoProviderUnnamed: 'Provider not recorded',
+      geoGroupBrandCount: 'Brand mentioned in {count} of {total} answers',
+      geoGroupDomainCount: 'Official domain referenced in {count} of {total}',
       geoAnswerLabel: 'Model answer',
       geoMentionSignals: 'Mention signals',
       geoBrandMentioned: 'Brand mentioned',
@@ -1797,11 +1802,11 @@ export const copy = {
       robotsInfoBody:
         'Перед обходом FluxRadar читає публічний robots.txt сайту. Якщо «Дотримуватись robots.txt» увімкнено, сторінки, заборонені для сканерів, пропускаються. Вимикайте цю опцію лише якщо маєте право перевіряти такі шляхи: нижче потрібно буде окремо підтвердити відхилення правил.',
       labelAiConsent:
-        'Anthropic обробляє контекст сайту та публічні докази для включених AI-перевірок',
+        'Anthropic і OpenAI обробляють контекст сайту та публічні докази для включених AI-перевірок',
       aiConsentTitle: 'AI-обробка включена в цей аудит',
       aiConsentOptional: 'Включено',
       aiConsentBody:
-        'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену. Окремі awareness-запитання містять бренд і домен; у Complete UX-аналіз може включати збережений контекст та обмежені докази з публічних сторінок. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
+        'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) та OpenAI (ChatGPT) для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену. Далі обидва провайдери отримують ті самі запитання про видимість — окремі awareness-запитання містять бренд і домен — і обидва відповідають із увімкненим власним вебпошуком, тобто шукають у публічному вебі й цитують сторінки, якими скористалися. У Complete UX-аналіз виконує лише Anthropic і він може включати збережений контекст та обмежені докази з публічних сторінок. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
       aiConsentPrivacy: 'Політика приватності',
       aiConsentTerms: 'Умови користування',
       performanceInfoTitle: 'Зовнішнє вимірювання швидкодії',
@@ -2008,10 +2013,15 @@ export const copy = {
         'Жодної сторінки сайту прочитати не вдалося, тому ніщо нижче не описує ваш сайт. Що саме відповів сайт — дивіться у стані перевірки.',
       siteCoverageNoAddresses: 'Обхід не знайшов жодної адреси для читання.',
       geoObservationsLead:
-        'Це відповіді моделі на конкретні запити цієї перевірки. Вони показують, чи згадала відповідь ваш бренд або офіційний домен саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
+        'Це відповіді кожного асистента на конкретні запити цієї перевірки, отримані з увімкненим власним вебпошуком провайдера; посилання — це сторінки, якими він скористався. Вони показують, чи згадала відповідь ваш бренд або офіційний домен саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
       geoAwarenessQuestion: 'Пряме питання про впізнаваність',
       geoDiscoveryQuestion: 'Пошукове питання про послугу',
       geoProvider: 'Постачальник/модель',
+      geoProviderOpenai: 'ChatGPT · OpenAI',
+      geoProviderAnthropic: 'Claude · Anthropic',
+      geoProviderUnnamed: 'Постачальника не записано',
+      geoGroupBrandCount: 'Бренд згадано у {count} з {total} відповідей',
+      geoGroupDomainCount: 'Офіційний домен наведено у {count} з {total}',
       geoAnswerLabel: 'Відповідь моделі',
       geoMentionSignals: 'Ознаки згадки',
       geoBrandMentioned: 'Бренд згадано',

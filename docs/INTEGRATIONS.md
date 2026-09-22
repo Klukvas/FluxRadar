@@ -11,7 +11,8 @@ The current implementation includes the following integration surface:
 | Bing Webmaster Tools | User OAuth | OAuth connection, encrypted token storage and connection status. `webmaster.read` only. |
 | PageSpeed Insights | Platform API | The Complete Performance module always uses the public PageSpeed endpoint; an optional API key raises the platform quota. |
 | Chrome UX Report (CrUX) | Platform API | Optional CrUX API key; field Core Web Vitals are merged into the Performance snapshot. |
-| Anthropic | Platform API | Real Messages API adapter when `ANTHROPIC_API_KEY` is configured; tests use a deterministic mock, while a production deployment without the key fails closed. |
+| Anthropic | Platform API | Real Messages API adapter when `ANTHROPIC_API_KEY` is configured; the GEO visibility questions run with the provider's web search. Tests use a deterministic mock, while a production deployment without the key fails closed. |
+| OpenAI | Platform API | Real Responses API adapter when `OPENAI_API_KEY` is configured; answers the same GEO visibility questions with its own web search. Tests use a deterministic mock, while a production deployment without the key fails closed. |
 | Hetzner Object Storage | Platform S3 | Complete JSON/CSV exports are archived as private tenant-scoped objects when S3 configuration is present. |
 
 On a Complete scan the Analytics section reads the linked Search Console property and GA4
@@ -44,6 +45,8 @@ BING_OAUTH_CLIENT_SECRET=
 BING_OAUTH_REDIRECT_URI=https://fluxradar.net/api/integrations/bing/callback
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-sonnet-5
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.6-luna
 PAGESPEED_API_KEY=
 CRUX_API_KEY=
 CRAWL_EGRESS_PROXY_URL=
@@ -71,7 +74,9 @@ their values) — see *Optional, but never half configured* in `docs/DEPLOYMENT.
 `GOOGLE_OAUTH_REDIRECT_URI`/`BING_OAUTH_REDIRECT_URI` are **required in production** and must be
 the HTTPS callbacks shown above; only development falls back to
 `http://localhost:3310/integrations/<provider>/callback`. `ANTHROPIC_MODEL` is optional and
-defaults to `DEFAULT_ANTHROPIC_MODEL` in `apps/api/src/integrations/anthropic-config.ts`.
+defaults to `DEFAULT_ANTHROPIC_MODEL` in `apps/api/src/integrations/anthropic-config.ts`;
+`OPENAI_MODEL` is optional the same way and defaults to `DEFAULT_OPENAI_MODEL` in
+`apps/api/src/integrations/openai-config.ts`.
 The API logs one `integration configuration` line at startup listing which of these are
 configured, disabled or half-configured.
 

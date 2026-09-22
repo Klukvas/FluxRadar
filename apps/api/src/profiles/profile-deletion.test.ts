@@ -1,3 +1,4 @@
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import request from 'supertest';
 import type { Response } from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -90,8 +91,8 @@ describe('site profile deletion', () => {
       data: {
         accountId: profile.accountId,
         scanId: scan.id,
-        providersJson: JSON.stringify(['anthropic']),
-        noticeVersion: 'v1',
+        providersJson: JSON.stringify(['anthropic', 'openai']),
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
       },
     });
     await db.prisma.exportArtifact.create({

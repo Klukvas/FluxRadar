@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AnthropicProvider } from './anthropic-provider.js';
 import { UnavailableError } from './errors.js';
+import { validateNormalizedResponse } from './response-contract.js';
 import { makeRequest } from './testing/harness.js';
 
 describe('AnthropicProvider', () => {
@@ -164,7 +165,7 @@ describe('AnthropicProvider — per-request caps', () => {
     expect(response.finishReason).toBe('stop');
   });
 
-  it('truncates text and clamps usage at a request cap smaller than the shared one', async () => {
+  it('truncates text at a request cap smaller than the shared one and reports input as billed', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       messagesResponse({
         id: 'msg_small',
@@ -182,7 +183,7 @@ describe('AnthropicProvider — per-request caps', () => {
 
     expect(response.rawText).toBe('a'.repeat(20));
     expect(response.finishReason).toBe('length');
-    expect(response.usage).toEqual({ inputTokens: 100, outputTokens: 10, totalTokens: 110 });
+    expect(response.usage).toEqual({ inputTokens: 500, outputTokens: 10, totalTokens: 510 });
   });
 });
 
@@ -262,5 +263,170 @@ describe('AnthropicProvider — refusal fallback', () => {
     await expect(
       provider.send(makeRequest({ provider: 'anthropic' }), 'prompt'),
     ).rejects.toMatchObject({ name: 'UnavailableError', reason: 'Anthropic declined the request' });
+  });
+});
+
+describe('AnthropicProvider — web search', () => {
+  function searchedResponse(overrides: Record<string, unknown> = {}): Response {
+    return messagesResponse({
+      id: 'msg_search',
+      model: 'claude-sonnet-5',
+      stop_reason: 'end_turn',
+      content: [
+        { type: 'server_tool_use', id: 'srvtoolu_1', name: 'web_search' },
+        { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_1', content: [] },
+        {
+          type: 'text',
+          text: 'FluxRadar audits public signals.',
+          citations: [
+            {
+              type: 'web_search_result_location',
+              url: 'https://fluxradar.test/',
+              title: 'Home',
+              cited_text: 'FluxRadar audits',
+            },
+            {
+              type: 'web_search_result_location',
+              url: 'https://fluxradar.test/pricing',
+              title: 'Pricing',
+              cited_text: 'per scan',
+            },
+            {
+              type: 'web_search_result_location',
+              url: 'https://fluxradar.test/',
+              title: 'Home again',
+              cited_text: 'audits',
+            },
+          ],
+        },
+      ],
+      usage: {
+        input_tokens: 21_500,
+        output_tokens: 90,
+        server_tool_use: { web_search_requests: 3 },
+      },
+      ...overrides,
+    });
+  }
+
+  it('adds the basic web_search tool with the search cap only for a visibility request', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => searchedResponse());
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    await provider.send(makeRequest({ provider: 'anthropic', webSearch: true }), 'prompt');
+    await provider.send(makeRequest({ provider: 'anthropic' }), 'prompt');
+
+    const [searching, plain] = fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+    expect(searching).toMatchObject({
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
+    });
+    expect(plain).not.toHaveProperty('tools');
+  });
+
+  it('reports the cited pages once each and the provider search count', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(searchedResponse());
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    const response = await provider.send(
+      makeRequest({ provider: 'anthropic', webSearch: true }),
+      'prompt',
+    );
+
+    expect(response.citations).toEqual([
+      'https://fluxradar.test/',
+      'https://fluxradar.test/pricing',
+    ]);
+    // Search content is billed as input: reported as billed, above the 8,000
+    // prompt cap, and inside the contract's search allowance.
+    expect(response.usage).toEqual({
+      inputTokens: 21_500,
+      outputTokens: 90,
+      totalTokens: 21_590,
+      searchUnits: 3,
+    });
+    expect(validateNormalizedResponse(response)).toEqual([]);
+  });
+
+  it('keeps the answer when a search itself failed', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      messagesResponse({
+        id: 'msg_search_error',
+        model: 'claude-sonnet-5',
+        stop_reason: 'end_turn',
+        content: [
+          {
+            type: 'web_search_tool_result',
+            tool_use_id: 'srvtoolu_1',
+            content: { type: 'web_search_tool_result_error', error_code: 'max_uses_exceeded' },
+          },
+          { type: 'text', text: 'Answered from what I already had.' },
+        ],
+        usage: { input_tokens: 40, output_tokens: 9, server_tool_use: { web_search_requests: 8 } },
+      }),
+    );
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    const response = await provider.send(
+      makeRequest({ provider: 'anthropic', webSearch: true }),
+      'prompt',
+    );
+
+    expect(response.rawText).toBe('Answered from what I already had.');
+    expect(response.usage.searchUnits).toBe(8);
+    expect(response.finishReason).toBe('stop');
+  });
+
+  it('keeps the text of a paused search turn and reports it as a length finish', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(searchedResponse({ stop_reason: 'pause_turn' }));
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    const response = await provider.send(
+      makeRequest({ provider: 'anthropic', webSearch: true }),
+      'prompt',
+    );
+
+    expect(response.rawText).toBe('FluxRadar audits public signals.');
+    expect(response.finishReason).toBe('length');
+  });
+
+  it('concatenates the text blocks a searching turn splits at citation boundaries', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'msg_split',
+          model: 'claude-sonnet-5',
+          stop_reason: 'end_turn',
+          content: [
+            { type: 'text', text: 'Based on the search results, ' },
+            {
+              type: 'text',
+              text: 'Acme was founded in 2007',
+              citations: [
+                {
+                  type: 'web_search_result_location',
+                  url: 'https://acme.example/about',
+                  title: 'About Acme',
+                  cited_text: 'founded in 2007',
+                  encrypted_index: 'idx',
+                },
+              ],
+            },
+            { type: 'text', text: ' and sells to small teams.' },
+          ],
+          usage: { input_tokens: 40, output_tokens: 12 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    const response = await provider.send(makeRequest({ provider: 'anthropic' }), 'redacted prompt');
+
+    expect(response.rawText).toBe(
+      'Based on the search results, Acme was founded in 2007 and sells to small teams.',
+    );
+    expect(response.citations).toEqual(['https://acme.example/about']);
   });
 });

@@ -3,6 +3,7 @@ import { DEFAULT_ANTHROPIC_MODEL, readAnthropicConfig } from './anthropic-config
 import { readCrawlEgressConfig } from './crawl-egress-config.ts';
 import { readIntegrationEncryptionKey } from './encryption-key.ts';
 import { readObjectStorageConfig, type ObjectStorageConfig } from './object-storage-config.ts';
+import { DEFAULT_OPENAI_MODEL, readOpenAiConfig } from './openai-config.ts';
 import { readOAuthConfig, type OAuthProviderConfig } from './oauth-config.ts';
 import type { UserIntegrationProvider } from './providers.ts';
 
@@ -17,6 +18,8 @@ export interface IntegrationConfig {
   readonly anthropicApiKey: string | null;
   readonly anthropicModel: string;
   readonly anthropicApiVersion: string;
+  readonly openAiApiKey: string | null;
+  readonly openAiModel: string;
   readonly pageSpeedApiKey: string | null;
   readonly cruxApiKey: string | null;
   readonly hetznerS3: ObjectStorageConfig | null;
@@ -46,6 +49,8 @@ export function readIntegrationConfig(env: NodeJS.ProcessEnv = process.env): Int
     anthropicApiKey: optional(env.ANTHROPIC_API_KEY),
     anthropicModel: optional(env.ANTHROPIC_MODEL) ?? DEFAULT_ANTHROPIC_MODEL,
     anthropicApiVersion: optional(env.ANTHROPIC_API_VERSION) ?? '2023-06-01',
+    openAiApiKey: optional(env.OPENAI_API_KEY),
+    openAiModel: optional(env.OPENAI_MODEL) ?? DEFAULT_OPENAI_MODEL,
     pageSpeedApiKey: optional(env.PAGESPEED_API_KEY),
     cruxApiKey: optional(env.CRUX_API_KEY),
     hetznerS3: storage.state === 'configured' ? storage.config : null,
@@ -93,6 +98,7 @@ function partialIntegrationFailures(env: NodeJS.ProcessEnv): readonly string[] {
     readOAuthConfig('bing', env),
     readObjectStorageConfig(env),
     readAnthropicConfig(env),
+    readOpenAiConfig(env),
     readCrawlEgressConfig(env),
   ];
   return results.flatMap((result) => (result.state === 'invalid' ? [result.reason] : []));

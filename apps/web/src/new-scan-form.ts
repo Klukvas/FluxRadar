@@ -9,7 +9,7 @@ import {
   type SiteProfile,
 } from './api';
 import { openCheckoutWindow, useCheckoutConfig, type PendingCheckout } from './Checkout';
-import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
+import { AI_PROCESSING_NOTICE_VERSION, AI_PROCESSING_PROVIDERS } from './ai-processing-notice';
 import { trackEvent } from './analytics';
 import { trackBeginCheckout } from './checkout-analytics';
 import { effectiveEgressLocation, freeEgressLocation, useLaunchConfig } from './egress-location';
@@ -404,7 +404,7 @@ export function useNewScanForm(props: NewScanFormProps) {
           ? {}
           : {
               aiConsent: {
-                providers: ['anthropic'],
+                providers: [...AI_PROCESSING_PROVIDERS],
                 noticeVersion: AI_PROCESSING_NOTICE_VERSION,
               },
             };

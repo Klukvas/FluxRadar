@@ -3,7 +3,12 @@
 // прошедшего этот контракт; ответ с нарушениями трактуется как Unavailable
 // адаптера, а не как fail-open данные (D-175).
 
-import { AI_FINISH_REASONS, REQUEST_ID_SOURCES, USAGE_SOURCES } from '@fluxradar/contracts';
+import {
+  AI_FINISH_REASONS,
+  AI_REQUEST_CAPS,
+  REQUEST_ID_SOURCES,
+  USAGE_SOURCES,
+} from '@fluxradar/contracts';
 
 import { DEFAULT_AI_REQUEST_CAPS } from './caps.js';
 import { AI_PROVIDER_NAMES } from './types.js';
@@ -63,6 +68,34 @@ export function validateNormalizedResponse(
   return violations;
 }
 
+/**
+ * Optional per-unit counters of §5. A count above its cap means the adapter
+ * ignored the bound we sent the provider, which is a contract violation and not
+ * data to record.
+ */
+function validateUnitCounts(response: NormalizedAiResponse): readonly string[] {
+  const violations: string[] = [];
+  const { searchUnits, citationUnits, reasoningUnits } = response.usage;
+  const bounded = [
+    ['searchUnits', searchUnits, AI_REQUEST_CAPS.maxSearchUnits],
+    ['citationUnits', citationUnits, AI_REQUEST_CAPS.maxCitationUnits],
+    ['reasoningUnits', reasoningUnits, AI_REQUEST_CAPS.maxReasoningUnits],
+  ] as const;
+  for (const [name, value, cap] of bounded) {
+    if (value === undefined) continue;
+    if (!isCountValue(value)) {
+      violations.push(`usage.${name} is not a non-negative integer`);
+      continue;
+    }
+    if (value > cap) violations.push(`usage.${name} ${value} exceeds cap ${cap}`);
+  }
+  const citationCount = Array.isArray(response.citations) ? response.citations.length : 0;
+  if (citationCount > AI_REQUEST_CAPS.maxCitationUnits) {
+    violations.push(`citations ${citationCount} exceeds cap ${AI_REQUEST_CAPS.maxCitationUnits}`);
+  }
+  return violations;
+}
+
 function validateUsage(response: NormalizedAiResponse, caps: AiRequestCaps): readonly string[] {
   const violations: string[] = [];
   const usage: unknown = response.usage;
@@ -89,12 +122,20 @@ function validateUsage(response: NormalizedAiResponse, caps: AiRequestCaps): rea
     );
   }
 
-  if (isCountValue(inputTokens) && inputTokens > caps.maxInputTokens) {
-    violations.push(`usage.inputTokens ${inputTokens} exceeds cap ${caps.maxInputTokens}`);
+  // Provider web search arrives as input tokens the prompt cap never covered.
+  // Usage is provider truth — it is reported as billed, never clamped — so the
+  // cap grows by the search content the searches this answer actually ran are
+  // allowed to add, and a search-free answer is held to the prompt cap exactly
+  // as before.
+  const searchUnits = isCountValue(response.usage.searchUnits) ? response.usage.searchUnits : 0;
+  const inputCap = caps.maxInputTokens + searchUnits * AI_REQUEST_CAPS.maxSearchContentTokens;
+  if (isCountValue(inputTokens) && inputTokens > inputCap) {
+    violations.push(`usage.inputTokens ${inputTokens} exceeds cap ${inputCap}`);
   }
   if (isCountValue(outputTokens) && outputTokens > caps.maxOutputTokens) {
     violations.push(`usage.outputTokens ${outputTokens} exceeds cap ${caps.maxOutputTokens}`);
   }
+  violations.push(...validateUnitCounts(response));
 
   if (!isMemberOf(USAGE_SOURCES, response.usageSource)) {
     violations.push(`usageSource "${String(response.usageSource)}" is invalid`);

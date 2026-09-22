@@ -7,7 +7,7 @@ import { siteReachStatusReason } from '@fluxradar/contracts';
 import {
   AI_PROVIDER_NAMES,
   AiQuotaTracker,
-  CURRENT_AI_PROCESSING_NOTICE_VERSION,
+  isAcceptedAiProcessingNoticeVersion,
   runGeoModule,
 } from '@fluxradar/ai';
 import type { AiConsent, GeoMentionSignals, GeoModuleResult } from '@fluxradar/ai';
@@ -24,6 +24,7 @@ import type { WorkerDeps } from './deps.ts';
 import { freeCheckMetadata, runFreeCheck } from './free-check.ts';
 import {
   buildGeoRequests,
+  GEO_VISIBILITY_PROVIDERS,
   generateGeoDiscoveryQuestions,
   type GeoQuestionGenerationResult,
 } from './geo.ts';
@@ -171,9 +172,11 @@ function loadConsent(
   scan: Scan & { aiConsent?: { providersJson: string; noticeVersion: string } | null },
 ): AiConsent | null {
   const record = scan.aiConsent ?? null;
-  if (record === null || record.noticeVersion !== CURRENT_AI_PROCESSING_NOTICE_VERSION) {
+  if (record === null || !isAcceptedAiProcessingNoticeVersion(record.noticeVersion)) {
     // A historical record cannot establish that the disclosure for the current
-    // paid AI processing was shown before purchase.
+    // paid AI processing was shown before purchase. The one exception is the
+    // notice version still inside its 30-day entitlement (consent.ts): it lists
+    // the providers it covered, and the ones it did not come back ConsentMissing.
     return null;
   }
   let rawProviders: unknown;
@@ -229,12 +232,21 @@ function geoProviderVisibility(
     status: coverage.status,
     statusReason: coverage.statusReason,
     requiresConsent: true,
-    method: 'AI-generated neutral context questions plus direct brand-awareness questions',
-    interpretation: 'Prompt-specific observations; mentions do not prove remembered knowledge.',
+    providers: GEO_VISIBILITY_PROVIDERS,
+    webSearch: true,
+    method:
+      'AI-generated neutral context questions plus direct brand-awareness questions, ' +
+      'asked of each provider with that provider’s web search enabled',
+    interpretation:
+      'Prompt-specific observations produced with provider web search; citations are the ' +
+      'sources the model used to answer. Mentions do not prove remembered knowledge.',
     queryGeneration: geoQueryGeneration(generation),
     requests: geo.outcomes.map((outcome) => ({
       purpose: outcome.request.promptVersion.endsWith('-discovery') ? 'discovery' : 'awareness',
       promptVersion: outcome.request.promptVersion,
+      // An unavailable request has no ai_response row to read the provider
+      // from, and the report still has to say who failed to answer.
+      provider: outcome.request.provider,
       sequence: outcome.request.sequence,
       status: outcome.kind,
       question: redactEvidence(outcome.request.question),

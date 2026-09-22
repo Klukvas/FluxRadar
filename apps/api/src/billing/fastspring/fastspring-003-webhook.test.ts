@@ -1,3 +1,4 @@
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CheckoutSession, Prisma } from '@prisma/client';
 
@@ -54,7 +55,10 @@ describe('FASTSPRING-003 webhook', () => {
         quotedCurrency: 'USD',
         liveMode: false,
         scopeJson: JSON.stringify({ includeSubdomains: false, maxPages: 12 }),
-        aiConsentJson: JSON.stringify({ providers: ['anthropic'], noticeVersion: 'v1' }),
+        aiConsentJson: JSON.stringify({
+          providers: ['anthropic', 'openai'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        }),
         ...overrides,
       },
     });
@@ -127,7 +131,7 @@ describe('FASTSPRING-003 webhook', () => {
     expect(purchase.scan?.status).toBe('Pending');
     expect(purchase.scan?.scopeJson).toBe(session.scopeJson);
     expect(purchase.scan?.job?.status).toBe('Pending');
-    expect(purchase.scan?.aiConsent?.noticeVersion).toBe('v1');
+    expect(purchase.scan?.aiConsent?.noticeVersion).toBe(CURRENT_AI_PROCESSING_NOTICE_VERSION);
 
     const stored = await db.prisma.checkoutSession.findUniqueOrThrow({
       where: { id: session.id },

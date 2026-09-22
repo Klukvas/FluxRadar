@@ -61,8 +61,15 @@ describe('public legal documents', () => {
     expect(policy).toHaveTextContent(
       /Basic includes AI SEO \/ GEO.*Complete includes AI SEO \/ GEO and UX\/Conversion/is,
     );
-    expect(policy).toHaveTextContent(/production adapter uses Anthropic/i);
-    expect(policy).toHaveTextContent(/OpenAI.*not used by the current production adapter/is);
+    expect(policy).toHaveTextContent(/production adapters use Anthropic \(Claude\) and OpenAI/i);
+    // The OpenAI recipient bullet is active now: it names what is sent, what is
+    // not trained on and what may be kept, and promises no zero retention.
+    expect(policy).toHaveTextContent(
+      /OpenAI is an AI provider for the AI SEO \/ GEO visibility requests.*store: false.*not used to train models.*up to 30 days.*not zero-data-retention eligible/is,
+    );
+    expect(policy).toHaveTextContent(
+      /visibility requests, which run with the provider’s web search turned on/i,
+    );
     // D-232: the Action Plan is its own AI purpose, sent only on the owner's click.
     expect(policy).toHaveTextContent(
       /AI Action Plan.*until the owner presses the button.*Evidence excerpts, screenshots and traces are\s+not sent.*Analytics section/is,
@@ -76,7 +83,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 21 September 2026/);
+    expect(policy).toHaveTextContent(/Effective 22 September 2026/);
     expect(policy).toHaveTextContent(/PageSpeed Insights and CrUX.*public URL or origin/is);
     expect(policy).toHaveTextContent(
       /Free and Basic reports.*30 days.*Complete reports.*365 days/is,
@@ -178,6 +185,6 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 21 вересня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 22 вересня 2026 року/);
   });
 });

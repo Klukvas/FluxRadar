@@ -249,6 +249,8 @@ jobs:
           # environment VARIABLE. Leave it unset to keep whatever
           # PRODUCTION_ENV_FILE defines (or the API default).
           PRODUCTION_ANTHROPIC_MODEL: ${{ vars.PRODUCTION_ANTHROPIC_MODEL }}
+          PRODUCTION_OPENAI_API_KEY: ${{ secrets.PRODUCTION_OPENAI_API_KEY }}
+          PRODUCTION_OPENAI_MODEL: ${{ vars.PRODUCTION_OPENAI_MODEL }}
           PRODUCTION_PAGESPEED_API_KEY: ${{ secrets.PRODUCTION_PAGESPEED_API_KEY }}
           PRODUCTION_CRUX_API_KEY: ${{ secrets.PRODUCTION_CRUX_API_KEY }}
           # The network the crawl leaves from. Sites that block this server's
@@ -369,6 +371,8 @@ jobs:
           upsert_env GOOGLE_OAUTH_REDIRECT_URI PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI
           upsert_env ANTHROPIC_API_KEY PRODUCTION_ANTHROPIC_API_KEY
           upsert_env ANTHROPIC_MODEL PRODUCTION_ANTHROPIC_MODEL
+          upsert_env OPENAI_API_KEY PRODUCTION_OPENAI_API_KEY
+          upsert_env OPENAI_MODEL PRODUCTION_OPENAI_MODEL
           upsert_env PAGESPEED_API_KEY PRODUCTION_PAGESPEED_API_KEY
           upsert_env CRUX_API_KEY PRODUCTION_CRUX_API_KEY
           upsert_env CRAWL_EGRESS_PROXY_URL PRODUCTION_CRAWL_EGRESS_PROXY_URL

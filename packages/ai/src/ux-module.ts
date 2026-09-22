@@ -4,7 +4,7 @@
 
 import type { Plan } from '@fluxradar/contracts';
 
-import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from './consent.js';
+import { isAcceptedAiProcessingNoticeVersion } from './consent.js';
 import type { AiConsent } from './consent.js';
 import { AiModuleError } from './errors.js';
 import { AiQuotaTracker } from './quota.js';
@@ -260,7 +260,9 @@ export async function runUxAiAnalysis(
     provider: options.provider,
     quota: options.quota,
     consent:
-      input.consent?.noticeVersion === CURRENT_AI_PROCESSING_NOTICE_VERSION ? input.consent : null,
+      input.consent !== null && isAcceptedAiProcessingNoticeVersion(input.consent.noticeVersion)
+        ? input.consent
+        : null,
   });
   if (result.outcome.kind === 'unavailable') {
     return {

@@ -87,6 +87,7 @@ never their values, so one failed deploy shows every gap at once:
 | Google / Bing OAuth | no `*_OAUTH_*` variable is set | a client id/secret is set without the other, or `*_OAUTH_REDIRECT_URI` is missing or is not an `https://` callback on `fluxradar.net` ending in `/integrations/<provider>/callback` |
 | Object storage | no `HETZNER_S3_*` variable is set | some of the five are set, or `HETZNER_S3_ENDPOINT` has no `https://` scheme |
 | Anthropic | `ANTHROPIC_API_KEY` is absent | `ANTHROPIC_MODEL` names a retired model while a key is present |
+| OpenAI | `OPENAI_API_KEY` is absent | `OPENAI_MODEL` names a retired model while a key is present |
 | FastSpring | no `FASTSPRING_*` variable is set | the set is incomplete (see *Billing gate*) |
 
 The OAuth rule is the one with a history: with a client id and secret but no
@@ -435,6 +436,7 @@ workflow log):
 | `PRODUCTION_GOOGLE_OAUTH_CLIENT_SECRET`   | `GOOGLE_OAUTH_CLIENT_SECRET` |
 | `PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI`    | `GOOGLE_OAUTH_REDIRECT_URI` |
 | `PRODUCTION_ANTHROPIC_API_KEY`            | `ANTHROPIC_API_KEY`        |
+| `PRODUCTION_OPENAI_API_KEY`               | `OPENAI_API_KEY`           |
 | `PRODUCTION_PAGESPEED_API_KEY`            | `PAGESPEED_API_KEY`        |
 | `PRODUCTION_CRUX_API_KEY`                 | `CRUX_API_KEY`             |
 | `PRODUCTION_CRAWL_EGRESS_PROXY_URL`       | `CRAWL_EGRESS_PROXY_URL`   |
@@ -457,6 +459,14 @@ currently `claude-sonnet-5`, the model this release is written against. A base
 env file left on a **retired** model identifier no longer needs a workflow
 override to correct it: with `ANTHROPIC_API_KEY` present, the API refuses to boot
 and names `ANTHROPIC_MODEL` (never its value).
+
+`PRODUCTION_OPENAI_MODEL` works exactly the same way for `OPENAI_MODEL`, whose
+default is `DEFAULT_OPENAI_MODEL` in
+`apps/api/src/integrations/openai-config.ts` — currently `gpt-5.6-luna`.
+`PRODUCTION_OPENAI_API_KEY` must be set **before** the release that ships the
+`core-ai-processing-notice-v4` notice: without it every OpenAI visibility
+question of every paid scan reports `ProviderUnavailable` and the AI SEO / GEO
+module ends Partial (the score does not move, but half the answers are missing).
 
 ### FastSpring
 

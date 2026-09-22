@@ -596,12 +596,17 @@ function geoObservationsFrom(
       return [];
     }
     const reason = typeof request.reason === 'string' ? request.reason : null;
+    // Reports written before two providers answered have no provider on the
+    // request entry; they read as an answer from nobody in particular, which is
+    // what they were.
+    const provider =
+      typeof request.provider === 'string' && request.provider !== '' ? request.provider : null;
     if (request.status !== 'response' || typeof request.aiRequestKey !== 'string') {
-      return [unavailableGeoObservation(purpose, question, reason)];
+      return [unavailableGeoObservation(purpose, question, reason, provider)];
     }
     const response = responsesByKey.get(request.aiRequestKey);
     if (response === undefined) {
-      return [unavailableGeoObservation(purpose, question, 'EvidenceUnavailable')];
+      return [unavailableGeoObservation(purpose, question, 'EvidenceUnavailable', provider)];
     }
     return [
       {
@@ -623,13 +628,14 @@ function unavailableGeoObservation(
   purpose: GeoObservation['purpose'],
   question: string,
   reason: string | null,
+  provider: string | null,
 ): GeoObservation {
   return {
     purpose,
     question,
     status: 'unavailable',
     reason,
-    provider: null,
+    provider,
     modelId: null,
     answer: null,
     citations: [],

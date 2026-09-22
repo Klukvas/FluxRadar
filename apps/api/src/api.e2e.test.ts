@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { AiProvider } from '@fluxradar/ai';
 import {
   CURRENT_AI_PROCESSING_NOTICE_VERSION,
-  MockAiProvider,
+  mockRoutingProvider,
   UnavailableError,
 } from '@fluxradar/ai';
 import { validateExportRecords } from '@fluxradar/export';
@@ -11,7 +11,7 @@ import type { Scan, SiteProfile } from '@prisma/client';
 import { buildExportRecords } from './export/build-records.ts';
 import type { GoogleScanData } from './integrations/google/types.ts';
 import type { WorkerDeps } from './orchestrator/deps.ts';
-import { defaultGeoFixtures } from './orchestrator/geo.ts';
+import { defaultGeoFixtures, GEO_VISIBILITY_PROVIDERS } from './orchestrator/geo.ts';
 import { processScan } from './orchestrator/worker.ts';
 import { createApp } from './index.ts';
 import { silentLogger } from './http/logger.ts';
@@ -65,7 +65,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       plan: 'Complete',
       scope: { includeSubdomains: false, maxPages: 15 },
       aiConsent: {
-        providers: ['anthropic'],
+        providers: ['anthropic', 'openai'],
         noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
       },
     });
@@ -127,15 +127,19 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       usableOutput: true,
       metadata: {
         providerVisibility: {
-          method: 'AI-generated neutral context questions plus direct brand-awareness questions',
+          method: expect.stringContaining('with that provider’s web search enabled'),
+          providers: ['anthropic', 'openai'],
+          webSearch: true,
           queryGeneration: {
             status: 'Completed',
             promptVersion: 'geo-query-generation-v2',
             generatedQuestions: expect.arrayContaining([expect.stringContaining('providers')]),
           },
           requests: expect.arrayContaining([
-            expect.objectContaining({ purpose: 'awareness' }),
-            expect.objectContaining({ purpose: 'discovery' }),
+            expect.objectContaining({ purpose: 'awareness', provider: 'anthropic' }),
+            expect.objectContaining({ purpose: 'discovery', provider: 'anthropic' }),
+            expect.objectContaining({ purpose: 'awareness', provider: 'openai' }),
+            expect.objectContaining({ purpose: 'discovery', provider: 'openai' }),
           ]),
         },
       },
@@ -230,6 +234,16 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
           module: 'AI SEO / GEO',
           prompt_version: 'geo-query-generation-v2',
           raw_text: expect.stringContaining('questions'),
+        }),
+        // Every visibility question is now asked of OpenAI too, and a
+        // search-enabled answer carries its search count all the way to the
+        // export's `search_units` column.
+        expect.objectContaining({
+          record_type: 'ai_response',
+          module: 'AI SEO / GEO',
+          provider: 'openai',
+          prompt_version: 'geo-questions-v5-awareness',
+          usage: expect.objectContaining({ search_units: 2 }),
         }),
       ]),
     );
@@ -400,7 +414,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       plan: 'Complete',
       scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
       aiConsent: {
-        providers: ['anthropic'],
+        providers: ['anthropic', 'openai'],
         noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
       },
     });
@@ -463,7 +477,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       plan: 'Complete',
       scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
       aiConsent: {
-        providers: ['anthropic'],
+        providers: ['anthropic', 'openai'],
         noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
       },
     });
@@ -653,8 +667,11 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
     return () => async () => data;
   }
 
+  // Every visibility question is asked of both providers now, so the stand-in
+  // has to answer as both — a single-vendor mock would reject half of them as a
+  // routing bug and take the whole GEO step down with it.
   function uxAwareProvider(brand: string): AiProvider {
-    return new MockAiProvider(
+    return mockRoutingProvider(
       [
         ...defaultGeoFixtures(brand, 'smile.example'),
         {
@@ -679,7 +696,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
           },
         },
       ],
-      { config: AI_CONFIG },
+      GEO_VISIBILITY_PROVIDERS,
     );
   }
 });
