@@ -363,7 +363,7 @@ export const faqCopyEn: FaqCopy = {
           question: 'What is the difference between Basic and Complete?',
           answer: [
             `Basic (${BASIC_PRICE}) answers the visibility question: the full SEO analysis plus AI crawler readiness, up to 5,000 crawled URLs, results kept for 30 days.`,
-            `Complete (${COMPLETE_PRICE}) is the whole picture: everything in Basic plus security, accessibility, performance, reliability, privacy and content quality, with the Issue Center, scan history and JSON/CSV export, up to 50,000 crawled URLs, results kept for 365 days.`,
+            `Complete (${COMPLETE_PRICE}) is the whole picture: everything in Basic plus security, accessibility, performance, reliability, privacy and content quality, with scan history and JSON/CSV export, up to 50,000 crawled URLs, results kept for 365 days.`,
             'There is no extra "full audit" item to buy on top of Complete. Complete already contains every module FluxRadar runs — one price, nothing added later at the checkout.',
           ],
         },
@@ -688,7 +688,7 @@ export const faqCopyUk: FaqCopy = {
           question: 'Чим Basic відрізняється від Complete?',
           answer: [
             `Basic (${BASIC_PRICE}) відповідає на питання видимості: повний SEO-аналіз плюс готовність до AI-роботів, до 5 000 сторінок обходу, результати зберігаються 30 днів.`,
-            `Complete (${COMPLETE_PRICE}) — це вся картина: усе з Basic плюс безпека, доступність, продуктивність, надійність, приватність і якість контенту, разом з Issue Center, історією перевірок та експортом JSON/CSV, до 50 000 сторінок обходу, результати зберігаються 365 днів.`,
+            `Complete (${COMPLETE_PRICE}) — це вся картина: усе з Basic плюс безпека, доступність, продуктивність, надійність, приватність і якість контенту, разом з історією перевірок та експортом JSON/CSV, до 50 000 сторінок обходу, результати зберігаються 365 днів.`,
             'Жодного окремого «повного аудиту» доплачувати не треба. Complete уже містить усі модулі, які запускає FluxRadar, — одна ціна, нічого не додається на етапі оплати.',
           ],
         },

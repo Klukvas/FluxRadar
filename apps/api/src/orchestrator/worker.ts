@@ -29,6 +29,19 @@ import { notifyScanEvent } from '../email/notifications.ts';
 // which a job is briefly Pending while its original process is still alive.
 const activeScanIds = new Set<string>();
 
+// The owner reads these in an email, next to a link to the scan's page, so
+// they say what happened in plain words and leave the details to that page.
+const REFUND_REQUESTED_DETAIL =
+  'A refund for this audit has been requested. How soon it arrives depends on the payment provider and your bank.';
+
+function finishedScanDetail(kind: 'Completed' | 'Partial' | 'Failed'): string {
+  if (kind === 'Failed') return 'Your audit could not be completed. The scan page says why.';
+  if (kind === 'Partial') {
+    return 'Your audit is finished, but some sections could not be checked. The report says which.';
+  }
+  return 'Your audit is complete.';
+}
+
 export interface ScanProcessResult {
   readonly scanId: string;
   readonly status: ScanRuntimeStatus;
@@ -186,9 +199,7 @@ async function processClaimedJob(
           deps.mailer,
           scanId,
           outcome.kind === 'Failed' ? 'scan_failed' : 'scan_completed',
-          outcome.kind === 'Failed'
-            ? 'Your audit failed and the billing workflow was updated.'
-            : `Your audit is ${outcome.kind.toLowerCase()}.`,
+          finishedScanDetail(outcome.kind),
         ).catch((error: unknown) =>
           logger.warn('scan notification failed', { scanId, error: String(error) }),
         );
@@ -198,7 +209,7 @@ async function processClaimedJob(
             deps.mailer,
             scanId,
             'refund_created',
-            'A refund record was created for this audit.',
+            REFUND_REQUESTED_DETAIL,
           ).catch((error: unknown) =>
             logger.warn('refund notification failed', { scanId, error: String(error) }),
           );
@@ -255,7 +266,7 @@ async function processClaimedJob(
           deps.mailer,
           scanId,
           'scan_failed',
-          'Your audit failed after the retry budget was exhausted.',
+          'Your audit could not be completed, even after we tried it again. The scan page says why.',
         ).catch((error: unknown) =>
           logger.warn('scan notification failed', { scanId, error: String(error) }),
         );
@@ -265,7 +276,7 @@ async function processClaimedJob(
             deps.mailer,
             scanId,
             'refund_created',
-            'A refund record was created for this audit.',
+            REFUND_REQUESTED_DETAIL,
           ).catch((error: unknown) =>
             logger.warn('refund notification failed', { scanId, error: String(error) }),
           );

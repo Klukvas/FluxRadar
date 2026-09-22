@@ -466,7 +466,7 @@ export const copy = {
           price: COMPLETE_PRICE_USD,
           description: 'Everything FluxRadar can read about a public website, in one report.',
           included:
-            'Everything in Basic plus security (public OWASP ASVS profile), accessibility (WCAG 2.2 AA), performance, reliability, privacy and consent, and content quality — with the Issue Center, scan history and JSON/CSV export. Every module FluxRadar runs is already in this price; there is nothing extra to add at checkout.',
+            'Everything in Basic plus security (public OWASP ASVS profile), accessibility (WCAG 2.2 AA), performance, reliability, privacy and consent, and content quality — with scan history and JSON/CSV export. Every module FluxRadar runs is already in this price; there is nothing extra to add at checkout.',
           bestFor:
             'Anyone who needs the whole picture before a redesign, a launch, a handover or a client report.',
           limits:
@@ -491,7 +491,7 @@ export const copy = {
             label: 'What is included',
             basic: 'The full SEO analysis — 16 checks — and AI crawler readiness.',
             complete:
-              'Everything in Basic, plus security, accessibility, performance, reliability, privacy and content quality, with the Issue Center, scan history and JSON/CSV export.',
+              'Everything in Basic, plus security, accessibility, performance, reliability, privacy and content quality, with scan history and JSON/CSV export.',
           },
           notIncluded: {
             label: 'What is not included',
@@ -560,6 +560,10 @@ export const copy = {
         'The network this check leaves from is not answering right now. Nothing was charged — try again in a few minutes.',
       egressUnknownError:
         'That country is no longer offered. Choose one from the list and try again.',
+      freeCheckUsedError:
+        'This account has already used its free check. To audit this site, choose Basic or Complete.',
+      freeCheckDomainUsedError:
+        'This site has already had its free check — each site gets one. Yours is still unused and works on another site; to audit this one, choose Basic or Complete.',
       blockedByEgress: 'A scan cannot start while no check location is answering.',
       panelDepth: 'Audit depth',
       labelScanPlan: 'Scan plan',
@@ -1681,7 +1685,7 @@ export const copy = {
           price: COMPLETE_PRICE_USD,
           description: 'Усе, що FluxRadar може прочитати про публічний сайт, в одному звіті.',
           included:
-            'Усе з Basic плюс безпека (публічний профіль OWASP ASVS), доступність (WCAG 2.2 AA), продуктивність, надійність, приватність і згода та якість контенту — разом з Issue Center, історією перевірок і експортом JSON/CSV. Усі модулі, які запускає FluxRadar, уже входять у цю ціну; нічого додавати на етапі оплати не потрібно.',
+            'Усе з Basic плюс безпека (публічний профіль OWASP ASVS), доступність (WCAG 2.2 AA), продуктивність, надійність, приватність і згода та якість контенту — разом з історією перевірок і експортом JSON/CSV. Усі модулі, які запускає FluxRadar, уже входять у цю ціну; нічого додавати на етапі оплати не потрібно.',
           bestFor:
             'Тим, кому потрібна повна картина перед редизайном, запуском, передачею сайту або звітом для клієнта.',
           limits: 'Одна перевірка одного сайту · до 50 000 сторінок обходу · результати 365 днів.',
@@ -1705,7 +1709,7 @@ export const copy = {
             label: 'Що входить',
             basic: 'Повний SEO-аналіз — 16 перевірок — і готовність до AI-роботів.',
             complete:
-              'Усе з Basic, а також безпека, доступність, продуктивність, надійність, приватність і якість контенту — з Issue Center, історією перевірок та експортом JSON/CSV.',
+              'Усе з Basic, а також безпека, доступність, продуктивність, надійність, приватність і якість контенту — з історією перевірок та експортом JSON/CSV.',
           },
           notIncluded: {
             label: 'Що не входить',
@@ -1775,6 +1779,10 @@ export const copy = {
         'Мережа, з якої йде перевірка, зараз не відповідає. Нічого не списано — спробуйте за кілька хвилин.',
       egressUnknownError:
         'Цієї країни більше немає у списку. Оберіть країну зі списку й спробуйте ще раз.',
+      freeCheckUsedError:
+        'Цей акаунт уже використав безкоштовну перевірку. Щоб перевірити цей сайт, оберіть Basic або Complete.',
+      freeCheckDomainUsedError:
+        'Цей сайт уже мав безкоштовну перевірку — кожен сайт отримує одну. Ваша ще не використана й підійде для іншого сайту; щоб перевірити цей, оберіть Basic або Complete.',
       blockedByEgress: 'Перевірку не можна запустити, поки жодна точка перевірки не відповідає.',
       panelDepth: 'Глибина аудиту',
       labelScanPlan: 'Тариф перевірки',
