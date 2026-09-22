@@ -370,4 +370,16 @@ describe('DEPLOY-002 production env file parity', () => {
     expect(workflow).not.toMatch(/^\s*ANTHROPIC_MODEL:\s*claude/m);
     expect(workflow).toContain('upsert_env ANTHROPIC_MODEL PRODUCTION_ANTHROPIC_MODEL');
   });
+
+  it('ships the OpenAI key and model the same way, with no model pinned', () => {
+    const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
+
+    expect(workflow).toContain(
+      'PRODUCTION_OPENAI_API_KEY: ${{ secrets.PRODUCTION_OPENAI_API_KEY }}',
+    );
+    expect(workflow).toContain('PRODUCTION_OPENAI_MODEL: ${{ vars.PRODUCTION_OPENAI_MODEL }}');
+    expect(workflow).not.toMatch(/^\s*OPENAI_MODEL:\s*gpt/m);
+    expect(workflow).toContain('upsert_env OPENAI_API_KEY PRODUCTION_OPENAI_API_KEY');
+    expect(workflow).toContain('upsert_env OPENAI_MODEL PRODUCTION_OPENAI_MODEL');
+  });
 });
