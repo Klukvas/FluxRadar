@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   AlertDialog,
@@ -9,21 +9,15 @@ import {
   CreatedByFluxLab,
   Window,
 } from './components';
-import { apiRequest, ApiRequestError, type Account, type Scan, type SiteProfile } from './api';
+import { apiRequest, type Account, type Scan, type SiteProfile } from './api';
 import { AccountScreen, resendVerification } from './AccountScreen';
 import { AdminStatsScreen } from './AdminStats';
-import {
-  isTerminalScan,
-  isWorkspaceScreen,
-  pathForScreen,
-  scanRoutePreference,
-  type Screen,
-} from './app-routes';
+import { isTerminalScan, isWorkspaceScreen, scanRoutePreference } from './app-routes';
 import { useBackAndForward, useNavigate, useOpenScanById } from './app-navigation';
+import { loadProfiles, useConfirmEmailSignedIn, useSessionBoot } from './app-session';
 import { useAppState } from './app-state';
 import { accountCopy } from './account-copy';
 import { AuthScreen } from './AuthScreen';
-import { authCopy } from './auth-copy';
 import { CheckoutPending } from './Checkout';
 import { CookieConsent } from './CookieConsent';
 import { DesktopScreen } from './DesktopScreen';
@@ -121,24 +115,13 @@ function AppContent({
     setNotice,
     clearNotice,
   } = useAppState();
-  // Read by the boot effect, which runs once and must not re-run on a language switch.
-  const languageRef = useRef(language);
-  useEffect(() => {
-    languageRef.current = language;
-  }, [language]);
-
-  const confirmEmailSignedIn = useCallback(async (token: string, current: Account) => {
-    setEmailAction(null);
-    setScreen('desktop');
-    window.history.replaceState(null, '', pathForScreen('desktop', null));
-    try {
-      await apiRequest<{ status: string }>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
-      setAccount({ ...current, emailVerified: true });
-      setNotice(authCopy[languageRef.current].leads.verified);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Verification failed');
-    }
-  }, []);
+  const confirmEmailSignedIn = useConfirmEmailSignedIn(language, {
+    setAccount,
+    setEmailAction,
+    setError,
+    setNotice,
+    setScreen,
+  });
 
   useEffect(() => {
     onAccountChange(account);
@@ -148,75 +131,17 @@ function AppContent({
 
   const openScanById = useOpenScanById({ setError, setScreen, setSelectedScan });
 
-  useEffect(() => {
-    if (['privacy', 'terms', 'cookies', 'checks', 'faq', 'bot'].includes(entryRoute.screen)) {
-      // A public document renders at once for anyone and never waits on the API.
-      // The session is read alongside only so its header can offer the workspace
-      // to a signed-in reader, as the header on every other page does.
-      setBooting(false);
-      apiRequest<Account>('/auth/me')
-        .then(setAccount)
-        .catch((caught: unknown) => {
-          // Either way the header keeps its visitor state. A visitor with no
-          // session is the ordinary answer; anything else is worth a console line.
-          if (caught instanceof ApiRequestError && caught.status === 401) return;
-          console.error('FluxRadar session unavailable', caught);
-        });
-      return;
-    }
-    apiRequest<Account>('/auth/me')
-      .then(async (value) => {
-        setAccount(value);
-        try {
-          await loadProfiles(setProfiles);
-          // The confirmation link is usually opened in the browser the owner is
-          // already signed in to. That session used to land on an empty
-          // workspace — the sign-in dialog that confirms the link is only drawn
-          // for visitors — and the address stayed unconfirmed.
-          if (entryRoute.emailAction?.kind === 'verify') {
-            await confirmEmailSignedIn(entryRoute.emailAction.token, value);
-            return;
-          }
-          if (entryRoute.emailAction?.kind === 'reset') return;
-          if (entryRoute.scanId !== null) {
-            await openScanById(entryRoute.scanId, scanRoutePreference(entryRoute.screen));
-            return;
-          }
-          if (value.onboarding?.status === 'pending') {
-            setScreen('desktop');
-            window.history.replaceState(null, '', pathForScreen('desktop', null));
-            setTourOpen(true);
-            return;
-          }
-          // A workspace URL is an explicit request for that screen, so the
-          // active-scan shortcut below must not overrule it — someone who opened
-          // their reports did not ask to be moved to a running scan.
-          if (isWorkspaceScreen(entryRoute.screen)) return;
-          const active = await apiRequest<Scan | null>('/scans/active');
-          if (active !== null) {
-            setSelectedScan(active);
-            const target: Screen = isTerminalScan(active) ? 'results' : 'scan';
-            window.history.replaceState(null, '', pathForScreen(target, active.id));
-            setScreen(target);
-          }
-        } catch (caught: unknown) {
-          console.error('FluxRadar boot data unavailable', caught);
-        }
-      })
-      .catch(() => {
-        // Authentication is required before any workspace screen is fetched. The
-        // same home surface then presents the login modal without exposing
-        // whether another account owns the requested scan.
-        if (entryRoute.scanId !== null || isWorkspaceScreen(entryRoute.screen)) setScreen('auth');
-      })
-      .finally(() => setBooting(false));
-  }, [
-    entryRoute.scanId,
-    entryRoute.screen,
-    entryRoute.emailAction,
+  useSessionBoot({
+    entryRoute,
+    setAccount,
+    setBooting,
+    setProfiles,
+    setScreen,
+    setSelectedScan,
+    setTourOpen,
     openScanById,
     confirmEmailSignedIn,
-  ]);
+  });
 
   const { pendingCheckout, startCheckout, endCheckout } = usePendingCheckout({
     account,
@@ -833,10 +758,4 @@ function AppContent({
       </div>
     </div>
   );
-}
-
-async function loadProfiles(setter: (profiles: SiteProfile[]) => void): Promise<SiteProfile[]> {
-  const profiles = await apiRequest<SiteProfile[]>('/profiles');
-  setter(profiles);
-  return profiles;
 }
