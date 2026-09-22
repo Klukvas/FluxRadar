@@ -154,123 +154,163 @@ export function PrintReport(props: {
   );
 }
 
-function PrintDocument(props: { data: PrintData; language: Language }) {
-  const { dashboard } = props.data;
-  const { scan, overall } = dashboard;
+/** The cover: whose site, when it was scanned, the plan, the score and its coverage. */
+function PrintCover(props: { dashboard: Dashboard; language: Language }) {
+  const { scan, overall } = props.dashboard;
   const f = findingsCopy[props.language];
   const domain = displayDomain(scan.domain);
+  const scored = overall.score !== null && overall.moduleWeights.length > 0;
+  return (
+    <header className="print-cover">
+      <p className="print-kicker">FluxRadar</p>
+      <h1>{f.print.preparedFor(domain)}</h1>
+      <p className="muted">
+        {f.print.generated(formatDate(new Date().toISOString(), props.language))}
+      </p>
+      <dl className="print-facts">
+        <div>
+          <dt>{f.print.plan}</dt>
+          <dd>{scan.plan}</dd>
+        </div>
+        <div>
+          <dt>{f.print.scanned}</dt>
+          <dd>{formatDate(scan.completedAt ?? scan.createdAt, props.language)}</dd>
+        </div>
+        <div>
+          <dt>{f.print.score}</dt>
+          <dd>{scored ? `${overall.score?.toFixed(0)} / 100` : f.print.noScore}</dd>
+        </div>
+        <div>
+          <dt>{f.print.coverage}</dt>
+          <dd>{scored ? `${(overall.weightedCoverage * 100).toFixed(0)}%` : '—'}</dd>
+        </div>
+      </dl>
+    </header>
+  );
+}
+
+/** How much is open, and how severe. */
+function PrintSummary(props: { data: PrintData; language: Language }) {
+  const f = findingsCopy[props.language];
+  const { summary, totalIssues } = props.data;
+  return (
+    <section className="print-section">
+      <h2>{f.print.summaryHeading}</h2>
+      <p>
+        {summary === null
+          ? f.fixFirst.pages(totalIssues)
+          : summary.open === 0
+            ? f.issues.summaryNone
+            : f.issues.summaryLine(
+                summary.open,
+                summary.groups.filter((group) => group.openIssues > 0).length,
+              )}
+      </p>
+      {summary === null ? null : (
+        <ul className="print-severity">
+          {(['Critical', 'High', 'Medium', 'Low'] as const).map((severity) => (
+            <li key={severity}>
+              <StatusChip status={severity} label={f.severity[severity]} />{' '}
+              {summary.bySeverity[severity] ?? 0}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Each section's result and score. */
+function PrintSections(props: { modules: Dashboard['modules']; language: Language }) {
+  const f = findingsCopy[props.language];
+  return (
+    <section className="print-section">
+      <h2>{f.print.sectionsHeading}</h2>
+      <table className="print-table">
+        <thead>
+          <tr>
+            <th>{f.print.section}</th>
+            <th>{f.print.result}</th>
+            <th>{f.print.score}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.modules.map((module) => (
+            <tr key={module.module}>
+              <td>{moduleLabel(module.module, props.language)}</td>
+              <td>{moduleResultLabel(module, props.language)}</td>
+              <td>{moduleScoreLabel(module, props.language)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+/** Every problem in summary order, with the findings that belong to it. */
+function PrintProblems(props: { data: PrintData; language: Language }) {
+  const f = findingsCopy[props.language];
+  const { issues, totalIssues } = props.data;
   const byRule = new Map<string, Issue[]>();
-  for (const issue of props.data.issues) {
+  for (const issue of issues) {
     byRule.set(issue.ruleId, [...(byRule.get(issue.ruleId) ?? []), issue]);
   }
   const groups = problemGroups(props.data);
-  const scored = overall.score !== null && overall.moduleWeights.length > 0;
+  return (
+    <section className="print-section">
+      <h2>{f.print.problemsHeading}</h2>
+      {groups.length === 0 ? (
+        <p>{f.print.noFindings}</p>
+      ) : (
+        <>
+          <p className="muted">{f.print.problemsLead}</p>
+          {issues.length < totalIssues ? (
+            <p className="print-note">{f.print.truncated(issues.length, totalIssues)}</p>
+          ) : null}
+          {groups.map((group, index) => (
+            <PrintProblem
+              key={`${group.ruleId}:${group.module}`}
+              number={index + 1}
+              group={group}
+              issues={byRule.get(group.ruleId) ?? []}
+              language={props.language}
+            />
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+function PrintDocument(props: { data: PrintData; language: Language }) {
+  const f = findingsCopy[props.language];
+  const { dashboard, actionPlan } = props.data;
   return (
     <article className="print-document">
-      <header className="print-cover">
-        <p className="print-kicker">FluxRadar</p>
-        <h1>{f.print.preparedFor(domain)}</h1>
-        <p className="muted">
-          {f.print.generated(formatDate(new Date().toISOString(), props.language))}
-        </p>
-        <dl className="print-facts">
-          <div>
-            <dt>{f.print.plan}</dt>
-            <dd>{scan.plan}</dd>
-          </div>
-          <div>
-            <dt>{f.print.scanned}</dt>
-            <dd>{formatDate(scan.completedAt ?? scan.createdAt, props.language)}</dd>
-          </div>
-          <div>
-            <dt>{f.print.score}</dt>
-            <dd>{scored ? `${overall.score?.toFixed(0)} / 100` : f.print.noScore}</dd>
-          </div>
-          <div>
-            <dt>{f.print.coverage}</dt>
-            <dd>{scored ? `${(overall.weightedCoverage * 100).toFixed(0)}%` : '—'}</dd>
-          </div>
-        </dl>
-      </header>
-
-      <section className="print-section">
-        <h2>{f.print.summaryHeading}</h2>
-        <p>
-          {props.data.summary === null
-            ? f.fixFirst.pages(props.data.totalIssues)
-            : props.data.summary.open === 0
-              ? f.issues.summaryNone
-              : f.issues.summaryLine(
-                  props.data.summary.open,
-                  props.data.summary.groups.filter((group) => group.openIssues > 0).length,
-                )}
-        </p>
-        {props.data.summary === null ? null : (
-          <ul className="print-severity">
-            {(['Critical', 'High', 'Medium', 'Low'] as const).map((severity) => (
-              <li key={severity}>
-                <StatusChip status={severity} label={f.severity[severity]} />{' '}
-                {props.data.summary?.bySeverity[severity] ?? 0}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {props.data.actionPlan === null ? null : (
-        <PrintActionPlan plan={props.data.actionPlan} language={props.language} />
-      )}
-
-      <section className="print-section">
-        <h2>{f.print.sectionsHeading}</h2>
-        <table className="print-table">
-          <thead>
-            <tr>
-              <th>{f.print.section}</th>
-              <th>{f.print.result}</th>
-              <th>{f.print.score}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dashboard.modules.map((module) => (
-              <tr key={module.module}>
-                <td>{moduleLabel(module.module, props.language)}</td>
-                <td>{moduleResultLabel(module, props.language)}</td>
-                <td>{moduleScoreLabel(module, props.language)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="print-section">
-        <h2>{f.print.problemsHeading}</h2>
-        {groups.length === 0 ? (
-          <p>{f.print.noFindings}</p>
-        ) : (
-          <>
-            <p className="muted">{f.print.problemsLead}</p>
-            {props.data.issues.length < props.data.totalIssues ? (
-              <p className="print-note">
-                {f.print.truncated(props.data.issues.length, props.data.totalIssues)}
-              </p>
-            ) : null}
-            {groups.map((group, index) => (
-              <PrintProblem
-                key={`${group.ruleId}:${group.module}`}
-                number={index + 1}
-                group={group}
-                issues={byRule.get(group.ruleId) ?? []}
-                language={props.language}
-              />
-            ))}
-          </>
-        )}
-      </section>
-
+      <PrintCover dashboard={dashboard} language={props.language} />
+      <PrintSummary data={props.data} language={props.language} />
+      {actionPlan === null ? null : <PrintActionPlan plan={actionPlan} language={props.language} />}
+      <PrintSections modules={dashboard.modules} language={props.language} />
+      <PrintProblems data={props.data} language={props.language} />
       <footer className="print-footer muted">{f.print.footer}</footer>
     </article>
   );
+}
+
+interface ExampleTexts {
+  readonly evidence: string | null;
+  readonly recommendation: string | null;
+}
+
+/** The example finding's evidence and recommendation, in the reader's language when it has one. */
+function exampleTexts(example: Issue | undefined, language: Language): ExampleTexts {
+  if (example === undefined) return { evidence: null, recommendation: null };
+  const localized = example.localized?.[language];
+  return {
+    evidence: localized?.evidenceExcerpt ?? example.evidenceExcerpt,
+    recommendation: localized?.recommendation ?? example.recommendation,
+  };
 }
 
 function PrintProblem(props: {
@@ -280,17 +320,9 @@ function PrintProblem(props: {
   language: Language;
 }) {
   const f = findingsCopy[props.language];
-  const example = props.issues[0];
   const pages = [...new Set(props.issues.map((issue) => issue.targetUrl))];
   const shown = pages.slice(0, PAGES_PER_PROBLEM);
-  const evidence =
-    example === undefined
-      ? null
-      : (example.localized?.[props.language]?.evidenceExcerpt ?? example.evidenceExcerpt);
-  const recommendation =
-    example === undefined
-      ? null
-      : (example.localized?.[props.language]?.recommendation ?? example.recommendation);
+  const { evidence, recommendation } = exampleTexts(props.issues[0], props.language);
   return (
     <div className="print-problem">
       <h3>
