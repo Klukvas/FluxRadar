@@ -13,7 +13,7 @@ import {
 import { ACTION_PLAN_NOTICE_VERSION } from '@fluxradar/contracts';
 import type { PrismaClient } from '@prisma/client';
 
-import type { ApiLogger } from '../http/logger.ts';
+import { describeError, type ApiLogger } from '../http/logger.ts';
 import { buildActionPlanInput } from './input.ts';
 import {
   RUN_FAILURE_CODES,
@@ -27,10 +27,6 @@ export interface GenerationDeps {
   readonly provider: AiProvider;
   readonly logger: ApiLogger;
   readonly now: () => Date;
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
 async function recordFailedGeneration(
