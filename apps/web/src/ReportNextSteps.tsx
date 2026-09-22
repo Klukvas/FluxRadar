@@ -12,7 +12,7 @@ import { planIn, type PlanLanguageChoice } from './action-plan';
 import { apiRequest, canRetrySection, type IssueSummary, type Scan, type ScanChanges } from './api';
 import { Button, StatusChip } from './components';
 import { egressLocationLabel } from './egress-location';
-import { findingsCopy } from './findings-copy';
+import { findingsCopy, type FindingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
 import { ruleTitle } from './rule-titles';
@@ -89,12 +89,12 @@ export function FixFirst(props: {
   );
 }
 
-export function ScanChangesBlock(props: { scanId: string; language: Language }) {
-  const f = findingsCopy[props.language];
+/** What changed since the previous scan of the plan; null until it arrives, or when it cannot. */
+function useScanChanges(scanId: string): ScanChanges | null {
   const [changes, setChanges] = useState<ScanChanges | null>(null);
   useEffect(() => {
     let current = true;
-    apiRequest<ScanChanges>(`/scans/${encodeURIComponent(props.scanId)}/changes`)
+    apiRequest<ScanChanges>(`/scans/${encodeURIComponent(scanId)}/changes`)
       .then((value) => {
         if (current && typeof value?.fixed === 'number') setChanges(value);
       })
@@ -104,7 +104,113 @@ export function ScanChangesBlock(props: { scanId: string; language: Language }) 
     return () => {
       current = false;
     };
-  }, [props.scanId]);
+  }, [scanId]);
+  return changes;
+}
+
+/**
+ * Two crawls from two countries are two measurements, not a trend (D-228):
+ * what one found and the other did not is a difference between places, so
+ * it is not called fixed or new.
+ */
+function crossesCountries(changes: ScanChanges): boolean {
+  return (
+    changes.egressComparison === 'different' &&
+    changes.egressLocation != null &&
+    changes.previous?.egressLocation != null
+  );
+}
+
+type ChangeLabels = Pick<
+  FindingsCopy['changes'],
+  'fixed' | 'introduced' | 'persisting' | 'fixedList' | 'introducedList'
+>;
+
+function changeLabels(f: FindingsCopy, acrossCountries: boolean): ChangeLabels {
+  return acrossCountries
+    ? {
+        fixed: f.changes.onlyPrevious,
+        introduced: f.changes.onlyCurrent,
+        persisting: f.changes.inBoth,
+        fixedList: f.changes.onlyPreviousList,
+        introducedList: f.changes.onlyCurrentList,
+      }
+    : f.changes;
+}
+
+/** Where the two crawls left from, when that changes how the numbers read. */
+function EgressNote(props: { changes: ScanChanges; language: Language }) {
+  const f = findingsCopy[props.language];
+  const current = props.changes.egressLocation;
+  const previous = props.changes.previous?.egressLocation;
+  if (props.changes.egressComparison === 'different' && current != null && previous != null) {
+    return (
+      <p role="note">
+        {f.changes.egressDifferent(
+          egressLocationLabel(current, props.language),
+          egressLocationLabel(previous, props.language),
+        )}
+      </p>
+    );
+  }
+  if (props.changes.egressComparison === 'unrecorded') {
+    return (
+      <p className="muted" role="note">
+        {f.changes.egressUnrecorded}
+      </p>
+    );
+  }
+  return null;
+}
+
+function ChangesGrid(props: {
+  changes: ScanChanges;
+  labels: ChangeLabels;
+  acrossCountries: boolean;
+}) {
+  const { changes, labels, acrossCountries } = props;
+  return (
+    <div className="changes-grid">
+      <div className={`changes-stat${acrossCountries ? '' : ' changes-stat--fixed'}`}>
+        <strong>{changes.fixed}</strong>
+        {labels.fixed}
+      </div>
+      <div className={`changes-stat${acrossCountries ? '' : ' changes-stat--introduced'}`}>
+        <strong>{changes.introduced}</strong>
+        {labels.introduced}
+      </div>
+      <div className="changes-stat">
+        <strong>{changes.persisting}</strong>
+        {labels.persisting}
+      </div>
+    </div>
+  );
+}
+
+/** The rules behind one of the numbers, most findings first as the API sends them. */
+function ChangedRules(props: {
+  heading: string;
+  rules: ScanChanges['fixedByRule'];
+  language: Language;
+}) {
+  if (props.rules.length === 0) return null;
+  return (
+    <div>
+      <h4>{props.heading}</h4>
+      <ul>
+        {props.rules.slice(0, FIX_FIRST_LIMIT).map((rule) => (
+          <li key={rule.ruleId}>
+            {ruleTitle(rule.ruleId, props.language)} — {rule.count}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function ScanChangesBlock(props: { scanId: string; language: Language }) {
+  const f = findingsCopy[props.language];
+  const changes = useScanChanges(props.scanId);
   if (changes === null) return null;
   if (changes.previous === null) {
     return (
@@ -114,23 +220,8 @@ export function ScanChangesBlock(props: { scanId: string; language: Language }) 
       </section>
     );
   }
-  const title = (ruleId: string) => ruleTitle(ruleId, props.language);
-  // Two crawls from two countries are two measurements, not a trend (D-228):
-  // what one found and the other did not is a difference between places, so
-  // it is not called fixed or new.
-  const acrossCountries =
-    changes.egressComparison === 'different' &&
-    changes.egressLocation != null &&
-    changes.previous.egressLocation != null;
-  const labels = acrossCountries
-    ? {
-        fixed: f.changes.onlyPrevious,
-        introduced: f.changes.onlyCurrent,
-        persisting: f.changes.inBoth,
-        fixedList: f.changes.onlyPreviousList,
-        introducedList: f.changes.onlyCurrentList,
-      }
-    : f.changes;
+  const acrossCountries = crossesCountries(changes);
+  const labels = changeLabels(f, acrossCountries);
   return (
     <section
       className={`report-block${acrossCountries ? ' report-block--warning' : ''}`}
@@ -140,60 +231,20 @@ export function ScanChangesBlock(props: { scanId: string; language: Language }) 
       <p className="muted">
         {f.changes.since(formatDate(changes.previous.completedAt, props.language))}
       </p>
-      {acrossCountries &&
-      changes.egressLocation != null &&
-      changes.previous.egressLocation != null ? (
-        <p role="note">
-          {f.changes.egressDifferent(
-            egressLocationLabel(changes.egressLocation, props.language),
-            egressLocationLabel(changes.previous.egressLocation, props.language),
-          )}
-        </p>
-      ) : changes.egressComparison === 'unrecorded' ? (
-        <p className="muted" role="note">
-          {f.changes.egressUnrecorded}
-        </p>
-      ) : null}
-      <div className="changes-grid">
-        <div className={`changes-stat${acrossCountries ? '' : ' changes-stat--fixed'}`}>
-          <strong>{changes.fixed}</strong>
-          {labels.fixed}
-        </div>
-        <div className={`changes-stat${acrossCountries ? '' : ' changes-stat--introduced'}`}>
-          <strong>{changes.introduced}</strong>
-          {labels.introduced}
-        </div>
-        <div className="changes-stat">
-          <strong>{changes.persisting}</strong>
-          {labels.persisting}
-        </div>
-      </div>
+      <EgressNote changes={changes} language={props.language} />
+      <ChangesGrid changes={changes} labels={labels} acrossCountries={acrossCountries} />
       {changes.fixedByRule.length > 0 || changes.introducedByRule.length > 0 ? (
         <div className="changes-lists">
-          {changes.fixedByRule.length > 0 ? (
-            <div>
-              <h4>{labels.fixedList}</h4>
-              <ul>
-                {changes.fixedByRule.slice(0, FIX_FIRST_LIMIT).map((rule) => (
-                  <li key={rule.ruleId}>
-                    {title(rule.ruleId)} — {rule.count}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {changes.introducedByRule.length > 0 ? (
-            <div>
-              <h4>{labels.introducedList}</h4>
-              <ul>
-                {changes.introducedByRule.slice(0, FIX_FIRST_LIMIT).map((rule) => (
-                  <li key={rule.ruleId}>
-                    {title(rule.ruleId)} — {rule.count}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          <ChangedRules
+            heading={labels.fixedList}
+            rules={changes.fixedByRule}
+            language={props.language}
+          />
+          <ChangedRules
+            heading={labels.introducedList}
+            rules={changes.introducedByRule}
+            language={props.language}
+          />
         </div>
       ) : null}
     </section>
