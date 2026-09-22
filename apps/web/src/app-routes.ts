@@ -131,44 +131,26 @@ const SCREEN_BY_WORKSPACE_PATH: Readonly<Record<string, Screen>> = Object.fromEn
   ),
 );
 
-export function readInitialRoute(): InitialRoute {
-  const path = window.location.pathname.replace(/\/+$/, '') || '/';
-  const params = new URLSearchParams(window.location.search);
+/** A screen reached by its path alone, with nothing else to carry. */
+function plainRoute(screen: Screen): InitialRoute {
+  return { screen, scanId: null, emailAction: null, scrollTo: null };
+}
+
+/** The link in a verification or password-reset email, when the address carries one. */
+function emailActionFrom(search: string): InitialRoute['emailAction'] {
+  const params = new URLSearchParams(search);
   const verifyToken = params.get('verify_email');
   const resetToken = params.get('reset_token');
-  const emailAction =
-    verifyToken !== null
-      ? { kind: 'verify' as const, token: verifyToken }
-      : resetToken !== null
-        ? { kind: 'reset' as const, token: resetToken }
-        : null;
-  const publicRoute = (screen: Screen): InitialRoute => ({
-    screen,
-    scanId: null,
-    emailAction: null,
-    scrollTo: null,
-  });
-  if (path === '/privacy') return publicRoute('privacy');
-  if (path === '/terms') return publicRoute('terms');
-  if (path === '/cookies') return publicRoute('cookies');
-  if (path === '/checks') return publicRoute('checks');
-  if (path === '/bot') return publicRoute('bot');
-  if (path === '/faq') return publicRoute('faq');
-  if (path === ACCOUNT_PATH)
-    return { screen: 'account', scanId: null, emailAction: null, scrollTo: null };
-  // Owner-only and linked from no menu; the API decides who sees numbers.
-  if (path === ADMIN_STATS_PATH)
-    return { screen: 'admin-stats', scanId: null, emailAction: null, scrollTo: null };
-  // The standalone plans screen was folded into the home pricing section. Old
-  // /plans links keep working by landing there instead of on an unknown route.
-  if (path === '/plans')
-    return { screen: 'home', scanId: null, emailAction: null, scrollTo: 'pricing' };
-  const workspaceScreen = SCREEN_BY_WORKSPACE_PATH[path];
-  if (workspaceScreen !== undefined)
-    return { screen: workspaceScreen, scanId: null, emailAction: null, scrollTo: null };
-  const scanRoute = readScanRoute(path);
-  if (scanRoute !== null) return scanRoute;
-  const route = window.location.hash.slice(1);
+  return verifyToken !== null
+    ? { kind: 'verify', token: verifyToken }
+    : resetToken !== null
+      ? { kind: 'reset', token: resetToken }
+      : null;
+}
+
+/** A path no table knows: an email link signs in first, else the legacy hash screens, else home. */
+function fallbackRoute(emailAction: InitialRoute['emailAction'], hash: string): InitialRoute {
+  const route = hash.slice(1);
   return {
     screen:
       emailAction !== null
@@ -182,6 +164,26 @@ export function readInitialRoute(): InitialRoute {
     emailAction,
     scrollTo: null,
   };
+}
+
+export function readInitialRoute(): InitialRoute {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  const emailAction = emailActionFrom(window.location.search);
+  if (path === '/privacy') return plainRoute('privacy');
+  if (path === '/terms') return plainRoute('terms');
+  if (path === '/cookies') return plainRoute('cookies');
+  if (path === '/checks') return plainRoute('checks');
+  if (path === '/bot') return plainRoute('bot');
+  if (path === '/faq') return plainRoute('faq');
+  if (path === ACCOUNT_PATH) return plainRoute('account');
+  // Owner-only and linked from no menu; the API decides who sees numbers.
+  if (path === ADMIN_STATS_PATH) return plainRoute('admin-stats');
+  // The standalone plans screen was folded into the home pricing section. Old
+  // /plans links keep working by landing there instead of on an unknown route.
+  if (path === '/plans') return { ...plainRoute('home'), scrollTo: 'pricing' };
+  const workspaceScreen = SCREEN_BY_WORKSPACE_PATH[path];
+  if (workspaceScreen !== undefined) return plainRoute(workspaceScreen);
+  return readScanRoute(path) ?? fallbackRoute(emailAction, window.location.hash);
 }
 
 /** `/scans/:id`, `/scans/:id/issues` and `/scans/:id/report`, or null when the path is none. */
