@@ -222,6 +222,40 @@ function PlanNotices(props: {
   );
 }
 
+/** Generate, Regenerate or Try again, with the consent line: the click is the consent. */
+function GenerateButton(props: {
+  state: ActionPlanState;
+  hasPlan: boolean;
+  language: Language;
+  planLanguage: PlanLanguage;
+  generation: Generation;
+}) {
+  const c = actionPlanCopy[props.language];
+  const consentId = useId();
+  const { state, generation } = props;
+  const left = plansLeft(state);
+  const idleLabel = props.hasPlan
+    ? c.regenerate(left)
+    : failedIn(state, props.planLanguage)
+      ? c.retry(left)
+      : c.generate;
+  return (
+    <div className="action-plan__generate">
+      <Button
+        variant={props.hasPlan ? 'default' : 'primary'}
+        disabled={generation.working}
+        onClick={() => void generation.start()}
+        aria-describedby={consentId}
+      >
+        {generation.working ? c.working : idleLabel}
+      </Button>
+      <p className="muted action-plan__consent" id={consentId}>
+        {c.consent}
+      </p>
+    </div>
+  );
+}
+
 /** The language picker and, when a plan can be asked for, the button with its consent line. */
 function PlanControls(props: {
   state: ActionPlanState;
@@ -232,17 +266,10 @@ function PlanControls(props: {
   generation: Generation;
 }) {
   const c = actionPlanCopy[props.language];
-  const consentId = useId();
   const { state, planLanguage, generation } = props;
   // Switching languages means something only when a plan can be asked for or
   // one exists in another language.
   if (!props.canGenerate && state.languages.length === 0) return null;
-  const left = plansLeft(state);
-  const idleLabel = props.hasPlan
-    ? c.regenerate(left)
-    : failedIn(state, planLanguage.value)
-      ? c.retry(left)
-      : c.generate;
   return (
     <div className="action-plan__controls">
       <SelectField
@@ -259,19 +286,13 @@ function PlanControls(props: {
         }))}
       />
       {props.canGenerate ? (
-        <div className="action-plan__generate">
-          <Button
-            variant={props.hasPlan ? 'default' : 'primary'}
-            disabled={generation.working}
-            onClick={() => void generation.start()}
-            aria-describedby={consentId}
-          >
-            {generation.working ? c.working : idleLabel}
-          </Button>
-          <p className="muted action-plan__consent" id={consentId}>
-            {c.consent}
-          </p>
-        </div>
+        <GenerateButton
+          state={state}
+          hasPlan={props.hasPlan}
+          language={props.language}
+          planLanguage={planLanguage.value}
+          generation={generation}
+        />
       ) : null}
     </div>
   );
