@@ -16,3 +16,17 @@ client_secret_*.json
 # GoAccess reports from scripts/traffic-report.sh: masked IPs and user agents
 # from production, never meant for the repository.
 traffic-reports/
+
+# Working material for the owner and the coding agents: plans, briefs, review
+# and test reports, task boards. It stays in the local checkout and never ships.
+docs/PLAN_*.md
+docs/AGENT_*.md
+!docs/AGENT_CHECKPOINTS.md
+!docs/AGENT_ORCHESTRATION.md
+docs/REVIEW_T-*.md
+docs/TEST_T-*.md
+docs/CONTEXT.md
+docs/TASK_BOARD.md
+docs/FINAL_REPORT.md
+docs/CUSTOMER_READINESS_*.md
+docs/research/
