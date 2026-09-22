@@ -1079,7 +1079,10 @@ describe('home pricing and workspace onboarding', () => {
     expect(
       screen.getByRole('region', { name: 'Two one-time reports. No subscription.' }),
     ).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/');
+    // The URL is cleaned by a passive effect of the home screen, which React
+    // flushes after the heading is already in the DOM; on a slow CI runner the
+    // synchronous assertion used to run in between and see '/plans'.
+    await waitFor(() => expect(window.location.pathname).toBe('/'));
     // The standalone plans screen is gone for good.
     expect(
       screen.queryByRole('heading', { name: 'Plans for every public audit.' }),
