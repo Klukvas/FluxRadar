@@ -6,21 +6,21 @@ import { AccountRoute, PasswordResetRoute } from './AccountRoutes';
 import { AdminStatsScreen } from './AdminStats';
 import { useAppModel, type AppModelProps } from './app-model';
 import { isPublicDocument } from './app-routes';
-import { loadProfiles } from './app-session';
 import { accountCopy } from './account-copy';
-import { CheckoutPending } from './Checkout';
 import { CookieConsent } from './CookieConsent';
 import { DesktopRoute, IntegrationsRoute, ReportsRoute } from './SiteRoutes';
-import { NewScanScreen } from './NewScanScreen';
 import { HomeRoute } from './HomeRoute';
 import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
 import { OnboardingTour } from './OnboardingTour';
 import { PublicDocument } from './PublicDocument';
-import { PrintReport } from './PrintReport';
-import { planLanguageFromSearch, planSearch } from './action-plan';
-import { IssuesScreen } from './Issues';
-import { ResultsScreen } from './Report';
-import { ScanScreen } from './ScanProgress';
+import {
+  CheckoutRoute,
+  IssuesRoute,
+  NewScanRoute,
+  PrintRoute,
+  ResultsRoute,
+  ScanRoute,
+} from './ScanRoutes';
 import { Styleguide } from './Styleguide';
 import { SupportWidget } from './SupportWidget';
 import { AppFrame, VerifyBanner, WorkspaceFooter, WorkspaceHeader } from './WorkspaceChrome';
@@ -62,33 +62,19 @@ function AppContent(props: AppModelProps) {
     screen,
     emailAction,
     account,
-    profiles,
-    setProfiles,
     booting,
     tourOpen,
     verifyBannerHidden,
-    selectedProfile,
-    setSelectedProfile,
     selectedScan,
-    setSelectedScan,
-    updateSelectedScan,
     issueRuleFilter,
-    setIssueRuleFilter,
-    newScanPlan,
-    setNewScanPlan,
     error,
     setError,
     notice,
-    setNotice,
     clearNotice,
     pendingCheckout,
-    startCheckout,
-    endCheckout,
     navigate,
-    retryScan,
     finishOnboarding,
     skipOnboarding,
-    onScanCreated,
   } = app;
 
   if (screen === 'styleguide') {
@@ -148,25 +134,7 @@ function AppContent(props: AppModelProps) {
   if (screen === 'print') {
     const printScanId = selectedScan?.id ?? entryRoute.scanId;
     if (printScanId !== null) {
-      return (
-        <>
-          {error ? (
-            <AlertDialog
-              message={error}
-              language={language}
-              floating
-              onClose={() => setError(null)}
-            />
-          ) : null}
-          <PrintReport
-            scanId={printScanId}
-            language={language}
-            planLanguage={planLanguageFromSearch(window.location.search) ?? language}
-            onBack={() => navigate('results', printScanId)}
-            onError={setError}
-          />
-        </>
-      );
+      return <PrintRoute app={app} printScanId={printScanId} />;
     }
   }
 
@@ -196,83 +164,19 @@ function AppContent(props: AppModelProps) {
       {screen === 'desktop' ? <DesktopRoute app={app} /> : null}
       {screen === 'reports' ? <ReportsRoute app={app} /> : null}
       {pendingCheckout !== null ? (
-        <CheckoutPending
-          language={language}
-          checkout={pendingCheckout}
-          onConfirmed={(scan) => {
-            endCheckout();
-            onScanCreated(scan);
-          }}
-          onCancel={endCheckout}
-          onError={setError}
-        />
+        <CheckoutRoute app={app} pendingCheckout={pendingCheckout} />
       ) : null}
       {screen === 'new-scan' && pendingCheckout === null ? (
-        <NewScanScreen
-          profiles={profiles}
-          selectedProfile={selectedProfile}
-          accountId={account.accountId}
-          internalFreeAccess={account.internalFreeAccess === true}
-          language={language}
-          onCreated={onScanCreated}
-          initialPlan={newScanPlan}
-          onCheckoutStarted={startCheckout}
-          onProfilesChanged={async () => {
-            await loadProfiles(setProfiles);
-          }}
-          onClose={() => navigate('desktop')}
-          onError={setError}
-        />
+        <NewScanRoute app={app} account={account} />
       ) : null}
-      {screen === 'scan' ? (
-        <ScanScreen
-          scan={selectedScan}
-          language={language}
-          onUpdate={setSelectedScan}
-          onDone={() => (selectedScan ? navigate('results', selectedScan.id) : navigate('reports'))}
-          onReports={() => navigate('reports')}
-          onError={setError}
-        />
-      ) : null}
-      {screen === 'results' ? (
-        <ResultsScreen
-          scan={selectedScan}
-          language={language}
-          onScan={updateSelectedScan}
-          onIssues={() => {
-            setIssueRuleFilter(null);
-            if (selectedScan) navigate('issues', selectedScan.id);
-            else navigate('reports');
-          }}
-          onOpenProblem={(ruleId) => {
-            setIssueRuleFilter(ruleId);
-            if (selectedScan) navigate('issues', selectedScan.id);
-          }}
-          onUpgrade={(scan) => {
-            const profile = profiles.find((candidate) => candidate.id === scan.profileId);
-            if (profile) setSelectedProfile(profile);
-            setNewScanPlan('Complete');
-            navigate('new-scan');
-          }}
-          onPrint={(scan, planLanguage) => navigate('print', scan.id, planSearch(planLanguage))}
-          profileTargetLanguages={
-            profiles.find((profile) => profile.id === selectedScan?.profileId)?.targetLanguages
-          }
-          onRetry={(scan) => retryScan(scan.id)}
-          onReports={() => navigate('reports')}
-          onError={setError}
-        />
-      ) : null}
+      {screen === 'scan' ? <ScanRoute app={app} /> : null}
+      {screen === 'results' ? <ResultsRoute app={app} /> : null}
       {screen === 'issues' ? (
-        <IssuesScreen
+        <IssuesRoute
           // Remounted per report and per problem, so a filter from one never
           // leaks into another.
           key={`${selectedScan?.id ?? 'none'}:${issueRuleFilter ?? ''}`}
-          scan={selectedScan}
-          language={language}
-          initialRuleId={issueRuleFilter}
-          onError={setError}
-          onNotice={setNotice}
+          app={app}
         />
       ) : null}
       {screen === 'integrations' ? <IntegrationsRoute app={app} /> : null}
