@@ -43,6 +43,7 @@ import {
 import { logEgressUsage, recordEgressUsage } from '../integrations/crawl-egress-usage.ts';
 import { buildCrawlSummary } from './crawl-summary.ts';
 import { executionProfile, storedExecutionConfig } from '../profiles/execution-config.ts';
+import { resetActionPlans } from '../action-plan/run-state.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
 import type { WorkerDeps } from './deps.ts';
 import { freeCheckMetadata, runFreeCheck } from './free-check.ts';
@@ -475,16 +476,7 @@ export async function runScanAttempt(
   // Either way the Action Plans were written from issues deleted above, so
   // they go, and the scan's plan budget starts over with the new snapshot. A
   // generation still in flight loses its token here and cannot write (D-232).
-  await prisma.actionPlan.deleteMany({ where: { scanId } });
-  await prisma.scan.update({
-    where: { id: scanId },
-    data: {
-      actionPlanAttempts: 0,
-      actionPlanSuccesses: 0,
-      actionPlanRunStartedAt: null,
-      actionPlanRunLanguage: null,
-    },
-  });
+  await resetActionPlans(prisma, scanId);
   for (const module of targetModules) {
     await setModule(prisma, scanId, module, { runtimeStatus: 'Pending' });
   }

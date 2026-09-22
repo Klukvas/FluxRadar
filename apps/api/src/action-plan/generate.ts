@@ -4,7 +4,12 @@
 // the provider is asked once, and the outcome is written by the run-state
 // helpers, which refuse to write for a run that lost its token.
 
-import { runActionPlan, type AiProvider } from '@fluxradar/ai';
+import {
+  runActionPlan,
+  type ActionPlanFailed,
+  type ActionPlanSucceeded,
+  type AiProvider,
+} from '@fluxradar/ai';
 import { ACTION_PLAN_NOTICE_VERSION } from '@fluxradar/contracts';
 import type { PrismaClient } from '@prisma/client';
 
@@ -28,41 +33,39 @@ function describeError(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
-async function generateActionPlan(deps: GenerationDeps, claim: ActionPlanClaim): Promise<void> {
-  const { prisma, logger } = deps;
-  const scan = await prisma.scan.findUniqueOrThrow({
-    where: { id: claim.scanId },
-    select: { id: true, domain: true, modules: true },
+async function recordFailedGeneration(
+  deps: GenerationDeps,
+  claim: ActionPlanClaim,
+  result: ActionPlanFailed,
+): Promise<void> {
+  // The detail is our own description; the module never quotes the answer.
+  deps.logger.warn('action plan attempt failed', {
+    scanId: claim.scanId,
+    language: claim.language,
+    failureCode: result.failureCode,
+    detail: result.detail,
   });
-  const input = await buildActionPlanInput(prisma, scan, claim.language);
-  const result = await runActionPlan(input, { provider: deps.provider });
+  const usage =
+    result.response === null
+      ? null
+      : { usage: result.response.usage, usageSource: result.response.usageSource };
+  await recordActionPlanFailure(deps.prisma, claim, result.failureCode, usage, deps.now());
+}
+
+async function recordWrittenPlan(
+  deps: GenerationDeps,
+  claim: ActionPlanClaim,
+  result: ActionPlanSucceeded,
+): Promise<void> {
   const context = { scanId: claim.scanId, language: claim.language };
-  if (result.status === 'failed') {
-    // The detail is our own description; the module never quotes the answer.
-    logger.warn('action plan attempt failed', {
-      ...context,
-      failureCode: result.failureCode,
-      detail: result.detail,
-    });
-    await recordActionPlanFailure(
-      prisma,
-      claim,
-      result.failureCode,
-      result.response === null
-        ? null
-        : { usage: result.response.usage, usageSource: result.response.usageSource },
-      deps.now(),
-    );
-    return;
-  }
   if (result.ignoredRuleIds.length > 0) {
-    logger.info('action plan named rules outside the scan', {
+    deps.logger.info('action plan named rules outside the scan', {
       ...context,
       ignoredRuleIds: result.ignoredRuleIds,
     });
   }
   const written = await recordActionPlanSuccess(
-    prisma,
+    deps.prisma,
     claim,
     {
       contentJson: JSON.stringify(result.content),
@@ -76,8 +79,20 @@ async function generateActionPlan(deps: GenerationDeps, claim: ActionPlanClaim):
     deps.now(),
   );
   if (!written) {
-    logger.info('action plan discarded: the run lost its claim before it finished', context);
+    deps.logger.info('action plan discarded: the run lost its claim before it finished', context);
   }
+}
+
+async function generateActionPlan(deps: GenerationDeps, claim: ActionPlanClaim): Promise<void> {
+  const scan = await deps.prisma.scan.findUniqueOrThrow({
+    where: { id: claim.scanId },
+    select: { id: true, domain: true, modules: true },
+  });
+  const input = await buildActionPlanInput(deps.prisma, scan, claim.language);
+  const result = await runActionPlan(input, { provider: deps.provider });
+  await (result.status === 'failed'
+    ? recordFailedGeneration(deps, claim, result)
+    : recordWrittenPlan(deps, claim, result));
 }
 
 /**

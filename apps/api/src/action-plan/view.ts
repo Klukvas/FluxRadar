@@ -8,9 +8,9 @@
 // or False Positive (Resolved comes from a later scan), which is why the report
 // calls an Action "settled" and never "fixed".
 
-import { ACTION_PLAN_EFFORTS } from '@fluxradar/ai';
+import { ACTION_PLAN_EFFORTS, type ActionPlanAction, type ActionPlanContent } from '@fluxradar/ai';
 import type { ActionPlanLanguage } from '@fluxradar/contracts';
-import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
+import type { PrismaClient, ScanModule } from '@prisma/client';
 import { z } from 'zod';
 
 import { JOB_STATUSES } from '../billing/constants.ts';
@@ -20,10 +20,11 @@ import { OPEN_ISSUE_STATUSES } from '../issues/summary.ts';
 import type { OwnScan } from '../scans/routes.ts';
 import {
   ACTION_PLAN_ATTEMPT_STATUSES,
-  ACTION_PLAN_READY_STATUSES,
   SECTIONS_OUTSIDE_THE_PLAN,
+  isReadyStatus,
   isRunInFlight,
   planWindowEndsAt,
+  plannableIssueWhere,
   remainingBudget,
   type ActionPlanAvailability,
   type ActionPlanBudget,
@@ -33,27 +34,31 @@ import {
 export interface PlanFacts {
   /** Terminal, the job done and the finish time recorded. */
   readonly ready: boolean;
+  /** The Plan Window's end, or the entitlement's expiry when that comes first. */
   readonly windowEndsAt: Date | null;
   /** Open issues outside Analytics: the ones a plan can address. */
   readonly plannableOpenIssues: number;
 }
 
-export async function readPlanFacts(prisma: PrismaClient, scan: Scan): Promise<PlanFacts> {
+function earliest(first: Date | null, second: Date | null | undefined): Date | null {
+  if (first === null || second == null) return first ?? second ?? null;
+  return first.getTime() <= second.getTime() ? first : second;
+}
+
+export async function readPlanFacts(prisma: PrismaClient, scan: OwnScan): Promise<PlanFacts> {
   const [job, plannableOpenIssues] = await Promise.all([
     prisma.job.findUnique({ where: { scanId: scan.id }, select: { status: true } }),
-    prisma.issue.count({
-      where: {
-        scanId: scan.id,
-        status: { in: [...OPEN_ISSUE_STATUSES] },
-        module: { not: 'Analytics' },
-      },
-    }),
+    prisma.issue.count({ where: plannableIssueWhere(scan.id) }),
   ]);
   const ready =
-    ACTION_PLAN_READY_STATUSES.has(scan.status) &&
-    job?.status === JOB_STATUSES.done &&
-    scan.completedAt !== null;
-  return { ready, windowEndsAt: planWindowEndsAt(scan.completedAt), plannableOpenIssues };
+    isReadyStatus(scan.status) && job?.status === JOB_STATUSES.done && scan.completedAt !== null;
+  // Generating is new work bought with the purchase: once the entitlement has
+  // expired, the window has closed whatever its own end says.
+  const windowEndsAt = earliest(
+    planWindowEndsAt(scan.completedAt),
+    scan.purchase?.entitlement?.expiresAt,
+  );
+  return { ready, windowEndsAt, plannableOpenIssues };
 }
 
 export function isWindowOpen(facts: PlanFacts, now: Date): boolean {
@@ -67,8 +72,6 @@ export function planAvailability(
   now: Date,
 ): ActionPlanAvailability {
   if (!facts.ready) return 'not_ready';
-  // Generating is new work bought with the purchase, like a retry: an expired
-  // or suspended entitlement closes the window whatever the date.
   if (!isWindowOpen(facts, now) || paidAccessDenial(scan, { now }) !== null) {
     return 'window_closed';
   }
@@ -78,7 +81,7 @@ export function planAvailability(
   return 'available';
 }
 
-const storedContentSchema = z.object({
+const storedContentSchema: z.ZodType<ActionPlanContent> = z.object({
   overview: z.string(),
   actions: z.array(
     z.object({
@@ -98,12 +101,8 @@ export interface PlannedRule {
   readonly totalIssues: number;
 }
 
-export interface PlannedAction {
-  readonly title: string;
-  readonly why: string;
-  readonly steps: readonly string[];
-  readonly effort: (typeof ACTION_PLAN_EFFORTS)[number];
-  readonly ruleIds: readonly string[];
+/** A stored Action with its live counts. */
+export interface PlannedAction extends ActionPlanAction {
   readonly rules: readonly PlannedRule[];
   readonly openIssues: number;
   readonly totalIssues: number;
@@ -116,7 +115,8 @@ export interface PlanCaveat {
   readonly status: string;
 }
 
-export interface ActionPlanDto {
+/** A stored plan as the report shows it: the snapshot text under live counts. */
+export interface PlanWithOverlay {
   readonly language: string;
   readonly generatedAt: string;
   readonly modelId: string;
@@ -127,7 +127,7 @@ export interface ActionPlanDto {
   readonly caveats: readonly PlanCaveat[];
 }
 
-export interface ActionPlanView {
+export interface ActionPlanState {
   readonly language: ActionPlanLanguage;
   readonly availability: ActionPlanAvailability;
   readonly languages: readonly string[];
@@ -139,7 +139,7 @@ export interface ActionPlanView {
   } | null;
   readonly remaining: ActionPlanBudget;
   readonly windowEndsAt: string | null;
-  readonly plan: ActionPlanDto | null;
+  readonly plan: PlanWithOverlay | null;
 }
 
 interface StatusCounts {
@@ -184,9 +184,9 @@ export function planCaveats(modules: readonly ScanModule[]): readonly PlanCaveat
 }
 
 function withOverlay(
-  content: z.infer<typeof storedContentSchema>,
+  content: ActionPlanContent,
   counts: ReadonlyMap<string, StatusCounts>,
-): Pick<ActionPlanDto, 'actions' | 'reach'> {
+): Pick<PlanWithOverlay, 'actions' | 'reach'> {
   const actions = content.actions.map((action): PlannedAction => {
     const rules = action.ruleIds.map((ruleId) => ({
       ruleId,
@@ -213,13 +213,13 @@ async function readPlan(
   scan: OwnScan,
   language: ActionPlanLanguage,
   logger: ApiLogger,
-): Promise<ActionPlanDto | null> {
+): Promise<PlanWithOverlay | null> {
   const stored = await prisma.actionPlan.findUnique({
     where: { scanId_language: { scanId: scan.id, language } },
     select: { contentJson: true, generatedAt: true, modelId: true },
   });
   if (stored === null) return null;
-  let parsed: z.infer<typeof storedContentSchema>;
+  let parsed: ActionPlanContent;
   try {
     parsed = storedContentSchema.parse(JSON.parse(stored.contentJson));
   } catch (error) {
@@ -242,53 +242,63 @@ async function readPlan(
   };
 }
 
-export async function readActionPlanView(
+/**
+ * The latest attempt of this snapshot, if it failed. Attempts of an earlier
+ * snapshot (before a re-run) are older than the latest run's end and are not
+ * this report's to show.
+ */
+async function lastFailure(
+  prisma: PrismaClient,
+  scan: OwnScan,
+): Promise<ActionPlanState['lastFailure']> {
+  const attempt = await prisma.actionPlanAttempt.findFirst({
+    where: {
+      scanId: scan.id,
+      ...(scan.completedAt === null ? {} : { createdAt: { gte: scan.completedAt } }),
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { status: true, failureCode: true, language: true, finishedAt: true, createdAt: true },
+  });
+  if (attempt?.status !== ACTION_PLAN_ATTEMPT_STATUSES.failed) return null;
+  return {
+    code: attempt.failureCode ?? 'unknown',
+    language: attempt.language,
+    at: (attempt.finishedAt ?? attempt.createdAt).toISOString(),
+  };
+}
+
+function runInFlight(scan: OwnScan, now: Date): ActionPlanState['run'] {
+  if (!isRunInFlight(scan.actionPlanRunStartedAt, now)) return null;
+  if (scan.actionPlanRunStartedAt === null || scan.actionPlanRunLanguage === null) return null;
+  return {
+    language: scan.actionPlanRunLanguage,
+    startedAt: scan.actionPlanRunStartedAt.toISOString(),
+  };
+}
+
+export async function readActionPlanState(
   prisma: PrismaClient,
   scan: OwnScan,
   language: ActionPlanLanguage,
   now: Date,
   logger: ApiLogger,
-): Promise<ActionPlanView> {
-  const [facts, plans, lastAttempt, plan] = await Promise.all([
+): Promise<ActionPlanState> {
+  const [facts, plans, failure, plan] = await Promise.all([
     readPlanFacts(prisma, scan),
     prisma.actionPlan.findMany({
       where: { scanId: scan.id },
       select: { language: true },
       orderBy: { language: 'asc' },
     }),
-    prisma.actionPlanAttempt.findFirst({
-      where: { scanId: scan.id },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      select: {
-        status: true,
-        failureCode: true,
-        language: true,
-        finishedAt: true,
-        createdAt: true,
-      },
-    }),
+    lastFailure(prisma, scan),
     readPlan(prisma, scan, language, logger),
   ]);
-  const inFlight = isRunInFlight(scan.actionPlanRunStartedAt, now);
   return {
     language,
     availability: planAvailability(scan, facts, now),
     languages: plans.map((row) => row.language),
-    run:
-      inFlight && scan.actionPlanRunStartedAt !== null && scan.actionPlanRunLanguage !== null
-        ? {
-            language: scan.actionPlanRunLanguage,
-            startedAt: scan.actionPlanRunStartedAt.toISOString(),
-          }
-        : null,
-    lastFailure:
-      lastAttempt?.status === ACTION_PLAN_ATTEMPT_STATUSES.failed
-        ? {
-            code: lastAttempt.failureCode ?? 'unknown',
-            language: lastAttempt.language,
-            at: (lastAttempt.finishedAt ?? lastAttempt.createdAt).toISOString(),
-          }
-        : null,
+    run: runInFlight(scan, now),
+    lastFailure: failure,
     remaining: remainingBudget(scan),
     windowEndsAt: facts.windowEndsAt?.toISOString() ?? null,
     plan,

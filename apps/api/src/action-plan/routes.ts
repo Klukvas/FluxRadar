@@ -9,7 +9,11 @@
 
 import { Router } from 'express';
 import type { AiProvider } from '@fluxradar/ai';
-import { ACTION_PLAN_NOTICE_VERSION, actionPlanLanguageInputSchema } from '@fluxradar/contracts';
+import {
+  ACTION_PLAN_NOTICE_VERSION,
+  actionPlanLanguageInputSchema,
+  type ActionPlanLanguage,
+} from '@fluxradar/contracts';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 
@@ -20,6 +24,7 @@ import {
   ACTION_PLAN_START_WINDOW_MS,
   RequestRateLimiter,
   accountAndIpRules,
+  type RateLimitRule,
 } from '../auth/rate-limit.ts';
 import { assertPaidWorkAllowed } from '../billing/report-access.ts';
 import { sendOk } from '../http/envelope.ts';
@@ -29,9 +34,14 @@ import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import { findOwnReportScan, type OwnScan } from '../scans/routes.ts';
 import { launchActionPlanGeneration } from './generate.ts';
-import { ACTION_PLAN_DAILY_LIMIT, ACTION_PLAN_DAILY_WINDOW_MS } from './policy.ts';
-import { claimActionPlanRun } from './run-state.ts';
-import { isWindowOpen, readActionPlanView, readPlanFacts } from './view.ts';
+import { ACTION_PLAN_WINDOW_DAYS } from './policy.ts';
+import {
+  claimActionPlanRun,
+  type ActionPlanClaim,
+  type ClaimRefusal,
+  type ClaimRequest,
+} from './run-state.ts';
+import { isWindowOpen, readActionPlanState, readPlanFacts } from './view.ts';
 
 export interface ActionPlanRouterDeps {
   readonly prisma: PrismaClient;
@@ -51,8 +61,33 @@ const generateBodySchema = actionPlanLanguageInputSchema.extend({
   noticeVersion: z.string().max(64),
 });
 
-const aiUnavailable = (): ApiError =>
-  new ApiError(503, 'ACTION_PLAN_AI_UNAVAILABLE', 'AI is temporarily unavailable');
+const aiUnavailable = (code: string): ApiError =>
+  new ApiError(503, code, 'AI is temporarily unavailable');
+
+const CLAIM_REFUSALS: Readonly<Record<ClaimRefusal, () => ApiError>> = {
+  in_progress: () =>
+    conflict('ACTION_PLAN_IN_PROGRESS', 'a plan for this report is already being written'),
+  limit_reached: () =>
+    new ApiError(
+      429,
+      'ACTION_PLAN_LIMIT',
+      'this report has used all of its Action Plan generations',
+    ),
+  not_ready: () =>
+    conflict('ACTION_PLAN_NOT_READY', 'the plan can be written once the scan has finished'),
+  busy: () => aiUnavailable('ACTION_PLAN_BUSY'),
+};
+
+function parseGenerateBody(body: unknown): { readonly language: ActionPlanLanguage } {
+  const input = parseInput(generateBodySchema, body);
+  if (input.noticeVersion !== ACTION_PLAN_NOTICE_VERSION) {
+    throw conflict(
+      'ACTION_PLAN_NOTICE_OUTDATED',
+      'this page is out of date; reload the report and try again',
+    );
+  }
+  return { language: input.language };
+}
 
 function assertCompleteScan(scan: OwnScan): void {
   if (scan.plan !== 'Complete') {
@@ -65,13 +100,11 @@ function assertCompleteScan(scan: OwnScan): void {
 
 async function assertPlannable(prisma: PrismaClient, scan: OwnScan, now: Date): Promise<void> {
   const facts = await readPlanFacts(prisma, scan);
-  if (!facts.ready) {
-    throw conflict('ACTION_PLAN_NOT_READY', 'the plan can be written once the scan has finished');
-  }
+  if (!facts.ready) throw CLAIM_REFUSALS.not_ready();
   if (!isWindowOpen(facts, now)) {
     throw conflict(
       'ACTION_PLAN_WINDOW_CLOSED',
-      'a plan can be generated within 3 days after the scan finished',
+      `a plan can be generated within ${ACTION_PLAN_WINDOW_DAYS} days after the scan finished`,
     );
   }
   if (facts.plannableOpenIssues === 0) {
@@ -79,13 +112,37 @@ async function assertPlannable(prisma: PrismaClient, scan: OwnScan, now: Date): 
   }
 }
 
-async function assertDailyCapLeft(prisma: PrismaClient, now: Date): Promise<void> {
-  const recent = await prisma.actionPlanAttempt.count({
-    where: { createdAt: { gt: new Date(now.getTime() - ACTION_PLAN_DAILY_WINDOW_MS) } },
+/** Every refusal that does not depend on the limits, in order; the provider to use. */
+async function assertStartable(
+  deps: ActionPlanRouterDeps,
+  scan: OwnScan,
+  now: Date,
+): Promise<AiProvider> {
+  // Writing a plan is new work bought with the purchase, like a retry.
+  assertPaidWorkAllowed(scan, now);
+  assertCompleteScan(scan);
+  await assertPlannable(deps.prisma, scan, now);
+  const provider = deps.createActionPlanProvider();
+  if (provider === null) throw aiUnavailable('ACTION_PLAN_AI_UNAVAILABLE');
+  return provider;
+}
+
+function startRules(accountId: string, ip: string | undefined): readonly RateLimitRule[] {
+  return accountAndIpRules('action-plan', accountId, ip ?? 'unknown', {
+    account: ACTION_PLAN_START_LIMIT,
+    ip: ACTION_PLAN_START_IP_LIMIT,
+    windowMs: ACTION_PLAN_START_WINDOW_MS,
   });
-  if (recent >= ACTION_PLAN_DAILY_LIMIT) {
-    throw new ApiError(503, 'ACTION_PLAN_BUSY', 'AI is temporarily unavailable');
-  }
+}
+
+/** The daily cap and the claim, which run together (run-state.ts). */
+async function claimOrRefuse(
+  prisma: PrismaClient,
+  request: ClaimRequest,
+): Promise<ActionPlanClaim> {
+  const claimed = await claimActionPlanRun(prisma, request);
+  if (claimed.kind !== 'claimed') throw CLAIM_REFUSALS[claimed.kind]();
+  return claimed.claim;
 }
 
 export function actionPlanRouter(deps: ActionPlanRouterDeps): Router {
@@ -95,59 +152,18 @@ export function actionPlanRouter(deps: ActionPlanRouterDeps): Router {
 
   router.post('/scans/:scanId/action-plan', auth, async (req, res) => {
     const accountId = accountIdFrom(res);
-    const scanId = requiredParam(req.params.scanId, 'scanId');
     const now = deps.now();
+    const scanId = requiredParam(req.params.scanId, 'scanId');
     const scan = await findOwnReportScan(deps.prisma, accountId, scanId);
-    const input = parseInput(generateBodySchema, req.body);
-    if (input.noticeVersion !== ACTION_PLAN_NOTICE_VERSION) {
-      throw conflict(
-        'ACTION_PLAN_NOTICE_OUTDATED',
-        'this page is out of date; reload the report and try again',
-      );
-    }
-    // Writing a plan is new work bought with the purchase, like a retry.
-    assertPaidWorkAllowed(scan, now);
-    assertCompleteScan(scan);
-    await assertPlannable(deps.prisma, scan, now);
-    const provider = deps.createActionPlanProvider();
-    if (provider === null) throw aiUnavailable();
-    requestRateLimiter.assertAllowedAll(
-      accountAndIpRules('action-plan', accountId, req.ip ?? 'unknown', {
-        account: ACTION_PLAN_START_LIMIT,
-        ip: ACTION_PLAN_START_IP_LIMIT,
-        windowMs: ACTION_PLAN_START_WINDOW_MS,
-      }),
-    );
-    await assertDailyCapLeft(deps.prisma, now);
-    const claimed = await claimActionPlanRun(deps.prisma, {
-      scanId: scan.id,
-      accountId,
-      language: input.language,
-      now,
-    });
-    if (claimed.kind === 'in_progress') {
-      throw conflict('ACTION_PLAN_IN_PROGRESS', 'a plan for this report is already being written');
-    }
-    if (claimed.kind === 'limit_reached') {
-      throw new ApiError(
-        429,
-        'ACTION_PLAN_LIMIT',
-        'this report has used all of its Action Plan generations',
-      );
-    }
+    const { language } = parseGenerateBody(req.body);
+    const provider = await assertStartable(deps, scan, now);
+    requestRateLimiter.assertAllowedAll(startRules(accountId, req.ip));
+    const claim = await claimOrRefuse(deps.prisma, { scanId, accountId, language, now });
     launchActionPlanGeneration(
       { prisma: deps.prisma, provider, logger: deps.logger, now: deps.now },
-      claimed.claim,
+      claim,
     );
-    sendOk(
-      res,
-      {
-        scanId: scan.id,
-        language: input.language,
-        startedAt: claimed.claim.startedAt.toISOString(),
-      },
-      { status: 202 },
-    );
+    sendOk(res, { scanId, language, startedAt: claim.startedAt.toISOString() }, { status: 202 });
   });
 
   // No rate limit: the report polls this while a plan is being written.
@@ -158,7 +174,7 @@ export function actionPlanRouter(deps: ActionPlanRouterDeps): Router {
     assertCompleteScan(scan);
     sendOk(
       res,
-      await readActionPlanView(deps.prisma, scan, query.language, deps.now(), deps.logger),
+      await readActionPlanState(deps.prisma, scan, query.language, deps.now(), deps.logger),
     );
   });
 

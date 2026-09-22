@@ -28,8 +28,7 @@ import { Prisma, type PrismaClient, type ScanModule } from '@prisma/client';
 
 import { localizedFindingTexts } from '../issues/localized-text.ts';
 import { OPEN_ISSUE_STATUSES } from '../issues/summary.ts';
-
-const ANALYTICS = 'Analytics';
+import { ANALYTICS_MODULE, plannableIssueWhere } from './policy.ts';
 
 export interface PlannedScan {
   readonly id: string;
@@ -68,10 +67,11 @@ function catalogueLanguage(language: ActionPlanLanguage): FindingLanguage {
   return language === 'uk' ? 'uk' : 'en';
 }
 
-const openPlannableIssues = (scanId: string): Prisma.Sql =>
+/** plannableIssueWhere, for the raw queries below. */
+const plannableIssueSql = (scanId: string): Prisma.Sql =>
   Prisma.sql`"scanId" = ${scanId}
     AND "status" IN (${Prisma.join([...OPEN_ISSUE_STATUSES])})
-    AND "module" <> ${ANALYTICS}`;
+    AND "module" <> ${ANALYTICS_MODULE}`;
 
 /**
  * Up to three distinct pages per rule, most severe first, with query string
@@ -88,7 +88,7 @@ async function samplePages(prisma: PrismaClient, scanId: string): Promise<readon
         SELECT "ruleId", "severityRank",
                split_part(split_part("targetUrl", '#', 1), '?', 1) AS "page"
         FROM "Issue"
-        WHERE ${openPlannableIssues(scanId)}
+        WHERE ${plannableIssueSql(scanId)}
       ) AS "open"
       GROUP BY "ruleId", "page"
     ) AS "ranked"
@@ -97,20 +97,23 @@ async function samplePages(prisma: PrismaClient, scanId: string): Promise<readon
 }
 
 /**
- * One row per distinct recommendation of a rule. The stored English text is
- * the variant (templates carry constants, not per-issue values), and the row's
- * message code renders the same variant in Ukrainian. UX findings written by a
- * model have no code and carry their own English text.
+ * Every distinct recommendation of a rule, most severe first. The stored
+ * English text is the variant (templates carry constants, not per-issue
+ * values), and the message code of its most severe issue renders the same
+ * variant in Ukrainian. UX findings written by a model have no code and carry
+ * their own English text.
  */
 async function recommendationVariants(
   prisma: PrismaClient,
   scanId: string,
 ): Promise<readonly RecommendationVariant[]> {
   return prisma.$queryRaw<RecommendationVariant[]>(Prisma.sql`
-    SELECT DISTINCT ON ("ruleId", "recommendation") "ruleId", "recommendation", "messagesJson"
+    SELECT "ruleId", "recommendation",
+           (array_agg("messagesJson" ORDER BY "severityRank", "id"))[1] AS "messagesJson"
     FROM "Issue"
-    WHERE ${openPlannableIssues(scanId)}
-    ORDER BY "ruleId", "recommendation", "severityRank", "id"`);
+    WHERE ${plannableIssueSql(scanId)}
+    GROUP BY "ruleId", "recommendation"
+    ORDER BY "ruleId", MIN("severityRank"), "recommendation"`);
 }
 
 function knownSeverity(value: string): Severity {
@@ -165,17 +168,14 @@ function grouped<T extends { readonly ruleId: string }, V>(
 function moduleInputs(modules: readonly ScanModule[]): readonly ActionPlanModuleInput[] {
   return modules.flatMap((module) => {
     const status = MODULE_RUNTIME_STATUSES.find((known) => known === module.runtimeStatus);
-    if (module.module === ANALYTICS || !isModuleName(module.module) || status === undefined) {
+    if (
+      module.module === ANALYTICS_MODULE ||
+      !isModuleName(module.module) ||
+      status === undefined
+    ) {
       return [];
     }
-    return [
-      {
-        module: module.module,
-        status,
-        score: module.score,
-        coverage: module.coverage,
-      },
-    ];
+    return [{ module: module.module, status, score: module.score, coverage: module.coverage }];
   });
 }
 
@@ -187,43 +187,39 @@ function hostnameOf(domain: string): string {
   }
 }
 
-/** The plan's input for one scan and language; `rules` is empty when nothing is open. */
-export async function buildActionPlanInput(
+async function openRuleCounts(prisma: PrismaClient, scanId: string): Promise<RuleCount[]> {
+  const rows = await prisma.issue.groupBy({
+    by: ['ruleId', 'module', 'severity'],
+    where: plannableIssueWhere(scanId),
+    _count: { _all: true },
+  });
+  return rows.map((row) => ({
+    ruleId: row.ruleId,
+    module: row.module,
+    severity: row.severity,
+    count: row._count._all,
+  }));
+}
+
+/** The rules of the plan's input, each with its pages and texts; Analytics never gets here. */
+async function ruleInputs(
   prisma: PrismaClient,
-  scan: PlannedScan,
-  language: ActionPlanLanguage,
-): Promise<ActionPlanInput> {
+  scanId: string,
+  language: FindingLanguage,
+): Promise<readonly ActionPlanRuleInput[]> {
   const [counts, pages, variants] = await Promise.all([
-    prisma.issue.groupBy({
-      by: ['ruleId', 'module', 'severity'],
-      where: {
-        scanId: scan.id,
-        status: { in: [...OPEN_ISSUE_STATUSES] },
-        module: { not: ANALYTICS },
-      },
-      _count: { _all: true },
-    }),
-    samplePages(prisma, scan.id),
-    recommendationVariants(prisma, scan.id),
+    openRuleCounts(prisma, scanId),
+    samplePages(prisma, scanId),
+    recommendationVariants(prisma, scanId),
   ]);
-  const textLanguage = catalogueLanguage(language);
   const pagesByRule = grouped(pages, (row) => row.page);
-  const textsByRule = grouped(variants, (row) => localizedRecommendation(row, textLanguage));
-  const rules = [
-    ...foldRules(
-      counts.map((row) => ({
-        ruleId: row.ruleId,
-        module: row.module,
-        severity: row.severity,
-        count: row._count._all,
-      })),
-    ).values(),
-  ].flatMap((rule): ActionPlanRuleInput[] =>
+  const textsByRule = grouped(variants, (row) => localizedRecommendation(row, language));
+  return [...foldRules(counts).values()].flatMap((rule): ActionPlanRuleInput[] =>
     isModuleName(rule.module)
       ? [
           {
             ruleId: rule.ruleId,
-            title: ruleTitle(rule.ruleId, textLanguage),
+            title: ruleTitle(rule.ruleId, language),
             module: rule.module,
             severity: knownSeverity(rule.severity),
             openIssues: rule.count,
@@ -233,12 +229,20 @@ export async function buildActionPlanInput(
         ]
       : [],
   );
+}
+
+/** The plan's input for one scan and language; `rules` is empty when nothing is open. */
+export async function buildActionPlanInput(
+  prisma: PrismaClient,
+  scan: PlannedScan,
+  language: ActionPlanLanguage,
+): Promise<ActionPlanInput> {
   return {
     scanId: scan.id,
     domain: hostnameOf(scan.domain),
     language,
     consent: actionPlanConsent(scan.id),
     modules: moduleInputs(scan.modules),
-    rules,
+    rules: await ruleInputs(prisma, scan.id, catalogueLanguage(language)),
   };
 }

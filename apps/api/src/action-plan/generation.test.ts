@@ -214,6 +214,36 @@ describe('Action Plan generation', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it('gives the last attempt of the day to one of two scans asking at once', async () => {
+    const provider = planProvider(ANSWER);
+    const send = vi.spyOn(provider, 'send');
+    const app = planApp(db.prisma, { provider });
+    const first = await plannableScan(db.prisma, app, 'last-first@example.com');
+    const second = await plannableScan(db.prisma, app, 'last-second@example.com');
+    const within = new Date(PLAN_NOW.getTime() - 60_000);
+    await db.prisma.actionPlanAttempt.createMany({
+      data: Array.from({ length: ACTION_PLAN_DAILY_LIMIT - 1 }, () => ({
+        scanId: first.scanId,
+        accountId: randomUUID(),
+        language: 'en',
+        status: 'Succeeded',
+        createdAt: within,
+      })),
+    });
+
+    // Counted outside the claim, both would see 99 and both would pass.
+    const responses = await Promise.all([
+      postPlan(first.owner, first.scanId, 'en'),
+      postPlan(second.owner, second.scanId, 'en'),
+    ]);
+    await settledRun(db.prisma, first.scanId);
+    await settledRun(db.prisma, second.scanId);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([202, 503]);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(await db.prisma.actionPlanAttempt.count()).toBe(ACTION_PLAN_DAILY_LIMIT);
+  });
+
   it('limits one account to ten starts an hour', async () => {
     const gated = gatedProvider(planProvider(ANSWER));
     const app = planApp(db.prisma, { provider: gated.provider });

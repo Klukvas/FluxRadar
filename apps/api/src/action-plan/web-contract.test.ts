@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { ACTION_PLAN_EFFORTS } from '@fluxradar/ai';
 import { ACTION_PLAN_LANGUAGES, ACTION_PLAN_NOTICE_VERSION } from '@fluxradar/contracts';
 import { RULE_TITLES } from '@fluxradar/rules';
 import { describe, expect, it } from 'vitest';
+
+import { ACTION_PLAN_AVAILABILITIES } from './policy.ts';
 
 // apps/web has no workspace dependencies, so what the Action Plan shares with
 // it is declared twice. Read the web sources as text, as
@@ -51,5 +54,18 @@ describe('Action Plan declarations shared with the web app', () => {
     const version = /ACTION_PLAN_NOTICE_VERSION\s*=\s*'([^']+)'/.exec(source)?.[1];
 
     expect(version).toBe(ACTION_PLAN_NOTICE_VERSION);
+  });
+
+  it('availabilities and efforts match apps/web/src/action-plan.ts', () => {
+    // The web reads an answer with a value it does not list as no answer at all,
+    // so a value added here alone would make the whole block disappear.
+    const source = webSource('action-plan.ts');
+    const listed = (name: string) =>
+      [...declaration(source, name, '] as const').matchAll(/'([a-z_]+)'/g)].map(
+        ([, value]) => value,
+      );
+
+    expect(listed('PLAN_AVAILABILITIES')).toEqual([...ACTION_PLAN_AVAILABILITIES]);
+    expect(listed('PLAN_EFFORTS')).toEqual([...ACTION_PLAN_EFFORTS]);
   });
 });

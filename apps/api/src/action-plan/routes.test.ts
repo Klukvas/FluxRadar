@@ -125,10 +125,8 @@ describe('POST /scans/:scanId/action-plan — who and when', () => {
       app,
       'expired@example.com',
     );
-    await db.prisma.entitlement.update({
-      where: { purchaseId },
-      data: { expiresAt: new Date(PLAN_NOW.getTime() - 1) },
-    });
+    const expiresAt = new Date(PLAN_NOW.getTime() - 1);
+    await db.prisma.entitlement.update({ where: { purchaseId }, data: { expiresAt } });
 
     const post = await postPlan(owner, scanId, 'en');
     const get = await getPlan(owner, scanId, 'en');
@@ -136,7 +134,10 @@ describe('POST /scans/:scanId/action-plan — who and when', () => {
     expect(post.status).toBe(403);
     expect(post.body.error.code).toBe('ENTITLEMENT_INACTIVE');
     expect(get.status).toBe(200);
-    expect(get.body.data.availability).toBe('window_closed');
+    expect(get.body.data).toMatchObject({
+      availability: 'window_closed',
+      windowEndsAt: expiresAt.toISOString(),
+    });
   });
 
   it('closes the Plan Window three days after the latest run finished', async () => {
@@ -335,6 +336,45 @@ describe('GET /scans/:scanId/action-plan — what the report reads', () => {
     const attempt = await db.prisma.actionPlanAttempt.findFirstOrThrow({ where: { scanId } });
     expect(JSON.stringify(attempt)).not.toContain('SECRET-PROVIDER-TEXT');
     expect(JSON.stringify(response.body)).not.toContain('SECRET-PROVIDER-TEXT');
+  });
+
+  it('ends the Plan Window with the entitlement when that comes first', async () => {
+    const app = planApp(db.prisma, { provider: planProvider(ANSWER) });
+    const { owner, scanId, purchaseId } = await plannableScan(
+      db.prisma,
+      app,
+      'entitlement-end@example.com',
+    );
+    const expiresAt = new Date(PLAN_NOW.getTime() + 60 * 60 * 1000);
+    await db.prisma.entitlement.update({ where: { purchaseId }, data: { expiresAt } });
+
+    const response = await getPlan(owner, scanId, 'en');
+
+    // The report says "until <date>": a date past the entitlement would be untrue.
+    expect(response.body.data).toMatchObject({
+      availability: 'available',
+      windowEndsAt: expiresAt.toISOString(),
+    });
+  });
+
+  it('does not show a failure from before the latest run', async () => {
+    const app = planApp(db.prisma, { provider: planProvider(ANSWER) });
+    const { owner, scanId } = await plannableScan(db.prisma, app, 'earlier-failure@example.com');
+    await db.prisma.actionPlanAttempt.create({
+      data: {
+        scanId,
+        accountId: 'earlier-snapshot',
+        language: 'en',
+        status: 'Failed',
+        failureCode: 'invalid_output',
+        createdAt: new Date(FINISHED_AT.getTime() - 60_000),
+        finishedAt: new Date(FINISHED_AT.getTime() - 30_000),
+      },
+    });
+
+    const response = await getPlan(owner, scanId, 'en');
+
+    expect(response.body.data.lastFailure).toBeNull();
   });
 
   it('says why a plan cannot be asked for', async () => {
