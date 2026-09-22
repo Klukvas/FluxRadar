@@ -51,12 +51,22 @@ function bodyOf(init?: RequestInit): Record<string, unknown> {
   return JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
 }
 
+/** A refusal in the API's own envelope, with its English message. */
+function refusal(code: string, message: string): Response {
+  return new Response(JSON.stringify({ success: false, data: null, error: { code, message } }), {
+    status: 409,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 function renderNewScan(
   acct: object,
   language: 'en' | 'uk' = 'en',
   // The saved profiles the workspace opens on. Only the tests about a stored
   // configuration pass their own; everything else runs on the bare profile.
   profiles: readonly object[] = [profile],
+  // How the API answers the free check. Only the tests about a refusal pass their own.
+  freeCheck: () => Response = () => envelope(scan),
 ): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = pathOf(input);
@@ -64,7 +74,7 @@ function renderNewScan(
     if (path === '/profiles') return Promise.resolve(envelope(profiles));
     if (path === '/scans/active') return Promise.resolve(envelope(null));
     if (path === '/profiles/profile-1/scans') return Promise.resolve(envelope([]));
-    if (path.endsWith('/free-check')) return Promise.resolve(envelope(scan));
+    if (path.endsWith('/free-check')) return Promise.resolve(freeCheck());
     if (path === '/billing/internal-checkout')
       return Promise.resolve(envelope({ scanId: scan.id }));
     if (path.startsWith('/scans/')) return Promise.resolve(envelope(scan));
@@ -154,6 +164,40 @@ describe('free plan controls', () => {
         userAgent: 'desktop',
       },
     });
+  });
+});
+
+// The free check is once per account and once per site. The API refuses a
+// second one with a code and an English sentence written for logs; the page
+// says why in its own language, and what is left to do.
+describe('a free check the API refuses', () => {
+  it('says the account has used its free check and names the paid plans', async () => {
+    renderNewScan(account, 'en', [profile], () =>
+      refusal('FREE_CHECK_USED', 'the one-time free check has already been used'),
+    );
+    await screen.findByText('New scan — scope and tariff');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
+
+    expect(
+      await screen.findByText(
+        'This account has already used its free check. To audit this site, choose Basic or Complete.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/one-time free check/)).not.toBeInTheDocument();
+  });
+
+  it('says in Ukrainian that the site has had its free check and the owner has not', async () => {
+    renderNewScan(account, 'uk', [profile], () =>
+      refusal('FREE_CHECK_DOMAIN_USED', 'this domain has already received a free check'),
+    );
+    await screen.findByText('Нова перевірка — область і тариф');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }));
+
+    expect(await screen.findByText(/Цей сайт уже мав безкоштовну перевірку/)).toBeInTheDocument();
+    expect(screen.getByText(/Ваша ще не використана/)).toBeInTheDocument();
+    expect(screen.queryByText(/already received a free check/)).not.toBeInTheDocument();
   });
 });
 

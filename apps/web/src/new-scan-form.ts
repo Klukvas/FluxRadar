@@ -1,19 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import {
-  ApiRequestError,
-  apiRequest,
-  type CheckoutSession,
-  type Scan,
-  type SiteProfile,
-} from './api';
+import { apiRequest, type CheckoutSession, type Scan, type SiteProfile } from './api';
 import { openCheckoutWindow, useCheckoutConfig, type PendingCheckout } from './Checkout';
 import { AI_PROCESSING_NOTICE_VERSION, AI_PROCESSING_PROVIDERS } from './ai-processing-notice';
 import { trackEvent } from './analytics';
 import { trackBeginCheckout } from './checkout-analytics';
 import { effectiveEgressLocation, freeEgressLocation, useLaunchConfig } from './egress-location';
 import { copy, fillCopy, type Language } from './i18n';
+import { launchErrorMessage } from './launch-errors';
 import { normalizeSiteAddress } from './site-address-input';
 import {
   DEFAULT_SCOPE_FORM,
@@ -349,17 +344,6 @@ export function useNewScanForm(props: NewScanFormProps) {
   const egressBlocked =
     egressConfig !== null && egressConfig.mode === 'proxy' && egressLocation === null;
 
-  /** What went wrong, in the reader's language where the API gave a reason code. */
-  const launchErrorMessage = (caught: unknown): string => {
-    if (caught instanceof ApiRequestError && caught.code === 'EGRESS_LOCATION_UNAVAILABLE') {
-      return t.newScan.egressUnavailableError;
-    }
-    if (caught instanceof ApiRequestError && caught.code === 'EGRESS_LOCATION_UNKNOWN') {
-      return t.newScan.egressUnknownError;
-    }
-    return caught instanceof Error ? caught.message : 'Scan could not be created';
-  };
-
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     // A page count of 0 or 2.5 is a typo, and the request it would become asks
@@ -460,7 +444,7 @@ export function useNewScanForm(props: NewScanFormProps) {
       }
       props.onCreated(scan);
     } catch (caught) {
-      props.onError(launchErrorMessage(caught));
+      props.onError(launchErrorMessage(caught, props.language, 'Scan could not be created'));
     } finally {
       setBusy(false);
     }

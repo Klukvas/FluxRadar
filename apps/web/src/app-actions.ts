@@ -14,6 +14,7 @@ import { isTerminalScan, isWorkspaceScreen, scanRoutePreference } from './app-ro
 import { loadProfiles } from './app-session';
 import type { AppState, VisitorIntent } from './app-state';
 import type { Language } from './i18n';
+import { launchErrorMessage } from './launch-errors';
 
 /** What the actions act on: the shell's state, its language, and the two ways it moves. */
 export type ActionContext = AppState & {
@@ -71,7 +72,7 @@ function scanActions({
  * there was nothing to carry out.
  */
 function followIntentFor(
-  { navigate, setError, setNewScanPlan, setProfiles, setSelectedProfile }: ActionContext,
+  { language, navigate, setError, setNewScanPlan, setProfiles, setSelectedProfile }: ActionContext,
   onScanCreated: (scan: Scan) => void,
 ) {
   return async (pending: VisitorIntent): Promise<boolean> => {
@@ -110,7 +111,7 @@ function followIntentFor(
       // The free check is once per account and once per site. When it is
       // spent, the scan form for this site is the next useful place — with
       // the reason on top of it.
-      setError(caught instanceof Error ? caught.message : 'The free check could not start');
+      setError(launchErrorMessage(caught, language, 'The free check could not start'));
       setNewScanPlan(null);
       navigate('new-scan');
     }
