@@ -149,3 +149,39 @@ describe('scan notifications by purchase mode', () => {
     expect(mailer.messages.map((message) => message.subject)).toEqual(PAID_FLOW_SUBJECTS);
   });
 });
+
+// Regression: the emails named the domain and one sentence, with no way back to
+// the scan they were about — the owner had to find the report on their own.
+describe('the way back to the scan', () => {
+  let db: TestDb;
+  let account: SeededAccount;
+  let mailer: MockMailer;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    account = await seedAccountWithProfile(db.prisma);
+    mailer = new MockMailer();
+  });
+
+  afterEach(async () => {
+    await db.cleanup();
+  });
+
+  it('links a finished scan to its report on the web app', async () => {
+    const { scan } = await seedScan(db.prisma, { account, status: 'Completed' });
+
+    await notifyScanEvent(
+      db.prisma,
+      mailer,
+      scan.id,
+      'scan_completed',
+      'Your audit is complete.',
+      'https://fluxradar.example/',
+    );
+
+    const [message] = mailer.messages;
+    const url = `https://fluxradar.example/scans/${scan.id}`;
+    expect(message?.html).toContain(`<a href="${url}">Open the report</a>`);
+    expect(message?.text).toContain(`Open the report: ${url}`);
+  });
+});
