@@ -466,7 +466,7 @@ export const copy = {
           price: COMPLETE_PRICE_USD,
           description: 'Everything FluxRadar can read about a public website, in one report.',
           included:
-            'Everything in Basic plus security (public OWASP ASVS profile), accessibility (WCAG 2.2 AA), performance, reliability, privacy and consent, and content quality — with the Issue Center, scan history and JSON/CSV export. Every module FluxRadar runs is already in this price; there is nothing extra to add at checkout.',
+            'Everything in Basic plus security (public OWASP ASVS profile), accessibility (WCAG 2.2 AA), performance, reliability, privacy and consent, and content quality — with scan history and JSON/CSV export. Every module FluxRadar runs is already in this price; there is nothing extra to add at checkout.',
           bestFor:
             'Anyone who needs the whole picture before a redesign, a launch, a handover or a client report.',
           limits:
@@ -491,7 +491,7 @@ export const copy = {
             label: 'What is included',
             basic: 'The full SEO analysis — 16 checks — and AI crawler readiness.',
             complete:
-              'Everything in Basic, plus security, accessibility, performance, reliability, privacy and content quality, with the Issue Center, scan history and JSON/CSV export.',
+              'Everything in Basic, plus security, accessibility, performance, reliability, privacy and content quality, with scan history and JSON/CSV export.',
           },
           notIncluded: {
             label: 'What is not included',
@@ -1685,7 +1685,7 @@ export const copy = {
           price: COMPLETE_PRICE_USD,
           description: 'Усе, що FluxRadar може прочитати про публічний сайт, в одному звіті.',
           included:
-            'Усе з Basic плюс безпека (публічний профіль OWASP ASVS), доступність (WCAG 2.2 AA), продуктивність, надійність, приватність і згода та якість контенту — разом з Issue Center, історією перевірок і експортом JSON/CSV. Усі модулі, які запускає FluxRadar, уже входять у цю ціну; нічого додавати на етапі оплати не потрібно.',
+            'Усе з Basic плюс безпека (публічний профіль OWASP ASVS), доступність (WCAG 2.2 AA), продуктивність, надійність, приватність і згода та якість контенту — разом з історією перевірок і експортом JSON/CSV. Усі модулі, які запускає FluxRadar, уже входять у цю ціну; нічого додавати на етапі оплати не потрібно.',
           bestFor:
             'Тим, кому потрібна повна картина перед редизайном, запуском, передачею сайту або звітом для клієнта.',
           limits: 'Одна перевірка одного сайту · до 50 000 сторінок обходу · результати 365 днів.',
@@ -1709,7 +1709,7 @@ export const copy = {
             label: 'Що входить',
             basic: 'Повний SEO-аналіз — 16 перевірок — і готовність до AI-роботів.',
             complete:
-              'Усе з Basic, а також безпека, доступність, продуктивність, надійність, приватність і якість контенту — з Issue Center, історією перевірок та експортом JSON/CSV.',
+              'Усе з Basic, а також безпека, доступність, продуктивність, надійність, приватність і якість контенту — з історією перевірок та експортом JSON/CSV.',
           },
           notIncluded: {
             label: 'Що не входить',
