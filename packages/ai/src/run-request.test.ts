@@ -181,7 +181,7 @@ describe('runAiRequest — ошибки провайдера', () => {
       send: async (): Promise<NormalizedAiResponse> => ({
         provider: 'openai',
         apiVersion: 'v1',
-        modelId: 'gpt-5-mini',
+        modelId: 'gpt-5.6-luna',
         requestId: 'resp_broken',
         requestIdSource: 'provider',
         createdAt: '2026-01-01T00:00:00.000Z',
