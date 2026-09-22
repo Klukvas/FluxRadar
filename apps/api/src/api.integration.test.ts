@@ -304,7 +304,7 @@ describe('T-12 API happy paths', () => {
       plan: 'Complete',
       scope: { includeSubdomains: false, maxPages: 15 },
       aiConsent: {
-        providers: ['anthropic'],
+        providers: ['anthropic', 'openai'],
         noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
       },
     });
@@ -388,7 +388,7 @@ describe('T-12 API happy paths', () => {
       plan: 'Basic',
       scope: { includeSubdomains: false, maxPages: 15 },
       aiConsent: {
-        providers: ['anthropic'],
+        providers: ['anthropic', 'openai'],
         noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
       },
     });

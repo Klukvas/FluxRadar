@@ -1,3 +1,4 @@
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -245,7 +246,10 @@ describe('FASTSPRING-004 checkout HTTP surface', () => {
         siteProfileId: profileId,
         plan: 'Basic',
         scope: SCOPE,
-        aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
+        aiConsent: {
+          providers: ['anthropic', 'openai'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
       });
     expect(created.status).toBe(201);
     expect(created.body.data.checkoutUrl).toBe(

@@ -41,6 +41,7 @@ describe('startup integration diagnostics', () => {
       'storage',
       'crawl-egress',
       'anthropic',
+      'openai',
       'pagespeed',
       'crux',
       'resend',

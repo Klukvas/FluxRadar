@@ -15,6 +15,7 @@ import { readAnthropicConfig } from './anthropic-config.ts';
 import { readCrawlEgressConfig } from './crawl-egress-config.ts';
 import { readObjectStorageConfig } from './object-storage-config.ts';
 import { readOAuthConfig } from './oauth-config.ts';
+import { readOpenAiConfig } from './openai-config.ts';
 
 export type IntegrationStatusState = 'configured' | 'not_configured' | 'invalid';
 
@@ -49,6 +50,7 @@ export function readIntegrationStatuses(
     // every crawl leaves from this server's own network (crawl-egress-config.ts).
     status('crawl-egress', readCrawlEgressConfig(env)),
     status('anthropic', readAnthropicConfig(env)),
+    status('openai', readOpenAiConfig(env)),
     // PageSpeed Insights is usable without a key. PAGESPEED_API_KEY only
     // raises the platform quota, so the provider is enabled even when it is
     // absent from the environment.
