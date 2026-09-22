@@ -13,7 +13,7 @@ import { CheckoutPending } from './Checkout';
 import { CookieConsent } from './CookieConsent';
 import { DesktopScreen } from './DesktopScreen';
 import { NewScanScreen } from './NewScanScreen';
-import { HomeScreen } from './HomeScreen';
+import { HomeRoute } from './HomeRoute';
 import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
 import { OnboardingTour } from './OnboardingTour';
 import { PublicDocument } from './PublicDocument';
@@ -65,10 +65,6 @@ function AppContent(props: AppModelProps) {
     screen,
     emailAction,
     setEmailAction,
-    authMode,
-    setAuthMode,
-    intent,
-    setIntent,
     account,
     profiles,
     setProfiles,
@@ -97,7 +93,6 @@ function AppContent(props: AppModelProps) {
     endCheckout,
     navigate,
     openScanById,
-    followIntent,
     onAuthed,
     retryScan,
     signOutLocally,
@@ -152,94 +147,12 @@ function AppContent(props: AppModelProps) {
     return (
       <>
         {noticeElement}
-        <HomeScreen
-          signedIn={false}
-          onStart={() => {
-            // A new owner starting a free check needs an account first, so the
-            // "run a free homepage check" CTA opens registration (not sign in).
-            setError(null);
-            setIntent(null);
-            setAuthMode('register');
-            navigate('auth');
-          }}
-          onStartSite={(site) => {
-            setError(null);
-            setIntent(site === null ? null : { site, plan: null });
-            setAuthMode('register');
-            navigate('auth');
-          }}
-          onChoosePlan={(plan) => {
-            setError(null);
-            setIntent({ site: null, plan });
-            setAuthMode('register');
-            navigate('auth');
-          }}
-          pendingSite={intent?.site ?? null}
-          onLogin={() => {
-            setError(null);
-            setAuthMode('login');
-            navigate('auth');
-          }}
-          onRegister={() => {
-            setError(null);
-            setAuthMode('register');
-            navigate('auth');
-          }}
-          onOpenWorkspace={() => undefined}
-          scrollTo={entryRoute.scrollTo}
-          language={language}
-          onLanguageChange={changeLanguage}
-          authOpen={screen === 'auth'}
-          authAction={emailAction}
-          authMode={authMode}
-          authError={error}
-          onAuthError={setError}
-          onAuthed={onAuthed}
-          onCloseAuth={() => {
-            setError(null);
-            setEmailAction(null);
-            setIntent(null);
-            navigate('home');
-          }}
-        />
+        <HomeRoute app={app} />
       </>
     );
   }
 
-  if (screen === 'home') {
-    return (
-      <HomeScreen
-        signedIn
-        accountEmail={account.email}
-        onStart={() => navigate('desktop')}
-        onStartSite={(site) => {
-          if (site === null) {
-            navigate('desktop');
-            return;
-          }
-          void followIntent({ site, plan: null });
-        }}
-        onChoosePlan={(plan) => {
-          setNewScanPlan(plan);
-          navigate('new-scan');
-        }}
-        onLogin={() => undefined}
-        onRegister={() => undefined}
-        onOpenWorkspace={() => navigate('desktop')}
-        onOpenScreen={navigate}
-        scrollTo={entryRoute.scrollTo}
-        language={language}
-        onLanguageChange={changeLanguage}
-        authOpen={false}
-        authAction={null}
-        authMode="login"
-        authError={null}
-        onAuthError={setError}
-        onAuthed={onAuthed}
-        onCloseAuth={() => navigate('home')}
-      />
-    );
-  }
+  if (screen === 'home') return <HomeRoute app={app} />;
 
   // The client report is a document, not a workspace window: it is drawn on its
   // own so what prints is the report and nothing around it.
