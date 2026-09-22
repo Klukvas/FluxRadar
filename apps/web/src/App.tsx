@@ -10,7 +10,7 @@ import { loadProfiles } from './app-session';
 import { accountCopy } from './account-copy';
 import { CheckoutPending } from './Checkout';
 import { CookieConsent } from './CookieConsent';
-import { DesktopScreen } from './DesktopScreen';
+import { DesktopRoute, IntegrationsRoute, ReportsRoute } from './SiteRoutes';
 import { NewScanScreen } from './NewScanScreen';
 import { HomeRoute } from './HomeRoute';
 import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
@@ -18,11 +18,9 @@ import { OnboardingTour } from './OnboardingTour';
 import { PublicDocument } from './PublicDocument';
 import { PrintReport } from './PrintReport';
 import { planLanguageFromSearch, planSearch } from './action-plan';
-import { IntegrationsScreen } from './Integrations';
 import { IssuesScreen } from './Issues';
 import { ResultsScreen } from './Report';
 import { ScanScreen } from './ScanProgress';
-import { ReportsScreen } from './Reports';
 import { Styleguide } from './Styleguide';
 import { SupportWidget } from './SupportWidget';
 import { AppFrame, VerifyBanner, WorkspaceFooter, WorkspaceHeader } from './WorkspaceChrome';
@@ -68,12 +66,9 @@ function AppContent(props: AppModelProps) {
     setProfiles,
     booting,
     tourOpen,
-    setTourOpen,
     verifyBannerHidden,
     selectedProfile,
     setSelectedProfile,
-    reportsProfile,
-    setReportsProfile,
     selectedScan,
     setSelectedScan,
     updateSelectedScan,
@@ -90,12 +85,10 @@ function AppContent(props: AppModelProps) {
     startCheckout,
     endCheckout,
     navigate,
-    openScanById,
     retryScan,
     finishOnboarding,
     skipOnboarding,
     onScanCreated,
-    openReport,
   } = app;
 
   if (screen === 'styleguide') {
@@ -200,54 +193,8 @@ function AppContent(props: AppModelProps) {
       {screen === 'auth' && emailAction?.kind === 'reset' ? <PasswordResetRoute app={app} /> : null}
       {screen === 'account' ? <AccountRoute app={app} account={account} /> : null}
       {screen === 'admin-stats' ? <AdminStatsScreen /> : null}
-      {screen === 'desktop' ? (
-        <DesktopScreen
-          profiles={profiles}
-          onOpenScan={(scanId) => void openScanById(scanId)}
-          onRetryScan={retryScan}
-          onNotice={setNotice}
-          tourActive={tourOpen}
-          onRefresh={async () => {
-            await loadProfiles(setProfiles);
-          }}
-          onProfileDeleted={(deleted) => {
-            // A deleted site must not stay the target of a new scan or the open report list.
-            setSelectedProfile((current) => (current?.id === deleted.id ? null : current));
-            setReportsProfile((current) => (current?.id === deleted.id ? null : current));
-          }}
-          onSelectProfile={(profile) => {
-            setSelectedProfile(profile);
-            setReportsProfile(profile);
-            navigate('reports');
-          }}
-          onNewScan={(profile, plan) => {
-            setSelectedProfile(profile);
-            setNewScanPlan(plan ?? null);
-            navigate('new-scan');
-          }}
-          onError={setError}
-          onOnboarding={() => {
-            setTourOpen(true);
-            navigate('desktop');
-          }}
-          language={language}
-        />
-      ) : null}
-      {screen === 'reports' ? (
-        <ReportsScreen
-          language={language}
-          profile={reportsProfile}
-          onOpenScan={openReport}
-          onNewScan={() => {
-            setNewScanPlan(null);
-            navigate('new-scan');
-          }}
-          onShowAll={() => {
-            setReportsProfile(null);
-            navigate('reports');
-          }}
-        />
-      ) : null}
+      {screen === 'desktop' ? <DesktopRoute app={app} /> : null}
+      {screen === 'reports' ? <ReportsRoute app={app} /> : null}
       {pendingCheckout !== null ? (
         <CheckoutPending
           language={language}
@@ -328,18 +275,7 @@ function AppContent(props: AppModelProps) {
           onNotice={setNotice}
         />
       ) : null}
-      {screen === 'integrations' ? (
-        <IntegrationsScreen
-          profiles={profiles}
-          language={language}
-          onClose={() => navigate('desktop')}
-          onAddProfile={() => navigate('desktop')}
-          onProfilesChanged={async () => {
-            await loadProfiles(setProfiles);
-          }}
-          onError={setError}
-        />
-      ) : null}
+      {screen === 'integrations' ? <IntegrationsRoute app={app} /> : null}
       {tourOpen && screen === 'desktop' ? (
         <OnboardingTour language={language} onFinish={finishOnboarding} onSkip={skipOnboarding} />
       ) : null}
