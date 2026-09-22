@@ -6,11 +6,14 @@
 -- a full budget, and the previous release keeps writing scans without knowing
 -- the columns exist.
 --
--- Both new tables reference Scan with ON DELETE CASCADE rather than RESTRICT:
--- after a rollback the previous release deletes scans (retention, account and
--- profile deletion) without knowing these tables, and under RESTRICT every
--- scan with a plan would stop its delete — the CheckoutSession case BILLING-007
--- describes. This release deletes both tables itself before the scan.
+-- Neither new table references Scan with RESTRICT: after a rollback the
+-- previous release deletes scans (retention, account and profile deletion)
+-- without knowing these tables, and under RESTRICT every scan with a plan
+-- would stop its delete — the CheckoutSession case BILLING-007 describes.
+-- A plan goes with its scan (ON DELETE CASCADE). An attempt is the spend log
+-- the daily cap counts, so it outlives its scan and its account (ON DELETE SET
+-- NULL on both): deleting a report must not give back money already spent,
+-- and a detached row points at no one.
 
 -- AlterTable
 ALTER TABLE "Scan" ADD COLUMN     "actionPlanAttempts" INTEGER NOT NULL DEFAULT 0,
@@ -38,8 +41,8 @@ CREATE TABLE "ActionPlan" (
 -- CreateTable
 CREATE TABLE "ActionPlanAttempt" (
     "id" TEXT NOT NULL,
-    "scanId" TEXT NOT NULL,
-    "accountId" TEXT NOT NULL,
+    "scanId" TEXT,
+    "accountId" TEXT,
     "language" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "failureCode" TEXT,
@@ -63,5 +66,8 @@ CREATE INDEX "ActionPlanAttempt_scanId_idx" ON "ActionPlanAttempt"("scanId");
 ALTER TABLE "ActionPlan" ADD CONSTRAINT "ActionPlan_scanId_fkey" FOREIGN KEY ("scanId") REFERENCES "Scan"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ActionPlanAttempt" ADD CONSTRAINT "ActionPlanAttempt_scanId_fkey" FOREIGN KEY ("scanId") REFERENCES "Scan"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ActionPlanAttempt" ADD CONSTRAINT "ActionPlanAttempt_scanId_fkey" FOREIGN KEY ("scanId") REFERENCES "Scan"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ActionPlanAttempt" ADD CONSTRAINT "ActionPlanAttempt_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 

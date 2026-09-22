@@ -81,8 +81,8 @@ export async function deleteScanResult(
     await tx.scanModule.deleteMany({ where: { scanId } });
     await tx.aiResponseRecord.deleteMany({ where: { scanId } });
     await tx.aiConsent.deleteMany({ where: { scanId } });
-    await tx.actionPlan.deleteMany({ where: { scanId } });
-    await tx.actionPlanAttempt.deleteMany({ where: { scanId } });
+    // Action Plans go with the scan (ON DELETE CASCADE); their spend log stays,
+    // detached (ON DELETE SET NULL), because the daily cap still counts it (D-232).
     await tx.scan.delete({ where: { id: scanId } });
     return artifacts.map(({ objectKey }) => objectKey);
   });
@@ -386,8 +386,8 @@ export async function deleteScanRows(
   await tx.scanModule.deleteMany({ where: { scanId: { in: ids } } });
   await tx.aiResponseRecord.deleteMany({ where: { scanId: { in: ids } } });
   await tx.aiConsent.deleteMany({ where: { scanId: { in: ids } } });
-  await tx.actionPlan.deleteMany({ where: { scanId: { in: ids } } });
-  await tx.actionPlanAttempt.deleteMany({ where: { scanId: { in: ids } } });
+  // Action Plans go with the scans (ON DELETE CASCADE); their spend log stays,
+  // detached (ON DELETE SET NULL), because the daily cap still counts it (D-232).
   await tx.scan.deleteMany({ where: { id: { in: ids } } });
 }
 

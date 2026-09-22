@@ -124,6 +124,35 @@ async function dailyCapReached(tx: Prisma.TransactionClient, now: Date): Promise
   return recent >= ACTION_PLAN_DAILY_LIMIT;
 }
 
+/**
+ * Clears what an earlier snapshot of the scan left behind, before the claim
+ * reads it. A release that resets the plans on a re-run leaves nothing; the
+ * previous one, after a rollback, keeps the plans, the counters and a dead
+ * run's token (see isOfCurrentSnapshot). With no attempt made since the latest
+ * run finished, the counters are not this snapshot's.
+ */
+async function forgetEarlierSnapshot(tx: Prisma.TransactionClient, scanId: string): Promise<void> {
+  const scan = await tx.scan.findUnique({ where: { id: scanId }, select: { completedAt: true } });
+  if (scan === null || scan.completedAt === null) return;
+  const since = scan.completedAt;
+  await tx.actionPlan.deleteMany({ where: { scanId, generatedAt: { lt: since } } });
+  await tx.scan.updateMany({
+    where: { id: scanId, actionPlanRunStartedAt: { lt: since } },
+    data: RELEASED_RUN,
+  });
+  const spentSince = await tx.actionPlanAttempt.count({
+    where: { scanId, createdAt: { gte: since } },
+  });
+  if (spentSince > 0) return;
+  await tx.scan.updateMany({
+    where: {
+      id: scanId,
+      OR: [{ actionPlanAttempts: { gt: 0 } }, { actionPlanSuccesses: { gt: 0 } }],
+    },
+    data: { actionPlanAttempts: 0, actionPlanSuccesses: 0 },
+  });
+}
+
 /** The one conditional update that takes the run: true when this request won it. */
 async function takeRun(tx: Prisma.TransactionClient, request: ClaimRequest): Promise<boolean> {
   const staleSince = new Date(request.now.getTime() - ACTION_PLAN_RUN_STALE_MS);
@@ -151,6 +180,7 @@ export async function claimActionPlanRun(
   const { scanId, accountId, language, now } = request;
   return prisma.$transaction(async (tx) => {
     if (await dailyCapReached(tx, now)) return { kind: 'busy' };
+    await forgetEarlierSnapshot(tx, scanId);
     if (!(await takeRun(tx, request))) {
       const scan = await tx.scan.findUniqueOrThrow({
         where: { id: scanId },

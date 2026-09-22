@@ -186,8 +186,8 @@ describe('BILLING-007 migration rollback safety', () => {
 
     // D-232: the previous release deletes scans — by retention, with a profile
     // or with an account — without knowing the Action Plan tables. Under the
-    // RESTRICT default every scan with a plan would stop that delete, so both
-    // tables reference Scan with ON DELETE CASCADE.
+    // RESTRICT default every scan with a plan would stop that delete, so plans
+    // reference Scan with ON DELETE CASCADE and attempts with ON DELETE SET NULL.
     it('lets the previous release delete a scan whose Action Plans it cannot see', async () => {
       const account = await seedAccountWithProfile(db.prisma);
       const { scan } = await seedScan(db.prisma, {
@@ -209,7 +209,7 @@ describe('BILLING-007 migration rollback safety', () => {
           generatedAt: new Date(),
         },
       });
-      await db.prisma.actionPlanAttempt.create({
+      const attempt = await db.prisma.actionPlanAttempt.create({
         data: {
           scanId: scan.id,
           accountId: account.accountId,
@@ -228,7 +228,10 @@ describe('BILLING-007 migration rollback safety', () => {
 
       expect(await db.prisma.scan.count({ where: { id: scan.id } })).toBe(0);
       expect(await db.prisma.actionPlan.count({ where: { scanId: scan.id } })).toBe(0);
-      expect(await db.prisma.actionPlanAttempt.count({ where: { scanId: scan.id } })).toBe(0);
+      // The spend log stays, detached: the daily cap still counts it.
+      expect(
+        await db.prisma.actionPlanAttempt.findUniqueOrThrow({ where: { id: attempt.id } }),
+      ).toMatchObject({ scanId: null, accountId: account.accountId });
     });
   });
 

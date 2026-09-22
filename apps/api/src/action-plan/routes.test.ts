@@ -363,7 +363,7 @@ describe('GET /scans/:scanId/action-plan — what the report reads', () => {
     await db.prisma.actionPlanAttempt.create({
       data: {
         scanId,
-        accountId: 'earlier-snapshot',
+        accountId: null,
         language: 'en',
         status: 'Failed',
         failureCode: 'invalid_output',

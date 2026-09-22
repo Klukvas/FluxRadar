@@ -1,7 +1,6 @@
-import { randomUUID } from 'node:crypto';
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { deleteScanResult } from '../data-retention.ts';
 import {
   PLAN_NOW,
   gatedProvider,
@@ -95,7 +94,7 @@ describe('Action Plan generation', () => {
     const dead = await db.prisma.actionPlanAttempt.create({
       data: {
         scanId,
-        accountId: 'someone',
+        accountId: null,
         language: 'en',
         status: 'Running',
         createdAt: deadSince,
@@ -192,7 +191,7 @@ describe('Action Plan generation', () => {
     const before = new Date(PLAN_NOW.getTime() - ACTION_PLAN_DAILY_WINDOW_MS - 60_000);
     const attempt = (createdAt: Date) => ({
       scanId: other.scanId,
-      accountId: randomUUID(),
+      accountId: null,
       language: 'en',
       status: 'Succeeded',
       createdAt,
@@ -224,7 +223,7 @@ describe('Action Plan generation', () => {
     await db.prisma.actionPlanAttempt.createMany({
       data: Array.from({ length: ACTION_PLAN_DAILY_LIMIT - 1 }, () => ({
         scanId: first.scanId,
-        accountId: randomUUID(),
+        accountId: null,
         language: 'en',
         status: 'Succeeded',
         createdAt: within,
@@ -242,6 +241,31 @@ describe('Action Plan generation', () => {
     expect(responses.map((response) => response.status).sort()).toEqual([202, 503]);
     expect(send).toHaveBeenCalledTimes(1);
     expect(await db.prisma.actionPlanAttempt.count()).toBe(ACTION_PLAN_DAILY_LIMIT);
+  });
+
+  it('still counts the attempts of a scan deleted since', async () => {
+    const provider = planProvider(ANSWER);
+    const send = vi.spyOn(provider, 'send');
+    const app = planApp(db.prisma, { provider });
+    const { owner, scanId } = await plannableScan(db.prisma, app, 'spent@example.com');
+    const deleted = await plannableScan(db.prisma, app, 'spent-deleted@example.com');
+    await db.prisma.actionPlanAttempt.createMany({
+      data: Array.from({ length: ACTION_PLAN_DAILY_LIMIT }, () => ({
+        scanId: deleted.scanId,
+        accountId: null,
+        language: 'en',
+        status: 'Succeeded',
+        createdAt: new Date(PLAN_NOW.getTime() - 60_000),
+      })),
+    });
+
+    // The money was spent; deleting the report does not give it back.
+    await deleteScanResult(db.prisma, deleted.scanId);
+    const refused = await postPlan(owner, scanId, 'en');
+
+    expect(refused.status).toBe(503);
+    expect(refused.body.error.code).toBe('ACTION_PLAN_BUSY');
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('limits one account to ten starts an hour', async () => {

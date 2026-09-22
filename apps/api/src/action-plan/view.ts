@@ -30,6 +30,9 @@ import {
   type ActionPlanBudget,
 } from './policy.ts';
 
+/** Nothing spent yet: the budget of a snapshot no attempt has been made in. */
+const UNSPENT = { actionPlanSuccesses: 0, actionPlanAttempts: 0 } as const;
+
 /** The facts every decision about a plan starts from. */
 export interface PlanFacts {
   /** Terminal, the job done and the finish time recorded. */
@@ -69,6 +72,7 @@ export function isWindowOpen(facts: PlanFacts, now: Date): boolean {
 export function planAvailability(
   scan: OwnScan,
   facts: PlanFacts,
+  budget: ActionPlanBudget,
   now: Date,
 ): ActionPlanAvailability {
   if (!facts.ready) return 'not_ready';
@@ -76,7 +80,6 @@ export function planAvailability(
     return 'window_closed';
   }
   if (facts.plannableOpenIssues === 0) return 'nothing_to_plan';
-  const budget = remainingBudget(scan);
   if (budget.successes === 0 || budget.attempts === 0) return 'limit_reached';
   return 'available';
 }
@@ -214,8 +217,9 @@ async function readPlan(
   language: ActionPlanLanguage,
   logger: ApiLogger,
 ): Promise<PlanWithOverlay | null> {
-  const stored = await prisma.actionPlan.findUnique({
-    where: { scanId_language: { scanId: scan.id, language } },
+  if (scan.completedAt === null) return null;
+  const stored = await prisma.actionPlan.findFirst({
+    where: { scanId: scan.id, language, generatedAt: { gte: scan.completedAt } },
     select: { contentJson: true, generatedAt: true, modelId: true },
   });
   if (stored === null) return null;
@@ -242,23 +246,36 @@ async function readPlan(
   };
 }
 
-/**
- * The latest attempt of this snapshot, if it failed. Attempts of an earlier
- * snapshot (before a re-run) are older than the latest run's end and are not
- * this report's to show.
- */
-async function lastFailure(
-  prisma: PrismaClient,
-  scan: OwnScan,
-): Promise<ActionPlanState['lastFailure']> {
-  const attempt = await prisma.actionPlanAttempt.findFirst({
-    where: {
-      scanId: scan.id,
-      ...(scan.completedAt === null ? {} : { createdAt: { gte: scan.completedAt } }),
-    },
+/** The languages the current snapshot has a plan in. */
+async function plannedLanguages(prisma: PrismaClient, scan: OwnScan): Promise<readonly string[]> {
+  if (scan.completedAt === null) return [];
+  const plans = await prisma.actionPlan.findMany({
+    where: { scanId: scan.id, generatedAt: { gte: scan.completedAt } },
+    select: { language: true },
+    orderBy: { language: 'asc' },
+  });
+  return plans.map((row) => row.language);
+}
+
+interface SnapshotAttempt {
+  readonly status: string;
+  readonly failureCode: string | null;
+  readonly language: string;
+  readonly finishedAt: Date | null;
+  readonly createdAt: Date;
+}
+
+/** The latest attempt of the current snapshot; see isOfCurrentSnapshot. */
+async function latestAttempt(prisma: PrismaClient, scan: OwnScan): Promise<SnapshotAttempt | null> {
+  if (scan.completedAt === null) return null;
+  return prisma.actionPlanAttempt.findFirst({
+    where: { scanId: scan.id, createdAt: { gte: scan.completedAt } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { status: true, failureCode: true, language: true, finishedAt: true, createdAt: true },
   });
+}
+
+function lastFailure(attempt: SnapshotAttempt | null): ActionPlanState['lastFailure'] {
   if (attempt?.status !== ACTION_PLAN_ATTEMPT_STATUSES.failed) return null;
   return {
     code: attempt.failureCode ?? 'unknown',
@@ -267,13 +284,21 @@ async function lastFailure(
   };
 }
 
+/**
+ * The budget left in the current snapshot. Counters no attempt of it stands
+ * behind were left by an earlier one, and the next claim resets them
+ * (run-state.ts): until then they must not be read as spent.
+ */
+function snapshotBudget(scan: OwnScan, latest: SnapshotAttempt | null): ActionPlanBudget {
+  return remainingBudget(latest === null ? UNSPENT : scan);
+}
+
 function runInFlight(scan: OwnScan, now: Date): ActionPlanState['run'] {
-  if (!isRunInFlight(scan.actionPlanRunStartedAt, now)) return null;
-  if (scan.actionPlanRunStartedAt === null || scan.actionPlanRunLanguage === null) return null;
-  return {
-    language: scan.actionPlanRunLanguage,
-    startedAt: scan.actionPlanRunStartedAt.toISOString(),
-  };
+  const startedAt = scan.actionPlanRunStartedAt;
+  const language = scan.actionPlanRunLanguage;
+  if (!isRunInFlight(startedAt, scan.completedAt, now)) return null;
+  if (startedAt === null || language === null) return null;
+  return { language, startedAt: startedAt.toISOString() };
 }
 
 export async function readActionPlanState(
@@ -283,23 +308,20 @@ export async function readActionPlanState(
   now: Date,
   logger: ApiLogger,
 ): Promise<ActionPlanState> {
-  const [facts, plans, failure, plan] = await Promise.all([
+  const [facts, languages, latest, plan] = await Promise.all([
     readPlanFacts(prisma, scan),
-    prisma.actionPlan.findMany({
-      where: { scanId: scan.id },
-      select: { language: true },
-      orderBy: { language: 'asc' },
-    }),
-    lastFailure(prisma, scan),
+    plannedLanguages(prisma, scan),
+    latestAttempt(prisma, scan),
     readPlan(prisma, scan, language, logger),
   ]);
+  const remaining = snapshotBudget(scan, latest);
   return {
     language,
-    availability: planAvailability(scan, facts, now),
-    languages: plans.map((row) => row.language),
+    availability: planAvailability(scan, facts, remaining, now),
+    languages,
     run: runInFlight(scan, now),
-    lastFailure: failure,
-    remaining: remainingBudget(scan),
+    lastFailure: lastFailure(latest),
+    remaining,
     windowEndsAt: facts.windowEndsAt?.toISOString() ?? null,
     plan,
   };

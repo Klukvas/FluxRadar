@@ -1,4 +1,5 @@
-import type { PrismaClient } from '@prisma/client';
+import type { ActionPlanAttempt, PrismaClient } from '@prisma/client';
+import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { deleteAccountData, deleteScanResult } from '../data-retention.ts';
@@ -12,6 +13,7 @@ import { deleteSiteProfileData } from '../profiles/profile-deletion.ts';
 import {
   PLAN_NOW,
   gatedProvider,
+  getPlan,
   planAnswer,
   planApp,
   planProvider,
@@ -24,9 +26,10 @@ import {
 import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 // A plan belongs to one snapshot of a scan (D-232): a re-run replaces the
-// issues it was written from, so the plans go and the budget starts over, and
-// deleting a scan, by retention, with its site or with its account, takes its
-// plans and its attempts with it.
+// issues it was written from, so the plans go and the budget starts over —
+// even when the release that ran it did not know to reset them. Deleting a
+// scan, by retention, with its site or with its account, takes its plans with
+// it; its attempts stay, detached, because the daily cap still counts them.
 
 const ANSWER = planAnswer([
   { ruleIds: ['SEC-PASSIVE-003'] },
@@ -192,19 +195,81 @@ describe('Action Plans and the life of their scan', () => {
     expect(await planBudget(scanId)).toEqual(FRESH_BUDGET);
   });
 
-  it('removes plans and attempts with a scan whose retention ran out', async () => {
+  it('keeps a re-run by the previous release out of the plan, and starts its budget over', async () => {
+    const { owner, scanId } = await scanWithPlan('rolled-back@example.com');
+    for (const language of ['uk', 'en']) {
+      expect((await postPlan(owner, scanId, language)).status).toBe(202);
+      await settledRun(db.prisma, scanId);
+    }
+    // After a rollback, a release that has never heard of plans re-runs the scan:
+    // new issues and a new finish time, the plans, counters and a token untouched.
+    const rerunFinished = new Date(PLAN_NOW.getTime() + 60_000);
+    await db.prisma.scan.update({
+      where: { id: scanId },
+      data: {
+        completedAt: rerunFinished,
+        actionPlanRunStartedAt: new Date(PLAN_NOW.getTime() + 30_000),
+        actionPlanRunLanguage: 'uk',
+      },
+    });
+    const later = planApp(db.prisma, {
+      provider: planProvider(ANSWER),
+      now: () => new Date(rerunFinished.getTime() + 60_000),
+    });
+    const ownerLater = { ...owner, agent: request.agent(later) };
+
+    const view = await getPlan(ownerLater, scanId, 'en');
+    const post = await postPlan(ownerLater, scanId, 'en');
+    await settledRun(db.prisma, scanId);
+
+    expect(view.body.data).toMatchObject({
+      availability: 'available',
+      languages: [],
+      run: null,
+      lastFailure: null,
+      remaining: { successes: 3, attempts: 6 },
+      plan: null,
+    });
+    expect(post.status).toBe(202);
+    expect(await planBudget(scanId)).toMatchObject({
+      actionPlanAttempts: 1,
+      actionPlanSuccesses: 1,
+    });
+    // The Ukrainian plan was about the replaced issues; only the new one is left.
+    expect(
+      await db.prisma.actionPlan.findMany({ where: { scanId }, select: { language: true } }),
+    ).toEqual([{ language: 'en' }]);
+  });
+
+  /** The id of the scan's one attempt: once the scan is deleted, only the id finds it. */
+  async function onlyAttemptId(scanId: string): Promise<string> {
+    const [attempt, ...others] = await db.prisma.actionPlanAttempt.findMany({ where: { scanId } });
+    if (attempt === undefined || others.length > 0) {
+      throw new Error(`scan ${scanId} does not have exactly one attempt`);
+    }
+    return attempt.id;
+  }
+
+  function attemptById(id: string): Promise<ActionPlanAttempt> {
+    return db.prisma.actionPlanAttempt.findUniqueOrThrow({ where: { id } });
+  }
+
+  it('removes the plans with a scan whose retention ran out, and keeps its attempts counted', async () => {
     const { scanId } = await scanWithPlan('retention@example.com');
+    const scan = await db.prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
+    const attemptId = await onlyAttemptId(scanId);
 
     await deleteScanResult(db.prisma, scanId);
 
     expect(await db.prisma.scan.count({ where: { id: scanId } })).toBe(0);
     expect(await db.prisma.actionPlan.count({ where: { scanId } })).toBe(0);
-    expect(await db.prisma.actionPlanAttempt.count({ where: { scanId } })).toBe(0);
+    expect(await attemptById(attemptId)).toMatchObject({ scanId: null, accountId: scan.accountId });
   });
 
-  it('removes plans and attempts with the site profile they were written for', async () => {
+  it('removes the plans with the site profile they were written for, and keeps its attempts counted', async () => {
     const { owner, scanId } = await scanWithPlan('profile@example.com');
     const scan = await db.prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
+    const attemptId = await onlyAttemptId(scanId);
 
     const deletion = await deleteSiteProfileData(
       db.prisma,
@@ -214,17 +279,22 @@ describe('Action Plans and the life of their scan', () => {
 
     expect(deletion.kind).toBe('deleted');
     expect(await db.prisma.actionPlan.count({ where: { scanId } })).toBe(0);
-    expect(await db.prisma.actionPlanAttempt.count({ where: { scanId } })).toBe(0);
+    expect(await attemptById(attemptId)).toMatchObject({ scanId: null, accountId: scan.accountId });
   });
 
-  it('removes plans and attempts with the account that owned them', async () => {
+  it('removes the plans with the account that owned them, and keeps its attempts counted, anonymous', async () => {
     const { scanId } = await scanWithPlan('erase@example.com');
     const scan = await db.prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
+    const attemptId = await onlyAttemptId(scanId);
 
     await deleteAccountData(db.prisma, scan.accountId, null);
 
     expect(await db.prisma.account.count({ where: { id: scan.accountId } })).toBe(0);
     expect(await db.prisma.actionPlan.count()).toBe(0);
-    expect(await db.prisma.actionPlanAttempt.count()).toBe(0);
+    expect(await attemptById(attemptId)).toMatchObject({
+      scanId: null,
+      accountId: null,
+      status: 'Succeeded',
+    });
   });
 });

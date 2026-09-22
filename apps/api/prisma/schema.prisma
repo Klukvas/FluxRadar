@@ -37,6 +37,7 @@ model Account {
   artifacts          ExportArtifact[]
   emailTokens        EmailToken[]
   emailNotifications EmailNotification[]
+  actionPlanLog      ActionPlanAttempt[]
 }
 
 model EmailToken {
@@ -446,11 +447,15 @@ model ActionPlan {
 
 /// The Action Plan spend log: one row per generation attempt, whatever came of
 /// it (D-232). The product-wide daily cap counts these rows; a failed row keeps
-/// a failure code, never provider text. A re-run of the scan keeps them.
+/// a failure code, never provider text. A re-run of the scan keeps them, and so
+/// does deleting the scan or the account: the row loses its scan and its
+/// account and stays counted, because the money was spent.
 model ActionPlanAttempt {
   id          String    @id @default(cuid())
-  scanId      String
-  accountId   String
+  /// Null once the scan is deleted.
+  scanId      String?
+  /// Null once the account is deleted.
+  accountId   String?
   language    String
   /// Running | Succeeded | Failed
   status      String
@@ -460,7 +465,8 @@ model ActionPlanAttempt {
   createdAt   DateTime  @default(now())
   finishedAt  DateTime?
 
-  scan Scan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  scan    Scan?    @relation(fields: [scanId], references: [id], onDelete: SetNull)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   /// The daily cap counts every attempt of the last 24 hours.
   @@index([createdAt])

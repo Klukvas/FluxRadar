@@ -109,7 +109,25 @@ export function planWindowEndsAt(completedAt: Date | null): Date | null {
   return completedAt === null ? null : new Date(completedAt.getTime() + ACTION_PLAN_WINDOW_MS);
 }
 
-/** A claimed run that is still alive, as opposed to one presumed dead. */
-export function isRunInFlight(startedAt: Date | null, now: Date): boolean {
-  return startedAt !== null && now.getTime() - startedAt.getTime() < ACTION_PLAN_RUN_STALE_MS;
+/**
+ * Whether something written at `at` belongs to the scan's current snapshot:
+ * written after its latest run finished. A plan, an attempt or a run claimed
+ * before that is about issues a re-run replaced. A release that resets them on
+ * a re-run leaves none behind; the previous one, after a rollback, does not.
+ */
+export function isOfCurrentSnapshot(at: Date, completedAt: Date | null): boolean {
+  return completedAt !== null && at.getTime() >= completedAt.getTime();
+}
+
+/** A run claimed in the current snapshot that is still alive, as opposed to one presumed dead. */
+export function isRunInFlight(
+  startedAt: Date | null,
+  completedAt: Date | null,
+  now: Date,
+): boolean {
+  return (
+    startedAt !== null &&
+    isOfCurrentSnapshot(startedAt, completedAt) &&
+    now.getTime() - startedAt.getTime() < ACTION_PLAN_RUN_STALE_MS
+  );
 }
