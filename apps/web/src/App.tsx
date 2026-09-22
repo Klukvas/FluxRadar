@@ -18,12 +18,10 @@ import {
   pathForScreen,
   readInitialRoute,
   scanRoutePreference,
-  seoPageForScreen,
   type Screen,
 } from './app-routes';
 import { useAppState } from './app-state';
 import { accountCopy } from './account-copy';
-import { trackPageView } from './analytics';
 import { AuthScreen } from './AuthScreen';
 import { authCopy } from './auth-copy';
 import { CheckoutPending } from './Checkout';
@@ -32,8 +30,8 @@ import { DesktopScreen } from './DesktopScreen';
 import { NewScanScreen } from './NewScanScreen';
 import { HomeScreen } from './HomeScreen';
 import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
-import { applyPageMetadata } from './seo';
 import { OnboardingTour } from './OnboardingTour';
+import { usePageMetadata } from './page-metadata';
 import { usePendingCheckout } from './pending-checkout';
 import { FaqScreen } from './Faq';
 import { AuditCoverageScreen } from './Checks';
@@ -146,28 +144,7 @@ function AppContent({
     onAccountChange(account);
   }, [account, onAccountChange]);
 
-  // The document language is what a screen reader announces the page in and what
-  // a browser offers to translate; leaving it on the served default silently
-  // mislabels every Ukrainian session.
-  useEffect(() => {
-    document.documentElement.lang = language;
-  }, [language]);
-
-  // Title, description, canonical, social cards and `hreflang` alternates are
-  // per screen and per language: `index.html` is served for every route, so a
-  // page that does not state its own metadata silently claims to be the home
-  // page — including its canonical, which would keep it out of the index.
-  useEffect(() => {
-    applyPageMetadata(seoPageForScreen(screen), language);
-  }, [screen, language]);
-
-  // One page view per screen the visitor lands on, sent after the metadata above
-  // so it carries this screen's title. Until the visitor allows analytics the
-  // call does nothing at all.
-  const selectedScanId = selectedScan?.id ?? null;
-  useEffect(() => {
-    trackPageView();
-  }, [screen, selectedScanId]);
+  usePageMetadata(screen, language, selectedScan?.id ?? null);
 
   /**
    * Opens a scan by id and lands on the screen that scan actually has.
