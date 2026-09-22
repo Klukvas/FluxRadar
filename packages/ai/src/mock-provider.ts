@@ -221,7 +221,7 @@ export function geoVisibilityFixtures(brand: string, domain: string): readonly M
  */
 const MOCK_MODEL_IDS: Partial<Record<AiProviderName, string>> = {
   anthropic: 'claude-sonnet-5',
-  openai: 'gpt-5.6-terra',
+  openai: 'gpt-5.6-luna',
 };
 
 const MOCK_API_VERSIONS: Partial<Record<AiProviderName, string>> = {

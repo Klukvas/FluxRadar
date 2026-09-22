@@ -462,7 +462,7 @@ and names `ANTHROPIC_MODEL` (never its value).
 
 `PRODUCTION_OPENAI_MODEL` works exactly the same way for `OPENAI_MODEL`, whose
 default is `DEFAULT_OPENAI_MODEL` in
-`apps/api/src/integrations/openai-config.ts` — currently `gpt-5.6-terra`.
+`apps/api/src/integrations/openai-config.ts` — currently `gpt-5.6-luna`.
 `PRODUCTION_OPENAI_API_KEY` must be set **before** the release that ships the
 `core-ai-processing-notice-v4` notice: without it every OpenAI visibility
 question of every paid scan reports `ProviderUnavailable` and the AI SEO / GEO

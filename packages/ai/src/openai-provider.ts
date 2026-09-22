@@ -191,7 +191,7 @@ export class OpenAiProvider implements AiProvider {
     this.config = {
       provider: 'openai',
       apiVersion: options.apiVersion ?? 'v1',
-      modelId: options.modelId ?? 'gpt-5.6-terra',
+      modelId: options.modelId ?? 'gpt-5.6-luna',
       timeoutMs: options.timeoutMs ?? OPENAI_REQUEST_TIMEOUT_MS,
       maxRetries: 1,
     };

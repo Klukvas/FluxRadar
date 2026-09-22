@@ -6,11 +6,13 @@
 // variable is the only override.
 
 /**
- * The model this release is written and tested against (D-233). It is the price
- * class of `claude-sonnet-5`, so the two providers' answers are comparable and
- * the AI cost of a scan roughly doubles rather than explodes.
+ * The model this release is written and tested against (D-233): the cheapest
+ * current OpenAI model that supports the `web_search` tool. A GEO request's cost
+ * is dominated by the $10-per-1,000 search calls, not by tokens, so a dearer
+ * model would buy little; `OPENAI_MODEL` overrides it when the live smoke run
+ * says the answers are not good enough.
  */
-export const DEFAULT_OPENAI_MODEL = 'gpt-5.6-terra';
+export const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
 
 /**
  * Model identifiers OpenAI has retired. Requests naming one fail at the API,

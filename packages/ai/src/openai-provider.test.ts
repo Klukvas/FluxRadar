@@ -19,7 +19,7 @@ function answeredBody(overrides: Record<string, unknown> = {}): Record<string, u
   return {
     id: 'resp_0001',
     created_at: 1_772_000_000,
-    model: 'gpt-5.6-terra',
+    model: 'gpt-5.6-luna',
     status: 'completed',
     output: [{ type: 'message', content: [{ type: 'output_text', text: 'A useful answer.' }] }],
     usage: { input_tokens: 40, output_tokens: 12 },
@@ -49,7 +49,7 @@ describe('OpenAiProvider', () => {
       }),
     );
     expect(sentBody(fetcher)).toEqual({
-      model: 'gpt-5.6-terra',
+      model: 'gpt-5.6-luna',
       instructions: 'Answer factually. Cite sources when possible.',
       input: 'redacted prompt',
       max_output_tokens: 2000,
@@ -58,7 +58,7 @@ describe('OpenAiProvider', () => {
     expect(response).toMatchObject({
       provider: 'openai',
       apiVersion: 'v1',
-      modelId: 'gpt-5.6-terra',
+      modelId: 'gpt-5.6-luna',
       requestId: 'resp_0001',
       requestIdSource: 'provider',
       createdAt: '2026-02-25T06:13:20.000Z',

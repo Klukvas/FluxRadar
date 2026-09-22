@@ -71,15 +71,15 @@ describe('mockRoutingProvider', () => {
 
     expect(router.providers).toEqual(['anthropic', 'openai']);
     expect(claude).toMatchObject({ provider: 'anthropic', modelId: 'claude-sonnet-5' });
-    expect(chatgpt).toMatchObject({ provider: 'openai', modelId: 'gpt-5.6-terra' });
+    expect(chatgpt).toMatchObject({ provider: 'openai', modelId: 'gpt-5.6-luna' });
     expect(claude.rawText).toBe(chatgpt.rawText);
   });
 
   it('takes a model override per provider', () => {
     const router = mockRoutingProvider(fixtures, ['openai'], {
-      models: { openai: 'gpt-5.6-luna' },
+      models: { openai: 'gpt-5.6-terra' },
     });
 
-    expect(router.adapterFor('openai')?.config.modelId).toBe('gpt-5.6-luna');
+    expect(router.adapterFor('openai')?.config.modelId).toBe('gpt-5.6-terra');
   });
 });
