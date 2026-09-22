@@ -1,14 +1,13 @@
 import { useCallback, useState } from 'react';
 
 import { AlertDialog, Notice, LoadingState, Window } from './components';
-import { apiRequest, type Account } from './api';
-import { AccountScreen } from './AccountScreen';
+import type { Account } from './api';
+import { AccountRoute, PasswordResetRoute } from './AccountRoutes';
 import { AdminStatsScreen } from './AdminStats';
 import { useAppModel, type AppModelProps } from './app-model';
 import { isPublicDocument } from './app-routes';
 import { loadProfiles } from './app-session';
 import { accountCopy } from './account-copy';
-import { AuthScreen } from './AuthScreen';
 import { CheckoutPending } from './Checkout';
 import { CookieConsent } from './CookieConsent';
 import { DesktopScreen } from './DesktopScreen';
@@ -64,7 +63,6 @@ function AppContent(props: AppModelProps) {
     entryRoute,
     screen,
     emailAction,
-    setEmailAction,
     account,
     profiles,
     setProfiles,
@@ -93,9 +91,7 @@ function AppContent(props: AppModelProps) {
     endCheckout,
     navigate,
     openScanById,
-    onAuthed,
     retryScan,
-    signOutLocally,
     finishOnboarding,
     skipOnboarding,
     onScanCreated,
@@ -181,7 +177,6 @@ function AppContent(props: AppModelProps) {
     }
   }
 
-  const ac = accountCopy[language];
   return (
     // `workspace-shell` makes the shell a column the desktop stretches to fill,
     // which is what gives the footer below a floor to sink to on a report short
@@ -202,36 +197,8 @@ function AppContent(props: AppModelProps) {
         <AlertDialog message={error} language={language} floating onClose={() => setError(null)} />
       ) : null}
       {noticeElement}
-      {screen === 'auth' && emailAction?.kind === 'reset' ? (
-        <AuthScreen
-          language={language}
-          onAuthed={onAuthed}
-          error={null}
-          onError={setError}
-          onBack={() => {
-            setEmailAction(null);
-            // A reset ends every session, this one included.
-            void apiRequest<Account>('/auth/me')
-              .then(() => navigate('desktop'))
-              .catch(signOutLocally);
-          }}
-          initialMode="login"
-          emailAction={emailAction}
-        />
-      ) : null}
-      {screen === 'account' ? (
-        <AccountScreen
-          account={account}
-          language={language}
-          onOpenScan={(scanId) => void openScanById(scanId)}
-          onDeleted={() => {
-            signOutLocally();
-            setNotice(ac.deletion.deleted);
-          }}
-          onNotice={setNotice}
-          onError={setError}
-        />
-      ) : null}
+      {screen === 'auth' && emailAction?.kind === 'reset' ? <PasswordResetRoute app={app} /> : null}
+      {screen === 'account' ? <AccountRoute app={app} account={account} /> : null}
       {screen === 'admin-stats' ? <AdminStatsScreen /> : null}
       {screen === 'desktop' ? (
         <DesktopScreen
