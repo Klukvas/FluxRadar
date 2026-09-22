@@ -21,11 +21,11 @@ import type {
   NormalizedAiResponse,
 } from './types.js';
 
-/** Registry v1 production defaults для OpenAI (план §5 / AI-001). */
+/** Registry v2 production defaults для OpenAI (D-233). */
 export const MOCK_PROVIDER_CONFIG: AiProviderConfig = {
   provider: 'openai',
   apiVersion: 'v1',
-  modelId: 'gpt-5-mini',
+  modelId: 'gpt-5.6-luna',
   timeoutMs: 10_000,
   maxRetries: 1,
 };
@@ -191,7 +191,7 @@ export function geoVisibilityFixtures(brand: string, domain: string): readonly M
       response: {
         id: 'resp_mock_0001',
         created_at: 1_767_225_600,
-        model: 'gpt-5-mini',
+        model: 'gpt-5.6-luna',
         status: 'completed',
         output_text:
           `${brand} is a solid option for small teams: transparent pricing, ` +
