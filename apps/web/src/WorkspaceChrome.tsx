@@ -16,22 +16,21 @@ import { copy, type Language } from './i18n';
  * workspace, instead of drawing it a second time.
  */
 export function AppFrame(props: {
+  readonly app: Pick<AppModel, 'changeLanguage' | 'language' | 'navigate'>;
   readonly className: string;
   readonly active: string;
-  readonly onNavigate: (screen: string) => void;
   readonly signedIn: boolean;
-  readonly language: Language;
-  readonly onLanguageChange: (language: Language) => void;
   readonly children: ReactNode;
 }) {
+  const { changeLanguage, language, navigate } = props.app;
   return (
     <div className={props.className}>
       <MenuBar
         active={props.active}
-        onNavigate={props.onNavigate}
+        onNavigate={navigate}
         signedIn={props.signedIn}
-        language={props.language}
-        onLanguageChange={props.onLanguageChange}
+        language={language}
+        onLanguageChange={changeLanguage}
       />
       <div className="desktop">{props.children}</div>
     </div>

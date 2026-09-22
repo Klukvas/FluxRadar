@@ -1,10 +1,13 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 
+// Several of these modules bring their own stylesheet, and stylesheets cascade in
+// the order they are first imported, all of them ahead of base.css below. Moving
+// an import can reorder the cascade.
 import { AlertDialog, Notice, LoadingState, Window } from './components';
 import type { Account } from './api';
 import { AccountRoute, PasswordResetRoute } from './AccountRoutes';
 import { AdminStatsScreen } from './AdminStats';
-import { useAppModel, type AppModelProps } from './app-model';
+import { useAppModel, type AppModel, type AppModelProps } from './app-model';
 import { isPublicDocument } from './app-routes';
 import { accountCopy } from './account-copy';
 import { CookieConsent } from './CookieConsent';
@@ -55,28 +58,7 @@ export function App() {
 
 function AppContent(props: AppModelProps) {
   const app = useAppModel(props);
-  const {
-    language,
-    changeLanguage,
-    entryRoute,
-    screen,
-    emailAction,
-    account,
-    booting,
-    tourOpen,
-    verifyBannerHidden,
-    selectedScan,
-    issueRuleFilter,
-    error,
-    setError,
-    notice,
-    clearNotice,
-    pendingCheckout,
-    navigate,
-    finishOnboarding,
-    skipOnboarding,
-  } = app;
-
+  const { account, changeLanguage, language, navigate, screen } = app;
   if (screen === 'styleguide') {
     return (
       <Styleguide onNavigate={navigate} language={language} onLanguageChange={changeLanguage} />
@@ -92,16 +74,18 @@ function AppContent(props: AppModelProps) {
       />
     );
   }
+  return <SessionScreen app={app} />;
+}
+
+/**
+ * The screens that wait for the session: the boot window, then the home page,
+ * the print view or the workspace.
+ */
+function SessionScreen({ app }: { readonly app: AppModel }) {
+  const { account, booting, clearNotice, entryRoute, language, notice, screen, selectedScan } = app;
   if (booting) {
     return (
-      <AppFrame
-        className="app-shell"
-        active="desktop"
-        onNavigate={navigate}
-        signedIn={false}
-        language={language}
-        onLanguageChange={changeLanguage}
-      >
+      <AppFrame app={app} className="app-shell" active="desktop" signedIn={false}>
         <Window title={copy[language].workspace.booting} terminal>
           <LoadingState />
         </Window>
@@ -133,23 +117,34 @@ function AppContent(props: AppModelProps) {
   // own so what prints is the report and nothing around it.
   if (screen === 'print') {
     const printScanId = selectedScan?.id ?? entryRoute.scanId;
-    if (printScanId !== null) {
-      return <PrintRoute app={app} printScanId={printScanId} />;
-    }
+    if (printScanId !== null) return <PrintRoute app={app} printScanId={printScanId} />;
   }
 
   return (
     // `workspace-shell` makes the shell a column the desktop stretches to fill,
     // which is what gives the footer below a floor to sink to on a report short
     // enough not to fill the viewport.
-    <AppFrame
-      className="app-shell workspace-shell"
-      active={screen}
-      onNavigate={navigate}
-      signedIn
-      language={language}
-      onLanguageChange={changeLanguage}
-    >
+    <AppFrame app={app} className="app-shell workspace-shell" active={screen} signedIn>
+      <Workspace app={app} account={account} noticeElement={noticeElement} />
+    </AppFrame>
+  );
+}
+
+interface WorkspaceProps {
+  readonly app: AppModel;
+  readonly account: Account;
+  readonly noticeElement: ReactNode;
+}
+
+/**
+ * The workspace, one slot per surface in the order they are drawn. Each screen
+ * keeps its own slot, so switching screens unmounts one and mounts the other.
+ */
+function Workspace({ app, account, noticeElement }: WorkspaceProps) {
+  const { emailAction, error, issueRuleFilter, language, pendingCheckout, screen, tourOpen } = app;
+  const { finishOnboarding, selectedScan, setError, skipOnboarding, verifyBannerHidden } = app;
+  return (
+    <>
       <WorkspaceHeader app={app} account={account} />
       {account.emailVerified === false && !verifyBannerHidden && screen !== 'account' ? (
         <VerifyBanner app={app} account={account} />
@@ -184,6 +179,6 @@ function AppContent(props: AppModelProps) {
         <OnboardingTour language={language} onFinish={finishOnboarding} onSkip={skipOnboarding} />
       ) : null}
       <WorkspaceFooter language={language} />
-    </AppFrame>
+    </>
   );
 }
