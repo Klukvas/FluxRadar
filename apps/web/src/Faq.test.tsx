@@ -223,7 +223,7 @@ describe('/faq content — what each check does', () => {
     expect(
       screen.getByText(/Paid audits include provider-backed AI visibility checks/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/current production adapter uses Anthropic/i)).toBeInTheDocument();
+    expect(screen.getByText(/ChatGPT \(OpenAI\) and to Claude \(Anthropic\)/i)).toBeInTheDocument();
   });
 
   it('describes security as a passive OWASP ASVS profile, not a penetration test', async () => {

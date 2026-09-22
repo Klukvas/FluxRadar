@@ -219,8 +219,8 @@ describe('paid checkout flow', () => {
       plan: 'Complete',
       scope: expect.objectContaining({ includeSubdomains: false }),
       aiConsent: {
-        providers: ['anthropic'],
-        noticeVersion: 'core-ai-processing-notice-v3',
+        providers: ['anthropic', 'openai'],
+        noticeVersion: 'core-ai-processing-notice-v4',
       },
     });
 

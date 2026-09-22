@@ -211,8 +211,8 @@ export const checksCopyEn: ChecksCopy = {
           body: 'heading density, paragraph length distribution and readability score (Flesch-Kincaid) measured from the extracted main content.',
         },
         {
-          term: 'Provider visibility (optional, consent-gated)',
-          body: "the AI SEO module can query provider APIs to check whether your brand appears in AI-generated answers. This step runs only when you explicitly enable it in the scan settings and is never included in the free homepage check. Provider API calls are subject to the providers' own terms.",
+          term: 'Provider visibility (included in every paid audit)',
+          body: "the AI SEO module asks ChatGPT (OpenAI) and Claude (Anthropic) the same visibility questions, with each provider's own web search turned on, and records whether your brand and official domain appear in the answers together with the pages each model cited. A prominent notice before purchase says what is sent; the free homepage check never calls a provider. Provider API calls are subject to the providers' own terms.",
         },
       ],
       outro: [],
@@ -548,8 +548,8 @@ export const checksCopyUk: ChecksCopy = {
           body: 'щільність заголовків, розподіл довжини абзаців і оцінка читабельності (Flesch-Kincaid), виміряні на видобутому основному вмісті.',
         },
         {
-          term: 'Видимість у провайдерів (опційно, за згодою)',
-          body: 'модуль AI SEO може звертатися до API провайдерів, щоб перевірити, чи згадується ваш бренд у відповідях AI. Цей крок виконується лише тоді, коли ви явно вмикаєте його в налаштуваннях перевірки, і ніколи не входить у безкоштовну перевірку головної сторінки. Запити до API провайдерів підпорядковані їхнім власним умовам.',
+          term: 'Видимість у провайдерів (входить у кожен платний аудит)',
+          body: 'модуль AI SEO ставить ті самі запитання про видимість ChatGPT (OpenAI) і Claude (Anthropic), з увімкненим власним вебпошуком кожного провайдера, і записує, чи зʼявляються у відповідях ваш бренд та офіційний домен, разом зі сторінками, які процитувала кожна модель. Помітне повідомлення перед оплатою пояснює, що саме надсилається; безкоштовна перевірка головної ніколи не звертається до провайдера. Запити до API провайдерів підпорядковані їхнім власним умовам.',
         },
       ],
       outro: [],

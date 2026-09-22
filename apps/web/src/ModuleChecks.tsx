@@ -319,19 +319,122 @@ function GeoChecksBody(props: {
         ) : (
           <>
             <p className="muted">{report.geoObservationsLead}</p>
-            <div className="geo-observations__grid">
-              {props.observations.map((observation, index) => (
-                <GeoObservationCard
-                  key={`${observation.purpose}:${index}:${observation.question}`}
-                  observation={observation}
-                  language={props.language}
-                />
-              ))}
-            </div>
+            {geoProviderGroups(props.observations).map((group) => (
+              <GeoProviderGroup
+                key={group.provider ?? 'unnamed'}
+                group={group}
+                language={props.language}
+              />
+            ))}
           </>
         )}
       </div>
     </>
+  );
+}
+
+/** Who the report shows first: the assistant customers ask about (D-233). */
+const GEO_PROVIDER_ORDER: readonly string[] = ['openai', 'anthropic'];
+
+interface GeoProviderGroupData {
+  /** null for a report written before the provider was recorded per request. */
+  readonly provider: string | null;
+  readonly modelId: string | null;
+  readonly observations: readonly GeoObservation[];
+}
+
+/**
+ * One group per assistant that was asked, in a fixed order.
+ *
+ * A provider the report does not know about still gets its own group rather
+ * than being folded into another one's answers: whose answer this is is the
+ * whole point of asking more than one.
+ */
+function geoProviderGroups(
+  observations: readonly GeoObservation[],
+): readonly GeoProviderGroupData[] {
+  return observations
+    .map((observation) => observation.provider)
+    .filter((provider, index, all) => all.indexOf(provider) === index)
+    .sort((left, right) => geoProviderRank(left) - geoProviderRank(right))
+    .map((provider) => {
+      const grouped = observations.filter((observation) => observation.provider === provider);
+      return {
+        provider,
+        modelId: grouped.find((observation) => observation.modelId !== null)?.modelId ?? null,
+        observations: grouped,
+      };
+    });
+}
+
+/** Known providers in the order above, then unknown names, then unnamed ones. */
+function geoProviderRank(provider: string | null): number {
+  if (provider === null) return GEO_PROVIDER_ORDER.length + 1;
+  const known = GEO_PROVIDER_ORDER.indexOf(provider);
+  return known === -1 ? GEO_PROVIDER_ORDER.length : known;
+}
+
+function geoProviderLabel(provider: string | null, language: Language): string {
+  const t = copy[language].report;
+  if (provider === 'openai') return t.geoProviderOpenai;
+  if (provider === 'anthropic') return t.geoProviderAnthropic;
+  // An unknown name is shown as recorded rather than translated into a guess.
+  return provider ?? t.geoProviderUnnamed;
+}
+
+/**
+ * How often the brand and the domain came up, over the answers where the
+ * question left room for them to. An unmeasurable signal is left out of both
+ * halves of the count instead of being read as a miss.
+ */
+function geoMentionCounts(
+  observations: readonly GeoObservation[],
+  language: Language,
+): readonly string[] {
+  const t = copy[language].report;
+  const measured = observations.flatMap((observation) =>
+    observation.mentions === null ? [] : [observation.mentions],
+  );
+  const line = (template: string, signals: readonly MentionSignal[]): readonly string[] => {
+    const total = signals.filter(
+      (signal) => signal === 'mentioned' || signal === 'not-mentioned',
+    ).length;
+    if (total === 0) return [];
+    const count = signals.filter((signal) => signal === 'mentioned').length;
+    return [fillCopy(template, { count, total })];
+  };
+  return [
+    ...line(
+      t.geoGroupBrandCount,
+      measured.map((mentions) => mentions.brand),
+    ),
+    ...line(
+      t.geoGroupDomainCount,
+      measured.map((mentions) => mentions.domain),
+    ),
+  ];
+}
+
+function GeoProviderGroup(props: { group: GeoProviderGroupData; language: Language }) {
+  const { group } = props;
+  const label = geoProviderLabel(group.provider, props.language);
+  const counts = geoMentionCounts(group.observations, props.language);
+  return (
+    <div className="module-checks__group">
+      <h5 className="module-checks__subheading">
+        {group.modelId === null ? label : `${label} · ${group.modelId}`}
+      </h5>
+      {counts.length === 0 ? null : <p className="muted">{counts.join(' · ')}</p>}
+      <div className="geo-observations__grid">
+        {group.observations.map((observation, index) => (
+          <GeoObservationCard
+            key={`${observation.purpose}:${index}:${observation.question}`}
+            observation={observation}
+            language={props.language}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 

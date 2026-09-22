@@ -270,8 +270,8 @@ describe('paid plan controls', () => {
       siteProfileId: profile.id,
       plan: 'Complete',
       aiConsent: {
-        providers: ['anthropic'],
-        noticeVersion: 'core-ai-processing-notice-v3',
+        providers: ['anthropic', 'openai'],
+        noticeVersion: 'core-ai-processing-notice-v4',
       },
       scope: {
         includeSubdomains: true,

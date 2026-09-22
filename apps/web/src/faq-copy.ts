@@ -199,7 +199,7 @@ export const faqCopyEn: FaqCopy = {
           question: 'Do you check whether ChatGPT or Perplexity mention my brand?',
           answer: [
             'Paid audits include provider-backed AI visibility checks. FluxRadar first asks the provider to generate neutral discovery questions from the saved industry, offerings, region, audience and language settings without showing it the brand or domain; it then asks those questions and checks whether the answers mention or cite the site. Separate awareness questions do name the brand and official address.',
-            'The current production adapter uses Anthropic, not ChatGPT or Perplexity. A prominent notice before purchase explains what project context and public-page evidence is sent. The free homepage check never sends data to an AI provider.',
+            'ChatGPT, yes — and Claude as well. Every paid audit puts the same visibility questions to ChatGPT (OpenAI) and to Claude (Anthropic), each answering with its own web search turned on, and the report shows each assistant’s answers and the pages it cited. Perplexity and Gemini are not queried. A prominent notice before purchase explains what project context and public-page evidence is sent. The free homepage check never sends data to an AI provider.',
             'On a Complete report you can also ask Anthropic’s Claude for an AI Action Plan: an ordered list of changes with an overview for your client. It is written only when you press its button. Sent are the site’s domain, each section’s status, score and coverage, and for each rule with open issues its name, severity, number of open issues, up to three page addresses without query strings or fragments, and the rule’s recommendations. Evidence excerpts, screenshots, traces and anything from the Analytics section are not sent.',
             'It is also not a ranking guarantee. It reflects what a provider answered at that moment through its API; the same question can be answered differently tomorrow.',
           ],
@@ -342,7 +342,7 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'What needs an integration or external data?',
           answer: [
-            'Three things. Search performance — impressions, clicks and queries — comes from Google Search Console or Bing Webmaster Tools, which you connect yourself in Integrations. Audience data comes from Google Analytics 4 the same way. Core Web Vitals come from Google PageSpeed Insights and the Chrome UX Report. Paid AI visibility and, on Complete, AI-assisted UX checks use FluxRadar’s configured Anthropic provider after the pre-purchase disclosure; the optional AI Action Plan on a Complete report uses it only when you ask for one.',
+            'Three things. Search performance — impressions, clicks and queries — comes from Google Search Console or Bing Webmaster Tools, which you connect yourself in Integrations. Audience data comes from Google Analytics 4 the same way. Core Web Vitals come from Google PageSpeed Insights and the Chrome UX Report. Paid AI visibility uses FluxRadar’s configured OpenAI and Anthropic providers, each with its own web search, after the pre-purchase disclosure; on Complete, the AI-assisted UX checks use Anthropic alone, and the optional AI Action Plan uses it only when you ask for one.',
             'Google and Bing account connections are optional. External sources can still be unavailable or have no data; the report says exactly that instead of inventing a number.',
           ],
         },
@@ -524,7 +524,7 @@ export const faqCopyUk: FaqCopy = {
           question: 'Чи перевіряєте ви, чи згадують мій бренд ChatGPT або Perplexity?',
           answer: [
             'Платні аудити включають перевірки AI-видимості через зовнішнього провайдера. Спочатку FluxRadar просить його створити нейтральні discovery-запитання з налаштувань галузі, пропозицій, регіону, аудиторії та мов, не показуючи бренд або домен; потім ставить ці запитання й перевіряє, чи згадує або цитує відповідь сайт. Окремі awareness-запитання прямо називають бренд і офіційну адресу.',
-            'Поточний production-адаптер використовує Anthropic, а не ChatGPT чи Perplexity. Помітне повідомлення перед оплатою пояснює, який контекст проєкту та докази з публічних сторінок передаються. Безкоштовна перевірка головної ніколи не надсилає дані AI-провайдеру.',
+            'ChatGPT — так, і Claude теж. Кожен платний аудит ставить ті самі запитання про видимість ChatGPT (OpenAI) і Claude (Anthropic), кожен відповідає з увімкненим власним вебпошуком, а звіт показує відповіді кожного асистента та сторінки, які він процитував. Perplexity і Gemini не опитуються. Помітне повідомлення перед оплатою пояснює, який контекст проєкту та докази з публічних сторінок передаються. Безкоштовна перевірка головної ніколи не надсилає дані AI-провайдеру.',
             'У звіті Complete можна також попросити Claude від Anthropic скласти AI-план дій: упорядкований список змін з оглядом для вашого клієнта. Його складають лише після натискання кнопки. Надсилаються домен сайту, статус, оцінка й покриття кожного розділу, а для кожного правила з відкритими проблемами — його назва, критичність, кількість відкритих проблем, до трьох адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана, трасування й будь-що з розділу «Аналітика» не надсилаються.',
             'Це також не гарантія видимості. Результат відображає те, що провайдер відповів через свій API у той момент; завтра відповідь може бути іншою.',
           ],
@@ -667,7 +667,7 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Що потребує інтеграцій або зовнішніх даних?',
           answer: [
-            'Три речі. Пошукова ефективність — покази, кліки та запити — надходить із Google Search Console або Bing Webmaster Tools, які ви підключаєте самі в розділі «Інтеграції». Дані про аудиторію так само надходять із Google Analytics 4. Core Web Vitals надходять із Google PageSpeed Insights і Chrome UX Report. Платна перевірка AI-видимості та AI-аналіз UX у Complete використовують налаштованого FluxRadar провайдера Anthropic після повідомлення перед оплатою; необов’язковий AI-план дій у звіті Complete звертається до нього, лише коли ви про це просите.',
+            'Три речі. Пошукова ефективність — покази, кліки та запити — надходить із Google Search Console або Bing Webmaster Tools, які ви підключаєте самі в розділі «Інтеграції». Дані про аудиторію так само надходять із Google Analytics 4. Core Web Vitals надходять із Google PageSpeed Insights і Chrome UX Report. Платна перевірка AI-видимості використовує налаштованих FluxRadar провайдерів OpenAI і Anthropic, кожного з власним вебпошуком, після повідомлення перед оплатою; у Complete AI-аналіз UX виконує лише Anthropic, а необов’язковий AI-план дій звертається до нього, лише коли ви про це просите.',
             'Підключення акаунтів Google і Bing необовʼязкові. Зовнішнє джерело все одно може бути недоступне або не мати даних; звіт так і пише замість того, щоб вигадати число.',
           ],
         },
