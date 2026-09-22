@@ -2,7 +2,10 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
+import type { AiProvider } from '@fluxradar/ai';
 
+import { createDefaultActionPlanProvider } from './action-plan/provider.ts';
+import { actionPlanRouter } from './action-plan/routes.ts';
 import { readAdminEmails } from './admin/admin-emails.ts';
 import { adminStatsRouter } from './admin/routes.ts';
 import { LoginRateLimiter, RequestRateLimiter } from './auth/rate-limit.ts';
@@ -78,6 +81,11 @@ export interface CreateAppOptions {
   readonly createAiProvider?: WorkerDeps['createAiProvider'];
   readonly createPerformanceRunner?: WorkerDeps['createPerformanceRunner'];
   readonly createGoogleDataRunner?: WorkerDeps['createGoogleDataRunner'];
+  /**
+   * Who writes Action Plans; null means AI is unavailable. A seam of its own,
+   * because `createAiProvider` answers with GEO fixtures under Vitest.
+   */
+  readonly createActionPlanProvider?: () => AiProvider | null;
   /** Test seam; production reads FLUXRADAR_INTERNAL_FREE_EMAILS. */
   readonly internalFreeEmails?: ReadonlySet<string>;
   /** Test seam; production reads FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS. */
@@ -301,6 +309,16 @@ export function createApp(options: CreateAppOptions): Express {
     }),
   );
   app.use(issuesRouter({ prisma: options.prisma, now }));
+  app.use(
+    actionPlanRouter({
+      prisma: options.prisma,
+      now,
+      logger,
+      requestRateLimiter,
+      createActionPlanProvider:
+        options.createActionPlanProvider ?? (() => createDefaultActionPlanProvider()),
+    }),
+  );
   app.use(
     exportRouter({
       prisma: options.prisma,

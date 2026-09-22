@@ -170,6 +170,17 @@ function UkrainianPrivacy(): JSX.Element {
           персональних даних. Уже надісланий провайдеру запит неможливо відкликати.
         </p>
         <p>
+          У звіті Complete власник може також попросити AI‑план дій: короткий упорядкований список
+          змін, який Claude від Anthropic складає за цим звітом. Нічого не надсилається, доки
+          власник не натисне кнопку, а рядок під нею пояснює, що саме передається: домен сайту,
+          статус, оцінку й покриття кожного розділу, а для кожного правила з відкритими проблемами —
+          його назву, критичність, кількість відкритих проблем, до трьох адрес сторінок без
+          параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана й
+          трасування не надсилаються, як і будь‑що з розділу «Аналітика» (дані Google Search Console
+          і GA4). План зберігається разом зі звітом і видаляється з ним; до експорту JSON чи CSV він
+          не входить.
+        </p>
+        <p>
           Ми не продаємо персональні дані й не передаємо їх рекламним партнерам. Дозволено
           використовувати лише знеособлені й агреговані результати аудитів для покращення правил і
           якості сервісу без публікації окремого сайту або звіту.
@@ -439,6 +450,17 @@ function EnglishPrivacy(): JSX.Element {
           include limited public evidence such as URLs, titles, headings, calls to action, links and
           form information. Automated secret redaction cannot guarantee removal of all personal
           data. A request already sent to a provider cannot be recalled.
+        </p>
+        <p>
+          On a Complete report the owner may also ask for an AI Action Plan: a short, ordered list
+          of changes that Anthropic’s Claude writes from that report. Nothing is sent until the
+          owner presses the button, and a line under it says what is sent: the site’s domain, each
+          section’s status, score and coverage, and for each rule with open issues its name,
+          severity, number of open issues, up to three page addresses without query strings or
+          fragments, and the rule’s recommendations. Evidence excerpts, screenshots and traces are
+          not sent, and neither is anything from the Analytics section (Google Search Console and
+          GA4 data). The plan is kept with the report and deleted with it; it is not part of the
+          JSON or CSV export.
         </p>
         <p>
           We do not sell personal data or share it with advertising partners. We may use only

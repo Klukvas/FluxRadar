@@ -10,7 +10,12 @@ import {
   PRISMA_SCHEMA_PATH,
   testDatabaseUrl,
 } from '../test-utils/template-db.ts';
-import { createTestDb, seedAccountWithProfile, type TestDb } from '../test-utils/test-db.ts';
+import {
+  createTestDb,
+  seedAccountWithProfile,
+  seedScan,
+  type TestDb,
+} from '../test-utils/test-db.ts';
 
 // BILLING-007: a deploy must never be able to make an automatic rollback unsafe.
 //
@@ -177,6 +182,56 @@ describe('BILLING-007 migration rollback safety', () => {
       expect(
         await db.prisma.checkoutSession.count({ where: { accountId: account.accountId } }),
       ).toBe(0);
+    });
+
+    // D-232: the previous release deletes scans — by retention, with a profile
+    // or with an account — without knowing the Action Plan tables. Under the
+    // RESTRICT default every scan with a plan would stop that delete, so plans
+    // reference Scan with ON DELETE CASCADE and attempts with ON DELETE SET NULL.
+    it('lets the previous release delete a scan whose Action Plans it cannot see', async () => {
+      const account = await seedAccountWithProfile(db.prisma);
+      const { scan } = await seedScan(db.prisma, {
+        account,
+        status: 'Completed',
+        plan: 'Complete',
+      });
+      await db.prisma.actionPlan.create({
+        data: {
+          scanId: scan.id,
+          language: 'en',
+          contentJson: '{"overview":"","actions":[]}',
+          promptText: '',
+          promptVersion: 'action-plan-v1',
+          modelId: 'claude-opus-5',
+          requestId: 'msg_rollback',
+          usageJson: '{}',
+          noticeVersion: 'action-plan-notice-v1',
+          generatedAt: new Date(),
+        },
+      });
+      const attempt = await db.prisma.actionPlanAttempt.create({
+        data: {
+          scanId: scan.id,
+          accountId: account.accountId,
+          language: 'en',
+          status: 'Succeeded',
+        },
+      });
+
+      // The previous release's deleteScanRows, which has never heard of either table.
+      await db.prisma.$transaction(async (tx) => {
+        for (const table of ['ExportArtifact', 'Job', 'Issue', 'ScanModule', 'AiResponseRecord']) {
+          await tx.$executeRawUnsafe(`DELETE FROM "${table}" WHERE "scanId" = $1`, scan.id);
+        }
+        await tx.$executeRawUnsafe('DELETE FROM "Scan" WHERE "id" = $1', scan.id);
+      });
+
+      expect(await db.prisma.scan.count({ where: { id: scan.id } })).toBe(0);
+      expect(await db.prisma.actionPlan.count({ where: { scanId: scan.id } })).toBe(0);
+      // The spend log stays, detached: the daily cap still counts it.
+      expect(
+        await db.prisma.actionPlanAttempt.findUniqueOrThrow({ where: { id: attempt.id } }),
+      ).toMatchObject({ scanId: null, accountId: account.accountId });
     });
   });
 

@@ -1,6 +1,6 @@
 // Where an accepted support request goes.
 
-import type { ApiLogger } from '../http/logger.ts';
+import { describeError, type ApiLogger } from '../http/logger.ts';
 import { formatSupportMessage, type SupportRequest } from './support-message.ts';
 import { readTelegramConfig } from './telegram-config.ts';
 
@@ -105,10 +105,6 @@ export function createSupportChannel(
   if (result.state === 'configured')
     return new TelegramSupportChannel({ ...result.config, fetcher });
   return env.NODE_ENV === 'production' ? null : new LoggingSupportChannel(logger);
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
 async function readJson(response: Response): Promise<unknown> {

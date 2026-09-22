@@ -3,35 +3,19 @@
 // перезаписывает результат предыдущей (module retry / external retry, D-024).
 // Терминализацию выполняет process-scan через resolveScanOutcome.
 
-import type { CrawlSummary, ModuleName, Plan, ScanScopeInput } from '@fluxradar/contracts';
+import type { CrawlSummary, Plan, ScanScopeInput } from '@fluxradar/contracts';
 import {
   CRAWL_LIMITS,
   TARIFFS,
   isSiteRead,
   scanScopeSchema,
   severityRank,
-  siteReachStatusReason,
 } from '@fluxradar/contracts';
-import {
-  AI_PROVIDER_NAMES,
-  AiQuotaTracker,
-  CURRENT_AI_PROCESSING_NOTICE_VERSION,
-  runGeoModule,
-} from '@fluxradar/ai';
-import type { AiConsent, GeoMentionSignals, GeoModuleResult } from '@fluxradar/ai';
 import { crawl, crawlerUserAgent } from '@fluxradar/crawler';
 import type { CrawlResult, CrawlScope } from '@fluxradar/crawler';
-import {
-  analyticsPageFacts,
-  analyzeUxStatic,
-  assessAiCrawlerReadiness,
-  createSiteContext,
-  runModuleRules,
-} from '@fluxradar/rules';
-import type { AnalyticsPageFact, ModuleRunResult, SiteContext } from '@fluxradar/rules';
-import { computeCoverage } from '@fluxradar/scoring';
-import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
-import { z } from 'zod';
+import { analyticsPageFacts, createSiteContext } from '@fluxradar/rules';
+import type { AnalyticsPageFact, SiteContext } from '@fluxradar/rules';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { readCrawlEgressLocations } from '../integrations/crawl-egress-config.ts';
 import {
@@ -43,25 +27,19 @@ import {
 import { logEgressUsage, recordEgressUsage } from '../integrations/crawl-egress-usage.ts';
 import { buildCrawlSummary } from './crawl-summary.ts';
 import { executionProfile, storedExecutionConfig } from '../profiles/execution-config.ts';
-import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
-import type { WorkerDeps } from './deps.ts';
-import { freeCheckMetadata, runFreeCheck } from './free-check.ts';
+import { resetActionPlans } from '../action-plan/run-state.ts';
 import {
-  buildGeoRequests,
-  generateGeoDiscoveryQuestions,
-  type GeoQuestionGenerationResult,
-} from './geo.ts';
-import { resolveScanEgress } from './egress.ts';
+  markEveryModuleUnreadable,
+  runModuleSteps,
+  setModule,
+  type AttemptScan,
+  type ScanAttempt,
+} from './attempt-modules.ts';
+import type { WorkerDeps } from './deps.ts';
+import { resolveScanEgress, type ScanEgress } from './egress.ts';
 import { initialIssueStatuses } from './issue-sync.ts';
-import { includesAnalytics, modulePlanFor } from './module-plan.ts';
-import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
+import { includesAnalytics, modulePlanFor, type ModulePlan } from './module-plan.ts';
 import type { IssueRowData } from './module-result.ts';
-import { ruleCheckSummaries, uxRuleCheckSummaries } from './rule-checks.ts';
-import { runUxConversion } from './ux.ts';
-
-const providersJsonSchema = z.array(z.enum(AI_PROVIDER_NAMES));
-
-type ScanWithRelations = Scan & { readonly siteProfile: SiteProfile };
 
 function parseScope(scopeJson: string): ScanScopeInput {
   try {
@@ -94,17 +72,6 @@ function buildCrawlScope(origin: string, scope: ScanScopeInput, plan: Plan): Cra
   };
 }
 
-type ModuleRowData = {
-  readonly runtimeStatus: string;
-  readonly statusReason?: string | null;
-  readonly coverage?: number | null;
-  readonly score?: number | null;
-  readonly applicableChecks?: number | null;
-  readonly completedApplicableChecks?: number | null;
-  readonly usableOutput?: boolean;
-  readonly metadataJson?: string;
-};
-
 /**
  * Bytes of page and media bodies this crawl pulled.
  *
@@ -119,296 +86,195 @@ function bytesRead(crawlResult: CrawlResult): number {
   );
 }
 
-/** How much of a site's media the crawl actually asked about. */
-export interface MediaCoverage {
-  readonly checked: number;
-  readonly broken: number;
-  readonly notChecked: number;
+/** An attempt, and where its crawl starts. */
+interface LoadedAttempt extends ScanAttempt {
+  readonly origin: string;
 }
 
-function mediaCoverageOf(crawlResult: CrawlResult): MediaCoverage {
+/** The modules an attempt runs: every one the plan has, or the one a retry names. */
+function attemptTargets(
+  modulePlan: ModulePlan,
+  plan: Plan,
+  retryModule: string | undefined,
+): readonly string[] {
+  const plannedModules = [
+    ...modulePlan.runnable,
+    ...(modulePlan.geo ? ['AI SEO / GEO'] : []),
+    ...modulePlan.external,
+    ...(modulePlan.ux ? ['UX/Conversion'] : []),
+  ];
+  if (retryModule === undefined) return plannedModules;
+  if (!plannedModules.includes(retryModule as (typeof plannedModules)[number])) {
+    throw new Error(`runScanAttempt: module ${retryModule} is not runnable for ${plan}`);
+  }
+  return [retryModule];
+}
+
+async function loadAttempt(
+  deps: WorkerDeps,
+  scanId: string,
+  retryModule: string | undefined,
+): Promise<LoadedAttempt> {
+  const scan = (await deps.prisma.scan.findUnique({
+    where: { id: scanId },
+    include: { siteProfile: true, aiConsent: true },
+  })) as AttemptScan | null;
+  if (scan === null) {
+    throw new Error(`runScanAttempt: scan ${scanId} not found`);
+  }
+  const plan = scan.plan as Plan;
+  const profile = executionProfile(scan, scan.siteProfile);
+  const modulePlan = modulePlanFor(plan);
+  const scope =
+    storedExecutionConfig(scan.executionConfigJson)?.scope ?? parseScope(scan.scopeJson);
   return {
-    checked: crawlResult.mediaChecks.length,
-    broken: crawlResult.mediaChecks.filter(
-      (media) => media.fetchError !== undefined || media.status >= 400,
-    ).length,
-    notChecked: crawlResult.mediaOverBudget.length,
+    scan,
+    profile,
+    plan,
+    scope,
+    modulePlan,
+    origin: deps.crawl?.originOverride?.(scan) ?? profile.domain,
+    targetModules: attemptTargets(modulePlan, plan, retryModule),
   };
 }
 
-function metadataForRuleModule(
-  module: ModuleName,
-  plan: Plan,
-  evaluations: ModuleRunResult['evaluations'],
-  mediaCoverage: MediaCoverage,
-): string {
-  // Every rule module records what each of its checks did, so the report can
-  // open a section card to that list instead of showing only its totals.
-  const ruleChecks = ruleCheckSummaries(evaluations);
-  if (plan === 'Free' && module === 'SEO') {
-    // Free runs the fixed four-rule homepage check, not the full SEO module:
-    // the paid module's structured-data and social-preview metadata would
-    // describe checks that never ran (see free-check.ts).
-    return JSON.stringify({ ...freeCheckMetadata(), ruleChecks });
-  }
-  const metadata =
-    module === 'Content Quality'
-      ? {
-          standard: 'Content Quality',
-          automation: 'static-html + media HEAD checks',
-          // What CONTENT-004 is allowed to have an opinion about. `notChecked`
-          // is the honest name for media the budget did not reach: the rule
-          // says nothing about those, and this is where the report can.
-          media: mediaCoverage,
-        }
-      : module === 'Accessibility'
-        ? {
-            standard: 'WCAG 2.2 AA',
-            profiles: ['EN 301 549', 'Section 508'],
-            automation: 'static-dom-css',
-            manualReviewRequired: true,
-            legalCertification: false,
-          }
-        : module === 'Security'
-          ? {
-              standard: 'OWASP ASVS',
-              profile: 'Public Security Profile',
-              automation: 'public-http-headers-dom',
-              manualReviewRequired: true,
-              notVerifiable: ['source code', 'authenticated flows', 'server-side configuration'],
-            }
-          : module === 'Privacy'
-            ? {
-                standard: 'Privacy & Consent',
-                scope: 'public technical signals',
-                automation: 'static-http-dom',
-                manualReviewRequired: true,
-                legalAdvice: false,
-              }
-            : module === 'SEO'
-              ? {
-                  structuredData: 'static-html-json-ld',
-                  socialPreview: 'static-html-meta',
-                  clientRenderedMarkup: 'not verifiable without browser rendering',
-                }
-              : undefined;
-  return JSON.stringify({ ...metadata, ruleChecks });
-}
-
-async function setModule(
-  prisma: PrismaClient,
-  scanId: string,
-  module: string,
-  data: ModuleRowData,
-): Promise<void> {
-  await prisma.scanModule.upsert({
-    where: { scanId_module: { scanId, module } },
-    create: { scanId, module, runtimeStatus: data.runtimeStatus, ...withoutStatus(data) },
-    update: { runtimeStatus: data.runtimeStatus, ...withoutStatus(data) },
-  });
-}
-
-function withoutStatus(data: ModuleRowData): Omit<ModuleRowData, 'runtimeStatus'> {
-  const { runtimeStatus, ...rest } = data;
-  void runtimeStatus;
-  return rest;
-}
-
-function loadConsent(
-  scan: Scan & { aiConsent?: { providersJson: string; noticeVersion: string } | null },
-): AiConsent | null {
-  const record = scan.aiConsent ?? null;
-  if (record === null || record.noticeVersion !== CURRENT_AI_PROCESSING_NOTICE_VERSION) {
-    // A historical record cannot establish that the disclosure for the current
-    // paid AI processing was shown before purchase.
-    return null;
-  }
-  let rawProviders: unknown;
-  try {
-    rawProviders = JSON.parse(record.providersJson) as unknown;
-  } catch {
-    return null;
-  }
-  const providers = providersJsonSchema.safeParse(rawProviders);
-  if (!providers.success) {
-    // Битая запись consent трактуется как отсутствие согласия (fail-closed §5).
-    return null;
-  }
-  return { scanId: scan.id, providers: providers.data, noticeVersion: record.noticeVersion };
-}
-
-async function persistGeoModule(
-  prisma: PrismaClient,
-  scanId: string,
-  geo: GeoModuleResult,
-  generation: GeoQuestionGenerationResult,
-  aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
-): Promise<void> {
-  // Both badges used to be "no finding for this answer means yes". A question
-  // that named the brand and spelled out the domain produces no finding for
-  // either, so "brand mentioned" and "official domain cited" were green on
-  // every scan — we were reading back our own question. The signals now come
-  // from the same function the rules use, and carry why a signal was skipped.
-  const mentionSignals = (aiRequestKey: string): GeoMentionSignals | null =>
-    geo.mentions.get(aiRequestKey) ?? null;
-  const reasonParts = [
-    geo.statusReason,
-    generation.status === 'Unavailable' || generation.status === 'InvalidResponse'
-      ? `QueryGeneration${generation.status}: ${generation.statusReason ?? 'unknown reason'}`
-      : null,
-  ].filter((reason): reason is string => reason !== null);
-  const coverage = computeCoverage({
-    applicableChecks: geo.outcomes.length + generation.applicableChecks,
-    completedApplicableChecks: geo.responses.length + generation.completedApplicableChecks,
-    ...(reasonParts.length > 0 ? { statusReason: reasonParts.join('; ') } : {}),
-  });
-  // Informational-only модуль (D-109): штрафующих правил нет, поэтому score
-  // Completed/Partial-ветки всегда 100 − 0; сами находки идут в ai_response
-  // records и findings GEO-правил, а не в Issue Center (§16: issue.severity
-  // не бывает null).
-  const score = coverage.status === 'Completed' || coverage.status === 'Partial' ? 100 : null;
-  await setModule(prisma, scanId, geo.module, {
-    runtimeStatus: coverage.status,
-    statusReason: coverage.statusReason,
-    coverage: coverage.coverage,
-    score,
-    applicableChecks: coverage.applicableChecks,
-    completedApplicableChecks: coverage.completedApplicableChecks,
-    usableOutput: geo.responses.length > 0,
-    metadataJson: JSON.stringify({
-      standard: 'AI crawler readiness',
-      automation: aiCrawlerReadiness.automation,
-      providerTokenRequired: aiCrawlerReadiness.providerTokenRequired,
-      robots: aiCrawlerReadiness.robots,
-      pages: aiCrawlerReadiness.pages,
-      limitations: aiCrawlerReadiness.limitations,
-      providerVisibility: {
-        status: coverage.status,
-        statusReason: coverage.statusReason,
-        requiresConsent: true,
-        method: 'AI-generated neutral context questions plus direct brand-awareness questions',
-        interpretation: 'Prompt-specific observations; mentions do not prove remembered knowledge.',
-        queryGeneration: {
-          status: generation.status,
-          statusReason: generation.statusReason,
-          promptVersion: generation.outcome?.request.promptVersion ?? null,
-          generatedQuestions: redactEvidence(generation.questions),
-          ...(generation.outcome?.kind === 'response'
-            ? {
-                aiRequestKey: generation.outcome.aiRequestKey,
-                usage: generation.outcome.response.usage,
-              }
-            : generation.outcome?.kind === 'unavailable'
-              ? { reason: generation.outcome.reason }
-              : {}),
-        },
-        requests: geo.outcomes.map((outcome) => ({
-          purpose: outcome.request.promptVersion.endsWith('-discovery') ? 'discovery' : 'awareness',
-          promptVersion: outcome.request.promptVersion,
-          sequence: outcome.request.sequence,
-          status: outcome.kind,
-          question: redactEvidence(outcome.request.question),
-          ...(outcome.kind === 'response'
-            ? {
-                aiRequestKey: outcome.aiRequestKey,
-                usage: outcome.response.usage,
-                mentions: mentionSignals(outcome.aiRequestKey),
-              }
-            : { reason: outcome.reason }),
-        })),
-      },
-    }),
-  });
-
-  if (generation.outcome?.kind === 'response') {
-    await persistAiResponse(prisma, scanId, 'AI SEO / GEO', generation.outcome);
-  }
-  for (const outcome of geo.responses) {
-    await persistAiResponse(prisma, scanId, 'AI SEO / GEO', outcome);
-  }
-}
-
-async function persistUxModule(
-  prisma: PrismaClient,
-  scanId: string,
-  ux: Awaited<ReturnType<typeof runUxConversion>>,
-): Promise<void> {
-  const deterministicChecks = 3;
-  const aiResponse = ux.ai.outcome.kind === 'response' ? ux.ai.outcome.response : null;
-  const aiRequestKey = ux.ai.outcome.kind === 'response' ? ux.ai.outcome.aiRequestKey : undefined;
-  // Coverage counts the three declared deterministic rules plus the one AI
-  // review, not the number of pages. Page count made a 12-page scan look 92%
-  // complete when its entire AI quarter had not run.
-  const completedApplicableChecks = deterministicChecks + (aiResponse === null ? 0 : 1);
-  const applicableChecks = deterministicChecks + 1;
-  const uxReason = ux.ai.statusReason === null ? null : `UxAi${ux.ai.statusReason}`;
-  await setModule(prisma, scanId, 'UX/Conversion', {
-    runtimeStatus: aiResponse === null ? 'Partial' : 'Completed',
-    statusReason: aiResponse === null ? uxReason : null,
-    coverage: completedApplicableChecks / applicableChecks,
-    // A Partial run scores only the checks that ran (§15): without the AI review
-    // that is the three static rules, and the coverage above says so.
-    score: ux.score,
-    applicableChecks,
-    completedApplicableChecks,
-    usableOutput: ux.staticEvidence.pages.length > 0,
-    metadataJson: JSON.stringify({
-      standard: 'UX/Conversion',
-      automation: 'static-html + AI-assisted',
-      providerTokenRequired: true,
-      limitation: ux.staticEvidence.limitation,
-      staticSignals: ux.staticEvidence.summary,
-      staticFindings: ux.staticEvidence.findings.length,
-      ruleChecks: uxRuleCheckSummaries(ux.staticEvidence, ux.ai),
-      pages: redactEvidence(ux.staticEvidence.pages),
-      ai: {
-        status: ux.ai.status,
-        statusReason: uxReason,
-        findings: ux.ai.findings.length,
-        ...(aiResponse === null
-          ? {}
-          : {
-              provider: aiResponse.provider,
-              modelId: aiResponse.modelId,
-              promptVersion: ux.ai.outcome.request.promptVersion,
-              requestId: aiResponse.requestId,
-              aiRequestKey,
-              usage: aiResponse.usage,
-            }),
-      },
-    }),
-  });
-  if (ux.ai.outcome.kind === 'response') {
-    await persistAiResponse(prisma, scanId, 'UX/Conversion', ux.ai.outcome);
-  }
-}
-
 /**
- * Every module of the attempt reports the same thing: there was no site to read.
- *
- * `Unavailable` rather than `Not applicable` is the honest status — the checks
- * are applicable to this site, they simply had nothing to run on — and §15
- * requires `applicable > 0, completed = 0` for it, which is what the single
- * "could the site be read" check stands for. No score, because scoring a site
- * we never saw is the whole failure being fixed here.
+ * Full attempts replace the snapshot. A module retry replaces only its own
+ * rows, preserving usable output and evidence from the other modules.
  */
-async function markEveryModuleUnreadable(
+async function clearEarlierResults(
   prisma: PrismaClient,
   scanId: string,
-  modules: readonly string[],
-  summary: CrawlSummary,
+  retryModule: string | undefined,
+  targetModules: readonly string[],
 ): Promise<void> {
-  const statusReason = siteReachStatusReason(summary) ?? 'SiteUnreachable';
-  for (const module of modules) {
-    await setModule(prisma, scanId, module, {
-      runtimeStatus: 'Unavailable',
-      statusReason,
-      coverage: 0,
-      score: null,
-      applicableChecks: 1,
-      completedApplicableChecks: 0,
-      usableOutput: false,
-      metadataJson: JSON.stringify({ crawl: summary }),
+  await prisma.issue.deleteMany({
+    where: { scanId, ...(retryModule === undefined ? {} : { module: retryModule }) },
+  });
+  if (retryModule === undefined) {
+    await prisma.aiResponseRecord.deleteMany({ where: { scanId } });
+  } else if (retryModule === 'AI SEO / GEO' || retryModule === 'UX/Conversion') {
+    await prisma.aiResponseRecord.deleteMany({ where: { scanId, module: retryModule } });
+  }
+  await prisma.scanModule.deleteMany({
+    where: { scanId, ...(retryModule === undefined ? {} : { module: retryModule }) },
+  });
+  // Either way the Action Plans were written from issues deleted above, so
+  // they go, and the scan's plan budget starts over with the new snapshot. A
+  // generation still in flight loses its token here and cannot write (D-232).
+  await resetActionPlans(prisma, scanId);
+  for (const module of targetModules) {
+    await setModule(prisma, scanId, module, { runtimeStatus: 'Pending' });
+  }
+}
+
+async function usableEgress(deps: WorkerDeps, scope: ScanScopeInput): Promise<ScanEgress> {
+  // The location recorded at launch (D-228). A location that has since been
+  // unconfigured throws here, before a request: crawling it from somewhere
+  // else would put a country on the report that the crawl never left from.
+  const egress = resolveScanEgress(
+    deps.crawl,
+    scope.egressLocation,
+    deps.egressLocations ?? readCrawlEgressLocations(),
+  );
+  const egressLocationId = egress.location?.location.id ?? null;
+  // Before a single request. Each proxy is one VPS, and when it is down every
+  // fetch fails — which the crawl would otherwise read as "the customer's site
+  // is unreachable", spending their paid scan on our outage and telling them
+  // their site is broken. Going direct instead is not an option either: that
+  // is the Hetzner block the proxy exists to avoid (D-220), and another
+  // location is a different country from the one the owner chose. So the
+  // attempt stops, loudly, and the worker treats it as the platform failure it is.
+  const egressHealth = await (deps.probeEgress ?? probeEgressProxy)(egress.proxy, {
+    ...readEgressProbeOptions(),
+    expectedIp: egress.location?.expectedIp ?? null,
+  });
+  logEgressHealth(deps.logger, egressHealth, egressLocationId);
+  if (!isEgressUsable(egressHealth)) {
+    throw new Error(
+      `runScanAttempt: crawl egress proxy${egressLocationId === null ? '' : ` for ${egressLocationId}`}` +
+        ` is ${egressHealth.state}` +
+        `${egressHealth.detail === null ? '' : ` (${egressHealth.detail})`}`,
+    );
+  }
+  return egress;
+}
+
+function crawlSite(
+  deps: WorkerDeps,
+  attempt: LoadedAttempt,
+  crawlScope: CrawlScope,
+  egressProxy: ScanEgress['proxy'],
+): Promise<CrawlResult> {
+  return crawl(crawlScope, {
+    ...(deps.crawl?.fetcher !== undefined ? { fetcher: deps.crawl.fetcher } : {}),
+    ...(egressProxy === null ? {} : { egressProxy }),
+    ...(deps.crawl?.dangerouslyAllowLoopback === true ? { dangerouslyAllowLoopback: true } : {}),
+    ...(deps.crawl?.limiter !== undefined ? { limiter: deps.crawl.limiter } : {}),
+    logger: { warn: (message, context) => deps.logger.warn(message, context) },
+    userAgent: crawlerUserAgent(attempt.scope.userAgent),
+    // Ask whether the site's own images and media exist, within a budget.
+    // CONTENT-004 reports only what this verified; before it, the rule
+    // penalised "media not confirmed by the crawl" on a crawl that requested
+    // no media at all. A Free check is the homepage and nothing else.
+    maxMediaChecks: attempt.plan === 'Free' ? 0 : CRAWL_LIMITS.maxMediaChecks,
+  });
+}
+
+interface CrawledSite {
+  readonly ctx: SiteContext;
+  readonly crawlResult: CrawlResult;
+  readonly crawlSummary: CrawlSummary;
+}
+
+/** Crawls the site through a checked egress, and records what the crawl saw on the scan. */
+async function crawlAndRecord(
+  deps: WorkerDeps,
+  attempt: LoadedAttempt,
+  now: () => Date,
+): Promise<CrawledSite> {
+  const { origin, scope, plan } = attempt;
+  const egress = await usableEgress(deps, scope);
+  const crawlScope = buildCrawlScope(origin, scope, plan);
+  const crawlResult = await crawlSite(deps, attempt, crawlScope, egress.proxy);
+  const ctx: SiteContext = createSiteContext({ origin, crawl: crawlResult, plan });
+  const crawlSummary = buildCrawlSummary(crawlResult, origin, scope, plan, crawlScope.maxPages);
+  if (egress.location !== null) {
+    // Counted only when it actually crossed a configured location's proxy, and
+    // against that location's plan, so a local fixture run and a direct crawl
+    // never inflate a hosting plan's usage.
+    logEgressUsage(
+      deps.logger,
+      await recordEgressUsage(deps.prisma, egress.location.location, bytesRead(crawlResult), now()),
+    );
+  }
+  // Эффективный normalized origin — поле domain fingerprint-ов и export context
+  // (в тестах обходится fixture-origin, а не https-домен профиля).
+  await deps.prisma.scan.update({
+    where: { id: attempt.scan.id },
+    data: { domain: ctx.domain, crawlSummaryJson: JSON.stringify(crawlSummary) },
+  });
+  return { ctx, crawlResult, crawlSummary };
+}
+
+/** Начальные статусы (Reopened/перенос пользовательских, §14/D-110) и вставка. */
+async function insertIssues(
+  prisma: PrismaClient,
+  scan: AttemptScan,
+  issueRows: readonly IssueRowData[],
+): Promise<void> {
+  const statuses = await initialIssueStatuses(
+    prisma,
+    scan,
+    issueRows.map((row) => row.fingerprint),
+  );
+  if (issueRows.length > 0) {
+    await prisma.issue.createMany({
+      data: issueRows.map((row): Prisma.IssueCreateManyInput => ({
+        ...row,
+        severityRank: severityRank(row.severity),
+        status: statuses.get(row.fingerprint) ?? 'New',
+      })),
     });
   }
 }
@@ -428,283 +294,27 @@ export async function runScanAttempt(
   scanId: string,
   retryModule?: string,
 ): Promise<ScanAttemptFacts> {
-  const { prisma } = deps;
   const now = deps.now ?? ((): Date => new Date());
-  const scan = (await prisma.scan.findUnique({
-    where: { id: scanId },
-    include: { siteProfile: true, aiConsent: true },
-  })) as
-    | (ScanWithRelations & { aiConsent: { providersJson: string; noticeVersion: string } | null })
-    | null;
-  if (scan === null) {
-    throw new Error(`runScanAttempt: scan ${scanId} not found`);
-  }
-  const plan = scan.plan as Plan;
-  const profile = executionProfile(scan, scan.siteProfile);
-  const modulePlan = modulePlanFor(plan);
-  const scope =
-    storedExecutionConfig(scan.executionConfigJson)?.scope ?? parseScope(scan.scopeJson);
-  const origin = deps.crawl?.originOverride?.(scan) ?? profile.domain;
-
-  const plannedModules = [
-    ...modulePlan.runnable,
-    ...(modulePlan.geo ? ['AI SEO / GEO'] : []),
-    ...modulePlan.external,
-    ...(modulePlan.ux ? ['UX/Conversion'] : []),
-  ];
-  const targetModules = retryModule === undefined ? plannedModules : [retryModule];
-  if (
-    retryModule !== undefined &&
-    !plannedModules.includes(retryModule as (typeof plannedModules)[number])
-  ) {
-    throw new Error(`runScanAttempt: module ${retryModule} is not runnable for ${plan}`);
-  }
-  // Full attempts replace the snapshot. A module retry replaces only its own
-  // rows, preserving usable output and evidence from the other modules.
-  await prisma.issue.deleteMany({
-    where: { scanId, ...(retryModule === undefined ? {} : { module: retryModule }) },
-  });
-  if (retryModule === undefined) {
-    await prisma.aiResponseRecord.deleteMany({ where: { scanId } });
-  } else if (retryModule === 'AI SEO / GEO' || retryModule === 'UX/Conversion') {
-    await prisma.aiResponseRecord.deleteMany({ where: { scanId, module: retryModule } });
-  }
-  await prisma.scanModule.deleteMany({
-    where: { scanId, ...(retryModule === undefined ? {} : { module: retryModule }) },
-  });
-  for (const module of targetModules) {
-    await setModule(prisma, scanId, module, { runtimeStatus: 'Pending' });
-  }
-
-  // The location recorded at launch (D-228). A location that has since been
-  // unconfigured throws here, before a request: crawling it from somewhere
-  // else would put a country on the report that the crawl never left from.
-  const egress = resolveScanEgress(
-    deps.crawl,
-    scope.egressLocation,
-    deps.egressLocations ?? readCrawlEgressLocations(),
-  );
-  const egressProxy = egress.proxy;
-  const egressLocationId = egress.location?.location.id ?? null;
-  // Before a single request. Each proxy is one VPS, and when it is down every
-  // fetch fails — which the crawl would otherwise read as "the customer's site
-  // is unreachable", spending their paid scan on our outage and telling them
-  // their site is broken. Going direct instead is not an option either: that
-  // is the Hetzner block the proxy exists to avoid (D-220), and another
-  // location is a different country from the one the owner chose. So the
-  // attempt stops, loudly, and the worker treats it as the platform failure it is.
-  const egressHealth = await (deps.probeEgress ?? probeEgressProxy)(egressProxy, {
-    ...readEgressProbeOptions(),
-    expectedIp: egress.location?.expectedIp ?? null,
-  });
-  logEgressHealth(deps.logger, egressHealth, egressLocationId);
-  if (!isEgressUsable(egressHealth)) {
-    throw new Error(
-      `runScanAttempt: crawl egress proxy${egressLocationId === null ? '' : ` for ${egressLocationId}`}` +
-        ` is ${egressHealth.state}` +
-        `${egressHealth.detail === null ? '' : ` (${egressHealth.detail})`}`,
-    );
-  }
-  const crawlScope = buildCrawlScope(origin, scope, plan);
-  const crawlResult = await crawl(crawlScope, {
-    ...(deps.crawl?.fetcher !== undefined ? { fetcher: deps.crawl.fetcher } : {}),
-    ...(egressProxy === null ? {} : { egressProxy }),
-    ...(deps.crawl?.dangerouslyAllowLoopback === true ? { dangerouslyAllowLoopback: true } : {}),
-    ...(deps.crawl?.limiter !== undefined ? { limiter: deps.crawl.limiter } : {}),
-    logger: { warn: (message, context) => deps.logger.warn(message, context) },
-    userAgent: crawlerUserAgent(scope.userAgent),
-    // Ask whether the site's own images and media exist, within a budget.
-    // CONTENT-004 reports only what this verified; before it, the rule
-    // penalised "media not confirmed by the crawl" on a crawl that requested
-    // no media at all. A Free check is the homepage and nothing else.
-    maxMediaChecks: plan === 'Free' ? 0 : CRAWL_LIMITS.maxMediaChecks,
-  });
-  const ctx: SiteContext = createSiteContext({ origin, crawl: crawlResult, plan });
-  const crawlSummary = buildCrawlSummary(crawlResult, origin, scope, plan, crawlScope.maxPages);
-  if (egress.location !== null) {
-    // Counted only when it actually crossed a configured location's proxy, and
-    // against that location's plan, so a local fixture run and a direct crawl
-    // never inflate a hosting plan's usage.
-    logEgressUsage(
-      deps.logger,
-      await recordEgressUsage(prisma, egress.location.location, bytesRead(crawlResult), now()),
-    );
-  }
+  const attempt = await loadAttempt(deps, scanId, retryModule);
+  await clearEarlierResults(deps.prisma, scanId, retryModule, attempt.targetModules);
+  const site = await crawlAndRecord(deps, attempt, now);
   // A site is read when at least one page of it was read — a 2xx response that
   // carried a document. It used to be "at least one request did not throw",
   // which a WAF challenge page satisfies: the 403 arrives over a perfectly
   // healthy connection, so a site that had blocked us entirely was audited as
   // a site with no robots.txt and no 200 responses, and scored 96.95.
-  const siteReachable = isSiteRead(crawlSummary);
-  // Эффективный normalized origin — поле domain fingerprint-ов и export context
-  // (в тестах обходится fixture-origin, а не https-домен профиля).
-  await prisma.scan.update({
-    where: { id: scanId },
-    data: { domain: ctx.domain, crawlSummaryJson: JSON.stringify(crawlSummary) },
-  });
-
-  if (!siteReachable) {
+  if (!isSiteRead(site.crawlSummary)) {
     // Nothing downstream has a site to work on, so nothing downstream runs: no
     // rules over a challenge page, no AI quota spent on a scan that is about to
     // be refunded, and no PSI number that would make this Partial instead of
     // Failed. Every planned module says the same thing, and says why.
-    await markEveryModuleUnreadable(prisma, scanId, targetModules, crawlSummary);
+    await markEveryModuleUnreadable(deps.prisma, scanId, attempt.targetModules, site.crawlSummary);
     return { analyticsPages: [] };
   }
-
-  const observedAt = now();
-  const mediaCoverage = mediaCoverageOf(crawlResult);
-  const issueRows: IssueRowData[] = [];
-  let aiQuota = AiQuotaTracker.forPlan(plan);
-  for (const module of modulePlan.runnable.filter((candidate) =>
-    targetModules.includes(candidate),
-  )) {
-    await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
-    const result = plan === 'Free' ? runFreeCheck(ctx) : runModuleRules(module, ctx);
-    const finalized = finalizeRuleModule(result, plan);
-    await setModule(prisma, scanId, module, {
-      runtimeStatus: finalized.runtimeStatus,
-      statusReason: finalized.statusReason,
-      coverage: finalized.coverage,
-      score: finalized.score,
-      applicableChecks: finalized.applicableChecks,
-      completedApplicableChecks: finalized.completedApplicableChecks,
-      usableOutput: finalized.usableOutput,
-      metadataJson: metadataForRuleModule(module, plan, result.evaluations, mediaCoverage),
-    });
-    issueRows.push(...issueRowsForModule(scanId, module, result.findings, finalized, observedAt));
-  }
-
-  if (modulePlan.geo && targetModules.includes('AI SEO / GEO')) {
-    await setModule(prisma, scanId, 'AI SEO / GEO', { runtimeStatus: 'Running' });
-    const siteHostname = new URL(ctx.domain).hostname;
-    const consent = loadConsent(scan);
-    const provider = deps.createAiProvider(scan, profile);
-    const generation = await generateGeoDiscoveryQuestions({
-      scanId,
-      brand: profile.name,
-      siteHostname,
-      context: profile,
-      consent,
-      provider,
-      quota: aiQuota,
-    });
-    const geo = await runGeoModule(
-      {
-        scanId,
-        plan,
-        brand: profile.name,
-        siteOrigin: ctx.domain,
-        siteDomain: siteHostname,
-        consent,
-        requests: buildGeoRequests(scanId, profile.name, generation.questions),
-      },
-      { provider, quota: generation.quota },
-    );
-    await persistGeoModule(prisma, scanId, geo, generation, assessAiCrawlerReadiness(crawlResult));
-    aiQuota = geo.quota;
-  }
-
-  if (modulePlan.ux && targetModules.includes('UX/Conversion')) {
-    await setModule(prisma, scanId, 'UX/Conversion', { runtimeStatus: 'Running' });
-    const uxEvidence = analyzeUxStatic(ctx);
-    if (uxEvidence.pages.length === 0) {
-      await setModule(prisma, scanId, 'UX/Conversion', {
-        runtimeStatus: 'Unavailable',
-        statusReason: 'TargetsUnreachable',
-        coverage: 0,
-        score: null,
-        applicableChecks: 1,
-        completedApplicableChecks: 0,
-        usableOutput: false,
-        metadataJson: JSON.stringify({
-          standard: 'UX/Conversion',
-          automation: 'static-html + AI-assisted',
-          providerTokenRequired: true,
-          limitation: 'static-html-only',
-        }),
-      });
-    } else {
-      const ux = await runUxConversion(
-        scanId,
-        'Complete',
-        profile.name,
-        ctx.domain,
-        ctx,
-        profile,
-        loadConsent(scan),
-        deps.createAiProvider(scan, profile),
-        aiQuota,
-        observedAt,
-      );
-      await persistUxModule(prisma, scanId, ux);
-      issueRows.push(...ux.issueRows);
-    }
-  }
-
-  for (const module of modulePlan.external.filter((candidate) =>
-    targetModules.includes(candidate),
-  )) {
-    await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
-    if (module !== 'Performance') continue;
-    const runner = deps.createPerformanceRunner?.();
-    if (runner === undefined) {
-      await setModule(prisma, scanId, module, {
-        runtimeStatus: 'Unavailable',
-        statusReason: 'PerformanceIntegrationNotConfigured',
-        coverage: 0,
-        score: null,
-        applicableChecks: 1,
-        completedApplicableChecks: 0,
-        usableOutput: false,
-      });
-      continue;
-    }
-    try {
-      const snapshot = await runner(ctx.domain, scope.userAgent ?? 'desktop');
-      await setModule(prisma, scanId, module, {
-        runtimeStatus: snapshot.performanceScore === null ? 'Partial' : 'Completed',
-        ...(snapshot.performanceScore === null
-          ? { statusReason: 'PerformanceScoreUnavailable' }
-          : {}),
-        coverage: snapshot.performanceScore === null ? 0.5 : 1,
-        score: snapshot.performanceScore,
-        applicableChecks: 1,
-        completedApplicableChecks: 1,
-        usableOutput: true,
-        metadataJson: JSON.stringify(snapshot),
-      });
-    } catch {
-      // External performance data is optional: a provider outage must be shown
-      // as unavailable and must not fail an otherwise valid website scan.
-      await setModule(prisma, scanId, module, {
-        runtimeStatus: 'Unavailable',
-        statusReason: 'PerformanceProviderUnavailable',
-        coverage: 0,
-        score: null,
-        applicableChecks: 1,
-        completedApplicableChecks: 0,
-        usableOutput: false,
-      });
-    }
-  }
-
-  // Начальные статусы (Reopened/перенос пользовательских, §14/D-110) и вставка.
-  const statuses = await initialIssueStatuses(
-    prisma,
-    scan,
-    issueRows.map((row) => row.fingerprint),
-  );
-  if (issueRows.length > 0) {
-    await prisma.issue.createMany({
-      data: issueRows.map((row): Prisma.IssueCreateManyInput => ({
-        ...row,
-        severityRank: severityRank(row.severity),
-        status: statuses.get(row.fingerprint) ?? 'New',
-      })),
-    });
-  }
+  const step = { ...attempt, deps, observedAt: now() };
+  const issueRows = await runModuleSteps(step, site.ctx, site.crawlResult);
+  await insertIssues(deps.prisma, attempt.scan, issueRows);
   return {
-    analyticsPages: includesAnalytics(plan) ? analyticsPageFacts(ctx) : [],
+    analyticsPages: includesAnalytics(attempt.plan) ? analyticsPageFacts(site.ctx) : [],
   };
 }

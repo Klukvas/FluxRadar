@@ -11,6 +11,11 @@ export interface ApiLogger {
 
 const noop = (): void => undefined;
 
+/** Ошибка одним полем лога: имя и сообщение, либо то, что бросили вместо Error. */
+export function describeError(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+}
+
 /** Логгер тестов: молчит намеренно (требование T-12 «в тестах молчит»). */
 export const silentLogger: ApiLogger = { info: noop, warn: noop, error: noop };
 

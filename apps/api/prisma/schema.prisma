@@ -37,6 +37,7 @@ model Account {
   artifacts          ExportArtifact[]
   emailTokens        EmailToken[]
   emailNotifications EmailNotification[]
+  actionPlanLog      ActionPlanAttempt[]
 }
 
 model EmailToken {
@@ -277,6 +278,17 @@ model Scan {
   rulesetVersion     String
   platformRetryCount Int       @default(0)
   moduleRetryCount   Int       @default(0)
+  /// Action Plan generations of this snapshot, across every language (D-232):
+  /// attempts of any outcome and successes, capped at 6 and 3. A re-run resets
+  /// both, because the plans they bought were written from issues it replaced.
+  actionPlanAttempts Int       @default(0)
+  actionPlanSuccesses Int      @default(0)
+  /// The one generation in flight for this scan, claimed together with the
+  /// counters in one conditional update. A run older than five minutes is
+  /// presumed dead and may be taken over; its start time is also the token a
+  /// finishing run must still hold to write its result.
+  actionPlanRunStartedAt DateTime?
+  actionPlanRunLanguage  String?
   startedAt          DateTime?
   completedAt        DateTime?
   createdAt          DateTime  @default(now())
@@ -290,6 +302,8 @@ model Scan {
   aiConsent   AiConsent?
   job         Job?
   artifacts   ExportArtifact[]
+  actionPlans ActionPlan[]
+  actionPlanLog ActionPlanAttempt[]
 
   /// Scan history is read one page at a time, newest first, for one account —
   /// with and without a site-profile filter. Both list endpoints order by
@@ -396,6 +410,67 @@ model AiResponseRecord {
   createdAt           DateTime @default(now())
 
   scan Scan @relation(fields: [scanId], references: [id])
+}
+
+/// An AI-written Action Plan for one scan in one language (D-232). Only a ready
+/// plan is stored, so a regeneration that is running or failed never hides or
+/// loses the current one; a new plan in a language replaces the old one.
+///
+/// Its own table rather than AiResponseRecord, which is part of the CSV export
+/// contract: the plan is an AI opinion, not a canonical record, and no export
+/// carries it. The text is a snapshot; issue counts are read live beside it.
+///
+/// CASCADE, not RESTRICT: after a rollback the previous release deletes scans
+/// without knowing this table (BILLING-007). This release still deletes these
+/// rows itself, before the scan.
+model ActionPlan {
+  id            String   @id @default(cuid())
+  scanId        String
+  language      String
+  /// { overview, actions: [{ title, why, steps, effort, ruleIds }] }
+  contentJson   String
+  /// The exact redacted text sent to the provider.
+  promptText    String
+  promptVersion String
+  /// The model that served the answer, which a refusal fallback may change.
+  modelId       String
+  requestId     String
+  usageJson     String
+  /// The notice shown under the button the owner clicked; the click is the consent.
+  noticeVersion String
+  generatedAt   DateTime
+
+  scan Scan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@unique([scanId, language])
+}
+
+/// The Action Plan spend log: one row per generation attempt, whatever came of
+/// it (D-232). The product-wide daily cap counts these rows; a failed row keeps
+/// a failure code, never provider text. A re-run of the scan keeps them, and so
+/// does deleting the scan or the account: the row loses its scan and its
+/// account and stays counted, because the money was spent.
+model ActionPlanAttempt {
+  id          String    @id @default(cuid())
+  /// Null once the scan is deleted.
+  scanId      String?
+  /// Null once the account is deleted.
+  accountId   String?
+  language    String
+  /// Running | Succeeded | Failed
+  status      String
+  failureCode String?
+  /// Present once a provider answered: an unusable answer still cost tokens.
+  usageJson   String?
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  scan    Scan?    @relation(fields: [scanId], references: [id], onDelete: SetNull)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  /// The daily cap counts every attempt of the last 24 hours.
+  @@index([createdAt])
+  @@index([scanId])
 }
 
 model AiConsent {

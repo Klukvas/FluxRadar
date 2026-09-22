@@ -3,15 +3,11 @@
 // прошедшего этот контракт; ответ с нарушениями трактуется как Unavailable
 // адаптера, а не как fail-open данные (D-175).
 
-import {
-  AI_FINISH_REASONS,
-  AI_REQUEST_CAPS,
-  REQUEST_ID_SOURCES,
-  USAGE_SOURCES,
-} from '@fluxradar/contracts';
+import { AI_FINISH_REASONS, REQUEST_ID_SOURCES, USAGE_SOURCES } from '@fluxradar/contracts';
 
+import { DEFAULT_AI_REQUEST_CAPS } from './caps.js';
 import { AI_PROVIDER_NAMES } from './types.js';
-import type { NormalizedAiResponse } from './types.js';
+import type { AiRequestCaps, NormalizedAiResponse } from './types.js';
 
 // createdAt обязан быть ISO-8601 UTC с суффиксом Z (§5: момент в UTC).
 const ISO_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
@@ -31,9 +27,13 @@ function isMemberOf(values: readonly string[], value: unknown): boolean {
 /**
  * Возвращает список нарушений контракта §5 (пустой — ответ валиден).
  * Проверяются runtime-значения, а не только типы: negative-ветки строят
- * заведомо битые объекты, и валидатор обязан их отклонить.
+ * заведомо битые объекты, и валидатор обязан их отклонить. Usage сверяется с
+ * caps запроса (по умолчанию общие AI_REQUEST_CAPS).
  */
-export function validateNormalizedResponse(response: NormalizedAiResponse): readonly string[] {
+export function validateNormalizedResponse(
+  response: NormalizedAiResponse,
+  caps: AiRequestCaps = DEFAULT_AI_REQUEST_CAPS,
+): readonly string[] {
   const violations: string[] = [];
 
   if (!isMemberOf(AI_PROVIDER_NAMES, response.provider)) {
@@ -59,11 +59,11 @@ export function validateNormalizedResponse(response: NormalizedAiResponse): read
     violations.push(`finishReason "${String(response.finishReason)}" is invalid`);
   }
 
-  violations.push(...validateUsage(response));
+  violations.push(...validateUsage(response, caps));
   return violations;
 }
 
-function validateUsage(response: NormalizedAiResponse): readonly string[] {
+function validateUsage(response: NormalizedAiResponse, caps: AiRequestCaps): readonly string[] {
   const violations: string[] = [];
   const usage: unknown = response.usage;
   if (usage === null || typeof usage !== 'object') {
@@ -89,13 +89,11 @@ function validateUsage(response: NormalizedAiResponse): readonly string[] {
     );
   }
 
-  if (isCountValue(inputTokens) && inputTokens > AI_REQUEST_CAPS.maxInputTokens) {
-    violations.push(`usage.inputTokens ${inputTokens} exceeds cap ${AI_REQUEST_CAPS.maxInputTokens}`);
+  if (isCountValue(inputTokens) && inputTokens > caps.maxInputTokens) {
+    violations.push(`usage.inputTokens ${inputTokens} exceeds cap ${caps.maxInputTokens}`);
   }
-  if (isCountValue(outputTokens) && outputTokens > AI_REQUEST_CAPS.maxOutputTokens) {
-    violations.push(
-      `usage.outputTokens ${outputTokens} exceeds cap ${AI_REQUEST_CAPS.maxOutputTokens}`,
-    );
+  if (isCountValue(outputTokens) && outputTokens > caps.maxOutputTokens) {
+    violations.push(`usage.outputTokens ${outputTokens} exceeds cap ${caps.maxOutputTokens}`);
   }
 
   if (!isMemberOf(USAGE_SOURCES, response.usageSource)) {

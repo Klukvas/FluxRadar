@@ -2,6 +2,7 @@
 // caps/quota/consent/redaction и GEO-модуль с informational-правилами ×5.
 
 export * from './types.js';
+export * from './caps.js';
 export * from './errors.js';
 export * from './consent.js';
 export * from './quota.js';
@@ -17,3 +18,5 @@ export * from './geo-measurability.js';
 export * from './geo-rules.js';
 export * from './geo-module.js';
 export * from './ux-module.js';
+export * from './action-plan-response.js';
+export * from './action-plan-module.js';

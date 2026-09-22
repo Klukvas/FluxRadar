@@ -5,6 +5,7 @@
 
 import { AI_REQUEST_CAPS } from '@fluxradar/contracts';
 
+import { requestCaps } from './caps.js';
 import type { AiRequest } from './types.js';
 
 export const TOKENIZER_VERSION = 'approx-v2';
@@ -35,14 +36,17 @@ export interface CappedText {
 }
 
 /**
- * Усекает текст до input cap 8000 tokens по границе токена approx-v1 с маркером
- * [TRUNCATED] (маркер и его перевод строки входят в бюджет; итог никогда не
- * превышает cap). Используется дважды: при сборке prompt-а и повторно после
- * redaction — маркеры `[REDACTED:<type>]` длиннее заменённых значений и могут
- * вытолкнуть уже усечённый prompt за cap (D-177).
+ * Усекает текст до input cap (по умолчанию 8000 tokens) по границе токена
+ * approx-v2 с маркером [TRUNCATED] (маркер и его перевод строки входят в бюджет;
+ * итог никогда не превышает cap). Используется дважды: при сборке prompt-а и
+ * повторно после redaction — маркеры `[REDACTED:<type>]` длиннее заменённых
+ * значений и могут вытолкнуть уже усечённый prompt за cap (D-177).
  */
-export function enforceInputCap(text: string): CappedText {
-  const charBudget = AI_REQUEST_CAPS.maxInputTokens * CHARS_PER_TOKEN;
+export function enforceInputCap(
+  text: string,
+  maxInputTokens: number = AI_REQUEST_CAPS.maxInputTokens,
+): CappedText {
+  const charBudget = maxInputTokens * CHARS_PER_TOKEN;
   if (text.length <= charBudget) return { text, truncated: false };
 
   const markerChars = TRUNCATION_MARKER.length + 1;
@@ -57,9 +61,10 @@ function listSection(header: string, items: readonly string[]): readonly string[
 }
 
 /**
- * Собирает prompt из секций в §5-приоритете и применяет input cap 8000 tokens.
- * Конкатенация в приоритетном порядке гарантирует: при превышении лимита
- * первыми выживают system и вопрос, последними режутся заголовки страниц.
+ * Собирает prompt из секций в §5-приоритете и применяет input cap запроса
+ * (по умолчанию 8000 tokens). Конкатенация в приоритетном порядке гарантирует:
+ * при превышении лимита первыми выживают system и вопрос, последними режутся
+ * заголовки страниц.
  */
 export function buildPrompt(request: AiRequest): BuiltPrompt {
   const sections = [
@@ -68,7 +73,7 @@ export function buildPrompt(request: AiRequest): BuiltPrompt {
     ...listSection('brand-facts', request.brandFacts),
     ...listSection('page-titles', request.pageTitles),
   ];
-  const capped = enforceInputCap(sections.join('\n\n'));
+  const capped = enforceInputCap(sections.join('\n\n'), requestCaps(request).maxInputTokens);
   return {
     promptText: capped.text,
     inputTokens: estimateTokens(capped.text),

@@ -9,8 +9,12 @@
 
 import type { Language } from './i18n';
 
-/** ISO 639-1 codes, in the order the picker lists them. */
-const LANGUAGE_CODES = [
+/**
+ * ISO 639-1 codes, in the order the picker lists them. The Action Plan offers
+ * the same list; the API declares it again as `ACTION_PLAN_LANGUAGES` in
+ * `@fluxradar/contracts`, and a contract test there fails when the two drift.
+ */
+export const LANGUAGE_CODES = [
   'uk',
   'en',
   'ru',
@@ -42,6 +46,12 @@ const LANGUAGE_CODES = [
   'ja',
   'ko',
 ] as const;
+export type LanguageCode = (typeof LANGUAGE_CODES)[number];
+
+/** Whether a code is one the picker lists — for a code read from a URL or an answer. */
+export function isLanguageCode(code: unknown): code is LanguageCode {
+  return (LANGUAGE_CODES as readonly unknown[]).includes(code);
+}
 
 function languageName(code: string, locale: string): string {
   return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code;
@@ -82,10 +92,22 @@ export function formatTargetLanguages(names: readonly string[]): string {
   return names.join(', ');
 }
 
+/** A listed language's code as the reader's language names it, capitalised. */
+export function languageCodeLabel(code: string, language: Language): string {
+  const label = languageName(code, language);
+  return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+}
+
 /** A stored name as the reader's language spells it; an unlisted entry stays as written. */
 export function targetLanguageLabel(name: string, language: Language): string {
   const code = CODE_BY_NAME.get(name);
-  if (code === undefined) return name;
-  const label = languageName(code, language);
-  return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+  return code === undefined ? name : languageCodeLabel(code, language);
+}
+
+/** The codes of the listed languages a profile's value names, in its order; others are skipped. */
+export function targetLanguageCodes(value: string): readonly string[] {
+  return parseTargetLanguages(value).flatMap((name) => {
+    const code = CODE_BY_NAME.get(name);
+    return code === undefined ? [] : [code];
+  });
 }

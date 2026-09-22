@@ -40,6 +40,8 @@ export type {
   FindingMessageRef,
   FindingMessages,
 } from './messages/index.js';
+export { RULE_TITLES, ruleTitle } from './rule-titles.js';
+export type { RuleTitle } from './rule-titles.js';
 export { IMG_ALT_EVIDENCE_CATEGORY, evidenceGroupId } from './engine/evidence-group.js';
 export { apiFinding, pageFinding, siteFinding } from './engine/finding.js';
 export { requireDescriptor } from './engine/descriptor.js';

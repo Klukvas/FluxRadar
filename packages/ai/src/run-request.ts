@@ -4,6 +4,7 @@
 // и без списания квоты; ошибка провайдера освобождает резерв; retry с тем же
 // ai_request_key квоту повторно не списывает (D-015).
 
+import { requestCaps } from './caps.js';
 import { ensureConsent } from './consent.js';
 import type { AiConsent } from './consent.js';
 import {
@@ -111,7 +112,8 @@ export async function runAiRequest(
   // prompt за input cap — повторное усечение гарантирует cap для точного
   // текста, уходящего провайдеру (D-177). Секреты уже заменены: повторный срез
   // ничего не раскрывает.
-  const capped = enforceInputCap(redacted.text);
+  const caps = requestCaps(request);
+  const capped = enforceInputCap(redacted.text, caps.maxInputTokens);
 
   // Ключ считается от финального redacted-текста — именно он уходит провайдеру
   // (D-015/D-175).
@@ -138,7 +140,7 @@ export async function runAiRequest(
     throw new AiModuleError(`ai: provider send failed for "${requestKey}"`, { cause: error });
   }
 
-  const violations = validateNormalizedResponse(response);
+  const violations = validateNormalizedResponse(response, caps);
   if (violations.length > 0) {
     // Ответ вне контракта §5 = Unavailable адаптера, не fail-open данные (D-175).
     return unavailable(

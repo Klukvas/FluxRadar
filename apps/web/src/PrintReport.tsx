@@ -9,7 +9,10 @@
 
 import { useEffect, useState } from 'react';
 
+import { actionKey, fetchActionPlan, type PlanLanguage, type PlanWithOverlay } from './action-plan';
+import { actionPlanCopy } from './action-plan-copy';
 import {
+  ApiRequestError,
   apiRequest,
   apiRequestWithMeta,
   type Dashboard,
@@ -36,6 +39,8 @@ interface PrintData {
   readonly summary: IssueSummary | null;
   readonly issues: readonly Issue[];
   readonly totalIssues: number;
+  /** The Action Plan in the language the report showed; null when there is none. */
+  readonly actionPlan: PlanWithOverlay | null;
 }
 
 async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: number }> {
@@ -52,15 +57,35 @@ async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: 
   return { issues: collected, total };
 }
 
-async function loadPrintData(scanId: string): Promise<PrintData> {
-  const [dashboard, summary, findings] = await Promise.all([
+/**
+ * The plan in the language the report showed, or null. Only a Complete scan
+ * has one and anything else answers 403: the document then prints without the
+ * section. Any other failure prints without it too, and is logged.
+ */
+async function loadPrintedPlan(
+  scanId: string,
+  planLanguage: PlanLanguage,
+): Promise<PlanWithOverlay | null> {
+  try {
+    return (await fetchActionPlan(scanId, planLanguage))?.plan ?? null;
+  } catch (caught) {
+    if (!(caught instanceof ApiRequestError && caught.status === 403)) {
+      console.error('FluxRadar action plan could not be printed', caught);
+    }
+    return null;
+  }
+}
+
+async function loadPrintData(scanId: string, planLanguage: PlanLanguage): Promise<PrintData> {
+  const [dashboard, summary, findings, actionPlan] = await Promise.all([
     apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`),
     apiRequest<IssueSummary>(`/scans/${encodeURIComponent(scanId)}/issues/summary`).catch(
       () => null,
     ),
     loadAllIssues(scanId),
+    loadPrintedPlan(scanId, planLanguage),
   ]);
-  return { dashboard, summary, issues: findings.issues, totalIssues: findings.total };
+  return { dashboard, summary, issues: findings.issues, totalIssues: findings.total, actionPlan };
 }
 
 /** The problems in summary order, or — without a summary — in the order findings arrived. */
@@ -83,6 +108,8 @@ function problemGroups(data: PrintData): readonly IssueRuleGroup[] {
 export function PrintReport(props: {
   scanId: string;
   language: Language;
+  /** The Action Plan language the report showed; `?plan=` in the address. */
+  planLanguage: PlanLanguage;
   onBack: () => void;
   onError: (value: string) => void;
 }) {
@@ -92,7 +119,7 @@ export function PrintReport(props: {
 
   useEffect(() => {
     let current = true;
-    loadPrintData(props.scanId)
+    loadPrintData(props.scanId, props.planLanguage)
       .then((value) => {
         if (!current) return;
         setData(value);
@@ -105,7 +132,7 @@ export function PrintReport(props: {
     return () => {
       current = false;
     };
-  }, [props.scanId, onError, f]);
+  }, [props.scanId, props.planLanguage, onError, f]);
 
   return (
     <div className="print-shell">
@@ -127,119 +154,163 @@ export function PrintReport(props: {
   );
 }
 
-function PrintDocument(props: { data: PrintData; language: Language }) {
-  const { dashboard } = props.data;
-  const { scan, overall } = dashboard;
+/** The cover: whose site, when it was scanned, the plan, the score and its coverage. */
+function PrintCover(props: { dashboard: Dashboard; language: Language }) {
+  const { scan, overall } = props.dashboard;
   const f = findingsCopy[props.language];
   const domain = displayDomain(scan.domain);
+  const scored = overall.score !== null && overall.moduleWeights.length > 0;
+  return (
+    <header className="print-cover">
+      <p className="print-kicker">FluxRadar</p>
+      <h1>{f.print.preparedFor(domain)}</h1>
+      <p className="muted">
+        {f.print.generated(formatDate(new Date().toISOString(), props.language))}
+      </p>
+      <dl className="print-facts">
+        <div>
+          <dt>{f.print.plan}</dt>
+          <dd>{scan.plan}</dd>
+        </div>
+        <div>
+          <dt>{f.print.scanned}</dt>
+          <dd>{formatDate(scan.completedAt ?? scan.createdAt, props.language)}</dd>
+        </div>
+        <div>
+          <dt>{f.print.score}</dt>
+          <dd>{scored ? `${overall.score?.toFixed(0)} / 100` : f.print.noScore}</dd>
+        </div>
+        <div>
+          <dt>{f.print.coverage}</dt>
+          <dd>{scored ? `${(overall.weightedCoverage * 100).toFixed(0)}%` : '—'}</dd>
+        </div>
+      </dl>
+    </header>
+  );
+}
+
+/** How much is open, and how severe. */
+function PrintSummary(props: { data: PrintData; language: Language }) {
+  const f = findingsCopy[props.language];
+  const { summary, totalIssues } = props.data;
+  return (
+    <section className="print-section">
+      <h2>{f.print.summaryHeading}</h2>
+      <p>
+        {summary === null
+          ? f.fixFirst.pages(totalIssues)
+          : summary.open === 0
+            ? f.issues.summaryNone
+            : f.issues.summaryLine(
+                summary.open,
+                summary.groups.filter((group) => group.openIssues > 0).length,
+              )}
+      </p>
+      {summary === null ? null : (
+        <ul className="print-severity">
+          {(['Critical', 'High', 'Medium', 'Low'] as const).map((severity) => (
+            <li key={severity}>
+              <StatusChip status={severity} label={f.severity[severity]} />{' '}
+              {summary.bySeverity[severity] ?? 0}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Each section's result and score. */
+function PrintSections(props: { modules: Dashboard['modules']; language: Language }) {
+  const f = findingsCopy[props.language];
+  return (
+    <section className="print-section">
+      <h2>{f.print.sectionsHeading}</h2>
+      <table className="print-table">
+        <thead>
+          <tr>
+            <th>{f.print.section}</th>
+            <th>{f.print.result}</th>
+            <th>{f.print.score}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.modules.map((module) => (
+            <tr key={module.module}>
+              <td>{moduleLabel(module.module, props.language)}</td>
+              <td>{moduleResultLabel(module, props.language)}</td>
+              <td>{moduleScoreLabel(module, props.language)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+/** Every problem in summary order, with the findings that belong to it. */
+function PrintProblems(props: { data: PrintData; language: Language }) {
+  const f = findingsCopy[props.language];
+  const { issues, totalIssues } = props.data;
   const byRule = new Map<string, Issue[]>();
-  for (const issue of props.data.issues) {
+  for (const issue of issues) {
     byRule.set(issue.ruleId, [...(byRule.get(issue.ruleId) ?? []), issue]);
   }
   const groups = problemGroups(props.data);
-  const scored = overall.score !== null && overall.moduleWeights.length > 0;
+  return (
+    <section className="print-section">
+      <h2>{f.print.problemsHeading}</h2>
+      {groups.length === 0 ? (
+        <p>{f.print.noFindings}</p>
+      ) : (
+        <>
+          <p className="muted">{f.print.problemsLead}</p>
+          {issues.length < totalIssues ? (
+            <p className="print-note">{f.print.truncated(issues.length, totalIssues)}</p>
+          ) : null}
+          {groups.map((group, index) => (
+            <PrintProblem
+              key={`${group.ruleId}:${group.module}`}
+              number={index + 1}
+              group={group}
+              issues={byRule.get(group.ruleId) ?? []}
+              language={props.language}
+            />
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+function PrintDocument(props: { data: PrintData; language: Language }) {
+  const f = findingsCopy[props.language];
+  const { dashboard, actionPlan } = props.data;
   return (
     <article className="print-document">
-      <header className="print-cover">
-        <p className="print-kicker">FluxRadar</p>
-        <h1>{f.print.preparedFor(domain)}</h1>
-        <p className="muted">
-          {f.print.generated(formatDate(new Date().toISOString(), props.language))}
-        </p>
-        <dl className="print-facts">
-          <div>
-            <dt>{f.print.plan}</dt>
-            <dd>{scan.plan}</dd>
-          </div>
-          <div>
-            <dt>{f.print.scanned}</dt>
-            <dd>{formatDate(scan.completedAt ?? scan.createdAt, props.language)}</dd>
-          </div>
-          <div>
-            <dt>{f.print.score}</dt>
-            <dd>{scored ? `${overall.score?.toFixed(0)} / 100` : f.print.noScore}</dd>
-          </div>
-          <div>
-            <dt>{f.print.coverage}</dt>
-            <dd>{scored ? `${(overall.weightedCoverage * 100).toFixed(0)}%` : '—'}</dd>
-          </div>
-        </dl>
-      </header>
-
-      <section className="print-section">
-        <h2>{f.print.summaryHeading}</h2>
-        <p>
-          {props.data.summary === null
-            ? f.fixFirst.pages(props.data.totalIssues)
-            : props.data.summary.open === 0
-              ? f.issues.summaryNone
-              : f.issues.summaryLine(
-                  props.data.summary.open,
-                  props.data.summary.groups.filter((group) => group.openIssues > 0).length,
-                )}
-        </p>
-        {props.data.summary === null ? null : (
-          <ul className="print-severity">
-            {(['Critical', 'High', 'Medium', 'Low'] as const).map((severity) => (
-              <li key={severity}>
-                <StatusChip status={severity} label={f.severity[severity]} />{' '}
-                {props.data.summary?.bySeverity[severity] ?? 0}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="print-section">
-        <h2>{f.print.sectionsHeading}</h2>
-        <table className="print-table">
-          <thead>
-            <tr>
-              <th>{f.print.section}</th>
-              <th>{f.print.result}</th>
-              <th>{f.print.score}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dashboard.modules.map((module) => (
-              <tr key={module.module}>
-                <td>{moduleLabel(module.module, props.language)}</td>
-                <td>{moduleResultLabel(module, props.language)}</td>
-                <td>{moduleScoreLabel(module, props.language)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="print-section">
-        <h2>{f.print.problemsHeading}</h2>
-        {groups.length === 0 ? (
-          <p>{f.print.noFindings}</p>
-        ) : (
-          <>
-            <p className="muted">{f.print.problemsLead}</p>
-            {props.data.issues.length < props.data.totalIssues ? (
-              <p className="print-note">
-                {f.print.truncated(props.data.issues.length, props.data.totalIssues)}
-              </p>
-            ) : null}
-            {groups.map((group, index) => (
-              <PrintProblem
-                key={`${group.ruleId}:${group.module}`}
-                number={index + 1}
-                group={group}
-                issues={byRule.get(group.ruleId) ?? []}
-                language={props.language}
-              />
-            ))}
-          </>
-        )}
-      </section>
-
+      <PrintCover dashboard={dashboard} language={props.language} />
+      <PrintSummary data={props.data} language={props.language} />
+      {actionPlan === null ? null : <PrintActionPlan plan={actionPlan} language={props.language} />}
+      <PrintSections modules={dashboard.modules} language={props.language} />
+      <PrintProblems data={props.data} language={props.language} />
       <footer className="print-footer muted">{f.print.footer}</footer>
     </article>
   );
+}
+
+interface ExampleTexts {
+  readonly evidence: string | null;
+  readonly recommendation: string | null;
+}
+
+/** The example finding's evidence and recommendation, in the reader's language when it has one. */
+function exampleTexts(example: Issue | undefined, language: Language): ExampleTexts {
+  if (example === undefined) return { evidence: null, recommendation: null };
+  const localized = example.localized?.[language];
+  return {
+    evidence: localized?.evidenceExcerpt ?? example.evidenceExcerpt,
+    recommendation: localized?.recommendation ?? example.recommendation,
+  };
 }
 
 function PrintProblem(props: {
@@ -249,17 +320,9 @@ function PrintProblem(props: {
   language: Language;
 }) {
   const f = findingsCopy[props.language];
-  const example = props.issues[0];
   const pages = [...new Set(props.issues.map((issue) => issue.targetUrl))];
   const shown = pages.slice(0, PAGES_PER_PROBLEM);
-  const evidence =
-    example === undefined
-      ? null
-      : (example.localized?.[props.language]?.evidenceExcerpt ?? example.evidenceExcerpt);
-  const recommendation =
-    example === undefined
-      ? null
-      : (example.localized?.[props.language]?.recommendation ?? example.recommendation);
+  const { evidence, recommendation } = exampleTexts(props.issues[0], props.language);
   return (
     <div className="print-problem">
       <h3>
@@ -292,5 +355,50 @@ function PrintProblem(props: {
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** The Action Plan after the summary: labelled as AI-written, with the counts as printed. */
+function PrintActionPlan(props: { plan: PlanWithOverlay; language: Language }) {
+  const c = actionPlanCopy[props.language];
+  const { plan } = props;
+  return (
+    <section className="print-section print-action-plan">
+      <h2>
+        {c.print.heading} <span className="print-ai-label">{c.aiLabel}</span>
+      </h2>
+      <p className="muted">
+        {c.print.lead} {c.generatedAt(formatDate(plan.generatedAt, props.language))}.
+      </p>
+      {plan.caveats.map((caveat) => (
+        <p key={caveat.module} className="print-note">
+          {c.caveat(moduleLabel(caveat.module, props.language), caveat.status)}
+        </p>
+      ))}
+      <h3>{c.overviewHeading}</h3>
+      <p>{plan.overview}</p>
+      <h3>{c.actionsHeading}</h3>
+      <ol className="print-plan-actions">
+        {plan.actions.map((action) => (
+          <li key={actionKey(action)} className="print-plan-action">
+            <strong>{action.title}</strong>
+            <span className="muted">
+              {' '}
+              · {c.effort[action.effort]} ·{' '}
+              {action.settled ? c.settled : c.counts(action.openIssues, action.totalIssues)}
+            </span>
+            <p>{action.why}</p>
+            <ol>
+              {action.steps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            <p className="muted">
+              {action.rules.map((rule) => ruleTitle(rule.ruleId, props.language)).join(' · ')}
+            </p>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

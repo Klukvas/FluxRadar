@@ -11,6 +11,14 @@
 export const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-5';
 
 /**
+ * The model that writes Action Plans (D-232). A code constant rather than a
+ * deploy variable: the plan's prompt, caps and timeout are written for this
+ * model's adaptive thinking, and `ANTHROPIC_MODEL` keeps choosing the model of
+ * the scan's own AI checks.
+ */
+export const ACTION_PLAN_ANTHROPIC_MODEL = 'claude-opus-5';
+
+/**
  * Model identifiers Anthropic has retired. Requests naming one fail at the API,
  * which surfaces as an AI step that never produces findings — so with an API key
  * present, production refuses to boot on one instead. The list names models, not
