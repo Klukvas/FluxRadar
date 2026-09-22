@@ -225,23 +225,42 @@ describe('AnthropicProvider — refusal fallback', () => {
     expect(rescued.rawText).toBe('Answered by the fallback model.');
   });
 
-  it('treats a refusal nothing rescued as Unavailable', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
-      messagesResponse({
-        id: 'msg_refused',
-        model: 'claude-opus-4-8',
-        stop_reason: 'refusal',
-        stop_details: { type: 'refusal', category: 'cyber', explanation: null },
-        content: [
-          { type: 'fallback', from: { model: 'claude-opus-5' }, to: { model: 'claude-opus-4-8' } },
-        ],
-        usage: { input_tokens: 40, output_tokens: 0 },
-      }),
+  function refusedResponse(): Response {
+    return messagesResponse({
+      id: 'msg_refused',
+      model: 'claude-opus-4-8',
+      stop_reason: 'refusal',
+      stop_details: { type: 'refusal', category: 'cyber', explanation: null },
+      content: [
+        { type: 'fallback', from: { model: 'claude-opus-5' }, to: { model: 'claude-opus-4-8' } },
+      ],
+      usage: { input_tokens: 40, output_tokens: 0 },
+    });
+  }
+
+  it('returns a refusal nothing rescued as a safety finish to a request that opted in', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(refusedResponse());
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    const response = await provider.send(
+      makeRequest({ provider: 'anthropic', refusalFallback: 'default' }),
+      'prompt',
     );
+
+    expect(response).toMatchObject({
+      rawText: '',
+      finishReason: 'safety',
+      modelId: 'claude-opus-4-8',
+      usage: { inputTokens: 40, outputTokens: 0, totalTokens: 40 },
+    });
+  });
+
+  it('keeps a refusal Unavailable for a request that did not opt in', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(refusedResponse());
     const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
 
     await expect(
-      provider.send(makeRequest({ provider: 'anthropic', refusalFallback: 'default' }), 'prompt'),
+      provider.send(makeRequest({ provider: 'anthropic' }), 'prompt'),
     ).rejects.toMatchObject({ name: 'UnavailableError', reason: 'Anthropic declined the request' });
   });
 });

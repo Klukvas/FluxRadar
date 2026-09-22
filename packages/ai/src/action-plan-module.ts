@@ -23,6 +23,7 @@ import {
   ACTION_PLAN_MAX_ACTIONS,
   ACTION_PLAN_MAX_STEPS,
   ACTION_PLAN_RESPONSE_SCHEMA,
+  ACTION_PLAN_TEXT_TARGETS,
   parseActionPlanResponse,
 } from './action-plan-response.js';
 import type { ActionPlanContent } from './action-plan-response.js';
@@ -47,14 +48,19 @@ export const ACTION_PLAN_REQUEST_CAPS: AiRequestCaps = {
   maxOutputTokens: 16_000,
 };
 
-/** A plan turn thinks before it answers; the 45-second default is for short requests. */
-export const ACTION_PLAN_PROVIDER_TIMEOUT_MS = 120_000;
+/**
+ * A plan turn thinks before it answers, and the request does not stream: with
+ * adaptive thinking and up to 16,000 output tokens it can run past two minutes,
+ * and an abort then fails an attempt the owner paid for in budget. The API
+ * presumes a run dead after five minutes, so this stays well below that.
+ */
+export const ACTION_PLAN_PROVIDER_TIMEOUT_MS = 240_000;
 
 export const ACTION_PLAN_SAMPLE_URLS = 3;
-const MAX_RECOMMENDATIONS = 5;
 const MAX_TITLE_CHARS = 200;
 const MAX_URL_CHARS = 500;
-const MAX_RECOMMENDATION_CHARS = 700;
+/** The longest text a finding stores; a recommendation is sent whole up to it. */
+const MAX_RECOMMENDATION_CHARS = 2_048;
 
 // The Action Plan is one request of its own, outside any scan run.
 const ACTION_PLAN_SEQUENCE = 1;
@@ -80,7 +86,7 @@ export interface ActionPlanRuleInput {
   readonly openIssues: number;
   /** Pages the rule was found on; query string and fragment are removed here again. */
   readonly sampleUrls: readonly string[];
-  /** The rule's distinct recommendation texts. */
+  /** The rule's distinct recommendation texts, most severe first; all of them are sent. */
   readonly recommendations: readonly string[];
 }
 
@@ -215,7 +221,8 @@ export function actionPlanSystemInstructions(language: ActionPlanLanguage): stri
     `Write every text value in ${name}. The titles and recommendations in the input may be ` +
       'in another language; translate them. Keep rule ids, addresses and code identifiers ' +
       'as they are.',
-    'Keep the text short: titles under 80 characters, why under 300, each step under 200.',
+    `Keep the text short: titles under ${ACTION_PLAN_TEXT_TARGETS.title} characters, why under ` +
+      `${ACTION_PLAN_TEXT_TARGETS.why}, each step under ${ACTION_PLAN_TEXT_TARGETS.step}.`,
   ].join('\n\n');
 }
 
@@ -237,9 +244,7 @@ function ruleFact(rule: ActionPlanRuleInput): string {
     .slice(0, ACTION_PLAN_SAMPLE_URLS);
   const recommendations = [
     ...new Set(rule.recommendations.map((text) => clip(text, MAX_RECOMMENDATION_CHARS))),
-  ]
-    .filter((text) => text !== '')
-    .slice(0, MAX_RECOMMENDATIONS);
+  ].filter((text) => text !== '');
   return `Rule ${JSON.stringify({
     ruleId: rule.ruleId,
     title: clip(rule.title, MAX_TITLE_CHARS),
