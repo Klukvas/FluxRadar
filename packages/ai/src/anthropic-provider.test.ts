@@ -390,4 +390,43 @@ describe('AnthropicProvider — web search', () => {
     expect(response.rawText).toBe('FluxRadar audits public signals.');
     expect(response.finishReason).toBe('length');
   });
+
+  it('concatenates the text blocks a searching turn splits at citation boundaries', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'msg_split',
+          model: 'claude-sonnet-5',
+          stop_reason: 'end_turn',
+          content: [
+            { type: 'text', text: 'Based on the search results, ' },
+            {
+              type: 'text',
+              text: 'Acme was founded in 2007',
+              citations: [
+                {
+                  type: 'web_search_result_location',
+                  url: 'https://acme.example/about',
+                  title: 'About Acme',
+                  cited_text: 'founded in 2007',
+                  encrypted_index: 'idx',
+                },
+              ],
+            },
+            { type: 'text', text: ' and sells to small teams.' },
+          ],
+          usage: { input_tokens: 40, output_tokens: 12 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    const response = await provider.send(makeRequest({ provider: 'anthropic' }), 'redacted prompt');
+
+    expect(response.rawText).toBe(
+      'Based on the search results, Acme was founded in 2007 and sells to small teams.',
+    );
+    expect(response.citations).toEqual(['https://acme.example/about']);
+  });
 });

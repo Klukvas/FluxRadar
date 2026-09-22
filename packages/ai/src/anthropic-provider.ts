@@ -75,10 +75,15 @@ function textBlocks(content: unknown): readonly AnthropicTextBlock[] {
   });
 }
 
+/**
+ * Text blocks are fragments of one answer, not paragraphs: a searching turn
+ * splits the text at every citation boundary, so a separator would break
+ * sentences apart. Concatenating them restores the answer as the model wrote it.
+ */
 function textFromContent(content: unknown): string {
   return textBlocks(content)
     .map((block) => block.text)
-    .join('\n');
+    .join('');
 }
 
 /**
