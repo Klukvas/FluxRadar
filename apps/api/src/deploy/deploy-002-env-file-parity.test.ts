@@ -272,7 +272,7 @@ describe('DEPLOY-002 production env file parity', () => {
   });
 
   // The workflow must not pin a value of its own: PRODUCTION_ENV_FILE is the
-  // base and the optional secrets are the only overrides (docs/DEPLOYMENT.md).
+  // base and the optional secrets are the only overrides.
   // Backups are the one part of this deployment that is configured entirely
   // outside the code, taken by a cron job nobody watches, and only ever needed
   // on the worst day. The deploy is the single moment a human reads this file,
@@ -296,8 +296,8 @@ describe('DEPLOY-002 production env file parity', () => {
       const message = warnings.join('\n');
       expect(message).toContain('half-configured');
       expect(message).toContain('FLUXRADAR_BACKUP_ENCRYPTION_KEY');
-      // A deploy is never blocked by this: docs/DEPLOYMENT.md's own backup
-      // setup requires deploying once BEFORE the key exists on the server.
+      // A deploy is never blocked by this: setting the backups up requires
+      // deploying once BEFORE the key exists on the server.
       expect(message).not.toContain('ERROR');
     });
 
@@ -405,7 +405,7 @@ describe('DEPLOY-002 production env file parity', () => {
 
     // Same rule as ANTHROPIC_MODEL: PRODUCTION_ENV_FILE is the authoritative
     // base and everything here is an optional override, so a literal in the
-    // workflow would outrank it and contradict docs/DEPLOYMENT.md.
+    // workflow would outrank the file that is meant to be authoritative.
     for (const key of [
       OPENAI_ENV_VARS.model,
       GEMINI_ENV_VARS.model,

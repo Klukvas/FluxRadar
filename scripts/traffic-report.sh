@@ -5,8 +5,8 @@
 #
 # GA4 counts only the visitors who accept analytics cookies, and never a
 # crawler. Caddy logs every request, privacy-filtered before it is written
-# (masked IPs, no one-time secrets — see the `log` block in deploy/Caddyfile and
-# docs/TRAFFIC_LOGS.md). This script reads the live and rotated logs out of the
+# (masked IPs, no one-time secrets — see the `log` block in deploy/Caddyfile).
+# This script reads the live and rotated logs out of the
 # production caddy container over SSH, keeps the last [days] days, and renders
 # them with a local GoAccess into traffic-reports/, which git ignores.
 #
@@ -122,7 +122,7 @@ warn_if_past_retention() {
   if ((age_days > MAX_DAYS)); then
     printf 'WARNING: the oldest access log entry on the server is %s days old, past the %s days the Privacy Policy allows.\n' \
       "$age_days" "$MAX_DAYS" >&2
-    printf 'Lower roll_size in deploy/Caddyfile (docs/TRAFFIC_LOGS.md, "Retention").\n' >&2
+    printf 'Lower roll_size in the access log block of deploy/Caddyfile, then redeploy.\n' >&2
   fi
 }
 

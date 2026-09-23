@@ -38,7 +38,12 @@ import { executionProfile } from '../profiles/execution-config.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
 import { runApiChecks } from './api-checks.ts';
 import { throwIfCancelled } from './cancellation.ts';
-import { EMPTY_CRAWL_CHECKPOINT, type ScanCheckpointState } from './checkpoint.ts';
+import {
+  EMPTY_CRAWL_CHECKPOINT,
+  type CrawlCheckpoint,
+  type ScanCheckpointState,
+} from './checkpoint.ts';
+import { uncountedCrawlBytes } from './crawl-egress-bytes.ts';
 import { CrawlProgressWriter } from './crawl-progress.ts';
 import {
   persistCrawlEvidence,
@@ -97,20 +102,6 @@ function buildCrawlScope(origin: string, scope: ScanScopeInput, plan: Plan): Cra
     respectRobots: scope.respectRobots,
     robotsOverrideConfirmed: scope.robotsOverrideConfirmed,
   };
-}
-
-/**
- * Bytes of page and media bodies this crawl pulled.
- *
- * A floor for the proxy's traffic, not a bill: headers, TLS and retries are not
- * in it. It is what we can attribute to a scan, and the warning threshold is
- * set low enough that the gap is covered.
- */
-function bytesRead(crawlResult: CrawlResult): number {
-  return crawlResult.pages.reduce(
-    (total, page) => total + (page.html === null ? 0 : Buffer.byteLength(page.html, 'utf8')),
-    0,
-  );
 }
 
 /**
@@ -483,13 +474,27 @@ export async function runScanAttempt(
   // принимается здесь, до того как неполный обход попадёт в правила. Пауза
   // проходит дальше — её результат сохраняется, — а отмена прекращает попытку.
   throwIfCancelled(scanId, signal);
+  // Whether the pages a resume restored were already counted against the egress
+  // allowance. The crawler hands them back inside this attempt's own result, so
+  // they are what the byte count has to exclude — and only when the checkpoint
+  // says so, because an attempt paused mid-crawl never got as far as counting.
+  const countedBefore = resumedCrawl?.egressRecorded === true;
   // The pages are persisted here, once, rather than when a pause arrives: a
   // pause is not the only way a run stops, and a process that dies mid-module
   // must not cost the customer a second crawl of their site.
-  const crawlCheckpoint =
+  let crawlCheckpoint: CrawlCheckpoint =
     control === undefined
       ? EMPTY_CRAWL_CHECKPOINT
-      : await persistCrawlEvidence(deps, scan.accountId, scanId, crawlResult, progress.counts());
+      : {
+          ...(await persistCrawlEvidence(
+            deps,
+            scan.accountId,
+            scanId,
+            crawlResult,
+            progress.counts(),
+          )),
+          egressRecorded: countedBefore,
+        };
   const saveCheckpoint = async (stage: string): Promise<void> => {
     if (control === undefined) return;
     try {
@@ -511,6 +516,26 @@ export async function runScanAttempt(
       });
     }
   };
+  if (egress.location !== null) {
+    // Counted where the crawl phase ends, before either exit below, because a
+    // pause does not give the bytes back: they crossed the proxy and are on the
+    // VPS's bill whether or not this attempt goes on to run a module. Counted
+    // only when it actually crossed a configured location's proxy, and against
+    // that location's plan, so a local fixture run and a direct crawl never
+    // inflate a hosting plan's usage.
+    logEgressUsage(
+      deps.logger,
+      await recordEgressUsage(
+        prisma,
+        egress.location.location,
+        uncountedCrawlBytes(crawlResult, countedBefore ? (restoredCrawl?.pages ?? []) : []),
+        now(),
+      ),
+    );
+    // Said before the checkpoint is written, so the attempt that resumes from
+    // it counts only what it reads itself.
+    crawlCheckpoint = { ...crawlCheckpoint, egressRecorded: true };
+  }
   if (crawlResult.stoppedEarly) {
     // Stopped before the first module: nothing was charged for, and the pages
     // already read are stored, so resuming continues the same run.
@@ -522,15 +547,6 @@ export async function runScanAttempt(
   await saveCheckpoint(CRAWL_STAGE);
 
   const crawlSummary = buildCrawlSummary(crawlResult, origin, scope, plan, crawlScope.maxPages);
-  if (egress.location !== null) {
-    // Counted only when it actually crossed a configured location's proxy, and
-    // against that location's plan, so a local fixture run and a direct crawl
-    // never inflate a hosting plan's usage.
-    logEgressUsage(
-      deps.logger,
-      await recordEgressUsage(prisma, egress.location.location, bytesRead(crawlResult), now()),
-    );
-  }
   // Written before anything reads it: the refund decision (resolve-outcome.ts),
   // the Analytics module and the report all ask this record what the crawl saw,
   // and a null there would settle the scan on a field nobody filled in.

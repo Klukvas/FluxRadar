@@ -43,7 +43,7 @@ const COMPOSE_CONSUMED_KEYS = [
   'FLUXRADAR_WEB_UPSTREAM',
 ];
 
-/** Present or the deploy is not viable; see docs/DEPLOYMENT.md. */
+/** Present or the deploy is not viable: the release refuses to start without them. */
 const REQUIRED_KEYS = [
   'POSTGRES_DB',
   'POSTGRES_USER',
@@ -315,7 +315,7 @@ function checkEncryptionKeyStrength(entries) {
     `INTEGRATION_ENCRYPTION_KEY is shorter than ${MIN_ENCRYPTION_KEY_LENGTH} characters. It is ` +
       'stretched with a single SHA-256, so a short key is the whole protection a leaked ' +
       "database has. Rotate it to `node -e \"console.log(require('node:crypto')" +
-      ".randomBytes(32).toString('base64'))\"` (docs/DEPLOYMENT.md).",
+      ".randomBytes(32).toString('base64'))\"` and set it in PRODUCTION_ENV_FILE.",
   ];
 }
 
@@ -323,7 +323,7 @@ function checkEncryptionKeyStrength(entries) {
  * Says out loud whether this deploy ships a working backup configuration.
  *
  * Presence is a WARNING in both directions: a host that has not been through
- * docs/DEPLOYMENT.md's one-time backup setup deploys fine and must keep
+ * the one-time backup setup deploys fine and must keep
  * deploying fine, and the S3 credentials are also the application's own, so a
  * bucket without a backup key is a real intermediate state rather than a typo.
  *
@@ -339,13 +339,13 @@ function checkBackupConfiguration(entries) {
     warnings.push(
       'No database backup is configured: none of ' +
         `${BACKUP_KEYS.join(', ')} is set, so deploy/backup/pg-backup.sh cannot run and this ` +
-        'deployment has no snapshot to restore from (docs/DEPLOYMENT.md, "Manual setup").',
+        'deployment has no snapshot to restore from. Set them in PRODUCTION_ENV_FILE.',
     );
   } else if (missing.length > 0) {
     warnings.push(
       `Database backups are half-configured: ${missing.join(', ')} ` +
         `${missing.length === 1 ? 'is' : 'are'} absent. Until every one of ` +
-        `${BACKUP_KEYS.join(', ')} is set, no snapshot is taken (docs/DEPLOYMENT.md).`,
+        `${BACKUP_KEYS.join(', ')} is set, no snapshot is taken.`,
     );
   }
   for (const { key, positive } of BACKUP_POLICY_NUMBERS) {

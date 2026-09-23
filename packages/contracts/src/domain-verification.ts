@@ -1,8 +1,8 @@
 // Optional proof that the account asking for an audit controls the site.
 //
 // It is deliberately additive: FluxRadar audits public pages, so nothing here
-// gates a scan, a plan or a price (docs/CUSTOMER_READINESS_TASKS.md keeps that
-// decision with the owner). What it provides is a checkable record of control,
+// gates a scan, a plan or a price — whether it ever should is still the owner's
+// decision. What it provides is a checkable record of control,
 // for the abuse and legal risk a paid deep crawl carries.
 
 import { z } from 'zod';

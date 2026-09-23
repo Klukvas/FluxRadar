@@ -81,6 +81,7 @@ function checkpoint(overrides: Partial<ScanCheckpointState> = {}): ScanCheckpoin
         urlVariants: { 'https://example.com/dup': ['https://example.com/dup?a=1'] },
       },
       truncated: false,
+      egressRecorded: false,
     },
     ...overrides,
   };

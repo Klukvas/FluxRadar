@@ -31,7 +31,7 @@ import type { ReturnCreatedEvent } from './events.ts';
 // is a property of the FastSpring store, confirmed by the operator through
 // FASTSPRING_STORE_VERIFIED, not something this code can detect; a store paid out
 // in anything else states no rate at all, and its cross-currency returns take the
-// fail-closed branch above by design. See docs/FASTSPRING.md §4.
+// fail-closed branch above by design.
 
 /**
  * A return covering at least this share of the charge is treated as full.

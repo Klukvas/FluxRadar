@@ -1,8 +1,9 @@
 # FluxRadar PostgreSQL backups
 
-Operational reference for the scripts in this directory. The narrative version —
-what has to be configured, what the failure modes are, and how a real restore is
-performed — lives in [`docs/DEPLOYMENT.md`](../../docs/DEPLOYMENT.md#database-backup-and-restore).
+Operational reference for the scripts in this directory. What has to be configured, what
+the failure modes are, and how a real restore is performed are documented in the scripts
+themselves: each one opens with the decisions behind it, and `check-backup-config.sh` names
+every variable a backup needs.
 
 | File                    | Purpose                                                                                      |
 | ----------------------- | -------------------------------------------------------------------------------------------- |

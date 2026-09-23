@@ -54,6 +54,17 @@ const crawlCheckpointSchema = z.object({
   coverage: crawlCoverageSchema,
   /** True when the bounds below dropped part of the index. */
   truncated: z.boolean(),
+  /**
+   * True once the bytes of the pages in the evidence store were counted against
+   * the egress location's monthly allowance.
+   *
+   * A resumed crawl hands its restored pages back as part of its own result, so
+   * without this the resume would book the whole first attempt's traffic again.
+   * It defaults to false, which is both what a checkpoint written before this
+   * field says and the safe reading of it: bytes are counted once more rather
+   * than never at all.
+   */
+  egressRecorded: z.boolean().default(false),
 });
 
 export const scanCheckpointPayloadSchema = z.object({
@@ -90,6 +101,7 @@ export const EMPTY_CRAWL_CHECKPOINT: CrawlCheckpoint = {
   discoveredUrlCount: 0,
   coverage: EMPTY_CRAWL_COVERAGE,
   truncated: false,
+  egressRecorded: false,
 };
 
 export interface SaveCheckpointInput {
@@ -237,6 +249,10 @@ function serializeWithinLimit(state: ScanCheckpointState): string {
       scannedUrlCount: state.crawl.scannedUrlCount,
       discoveredUrlCount: state.crawl.discoveredUrlCount,
       truncated: true,
+      // Dropping the index costs a re-crawl of what was still queued; the pages
+      // themselves are in the evidence store and are still restored, so what
+      // was already counted must not be counted again with them.
+      egressRecorded: state.crawl.egressRecorded,
     },
   };
   return JSON.stringify(indexOnly);

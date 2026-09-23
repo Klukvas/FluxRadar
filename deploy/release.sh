@@ -220,14 +220,14 @@ on_exit() {
       # deliberately changed nothing. Tearing $RELEASE_ID down here
       # would turn a failed deploy into a host that serves nothing —
       # which is exactly what it used to do.
-      echo "CRITICAL: there is no earlier release on this host to roll back to, so nothing was torn down and $RELEASE_ID is still in front of traffic after failing this deploy. Production needs manual attention: deploy a working release (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+      echo "CRITICAL: there is no earlier release on this host to roll back to, so nothing was torn down and $RELEASE_ID is still in front of traffic after failing this deploy. Production needs manual attention: deploy a working release — push a fixed commit to main, which is what starts 'Deploy production'." >&2
     elif [ "$rollback_status" -eq 4 ]; then
       # A redeploy of the commit that was already live: the recorded
       # target IS this release, so there is no different one to put
       # back, and the rollback deliberately changed nothing.
-      echo "CRITICAL: $RELEASE_ID is also the recorded rollback target (a redeploy of the live commit), so there is no different release to go back to and nothing was changed. It is still in front of traffic after failing this deploy. Deploy a known-good commit (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+      echo "CRITICAL: $RELEASE_ID is also the recorded rollback target (a redeploy of the live commit), so there is no different release to go back to and nothing was changed. It is still in front of traffic after failing this deploy. Deploy a known-good commit: revert it on main and push, which is what starts 'Deploy production'." >&2
     else
-      echo "CRITICAL: the rollback did NOT restore a serving release. Production needs manual recovery (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+      echo "CRITICAL: the rollback did NOT restore a serving release. Production needs manual recovery: the rollback's own output above says what it could not do, and deploy/rollback-release.sh can be re-run on the server by hand." >&2
     fi
   else
     echo "ERROR: the deploy failed BEFORE any traffic was switched; the previous release keeps serving and nothing is rolled back." >&2
@@ -296,8 +296,7 @@ docker run --rm \
 #
 # This runs BEFORE any traffic switch and before the previous
 # containers are removed, so failing here leaves production exactly as
-# it was. Migrations must stay additive/expand-phase for this to pass;
-# see docs/DEPLOYMENT.md.
+# it was. Migrations must stay additive/expand-phase for this to pass.
 # PREVIOUS_RELEASE_ID was resolved from `current` at the top of this
 # script; it is empty only when `current` does not exist at all.
 if [ -z "$PREVIOUS_RELEASE_ID" ]; then

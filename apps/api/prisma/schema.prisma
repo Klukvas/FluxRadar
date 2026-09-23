@@ -440,8 +440,8 @@ model ScanCrawlResourceSet {
 // Optional proof that an account controls the site it is auditing.
 //
 // Nothing in the audit pipeline reads this: public pages stay auditable without
-// it and no tariff depends on it (docs/CUSTOMER_READINESS_TASKS.md keeps the
-// gating decision with the owner). One row per site profile, because the proof
+// it and no tariff depends on it — whether it ever gates anything is still the
+// owner's decision. One row per site profile, because the proof
 // is about a domain and a profile is how an account names one.
 model DomainVerification {
   id                String    @id @default(cuid())
@@ -1025,8 +1025,8 @@ model RefundDispatch {
 // in instalments before the deploy kept only the last one. The backfill therefore
 // restores the last recorded instalment, not the sum, and no query over the
 // remaining data can tell the two apart. Inventing the missing lines would mean
-// inventing money movements, so it is not attempted: the shortfall is documented
-// in docs/FASTSPRING.md §7 as an operator reconciliation step against the
+// inventing money movements, so it is not attempted: the shortfall is closed by
+// an operator reconciling against the
 // FastSpring console, and it is bounded — it can only affect purchases that were
 // already partially refunded before the deploy, and a later return still adds to
 // whatever was backfilled.

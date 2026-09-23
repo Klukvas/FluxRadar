@@ -99,7 +99,7 @@ dns_failure() {
     return 0
   fi
   if [ -z "$addresses" ]; then
-    printf '%s\n' "DNS: $HOST does not resolve; publish the DNS record before deploying (docs/DEPLOYMENT.md)"
+    printf '%s\n' "DNS: $HOST does not resolve; publish an A/AAAA record for it at the registrar before deploying"
     return 0
   fi
   log "DNS: $HOST resolves to $(printf '%s' "$addresses" | tr '\n' ' ')" >&2

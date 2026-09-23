@@ -87,8 +87,8 @@ REMOTE
 # This is the ONE failure the release script's exit handler cannot
 # reach: that script has already exited 0, so the new release is live,
 # recorded, and serving a site that just failed a check from outside.
-# docs/DEPLOYMENT.md promises a failed rollout does not leave a broken
-# release in front of traffic, and this is what keeps that true.
+# A failed rollout must not leave a broken release in front of traffic,
+# and this is what keeps that true.
 #
 # It is the same rollback the release script uses, run on the server
 # against the target that script recorded before it switched traffic.
@@ -118,14 +118,14 @@ if [ "$rollback_status" -eq 0 ]; then
   if bash "$SCRIPT_DIR/public-smoke.sh" --host "$HOST"; then
     echo "Rolled back: the previous release is serving $HOST again." >&2
   else
-    echo "CRITICAL: the rollback ran but $HOST still fails the public smoke test. Production needs manual recovery (docs/DEPLOYMENT.md, \"Release rollback\")." >&2
+    echo "CRITICAL: the rollback ran but $HOST still fails the public smoke test. Production needs manual recovery: read the rollback output above for what it restored, then deploy a known-good commit (revert on main and push)." >&2
   fi
 elif [ "$rollback_status" -eq 3 ]; then
-  echo 'CRITICAL: there is no earlier release on this host to roll back to (first deploy), so nothing was torn down and the release that failed the public smoke test is still live. Production needs manual attention: deploy a working release (docs/DEPLOYMENT.md, "Release rollback").' >&2
+  echo 'CRITICAL: there is no earlier release on this host to roll back to (first deploy), so nothing was torn down and the release that failed the public smoke test is still live. Production needs manual attention: deploy a working release — push a fixed commit to main, which is what starts "Deploy production".' >&2
 elif [ "$rollback_status" -eq 4 ]; then
-  echo 'CRITICAL: the release that failed the public smoke test is also the recorded rollback target (a redeploy of the live commit), so there is no different release to go back to and nothing was changed. Production needs manual attention: deploy a known-good commit (docs/DEPLOYMENT.md, "Release rollback").' >&2
+  echo 'CRITICAL: the release that failed the public smoke test is also the recorded rollback target (a redeploy of the live commit), so there is no different release to go back to and nothing was changed. Production needs manual attention: deploy a known-good commit — revert it on main and push, which is what starts "Deploy production".' >&2
 else
-  echo 'CRITICAL: the rollback failed; the release that failed the public smoke test may still be live. Production needs manual recovery (docs/DEPLOYMENT.md, "Release rollback").' >&2
+  echo 'CRITICAL: the rollback failed; the release that failed the public smoke test may still be live. Production needs manual recovery: SSH in and run `bash <app dir>/current/deploy/rollback-release.sh <app dir>`, which prints why it could not restore, or deploy a known-good commit (revert on main and push).' >&2
 fi
 # fluxradar:end-public-smoke-rollback
 exit 1

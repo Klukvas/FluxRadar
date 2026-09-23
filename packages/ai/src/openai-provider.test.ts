@@ -22,7 +22,7 @@ function messageOutput(text: string, annotations: readonly unknown[] = []): unkn
 
 describe('OpenAiProvider', () => {
   it('defaults to the model this release was chosen for', () => {
-    // The identifier the owner recorded in docs/PLAN_GEO_PROVIDERS.md on
+    // The identifier the owner recorded for this release on
     // 2026-09-22. Moving it is a product decision — the cost tier and the
     // answers change with it — so it fails here rather than shipping quietly.
     expect(OPENAI_DEFAULT_MODEL).toBe('gpt-5.6-luna');

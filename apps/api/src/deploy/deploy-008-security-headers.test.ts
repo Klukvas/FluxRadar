@@ -1,8 +1,8 @@
 // DEPLOY-008: the security headers the browser actually receives.
 //
-// docs/DEPLOYMENT.md says of the Content-Security-Policy: "Removing any of the
-// three breaks paid checkout in a way that is visible to the buyer but not to
-// the server." That sentence describes a gap, not a design — nothing in this
+// Removing any of the three script origins the Content-Security-Policy allows
+// breaks paid checkout in a way that is visible to the buyer but not to the
+// server. That was a known gap, not a design — nothing in this
 // repository looked at the policy, so a widened `script-src`, a deleted
 // `frame-ancestors` or an SBL origin bumped in the TypeScript and forgotten in
 // the Caddyfile all shipped silently. Two of those three fail closed and stop
@@ -166,7 +166,7 @@ describe('the Content-Security-Policy', () => {
     }
   });
 
-  // The cross-check that closes the gap docs/DEPLOYMENT.md describes: the origin
+  // The cross-check that closes the gap above: the origin
   // the bundle actually loads the Store Builder Library from has to be the one
   // the policy allows, or the popup silently never opens.
   it('allows exactly the script origins the bundle loads', () => {

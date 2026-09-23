@@ -228,7 +228,7 @@ export function readFastSpringConfig(env: NodeJS.ProcessEnv = process.env): Fast
       reason:
         `${FASTSPRING_ENV_VARS.mode}=live requires ${FASTSPRING_ENV_VARS.storeVerified}=` +
         `${FASTSPRING_STORE_VERIFIED_VALUE}, set only after the FastSpring store has been ` +
-        'checked against docs/FASTSPRING.md §4 (order tags reach the webhook; the storefront ' +
+        'checked by hand (order tags reach the webhook; the storefront ' +
         `currency behaviour matches ${FASTSPRING_ENV_VARS.currencyPolicy})`,
     };
   }

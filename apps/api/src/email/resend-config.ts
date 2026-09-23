@@ -16,7 +16,8 @@
 // (see integrations/config.ts): a deployment that cannot send email can still
 // sell and run scans, so it is logged loudly and left running. What is on the
 // operator's side — verifying the sending domain in Resend and publishing its
-// DNS records — cannot be checked from here at all; see docs/DEPLOYMENT.md.
+// DNS records — cannot be checked from here at all: an unverified domain is an
+// HTTP error on the first send.
 
 export const RESEND_ENV_VARS = {
   apiKey: 'RESEND_API_KEY',

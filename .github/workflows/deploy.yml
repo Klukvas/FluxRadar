@@ -185,7 +185,7 @@ jobs:
       # GitHub artifact handed to a later job — is not available here: the API
       # image carries the whole workspace and its node_modules, which is larger
       # than this repository's entire artifact allowance. A registry would fix
-      # that properly; see docs/DEPLOYMENT.md, "What is not automated".
+      # that properly; this deployment does not have one.
       - name: Ship the image
         uses: ./.github/actions/remote-upload
         with:
@@ -224,7 +224,7 @@ jobs:
           # authoritative base and every other value here is an OPTIONAL
           # override that applies only when it is non-empty. The workflow never
           # pins a value of its own — a hardcoded ANTHROPIC_MODEL used to
-          # silently outrank the base file and contradict docs/DEPLOYMENT.md.
+          # silently outrank the base file that is meant to be authoritative.
           # A base file left on a retired model is caught by the API at startup
           # instead (integrations/anthropic-config.ts), by name.
           PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
@@ -294,7 +294,7 @@ jobs:
           # override here. The address must be on a domain VERIFIED in Resend,
           # which nothing in this repository can check: an unverified sender is
           # an HTTP error on the first send, reported to the user as an
-          # emailVerification status of "provider-error" (docs/DEPLOYMENT.md).
+          # emailVerification status of "provider-error" (email/resend-config.ts).
           PRODUCTION_RESEND_API_KEY: ${{ secrets.PRODUCTION_RESEND_API_KEY }}
           PRODUCTION_RESEND_FROM_EMAIL: ${{ secrets.PRODUCTION_RESEND_FROM_EMAIL }}
           # Owner dashboard (/admin/stats). A secret for the same reason as the
@@ -326,7 +326,7 @@ jobs:
           # in the FastSpring app to anyone who can open it. FASTSPRING_MODE
           # decides whether real cards are charged, and readFastSpringConfig
           # refuses "live" until FASTSPRING_STORE_VERIFIED says an operator
-          # checked the store (docs/FASTSPRING.md section 4).
+          # checked the store (billing/fastspring/config.ts).
           #
           # The set is all-or-nothing: a half-configured provider is reported as
           # "misconfigured" and sells nothing. deploy-003 asserts every name
@@ -450,7 +450,7 @@ jobs:
           missing="$(bash deploy/backup/check-backup-config.sh "$RUNNER_TEMP/production.env")" || status=$?
           case "$status" in
             0) echo 'Every variable a database backup needs is set in the release env file.' ;;
-            1) echo "::warning title=Production cannot be backed up::The release env file lacks: $missing. pg-backup.sh refuses to run without them, so no snapshot is taken and backup-verify fails every night. Set them (docs/DEPLOYMENT.md, 'Database backup and restore')." ;;
+            1) echo "::warning title=Production cannot be backed up::The release env file lacks: $missing. pg-backup.sh refuses to run without them, so no snapshot is taken and backup-verify fails every night. Set them in the PRODUCTION_ENV_FILE secret." ;;
             *) echo '::warning title=Backup config not checked::check-backup-config.sh could not read the release env file.' ;;
           esac
 

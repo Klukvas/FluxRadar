@@ -47,8 +47,7 @@ const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
  * The model this adapter is written against.
  *
  * `gpt-5.6-luna` is the owner's recorded choice for this release
- * (`docs/PLAN_GEO_PROVIDERS.md`, "Model registry v2" and Open decisions §1,
- * 2026-09-22): the cheapest OpenAI model that supports the `web_search` tool,
+ * (2026-09-22): the cheapest OpenAI model that supports the `web_search` tool,
  * chosen because a GEO request's cost is dominated by the per-search charge
  * rather than by tokens. Its model page (checked read-only 2026-09-23) lists
  * `v1/responses` as Supported and `web_search` under both Features and

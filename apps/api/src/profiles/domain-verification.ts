@@ -4,8 +4,8 @@
 // well-known path, or a meta tag on the homepage — and a random token that
 // means nothing on its own. The check is a read: it makes GET requests through
 // the same SSRF guard as the crawler, and a DNS lookup of the site's own name.
-// Nothing here gates a scan, a plan or a price; see
-// docs/CUSTOMER_READINESS_TASKS.md, where that decision is still the owner's.
+// Nothing here gates a scan, a plan or a price: whether it ever should is
+// still the owner's decision.
 
 import { randomBytes } from 'node:crypto';
 import { resolveTxt } from 'node:dns/promises';

@@ -4,8 +4,8 @@
 // or a price, and a workspace that never opens it behaves exactly as it did
 // before. What it buys the owner is a record — useful when an audit of a site
 // has to be justified to somebody, and the ground the product would stand on if
-// deeper paid checks are ever gated on ownership
-// (docs/CUSTOMER_READINESS_TASKS.md keeps that decision open).
+// deeper paid checks are ever gated on ownership — a decision that is still
+// open.
 
 import { useCallback, useEffect, useState } from 'react';
 

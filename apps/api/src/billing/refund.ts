@@ -92,7 +92,7 @@ export async function requestRefund(
  * It does NOT send. Where it leaves the row is decided by the deployment's
  * configuration, and every configuration this repository ships with leaves it
  * `manual` — the policy in force today, where a refund is issued from the
- * provider's own console (docs/FASTSPRING.md §4). A deployment that switched the
+ * provider's own console. A deployment that switched the
  * dispatcher on gets `requested`, which is the only state the sweep picks up.
  */
 async function recordOutboundRefund(

@@ -552,7 +552,7 @@ describe('Action Plan routes', () => {
     const read = await agent.get(`/scans/${scanId}/action-plan?language=en`);
 
     // Reach is "the share of a SCAN's open issues an Action addresses"
-    // (docs/CONTEXT.md, D-232): the denominator is what the owner can see in
+    // (D-232): the denominator is what the owner can see in
     // this report, not what we were allowed to send.
     expect(read.body.data.plan.reach).toEqual({
       share: 1 / 3,

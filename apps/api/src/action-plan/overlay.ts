@@ -16,7 +16,7 @@ import { OPEN_ISSUE_STATUSES } from '../issues/summary.ts';
  * and never leave the product (D-219). The per-Action counts are drawn from
  * these, because an Action is written from what the model was shown.
  *
- * The REACH DENOMINATOR is deliberately not: `docs/CONTEXT.md` defines Reach as
+ * The REACH DENOMINATOR is deliberately not: Reach is defined (D-232) as
  * "the share of a SCAN's open issues that at least one Action addresses", and a
  * scan's open issues include the Analytics ones the owner can see in the same
  * report. Excluding them would quietly redefine the number the UI puts in front

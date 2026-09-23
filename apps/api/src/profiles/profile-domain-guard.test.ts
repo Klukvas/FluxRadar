@@ -18,8 +18,7 @@ import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 //
 // That window is what these tests close. Verifying that the buyer actually
 // controls the domain (DNS TXT, a hosted file, a Search Console grant) is a
-// separate product with its own UX and is deliberately NOT attempted here; see
-// docs/DECISIONS.md.
+// separate product with its own UX and is deliberately NOT attempted here.
 
 const PASSWORD = 'sufficiently-long-password';
 

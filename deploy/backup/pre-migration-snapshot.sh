@@ -6,8 +6,8 @@
 # proves the previous release can read the migrated schema, and
 # rollback-release.sh puts that release back in front of traffic. None of it
 # restores a column a migration dropped or a value it rewrote — for that the only
-# answer is a dump, and the newest scheduled one can be up to 26 hours old
-# (docs/DEPLOYMENT.md, "Freshness"). So one is taken here, by the release that is
+# answer is a dump, and the newest scheduled one can be up to 26 hours old (the
+# cron schedule is in fluxradar-backup.cron). So one is taken here, by the release that is
 # still running, immediately before the schema changes under it.
 #
 # Run ON THE SERVER by the `backup` stage of deploy.yml, from the new release's
@@ -160,5 +160,5 @@ if [ "$ALLOW_WITHOUT_BACKUP" = "true" ]; then
   exit 0
 fi
 echo "Refusing to migrate without one. Nothing has been changed: the previous release is still serving and the schema is untouched." >&2
-echo "Fix the backup (docs/DEPLOYMENT.md, 'Database backup and restore'), or set the ALLOW_MIGRATION_WITHOUT_BACKUP variable to 'true' to deploy anyway." >&2
+echo "Fix the backup — run deploy/backup/check-backup-config.sh against the release env file, which names every variable pg-backup.sh needs — or set the ALLOW_MIGRATION_WITHOUT_BACKUP variable to 'true' to deploy anyway." >&2
 exit 1

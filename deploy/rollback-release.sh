@@ -49,8 +49,9 @@
 #      or this was a redeploy of the commit that was already live.
 #
 # The target is read from <app-dir>/runtime/rollback.env, which the release
-# script writes before it switches traffic. Run by hand to undo the release that
-# is live now (docs/DEPLOYMENT.md, "Release rollback").
+# script writes before it switches traffic. To undo the release that is live
+# now, run the "Roll back production" workflow, or run this script on the server
+# as `bash <app-dir>/current/deploy/rollback-release.sh <app-dir>`.
 
 set -u
 
@@ -99,7 +100,7 @@ fi
 if [ -z "$TARGET_RELEASE" ]; then
   echo "ROLLBACK IMPOSSIBLE: $TARGET_FILE names no release to roll back to." >&2
   echo "That is the first deploy of this host, or the file was never written. NOTHING has been changed: ${FAILED_RELEASE:-the release that failed} keeps whatever containers and proxy configuration it had, because removing them would leave this host serving nothing at all." >&2
-  echo "CRITICAL: manual action required. The release in front of traffic is the one that just failed its checks, and there is no earlier release on this host to restore — deploy a working release (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+  echo "CRITICAL: manual action required. The release in front of traffic is the one that just failed its checks, and there is no earlier release on this host to restore — deploy a working release by pushing a fixed commit to main." >&2
   exit 3
 fi
 
@@ -121,7 +122,7 @@ failed_id="${failed_id##*/}"
 if [ -n "$failed_id" ] && [ "$failed_id" = "$TARGET_ID" ]; then
   echo "NOTHING TO ROLL BACK: $TARGET_ID is both the release named as failed and the recorded rollback target." >&2
   echo "$TARGET_FILE records one step back and a previous rollback has already taken it (or this was a redeploy of the live commit). NOTHING has been changed; $TARGET_ID keeps whatever containers and proxy configuration it had." >&2
-  echo "To go further back, deploy a known-good commit (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+  echo "To go further back, deploy a known-good commit: revert it on main and push." >&2
   exit 4
 fi
 
@@ -168,7 +169,7 @@ if [ -z "$compose_dir" ] || [ -z "$caddy_template" ]; then
 fi
 if [ -z "$compose_dir" ] || [ -z "$caddy_template" ]; then
   echo "ROLLBACK FAILED: neither the rollback target nor the failed release provides the docker-compose.yml, .env.production and deploy/Caddyfile a rollback needs." >&2
-  echo "Production is still proxied to the failed release, whose containers were removed. Restore $APP_DIR/current by hand (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+  echo "Production is still proxied to the failed release, whose containers were removed. Restore by hand: point $APP_DIR/current at a release directory that has docker-compose.yml, .env.production and deploy/Caddyfile, and bring it up with docker compose." >&2
   exit 1
 fi
 
@@ -270,7 +271,7 @@ if { [ -z "$api_upstream" ] || [ -z "$web_upstream" ]; } && [ "$degraded" -eq 0 
 fi
 if [ -z "$api_upstream" ] || [ -z "$web_upstream" ]; then
   echo "ROLLBACK FAILED: the upstreams of the rollback target are unknown — its images are not on this host and $TARGET_FILE records none." >&2
-  echo "Production is still proxied to the failed release, whose containers were removed. Restore $APP_DIR/current by hand (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+  echo "Production is still proxied to the failed release, whose containers were removed. Restore by hand: point $APP_DIR/current at a release directory that has docker-compose.yml, .env.production and deploy/Caddyfile, and bring it up with docker compose." >&2
   exit 1
 fi
 
@@ -287,7 +288,7 @@ export FLUXRADAR_API_UPSTREAM="$api_upstream"
 export FLUXRADAR_WEB_UPSTREAM="$web_upstream"
 if ! docker compose --env-file .env.production -p fluxradar up -d --no-deps --force-recreate caddy; then
   echo "ROLLBACK FAILED: Caddy could not be recreated on the previous release's upstreams." >&2
-  echo "Production is not being served. Restore it by hand (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+  echo "Production is not being served. Restore it by hand: bring Caddy up from a release directory with docker compose, on upstreams that answer." >&2
   exit 1
 fi
 # Proof rather than assumption: the file Caddy was just started on has to name
@@ -373,7 +374,7 @@ restored_release_answers() {
 if ! restored_release_answers; then
   echo "ROLLBACK FAILED: Caddy was reconfigured onto $api_upstream / $web_upstream, but the restored release did not answer a readiness probe within $((PROBE_ATTEMPTS * PROBE_DELAY))s." >&2
   echo "CRITICAL: production is NOT being served by ${TARGET_ID:-the previous release}. Its containers or images may be gone, or the recorded upstreams may be stale." >&2
-  echo "$APP_DIR/current and $STATE_FILE were left untouched so they still describe the release that was live. Recover by hand (docs/DEPLOYMENT.md, 'Release rollback')." >&2
+  echo "$APP_DIR/current and $STATE_FILE were left untouched so they still describe the release that was live. Recover by hand: check that the target's containers and images are still on the host, or deploy a known-good commit (revert on main and push)." >&2
   exit 1
 fi
 

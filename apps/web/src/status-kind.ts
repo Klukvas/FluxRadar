@@ -9,7 +9,8 @@
 //
 // The English keywords are the API's own vocabulary, never the owner's: a
 // translated label changes what is read, never what the colour means.
-// See docs/DESIGN_SYSTEM.md §1 for the palette each kind maps to.
+// The palette each kind maps to lives in styles/base.css, on the
+// `status-chip--<kind>` classes the components build from these values.
 
 export type StatusKind = 'ok' | 'high' | 'warning' | 'error' | 'info' | 'neutral';
 

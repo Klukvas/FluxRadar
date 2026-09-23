@@ -198,7 +198,7 @@ describe('FASTSPRING-002 configuration', () => {
       // The storefront localises the price in 33 currencies and leaves the
       // country selector adjustable, so the buyer can change what they are
       // charged in after the session was priced. "strict" would refuse those
-      // orders after the card was charged (docs/FASTSPRING.md §4).
+      // orders after the card was charged.
       FASTSPRING_CURRENCY_POLICY: 'localized',
     } satisfies NodeJS.ProcessEnv;
 

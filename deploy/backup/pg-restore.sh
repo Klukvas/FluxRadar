@@ -189,11 +189,11 @@ else
   # errors on what already exists and leaves a mixture of old and restored rows,
   # which is worse than either. Dropping and recreating the live database is a
   # decision an operator makes at the psql prompt, on purpose, with the API
-  # stopped; see docs/DEPLOYMENT.md.
+  # stopped.
   existing_tables="$(psql_in_container "$RESTORE_DATABASE" \
     "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")"
   if [ "${existing_tables:-0}" -ne 0 ]; then
-    fail "$RESTORE_DATABASE already contains ${existing_tables} table(s); restore into an empty database (see docs/DEPLOYMENT.md)"
+    fail "$RESTORE_DATABASE already contains ${existing_tables} table(s); restore into an empty database, or drop and recreate this one at the psql prompt first, with the API stopped"
   fi
   log "restoring into empty database $RESTORE_DATABASE (destructive path, confirmed)"
 fi

@@ -97,6 +97,9 @@ export async function persistCrawlEvidence(
       discoveredUrlCount: counts.discovered,
       coverage: coverageOf(result),
       truncated: false,
+      // Whether these pages' bytes reached the egress counter is not known
+      // here: the caller counts them after this write and sets the flag then.
+      egressRecorded: false,
     };
   } catch (error) {
     deps.logger.error('scan evidence could not be stored; a resume will re-crawl', {

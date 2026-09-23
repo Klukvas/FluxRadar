@@ -1,6 +1,7 @@
 # FluxRadar
 
-Pay-per-scan website audit platform (v0.1 — local MVP). Plan and process docs live in `docs/`.
+Pay-per-scan website audit platform (v0.1 — local MVP). Plan and process notes are kept
+outside the repository; what ships is described here and in the code.
 
 ## Structure
 
@@ -18,12 +19,12 @@ apps/
   api/           Express + Prisma (PostgreSQL): auth, billing, scan orchestrator
   web/           React + Vite UI (Mac OS 8/9 design system)
 
-Current integrations are documented in `docs/INTEGRATIONS.md`. Cloudflare and
-WordPress are intentionally deferred; report artifacts use Hetzner S3. All current audit
+Cloudflare and WordPress are intentionally deferred; report artifacts use Hetzner S3. All current audit
 profiles are public-only: no customer API tokens are required. This includes JSON-LD/social
 preview, OWASP ASVS Public Security Profile, Privacy & Consent signals, EN 301 549/Section 508
-mapping, and AI crawler readiness. The WCAG 2.2 AA Accessibility module and its
-automated/manual-review boundary are documented in `docs/WCAG_AUDIT.md`.
+mapping, and AI crawler readiness. The WCAG 2.2 AA Accessibility module lives in
+`packages/rules/src/accessibility/`, where each rule states what it can decide from the
+page and what it leaves to manual review.
 ```
 
 ## Commands
@@ -43,10 +44,10 @@ Copy `.env.example` to `.env` and fill in values before running the API.
 
 ## Paid scans locally
 
-FastSpring cannot complete a checkout from localhost (see
-[`docs/FASTSPRING.md` §6](docs/FASTSPRING.md#test-mode-does-not-work-from-localhost)), so a
-local Basic or Complete scan runs through the internal allowlist — the only way to a paid plan
-without a signed FastSpring order, in every environment (D-229):
+FastSpring cannot complete a checkout from localhost — its test mode needs the storefront to be
+reached over a public https origin — so a local Basic or Complete scan runs through the internal
+allowlist, the only way to a paid plan without a signed FastSpring order, in every environment
+(D-229):
 
 1. In `.env`, set `FLUXRADAR_INTERNAL_FREE_EMAILS` to the email you register with locally
    (comma-separated for several; matching ignores case).

@@ -17,9 +17,9 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 //
 // Until now its failure did exactly nothing to the deployment: it printed
 // diagnostics and failed the workflow, leaving the release it had just condemned
-// serving production — while docs/DEPLOYMENT.md promised that "a failed rollout
-// restores the previous images/release and switches the symlink back
-// automatically".
+// serving production — while the deploy is supposed to restore the previous
+// images/release and switch the symlink back automatically when a rollout
+// fails.
 //
 // The logic lives in deploy/verify-release.sh, which both post-release stages
 // run. It is RUN here against a recorded `ssh` and a scripted smoke test, so

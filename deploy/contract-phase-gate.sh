@@ -27,8 +27,8 @@
 #     directories — the ones the release script's pruning keeps.
 #
 #   contract-phase-gate.sh rollback-target <app-dir> <target-release-dir>
-#     Run by hand before putting an arbitrary release back (docs/DEPLOYMENT.md,
-#     "Rolling back by hand"). For every contract migration any release on the
+#     Run by hand before putting an arbitrary release back — one that is not
+#     the target rollback-release.sh would pick. For every contract migration any release on the
 #     server carries and the target does not, the target must ship its
 #     prerequisites. This is the case the deploy cannot cover: a contract
 #     deploy that failed AFTER migrating never pruned, so an older release is
@@ -170,7 +170,7 @@ before_migrate() {
   problems="$(printf '%s' "$problems" | sed '/^$/d')"
   if [ -n "$problems" ]; then
     refuse "$problems" \
-      "Refusing to migrate. Deploy a release that ships the prerequisite and let it become the rollback target first (docs/DEPLOYMENT.md, 'The rollback compatibility gate')."
+      "Refusing to migrate. Deploy a release that ships the prerequisite and let it become the rollback target first; this gate then passes on the next deploy."
   fi
   echo "Contract-phase gate: every rollback candidate ships what $(printf '%s\n' "$contracts" | tr '\n' ' ')requires."
 }

@@ -10,11 +10,11 @@ fluxradar.net {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
-        # FastSpring popup checkout (docs/FASTSPRING.md §5): the Store Builder
-        # Library is served from sbl.onfastspring.com, renders the checkout in an
-        # iframe on the storefront host, and talks to that host from this page.
-        # Google Analytics 4 (docs/DEPLOYMENT.md, "Content Security Policy"):
-        # gtag.js from exactly www.googletagmanager.com, and hits to Google's
+        # FastSpring popup checkout: the Store Builder Library is served from
+        # sbl.onfastspring.com, renders the checkout in an iframe on the
+        # storefront host, and talks to that host from this page.
+        # Google Analytics 4: gtag.js from exactly
+        # www.googletagmanager.com, and hits to Google's
         # regional collection hosts — only once a visitor allows analytics.
         # No wildcard script source, no inline script, and
         # `frame-ancestors 'none'` still forbids framing FluxRadar.
@@ -35,7 +35,7 @@ fluxradar.net {
     # visitors who accept analytics cookies and never sees a crawler, so this
     # file is where page hits, referrers and the AI bots (GPTBot, ClaudeBot,
     # PerplexityBot...) show up. scripts/traffic-report.sh turns it into a
-    # GoAccess report; docs/TRAFFIC_LOGS.md has the rest.
+    # GoAccess report; the filtering and retention it relies on are below.
     #
     # No line identifies a person or opens an account:
     #   - IPs are cut to their /24 (IPv4) or /48 (IPv6) network before a line
@@ -54,7 +54,7 @@ fluxradar.net {
     # rolls by size, not by time: an entry waits in the live file until it
     # fills, and the rolled file is deleted by the first roll or restart after
     # it turns 14 days old. Small files keep that sum well inside 30 days;
-    # DEPLOY-018 pins the numbers and docs/TRAFFIC_LOGS.md has the arithmetic.
+    # DEPLOY-018 pins the numbers and checks that sum.
     log {
         output file /data/logs/access.log {
             roll_size 2MiB
