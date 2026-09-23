@@ -36,8 +36,11 @@ function isMemberOf(values: readonly string[], value: unknown): boolean {
  */
 export function validateNormalizedResponse(
   response: NormalizedAiResponse,
-  caps: AiRequestCapsShape = AI_REQUEST_CAPS,
+  requestCaps: Partial<AiRequestCapsShape> = {},
 ): readonly string[] {
+  // A request may raise or lower the caps it is held to, and it may name only
+  // the ones it cares about: an unnamed cap is the shared §5 one, never absent.
+  const caps: AiRequestCapsShape = { ...AI_REQUEST_CAPS, ...requestCaps };
   const violations: string[] = [];
 
   if (!isMemberOf(AI_PROVIDER_NAMES, response.provider)) {
@@ -121,6 +124,12 @@ function validateUsage(
   }
   if (isCountValue(outputTokens) && outputTokens > caps.maxOutputTokens) {
     violations.push(`usage.outputTokens ${outputTokens} exceeds cap ${caps.maxOutputTokens}`);
+  }
+  // The provider's own count of cited pages, which it bills for and which is
+  // not always the length of the citation list it returned.
+  const { citationUnits } = response.usage;
+  if (isCountValue(citationUnits) && citationUnits > caps.maxCitationUnits) {
+    violations.push(`usage.citationUnits ${citationUnits} exceeds cap ${caps.maxCitationUnits}`);
   }
 
   if (!isMemberOf(USAGE_SOURCES, response.usageSource)) {

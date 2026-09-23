@@ -65,10 +65,17 @@ function textBlocks(content: unknown): readonly Record<string, unknown>[] {
   );
 }
 
+/**
+ * The answer's text, as one string.
+ *
+ * A searching turn splits one sentence into several text blocks at its citation
+ * boundaries, so the pieces are concatenated rather than joined by a newline:
+ * a separator here lands mid-sentence in every cited answer.
+ */
 function textFromContent(content: unknown): string {
   return textBlocks(content)
     .map((block) => block.text as string)
-    .join('\n');
+    .join('');
 }
 
 /**
@@ -204,9 +211,31 @@ export class AnthropicProvider implements AiProvider {
     // A search that errored (`max_uses_exceeded`, `too_many_requests`, …) arrives
     // as an error object inside a 200 and is not fatal: the answer Claude still
     // wrote is what the report shows. Only "no text at all" is unavailable.
-    if (payload === null || rawText === '') {
-      throw new UnavailableError('Anthropic returned no text content');
+    //
+    // A refusal is the exception: a non-streaming answer drops the declined
+    // partial, so a refusal nothing rescued arrives without text. A request
+    // that asked for the server-side fallback gets it back as a `safety`
+    // finish, so its caller can tell a refusal from an outage; every other
+    // request keeps it Unavailable, and says which of the two it was.
+    const refused = payload?.stop_reason === 'refusal';
+    if (payload !== null && refused && request.allowModelFallback === true) {
+      return this.normalize(payload, rawText, promptText, caps);
     }
+    if (payload === null || rawText === '') {
+      throw new UnavailableError(
+        refused ? 'Anthropic declined the request' : 'Anthropic returned no text content',
+      );
+    }
+    return this.normalize(payload, rawText, promptText, caps);
+  }
+
+  /** One §5 answer from one Anthropic payload, refusal or not. */
+  private normalize(
+    payload: AnthropicMessageResponse,
+    rawText: string,
+    promptText: string,
+    caps: AiRequestCapsShape,
+  ): NormalizedAiResponse {
     const usage = isRecord(payload.usage) ? payload.usage : undefined;
     // Usage is provider truth, in both directions. The old input clamp hid
     // exactly the spend that web search creates (search results are billed as

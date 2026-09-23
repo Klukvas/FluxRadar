@@ -5,9 +5,10 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
 
 /**
  * Changed when OpenAI became an active AI recipient beside Anthropic, Google
- * and Perplexity became opt-in recipients, and the AI Action Plan was added as
- * an AI purpose. The previous date, 16 September 2026, was the section on how
- * Google user data is protected, which Google's OAuth verification requires.
+ * and Perplexity became opt-in recipients, the AI Action Plan was added as an
+ * AI purpose, and the site gained consent-based Google Analytics 4. The
+ * previous date, 16 September 2026, was the section on how Google user data is
+ * protected, which Google's OAuth verification requires.
  */
 const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '23 вересня 2026 року', en: '23 September 2026' };
 
@@ -62,6 +63,14 @@ function UkrainianPrivacy(): JSX.Element {
             <strong>Безпека й робота сервісу:</strong> IP‑адреса, request/error data та rate‑limit
             записи для захисту акаунтів, запобігання повторному використанню безкоштовної перевірки
             й діагностики несправностей.
+          </li>
+          <li>
+            <strong>Аналітика сайту — лише з вашого дозволу:</strong> переглянуті сторінки
+            fluxradar.net (без query string та ідентифікаторів перевірок), сайт, з якого ви
+            перейшли, приблизне місцезнаходження, яке Google визначає за IP‑адресою, тип пристрою й
+            браузера та кроки в продукті — реєстрація, запуск безкоштовної перевірки, початок
+            оплати, завершена покупка (тариф і ціна). Google Analytics зберігає випадковий
+            ідентифікатор у cookies <code>_ga</code>.
           </li>
         </ul>
         <p>
@@ -143,8 +152,9 @@ function UkrainianPrivacy(): JSX.Element {
           підтримки. Правовою підставою обробки, об’єктивно необхідної для вибраної основної
           функції, є виконання договору. Безпека, запобігання зловживанням і захист прав є нашими
           законними інтересами з урахуванням прав користувача; окремі записи зберігаються через
-          правовий обов’язок. Необов’язкове browser storage і майбутня site analytics потребують
-          окремого вибору в налаштуваннях cookies.
+          правовий обов’язок. Необов’язкове browser storage й аналітика сайту ґрунтуються на вашій
+          згоді, яку ви надаєте й відкликаєте в налаштуваннях cookies; аналітику ми використовуємо
+          лише щоб розуміти, які сторінки й кроки допомагають відвідувачам і де вони зупиняються.
         </p>
         <p>
           Платні аудити включають застосовний AI‑аналіз: Basic — AI SEO / GEO, Complete — AI SEO /
@@ -172,6 +182,17 @@ function UkrainianPrivacy(): JSX.Element {
           персональних даних. Уже надісланий провайдеру запит неможливо відкликати.
         </p>
         <p>
+          У звіті Complete власник може також попросити AI‑план дій: короткий упорядкований список
+          змін, який Claude від Anthropic складає за цим звітом. Нічого не надсилається, доки
+          власник не натисне кнопку, а рядок під нею пояснює, що саме передається: домен сайту,
+          статус, оцінку й покриття кожного розділу, а для кожного правила з відкритими проблемами —
+          його назву, критичність, кількість відкритих проблем, до трьох адрес сторінок без
+          параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана й
+          трасування не надсилаються, як і будь‑що з розділу «Аналітика» (дані Google Search Console
+          і GA4). План зберігається разом зі звітом і видаляється з ним; до експорту JSON чи CSV він
+          не входить.
+        </p>
+        <p>
           Ми не продаємо персональні дані й не передаємо їх рекламним партнерам. Дозволено
           використовувати лише знеособлені й агреговані результати аудитів для покращення правил і
           якості сервісу без публікації окремого сайту або звіту.
@@ -191,9 +212,10 @@ function UkrainianPrivacy(): JSX.Element {
             для Complete performance check без підключення користувацького Google‑акаунта.
           </li>
           <li>
-            <strong>Anthropic</strong> — поточний AI‑провайдер для описаних вище AI‑запитів.
-            Retention і processing залежать від чинних API terms та налаштувань; ми не обіцяємо zero
-            retention у провайдера. Див.{' '}
+            <strong>Anthropic</strong> — AI‑провайдер для описаних вище AI‑запитів, включно із
+            запитами про видимість, які виконуються з увімкненим вебпошуком провайдера. Retention і
+            processing залежать від чинних API terms та налаштувань; ми не обіцяємо zero retention у
+            провайдера. Див.{' '}
             <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">
               інформацію Anthropic про зберігання комерційних даних
             </a>
@@ -227,6 +249,15 @@ function UkrainianPrivacy(): JSX.Element {
             <strong>Resend</strong> — коли transactional email увімкнено, отримує email і вміст
             сервісного листа. Див.{' '}
             <a href="https://resend.com/legal/privacy-policy">Resend Privacy Policy</a>.
+          </li>
+          <li>
+            <strong>Google (Google Analytics 4)</strong> — лише після вашого дозволу аналітики
+            обробляє описані вище дані аналітики сайту як наш обробник. Google Signals, ads
+            personalization і remarketing вимкнені; user та event data зберігаються 2 місяці. Див.{' '}
+            <a href="https://policies.google.com/technologies/partner-sites">
+              як Google використовує дані сайтів, що користуються його сервісами
+            </a>
+            .
           </li>
         </ul>
         <p>
@@ -267,11 +298,11 @@ function UkrainianPrivacy(): JSX.Element {
         <h2>Cookies і browser storage</h2>
         <p>
           Необхідні засоби зберігання підтримують вхід, checkout recovery і ваш вибір cookies;
-          preference storage запам’ятовує мову лише після дозволу. FluxRadar зараз не завантажує
-          Google Analytics 4 або рекламні trackers. Якщо site analytics буде додано, вона
-          запускатиметься лише після дозволу; Google Signals, ads personalization і remarketing
-          будуть вимкнені, а user/event data зберігатимуться 2 місяці. Повний перелік, строки й
-          керування наведено в <a href="/cookies?lang=uk">Політиці cookies</a>.
+          preference storage запам’ятовує мову лише після дозволу. З вашого дозволу FluxRadar також
+          завантажує Google Analytics 4. До дозволу вона не запускається, а відкликання зупиняє її й
+          видаляє її cookies. Google Signals, ads personalization і remarketing вимкнені, а user та
+          event data зберігаються 2 місяці. Рекламних trackers FluxRadar не використовує. Повний
+          перелік, строки й керування наведено в <a href="/cookies?lang=uk">Політиці cookies</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">
@@ -341,6 +372,13 @@ function EnglishPrivacy(): JSX.Element {
           <li>
             <strong>Security and operations:</strong> IP address, request/error data and rate-limit
             records used to protect accounts, prevent repeated free checks and diagnose failures.
+          </li>
+          <li>
+            <strong>Site analytics, only if you allow it:</strong> pages viewed on fluxradar.net
+            (without query strings or check identifiers), the referring site, an approximate
+            location Google derives from your IP address, device and browser type, and product steps
+            — sign-up, starting a free check, starting checkout and a completed purchase (plan and
+            price). Google Analytics keeps a random identifier in the <code>_ga</code> cookies.
           </li>
         </ul>
         <p>
@@ -420,8 +458,9 @@ function EnglishPrivacy(): JSX.Element {
           support. Processing objectively necessary for a chosen core feature is based on
           performance of the service contract. Security, abuse prevention and protection of rights
           serve our legitimate interests, subject to user rights; some records are kept to meet a
-          legal obligation. Optional browser storage and future site analytics require a separate
-          cookie choice.
+          legal obligation. Optional browser storage and site analytics rely on your consent, which
+          you give and withdraw in cookie settings; we use site analytics only to understand which
+          pages and steps help visitors and where they stop.
         </p>
         <p>
           Paid audits include the applicable AI analysis: Basic includes AI SEO / GEO, while
@@ -450,6 +489,17 @@ function EnglishPrivacy(): JSX.Element {
           data. A request already sent to a provider cannot be recalled.
         </p>
         <p>
+          On a Complete report the owner may also ask for an AI Action Plan: a short, ordered list
+          of changes that Anthropic’s Claude writes from that report. Nothing is sent until the
+          owner presses the button, and a line under it says what is sent: the site’s domain, each
+          section’s status, score and coverage, and for each rule with open issues its name,
+          severity, number of open issues, up to three page addresses without query strings or
+          fragments, and the rule’s recommendations. Evidence excerpts, screenshots and traces are
+          not sent, and neither is anything from the Analytics section (Google Search Console and
+          GA4 data). The plan is kept with the report and deleted with it; it is not part of the
+          JSON or CSV export.
+        </p>
+        <p>
           We do not sell personal data or share it with advertising partners. We may use only
           anonymized and aggregated audit results to improve service rules and quality, without
           publishing an individual site or report.
@@ -469,9 +519,10 @@ function EnglishPrivacy(): JSX.Element {
             Complete performance checks without a connected user Google account.
           </li>
           <li>
-            <strong>Anthropic</strong> is the current AI provider for the AI requests described
-            above. Retention and processing depend on applicable API terms and settings; we do not
-            promise zero provider retention. See{' '}
+            <strong>Anthropic</strong> is an AI provider for the AI requests described above,
+            including the visibility requests, which run with the provider’s web search turned on.
+            Retention and processing depend on applicable API terms and settings; we do not promise
+            zero provider retention. See{' '}
             <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">
               Anthropic’s commercial retention information
             </a>
@@ -505,6 +556,15 @@ function EnglishPrivacy(): JSX.Element {
             <strong>Resend</strong>, when transactional email is enabled, receives the recipient
             email and service-message content. See the{' '}
             <a href="https://resend.com/legal/privacy-policy">Resend Privacy Policy</a>.
+          </li>
+          <li>
+            <strong>Google (Google Analytics 4)</strong>, only after you allow analytics, processes
+            the site-analytics data above as our processor. Google Signals, ads personalization and
+            remarketing are disabled; user and event data are kept for 2 months. See{' '}
+            <a href="https://policies.google.com/technologies/partner-sites">
+              how Google uses information from sites that use its services
+            </a>
+            .
           </li>
         </ul>
         <p>
@@ -544,11 +604,12 @@ function EnglishPrivacy(): JSX.Element {
         <h2>Cookies and browser storage</h2>
         <p>
           Necessary storage supports sign-in, checkout recovery and the cookie choice; preference
-          storage remembers language only after permission. FluxRadar does not currently load Google
-          Analytics 4 or advertising trackers. If site analytics is added, it will start only after
-          permission; Google Signals, ads personalization and remarketing will remain disabled, and
-          user/event data retention will be set to 2 months. See the full inventory, durations and
-          controls in the <a href="/cookies?lang=en">Cookie Policy</a>.
+          storage remembers language only after permission. With your permission FluxRadar also
+          loads Google Analytics 4. It does not start before you allow it, and withdrawing stops it
+          and deletes its cookies. Google Signals, ads personalization and remarketing are disabled,
+          and user and event data are kept for 2 months. FluxRadar uses no advertising trackers. See
+          the full inventory, durations and controls in the{' '}
+          <a href="/cookies?lang=en">Cookie Policy</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">

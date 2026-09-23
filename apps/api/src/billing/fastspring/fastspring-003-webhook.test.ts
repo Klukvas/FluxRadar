@@ -1,6 +1,6 @@
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CheckoutSession, Prisma } from '@prisma/client';
-import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 
 import { createTestDb, seedAccountWithProfile, type TestDb } from '../../test-utils/test-db.ts';
 import type { SeededAccount } from '../../test-utils/test-db.ts';
@@ -56,7 +56,7 @@ describe('FASTSPRING-003 webhook', () => {
         liveMode: false,
         scopeJson: JSON.stringify({ includeSubdomains: false, maxPages: 12 }),
         aiConsentJson: JSON.stringify({
-          providers: ['anthropic'],
+          providers: ['anthropic', 'openai'],
           noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
         }),
         ...overrides,

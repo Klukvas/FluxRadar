@@ -8,20 +8,24 @@
 // (b) media-проба обхода (crawl.resources) с 4xx/5xx или text/html.
 // Оба случая доказаны, поэтому confidence = 1.
 //
+// Ветки «внутренняя media без снимка» (D-165, confidence 0.6) больше нет.
+// Она штрафовала за непроверенное: краулер media не фетчил вообще, а правило
+// выдавало Medium-находку «Биті зображення або медіа» с доказательством
+// «не підтверджені обходом». 21.09.2026 все три файла из такого доказательства
+// руками отдали 200.
+//
 // Media, о которой доказательства нет, не оценивается — ни внутренняя, ни
 // внешняя, ни та, чью пробу обход не сделал (robots, бюджет, пауза, сетевой
 // сбой: у ResourceSnapshot.unverifiedReason). «Не проверяли» — это не «битая»:
-// раньше внутренняя media без снимка давала scored finding с confidence 0.6, и
-// здоровая страница с живым <img src="/logo.png"> теряла полный Medium-штраф
-// (score 97 вместо 100) за ресурс, которого никто не запрашивал. Неизвестная
-// доступность не снижает score и не сообщается владельцу как поломка; та же
-// логика, что D-152 для внутренних ссылок, и та же причина, по которой
-// незапрошенная проба не штрафуется — это наш лимит, а не дефект сайта.
+// неизвестная доступность не снижает score и не сообщается владельцу как
+// поломка, а показывается как охват проверки. Та же логика, что D-152 для
+// внутренних ссылок, и та же причина: это наш лимит, а не дефект сайта.
 //
 // Один finding на страницу: excerpt — перечень битых media по причинам,
 // selector — первый битый элемент.
 
 import type { PageSnapshot, ResourceSnapshot } from '@fluxradar/crawler';
+import { MEDIA_SELECTOR } from '@fluxradar/crawler';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
 import { requireDescriptor } from '../engine/descriptor.js';
@@ -37,8 +41,6 @@ import { parsePage } from '../seo/dom.js';
 import { crawledTargets } from '../seo/site-index.js';
 
 const descriptor = requireDescriptor('CONTENT-004');
-
-const MEDIA_SELECTOR = 'img[src], source[src], video[src], audio[src]';
 
 /** Shown for a failure kind no media on the page fell into; the same in every language. */
 const NONE_LISTED = '—';
@@ -91,7 +93,8 @@ export const content004BrokenMedia: PageRule = {
         evidence: brokenMediaEvidence(broken),
         recommendation: findingMessage('content-004.recommendation', {}),
         selector: first.selector,
-        // Every kind left is proven by a crawl snapshot of the media itself.
+        // Every finding here is a file that was asked for and answered badly,
+        // so there is nothing left to be uncertain about.
         confidence: 1,
         // Находка держится ровно на этих снимках: их и спрашивает политика
         // Resolved, а не весь обход — иначе одна необойдённая страница

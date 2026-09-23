@@ -8,7 +8,7 @@ import {
   expireAbandonedCheckoutSessions,
   runRetentionSweep,
 } from '../../data-retention.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../../test-utils/test-db.ts';
+import { createTestDb, seedReachableSite, type TestDb } from '../../test-utils/test-db.ts';
 import {
   CHECKOUT_ABANDON_GRACE_DAYS,
   CHECKOUT_SESSION_FALLBACK_TTL_DAYS,
@@ -82,7 +82,6 @@ describe('FASTSPRING-007 checkout session lifecycle', () => {
   function buildApp(fetchImpl: FetchLike = stubOpenSession()) {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       fastSpring: configured(),
@@ -102,6 +101,14 @@ describe('FASTSPRING-007 checkout session lifecycle', () => {
       .set('Cookie', cookie)
       .send({ name: 'Fixture Site', domain: `https://${email.split('@')[0]}.example.com` });
     expect(profile.status).toBe(201);
+    // The checkout refuses a site whose last reachability probe is missing or
+    // negative (FASTSPRING-009). These tests are about the checkout, so they
+    // state that precondition instead of running a probe.
+    await seedReachableSite(
+      db.prisma,
+      registered.body.data.accountId as string,
+      profile.body.data.id as string,
+    );
     return {
       agent,
       cookie,

@@ -45,6 +45,7 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 // state file says — rather than the presence of a trap keyword.
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
+const RELEASE_SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'release.sh');
 const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');
 const ROLLBACK_SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'rollback-release.sh');
 const BEGIN_MARKER = '# fluxradar:release-script';
@@ -65,11 +66,11 @@ const NETWORK = 'fluxradar_default';
 
 /** The workflow's own release script, dedented out of the YAML block scalar. */
 function extractReleaseScript(): string {
-  const lines = readFileSync(WORKFLOW_PATH, 'utf8').split('\n');
+  const lines = readFileSync(RELEASE_SCRIPT_PATH, 'utf8').split('\n');
   const begin = lines.findIndex((line) => line.trim().startsWith(BEGIN_MARKER));
   const end = lines.findIndex((line) => line.trim().startsWith(END_MARKER));
-  expect(begin, `${BEGIN_MARKER} is missing from the deploy workflow`).toBeGreaterThan(-1);
-  expect(end, `${END_MARKER} is missing from the deploy workflow`).toBeGreaterThan(begin);
+  expect(begin, `${BEGIN_MARKER} is missing from deploy/release.sh`).toBeGreaterThan(-1);
+  expect(end, `${END_MARKER} is missing from deploy/release.sh`).toBeGreaterThan(begin);
   const block = lines.slice(begin, end + 1);
   const indent = (block[0] ?? '').length - (block[0] ?? '').trimStart().length;
   return block.map((line) => line.slice(indent)).join('\n');
@@ -432,6 +433,16 @@ function expectNoRollback(deployment: Deployment): void {
 }
 
 describe('DEPLOY-010 release switch and rollback', () => {
+  // The script ships with the release, like rollback-release.sh. What the
+  // release stage runs has to be THAT copy — extracted by the package stage
+  // for this commit — and there must be no second, inline copy left to drift.
+  it('is run from the release directory by the release stage, never inlined', () => {
+    const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
+    expect(workflow).toContain('RELEASE_SCRIPT="$1/releases/$2/deploy/release.sh"');
+    expect(workflow).toContain('exec bash "$RELEASE_SCRIPT" "$1" "$2" "$3"');
+    expect(workflow).not.toContain(BEGIN_MARKER);
+  });
+
   it('uses stable Docker network identities for Caddy upstreams', () => {
     const script = extractReleaseScript();
     expect(script).toContain('--network-alias "$API_CONTAINER"');

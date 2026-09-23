@@ -1,4 +1,3 @@
-import { scanScopeSchema } from '@fluxradar/contracts';
 import { ACCEPTED_AI_PROCESSING_NOTICE_VERSIONS, AI_PROVIDER_NAMES } from '@fluxradar/ai';
 import { z } from 'zod';
 
@@ -21,10 +20,3 @@ export const aiConsentSchema = z.object({
   noticeVersion: z.enum(enumValues(ACCEPTED_AI_PROCESSING_NOTICE_VERSIONS, 'ai processing notice')),
 });
 export type AiConsentInput = z.infer<typeof aiConsentSchema>;
-
-export const checkoutMetadataSchema = z.object({
-  scope: scanScopeSchema.optional(),
-  aiConsent: aiConsentSchema.optional(),
-  expectedProfileConfigVersion: z.number().int().min(1).optional(),
-});
-export type CheckoutMetadata = z.infer<typeof checkoutMetadataSchema>;

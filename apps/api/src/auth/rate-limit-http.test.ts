@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
-import { createTestDb, type TestDb, TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { REGISTER_EMAIL_LIMIT, REGISTER_LIMIT, RequestRateLimiter } from './rate-limit.ts';
 
 // What a refused request looks like on the wire, and which of the expensive
@@ -25,7 +25,6 @@ describe('rate limited endpoints', () => {
   function buildApp(requestRateLimiter?: RequestRateLimiter) {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       ...(requestRateLimiter !== undefined ? { requestRateLimiter } : {}),

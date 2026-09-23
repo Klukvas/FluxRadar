@@ -50,11 +50,44 @@
   text-decoration: underline;
 }
 
+.cookie-consent__options {
+  min-width: 0;
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--plat-400);
+}
+
+.cookie-consent__options legend {
+  padding: 0 var(--sp-1);
+  font-weight: 700;
+}
+
+/* Sits under its checkbox, indented to the label text rather than the box:
+   the shared Checkbox control is a 40px tap target plus an 8px gap. */
+.cookie-consent__hint {
+  margin: 0 0 var(--sp-2);
+  padding-left: 48px;
+  color: var(--plat-600);
+}
+
+.cookie-consent__options .cookie-consent__hint:last-child {
+  margin-bottom: 0;
+}
+
+/* Three equal buttons: refusing everything is exactly as direct as allowing it.
+   They stay pinned to the foot of the banner, because on a phone the categories
+   make it taller than its 50dvh cap and the choice would otherwise scroll out of
+   reach. The negative bottom margin cancels the body padding, so the pinned row
+   meets the banner's edge instead of leaving a strip for text to show through. */
 .cookie-consent__actions {
+  position: sticky;
+  bottom: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-2);
-  margin-top: var(--sp-3);
+  margin: var(--sp-3) 0 calc(-1 * var(--sp-3));
+  padding: var(--sp-2) 0 var(--sp-3);
+  background: var(--plat-100);
 }
 
 .cookie-consent__actions .button {
@@ -85,13 +118,16 @@
   white-space: normal;
 }
 
+/* Three columns of Ukrainian labels wrap into four lines each below this. */
+@media (max-width: 560px) {
+  .cookie-consent__actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 380px) {
   .cookie-consent-dock {
     padding: var(--sp-2);
     padding-bottom: max(var(--sp-2), env(safe-area-inset-bottom));
-  }
-
-  .cookie-consent__actions {
-    grid-template-columns: 1fr;
   }
 }

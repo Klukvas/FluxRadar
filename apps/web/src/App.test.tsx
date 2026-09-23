@@ -643,7 +643,7 @@ describe('new scan modal — Close window button', () => {
     // Record API calls up to this point (auth + profiles + active scan).
     const callCountBefore = fetchMock.mock.calls.length;
 
-    // Clicking Close must NOT POST /billing/dev-checkout or /profiles/*/free-check.
+    // Clicking Close must NOT POST /billing/internal-checkout or /profiles/*/free-check.
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
 
     // Desktop is restored. Landing on it is no longer call-free — its panels
@@ -1110,7 +1110,10 @@ describe('home pricing and workspace onboarding', () => {
     expect(
       screen.getByRole('region', { name: 'Two one-time reports. No subscription.' }),
     ).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/');
+    // The URL is cleaned by a passive effect of the home screen, which React
+    // flushes after the heading is already in the DOM; on a slow CI runner the
+    // synchronous assertion used to run in between and see '/plans'.
+    await waitFor(() => expect(window.location.pathname).toBe('/'));
     // The standalone plans screen is gone for good.
     expect(
       screen.queryByRole('heading', { name: 'Plans for every public audit.' }),
@@ -1128,7 +1131,7 @@ describe('home pricing and workspace onboarding', () => {
   });
 
   it('switches the shell to Ukrainian and persists the language after remount', async () => {
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', { name: 'One URL. Every signal.' });
@@ -1227,7 +1230,7 @@ describe('home pricing and workspace onboarding', () => {
     expect(fetchMock.mock.calls.some(([input]) => pathOf(input).includes('/free-check'))).toBe(
       false,
     );
-    expect(calledMethod(fetchMock, '/billing/dev-checkout', 'POST')).toBe(false);
+    expect(calledMethod(fetchMock, '/billing/internal-checkout', 'POST')).toBe(false);
   });
 
   it('exposes the tour as an accessible dialog and moves between steps via its controls', async () => {
@@ -1790,7 +1793,7 @@ describe('workspace tour copy', () => {
 //  1. Ordinary user (no internalFreeAccess, and /billing/checkout-config reports
 //     no provider) sees the paid-unavailable note, only the Free plan option,
 //     and the "Run free check" button — and can actually submit (calls
-//     free-check, never dev-checkout). The paid flow itself lives in
+//     free-check, never internal-checkout). The paid flow itself lives in
 //     Checkout.test.tsx.
 //
 //  2. internalFreeAccess user sees "Basic · internal free" / "Complete · internal
@@ -1842,7 +1845,7 @@ describe('NewScanScreen — paid availability and i18n', () => {
     const runBtn = screen.getByRole('button', { name: 'Run free check' });
     expect(runBtn).toBeEnabled();
 
-    // Submitting calls free-check, never dev-checkout.
+    // Submitting calls free-check, never internal-checkout.
     fireEvent.click(runBtn);
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1851,7 +1854,7 @@ describe('NewScanScreen — paid availability and i18n', () => {
       ),
     );
     expect(fetchMock).not.toHaveBeenCalledWith(
-      expect.stringMatching(/\/billing\/dev-checkout/),
+      expect.stringMatching(/\/billing\/internal-checkout/),
       expect.anything(),
     );
   });
@@ -1998,7 +2001,7 @@ describe('add-profile form', () => {
   it('shows the empty state without a second Add profile button in Ukrainian', async () => {
     stubApi(emptyProfiles);
     window.history.replaceState(null, '', '/profiles');
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     render(<App />);
     await screen.findByText('Профілі сайтів');
@@ -2089,7 +2092,7 @@ describe('add-profile form', () => {
   it('fills the name from the address in Ukrainian too', async () => {
     stubApi(emptyProfiles);
     window.history.replaceState(null, '', '/profiles');
-    saveCookieConsent(true);
+    saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     render(<App />);
     await screen.findByText('Профілі сайтів');

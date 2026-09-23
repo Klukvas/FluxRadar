@@ -1,14 +1,16 @@
-// Owner-facing rule titles, server side.
+// What each finding is called, in words an owner reads: the server's copy.
 //
-// The report renders these from `apps/web/src/rule-titles.ts`, which the API
-// cannot import: `apps/web` deliberately has no workspace dependency, and the
-// registry in `@fluxradar/contracts` carries only English engineer labels
-// ("meta description", "HSTS"). The Action Plan sends the owner-facing title,
-// so the same words are declared twice and pinned by an API-side contract test
-// that reads the web file
+// The Action Plan prompt names every rule by the title the report shows, not by
+// the registry's engineer label (`meta description`, `HSTS`) or a bare id, so
+// the plan and the report the owner forwards it with use the same words.
+// `apps/web/src/rule-titles.ts` is the original. The web bundle has no
+// workspace dependencies, so the table is declared twice, and an API-side
+// contract test reads the web file and fails when the two drift apart
 // (`apps/api/src/action-plan/web-declaration-parity.test.ts`).
 //
 // Keep this map identical to the web declaration.
+
+import type { FindingLanguage } from './messages/index.js';
 
 export interface RuleTitle {
   readonly en: string;
@@ -218,7 +220,7 @@ export const RULE_TITLES: Readonly<Record<string, RuleTitle>> = {
   },
 };
 
-/** The rule title in a report language, or the id when the rule has none. */
-export function ruleTitle(ruleId: string, language: keyof RuleTitle = 'en'): string {
+/** The rule's title in a report language, or its id when the rule is unknown. */
+export function ruleTitle(ruleId: string, language: FindingLanguage): string {
   return RULE_TITLES[ruleId]?.[language] ?? ruleId;
 }

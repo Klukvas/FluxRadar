@@ -1,10 +1,9 @@
 import { readFastSpringConfig } from '../billing/fastspring/config.ts';
-import { isMockCheckoutEnabled } from '../billing/mock-checkout.ts';
 import { readRefundDispatchConfig } from '../billing/refunds/config.ts';
 import { MOCK_EMAIL_ENV, isMockEmailOptIn } from '../email/mock-email.ts';
 import { DEFAULT_ANTHROPIC_MODEL, readAnthropicConfig } from './anthropic-config.ts';
+import { readCrawlEgressConfig } from './crawl-egress-config.ts';
 import { readIntegrationEncryptionKey } from './encryption-key.ts';
-import { DEFAULT_OPENAI_MODEL, readOpenAiConfig } from './openai-config.ts';
 import {
   DEFAULT_GEMINI_MODEL,
   DEFAULT_PERPLEXITY_MODEL,
@@ -12,6 +11,7 @@ import {
   readPerplexityConfig,
 } from './opt-in-ai-config.ts';
 import { readObjectStorageConfig, type ObjectStorageConfig } from './object-storage-config.ts';
+import { DEFAULT_OPENAI_MODEL, readOpenAiConfig } from './openai-config.ts';
 import { readOAuthConfig, type OAuthProviderConfig } from './oauth-config.ts';
 import type { UserIntegrationProvider } from './providers.ts';
 
@@ -95,12 +95,6 @@ export function readIntegrationConfig(env: NodeJS.ProcessEnv = process.env): Int
  * production, `createMailer` returns a `NotConfiguredMailer` and email-dependent
  * flows report the existing `not-configured` status instead of blocking startup
  * or pretending a message was sent.
- *
- * PADDLE_WEBHOOK_SECRET is not required by this release — the MockPaddle webhook
- * is a development affordance and is mounted only where FLUXRADAR_ENABLE_MOCK_CHECKOUT
- * explicitly asks for it (billing/mock-checkout.ts) — but it must stay in
- * PRODUCTION_ENV_FILE until every release that still requires it has been
- * retired; see docs/DEPLOYMENT.md.
  */
 export const REQUIRED_PRODUCTION_SECRETS = ['DATABASE_URL', 'INTEGRATION_ENCRYPTION_KEY'] as const;
 
@@ -129,6 +123,7 @@ function partialIntegrationFailures(env: NodeJS.ProcessEnv): readonly string[] {
     readOpenAiConfig(env),
     readGeminiConfig(env),
     readPerplexityConfig(env),
+    readCrawlEgressConfig(env),
   ];
   return results.flatMap((result) => (result.state === 'invalid' ? [result.reason] : []));
 }
@@ -153,22 +148,12 @@ export function validateRuntimeConfig(env: NodeJS.ProcessEnv = process.env): voi
   if (invalid.length > 0) {
     throw new Error(`Invalid production configuration: ${invalid.join('; ')}`);
   }
-  // Defence in depth, and only ever in the closing direction: the mock surface
-  // is already off unless a deployment explicitly asked for it
-  // (billing/mock-checkout.ts), and this refuses to boot if a production
-  // deployment ever does. Being able to mint paid scans for free is not a state
-  // to discover from a sales report.
-  if (isMockCheckoutEnabled(env)) {
-    throw new Error(
-      'Invalid production configuration: FLUXRADAR_ENABLE_MOCK_CHECKOUT opens the ' +
-        'MockPaddle free-checkout surface and must not be set in production',
-    );
-  }
-  // The same defence for the fake mailbox. `createMailer` already refuses to
-  // hand MockMailer to anything but a test run or a development machine that
-  // asked, so this can only fire on a production deployment that set the
-  // variable — which is a deployment one step away from swallowing every
-  // verification and password-reset email while reporting them as sent.
+  // Defence in depth for the fake mailbox, and only ever in the closing
+  // direction. `createMailer` already refuses to hand MockMailer to anything
+  // but a test run or a development machine that asked, so this can only fire
+  // on a production deployment that set the variable — which is a deployment
+  // one step away from swallowing every verification and password-reset email
+  // while reporting them as sent.
   if (isMockEmailOptIn(env)) {
     throw new Error(
       `Invalid production configuration: ${MOCK_EMAIL_ENV} replaces the mail provider with ` +

@@ -1,5 +1,39 @@
 name: Deploy production
 
+# The production rollout, as stages rather than as one long job.
+#
+# It used to be two jobs: the quality gates, and a single "Deploy to Hetzner"
+# that built both images, uploaded them, ran the release script and checked the
+# result. One job meant one verdict — a red run said "the deploy failed" and
+# nothing more — and the two image builds that dominate its wall clock ran one
+# after the other for no reason.
+#
+# The stages below are the phases the deploy already had, made visible and, where
+# they are independent, made concurrent:
+#
+#   quality    the gates, from the same definition the merge gate uses
+#   preflight  reclaim this workflow's own stale staging dirs on the server
+#   image      ┐ both images (a matrix: api, web) and the release bundle, built
+#   package    ┘ and shipped in parallel. None of it touches anything that serves
+#                traffic, so a failure here leaves the previous release untouched.
+#   backup     a snapshot BEFORE a migration that cannot be undone
+#   release    migrate, prove a rollback is possible, start, switch traffic
+#   verify     look at the site from outside, and roll back if it is broken
+#   recover    verify again when `verify` itself did not finish green
+#
+# WHEN A ROLLBACK IS RIGHT, and why `recover` is conditioned the way it is. A
+# rollback is only correct once traffic has been switched. A bare `if: failure()`
+# cannot tell whether that happened, and after a failure that never reached
+# production it would restore the PREVIOUS deploy's rollback target over a
+# release serving perfectly well. `needs.release.result == 'success'` CAN tell:
+# the release script exits 0 only after the switch and every check after it. So
+# `recover` runs exactly when a release is live and its outside verification
+# did not finish green — failed before its smoke test ran, was cancelled, timed
+# out — and asks the site again before it rolls anything back.
+#
+# The workflow is still serialized by its concurrency group, so stages of two
+# releases can never interleave.
+
 on:
   push:
     branches: [main]
@@ -13,77 +47,176 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality gates
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      DATABASE_URL: postgresql://fluxradar:fluxradar-test@localhost:5432/fluxradar_test
-      TEST_DATABASE_URL: postgresql://fluxradar:fluxradar-test@localhost:5432/fluxradar_test
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: fluxradar_test
-          POSTGRES_USER: fluxradar
-          POSTGRES_PASSWORD: fluxradar-test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U fluxradar -d fluxradar_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
+    name: Quality
+    # The same jobs the merge gate runs, from one definition rather than a copy
+    # that drifts. The images are not built here: this workflow builds them for
+    # real two stages down, and building them twice proves nothing new.
+    uses: ./.github/workflows/quality.yml
+    with:
+      build-images: false
 
+  preflight:
+    name: Preflight the server
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Configure SSH
+        uses: ./.github/actions/configure-ssh
         with:
-          version: 10.11.0
+          private-key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+      - name: Reclaim stale staging directories
+        # Runs before anything is uploaded, and reclaims ONLY this workflow's own
+        # per-release staging directories under APP_DIR/incoming. It never
+        # touches releases, current, runtime, Docker data/volumes, or PostgreSQL.
+        #
+        # The free-space gate that used to live here has moved to the upload
+        # itself: three stages now upload in parallel and each one knows the size
+        # of its own artifact, which is a more precise question than this stage
+        # could ask before any of them had been built.
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
+        run: |
+          set -euo pipefail
+          # Only remove staging dirs this workflow itself creates, and only if
+          # they are older than a threshold safely larger than a single deploy.
+          # Deploys are serialized by the "production-deploy" concurrency group,
+          # so a 60-minute floor cannot race an in-flight upload from another run.
+          stale_minutes=60
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$stale_minutes" "$APP_DIR" <<'REMOTE'
+          set -eu
+          STALE_MINUTES="$1"
+          APP_DIR="$2"
+          INCOMING_DIR="$APP_DIR/incoming"
 
-      - name: Lint
-        run: pnpm lint
+          echo "----- remote disk usage: APP_DIR filesystem (before cleanup) -----"
+          # df prints the mount point (e.g. /) in its last column, not the path we
+          # pass, so the APP_DIR value is not written to the log here.
+          df -P -h "$APP_DIR" || true
 
-      - name: Build
-        run: pnpm build
+          # Ensure the staging parent exists (owner-only) so the cleanup below is
+          # stable even on a fresh host. Creating it changes nothing about
+          # releases, current, runtime, Docker data, or PostgreSQL.
+          install -m 700 -d "$INCOMING_DIR"
 
-      - name: Typecheck
-        run: pnpm typecheck
+          echo "----- reclaiming stale FluxRadar staging dirs under incoming/ -----"
+          # Safety scope, enforced by the predicates below:
+          #   -mindepth/-maxdepth 1 : only immediate children of incoming/; never
+          #                           recurses into them or above incoming/.
+          #   -type d               : only directories (per-release staging); never
+          #                           files, symlinks, sockets, or Docker volumes.
+          #   name is strict hex     : the name must look like a git commit id
+          #                           (7-64 lowercase hex chars); anything else is
+          #                           skipped, so a stray file/dir is never removed.
+          #   -mmin +N               : only entries older than the stale threshold.
+          # APP_DIR/releases, current, runtime, Docker data (/var/lib/docker), and
+          # PostgreSQL's volume all live OUTSIDE incoming/, so none can be selected.
+          find "$INCOMING_DIR" -mindepth 1 -maxdepth 1 -type d -mmin "+${STALE_MINUTES}" -printf '%f\n' \
+            | while IFS= read -r name; do
+                case "$name" in
+                  ''|*[!0-9a-f]*) continue ;;
+                esac
+                len=${#name}
+                if [ "$len" -lt 7 ] || [ "$len" -gt 64 ]; then
+                  continue
+                fi
+                target="$INCOMING_DIR/$name"
+                case "$target" in
+                  "$INCOMING_DIR"/*) ;;
+                  *) continue ;;
+                esac
+                echo "removing stale staging dir incoming/$name"
+                rm -rf -- "$target"
+              done
 
-      - name: Test
-        run: pnpm test
+          echo "----- remote disk usage: APP_DIR filesystem (after cleanup) -----"
+          df -P -h "$APP_DIR" || true
+          REMOTE
 
-  deploy:
-    name: Deploy to Hetzner
-    needs: quality
+  image:
+    name: Build and ship the ${{ matrix.service }} image
+    needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
-
+    strategy:
+      # Each leg cleans up its own staging directory when it fails. Cancelling
+      # the other leg because one failed would only interrupt that cleanup.
+      fail-fast: false
+      matrix:
+        include:
+          - service: api
+            build-args: ''
+          - service: web
+            build-args: --build-arg VITE_API_URL=/api
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configure SSH
+        uses: ./.github/actions/configure-ssh
+        with:
+          private-key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+
+      - name: Build the image
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+          RELEASE_ID: ${{ github.sha }}
+          SERVICE: ${{ matrix.service }}
+          BUILD_ARGS: ${{ matrix.build-args }}
         run: |
-          install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
-          chmod 600 "$HOME/.ssh/id_ed25519"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          set -euo pipefail
+          # BUILD_ARGS is deliberately unquoted: it is zero or more flags.
+          # shellcheck disable=SC2086
+          docker build --file "Dockerfile.$SERVICE" $BUILD_ARGS --tag "fluxradar-$SERVICE:$RELEASE_ID" .
+          docker save --output "$RUNNER_TEMP/fluxradar-$SERVICE.tar" "fluxradar-$SERVICE:$RELEASE_ID"
+
+      # Straight from this runner to the server. The obvious alternative — a
+      # GitHub artifact handed to a later job — is not available here: the API
+      # image carries the whole workspace and its node_modules, which is larger
+      # than this repository's entire artifact allowance. A registry would fix
+      # that properly; see docs/DEPLOYMENT.md, "What is not automated".
+      - name: Ship the image
+        uses: ./.github/actions/remote-upload
+        with:
+          host: ${{ secrets.PRODUCTION_SSH_HOST }}
+          user: ${{ secrets.PRODUCTION_SSH_USER }}
+          app-dir: ${{ secrets.PRODUCTION_APP_DIR }}
+          release-id: ${{ github.sha }}
+          stage: ${{ matrix.service }}-image
+          files: ${{ runner.temp }}/fluxradar-${{ matrix.service }}.tar
+          install: |
+            docker load --input "$STAGE_DIR/fluxradar-${{ matrix.service }}.tar"
+            # Loading a tar that does not carry the expected tag is silent, and
+            # the release script would then fail much later with "image not
+            # found". Ask now, while this stage still owns the failure.
+            docker image inspect "fluxradar-${{ matrix.service }}:$RELEASE_ID" >/dev/null
+
+  package:
+    name: Package and ship the release
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure SSH
+        uses: ./.github/actions/configure-ssh
+        with:
+          private-key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
 
       - name: Create release archive
         env:
@@ -137,6 +270,16 @@ jobs:
           PRODUCTION_PERPLEXITY_ENDPOINT_URL: ${{ vars.PRODUCTION_PERPLEXITY_ENDPOINT_URL }}
           PRODUCTION_PAGESPEED_API_KEY: ${{ secrets.PRODUCTION_PAGESPEED_API_KEY }}
           PRODUCTION_CRUX_API_KEY: ${{ secrets.PRODUCTION_CRUX_API_KEY }}
+          # The network the crawl leaves from. Sites that block this server's
+          # hosting network answer 403 to every request, which a report can only
+          # describe as a site with no robots.txt that never returns 200 — so the
+          # crawl goes out through a proxy those sites accept. Empty keeps what
+          # PRODUCTION_ENV_FILE defines; with neither present the crawl is
+          # direct, as before. It carries the proxy password, so it is a secret,
+          # and a value that is present but unreadable fails the boot by name
+          # (integrations/crawl-egress-config.ts) instead of quietly crawling
+          # from the blocked network again.
+          PRODUCTION_CRAWL_EGRESS_PROXY_URL: ${{ secrets.PRODUCTION_CRAWL_EGRESS_PROXY_URL }}
           # Transactional email (Resend). Overridable as a PAIR, and that is the
           # whole point: the key and the sender are useless apart. Setting one
           # without the other is the state this codebase refuses to let happen
@@ -154,6 +297,12 @@ jobs:
           # emailVerification status of "provider-error" (docs/DEPLOYMENT.md).
           PRODUCTION_RESEND_API_KEY: ${{ secrets.PRODUCTION_RESEND_API_KEY }}
           PRODUCTION_RESEND_FROM_EMAIL: ${{ secrets.PRODUCTION_RESEND_FROM_EMAIL }}
+          # Owner dashboard (/admin/stats). A secret for the same reason as the
+          # Resend sender: the deploy never prints a mailbox address, and the
+          # admin's is the one a targeted phishing attempt would start from.
+          # PRODUCTION_ENV_FILE cannot be read back, so without this override
+          # adding one address would mean retyping every other variable.
+          PRODUCTION_ADMIN_EMAILS: ${{ secrets.PRODUCTION_ADMIN_EMAILS }}
           PRODUCTION_HETZNER_S3_ACCESS_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_ACCESS_KEY }}
           PRODUCTION_HETZNER_S3_SECRET_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_SECRET_KEY }}
           PRODUCTION_HETZNER_S3_ENDPOINT: ${{ secrets.PRODUCTION_HETZNER_S3_ENDPOINT }}
@@ -228,6 +377,7 @@ jobs:
           }
 
           upsert_env FLUXRADAR_INTERNAL_FREE_EMAILS INTERNAL_FREE_EMAILS
+          upsert_env FLUXRADAR_ADMIN_EMAILS PRODUCTION_ADMIN_EMAILS
           upsert_env FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS PRODUCTION_FREE_CHECK_ALLOWED_ORIGINS
           upsert_env INTEGRATION_ENCRYPTION_KEY PRODUCTION_INTEGRATION_ENCRYPTION_KEY
           upsert_env BING_OAUTH_CLIENT_ID PRODUCTION_BING_OAUTH_CLIENT_ID
@@ -248,6 +398,7 @@ jobs:
           upsert_env PERPLEXITY_ENDPOINT_URL PRODUCTION_PERPLEXITY_ENDPOINT_URL
           upsert_env PAGESPEED_API_KEY PRODUCTION_PAGESPEED_API_KEY
           upsert_env CRUX_API_KEY PRODUCTION_CRUX_API_KEY
+          upsert_env CRAWL_EGRESS_PROXY_URL PRODUCTION_CRAWL_EGRESS_PROXY_URL
           upsert_env RESEND_API_KEY PRODUCTION_RESEND_API_KEY
           upsert_env RESEND_FROM_EMAIL PRODUCTION_RESEND_FROM_EMAIL
           upsert_env HETZNER_S3_ACCESS_KEY PRODUCTION_HETZNER_S3_ACCESS_KEY
@@ -285,182 +436,97 @@ jobs:
           # both. It prints variable NAMES and problems only, never a value.
           node deploy/normalize-env-file.cjs "$RUNNER_TEMP/production.env"
 
-      - name: Build production images
-        env:
-          RELEASE_ID: ${{ github.sha }}
+      # Not a gate — a deploy blocked on the backup config would also block the
+      # fix for whatever else is wrong — but production without these has NO
+      # database backups, and every deploy says so where it is seen.
+      - name: Check the release can be backed up
         run: |
-          docker build --file Dockerfile.api --tag "fluxradar-api:$RELEASE_ID" .
-          docker build --file Dockerfile.web --tag "fluxradar-web:$RELEASE_ID" .
-          docker save --output "$RUNNER_TEMP/fluxradar-images.tar" \
-            "fluxradar-api:$RELEASE_ID" "fluxradar-web:$RELEASE_ID"
-
-      - name: Preflight remote disk space and stale staging cleanup
-        # Runs before "Upload release" so scp cannot fail mid-write on a full
-        # disk. Uploads are staged under APP_DIR/incoming/<commit> on the ROOT
-        # filesystem (which has ample free space), not the tiny /tmp tmpfs. This
-        # gate therefore checks free space on the APP_DIR filesystem and reclaims
-        # ONLY this workflow's own stale per-release staging directories under
-        # APP_DIR/incoming. It never touches releases, current, runtime, Docker
-        # data/volumes, or PostgreSQL.
-        env:
-          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
-          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
-          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
-        run: |
-          set -euo pipefail
-          # Measure the exact bytes we are about to upload (release archive + env
-          # file + image tar) so the remote free-space gate is precise rather than
-          # an arbitrary constant. du -k reports block usage, which slightly rounds
-          # up and is therefore conservative (never under-estimates the need).
-          required_kb="$(du -ck \
-            "$RUNNER_TEMP/release.tar.gz" \
-            "$RUNNER_TEMP/production.env" \
-            "$RUNNER_TEMP/fluxradar-images.tar" \
-            | tail -n 1 | cut -f1)"
-          case "$required_kb" in
-            ''|*[!0-9]*)
-              echo "ERROR: could not determine local upload size (got '$required_kb')" >&2
-              exit 1
-              ;;
+          set -uo pipefail
+          # GitHub runs this step as `bash -e`, and `set -uo pipefail` does not
+          # turn that off: without the `|| status=$?` the check's "1 = something
+          # is missing" ends the step right here — the one outcome it exists to
+          # WARN about. DEPLOY-016 runs this step the way GitHub does.
+          status=0
+          missing="$(bash deploy/backup/check-backup-config.sh "$RUNNER_TEMP/production.env")" || status=$?
+          case "$status" in
+            0) echo 'Every variable a database backup needs is set in the release env file.' ;;
+            1) echo "::warning title=Production cannot be backed up::The release env file lacks: $missing. pg-backup.sh refuses to run without them, so no snapshot is taken and backup-verify fails every night. Set them (docs/DEPLOYMENT.md, 'Database backup and restore')." ;;
+            *) echo '::warning title=Backup config not checked::check-backup-config.sh could not read the release env file.' ;;
           esac
-          # The staged artifacts live on the root filesystem only briefly: the
-          # release archive is extracted and the image tar is loaded into Docker,
-          # which transiently roughly doubles the footprint before the staging dir
-          # is removed. Reserve headroom equal to the artifact size (floored at
-          # 512 MiB) to cover that transient copy plus slack. The root filesystem
-          # has ~20G free, so this stays comfortably safe while still refusing a
-          # genuinely full disk.
-          margin_kb="$required_kb"
-          floor_kb=524288
-          if [ "$margin_kb" -lt "$floor_kb" ]; then margin_kb="$floor_kb"; fi
-          need_kb=$(( required_kb + margin_kb ))
 
-          # Only remove staging dirs this workflow itself creates and only if they
-          # are older than a threshold safely larger than a single deploy. Deploys
-          # are serialized by the "production-deploy" concurrency group and the job
-          # times out at 30 minutes, so a 60-minute floor cannot race an in-flight
-          # upload from another run.
-          stale_minutes=60
+      # The env file ships from exactly one place, and only after the overrides
+      # and the normalizer above have run on it: DEPLOY-002 and DEPLOY-013
+      # assert that order against this `files:` entry.
+      - name: Upload the release
+        uses: ./.github/actions/remote-upload
+        with:
+          host: ${{ secrets.PRODUCTION_SSH_HOST }}
+          user: ${{ secrets.PRODUCTION_SSH_USER }}
+          app-dir: ${{ secrets.PRODUCTION_APP_DIR }}
+          release-id: ${{ github.sha }}
+          stage: release
+          files: |
+            ${{ runner.temp }}/release.tar.gz
+            ${{ runner.temp }}/production.env
+          # An extracted but never-activated release directory left by a failure
+          # here is swept by the release retention; nothing live is touched.
+          install: |
+            RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
+            mkdir -p "$RELEASE_DIR"
+            tar -xzf "$STAGE_DIR/release.tar.gz" -C "$RELEASE_DIR"
+            install -m 600 "$STAGE_DIR/production.env" "$RELEASE_DIR/.env.production"
 
-          # shellcheck disable=SC2029
-          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$need_kb" "$stale_minutes" "$APP_DIR" <<'REMOTE'
-          set -eu
-          NEED_KB="$1"
-          STALE_MINUTES="$2"
-          APP_DIR="$3"
-          INCOMING_DIR="$APP_DIR/incoming"
+  backup:
+    name: Snapshot the database before migrating
+    needs: [image, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
 
-          echo "----- remote disk usage: APP_DIR filesystem (before cleanup) -----"
-          # df prints the mount point (e.g. /) in its last column, not the path we
-          # pass, so the APP_DIR value is not written to the log here.
-          df -P -h "$APP_DIR" || true
+      - name: Configure SSH
+        uses: ./.github/actions/configure-ssh
+        with:
+          private-key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
 
-          # Ensure the staging parent exists (owner-only) so the space math and the
-          # cleanup below are stable even on a fresh host. Creating it changes
-          # nothing about releases, current, runtime, Docker data, or PostgreSQL.
-          install -m 700 -d "$INCOMING_DIR"
-
-          echo "----- reclaiming stale FluxRadar staging dirs under incoming/ -----"
-          # Safety scope, enforced by the predicates below:
-          #   -mindepth/-maxdepth 1 : only immediate children of incoming/; never
-          #                           recurses into them or above incoming/.
-          #   -type d               : only directories (per-release staging); never
-          #                           files, symlinks, sockets, or Docker volumes.
-          #   name is strict hex     : the name must look like a git commit id
-          #                           (7-64 lowercase hex chars); anything else is
-          #                           skipped, so a stray file/dir is never removed.
-          #   -mmin +N               : only entries older than the stale threshold.
-          # APP_DIR/releases, current, runtime, Docker data (/var/lib/docker), and
-          # PostgreSQL's volume all live OUTSIDE incoming/, so none can be selected.
-          find "$INCOMING_DIR" -mindepth 1 -maxdepth 1 -type d -mmin "+${STALE_MINUTES}" -printf '%f\n' \
-            | while IFS= read -r name; do
-                case "$name" in
-                  ''|*[!0-9a-f]*) continue ;;
-                esac
-                len=${#name}
-                if [ "$len" -lt 7 ] || [ "$len" -gt 64 ]; then
-                  continue
-                fi
-                target="$INCOMING_DIR/$name"
-                case "$target" in
-                  "$INCOMING_DIR"/*) ;;
-                  *) continue ;;
-                esac
-                echo "removing stale staging dir incoming/$name"
-                rm -rf -- "$target"
-              done
-
-          echo "----- remote disk usage: APP_DIR filesystem (after cleanup) -----"
-          df -P -h "$APP_DIR" || true
-
-          avail_kb="$(df -P -k "$APP_DIR" | awk 'NR==2 {print $4}')"
-          case "$avail_kb" in
-            ''|*[!0-9]*)
-              echo "ERROR: could not determine free space on the APP_DIR filesystem (got '$avail_kb')" >&2
-              exit 1
-              ;;
-          esac
-          if [ "$avail_kb" -lt "$NEED_KB" ]; then
-            echo "ERROR: insufficient free space on the APP_DIR filesystem: ${avail_kb} KiB free but ${NEED_KB} KiB required for this release (artifacts + extraction/load headroom)." >&2
-            echo "Refusing to upload. No releases, current symlink, runtime, Docker data/volumes, or PostgreSQL were touched; inspect the APP_DIR filesystem." >&2
-            exit 1
-          fi
-          echo "OK: APP_DIR filesystem has ${avail_kb} KiB free (need ${NEED_KB} KiB); proceeding to upload."
-          REMOTE
-
-      - name: Upload release
+      - name: Snapshot if this release adds migrations
+        # deploy/backup/pre-migration-snapshot.sh, from the release the package
+        # stage extracted. It snapshots whenever it cannot PROVE the release adds
+        # no migration, and a failed snapshot stops the deploy before anything is
+        # migrated; its header has the reasons.
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
           APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
           RELEASE_ID: ${{ github.sha }}
+          ALLOW_MIGRATION_WITHOUT_BACKUP: ${{ vars.ALLOW_MIGRATION_WITHOUT_BACKUP }}
         run: |
           set -euo pipefail
-          # Stage every large artifact under a dedicated, per-release directory on
-          # the ROOT filesystem (APP_DIR/incoming/<commit>) instead of the tiny
-          # /tmp tmpfs. The staging dir is created up front with owner-only
-          # permissions and removed again after a successful install.
-          STAGE_DIR="$APP_DIR/incoming/$RELEASE_ID"
-
-          # On ANY failure below, remove ONLY this release's staging dir to reclaim
-          # space, then re-raise the original error. This never touches releases/,
-          # current, runtime, Docker data/volumes, or PostgreSQL, and it preserves
-          # the failing exit status so the real error is not masked.
-          cleanup_stage() {
-            # shellcheck disable=SC2029
-            ssh "$SSH_USER@$SSH_HOST" "rm -rf -- '$STAGE_DIR'" || true
-          }
-          trap 'rc=$?; cleanup_stage; exit "$rc"' ERR
-
-          # Create the exact per-release staging dir (and its parent) with safe,
-          # owner-only permissions before any scp so writes cannot fail mid-stream.
           # shellcheck disable=SC2029
-          ssh "$SSH_USER@$SSH_HOST" "install -m 700 -d '$APP_DIR/incoming' '$STAGE_DIR'"
-
-          scp "$RUNNER_TEMP/release.tar.gz" "$SSH_USER@$SSH_HOST:$STAGE_DIR/release.tar.gz"
-          scp "$RUNNER_TEMP/production.env" "$SSH_USER@$SSH_HOST:$STAGE_DIR/production.env"
-          scp "$RUNNER_TEMP/fluxradar-images.tar" "$SSH_USER@$SSH_HOST:$STAGE_DIR/images.tar"
-
-          # Load, extract, and install strictly from the staging dir, then remove
-          # ONLY that exact staging dir on success. If this fails partway, the ERR
-          # trap above cleans the staging dir; the (inactive) new release dir is
-          # left for the retention sweep and no active release/volume is deleted.
-          # shellcheck disable=SC2029
-          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "$RELEASE_ID" <<'REMOTE'
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- \
+            "$APP_DIR" "$RELEASE_ID" "${ALLOW_MIGRATION_WITHOUT_BACKUP:-false}" <<'REMOTE'
           set -eu
-          APP_DIR="$1"
-          RELEASE_ID="$2"
-          STAGE_DIR="$APP_DIR/incoming/$RELEASE_ID"
-          RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
-          docker load --input "$STAGE_DIR/images.tar"
-          mkdir -p "$RELEASE_DIR"
-          tar -xzf "$STAGE_DIR/release.tar.gz" -C "$RELEASE_DIR"
-          install -m 600 "$STAGE_DIR/production.env" "$RELEASE_DIR/.env.production"
-          # Success: remove ONLY this release's staging dir to reclaim space.
-          rm -rf -- "$STAGE_DIR"
+          exec bash "$1/releases/$2/deploy/backup/pre-migration-snapshot.sh" "$1" "$2" "$3"
           REMOTE
 
-          trap - ERR
+  release:
+    name: Release and switch traffic
+    needs: backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure SSH
+        uses: ./.github/actions/configure-ssh
+        with:
+          private-key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
 
       - name: Start release and smoke test
         env:
@@ -474,620 +540,78 @@ jobs:
           # deploying without a verified rollback. Anything else fails the deploy.
           ALLOW_UNVERIFIED_ROLLBACK: ${{ vars.ALLOW_UNVERIFIED_ROLLBACK }}
         run: |
+          set -euo pipefail
+          # The script ships with the release (deploy/release.sh): the package stage
+          # has already extracted this commit into releases/<commit>, so what runs is
+          # exactly the reviewed and tested copy for this commit.
+          # shellcheck disable=SC2029
           ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "$RELEASE_ID" "${ALLOW_UNVERIFIED_ROLLBACK:-false}" <<'REMOTE'
-          # fluxradar:release-script (regression-tested by
-          # apps/api/src/deploy/deploy-010-post-switch-rollback.test.ts — keep the
-          # markers, the test extracts these lines and RUNS them against a
-          # recorded `docker`, failing one step at a time)
           set -eu
-          set -o pipefail
-          APP_DIR="$1"
-          RELEASE_ID="$2"
-          ALLOW_UNVERIFIED_ROLLBACK="$3"
-          RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
-          RUNTIME_DIR="$APP_DIR/runtime"
-          STATE_FILE="$RUNTIME_DIR/active.env"
-          FLUXRADAR_NETWORK=""
-          # fluxradar:rollback-target-detection (regression-tested by
-          # apps/api/src/deploy/deploy-001-rollback-target-detection.test.ts —
-          # keep the markers, the test extracts and runs exactly these lines)
-          # `readlink -f` resolves a path whose LAST component does not exist, so
-          # on a first deploy it still prints "$APP_DIR/current" and the rollback
-          # gate below would look for the image "fluxradar-api:current". Existence
-          # decides instead: -L catches a symlink (including a dangling one, which
-          # is a real rollback target whose release directory is gone, never a
-          # first deploy), -e catches a plain directory.
-          PREVIOUS_RELEASE=""
-          PREVIOUS_RELEASE_ID=""
-          if [ -L "$APP_DIR/current" ] || [ -e "$APP_DIR/current" ]; then
-            PREVIOUS_RELEASE="$(readlink -f "$APP_DIR/current" 2>/dev/null || true)"
-            if [ -z "$PREVIOUS_RELEASE" ]; then
-              # Fail closed: `current` exists, so a rollback target exists too, and
-              # continuing would silently deploy without the safety gate below.
-              echo "ERROR: $APP_DIR/current exists but could not be resolved to a release directory." >&2
-              exit 1
-            fi
-            PREVIOUS_RELEASE_ID="${PREVIOUS_RELEASE##*/}"
-          fi
-          # fluxradar:end-rollback-target-detection
-          API_IMAGE="fluxradar-api:$RELEASE_ID"
-          WEB_IMAGE="fluxradar-web:$RELEASE_ID"
-          PREVIOUS_API_UPSTREAM=""
-          PREVIOUS_WEB_UPSTREAM=""
-          PREVIOUS_API_CONTAINER=""
-          PREVIOUS_WEB_CONTAINER=""
-          LEGACY_API_CONTAINER=""
-          LEGACY_WEB_CONTAINER=""
-          if [ -f "$STATE_FILE" ]; then
-            . "$STATE_FILE"
-            PREVIOUS_API_UPSTREAM="${FLUXRADAR_API_UPSTREAM:-}"
-            PREVIOUS_WEB_UPSTREAM="${FLUXRADAR_WEB_UPSTREAM:-}"
-            PREVIOUS_API_CONTAINER="${FLUXRADAR_API_CONTAINER:-}"
-            PREVIOUS_WEB_CONTAINER="${FLUXRADAR_WEB_CONTAINER:-}"
-          fi
-          if [ -z "$PREVIOUS_API_UPSTREAM" ] && [ -n "$PREVIOUS_RELEASE" ]; then
-            cd "$PREVIOUS_RELEASE"
-            LEGACY_API_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q api 2>/dev/null || true)"
-            LEGACY_WEB_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q web 2>/dev/null || true)"
-          fi
-
-          API_CONTAINER="fluxradar-api-$RELEASE_ID"
-          WEB_CONTAINER="fluxradar-web-$RELEASE_ID"
-          ROLLBACK_PROBE="fluxradar-rollback-probe-$RELEASE_ID"
-          NEW_API_UPSTREAM=""
-          NEW_WEB_UPSTREAM=""
-          # The two facts the exit handler decides everything from.
-          #
-          # TRAFFIC_SWITCHED flips to 1 at the moment the runtime Caddyfile is
-          # rewritten for this release; from then on production is being served
-          # by it, so ANY later failure has to put the previous release back. A
-          # failure BEFORE that point must not touch Caddy, `current` or the
-          # state file at all: the previous release is still serving, and
-          # "rolling back" to it would only recreate its proxy for nothing.
-          TRAFFIC_SWITCHED=0
-          DEPLOY_COMPLETED=0
-
-          atomic_switch() {
-            ln -sfn "$1" "$APP_DIR/current.next"
-            mv -Tf "$APP_DIR/current.next" "$APP_DIR/current"
-          }
-
-          render_caddyfile() {
-            awk -v api="$1" -v web="$2" '{
-              gsub(/\{\$FLUXRADAR_API_UPSTREAM\}/, api)
-              gsub(/\{\$FLUXRADAR_WEB_UPSTREAM\}/, web)
-              print
-            }' "$3" > "$RUNTIME_DIR/Caddyfile.next"
-            if [ -f "$RUNTIME_DIR/Caddyfile" ]; then
-              cat "$RUNTIME_DIR/Caddyfile.next" > "$RUNTIME_DIR/Caddyfile"
-              rm -f "$RUNTIME_DIR/Caddyfile.next"
-            else
-              mv -f "$RUNTIME_DIR/Caddyfile.next" "$RUNTIME_DIR/Caddyfile"
-            fi
-            chmod 644 "$RUNTIME_DIR/Caddyfile"
-          }
-
-          # Records the release a rollback goes back to, and everything a
-          # rollback needs to find it. Written BEFORE the traffic switch, and
-          # deliberately left in place afterwards: the public smoke test runs on
-          # the GitHub runner after THIS script has exited, so the only rollback
-          # available to it is one driven from a file on the server.
-          record_rollback_target() {
-            cat > "$RUNTIME_DIR/rollback.env" <<TARGET
-          FLUXRADAR_ROLLBACK_RELEASE=$PREVIOUS_RELEASE
-          FLUXRADAR_ROLLBACK_RELEASE_ID=$PREVIOUS_RELEASE_ID
-          FLUXRADAR_ROLLBACK_API_UPSTREAM=$PREVIOUS_API_UPSTREAM
-          FLUXRADAR_ROLLBACK_WEB_UPSTREAM=$PREVIOUS_WEB_UPSTREAM
-          FLUXRADAR_ROLLBACK_API_CONTAINER=$PREVIOUS_API_CONTAINER
-          FLUXRADAR_ROLLBACK_WEB_CONTAINER=$PREVIOUS_WEB_CONTAINER
-          TARGET
-            chmod 600 "$RUNTIME_DIR/rollback.env"
-          }
-
-          # Pre-switch cleanup. A rollback removes the same containers itself,
-          # inside deploy/rollback-release.sh, so it works from the runner too.
-          #
-          # The new containers run with `--restart unless-stopped`, so a deploy
-          # that fails and simply exits leaves them running against the
-          # production database — claiming jobs, sending customer email and
-          # sweeping retention from a release that was never released. Removing
-          # them touches nothing that serves traffic.
-          discard_new_containers() {
-            docker rm -f "$API_CONTAINER" "$WEB_CONTAINER" >/dev/null 2>&1 || true
-            docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
-          }
-
-          # The rollback itself is deploy/rollback-release.sh, which ships with
-          # the release; see that file for why it is not a function here (the
-          # public smoke test needs the same rollback after this script exits).
-          #
-          # It removes the failed release's containers itself, restores the
-          # previous one — recreating its containers when they are gone, and
-          # proving they answer before it reports success — and exits NON-ZERO
-          # when it could not. The version this replaced was guarded by
-          # `[ -f "$PREVIOUS_RELEASE/docker-compose.yml" ]` and silently did
-          # nothing when that file was absent, while the log above said the
-          # release had been rolled back.
-          #
-          # Its exit code carries the outcome: 0 restored, 3 there was no target
-          # so NOTHING was touched, anything else attempted and failed.
-          rollback() {
-            set +e
-            bash "$RELEASE_DIR/deploy/rollback-release.sh" "$APP_DIR" "$RELEASE_DIR"
-          }
-
-          # Prints why a container is unhealthy without leaking configuration.
-          # Uses an explicit field list from `docker inspect` (never .Config.Env)
-          # plus the container's own log output, which carries the startup error
-          # (e.g. "Missing required production configuration: ...") but no secret
-          # values. Bounded to the last log lines so the deploy log stays readable.
-          dump_container_diagnostics() {
-            container_name="$1"
-            echo "----- diagnostics: $container_name -----"
-            docker inspect \
-              --format 'status={{.State.Status}} running={{.State.Running}} restarting={{.State.Restarting}} exitCode={{.State.ExitCode}} oomKilled={{.State.OOMKilled}} restartCount={{.RestartCount}} error={{.State.Error}}' \
-              "$container_name" 2>/dev/null || echo "container not found: $container_name"
-            echo "----- last 80 log lines: $container_name -----"
-            docker logs --tail 80 "$container_name" 2>&1 || echo "no logs available: $container_name"
-            echo "----- end diagnostics: $container_name -----"
-          }
-          # The single exit path of this script: it decides, from the phase the
-          # deploy reached, whether a failure must roll back or must NOT.
-          #
-          # It is an EXIT trap and not an ERR trap because an ERR trap misses
-          # exactly the failures that matter here, and both gaps were real:
-          #
-          #   * `exit 1` never raises ERR, so every explicit failure after the
-          #     traffic switch — Caddy never came up, the generated Caddyfile
-          #     did not name the new upstreams, `caddy validate` refused it —
-          #     left the new, broken release in front of traffic.
-          #   * Without `set -E` an ERR trap is not inherited by shell
-          #     functions, so a failure inside ensure_network_attachment,
-          #     render_caddyfile or atomic_switch killed the script through
-          #     errexit WITHOUT running the trap at all.
-          #
-          # An EXIT trap has neither gap: it runs on errexit, on an explicit
-          # `exit`, and on a failure inside a function.
-          on_exit() {
-            status=$?
-            trap - EXIT
-            # errexit inside the handler would abandon a half-done rollback.
-            set +e
-            # Past DEPLOY_COMPLETED the release is live, recorded, and has
-            # already passed every check this script makes. Only bookkeeping is
-            # left, so nothing from here rolls production back: a disk-retention
-            # failure is reported and the release keeps serving.
-            if [ "$DEPLOY_COMPLETED" -eq 1 ]; then
-              if [ "$status" -ne 0 ]; then
-                echo "ERROR: the release is live and recorded, but the retention sweep after it failed (status $status). Nothing was rolled back; free disk space on the server by hand." >&2
-              fi
-              exit "$status"
-            fi
-            # Stopping early without a failing status is still a failed deploy.
-            if [ "$status" -eq 0 ]; then
-              status=1
-            fi
-            if [ "$TRAFFIC_SWITCHED" -eq 1 ]; then
-              echo "ERROR: the deploy failed AFTER traffic was switched to $RELEASE_ID; rolling back to ${PREVIOUS_RELEASE_ID:-nothing (first deploy)}." >&2
-              rollback
-              rollback_status=$?
-              if [ "$rollback_status" -eq 0 ]; then
-                echo "The previous release is serving again; this deploy failed without leaving a broken release live." >&2
-              elif [ "$rollback_status" -eq 3 ]; then
-                # First deploy: there is no earlier release, so the rollback
-                # deliberately changed nothing. Tearing $RELEASE_ID down here
-                # would turn a failed deploy into a host that serves nothing —
-                # which is exactly what it used to do.
-                echo "CRITICAL: there is no earlier release on this host to roll back to, so nothing was torn down and $RELEASE_ID is still in front of traffic after failing this deploy. Production needs manual attention: deploy a working release (docs/DEPLOYMENT.md, 'Release rollback')." >&2
-              else
-                echo "CRITICAL: the rollback did NOT restore a serving release. Production needs manual recovery (docs/DEPLOYMENT.md, 'Release rollback')." >&2
-              fi
-            else
-              echo "ERROR: the deploy failed BEFORE any traffic was switched; the previous release keeps serving and nothing is rolled back." >&2
-              discard_new_containers
-            fi
-            exit "$status"
-          }
-          trap on_exit EXIT
-
-          mkdir -p "$RUNTIME_DIR"
-          cd "$RELEASE_DIR"
-          docker compose --env-file .env.production -p fluxradar up -d postgres
-          POSTGRES_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q postgres)"
-          if [ -z "$POSTGRES_CONTAINER" ]; then
-            echo "PostgreSQL container was not created; cannot determine the application network" >&2
+          RELEASE_SCRIPT="$1/releases/$2/deploy/release.sh"
+          if [ ! -f "$RELEASE_SCRIPT" ]; then
+            echo "ERROR: $RELEASE_SCRIPT is missing; the package stage did not install this release." >&2
             exit 1
           fi
-          FLUXRADAR_NETWORK="$(docker inspect --format '{{range $network, $_ := .NetworkSettings.Networks}}{{println $network}}{{end}}' "$POSTGRES_CONTAINER" | awk 'NF { print; exit }')"
-          if [ -z "$FLUXRADAR_NETWORK" ]; then
-            echo "Could not determine the Docker network attached to PostgreSQL" >&2
-            exit 1
-          fi
-          ensure_network_attachment() {
-            container_name="$1"
-            if ! docker inspect --format '{{range $network, $_ := .NetworkSettings.Networks}}{{println $network}}{{end}}' "$container_name" \
-              | grep -Fxq "$FLUXRADAR_NETWORK"; then
-              docker network connect "$FLUXRADAR_NETWORK" "$container_name"
-            fi
-          }
-          docker run --rm \
-            --name "${API_CONTAINER}-migrate" \
-            --network "$FLUXRADAR_NETWORK" \
-            --env-file "$RELEASE_DIR/.env.production" \
-            --env NODE_ENV=production \
-            --env PORT=3310 \
-            --env FRONTEND_ORIGIN=https://fluxradar.net \
-            "$API_IMAGE" \
-            apps/api/node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma
-
-          # ---- Rollback compatibility gate --------------------------------
-          # The migration has already run, and it cannot be undone from here. Every
-          # way this step can still fail leaves the PREVIOUS release in front of
-          # traffic: a readiness or Caddy failure aborts before (or rolls back to
-          # before) the traffic switch. That release therefore has to be able to
-          # boot and serve against the schema and the environment file this deploy
-          # just produced — otherwise a failed deploy silently becomes a broken
-          # production instead of a no-op.
-          #
-          # Proving it, rather than asserting it in a comment: start the previous
-          # release's own image as a throwaway container against the migrated
-          # database and the new env file, and require TWO things of it.
-          #
-          #   1. Its readiness probe passes. That exercises the real startup path,
-          #      so it catches a production variable the old release validates at
-          #      boot but the new one no longer requires.
-          #   2. Its own Prisma client can still read every model it knows about
-          #      (deploy/rollback-schema-probe.cjs, copied in from this release
-          #      but executed against the OLD image's client and datamodel).
-          #      Readiness alone CANNOT catch a schema problem: it is a
-          #      `SELECT 1`, which succeeds against any reachable database,
-          #      including one whose columns the old client no longer finds. The
-          #      schema probe issues one `findFirst` per model, so every scalar
-          #      column the old release selects is named in a real query — that is
-          #      what fails a contract-phase migration (a dropped or renamed
-          #      column, a removed table) before it can strand a rollback.
-          #
-          # This runs BEFORE any traffic switch and before the previous
-          # containers are removed, so failing here leaves production exactly as
-          # it was. Migrations must stay additive/expand-phase for this to pass;
-          # see docs/DEPLOYMENT.md.
-          # PREVIOUS_RELEASE_ID was resolved from `current` at the top of this
-          # script; it is empty only when `current` does not exist at all.
-          if [ -z "$PREVIOUS_RELEASE_ID" ]; then
-            # No `current` symlink at all: this is the first deploy, so there is
-            # genuinely no rollback target and nothing to verify.
-            echo "First deploy ($APP_DIR/current does not exist): no rollback target exists yet."
-          elif ! docker image inspect "fluxradar-api:$PREVIOUS_RELEASE_ID" >/dev/null 2>&1 \
-            || ! docker image inspect "fluxradar-web:$PREVIOUS_RELEASE_ID" >/dev/null 2>&1; then
-            # A rollback target IS expected — `current` points at $PREVIOUS_RELEASE
-            # — but its image is gone, so its compatibility cannot be proven and a
-            # rollback could not recreate it either. Silently continuing here would
-            # disable the safety gate on exactly the deploys that need it most.
-            echo "ERROR: the rollback target ($PREVIOUS_RELEASE_ID) is still the active release, but its image is missing on this host." >&2
-            echo "Its compatibility with the migrated schema cannot be verified, and an automatic rollback could not recreate it." >&2
-            echo "Restore it with 'docker load' from a saved image, or set the ALLOW_UNVERIFIED_ROLLBACK variable to 'true' to deploy without a verified rollback." >&2
-            if [ "$ALLOW_UNVERIFIED_ROLLBACK" = "true" ]; then
-              echo "WARNING: ALLOW_UNVERIFIED_ROLLBACK=true — continuing WITHOUT a verified rollback target. Rollback is NOT proven safe for this deploy." >&2
-            else
-              exit 1
-            fi
-          else
-            echo "Verifying that the rollback target ($PREVIOUS_RELEASE_ID) is compatible with the migrated schema"
-            docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
-            # fluxradar:rollback-probe-container (regression-tested by
-            # apps/api/src/deploy/deploy-006-rollback-probe-readonly.test.ts —
-            # keep the markers, the test extracts and asserts exactly these lines)
-            #
-            # READ-ONLY BY CONSTRUCTION. `--entrypoint node` with an inert script
-            # replaces the image's production command, so the previous release
-            # never starts its API: no retention sweep deleting expired scans and
-            # webhook rows, no claim or drain of the live job queue (which means
-            # no crawl, no AI call and no customer email sent from a container
-            # this deploy is about to throw away), no pending-refund sweep and no
-            # migration. The container exists only to hold a node process open so
-            # the two probes below can be exec'd into it, and both of them read.
-            #
-            # What the previous release's own startup would have validated is
-            # asked directly instead, by rollback-readonly-probe.cjs.
-            docker run -d \
-              --name "$ROLLBACK_PROBE" \
-              --network "$FLUXRADAR_NETWORK" \
-              --env-file "$RELEASE_DIR/.env.production" \
-              --env NODE_ENV=production \
-              --env PORT=3310 \
-              --env FRONTEND_ORIGIN=https://fluxradar.net \
-              --entrypoint node \
-              "fluxradar-api:$PREVIOUS_RELEASE_ID" \
-              -e "setInterval(() => {}, 1 << 30)" >/dev/null
-            # fluxradar:end-rollback-probe-container
-            probe_running=0
-            for attempt in $(seq 1 10); do
-              if [ "$(docker inspect -f '{{.State.Running}}' "$ROLLBACK_PROBE" 2>/dev/null)" = "true" ]; then
-                probe_running=1
-                break
-              fi
-              sleep 1
-            done
-            if [ "$probe_running" -ne 1 ]; then
-              echo "ERROR: the rollback probe container ($PREVIOUS_RELEASE_ID) did not stay running." >&2
-              dump_container_diagnostics "$ROLLBACK_PROBE"
-              docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
-              exit 1
-            fi
-            for probe_script in rollback-readonly-probe.cjs rollback-schema-probe.cjs; do
-              if ! docker cp "$RELEASE_DIR/deploy/$probe_script" \
-                "$ROLLBACK_PROBE:/tmp/$probe_script" >/dev/null; then
-                echo "ERROR: could not copy $probe_script into the rollback container." >&2
-                docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
-                exit 1
-              fi
-            done
-            # 1. Would the previous release accept this environment file, and can
-            #    it reach the database with it? Its own boot-time validators are
-            #    called, and the query runs in a READ ONLY transaction.
-            if ! docker exec "$ROLLBACK_PROBE" node /tmp/rollback-readonly-probe.cjs; then
-              echo "ERROR: the previous release ($PREVIOUS_RELEASE_ID) would NOT start against the environment and database this deploy produced." >&2
-              echo "An automatic rollback would therefore restore a broken production, so this deploy is stopped before any traffic is switched." >&2
-              echo "Most likely cause: a production variable the previous release still requires, or a database it cannot reach with this env file." >&2
-              dump_container_diagnostics "$ROLLBACK_PROBE"
-              docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
-              exit 1
-            fi
-            # 2. Reachability only proves the database answers. Now prove the old
-            #    release can still READ it, using its own generated Prisma client.
-            if ! docker exec "$ROLLBACK_PROBE" node /tmp/rollback-schema-probe.cjs; then
-              echo "ERROR: the previous release ($PREVIOUS_RELEASE_ID) cannot READ the migrated schema with its own Prisma client." >&2
-              echo "An automatic rollback would restore a release that fails on every query to the models listed above, so this deploy is stopped before any traffic is switched." >&2
-              echo "Most likely cause: a contract-phase migration (a dropped or renamed column, a removed table) shipped before every container that reads the old shape was retired." >&2
-              dump_container_diagnostics "$ROLLBACK_PROBE"
-              docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
-              exit 1
-            fi
-            echo "OK: the previous release accepts this environment and can read every model it knows about; an automatic rollback is safe."
-            docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
-          fi
-          # -----------------------------------------------------------------
-
-          docker rm -f "$API_CONTAINER" "$WEB_CONTAINER" >/dev/null 2>&1 || true
-          docker run -d \
-            --name "$API_CONTAINER" \
-            --restart unless-stopped \
-            --network "$FLUXRADAR_NETWORK" \
-            --network-alias "$API_CONTAINER" \
-            --env-file "$RELEASE_DIR/.env.production" \
-            --env NODE_ENV=production \
-            --env PORT=3310 \
-            --env FRONTEND_ORIGIN=https://fluxradar.net \
-            "$API_IMAGE"
-          docker run -d \
-            --name "$WEB_CONTAINER" \
-            --restart unless-stopped \
-            --network "$FLUXRADAR_NETWORK" \
-            --network-alias "$WEB_CONTAINER" \
-            "$WEB_IMAGE"
-          ensure_network_attachment "$API_CONTAINER"
-          ensure_network_attachment "$WEB_CONTAINER"
-          # Resolve through Docker's user-defined network instead of freezing
-          # ephemeral container IPs into Caddy. The names are stable for this
-          # release and the explicit aliases remain resolvable after Caddy is
-          # recreated or old release containers are removed.
-          NEW_API_UPSTREAM="$API_CONTAINER:3310"
-          NEW_WEB_UPSTREAM="$WEB_CONTAINER:80"
-
-          ready=0
-          for attempt in $(seq 1 30); do
-            if docker exec "$API_CONTAINER" node -e "fetch('http://127.0.0.1:3310/health/ready').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))" \
-              && docker exec "$WEB_CONTAINER" wget -q -O /dev/null http://127.0.0.1/health; then
-              ready=1
-              break
-            fi
-            sleep 2
-          done
-          if [ "$ready" -ne 1 ]; then
-            echo "API/web readiness never became true after $((30 * 2))s; collecting sanitized diagnostics" >&2
-            docker ps --filter "name=$API_CONTAINER" --filter "name=$WEB_CONTAINER"
-            dump_container_diagnostics "$API_CONTAINER"
-            dump_container_diagnostics "$WEB_CONTAINER"
-            exit 1
-          fi
-
-          # ---- The traffic switch ---------------------------------------
-          # Everything below serves production from this release: the runtime
-          # Caddyfile is rewritten in place and Caddy is recreated on it. The
-          # flag is set BEFORE the first of those writes, so a failure anywhere
-          # in the switch itself is rolled back rather than left half-applied.
-          record_rollback_target
-          TRAFFIC_SWITCHED=1
-          render_caddyfile "$NEW_API_UPSTREAM" "$NEW_WEB_UPSTREAM" "$RELEASE_DIR/deploy/Caddyfile"
-          cd "$RELEASE_DIR"
-          # Always recreate Caddy with the generated runtime file. Reloading an
-          # existing container is unsafe here because it may still mount the
-          # previous release's deploy/Caddyfile and upstream names.
-          export FLUXRADAR_CADDYFILE="$RUNTIME_DIR/Caddyfile"
-          export FLUXRADAR_API_UPSTREAM="$NEW_API_UPSTREAM"
-          export FLUXRADAR_WEB_UPSTREAM="$NEW_WEB_UPSTREAM"
-          docker compose --env-file .env.production -p fluxradar up -d --no-deps --force-recreate caddy
-
-          caddy_ready=0
-          for attempt in $(seq 1 15); do
-            CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy)"
-            if [ -n "$CADDY_CONTAINER" ] && [ "$(docker inspect -f '{{.State.Running}}' "$CADDY_CONTAINER")" = "true" ]; then
-              caddy_ready=1
-              break
-            fi
-            sleep 2
-          done
-          if [ "$caddy_ready" -ne 1 ]; then
-            echo "Caddy did not come up after the traffic switch" >&2
-            exit 1
-          fi
-          ensure_network_attachment "$CADDY_CONTAINER"
-          if ! grep -Fq "$NEW_API_UPSTREAM" "$RUNTIME_DIR/Caddyfile" \
-            || ! grep -Fq "$NEW_WEB_UPSTREAM" "$RUNTIME_DIR/Caddyfile"; then
-            echo "Generated Caddyfile does not reference the new release upstreams" >&2
-            exit 1
-          fi
-          if ! docker exec "$CADDY_CONTAINER" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
-            echo "Caddy configuration validation failed" >&2
-            docker logs --tail 80 "$CADDY_CONTAINER" 2>&1 || true
-            exit 1
-          fi
-          # LOOPBACK WIRING CHECK — deliberately not a certificate check.
-          # It asks one question: does Caddy, on this host, route /api/* to the
-          # new API container? The certificate is validated by the public smoke
-          # test at the end of this workflow, from outside the server, where a
-          # wrong or expired certificate is actually visible. Verifying it here
-          # instead would fail the deploy while ACME is still issuing on a fresh
-          # host — a state the public check reports correctly a minute later.
-          # Use the production hostname for both SNI and Host. Sending only a
-          # Host header to 127.0.0.1 makes Caddy's automatic HTTPS listener
-          # reject the TLS handshake before the request reaches the proxy.
-          if ! curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 1 --retry-connrefused \
-            --location --insecure --resolve fluxradar.net:443:127.0.0.1 \
-            https://fluxradar.net/api/health | grep -q '"status":"ok"'; then
-            echo "Caddy local smoke failed; collecting sanitized diagnostics" >&2
-            docker logs --tail 80 "$CADDY_CONTAINER" 2>&1 || true
-            # The exit handler performs the rollback. Calling it here as well
-            # would recreate Caddy twice for one failure.
-            exit 1
-          fi
-
-          atomic_switch "$RELEASE_DIR"
-          cat > "$STATE_FILE" <<STATE
-          FLUXRADAR_ACTIVE_RELEASE=$RELEASE_DIR
-          FLUXRADAR_API_UPSTREAM=$NEW_API_UPSTREAM
-          FLUXRADAR_WEB_UPSTREAM=$NEW_WEB_UPSTREAM
-          FLUXRADAR_API_CONTAINER=$API_CONTAINER
-          FLUXRADAR_WEB_CONTAINER=$WEB_CONTAINER
-          STATE
-          chmod 600 "$STATE_FILE"
-          if [ -n "$PREVIOUS_API_CONTAINER" ] || [ -n "$PREVIOUS_WEB_CONTAINER" ]; then
-            docker rm -f "$PREVIOUS_API_CONTAINER" "$PREVIOUS_WEB_CONTAINER" >/dev/null 2>&1 || true
-          fi
-          if [ -n "$LEGACY_API_CONTAINER" ] || [ -n "$LEGACY_WEB_CONTAINER" ]; then
-            docker rm -f "$LEGACY_API_CONTAINER" "$LEGACY_WEB_CONTAINER" >/dev/null 2>&1 || true
-          fi
-          # Verify the exact post-cleanup state. The first smoke test runs
-          # before old containers are removed; this one catches a stale Docker
-          # route or DNS binding that only appears once cleanup has completed.
-          if ! curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 1 --retry-connrefused \
-            --location --insecure --resolve fluxradar.net:443:127.0.0.1 \
-            https://fluxradar.net/api/health | grep -q '"status":"ok"' \
-            || ! curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 1 --retry-connrefused \
-            --location --insecure --resolve fluxradar.net:443:127.0.0.1 \
-            --output /dev/null https://fluxradar.net/; then
-            echo "Post-cleanup local smoke failed; collecting sanitized diagnostics" >&2
-            docker logs --tail 80 "$CADDY_CONTAINER" 2>&1 || true
-            docker logs --tail 80 "$API_CONTAINER" 2>&1 || true
-            docker logs --tail 80 "$WEB_CONTAINER" 2>&1 || true
-            exit 1
-          fi
-          # The release is live and recorded. Everything below is bookkeeping,
-          # and the exit handler above honours this flag: from here a failure is
-          # reported and NOTHING is rolled back.
-          DEPLOY_COMPLETED=1
-          # Keep the active release plus two rollback candidates to bound disk use.
-          find "$APP_DIR/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
-            | sort -nr | tail -n +4 | cut -d' ' -f2- \
-            | while IFS= read -r old_release; do
-                case "$old_release" in
-                  "$APP_DIR/releases/"*) ;;
-                  *) continue ;;
-                esac
-                old_id="${old_release##*/}"
-                rm -rf -- "$old_release"
-                docker image rm "fluxradar-api:$old_id" "fluxradar-web:$old_id" >/dev/null 2>&1 || true
-              done || true
-          # fluxradar:end-release-script
+          exec bash "$RELEASE_SCRIPT" "$1" "$2" "$3"
           REMOTE
 
+  verify:
+    name: Verify the deployment
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure SSH
+        uses: ./.github/actions/configure-ssh
+        with:
+          private-key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+
       - name: Public smoke test
-        # Runs on the RUNNER, not over SSH. The point of a public smoke test is
-        # to look at the deployment from outside it: a check that curls the site
-        # from the machine that serves it cannot see a DNS record that was never
-        # published, a certificate that was never issued, or a proxy in front
-        # refusing traffic. Diagnostics are still fetched over SSH, but only
-        # after the verdict is in — and so is the rollback, because by this point
-        # the release script has exited and its exit handler is gone.
+        # The public smoke test from this runner, and the rollback when it
+        # fails: deploy/verify-release.sh, which also says why it is a file.
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
           APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
           RELEASE_ID: ${{ github.sha }}
-        run: |
-          set -uo pipefail
-          # fluxradar:public-smoke-invocation (regression-tested by
-          # apps/api/src/deploy/deploy-007-public-smoke.test.ts — keep the
-          # markers, the test extracts and asserts exactly these lines)
-          #
-          # deploy/public-smoke.sh validates the certificate, requires https end
-          # to end, and asserts the status, the body and the security header of
-          # every endpoint it checks. A hostname that does not resolve is a
-          # failure, not a pass: the old check exited 0 on missing DNS and used
-          # `curl --insecure`, so a wrong, expired or self-signed certificate
-          # deployed silently.
-          if bash deploy/public-smoke.sh --host fluxradar.net; then
-            exit 0
-          fi
-          # fluxradar:end-public-smoke-invocation
+        run: bash deploy/verify-release.sh --host fluxradar.net
 
-          echo 'Public smoke failed; collecting sanitized Caddy diagnostics from the server.' >&2
-          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" <<'REMOTE' || true
-          set -eu
-          APP_DIR="$1"
-          cd "$APP_DIR/current"
-          docker compose --env-file .env.production -p fluxradar ps caddy 2>&1 || true
-          CADDY_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q caddy 2>/dev/null || true)"
-          if [ -n "$CADDY_CONTAINER" ]; then
-            docker inspect --format 'status={{.State.Status}} running={{.State.Running}} restarting={{.State.Restarting}} exitCode={{.State.ExitCode}} error={{.State.Error}}' "$CADDY_CONTAINER" 2>&1 || true
-            docker logs --tail 80 "$CADDY_CONTAINER" 2>&1 || true
-          fi
-          REMOTE
+  recover:
+    name: Recover an unverified release
+    needs: [release, verify]
+    # `always()` so this still runs when `verify` was cancelled or timed out.
+    # The release condition is what makes that safe: it is 'success' only once
+    # traffic has been switched, so nothing here can touch a deploy that never
+    # reached production.
+    if: >-
+      always()
+      && needs.release.result == 'success'
+      && needs.verify.result != 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
 
-          # fluxradar:public-smoke-rollback (regression-tested by
-          # apps/api/src/deploy/deploy-012-public-smoke-rollback.test.ts — keep
-          # the markers, the test extracts and RUNS exactly these lines)
-          #
-          # This is the ONE failure the release script's exit handler cannot
-          # reach: that script has already exited 0, so the new release is live,
-          # recorded, and serving a site that just failed a check from outside.
-          # docs/DEPLOYMENT.md promises a failed rollout does not leave a broken
-          # release in front of traffic, and this is what keeps that true.
-          #
-          # It is the same rollback the release script uses, run on the server
-          # against the target that script recorded before it switched traffic.
-          # The certificate/DNS conditions the local checks deliberately do not
-          # test are exactly the ones this catches, and a rollback is the right
-          # answer to them too: the previous release held a working certificate
-          # for the same hostname.
-          #
-          # The rollback's exit code is the whole verdict, so it is captured
-          # rather than collapsed into if/else: 3 means there was no earlier
-          # release and the script therefore touched NOTHING — on a first deploy
-          # the unconditional version removed the only API and web containers on
-          # the host and exited 1, so a failed smoke test became a host serving
-          # nothing at all. None of the three outcomes is hidden, and none of
-          # them passes the step.
-          echo 'Rolling back: a release that fails the public smoke test must not stay live.' >&2
-          rollback_status=0
-          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "$RELEASE_ID" <<'REMOTE' || rollback_status=$?
-          set -eu
-          APP_DIR="$1"
-          RELEASE_ID="$2"
-          bash "$APP_DIR/releases/$RELEASE_ID/deploy/rollback-release.sh" "$APP_DIR" "$APP_DIR/releases/$RELEASE_ID"
-          REMOTE
-          if [ "$rollback_status" -eq 0 ]; then
-            # Ask the same question that failed, from the same place, about the
-            # release that is now serving.
-            if bash deploy/public-smoke.sh --host fluxradar.net; then
-              echo 'Rolled back: the previous release is serving fluxradar.net again.' >&2
-            else
-              echo 'CRITICAL: the rollback ran but fluxradar.net still fails the public smoke test. Production needs manual recovery (docs/DEPLOYMENT.md, "Release rollback").' >&2
-            fi
-          elif [ "$rollback_status" -eq 3 ]; then
-            echo 'CRITICAL: there is no earlier release on this host to roll back to (first deploy), so nothing was torn down and the release that failed the public smoke test is still live. Production needs manual attention: deploy a working release (docs/DEPLOYMENT.md, "Release rollback").' >&2
-          else
-            echo 'CRITICAL: the rollback failed; the release that failed the public smoke test may still be live. Production needs manual recovery (docs/DEPLOYMENT.md, "Release rollback").' >&2
-          fi
-          # fluxradar:end-public-smoke-rollback
-          exit 1
+      - name: Configure SSH
+        uses: ./.github/actions/configure-ssh
+        with:
+          private-key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+
+      # The same script, and safe to run again: it asks the site first, so
+      # after a `verify` that already rolled back it finds the previous release
+      # answering and changes nothing.
+      - name: Verify again, and roll back if broken
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
+          RELEASE_ID: ${{ github.sha }}
+        run: bash deploy/verify-release.sh --host fluxradar.net

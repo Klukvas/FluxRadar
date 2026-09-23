@@ -5,7 +5,7 @@
 // нейтрального discovery.
 
 import { describe, expect, it } from 'vitest';
-import type { AiRequest, GeoModuleResult } from '@fluxradar/ai';
+import type { AiRequest, GeoModuleResult, MentionSignal } from '@fluxradar/ai';
 
 import { GEO_SCORING_REASON, geoModuleRow } from './geo-module-row.ts';
 import type { GeoQuestionGenerationResult } from './geo.ts';
@@ -65,16 +65,32 @@ function refused(sequence: number, purpose: 'awareness' | 'discovery') {
 }
 
 /**
- * GEO-VIS-003/004 сообщают об ОТСУТСТВИИ упоминания: finding на ai_request_key
- * означает, что бренд (003) или домен (004) в этом ответе не встретился.
+ * Сигналы упоминаний на ответ, как их выдаёт `geoMentionSignals`.
+ *
+ * Вопрос, который сам назвал бренд или домен, даёт `named-in-question`:
+ * измерения не было, и ни в числитель, ни в знаменатель такой ответ не идёт.
  */
-function evaluations(missingBrandKeys: readonly string[], missingDomainKeys: readonly string[]) {
-  const findings = (keys: readonly string[]) => keys.map((aiRequestKey) => ({ aiRequestKey }));
-  return [
-    { ruleId: 'GEO-VIS-003', findings: findings(missingBrandKeys) },
-    { ruleId: 'GEO-VIS-004', findings: findings(missingDomainKeys) },
-  ] as unknown as GeoModuleResult['evaluations'];
+function mentions(
+  entries: Readonly<Record<string, readonly [MentionSignal, MentionSignal]>>,
+): GeoModuleResult['mentions'] {
+  return new Map(
+    Object.entries(entries).map(([aiRequestKey, [brand, domain]]) => [
+      aiRequestKey,
+      { brand, domain },
+    ]),
+  );
 }
+
+/** No question of that kind was asked, or none of them was answered. */
+const NOTHING_OBSERVED = {
+  asked: 0,
+  answered: 0,
+  evaluated: 0,
+  brandMeasured: 0,
+  domainMeasured: 0,
+  brandMentioned: 0,
+  domainMentioned: 0,
+} as const;
 
 function geoResult(overrides: Partial<GeoModuleResult> = {}): GeoModuleResult {
   const outcomes = overrides.outcomes ?? [];
@@ -84,8 +100,9 @@ function geoResult(overrides: Partial<GeoModuleResult> = {}): GeoModuleResult {
     statusReason: null,
     outcomes,
     responses: outcomes.filter((outcome) => outcome.kind === 'response'),
-    evaluations: evaluations([], []),
+    evaluations: [],
     findings: [],
+    mentions: mentions({}),
     quota: undefined as never,
     // Непрерванный прогон задал ровно те вопросы, что были в библиотеке.
     requested: outcomes.length,
@@ -136,15 +153,68 @@ describe('AI SEO / GEO module row', () => {
     const row = geoModuleRow(
       geoResult({
         outcomes: [answered(1, 'awareness'), answered(2, 'discovery')],
-        evaluations: evaluations(['key-1', 'key-2'], ['key-1', 'key-2']),
+        mentions: mentions({
+          // Awareness-вопрос называет бренд сам, поэтому измерим только домен.
+          'key-1': ['named-in-question', 'not-mentioned'],
+          'key-2': ['not-mentioned', 'not-mentioned'],
+        }),
       }),
       generationResult(),
       AI_CRAWLER_READINESS,
     );
     expect(row.score).toBeNull();
     expect(visibilityOf(row).observations).toEqual({
-      awareness: { asked: 1, answered: 1, evaluated: 1, brandMentioned: 0, domainMentioned: 0 },
-      discovery: { asked: 1, answered: 1, evaluated: 1, brandMentioned: 0, domainMentioned: 0 },
+      awareness: {
+        asked: 1,
+        answered: 1,
+        evaluated: 1,
+        brandMeasured: 0,
+        domainMeasured: 1,
+        brandMentioned: 0,
+        domainMentioned: 0,
+      },
+      discovery: {
+        asked: 1,
+        answered: 1,
+        evaluated: 1,
+        brandMeasured: 1,
+        domainMeasured: 1,
+        brandMentioned: 0,
+        domainMentioned: 0,
+      },
+    });
+  });
+
+  it('названное в вопросе не считается упоминанием', () => {
+    // Раньше вопрос, назвавший бренд и домен, findings не порождал — и обе
+    // «зелёные» метки отчёт писал себе сам. Такой ответ теперь не измерен.
+    const row = geoModuleRow(
+      geoResult({
+        outcomes: [answered(1, 'awareness')],
+        mentions: mentions({ 'key-1': ['named-in-question', 'named-in-question'] }),
+      }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+    );
+    expect(visibilityOf(row).observations).toEqual({
+      awareness: {
+        asked: 1,
+        answered: 1,
+        evaluated: 0,
+        brandMeasured: 0,
+        domainMeasured: 0,
+        brandMentioned: 0,
+        domainMentioned: 0,
+      },
+      discovery: {
+        asked: 0,
+        answered: 0,
+        evaluated: 0,
+        brandMeasured: 0,
+        domainMeasured: 0,
+        brandMentioned: 0,
+        domainMentioned: 0,
+      },
     });
   });
 
@@ -152,15 +222,34 @@ describe('AI SEO / GEO module row', () => {
     const row = geoModuleRow(
       geoResult({
         outcomes: [answered(1, 'awareness'), answered(2, 'discovery'), answered(3, 'discovery')],
-        // Бренд не назван только в третьем ответе; домен — во втором и третьем.
-        evaluations: evaluations(['key-3'], ['key-2', 'key-3']),
+        mentions: mentions({
+          'key-1': ['named-in-question', 'mentioned'],
+          'key-2': ['mentioned', 'not-mentioned'],
+          'key-3': ['not-mentioned', 'not-mentioned'],
+        }),
       }),
       generationResult(),
       AI_CRAWLER_READINESS,
     );
     expect(visibilityOf(row).observations).toEqual({
-      awareness: { asked: 1, answered: 1, evaluated: 1, brandMentioned: 1, domainMentioned: 1 },
-      discovery: { asked: 2, answered: 2, evaluated: 2, brandMentioned: 1, domainMentioned: 0 },
+      awareness: {
+        asked: 1,
+        answered: 1,
+        evaluated: 1,
+        brandMeasured: 0,
+        domainMeasured: 1,
+        brandMentioned: 0,
+        domainMentioned: 1,
+      },
+      discovery: {
+        asked: 2,
+        answered: 2,
+        evaluated: 2,
+        brandMeasured: 2,
+        domainMeasured: 2,
+        brandMentioned: 1,
+        domainMentioned: 0,
+      },
     });
   });
 
@@ -185,8 +274,8 @@ describe('AI SEO / GEO module row', () => {
     expect(row.usableOutput).toBe(false);
     expect(row.coverage).toBe(0);
     expect(visibilityOf(row).observations).toEqual({
-      awareness: { asked: 1, answered: 0, evaluated: 0, brandMentioned: 0, domainMentioned: 0 },
-      discovery: { asked: 1, answered: 0, evaluated: 0, brandMentioned: 0, domainMentioned: 0 },
+      awareness: { ...NOTHING_OBSERVED, asked: 1 },
+      discovery: { ...NOTHING_OBSERVED, asked: 1 },
     });
   });
 
@@ -253,7 +342,10 @@ describe('AI SEO / GEO module row', () => {
 
   it('без контекста профиля discovery-вопросы не генерируются, score всё равно null', () => {
     const row = geoModuleRow(
-      geoResult({ outcomes: [answered(1, 'awareness')] }),
+      geoResult({
+        outcomes: [answered(1, 'awareness')],
+        mentions: mentions({ 'key-1': ['named-in-question', 'mentioned'] }),
+      }),
       generationResult({
         status: 'NotApplicable',
         statusReason: 'ProfileContextMissing',
@@ -266,8 +358,16 @@ describe('AI SEO / GEO module row', () => {
     expect(row.runtimeStatus).toBe('Completed');
     expect(row.score).toBeNull();
     expect(visibilityOf(row).observations).toEqual({
-      awareness: { asked: 1, answered: 1, evaluated: 1, brandMentioned: 1, domainMentioned: 1 },
-      discovery: { asked: 0, answered: 0, evaluated: 0, brandMentioned: 0, domainMentioned: 0 },
+      awareness: {
+        asked: 1,
+        answered: 1,
+        evaluated: 1,
+        brandMeasured: 0,
+        domainMeasured: 1,
+        brandMentioned: 0,
+        domainMentioned: 1,
+      },
+      discovery: NOTHING_OBSERVED,
     });
   });
 });

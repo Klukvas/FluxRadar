@@ -4,7 +4,7 @@
 
 import { MEDIA_PROBE_LIMITS } from '@fluxradar/contracts';
 import { normalizeUrl } from '@fluxradar/fingerprint';
-import type { SafeFetchResult } from '@fluxradar/safe-fetch';
+import type { EgressProxy, SafeFetchResult } from '@fluxradar/safe-fetch';
 import { HostLimiter, safeFetch } from '@fluxradar/safe-fetch';
 
 import { extractLinks } from './link-extractor.js';
@@ -13,6 +13,7 @@ import { probeMediaResources } from './resources.js';
 import { hostKey, RobotsHostCache } from './robots-host-cache.js';
 import { isPathAllowed } from './robots.js';
 import { isHostInScope, isPathnameAllowedByPatterns, validateScope } from './scope.js';
+import { CRAWLER_USER_AGENT } from './user-agent.js';
 import { fetchSitemapUrls, SITEMAP_MAX_URLS } from './sitemap.js';
 import type {
   CrawlError,
@@ -43,8 +44,6 @@ const RENDER_COVERAGE_LIMIT_REASONS: readonly BlockedRequestReason[] = [
   'robots-disallowed',
   'ssrf-blocked',
 ];
-
-const DEFAULT_USER_AGENT = 'FluxRadarBot/0.1';
 
 export interface CrawlOptions {
   /** Инъекция транспорта (тесты/моки); default — safeFetch с UA краулера. */
@@ -92,6 +91,11 @@ export interface CrawlOptions {
    * включено, Free-проверка (одна страница) его не использует.
    */
   readonly probeMedia?: boolean;
+  /**
+   * Egress-прокси обхода: сайты клиентов видят его адрес, а не адрес сервера
+   * FluxRadar. Отсутствует — запросы идут напрямую.
+   */
+  readonly egressProxy?: EgressProxy;
 }
 
 interface QueueEntry {
@@ -145,13 +149,14 @@ class CrawlRun {
   constructor(scope: CrawlScope, options: CrawlOptions) {
     this.scope = scope;
     this.origin = validateScope(scope);
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
+    this.userAgent = options.userAgent ?? CRAWLER_USER_AGENT;
     this.fetcher =
       options.fetcher ??
       buildDefaultFetcher(
         this.userAgent,
         options.dangerouslyAllowLoopback ?? false,
         options.signal,
+        options.egressProxy,
       );
     this.limiter = options.limiter ?? new HostLimiter();
     this.robotsCache = new RobotsHostCache(
@@ -731,6 +736,7 @@ function buildDefaultFetcher(
   userAgent: string,
   dangerouslyAllowLoopback: boolean,
   signal: AbortSignal | undefined,
+  egressProxy: EgressProxy | undefined,
 ): CrawlFetcher {
   return (url, init) =>
     safeFetch(url, {
@@ -739,6 +745,7 @@ function buildDefaultFetcher(
       // Отмена уходит в транспорт: запрос, уже ушедший к сайту, прерывается, а
       // не дожидается чужого таймаута.
       ...(signal !== undefined ? { signal } : {}),
+      ...(egressProxy === undefined ? {} : { proxy: egressProxy }),
       ...(init?.method !== undefined ? { method: init.method } : {}),
       ...(init?.maxBodyBytes !== undefined ? { maxBodyBytes: init.maxBodyBytes } : {}),
       ...(init?.timeoutMs !== undefined ? { timeoutMs: init.timeoutMs } : {}),

@@ -81,6 +81,20 @@ export class RequestAbortedError extends SafeFetchError {
 /** DNS/соединение/чтение упали по причинам вне наших лимитов; детали в cause. */
 export class NetworkError extends SafeFetchError {}
 
+/**
+ * Настройка egress-прокси нечитаема. Это ошибка конфигурации развёртывания, а
+ * не сети: сообщение называет только причину. Ни сам URL, ни его длина в него
+ * не попадают — в значении есть пароль, а длина пароля тоже подсказка.
+ */
+export class ProxyConfigError extends SafeFetchError {
+  readonly reason: string;
+
+  constructor(reason: string, options?: ErrorOptions) {
+    super(`safe-fetch: unusable egress proxy setting: ${reason}`, options);
+    this.reason = reason;
+  }
+}
+
 function truncateForMessage(url: string): string {
   const limit = 200;
   return url.length > limit ? `${url.slice(0, limit)}…` : url;

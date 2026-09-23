@@ -1,4 +1,6 @@
+import type { EgressLocation } from './api';
 import { FieldRow, Panel } from './components';
+import { egressLocationLabel } from './egress-location';
 import { copy, type Language } from './i18n';
 import type { Plan } from './plan-modules';
 import type { ScanScopeForm } from './scan-scope';
@@ -25,6 +27,10 @@ export function LaunchSummary(props: {
   /** The plan as the plan picker spells it, prices and all. */
   planLabel: string;
   scope: ScanScopeForm;
+  /** Where this launch will leave from, or null while nothing is on offer. */
+  egressLocation: EgressLocation | null;
+  /** A deployment without egress locations: there is no country to name. */
+  egressDirect: boolean;
 }) {
   const t = copy[props.language].newScan;
   const { scope } = props;
@@ -66,6 +72,18 @@ export function LaunchSummary(props: {
           label={t.launchSummaryUserAgent}
           value={scope.userAgent === 'desktop' ? t.userAgentDesktop : t.userAgentMobile}
         />
+        {props.egressDirect ? null : (
+          <FieldRow
+            label={t.launchSummaryEgress}
+            value={
+              props.egressLocation === null
+                ? '—'
+                : free
+                  ? `${egressLocationLabel(props.egressLocation, props.language)} · ${t.launchSummaryEgressDefault}`
+                  : egressLocationLabel(props.egressLocation, props.language)
+            }
+          />
+        )}
         <FieldRow
           label={t.launchSummaryAi}
           value={free ? t.launchSummaryDisabled : t.launchSummaryEnabled}

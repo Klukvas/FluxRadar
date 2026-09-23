@@ -31,4 +31,5 @@ Rules:
 - Do not claim a test passed without running it, and do not hide a failed or skipped check.
 - Do not edit secrets or deployment configuration unless the task explicitly requires it.
 
-For the reusable launch wrapper and the full orchestration policy, see [`docs/AGENT_CHECKPOINTS.md`](docs/AGENT_CHECKPOINTS.md).
+The full orchestration policy — who implements, who reviews, and what is never done without
+asking — lives in `~/Desktop/Projects/AGENTS.md`, which this file does not restate.

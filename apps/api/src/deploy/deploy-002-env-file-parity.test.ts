@@ -23,6 +23,8 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');
+/** The one line that ships the env file to the server. */
+const ENV_FILE_UPLOAD = '${{ runner.temp }}/production.env';
 const SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'normalize-env-file.cjs');
 
 const require_ = createRequire(import.meta.url);
@@ -52,7 +54,6 @@ const BASE_ENV: Readonly<Record<string, string>> = {
   DATABASE_URL: `postgresql://fluxradar:${PASSWORD}@postgres:5432/fluxradar`,
   FLUXRADAR_ENV_FILE: '.env.production',
   INTEGRATION_ENCRYPTION_KEY: ENCRYPTION_KEY,
-  PADDLE_WEBHOOK_SECRET: 'legacy-secret',
 };
 
 const workspaces: string[] = [];
@@ -140,7 +141,6 @@ describe('DEPLOY-002 production env file parity', () => {
       `DATABASE_URL="postgresql://fluxradar:${PASSWORD}@postgres:5432/fluxradar"`,
       'FLUXRADAR_ENV_FILE=.env.production',
       'INTEGRATION_ENCRYPTION_KEY=integration-key',
-      'PADDLE_WEBHOOK_SECRET=legacy-secret',
     ]);
 
     normalizeEnvFile(path);
@@ -208,17 +208,6 @@ describe('DEPLOY-002 production env file parity', () => {
     expect(expectFailure(lines)).toContain('INTEGRATION_ENCRYPTION_KEY');
   });
 
-  // PADDLE_WEBHOOK_SECRET is unused by this release but still required at
-  // startup by older ones, so its absence is a warning, not a refusal: only the
-  // rollback probe knows which release would actually come back.
-  it('warns, but does not fail, when PADDLE_WEBHOOK_SECRET is absent', () => {
-    const path = writeEnvFile(baseLines().filter((line) => !line.startsWith('PADDLE_')));
-
-    const { warnings } = normalizeEnvFile(path);
-
-    expect(warnings.join('\n')).toContain('PADDLE_WEBHOOK_SECRET');
-  });
-
   it('reports variable names only, never values', () => {
     const path = writeEnvFile(baseLines());
 
@@ -233,9 +222,12 @@ describe('DEPLOY-002 production env file parity', () => {
 
     expect(workflow).toContain('node deploy/normalize-env-file.cjs "$RUNNER_TEMP/production.env"');
     const normalizeAt = workflow.indexOf('node deploy/normalize-env-file.cjs');
-    const uploadAt = workflow.indexOf('scp "$RUNNER_TEMP/production.env"');
+    // The env file ships as a `files:` entry of the remote-upload action — and
+    // from that one place only, or the order below would prove nothing.
+    const uploadAt = workflow.indexOf(ENV_FILE_UPLOAD);
     expect(normalizeAt).toBeGreaterThan(-1);
     expect(uploadAt).toBeGreaterThan(normalizeAt);
+    expect(workflow.split(ENV_FILE_UPLOAD)).toHaveLength(2);
   });
 
   // INTEGRATION_ENCRYPTION_KEY encrypts every stored Google/Bing token, and

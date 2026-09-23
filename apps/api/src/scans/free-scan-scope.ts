@@ -27,6 +27,10 @@ import { scanScopeSchema } from '@fluxradar/contracts';
  * checks and browser rendering are all absent for the same reason the page
  * limit is one: they are paid capabilities, and a stored scope that mentioned
  * them would be advertising work the Free check never does.
+ *
+ * The egress location is not the caller's either: a Free check does not choose
+ * a country (D-228), so none is copied from the request. `createFreeScan` adds
+ * the default location it checked at launch.
  */
 export function freeScanScope(requested?: ScanScopeInput): ScanScopeInput {
   return scanScopeSchema.parse({

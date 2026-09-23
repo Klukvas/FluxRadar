@@ -5,7 +5,7 @@ import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { CHECKOUT_SESSION_STATUSES } from '../billing/constants.ts';
 import { FASTSPRING_PROVIDER } from '../billing/fastspring/index.ts';
-import { createTestDb, type TestDb, TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 // Domain ownership for paid scans.
 //
@@ -37,7 +37,6 @@ describe('site profile domain guard', () => {
   async function seedAccountWithProfile() {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -148,7 +147,6 @@ describe('site profile domain guard', () => {
     await openCheckout(accountId, profileId, new Date(Date.now() + 60 * 60 * 1000));
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });

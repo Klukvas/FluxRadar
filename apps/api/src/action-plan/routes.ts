@@ -13,7 +13,14 @@ import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
-import { RequestRateLimiter } from '../auth/rate-limit.ts';
+import {
+  ACTION_PLAN_START_IP_LIMIT,
+  ACTION_PLAN_START_LIMIT,
+  ACTION_PLAN_START_WINDOW_MS,
+  accountAndIpRules,
+  RequestRateLimiter,
+} from '../auth/rate-limit.ts';
+import type { RateLimitRule } from '../auth/rate-limit.ts';
 import { assertPaidWorkAllowed } from '../billing/report-access.ts';
 import { BackgroundRuns } from '../http/background-runs.ts';
 import { ApiError } from '../http/errors.ts';
@@ -60,13 +67,21 @@ const generateSchema = z.object({
 
 const languageQuerySchema = z.object({ language: z.enum(ACTION_PLAN_LANGUAGES).optional() });
 
-const ONE_HOUR_MS = 60 * 60 * 1000;
-
 /**
- * One address may hold a team, so this sits well above a single account's hourly
- * ceiling; it exists to stop a flood, not to meter spend.
+ * The HTTP guard on starting a plan: this account, and this address.
+ *
+ * It is not the spend cap — that one is counted in the database, because it has
+ * to hold across processes and restarts (service.ts). This is the abuse control
+ * in front of it, so a flood never reaches the database at all. One address may
+ * hold a team, so its ceiling sits well above a single account's.
  */
-const ACTION_PLAN_IP_STARTS_PER_HOUR = 4 * ACTION_PLAN_LIMITS.maxStartsPerAccountPerHour;
+function startRules(accountId: string, ip: string | undefined): readonly RateLimitRule[] {
+  return accountAndIpRules('action-plan', accountId, ip ?? 'unknown', {
+    account: ACTION_PLAN_START_LIMIT,
+    ip: ACTION_PLAN_START_IP_LIMIT,
+    windowMs: ACTION_PLAN_START_WINDOW_MS,
+  });
+}
 
 /** How a refused claim is reported. A cap and a race are not the same answer. */
 const CLAIM_REFUSALS: Record<
@@ -122,14 +137,11 @@ export function actionPlanRouter(deps: ActionPlanRouterDeps): Router {
     if (!isActionPlanProviderConfigured()) {
       throw new ApiError(503, 'ACTION_PLAN_UNAVAILABLE', 'AI is temporarily unavailable');
     }
-    // One address, before anything touches the database. The per-ACCOUNT ceiling
-    // is not here on purpose: it is a spend rule, and a spend rule has to hold
-    // across processes and restarts, which an in-memory counter cannot do.
-    requestRateLimiter.assertAllowed(
-      `action-plan:ip:${req.ip ?? 'unknown'}`,
-      ACTION_PLAN_IP_STARTS_PER_HOUR,
-      ONE_HOUR_MS,
-    );
+    // This account and this address, before anything touches the database. The
+    // spend caps themselves stay in the database below: an in-memory counter
+    // cannot hold across processes and restarts, and a DB cap is not an abuse
+    // control — so both run, in that order.
+    requestRateLimiter.assertAllowedAll(startRules(accountId, req.ip));
 
     // Both spend caps and the scan's own slot are settled inside this one call,
     // in the database: an in-memory limiter cannot see the other process.

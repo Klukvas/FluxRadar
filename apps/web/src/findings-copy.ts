@@ -56,6 +56,14 @@ export type FindingsCopy = {
     readonly fixedList: string;
     readonly introducedList: string;
     readonly firstReport: string;
+    /** The two crawls left from different countries: a difference, not a trend. */
+    readonly egressDifferent: (current: string, previous: string) => string;
+    readonly egressUnrecorded: string;
+    readonly onlyPrevious: string;
+    readonly onlyCurrent: string;
+    readonly inBoth: string;
+    readonly onlyPreviousList: string;
+    readonly onlyCurrentList: string;
   };
   readonly retry: {
     readonly heading: string;
@@ -172,6 +180,15 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       introducedList: 'New since then',
       firstReport:
         'This is the first report of this plan for the site. Run the next one after your fixes and this block will show what changed.',
+      egressDifferent: (current, previous) =>
+        `This check ran from ${current}, the previous one from ${previous}. A site can answer visitors from different countries differently — language, redirects, consent banners, blocks — so the findings below differ between two places, not over time. Do not read them as fixed or new.`,
+      egressUnrecorded:
+        'The country one of these checks ran from was not recorded, so part of the difference may come from the network it ran from rather than from changes to the site.',
+      onlyPrevious: 'Only in the previous report',
+      onlyCurrent: 'Only in this report',
+      inBoth: 'In both',
+      onlyPreviousList: 'Only in the previous report',
+      onlyCurrentList: 'Only in this report',
     },
     retry: {
       heading: 'A section could not be read',
@@ -187,7 +204,7 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
         'Every public page, not just the homepage — up to 50,000 pages',
         'Security headers, accessibility (WCAG 2.2 AA), performance, privacy and content',
         'A score, a prioritised list of problems and a client-ready report',
-        'An AI Action Plan: what to fix, in what order, with an overview you can forward to a client',
+        'On Complete, an AI Action Plan: the findings as an ordered list of changes, with an overview for your client',
       ],
       action: (plan) => `Run ${plan} for this site`,
       compare: 'Compare plans',
@@ -292,6 +309,15 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       introducedList: 'Нове відтоді',
       firstReport:
         'Це перший звіт цього тарифу для сайту. Запустіть наступний після виправлень — і тут буде видно, що змінилося.',
+      egressDifferent: (current, previous) =>
+        `Ця перевірка йшла з точки «${current}», попередня — з точки «${previous}». Сайт може по-різному відповідати відвідувачам з різних країн — мова, редиректи, банери згоди, блокування, — тож нижче різниця між двома місцями, а не зміни в часі. Не читайте її як «виправлено» чи «нове».`,
+      egressUnrecorded:
+        'Країну, з якої йшла одна з цих перевірок, не зафіксовано, тож частина різниці може бути пов’язана з мережею перевірки, а не зі змінами на сайті.',
+      onlyPrevious: 'Лише в попередньому звіті',
+      onlyCurrent: 'Лише в цьому звіті',
+      inBoth: 'В обох',
+      onlyPreviousList: 'Лише в попередньому звіті',
+      onlyCurrentList: 'Лише в цьому звіті',
     },
     retry: {
       heading: 'Один розділ не вдалося прочитати',
@@ -307,7 +333,7 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
         'Усі публічні сторінки, а не лише головна — до 50 000 сторінок',
         'Заголовки безпеки, доступність (WCAG 2.2 AA), швидкодія, приватність і контент',
         'Оцінка, пріоритезований список проблем і звіт, який можна віддати клієнту',
-        'AI-план дій: що виправити і в якому порядку, з оглядом, який можна переслати клієнту',
+        'У Complete — план дій від ШІ: знахідки як упорядкований список змін з оглядом для вашого клієнта',
       ],
       action: (plan) => `Запустити ${plan} для цього сайту`,
       compare: 'Порівняти тарифи',

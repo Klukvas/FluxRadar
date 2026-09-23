@@ -9,4 +9,7 @@ Disallow: /scans/
 Disallow: /reports
 Disallow: /integrations
 
+# What our own crawler is, for anyone who met FluxRadarBot in their access log
+# and came here first: https://fluxradar.net/bot
+
 Sitemap: https://fluxradar.net/sitemap.xml

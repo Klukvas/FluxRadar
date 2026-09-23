@@ -37,7 +37,6 @@ import {
   seedScan,
   type SeededAccount,
   type TestDb,
-  TEST_WEBHOOK_SECRET,
 } from '../test-utils/test-db.ts';
 
 // Pausing and resuming one scan: what it does to the scan, to its job, and to
@@ -944,7 +943,6 @@ describe('the pause and resume endpoints', () => {
   function app(prisma: PrismaClient = db.prisma) {
     return createApp({
       prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });

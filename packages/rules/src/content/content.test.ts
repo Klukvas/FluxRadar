@@ -163,6 +163,9 @@ describe('CONTENT-004 битые media', () => {
   });
 
   it('внутренняя media без снимка и без пробы → пусто: обход её не проверял', () => {
+    // The finding this replaces: "Internal media the crawl could not confirm",
+    // Medium severity and a score penalty, on a file the crawler never fetched.
+    // Checked by hand on 2026-09-21, every such file answered 200.
     const ctx = htmlContext(
       '<!doctype html><html lang="en"><head><title>Unverified media page</title></head>' +
         '<body><img src="/img/unknown.png" alt="Unknown picture" /></body></html>',
@@ -212,7 +215,8 @@ describe('CONTENT-004 битые media', () => {
           html:
             '<!doctype html><html lang="en"><head><title>Mixed media page</title></head>' +
             '<body><img src="/other.html" alt="Wrong target" />' +
-            '<img src="/img/missing.png" alt="Missing picture" /></body></html>',
+            '<img src="/img/missing.png" alt="Missing picture" />' +
+            '<img src="/img/unknown.png" alt="Never asked about" /></body></html>',
         },
         {
           path: '/other.html',
@@ -226,6 +230,9 @@ describe('CONTENT-004 битые media', () => {
     );
     // The three-kind breakdown is its own code: `content-004.evidence.mixed`
     // still names a fourth kind and renders the findings stored with it.
+    // Two verified failures are named. The third image was never requested, so
+    // it appears nowhere: the breakdown lists what was checked, not what was
+    // referenced.
     expect(finding?.messages?.evidence.code).toBe('content-004.evidence.mixed-v2');
     expect(RENDER_ONLY_MESSAGE_CODES).not.toContain(finding?.messages?.evidence.code);
     expect(finding?.evidenceExcerpt).toBe(

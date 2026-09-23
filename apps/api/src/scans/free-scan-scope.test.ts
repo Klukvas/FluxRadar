@@ -7,7 +7,7 @@ import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { createDefaultAiProvider } from '../orchestrator/geo.ts';
 import { processScan } from '../orchestrator/worker.ts';
-import { createTestDb, type TestDb, TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { freeScanScope } from './free-scan-scope.ts';
 
 // What a Free check records about itself.
@@ -76,7 +76,6 @@ describe('free check scope persistence', () => {
   function app() {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -220,7 +219,6 @@ describe('free check crawl enforcement', () => {
   it('reads the homepage only, however many pages the request asked for', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });

@@ -5,7 +5,7 @@ import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { MockMailer } from '../email/mailer.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { createDefaultAiProvider } from './geo.ts';
 import { processPendingJobs } from './worker.ts';
 
@@ -49,13 +49,13 @@ describe('what a scan mails while it runs', () => {
       .filter((subject) => subject.startsWith(NOTIFICATION_SUBJECT_PREFIX));
   }
 
-  function makeApp() {
+  function makeApp(internalFreeEmails?: ReadonlySet<string>) {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       mailer,
+      ...(internalFreeEmails === undefined ? {} : { internalFreeEmails }),
     });
   }
 
@@ -70,8 +70,8 @@ describe('what a scan mails while it runs', () => {
     });
   }
 
-  async function registeredAgent(email: string) {
-    const app = makeApp();
+  async function registeredAgent(email: string, internalFreeEmails?: ReadonlySet<string>) {
+    const app = makeApp(internalFreeEmails);
     const agent = request.agent(app);
     const registered = await agent
       .post('/auth/register')
@@ -108,9 +108,13 @@ describe('what a scan mails while it runs', () => {
   });
 
   it('mails the confirmed purchase and nothing else for a paid scan', async () => {
-    const { agent, cookie, profileId } = await registeredAgent('paid-mail@example.com');
+    const email = 'paid-mail@example.com';
+    // The internal free-access checkout is the paid path this suite can drive
+    // end to end: it creates a paid-plan scan through the app — and therefore
+    // through the app's mailer — without a provider order.
+    const { agent, cookie, profileId } = await registeredAgent(email, new Set([email]));
     const checkout = await agent
-      .post('/billing/dev-checkout')
+      .post('/billing/internal-checkout')
       .set('Cookie', cookie)
       .send({
         siteProfileId: profileId,

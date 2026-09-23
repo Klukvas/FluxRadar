@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
-import { TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
 
 describe('integrations routes', () => {
   let db: TestDb;
@@ -43,7 +42,6 @@ describe('integrations routes', () => {
   it('returns only customer-connectable integrations without exposing configuration values', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -73,7 +71,6 @@ describe('integrations routes', () => {
   it('does not start OAuth when the server has no provider credentials', async () => {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -98,7 +95,6 @@ describe('integrations routes', () => {
 
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });

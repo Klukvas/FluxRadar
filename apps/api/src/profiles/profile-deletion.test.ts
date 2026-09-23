@@ -1,3 +1,4 @@
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import request from 'supertest';
 import type { Response } from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -11,7 +12,6 @@ import {
   createTestDb,
   seedScan,
   seedScanModule,
-  TEST_WEBHOOK_SECRET,
   type SeededAccount,
   type TestDb,
 } from '../test-utils/test-db.ts';
@@ -56,7 +56,6 @@ describe('site profile deletion', () => {
   async function signIn(email: string) {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       objectStore,
@@ -92,8 +91,8 @@ describe('site profile deletion', () => {
       data: {
         accountId: profile.accountId,
         scanId: scan.id,
-        providersJson: JSON.stringify(['anthropic']),
-        noticeVersion: 'v1',
+        providersJson: JSON.stringify(['anthropic', 'openai']),
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
       },
     });
     await db.prisma.exportArtifact.create({
@@ -115,6 +114,7 @@ describe('site profile deletion', () => {
         reasonCode: 'TEST',
         status: REFUND_STATUSES.paid,
         amountUsd: 10,
+        provider: purchase.provider,
       },
     });
     await db.prisma.webhookEvent.create({

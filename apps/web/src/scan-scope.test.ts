@@ -29,6 +29,25 @@ function scanWith(plan: Scan['plan'], scope: Scan['scope']): Scan {
   return { plan, scope } as Scan;
 }
 
+describe('the page limit a first-time scan starts from', () => {
+  it('asks for no limit of its own, so a paid crawl runs to its plan', () => {
+    // A default of 15 meant every Complete scan read fifteen pages of whatever
+    // site it was pointed at, and the report called that a complete audit.
+    expect(DEFAULT_SCOPE_FORM.maxPages).toBe('');
+  });
+
+  it.each(['Basic', 'Complete'] as const)('sends no page limit on %s', (plan) => {
+    const scope = scanScopeFrom(DEFAULT_SCOPE_FORM, plan);
+
+    // An absent maxPages is what the API reads as "the whole tariff".
+    expect(scope).not.toHaveProperty('maxPages');
+  });
+
+  it('still lets an owner set a smaller crawl of their own', () => {
+    expect(scanScopeFrom({ ...DEFAULT_SCOPE_FORM, maxPages: '15' }, 'Complete').maxPages).toBe(15);
+  });
+});
+
 it('preserves intentionally cleared limits when a saved configuration is reopened', () => {
   const saved = profileScanConfigFromForm(
     { ...DEFAULT_SCOPE_FORM, maxPages: '', maxDepth: '' },
@@ -54,6 +73,7 @@ describe('scanScopeFrom', () => {
     respectRobots: false,
     robotsOverrideConfirmed: true,
     userAgent: 'mobile' as const,
+    egressLocation: 'ua',
   };
 
   it('sends everything the owner set on a paid plan', () => {
@@ -68,10 +88,22 @@ describe('scanScopeFrom', () => {
       respectRobots: false,
       robotsOverrideConfirmed: true,
       userAgent: 'mobile',
+      egressLocation: 'ua',
     });
   });
 
+  // The saved preference is what a profile stores; a launch sends the location
+  // actually on offer, which is the one the screen shows.
+  it('sends the location it is given for a launch, and leaves out none at all', () => {
+    expect(scanScopeFrom(filledForm, 'Basic', 'de').egressLocation).toBe('de');
+    expect(scanScopeFrom(filledForm, 'Basic', null)).not.toHaveProperty('egressLocation');
+    expect(scanScopeFrom({ ...filledForm, egressLocation: '' }, 'Basic')).not.toHaveProperty(
+      'egressLocation',
+    );
+  });
+
   // Free honours the user agent and nothing else, so that is all it may claim.
+  // It does not choose a country either: it leaves from the default one.
   it('sends the fixed homepage check on Free, whatever the form holds', () => {
     expect(scanScopeFrom(filledForm, 'Free')).toEqual({
       includeSubdomains: false,
@@ -153,6 +185,7 @@ describe('scopeFormFromScan', () => {
         queryPolicy: 'include',
         respectRobots: true,
         userAgent: 'mobile',
+        egressLocation: 'ua',
       }),
     );
 
@@ -169,6 +202,7 @@ describe('scopeFormFromScan', () => {
       respectRobots: true,
       robotsOverrideConfirmed: false,
       userAgent: 'mobile',
+      egressLocation: 'ua',
     });
   });
 

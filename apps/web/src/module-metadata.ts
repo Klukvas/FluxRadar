@@ -18,6 +18,11 @@ export function numberValue(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+/** A whole number of things: a non-negative integer. */
+export function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
 /** One automated check a rule-based section ran, as the audit recorded it. */
 export interface RuleCheck {
   readonly ruleId: string;

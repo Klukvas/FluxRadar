@@ -9,8 +9,8 @@ import type { ModuleName, ModuleRuntimeStatus, Plan } from '@fluxradar/contracts
 import type { AiConsent } from './consent.js';
 import { AiModuleError, AiRequestCancelledError } from './errors.js';
 import type { GeoFinding } from './geo-findings.js';
-import { evaluateGeoRules } from './geo-rules.js';
-import type { GeoRuleEvaluation } from './geo-rules.js';
+import { evaluateGeoRules, geoMentionSignals } from './geo-rules.js';
+import type { GeoMentionSignals, GeoRuleEvaluation } from './geo-rules.js';
 import { AiQuotaTracker } from './quota.js';
 import type { RedactionOptions } from './redaction.js';
 import { runAiRequest } from './run-request.js';
@@ -58,6 +58,15 @@ export interface GeoModuleResult {
   readonly responses: readonly AiResponseOutcome[];
   readonly evaluations: readonly GeoRuleEvaluation[];
   readonly findings: readonly GeoFinding[];
+  /**
+   * Per answer (by `aiRequestKey`), what it showed about brand and domain
+   * visibility — including that a signal was not measurable because the
+   * question already named the thing being looked for.
+   *
+   * The report's badges read this rather than inferring a pass from "no finding
+   * for this answer", which is how they came to be green on every scan.
+   */
+  readonly mentions: ReadonlyMap<string, GeoMentionSignals>;
   /** Финальное состояние квоты: spent = число ответов, outstanding = 0. */
   readonly quota: AiQuotaTracker;
   /** Сколько вопросов было в библиотеке прогона — знаменатель coverage (§15). */
@@ -182,15 +191,13 @@ export async function runGeoModule(
 
   // Unavailable-модуль — только module record со status_reason (§5): без issue-
   // findings; GEO-METHOD-005 документирует пропуски в Completed/Partial-ветке.
-  const evaluations =
-    status === 'Unavailable'
-      ? []
-      : evaluateGeoRules({
-          domain: input.siteDomain.trim().toLowerCase(),
-          siteUrl: input.siteOrigin,
-          brand: input.brand,
-          outcomes,
-        });
+  const ruleInput = {
+    domain: input.siteDomain.trim().toLowerCase(),
+    siteUrl: input.siteOrigin,
+    brand: input.brand,
+    outcomes,
+  };
+  const evaluations = status === 'Unavailable' ? [] : evaluateGeoRules(ruleInput);
 
   return {
     module: GEO_MODULE_NAME,
@@ -200,6 +207,10 @@ export async function runGeoModule(
     responses,
     evaluations,
     findings: evaluations.flatMap((evaluation) => evaluation.findings),
+    mentions:
+      status === 'Unavailable'
+        ? new Map<string, GeoMentionSignals>()
+        : geoMentionSignals(ruleInput),
     quota,
     requested: input.requests.length,
     interrupted,

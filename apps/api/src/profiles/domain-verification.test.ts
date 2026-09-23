@@ -12,7 +12,7 @@ import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 
 import { silentLogger } from '../http/logger.ts';
 import { createApp } from '../index.ts';
-import { createTestDb, type TestDb, TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { startDomainVerification, verifyDomainOwnership } from './domain-verification.ts';
 
 // The optional ownership proof.
@@ -80,7 +80,6 @@ afterEach(async () => {
 function app(txtRecords: readonly string[] = []) {
   return createApp({
     prisma: db.prisma,
-    webhookSecret: TEST_WEBHOOK_SECRET,
     autoProcess: false,
     logger: silentLogger,
     domainVerification: {

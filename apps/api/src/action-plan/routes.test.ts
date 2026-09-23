@@ -24,7 +24,6 @@ import { silentLogger } from '../http/logger.ts';
 import { createApp } from '../index.ts';
 import {
   createTestDb,
-  TEST_WEBHOOK_SECRET,
   type SeededAccount,
   type TestDb,
 } from '../test-utils/test-db.ts';
@@ -238,7 +237,6 @@ describe('Action Plan routes', () => {
     registries.push(backgroundRuns);
     const express = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       actionPlanRuns: backgroundRuns,

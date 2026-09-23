@@ -18,7 +18,8 @@
 // Acknowledged/Ignored/False Positive читаются перед транзакцией и переносятся
 // на новые строки того же fingerprint (issueStatusesForModule).
 
-import { severityRank } from '@fluxradar/contracts';
+import { severityRank, siteReachStatusReason } from '@fluxradar/contracts';
+import type { CrawlSummary } from '@fluxradar/contracts';
 import type { Prisma, PrismaClient, Scan } from '@prisma/client';
 
 /** Works both on the root client and inside a `$transaction` callback. */
@@ -70,6 +71,36 @@ function withoutStatus(data: ModuleRowData): Omit<ModuleRowData, 'runtimeStatus'
   const { runtimeStatus, ...rest } = data;
   void runtimeStatus;
   return rest;
+}
+
+/**
+ * Every module of the attempt reports the same thing: there was no site to read.
+ *
+ * `Unavailable` rather than `Not applicable` is the honest status — the checks
+ * are applicable to this site, they simply had nothing to run on — and §15
+ * requires `applicable > 0, completed = 0` for it, which is what the single
+ * "could the site be read" check stands for. No score, because scoring a site
+ * we never saw is the whole failure being fixed here.
+ */
+export async function markEveryModuleUnreadable(
+  prisma: PrismaClient,
+  scanId: string,
+  modules: readonly string[],
+  summary: CrawlSummary,
+): Promise<void> {
+  const statusReason = siteReachStatusReason(summary) ?? 'SiteUnreachable';
+  for (const module of modules) {
+    await setModule(prisma, scanId, module, {
+      runtimeStatus: 'Unavailable',
+      statusReason,
+      coverage: 0,
+      score: null,
+      applicableChecks: 1,
+      completedApplicableChecks: 0,
+      usableOutput: false,
+      metadataJson: JSON.stringify({ crawl: summary }),
+    });
+  }
 }
 
 export async function persistModuleResult(

@@ -883,10 +883,11 @@ describe('Resolved across two Complete runs of the same profile', () => {
     const scopeOf = async (scanId: string): Promise<string | null | undefined> =>
       (await coverageOf(prisma, scanId, 'SEO')).coverage.get('SEO-TECH-004')?.context.crawlScope;
     expect(await scopeOf(second.id)).not.toBe(await scopeOf(first.id));
-    // v2 since the fingerprint gained the render mode and the API checks: those
-    // change what a run reads at the same address, so a proof written before
-    // they were part of it cannot be compared with one written after.
-    expect(await scopeOf(second.id)).toEqual(expect.stringMatching(/^scope-v2:/));
+    // v3 since the fingerprint gained the render mode, the API checks and the
+    // country the crawl left from: each changes what a run reads at the same
+    // address, so a proof written before they were part of it cannot be
+    // compared with one written after.
+    expect(await scopeOf(second.id)).toEqual(expect.stringMatching(/^scope-v3:/));
 
     for (const issue of [privacyIssue, robotsIssue]) {
       const after = await prisma.issue.findUniqueOrThrow({ where: { id: issue.id } });

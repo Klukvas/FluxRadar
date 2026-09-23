@@ -1,3 +1,4 @@
+import { botCopyEn, botCopyUk } from './bot-copy';
 import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
@@ -154,6 +155,7 @@ export const copy = {
           { id: 'cookies-controller', label: 'Operator & scope' },
           { id: 'cookies-categories', label: 'Categories' },
           { id: 'cookies-inventory', label: 'Storage inventory' },
+          { id: 'cookies-analytics', label: 'Google Analytics' },
           { id: 'cookies-providers', label: 'FastSpring checkout' },
           { id: 'cookies-controls', label: 'Your controls' },
         ],
@@ -189,6 +191,11 @@ export const copy = {
         title: 'Cookie policy | FluxRadar',
         description:
           'The cookies and browser storage FluxRadar uses, why they are needed, how long they remain and how to control them.',
+      },
+      bot: {
+        title: 'FluxRadarBot — the FluxRadar crawler | FluxRadar',
+        description:
+          'What FluxRadarBot is, the address it crawls from, the user agent it sends, that it obeys robots.txt, and the Cloudflare rule to allow it through.',
       },
       workspaceTitle: 'Workspace — FluxRadar',
     },
@@ -415,6 +422,7 @@ export const copy = {
         termsLink: 'Terms of service',
         refundLink: 'Refund policy',
         fieldNotes: 'Field notes',
+        crawlerLink: 'Our crawler',
       },
     },
     tour: {
@@ -450,6 +458,7 @@ export const copy = {
     },
     faq: faqCopyEn,
     checks: checksCopyEn,
+    bot: botCopyEn,
     pricing: {
       publicOnly: 'Public pages only — no customer credentials required',
       included: 'What you get',
@@ -484,7 +493,7 @@ export const copy = {
           price: COMPLETE_PRICE_USD,
           description: 'Everything FluxRadar can read about a public website, in one report.',
           included:
-            'Everything in Basic plus security (public OWASP ASVS profile), accessibility (WCAG 2.2 AA), performance, reliability, privacy and consent, and content quality — with the Issue Center, scan history and JSON/CSV export. Every module FluxRadar runs is already in this price; there is nothing extra to add at checkout.',
+            'Everything in Basic plus security (public OWASP ASVS profile), accessibility (WCAG 2.2 AA), performance, reliability, privacy and consent, and content quality — with scan history and JSON/CSV export. Every module FluxRadar runs is already in this price; there is nothing extra to add at checkout.',
           bestFor:
             'Anyone who needs the whole picture before a redesign, a launch, a handover or a client report.',
           limits:
@@ -509,7 +518,7 @@ export const copy = {
             label: 'What is included',
             basic: 'The full SEO analysis — 16 checks — and AI crawler readiness.',
             complete:
-              'Everything in Basic, plus security, accessibility, performance, reliability, privacy and content quality, with the Issue Center, scan history and JSON/CSV export.',
+              'Everything in Basic, plus security, accessibility, performance, reliability, privacy and content quality, with scan history and JSON/CSV export.',
           },
           notIncluded: {
             label: 'What is not included',
@@ -564,6 +573,25 @@ export const copy = {
       labelUserAgent: 'User agent',
       userAgentDesktop: 'Desktop',
       userAgentMobile: 'Mobile',
+      labelEgressLocation: 'Country the check runs from',
+      hintEgressLocation:
+        'A site can answer visitors from different countries differently — language, redirects, consent banners, blocks. The crawler reads it from this country.',
+      egressPerformanceNote:
+        'Speed is measured by Google PageSpeed Insights from Google’s own network, so the country you choose does not change the Performance section.',
+      egressMoreCountries: 'More countries will be added later.',
+      egressNone:
+        'No check location is answering right now, so a scan cannot start. Try again in a few minutes.',
+      egressLoadFailed:
+        'The list of countries could not be loaded. The check will run from the default location.',
+      egressUnavailableError:
+        'The network this check leaves from is not answering right now. Nothing was charged — try again in a few minutes.',
+      egressUnknownError:
+        'That country is no longer offered. Choose one from the list and try again.',
+      freeCheckUsedError:
+        'This account has already used its free check. To audit this site, choose Basic or Complete.',
+      freeCheckDomainUsedError:
+        'This site has already had its free check — each site gets one. Yours is still unused and works on another site; to audit this one, choose Basic or Complete.',
+      blockedByEgress: 'A scan cannot start while no check location is answering.',
       panelDepth: 'Audit depth',
       labelScanPlan: 'Scan plan',
       planFree: 'Free · homepage only',
@@ -648,6 +676,11 @@ export const copy = {
       configurationNew: 'New configuration',
       configurationNewBody: 'It will be saved to this profile before the check starts.',
       configurationLoading: 'Configuration is loading…',
+      aiContextTitle: 'What this site offers',
+      aiContextHelp:
+        'Used to ask AI models neutral questions about your topic — questions that never name your brand or domain, so a mention in the answer means the model knows you rather than that we told it.',
+      aiContextMissing:
+        'Without these, the AI visibility section can only ask questions that name your brand — and an answer repeating a name we supplied measures nothing. Fill them in to get neutral questions about your topic. They are saved with the site.',
       launchSummaryTitle: 'What will run',
       launchSummarySite: 'Site',
       launchSummaryPlan: 'Plan',
@@ -660,6 +693,8 @@ export const copy = {
       launchSummaryAi: 'AI visibility',
       launchSummaryPerformance: 'Performance provider',
       launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · no sign-in',
+      launchSummaryEgress: 'Checked from',
+      launchSummaryEgressDefault: 'default for Free',
       launchSummaryEnabled: 'Enabled',
       launchSummaryDisabled: 'Off',
       launchSummaryHomepage: 'Homepage only',
@@ -667,6 +702,47 @@ export const copy = {
       launchSummaryIgnored: 'Ignored',
       launchSummaryRespected: 'Respected',
       launchSummaryOverridden: 'Override confirmed',
+    },
+    reachability: {
+      title: 'Can we read your site?',
+      lead: 'We check this before you pay, with the same crawler that will run the audit. A site that refuses it cannot be audited, and we would rather tell you now than refund you later.',
+      check: 'Check the site',
+      again: 'Check again',
+      checking: 'Asking your site…',
+      unchecked: 'Not checked yet.',
+      failed: 'The check could not be run. Try again in a moment.',
+      answeredWith: 'Your site answered with HTTP {status}.',
+      signals: 'Sent by: {signals}',
+      states: {
+        reachable: {
+          label: 'Reachable',
+          body: 'Your site answered and let our crawler read a page. The audit can run.',
+        },
+        accessDenied: {
+          label: 'Blocked',
+          body: 'Something in front of your site refused our crawler — usually a WAF or bot protection. Allow FluxRadarBot and the address it comes from, then check again. Our crawler page has the rule to paste.',
+        },
+        blockedByRobots: {
+          label: 'Disallowed by robots.txt',
+          body: 'Your robots.txt tells FluxRadarBot not to read the site, and we obey it. Allow it there, then check again.',
+        },
+        unreachable: {
+          label: 'No answer',
+          body: 'We could not reach your site at all — the name did not resolve, the connection failed, or it timed out. Check that the address is right and the site is up.',
+        },
+        badResponse: {
+          label: 'No readable page',
+          body: 'Your site answered, but not with a page we could read. Open the address in a browser and check what it returns.',
+        },
+        expired: {
+          label: 'Out of date',
+          body: 'This check is more than fifteen minutes old. Run it again before paying.',
+        },
+        unknown: {
+          label: 'Unclear',
+          body: 'The check did not come back with a state we recognise. Run it again.',
+        },
+      },
     },
     reports: {
       windowTitle: 'Reports',
@@ -761,6 +837,8 @@ export const copy = {
       plan: 'Plan',
       report: 'Report',
       configurationVersion: 'Configuration version',
+      egressLocation: 'Checked from',
+      egressLocationUnrecorded: 'Not recorded',
       helpHeading: 'How to read this report',
       helpScoreTerm: 'Score',
       helpScoreBody:
@@ -777,6 +855,22 @@ export const copy = {
       // than measured. The observations themselves are on the section's card.
       informationalLabel: 'Observations only',
       coverageUnavailable: 'coverage unavailable',
+      siteCoverageTitle: 'How much of the site was read',
+      siteCoverageCaption: 'Addresses read',
+      siteCoverageRead: 'We read {read} of the {found} addresses we found on your site.',
+      siteCoverageComplete:
+        'That is every address the crawl found, so the sections below cover the whole site.',
+      siteCoveragePartial:
+        'The sections below describe only the pages we read, not the whole site.',
+      siteCoverageLimitedByOwner:
+        'Your scan settings limit this check to {limit} pages, so the rest of the site was not read. Raise the page limit before the next check to cover more of it.',
+      siteCoverageLimitedByPlan:
+        'This plan covers up to {limit} pages, and your site has more. A larger plan is needed to read the rest.',
+      siteCoverageRobots:
+        'A further {count} addresses are disallowed by your robots.txt. We respect that, so they are not counted as missing.',
+      siteCoverageUnread:
+        'No page of the site could be read, so nothing below describes your site. See the scan status for what the site answered.',
+      siteCoverageNoAddresses: 'The crawl found no addresses to read.',
       geoObservationsLead:
         'These are each model’s answers to this scan’s exact prompts, produced with the provider’s own web search, and the citations are the sources it used. They show whether an answer mentioned your brand or official domain in this run; they do not prove what a model has memorized or will answer later.',
       geoAwarenessQuestion: 'Direct awareness question',
@@ -786,15 +880,18 @@ export const copy = {
       geoProviderGoogle: 'Gemini · Google',
       geoProviderPerplexity: 'Perplexity',
       geoProviderUnknown: 'Provider not recorded',
-      geoMentionCounts:
-        'Brand mentioned in {brand} of {total} answers · official domain referenced in {domain} of {total}.',
       geoProvider: 'Provider/model',
+      geoGroupBrandCount: 'Brand mentioned in {count} of {total} answers',
+      geoGroupDomainCount: 'Official domain referenced in {count} of {total}',
       geoAnswerLabel: 'Model answer',
       geoMentionSignals: 'Mention signals',
       geoBrandMentioned: 'Brand mentioned',
       geoBrandNotMentioned: 'Brand not mentioned',
       geoDomainMentioned: 'Official domain referenced',
       geoDomainNotMentioned: 'Official domain not referenced',
+      geoBrandNamedInQuestion: 'Brand awareness — not measured (named in the question)',
+      geoDomainNamedInQuestion: 'Official domain — not measured (named in the question)',
+      geoBrandIsHostname: 'Brand awareness — not measurable (this site’s brand name is its domain)',
       geoCitations: 'Provider citations',
       geoUnavailable: 'The model did not return a usable answer for this question.',
       issuesCta:
@@ -1511,6 +1608,7 @@ export const copy = {
           { id: 'cookies-controller', label: 'Оператор і сфера дії' },
           { id: 'cookies-categories', label: 'Категорії' },
           { id: 'cookies-inventory', label: 'Реєстр storage' },
+          { id: 'cookies-analytics', label: 'Google Analytics' },
           { id: 'cookies-providers', label: 'Checkout FastSpring' },
           { id: 'cookies-controls', label: 'Ваші налаштування' },
         ],
@@ -1546,6 +1644,11 @@ export const copy = {
         title: 'Політика cookies | FluxRadar',
         description:
           'Які cookies і browser storage використовує FluxRadar, навіщо вони потрібні, скільки зберігаються та як ними керувати.',
+      },
+      bot: {
+        title: 'FluxRadarBot — краулер FluxRadar | FluxRadar',
+        description:
+          'Що таке FluxRadarBot, з якої адреси він приходить, який user agent надсилає, що він поважає robots.txt, і правило Cloudflare, щоб його пропустити.',
       },
       workspaceTitle: 'Робочий простір — FluxRadar',
     },
@@ -1771,6 +1874,7 @@ export const copy = {
         termsLink: 'Умови використання',
         refundLink: 'Політика повернень',
         fieldNotes: 'Нотатки з практики',
+        crawlerLink: 'Наш краулер',
       },
     },
     tour: {
@@ -1806,6 +1910,7 @@ export const copy = {
     },
     faq: faqCopyUk,
     checks: checksCopyUk,
+    bot: botCopyUk,
     pricing: {
       publicOnly: 'Лише публічні сторінки — облікові дані клієнта не потрібні',
       included: 'Що ви отримуєте',
@@ -1840,7 +1945,7 @@ export const copy = {
           price: COMPLETE_PRICE_USD,
           description: 'Усе, що FluxRadar може прочитати про публічний сайт, в одному звіті.',
           included:
-            'Усе з Basic плюс безпека (публічний профіль OWASP ASVS), доступність (WCAG 2.2 AA), продуктивність, надійність, приватність і згода та якість контенту — разом з Issue Center, історією перевірок і експортом JSON/CSV. Усі модулі, які запускає FluxRadar, уже входять у цю ціну; нічого додавати на етапі оплати не потрібно.',
+            'Усе з Basic плюс безпека (публічний профіль OWASP ASVS), доступність (WCAG 2.2 AA), продуктивність, надійність, приватність і згода та якість контенту — разом з історією перевірок і експортом JSON/CSV. Усі модулі, які запускає FluxRadar, уже входять у цю ціну; нічого додавати на етапі оплати не потрібно.',
           bestFor:
             'Тим, кому потрібна повна картина перед редизайном, запуском, передачею сайту або звітом для клієнта.',
           limits: 'Одна перевірка одного сайту · до 50 000 сторінок обходу · результати 365 днів.',
@@ -1864,7 +1969,7 @@ export const copy = {
             label: 'Що входить',
             basic: 'Повний SEO-аналіз — 16 перевірок — і готовність до AI-роботів.',
             complete:
-              'Усе з Basic, а також безпека, доступність, продуктивність, надійність, приватність і якість контенту — з Issue Center, історією перевірок та експортом JSON/CSV.',
+              'Усе з Basic, а також безпека, доступність, продуктивність, надійність, приватність і якість контенту — з історією перевірок та експортом JSON/CSV.',
           },
           notIncluded: {
             label: 'Що не входить',
@@ -1920,6 +2025,25 @@ export const copy = {
       labelUserAgent: 'Агент користувача',
       userAgentDesktop: 'Десктоп',
       userAgentMobile: 'Мобільний',
+      labelEgressLocation: 'Країна, з якої йде перевірка',
+      hintEgressLocation:
+        'Сайт може по-різному відповідати відвідувачам з різних країн — мова, редиректи, банери згоди, блокування. Краулер читатиме сайт із цієї країни.',
+      egressPerformanceNote:
+        'Швидкість вимірює Google PageSpeed Insights зі своєї мережі, тому вибір країни на розділ «Швидкодія» не впливає.',
+      egressMoreCountries: 'Інші країни з’являться пізніше.',
+      egressNone:
+        'Зараз жодна точка перевірки не відповідає, тому запустити перевірку не можна. Спробуйте за кілька хвилин.',
+      egressLoadFailed:
+        'Не вдалося завантажити список країн. Перевірка піде з точки за замовчуванням.',
+      egressUnavailableError:
+        'Мережа, з якої йде перевірка, зараз не відповідає. Нічого не списано — спробуйте за кілька хвилин.',
+      egressUnknownError:
+        'Цієї країни більше немає у списку. Оберіть країну зі списку й спробуйте ще раз.',
+      freeCheckUsedError:
+        'Цей акаунт уже використав безкоштовну перевірку. Щоб перевірити цей сайт, оберіть Basic або Complete.',
+      freeCheckDomainUsedError:
+        'Цей сайт уже мав безкоштовну перевірку — кожен сайт отримує одну. Ваша ще не використана й підійде для іншого сайту; щоб перевірити цей, оберіть Basic або Complete.',
+      blockedByEgress: 'Перевірку не можна запустити, поки жодна точка перевірки не відповідає.',
       panelDepth: 'Глибина аудиту',
       labelScanPlan: 'Тариф перевірки',
       planFree: 'Free · лише головна',
@@ -2003,6 +2127,11 @@ export const copy = {
       configurationNew: 'Нова конфігурація',
       configurationNewBody: 'Її буде збережено в цьому профілі перед запуском перевірки.',
       configurationLoading: 'Завантажуємо конфігурацію…',
+      aiContextTitle: 'Що пропонує цей сайт',
+      aiContextHelp:
+        'Використовується, щоб ставити AI-моделям нейтральні питання про вашу тему — питання, які не називають ні бренд, ні домен, тож згадка у відповіді означає, що модель вас знає, а не що ми їй підказали.',
+      aiContextMissing:
+        'Без цього розділ AI-видимості зможе ставити лише питання, які називають ваш бренд, — а відповідь, що повторює підказане нами імʼя, нічого не вимірює. Заповніть поля, щоб отримати нейтральні питання про вашу тему. Вони зберігаються разом із сайтом.',
       launchSummaryTitle: 'Що буде запущено',
       launchSummarySite: 'Сайт',
       launchSummaryPlan: 'Тариф',
@@ -2015,6 +2144,8 @@ export const copy = {
       launchSummaryAi: 'Видимість в AI',
       launchSummaryPerformance: 'Провайдер швидкодії',
       launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · без входу',
+      launchSummaryEgress: 'Країна перевірки',
+      launchSummaryEgressDefault: 'за замовчуванням для Free',
       launchSummaryEnabled: 'Увімкнено',
       launchSummaryDisabled: 'Вимкнено',
       launchSummaryHomepage: 'Лише головна',
@@ -2022,6 +2153,47 @@ export const copy = {
       launchSummaryIgnored: 'Ігноруються',
       launchSummaryRespected: 'Дотримуємось',
       launchSummaryOverridden: 'Відхилення підтверджено',
+    },
+    reachability: {
+      title: 'Чи можемо ми прочитати ваш сайт?',
+      lead: 'Ми перевіряємо це до оплати тим самим краулером, який робитиме аудит. Сайт, який його не пускає, перевірити неможливо, і краще сказати про це зараз, ніж повертати кошти потім.',
+      check: 'Перевірити сайт',
+      again: 'Перевірити ще раз',
+      checking: 'Запитуємо ваш сайт…',
+      unchecked: 'Ще не перевірено.',
+      failed: 'Перевірку виконати не вдалося. Спробуйте за хвилину.',
+      answeredWith: 'Ваш сайт відповів кодом HTTP {status}.',
+      signals: 'Надіслано: {signals}',
+      states: {
+        reachable: {
+          label: 'Доступний',
+          body: 'Ваш сайт відповів і дозволив нашому краулеру прочитати сторінку. Аудит можна запускати.',
+        },
+        accessDenied: {
+          label: 'Заблоковано',
+          body: 'Щось перед вашим сайтом відмовило нашому краулеру — зазвичай це WAF або захист від ботів. Дозвольте FluxRadarBot і адресу, з якої він приходить, і перевірте ще раз. Готове правило є на сторінці нашого краулера.',
+        },
+        blockedByRobots: {
+          label: 'Заборонено robots.txt',
+          body: 'Ваш robots.txt забороняє FluxRadarBot читати сайт, і ми це поважаємо. Дозвольте його там і перевірте ще раз.',
+        },
+        unreachable: {
+          label: 'Немає відповіді',
+          body: 'Ми взагалі не змогли достукатися до вашого сайту — імʼя не розвʼязалось, зʼєднання не встановилось або вичерпався час. Перевірте, чи правильна адреса і чи працює сайт.',
+        },
+        badResponse: {
+          label: 'Немає читабельної сторінки',
+          body: 'Ваш сайт відповів, але не сторінкою, яку ми змогли прочитати. Відкрийте адресу в браузері й подивіться, що вона повертає.',
+        },
+        expired: {
+          label: 'Застаріла перевірка',
+          body: 'Цій перевірці більше пʼятнадцяти хвилин. Виконайте її ще раз перед оплатою.',
+        },
+        unknown: {
+          label: 'Незрозуміло',
+          body: 'Перевірка повернула стан, якого ми не розпізнаємо. Виконайте її ще раз.',
+        },
+      },
     },
     reports: {
       windowTitle: 'Звіти',
@@ -2108,6 +2280,8 @@ export const copy = {
       plan: 'Тариф',
       report: 'Звіт',
       configurationVersion: 'Версія конфігурації',
+      egressLocation: 'Країна перевірки',
+      egressLocationUnrecorded: 'Не зафіксовано',
       helpHeading: 'Як читати цей звіт',
       helpScoreTerm: 'Оцінка',
       helpScoreBody:
@@ -2120,6 +2294,21 @@ export const copy = {
       noScore: 'Без оцінки',
       informationalLabel: 'Лише спостереження',
       coverageUnavailable: 'покриття недоступне',
+      siteCoverageTitle: 'Яку частину сайту прочитано',
+      siteCoverageCaption: 'Прочитано адрес',
+      siteCoverageRead: 'Ми прочитали {read} з {found} адрес, які знайшли на вашому сайті.',
+      siteCoverageComplete:
+        'Це всі адреси, які знайшов обхід, тож розділи нижче охоплюють увесь сайт.',
+      siteCoveragePartial: 'Розділи нижче описують лише прочитані сторінки, а не весь сайт.',
+      siteCoverageLimitedByOwner:
+        'Ваші налаштування перевірки обмежують її {limit} сторінками, тому решту сайту не прочитано. Підніміть ліміт сторінок перед наступною перевіркою, щоб охопити більше.',
+      siteCoverageLimitedByPlan:
+        'Цей тариф охоплює до {limit} сторінок, а на вашому сайті їх більше. Щоб прочитати решту, потрібен більший тариф.',
+      siteCoverageRobots:
+        'Ще {count} адрес заборонено вашим robots.txt. Ми це поважаємо, тож вони не рахуються як пропущені.',
+      siteCoverageUnread:
+        'Жодної сторінки сайту прочитати не вдалося, тому ніщо нижче не описує ваш сайт. Що саме відповів сайт — дивіться у стані перевірки.',
+      siteCoverageNoAddresses: 'Обхід не знайшов жодної адреси для читання.',
       geoObservationsLead:
         'Це відповіді кожної моделі на конкретні запити цієї перевірки, отримані з увімкненим вебпошуком провайдера; посилання — це джерела, якими вона скористалася. Вони показують, чи згадала відповідь ваш бренд або офіційний домен саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
       geoAwarenessQuestion: 'Пряме питання про впізнаваність',
@@ -2129,15 +2318,19 @@ export const copy = {
       geoProviderGoogle: 'Gemini · Google',
       geoProviderPerplexity: 'Perplexity',
       geoProviderUnknown: 'Постачальника не зафіксовано',
-      geoMentionCounts:
-        'Бренд згадано у {brand} з {total} відповідей · офіційний домен наведено у {domain} з {total}.',
       geoProvider: 'Постачальник/модель',
+      geoGroupBrandCount: 'Бренд згадано у {count} з {total} відповідей',
+      geoGroupDomainCount: 'Офіційний домен наведено у {count} з {total}',
       geoAnswerLabel: 'Відповідь моделі',
       geoMentionSignals: 'Ознаки згадки',
       geoBrandMentioned: 'Бренд згадано',
       geoBrandNotMentioned: 'Бренд не згадано',
       geoDomainMentioned: 'Офіційний домен наведено',
       geoDomainNotMentioned: 'Офіційний домен не наведено',
+      geoBrandNamedInQuestion: 'Впізнаваність бренду — не вимірюється (назване в питанні)',
+      geoDomainNamedInQuestion: 'Офіційний домен — не вимірюється (назване в питанні)',
+      geoBrandIsHostname:
+        'Впізнаваність бренду — не вимірюється (назва бренду цього сайту збігається з доменом)',
       geoCitations: 'Посилання від постачальника',
       geoUnavailable: 'Модель не повернула придатної відповіді на це питання.',
       issuesCta:

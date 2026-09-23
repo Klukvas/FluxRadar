@@ -38,7 +38,11 @@ export function IssueProblems(props: {
           const settled = group.openIssues === 0;
           return (
             <tr
-              key={`${group.ruleId}:${group.module}:${group.severity}`}
+              // One row per rule, per section — the same identity the API now
+              // groups by. Severity used to be part of this key and of the
+              // API's, so a rule with findings at two severities was listed
+              // twice, both rows opening the same findings.
+              key={`${group.ruleId}:${group.module}`}
               className={settled ? 'issue-group--settled' : undefined}
             >
               <td data-label={t.columnSeverity}>

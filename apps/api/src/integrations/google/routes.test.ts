@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../../index.ts';
 import { silentLogger } from '../../http/logger.ts';
-import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from '../../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../../test-utils/test-db.ts';
 import { encryptIntegrationSecret } from '../crypto.ts';
 
 function json(body: unknown, status = 200): Response {
@@ -32,7 +32,6 @@ describe('google integration routes', () => {
   const appFor = () =>
     createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -67,7 +66,6 @@ describe('google integration routes', () => {
     // which supertest's same-process requests cannot detect on their own.
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
       corsOrigin: 'https://app.example.test',

@@ -9,7 +9,9 @@
 // The changes read compares a scan with the previous finished scan of the same
 // profile and plan by fingerprint (fingerprint-v1 is stable across scans by
 // construction), so a re-scan can say what was fixed and what is new instead of
-// handing back a second list to diff by eye.
+// handing back a second list to diff by eye — unless the two crawls left from
+// different countries, in which case the difference is not "fixed" or "new"
+// and the answer says so (D-228).
 
 import { SEVERITIES, severityRank, type Severity } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
@@ -19,6 +21,11 @@ import {
   isPaidAccessActive,
   type PaidAccessScan,
 } from '../billing/report-access.ts';
+import {
+  egressLocationView,
+  type EgressLocationView,
+} from '../integrations/crawl-egress-locations.ts';
+import { recordedEgressLocation } from '../profiles/execution-config.ts';
 
 /** Statuses that still ask the owner for work. The rest are settled. */
 export const OPEN_ISSUE_STATUSES = ['New', 'Acknowledged', 'Reopened'] as const;
@@ -41,11 +48,52 @@ export interface IssueSummary {
 interface GroupKey {
   readonly ruleId: string;
   readonly module: string;
-  readonly severity: string;
 }
 
+/**
+ * The Issue Center's row identity: one row per rule, per section.
+ *
+ * Severity used to be part of this key, so a rule whose findings do not all
+ * share one severity was listed twice — UX-CONV-AI-002 appeared as a Medium row
+ * and a Low row, both opening the same list of findings. Only the UX AI rules
+ * can do that (their severity comes from the model, per finding, rather than
+ * from the rule registry), which is why it looked like broken data rather than
+ * a grouping bug.
+ */
 function groupKey(group: GroupKey): string {
-  return `${group.ruleId}\u0000${group.module}\u0000${group.severity}`;
+  return `${group.ruleId}\u0000${group.module}`;
+}
+
+/** Most severe wins: `severityRank` puts Critical at 0 and Low at 3. */
+function mostSevere(left: string, right: string): string {
+  return severityRank(left) <= severityRank(right) ? left : right;
+}
+
+/**
+ * Folds per-severity counts into one row per rule.
+ *
+ * The row wears its worst severity, because that is the urgency the owner is
+ * being asked to act on; the severity breakdown above the list is counted from
+ * the findings themselves, so nothing is reassigned to a severity it never had.
+ */
+function foldByRule(
+  rows: readonly { ruleId: string; module: string; severity: string; count: number }[],
+): ReadonlyMap<string, { ruleId: string; module: string; severity: string; count: number }> {
+  const folded = new Map<
+    string,
+    { ruleId: string; module: string; severity: string; count: number }
+  >();
+  for (const row of rows) {
+    const key = groupKey(row);
+    const current = folded.get(key);
+    folded.set(key, {
+      ruleId: row.ruleId,
+      module: row.module,
+      severity: current === undefined ? row.severity : mostSevere(current.severity, row.severity),
+      count: (current?.count ?? 0) + row.count,
+    });
+  }
+  return folded;
 }
 
 /** Most urgent first; within a severity, the rule touching the most targets first. */
@@ -56,6 +104,16 @@ export function compareGroups(left: RuleGroup, right: RuleGroup): number {
     right.issues - left.issues ||
     left.ruleId.localeCompare(right.ruleId)
   );
+}
+
+/** A Prisma groupBy row in the shape `foldByRule` folds. */
+function toCountedRow(row: {
+  ruleId: string;
+  module: string;
+  severity: string;
+  _count: { _all: number };
+}): { ruleId: string; module: string; severity: string; count: number } {
+  return { ruleId: row.ruleId, module: row.module, severity: row.severity, count: row._count._all };
 }
 
 export async function summarizeIssues(prisma: PrismaClient, scanId: string): Promise<IssueSummary> {
@@ -71,22 +129,25 @@ export async function summarizeIssues(prisma: PrismaClient, scanId: string): Pro
       _count: { _all: true },
     }),
   ]);
-  const openByKey = new Map(open.map((row) => [groupKey(row), row._count._all]));
-  const groups = all
+  const openByKey = foldByRule(open.map(toCountedRow));
+  const groups = [...foldByRule(all.map(toCountedRow)).values()]
     .map((row): RuleGroup => ({
       ruleId: row.ruleId,
       module: row.module,
       severity: row.severity,
-      issues: row._count._all,
-      openIssues: openByKey.get(groupKey(row)) ?? 0,
+      issues: row.count,
+      openIssues: openByKey.get(groupKey(row))?.count ?? 0,
     }))
     .sort(compareGroups);
+  // Counted from the findings' own severities, not from the folded rows: a rule
+  // whose row now wears its worst severity must not move its milder findings
+  // into that column.
   const bySeverity = Object.fromEntries(
     SEVERITIES.map((severity) => [
       severity,
-      groups
-        .filter((group) => group.severity === severity)
-        .reduce((sum, group) => sum + group.openIssues, 0),
+      open
+        .filter((row) => row.severity === severity)
+        .reduce((sum, row) => sum + row._count._all, 0),
     ]),
   ) as Record<Severity, number>;
   return {
@@ -104,12 +165,28 @@ export interface ChangedRule {
   readonly count: number;
 }
 
+/**
+ * Whether the two crawls left from the same place.
+ *
+ * `different` means both recorded a location and they are not the same: a site
+ * can answer two countries differently, so a finding present in one report and
+ * absent from the other is a difference, not a fix. `unrecorded` means at least
+ * one of them predates the choice, so nobody can say — which is not the same as
+ * saying they matched.
+ */
+export type EgressComparison = 'same' | 'different' | 'unrecorded';
+
 export interface ScanChanges {
   readonly previous: {
     readonly id: string;
     readonly plan: string;
     readonly completedAt: string | null;
+    readonly egressLocation: EgressLocationView | null;
   } | null;
+  /** This scan's location, beside the previous one's; null when not recorded. */
+  readonly egressLocation: EgressLocationView | null;
+  /** Null when there is no previous scan to compare with. */
+  readonly egressComparison: EgressComparison | null;
   readonly introduced: number;
   readonly fixed: number;
   readonly persisting: number;
@@ -119,12 +196,22 @@ export interface ScanChanges {
 
 const NO_CHANGES: ScanChanges = {
   previous: null,
+  egressLocation: null,
+  egressComparison: null,
   introduced: 0,
   fixed: 0,
   persisting: 0,
   introducedByRule: [],
   fixedByRule: [],
 };
+
+export function compareEgressLocations(
+  current: string | undefined,
+  previous: string | undefined,
+): EgressComparison {
+  if (current === undefined || previous === undefined) return 'unrecorded';
+  return current === previous ? 'same' : 'different';
+}
 
 interface FingerprintedIssue {
   readonly fingerprint: string;
@@ -141,7 +228,8 @@ function byRule(issues: readonly FingerprintedIssue[]): readonly ChangedRule[] {
     counts.set(key, {
       ruleId: issue.ruleId,
       module: issue.module,
-      severity: issue.severity,
+      severity:
+        current === undefined ? issue.severity : mostSevere(current.severity, issue.severity),
       count: (current?.count ?? 0) + 1,
     });
   }
@@ -187,8 +275,12 @@ async function previousComparableScan(prisma: PrismaClient, scan: Scan): Promise
 
 export async function scanChanges(prisma: PrismaClient, scan: Scan): Promise<ScanChanges> {
   if (scan.plan === 'Free') return NO_CHANGES;
+  const currentLocation = recordedEgressLocation(scan);
   const previous = await previousComparableScan(prisma, scan);
-  if (previous === null) return NO_CHANGES;
+  if (previous === null) {
+    return { ...NO_CHANGES, egressLocation: egressLocationView(currentLocation) };
+  }
+  const previousLocation = recordedEgressLocation(previous);
   const select = { fingerprint: true, ruleId: true, module: true, severity: true } as const;
   const [current, earlier] = await Promise.all([
     prisma.issue.findMany({ where: { scanId: scan.id }, select }),
@@ -203,7 +295,10 @@ export async function scanChanges(prisma: PrismaClient, scan: Scan): Promise<Sca
       id: previous.id,
       plan: previous.plan,
       completedAt: previous.completedAt?.toISOString() ?? null,
+      egressLocation: egressLocationView(previousLocation),
     },
+    egressLocation: egressLocationView(currentLocation),
+    egressComparison: compareEgressLocations(currentLocation, previousLocation),
     introduced: introduced.length,
     fixed: fixed.length,
     persisting: current.length - introduced.length,

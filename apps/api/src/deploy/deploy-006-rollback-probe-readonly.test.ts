@@ -29,33 +29,28 @@ import { createTestDb, seedAccountWithProfile, type TestDb } from '../test-utils
 //      nothing, because its transaction is READ ONLY.
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
-const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');
+const RELEASE_SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'release.sh');
 const PROBE_PATH = join(REPO_ROOT, 'deploy', 'rollback-readonly-probe.cjs');
 const BEGIN_MARKER = '# fluxradar:rollback-probe-container';
 const END_MARKER = '# fluxradar:end-rollback-probe-container';
 
 const execFileAsync = promisify(execFile);
 
-/** The workflow's own probe-container lines, dedented out of the YAML block. */
+/** The release script's own probe-container lines, between the markers. */
 function extractProbeContainerBlock(): string {
-  const lines = readFileSync(WORKFLOW_PATH, 'utf8').split('\n');
+  const lines = readFileSync(RELEASE_SCRIPT_PATH, 'utf8').split('\n');
   const begin = lines.findIndex((line) => line.trim().startsWith(BEGIN_MARKER));
   const end = lines.findIndex((line) => line.trim().startsWith(END_MARKER));
-  expect(begin, `${BEGIN_MARKER} is missing from the deploy workflow`).toBeGreaterThan(-1);
-  expect(end, `${END_MARKER} is missing from the deploy workflow`).toBeGreaterThan(begin);
+  expect(begin, `${BEGIN_MARKER} is missing from deploy/release.sh`).toBeGreaterThan(-1);
+  expect(end, `${END_MARKER} is missing from deploy/release.sh`).toBeGreaterThan(begin);
   const block = lines.slice(begin, end + 1);
   const indent = (block[0] ?? '').length - (block[0] ?? '').trimStart().length;
   return block.map((line) => line.slice(indent)).join('\n');
 }
 
-/** The whole "Start release and smoke test" script, dedented. */
+/** The whole release script, as it ships in deploy/release.sh. */
 function startReleaseScript(): string {
-  const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
-  const start = workflow.indexOf('      - name: Start release and smoke test');
-  const end = workflow.indexOf('      - name: Public smoke test');
-  expect(start).toBeGreaterThan(-1);
-  expect(end).toBeGreaterThan(start);
-  return workflow.slice(start, end);
+  return readFileSync(RELEASE_SCRIPT_PATH, 'utf8');
 }
 
 /**
@@ -91,7 +86,6 @@ async function runProbe(
         FLUXRADAR_PROBE_APP_DIR: REPO_ROOT,
         DATABASE_URL: databaseUrl,
         INTEGRATION_ENCRYPTION_KEY: 'probe-test-integration-key',
-        PADDLE_WEBHOOK_SECRET: 'probe-test-webhook-secret',
         ...env,
       },
     });
@@ -223,7 +217,6 @@ describe('DEPLOY-006 rollback probe is read-only', () => {
       const secret = `sentinel-${randomUUID()}`;
       const result = await runProbe(testDatabaseUrl(), {
         INTEGRATION_ENCRYPTION_KEY: secret,
-        PADDLE_WEBHOOK_SECRET: secret,
       });
       expect(result.ok).toBe(true);
       expect(result.output).not.toContain(secret);

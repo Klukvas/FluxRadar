@@ -1,0 +1,31 @@
+name: Configure SSH
+description: Install the deploy key and the pinned host key for this runner.
+
+# Every stage of the deploy talks to the same server, so every stage needs the
+# same four lines. They are here rather than copied per job so that a change to
+# how the key is written — permissions, file name, algorithm — is one edit.
+#
+# The known_hosts file is the point: without it the first connection would either
+# fail or, worse, accept whatever host key it was offered.
+
+inputs:
+  private-key:
+    description: The deploy private key.
+    required: true
+  known-hosts:
+    description: The pinned host key line(s) for the server.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Write the key and the known host
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.private-key }}
+        SSH_KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        install -m 700 -d "$HOME/.ssh"
+        printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+        chmod 600 "$HOME/.ssh/id_ed25519"
+        printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"

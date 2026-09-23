@@ -21,7 +21,8 @@
 // только модули с числовым score). Basic при отработавшем GEO сохраняет
 // weighted coverage 1.0 и вердикт normal, а общий балл становится баллом SEO.
 
-import type { GeoModuleResult } from '@fluxradar/ai';
+import type { GeoMentionSignals, GeoModuleResult } from '@fluxradar/ai';
+import { isMeasured } from '@fluxradar/ai';
 import { computeCoverage } from '@fluxradar/scoring';
 import type { assessAiCrawlerReadiness } from '@fluxradar/rules';
 
@@ -45,8 +46,12 @@ interface PurposeObservations {
   readonly asked: number;
   /** Сколько из них вернули ответ, прошедший контракт §5. */
   readonly answered: number;
-  /** Для скольких ответов правила GEO-VIS-003/004 вынесли вердикт. */
+  /** Для скольких ответов хоть один из сигналов был измерим. */
   readonly evaluated: number;
+  /** Сколько ответов вообще могли что-то сказать о бренде (вопрос его не называл). */
+  readonly brandMeasured: number;
+  /** То же для домена. */
+  readonly domainMeasured: number;
   readonly brandMentioned: number;
   readonly domainMentioned: number;
 }
@@ -55,6 +60,8 @@ const EMPTY_OBSERVATIONS: PurposeObservations = {
   asked: 0,
   answered: 0,
   evaluated: 0,
+  brandMeasured: 0,
+  domainMeasured: 0,
   brandMentioned: 0,
   domainMentioned: 0,
 };
@@ -66,38 +73,36 @@ function purposeOf(promptVersion: string): QuestionPurpose {
 /**
  * Упоминания бренда/домена в одном ответе.
  *
- * GEO-VIS-003/004 сообщают об ОТСУТСТВИИ упоминания: finding с этим
- * ai_request_key означает, что бренда (003) или домена (004) в ответе нет.
- * null — правила по этому прогону вердикта не выносили (Unavailable-модуль
- * findings не строит), и считать отсутствие упоминанием нельзя.
+ * Сигналы приходят из той же функции, которой пользуются правила
+ * (`geoMentionSignals`), а не выводятся из отсутствия finding-а: вопрос,
+ * который сам назвал бренд или домен, findings не порождает, и «нет finding-а
+ * значит упомянуто» красило такой ответ зелёным на каждом скане. Теперь
+ * сигнал прямо говорит, было ли измерение вообще (`named-in-question`,
+ * `brand-is-hostname`). null — правила по прогону вердикта не выносили.
  */
-function mentionSignals(
-  geo: GeoModuleResult,
-  aiRequestKey: string,
-): { readonly brand: boolean; readonly domain: boolean } | null {
-  const brandEvaluation = geo.evaluations.find((evaluation) => evaluation.ruleId === 'GEO-VIS-003');
-  const domainEvaluation = geo.evaluations.find(
-    (evaluation) => evaluation.ruleId === 'GEO-VIS-004',
-  );
-  if (brandEvaluation === undefined || domainEvaluation === undefined) return null;
-  return {
-    brand: !brandEvaluation.findings.some((finding) => finding.aiRequestKey === aiRequestKey),
-    domain: !domainEvaluation.findings.some((finding) => finding.aiRequestKey === aiRequestKey),
-  };
+function mentionSignals(geo: GeoModuleResult, aiRequestKey: string): GeoMentionSignals | null {
+  return geo.mentions.get(aiRequestKey) ?? null;
 }
 
 function addOutcome(
   totals: PurposeObservations,
-  signals: { readonly brand: boolean; readonly domain: boolean } | null,
+  signals: GeoMentionSignals | null,
   answered: boolean,
 ): PurposeObservations {
   const counted = signals !== null && answered;
+  // Неизмеримый сигнал не идёт ни в числитель, ни в знаменатель: «не
+  // измерено» — это не «не упомянуто».
+  const brandMeasured = counted && isMeasured(signals.brand);
+  const domainMeasured = counted && isMeasured(signals.domain);
   return {
     asked: totals.asked + 1,
     answered: totals.answered + (answered ? 1 : 0),
-    evaluated: totals.evaluated + (counted ? 1 : 0),
-    brandMentioned: totals.brandMentioned + (counted && signals.brand ? 1 : 0),
-    domainMentioned: totals.domainMentioned + (counted && signals.domain ? 1 : 0),
+    evaluated: totals.evaluated + (brandMeasured || domainMeasured ? 1 : 0),
+    brandMeasured: totals.brandMeasured + (brandMeasured ? 1 : 0),
+    domainMeasured: totals.domainMeasured + (domainMeasured ? 1 : 0),
+    brandMentioned: totals.brandMentioned + (brandMeasured && signals.brand === 'mentioned' ? 1 : 0),
+    domainMentioned:
+      totals.domainMentioned + (domainMeasured && signals.domain === 'mentioned' ? 1 : 0),
   };
 }
 

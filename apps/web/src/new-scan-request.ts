@@ -53,10 +53,11 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
   };
   const purchase = { siteProfileId: profileId, plan, scope, expectedProfileConfigVersion };
   if (request.internalFreeAccess) {
-    // Internal allowlist only: creates a scan without a purchase, and is
-    // refused for everyone else (and in production).
+    // Internal allowlist only: creates a scan without a purchase, and answers
+    // 402 for everyone else. There is no simulated payment behind it — nothing
+    // but a signed provider order grants a purchase (D-229).
     const created = await apiRequest<{ scanId: string } & Record<string, unknown>>(
-      '/billing/dev-checkout',
+      '/billing/internal-checkout',
       { method: 'POST', body: JSON.stringify({ ...purchase, ...aiConsent }) },
     );
     return apiRequest<Scan>(`/scans/${created.scanId}`);

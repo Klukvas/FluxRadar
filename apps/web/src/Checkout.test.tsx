@@ -74,9 +74,27 @@ function envelope<T>(data: T, status = 200): Response {
   });
 }
 
+/**
+ * The pay button is disabled until the API says this site lets the crawler in,
+ * so every paid-checkout stub has to answer the reachability read. Answered
+ * here rather than in each handler: these tests are about the checkout, and a
+ * site that cannot be read is FASTSPRING-009's subject, not theirs.
+ */
+function reachabilityEnvelope(): Response {
+  return envelope({
+    state: 'reachable',
+    startStatus: 200,
+    accessControlSignals: [],
+    checkedAt: new Date().toISOString(),
+    expired: false,
+    canPurchase: true,
+  });
+}
+
 function stubApi(handler: (path: string, init?: RequestInit) => Response) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = new URL(String(input)).pathname;
+    if (path.endsWith('/reachability')) return Promise.resolve(reachabilityEnvelope());
     return Promise.resolve(handler(path, init));
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -85,6 +103,19 @@ function stubApi(handler: (path: string, init?: RequestInit) => Response) {
 
 function selectPlan(plan: string): void {
   fireEvent.change(screen.getByLabelText('Scan plan'), { target: { value: plan } });
+}
+
+/**
+ * Waits for the pay button to become usable.
+ *
+ * A paid scan is not offered until the API answers that this site lets the
+ * crawler in (FASTSPRING-009), so pressing the button in the same tick as
+ * selecting the plan would press a disabled one.
+ */
+async function awaitPayable(): Promise<void> {
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Pay and run scan' })).toBeEnabled(),
+  );
 }
 
 function called(fetchMock: ReturnType<typeof stubApi>, path: string): boolean {
@@ -146,6 +177,7 @@ describe('paid checkout flow', () => {
     // The paid default is never pre-selected: the plan stays Free until the
     // buyer picks a paid one themselves.
     selectPlan('Complete');
+    await awaitPayable();
     const legalNotice = screen.getByRole('note', { name: 'Purchase terms' });
     expect(legalNotice).toHaveTextContent(
       'By selecting “Pay and run scan”, you agree to the Terms of service and acknowledge the Privacy policy · Cookie policy.',
@@ -173,8 +205,8 @@ describe('paid checkout flow', () => {
       screen.queryByText('Your browser blocked the checkout tab. Use the link below to continue.'),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open the checkout page' })).not.toBeInTheDocument();
-    // The mock checkout endpoint must not be reachable from this path any more.
-    expect(called(fetchMock, '/billing/dev-checkout')).toBe(false);
+    // A buyer pays through FastSpring; the internal allowlist's route is not on this path.
+    expect(called(fetchMock, '/billing/internal-checkout')).toBe(false);
     expect(called(fetchMock, `/profiles/${profile.id}/free-check`)).toBe(false);
 
     const posted = fetchMock.mock.calls.find(
@@ -226,6 +258,7 @@ describe('paid checkout flow', () => {
 
     await screen.findByText('Complete · $120');
     selectPlan('Complete');
+    await awaitPayable();
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 
     const link = await screen.findByRole('link', { name: 'Open the checkout page' });
@@ -262,6 +295,7 @@ describe('paid checkout flow', () => {
 
     await screen.findByText('Complete · $120');
     selectPlan('Complete');
+    await awaitPayable();
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 
     expect(
@@ -301,7 +335,7 @@ describe('paid checkout flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
     await waitFor(() => expect(called(fetchMock, `/profiles/${profile.id}/free-check`)).toBe(true));
     expect(called(fetchMock, '/billing/checkout-session')).toBe(false);
-    expect(called(fetchMock, '/billing/dev-checkout')).toBe(false);
+    expect(called(fetchMock, '/billing/internal-checkout')).toBe(false);
   });
 
   // A provider that is set up but broken is an operator problem, and the server
@@ -347,19 +381,19 @@ describe('paid checkout flow', () => {
     expect(screen.queryByText('Complete · $120')).not.toBeInTheDocument();
   });
 
-  it('keeps the internal free allowlist on the dev-checkout path', async () => {
+  it('keeps the internal free allowlist on the internal-checkout path', async () => {
     const fetchMock = await openNewScan((path) => {
       if (path === '/auth/me') return envelope({ ...account, internalFreeAccess: true });
       if (path === '/profiles') return envelope([profile]);
       if (path === '/scans/active') return envelope(null);
-      if (path === '/billing/dev-checkout') return envelope({ scanId: paidScan.id }, 201);
+      if (path === '/billing/internal-checkout') return envelope({ scanId: paidScan.id }, 201);
       if (path === `/scans/${paidScan.id}`) return envelope(paidScan);
       return envelope(null);
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Run internal scan' }));
 
-    await waitFor(() => expect(called(fetchMock, '/billing/dev-checkout')).toBe(true));
+    await waitFor(() => expect(called(fetchMock, '/billing/internal-checkout')).toBe(true));
     // Internal accounts never touch the paid provider, and never ask for config.
     expect(called(fetchMock, '/billing/checkout-session')).toBe(false);
     expect(called(fetchMock, '/billing/checkout-config')).toBe(false);
@@ -395,6 +429,7 @@ describe('paid checkout flow', () => {
     await openNewScan(handler);
     await screen.findByText('Complete · $120');
     selectPlan('Complete');
+    await awaitPayable();
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
     await screen.findByText('Payment — confirming');
 
@@ -488,8 +523,11 @@ describe('paid checkout flow', () => {
       />,
     );
 
-    await waitFor(() => expect(requested).toHaveLength(1));
-    expect(requested[0]).toBe('/billing/checkout-session/..%2F..%2Fscans%2Fsomeone-elses-scan');
+    // The window also reads the checkout config (store mode and prices, for the
+    // purchase report). Every other request it makes must be the poll, encoded.
+    const polls = (): string[] => requested.filter((path) => path !== '/billing/checkout-config');
+    await waitFor(() => expect(polls()).toHaveLength(1));
+    expect(polls()).toEqual(['/billing/checkout-session/..%2F..%2Fscans%2Fsomeone-elses-scan']);
   });
 
   // The contract every caller depends on: "false" must mean the browser refused

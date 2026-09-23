@@ -4,7 +4,7 @@
 // Терминализацию выполняет process-scan через resolveScanOutcome.
 
 import type { ModuleName, Plan, ScanScopeInput } from '@fluxradar/contracts';
-import { TARIFFS } from '@fluxradar/contracts';
+import { isSiteRead, TARIFFS } from '@fluxradar/contracts';
 import {
   AI_PROVIDER_NAMES,
   AiQuotaTracker,
@@ -26,6 +26,14 @@ import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
 
 import { clearActionPlansForScan } from '../action-plan/service.ts';
+import { readCrawlEgressLocations } from '../integrations/crawl-egress-config.ts';
+import {
+  isEgressUsable,
+  logEgressHealth,
+  probeEgressProxy,
+  readEgressProbeOptions,
+} from '../integrations/crawl-egress-health.ts';
+import { logEgressUsage, recordEgressUsage } from '../integrations/crawl-egress-usage.ts';
 import { executionProfile } from '../profiles/execution-config.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
 import { runApiChecks } from './api-checks.ts';
@@ -38,7 +46,9 @@ import {
   restoreCrawl,
   settledModules,
 } from './crawl-resume.ts';
+import { buildCrawlSummary } from './crawl-summary.ts';
 import type { WorkerDeps } from './deps.ts';
+import { resolveScanEgress, type ScanEgress } from './egress.ts';
 import { runFreeCheck } from './free-check.ts';
 import {
   buildGeoRequests,
@@ -49,7 +59,11 @@ import {
 import { geoModuleRow } from './geo-module-row.ts';
 import { includesAnalytics, modulePlanFor } from './module-plan.ts';
 import { metadataForRuleModule, type RuleModuleContext } from './module-metadata.ts';
-import { persistModuleResult, setModule } from './module-persistence.ts';
+import {
+  markEveryModuleUnreadable,
+  persistModuleResult,
+  setModule,
+} from './module-persistence.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
 import { devicePreferenceFor, runPerformanceModule } from './performance-module.ts';
 import { uxRuleCheckSummaries } from './rule-checks.ts';
@@ -83,6 +97,57 @@ function buildCrawlScope(origin: string, scope: ScanScopeInput, plan: Plan): Cra
     respectRobots: scope.respectRobots,
     robotsOverrideConfirmed: scope.robotsOverrideConfirmed,
   };
+}
+
+/**
+ * Bytes of page and media bodies this crawl pulled.
+ *
+ * A floor for the proxy's traffic, not a bill: headers, TLS and retries are not
+ * in it. It is what we can attribute to a scan, and the warning threshold is
+ * set low enough that the gap is covered.
+ */
+function bytesRead(crawlResult: CrawlResult): number {
+  return crawlResult.pages.reduce(
+    (total, page) => total + (page.html === null ? 0 : Buffer.byteLength(page.html, 'utf8')),
+    0,
+  );
+}
+
+/**
+ * The egress this scan crawls through, once it is known to work.
+ *
+ * The location recorded at launch (D-228). A location that has since been
+ * unconfigured throws here, before a request: crawling it from somewhere else
+ * would put a country on the report that the crawl never left from.
+ *
+ * The proxy is probed before a single request. Each proxy is one VPS, and when
+ * it is down every fetch fails — which the crawl would otherwise read as "the
+ * customer's site is unreachable", spending their paid scan on our outage and
+ * telling them their site is broken. Going direct instead is not an option
+ * either: that is the Hetzner block the proxy exists to avoid (D-220), and
+ * another location is a different country from the one the owner chose. So the
+ * attempt stops, loudly, and the worker treats it as the platform failure it is.
+ */
+async function usableEgress(deps: WorkerDeps, scope: ScanScopeInput): Promise<ScanEgress> {
+  const egress = resolveScanEgress(
+    deps.crawl,
+    scope.egressLocation,
+    deps.egressLocations ?? readCrawlEgressLocations(),
+  );
+  const egressLocationId = egress.location?.location.id ?? null;
+  const egressHealth = await (deps.probeEgress ?? probeEgressProxy)(egress.proxy, {
+    ...readEgressProbeOptions(),
+    expectedIp: egress.location?.expectedIp ?? null,
+  });
+  logEgressHealth(deps.logger, egressHealth, egressLocationId);
+  if (!isEgressUsable(egressHealth)) {
+    throw new Error(
+      `runScanAttempt: crawl egress proxy${egressLocationId === null ? '' : ` for ${egressLocationId}`}` +
+        ` is ${egressHealth.state}` +
+        `${egressHealth.detail === null ? '' : ` (${egressHealth.detail})`}`,
+    );
+  }
+  return egress;
 }
 
 /**
@@ -373,6 +438,9 @@ export async function runScanAttempt(
   }
 
   throwIfCancelled(scanId, signal);
+  // Checked before anything is fetched: a dead proxy must not be reported as a
+  // dead customer site (D-228/D-220).
+  const egress = await usableEgress(deps, scope);
   const crawlScope = buildCrawlScope(origin, scope, plan);
   const renderRuntime =
     crawlScope.renderJs === true ? await (deps.createRenderRuntime?.() ?? undefined) : undefined;
@@ -386,6 +454,7 @@ export async function runScanAttempt(
   try {
     crawlResult = await crawl(crawlScope, {
       ...(deps.crawl?.fetcher !== undefined ? { fetcher: deps.crawl.fetcher } : {}),
+      ...(egress.proxy === null ? {} : { egressProxy: egress.proxy }),
       ...(deps.crawl?.dangerouslyAllowLoopback === true ? { dangerouslyAllowLoopback: true } : {}),
       ...(deps.crawl?.limiter !== undefined ? { limiter: deps.crawl.limiter } : {}),
       ...(renderRuntime !== undefined ? { renderRuntime } : {}),
@@ -452,6 +521,38 @@ export async function runScanAttempt(
   // re-crawl: the checkpoint now names the crawl as finished.
   await saveCheckpoint(CRAWL_STAGE);
 
+  const crawlSummary = buildCrawlSummary(crawlResult, origin, scope, plan, crawlScope.maxPages);
+  if (egress.location !== null) {
+    // Counted only when it actually crossed a configured location's proxy, and
+    // against that location's plan, so a local fixture run and a direct crawl
+    // never inflate a hosting plan's usage.
+    logEgressUsage(
+      deps.logger,
+      await recordEgressUsage(prisma, egress.location.location, bytesRead(crawlResult), now()),
+    );
+  }
+  // Written before anything reads it: the refund decision (resolve-outcome.ts),
+  // the Analytics module and the report all ask this record what the crawl saw,
+  // and a null there would settle the scan on a field nobody filled in.
+  await prisma.scan.update({
+    where: { id: scanId },
+    data: { crawlSummaryJson: JSON.stringify(crawlSummary) },
+  });
+  // A site is read when at least one page of it was read — a 2xx response that
+  // carried a document. It used to be "at least one request did not throw",
+  // which a WAF challenge page satisfies: the 403 arrives over a perfectly
+  // healthy connection, so a site that had blocked us entirely was audited as
+  // a site with no robots.txt and no 200 responses, and scored 96.95.
+  if (!isSiteRead(crawlSummary)) {
+    // Nothing downstream has a site to work on, so nothing downstream runs: no
+    // rules over a challenge page, no AI quota spent on a scan that is about to
+    // be refunded, and no PSI number that would make this Partial instead of
+    // Failed. Every planned module says the same thing, and says why.
+    await markEveryModuleUnreadable(prisma, scanId, modulesToRun, crawlSummary);
+    if (control !== undefined) await releaseResumeState(prisma, scanId);
+    return { analyticsPages: [], stopped: false };
+  }
+
   const apiCheckRun =
     modulesToRun.includes('Reliability') && (scope.apiChecks?.length ?? 0) > 0
       ? await runApiChecks(scope.apiChecks ?? [], origin, scope, {
@@ -470,7 +571,6 @@ export async function runScanAttempt(
     plan,
     ...(apiCheckRun.checks.length > 0 ? { apiChecks: apiCheckRun.checks } : {}),
   });
-  const siteReachable = crawlResult.pages.some((page) => page.fetchError === undefined);
   // Эффективный normalized origin — поле domain fingerprint-ов и export context
   // (в тестах обходится fixture-origin, а не https-домен профиля).
   await prisma.scan.update({ where: { id: scanId }, data: { domain: ctx.domain } });
@@ -491,7 +591,7 @@ export async function runScanAttempt(
     throwIfCancelled(scanId, signal);
     await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
     const result = plan === 'Free' ? runFreeCheck(ctx) : runModuleRules(module, ctx);
-    const finalized = finalizeRuleModule(result, plan, siteReachable);
+    const finalized = finalizeRuleModule(result, plan);
     // Строка модуля и его findings пишутся вместе: отмена после этой точки
     // оставляет секцию с её доказательствами, а не score без находок.
     await persistModuleResult(prisma, scan, {
@@ -550,7 +650,6 @@ export async function runScanAttempt(
         requests: buildGeoRequests(
           scanId,
           profile.name,
-          siteHostname,
           generation.questions,
           geoProvidersFor(consent),
         ),

@@ -322,7 +322,7 @@ describe('a section that has finished', () => {
           modelId: 'claude-sonnet-5',
           answer: 'Smile Clinic offers emergency appointments in Kyiv.',
           citations: ['https://smile.example/emergency'],
-          mentions: { brand: true, domain: true },
+          mentions: { brand: 'mentioned' as const, domain: 'mentioned' as const },
         },
       ],
     };

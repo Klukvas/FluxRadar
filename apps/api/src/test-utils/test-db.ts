@@ -6,11 +6,10 @@ import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 
 import { createPrismaClient } from '../db.ts';
 import { PURCHASE_STATUSES } from '../billing/constants.ts';
+import { FASTSPRING_PROVIDER } from '../billing/fastspring/config.ts';
 import { testDatabaseUrl } from './template-db.ts';
 import { isTestDatabaseReady, testDatabaseSkipReason } from './test-database-url.ts';
 import { TRUNCATED_TABLES } from './truncated-tables.ts';
-
-export const TEST_WEBHOOK_SECRET = 'test-paddle-webhook-secret';
 
 /**
  * A suite that needs the disposable PostgreSQL database.
@@ -41,6 +40,12 @@ export interface TestDb {
  * global-setup ran, so the TRUNCATE below cannot reach a database the guard
  * would refuse — including on a run that never went through global setup at all.
  * Vitest runs DB-backed files sequentially; truncation keeps each file isolated.
+ *
+ * The list names every table rather than relying on CASCADE, and
+ * truncate-coverage.test.ts checks it against the schema: a table with no
+ * foreign key — `CrawlEgressUsage` and `CrawlEgressLocationUsage` are keyed by
+ * month and location alone — is reached by no cascade at all, and a missing
+ * name carries its rows into the next test file.
  */
 export async function createTestDb(): Promise<TestDb> {
   const databaseUrl = testDatabaseUrl();
@@ -108,8 +113,8 @@ export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Pr
             accountId: params.account.accountId,
             siteProfileId: params.account.siteProfileId,
             plan,
-            provider: 'paddle',
-            providerTransactionId: `txn_${randomUUID()}`,
+            provider: FASTSPRING_PROVIDER,
+            providerTransactionId: `ord_${randomUUID()}`,
             amountUsd: TARIFFS[plan].priceUsd,
             currency: 'USD',
             status: PURCHASE_STATUSES.paid,
@@ -156,5 +161,31 @@ export async function seedScanModule(
       applicableChecks: params.applicableChecks ?? null,
       completedApplicableChecks: params.completedApplicableChecks ?? null,
     },
+  });
+}
+
+/**
+ * Records that this site let the crawler in, so a checkout may open.
+ *
+ * `createCheckoutSession` refuses to sell an audit of a site whose last
+ * reachability probe is missing, stale, or negative (FASTSPRING-009). Tests
+ * about the checkout itself state the precondition here rather than running a
+ * probe, so a failure names the thing they are actually testing.
+ */
+export async function seedReachableSite(
+  prisma: PrismaClient,
+  accountId: string,
+  siteProfileId: string,
+  checkedAt = new Date(),
+): Promise<void> {
+  // The probe is only usable for the domain it recorded, so the seed reads the
+  // profile's own domain rather than inventing one — a mismatch here would
+  // refuse the checkout for a reason the test is not about.
+  const profile = await prisma.siteProfile.findUniqueOrThrow({ where: { id: siteProfileId } });
+  const row = { accountId, origin: profile.domain, state: 'reachable', checkedAt };
+  await prisma.siteReachabilityProbe.upsert({
+    where: { siteProfileId },
+    create: { siteProfileId, ...row },
+    update: row,
   });
 }

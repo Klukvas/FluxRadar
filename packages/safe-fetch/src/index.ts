@@ -3,6 +3,7 @@
 
 export {
   NetworkError,
+  ProxyConfigError,
   RedirectLimitError,
   RequestAbortedError,
   SafeFetchError,
@@ -10,6 +11,8 @@ export {
   TimeoutError,
   UrlValidationError,
 } from './errors.js';
+export type { EgressProxy, ProxyCredentials } from './proxy.js';
+export { parseEgressProxyUrl } from './proxy.js';
 export type { BlockedIpCategory, IpClassification } from './ip-guard.js';
 export { classifyIp, isPublicIp } from './ip-guard.js';
 export type { HostLimiterOptions, ReleaseFn } from './rate-limit.js';

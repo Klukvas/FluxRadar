@@ -36,7 +36,7 @@ function observation(overrides: Partial<GeoObservation>): GeoObservation {
     modelId: 'claude-sonnet-5',
     answer: 'Smile Clinic is a dental clinic in Kyiv.',
     citations: [],
-    mentions: { brand: true, domain: false },
+    mentions: { brand: 'mentioned', domain: 'not-mentioned' },
     ...overrides,
   };
 }
@@ -110,12 +110,12 @@ describe('GEO observations grouped by provider', () => {
           provider: 'anthropic',
           question: 'Which dental clinics offer implants in Kyiv?',
           purpose: 'discovery',
-          mentions: { brand: false, domain: false },
+          mentions: { brand: 'not-mentioned', domain: 'not-mentioned' },
         }),
         observation({
           provider: 'openai',
           modelId: 'gpt-5.6-luna',
-          mentions: { brand: true, domain: true },
+          mentions: { brand: 'mentioned', domain: 'mentioned' },
         }),
       ]),
     );
@@ -125,12 +125,15 @@ describe('GEO observations grouped by provider', () => {
     expect(headings[0]).toContain('gpt-5.6-luna');
     expect(headings[1]).toContain('Claude · Anthropic');
 
-    const groups = document.querySelectorAll('.geo-observations__provider');
-    expect(groups[0]).toHaveTextContent(
-      'Brand mentioned in 1 of 1 answers · official domain referenced in 1 of 1.',
+    // The group is the block the provider's own heading sits in; the panel
+    // uses the same class for its other sections.
+    const groupOf = (index: number): HTMLElement =>
+      screen.getAllByRole('heading', { level: 5 })[index]?.closest('.module-checks__group') as HTMLElement;
+    expect(groupOf(0)).toHaveTextContent(
+      'Brand mentioned in 1 of 1 answers · Official domain referenced in 1 of 1',
     );
-    expect(groups[1]).toHaveTextContent(
-      'Brand mentioned in 1 of 2 answers · official domain referenced in 0 of 2.',
+    expect(groupOf(1)).toHaveTextContent(
+      'Brand mentioned in 1 of 2 answers · Official domain referenced in 0 of 2',
     );
   });
 
@@ -149,7 +152,9 @@ describe('GEO observations grouped by provider', () => {
       ]),
     );
 
-    const openaiGroup = document.querySelectorAll('.geo-observations__provider')[0] as HTMLElement;
+    const openaiGroup = screen
+      .getAllByRole('heading', { level: 5 })[0]
+      ?.closest('.module-checks__group') as HTMLElement;
     expect(openaiGroup).toHaveTextContent('ChatGPT · OpenAI');
     expect(openaiGroup).toHaveTextContent('The model did not return a usable answer');
   });
@@ -169,8 +174,8 @@ describe('GEO observations grouped by provider', () => {
       ]),
     );
 
-    const groups = document.querySelectorAll('.geo-observations__provider');
+    const headings = screen.getAllByRole('heading', { level: 5 });
     // Last, and named for what it is rather than attributed to a model.
-    expect(groups[groups.length - 1]).toHaveTextContent('Provider not recorded');
+    expect(headings[headings.length - 1]).toHaveTextContent('Provider not recorded');
   });
 });

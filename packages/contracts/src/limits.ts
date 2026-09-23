@@ -6,6 +6,16 @@ export const CRAWL_LIMITS = {
   pageTimeoutMs: 10_000,
   perHostRps: 5,
   perHostConcurrency: 4,
+  /**
+   * How many internal media files one crawl may verify with a HEAD request.
+   *
+   * CONTENT-004 used to report "internal media not confirmed by the crawl" as a
+   * Medium finding worth a score penalty, on a crawler that fetched no media at
+   * all — a penalty for something nobody had looked at. The crawl now looks,
+   * within this budget, and anything past it is reported as unchecked rather
+   * than as broken.
+   */
+  maxMediaChecks: 200,
 } as const;
 
 /**
@@ -137,10 +147,17 @@ export const AI_REQUEST_CAPS = {
   maxReasoningUnits: 4000,
   maxSearchUnits: 8,
   maxCitationUnits: 32,
-  // Provider web search bills its result pages as input tokens, so a
-  // search-enabled request legitimately reports far more input than it sent.
-  // The allowance is per search unit and is what keeps provider-truth usage
-  // inside the §5 contract instead of clamping the number and hiding spend.
+  /**
+   * Input tokens one provider web search may add on top of maxInputTokens.
+   * Search content is billed and reported as input, so a search-enabled answer
+   * legitimately exceeds the prompt cap; the response contract allows
+   * maxInputTokens + searchUnits * maxSearchContentTokens and nothing more —
+   * which keeps provider-truth usage inside the §5 contract instead of
+   * clamping the number and hiding spend.
+   * One Anthropic search measured 10-13k input tokens on 2026-09-22, so 8000
+   * left no margin and a slightly fuller result page would have discarded a
+   * valid answer as a contract violation; 16000 keeps that headroom.
+   */
   maxSearchContentTokens: 16000,
 } as const;
 

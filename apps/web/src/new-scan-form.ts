@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { apiRequest, type CheckoutConfig, type Scan, type SiteProfile } from './api';
+import {
+  apiRequest,
+  type CheckoutConfig,
+  type EgressLocation,
+  type Scan,
+  type SiteProfile,
+} from './api';
 import { AI_PROCESSING_OPT_IN_PROVIDERS } from './ai-processing-notice';
 import type { AiProcessingOptInProvider } from './ai-processing-notice';
 import { parseApiCheckLines, type ApiCheckLineProblem } from './api-check-lines';
 import { useCheckoutConfig, type PendingCheckout } from './Checkout';
+import {
+  effectiveEgressLocation,
+  freeEgressLocation,
+  useLaunchConfig,
+  type LaunchConfigState,
+} from './egress-location';
 import { copy, type Language } from './i18n';
+import { launchErrorMessage } from './launch-errors';
 import {
   configurationStateOf,
   configurationStatusLabel,
@@ -126,6 +139,21 @@ export interface NewScanForm {
   readonly checkoutPending: boolean;
   readonly configurationState: ConfigurationState;
   readonly configurationStatusLabel: string;
+  /** True while the deployment offers locations but none of them can be used. */
+  readonly egressBlocked: boolean;
+  /** Where this launch will leave from, or null while nothing is on offer. */
+  readonly egressLocation: EgressLocation | null;
+  /** What the deployment offers; the picker and the summary read the same answer. */
+  readonly launchConfig: LaunchConfigState;
+  /** Whether the reachability probe says a paid scan of this site may be sold. */
+  readonly siteReachable: boolean;
+  readonly setSiteReachable: (reachable: boolean) => void;
+  /**
+   * Resolves the profile this launch is for, creating it from a typed address
+   * when there is none yet. The reachability panel probes the same profile the
+   * submit will buy a scan of.
+   */
+  readonly resolveTargetProfileId: () => Promise<string | null>;
   readonly invalidScope: readonly ScopeNumberField[];
   /**
    * The same contract as `invalidScope`, for the two settings that are lists of
@@ -173,6 +201,20 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const checkout = useCheckoutConfig(!props.internalFreeAccess);
   const checkoutConfig = checkout.status === 'ready' ? checkout.config : null;
   const paidAvailable = props.internalFreeAccess || checkoutConfig?.available === true;
+  // Where a launch may leave from (D-228). The same server answer decides what
+  // the country picker offers and what the summary names, so the two cannot
+  // disagree about the scan that is about to be bought.
+  const launchConfig = useLaunchConfig();
+  const egressConfig = launchConfig.status === 'ready' ? launchConfig.egress : null;
+  /**
+   * Whether the API says this site can be audited right now.
+   *
+   * Only the paid path reads it — a Free check is not a purchase, and gating it
+   * would turn the one thing a stranger can try into a two-step form. The
+   * server refuses the sale regardless (`createCheckoutSession`); this is what
+   * keeps a buyer from meeting that refusal at the pay button.
+   */
+  const [siteReachable, setSiteReachable] = useState(false);
   // Until the server has answered, the screen says it is still asking rather
   // than announcing an absence it cannot yet know about.
   const checkoutPending = checkout.status === 'loading';
@@ -447,6 +489,17 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     }
   };
 
+  // The location this launch will actually ask for: Free always leaves from the
+  // default one; a paid plan from the owner's choice while it is on offer.
+  const egressLocation =
+    plan === 'Free'
+      ? freeEgressLocation(egressConfig)
+      : effectiveEgressLocation(scope.egressLocation, egressConfig);
+  // The server refuses such a launch anyway; this keeps the owner from meeting
+  // that refusal at the button.
+  const egressBlocked =
+    egressConfig !== null && egressConfig.mode === 'proxy' && egressLocation === null;
+
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     // A page count of 0 or 2.5 is a typo, and the request it would become asks
@@ -490,8 +543,9 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         profileId,
         plan,
         // Free sends the settings it will actually run with, not the ones the
-        // form happens to hold; the server stores its own answer either way.
-        scope: scanScopeFrom(scope, plan),
+        // form happens to hold; the server stores its own answer either way. A
+        // paid plan names the location on screen, not a saved one that is down.
+        scope: scanScopeFrom(scope, plan, egressLocation?.id ?? null),
         expectedProfileConfigVersion,
         // The default recipients plus whatever extra ones the owner turned on.
         // A provider absent from this list receives nothing, and one the
@@ -507,7 +561,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       // Null means a paid checkout took over and no scan exists yet.
       if (scan !== null) props.onCreated(scan);
     } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'Scan could not be created');
+      props.onError(launchErrorMessage(caught, props.language, 'Scan could not be created'));
     } finally {
       setBusy(false);
     }
@@ -558,9 +612,14 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // because settings nobody can store are worse than a scan nobody can start.
   const targetChosen = usingSavedProfile ? target !== '' : address.trim() !== '';
   const idle = !busy && !savingConfiguration;
-  const canLaunch = idle && targetChosen && !robotsUnconfirmed;
+  const formReady = idle && targetChosen && !robotsUnconfirmed;
+  // A paid scan of a site the crawler cannot read is a refund waiting to
+  // happen, and the server refuses to sell it (FASTSPRING-009). Saving the
+  // settings is not a purchase, so it is not gated on either of these.
+  const reachabilityChecked = plan === 'Free' || props.internalFreeAccess || siteReachable;
+  const canLaunch = formReady && !egressBlocked && reachabilityChecked;
   const canSave =
-    canLaunch && !unavailablePlanFallback && invalidScopeFields(scope, plan).length === 0;
+    formReady && !unavailablePlanFallback && invalidScopeFields(scope, plan).length === 0;
   // Who is about to be charged decides both the button and the terms line, so
   // the two cannot disagree about whether this submission is a purchase.
   const purchasing = paidScopeControls && !props.internalFreeAccess;
@@ -590,6 +649,12 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       props.language,
       savedConfigVersion,
     ),
+    egressBlocked,
+    egressLocation,
+    launchConfig,
+    siteReachable,
+    setSiteReachable,
+    resolveTargetProfileId,
     invalidScope,
     invalidSeedUrls,
     apiCheckProblems,

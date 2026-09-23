@@ -79,11 +79,6 @@ const BOOT_VALIDATORS = [
       }
     },
   },
-  {
-    module: 'billing/paddle-signature.js',
-    exportName: 'resolvePaddleWebhookSecret',
-    describes: 'PADDLE_WEBHOOK_SECRET, which older releases require at startup',
-  },
 ];
 
 function loadPrismaModule() {

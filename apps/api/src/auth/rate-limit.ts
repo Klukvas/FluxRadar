@@ -70,6 +70,14 @@ export const EXPORT_ACTION_LIMIT = 30;
 export const EXPORT_ACTION_IP_LIMIT = 90;
 export const EXPORT_ACTION_WINDOW_MS = 10 * 60 * 1000;
 /**
+ * Запуск Action Plan — платный запрос к Anthropic (D-232). Потолок на аккаунт в
+ * час; per-scan, часовой и дневной лимиты трат считаются в базе
+ * (action-plan/service.ts) — этот лимитер стоит перед ними как защита от флуда.
+ */
+export const ACTION_PLAN_START_LIMIT = 10;
+export const ACTION_PLAN_START_IP_LIMIT = 30;
+export const ACTION_PLAN_START_WINDOW_MS = 60 * 60 * 1000;
+/**
  * A support request is open to guests and lands in a person's Telegram channel,
  * so the ceiling per sender (account, or a guest's typed address) is low. The
  * address ceiling is higher for the usual NAT reason, and still stops one client

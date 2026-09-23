@@ -40,6 +40,7 @@ const CADDYFILE_PATH = join(REPO_ROOT, 'deploy', 'Caddyfile');
 const NGINX_PATH = join(REPO_ROOT, 'deploy', 'nginx.conf');
 const SMOKE_PATH = join(REPO_ROOT, 'deploy', 'public-smoke.sh');
 const SBL_MODULE_PATH = join(REPO_ROOT, 'apps', 'web', 'src', 'fastspring-sbl.ts');
+const ANALYTICS_CONFIG_PATH = join(REPO_ROOT, 'apps', 'web', 'src', 'analytics-config.ts');
 const STOREFRONT_MODULE_PATH = join(
   REPO_ROOT,
   'apps',
@@ -93,6 +94,19 @@ function constantFrom(path: string, name: string): string {
 }
 
 const CSP_FIELD = 'Content-Security-Policy';
+
+/**
+ * Where gtag.js sends hits. Google spreads collection across regional hosts
+ * (`region1.google-analytics.com`, `region1.analytics.google.com`, …) and falls
+ * back to image beacons, so these are subdomain patterns by necessity — which is
+ * exactly why they are confined to `connect-src` and `img-src` and kept out of
+ * `script-src`, where a wildcard would let any Google-hosted script run.
+ */
+const GA_COLLECTION_SOURCES = [
+  'https://*.google-analytics.com',
+  'https://*.analytics.google.com',
+  'https://*.googletagmanager.com',
+];
 const policyText = caddyHeader(CSP_FIELD) ?? '';
 const policy = parsePolicy(policyText);
 
@@ -155,10 +169,11 @@ describe('the Content-Security-Policy', () => {
   // The cross-check that closes the gap docs/DEPLOYMENT.md describes: the origin
   // the bundle actually loads the Store Builder Library from has to be the one
   // the policy allows, or the popup silently never opens.
-  it('allows exactly the SBL origin the bundle loads', () => {
+  it('allows exactly the script origins the bundle loads', () => {
     const sblOrigin = constantFrom(SBL_MODULE_PATH, 'SBL_ORIGIN');
+    const gaOrigin = constantFrom(ANALYTICS_CONFIG_PATH, 'GA_SCRIPT_ORIGIN');
 
-    expect(policy.get('script-src')).toEqual(["'self'", sblOrigin]);
+    expect(policy.get('script-src')).toEqual(["'self'", sblOrigin, gaOrigin]);
   });
 
   // Allowing the script origin is not enough, and this is how that was found.
@@ -185,7 +200,7 @@ describe('the Content-Security-Policy', () => {
     const storefront = `https://*${suffix}`;
 
     expect(policy.get('frame-src')).toEqual([storefront]);
-    expect(policy.get('connect-src')).toEqual(["'self'", storefront]);
+    expect(policy.get('connect-src')).toEqual(["'self'", storefront, ...GA_COLLECTION_SOURCES]);
   });
 
   // Four now, not three: `style-src` joined the list when the popup turned out
@@ -198,6 +213,31 @@ describe('the Content-Security-Policy', () => {
       .map(([directive]) => directive);
 
     expect(withFastSpring.sort()).toEqual(['connect-src', 'frame-src', 'script-src', 'style-src']);
+  });
+
+  // Google Analytics loads only after a visitor allows it (apps/web/src/analytics.ts),
+  // but the policy cannot know that, so what it grants Google stays enumerated:
+  // one exact script origin, and the collection hosts for hits and beacons.
+  it('grants Google Analytics a script origin and its collection hosts, and nothing else', () => {
+    const gaOrigin = constantFrom(ANALYTICS_CONFIG_PATH, 'GA_SCRIPT_ORIGIN');
+    const withGoogle = [...policy]
+      .filter(([, sources]) =>
+        sources.some((source) =>
+          /google-analytics\.com|analytics\.google\.com|googletagmanager\.com/.test(source),
+        ),
+      )
+      .map(([directive]) => directive);
+
+    expect(withGoogle.sort()).toEqual(['connect-src', 'img-src', 'script-src']);
+    expect((policy.get('script-src') ?? []).filter((source) => source.includes('google'))).toEqual([
+      gaOrigin,
+    ]);
+    expect(policy.get('img-src')).toEqual([
+      "'self'",
+      'data:',
+      'https://*.google-analytics.com',
+      'https://*.googletagmanager.com',
+    ]);
   });
 });
 

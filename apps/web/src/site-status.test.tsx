@@ -63,7 +63,7 @@ function renderProfiles(
 ): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn((input: RequestInfo | URL) => Promise.resolve(handler(pathOf(input))));
   vi.stubGlobal('fetch', fetchMock);
-  saveCookieConsent(true);
+  saveCookieConsent({ preferences: true, analytics: false });
   window.localStorage.setItem('fluxradar.language', language);
   window.history.replaceState(null, '', '/profiles');
   render(<App />);

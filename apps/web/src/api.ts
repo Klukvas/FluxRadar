@@ -217,7 +217,34 @@ export interface ProfileScanConfig {
     readonly respectRobots: boolean;
     readonly robotsOverrideConfirmed: boolean;
     readonly userAgent: 'desktop' | 'mobile';
+    /** The owner's preferred egress location id; absent means "the default". */
+    readonly egressLocation?: string;
   };
+}
+
+/**
+ * A place a crawl can leave from. Mirrors `EgressLocationView` in
+ * apps/api/src/integrations/crawl-egress-locations.ts: `label` and the rest are
+ * null for an id the API no longer knows, which is still printed as its code.
+ */
+export interface EgressLocation {
+  readonly id: string;
+  readonly countryCode: string | null;
+  readonly city: string | null;
+  readonly label: { readonly en: string; readonly uk: string } | null;
+}
+
+/** What the launch screen may offer, as `GET /scans/launch-config` answers it. */
+export interface EgressLaunchConfig {
+  /** `direct`: this deployment has no egress location, and nothing to choose. */
+  readonly mode: 'direct' | 'proxy';
+  /** Configured and answering right now; nothing else is offered. */
+  readonly locations: readonly EgressLocation[];
+  readonly defaultLocationId: string | null;
+}
+
+export interface LaunchConfig {
+  readonly egress: EgressLaunchConfig;
 }
 
 export interface ScanModule {
@@ -230,6 +257,42 @@ export interface ScanModule {
   readonly completedApplicableChecks: number | null;
   readonly usableOutput: boolean;
   readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The last answer a site gave about whether it will let the crawler read it.
+ *
+ * `canPurchase` is the API's own verdict — fresh enough and `reachable` — and
+ * is re-derived on the server when a checkout opens. Nothing the browser does
+ * with this field can widen what may be bought.
+ */
+export interface SiteReachability {
+  readonly state:
+    'reachable' | 'access-denied' | 'blocked-by-robots' | 'unreachable' | 'bad-response' | null;
+  readonly startStatus?: number | null;
+  readonly accessControlSignals?: readonly string[];
+  readonly checkedAt: string | null;
+  readonly expired?: boolean;
+  readonly canPurchase: boolean;
+}
+
+/** Mirrors `MentionSignal` in @fluxradar/ai. */
+export type MentionSignal =
+  'mentioned' | 'not-mentioned' | 'named-in-question' | 'brand-is-hostname';
+
+/** Mirrors `crawlSummarySchema` in @fluxradar/contracts. */
+export interface CrawlSummary {
+  readonly reach:
+    'reachable' | 'access-denied' | 'blocked-by-robots' | 'unreachable' | 'bad-response';
+  readonly startStatus: number | null;
+  readonly accessControlSignals: readonly string[];
+  readonly pagesRead: number;
+  readonly pagesFetched: number;
+  readonly urlsDiscovered: number;
+  readonly urlsOverLimit: number;
+  readonly urlsBlockedByRobots: number;
+  readonly limitedBy: 'owner' | 'plan' | null;
+  readonly maxPages: number;
 }
 
 export interface Scan {
@@ -252,7 +315,20 @@ export interface Scan {
     readonly respectRobots?: boolean;
     readonly robotsOverrideConfirmed?: boolean;
     readonly userAgent?: 'desktop' | 'mobile';
+    readonly egressLocation?: string;
   };
+  /**
+   * Where the crawl left from. Null — and absent from an older API — when the
+   * scan predates the choice: its location was never recorded, and the report
+   * says so rather than assuming one.
+   */
+  readonly egressLocation?: EgressLocation | null;
+  /**
+   * How much of the site the crawl read, in addresses rather than in checks.
+   * Null when a scan predates the record — the report then shows no coverage
+   * line at all, rather than a number nobody measured.
+   */
+  readonly crawlSummary?: CrawlSummary | null;
   readonly profileConfigVersion?: number;
   readonly rulesetVersion: string;
   readonly progress: {
@@ -362,7 +438,15 @@ export interface ScanChanges {
     readonly id: string;
     readonly plan: string;
     readonly completedAt: string | null;
+    readonly egressLocation?: EgressLocation | null;
   } | null;
+  readonly egressLocation?: EgressLocation | null;
+  /**
+   * Whether both crawls left from the same place. `different`: the numbers
+   * below are differences between two countries, not fixes. `unrecorded`: at
+   * least one scan predates the choice. Absent from an older API.
+   */
+  readonly egressComparison?: 'same' | 'different' | 'unrecorded' | null;
   readonly introduced: number;
   readonly fixed: number;
   readonly persisting: number;
@@ -394,9 +478,19 @@ export interface GeoObservation {
   readonly modelId: string | null;
   readonly answer: string | null;
   readonly citations: readonly string[];
+  /**
+   * What this answer showed about brand and domain visibility.
+   *
+   * Not booleans. An awareness question names the brand by construction, and
+   * the question used to spell the domain out too, so "no finding for this
+   * answer" — which is what these fields used to be — meant both badges were
+   * green on every scan ever run. `named-in-question` and `brand-is-hostname`
+   * are the two ways a signal can have no meaning, and both must read as "not
+   * measured" rather than as a pass.
+   */
   readonly mentions: {
-    readonly brand: boolean;
-    readonly domain: boolean;
+    readonly brand: MentionSignal;
+    readonly domain: MentionSignal;
   } | null;
 }
 

@@ -20,7 +20,6 @@ import { FREE_CHECK_ALLOWED_ORIGINS_ENV } from '../billing/free-check-allowlist.
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const WORKFLOW = readFileSync(join(REPO_ROOT, '.github', 'workflows', 'deploy.yml'), 'utf8');
-const DEPLOYMENT_DOC = readFileSync(join(REPO_ROOT, 'docs', 'DEPLOYMENT.md'), 'utf8');
 const ENV_EXAMPLE = readFileSync(join(REPO_ROOT, '.env.example'), 'utf8');
 
 /** The workflow's naming rule for an optional production override. */
@@ -53,15 +52,9 @@ describe('DEPLOY-014 free-check allowlist wiring', () => {
     );
   });
 
+  // The deployment runbook left the repository; `.env.example` is now the one
+  // place an operator reads this variable's name from, so it has to carry it.
   it('is written down for whoever configures the environment', () => {
-    expect(DEPLOYMENT_DOC).toContain(SOURCE_VAR);
-    expect(DEPLOYMENT_DOC).toContain(FREE_CHECK_ALLOWED_ORIGINS_ENV);
     expect(ENV_EXAMPLE).toContain(`${FREE_CHECK_ALLOWED_ORIGINS_ENV}=`);
-  });
-
-  // The docs used to state the opposite — that no deploy secret or variable
-  // existed for this — which is exactly the kind of sentence an operator acts on.
-  it('no longer claims the allowlist has no deploy override', () => {
-    expect(DEPLOYMENT_DOC).not.toContain('there is no deploy\nsecret or variable for it');
   });
 });

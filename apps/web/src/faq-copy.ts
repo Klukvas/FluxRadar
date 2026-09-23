@@ -200,6 +200,7 @@ export const faqCopyEn: FaqCopy = {
           answer: [
             'Paid audits include provider-backed AI visibility checks. FluxRadar first asks the provider to generate neutral discovery questions from the saved industry, offerings, region, audience and language settings without showing it the brand or domain; it then asks those questions and checks whether the answers mention or cite the site. Separate awareness questions do name the brand and official address.',
             'A paid audit asks both Anthropic (Claude) and OpenAI (ChatGPT), and each answers with its own web search enabled, so the report also lists the sources each one used. Google (Gemini) and Perplexity are offered as an optional extra before you buy: they are off by default and receive nothing at all unless you select them. A prominent notice before purchase names every recipient and explains what project context and public-page evidence is sent. The free homepage check never sends data to an AI provider.',
+            'On a Complete report you can also ask Anthropic’s Claude for an AI Action Plan: an ordered list of changes with an overview for your client. It is written only when you press its button. Sent are the site’s domain, each section’s status, score and coverage, and for each rule with open issues its name, severity, number of open issues, up to three page addresses without query strings or fragments, and the rule’s recommendations. Evidence excerpts, screenshots, traces and anything from the Analytics section are not sent.',
             'It is also not a ranking guarantee. It reflects what a provider answered at that moment through its API; the same question can be answered differently tomorrow.',
           ],
         },
@@ -362,7 +363,7 @@ export const faqCopyEn: FaqCopy = {
           question: 'What is the difference between Basic and Complete?',
           answer: [
             `Basic (${BASIC_PRICE}) answers the visibility question: the full SEO analysis plus AI crawler readiness, up to 5,000 crawled URLs, results kept for 30 days.`,
-            `Complete (${COMPLETE_PRICE}) is the whole picture: everything in Basic plus security, accessibility, performance, reliability, privacy and content quality, with the Issue Center, scan history and JSON/CSV export, up to 50,000 crawled URLs, results kept for 365 days.`,
+            `Complete (${COMPLETE_PRICE}) is the whole picture: everything in Basic plus security, accessibility, performance, reliability, privacy and content quality, with scan history and JSON/CSV export, up to 50,000 crawled URLs, results kept for 365 days.`,
             'There is no extra "full audit" item to buy on top of Complete. Complete already contains every module FluxRadar runs — one price, nothing added later at the checkout.',
           ],
         },
@@ -524,6 +525,7 @@ export const faqCopyUk: FaqCopy = {
           answer: [
             'Платні аудити включають перевірки AI-видимості через зовнішнього провайдера. Спочатку FluxRadar просить його створити нейтральні discovery-запитання з налаштувань галузі, пропозицій, регіону, аудиторії та мов, не показуючи бренд або домен; потім ставить ці запитання й перевіряє, чи згадує або цитує відповідь сайт. Окремі awareness-запитання прямо називають бренд і офіційну адресу.',
             'Платний аудит запитує і Anthropic (Claude), і OpenAI (ChatGPT), кожен — із увімкненим власним вебпошуком, тому звіт також показує джерела, якими скористалася кожна модель. Google (Gemini) і Perplexity доступні як необовʼязкове доповнення перед оплатою: вони вимкнені за замовчуванням і не отримують нічого, доки ви їх не оберете. Помітне повідомлення перед оплатою називає кожного отримувача й пояснює, який контекст проєкту та докази з публічних сторінок передаються. Безкоштовна перевірка головної ніколи не надсилає дані AI-провайдеру.',
+            'У звіті Complete можна також попросити Claude від Anthropic скласти AI-план дій: упорядкований список змін з оглядом для вашого клієнта. Його складають лише після натискання кнопки. Надсилаються домен сайту, статус, оцінка й покриття кожного розділу, а для кожного правила з відкритими проблемами — його назва, критичність, кількість відкритих проблем, до трьох адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана, трасування й будь-що з розділу «Аналітика» не надсилаються.',
             'Це також не гарантія видимості. Результат відображає те, що провайдер відповів через свій API у той момент; завтра відповідь може бути іншою.',
           ],
         },
@@ -686,7 +688,7 @@ export const faqCopyUk: FaqCopy = {
           question: 'Чим Basic відрізняється від Complete?',
           answer: [
             `Basic (${BASIC_PRICE}) відповідає на питання видимості: повний SEO-аналіз плюс готовність до AI-роботів, до 5 000 сторінок обходу, результати зберігаються 30 днів.`,
-            `Complete (${COMPLETE_PRICE}) — це вся картина: усе з Basic плюс безпека, доступність, продуктивність, надійність, приватність і якість контенту, разом з Issue Center, історією перевірок та експортом JSON/CSV, до 50 000 сторінок обходу, результати зберігаються 365 днів.`,
+            `Complete (${COMPLETE_PRICE}) — це вся картина: усе з Basic плюс безпека, доступність, продуктивність, надійність, приватність і якість контенту, разом з історією перевірок та експортом JSON/CSV, до 50 000 сторінок обходу, результати зберігаються 365 днів.`,
             'Жодного окремого «повного аудиту» доплачувати не треба. Complete уже містить усі модулі, які запускає FluxRadar, — одна ціна, нічого не додається на етапі оплати.',
           ],
         },

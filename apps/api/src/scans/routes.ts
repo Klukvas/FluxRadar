@@ -5,7 +5,8 @@ import { Router } from 'express';
 import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
 import { computeOverallScore } from '@fluxradar/scoring';
 import { RULESET_VERSION, scanRequestInputSchema, scanScopeSchema } from '@fluxradar/contracts';
-import { isModuleName } from '@fluxradar/contracts';
+import { isModuleName, parseCrawlSummary } from '@fluxradar/contracts';
+import { MENTION_SIGNALS, type MentionSignal } from '@fluxradar/ai';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
 
@@ -42,8 +43,17 @@ import { freeScanScope } from './free-scan-scope.ts';
 import {
   captureExecutionConfig,
   lockOwnProfile,
+  recordedEgressLocation,
   storedExecutionConfig,
 } from '../profiles/execution-config.ts';
+import { egressLocationView } from '../integrations/crawl-egress-locations.ts';
+import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
+import {
+  egressLaunchConfig,
+  resolveLaunchEgressLocation,
+  scopeWithEgressLocation,
+  type LaunchEgress,
+} from './launch-egress.ts';
 
 export interface ScansRouterDeps {
   readonly prisma: PrismaClient;
@@ -52,6 +62,8 @@ export interface ScansRouterDeps {
   readonly requestRateLimiter?: RequestRateLimiter;
   /** Origins exempt from both Free-check limits; empty keeps the one-time rule. */
   readonly freeCheckAllowedOrigins?: ReadonlySet<string>;
+  /** Which egress locations exist here and which are up (D-228). */
+  readonly egress: EgressLocationMonitor;
 }
 
 const freeCheckBodySchema = z
@@ -93,22 +105,26 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     );
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
-    const created = await createFreeScan(
-      deps.prisma,
+    // Free does not choose a country: whatever the body says, it leaves from
+    // the default location — and is refused, like any launch, while that
+    // location is down, rather than spending the one free check on our outage.
+    const created = await createFreeScan(deps.prisma, {
       accountId,
-      profile.id,
-      deps.now(),
-      freeCheckAllowedOrigins,
-      body?.scope,
-      body?.expectedProfileConfigVersion,
-    );
+      siteProfileId: profile.id,
+      now: deps.now(),
+      allowedOrigins: freeCheckAllowedOrigins,
+      requestedScope: body?.scope,
+      expectedProfileConfigVersion: body?.expectedProfileConfigVersion,
+      egress: await resolveLaunchEgressLocation(deps.egress, undefined),
+    });
     deps.enqueueScan(created.id);
     sendOk(res, toScanDto(created, []), { status: 201 });
   });
 
   // A single generic creation endpoint is kept for clients that only expose a
-  // plan picker. Paid plans must go through the signed dev-checkout route so
-  // an entitlement can never be granted by a bare scan request.
+  // plan picker. Paid plans must go through a checkout — a signed FastSpring
+  // order, or the internal allowlist's /billing/internal-checkout — so a paid scan
+  // can never be created by a bare scan request.
   router.post('/profiles/:profileId/scans', auth, async (req, res) => {
     const input = parseInput(scanRequestInputSchema, req.body);
     const accountId = accountIdFrom(res);
@@ -120,14 +136,14 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     if (input.plan !== 'Free') {
       throw paymentRequired('Basic and Complete scans must be purchased before creation');
     }
-    const scan = await createFreeScan(
-      deps.prisma,
+    const scan = await createFreeScan(deps.prisma, {
       accountId,
-      profile.id,
-      deps.now(),
-      freeCheckAllowedOrigins,
-      input.scope,
-    );
+      siteProfileId: profile.id,
+      now: deps.now(),
+      allowedOrigins: freeCheckAllowedOrigins,
+      requestedScope: input.scope,
+      egress: await resolveLaunchEgressLocation(deps.egress, undefined),
+    });
     deps.enqueueScan(scan.id);
     sendOk(res, toScanDto(scan, []), { status: 201 });
   });
@@ -149,6 +165,13 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       listed.scans.map((scan) => toScanDto(scan, readableModules(scan))),
       { meta: listed.meta },
     );
+  });
+
+  // What the launch screen may offer. Server-issued rather than built into the
+  // bundle: which countries exist is a fact of this deployment, and which of
+  // them are answering is a fact of the last few minutes (D-228).
+  router.get('/scans/launch-config', auth, async (_req, res) => {
+    sendOk(res, { egress: await egressLaunchConfig(deps.egress) });
   });
 
   // This endpoint is deliberately separate from the history list: returning
@@ -389,6 +412,18 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   return router;
 }
 
+export interface CreateFreeScanParams {
+  readonly accountId: string;
+  readonly siteProfileId: string;
+  readonly now: Date;
+  /** Origins exempt from both Free-check limits; absent keeps the one-time rule. */
+  readonly allowedOrigins?: ReadonlySet<string>;
+  readonly requestedScope?: ScanScopeInput | undefined;
+  readonly expectedProfileConfigVersion?: number | undefined;
+  /** The default egress location, checked at launch (`resolveLaunchEgressLocation`). */
+  readonly egress: LaunchEgress;
+}
+
 /**
  * Creates the one Free scan an account is entitled to, or an unmetered one for
  * an origin this deployment allowlisted.
@@ -401,17 +436,22 @@ export function scansRouter(deps: ScansRouterDeps): Router {
  *
  * `requestedScope` is what the caller asked for, not what is stored: Free runs a
  * fixed homepage check, so the row records the settings that check will actually
- * apply (see free-scan-scope.ts).
+ * apply (see free-scan-scope.ts), plus the default egress location checked at
+ * launch — never one the request named.
  */
 export async function createFreeScan(
   prisma: PrismaClient,
-  accountId: string,
-  siteProfileId: string,
-  now: Date,
-  allowedOrigins: ReadonlySet<string> = new Set(),
-  requestedScope?: ScanScopeInput,
-  expectedProfileConfigVersion?: number,
+  params: CreateFreeScanParams,
 ): Promise<Scan> {
+  const {
+    accountId,
+    siteProfileId,
+    now,
+    allowedOrigins = new Set<string>(),
+    requestedScope,
+    expectedProfileConfigVersion,
+  } = params;
+  const scope = scopeWithEgressLocation(freeScanScope(requestedScope), params.egress);
   return prisma.$transaction(async (tx) => {
     const profile = await lockOwnProfile(
       tx,
@@ -446,11 +486,9 @@ export async function createFreeScan(
         plan: 'Free',
         domain: profile.domain,
         status: 'Pending',
-        scopeJson: JSON.stringify(freeScanScope(requestedScope)),
+        scopeJson: JSON.stringify(scope),
         profileConfigVersion: profile.scanConfigVersion,
-        executionConfigJson: JSON.stringify(
-          captureExecutionConfig(profile, 'Free', freeScanScope(requestedScope)),
-        ),
+        executionConfigJson: JSON.stringify(captureExecutionConfig(profile, 'Free', scope)),
         rulesetVersion: RULESET_VERSION,
         createdAt: now,
       },
@@ -519,8 +557,16 @@ function toScanDto(scan: Scan, modules: readonly ScanModule[]): Record<string, u
     status: scan.status,
     statusReason: scan.statusReason,
     scope: parseScope(scan.scopeJson),
+    // How much of the site the crawl actually read, so the report can say
+    // "15 of 334 addresses" instead of a module coverage that counts checks.
+    // Null on scans that ran before the column existed — not recorded, which
+    // the report states rather than rendering as a measured zero.
+    crawlSummary: parseCrawlSummary(scan.crawlSummaryJson),
     profileConfigVersion: scan.profileConfigVersion,
     executionConfig: storedExecutionConfig(scan.executionConfigJson),
+    // Where the crawl left from, with its country and city; null when the
+    // scan predates the choice and nothing was recorded (D-228).
+    egressLocation: egressLocationView(recordedEgressLocation(scan)),
     rulesetVersion: scan.rulesetVersion,
     retry: { platform: scan.platformRetryCount, module: scan.moduleRetryCount },
     // Sections answer "which parts of the audit are done"; the URL counts
@@ -591,9 +637,16 @@ interface GeoAiResponse {
   readonly citationsJson: string;
 }
 
+/**
+ * What one answer showed about brand and domain visibility.
+ *
+ * Not booleans: a question that already named the brand or spelled out the
+ * domain cannot be evidence that the model knows either, and reporting that as
+ * a pass is how both badges came to be green on every scan.
+ */
 interface GeoMentions {
-  readonly brand: boolean;
-  readonly domain: boolean;
+  readonly brand: MentionSignal;
+  readonly domain: MentionSignal;
 }
 
 interface GeoObservation {
@@ -641,10 +694,11 @@ function geoObservationsFrom(
       return [];
     }
     const reason = typeof request.reason === 'string' ? request.reason : null;
-    // Reports written before providers were recorded on the ledger entry have
-    // no provider here; the dashboard groups those under an unknown heading
-    // rather than guessing which model was asked.
-    const provider = typeof request.provider === 'string' ? request.provider : null;
+    // Reports written before two providers answered have no provider on the
+    // request entry; they read as an answer from nobody in particular, which is
+    // what they were.
+    const provider =
+      typeof request.provider === 'string' && request.provider !== '' ? request.provider : null;
     if (request.status !== 'response' || typeof request.aiRequestKey !== 'string') {
       return [unavailableGeoObservation(purpose, question, reason, provider)];
     }
@@ -695,9 +749,23 @@ function recordValue(value: unknown): Record<string, unknown> | null {
 
 function mentionsFrom(value: unknown): GeoMentions | null {
   const mentions = recordValue(value);
-  return typeof mentions?.brand === 'boolean' && typeof mentions.domain === 'boolean'
-    ? { brand: mentions.brand, domain: mentions.domain }
-    : null;
+  const brand = mentionSignal(mentions?.brand);
+  const domain = mentionSignal(mentions?.domain);
+  return brand === null || domain === null ? null : { brand, domain };
+}
+
+/**
+ * A stored signal, or null when the record predates the field.
+ *
+ * Reports written before this release stored `true`/`false`, which meant
+ * "no finding for this answer" and not "the model knew this". They are read as
+ * unmeasurable rather than rewritten into a verdict they never carried.
+ */
+function mentionSignal(value: unknown): MentionSignal | null {
+  if (typeof value === 'string' && (MENTION_SIGNALS as readonly string[]).includes(value)) {
+    return value as MentionSignal;
+  }
+  return typeof value === 'boolean' ? 'named-in-question' : null;
 }
 
 function stringArrayFromJson(value: string): readonly string[] {

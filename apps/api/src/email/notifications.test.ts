@@ -133,12 +133,53 @@ describe('scan notifications by purchase mode', () => {
     expect(mailer.messages.map((message) => message.subject)).toEqual(PAID_FLOW_SUBJECTS);
   });
 
-  it('still mails a legacy Paddle purchase', async () => {
+  it('still mails a purchase from a provider no longer in use', async () => {
     const { scan, purchase } = await seedScan(db.prisma, { account, status: 'Pending' });
-    expect(purchase?.provider).toBe('paddle');
+    await db.prisma.purchase.update({
+      where: { id: purchase?.id ?? '' },
+      data: { provider: 'retired-provider' },
+    });
 
     await notifyPaidFlow(scan.id);
 
     expect(mailer.messages.map((message) => message.subject)).toEqual(PAID_FLOW_SUBJECTS);
+  });
+});
+
+// Regression: the emails named the domain and one sentence, with no way back to
+// the scan they were about — the owner had to find the report on their own.
+describe('the way back to the scan', () => {
+  let db: TestDb;
+  let account: SeededAccount;
+  let mailer: MockMailer;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    account = await seedAccountWithProfile(db.prisma);
+    mailer = new MockMailer();
+  });
+
+  afterEach(async () => {
+    await db.cleanup();
+  });
+
+  it('links a paid scan to its page on the web app', async () => {
+    // The lifecycle mails are gone (D-235); a purchase and a refund are the two
+    // events left, and each still has to reach the scan it is about.
+    const { scan } = await seedScan(db.prisma, { account, status: 'Completed' });
+
+    await notifyScanEvent(
+      db.prisma,
+      mailer,
+      scan.id,
+      'purchase_confirmed',
+      'Your audit is paid for.',
+      'https://fluxradar.example/',
+    );
+
+    const [message] = mailer.messages;
+    const url = `https://fluxradar.example/scans/${scan.id}`;
+    expect(message?.html).toContain(`<a href="${url}">Follow the scan</a>`);
+    expect(message?.text).toContain(`Follow the scan: ${url}`);
   });
 });

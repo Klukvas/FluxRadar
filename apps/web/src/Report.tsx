@@ -25,6 +25,7 @@ import {
   StatusChip,
   Window,
 } from './components';
+import { egressLocationLabel } from './egress-location';
 import { findingsCopy } from './findings-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { asRecord, numberValue } from './module-metadata';
@@ -33,6 +34,7 @@ import { moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { ReportNextSteps } from './ReportNextSteps';
+import { SiteCoveragePanel } from './SiteCoverage';
 import { statusKind } from './status-kind';
 
 export function ResultsScreen(props: {
@@ -44,7 +46,7 @@ export function ResultsScreen(props: {
   onIssues: () => void;
   /** Opens the Issue Center on one problem's findings. */
   onOpenProblem?: (ruleId: string) => void;
-  /** Starts a paid scan of the same site, from a Free report. */
+  /** Starts a paid scan of the same site, from a Free or Basic report. */
   onUpgrade?: (scan: Scan) => void;
   /** Opens the printable client report. */
   onPrint?: (scan: Scan) => void;
@@ -168,6 +170,17 @@ export function ResultsScreen(props: {
                   <strong>v{scan.profileConfigVersion}</strong>
                 </span>
               )}
+              {/* Where the crawl left from (D-228). A scan from before the
+                  choice says so plainly: some of those left from Kyiv, the
+                  earliest from a server in Germany, and nothing recorded which. */}
+              <span>
+                <small>{t.egressLocation}</small>
+                <strong>
+                  {scan.egressLocation == null
+                    ? t.egressLocationUnrecorded
+                    : egressLocationLabel(scan.egressLocation, props.language)}
+                </strong>
+              </span>
             </div>
           </div>
           {unscoredPlan || scoreUnavailable ? (
@@ -227,6 +240,9 @@ export function ResultsScreen(props: {
             </div>
           </dl>
         </section>
+        {/* Before the section cards, because every coverage figure on them is
+            module coverage and means something narrower than a reader assumes. */}
+        <SiteCoveragePanel summary={scan.crawlSummary} language={props.language} />
         <div className="module-grid">
           {dashboard.modules.map((module) => {
             const expandable = hasModuleChecks(module, geoObservations);

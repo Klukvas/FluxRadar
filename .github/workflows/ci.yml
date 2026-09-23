@@ -1,9 +1,21 @@
 name: CI
 
+# The merge gate. Every quality job lives in the reusable `quality.yml`, which
+# `deploy.yml` runs again on main before it touches the server — one definition,
+# two callers, so the two can no longer drift the way the copied jobs had.
+#
+# Deliberately NOT triggered by a push to main. The same gates run inside the
+# deploy for that commit, and running both meant every merge paid for two full
+# test suites to learn the same thing twice.
+
 on:
-  push:
-    branches: [main]
   pull_request:
+  schedule:
+    # Mondays, 05:40 UTC. Only the advisory job needs this: an advisory is
+    # published against code that has not changed, so a check that runs only on
+    # a diff would never see it on a quiet week.
+    - cron: '40 5 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,62 +26,13 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality gates
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      DATABASE_URL: postgresql://fluxradar:fluxradar-test@localhost:5432/fluxradar_test
-      TEST_DATABASE_URL: postgresql://fluxradar:fluxradar-test@localhost:5432/fluxradar_test
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: fluxradar_test
-          POSTGRES_USER: fluxradar
-          POSTGRES_PASSWORD: fluxradar-test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U fluxradar -d fluxradar_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.11.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Build
-        run: pnpm build
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-      - name: Build API image
-        run: docker build --file Dockerfile.api --tag fluxradar-api:ci .
-
-      - name: Build web image
-        run: docker build --file Dockerfile.web --build-arg VITE_API_URL=/api --tag fluxradar-web:ci .
+    name: Quality
+    # On a pull request the images are built too: a broken Dockerfile is
+    # otherwise found by the deploy, after the merge.
+    if: github.event_name != 'schedule'
+    uses: ./.github/workflows/quality.yml
+    with:
+      build-images: true
 
   dependencies:
     name: Dependency advisories
@@ -80,29 +43,18 @@ jobs:
     # deploy. An advisory is published against code that is already merged and
     # already running, so gating the deploy on it would block the hotfix that
     # fixes it. It gates the merge instead: this workflow runs on every pull
-    # request and on main, and a failure here is a dependency to upgrade, not a
-    # release to hold.
+    # request and weekly on the default branch, and a failure here is a
+    # dependency to upgrade, not a release to hold.
     #
     # This checks the public advisory database over the network. It needs no
     # secret and no production credential, and it proves nothing about a
     # vulnerability nobody has reported yet.
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.11.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
 
       # Blocking: these are the packages that end up inside the deployed images.
       - name: Audit runtime dependencies

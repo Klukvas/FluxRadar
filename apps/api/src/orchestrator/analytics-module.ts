@@ -6,7 +6,13 @@
 // a Partial one because Google was unreachable or was never connected. The
 // crawl is gone by then, so the scan hands over what the checks need from it.
 
-import { SEVERITIES, type Severity } from '@fluxradar/contracts';
+import {
+  SEVERITIES,
+  isSiteRead,
+  parseCrawlSummary,
+  siteReachStatusReason,
+  type Severity,
+} from '@fluxradar/contracts';
 import type { AnalyticsPageFact } from '@fluxradar/rules';
 import type { Prisma, PrismaClient, Scan } from '@prisma/client';
 
@@ -37,6 +43,18 @@ export async function persistAnalyticsModule(
   const { prisma } = deps;
   const scan = await prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
   if (!includesAnalytics(scan.plan)) {
+    return;
+  }
+  const crawlSummary = parseCrawlSummary(scan.crawlSummaryJson);
+  if (crawlSummary !== null && !isSiteRead(crawlSummary)) {
+    // Every Analytics check compares a provider's view of the site with our
+    // own. With no page of the site read, "no analytics tag found" would be a
+    // statement about our failed crawl dressed as a statement about the site.
+    await prisma.scanModule.upsert({
+      where: { scanId_module: { scanId, module: ANALYTICS_MODULE } },
+      create: { scanId, module: ANALYTICS_MODULE, ...unreadableRow(crawlSummary) },
+      update: unreadableRow(crawlSummary),
+    });
     return;
   }
   // Two independent providers, read in parallel. Bing never feeds the Google
@@ -111,6 +129,20 @@ function analyticsRequestContext(
     ga4PropertyId: data.snapshot.analytics.data?.propertyId ?? null,
     searchConsoleSiteUrl: data.snapshot.searchConsole.data?.siteUrl ?? null,
     bingSiteUrl: bing.snapshot?.webmaster.data?.siteUrl ?? null,
+  };
+}
+
+/** The Analytics row for a scan whose site was never read (§15 Unavailable). */
+function unreadableRow(summary: ReturnType<typeof parseCrawlSummary>) {
+  return {
+    runtimeStatus: 'Unavailable',
+    statusReason: (summary === null ? null : siteReachStatusReason(summary)) ?? 'SiteUnreachable',
+    coverage: 0,
+    score: null,
+    applicableChecks: 1,
+    completedApplicableChecks: 0,
+    usableOutput: false,
+    metadataJson: JSON.stringify({ crawl: summary }),
   };
 }
 

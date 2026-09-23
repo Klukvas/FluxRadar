@@ -48,6 +48,12 @@ export const LANGUAGE_CODES = [
   'ja',
   'ko',
 ] as const;
+export type LanguageCode = (typeof LANGUAGE_CODES)[number];
+
+/** Whether a code is one the picker lists — for a code read from a URL or an answer. */
+export function isLanguageCode(code: unknown): code is LanguageCode {
+  return (LANGUAGE_CODES as readonly unknown[]).includes(code);
+}
 
 function languageName(code: string, locale: string): string {
   return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code;
@@ -88,19 +94,17 @@ export function formatTargetLanguages(names: readonly string[]): string {
   return names.join(', ');
 }
 
-/** A stored name as the reader's language spells it; an unlisted entry stays as written. */
-export function targetLanguageLabel(name: string, language: Language): string {
-  const code = CODE_BY_NAME.get(name);
-  if (code === undefined) return name;
-  const label = languageName(code, language);
-  return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
-}
-
 /** An ISO 639-1 code as the reader's language spells it; an unknown code stays as written. */
 export function languageCodeLabel(code: string, language: Language): string {
   if (!(LANGUAGE_CODES as readonly string[]).includes(code)) return code;
   const label = languageName(code, language);
   return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+}
+
+/** A stored name as the reader's language spells it; an unlisted entry stays as written. */
+export function targetLanguageLabel(name: string, language: Language): string {
+  const code = CODE_BY_NAME.get(name);
+  return code === undefined ? name : languageCodeLabel(code, language);
 }
 
 /** The codes behind a profile's stored target-language names, in their order. */

@@ -15,6 +15,16 @@ client_secret_*.json
 # away from living in the history forever.
 *.dmg
 
+# GoAccess reports from scripts/traffic-report.sh: masked IPs and user agents
+# from production, never meant for the repository.
+traffic-reports/
+
+# Working material for the owner and the coding agents: plans, briefs, review
+# and test reports, task boards. It stays in the local checkout and never ships,
+# so the whole directory is ignored rather than a list of name patterns that the
+# next report is one filename away from escaping.
+docs/
+
 # Scratch space for automated agent runs: a PostgreSQL data directory, run logs
 # and rendered artifacts. Hundreds of megabytes, none of it shipped, and one
 # `git add -A` from the same fate as the DMG above.

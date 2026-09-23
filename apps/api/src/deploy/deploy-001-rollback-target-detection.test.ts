@@ -16,20 +16,20 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 // image `fluxradar-api:current`, and abort a deploy that had nothing to roll back
 // to.
 //
-// The shell below is not a copy of the workflow — it is EXTRACTED from it between
-// the markers, so this test cannot drift away from what actually ships.
+// The shell below is not a copy of the release script — it is EXTRACTED from it
+// between the markers, so this test cannot drift away from what actually ships.
 
-const WORKFLOW_PATH = join(API_PACKAGE_ROOT, '..', '..', '.github', 'workflows', 'deploy.yml');
+const RELEASE_SCRIPT_PATH = join(API_PACKAGE_ROOT, '..', '..', 'deploy', 'release.sh');
 const BEGIN_MARKER = '# fluxradar:rollback-target-detection';
 const END_MARKER = '# fluxradar:end-rollback-target-detection';
 
-/** The workflow's own resolution lines, dedented out of the YAML block scalar. */
+/** The release script's own resolution lines, between the markers. */
 function extractDetectionBlock(): string {
-  const lines = readFileSync(WORKFLOW_PATH, 'utf8').split('\n');
+  const lines = readFileSync(RELEASE_SCRIPT_PATH, 'utf8').split('\n');
   const begin = lines.findIndex((line) => line.trim().startsWith(BEGIN_MARKER));
   const end = lines.findIndex((line) => line.trim().startsWith(END_MARKER));
-  expect(begin, `${BEGIN_MARKER} is missing from the deploy workflow`).toBeGreaterThan(-1);
-  expect(end, `${END_MARKER} is missing from the deploy workflow`).toBeGreaterThan(begin);
+  expect(begin, `${BEGIN_MARKER} is missing from deploy/release.sh`).toBeGreaterThan(-1);
+  expect(end, `${END_MARKER} is missing from deploy/release.sh`).toBeGreaterThan(begin);
   const block = lines.slice(begin, end + 1);
   const indent = (block[0] ?? '').length - (block[0] ?? '').trimStart().length;
   return block.map((line) => line.slice(indent)).join('\n');
@@ -180,7 +180,7 @@ describe('DEPLOY-001 rollback target detection', () => {
   });
 
   it('keeps the deploy gate keyed to the extracted variables', () => {
-    const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
+    const workflow = readFileSync(RELEASE_SCRIPT_PATH, 'utf8');
 
     // The gate must read the id resolved above, never re-derive it from a path
     // that `readlink -f` invented.

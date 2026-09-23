@@ -89,9 +89,10 @@ export interface AiRequest {
   /**
    * Per-request caps. Absent means the §5 module caps (`AI_REQUEST_CAPS`); the
    * Action Plan overrides them because adaptive thinking does not fit in 2,000
-   * output tokens (D-232).
+   * output tokens (D-232). A request names only the caps it means to move, and
+   * every other one stays the shared §5 value.
    */
-  readonly caps?: AiRequestCapsShape;
+  readonly caps?: Partial<AiRequestCapsShape>;
   /**
    * Ask the provider to serve a fallback model rather than refuse. Anthropic
    * calls this server-side fallback; adapters that have no equivalent ignore it.

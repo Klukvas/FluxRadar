@@ -3,10 +3,12 @@ import type { ScanScopeInput } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
 
 import { JOB_TYPES } from './constants.ts';
-import type { PaddleCustomData, PaidPlan } from './webhook-schema.ts';
+import type { AiConsentInput } from './checkout-metadata.ts';
+import type { PaidPlan } from './plans.ts';
 import { captureExecutionConfig, lockOwnProfile } from '../profiles/execution-config.ts';
 import { validationError } from '../http/errors.ts';
 import { scopeTargetMessage, scopeTargetProblems } from '../scans/scope-targets.ts';
+import { scopeWithEgressLocation, type LaunchEgress } from '../scans/launch-egress.ts';
 
 export interface InternalCheckoutParams {
   readonly prisma: PrismaClient;
@@ -14,7 +16,9 @@ export interface InternalCheckoutParams {
   readonly siteProfileId: string;
   readonly plan: PaidPlan;
   readonly scope: ScanScopeInput;
-  readonly aiConsent: PaddleCustomData['aiConsent'];
+  /** The egress location checked at launch; it, not `scope`, names where the scan goes. */
+  readonly egress: LaunchEgress;
+  readonly aiConsent: AiConsentInput | undefined;
   readonly now: Date;
   readonly expectedProfileConfigVersion?: number | undefined;
 }
@@ -25,6 +29,7 @@ export interface InternalCheckoutParams {
  * billing history must not contain a fabricated paid transaction.
  */
 export async function createInternalFreeScan(params: InternalCheckoutParams): Promise<Scan> {
+  const scope = scopeWithEgressLocation(params.scope, params.egress);
   return params.prisma.$transaction(async (tx) => {
     const profile = await lockOwnProfile(
       tx,
@@ -46,11 +51,9 @@ export async function createInternalFreeScan(params: InternalCheckoutParams): Pr
         plan: params.plan,
         domain: profile.domain,
         status: 'Pending',
-        scopeJson: JSON.stringify(params.scope),
+        scopeJson: JSON.stringify(scope),
         profileConfigVersion: profile.scanConfigVersion,
-        executionConfigJson: JSON.stringify(
-          captureExecutionConfig(profile, params.plan, params.scope),
-        ),
+        executionConfigJson: JSON.stringify(captureExecutionConfig(profile, params.plan, scope)),
         rulesetVersion: RULESET_VERSION,
         createdAt: params.now,
       },

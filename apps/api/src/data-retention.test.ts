@@ -189,7 +189,7 @@ describe('unbound webhook event retention', () => {
   });
 
   // Uniqueness is on the (provider, providerTransactionId) PAIR, so the same id
-  // can name a FastSpring order and an unrelated legacy MockPaddle transaction.
+  // can name a FastSpring order and an unrelated transaction of a provider no longer in use.
   // Matching the purge on the id alone let a foreign provider's purchase stand in
   // as a binding, and the buyer payload behind it was kept forever.
   it("purges a delivery whose order id only matches another provider's purchase", async () => {
@@ -200,7 +200,7 @@ describe('unbound webhook event retention', () => {
         accountId: account.accountId,
         siteProfileId: account.siteProfileId,
         plan: 'Basic',
-        provider: 'paddle',
+        provider: 'retired-provider',
         providerTransactionId: sharedOrderId,
         amountUsd: 55,
         currency: 'USD',
@@ -450,14 +450,14 @@ describe('unbound webhook event retention', () => {
         accountId: account.accountId,
         siteProfileId: account.siteProfileId,
         plan: 'Basic',
-        provider: 'paddle',
+        provider: 'retired-provider',
         providerTransactionId: sharedOrderId,
         amountUsd: 55,
         currency: 'USD',
       },
     });
     const ownDelivery = await seedEvent({
-      provider: 'paddle',
+      provider: 'retired-provider',
       outcome: WEBHOOK_OUTCOMES.processed,
       processedAt: NOW,
       providerTransactionId: sharedOrderId,

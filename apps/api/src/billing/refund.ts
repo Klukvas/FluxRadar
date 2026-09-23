@@ -1,7 +1,12 @@
 import type { RefundReasonCode } from '@fluxradar/contracts';
 import type { Prisma, PrismaClient, RefundRecord, Scan } from '@prisma/client';
 
-import { REFUND_STATUSES, STATUS_REASONS, refundIdempotencyKey } from './constants.ts';
+import {
+  NO_USABLE_OUTPUT_STATUS_REASONS,
+  REFUND_STATUSES,
+  STATUS_REASONS,
+  refundIdempotencyKey,
+} from './constants.ts';
 import { BillingNotFoundError, RefundPolicyError } from './errors.ts';
 import { isUniqueViolation } from './prisma-errors.ts';
 import { readRefundDispatchConfig } from './refunds/config.ts';
@@ -177,9 +182,17 @@ function assertRefundAllowed(reasonCode: RefundReasonCode, scan: Scan | null): v
       }
       return;
     case 'EXTERNAL_NO_USABLE_OUTPUT':
-      if (scan?.status !== 'Failed' || scan.statusReason !== STATUS_REASONS.noUsableOutput) {
+      // Any reason in the zero-usable-output branch, not the one literal: a
+      // scan Failed because the site refused the crawl is the same purchase
+      // failure, and refusing its refund over the wording would be the worst
+      // possible reading of this guard.
+      if (
+        scan?.status !== 'Failed' ||
+        scan.statusReason === null ||
+        !NO_USABLE_OUTPUT_STATUS_REASONS.has(scan.statusReason)
+      ) {
         throw new RefundPolicyError(
-          'EXTERNAL_NO_USABLE_OUTPUT refund requires a Failed scan with reason NoUsableOutput',
+          'EXTERNAL_NO_USABLE_OUTPUT refund requires a Failed scan with a no-usable-output reason',
         );
       }
       return;

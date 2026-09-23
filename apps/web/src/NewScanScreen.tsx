@@ -10,6 +10,8 @@ import {
   Window,
 } from './components';
 import type { CheckoutConfig, SiteProfile } from './api';
+import { EgressLocationField } from './EgressLocationField';
+import { SiteReachabilityPanel } from './SiteReachability';
 import { LaunchSummary } from './LaunchSummary';
 import { ScanCallout } from './ScanCallout';
 import { copy, type Language } from './i18n';
@@ -114,6 +116,8 @@ function ScanTargetPanel(props: {
     configurationState,
     configurationStatusLabel,
     editAddress,
+    egressLocation,
+    launchConfig,
     paidScopeControls,
     scope,
     target,
@@ -204,6 +208,16 @@ function ScanTargetPanel(props: {
           { value: 'mobile', label: t.newScan.userAgentMobile },
         ]}
       />
+      {/* Free does not choose a country: it leaves from the default one, which
+          the launch summary names (D-228). */}
+      {paidScopeControls ? (
+        <EgressLocationField
+          language={props.language}
+          config={launchConfig}
+          selected={egressLocation}
+          onChange={(value) => updateScope({ egressLocation: value })}
+        />
+      ) : null}
     </Panel>
   );
 }
@@ -483,16 +497,23 @@ function ScanLaunchColumn(props: {
   const {
     canLaunch,
     canSave,
+    egressBlocked,
+    egressLocation,
+    launchConfig,
     launchLabel,
     launchSite,
     plan,
     planLabel,
+    resolveTargetProfileId,
     robotsUnconfirmed,
     saveConfiguration,
     savingConfiguration,
     scope,
+    setSiteReachable,
     showsPurchaseTerms,
+    target,
     targetLabel,
+    usingSavedProfile,
   } = props.form;
   return (
     // Not an `aside`: a complementary landmark is content beside the page, and
@@ -507,7 +528,22 @@ function ScanLaunchColumn(props: {
           plan={plan}
           planLabel={planLabel}
           scope={scope}
+          egressLocation={egressLocation}
+          egressDirect={launchConfig.status === 'ready' && launchConfig.egress.mode === 'direct'}
         />
+        {/* In the launch column, directly above the button it gates: this is
+            the one thing on the form that can stop the purchase, and a buyer
+            should meet it here rather than as a 409 after pressing pay. Free is
+            not a purchase, so it is not gated. */}
+        {plan === 'Free' || props.internalFreeAccess ? null : (
+          <SiteReachabilityPanel
+            language={props.language}
+            profileId={usingSavedProfile ? target : null}
+            egressLocationId={egressLocation?.id ?? null}
+            resolveProfileId={resolveTargetProfileId}
+            onResult={setSiteReachable}
+          />
+        )}
         {showsPurchaseTerms ? (
           <p
             className="muted checkout-legal-note"
@@ -535,11 +571,15 @@ function ScanLaunchColumn(props: {
           <p className="muted launch-form__blocked" id="launch-blocked" role="note">
             {t.newScan.blockedByRobots}
           </p>
+        ) : egressBlocked ? (
+          <p className="muted launch-form__blocked" id="launch-blocked" role="note">
+            {t.newScan.blockedByEgress}
+          </p>
         ) : null}
         <Button
           type="submit"
           variant="primary"
-          {...(robotsUnconfirmed ? { 'aria-describedby': 'launch-blocked' } : {})}
+          {...(robotsUnconfirmed || egressBlocked ? { 'aria-describedby': 'launch-blocked' } : {})}
           disabled={!canLaunch}
         >
           {launchLabel}

@@ -37,6 +37,38 @@ function fixtureScope(overrides: Partial<CrawlScope> = {}): CrawlScope {
   return { origin: site.origin, includeSubdomains: false, maxPages: 50, ...overrides };
 }
 
+describe('crawl: проверка media (CONTENT-004)', () => {
+  it('asks the real server about each referenced image, and records what it said', async () => {
+    const result = await crawl(fixtureScope(), fastOptions({ probeMedia: true }));
+
+    const byPath = new Map(
+      result.resources.map((resource) => [new URL(resource.finalUrl).pathname, resource]),
+    );
+    // /img/pixel.png is served as a real 1×1 PNG; /img/missing.png is not there.
+    // Before this pass the crawl requested neither, and CONTENT-004 called both
+    // "internal media not confirmed by the crawl" — a Medium finding and −3.
+    expect(byPath.get('/img/pixel.png')?.status).toBe(200);
+    expect(byPath.get('/img/pixel.png')?.contentType).toBe('image/png');
+    expect(byPath.get('/img/missing.png')?.status).toBe(404);
+    // Every resource carried a verdict, so none of them is unverified.
+    expect(result.resources.every((resource) => resource.unverifiedReason === undefined)).toBe(
+      true,
+    );
+  });
+
+  it('checks no media at all when the crawl was told not to', async () => {
+    const result = await crawl(fixtureScope(), fastOptions({ probeMedia: false }));
+
+    expect(result.resources).toEqual([]);
+  });
+
+  it('keeps media out of the page count, so site coverage stays about pages', async () => {
+    const result = await crawl(fixtureScope(), fastOptions({ probeMedia: true }));
+
+    expect(result.pages.every((page) => !page.finalUrl.includes('/img/'))).toBe(true);
+  });
+});
+
 describe('crawl: fixture-сайт', () => {
   it('обходит точный ожидаемый набор normalizedUrl с дедупом utm-дублей', async () => {
     const result = await crawl(fixtureScope(), fastOptions());

@@ -1,4 +1,4 @@
-import { saveCookieConsent } from './browser-consent';
+import { EVERYTHING_ALLOWED, saveCookieConsent } from './browser-consent';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -54,12 +54,13 @@ function renderNewScan(): ReturnType<typeof vi.fn> {
     if (path === '/profiles') return Promise.resolve(envelope([profile]));
     if (path === '/scans/active') return Promise.resolve(envelope(null));
     if (path === '/profiles/profile-1/scans') return Promise.resolve(envelope([]));
-    if (path === '/billing/dev-checkout') return Promise.resolve(envelope({ scanId: scan.id }));
+    if (path === '/billing/internal-checkout')
+      return Promise.resolve(envelope({ scanId: scan.id }));
     if (path.startsWith('/scans/')) return Promise.resolve(envelope(scan));
     return Promise.resolve(envelope(null));
   });
   vi.stubGlobal('fetch', fetchMock);
-  saveCookieConsent(true);
+  saveCookieConsent(EVERYTHING_ALLOWED);
   window.localStorage.setItem('fluxradar.language', 'en');
   window.history.replaceState(null, '', '/scan');
   render(<App />);
@@ -73,7 +74,7 @@ async function openAdvanced(): Promise<void> {
 
 function devCheckoutBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> | null {
   const call = fetchMock.mock.calls.find(
-    ([input]) => pathOf(input as RequestInfo | URL) === '/billing/dev-checkout',
+    ([input]) => pathOf(input as RequestInfo | URL) === '/billing/internal-checkout',
   );
   return call === undefined ? null : bodyOf(call[1] as RequestInit);
 }
@@ -201,7 +202,7 @@ describe('the progress screen', () => {
       return Promise.resolve(envelope(current));
     });
     vi.stubGlobal('fetch', fetchMock);
-    saveCookieConsent(true);
+    saveCookieConsent(EVERYTHING_ALLOWED);
     window.localStorage.setItem('fluxradar.language', 'en');
     window.history.replaceState(null, '', `/scans/${scan.id}`);
     render(<App />);

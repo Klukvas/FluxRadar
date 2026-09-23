@@ -74,6 +74,11 @@ const SiteFixtureSchema = z.object({
   sitemapUrls: z.array(z.string()).default([]),
   urlVariants: z.record(z.string(), z.array(z.string())).default({}),
   pages: z.array(FixturePageSchema),
+  /**
+   * What the crawl's media probes returned (crawler resources.ts). An empty
+   * list means the media was never asked about, and CONTENT-004 then says
+   * nothing about it rather than calling it broken.
+   */
   resources: z.array(FixtureResourceSchema).default([]),
   apiChecks: z.array(ApiCheckSchema).default([]),
   // URL-ы, которые обход увидел, но снимка не получил: правило их всё ещё

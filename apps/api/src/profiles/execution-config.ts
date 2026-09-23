@@ -76,6 +76,24 @@ export function storedExecutionConfig(value: string | null | undefined): Executi
   }
 }
 
+/**
+ * The egress location a scan recorded at launch (D-228), or undefined for a
+ * scan that predates the choice. Undefined is "not recorded", never Ukraine:
+ * before the proxy existed, scans left from the server in Germany.
+ */
+export function recordedEgressLocation(
+  scan: Pick<Scan, 'executionConfigJson' | 'scopeJson'>,
+): string | undefined {
+  const stored = storedExecutionConfig(scan.executionConfigJson);
+  if (stored !== null) return stored.scope.egressLocation;
+  try {
+    const parsed = scanScopeSchema.safeParse(JSON.parse(scan.scopeJson));
+    return parsed.success ? parsed.data.egressLocation : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Historical context cannot be reconstructed from today's editable profile. */
 export function executionProfile(
   scan: Pick<Scan, 'domain' | 'executionConfigJson'>,

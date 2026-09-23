@@ -33,6 +33,7 @@ model Account {
   integrations       IntegrationConnection[]
   googleBindings     SiteGoogleBinding[]
   bingBindings       SiteBingBinding[]
+  reachabilityProbes SiteReachabilityProbe[]
   oauthStates        IntegrationOAuthState[]
   artifacts          ExportArtifact[]
   emailTokens        EmailToken[]
@@ -129,6 +130,7 @@ model SiteProfile {
   googleBinding    SiteGoogleBinding?
   bingBinding      SiteBingBinding?
   domainVerification DomainVerification?
+  reachabilityProbe SiteReachabilityProbe?
 
   // T-12: one profile per (account, domain) — a second profile for the same
   // origin would split scan history and break Resolved/Reopened comparison.
@@ -137,31 +139,24 @@ model SiteProfile {
 
 // Idempotency contract §18: (provider, providerTransactionId) admits exactly one
 // purchase. The pair — not the id alone — is the key, so a FastSpring order id can
-// never be mistaken for a legacy MockPaddle transaction id (and vice versa).
+// never be mistaken for another provider's transaction id (and vice versa).
 model Purchase {
   id                    String   @id @default(cuid())
   accountId             String
   siteProfileId         String
   plan                  String
   /**
-   * Payment provider that produced this purchase: 'fastspring' | 'paddle' (legacy).
-   * The default exists so the previous release, which does not know this column,
-   * can still insert during an expand-phase rollout. New code always sets it.
+   * Payment provider that produced this purchase: 'fastspring', or the name of a
+   * retired provider on a historical row. Always set explicitly; there is no
+   * default to fall back on.
    */
-  provider              String   @default("paddle")
+  provider              String
   /**
-   * FastSpring order id, or the legacy MockPaddle transaction id.
+   * The provider's order id: a FastSpring order id.
    */
   providerTransactionId String
   /**
-   * EXPAND-PHASE COMPATIBILITY. The previous release still reads this column, so
-   * a database trigger mirrors providerTransactionId into it (and back) and it is
-   * never actually null. Application code must not read or write it; the contract
-   * migration drops it. See migrations/20260906180000_.../migration.sql.
-   */
-  paddleTransactionId   String?  @unique
-  /**
-   * FastSpring product path, or the legacy MockPaddle price id.
+   * The provider's product: a FastSpring product path.
    */
   priceId               String?
   /**
@@ -280,6 +275,11 @@ model Scan {
   status                 String    @default("Pending")
   statusReason           String?
   scopeJson              String
+  /// What the crawl of this scan achieved: how much of the site was read, and
+  /// whether it was read at all (@fluxradar/contracts crawlSummarySchema).
+  /// NULL on scans that ran before the column existed — "not recorded", which
+  /// the report states rather than rendering as a measured zero.
+  crawlSummaryJson       String?
   profileConfigVersion   Int       @default(1)
   executionConfigJson    String?
   rulesetVersion         String
@@ -582,69 +582,74 @@ model AiResponseRecord {
   scan Scan @relation(fields: [scanId], references: [id])
 }
 
-// A written Action Plan (D-232). Only READY content lives here, so a running or
-// failed regeneration can never hide or lose the plan the owner already has.
-// It is not a canonical record: it never reaches JSON/CSV export, and it is
-// deleted with its scan.
+/// An AI-written Action Plan for one scan in one language (D-232). Only a ready
+/// plan is stored, so a regeneration that is running or failed never hides or
+/// loses the current one; a new plan in a language replaces the old one.
+///
+/// Its own table rather than AiResponseRecord, which is part of the CSV export
+/// contract: the plan is an AI opinion, not a canonical record, and no export
+/// carries it. The text is a snapshot; issue counts are read live beside it.
+///
+/// CASCADE, not RESTRICT: after a rollback the previous release deletes scans
+/// without knowing this table (BILLING-007). This release still deletes these
+/// rows itself, before the scan.
 model ActionPlan {
   id            String   @id @default(cuid())
   scanId        String
   language      String
+  /// { overview, actions: [{ title, why, steps, effort, ruleIds }] }
   contentJson   String
+  /// The exact redacted text sent to the provider.
   promptText    String
   promptVersion String
+  /// The model that served the answer, which a refusal fallback may change.
   modelId       String
   requestId     String
   usageJson     String
-  /// The Action Plan click notice the owner accepted, not the purchase notice.
+  /// The notice shown under the button the owner clicked; the click is the consent.
   noticeVersion String
   /// Always written explicitly by the one upsert that stores a plan, so the
   /// column carries no database default.
   generatedAt   DateTime
 
-  // Cascade for the same reason as CheckoutSession: a release that predates this
-  // table deletes a scan without clearing its plans, and RESTRICT would turn
-  // account deletion and retention into a failure after a rollback. The current
-  // release still deletes them explicitly (data-retention.ts).
   scan Scan @relation(fields: [scanId], references: [id], onDelete: Cascade)
 
   @@unique([scanId, language])
 }
 
-// The spend log behind the Action Plan limits. It keeps failed attempts too —
-// they cost provider time — and stores a failure CODE, never provider text.
-//
-// Re-running the scan does NOT delete these rows: the money was spent whatever
-// the snapshot now says. They are marked cleared instead, which is what keeps
-// them out of the report while they still count against the daily and hourly
-// caps.
-//
-// DELETING the scan does not delete them either, which is why `scanId` is
-// nullable and the foreign key is SET NULL rather than Cascade. Deleting a site
-// profile deletes its scans and is something a customer may do at any moment;
-// taking the log with them would make it a way to clear the account's hourly
-// counter and the product's daily one. The detached row keeps no description of
-// the scan — the language, the outcome and what it cost — and retention removes
-// it once it is older than the widest counting window
-// (`purgeDetachedActionPlanAttempts`).
-//
-// `accountId` is nullable and SET NULL for the same reason read the other way:
-// an erased account must not leave its id behind in a log nobody can reach it
-// through. The deletion path removes these rows explicitly first
-// (data-retention.ts), so the foreign key is the floor, not the mechanism.
+/// The Action Plan spend log: one row per generation attempt, whatever came of
+/// it (D-232). The product-wide daily cap counts these rows; a failed row keeps
+/// a failure code, never provider text.
+///
+/// A re-run of the scan keeps them — the money was spent whatever the snapshot
+/// now says. They are marked cleared instead, which keeps a stale failure off a
+/// freshly re-run report while it still counts against the caps.
+///
+/// Deleting the scan or the account keeps them too: the row loses its scan and
+/// its account and stays counted. Deleting a site profile deletes its scans and
+/// is something a customer may do at any moment, so a log that went with them
+/// would be a way to clear the hourly and daily counters. A detached row
+/// describes no one — the language, the outcome and what it cost — and
+/// retention removes it once it is older than the widest counting window
+/// (`purgeDetachedActionPlanAttempts`).
 model ActionPlanAttempt {
   id            String    @id @default(cuid())
+  /// Null once the scan is deleted.
   scanId        String?
+  /// Null once the account is deleted.
   accountId     String?
   language      String
+  /// Running | Succeeded | Failed
   status        String
   failureCode   String?
+  /// Present once a provider answered: an unusable answer still cost tokens.
   usageJson     String?
   /// The Action Plan click notice this attempt was started under. NULL on rows
   /// written before the column existed — not recorded, not "no notice shown".
   noticeVersion String?
   createdAt     DateTime  @default(now())
   finishedAt    DateTime?
+  /// When a re-run superseded this attempt: still counted, no longer shown.
   clearedAt     DateTime?
 
   scan    Scan?    @relation(fields: [scanId], references: [id], onDelete: SetNull)
@@ -760,6 +765,92 @@ model SiteBingBinding {
   @@index([accountId])
 }
 
+// The last time we asked a site whether it will let our crawler read it, and
+// what it answered. One row per profile: only the freshest answer matters, and
+// keeping a history of refusals would be a log, not a precondition.
+//
+// This exists so a purchase can be refused before it happens. `createCheckoutSession`
+// requires a row here that is recent and says `reachable`; the browser's word is
+// not evidence, so the server re-reads this rather than trusting a request field.
+model SiteReachabilityProbe {
+  id            String   @id @default(cuid())
+  accountId     String
+  siteProfileId String   @unique
+  /**
+   * The origin actually probed, as the profile's domain read at the time.
+   * Compared with the profile's current domain before a purchase is allowed:
+   * without it the row says only "this profile was reachable", and a domain
+   * changed after a passing probe would sell a scan of an unchecked site.
+   * NULL on rows written before the column existed — treated as unusable.
+   */
+  origin        String?
+  /**
+   * The egress location the probe left from (D-228), or NULL for a direct
+   * probe. A site can let Kyiv in and refuse Frankfurt, so a probe answers for
+   * the location it used and nothing else: the checkout requires it to match
+   * the location being bought. A row written before the column existed reads
+   * as NULL, which matches only a deployment that crawls directly.
+   */
+  egressLocation String?
+  /**
+   * One of the crawler's own reach verdicts: 'reachable' | 'access-denied' |
+   * 'blocked-by-robots' | 'unreachable' | 'bad-response'. Produced by
+   * @fluxradar/crawler assessSiteReach, so the probe and the scan cannot
+   * disagree about what the same response means.
+   */
+  state         String
+  /** Start page status, or null when no response arrived at all. */
+  startStatus   Int?
+  /** safe-fetch's reason when nothing came back; null when something did. */
+  fetchError    String?
+  /** `server: cloudflare` and the other vendor headers, as a JSON array. */
+  signalsJson   String   @default("[]")
+  checkedAt     DateTime
+  createdAt     DateTime @default(now())
+
+  account     Account     @relation(fields: [accountId], references: [id])
+  siteProfile SiteProfile @relation(fields: [siteProfileId], references: [id])
+
+  @@index([accountId])
+}
+
+// SUPERSEDED by CrawlEgressLocationUsage (D-228), and kept only because the
+// previous release still reads and writes it: dropping it is a contract-phase
+// migration for when no release with a single proxy can come back. Nothing in
+// this release writes here.
+//
+// How much of the egress proxy's monthly traffic allowance the crawl has spent.
+// One row per calendar month (UTC), incremented in the database so two scans
+// finishing together cannot lose each other's bytes.
+model CrawlEgressUsage {
+  /// `YYYY-MM` in UTC — the unit the hosting plan resets on.
+  month     String   @id
+  /// Page and media bodies read through the proxy. A floor, not a bill:
+  /// headers, TLS and retries are not in it, and vnstat on the VPS remains
+  /// the authority. The threshold is set low enough that the gap is covered.
+  bytes     BigInt   @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// How much of each egress proxy's monthly traffic allowance the crawl has spent.
+//
+// Every egress location is its own VPS on its own plan (D-228), so traffic is
+// counted per location and per calendar month (UTC), incremented in the
+// database so two scans finishing together cannot lose each other's bytes.
+model CrawlEgressLocationUsage {
+  /// The egress location's registry id (`ua`, `de-fra`).
+  location  String
+  /// `YYYY-MM` in UTC — the unit the hosting plan resets on.
+  month     String
+  /// Page and media bodies read through the proxy. A floor, not a bill:
+  /// headers, TLS and retries are not in it, and vnstat on the VPS remains
+  /// the authority. The threshold is set low enough that the gap is covered.
+  bytes     BigInt   @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([location, month])
+}
+
 // One-time OAuth state prevents callback CSRF and replay. Only a SHA-256 hash
 // of the state value is stored; the raw value exists in the browser redirect.
 model IntegrationOAuthState {
@@ -801,17 +892,10 @@ model ExportArtifact {
 // retained per D-029.
 model WebhookEvent {
   id                    String   @id @default(cuid())
-  provider              String   @default("paddle")
+  provider              String
   providerEventId       String
   accountId             String?
   providerTransactionId String?
-  /**
-   * EXPAND-PHASE COMPATIBILITY, kept readable for the previous release and filled
-   * by a database trigger. Application code must not read or write these two; the
-   * contract migration drops them.
-   */
-  paddleEventId         String?  @unique
-  paddleTransactionId   String?
   eventType             String
   /**
    * 'processed' | 'deduplicated' | 'ignored' | 'rejected' | 'unlinked' — why the
@@ -827,7 +911,6 @@ model WebhookEvent {
   @@unique([provider, providerEventId])
   @@index([accountId])
   @@index([providerTransactionId])
-  @@index([paddleTransactionId])
   /// The pending-refund sweep's access path: it walks the `unlinked` rows of one
   /// provider in delivery order every five minutes. Without this index that walk
   /// is a sequential scan of every webhook delivery ever received, which grows
@@ -847,18 +930,10 @@ model RefundRecord {
   amountUsd             Float
   currency              String?
   taxAmountUsd          Float?
-  provider              String    @default("paddle")
+  provider              String
   providerTransactionId String?
   providerEventId       String?
   providerSignature     String?
-  /**
-   * EXPAND-PHASE COMPATIBILITY, kept readable for the previous release and filled
-   * by a database trigger. Application code must not read or write these three;
-   * the contract migration drops them.
-   */
-  paddleTransactionId   String?
-  paddleEventId         String?
-  paddleSignature       String?
   priceId               String?
   refundRequestId       String?
   refundReasonCode      String?

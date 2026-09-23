@@ -18,15 +18,13 @@ import { normalizeUrl } from '@fluxradar/fingerprint';
 import { SafeFetchError } from '@fluxradar/safe-fetch';
 import { parse } from 'node-html-parser';
 
+import { MEDIA_SELECTOR } from './link-extractor.js';
 import type {
   CrawlFetcher,
   PageSnapshot,
   ResourceSnapshot,
   ResourceUnverifiedReason,
 } from './types.js';
-
-/** The same references CONTENT-004 reads, so the two cannot drift apart. */
-const MEDIA_SELECTOR = 'img[src], source[src], video[src], audio[src]';
 
 /** One media reference, before anything has been asked about it. */
 interface MediaCandidate {

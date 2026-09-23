@@ -74,7 +74,7 @@ async function main(): Promise<void> {
   };
   const provider = createDefaultAiProvider(brand, hostname);
   // One awareness question per provider: the first entry of each provider's list.
-  const requests = buildGeoRequests(scanId, brand, hostname, [], providers).filter(
+  const requests = buildGeoRequests(scanId, brand, [], providers).filter(
     (request) => request.sequence === 1,
   );
 

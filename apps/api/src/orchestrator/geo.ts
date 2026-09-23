@@ -28,8 +28,8 @@ import {
   UnconfiguredProvider,
 } from '@fluxradar/ai';
 
-import { readIntegrationConfig } from '../integrations/config.ts';
 import type { IntegrationConfig } from '../integrations/config.ts';
+import { readIntegrationConfig } from '../integrations/config.ts';
 
 /**
  * The providers a paid scan asks its visibility questions, in execution order.
@@ -67,8 +67,8 @@ export const GEO_PROMPT_VERSION = 'geo-questions-v5';
 export const GEO_QUERY_GENERATOR_PROMPT_VERSION = 'geo-query-generation-v2';
 export const GEO_SYSTEM_INSTRUCTIONS =
   'Search the web before answering, and cite the pages you rely on. ' +
-  'Answer factually in at most 200 words. Do not narrate the searches you ran. ' +
-  'State uncertainty, say what you could not verify, and do not invent facts. ' +
+  'Answer factually in at most 200 words. Do not narrate your searches. ' +
+  'State what you could not verify and do not invent facts. ' +
   'An answer is an observation from this request, not proof of remembered or training knowledge.';
 
 export interface GeoProfileContext {
@@ -376,28 +376,46 @@ export async function generateGeoDiscoveryQuestions(
 export function buildGeoRequests(
   scanId: string,
   brand: string,
-  siteHostname: string,
   discoveryQuestions: readonly string[] = [],
   providers: readonly AiProviderName[] = GEO_VISIBILITY_PROVIDERS,
 ): readonly AiRequest[] {
+  // The domain is deliberately absent. These questions used to read "What is
+  // <brand>, what does its official website https://<hostname> offer…", and
+  // then GEO-VIS-004 checked the answer for that hostname — so a model
+  // repeating the subject of the question scored "official domain cited" on
+  // every site we ever scanned. Asked this way, naming the site is something
+  // the model has to know.
+  //
+  // The brand still appears, because a question about a brand has to name it;
+  // GEO-VIS-003 therefore treats these two as unmeasurable for brand awareness
+  // (`geoMentionSignals`), and measures that on the neutral discovery questions
+  // instead, which is the only place it ever meant anything.
   const questions = [
-    `What is ${brand}, what does its official website https://${siteHostname} offer, and who is it for?`,
-    `What independently verifiable facts can you report about ${brand} and its official website https://${siteHostname}? State what you cannot verify.`,
+    `What is ${brand}? What is its official website, and who is it for?`,
+    `What independently verifiable facts can you report about ${brand}? Name its official website if you know it, and state what you cannot verify.`,
     ...discoveryQuestions,
   ];
+  const shared = {
+    scanId,
+    brandFacts: [],
+    pageTitles: [],
+    systemInstructions: GEO_SYSTEM_INSTRUCTIONS,
+    // A visibility question asks what an assistant says about this site today,
+    // which only a searching assistant can answer. Sonnet 5 thinks by default,
+    // and thinking shares the answer's token budget it does not need here.
+    webSearch: true as const,
+    reasoningMode: 'disabled' as const,
+  };
+  // Sequence restarts per provider: it is part of ai_request_key together with
+  // the provider (D-015), so the same question asked of two vendors stays two
+  // distinct requests for quota, idempotency and fingerprints.
   return providers.flatMap((provider) =>
     questions.map((question, index) => ({
-      scanId,
+      ...shared,
       provider,
-      brandFacts: [],
-      pageTitles: [],
-      systemInstructions: GEO_SYSTEM_INSTRUCTIONS,
       sequence: index + 1,
       question,
       promptVersion: `${GEO_PROMPT_VERSION}-${index < 2 ? 'awareness' : 'discovery'}`,
-      webSearch: true as const,
-      // The whole output budget belongs to the answer, not to hidden reasoning.
-      reasoningMode: 'disabled' as const,
     })),
   );
 }
@@ -405,7 +423,9 @@ export function buildGeoRequests(
 /**
  * Дефолтные фикстуры мока покрывают awareness-вопрос и оба варианта
  * контекстного вопроса; ответы упоминают бренд и ссылаются на сайт, чтобы
- * локальный Complete-flow проверял именно успешную видимость.
+ * локальный Complete-flow проверял именно успешную видимость. Вопросы
+ * видимости идут с web search, поэтому фикстуры заявляют и число поисков — так
+ * `search_units` доходит до экспорта в тестах, как дошёл бы в проде.
  */
 export function defaultGeoFixtures(brand: string, siteHostname: string): readonly MockAiFixture[] {
   return [
@@ -430,6 +450,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
           `${brand} is a strong option for small teams — ` +
           `see https://${siteHostname}/ for scan pricing and module coverage.`,
         citations: [`https://${siteHostname}/`],
+        web_search_calls: 2,
         usage: { input_tokens: 120, output_tokens: 42 },
       },
     },
@@ -440,6 +461,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
         output_text:
           `${brand} is a relevant option for this search intent. ` +
           `The official website is https://${siteHostname}/.`,
+        web_search_calls: 1,
         usage: { input_tokens: 96, output_tokens: 31 },
       },
     },
@@ -451,6 +473,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
           `${brand} could be relevant for this audience. ` +
           `See https://${siteHostname}/ for the official details.`,
         citations: [`https://${siteHostname}/`],
+        web_search_calls: 2,
         usage: { input_tokens: 104, output_tokens: 28 },
       },
     },
@@ -460,6 +483,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
         status: 'completed',
         output_text: `${brand} is one option: https://${siteHostname}/.`,
         citations: [`https://${siteHostname}/`],
+        web_search_calls: 3,
         usage: { input_tokens: 104, output_tokens: 28 },
       },
     },

@@ -13,9 +13,12 @@ fluxradar.net {
         # FastSpring popup checkout (docs/FASTSPRING.md §5): the Store Builder
         # Library is served from sbl.onfastspring.com, renders the checkout in an
         # iframe on the storefront host, and talks to that host from this page.
-        # Those three origins are the only additions — no wildcard, no inline
-        # script, and `frame-ancestors 'none'` still forbids framing FluxRadar.
-        Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://sbl.onfastspring.com; style-src 'self' 'unsafe-inline' https://sbl.onfastspring.com; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*.onfastspring.com; frame-src https://*.onfastspring.com"
+        # Google Analytics 4 (docs/DEPLOYMENT.md, "Content Security Policy"):
+        # gtag.js from exactly www.googletagmanager.com, and hits to Google's
+        # regional collection hosts — only once a visitor allows analytics.
+        # No wildcard script source, no inline script, and
+        # `frame-ancestors 'none'` still forbids framing FluxRadar.
+        Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://sbl.onfastspring.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://sbl.onfastspring.com; img-src 'self' data: https://*.google-analytics.com https://*.googletagmanager.com; font-src 'self' data:; connect-src 'self' https://*.onfastspring.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; frame-src https://*.onfastspring.com"
         Permissions-Policy "camera=(), microphone=(), geolocation=()"
         -Server
     }
@@ -26,5 +29,65 @@ fluxradar.net {
 
     handle {
         reverse_proxy {$FLUXRADAR_WEB_UPSTREAM}
+    }
+
+    # Access log: the honest, cookieless count of traffic. GA4 sees only the
+    # visitors who accept analytics cookies and never sees a crawler, so this
+    # file is where page hits, referrers and the AI bots (GPTBot, ClaudeBot,
+    # PerplexityBot...) show up. scripts/traffic-report.sh turns it into a
+    # GoAccess report; docs/TRAFFIC_LOGS.md has the rest.
+    #
+    # No line identifies a person or opens an account:
+    #   - IPs are cut to their /24 (IPv4) or /48 (IPv6) network before a line
+    #     is written. The DNS record is not proxied, so there are no trusted
+    #     proxies and client_ip equals remote_ip; both are masked anyway.
+    #   - One-time secrets travel as query parameters: the mailed reset and
+    #     verification links (?reset_token=, ?verify_email=), the API call that
+    #     spends one (?token=), OAuth's callback (?code=, ?state=). Those keys
+    #     are deleted from the URI. The Referer carries the whole same-origin
+    #     URL and a redirect's Location can carry OAuth state, so both lose
+    #     their query string entirely.
+    #   - Credentials and client-supplied forwarding headers (which can carry
+    #     an unmasked address) are deleted, not left as Caddy's REDACTED.
+    #
+    # The Privacy Policy keeps ordinary logs for at most 30 days. Caddy 2.10
+    # rolls by size, not by time: an entry waits in the live file until it
+    # fills, and the rolled file is deleted by the first roll or restart after
+    # it turns 14 days old. Small files keep that sum well inside 30 days;
+    # DEPLOY-018 pins the numbers and docs/TRAFFIC_LOGS.md has the arithmetic.
+    log {
+        output file /data/logs/access.log {
+            roll_size 2MiB
+            roll_keep 100
+            roll_keep_for 336h
+        }
+        format filter {
+            wrap json
+            request>remote_ip ip_mask {
+                ipv4 24
+                ipv6 48
+            }
+            request>client_ip ip_mask {
+                ipv4 24
+                ipv6 48
+            }
+            request>uri query {
+                delete reset_token
+                delete verify_email
+                delete token
+                delete code
+                delete state
+                delete email
+            }
+            request>headers>Referer regexp "[?].*" ""
+            resp_headers>Location regexp "[?].*" ""
+            request>headers>Cookie delete
+            request>headers>Authorization delete
+            request>headers>Proxy-Authorization delete
+            request>headers>Forwarded delete
+            request>headers>X-Forwarded-For delete
+            request>headers>X-Real-Ip delete
+            resp_headers>Set-Cookie delete
+        }
     }
 }

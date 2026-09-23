@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { trackEvent } from './analytics';
 import { apiRequest, type Scan, type ScanModule } from './api';
 import { Button, EmptyState, FieldRow, Panel, ProgressBar, StatusChip, Window } from './components';
 import { copy, fillCopy, type Language } from './i18n';
@@ -33,6 +34,9 @@ export function ScanScreen(props: {
   useEffect(() => {
     if (props.scan === null || isTerminalScanStatus(props.scan.status)) return undefined;
     let cancelled = false;
+    // Polls overlap when a request outlasts the interval, and two of them can
+    // both see the scan finish.
+    let completionReported = false;
     const scanId = props.scan.id;
     const poll = async () => {
       try {
@@ -41,6 +45,12 @@ export function ScanScreen(props: {
         props.onUpdate(scan);
         if (isTerminalScanStatus(scan.status) && timer !== undefined) {
           window.clearInterval(timer);
+          // Only a scan watched to the end is reported: this effect never polls
+          // one that was already finished when the screen opened.
+          if (!completionReported) {
+            completionReported = true;
+            trackEvent('scan_completed', { plan: scan.plan, status: scan.status });
+          }
         }
       } catch (caught) {
         if (!cancelled)

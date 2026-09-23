@@ -11,10 +11,10 @@
 export const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-5';
 
 /**
- * The Action Plan model (D-232). It is a code constant with no deploy variable
- * of its own: the plan asks for ordering judgement across a whole report, which
- * is why it does not share the scan modules' model, and pinning it here keeps
- * the choice reviewable in one place.
+ * The model that writes Action Plans (D-232). A code constant rather than a
+ * deploy variable: the plan's prompt, caps and timeout are written for this
+ * model's adaptive thinking, and `ANTHROPIC_MODEL` keeps choosing the model of
+ * the scan's own AI checks.
  */
 export const ACTION_PLAN_ANTHROPIC_MODEL = 'claude-opus-5';
 

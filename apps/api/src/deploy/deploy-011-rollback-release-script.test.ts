@@ -61,6 +61,8 @@ const FAILED_API_UPSTREAM = '10.10.0.5:3310';
 const FAILED_WEB_UPSTREAM = '10.10.0.5:80';
 /** Exit code that means "there was nothing to roll back to, so nothing changed". */
 const NO_TARGET_EXIT_CODE = 3;
+/** Exit code that means "the release named as failed IS the target, so nothing changed". */
+const ALREADY_THE_TARGET_EXIT_CODE = 4;
 
 /**
  * A `docker` that records every call and answers the questions the rollback
@@ -177,6 +179,16 @@ interface Options {
   readonly emptyTarget?: boolean;
   readonly recordUpstreams?: boolean;
   readonly failedCaddyfile?: string;
+  /**
+   * The server as a SUCCESSFUL rollback leaves it: `current`, the runtime
+   * Caddyfile and active.env all describe TARGET_ID, and rollback.env still names
+   * it too, because nothing rewrites that file. The failed-release argument is
+   * the live release — what rollback.yml passes after a deploy that had already
+   * rolled itself back.
+   */
+  readonly alreadyRolledBack?: boolean;
+  /** Appended to the failed-release argument, to spell the same path differently. */
+  readonly failedArgSuffix?: string;
   readonly env?: Readonly<Record<string, string>>;
 }
 
@@ -190,27 +202,30 @@ function runRollback(options: Options = {}): Rollback {
 
   const targetDir = makeRelease(appDir, TARGET_ID, CADDYFILE_TEMPLATE);
   const failedDir = makeRelease(appDir, FAILED_ID, options.failedCaddyfile ?? CADDYFILE_TEMPLATE);
-  symlinkSync(failedDir, join(appDir, 'current'));
+  const live = options.alreadyRolledBack
+    ? { dir: targetDir, id: TARGET_ID, api: TARGET_API_UPSTREAM, web: TARGET_WEB_UPSTREAM }
+    : { dir: failedDir, id: FAILED_ID, api: FAILED_API_UPSTREAM, web: FAILED_WEB_UPSTREAM };
+  symlinkSync(live.dir, join(appDir, 'current'));
   if (options.pruneTarget) rmSync(targetDir, { recursive: true, force: true });
 
   const runtimeDir = join(appDir, 'runtime');
   mkdirSync(runtimeDir, { recursive: true });
-  // Production as the failed release left it: Caddy on the failed upstreams.
+  // Production as the live release left it: Caddy on its upstreams.
   writeFileSync(
     join(runtimeDir, 'Caddyfile'),
-    CADDYFILE_TEMPLATE.replace('{$FLUXRADAR_API_UPSTREAM}', FAILED_API_UPSTREAM).replace(
+    CADDYFILE_TEMPLATE.replace('{$FLUXRADAR_API_UPSTREAM}', live.api).replace(
       '{$FLUXRADAR_WEB_UPSTREAM}',
-      FAILED_WEB_UPSTREAM,
+      live.web,
     ),
   );
   writeFileSync(
     join(runtimeDir, 'active.env'),
     [
-      `FLUXRADAR_ACTIVE_RELEASE=${failedDir}`,
-      `FLUXRADAR_API_UPSTREAM=${FAILED_API_UPSTREAM}`,
-      `FLUXRADAR_WEB_UPSTREAM=${FAILED_WEB_UPSTREAM}`,
-      `FLUXRADAR_API_CONTAINER=fluxradar-api-${FAILED_ID}`,
-      `FLUXRADAR_WEB_CONTAINER=fluxradar-web-${FAILED_ID}`,
+      `FLUXRADAR_ACTIVE_RELEASE=${live.dir}`,
+      `FLUXRADAR_API_UPSTREAM=${live.api}`,
+      `FLUXRADAR_WEB_UPSTREAM=${live.web}`,
+      `FLUXRADAR_API_CONTAINER=fluxradar-api-${live.id}`,
+      `FLUXRADAR_WEB_CONTAINER=fluxradar-web-${live.id}`,
       '',
     ].join('\n'),
   );
@@ -254,7 +269,8 @@ function runRollback(options: Options = {}): Rollback {
   // spawnSync, not execFileSync: the warnings and refusals under test are
   // written to stderr, and they matter as much on the success path as on the
   // failure one — a DEGRADED rollback exits 0 and still has to say so.
-  const result = spawnSync('bash', [SCRIPT_PATH, appDir, failedDir], {
+  const failedArg = `${live.dir}${options.failedArgSuffix ?? ''}`;
+  const result = spawnSync('bash', [SCRIPT_PATH, appDir, failedArg], {
     encoding: 'utf8',
     env: {
       PATH: `${binDir}:${process.env.PATH ?? ''}`,
@@ -437,6 +453,32 @@ describe('DEPLOY-011 rollback-release.sh', () => {
       // the release you deployed is still up". deploy.yml branches on this.
       expect(runRollback({ emptyTarget: true }).exitCode).toBe(NO_TARGET_EXIT_CODE);
       expect(runRollback({ env: { FAIL_CADDY_UP: '1' } }).exitCode).toBe(1);
+    });
+  });
+
+  // THE DOUBLE-ROLLBACK REGRESSION. rollback.env records one step back and no
+  // rollback rewrites it, so after one rollback `current` IS the recorded
+  // target. A second one — an operator pressing "Roll back production" after a
+  // deploy that had already rolled itself back — named the LIVE release as the
+  // failed one, `docker rm -f`'d the containers serving production, recreated
+  // them and printed ROLLBACK OK after up to a minute of downtime.
+  describe('when the release named as failed is already the rollback target', () => {
+    it('removes nothing, recreates nothing, rewrites nothing and exits 4', () => {
+      const rollback = runRollback({ alreadyRolledBack: true });
+      expect(rollback.exitCode).toBe(ALREADY_THE_TARGET_EXIT_CODE);
+      expect(rollback.output).toContain('NOTHING TO ROLL BACK');
+      expect(rollback.output).toContain('NOTHING has been changed');
+      expect(rollback.output).not.toContain('ROLLBACK OK');
+      expect(rollback.dockerCalls()).toEqual([]);
+      expect(rollback.runtimeCaddyfile()).toContain(TARGET_API_UPSTREAM);
+      expect(rollback.stateFile()).toContain(`FLUXRADAR_API_CONTAINER=fluxradar-api-${TARGET_ID}`);
+      expect(rollback.currentReleaseId()).toBe(TARGET_ID);
+    });
+
+    it('recognises the target however its directory is spelled', () => {
+      const rollback = runRollback({ alreadyRolledBack: true, failedArgSuffix: '/' });
+      expect(rollback.exitCode).toBe(ALREADY_THE_TARGET_EXIT_CODE);
+      expect(rollback.dockerCalls()).toEqual([]);
     });
   });
 

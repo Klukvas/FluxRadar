@@ -97,12 +97,13 @@ function renderNewScan(
     if (path === '/profiles') return Promise.resolve(envelope([profile]));
     if (path === '/scans/active') return Promise.resolve(envelope(null));
     if (path === `/profiles/${profile.id}/scans`) return Promise.resolve(envelope(history));
-    if (path === '/billing/dev-checkout') return Promise.resolve(envelope({ scanId: scan.id }));
+    if (path === '/billing/internal-checkout')
+      return Promise.resolve(envelope({ scanId: scan.id }));
     if (path.startsWith('/scans/')) return Promise.resolve(envelope(scan));
     return Promise.resolve(envelope(null));
   });
   vi.stubGlobal('fetch', fetchMock);
-  saveCookieConsent(true);
+  saveCookieConsent({ preferences: true, analytics: false });
   window.localStorage.setItem('fluxradar.language', language);
   window.history.replaceState(null, '', '/scan');
   render(<App />);
@@ -127,12 +128,13 @@ function renderNewScanWithTwoSites(): ReturnType<typeof vi.fn> {
       return Promise.resolve(envelope([lastModestScan]));
     if (path === `/profiles/${otherProfile.id}/scans`)
       return Promise.resolve(envelope([lastCompleteScan]));
-    if (path === '/billing/dev-checkout') return Promise.resolve(envelope({ scanId: scan.id }));
+    if (path === '/billing/internal-checkout')
+      return Promise.resolve(envelope({ scanId: scan.id }));
     if (path.startsWith('/scans/')) return Promise.resolve(envelope(scan));
     return Promise.resolve(envelope(null));
   });
   vi.stubGlobal('fetch', fetchMock);
-  saveCookieConsent(true);
+  saveCookieConsent({ preferences: true, analytics: false });
   window.localStorage.setItem('fluxradar.language', 'en');
   window.history.replaceState(null, '', '/scan');
   render(<App />);
@@ -163,7 +165,7 @@ function runScan(): void {
   fireEvent.click(screen.getByRole('button', { name: 'Run internal scan' }));
 }
 const checkoutCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
-  fetchMock.mock.calls.filter(([input]) => pathOf(input) === '/billing/dev-checkout');
+  fetchMock.mock.calls.filter(([input]) => pathOf(input) === '/billing/internal-checkout');
 
 afterEach(() => {
   cleanup();

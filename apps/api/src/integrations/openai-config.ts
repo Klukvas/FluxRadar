@@ -1,9 +1,11 @@
 // OpenAI model selection, mirroring anthropic-config.ts.
 //
 // One default lives here and nowhere else, so the API, the deploy workflow and
-// .env.example cannot drift apart. Without OPENAI_API_KEY every OpenAI request
-// is an unavailable provider and the GEO module reports Partial — never a
-// silently skipped provider and never an invented answer.
+// .env.example cannot drift apart. The deploy workflow does not pin a model:
+// PRODUCTION_ENV_FILE is authoritative and the optional PRODUCTION_OPENAI_MODEL
+// variable is the only override. Without OPENAI_API_KEY every OpenAI request is
+// an unavailable provider and the GEO module reports Partial — never a silently
+// skipped provider and never an invented answer.
 
 import { OPENAI_DEFAULT_MODEL } from '@fluxradar/ai';
 
@@ -45,6 +47,12 @@ export function isRetiredOpenAiModel(model: string): boolean {
   return RETIRED_OPENAI_MODELS.includes(model);
 }
 
+/**
+ * The AI provider is optional: without an API key the GEO module reports its
+ * OpenAI questions as unavailable and stays Partial. With a key, a retired model
+ * is a configuration error and fails closed rather than producing an empty
+ * analysis on every scan.
+ */
 export function readOpenAiConfig(env: NodeJS.ProcessEnv = process.env): OpenAiConfigResult {
   const apiKey = trimmed(env[OPENAI_ENV_VARS.apiKey]);
   const model = trimmed(env[OPENAI_ENV_VARS.model]) ?? DEFAULT_OPENAI_MODEL;

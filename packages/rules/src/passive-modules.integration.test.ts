@@ -40,6 +40,10 @@ beforeAll(async () => {
       dangerouslyAllowLoopback: true,
       limiter: new HostLimiter({ rps: 1000, concurrency: 4 }),
       logger: { warn: () => undefined },
+      // As a paid scan runs. CONTENT-004 only reports media the crawl actually
+      // asked about, so a crawl that probes nothing has nothing to report —
+      // which is the point: it used to report unrequested files as broken.
+      probeMedia: true,
     },
   );
   ctx = createSiteContext({ origin, crawl: crawlResult, plan: 'Complete' });
@@ -157,13 +161,13 @@ describe('passive-модули на fixture-сайте краулера', () => 
     const media = moduleResult('Content Quality').findings.find(
       (finding) => finding.ruleId === 'CONTENT-004',
     );
-    // Обход теперь спрашивает media напрямую: /img/missing.png отвечает 404,
-    // поэтому находка подтверждена, а не «не подтверждена» (было D-165).
+    // Обход спросил про оба img: /img/pixel.png отдаёт 200 image/png и в
+    // находку не попадает, /img/missing.png отдаёт 404 и попадает. Раньше
+    // краулер media не фетчил вовсе, и правило выдавало обе картинки как
+    // «не підтверджені обходом» с confidence 0.6 — штраф за непроверенное.
     expect(media?.evidenceExcerpt).toContain('/img/missing.png');
-    expect(media?.confidence).toBe(1);
-    // Рядом на той же странице лежит /img/pixel.png, который отдаёт 200 —
-    // он в находку не попадает.
     expect(media?.evidenceExcerpt).not.toContain('/img/pixel.png');
+    expect(media?.confidence).toBe(1);
     const probed = ctx.crawl.resources.map((resource) => [resource.normalizedUrl, resource.status]);
     expect(probed).toContainEqual([expect.stringContaining('/img/missing.png'), 404]);
     expect(probed).toContainEqual([expect.stringContaining('/img/pixel.png'), 200]);

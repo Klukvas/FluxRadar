@@ -1,0 +1,43 @@
+name: Node workspace
+description: >-
+  pnpm + Node 24 + a frozen install, and optionally the compiled workspace
+  output that the type checks and the API tests import through `dist`.
+
+# Every quality job needs the same four steps, and when they were copied per job
+# they drifted: a Node version bumped in one place, a pnpm version in another.
+# The Node version lives here once. The pnpm version is not repeated here:
+# pnpm/action-setup reads `packageManager` from package.json when `version` is
+# left out, so CI follows package.json. It is NOT the only copy — Dockerfile.api
+# and Dockerfile.web each pin it again in `corepack prepare pnpm@…`, so a pnpm
+# bump is still three edits: package.json and both Dockerfiles.
+
+inputs:
+  download-dist:
+    description: >-
+      Download the `workspace-dist` artifact published by the build job. The
+      workspace packages resolve through their `exports` to `dist/index.js`, so
+      anything that imports one needs this; lint and the web tests do not.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v6
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Download compiled workspace
+      if: inputs.download-dist == 'true'
+      uses: actions/download-artifact@v8
+      with:
+        name: workspace-dist

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { MAX_PAGE_OFFSET } from '../http/pagination.ts';
-import { createTestDb, type TestDb, TEST_WEBHOOK_SECRET } from '../test-utils/test-db.ts';
+import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 // Scan history is paged by PostgreSQL, not by loading the account's whole
 // history and slicing it in JavaScript. These tests pin the two things that had
@@ -32,7 +32,6 @@ describe('scan history pagination', () => {
   function buildApp() {
     return createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });
@@ -258,7 +257,6 @@ describe('scan history gate under pagination', () => {
   ): Promise<{ readonly agent: TestAgent; readonly ids: readonly string[] }> {
     const app = createApp({
       prisma: db.prisma,
-      webhookSecret: TEST_WEBHOOK_SECRET,
       autoProcess: false,
       logger: silentLogger,
     });

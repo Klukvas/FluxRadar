@@ -74,6 +74,20 @@ function stubApi(): ReturnType<typeof vi.fn> {
     if (path === '/auth/me') return Promise.resolve(envelope(account));
     if (path === '/profiles') return Promise.resolve(envelope([profile]));
     if (path === '/scans/active') return Promise.resolve(envelope(null));
+    // The pay button is disabled until the API says the site lets the crawler
+    // in. A site that does not is FASTSPRING-009's subject, not this file's.
+    if (path.endsWith('/reachability')) {
+      return Promise.resolve(
+        envelope({
+          state: 'reachable',
+          startStatus: 200,
+          accessControlSignals: [],
+          checkedAt: new Date().toISOString(),
+          expired: false,
+          canPurchase: true,
+        }),
+      );
+    }
     if (path === '/billing/checkout-config') return Promise.resolve(envelope(checkoutConfig));
     if (path === '/billing/checkout-session') return Promise.resolve(envelope(session, 201));
     if (path === `/billing/checkout-session/${session.reference}`) {
@@ -101,6 +115,11 @@ async function payWithPaidPlan(): Promise<void> {
   await screen.findByText('New scan — scope and tariff');
   await screen.findByText('Complete · $120');
   fireEvent.change(screen.getByLabelText('Scan plan'), { target: { value: 'Complete' } });
+  // The pay button is disabled until the API answers that this site lets the
+  // crawler in, so the flow genuinely waits for it here too.
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Pay and run scan' })).toBeEnabled(),
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 }
 

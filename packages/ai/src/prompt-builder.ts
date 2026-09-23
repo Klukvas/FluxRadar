@@ -8,9 +8,9 @@ import type { AiRequestCapsShape } from '@fluxradar/contracts';
 
 import type { AiRequest } from './types.js';
 
-/** The caps this request runs under: its own override, or the §5 module caps. */
+/** The caps this request runs under: its own overrides over the §5 module caps. */
 export function capsFor(request: Pick<AiRequest, 'caps'>): AiRequestCapsShape {
-  return request.caps ?? AI_REQUEST_CAPS;
+  return { ...AI_REQUEST_CAPS, ...request.caps };
 }
 
 export const TOKENIZER_VERSION = 'approx-v2';
@@ -49,9 +49,9 @@ export interface CappedText {
  */
 export function enforceInputCap(
   text: string,
-  caps: AiRequestCapsShape = AI_REQUEST_CAPS,
+  caps: Partial<AiRequestCapsShape> = {},
 ): CappedText {
-  const charBudget = caps.maxInputTokens * CHARS_PER_TOKEN;
+  const charBudget = (caps.maxInputTokens ?? AI_REQUEST_CAPS.maxInputTokens) * CHARS_PER_TOKEN;
   if (text.length <= charBudget) return { text, truncated: false };
 
   const markerChars = TRUNCATION_MARKER.length + 1;

@@ -1,3 +1,5 @@
+import { SITE_REACH_STATUS_REASONS } from '@fluxradar/contracts';
+
 // Internal status literals shared by the billing services. Scan/module status
 // values come from @fluxradar/contracts; these are the free-form statusReason
 // strings and queue constants that the state machine writes.
@@ -25,6 +27,24 @@ export const STATUS_REASONS = {
   pausedAfterQueue: 'UserPausedAfterQueue',
   pausedAfterStart: 'UserPausedAfterStart',
 } as const;
+
+/**
+ * Every status reason that means "this scan produced nothing usable" (§18).
+ *
+ * One branch, several words. `NoUsableOutput` is the general case — modules ran
+ * on a readable site and still returned nothing. The site-reach reasons are the
+ * same branch stated precisely: the crawl never read a page, because the site
+ * refused us or never answered. The refund is identical; the word is the part
+ * an owner can act on, and a scan whose site blocked us must not be handed the
+ * one sentence that tells them nothing.
+ *
+ * The refund policy guard (`refund.ts`) checks membership here rather than one
+ * literal, so adding a reason to this set is what makes it refundable.
+ */
+export const NO_USABLE_OUTPUT_STATUS_REASONS: ReadonlySet<string> = new Set([
+  STATUS_REASONS.noUsableOutput,
+  ...Object.values(SITE_REACH_STATUS_REASONS).filter((reason) => reason !== ''),
+]);
 
 export const JOB_TYPES = { scan: 'scan' } as const;
 
@@ -77,11 +97,5 @@ export const REFUND_STATUSES = {
   paid: 'paid',
   failed: 'failed',
 } as const;
-
-/**
- * Scope stored on webhook-created scans. The real scope arrives with the scan
- * request wired in T-12; the webhook itself only knows the plan (§18).
- */
-export const DEFAULT_SCOPE_JSON = JSON.stringify({ includeSubdomains: false });
 
 export const refundIdempotencyKey = (purchaseId: string): string => `refund:${purchaseId}`;

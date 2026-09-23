@@ -97,3 +97,35 @@ describe('enforceInputCap (D-177)', () => {
     expect(second.text).toBe(first.text);
   });
 });
+
+describe('caps запроса', () => {
+  const titles = Array.from({ length: 3000 }, (_, index) => `Page title number ${index}`);
+
+  it('buildPrompt режет по input cap самого запроса', () => {
+    const prompt = buildPrompt(
+      makeRequest({ pageTitles: titles, caps: { maxInputTokens: 100, maxOutputTokens: 50 } }),
+    );
+    expect(prompt.truncated).toBe(true);
+    expect(prompt.promptText.length).toBe(100 * CHARS_PER_TOKEN);
+    expect(prompt.inputTokens).toBe(100);
+  });
+
+  it('caps шире общих пропускают prompt, который общий cap усёк бы', () => {
+    const request = makeRequest({ pageTitles: titles });
+    expect(buildPrompt(request).truncated).toBe(true);
+
+    const roomy = buildPrompt({
+      ...request,
+      caps: { maxInputTokens: 100_000, maxOutputTokens: 16_000 },
+    });
+    expect(roomy.truncated).toBe(false);
+    expect(roomy.promptText).toContain('Page title number 2999');
+  });
+
+  it('enforceInputCap принимает cap аргументом', () => {
+    const capped = enforceInputCap('x'.repeat(500), { maxInputTokens: 100, maxOutputTokens: 50 });
+    expect(capped.truncated).toBe(true);
+    expect(capped.text.length).toBe(100 * CHARS_PER_TOKEN);
+    expect(capped.text.endsWith(`\n${TRUNCATION_MARKER}`)).toBe(true);
+  });
+});

@@ -66,7 +66,7 @@ const DISCOVERY: GeoObservation = {
   modelId: 'claude-sonnet-5',
   answer: 'Smile Clinic offers implants in Kyiv.',
   citations: [],
-  mentions: { brand: true, domain: false },
+  mentions: { brand: 'mentioned', domain: 'not-mentioned' },
 };
 
 function moduleOf(overrides: Partial<ScanModule>): ScanModule {
@@ -427,6 +427,70 @@ describe('the AI SEO / GEO card', () => {
     expect(within(region).getByText(DISCOVERY.question)).toBeInTheDocument();
     expect(within(region).getByText('Smile Clinic offers implants in Kyiv.')).toBeInTheDocument();
     expect(within(region).getByText('Brand mentioned')).toBeInTheDocument();
+  });
+
+  it('shows one group per assistant, OpenAI first, with its own mention counts', async () => {
+    const chatgptAnswered: GeoObservation = {
+      ...DISCOVERY,
+      provider: 'openai',
+      modelId: 'gpt-5.6-terra',
+      question: 'Which dental clinics offer implants in Kyiv?',
+      answer: 'ChatGPT names Smile Clinic among Kyiv implant clinics.',
+      citations: ['https://smile.example/implants'],
+      mentions: { brand: 'mentioned', domain: 'mentioned' },
+    };
+    const chatgptUnavailable: GeoObservation = {
+      purpose: 'awareness',
+      question: 'What is Smile Clinic?',
+      status: 'unavailable',
+      reason: 'ProviderUnavailable',
+      provider: 'openai',
+      modelId: null,
+      answer: null,
+      citations: [],
+      mentions: null,
+    };
+    const geo = moduleOf({ module: 'AI SEO / GEO', score: 100, metadata: {} });
+
+    await openReport(dashboardOf([geo], [DISCOVERY, chatgptAnswered, chatgptUnavailable]));
+    fireEvent.click(card('AI SEO / GEO'));
+
+    const region = screen.getByRole('region', { name: 'AI SEO / GEO · checks performed' });
+    const headings = within(region)
+      .getAllByRole('heading', { level: 5 })
+      .map((heading) => heading.textContent);
+    // OpenAI first: it is the assistant customers ask about.
+    expect(headings).toEqual([
+      'ChatGPT · OpenAI · gpt-5.6-terra',
+      'Claude · Anthropic · claude-sonnet-5',
+    ]);
+    // The unanswered OpenAI question sits under OpenAI's own heading, not
+    // Anthropic's and not in a group of its own.
+    const openAiGroup = within(region)
+      .getByText('ChatGPT · OpenAI · gpt-5.6-terra')
+      .closest('.module-checks__group') as HTMLElement;
+    expect(within(openAiGroup).getByText('What is Smile Clinic?')).toBeInTheDocument();
+    expect(
+      within(openAiGroup).getByText(
+        'Brand mentioned in 1 of 1 answers · Official domain referenced in 1 of 1',
+      ),
+    ).toBeInTheDocument();
+    const anthropicGroup = within(region)
+      .getByText('Claude · Anthropic · claude-sonnet-5')
+      .closest('.module-checks__group') as HTMLElement;
+    expect(within(anthropicGroup).getByText(/Official domain referenced in 0 of 1/)).toBeTruthy();
+  });
+
+  it('still renders an observation written before the provider was recorded', async () => {
+    const preRelease: GeoObservation = { ...DISCOVERY, provider: null, modelId: null };
+    const geo = moduleOf({ module: 'AI SEO / GEO', score: 100, metadata: {} });
+
+    await openReport(dashboardOf([geo], [preRelease]));
+    fireEvent.click(card('AI SEO / GEO'));
+
+    const region = screen.getByRole('region', { name: 'AI SEO / GEO · checks performed' });
+    expect(within(region).getByText('Provider not recorded')).toBeInTheDocument();
+    expect(within(region).getByText(preRelease.question)).toBeInTheDocument();
   });
 
   it('explains an unreadable robots.txt instead of listing every crawler as unknown', async () => {

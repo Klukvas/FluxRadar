@@ -1,5 +1,8 @@
 // Извлечение ссылок обхода из HTML (T-07): href всех <a>,
 // разрешение относительных URL против finalUrl, только http(s).
+// Плюс `MEDIA_SELECTOR` — один селектор на media-пробы обхода (resources.ts) и
+// на CONTENT-004, чтобы правило и проверка не расходились в том, что считается
+// media страницы.
 
 import { parse } from 'node-html-parser';
 
@@ -31,3 +34,11 @@ function resolveHttpUrl(href: string, baseUrl: string): string | null {
   }
   return resolved.href;
 }
+
+/**
+ * The media selector CONTENT-004 reads.
+ *
+ * One constant, used by the rule and by the crawl's media verification, so the
+ * set of files a report calls broken is exactly the set the crawl asked about.
+ */
+export const MEDIA_SELECTOR = 'img[src], source[src], video[src], audio[src]';

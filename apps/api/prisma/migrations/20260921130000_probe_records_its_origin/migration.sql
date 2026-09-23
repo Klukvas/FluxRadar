@@ -1,0 +1,13 @@
+-- What the reachability probe actually asked about.
+--
+-- The row was keyed by profile alone and said only "this profile was
+-- reachable". A profile's domain can be changed whenever no checkout is open
+-- (assertDomainChangeAllowed), so probing an easy site, repointing the profile
+-- and paying within the 15-minute window bought a scan of a site nobody had
+-- checked — the exact purchase the gate exists to refuse.
+--
+-- Nullable, and no backfill: a row written before this column existed genuinely
+-- does not record which domain it tested, and guessing one would re-create the
+-- bug. `isProbeUsable` treats a NULL origin as unusable, so those rows fail
+-- closed and their owner simply runs the check again.
+ALTER TABLE "SiteReachabilityProbe" ADD COLUMN "origin" TEXT;

@@ -11,6 +11,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "eslint .",
+    "lint:backend": "eslint . --ignore-pattern \"apps/web/**\" --ignore-pattern \"e2e/**\"",
+    "lint:frontend": "eslint apps/web e2e",
     "typecheck": "pnpm -r typecheck",
     "dev": "pnpm -r --parallel dev",
     "test:e2e": "playwright test",

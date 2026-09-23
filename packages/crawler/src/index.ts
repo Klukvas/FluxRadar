@@ -2,11 +2,13 @@
 // robots.txt по умолчанию, sitemap как источник seed-ов, дедуп по
 // normalizeUrl, лимиты страниц/глубины, per-host авто-throttle (D-030).
 
+export { assessSiteReach, crawlCoverage, isSuccessfulHtmlPage } from './crawl-outcome.js';
+export type { CrawlCoverage, SiteReach, SiteReachKind } from './crawl-outcome.js';
 export { CONSECUTIVE_5XX_HOST_STOP, crawl } from './crawler.js';
 export type { CrawlOptions } from './crawler.js';
 export { startFixtureSite } from './fixture-server.js';
 export type { FixtureSite } from './fixture-server.js';
-export { extractLinks } from './link-extractor.js';
+export { extractLinks, MEDIA_SELECTOR } from './link-extractor.js';
 export { startPlaywrightRuntime } from './render/playwright-runtime.js';
 export type { PlaywrightRuntimeOptions } from './render/playwright-runtime.js';
 export {
@@ -38,6 +40,13 @@ export type { RobotsGroup, RobotsRule, RobotsTxt } from './robots.js';
 export { isPathAllowed, matchesPattern, parseRobotsTxt } from './robots.js';
 export { fetchSitemapUrls, SITEMAP_MAX_URLS } from './sitemap.js';
 export { RESOURCE_UNVERIFIED_REASONS } from './types.js';
+export {
+  CRAWLER_INFO_URL,
+  CRAWLER_PRODUCT_TOKEN,
+  CRAWLER_USER_AGENT,
+  CRAWLER_VERSION,
+  crawlerUserAgent,
+} from './user-agent.js';
 export type {
   CrawlError,
   CrawlFetchInit,
