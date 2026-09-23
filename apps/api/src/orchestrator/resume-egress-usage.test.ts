@@ -44,11 +44,16 @@ const HEALTHY: EgressHealth = {
   checkedAt: NOW,
 };
 
+// A chain rather than a hub: one link per page, so the order pages are read in
+// is the order they are written here and a pause lands on a known page.
 const HOME =
   '<html><head><title>Home</title></head><body><a href="/pricing">Plans</a></body></html>';
-const PRICING = '<html><head><title>Plans</title></head><body><p>Two of them.</p></body></html>';
+const PRICING =
+  '<html><head><title>Plans</title></head><body><a href="/contact">Talk to us</a></body></html>';
+const CONTACT = '<html><head><title>Contact</title></head><body><p>Write to us.</p></body></html>';
 const HOME_BYTES = Buffer.byteLength(HOME, 'utf8');
 const PRICING_BYTES = Buffer.byteLength(PRICING, 'utf8');
+const CONTACT_BYTES = Buffer.byteLength(CONTACT, 'utf8');
 
 let db: TestDb;
 let account: SeededAccount;
@@ -62,7 +67,7 @@ afterEach(async () => {
   await db.cleanup();
 });
 
-/** A two-page site behind a stub transport: no robots.txt and no sitemap. */
+/** A three-page site behind a stub transport: no robots.txt and no sitemap. */
 function respond(url: string): SafeFetchResult {
   const { pathname } = new URL(url);
   if (pathname === '/robots.txt' || pathname.endsWith('.xml')) {
@@ -80,11 +85,17 @@ function respond(url: string): SafeFetchResult {
     finalUrl: url,
     status: 200,
     headers: { 'content-type': 'text/html' },
-    body: pathname === '/pricing' ? PRICING : HOME,
+    body: bodyOf(pathname),
     redirectChain: [],
     timingMs: 3,
     truncated: false,
   };
+}
+
+function bodyOf(pathname: string): string {
+  if (pathname === '/pricing') return PRICING;
+  if (pathname === '/contact') return CONTACT;
+  return HOME;
 }
 
 function deps(onPageRead: () => void = (): void => {}): WorkerDeps {
@@ -108,11 +119,11 @@ function deps(onPageRead: () => void = (): void => {}): WorkerDeps {
 }
 
 /** A paid scan that records Kyiv as the place it is crawled from (D-228). */
-async function seedScanFrom(maxPages: number): Promise<Scan> {
+async function seedScanFrom(maxPages: number, maxDepth = 1): Promise<Scan> {
   const scope = scanScopeSchema.parse({
     includeSubdomains: false,
     maxPages,
-    maxDepth: 1,
+    maxDepth,
     egressLocation: KYIV.location.id,
   });
   return db.prisma.scan.create({
@@ -159,13 +170,21 @@ function pauseAfterCrawl(resumeFrom: ScanCheckpointState | null): StoppingContro
   };
 }
 
-/** A control that pauses mid-crawl: `stop` is flipped by the page the test reads. */
-function pauseDuringCrawl(): StoppingControl & { onPageRead: () => void } {
+/**
+ * A control that pauses mid-crawl: `stop` is flipped by the page the test reads.
+ *
+ * One page per attempt, and `pagesRead` says so: an assertion about new bytes
+ * only means something next to the number of pages that crossed the proxy.
+ */
+function pauseDuringCrawl(
+  resumeFrom: ScanCheckpointState | null = null,
+): StoppingControl & { readonly onPageRead: () => void; pagesRead(): number } {
   let stop = false;
+  let pagesRead = 0;
   let saved: ScanCheckpointState | null = null;
   return {
     control: {
-      resumeFrom: null,
+      resumeFrom,
       isStopRequested: () => stop,
       save: (state) => {
         saved = state;
@@ -173,7 +192,9 @@ function pauseDuringCrawl(): StoppingControl & { onPageRead: () => void } {
       },
     },
     lastSaved: () => saved,
+    pagesRead: () => pagesRead,
     onPageRead: () => {
+      pagesRead += 1;
       stop = true;
     },
   };
@@ -234,5 +255,43 @@ describe('the traffic a resumed scan is counted for', () => {
     });
 
     await expect(countedBytes()).resolves.toBe(HOME_BYTES + PRICING_BYTES);
+  });
+
+  // A scan can be paused more than once, and the second resume restores pages
+  // that two different earlier attempts read and counted. The sum has to hold
+  // across the chain: each round adds the one page it read itself and nothing
+  // else, so the third attempt's total is the site, not the site three times.
+  it('adds only the page each of two resumes read itself', async () => {
+    const scan = await seedScanFrom(3, 2);
+
+    const firstAttempt = pauseDuringCrawl();
+    const firstRun = await runScanAttempt(deps(firstAttempt.onPageRead), scan.id, {
+      control: firstAttempt.control,
+    });
+
+    expect(firstRun.stopped).toBe(true);
+    expect(firstAttempt.pagesRead()).toBe(1);
+    await expect(countedBytes()).resolves.toBe(HOME_BYTES);
+
+    const secondAttempt = pauseDuringCrawl(firstAttempt.lastSaved());
+    const secondRun = await runScanAttempt(deps(secondAttempt.onPageRead), scan.id, {
+      control: secondAttempt.control,
+    });
+
+    expect(secondRun.stopped).toBe(true);
+    expect(secondAttempt.pagesRead()).toBe(1);
+    // The homepage was restored, not re-read, so only the pricing page is new.
+    await expect(countedBytes()).resolves.toBe(HOME_BYTES + PRICING_BYTES);
+    // What the third attempt resumes from says both stored pages are on the bill.
+    expect(secondAttempt.lastSaved()?.crawl.egressRecorded).toBe(true);
+
+    const thirdAttempt = pauseDuringCrawl(secondAttempt.lastSaved());
+    const thirdRun = await runScanAttempt(deps(thirdAttempt.onPageRead), scan.id, {
+      control: thirdAttempt.control,
+    });
+
+    expect(thirdRun.stopped).toBe(true);
+    expect(thirdAttempt.pagesRead()).toBe(1);
+    await expect(countedBytes()).resolves.toBe(HOME_BYTES + PRICING_BYTES + CONTACT_BYTES);
   });
 });

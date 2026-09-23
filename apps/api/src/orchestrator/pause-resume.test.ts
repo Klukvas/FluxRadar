@@ -11,6 +11,7 @@ import { InvalidTransitionError } from '../billing/errors.ts';
 import { transitionScan } from '../billing/state-machine.ts';
 import { sweepExpiredCheckpoints } from './checkpoint.ts';
 import {
+  EMPTY_CRAWL_COVERAGE,
   clearScanCheckpoint,
   loadScanCheckpoint,
   saveScanCheckpoint,
@@ -686,6 +687,38 @@ describe('the checkpoint a paused scan leaves', () => {
     expect(await loadScanCheckpoint(db.prisma, scan.id, new Date())).toBeNull();
   });
 
+  // The checkpoints already parked in production were written before the egress
+  // flag existed, so their payload has no such field at all. Refusing them would
+  // throw away the work of every scan paused at deploy time; reading the missing
+  // field as false counts those bytes once more rather than never at all.
+  it('accepts a payload written before the egress flag, and reads it as nothing counted', async () => {
+    const { scan } = await seedWithJob('Running');
+    const payloadJson = JSON.stringify(checkpoint(), (key, value) =>
+      key === 'egressRecorded' ? undefined : value,
+    );
+    expect(payloadJson).not.toContain('egressRecorded');
+    await db.prisma.scanCheckpoint.create({
+      data: {
+        id: randomUUID(),
+        scanId: scan.id,
+        accountId: account.accountId,
+        schemaVersion: 2,
+        stage: 'SEO',
+        payloadJson,
+        sizeBytes: Buffer.byteLength(payloadJson, 'utf8'),
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const loaded = await loadScanCheckpoint(db.prisma, scan.id, new Date());
+    expect(loaded).not.toBeNull();
+    expect(loaded?.crawl.egressRecorded).toBe(false);
+    // The rest of the payload is honoured, not discarded along with the field it
+    // does not have: this is a resume, not a fresh attempt.
+    expect(loaded?.completedStages).toEqual(['crawl', 'SEO']);
+    expect(loaded?.crawl.frontier).toEqual([{ url: 'https://example.com/next', depth: 1 }]);
+  });
+
   it('bounds what it stores, and says it was truncated', async () => {
     const { scan } = await seedWithJob('Running');
     const frontier = Array.from(
@@ -706,6 +739,43 @@ describe('the checkpoint a paused scan leaves', () => {
     expect(loaded?.crawl.truncated).toBe(true);
     // Whatever had to be dropped, the stage list is what protects paid work.
     expect(loaded?.completedStages).toEqual(['crawl', 'SEO']);
+  });
+
+  // The last resort inside the byte bound keeps the counters and drops the index
+  // — but the pages are in the evidence store, not in the index, so a resume
+  // still gets them back. What their bytes already cost has to come back too.
+  it('keeps the egress flag when the byte bound leaves nothing but the counters', async () => {
+    const { scan } = await seedWithJob('Running');
+    // The count bound alone cannot force this branch: 2000 frontier entries are
+    // allowed, so the megabyte is reached through the length of each URL — and
+    // dropping coverage first cannot bring a frontier this long inside it.
+    const longPath = 'p'.repeat(600);
+    const frontier = Array.from(
+      { length: SCAN_CHECKPOINT_LIMITS.maxFrontierUrls },
+      (_entry, index) => ({ url: `https://example.com/${index}/${longPath}`, depth: 1 }),
+    );
+
+    await saveScanCheckpoint(db.prisma, {
+      scanId: scan.id,
+      accountId: account.accountId,
+      state: checkpoint({ crawl: { ...checkpoint().crawl, frontier, egressRecorded: true } }),
+      now: new Date(),
+    });
+
+    const row = await db.prisma.scanCheckpoint.findUniqueOrThrow({ where: { scanId: scan.id } });
+    expect(row.sizeBytes).toBeLessThanOrEqual(SCAN_CHECKPOINT_LIMITS.maxBytes);
+    const loaded = await loadScanCheckpoint(db.prisma, scan.id, new Date());
+    // The index is gone — which is what makes this the index-only branch and not
+    // the one above it — and the counters and the stage list stayed.
+    expect(loaded?.crawl.frontier).toEqual([]);
+    expect(loaded?.crawl.coverage).toEqual(EMPTY_CRAWL_COVERAGE);
+    expect(loaded?.crawl.truncated).toBe(true);
+    expect(loaded?.crawl.scannedUrlCount).toBe(1);
+    expect(loaded?.crawl.discoveredUrlCount).toBe(2);
+    expect(loaded?.completedStages).toEqual(['crawl', 'SEO']);
+    // The pages this checkpoint's scan read were counted against its egress
+    // location once. The resumed attempt gets them back and must not book them.
+    expect(loaded?.crawl.egressRecorded).toBe(true);
   });
 
   it('is not offered once it has expired, and the sweep removes it', async () => {
