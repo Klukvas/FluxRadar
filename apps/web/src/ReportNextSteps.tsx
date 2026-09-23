@@ -7,17 +7,31 @@
 
 import { useEffect, useState } from 'react';
 
+import { ActionPlan } from './ActionPlan';
 import { apiRequest, canRetrySection, type IssueSummary, type Scan, type ScanChanges } from './api';
 import { Button, StatusChip } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
-import { ruleTitle } from './rule-titles';
+import { ANALYTICS_MODULE, ruleTitle } from './rule-titles';
 import { displayDomain } from './scan-status';
 import './styles/findings.css';
 
 /** How many problems the report puts in front of the owner. */
 export const FIX_FIRST_LIMIT = 5;
+
+/**
+ * Whether this report holds anything an Action Plan could be written about.
+ *
+ * Not `summary.open > 0`: that count includes Analytics, whose findings are
+ * Google's data and never reach a provider, so the server refuses a plan for a
+ * report whose only open findings are there (`ACTION_PLAN_NOTHING_TO_PLAN`).
+ * Counting them here offered a button that was always refused — the dead end
+ * the "nothing to plan" state exists to remove.
+ */
+export function hasPlannableOpenIssues(summary: IssueSummary): boolean {
+  return summary.groups.some((group) => group.module !== ANALYTICS_MODULE && group.openIssues > 0);
+}
 
 export function useIssueSummary(scanId: string): IssueSummary | null {
   const [summary, setSummary] = useState<IssueSummary | null>(null);
@@ -223,16 +237,33 @@ export function ReportNextSteps(props: {
   onOpenProblem: (ruleId: string) => void;
   onAllProblems: () => void;
   onUpgrade: () => void;
+  /** The site profile's target languages, offered first by the plan picker. */
+  targetLanguages?: string | null;
   /** Absent where the screen offers no retry; the block is then not drawn. */
   onRetry?: () => Promise<void>;
 }) {
   const summary = useIssueSummary(props.scan.id);
+  // A ready plan in the selected language takes FixFirst's place: it says the
+  // same thing in more useful words, and two "start here" lists would compete.
+  const [planReady, setPlanReady] = useState(false);
+  // Null until the summary arrives: "this report has nothing left to plan" is a
+  // statement, and the plan block must not make it while it is still loading.
+  const hasOpenIssues = summary === null ? null : hasPlannableOpenIssues(summary);
   return (
     <>
       {props.onRetry !== undefined && canRetrySection(props.scan) ? (
         <SectionRetry language={props.language} onRetry={props.onRetry} />
       ) : null}
-      {summary === null ? null : (
+      <ActionPlan
+        scan={props.scan}
+        language={props.language}
+        targetLanguages={props.targetLanguages}
+        onOpenProblem={props.onOpenProblem}
+        onUpgrade={props.onUpgrade}
+        hasOpenIssues={hasOpenIssues}
+        onPlanReadyChange={setPlanReady}
+      />
+      {summary === null || planReady ? null : (
         <FixFirst
           summary={summary}
           language={props.language}

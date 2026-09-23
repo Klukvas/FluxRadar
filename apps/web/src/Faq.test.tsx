@@ -223,7 +223,14 @@ describe('/faq content — what each check does', () => {
     expect(
       screen.getByText(/Paid audits include provider-backed AI visibility checks/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/current production adapter uses Anthropic/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/asks both Anthropic \(Claude\) and OpenAI \(ChatGPT\)/i),
+    ).toBeInTheDocument();
+    // The opt-in providers must be described as receiving nothing by default,
+    // because that is the promise the pre-purchase notice makes.
+    expect(
+      screen.getByText(/off by default and receive nothing at all unless you select them/i),
+    ).toBeInTheDocument();
   });
 
   it('describes security as a passive OWASP ASVS profile, not a penetration test', async () => {

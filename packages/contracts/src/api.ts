@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { PLANS } from './enums.js';
-import { CRAWL_LIMITS } from './limits.js';
+import { API_CHECK_LIMITS, CRAWL_LIMITS, CRAWL_SEED_LIMITS } from './limits.js';
 import { TARIFFS } from './tariffs.js';
 
 // bcrypt silently truncates passwords at 72 bytes, so longer input is rejected upfront.
@@ -84,6 +84,60 @@ export const siteProfileInputSchema = z.object({
 });
 export type SiteProfileInput = z.infer<typeof siteProfileInputSchema>;
 
+/**
+ * A public http(s) address a scan may be pointed at.
+ *
+ * Unlike `httpsOriginSchema` this keeps the path and query — a seed URL and an
+ * API endpoint are both specific resources — but it refuses everything that
+ * would make the request something other than an anonymous public GET:
+ * credentials in the URL, a fragment the server never sees, and any scheme
+ * other than http/https. Host-level scope is checked against the scanned site
+ * separately, because only the scan knows what its site is.
+ */
+export const publicHttpUrlSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((value) => utf8ByteLength(value) <= CRAWL_LIMITS.maxUrlBytes, {
+    message: `url must be at most ${CRAWL_LIMITS.maxUrlBytes} bytes`,
+  })
+  .refine(
+    (value) => {
+      let url: URL;
+      try {
+        url = new URL(value);
+      } catch {
+        return false;
+      }
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') &&
+        url.username === '' &&
+        url.password === '' &&
+        url.hash === ''
+      );
+    },
+    { message: 'must be an absolute http(s) URL without credentials or fragment' },
+  )
+  .transform((value) => new URL(value).href);
+
+/**
+ * One explicitly configured API check (§9 Reliability contract v1).
+ *
+ * Only GET and HEAD are accepted: a scan observes a public endpoint, it never
+ * changes one. No request headers and no body are accepted at all — that is
+ * what makes the no-credentials policy (REL-API-005) structural rather than a
+ * rule that has to catch a mistake after the request went out.
+ */
+export const apiCheckInputSchema = z.object({
+  method: z.enum(['GET', 'HEAD']).default('GET'),
+  url: publicHttpUrlSchema,
+  expectedStatus: z
+    .array(z.number().int().min(100).max(599))
+    .max(API_CHECK_LIMITS.maxExpectedStatuses)
+    .optional(),
+});
+export type ApiCheckInput = z.infer<typeof apiCheckInputSchema>;
+
 export const scanScopeSchema = z
   .object({
     includeSubdomains: z.boolean(),
@@ -97,6 +151,19 @@ export const scanScopeSchema = z
       .array(z.string().trim().min(1).max(CRAWL_LIMITS.maxUrlBytes))
       .max(100)
       .optional(),
+    /**
+     * URLs the owner listed by hand. They are queued beside the origin and the
+     * sitemap, and are filtered by exactly the same scope, robots and page
+     * limit — a seed is a starting point, never an exemption.
+     */
+    seedUrls: z.array(publicHttpUrlSchema).max(CRAWL_SEED_LIMITS.maxSeedUrls).optional(),
+    /**
+     * Whether pages are rendered in a browser before the rules read them.
+     * Off by default: it costs a browser per scan, and a scan whose runtime is
+     * missing reports that rather than falling back to the static HTML.
+     */
+    renderJs: z.boolean().default(false),
+    apiChecks: z.array(apiCheckInputSchema).max(API_CHECK_LIMITS.maxChecks).optional(),
     queryPolicy: z.enum(['include', 'ignore']).default('ignore'),
     respectRobots: z.boolean().default(true),
     robotsOverrideConfirmed: z.boolean().default(false),
@@ -134,6 +201,7 @@ export const defaultProfileScanConfig = {
     includeSubdomains: false,
     maxPages: 15,
     maxDepth: 5,
+    renderJs: false,
     queryPolicy: 'ignore',
     respectRobots: true,
     robotsOverrideConfirmed: false,

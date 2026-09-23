@@ -3,6 +3,7 @@
 // impressions has no trend and no click-through rate — and are set low enough
 // that a small site's real problem still shows.
 
+import { normalizeUrl } from '@fluxradar/fingerprint';
 import { findingMessage } from '@fluxradar/rules';
 
 import type {
@@ -100,6 +101,7 @@ export function firstPageWithoutClicks(detail: SearchConsoleDetail): AnalyticsCh
     ran: true,
     applicableTargets: candidates.length,
     affectedTargets: unclicked.length,
+    checkedTargets: candidates.map((row) => normalizeUrl(row.key)),
     findings: unclicked.map((row) => ({
       ruleId,
       targetKind: 'page',
@@ -189,6 +191,7 @@ export function crawledPagesWithoutImpressions(
     ran: true,
     applicableTargets: applicable.length,
     affectedTargets: unseen.length,
+    checkedTargets: applicable.map((page) => normalizeUrl(page.url)),
     findings: unseen.map((page) => ({
       ruleId,
       targetKind: 'page',

@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { OPENAI_ENV_VARS } from '../integrations/openai-config.ts';
+import { GEMINI_ENV_VARS, PERPLEXITY_ENV_VARS } from '../integrations/opt-in-ai-config.ts';
 import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 
 // DEPLOY-002: one production env file, two parsers.
@@ -377,5 +379,49 @@ describe('DEPLOY-002 production env file parity', () => {
 
     expect(workflow).not.toMatch(/^\s*ANTHROPIC_MODEL:\s*claude/m);
     expect(workflow).toContain('upsert_env ANTHROPIC_MODEL PRODUCTION_ANTHROPIC_MODEL');
+  });
+
+  // An AI variable the API reads but the deploy never writes is a provider that
+  // is unconfigured in production and says so nowhere: the code fails closed,
+  // so every OpenAI request becomes an unavailable provider and every paid
+  // scan's GEO module reports Partial — correct, and completely silent. The
+  // names come from the config readers themselves, so adding a variable to the
+  // code fails here until the workflow ships it.
+  it('ships every AI provider variable the API reads', () => {
+    const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
+    const wired = new Map(
+      [...workflow.matchAll(/^\s*upsert_env (\S+) (\S+)\s*$/gm)].map((match) => [
+        match[1] as string,
+        match[2] as string,
+      ]),
+    );
+
+    for (const key of [
+      ...Object.values(OPENAI_ENV_VARS),
+      ...Object.values(GEMINI_ENV_VARS),
+      ...Object.values(PERPLEXITY_ENV_VARS),
+    ]) {
+      const source = wired.get(key);
+      expect(source, `${key} is never written into the release env file`).toBeDefined();
+      // ...and the secret/variable it copies from is declared on the step.
+      expect(workflow).toContain(`${source as string}: `);
+    }
+  });
+
+  it('never pins an AI model or endpoint in the workflow itself', () => {
+    const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
+
+    // Same rule as ANTHROPIC_MODEL: PRODUCTION_ENV_FILE is the authoritative
+    // base and everything here is an optional override, so a literal in the
+    // workflow would outrank it and contradict docs/DEPLOYMENT.md.
+    for (const key of [
+      OPENAI_ENV_VARS.model,
+      GEMINI_ENV_VARS.model,
+      GEMINI_ENV_VARS.apiVersion,
+      PERPLEXITY_ENV_VARS.model,
+      PERPLEXITY_ENV_VARS.endpointUrl,
+    ]) {
+      expect(workflow).not.toMatch(new RegExp(`^\\s*${key}:\\s*[^$\\s]`, 'm'));
+    }
   });
 });

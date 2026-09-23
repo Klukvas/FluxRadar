@@ -9,6 +9,7 @@ import {
   REQUEST_ID_SOURCES,
   USAGE_SOURCES,
 } from '@fluxradar/contracts';
+import type { AiRequestCapsShape } from '@fluxradar/contracts';
 
 import { AI_PROVIDER_NAMES } from './types.js';
 import type { NormalizedAiResponse } from './types.js';
@@ -33,7 +34,10 @@ function isMemberOf(values: readonly string[], value: unknown): boolean {
  * Проверяются runtime-значения, а не только типы: negative-ветки строят
  * заведомо битые объекты, и валидатор обязан их отклонить.
  */
-export function validateNormalizedResponse(response: NormalizedAiResponse): readonly string[] {
+export function validateNormalizedResponse(
+  response: NormalizedAiResponse,
+  caps: AiRequestCapsShape = AI_REQUEST_CAPS,
+): readonly string[] {
   const violations: string[] = [];
 
   if (!isMemberOf(AI_PROVIDER_NAMES, response.provider)) {
@@ -54,28 +58,35 @@ export function validateNormalizedResponse(response: NormalizedAiResponse): read
     response.citations.some((citation) => !isNonEmptyString(citation))
   ) {
     violations.push('citations is not an array of non-empty strings');
+  } else if (response.citations.length > caps.maxCitationUnits) {
+    violations.push(`citations ${response.citations.length} exceeds cap ${caps.maxCitationUnits}`);
   }
   if (!isMemberOf(AI_FINISH_REASONS, response.finishReason)) {
     violations.push(`finishReason "${String(response.finishReason)}" is invalid`);
   }
 
-  violations.push(...validateUsage(response));
+  violations.push(...validateUsage(response, caps));
   return violations;
 }
 
-function validateUsage(response: NormalizedAiResponse): readonly string[] {
+function validateUsage(
+  response: NormalizedAiResponse,
+  caps: AiRequestCapsShape,
+): readonly string[] {
   const violations: string[] = [];
   const usage: unknown = response.usage;
   if (usage === null || typeof usage !== 'object') {
     return ['usage is missing'];
   }
 
-  const { inputTokens, outputTokens, totalTokens } = response.usage;
-  if (!isCountValue(inputTokens)) violations.push('usage.inputTokens is not a non-negative integer');
+  const { inputTokens, outputTokens, totalTokens, searchUnits } = response.usage;
+  if (!isCountValue(inputTokens))
+    violations.push('usage.inputTokens is not a non-negative integer');
   if (!isCountValue(outputTokens)) {
     violations.push('usage.outputTokens is not a non-negative integer');
   }
-  if (!isCountValue(totalTokens)) violations.push('usage.totalTokens is not a non-negative integer');
+  if (!isCountValue(totalTokens))
+    violations.push('usage.totalTokens is not a non-negative integer');
 
   // Ядро GEO-PROVIDER-001: total всегда input + output (§5, дословно).
   if (
@@ -89,13 +100,27 @@ function validateUsage(response: NormalizedAiResponse): readonly string[] {
     );
   }
 
-  if (isCountValue(inputTokens) && inputTokens > AI_REQUEST_CAPS.maxInputTokens) {
-    violations.push(`usage.inputTokens ${inputTokens} exceeds cap ${AI_REQUEST_CAPS.maxInputTokens}`);
+  if (searchUnits !== undefined && !isCountValue(searchUnits)) {
+    violations.push('usage.searchUnits is not a non-negative integer');
+  } else if (isCountValue(searchUnits) && searchUnits > caps.maxSearchUnits) {
+    // Two providers (Google, Perplexity) document no request parameter that
+    // caps the search count, so the cap can only be enforced on what came back.
+    // Over the cap the answer is refused rather than accepted and re-labelled.
+    violations.push(`usage.searchUnits ${searchUnits} exceeds cap ${caps.maxSearchUnits}`);
   }
-  if (isCountValue(outputTokens) && outputTokens > AI_REQUEST_CAPS.maxOutputTokens) {
-    violations.push(
-      `usage.outputTokens ${outputTokens} exceeds cap ${AI_REQUEST_CAPS.maxOutputTokens}`,
-    );
+
+  // Provider web search bills its result pages as input tokens, so a
+  // search-enabled answer may legitimately report far more input than the
+  // prompt contained. The allowance is what lets the adapters report provider
+  // truth instead of clamping the number and under-reporting spend.
+  const searchAllowance =
+    (isCountValue(searchUnits) ? searchUnits : 0) * caps.maxSearchContentTokens;
+  const inputAllowance = caps.maxInputTokens + searchAllowance;
+  if (isCountValue(inputTokens) && inputTokens > inputAllowance) {
+    violations.push(`usage.inputTokens ${inputTokens} exceeds cap ${inputAllowance}`);
+  }
+  if (isCountValue(outputTokens) && outputTokens > caps.maxOutputTokens) {
+    violations.push(`usage.outputTokens ${outputTokens} exceeds cap ${caps.maxOutputTokens}`);
   }
 
   if (!isMemberOf(USAGE_SOURCES, response.usageSource)) {

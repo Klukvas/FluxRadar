@@ -23,15 +23,19 @@ export const privacy004PolicyDiscoverability: SiteRule = {
       (page) => page.normalizedUrl === `${ctx.domain}/` && isSuccessfulHtmlPage(page),
     );
     if (homepage === undefined) {
-      return { findings: [], applicableTargets: 0, affectedTargets: 0 };
+      return { findings: [], applicableTargets: 0, affectedTargets: 0, checkedTargets: [] };
     }
+    // Единственный вход этого правила — HTML главной страницы. Прогон без неё
+    // ничего об этой находке не доказывает, а прогон с ней — доказывает, сколько
+    // бы других страниц ни изменилось (§14).
+    const checkedTargets = [homepage.normalizedUrl];
     const policyLink = parsePage(homepage)
       .querySelectorAll('a')
       .some((anchor) =>
         hasSameSitePolicyLink(anchor.getAttribute('href'), anchor.text, homepage, ctx),
       );
     if (policyLink) {
-      return { findings: [], applicableTargets: 1, affectedTargets: 0 };
+      return { findings: [], applicableTargets: 1, affectedTargets: 0, checkedTargets };
     }
     return {
       findings: [
@@ -45,6 +49,7 @@ export const privacy004PolicyDiscoverability: SiteRule = {
       ],
       applicableTargets: 1,
       affectedTargets: 1,
+      checkedTargets,
     };
   },
 };

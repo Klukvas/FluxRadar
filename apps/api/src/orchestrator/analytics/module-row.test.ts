@@ -29,7 +29,35 @@ function rowFor(snapshot: GoogleDataSnapshot, pages = [page('/')]) {
     }),
   );
   const { score } = scoredAnalyticsIssues('scan-1', 'https://example.com', run.checks, NOW);
-  return analyticsModuleRow(snapshot, run, score);
+  return analyticsModuleRow(snapshot, run, score, {
+    userAgent: 'desktop',
+    crawlScope: 'scope-v2:whole-site',
+    ga4PropertyId: snapshot.analytics.data?.propertyId ?? null,
+    searchConsoleSiteUrl: snapshot.searchConsole.data?.siteUrl ?? null,
+    bingSiteUrl: null,
+  }).row;
+}
+
+/** The row together with the proof written beside it in the same transaction. */
+function resultFor(snapshot: GoogleDataSnapshot, pages = [page('/')]) {
+  const run = runAnalyticsChecks(
+    checkInput({
+      snapshot,
+      searchConsoleDetail:
+        snapshot.searchConsole.data === null
+          ? null
+          : detail({ pages: [row('https://example.com/')] }),
+      pages,
+    }),
+  );
+  const { score } = scoredAnalyticsIssues('scan-1', 'https://example.com', run.checks, NOW);
+  return analyticsModuleRow(snapshot, run, score, {
+    userAgent: 'desktop',
+    crawlScope: 'scope-v2:whole-site',
+    ga4PropertyId: snapshot.analytics.data?.propertyId ?? null,
+    searchConsoleSiteUrl: snapshot.searchConsole.data?.siteUrl ?? null,
+    bingSiteUrl: null,
+  });
 }
 
 describe('analyticsModuleRow', () => {
@@ -103,6 +131,17 @@ describe('analyticsModuleRow', () => {
     ]);
     expect(metadata.ruleChecks[2]).toMatchObject({ scoring: 'informational' });
     expect(metadata.analysis.trend).toEqual({ metric: 'clicks', previous: 100, current: 100 });
+  });
+
+  it('keeps the coverage proof out of the row and next to the binding it judged', () => {
+    // The proof is internal: it goes to its own table with the property the
+    // checks were bound to, never into the metadata the report reads.
+    const snapshot = snapshotWith(searchConsoleSummary(), ga4Summary());
+    const result = resultFor(snapshot);
+
+    expect(result.row.metadataJson).not.toContain('coverageProof');
+    expect(result.coverage.context.ga4PropertyId).toBe(snapshot.analytics.data?.propertyId);
+    expect(result.coverage.rules.map((rule) => rule.ruleId)).toContain('ANALYTICS-GA-001');
   });
 });
 

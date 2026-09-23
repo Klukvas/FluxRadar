@@ -6,7 +6,15 @@
 
 import { Fragment, useCallback, useEffect, useState, type MouseEvent } from 'react';
 
-import { apiRequest, type Dashboard, type ExportPayload, type Scan, type ScanModule } from './api';
+import {
+  apiDownload,
+  apiRequest,
+  ApiRequestError,
+  type Dashboard,
+  type ExportPayload,
+  type Scan,
+  type ScanModule,
+} from './api';
 import {
   Button,
   EmptyState,
@@ -30,6 +38,8 @@ import { statusKind } from './status-kind';
 export function ResultsScreen(props: {
   scan: Scan | null;
   language: Language;
+  /** The site profile's target languages; the Action Plan picker offers them first. */
+  targetLanguages?: string | null;
   onScan: (scan: Scan) => void;
   onIssues: () => void;
   /** Opens the Issue Center on one problem's findings. */
@@ -190,6 +200,7 @@ export function ResultsScreen(props: {
         <ReportNextSteps
           scan={scan}
           language={props.language}
+          targetLanguages={props.targetLanguages}
           onOpenProblem={props.onOpenProblem ?? (() => props.onIssues())}
           onAllProblems={props.onIssues}
           onUpgrade={() => props.onUpgrade?.(scan)}
@@ -299,6 +310,12 @@ export function ResultsScreen(props: {
           <Button onClick={props.onIssues} variant="primary">
             {t.openIssues}
           </Button>
+          {/* The server-rendered document and the printable page are both
+              offered, in that order: the download carries every finding, and the
+              page is the fallback that needs no server work when it cannot. */}
+          {scan.plan === 'Free' ? null : (
+            <PdfDownloadButton scan={scan} language={props.language} onError={props.onError} />
+          )}
           {props.onPrint === undefined ? null : (
             <Button onClick={() => props.onPrint?.(scan)} aria-describedby="print-hint">
               {findingsCopy[props.language].print.open}
@@ -311,6 +328,11 @@ export function ResultsScreen(props: {
           )}
           <Button onClick={props.onReports}>{copy[props.language].reports.windowTitle}</Button>
         </div>
+        {scan.plan === 'Free' ? null : (
+          <p id="pdf-hint" className="muted report-print-hint">
+            {findingsCopy[props.language].download.pdfHint}
+          </p>
+        )}
         {props.onPrint === undefined ? null : (
           <p id="print-hint" className="muted report-print-hint">
             {findingsCopy[props.language].print.openHint}
@@ -581,6 +603,43 @@ export function exportBaseName(scan: Pick<Scan, 'domain' | 'completedAt' | 'crea
   return `fluxradar-${host}-${day}`;
 }
 
+/**
+ * Downloads the server-rendered report.
+ *
+ * Its own component because it has a state the other buttons do not: rendering a
+ * large report takes a few seconds on the server, and a button that looks idle
+ * while it happens gets clicked again. A refusal is reported in the reader's own
+ * words — `PDF_TOO_LARGE` names the exports that do hold everything — and the
+ * printable page beside it stays available either way.
+ */
+function PdfDownloadButton(props: {
+  scan: Scan;
+  language: Language;
+  onError: (value: string) => void;
+}) {
+  const t = findingsCopy[props.language].download;
+  const [busy, setBusy] = useState(false);
+  const download = async () => {
+    setBusy(true);
+    try {
+      const result = await apiDownload(
+        `/scans/${props.scan.id}/report.pdf?language=${props.language}`,
+      );
+      saveBlob(result.filename ?? `${exportBaseName(props.scan)}.pdf`, result.blob);
+    } catch (caught) {
+      const code = caught instanceof ApiRequestError ? caught.code : null;
+      props.onError(code === 'PDF_TOO_LARGE' ? t.tooLarge : t.failed);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Button onClick={() => void download()} disabled={busy} aria-describedby="pdf-hint">
+      {busy ? t.preparing : t.pdf}
+    </Button>
+  );
+}
+
 function ExportButtons(props: { scan: Scan; onError: (value: string) => void }) {
   const scanId = props.scan.id;
   const baseName = exportBaseName(props.scan);
@@ -606,6 +665,16 @@ function ExportButtons(props: { scan: Scan; onError: (value: string) => void }) 
       <Button onClick={() => void downloadCsv()}>CSV</Button>
     </>
   );
+}
+
+/** Saves bytes the server already produced, without re-encoding them. */
+function saveBlob(filename: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function download(filename: string, content: string, type: string): void {

@@ -29,6 +29,7 @@ export function ScanScreen(props: {
 }) {
   const t = copy[props.language].scanProgress;
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [pauseBusy, setPauseBusy] = useState(false);
   useEffect(() => {
     if (props.scan === null || isTerminalScanStatus(props.scan.status)) return undefined;
     let cancelled = false;
@@ -74,6 +75,8 @@ export function ScanScreen(props: {
       : (scan.progress.completedModules / scan.progress.totalModules) * 100;
   const terminal = isTerminalScanStatus(scan.status);
   const finishedAt = formatTimestamp(scan.completedAt, props.language);
+  const paused = scan.status === 'Paused';
+  const pausing = !paused && scan.pauseRequestedAt != null && !terminal;
   const cancel = async () => {
     setCancelBusy(true);
     try {
@@ -82,6 +85,32 @@ export function ScanScreen(props: {
       props.onError(caught instanceof Error ? caught.message : 'Cancel failed');
     } finally {
       setCancelBusy(false);
+    }
+  };
+  /**
+   * Stops the run, or starts it again — on the same scan.
+   *
+   * Neither call creates anything: a pause parks the work that has already been
+   * paid for and a resume picks it up where the last one stopped, so the button
+   * pair is deliberately separate from Cancel, which ends the run for good. The
+   * response is not the scan, so the screen re-reads it rather than guessing
+   * what the new state is.
+   */
+  const setPaused = async (next: 'pause' | 'resume') => {
+    setPauseBusy(true);
+    try {
+      await apiRequest(`/scans/${scan.id}/${next}`, { method: 'POST' });
+      props.onUpdate(await apiRequest<Scan>(`/scans/${scan.id}`));
+    } catch (caught) {
+      props.onError(
+        caught instanceof Error
+          ? caught.message
+          : next === 'pause'
+            ? 'Pause failed'
+            : 'Resume failed',
+      );
+    } finally {
+      setPauseBusy(false);
     }
   };
   return (
@@ -110,16 +139,35 @@ export function ScanScreen(props: {
             </div>
           </div>
         ) : (
-          <p className="muted">
-            {/* Before the sections are planned there is nothing to count, and
-                "0 of 0 audit sections done" read like a scan with no work. */}
-            {scan.progress.totalModules === 0
-              ? t.runningPreparing
-              : fillCopy(t.running, {
-                  done: scan.progress.completedModules,
-                  total: scan.progress.totalModules,
+          <>
+            <p className="muted">
+              {/* Before the sections are planned there is nothing to count, and
+                  "0 of 0 audit sections done" read like a scan with no work. */}
+              {paused
+                ? t.pausedBody
+                : scan.progress.totalModules === 0
+                  ? t.runningPreparing
+                  : fillCopy(t.running, {
+                      done: scan.progress.completedModules,
+                      total: scan.progress.totalModules,
+                    })}
+            </p>
+            {/* The sections above say which parts of the audit are done; this
+                says how much of the site has actually been read, which is the
+                number that moves on a large crawl. */}
+            {(scan.progress.scannedUrls ?? 0) > 0 ? (
+              <p className="muted">
+                {fillCopy(t.scannedUrls, {
+                  scanned: scan.progress.scannedUrls ?? 0,
+                  discovered: Math.max(
+                    scan.progress.discoveredUrls ?? 0,
+                    scan.progress.scannedUrls ?? 0,
+                  ),
                 })}
-          </p>
+              </p>
+            ) : null}
+            {pausing ? <p className="muted">{t.pausing}</p> : null}
+          </>
         )}
       </Panel>
       <Panel title={t.sectionsTitle}>
@@ -148,9 +196,20 @@ export function ScanScreen(props: {
             {t.openReport}
           </Button>
         ) : (
-          <Button onClick={() => void cancel()} variant="danger" disabled={cancelBusy}>
-            {cancelBusy ? t.cancelling : t.cancel}
-          </Button>
+          <>
+            {/* Pause before Cancel, and visually quieter: one of them can be
+                undone and the other cannot. */}
+            <Button
+              onClick={() => void setPaused(paused ? 'resume' : 'pause')}
+              variant={paused ? 'primary' : undefined}
+              disabled={pauseBusy || pausing}
+            >
+              {pauseBusy ? t.pauseWorking : paused ? t.resume : t.pause}
+            </Button>
+            <Button onClick={() => void cancel()} variant="danger" disabled={cancelBusy}>
+              {cancelBusy ? t.cancelling : t.cancel}
+            </Button>
+          </>
         )}
         <Button onClick={props.onReports}>{copy[props.language].reports.windowTitle}</Button>
       </div>

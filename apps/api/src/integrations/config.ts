@@ -1,7 +1,16 @@
 import { readFastSpringConfig } from '../billing/fastspring/config.ts';
 import { isMockCheckoutEnabled } from '../billing/mock-checkout.ts';
+import { readRefundDispatchConfig } from '../billing/refunds/config.ts';
+import { MOCK_EMAIL_ENV, isMockEmailOptIn } from '../email/mock-email.ts';
 import { DEFAULT_ANTHROPIC_MODEL, readAnthropicConfig } from './anthropic-config.ts';
 import { readIntegrationEncryptionKey } from './encryption-key.ts';
+import { DEFAULT_OPENAI_MODEL, readOpenAiConfig } from './openai-config.ts';
+import {
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_PERPLEXITY_MODEL,
+  readGeminiConfig,
+  readPerplexityConfig,
+} from './opt-in-ai-config.ts';
 import { readObjectStorageConfig, type ObjectStorageConfig } from './object-storage-config.ts';
 import { readOAuthConfig, type OAuthProviderConfig } from './oauth-config.ts';
 import type { UserIntegrationProvider } from './providers.ts';
@@ -17,6 +26,16 @@ export interface IntegrationConfig {
   readonly anthropicApiKey: string | null;
   readonly anthropicModel: string;
   readonly anthropicApiVersion: string;
+  readonly openAiApiKey: string | null;
+  readonly openAiModel: string;
+  /** Opt-in recipient: a key alone never sends it anything (see consent). */
+  readonly googleAiApiKey: string | null;
+  readonly googleAiModel: string;
+  readonly googleAiApiVersion: string | null;
+  /** Opt-in recipient: a key alone never sends it anything (see consent). */
+  readonly perplexityApiKey: string | null;
+  readonly perplexityModel: string;
+  readonly perplexityEndpointUrl: string | null;
   readonly pageSpeedApiKey: string | null;
   readonly cruxApiKey: string | null;
   readonly hetznerS3: ObjectStorageConfig | null;
@@ -46,6 +65,14 @@ export function readIntegrationConfig(env: NodeJS.ProcessEnv = process.env): Int
     anthropicApiKey: optional(env.ANTHROPIC_API_KEY),
     anthropicModel: optional(env.ANTHROPIC_MODEL) ?? DEFAULT_ANTHROPIC_MODEL,
     anthropicApiVersion: optional(env.ANTHROPIC_API_VERSION) ?? '2023-06-01',
+    openAiApiKey: optional(env.OPENAI_API_KEY),
+    openAiModel: optional(env.OPENAI_MODEL) ?? DEFAULT_OPENAI_MODEL,
+    googleAiApiKey: optional(env.GOOGLE_AI_API_KEY),
+    googleAiModel: optional(env.GOOGLE_AI_MODEL) ?? DEFAULT_GEMINI_MODEL,
+    googleAiApiVersion: optional(env.GOOGLE_AI_API_VERSION),
+    perplexityApiKey: optional(env.PERPLEXITY_API_KEY),
+    perplexityModel: optional(env.PERPLEXITY_MODEL) ?? DEFAULT_PERPLEXITY_MODEL,
+    perplexityEndpointUrl: optional(env.PERPLEXITY_ENDPOINT_URL),
     pageSpeedApiKey: optional(env.PAGESPEED_API_KEY),
     cruxApiKey: optional(env.CRUX_API_KEY),
     hetznerS3: storage.state === 'configured' ? storage.config : null,
@@ -99,6 +126,9 @@ function partialIntegrationFailures(env: NodeJS.ProcessEnv): readonly string[] {
     readOAuthConfig('bing', env),
     readObjectStorageConfig(env),
     readAnthropicConfig(env),
+    readOpenAiConfig(env),
+    readGeminiConfig(env),
+    readPerplexityConfig(env),
   ];
   return results.flatMap((result) => (result.state === 'invalid' ? [result.reason] : []));
 }
@@ -133,6 +163,25 @@ export function validateRuntimeConfig(env: NodeJS.ProcessEnv = process.env): voi
       'Invalid production configuration: FLUXRADAR_ENABLE_MOCK_CHECKOUT opens the ' +
         'MockPaddle free-checkout surface and must not be set in production',
     );
+  }
+  // The same defence for the fake mailbox. `createMailer` already refuses to
+  // hand MockMailer to anything but a test run or a development machine that
+  // asked, so this can only fire on a production deployment that set the
+  // variable — which is a deployment one step away from swallowing every
+  // verification and password-reset email while reporting them as sent.
+  if (isMockEmailOptIn(env)) {
+    throw new Error(
+      `Invalid production configuration: ${MOCK_EMAIL_ENV} replaces the mail provider with ` +
+        'a fake mailbox that delivers nothing and must not be set in production',
+    );
+  }
+  // The outbound refund path. A value outside the documented set is not treated
+  // as "off": a deployment that meant to enable refunds and misspelt the mode
+  // would otherwise queue them silently for nobody, and one that meant to
+  // disable them must not be able to typo its way into money writes either.
+  const refundDispatch = readRefundDispatchConfig(env);
+  if (refundDispatch.state === 'invalid') {
+    throw new Error(`Invalid production configuration: ${refundDispatch.reason}`);
   }
 }
 

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
-import { TARIFFS } from '@fluxradar/contracts';
+import { ACTION_PLAN_LIMITS, TARIFFS } from '@fluxradar/contracts';
 
 import {
   CHECKOUT_STATUS_REASONS,
@@ -9,7 +9,10 @@ import {
 import { CHECKOUT_SESSION_STATUSES } from './billing/constants.ts';
 import { WEBHOOK_OUTCOMES } from './billing/fastspring/outcomes.ts';
 import type { ApiLogger } from './http/logger.ts';
+import { sweepExpiredCheckpoints } from './orchestrator/checkpoint.ts';
+import { sweepExpiredCrawlEvidence } from './orchestrator/crawl-store.ts';
 import { createConfiguredObjectStore, type PrivateObjectStore } from './integrations/s3.ts';
+import { lockScanRow, lockScanRows } from './scans/scan-row-lock.ts';
 
 const TERMINAL_SCAN_STATUSES = ['Partial', 'Completed', 'Failed', 'Cancelled'];
 
@@ -47,6 +50,18 @@ export const WEBHOOK_EVENT_PURGE_BATCH_LIMIT = 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * How long a spend-log row that outlived its scan is kept.
+ *
+ * Exactly as long as it can still refuse a generation, and not a day longer:
+ * the widest window any Action Plan cap counts over is the product-wide daily
+ * one, so a detached attempt older than that influences nothing and is deleted
+ * by the sweep. Keeping it would be retaining an account's activity record past
+ * the purpose that justified it.
+ */
+export const DETACHED_ACTION_PLAN_ATTEMPT_RETENTION_MS =
+  ACTION_PLAN_LIMITS.productGenerationWindowMs;
+
+/**
  * Deletes a scan snapshot and every dependent result row.
  *
  * `ExportArtifact` is one of those rows and its foreign key to Scan is
@@ -62,6 +77,13 @@ export async function deleteScanResult(
   scanId: string,
 ): Promise<readonly string[]> {
   return prisma.$transaction(async (tx) => {
+    // The scan row FIRST, before any child row is touched: a finishing Action
+    // Plan generation holds this same lock and then writes a plan row, so the
+    // opposite order here is a deadlock cycle rather than a race
+    // (scans/scan-row-lock.ts).
+    if (!(await lockScanRow(tx, scanId))) {
+      return [];
+    }
     const scan = await tx.scan.findUnique({ where: { id: scanId }, select: { accountId: true } });
     if (scan === null) {
       return [];
@@ -76,11 +98,20 @@ export async function deleteScanResult(
       select: { objectKey: true },
     });
     await tx.exportArtifact.deleteMany({ where: { scanId } });
+    await tx.scanCheckpoint.deleteMany({ where: { scanId } });
+    await tx.scanCrawlPage.deleteMany({ where: { scanId } });
+    await tx.scanCrawlResourceSet.deleteMany({ where: { scanId } });
     await tx.job.deleteMany({ where: { scanId } });
     await tx.issue.deleteMany({ where: { scanId } });
+    await tx.ruleCoverageProof.deleteMany({ where: { scanId } });
     await tx.scanModule.deleteMany({ where: { scanId } });
     await tx.aiResponseRecord.deleteMany({ where: { scanId } });
     await tx.aiConsent.deleteMany({ where: { scanId } });
+    // The Action Plan is not a canonical record and has no retention life of
+    // its own: it goes with the scan it was written from (D-232). Its spend log
+    // does not — see `detachActionPlanAttempts`.
+    await tx.actionPlan.deleteMany({ where: { scanId } });
+    await detachActionPlanAttempts(tx, [scanId]);
     await tx.scan.delete({ where: { id: scanId } });
     return artifacts.map(({ objectKey }) => objectKey);
   });
@@ -279,6 +310,10 @@ export interface RetentionSweepResult {
   readonly orphanedArtifactCount: number;
   readonly deletedWebhookEventCount: number;
   readonly expiredCheckoutSessionCount: number;
+  readonly expiredCheckpointCount: number;
+  readonly expiredCrawlPageCount: number;
+  /** Spend-log rows that outlived their scan and stopped counting. */
+  readonly deletedActionPlanAttemptCount: number;
 }
 
 /**
@@ -293,11 +328,22 @@ export async function runRetentionSweep(
   const scans = await purgeExpiredScans(prisma, now, objectStore);
   const deletedWebhookEventCount = await purgeUnboundWebhookEvents(prisma, now);
   const expiredCheckoutSessionCount = await expireAbandonedCheckoutSessions(prisma, now);
+  // A checkpoint outlives its usefulness the moment nobody resumes the scan it
+  // belongs to, and it is the only row here that a *live* scan can leave behind.
+  const expiredCheckpointCount = await sweepExpiredCheckpoints(prisma, now);
+  // The pages and media probes behind those checkpoints are swept on their own
+  // TTL, so evidence left by a crashed process is released even if its
+  // checkpoint never existed.
+  const expiredCrawlPageCount = await sweepExpiredCrawlEvidence(prisma, now);
+  const deletedActionPlanAttemptCount = await purgeDetachedActionPlanAttempts(prisma, now);
   return {
     deletedScanCount: scans.deletedScanCount,
     orphanedArtifactCount: scans.orphanedArtifactCount,
     deletedWebhookEventCount,
     expiredCheckoutSessionCount,
+    expiredCheckpointCount,
+    expiredCrawlPageCount,
+    deletedActionPlanAttemptCount,
   };
 }
 
@@ -374,17 +420,74 @@ export async function deleteScanRows(
 ): Promise<void> {
   if (scanIds.length === 0) return;
   const ids = [...scanIds];
+  // The scan rows FIRST, in id order, for the reason `deleteScanResult`
+  // documents: a finishing generation takes the same lock and then writes a
+  // plan row, so touching a child row before the scan row is a deadlock cycle.
+  await lockScanRows(tx, ids);
   await tx.deletedScan.createMany({
     data: ids.map((scanId) => ({ scanId, ...deletion })),
     skipDuplicates: true,
   });
   await tx.exportArtifact.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.scanCheckpoint.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.scanCrawlPage.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.scanCrawlResourceSet.deleteMany({ where: { scanId: { in: ids } } });
   await tx.job.deleteMany({ where: { scanId: { in: ids } } });
   await tx.issue.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.ruleCoverageProof.deleteMany({ where: { scanId: { in: ids } } });
   await tx.scanModule.deleteMany({ where: { scanId: { in: ids } } });
   await tx.aiResponseRecord.deleteMany({ where: { scanId: { in: ids } } });
   await tx.aiConsent.deleteMany({ where: { scanId: { in: ids } } });
+  await tx.actionPlan.deleteMany({ where: { scanId: { in: ids } } });
+  await detachActionPlanAttempts(tx, ids);
   await tx.scan.deleteMany({ where: { id: { in: ids } } });
+}
+
+/**
+ * Unhooks the Action Plan spend log from scans that are about to be deleted,
+ * instead of deleting it with them.
+ *
+ * The rows are what the hourly and daily caps count. Deleting a scan is
+ * something a customer can do at any time — `DELETE /profiles/:id` takes every
+ * scan of that profile with it — so removing the log alongside it would make
+ * "delete the profile" a way to clear the account's hourly counter and the
+ * product's daily one. The provider was paid whatever the report now says, and
+ * a cap that a customer can reset is not a cap.
+ *
+ * What stays is deliberately thin: the account, the language, the status, the
+ * token usage and the timestamps — never the plan, the prompt or anything the
+ * scan described. `purgeDetachedActionPlanAttempts` then removes each row as
+ * soon as it can no longer refuse a generation.
+ */
+async function detachActionPlanAttempts(
+  tx: Prisma.TransactionClient,
+  scanIds: readonly string[],
+): Promise<void> {
+  await tx.actionPlanAttempt.updateMany({
+    where: { scanId: { in: [...scanIds] } },
+    data: { scanId: null },
+  });
+}
+
+/**
+ * Deletes spend-log rows that outlived their scan and can no longer refuse a
+ * generation.
+ *
+ * The counting windows are the whole justification for keeping a detached row,
+ * so once the widest of them has passed the row is retained for nothing. Rows
+ * that still belong to a scan are not touched here: they go when it does.
+ */
+export async function purgeDetachedActionPlanAttempts(
+  prisma: PrismaClient,
+  now: Date,
+): Promise<number> {
+  const { count } = await prisma.actionPlanAttempt.deleteMany({
+    where: {
+      scanId: null,
+      createdAt: { lt: new Date(now.getTime() - DETACHED_ACTION_PLAN_ATTEMPT_RETENTION_MS) },
+    },
+  });
+  return count;
 }
 
 /**
@@ -459,11 +562,27 @@ export async function deleteAccountData(
         scans.map(({ id }) => id),
         { accountIdHash: accountDeletionHash(accountId), reason: 'account-deletion' },
       );
+      // Erasure outranks the spend log. `deleteScanRows` keeps the log alive on
+      // purpose — a customer must not be able to clear a cap by deleting a
+      // profile — but an erased account has no caps left to enforce and no
+      // activity record anyone may keep, so its rows go here rather than
+      // waiting for the sweep. Nothing is bought by this: a generation still
+      // costs a paid Complete scan, and this deletion destroys those too.
+      await tx.actionPlanAttempt.deleteMany({ where: { accountId } });
       // Checkout sessions reference the account, the profile and the purchase,
       // so they must go before any of the three.
       await tx.checkoutSession.deleteMany({ where: { accountId } });
       await deletePurchaseRows(tx, purchaseIds);
       await tx.siteGoogleBinding.deleteMany({ where: { accountId } });
+      // All of these are keyed by accountId as well as by the row they hang off,
+      // so an account's checkpoints, ownership proofs and provider bindings go
+      // with it even if a scan or a profile was already removed by an earlier
+      // pass.
+      await tx.scanCheckpoint.deleteMany({ where: { accountId } });
+      await tx.scanCrawlPage.deleteMany({ where: { accountId } });
+      await tx.scanCrawlResourceSet.deleteMany({ where: { accountId } });
+      await tx.domainVerification.deleteMany({ where: { accountId } });
+      await tx.siteBingBinding.deleteMany({ where: { accountId } });
       await tx.siteProfile.deleteMany({ where: { accountId } });
       await tx.session.deleteMany({ where: { accountId } });
       await tx.aiConsent.deleteMany({ where: { accountId } });

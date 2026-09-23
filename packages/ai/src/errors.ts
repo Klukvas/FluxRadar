@@ -19,6 +19,21 @@ export class UnavailableError extends AiModuleError {
   }
 }
 
+/**
+ * The caller cancelled the run (an AbortSignal it owns fired).
+ *
+ * Deliberately NOT an `UnavailableError`: an unavailable provider is a legal §5
+ * outcome the module may retry, while a cancelled run must stop — retrying it
+ * would spend another paid provider call on an answer nobody is waiting for.
+ * Adapters rethrow the signal's own reason when it is an `Error`; this class is
+ * the fallback for a reason that is not one.
+ */
+export class AiRequestCancelledError extends AiModuleError {
+  constructor(options?: ErrorOptions, message = 'ai: request cancelled by the caller') {
+    super(message, options);
+  }
+}
+
 /** Резерв нового ai_request_key превышает план-лимит AI-запросов (TARIFFS). */
 export class QuotaExceededError extends AiModuleError {
   readonly requestKey: string;
@@ -38,6 +53,28 @@ export class RedactionBlockedError extends AiModuleError {
   constructor(reason: string, options?: ErrorOptions) {
     super(`ai: redaction blocked (fail-closed) — ${reason}`, options);
     this.reason = reason;
+  }
+}
+
+/**
+ * Отмена, привязанная к конкретному скану, — то, что поднимает оркестрация
+ * запроса (`runAiRequest`), когда сигнал уже сработал.
+ *
+ * Подтип `AiRequestCancelledError`, поэтому модули ловят одну базу и не зависят
+ * от того, кто именно заметил отмену — адаптер или слой вокруг него. Причина
+ * отмены попадает и в `cause`, и в текст сообщения: у отменённого прогона нет
+ * результата, но есть объяснение, и терять его нельзя.
+ */
+export class AiRequestAbortedError extends AiRequestCancelledError {
+  readonly scanId: string;
+
+  constructor(scanId: string, reason?: unknown) {
+    const detail = reason instanceof Error ? `: ${reason.message}` : '';
+    super(
+      reason === undefined ? undefined : { cause: reason },
+      `ai: request for scan "${scanId}" was cancelled by the caller${detail}`,
+    );
+    this.scanId = scanId;
   }
 }
 

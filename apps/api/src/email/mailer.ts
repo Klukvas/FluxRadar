@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { usesMockMailbox } from './mock-email.ts';
 import { readResendConfig } from './resend-config.ts';
 
 export interface EmailMessage {
@@ -89,11 +90,15 @@ export class ResendMailer implements Mailer {
 }
 
 /**
- * Production uses Resend when connected; development and tests are deterministic
- * and offline. Resend is optional until its keys are configured: anything short
- * of a complete, usable configuration returns a `NotConfiguredMailer`, so
- * email-dependent flows stay safely disabled and surface `not-configured`
- * instead of silently claiming a message was sent.
+ * The mailbox this process sends through.
+ *
+ * The fake one is only ever handed out where `usesMockMailbox` says it is safe —
+ * the automated test run, or a development machine that asked for it by name.
+ * Every other environment, production and staging alike, gets Resend when it is
+ * completely configured and a `NotConfiguredMailer` when it is not. That last
+ * case reports `not-configured` to its caller rather than `sent`: email is
+ * optional in this product, but claiming to have delivered a verification link
+ * that was thrown away is not one of the ways it is allowed to be optional.
  *
  * What counts as complete is decided once, in `readResendConfig`, which is also
  * what the startup diagnostics report — so "email is off" and "email is
@@ -103,7 +108,7 @@ export function createMailer(
   env: NodeJS.ProcessEnv = process.env,
   fetcher: typeof fetch = fetch,
 ): Mailer {
-  if (env.NODE_ENV !== 'production') return new MockMailer();
+  if (usesMockMailbox(env)) return new MockMailer();
   const result = readResendConfig(env);
   if (result.state !== 'configured') return new NotConfiguredMailer();
   return new ResendMailer({ ...result.config, fetcher });

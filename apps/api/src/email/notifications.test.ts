@@ -14,20 +14,12 @@ import {
 import { MockMailer } from './mailer.ts';
 import { notifyScanEvent, type ScanNotificationKind } from './notifications.ts';
 
-// Regression: a FastSpring test-mode production E2E run mailed real
-// "purchase confirmed", "scan started" and "scan completed" emails. Test-mode
-// FastSpring purchases stay silent; every other scan keeps its notifications.
+// Regression: a FastSpring test-mode production E2E run mailed real money
+// emails for an order nobody paid. Test-mode FastSpring purchases stay silent;
+// every other scan keeps its notifications.
 
-const PAID_FLOW_KINDS: readonly ScanNotificationKind[] = [
-  'purchase_confirmed',
-  'scan_started',
-  'scan_completed',
-];
-const PAID_FLOW_SUBJECTS = [
-  'FluxRadar: purchase confirmed',
-  'FluxRadar: scan started',
-  'FluxRadar: scan completed',
-];
+const PAID_FLOW_KINDS: readonly ScanNotificationKind[] = ['purchase_confirmed', 'refund_created'];
+const PAID_FLOW_SUBJECTS = ['FluxRadar: purchase confirmed', 'FluxRadar: refund created'];
 const BASIC_PRODUCT = 'fluxradar-basic-scan';
 const BASIC_PRICE = 55;
 
@@ -124,7 +116,11 @@ describe('scan notifications by purchase mode', () => {
     expect(mailer.messages.map((message) => message.subject)).toEqual(PAID_FLOW_SUBJECTS);
   });
 
-  it('still mails a Free scan without a purchase', async () => {
+  // A Free scan has neither a purchase nor a refund, so in production it
+  // receives none of these messages. What is under test is the silencer's
+  // decision, and that decision reads the purchase, not the kind: a scan with
+  // no purchase row at all must not be mistaken for a test-mode order.
+  it('silences nothing for a scan that has no purchase at all', async () => {
     const { scan } = await seedScan(db.prisma, {
       account,
       status: 'Pending',

@@ -32,7 +32,10 @@ import {
 } from '../http/pagination.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
+import { InvalidTransitionError } from '../billing/errors.ts';
 import { modulePlanFor } from '../orchestrator/module-plan.ts';
+import { requestScanPause, resumeScan } from '../orchestrator/pause.ts';
+import { LEGACY_COVERAGE_PROOF_KEY } from '../orchestrator/run-coverage.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 import { freeScanScope } from './free-scan-scope.ts';
@@ -64,7 +67,9 @@ const scanListQuerySchema = pageQuerySchema.extend({
 const profileScanListQuerySchema = pageQuerySchema;
 
 const TERMINAL_MODULE_STATUSES = new Set(['Completed', 'Partial', 'Unavailable', 'Not applicable']);
-const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running'] as const;
+// Paused belongs here: it is the account's in-flight scan, and the workspace
+// has to find it again after a refresh in order to offer Resume at all.
+const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running', 'Paused'] as const;
 // Newest first, with the id as the tie-breaker: two scans created in the same
 // millisecond must not swap places between one page and the next, which would
 // show one of them twice and hide the other entirely.
@@ -245,6 +250,11 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     if (scan.status === 'Completed' || scan.status === 'Cancelled') {
       throw conflict('SCAN_TERMINAL', 'scan is already terminal');
     }
+    // A paused scan has its own way back: resuming keeps the checkpoint, while
+    // re-processing here would claim a job the pause deliberately parked.
+    if (scan.status === 'Paused') {
+      throw conflict('SCAN_PAUSED', 'scan is paused; resume it instead');
+    }
     deps.enqueueScan(scan.id);
     sendOk(res, { scanId: scan.id, status: scan.status }, { status: 202 });
   });
@@ -292,6 +302,64 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     });
     deps.enqueueScan(scan.id);
     sendOk(res, { scanId: scan.id, status: 'Running', module: retryModule }, { status: 202 });
+  });
+
+  /**
+   * Stops the run without giving it up.
+   *
+   * Unlike cancelling, nothing is settled and nothing is refunded: the same
+   * scan and the same job stay in place, so resuming costs the owner nothing
+   * and grants them nothing. A running scan stops at its next stage boundary
+   * rather than mid-request, which is what keeps a half-written module from
+   * reaching the report.
+   */
+  router.post('/scans/:scanId/pause', auth, async (req, res) => {
+    const scanId = requiredParam(req.params.scanId, 'scanId');
+    const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('scan-pause', accountId, req.ip ?? 'unknown'),
+    );
+    const scan = await findOwnScan(deps.prisma, accountId, scanId);
+    let paused: Awaited<ReturnType<typeof requestScanPause>>;
+    try {
+      paused = await requestScanPause(deps.prisma, scan.id, deps.now());
+    } catch (error) {
+      if (error instanceof InvalidTransitionError) {
+        throw conflict('PAUSE_NOT_ALLOWED', 'only a scan that has not finished can be paused');
+      }
+      throw error;
+    }
+    const updated = await deps.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    // The re-read is the authority on both halves of the answer: a worker can
+    // reach the stage boundary a running scan stops at while this request is
+    // still in flight, and `status: Paused` with `pause: pausing` would tell the
+    // owner to keep waiting for something that has already happened.
+    const state = updated.status === 'Paused' ? 'paused' : paused.state;
+    sendOk(res, { scanId: updated.id, status: updated.status, pause: state });
+  });
+
+  /** Puts a paused scan back in the queue, on the job and purchase it already has. */
+  router.post('/scans/:scanId/resume', auth, async (req, res) => {
+    const scanId = requiredParam(req.params.scanId, 'scanId');
+    const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('scan-resume', accountId, req.ip ?? 'unknown'),
+    );
+    const scan = await findOwnScan(deps.prisma, accountId, scanId);
+    // Resuming is the work the purchase bought continuing, so the same paid
+    // gate applies as to starting it. No new entitlement is spent.
+    assertPaidWorkAllowed(scan, deps.now());
+    try {
+      await resumeScan(deps.prisma, scan.id, deps.now());
+    } catch (error) {
+      if (error instanceof InvalidTransitionError) {
+        throw conflict('RESUME_NOT_ALLOWED', 'only a paused scan can be resumed');
+      }
+      throw error;
+    }
+    deps.enqueueScan(scan.id);
+    const updated = await deps.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    sendOk(res, { scanId: updated.id, status: updated.status }, { status: 202 });
   });
 
   // DELIBERATELY NOT GUARDED by paid access. Cancelling returns no report data,
@@ -455,7 +523,16 @@ function toScanDto(scan: Scan, modules: readonly ScanModule[]): Record<string, u
     executionConfig: storedExecutionConfig(scan.executionConfigJson),
     rulesetVersion: scan.rulesetVersion,
     retry: { platform: scan.platformRetryCount, module: scan.moduleRetryCount },
-    progress: { completedModules: terminal, totalModules: modules.length },
+    // Sections answer "which parts of the audit are done"; the URL counts
+    // answer "how far through my site is it", which is the question an owner
+    // watching a 500-page crawl is actually asking.
+    progress: {
+      completedModules: terminal,
+      totalModules: modules.length,
+      scannedUrls: scan.scannedUrlCount,
+      discoveredUrls: scan.discoveredUrlCount,
+    },
+    pauseRequestedAt: scan.pauseRequestedAt?.toISOString() ?? null,
     startedAt: scan.startedAt?.toISOString() ?? null,
     completedAt: scan.completedAt?.toISOString() ?? null,
     createdAt: scan.createdAt.toISOString(),
@@ -473,7 +550,7 @@ function toModuleDto(module: ScanModule): Record<string, unknown> {
     applicableChecks: module.applicableChecks,
     completedApplicableChecks: module.completedApplicableChecks,
     usableOutput: module.usableOutput,
-    metadata: parseMetadata(module.metadataJson),
+    metadata: reportMetadata(module.metadataJson),
   };
 }
 
@@ -483,6 +560,27 @@ function parseMetadata(value: string): unknown {
   } catch {
     return {};
   }
+}
+
+/**
+ * Module metadata minus the resolution coverage proof.
+ *
+ * The proof — which target every rule read, for the next scan's Resolved policy
+ * — now has its own table and never enters this row
+ * (orchestrator/run-coverage.ts). Rows written before that move can still carry
+ * the block, and it is an internal artifact either way: the reader's list of
+ * checks is `ruleChecks`.
+ */
+function reportMetadata(value: string): unknown {
+  const metadata = parseMetadata(value);
+  if (typeof metadata !== 'object' || metadata === null) {
+    return metadata;
+  }
+  return Object.fromEntries(
+    Object.entries(metadata as Record<string, unknown>).filter(
+      ([key]) => key !== LEGACY_COVERAGE_PROOF_KEY,
+    ),
+  );
 }
 
 interface GeoAiResponse {
@@ -543,12 +641,16 @@ function geoObservationsFrom(
       return [];
     }
     const reason = typeof request.reason === 'string' ? request.reason : null;
+    // Reports written before providers were recorded on the ledger entry have
+    // no provider here; the dashboard groups those under an unknown heading
+    // rather than guessing which model was asked.
+    const provider = typeof request.provider === 'string' ? request.provider : null;
     if (request.status !== 'response' || typeof request.aiRequestKey !== 'string') {
-      return [unavailableGeoObservation(purpose, question, reason)];
+      return [unavailableGeoObservation(purpose, question, reason, provider)];
     }
     const response = responsesByKey.get(request.aiRequestKey);
     if (response === undefined) {
-      return [unavailableGeoObservation(purpose, question, 'EvidenceUnavailable')];
+      return [unavailableGeoObservation(purpose, question, 'EvidenceUnavailable', provider)];
     }
     return [
       {
@@ -570,13 +672,14 @@ function unavailableGeoObservation(
   purpose: GeoObservation['purpose'],
   question: string,
   reason: string | null,
+  provider: string | null,
 ): GeoObservation {
   return {
     purpose,
     question,
     status: 'unavailable',
     reason,
-    provider: null,
+    provider,
     modelId: null,
     answer: null,
     citations: [],

@@ -9,7 +9,9 @@
 import { requireDescriptor } from '../engine/descriptor.js';
 import { siteFinding } from '../engine/finding.js';
 import type { SiteContext, SiteRule, SiteRuleResult } from '../engine/types.js';
+import { isSuccessfulHtmlPage } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
+import { discoveredTargets } from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-007');
 
@@ -34,6 +36,19 @@ export const seoTech007DuplicateUrls: SiteRule = {
       findings,
       applicableTargets: 1,
       affectedTargets: findings.length > 0 ? 1 : 0,
+      // Варианты берутся из ссылок, найденных на загруженных HTML-страницах,
+      // поэтому именно они — входы правила. Обход, увидевший меньше страниц,
+      // теряет варианты без всякой починки, и закрывать по нему прошлую находку
+      // нельзя (§14): политика Resolved сравнивает этот список со списком
+      // прошлого прогона.
+      checkedTargets: ctx.crawl.pages
+        .filter((page) => isSuccessfulHtmlPage(page))
+        .map((page) => page.normalizedUrl),
+      // …но «страницы больше нет» и «страницу не обошли» — разные вещи.
+      // Спрос правила — всё, что обход увидел; удалённая и никем не упомянутая
+      // страница из него исчезает, и её отсутствие перестаёт навсегда
+      // замораживать находку о дублях (§14, RuleEvaluation.requestedInputs).
+      requestedInputs: discoveredTargets(ctx.crawl),
     };
   },
 };

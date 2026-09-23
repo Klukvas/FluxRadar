@@ -4,6 +4,7 @@
 export {
   NetworkError,
   RedirectLimitError,
+  RequestAbortedError,
   SafeFetchError,
   SsrfBlockedError,
   TimeoutError,
@@ -16,4 +17,9 @@ export { HostLimiter } from './rate-limit.js';
 export type { DnsResolver } from './resolver.js';
 export { stripIpv6Brackets, systemDnsResolver } from './resolver.js';
 export type { RedirectHop, SafeFetchOptions, SafeFetchResult } from './safe-fetch.js';
-export { safeFetch } from './safe-fetch.js';
+export {
+  resolvePublicAddresses,
+  responseBytes,
+  safeFetch,
+  validatePublicUrl,
+} from './safe-fetch.js';

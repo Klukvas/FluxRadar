@@ -604,7 +604,7 @@ Coverage/status contract v1: `coverage = completed_applicable_checks / applicabl
 - Basic: только dashboard текущего скана, без PDF/CSV, истории и ссылки на сохранённый отчёт;
 - Free: только экран результата бесплатной проверки;
 - плановая отправка отчётов — будущая возможность после добавления регулярного мониторинга;
-- в Complete доступны техническое резюме и executive summary;
+- в Complete доступны техническое резюме и executive summary; executive summary — это Overview в Action Plan, который владелец генерирует кнопкой в отчёте (D-232);
 - отчёт можно передать клиенту ссылкой или файлом, но white-label и настройка брендинга не входят в текущий scope;
 - внутренние диагностические детали не скрываются автоматически: пользователь выбирает технический или сокращённый вид отчёта.
 
@@ -614,7 +614,7 @@ Coverage/status contract v1: `coverage = completed_applicable_checks / applicabl
 
 CSV contract v1: UTF-8 без BOM, LF line endings, RFC 4180 quoting (поле в кавычках при наличии comma, quote или newline; quote удваивается), первая строка — фиксированный header в порядке полей data dictionary, числа используют точку и два знака после запятой для score/penalty/delta, timestamps — UTC RFC3339 с `Z`, `null` сериализуется пустым полем. `record_type` и фиксированный header отличают пустое значение от отсутствующего record. `evidence_ref` — стабильный reference внутри отчёта, а не raw evidence; online report выдаёт защищённую signed URL на 15 минут после авторизации.
 
-PDF contract v1: титульная страница, scan summary, module score/coverage, затем issues в том же порядке severity/fingerprint, что и CSV. Для каждой проблемы PDF показывает ровно одно ключевое evidence и `evidence_ref`; полный screenshot/trace доступен только в online report. При нулевом числе issues PDF всё равно содержит summary и таблицу модулей. PDF и CSV должны строиться из одной версии canonical records и иметь одинаковые scan ID, module statuses, scores и issue set.
+PDF contract v1: титульная страница, scan summary, module score/coverage, затем issues в том же порядке severity/fingerprint, что и CSV. Для каждой проблемы PDF показывает ровно одно ключевое evidence и `evidence_ref`; полный screenshot/trace доступен только в online report. При нулевом числе issues PDF всё равно содержит summary и таблицу модулей. PDF и CSV должны строиться из одной версии canonical records и иметь одинаковые scan ID, module statuses, scores и issue set. Исключение (D-232): если у скана есть Action Plan, PDF показывает его после scan summary; план не является canonical record и в CSV не попадает.
 
 Data dictionary v1:
 

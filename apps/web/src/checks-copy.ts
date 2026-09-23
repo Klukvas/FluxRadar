@@ -211,8 +211,8 @@ export const checksCopyEn: ChecksCopy = {
           body: 'heading density, paragraph length distribution and readability score (Flesch-Kincaid) measured from the extracted main content.',
         },
         {
-          term: 'Provider visibility (optional, consent-gated)',
-          body: "the AI SEO module can query provider APIs to check whether your brand appears in AI-generated answers. This step runs only when you explicitly enable it in the scan settings and is never included in the free homepage check. Provider API calls are subject to the providers' own terms.",
+          term: 'Provider visibility (paid, disclosed before purchase)',
+          body: "on a paid audit the AI SEO module puts the same questions to Claude (Anthropic) and ChatGPT (OpenAI), each answering with its own web search enabled, and checks whether the answers mention your brand or cite your site; the report lists the sources each model used. Gemini (Google) and Perplexity are an opt-in extra chosen before purchase and receive nothing otherwise. This never runs in the free homepage check. Provider API calls are subject to the providers' own terms.",
         },
       ],
       outro: [],
@@ -380,9 +380,7 @@ export const checksCopyEn: ChecksCopy = {
       nav: 'What we cannot certify',
       label: '08 / LIMITATIONS',
       title: 'What FluxRadar cannot certify',
-      intro: [
-        'FluxRadar is a public-signal audit tool. There are important things it cannot do:',
-      ],
+      intro: ['FluxRadar is a public-signal audit tool. There are important things it cannot do:'],
       bullets: [
         {
           term: 'It cannot certify WCAG conformance.',
@@ -548,8 +546,8 @@ export const checksCopyUk: ChecksCopy = {
           body: 'щільність заголовків, розподіл довжини абзаців і оцінка читабельності (Flesch-Kincaid), виміряні на видобутому основному вмісті.',
         },
         {
-          term: 'Видимість у провайдерів (опційно, за згодою)',
-          body: 'модуль AI SEO може звертатися до API провайдерів, щоб перевірити, чи згадується ваш бренд у відповідях AI. Цей крок виконується лише тоді, коли ви явно вмикаєте його в налаштуваннях перевірки, і ніколи не входить у безкоштовну перевірку головної сторінки. Запити до API провайдерів підпорядковані їхнім власним умовам.',
+          term: 'Видимість у провайдерів (платно, із повідомленням перед оплатою)',
+          body: 'у платному аудиті модуль AI SEO ставить ті самі запитання Claude (Anthropic) і ChatGPT (OpenAI), кожен відповідає з увімкненим власним вебпошуком, і перевіряє, чи згадують відповіді ваш бренд і чи цитують сайт; звіт показує джерела, якими скористалася кожна модель. Gemini (Google) і Perplexity — необовʼязковий вибір перед оплатою, інакше вони не отримують нічого. У безкоштовній перевірці головної сторінки цей крок не виконується ніколи. Запити до API провайдерів підпорядковані їхнім власним умовам.',
         },
       ],
       outro: [],

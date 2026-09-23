@@ -10,6 +10,7 @@ import { Router } from 'express';
 import type { RequestHandler } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import { scanScopeSchema } from '@fluxradar/contracts';
+import type { AiProviderName } from '@fluxradar/ai';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
@@ -24,6 +25,7 @@ import {
   CHECKOUT_UNAVAILABLE_REASONS,
   type CheckoutUnavailableReason,
 } from '../billing/constants.ts';
+import { assertOptInProvidersAvailable } from '../billing/opt-in-consent.ts';
 import { BillingUnavailableError } from '../billing/errors.ts';
 import { PAID_PLANS, planPriceUsd, planUrlLimit } from '../billing/plans.ts';
 import {
@@ -37,6 +39,7 @@ import {
   type FetchLike,
 } from '../billing/fastspring/index.ts';
 import type { Mailer } from '../email/mailer.ts';
+import { availableOptInAiProviders } from '../integrations/opt-in-ai-config.ts';
 import { notifyScanEvent } from '../email/notifications.ts';
 import { sendOk } from '../http/envelope.ts';
 import { validationError } from '../http/errors.ts';
@@ -78,6 +81,8 @@ export interface FastSpringRouterDeps {
   readonly requestRateLimiter?: RequestRateLimiter;
   /** Test seam for the provider HTTP call. */
   readonly fetchImpl?: FetchLike;
+  /** Test seam; production reads GOOGLE_AI_API_KEY / PERPLEXITY_API_KEY. */
+  readonly optInAiProviders?: readonly AiProviderName[];
 }
 
 export interface FastSpringWebhookDeps {
@@ -115,6 +120,7 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
   const router = Router();
   const auth = requireAuth(deps.prisma, deps.now);
   const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
+  const optInAiProviders = deps.optInAiProviders ?? availableOptInAiProviders();
 
   // Lets the UI show a real setup state instead of guessing from a build flag.
   //
@@ -125,6 +131,10 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
   // bundle, so the same build serves a test and a live deployment and neither
   // can be pointed at the other's storefront. Nothing secret travels here —
   // every FastSpring seller ships this value in a public script tag.
+  //
+  // `optInAiProviders` is the same kind of fact for the optional AI recipients:
+  // the names this deployment can actually send to, so the form offers no
+  // choice the scan would then fail. Names only — no key, host or model.
   router.get('/billing/checkout-config', auth, (_req, res) => {
     const available = deps.fastSpring.state === 'configured';
     const popupStorefront = available ? deps.fastSpring.config.popupStorefront : null;
@@ -135,12 +145,15 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
       unavailableReason: available ? null : unavailableReason(deps.fastSpring),
       popup: popupStorefront === null ? null : { storefront: popupStorefront },
       plans: PAID_PLANS.map((plan) => ({ plan, priceUsd: planPriceUsd(plan), currency: 'USD' })),
+      optInAiProviders,
     });
   });
 
   router.post('/billing/checkout-session', auth, async (req, res) => {
     const config = requireConfig(deps.fastSpring);
     const input = parseInput(checkoutSessionInputSchema, req.body);
+    // Before the session exists, and long before a card is charged.
+    assertOptInProvidersAvailable(input.aiConsent, optInAiProviders);
     const accountId = accountIdFrom(res);
     requestRateLimiter.assertAllowedAll(
       scanActionRules('checkout', accountId, req.ip ?? 'unknown'),

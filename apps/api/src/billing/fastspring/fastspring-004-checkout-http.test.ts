@@ -1,5 +1,7 @@
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
+import type { AiProviderName } from '@fluxradar/ai';
 
 import { createApp } from '../../index.ts';
 import { silentLogger, type ApiLogger } from '../../http/logger.ts';
@@ -89,6 +91,7 @@ describe('FASTSPRING-004 checkout HTTP surface', () => {
       fastSpring?: FastSpringConfigResult;
       fetchImpl?: FetchLike;
       logger?: ApiLogger;
+      optInAiProviders?: readonly AiProviderName[];
     } = {},
   ) {
     return createApp({
@@ -97,6 +100,9 @@ describe('FASTSPRING-004 checkout HTTP surface', () => {
       autoProcess: false,
       logger: options.logger ?? silentLogger,
       fastSpring: options.fastSpring ?? configured(),
+      // A deployment with no opt-in AI key, which is what production is until
+      // the owner sets one. Tests that want the choice offered say so.
+      optInAiProviders: options.optInAiProviders ?? [],
       ...(options.fetchImpl !== undefined ? { fastSpringFetch: options.fetchImpl } : {}),
     });
   }
@@ -238,7 +244,10 @@ describe('FASTSPRING-004 checkout HTTP surface', () => {
         siteProfileId: profileId,
         plan: 'Basic',
         scope: SCOPE,
-        aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
+        aiConsent: {
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
       });
     expect(created.status).toBe(201);
     expect(created.body.data.checkoutUrl).toBe(
@@ -269,6 +278,79 @@ describe('FASTSPRING-004 checkout HTTP surface', () => {
     expect(status.status).toBe(200);
     expect(status.body.data.status).toBe('created');
     expect(status.body.data.scanId).toBeNull();
+  });
+
+  // The optional AI recipients are a choice, and a deployment that cannot serve
+  // one must not offer it: a paid scan naming an unconfigured provider builds
+  // that provider's requests, fails every one of them closed and terminalises
+  // Partial — with no automatic refund. The config endpoint publishes what can
+  // be served (names only, never a key or a variable), and the checkout refuses
+  // the rest before a session exists.
+  it('publishes only the opt-in AI recipients this deployment can serve', async () => {
+    const app = buildApp({ optInAiProviders: ['perplexity'] });
+    const { agent, cookie } = await signIn(app, 'optin-config@example.com');
+
+    const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
+    expect(config.status).toBe(200);
+    expect(config.body.data.optInAiProviders).toEqual(['perplexity']);
+    // Provider names, and nothing about how the deployment is wired.
+    expect(JSON.stringify(config.body)).not.toMatch(/API_KEY|GOOGLE_AI|PERPLEXITY_/);
+  });
+
+  it('offers no opt-in recipient when none is configured', async () => {
+    const app = buildApp();
+    const { agent, cookie } = await signIn(app, 'optin-none@example.com');
+
+    const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
+    expect(config.body.data.optInAiProviders).toEqual([]);
+  });
+
+  it('refuses a checkout that names an opt-in recipient this deployment cannot serve', async () => {
+    const calls: StubCall[] = [];
+    const app = buildApp({
+      optInAiProviders: ['perplexity'],
+      fetchImpl: stubFastSpring(
+        { body: { id: 'sess_never', currency: 'USD', subtotal: 55, expires: 1767225600000 } },
+        calls,
+      ),
+    });
+    const { agent, cookie, profileId } = await signIn(app, 'optin-refused@example.com');
+
+    const refused = await agent
+      .post('/billing/checkout-session')
+      .set('Cookie', cookie)
+      .send({
+        siteProfileId: profileId,
+        plan: 'Complete',
+        scope: SCOPE,
+        aiConsent: {
+          providers: ['anthropic', 'openai', 'google'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
+      });
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.code).toBe('VALIDATION');
+    expect(refused.body.error.message).toContain('google');
+    // Refused before the provider was called and before anything was stored.
+    expect(calls).toHaveLength(0);
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+    expect(await db.prisma.scan.count()).toBe(0);
+
+    // The recipient this deployment does serve still goes through.
+    const accepted = await agent
+      .post('/billing/checkout-session')
+      .set('Cookie', cookie)
+      .send({
+        siteProfileId: profileId,
+        plan: 'Complete',
+        scope: SCOPE,
+        aiConsent: {
+          providers: ['anthropic', 'openai', 'perplexity'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
+      });
+    expect(accepted.status).toBe(201);
   });
 
   it('turns the pending session into a scan only after the signed webhook lands', async () => {

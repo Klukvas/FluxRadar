@@ -4,29 +4,12 @@ import {
   AlertDialog,
   Button,
   Notice,
-  Checkbox,
-  DataTable,
-  EmptyState,
-  Field,
-  FieldRow,
   LoadingState,
   MenuBar,
-  Panel,
   CreatedByFluxLab,
-  ScoreDial,
-  SelectField,
-  StatusChip,
-  Terminal,
   Window,
 } from './components';
-import {
-  apiRequest,
-  ApiRequestError,
-  type Account,
-  type CheckoutConfig,
-  type Scan,
-  type SiteProfile,
-} from './api';
+import { apiRequest, ApiRequestError, type Account, type Scan, type SiteProfile } from './api';
 import { AccountScreen, resendVerification } from './AccountScreen';
 import { accountCopy } from './account-copy';
 import { AuthScreen } from './AuthScreen';
@@ -38,19 +21,17 @@ import {
   storePendingCheckout,
   type PendingCheckout,
 } from './Checkout';
-import { CoverageTicker } from './CoverageTicker';
 import { CookieConsent } from './CookieConsent';
 import { DesktopScreen } from './DesktopScreen';
-import { LaunchSummary } from './LaunchSummary';
-import { ScanCallout } from './ScanCallout';
-import { HeroSiteForm } from './HeroSiteForm';
-import { HeroTitle } from './HeroTitle';
+import { HomeScreen } from './HomeScreen';
+import { NewScanScreen } from './NewScanScreen';
+import { Styleguide } from './Styleguide';
 import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
 import { applyPageMetadata, type SeoPageId } from './seo';
 import { OnboardingTour } from './OnboardingTour';
 import { FaqScreen } from './Faq';
 import { AuditCoverageScreen } from './Checks';
-import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
+import { type ChosenPlan } from './Pricing';
 import { PrintReport } from './PrintReport';
 import { IntegrationsScreen } from './Integrations';
 import { IssuesScreen } from './Issues';
@@ -59,9 +40,7 @@ import { LegalDocumentScreen } from './LegalDocuments';
 import { ScanScreen } from './ScanProgress';
 import { ReportsScreen } from './Reports';
 import { SupportWidget } from './SupportWidget';
-import { NEW_ADDRESS_TARGET, useNewScanForm, type NewScanFormProps } from './new-scan-form';
 import { isTerminalScanStatus } from './scan-status';
-import { clampScopeToPlan, invalidScopeFields, type ScanScopeForm } from './scan-scope';
 import { WORKSPACE_PATHS, type WorkspaceTabScreen } from './workspace-paths';
 import './styles/base.css';
 import './styles/account.css';
@@ -238,6 +217,32 @@ function readScanRoute(path: string): InitialRoute | null {
   }
 }
 
+/**
+ * Which Action Plan `/scans/:id/report?plan=xx` asked to print, or null for the
+ * reader's own language. Read from the URL rather than routed state: it is a
+ * property of the link someone was handed, not of the workspace's navigation.
+ */
+function printPlanLanguage(): string | null {
+  if (typeof window === 'undefined') return null;
+  const requested = new URLSearchParams(window.location.search).get('plan');
+  return requested === null || requested === '' ? null : requested;
+}
+
+/**
+ * The address a restored scan screen is shown at, keeping `?plan=` on the
+ * client report.
+ *
+ * Opening a deep link normalises the address to its canonical path, which would
+ * otherwise drop the plan language before the document is drawn: someone handed
+ * a Ukrainian plan to print would get it in their own language instead, and a
+ * refresh would not bring it back.
+ */
+function restoredScanPath(screen: Screen, scanId: string): string {
+  const path = pathForScreen(screen, scanId);
+  const plan = screen === 'print' ? printPlanLanguage() : null;
+  return plan === null ? path : `${path}?plan=${encodeURIComponent(plan)}`;
+}
+
 /** Which screen of a scan a scan URL asked for. */
 function scanRoutePreference(screen: Screen): 'auto' | 'issues' | 'print' {
   return screen === 'issues' || screen === 'print' ? screen : 'auto';
@@ -403,7 +408,7 @@ function AppContent({
               ? 'results'
               : 'scan';
         setScreen(target);
-        window.history.replaceState(null, '', pathForScreen(target, scan.id));
+        window.history.replaceState(null, '', restoredScanPath(target, scan.id));
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : 'Scan could not be restored');
         window.history.replaceState(null, '', pathForScreen('reports', null));
@@ -909,6 +914,7 @@ function AppContent({
           <PrintReport
             scanId={printScanId}
             language={language}
+            planLanguage={printPlanLanguage()}
             onBack={() => navigate('results', printScanId)}
             onError={setError}
           />
@@ -1103,6 +1109,10 @@ function AppContent({
           <ResultsScreen
             scan={selectedScan}
             language={language}
+            targetLanguages={
+              profiles.find((candidate) => candidate.id === selectedScan?.profileId)
+                ?.targetLanguages ?? null
+            }
             onScan={updateSelectedScan}
             onIssues={() => {
               setIssueRuleFilter(null);
@@ -1172,884 +1182,6 @@ function AppContent({
           </span>
           <CreatedByFluxLab language={language} />
         </footer>
-      </div>
-    </div>
-  );
-}
-
-// ─── /checks — public audit coverage page ────────────────────────────────────
-
-// ─── /integrations ────────────────────────────────────────────────────────────
-
-function HomeScreen(props: {
-  signedIn: boolean;
-  accountEmail?: string;
-  onStart: () => void;
-  /** The hero form: the site the visitor typed, or null for an empty field. */
-  onStartSite: (site: string | null) => void;
-  onChoosePlan: (plan: ChosenPlan) => void;
-  /** The site the visitor typed, named in the registration dialog. */
-  pendingSite?: string | null;
-  onLogin: () => void;
-  onRegister: () => void;
-  onOpenWorkspace: () => void;
-  /**
-   * Opens the workspace screen a header tab names. The header enables all four
-   * tabs for a signed-in reader, so each of them needs somewhere to go.
-   */
-  onOpenScreen?: (screen: string) => void;
-  /** Section to reveal on entry when an old link pointed at a folded-in page. */
-  scrollTo?: 'pricing' | null;
-  language: Language;
-  onLanguageChange: (language: Language) => void;
-  authOpen: boolean;
-  authAction: { readonly kind: 'verify' | 'reset'; readonly token: string } | null;
-  authMode: 'login' | 'register';
-  authError: string | null;
-  onAuthError: (value: string | null) => void;
-  onAuthed: (account: Account) => Promise<void>;
-  onCloseAuth: () => void;
-}) {
-  const authDialogRef = useRef<HTMLDivElement>(null);
-  const t = copy[props.language];
-  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ block: 'start' });
-  const entrySection = props.scrollTo ?? null;
-  // A visitor arriving from an old /plans link should land on the pricing block
-  // and keep a clean URL, not stay on a path the app no longer serves.
-  useEffect(() => {
-    if (entrySection === null) return;
-    if (window.location.pathname !== '/') window.history.replaceState(null, '', '/');
-    document.getElementById(entrySection)?.scrollIntoView({ block: 'start' });
-  }, [entrySection]);
-  useEffect(() => {
-    if (!props.authOpen) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    const previousFocus = document.activeElement as HTMLElement | null;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') props.onCloseAuth();
-      if (event.key !== 'Tab') return;
-      const focusable = authDialogRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), a[href], select:not([disabled])',
-      );
-      if (!focusable || focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    };
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', onKeyDown);
-    window.requestAnimationFrame(() =>
-      authDialogRef.current?.querySelector<HTMLElement>('input, button')?.focus(),
-    );
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', onKeyDown);
-      previousFocus?.focus();
-    };
-  }, [props.authOpen, props.onCloseAuth]);
-  return (
-    <div className="app-shell home-shell">
-      <MenuBar
-        active="home"
-        onNavigate={(next) => (next === 'home' ? scrollTo('top') : props.onOpenScreen?.(next))}
-        signedIn={props.signedIn}
-        language={props.language}
-        onLanguageChange={props.onLanguageChange}
-      />
-      <main className="home" id="top">
-        <div className="home__account-bar">
-          <span className="home__account-label">{t.home.accountBar}</span>
-          {props.signedIn ? (
-            <div className="home__account-actions">
-              <span className="home__account-email technical">{props.accountEmail}</span>
-              <Button variant="primary" onClick={props.onOpenWorkspace}>
-                {t.home.openWorkspace}
-              </Button>
-            </div>
-          ) : (
-            <div className="home__account-actions">
-              <Button onClick={props.onLogin}>{t.home.signIn}</Button>
-              <Button variant="primary" onClick={props.onRegister}>
-                {t.home.createAccount}
-              </Button>
-            </div>
-          )}
-        </div>
-        <section className="home__hero" aria-labelledby="home-title">
-          <div className="home__hero-copy">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">01</span> {t.home.hero.eyebrow}
-            </div>
-            {/* Keyed by language so a switch retypes the new title from the
-                start instead of leaving half of it already revealed. */}
-            <HeroTitle
-              key={props.language}
-              id="home-title"
-              line={t.home.hero.titleLine1}
-              emphasis={t.home.hero.titleEm}
-            />
-            <p className="home__lede">{t.home.hero.lede}</p>
-            <HeroSiteForm
-              language={props.language}
-              submitLabel={t.home.freeCta}
-              onStart={props.onStartSite}
-            />
-            <div className="home__actions">
-              <button
-                className="home__text-action"
-                type="button"
-                onClick={() => scrollTo('pricing')}
-              >
-                {t.home.seePricing} <span aria-hidden="true">↓</span>
-              </button>
-            </div>
-            <div className="home__proof" aria-label={t.home.hero.proofAriaLabel}>
-              <span>
-                <strong>01</strong> {t.home.hero.proofScan}
-              </span>
-              <span>
-                <strong>06</strong> {t.home.hero.proofSignals}
-              </span>
-              <span>
-                <strong>02</strong> {t.home.hero.proofTiers}
-              </span>
-            </div>
-          </div>
-          <div className="home__instrument" aria-label={t.home.instrument.previewAriaLabel}>
-            <div className="home__instrument-bar">
-              <span className="home__live-dot" /> {t.home.instrument.live}{' '}
-              <span className="home__instrument-mode">{t.home.instrument.mode}</span>
-            </div>
-            <div className="home__instrument-body">
-              <div className="home__origin">
-                <span className="home__label">{t.home.instrument.originLabel}</span>
-                <strong className="technical">https://your-site.com</strong>
-                <StatusChip status="Running" label={t.home.instrument.statusRunning} />
-              </div>
-              <div className="home__readout">
-                <div className="home__readout-cell">
-                  <span className="home__label">{t.home.instrument.signalScore}</span>
-                  <strong>—</strong>
-                  <small>{t.home.instrument.signalScoreHint}</small>
-                </div>
-                <div className="home__readout-cell">
-                  <span className="home__label">{t.home.instrument.coverage}</span>
-                  <strong>—</strong>
-                  <small>{t.home.instrument.coverageHint}</small>
-                </div>
-                <div className="home__readout-cell">
-                  <span className="home__label">{t.home.instrument.findings}</span>
-                  <strong>—</strong>
-                  <small>{t.home.instrument.findingsHint}</small>
-                </div>
-              </div>
-              <Terminal lines={[...t.home.instrument.terminalLines]} active />
-              <div className="home__module-list" aria-label={t.home.instrument.modulesAriaLabel}>
-                <span>
-                  <i className="home__module-mark home__module-mark--green" />{' '}
-                  {t.home.instrument.moduleSeo}
-                </span>
-                <span>
-                  <i className="home__module-mark home__module-mark--cyan" />{' '}
-                  {t.home.instrument.moduleAiSeo}
-                </span>
-                <span>
-                  <i className="home__module-mark home__module-mark--amber" />{' '}
-                  {t.home.instrument.moduleSecurity}
-                </span>
-                <span>
-                  <i className="home__module-mark home__module-mark--dim" />{' '}
-                  {t.home.instrument.moduleMore}
-                </span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <CoverageTicker
-          label={t.home.ticker.ariaLabel}
-          items={[
-            t.home.ticker.seo,
-            t.home.ticker.aiSeo,
-            t.home.ticker.security,
-            t.home.ticker.accessibility,
-            t.home.ticker.reliability,
-            t.home.ticker.privacy,
-          ]}
-        />
-
-        <section className="home__section" id="capabilities" aria-labelledby="capabilities-title">
-          <div className="home__section-head">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">02</span> {t.home.capabilities.eyebrow}
-            </div>
-            <h2 id="capabilities-title">{t.home.capabilities.title}</h2>
-            <p>{t.home.capabilities.lead}</p>
-          </div>
-          <div className="home__capability-grid">
-            <article className="home__capability home__capability--green">
-              <span className="home__card-index">{t.home.capabilities.seo.index}</span>
-              <h3>{t.home.capabilities.seo.title}</h3>
-              <p>{t.home.capabilities.seo.body}</p>
-              <span className="home__card-foot">{t.home.capabilities.seo.foot}</span>
-            </article>
-            <article className="home__capability home__capability--cyan">
-              <span className="home__card-index">{t.home.capabilities.ai.index}</span>
-              <h3>{t.home.capabilities.ai.title}</h3>
-              <p>{t.home.capabilities.ai.body}</p>
-              <span className="home__card-foot">{t.home.capabilities.ai.foot}</span>
-            </article>
-            <article className="home__capability home__capability--amber">
-              <span className="home__card-index">{t.home.capabilities.integrity.index}</span>
-              <h3>{t.home.capabilities.integrity.title}</h3>
-              <p>{t.home.capabilities.integrity.body}</p>
-              <span className="home__card-foot">{t.home.capabilities.integrity.foot}</span>
-            </article>
-          </div>
-        </section>
-
-        <section className="home__coverage-entry" aria-labelledby="coverage-entry-title">
-          <div className="home__coverage-entry-inner">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">02b</span> {t.home.coverageEntry.eyebrow}
-            </div>
-            <h2 id="coverage-entry-title">{t.home.coverageEntry.title}</h2>
-            <p>{t.home.coverageEntry.body}</p>
-            <a className="home__coverage-link" href="/checks">
-              {t.pricing.coverageLink}
-            </a>
-          </div>
-        </section>
-
-        <section className="home__workflow" aria-labelledby="workflow-title">
-          <div className="home__workflow-copy">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">03</span> {t.home.workflow.eyebrow}
-            </div>
-            <h2 id="workflow-title">{t.home.workflow.title}</h2>
-            <p>{t.home.workflow.lead}</p>
-            <Button onClick={props.onStart}>{t.home.startPublicSite}</Button>
-          </div>
-          <div className="home__steps">
-            <div className="home__step">
-              <strong>01</strong>
-              <div>
-                <h3>{t.home.workflow.step1Title}</h3>
-                <p>{t.home.workflow.step1Body}</p>
-              </div>
-            </div>
-            <div className="home__step">
-              <strong>02</strong>
-              <div>
-                <h3>{t.home.workflow.step2Title}</h3>
-                <p>{t.home.workflow.step2Body}</p>
-              </div>
-            </div>
-            <div className="home__step">
-              <strong>03</strong>
-              <div>
-                <h3>{t.home.workflow.step3Title}</h3>
-                <p>{t.home.workflow.step3Body}</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="home__pricing" id="pricing" aria-labelledby="pricing-title">
-          <div className="home__section-head">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">04</span> {t.home.pricingEyebrow}
-            </div>
-            <h2 id="pricing-title">{t.home.pricingTitle}</h2>
-            <p>{t.home.pricingLead}</p>
-            <span className="home__pricing-note home__pricing-note--public">
-              {t.pricing.publicOnly}
-            </span>
-          </div>
-          <PricingCards language={props.language} onChoose={props.onChoosePlan} />
-          <PricingExplainer language={props.language} />
-        </section>
-
-        <section className="home__last-call" aria-labelledby="last-call-title">
-          <div>
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">05</span> {t.home.lastCall.eyebrow}
-            </div>
-            <h2 id="last-call-title">
-              {t.home.lastCall.titleLine1}
-              <br />
-              <em>{t.home.lastCall.titleEm}</em>
-            </h2>
-          </div>
-          <Button variant="primary" onClick={props.onStart}>
-            {t.home.lastCall.cta} <span aria-hidden="true">→</span>
-          </Button>
-        </section>
-        <footer className="home__footer">
-          <span>{t.home.footer.brand}</span>
-          <span className="home__footer-links">
-            <a href="/checks">{t.home.footer.coverageLink}</a>
-            <a href="/faq">{t.nav.faq}</a>
-            <a href="/privacy">{t.home.footer.privacyLink}</a>
-            <a href="/terms">{t.home.footer.termsLink}</a>
-            <a href="/terms#terms-paid">{t.home.footer.refundLink}</a>
-            <a href="/cookies">{t.legal.cookies.title}</a>
-            <a href="/blog">{t.home.footer.fieldNotes}</a>
-            <span>{t.nav.system}</span>
-          </span>
-          <CreatedByFluxLab language={props.language} />
-        </footer>
-      </main>
-      {props.authOpen ? (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) props.onCloseAuth();
-          }}
-        >
-          <div
-            ref={authDialogRef}
-            className="auth-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="auth-title"
-          >
-            <AuthScreen
-              language={props.language}
-              onAuthed={props.onAuthed}
-              error={props.authError}
-              onError={props.onAuthError}
-              onBack={props.onCloseAuth}
-              initialMode={props.authMode}
-              emailAction={props.authAction}
-              pendingSite={props.pendingSite ? new URL(props.pendingSite).hostname : null}
-            />
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * What to tell a buyer who cannot pay yet.
- *
- * The server answers with a closed code and never with its configuration, so the
- * distinction the buyer sees is made here: "this deployment does not sell scans"
- * reads differently from "payments are set up and currently broken", and a
- * config we could not read at all says neither.
- */
-function paidUnavailableCopy(t: (typeof copy)[Language], config: CheckoutConfig | null): string {
-  if (config === null) return t.newScan.paidUnavailable;
-  return config.unavailableReason === 'misconfigured'
-    ? t.checkout.unavailableTemporary
-    : t.checkout.unavailable;
-}
-
-function NewScanScreen(props: NewScanFormProps) {
-  const t = copy[props.language];
-  // The form's state, its saved-configuration sync and its submission live in
-  // new-scan-form.ts. Destructured rather than read off an object, so what this
-  // screen renders reads the same as when the two were one function.
-  const {
-    address,
-    addressError,
-    advancedOpen,
-    busy,
-    carriedOver,
-    checkoutConfig,
-    checkoutPending,
-    configurationState,
-    configurationStatusLabel,
-    invalidScope,
-    launchSite,
-    paidAvailable,
-    paidScopeControls,
-    plan,
-    planLabel,
-    planOptions,
-    robotsUnconfirmed,
-    saveConfiguration,
-    savingConfiguration,
-    scope,
-    setAddress,
-    setAddressError,
-    setAdvancedChoice,
-    setInvalidScope,
-    setPlan,
-    setScope,
-    setTarget,
-    submit,
-    target,
-    targetLabel,
-    unavailablePlanFallback,
-    updateScope,
-    usingSavedProfile,
-  } = useNewScanForm(props);
-  return (
-    <Window
-      title={t.newScan.windowTitle}
-      className="window--dialog window--launch"
-      onClose={props.onClose}
-    >
-      {/* Two columns from 1100px: the settings on the left, and on the right a
-          sticky launch column holding the summary, the purchase terms and the
-          buttons. The screen was a 520px ribbon 2300px tall with the pay button
-          under every word of it; below 1100px it collapses back to that single
-          stack, which is the right shape for a phone. */}
-      <form className="launch-form" onSubmit={submit}>
-        <div className="launch-form__controls">
-          <Panel title={t.newScan.panelTarget}>
-            {/* The field picks a saved profile, so it is named after what it
-                picks. The public-site semantics the old "Public origin" label
-                carried live in the hint, where they describe the scan rather than
-                renaming the thing being chosen. The last option is the way out of
-                the list entirely: an address nobody has saved yet. */}
-            {props.profiles.length === 0 ? (
-              <p className="muted panel-help">{t.newScan.noProfilesLead}</p>
-            ) : (
-              <SelectField
-                label={t.newScan.labelProfile}
-                name="scan-profile"
-                autoComplete="off"
-                // The hint describes a saved profile, so it goes away with the
-                // profile: the address field below states its own terms.
-                {...(usingSavedProfile ? { hint: t.newScan.hintProfile } : {})}
-                value={target}
-                onChange={setTarget}
-                options={[
-                  ...props.profiles.map((profile) => ({
-                    value: profile.id,
-                    label: `${profile.name} · ${profile.domain}`,
-                  })),
-                  { value: NEW_ADDRESS_TARGET, label: t.newScan.optionNewAddress },
-                ]}
-              />
-            )}
-            {usingSavedProfile ? null : (
-              <Field
-                label={t.newScan.labelAddress}
-                name="scan-address"
-                autoComplete="url"
-                technical
-                value={address}
-                onChange={(value) => {
-                  setAddress(value);
-                  if (addressError !== null) setAddressError(null);
-                }}
-                placeholder={t.newScan.addressPlaceholder}
-                hint={t.newScan.hintAddress}
-                error={addressError ?? undefined}
-              />
-            )}
-            {carriedOver ? <p className="muted panel-help">{t.newScan.prefillNote}</p> : null}
-            <section
-              className={`configuration-status configuration-status--${configurationState}`}
-              aria-live="polite"
-            >
-              <div className="configuration-status__header">
-                <strong>{t.newScan.configurationTitle}</strong>
-                <StatusChip
-                  status={
-                    configurationState === 'dirty'
-                      ? 'warning'
-                      : configurationState === 'saved'
-                        ? 'Completed'
-                        : 'info'
-                  }
-                  label={configurationStatusLabel}
-                />
-              </div>
-              {configurationState === 'dirty' ? (
-                <p>{t.newScan.configurationUnsavedBody}</p>
-              ) : configurationState === 'new' ? (
-                <p>{t.newScan.configurationNewBody}</p>
-              ) : null}
-            </section>
-            {paidScopeControls ? (
-              <Checkbox
-                name="scan-include-subdomains"
-                label={t.newScan.labelSubdomains}
-                checked={scope.includeSubdomains}
-                onChange={(checked) => updateScope({ includeSubdomains: checked })}
-              />
-            ) : null}
-            <SelectField
-              label={t.newScan.labelUserAgent}
-              name="scan-user-agent"
-              autoComplete="off"
-              value={scope.userAgent}
-              onChange={(value) => updateScope({ userAgent: value as ScanScopeForm['userAgent'] })}
-              options={[
-                { value: 'desktop', label: t.newScan.userAgentDesktop },
-                { value: 'mobile', label: t.newScan.userAgentMobile },
-              ]}
-            />
-          </Panel>
-          <Panel title={t.newScan.panelDepth}>
-            <SelectField
-              label={t.newScan.labelScanPlan}
-              name="scan-plan"
-              autoComplete="off"
-              value={plan}
-              onChange={(value) => {
-                const chosen = value as typeof plan;
-                setPlan(chosen);
-                // A site last checked on Complete opens on Complete-sized limits;
-                // carrying those into Basic asks for more pages than Basic sells,
-                // which the API refuses. The numbers move to the chosen plan here,
-                // where the owner can see what they are about to buy.
-                setScope((current) => clampScopeToPlan(current, chosen));
-                setInvalidScope([]);
-              }}
-              options={planOptions}
-            />
-            {paidAvailable ? null : checkoutPending ? (
-              <p className="muted">{t.newScan.paidChecking}</p>
-            ) : (
-              <p className="muted">{paidUnavailableCopy(t, checkoutConfig)}</p>
-            )}
-            {paidAvailable && checkoutConfig?.mode === 'test' ? (
-              <p className="muted">{t.checkout.testMode}</p>
-            ) : null}
-            {paidScopeControls ? (
-              <>
-                <Field
-                  label={t.newScan.labelMaxPages}
-                  name="scan-max-pages"
-                  autoComplete="off"
-                  technical
-                  value={scope.maxPages}
-                  onChange={(value) => updateScope({ maxPages: value })}
-                  type="number"
-                  error={invalidScope.includes('maxPages') ? t.newScan.maxPagesError : undefined}
-                />
-                <Field
-                  label={t.newScan.labelMaxDepth}
-                  name="scan-max-depth"
-                  autoComplete="off"
-                  technical
-                  value={scope.maxDepth}
-                  onChange={(value) => updateScope({ maxDepth: value })}
-                  type="number"
-                  error={invalidScope.includes('maxDepth') ? t.newScan.maxDepthError : undefined}
-                />
-                {/* Path patterns and the query policy shape which URLs the
-                    crawler takes, and most scans ship with the defaults. They
-                    stay behind a disclosure so the plan and its two limits —
-                    the numbers being bought — are what the panel opens on. */}
-                <details
-                  className="scan-advanced"
-                  open={advancedOpen}
-                  onToggle={(event) => setAdvancedChoice(event.currentTarget.open)}
-                >
-                  <summary className="scan-advanced__summary">{t.newScan.advancedTitle}</summary>
-                  <div className="scan-advanced__fields">
-                    <Field
-                      label={t.newScan.labelIncludePatterns}
-                      name="scan-include-patterns"
-                      autoComplete="off"
-                      technical
-                      value={scope.includePatterns}
-                      onChange={(value) => updateScope({ includePatterns: value })}
-                      placeholder="/docs/*, /blog/*"
-                    />
-                    <Field
-                      label={t.newScan.labelExcludePatterns}
-                      name="scan-exclude-patterns"
-                      autoComplete="off"
-                      technical
-                      value={scope.excludePatterns}
-                      onChange={(value) => updateScope({ excludePatterns: value })}
-                      placeholder="/admin/*, /private/*"
-                    />
-                    <SelectField
-                      label={t.newScan.labelQueryPolicy}
-                      name="scan-query-policy"
-                      autoComplete="off"
-                      value={scope.queryPolicy}
-                      onChange={(value) =>
-                        updateScope({ queryPolicy: value as ScanScopeForm['queryPolicy'] })
-                      }
-                      options={[
-                        { value: 'ignore', label: t.newScan.queryIgnore },
-                        { value: 'include', label: t.newScan.queryInclude },
-                      ]}
-                    />
-                  </div>
-                </details>
-                <ScanCallout
-                  eyebrow="robots.txt"
-                  title={t.newScan.robotsInfoTitle}
-                  titleId="robots-info-title"
-                  mode={t.newScan.robotsInfoMode}
-                  bodyId="robots-info-description"
-                >
-                  {t.newScan.robotsInfoBody}
-                </ScanCallout>
-                <Checkbox
-                  name="scan-respect-robots"
-                  label={t.newScan.labelRespectRobots}
-                  checked={scope.respectRobots}
-                  describedBy="robots-info-description"
-                  onChange={(checked) =>
-                    updateScope({
-                      respectRobots: checked,
-                      // Turning the rule back on withdraws the override with it.
-                      ...(checked ? { robotsOverrideConfirmed: false } : {}),
-                    })
-                  }
-                />
-                {scope.respectRobots ? null : (
-                  <Checkbox
-                    label={t.newScan.labelRobotsOverride}
-                    name="scan-robots-override"
-                    checked={scope.robotsOverrideConfirmed}
-                    describedBy="robots-info-description"
-                    onChange={(checked) => updateScope({ robotsOverrideConfirmed: checked })}
-                  />
-                )}
-                {/* Open, unlike the robots.txt explanation above it: this one
-                    and the performance disclosure below say what leaves the
-                    site and who processes it, and the buyer agrees to both by
-                    paying. Folding them would trade a guarantee for height. */}
-                <ScanCallout
-                  eyebrow="AI SEO / GEO · UX"
-                  title={t.newScan.aiConsentTitle}
-                  titleId="ai-consent-title"
-                  mode={t.newScan.aiConsentOptional}
-                  bodyId="ai-consent-description"
-                  defaultOpen
-                >
-                  {t.newScan.aiConsentBody}{' '}
-                  <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
-                  {' · '}
-                  <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>
-                </ScanCallout>
-                {plan === 'Complete' ? (
-                  <ScanCallout
-                    eyebrow="PERFORMANCE · GOOGLE"
-                    title={t.newScan.performanceInfoTitle}
-                    titleId="performance-info-title"
-                    mode={t.newScan.performanceInfoMode}
-                    defaultOpen
-                  >
-                    {t.newScan.performanceInfoBody}
-                  </ScanCallout>
-                ) : null}
-              </>
-            ) : null}
-          </Panel>
-          {/* What Free actually is, in place of the controls it does not have.
-              The two rows are the enforced settings, not suggestions: the crawler
-              reads the homepage and obeys robots.txt on this plan whatever the
-              request says. */}
-          {paidScopeControls ? null : (
-            <Panel title={t.newScan.freeScopeTitle}>
-              <p className="muted panel-help">{t.newScan.freeScopeNote}</p>
-              <FieldRow label={t.newScan.freeScopePages} value={t.newScan.freeScopePagesValue} />
-              <FieldRow label={t.newScan.freeScopeRobots} value={t.newScan.freeScopeRobotsValue} />
-              <p className="muted panel-help">{t.newScan.freeScopeLocked}</p>
-            </Panel>
-          )}
-        </div>
-        {/* Not an `aside`: a complementary landmark is content beside the page,
-            and this column carries the form's own submit. */}
-        <div className="launch-form__launch">
-          {/* The part that may scroll inside the pinned column, so the actions
-              below it cannot be pushed off a short viewport. */}
-          <div className="launch-form__review">
-            <LaunchSummary
-              language={props.language}
-              site={launchSite}
-              plan={plan}
-              planLabel={planLabel}
-              scope={scope}
-            />
-            {plan === 'Free' || props.internalFreeAccess ? null : (
-              <p
-                className="muted checkout-legal-note"
-                role="note"
-                aria-label={t.newScan.purchaseTermsLabel}
-              >
-                {t.newScan.purchaseTermsPrefix}{' '}
-                <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>{' '}
-                {t.newScan.purchaseTermsJoin}{' '}
-                <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
-                {' · '}
-                <a href={`/cookies?lang=${props.language}`}>{t.legal.cookies.title}</a>
-                {t.newScan.purchaseTermsSuffix}
-              </p>
-            )}
-          </div>
-          {/* The buy button first, then the way to keep the settings without
-              buying anything. They used to sit the other way round, with the
-              secondary action spanning the full width under the primary one. */}
-          <div className="launch-form__actions">
-            <span className="muted">
-              {targetLabel} {t.newScan.publicSiteOnly}
-            </span>
-            {robotsUnconfirmed ? (
-              <p className="muted launch-form__blocked" id="launch-blocked" role="note">
-                {t.newScan.blockedByRobots}
-              </p>
-            ) : null}
-            <Button
-              type="submit"
-              variant="primary"
-              {...(robotsUnconfirmed ? { 'aria-describedby': 'launch-blocked' } : {})}
-              disabled={
-                busy ||
-                savingConfiguration ||
-                (usingSavedProfile ? target === '' : address.trim() === '') ||
-                robotsUnconfirmed
-              }
-            >
-              {busy
-                ? plan !== 'Free' && !props.internalFreeAccess
-                  ? t.newScan.openingCheckout
-                  : t.newScan.creating
-                : plan === 'Free'
-                  ? t.newScan.runFree
-                  : props.internalFreeAccess
-                    ? t.newScan.runInternal
-                    : t.newScan.runPaid}
-            </Button>
-            <Button
-              type="button"
-              disabled={
-                unavailablePlanFallback ||
-                busy ||
-                savingConfiguration ||
-                (usingSavedProfile ? target === '' : address.trim() === '') ||
-                invalidScopeFields(scope, plan).length > 0 ||
-                robotsUnconfirmed
-              }
-              onClick={() => void saveConfiguration()}
-            >
-              {savingConfiguration ? t.newScan.savingConfiguration : t.newScan.saveConfiguration}
-            </Button>
-          </div>
-        </div>
-      </form>
-    </Window>
-  );
-}
-
-function Styleguide(props: {
-  onNavigate: (screen: string) => void;
-  language: Language;
-  onLanguageChange: (language: Language) => void;
-}) {
-  const lines = [
-    'loading… ▮',
-    'GET https://example.com/ → 200 (312 ms)',
-    'warning: missing CSP',
-    'completed: 34 findings',
-  ];
-  return (
-    <div className="app-shell">
-      <MenuBar
-        active="styleguide"
-        onNavigate={props.onNavigate}
-        signedIn={false}
-        language={props.language}
-        onLanguageChange={props.onLanguageChange}
-      />
-      <div className="desktop">
-        <div className="desktop__intro">
-          <div>
-            <h1>FluxRadar / styleguide</h1>
-            <p>Macintosh Platinum + terminal controls.</p>
-          </div>
-        </div>
-        <div className="styleguide">
-          <Window title="Status and score">
-            <div className="button-row">
-              <StatusChip status="Completed" />
-              <StatusChip status="Partial" />
-              <StatusChip status="Failed" />
-              <StatusChip status="Running" />
-              <StatusChip status="Unavailable" />
-            </div>
-            <div className="split" style={{ marginTop: 16 }}>
-              <ScoreDial score={96.5} language={props.language} verdict="normal" coverage={0.87} />
-              <ScoreDial
-                score={null}
-                language={props.language}
-                verdict="insufficient_data"
-                coverage={0.2}
-              />
-            </div>
-          </Window>
-          <Window title="Controls">
-            <div className="form-grid">
-              <Field
-                label="Technical URL"
-                technical
-                value="https://example.com"
-                onChange={() => undefined}
-              />
-              <SelectField
-                label="Module"
-                value="SEO"
-                onChange={() => undefined}
-                options={[
-                  { value: 'SEO', label: 'SEO' },
-                  { value: 'Security', label: 'Security' },
-                ]}
-              />
-            </div>
-            <div className="button-row" style={{ marginTop: 12 }}>
-              <Button variant="primary">Default action</Button>
-              <Button>Secondary</Button>
-              <Button variant="danger">Danger</Button>
-              <Checkbox label="Consent recorded" checked onChange={() => undefined} />
-            </div>
-          </Window>
-          <Window title="Terminal output" terminal>
-            <Terminal lines={lines} active />
-          </Window>
-          <Window title="Data table">
-            <DataTable>
-              <thead>
-                <tr>
-                  <th>Field</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td data-label="Field">Status</td>
-                  <td data-label="Value">
-                    <StatusChip status="Completed" />
-                  </td>
-                </tr>
-                <tr>
-                  <td data-label="Field">Fingerprint</td>
-                  <td data-label="Value" className="technical">
-                    fluxradar-fp-v1:cedea5…
-                  </td>
-                </tr>
-              </tbody>
-            </DataTable>
-          </Window>
-          <Window title="Empty and error">
-            <div className="form-grid">
-              <EmptyState
-                title="No scans yet"
-                action={<Button variant="primary">New scan</Button>}
-              />
-              <AlertDialog message="The scan could not be completed." details="NoUsableOutput" />
-            </div>
-          </Window>
-        </div>
       </div>
     </div>
   );

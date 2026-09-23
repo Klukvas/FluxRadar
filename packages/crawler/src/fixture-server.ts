@@ -30,12 +30,21 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.txt': 'text/plain; charset=utf-8',
   '.xml': 'application/xml; charset=utf-8',
   '.png': 'image/png',
+  // A browser refuses to execute a script served as octet-stream, so the
+  // client-rendered fixture needs this to be a real script response.
+  '.js': 'text/javascript; charset=utf-8',
 };
 
-/** Программные redirect-маршруты: /redirect-a → /redirect-b → /redirect-final.html. */
+/**
+ * Программные redirect-маршруты: /redirect-a → /redirect-b → /redirect-final.html.
+ *
+ * `/redirect-offsite` уводит на другой хост — на нём проверяется, что проверка
+ * API и рендер не идут за пределы сканируемого сайта по чужому Location.
+ */
 const REDIRECTS: Readonly<Record<string, string>> = {
   '/redirect-a': '/redirect-b',
   '/redirect-b': '/redirect-final.html',
+  '/redirect-offsite': 'https://not-the-site.example/api',
 };
 
 export async function startFixtureSite(): Promise<FixtureSite> {

@@ -60,6 +60,8 @@ export { analyzeUxStatic } from './ux/index.js';
 export { analyticsPageFacts } from './analytics/page-facts.js';
 export type { AnalyticsPageFact } from './analytics/page-facts.js';
 export type { UxPageEvidence, UxStaticEvidence, UxStaticFinding } from './ux/index.js';
+export { RULE_TITLES, ruleTitle } from './rule-titles.js';
+export type { RuleTitle } from './rule-titles.js';
 export { AI_CRAWLER_USER_AGENTS, assessAiCrawlerReadiness } from './ai-readiness.js';
 export type {
   AiCrawlerAgentCheck,

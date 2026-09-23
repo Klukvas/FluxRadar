@@ -19,6 +19,9 @@ COPY packages/rules/package.json packages/rules/package.json
 COPY packages/safe-fetch/package.json packages/safe-fetch/package.json
 COPY packages/scoring/package.json packages/scoring/package.json
 
+# The browser is installed in the runtime stage, not here: this stage's copy
+# would be thrown away with it.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN pnpm install --frozen-lockfile
 
 COPY apps/api apps/api
@@ -30,6 +33,10 @@ FROM node:24-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=3310
+# Outside any home directory, because the browser is downloaded as root and
+# read by `node`. Playwright's default (~/.cache/ms-playwright) would put it
+# where the runtime user cannot reach it.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -40,7 +47,17 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api ./apps/api
 COPY --from=build /app/packages ./packages
 
-RUN mkdir -p /data && chown -R node:node /app /data
+# The browser `scope.renderJs` needs, plus the shared libraries Chromium links
+# against — `--with-deps` installs the list Playwright maintains for this
+# distribution, which is the part that goes stale fastest if written by hand.
+#
+# Rendering stays off unless the operator sets FLUXRADAR_RENDER_ENABLED=true;
+# what this makes true is that turning it on *works*, instead of reporting
+# RuntimeUnavailable on every scan.
+RUN node apps/api/node_modules/playwright/cli.js install --with-deps chromium \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /data && chown -R node:node /app /data /ms-playwright
 
 USER node
 

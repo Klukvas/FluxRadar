@@ -16,7 +16,9 @@
     "db:generate": "prisma generate",
     "db:migrate": "RUST_LOG=info prisma migrate deploy",
     "db:push": "RUST_LOG=info prisma migrate deploy",
-    "test": "NODE_ENV=test prisma generate && NODE_ENV=test node --env-file-if-exists=../../.env ../../node_modules/vitest/vitest.mjs run",
+    "test": "NODE_ENV=test prisma generate && NODE_ENV=test node ../../node_modules/vitest/vitest.mjs run",
+    "test:unit": "NODE_ENV=test prisma generate && NODE_ENV=test node ../../node_modules/vitest/vitest.mjs run --config vitest.unit.config.ts",
+    "test:db": "NODE_ENV=test prisma generate && NODE_ENV=test node ../../node_modules/vitest/vitest.mjs run --config vitest.db.config.ts",
     "typecheck": "prisma generate && tsc --noEmit"
   },
   "dependencies": {
@@ -31,11 +33,18 @@
     "@fluxradar/scoring": "workspace:*",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.2",
+    "dejavu-fonts-ttf": "^2.37.3",
     "express": "^5.1.0",
+    "fontkit": "2.0.4",
+    "node-html-parser": "^7.0.1",
+    "pdfkit": "^0.20.2",
+    "playwright": "^1.63.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
+    "@types/fontkit": "^2.0.9",
+    "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^6.0.2",
     "prisma": "^6.19.3",
     "supertest": "^7.1.0"

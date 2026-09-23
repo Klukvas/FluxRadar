@@ -141,6 +141,66 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/**
+ * A rendered page is not automatically a complete one.
+ *
+ * The crawler already recorded which requests it refused, and nothing read it:
+ * a page whose main bundle the byte budget could not pay for was counted beside
+ * the complete ones, and the card said the markup had been "read after the
+ * page's scripts ran". That sentence was a claim about a DOM that was never
+ * built, which is the difference between a limitation and a false result.
+ */
+describe('a card whose pages rendered without their own resources', () => {
+  it('names the pages and why, beside the ones that rendered whole', async () => {
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          module: 'Accessibility',
+          metadata: {
+            ruleChecks: ACCESSIBILITY_CHECKS,
+            javascriptRendering: 'Rendered',
+            renderEngine: 'chromium 140',
+            renderedPages: 5,
+            unrenderedPages: 0,
+            incompletelyRenderedPages: 2,
+            incompleteRenderReasons: ['budget', 'robots-disallowed'],
+          },
+        }),
+      ]),
+    );
+    fireEvent.click(card('Accessibility'));
+
+    const region = screen.getByRole('region', { name: 'Accessibility · checks performed' });
+    expect(region).toHaveTextContent('rendered: 5');
+    expect(region).toHaveTextContent('On 2 of them the page asked for resources');
+    expect(region).toHaveTextContent('budget, robots-disallowed');
+  });
+
+  it('says nothing extra when every rendered page got what it asked for', async () => {
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          module: 'Accessibility',
+          metadata: {
+            ruleChecks: ACCESSIBILITY_CHECKS,
+            javascriptRendering: 'Rendered',
+            renderEngine: 'chromium 140',
+            renderedPages: 5,
+            unrenderedPages: 0,
+            incompletelyRenderedPages: 0,
+            incompleteRenderReasons: [],
+          },
+        }),
+      ]),
+    );
+    fireEvent.click(card('Accessibility'));
+
+    const region = screen.getByRole('region', { name: 'Accessibility · checks performed' });
+    expect(region).toHaveTextContent('rendered: 5');
+    expect(region).not.toHaveTextContent('asked for resources');
+  });
+});
+
 describe('a section card that recorded its checks', () => {
   it('opens to every check and what it found when the card is clicked', async () => {
     await openReport(dashboardOf([accessibilityModule()]));
@@ -232,6 +292,73 @@ describe('a section card that recorded its checks', () => {
 
     expect(await screen.findByRole('button', { name: 'Show checks' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Accessibility · checks performed' })).toBeNull();
+  });
+});
+
+// The two silences of an API check. One endpoint was never part of this audit;
+// the other was checked, answered nothing, and is what lowered the section's own
+// coverage. Calling the second "not applicable" tells the owner the opposite of
+// what the score already said.
+describe('the configured API endpoints a section lists', () => {
+  const ANSWERED = {
+    method: 'GET',
+    url: 'https://smile.example/api/health',
+    expectedStatus: [200],
+    status: 200,
+    timingMs: 12,
+    applicable: true,
+  };
+  const TIMED_OUT = {
+    method: 'GET',
+    url: 'https://smile.example/api/slow',
+    expectedStatus: [],
+    status: null,
+    timingMs: null,
+    applicable: true,
+    skippedReason: 'TimeoutError',
+  };
+  const OFF_SITE = {
+    method: 'GET',
+    url: 'https://elsewhere.example/api',
+    expectedStatus: [],
+    status: null,
+    timingMs: null,
+    applicable: false,
+    skippedReason: 'OutsideScannedSite',
+  };
+
+  function reliabilityModule(apiChecks: readonly Record<string, unknown>[]): ScanModule {
+    return moduleOf({ module: 'Reliability', metadata: { apiChecks } });
+  }
+
+  async function apiRows(apiChecks: readonly Record<string, unknown>[]): Promise<HTMLElement[]> {
+    await openReport(dashboardOf([reliabilityModule(apiChecks)]));
+    fireEvent.click(card('Reliability'));
+    const region = screen.getByRole('region', { name: 'Reliability · checks performed' });
+    return within(region).getAllByRole('listitem');
+  }
+
+  it('says "not checked" about an endpoint it could not reach, not "not applicable"', async () => {
+    const rows = await apiRows([ANSWERED, TIMED_OUT, OFF_SITE]);
+
+    expect(rows[0]).toHaveTextContent('Passed');
+    expect(rows[1]).toHaveTextContent('Not checked');
+    expect(rows[1]).not.toHaveTextContent('Not applicable');
+    expect(rows[1]).toHaveTextContent('No response was recorded (TimeoutError).');
+    // An endpoint on somebody else's site really was not part of this audit.
+    expect(rows[2]).toHaveTextContent('Not applicable');
+  });
+
+  /** The same row as a scan stored before the flag was recorded. */
+  function withoutTheFlag(check: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(check).filter(([key]) => key !== 'applicable'));
+  }
+
+  it('reads a scan recorded before the flag from the reason it stored', async () => {
+    const rows = await apiRows([withoutTheFlag(TIMED_OUT), withoutTheFlag(OFF_SITE)]);
+
+    expect(rows[0]).toHaveTextContent('Not checked');
+    expect(rows[1]).toHaveTextContent('Not applicable');
   });
 });
 
@@ -361,17 +488,19 @@ describe('the Performance card', () => {
       .getByRole('heading', { name: 'Lab test · PageSpeed Insights · mobile' })
       .closest('.module-checks__group') as HTMLElement;
     const rows = within(lab).getAllByRole('listitem');
-    expect(rows).toHaveLength(5);
+    // Four lab rows, not five: the old `inpMs` key is not listed at all.
+    // Lighthouse cannot measure Interaction to Next Paint, so that key was always
+    // null, and rating it as "no data" implied a figure might appear there.
+    expect(rows).toHaveLength(4);
+    expect(within(lab).queryByText(/Interaction to Next Paint/)).toBeNull();
     expect(rows[0]).toHaveTextContent('Needs improvement');
     expect(rows[0]).toHaveTextContent('3.1 s · good ≤ 2.5 s, poor > 4 s');
-    // PageSpeed was asked and had no INP: that is missing data, not a pass.
-    expect(rows[1]).toHaveTextContent('No data');
-    expect(rows[2]).toHaveTextContent('Poor');
-    expect(rows[3]).toHaveTextContent('Good');
-    expect(rows[3]).toHaveTextContent('120 ms · good ≤ 800 ms, poor > 1.8 s');
+    expect(rows[1]).toHaveTextContent('Poor');
+    expect(rows[2]).toHaveTextContent('Good');
+    expect(rows[2]).toHaveTextContent('120 ms · good ≤ 800 ms, poor > 1.8 s');
     // Page weight has no published boundary, so it is never rated.
-    expect(rows[4]).toHaveTextContent('Measured');
-    expect(rows[4]).toHaveTextContent('1.5 MB');
+    expect(rows[3]).toHaveTextContent('Measured');
+    expect(rows[3]).toHaveTextContent('1.5 MB');
 
     const field = within(region)
       .getByRole('heading', { name: 'Real visitors · Chrome UX Report, 75th percentile' })

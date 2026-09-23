@@ -14,6 +14,7 @@ import { CRAWL_LIMITS } from '@fluxradar/contracts';
 import {
   NetworkError,
   RedirectLimitError,
+  RequestAbortedError,
   SafeFetchError,
   SsrfBlockedError,
   TimeoutError,
@@ -42,6 +43,24 @@ export interface SafeFetchOptions {
    * link-local/metadata, CGNAT и т.д. — блокируются даже с этим флагом (D-126).
    */
   readonly dangerouslyAllowLoopback?: boolean;
+  /**
+   * Отмена со стороны вызывающего: прерывает запрос на любой стадии, включая
+   * уже открытое соединение и чтение тела. Композируется с общим дедлайном
+   * timeoutMs.
+   *
+   * Приостановленный или отменённый скан должен перестать *разговаривать с
+   * сайтом*, а не просто выбросить ответ; прерванный запрос — RequestAbortedError,
+   * а не TimeoutError и не NetworkError: отменённый скан не должен записать
+   * «цель недоступна».
+   */
+  readonly signal?: AbortSignal;
+  /**
+   * `follow` (default) resolves the redirect chain internally, re-running the
+   * SSRF guard on every hop. `manual` returns the 3xx response itself, for a
+   * caller that has to apply its own policy — robots.txt, scan scope, an
+   * ownership proof's origin — to each hop before it is followed.
+   */
+  readonly redirectPolicy?: 'follow' | 'manual';
 }
 
 export interface RedirectHop {
@@ -55,12 +74,30 @@ export interface SafeFetchResult {
   readonly status: number;
   readonly headers: Readonly<Record<string, string>>;
   readonly body: string;
+  /**
+   * The same body before it was decoded as UTF-8.
+   *
+   * `body` is the convenient reading and is right for HTML; it is *wrong* for a
+   * script served in another charset and for anything binary, because decoding
+   * and re-encoding those changes their bytes. A caller that hands the response
+   * to something other than a text parser — a browser, a hash — uses this, via
+   * `responseBytes`. Absent only when an injected test transport omitted it.
+   */
+  readonly bodyBytes?: Buffer;
   readonly redirectChain: readonly RedirectHop[];
   readonly timingMs: number;
   readonly truncated: boolean;
 }
 
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * Читается заново на каждом обращении: сигнал абортится извне и в любой момент,
+ * поэтому кэшировать (и позволять компилятору сузить) этот флаг нельзя.
+ */
+function isAborted(signal: AbortSignal | undefined): boolean {
+  return signal !== undefined && signal.aborted;
+}
 
 /**
  * Выполняет GET/HEAD с SSRF-гардом. Любой resolved-адрес вне публичного
@@ -82,8 +119,16 @@ export async function safeFetch(
   const startedAt = Date.now();
   const deadline = new AbortController();
   const timer = setTimeout(() => deadline.abort(), timeoutMs);
+  // Отмена вызывающего и наш дедлайн ведут к одному сигналу запроса, но
+  // различаются в ошибке: причину читаем из самого caller-сигнала.
+  const callerSignal = options.signal;
+  const onCallerAbort = (): void => deadline.abort();
+  callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
 
   try {
+    if (isAborted(callerSignal)) {
+      throw new RequestAbortedError(url);
+    }
     let currentUrl = validateUrl(url, maxUrlBytes);
     let redirectChain: readonly RedirectHop[] = [];
 
@@ -99,7 +144,11 @@ export async function safeFetch(
       const status = response.statusCode ?? 0;
       const location = response.headers.location;
 
-      if (REDIRECT_STATUSES.has(status) && location !== undefined) {
+      if (
+        options.redirectPolicy !== 'manual' &&
+        REDIRECT_STATUSES.has(status) &&
+        location !== undefined
+      ) {
         response.destroy(); // тело redirect-ответа не читаем; agent:false — пула сокетов нет
         const hop: RedirectHop = { url: currentUrl.href, status, location };
         if (redirectChain.length >= maxRedirects) {
@@ -110,22 +159,63 @@ export async function safeFetch(
         continue;
       }
 
-      const { body, truncated } = await readBodyCapped(response, maxBodyBytes);
+      const { bytes, truncated } = await readBodyCapped(response, maxBodyBytes);
       return {
         finalUrl: currentUrl.href,
         status,
         headers: flattenHeaders(response.headers),
-        body,
+        body: bytes.toString('utf8'),
+        bodyBytes: bytes,
         redirectChain,
         timingMs: Date.now() - startedAt,
         truncated,
       };
     }
   } catch (error) {
-    throw mapError(error, deadline.signal.aborted, timeoutMs);
+    throw mapError(error, deadline.signal.aborted, isAborted(callerSignal), timeoutMs, url);
   } finally {
     clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', onCallerAbort);
   }
+}
+
+/**
+ * The response body as the bytes that came off the wire.
+ *
+ * Injected transports in tests build a result by hand and may only set `body`;
+ * re-encoding it is then exactly right, because that string *is* the whole
+ * fixture. Doing it here keeps every caller from repeating the fallback.
+ */
+export function responseBytes(result: SafeFetchResult): Buffer {
+  return result.bodyBytes ?? Buffer.from(result.body, 'utf8');
+}
+
+/**
+ * The URL checks safeFetch applies before it touches the network, on their own.
+ *
+ * Callers that decide *whether* to make a request at all — the render runtime
+ * vetting a browser subresource, an API check validating a configured endpoint
+ * — need the same verdict without performing the request. Exporting it keeps
+ * one definition of "a URL this product may open".
+ */
+export function validatePublicUrl(input: string, maxUrlBytes = CRAWL_LIMITS.maxUrlBytes): URL {
+  return validateUrl(input, maxUrlBytes);
+}
+
+/**
+ * The SSRF verdict for a host, on its own: every address it resolves to must be
+ * public, or nothing is returned. The resolved addresses come back so a caller
+ * can pin them exactly as safeFetch does.
+ */
+export async function resolvePublicAddresses(
+  url: URL,
+  options: { readonly resolver?: DnsResolver; readonly dangerouslyAllowLoopback?: boolean } = {},
+): Promise<readonly string[]> {
+  return resolveAndGuard(
+    url,
+    options.resolver ?? systemDnsResolver,
+    options.dangerouslyAllowLoopback ?? false,
+  );
 }
 
 function validateUrl(input: string, maxUrlBytes: number): URL {
@@ -248,7 +338,7 @@ function pinnedLookup(addresses: readonly string[]): LookupFunction {
 function readBodyCapped(
   response: IncomingMessage,
   maxBodyBytes: number,
-): Promise<{ body: string; truncated: boolean }> {
+): Promise<{ bytes: Buffer; truncated: boolean }> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let received = 0;
@@ -259,7 +349,7 @@ function readBodyCapped(
         return;
       }
       settled = true;
-      resolve({ body: Buffer.concat(chunks).toString('utf8'), truncated });
+      resolve({ bytes: Buffer.concat(chunks), truncated });
     };
 
     response.on('data', (chunk: Buffer) => {
@@ -293,7 +383,18 @@ function flattenHeaders(headers: IncomingHttpHeaders): Record<string, string> {
 }
 
 /** Дедлайн-таймаут имеет приоритет над сетевыми ошибками, вызванными abort-ом. */
-function mapError(error: unknown, deadlineFired: boolean, timeoutMs: number): SafeFetchError {
+function mapError(
+  error: unknown,
+  deadlineFired: boolean,
+  callerAborted: boolean,
+  timeoutMs: number,
+  url: string,
+): SafeFetchError {
+  // The caller's abort is checked first: both fire the same controller, and
+  // "we stopped asking" is a different fact from "the site was too slow".
+  if (callerAborted) {
+    return new RequestAbortedError(url);
+  }
   if (deadlineFired) {
     return new TimeoutError(timeoutMs);
   }

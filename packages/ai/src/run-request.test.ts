@@ -5,7 +5,7 @@
 import { AI_REQUEST_CAPS } from '@fluxradar/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { AiModuleError } from './errors.js';
+import { AiModuleError, AiRequestAbortedError, UnavailableError } from './errors.js';
 import { geoVisibilityFixtures, MockAiProvider } from './mock-provider.js';
 import { CHARS_PER_TOKEN } from './prompt-builder.js';
 import { AiQuotaTracker } from './quota.js';
@@ -163,6 +163,39 @@ describe('runAiRequest — pre-response отказ (без ответа, без 
   });
 });
 
+describe('runAiRequest — отмена вызывающим', () => {
+  it('отменённый до старта прогон не трогает ни провайдера, ни квоту', async () => {
+    const { provider, calls } = countingProvider();
+    const controller = new AbortController();
+    controller.abort(new Error('scan cancelled'));
+    const options = { ...baseOptions(provider), signal: controller.signal };
+
+    await expect(runAiRequest(makeRequest(), options)).rejects.toThrow('scan cancelled');
+    expect(calls()).toBe(0);
+    expect(options.quota.spent).toBe(0);
+    expect(options.quota.outstanding).toBe(0);
+  });
+
+  it('отмена на лету уходит наверх, а не становится ProviderUnavailable', async () => {
+    const controller = new AbortController();
+    const cancellingProvider: AiProvider = {
+      config: new MockAiProvider(fixtures).config,
+      send: async (): Promise<NormalizedAiResponse> => {
+        controller.abort(new Error('worker shutting down'));
+        throw new DOMException('This operation was aborted', 'AbortError');
+      },
+    };
+
+    // Отмена — не ветка §5: иначе модуль сочтёт вопрос повторяемым и оплатит его снова.
+    await expect(
+      runAiRequest(makeRequest(), {
+        ...baseOptions(cancellingProvider),
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('worker shutting down');
+  });
+});
+
 describe('runAiRequest — ошибки провайдера', () => {
   it('UnavailableError → освобождение резерва (spent 0, outstanding 0)', async () => {
     const { provider } = countingProvider();
@@ -209,5 +242,61 @@ describe('runAiRequest — ошибки провайдера', () => {
     await expect(runAiRequest(makeRequest(), baseOptions(explodingProvider))).rejects.toThrow(
       AiModuleError,
     );
+  });
+});
+
+// Отмена скана — не ветка §5: результата у запроса нет, и «Unavailable» записало
+// бы в модуль ложный факт о провайдере (а вызывающему дало бы повод на retry).
+describe('runAiRequest — отмена вызывающего', () => {
+  it('уже отменённый прогон не обращается к провайдеру и не тратит квоту', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const counting = countingProvider();
+    const options = { ...baseOptions(counting.provider), signal: controller.signal };
+    await expect(runAiRequest(makeRequest(), options)).rejects.toBeInstanceOf(
+      AiRequestAbortedError,
+    );
+    expect(counting.calls()).toBe(0);
+    expect(options.quota.spent).toBe(0);
+    expect(options.quota.outstanding).toBe(0);
+  });
+
+  it('прерванный в полёте запрос → AiRequestAbortedError, резерв освобождён', async () => {
+    const controller = new AbortController();
+    const abortingProvider: AiProvider = {
+      config: new MockAiProvider(fixtures).config,
+      send: (_request, _promptText, signal): Promise<NormalizedAiResponse> => {
+        // Отмена пришла из другого процесса, пока запрос был в полёте; адаптер
+        // прерывает его и сообщает об аборте, а не о недоступном провайдере.
+        controller.abort();
+        expect(signal?.aborted).toBe(true);
+        return Promise.reject(new AiRequestAbortedError('scan-t10'));
+      },
+    };
+    const options = { ...baseOptions(abortingProvider), signal: controller.signal };
+    await expect(runAiRequest(makeRequest(), options)).rejects.toBeInstanceOf(
+      AiRequestAbortedError,
+    );
+    // Квота-трекер иммутабелен: резерв снят и в исходном состоянии не остался.
+    expect(options.quota.spent).toBe(0);
+    expect(options.quota.outstanding).toBe(0);
+  });
+
+  it('адаптер, сообщивший о транспортной ошибке на отменённом сигнале, тоже не «unavailable»', async () => {
+    const controller = new AbortController();
+    const legacyProvider: AiProvider = {
+      config: new MockAiProvider(fixtures).config,
+      send: (): Promise<NormalizedAiResponse> => {
+        controller.abort();
+        // Старый адаптер про отмену ничего не знает и рапортует недоступность.
+        return Promise.reject(new UnavailableError('network request failed'));
+      },
+    };
+    await expect(
+      runAiRequest(makeRequest(), {
+        ...baseOptions(legacyProvider),
+        signal: controller.signal,
+      }),
+    ).rejects.toBeInstanceOf(AiRequestAbortedError);
   });
 });

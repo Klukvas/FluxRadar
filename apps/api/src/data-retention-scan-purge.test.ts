@@ -31,7 +31,8 @@ import {
   type TestDb,
 } from './test-utils/test-db.ts';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 const NOW = new Date('2026-09-06T12:00:00.000Z');
 
 /** Records what was deleted, and optionally refuses a key, like a bucket outage. */
@@ -116,6 +117,24 @@ describe('expired scan purge', () => {
     expect(await db.prisma.exportArtifact.count({ where: { scanId } })).toBe(0);
   });
 
+  // The coverage proof hangs off the scan with an ON DELETE RESTRICT foreign
+  // key, exactly like the export artifact above: forgetting it in the deletion
+  // order would block the purge of every scan that ever stored one.
+  it('removes the coverage proof of a purged scan', async () => {
+    const { scanId } = await seedAgedScan({
+      plan: 'Complete',
+      ageDays: TARIFFS.Complete.retentionDays + 1,
+    });
+    await db.prisma.ruleCoverageProof.create({
+      data: { scanId, module: 'SEO', proof: Buffer.from('proof bytes') },
+    });
+
+    const result = await purgeExpiredScans(db.prisma, NOW, null);
+
+    expect(result.deletedScanCount).toBe(1);
+    expect(await db.prisma.ruleCoverageProof.count({ where: { scanId } })).toBe(0);
+  });
+
   // One blocked scan used to stop the whole sweep, so the scans behind it kept
   // their data past the window they were sold with.
   it('keeps purging the scans behind an exported one', async () => {
@@ -194,6 +213,63 @@ describe('expired scan purge', () => {
 
   it('reports nothing for a scan that no longer exists', async () => {
     await expect(deleteScanResult(db.prisma, `missing-${randomUUID()}`)).resolves.toEqual([]);
+  });
+
+  // The Action Plan spend log is the one child row a purged scan leaves behind,
+  // and only for as long as it can still refuse a generation. Deleting it with
+  // the scan would make deleting a scan a way to clear the hourly and daily
+  // caps; keeping it forever would retain an account's activity record past the
+  // purpose that justified it.
+  it('detaches the Action Plan spend log from a purged scan, then purges it when it stops counting', async () => {
+    const { scanId } = await seedAgedScan({ plan: 'Free', ageDays: 1 });
+    const attempt = await db.prisma.actionPlanAttempt.create({
+      data: {
+        scanId,
+        accountId: account.accountId,
+        language: 'en',
+        status: 'Succeeded',
+        noticeVersion: 'action-plan-notice-v1',
+        createdAt: NOW,
+      },
+    });
+
+    await deleteScanResult(db.prisma, scanId);
+
+    expect(
+      await db.prisma.actionPlanAttempt.findUniqueOrThrow({ where: { id: attempt.id } }),
+    ).toMatchObject({ scanId: null, accountId: account.accountId });
+
+    // Still inside the daily window: it counts, so it stays.
+    const early = await runRetentionSweep(db.prisma, new Date(NOW.getTime() + HOUR_MS), null);
+    expect(early.deletedActionPlanAttemptCount).toBe(0);
+    expect(await db.prisma.actionPlanAttempt.count()).toBe(1);
+
+    const late = await runRetentionSweep(
+      db.prisma,
+      new Date(NOW.getTime() + DAY_MS + HOUR_MS),
+      null,
+    );
+    expect(late.deletedActionPlanAttemptCount).toBe(1);
+    expect(await db.prisma.actionPlanAttempt.count()).toBe(0);
+  });
+
+  it('never purges a spend-log row that still belongs to a scan', async () => {
+    const { scanId } = await seedAgedScan({ plan: 'Complete', ageDays: 1 });
+    await db.prisma.actionPlanAttempt.create({
+      data: {
+        scanId,
+        accountId: account.accountId,
+        language: 'en',
+        status: 'Succeeded',
+        noticeVersion: 'action-plan-notice-v1',
+        createdAt: new Date(NOW.getTime() - 30 * DAY_MS),
+      },
+    });
+
+    const result = await runRetentionSweep(db.prisma, NOW, null);
+
+    expect(result.deletedActionPlanAttemptCount).toBe(0);
+    expect(await db.prisma.actionPlanAttempt.count({ where: { scanId } })).toBe(1);
   });
 
   // The scheduled sweep is what actually runs in production, and it has to carry

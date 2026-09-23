@@ -271,7 +271,10 @@ describe('T-12 API happy paths', () => {
           siteProfileId: profile.id,
           plan: 'Complete',
           scope: { includeSubdomains: false, maxPages: 15 },
-          aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
+          aiConsent: {
+            providers: ['anthropic'],
+            noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+          },
         });
 
       expect(checkout.status).toBe(201);
@@ -314,7 +317,7 @@ describe('T-12 API happy paths', () => {
         plan: 'Complete',
         scope: { includeSubdomains: false, maxPages: 15 },
         aiConsent: {
-          providers: ['anthropic'],
+          providers: ['anthropic', 'openai'],
           noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
         },
       });
@@ -352,6 +355,12 @@ describe('T-12 API happy paths', () => {
         metadata: expect.objectContaining({ providerTokenRequired: false }),
       }),
     );
+    // The per-rule coverage proof the Resolved policy stores in the module row
+    // (orchestrator/run-coverage.ts) is internal: the report gets `ruleChecks`,
+    // not a list of every URL each rule read.
+    for (const module of dashboard.body.data.modules as { metadata?: unknown }[]) {
+      expect(module.metadata).not.toHaveProperty('coverageProof');
+    }
 
     const issues = await agent
       .get(`/scans/${scanId}/issues?limit=10`)
@@ -403,7 +412,7 @@ describe('T-12 API happy paths', () => {
         plan: 'Basic',
         scope: { includeSubdomains: false, maxPages: 15 },
         aiConsent: {
-          providers: ['anthropic'],
+          providers: ['anthropic', 'openai'],
           noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
         },
       });

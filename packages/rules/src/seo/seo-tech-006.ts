@@ -15,7 +15,12 @@ import { pageFinding } from '../engine/finding.js';
 import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
-import { pageLinks, snapshotByNormalizedUrl } from './site-index.js';
+import {
+  linkTargets,
+  pageLinks,
+  respondingTargets,
+  snapshotByNormalizedUrl,
+} from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-006');
 
@@ -23,6 +28,15 @@ export const seoTech006BrokenLinks: PageRule = {
   kind: 'page',
   descriptor,
   isApplicable: isSuccessfulHtmlPage,
+  // Вердикт о ссылке выносит снимок ЕЁ цели, а не страница-источник: без этих
+  // снимков «находки больше нет» означает «цель не обходили» ровно так же
+  // часто, как «ссылку починили» (§14, RuleEvaluation.inputTargets). Цель без
+  // HTTP-ответа сюда не входит — её статус правилу неизвестен (D-152).
+  inputTargets: (ctx: SiteContext): readonly string[] => respondingTargets(ctx.crawl),
+  // А спрашивало правило о целях ВСЕХ ссылок обхода. Цель, которой здесь
+  // больше нет, со страниц сайта исчезла: прошлая находка о ней — про
+  // удалённую ссылку, и это починка, а не потерянный снимок.
+  requestedInputs: (ctx: SiteContext): readonly string[] => linkTargets(ctx.crawl),
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[] {
     const snapshots = snapshotByNormalizedUrl(ctx.crawl);
     const reportedHrefs = new Set<string>();
@@ -53,5 +67,10 @@ function brokenLinkFinding(page: PageSnapshot, rawHref: string, target: PageSnap
     recommendation: findingMessage('seo-tech-006.recommendation', {}),
     selector: rawHref,
     resource: target.normalizedUrl,
+    // Находка держится на одном чужом снимке — статусе цели ссылки. Он и
+    // решает её судьбу в следующем прогоне: снимок повторился (цель жива или
+    // починена) либо ссылки на неё больше нет — находка закрыта; снимка нет,
+    // а ссылка осталась — статус неизвестен (§14).
+    dependencyTargets: [target.normalizedUrl],
   });
 }

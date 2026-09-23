@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { SCAN_RUNTIME_STATUSES } from './enums.js';
-import { SCAN_TRANSITIONS, canTransition, isTerminalScanStatus } from './statuses.js';
+import {
+  PAUSABLE_SCAN_STATUSES,
+  SCAN_TRANSITIONS,
+  canTransition,
+  isTerminalScanStatus,
+} from './statuses.js';
 
 describe('scan state machine §18', () => {
   it('covers every runtime status in the transition map', () => {
@@ -19,6 +24,29 @@ describe('scan state machine §18', () => {
     expect(canTransition('Running', 'Cancelled')).toBe(true);
     expect(canTransition('Partial', 'Running')).toBe(true);
     expect(canTransition('Failed', 'Queued')).toBe(true);
+  });
+
+  // Pausing stops the work without settling the scan, so it is reachable from
+  // every pre-terminal state and leads back into the queue, never straight to a
+  // result.
+  it('allows pausing before a result and resuming into the queue', () => {
+    expect(canTransition('Pending', 'Paused')).toBe(true);
+    expect(canTransition('Queued', 'Paused')).toBe(true);
+    expect(canTransition('Running', 'Paused')).toBe(true);
+    expect(canTransition('Paused', 'Queued')).toBe(true);
+    expect(canTransition('Paused', 'Cancelled')).toBe(true);
+    expect(PAUSABLE_SCAN_STATUSES).toEqual(['Pending', 'Queued', 'Running']);
+  });
+
+  it('never lets a pause settle a scan by itself', () => {
+    expect(canTransition('Paused', 'Completed')).toBe(false);
+    expect(canTransition('Paused', 'Partial')).toBe(false);
+    expect(canTransition('Paused', 'Failed')).toBe(false);
+    expect(canTransition('Paused', 'Running')).toBe(false);
+    expect(canTransition('Completed', 'Paused')).toBe(false);
+    expect(canTransition('Cancelled', 'Paused')).toBe(false);
+    expect(canTransition('Partial', 'Paused')).toBe(false);
+    expect(isTerminalScanStatus('Paused')).toBe(false);
   });
 
   it('rejects forbidden transitions', () => {

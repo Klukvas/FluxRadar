@@ -147,17 +147,26 @@ describe('passive-модули на fixture-сайте краулера', () => 
     expect(a11y?.fingerprint).not.toBe(seo?.fingerprint);
   });
 
-  it('Content Quality: четыре страницы < 200 символов и битая картинка', () => {
+  it('Content Quality: четыре страницы < 200 символов; media судится только по пробе', () => {
     expect(findingPathsByRule('Content Quality')).toEqual({
       'CONTENT-003': ['/deep/level2/page.html', '/empty.html', '/orphan.html', '/trackers.html'],
+      // Ровно одна страница: та, чью media проба обхода застала битой. Ни одна
+      // из остальных пятнадцати за непроверенный ресурс не штрафуется.
       'CONTENT-004': ['/broken-image.html'],
     });
     const media = moduleResult('Content Quality').findings.find(
       (finding) => finding.ruleId === 'CONTENT-004',
     );
-    // Краулер v0.1 media не фетчит → оба img не подтверждены обходом (D-165).
+    // Обход теперь спрашивает media напрямую: /img/missing.png отвечает 404,
+    // поэтому находка подтверждена, а не «не подтверждена» (было D-165).
     expect(media?.evidenceExcerpt).toContain('/img/missing.png');
-    expect(media?.confidence).toBe(0.6);
+    expect(media?.confidence).toBe(1);
+    // Рядом на той же странице лежит /img/pixel.png, который отдаёт 200 —
+    // он в находку не попадает.
+    expect(media?.evidenceExcerpt).not.toContain('/img/pixel.png');
+    const probed = ctx.crawl.resources.map((resource) => [resource.normalizedUrl, resource.status]);
+    expect(probed).toContainEqual([expect.stringContaining('/img/missing.png'), 404]);
+    expect(probed).toContainEqual([expect.stringContaining('/img/pixel.png'), 200]);
   });
 
   it('Privacy: cookies на / и trackers.html, third-party скрипт на trackers.html', () => {

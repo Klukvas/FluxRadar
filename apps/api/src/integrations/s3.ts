@@ -2,10 +2,19 @@ import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client
 
 import { readObjectStorageConfig } from './object-storage-config.ts';
 
-export type ReportFormat = 'json' | 'csv';
+export type ReportFormat = 'json' | 'csv' | 'pdf';
 
 export interface PrivateObjectStore {
   putText(key: string, body: string, contentType: string): Promise<void>;
+  /**
+   * Binary write, for the downloadable PDF report.
+   *
+   * Optional because the interface predates it and several fakes implement only
+   * the text half; a store without it simply does not archive the PDF, and the
+   * download still works. `putText` is not reused for it: a PDF is bytes, and
+   * putting it through a string would corrupt it.
+   */
+  putBytes?(key: string, body: Uint8Array, contentType: string): Promise<void>;
   deleteObject(key: string): Promise<void>;
 }
 
@@ -76,6 +85,20 @@ export class HetznerObjectStore implements PrivateObjectStore {
         // which propagates as the user-visible "report storage is temporarily
         // unavailable" 503. Hetzner encrypts all data at rest at the
         // infrastructure level, so this header is both redundant and harmful.
+      }),
+    );
+  }
+
+  async putBytes(key: string, body: Uint8Array, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        CacheControl: 'private, no-store',
+        // Same reasoning as putText: no ServerSideEncryption header, which Ceph
+        // answers with NotImplemented.
       }),
     );
   }

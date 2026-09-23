@@ -89,13 +89,31 @@ function evaluatePageRule(rule: PageRule, ctx: SiteContext): RuleRun {
       applicableTargets: applicablePages.length,
       affectedTargets,
       findings,
+      // Правило смотрело ровно на эти страницы: 404 и не-HTML в applicable-набор
+      // по умолчанию не попадают, и находка на такой странице потом не может
+      // быть закрыта как «исправленная» (§14, resolution policy).
+      checkedTargets: applicablePages.map((page) => page.normalizedUrl),
+      // И отдельно — материал обхода, без которого вердикт этого правила
+      // неполон: у SEO-TECH-006/008 и CONTENT-004 находка на живой странице
+      // исчезает, если из обхода выпала её цель, а не если что-то починили.
+      inputTargets: rule.inputTargets?.(ctx) ?? [],
+      // …и то, о чём правило спрашивало: вход, о котором сайт больше не
+      // спрашивает (удалённая ссылка, снятая картинка), — это починка, а не
+      // потеря данных.
+      requestedInputs: rule.requestedInputs?.(ctx),
     },
     applicableChecks: applicablePages.length + unreachableOutside.length,
     completedChecks: applicablePages.length,
   };
 }
 
-/** Site/api-правила сами считают applicable/affected (форма SiteRuleResult). */
+/**
+ * Site/api-правила сами считают applicable/affected (форма SiteRuleResult).
+ *
+ * `completedTargets` отсутствует — правило дошло до всех своих целей. Если оно
+ * задано, разница идёт в coverage ровно как недостижимая страница у page-правил
+ * (§15): цель applicable, но проверка не завершена.
+ */
 function toScopedRuleRun(ruleId: string, result: SiteRuleResult): RuleRun {
   return {
     evaluation: {
@@ -103,9 +121,13 @@ function toScopedRuleRun(ruleId: string, result: SiteRuleResult): RuleRun {
       applicableTargets: result.applicableTargets,
       affectedTargets: result.affectedTargets,
       findings: result.findings,
+      // Правило, не назвавшее свои входы, остаётся без доказательства проверки.
+      checkedTargets: result.checkedTargets ?? [],
+      inputTargets: result.inputTargets ?? [],
+      requestedInputs: result.requestedInputs,
     },
     applicableChecks: result.applicableTargets,
-    completedChecks: result.applicableTargets,
+    completedChecks: result.completedTargets ?? result.applicableTargets,
   };
 }
 

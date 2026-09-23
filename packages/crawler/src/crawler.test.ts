@@ -144,7 +144,7 @@ describe('crawl: fixture-сайт', () => {
     );
   });
 
-  it('excludePatterns исключают ветку, onProgress считает обработанные URL', async () => {
+  it('excludePatterns исключают ветку, onProgress считает прочитанные страницы', async () => {
     const progress: Array<{ done: number; total: number }> = [];
     const result = await crawl(
       fixtureScope({ excludePatterns: ['/deep/*'] }),
@@ -153,8 +153,16 @@ describe('crawl: fixture-сайт', () => {
     const crawled = result.pages.map((page) => page.normalizedUrl);
     expect(crawled.filter((url) => url.includes('/deep/'))).toEqual([]);
     expect(progress.length).toBeGreaterThan(0);
-    expect(progress.map((tick) => tick.done)).toEqual(progress.map((_tick, i) => i + 1));
+    // Прогресс монотонен и никогда не обгоняет число реально прочитанных
+    // страниц: URL, закрытый robots.txt или срезанный лимитом, не «прочитан».
+    for (const [index, tick] of progress.entries()) {
+      expect(tick.done).toBeLessThanOrEqual(tick.total);
+      if (index > 0) {
+        expect(tick.done).toBeGreaterThanOrEqual(progress[index - 1]?.done ?? 0);
+      }
+    }
     const last = progress.at(-1);
+    expect(last?.done).toBe(result.pages.length);
     expect(last?.done).toBe(last?.total);
   });
 
@@ -249,5 +257,142 @@ describe('crawl: авто-throttle 5xx (D-030, мок-fetcher)', () => {
     expect(result.pages[0]?.fetchError).toBe('connection refused');
     expect(result.pages[0]?.status).toBe(0);
     expect(result.errors).toEqual([{ url: `${MOCK_ORIGIN}/`, reason: 'connection refused' }]);
+  });
+});
+
+describe('crawl: кооперативная отмена (мок-fetcher)', () => {
+  const MOCK_ORIGIN = 'http://cancel-host.test';
+
+  function htmlResponse(url: string, body: string): SafeFetchResult {
+    return {
+      finalUrl: url,
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      body,
+      redirectChain: [],
+      timingMs: 1,
+      truncated: false,
+    };
+  }
+
+  const PAGE_PATHS = ['/p1', '/p2', '/p3', '/p4', '/p5'] as const;
+
+  /** Фетчер, который записывает каждый запрошенный URL и абортит после N страниц. */
+  function countingFetcher(
+    requested: string[],
+    controller: AbortController,
+    abortAfterPages: number,
+  ): CrawlFetcher {
+    return (url) => {
+      requested.push(url);
+      const pathname = new URL(url).pathname;
+      if (pathname === '/') {
+        const links = PAGE_PATHS.map((path) => `<a href="${path}">${path}</a>`).join('');
+        return Promise.resolve(htmlResponse(url, `<html><body>${links}</body></html>`));
+      }
+      const pageRequests = requested.filter(
+        (entry) => !entry.endsWith('.txt') && !entry.endsWith('.xml'),
+      );
+      if (pageRequests.length >= abortAfterPages) {
+        controller.abort();
+      }
+      return Promise.resolve(htmlResponse(url, '<html><body>page</body></html>'));
+    };
+  }
+
+  it('после отмены новых запросов не делает и отдаёт собранное', async () => {
+    const controller = new AbortController();
+    const requested: string[] = [];
+    const result = await crawl(
+      { origin: MOCK_ORIGIN, includeSubdomains: false, maxPages: 20 },
+      fastOptions({
+        fetcher: countingFetcher(requested, controller, 3),
+        signal: controller.signal,
+      }),
+    );
+    // Обход прекращён: / + 2 страницы до аборта, остальные три не запрашивались.
+    expect(result.pages).toHaveLength(3);
+    const pagePaths = requested
+      .map((url) => new URL(url).pathname)
+      .filter((path) => path.startsWith('/p'));
+    expect(pagePaths).toHaveLength(2);
+    expect(pagePaths).not.toContain('/p5');
+  });
+
+  it('страница, запрос которой прервала отмена, не становится снимком', async () => {
+    // safeFetch на отменённом сигнале бросает AbortedError. Записать такой
+    // снимок значило бы сказать «страница недоступна» о странице, которую никто
+    // не дослушал — и это попало бы в evidence и в покрытие проверок.
+    const controller = new AbortController();
+    const result = await crawl(
+      { origin: MOCK_ORIGIN, includeSubdomains: false, maxPages: 20 },
+      fastOptions({
+        fetcher: (url) => {
+          const pathname = new URL(url).pathname;
+          if (pathname !== '/p1') {
+            return Promise.resolve(
+              htmlResponse(url, '<html><body><a href="/p1">p1</a></body></html>'),
+            );
+          }
+          // Отмена приходит, пока запрос /p1 в полёте: safeFetch его прерывает.
+          controller.abort();
+          return Promise.reject(new Error('safe-fetch: request was aborted by the caller'));
+        },
+        signal: controller.signal,
+      }),
+    );
+    expect(result.pages.map((page) => new URL(page.normalizedUrl).pathname)).toEqual(['/']);
+    expect(result.pages.some((page) => page.fetchError !== undefined)).toBe(false);
+  });
+
+  // Пауза (`shouldStop`) и отмена (`signal`) пришли разными дорогами и обязаны
+  // означать одно и то же для всего, что умеет останавливаться на границе шага:
+  // иначе отменённый скан пропускал бы `shouldStop`-проверки и продолжал
+  // спрашивать сайт — в частности, зондировать его media уже после отмены.
+  it('отмена останавливает и то, что спрашивает shouldStop: probe media и stoppedEarly', async () => {
+    const controller = new AbortController();
+    const requested: string[] = [];
+    const result = await crawl(
+      { origin: MOCK_ORIGIN, includeSubdomains: false, maxPages: 20 },
+      fastOptions({
+        fetcher: (url) => {
+          requested.push(url);
+          if (new URL(url).pathname === '/') {
+            controller.abort();
+            return Promise.resolve(
+              htmlResponse(url, '<html><body><img src="/img/a.png" /></body></html>'),
+            );
+          }
+          return Promise.resolve(htmlResponse(url, '<html><body>page</body></html>'));
+        },
+        signal: controller.signal,
+      }),
+    );
+    // Прерванный обход — это остановленный обход, а не законченный: worker
+    // разбирает `stoppedEarly`, чтобы отличить «дошли до конца» от «нас
+    // попросили прекратить».
+    expect(result.stoppedEarly).toBe(true);
+    // И ни одной пробы media: они идут после обхода и спрашивают ровно тот же
+    // `shouldStop`, что и сам цикл.
+    expect(result.resources).toEqual([]);
+    expect(requested.filter((url) => url.includes('/img/'))).toEqual([]);
+  });
+
+  it('уже отменённый сигнал не даёт сделать ни одного запроса', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const requested: string[] = [];
+    const result = await crawl(
+      { origin: MOCK_ORIGIN, includeSubdomains: false, maxPages: 20 },
+      fastOptions({
+        fetcher: (url) => {
+          requested.push(url);
+          return Promise.resolve(htmlResponse(url, '<html><body>page</body></html>'));
+        },
+        signal: controller.signal,
+      }),
+    );
+    expect(requested).toEqual([]);
+    expect(result.pages).toEqual([]);
   });
 });

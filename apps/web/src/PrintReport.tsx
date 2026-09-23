@@ -9,9 +9,12 @@
 
 import { useEffect, useState } from 'react';
 
+import { actionPlanCopy } from './action-plan-copy';
 import {
   apiRequest,
   apiRequestWithMeta,
+  isActionPlanState,
+  type ActionPlanContent,
   type Dashboard,
   type Issue,
   type IssueRuleGroup,
@@ -36,6 +39,8 @@ interface PrintData {
   readonly summary: IssueSummary | null;
   readonly issues: readonly Issue[];
   readonly totalIssues: number;
+  /** The Action Plan in the requested language, when one has been written. */
+  readonly actionPlan: ActionPlanContent | null;
 }
 
 async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: number }> {
@@ -52,15 +57,30 @@ async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: 
   return { issues: collected, total };
 }
 
-async function loadPrintData(scanId: string): Promise<PrintData> {
-  const [dashboard, summary, findings] = await Promise.all([
+async function loadPrintData(scanId: string, planLanguage: string | null): Promise<PrintData> {
+  const [dashboard, summary, findings, actionPlan] = await Promise.all([
     apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`),
     apiRequest<IssueSummary>(`/scans/${encodeURIComponent(scanId)}/issues/summary`).catch(
       () => null,
     ),
     loadAllIssues(scanId),
+    // The document is worth printing without a plan, so this one may fail and
+    // an unrecognised shape is treated as "no plan", never as an empty one.
+    planLanguage === null
+      ? Promise.resolve(null)
+      : apiRequest<unknown>(
+          `/scans/${encodeURIComponent(scanId)}/action-plan?language=${encodeURIComponent(planLanguage)}`,
+        )
+          .then((value) => (isActionPlanState(value) ? value.plan : null))
+          .catch(() => null),
   ]);
-  return { dashboard, summary, issues: findings.issues, totalIssues: findings.total };
+  return {
+    dashboard,
+    summary,
+    issues: findings.issues,
+    totalIssues: findings.total,
+    actionPlan,
+  };
 }
 
 /** The problems in summary order, or — without a summary — in the order findings arrived. */
@@ -83,16 +103,19 @@ function problemGroups(data: PrintData): readonly IssueRuleGroup[] {
 export function PrintReport(props: {
   scanId: string;
   language: Language;
+  /** Which Action Plan to include; absent means the reader's own language. */
+  planLanguage?: string | null;
   onBack: () => void;
   onError: (value: string) => void;
 }) {
   const f = findingsCopy[props.language].print;
   const [data, setData] = useState<PrintData | null>(null);
   const { onError } = props;
+  const planLanguage = props.planLanguage ?? props.language;
 
   useEffect(() => {
     let current = true;
-    loadPrintData(props.scanId)
+    loadPrintData(props.scanId, planLanguage)
       .then((value) => {
         if (!current) return;
         setData(value);
@@ -105,7 +128,7 @@ export function PrintReport(props: {
     return () => {
       current = false;
     };
-  }, [props.scanId, onError, f]);
+  }, [props.scanId, planLanguage, onError, f]);
 
   return (
     <div className="print-shell">
@@ -124,6 +147,53 @@ export function PrintReport(props: {
         <PrintDocument data={data} language={props.language} />
       )}
     </div>
+  );
+}
+
+/** The written plan as document pages: Overview, then each Action with its steps. */
+function PrintActionPlan(props: { plan: ActionPlanContent; language: Language }) {
+  const t = actionPlanCopy[props.language];
+  return (
+    <section className="print-section print-action-plan">
+      <h2>
+        {t.heading} <span className="muted">({t.aiLabel})</span>
+      </h2>
+      {props.plan.caveats.map((module) => (
+        <p className="muted" key={module}>
+          {t.caveat(moduleLabel(module, props.language))}
+        </p>
+      ))}
+      <h3>{t.overviewHeading}</h3>
+      <p>{props.plan.overview}</p>
+      <h3>{t.actionsHeading}</h3>
+      <ol>
+        {props.plan.actions.map((action, index) => (
+          <li key={`${index}:${action.title}`}>
+            <strong>{action.title}</strong>
+            <p>{action.why}</p>
+            <ol>
+              {action.steps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            <p className="muted">
+              {t.effortLabel}: {t.effort[action.effort] ?? action.effort} ·{' '}
+              {t.openIssues(action.openIssues, action.totalIssues)}
+              {action.settled ? ` · ${t.settled}` : ''}
+            </p>
+            <p className="muted">
+              {action.ruleIds.map((ruleId) => ruleTitle(ruleId, props.language)).join(' · ')}
+            </p>
+          </li>
+        ))}
+      </ol>
+      {props.plan.reach === null ? null : (
+        <p className="muted">{t.reach(props.plan.reach.share, props.plan.reach.rules)}</p>
+      )}
+      <p className="muted">
+        {t.generatedAt(formatDate(props.plan.generatedAt, props.language), props.plan.modelId)}
+      </p>
+    </section>
   );
 }
 
@@ -189,6 +259,12 @@ function PrintDocument(props: { data: PrintData; language: Language }) {
           </ul>
         )}
       </section>
+
+      {/* After the summary, before the section table: the plan is what the
+          reader is meant to act on. JSON and CSV never carry it (D-232). */}
+      {props.data.actionPlan === null ? null : (
+        <PrintActionPlan plan={props.data.actionPlan} language={props.language} />
+      )}
 
       <section className="print-section">
         <h2>{f.print.sectionsHeading}</h2>

@@ -116,6 +116,25 @@ jobs:
           # environment VARIABLE. Leave it unset to keep whatever
           # PRODUCTION_ENV_FILE defines (or the API default).
           PRODUCTION_ANTHROPIC_MODEL: ${{ vars.PRODUCTION_ANTHROPIC_MODEL }}
+          # OpenAI answers the GEO visibility questions beside Anthropic on every
+          # paid scan. Without the key the code fails closed — every OpenAI
+          # request is an unavailable provider and the module reports Partial —
+          # which is correct behaviour and completely silent, so the key has to
+          # be shipped deliberately rather than noticed later.
+          PRODUCTION_OPENAI_API_KEY: ${{ secrets.PRODUCTION_OPENAI_API_KEY }}
+          PRODUCTION_OPENAI_MODEL: ${{ vars.PRODUCTION_OPENAI_MODEL }}
+          # Google (Gemini) and Perplexity are opt-in recipients: a key alone
+          # sends them nothing, because the scan must also name the provider and
+          # its stored notice must cover it. Configuring them here only makes the
+          # opt-in possible. The two endpoint knobs are not hosts to point
+          # anywhere — each accepts only a documented value and anything else
+          # fails the boot by name (integrations/opt-in-ai-config.ts).
+          PRODUCTION_GOOGLE_AI_API_KEY: ${{ secrets.PRODUCTION_GOOGLE_AI_API_KEY }}
+          PRODUCTION_GOOGLE_AI_MODEL: ${{ vars.PRODUCTION_GOOGLE_AI_MODEL }}
+          PRODUCTION_GOOGLE_AI_API_VERSION: ${{ vars.PRODUCTION_GOOGLE_AI_API_VERSION }}
+          PRODUCTION_PERPLEXITY_API_KEY: ${{ secrets.PRODUCTION_PERPLEXITY_API_KEY }}
+          PRODUCTION_PERPLEXITY_MODEL: ${{ vars.PRODUCTION_PERPLEXITY_MODEL }}
+          PRODUCTION_PERPLEXITY_ENDPOINT_URL: ${{ vars.PRODUCTION_PERPLEXITY_ENDPOINT_URL }}
           PRODUCTION_PAGESPEED_API_KEY: ${{ secrets.PRODUCTION_PAGESPEED_API_KEY }}
           PRODUCTION_CRUX_API_KEY: ${{ secrets.PRODUCTION_CRUX_API_KEY }}
           # Transactional email (Resend). Overridable as a PAIR, and that is the
@@ -219,6 +238,14 @@ jobs:
           upsert_env GOOGLE_OAUTH_REDIRECT_URI PRODUCTION_GOOGLE_OAUTH_REDIRECT_URI
           upsert_env ANTHROPIC_API_KEY PRODUCTION_ANTHROPIC_API_KEY
           upsert_env ANTHROPIC_MODEL PRODUCTION_ANTHROPIC_MODEL
+          upsert_env OPENAI_API_KEY PRODUCTION_OPENAI_API_KEY
+          upsert_env OPENAI_MODEL PRODUCTION_OPENAI_MODEL
+          upsert_env GOOGLE_AI_API_KEY PRODUCTION_GOOGLE_AI_API_KEY
+          upsert_env GOOGLE_AI_MODEL PRODUCTION_GOOGLE_AI_MODEL
+          upsert_env GOOGLE_AI_API_VERSION PRODUCTION_GOOGLE_AI_API_VERSION
+          upsert_env PERPLEXITY_API_KEY PRODUCTION_PERPLEXITY_API_KEY
+          upsert_env PERPLEXITY_MODEL PRODUCTION_PERPLEXITY_MODEL
+          upsert_env PERPLEXITY_ENDPOINT_URL PRODUCTION_PERPLEXITY_ENDPOINT_URL
           upsert_env PAGESPEED_API_KEY PRODUCTION_PAGESPEED_API_KEY
           upsert_env CRUX_API_KEY PRODUCTION_CRUX_API_KEY
           upsert_env RESEND_API_KEY PRODUCTION_RESEND_API_KEY

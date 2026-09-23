@@ -7,12 +7,16 @@
 
 import { createHash } from 'node:crypto';
 
-import { AI_REQUEST_CAPS } from '@fluxradar/contracts';
-import type { AiFinishReason } from '@fluxradar/contracts';
+import type { AiFinishReason, AiRequestCapsShape } from '@fluxradar/contracts';
 
 import { AiModuleError, UnavailableError } from './errors.js';
-import { CHARS_PER_TOKEN, estimateTokens, TOKENIZER_VERSION } from './prompt-builder.js';
-import type { AiProvider, AiProviderConfig, AiRequest, NormalizedAiResponse } from './types.js';
+import { GEMINI_DEFAULT_MODEL } from './gemini-provider.js';
+import { OPENAI_DEFAULT_MODEL } from './openai-provider.js';
+import { capsFor, CHARS_PER_TOKEN, estimateTokens, TOKENIZER_VERSION } from './prompt-builder.js';
+import { throwIfCancelled } from './provider-support.js';
+import { RoutingAiProvider } from './routing-provider.js';
+import type { AiProvider, AiProviderConfig, AiProviderName, AiRequest } from './types.js';
+import type { NormalizedAiResponse } from './types.js';
 
 /** Registry v1 production defaults для OpenAI (план §5 / AI-001). */
 export const MOCK_PROVIDER_CONFIG: AiProviderConfig = {
@@ -43,6 +47,8 @@ export interface OpenAiShapedResponse {
   readonly output_text: string;
   /** URL-ы источников; у реального OpenAI живут в annotations, мок упрощает. */
   readonly citations?: readonly string[];
+  /** Число `web_search_call`-элементов — становится usage.searchUnits. */
+  readonly web_search_calls?: number;
   readonly usage?: OpenAiShapedUsage;
 }
 
@@ -79,8 +85,8 @@ interface CappedOutput {
 }
 
 /** Output cap §5: усечение по границе токена, finish_reason='length'. */
-function applyOutputCap(body: OpenAiShapedResponse): CappedOutput {
-  const capChars = AI_REQUEST_CAPS.maxOutputTokens * CHARS_PER_TOKEN;
+function applyOutputCap(body: OpenAiShapedResponse, caps: AiRequestCapsShape): CappedOutput {
+  const capChars = caps.maxOutputTokens * CHARS_PER_TOKEN;
   if (body.output_text.length > capChars) {
     return { text: body.output_text.slice(0, capChars), finishReason: 'length', truncated: true };
   }
@@ -105,7 +111,13 @@ export class MockAiProvider implements AiProvider {
   }
 
   // async, чтобы ошибки выбора фикстуры приходили rejection-ом, как у реального адаптера.
-  async send(request: AiRequest, promptText: string): Promise<NormalizedAiResponse> {
+  async send(
+    request: AiRequest,
+    promptText: string,
+    signal?: AbortSignal,
+  ): Promise<NormalizedAiResponse> {
+    // Как у реального адаптера: отменённый прогон не «отвечает» из фикстуры.
+    throwIfCancelled(signal);
     if (request.provider !== this.config.provider) {
       // Роутинг запроса не тому адаптеру — баг вызывающего кода, не Unavailable.
       throw new AiModuleError(
@@ -124,47 +136,103 @@ export class MockAiProvider implements AiProvider {
       throw new UnavailableError(fixture.unavailable ?? 'fixture has no response body');
     }
 
-    return this.normalize(fixture.response, promptText, request.sequence);
+    // `webSearch` is deliberately ignored: the mock has no transport, and the
+    // search facts a test wants come from the fixture's `web_search_calls`.
+    return this.normalize(fixture.response, promptText, request);
   }
 
   private normalize(
     body: OpenAiShapedResponse,
     promptText: string,
-    sequence: number,
+    request: AiRequest,
   ): NormalizedAiResponse {
-    const output = applyOutputCap(body);
+    const caps = capsFor(request);
+    const output = applyOutputCap(body, caps);
     const hasProviderUsage = body.usage !== undefined;
     const inputTokens = body.usage?.input_tokens ?? estimateTokens(promptText);
     // Усечённый нами output фактически равен cap-у независимо от заявки провайдера.
     const reportedOutput = body.usage?.output_tokens ?? estimateTokens(output.text);
     const outputTokens = output.truncated
-      ? AI_REQUEST_CAPS.maxOutputTokens
-      : Math.min(reportedOutput, AI_REQUEST_CAPS.maxOutputTokens);
+      ? caps.maxOutputTokens
+      : Math.min(reportedOutput, caps.maxOutputTokens);
     const createdAt =
       body.created_at !== undefined
         ? new Date(body.created_at * 1000).toISOString()
         : this.now().toISOString();
+    const citations = (body.citations ?? []).slice(0, caps.maxCitationUnits);
 
     return {
       provider: this.config.provider,
       apiVersion: this.config.apiVersion,
       modelId: body.model ?? this.config.modelId,
-      requestId: body.id ?? localRequestId(promptText, sequence),
+      requestId: body.id ?? localRequestId(promptText, request.sequence),
       requestIdSource: body.id !== undefined ? 'provider' : 'local',
       createdAt,
       rawText: output.text,
-      citations: body.citations ?? [],
+      citations,
       usage: {
         inputTokens,
         outputTokens,
         // §5 дословно: total_tokens всегда равен input + output.
         totalTokens: inputTokens + outputTokens,
+        ...(body.web_search_calls === undefined ? {} : { searchUnits: body.web_search_calls }),
+        ...(citations.length === 0 ? {} : { citationUnits: citations.length }),
       },
       usageSource: hasProviderUsage ? 'provider' : 'estimated',
       ...(hasProviderUsage ? {} : { tokenizerVersion: TOKENIZER_VERSION }),
       finishReason: output.finishReason,
     };
   }
+}
+
+/** Registry defaults a mock adapter reports per provider name. */
+const MOCK_MODEL_IDS: Readonly<Record<AiProviderName, string>> = {
+  anthropic: 'claude-sonnet-5',
+  openai: OPENAI_DEFAULT_MODEL,
+  google: GEMINI_DEFAULT_MODEL,
+  perplexity: 'sonar',
+};
+
+const MOCK_API_VERSIONS: Readonly<Record<AiProviderName, string>> = {
+  anthropic: '2023-06-01',
+  openai: 'v1',
+  google: 'v1beta',
+  perplexity: 'v1',
+};
+
+export interface MockRoutingProviderOptions {
+  readonly now?: () => Date;
+  /** Per-provider model override; the registry default applies otherwise. */
+  readonly modelIds?: Partial<Record<AiProviderName, string>>;
+}
+
+/**
+ * One mock adapter per provider name, all answering from the same fixtures.
+ *
+ * It lives here rather than in `testing/` because `apps/api` reaches this
+ * package only through `src/index.ts`, and the API's own provider factory needs
+ * it to keep tests away from every real transport.
+ */
+export function mockRoutingProvider(
+  fixtures: readonly MockAiFixture[],
+  providers: readonly AiProviderName[],
+  options: MockRoutingProviderOptions = {},
+): RoutingAiProvider {
+  return new RoutingAiProvider(
+    providers.map(
+      (provider) =>
+        new MockAiProvider(fixtures, {
+          ...(options.now === undefined ? {} : { now: options.now }),
+          config: {
+            provider,
+            apiVersion: MOCK_API_VERSIONS[provider],
+            modelId: options.modelIds?.[provider] ?? MOCK_MODEL_IDS[provider],
+            timeoutMs: 10_000,
+            maxRetries: 1,
+          },
+        }),
+    ),
+  );
 }
 
 /**

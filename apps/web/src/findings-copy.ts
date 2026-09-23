@@ -70,6 +70,19 @@ export type FindingsCopy = {
     readonly action: (plan: string) => string;
     readonly compare: string;
   };
+  /**
+   * The server-rendered PDF, which is a different document from the printable
+   * page: it carries every finding, however many there are, while the page below
+   * stops at a thousand. Both stay available — the page needs no server work and
+   * is the fallback when the download is refused.
+   */
+  readonly download: {
+    readonly pdf: string;
+    readonly pdfHint: string;
+    readonly preparing: string;
+    readonly failed: string;
+    readonly tooLarge: string;
+  };
   readonly print: {
     readonly open: string;
     readonly openHint: string;
@@ -174,14 +187,24 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
         'Every public page, not just the homepage — up to 50,000 pages',
         'Security headers, accessibility (WCAG 2.2 AA), performance, privacy and content',
         'A score, a prioritised list of problems and a client-ready report',
+        'An AI Action Plan: what to fix, in what order, with an overview you can forward to a client',
       ],
       action: (plan) => `Run ${plan} for this site`,
       compare: 'Compare plans',
     },
+    download: {
+      pdf: 'Download full report (PDF)',
+      pdfHint:
+        'Rendered on the server with every finding of this scan, including anything past the printable page’s limit of 1 000.',
+      preparing: 'Preparing the PDF…',
+      failed: 'The PDF could not be prepared. Use the printable report below, or try again.',
+      tooLarge:
+        'This scan has more findings than one PDF can hold. The JSON and CSV exports contain all of them.',
+    },
     print: {
-      open: 'Client report (PDF)',
+      open: 'Printable report',
       openHint:
-        'A printable version of this report. Use your browser’s print dialog to save it as a PDF.',
+        'A printable version of this report, limited to the first 1 000 findings. Use your browser’s print dialog to save it as a PDF.',
       windowTitle: 'Client report',
       print: 'Print or save as PDF',
       back: 'Back to the report',
@@ -284,14 +307,25 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
         'Усі публічні сторінки, а не лише головна — до 50 000 сторінок',
         'Заголовки безпеки, доступність (WCAG 2.2 AA), швидкодія, приватність і контент',
         'Оцінка, пріоритезований список проблем і звіт, який можна віддати клієнту',
+        'AI-план дій: що виправити і в якому порядку, з оглядом, який можна переслати клієнту',
       ],
       action: (plan) => `Запустити ${plan} для цього сайту`,
       compare: 'Порівняти тарифи',
     },
+    download: {
+      pdf: 'Завантажити повний звіт (PDF)',
+      pdfHint:
+        'Формується на сервері й містить усі знахідки цього сканування, у тому числі понад ліміт сторінки для друку — 1 000.',
+      preparing: 'Готуємо PDF…',
+      failed:
+        'Не вдалося підготувати PDF. Скористайтеся версією для друку нижче або спробуйте ще раз.',
+      tooLarge:
+        'У цьому скануванні більше знахідок, ніж може вмістити один PDF. Експорти JSON і CSV містять усі.',
+    },
     print: {
-      open: 'Звіт для клієнта (PDF)',
+      open: 'Версія для друку',
       openHint:
-        'Версія цього звіту для друку. Щоб зберегти PDF, скористайтеся діалогом друку браузера.',
+        'Версія цього звіту для друку, обмежена першою 1 000 знахідок. Щоб зберегти PDF, скористайтеся діалогом друку браузера.',
       windowTitle: 'Звіт для клієнта',
       print: 'Друк або збереження в PDF',
       back: 'Назад до звіту',

@@ -23,13 +23,17 @@ import { scanScopeSchema } from '@fluxradar/contracts';
  * `userAgent` is the only setting Free honours — it is the crawler's request
  * header, which applies to a single page exactly as it applies to a thousand.
  * Everything else is the fixed homepage check: one page, no link following, no
- * subdomains, no patterns, robots.txt respected.
+ * subdomains, no patterns, robots.txt respected. Seed URLs, configured API
+ * checks and browser rendering are all absent for the same reason the page
+ * limit is one: they are paid capabilities, and a stored scope that mentioned
+ * them would be advertising work the Free check never does.
  */
 export function freeScanScope(requested?: ScanScopeInput): ScanScopeInput {
   return scanScopeSchema.parse({
     includeSubdomains: false,
     maxPages: 1,
     maxDepth: 0,
+    renderJs: false,
     queryPolicy: 'ignore',
     respectRobots: true,
     robotsOverrideConfirmed: false,

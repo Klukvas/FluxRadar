@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CheckoutSession, Prisma } from '@prisma/client';
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 
 import { createTestDb, seedAccountWithProfile, type TestDb } from '../../test-utils/test-db.ts';
 import type { SeededAccount } from '../../test-utils/test-db.ts';
@@ -54,7 +55,10 @@ describe('FASTSPRING-003 webhook', () => {
         quotedCurrency: 'USD',
         liveMode: false,
         scopeJson: JSON.stringify({ includeSubdomains: false, maxPages: 12 }),
-        aiConsentJson: JSON.stringify({ providers: ['anthropic'], noticeVersion: 'v1' }),
+        aiConsentJson: JSON.stringify({
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        }),
         ...overrides,
       },
     });
@@ -127,13 +131,46 @@ describe('FASTSPRING-003 webhook', () => {
     expect(purchase.scan?.status).toBe('Pending');
     expect(purchase.scan?.scopeJson).toBe(session.scopeJson);
     expect(purchase.scan?.job?.status).toBe('Pending');
-    expect(purchase.scan?.aiConsent?.noticeVersion).toBe('v1');
+    expect(purchase.scan?.aiConsent?.noticeVersion).toBe(CURRENT_AI_PROCESSING_NOTICE_VERSION);
 
     const stored = await db.prisma.checkoutSession.findUniqueOrThrow({
       where: { id: session.id },
     });
     expect(stored.status).toBe('completed');
     expect(stored.purchaseId).toBe(purchase.id);
+  });
+
+  it('still delivers the paid scan when the stored consent names a retired notice', async () => {
+    // A notice can be retired between the checkout and the payment. The customer
+    // paid, so the scan is theirs; what they cannot get is an AI provider call
+    // authorised by a disclosure this release no longer stands behind.
+    const session = await seedCheckoutSession({
+      aiConsentJson: JSON.stringify({ providers: ['anthropic'], noticeVersion: 'retired-v0' }),
+    });
+    const { rawBody, signature } = signedDelivery([
+      {
+        id: 'evt_retired_notice',
+        type: 'order.completed',
+        data: orderCompletedData({
+          orderId: 'ord_retired_notice',
+          reference: session.reference,
+          productPath: BASIC_PRODUCT,
+          amount: BASIC_PRICE,
+        }),
+      },
+    ]);
+
+    const result = await deliver(rawBody, signature);
+    expect(result.results[0]?.outcome).toBe(WEBHOOK_OUTCOMES.processed);
+    expect(result.createdScanIds).toHaveLength(1);
+
+    const scanId = result.createdScanIds[0] ?? '';
+    const scan = await db.prisma.scan.findUniqueOrThrow({
+      where: { id: scanId },
+      include: { aiConsent: true },
+    });
+    expect(scan.status).toBe('Pending');
+    expect(scan.aiConsent).toBeNull();
   });
 
   it('links the order when the reference only survives as an item attribute', async () => {

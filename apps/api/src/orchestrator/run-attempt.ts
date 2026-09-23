@@ -4,16 +4,16 @@
 // Терминализацию выполняет process-scan через resolveScanOutcome.
 
 import type { ModuleName, Plan, ScanScopeInput } from '@fluxradar/contracts';
-import { TARIFFS, scanScopeSchema, severityRank } from '@fluxradar/contracts';
+import { TARIFFS } from '@fluxradar/contracts';
 import {
   AI_PROVIDER_NAMES,
   AiQuotaTracker,
-  CURRENT_AI_PROCESSING_NOTICE_VERSION,
+  isAcceptedNoticeVersion,
   runGeoModule,
 } from '@fluxradar/ai';
 import type { AiConsent, GeoModuleResult } from '@fluxradar/ai';
 import { crawl } from '@fluxradar/crawler';
-import type { CrawlScope } from '@fluxradar/crawler';
+import type { CrawlResult, CrawlScope } from '@fluxradar/crawler';
 import {
   analyticsPageFacts,
   analyzeUxStatic,
@@ -22,25 +22,40 @@ import {
   runModuleRules,
 } from '@fluxradar/rules';
 import type { AnalyticsPageFact, ModuleRunResult, SiteContext } from '@fluxradar/rules';
-import { computeCoverage } from '@fluxradar/scoring';
-import type { Prisma, PrismaClient, Scan, SiteProfile } from '@prisma/client';
+import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
 
-import { executionProfile, storedExecutionConfig } from '../profiles/execution-config.ts';
+import { clearActionPlansForScan } from '../action-plan/service.ts';
+import { executionProfile } from '../profiles/execution-config.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
+import { runApiChecks } from './api-checks.ts';
+import { throwIfCancelled } from './cancellation.ts';
+import { EMPTY_CRAWL_CHECKPOINT, type ScanCheckpointState } from './checkpoint.ts';
+import { CrawlProgressWriter } from './crawl-progress.ts';
+import {
+  persistCrawlEvidence,
+  releaseResumeState,
+  restoreCrawl,
+  settledModules,
+} from './crawl-resume.ts';
 import type { WorkerDeps } from './deps.ts';
-import { freeCheckMetadata, runFreeCheck } from './free-check.ts';
+import { runFreeCheck } from './free-check.ts';
 import {
   buildGeoRequests,
   generateGeoDiscoveryQuestions,
+  geoProvidersFor,
   type GeoQuestionGenerationResult,
 } from './geo.ts';
-import { initialIssueStatuses } from './issue-sync.ts';
+import { geoModuleRow } from './geo-module-row.ts';
 import { includesAnalytics, modulePlanFor } from './module-plan.ts';
+import { metadataForRuleModule, type RuleModuleContext } from './module-metadata.ts';
+import { persistModuleResult, setModule } from './module-persistence.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
-import type { IssueRowData } from './module-result.ts';
-import { ruleCheckSummaries, uxRuleCheckSummaries } from './rule-checks.ts';
-import { runUxConversion } from './ux.ts';
+import { devicePreferenceFor, runPerformanceModule } from './performance-module.ts';
+import { uxRuleCheckSummaries } from './rule-checks.ts';
+import { crawlRequestContext, scanScopeOf, type RunRequestContext } from './run-context.ts';
+import type { ModuleCoverage } from './run-coverage.ts';
+import { runUxConversion, uxRuleCoverage } from './ux.ts';
 
 const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
 
@@ -48,22 +63,11 @@ const providersJsonSchema = z.array(z.enum(AI_PROVIDER_NAMES));
 
 type ScanWithRelations = Scan & { readonly siteProfile: SiteProfile };
 
-function parseScope(scopeJson: string): ScanScopeInput {
-  try {
-    const parsed = scanScopeSchema.safeParse(JSON.parse(scopeJson));
-    if (parsed.success) {
-      return parsed.data;
-    }
-  } catch {
-    // Невалидный JSON в scopeJson — падаем на дефолт ниже.
-  }
-  return scanScopeSchema.parse({ includeSubdomains: false });
-}
-
 function buildCrawlScope(origin: string, scope: ScanScopeInput, plan: Plan): CrawlScope {
   const { urlLimit } = TARIFFS[plan];
   if (plan === 'Free') {
     // §18: Free — ровно одна homepage-проверка, ссылки не обходим.
+    // Ни seed-списка, ни рендера: и то и другое расширяет бесплатную проверку.
     return { origin, includeSubdomains: false, maxPages: 1, maxDepth: 0 };
   }
   return {
@@ -73,98 +77,52 @@ function buildCrawlScope(origin: string, scope: ScanScopeInput, plan: Plan): Cra
     ...(scope.maxDepth !== undefined ? { maxDepth: scope.maxDepth } : {}),
     ...(scope.urlPatterns !== undefined ? { includePatterns: scope.urlPatterns } : {}),
     ...(scope.excludePatterns !== undefined ? { excludePatterns: scope.excludePatterns } : {}),
+    ...(scope.seedUrls !== undefined ? { seedUrls: scope.seedUrls } : {}),
+    renderJs: scope.renderJs,
     queryPolicy: scope.queryPolicy,
     respectRobots: scope.respectRobots,
     robotsOverrideConfirmed: scope.robotsOverrideConfirmed,
   };
 }
 
-type ModuleRowData = {
-  readonly runtimeStatus: string;
-  readonly statusReason?: string | null;
-  readonly coverage?: number | null;
-  readonly score?: number | null;
-  readonly applicableChecks?: number | null;
-  readonly completedApplicableChecks?: number | null;
-  readonly usableOutput?: boolean;
-  readonly metadataJson?: string;
-};
-
-function metadataForRuleModule(
-  module: ModuleName,
-  plan: Plan,
-  evaluations: ModuleRunResult['evaluations'],
-): string {
-  // Every rule module records what each of its checks did, so the report can
-  // open a section card to that list instead of showing only its totals.
-  const ruleChecks = ruleCheckSummaries(evaluations);
-  if (plan === 'Free' && module === 'SEO') {
-    // Free runs the fixed four-rule homepage check, not the full SEO module:
-    // the paid module's structured-data and social-preview metadata would
-    // describe checks that never ran (see free-check.ts).
-    return JSON.stringify({ ...freeCheckMetadata(), ruleChecks });
-  }
-  const metadata =
-    module === 'Accessibility'
-      ? {
-          standard: 'WCAG 2.2 AA',
-          profiles: ['EN 301 549', 'Section 508'],
-          automation: 'static-dom-css',
-          manualReviewRequired: true,
-          legalCertification: false,
-        }
-      : module === 'Security'
-        ? {
-            standard: 'OWASP ASVS',
-            profile: 'Public Security Profile',
-            automation: 'public-http-headers-dom',
-            manualReviewRequired: true,
-            notVerifiable: ['source code', 'authenticated flows', 'server-side configuration'],
-          }
-        : module === 'Privacy'
-          ? {
-              standard: 'Privacy & Consent',
-              scope: 'public technical signals',
-              automation: 'static-http-dom',
-              manualReviewRequired: true,
-              legalAdvice: false,
-            }
-          : module === 'SEO'
-            ? {
-                structuredData: 'static-html-json-ld',
-                socialPreview: 'static-html-meta',
-                clientRenderedMarkup: 'not verifiable without browser rendering',
-              }
-            : undefined;
-  return JSON.stringify({ ...metadata, ruleChecks });
-}
-
-async function setModule(
-  prisma: PrismaClient,
-  scanId: string,
-  module: string,
-  data: ModuleRowData,
-): Promise<void> {
-  await prisma.scanModule.upsert({
-    where: { scanId_module: { scanId, module } },
-    create: { scanId, module, runtimeStatus: data.runtimeStatus, ...withoutStatus(data) },
-    update: { runtimeStatus: data.runtimeStatus, ...withoutStatus(data) },
-  });
-}
-
-function withoutStatus(data: ModuleRowData): Omit<ModuleRowData, 'runtimeStatus'> {
-  const { runtimeStatus, ...rest } = data;
-  void runtimeStatus;
-  return rest;
+/**
+ * Доказательство повторной проверки модуля правил (§14, run-coverage.ts).
+ *
+ * В метадату модуля оно больше не попадает: её читает каждый поллинг статуса, а
+ * доказательство — только политика Resolved следующего скана, из собственной
+ * таблицы. Вместе с правилами едут зависимости каждой находки: именно они
+ * позволяют закрыть починенную ссылку, не требуя повторить весь обход.
+ */
+function ruleModuleCoverage(result: ModuleRunResult, context: RunRequestContext): ModuleCoverage {
+  return {
+    rules: result.evaluations.map((evaluation) => ({
+      ruleId: evaluation.ruleId,
+      checkedTargets: evaluation.checkedTargets,
+      inputTargets: evaluation.inputTargets,
+      ...(evaluation.requestedInputs !== undefined
+        ? { requestedInputs: evaluation.requestedInputs }
+        : {}),
+    })),
+    issueDependencies: new Map(
+      result.findings.flatMap((finding) =>
+        finding.dependencyTargets === undefined
+          ? []
+          : [[finding.fingerprint, finding.dependencyTargets] as const],
+      ),
+    ),
+    context,
+  };
 }
 
 function loadConsent(
   scan: Scan & { aiConsent?: { providersJson: string; noticeVersion: string } | null },
 ): AiConsent | null {
   const record = scan.aiConsent ?? null;
-  if (record === null || record.noticeVersion !== CURRENT_AI_PROCESSING_NOTICE_VERSION) {
+  if (record === null || !isAcceptedNoticeVersion(record.noticeVersion)) {
     // A historical record cannot establish that the disclosure for the current
-    // paid AI processing was shown before purchase.
+    // paid AI processing was shown before purchase. The accepted list keeps a
+    // scan bought under the previous notice usable for the 30 days its
+    // entitlement covers; its own provider list is what limits the recipients.
     return null;
   }
   let rawProviders: unknown;
@@ -188,150 +146,82 @@ async function persistGeoModule(
   generation: GeoQuestionGenerationResult,
   aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
 ): Promise<void> {
-  const mentionSignals = (
-    aiRequestKey: string,
-  ): { readonly brand: boolean; readonly domain: boolean } | null => {
-    const brandEvaluation = geo.evaluations.find(
-      (evaluation) => evaluation.ruleId === 'GEO-VIS-003',
-    );
-    const domainEvaluation = geo.evaluations.find(
-      (evaluation) => evaluation.ruleId === 'GEO-VIS-004',
-    );
-    if (brandEvaluation === undefined || domainEvaluation === undefined) return null;
-    return {
-      brand: !brandEvaluation.findings.some((finding) => finding.aiRequestKey === aiRequestKey),
-      domain: !domainEvaluation.findings.some((finding) => finding.aiRequestKey === aiRequestKey),
-    };
-  };
-  const reasonParts = [
-    geo.statusReason,
-    generation.status === 'Unavailable' || generation.status === 'InvalidResponse'
-      ? `QueryGeneration${generation.status}: ${generation.statusReason ?? 'unknown reason'}`
-      : null,
-  ].filter((reason): reason is string => reason !== null);
-  const coverage = computeCoverage({
-    applicableChecks: geo.outcomes.length + generation.applicableChecks,
-    completedApplicableChecks: geo.responses.length + generation.completedApplicableChecks,
-    ...(reasonParts.length > 0 ? { statusReason: reasonParts.join('; ') } : {}),
+  // Строку модуля строит чистый билдер (geo-module-row.ts), а пишется она в
+  // одной транзакции с ответами провайдера: строка — это то, что следующая
+  // попытка читает как «эта платная стадия закончена», и строка без своих
+  // ответов закрыла бы стадию, потеряв оплаченный материал (AI-001).
+  const moduleRow = geoModuleRow(geo, generation, aiCrawlerReadiness);
+  await prisma.$transaction(async (tx) => {
+    await setModule(tx, scanId, geo.module, moduleRow);
+    if (generation.outcome?.kind === 'response') {
+      await persistAiResponse(tx, scanId, 'AI SEO / GEO', generation.outcome);
+    }
+    for (const outcome of geo.responses) {
+      await persistAiResponse(tx, scanId, 'AI SEO / GEO', outcome);
+    }
   });
-  // Informational-only модуль (D-109): штрафующих правил нет, поэтому score
-  // Completed/Partial-ветки всегда 100 − 0; сами находки идут в ai_response
-  // records и findings GEO-правил, а не в Issue Center (§16: issue.severity
-  // не бывает null).
-  const score = coverage.status === 'Completed' || coverage.status === 'Partial' ? 100 : null;
-  await setModule(prisma, scanId, geo.module, {
-    runtimeStatus: coverage.status,
-    statusReason: coverage.statusReason,
-    coverage: coverage.coverage,
-    score,
-    applicableChecks: coverage.applicableChecks,
-    completedApplicableChecks: coverage.completedApplicableChecks,
-    usableOutput: geo.responses.length > 0,
-    metadataJson: JSON.stringify({
-      standard: 'AI crawler readiness',
-      automation: aiCrawlerReadiness.automation,
-      providerTokenRequired: aiCrawlerReadiness.providerTokenRequired,
-      robots: aiCrawlerReadiness.robots,
-      pages: aiCrawlerReadiness.pages,
-      limitations: aiCrawlerReadiness.limitations,
-      providerVisibility: {
-        status: coverage.status,
-        statusReason: coverage.statusReason,
-        requiresConsent: true,
-        method: 'AI-generated neutral context questions plus direct brand-awareness questions',
-        interpretation: 'Prompt-specific observations; mentions do not prove remembered knowledge.',
-        queryGeneration: {
-          status: generation.status,
-          statusReason: generation.statusReason,
-          promptVersion: generation.outcome?.request.promptVersion ?? null,
-          generatedQuestions: redactEvidence(generation.questions),
-          ...(generation.outcome?.kind === 'response'
-            ? {
-                aiRequestKey: generation.outcome.aiRequestKey,
-                usage: generation.outcome.response.usage,
-              }
-            : generation.outcome?.kind === 'unavailable'
-              ? { reason: generation.outcome.reason }
-              : {}),
-        },
-        requests: geo.outcomes.map((outcome) => ({
-          purpose: outcome.request.promptVersion.endsWith('-discovery') ? 'discovery' : 'awareness',
-          promptVersion: outcome.request.promptVersion,
-          sequence: outcome.request.sequence,
-          status: outcome.kind,
-          question: redactEvidence(outcome.request.question),
-          ...(outcome.kind === 'response'
-            ? {
-                aiRequestKey: outcome.aiRequestKey,
-                usage: outcome.response.usage,
-                mentions: mentionSignals(outcome.aiRequestKey),
-              }
-            : { reason: outcome.reason }),
-        })),
-      },
-    }),
-  });
-
-  if (generation.outcome?.kind === 'response') {
-    await persistAiResponse(prisma, scanId, 'AI SEO / GEO', generation.outcome);
-  }
-  for (const outcome of geo.responses) {
-    await persistAiResponse(prisma, scanId, 'AI SEO / GEO', outcome);
-  }
 }
 
 async function persistUxModule(
   prisma: PrismaClient,
-  scanId: string,
+  scan: Scan,
   ux: Awaited<ReturnType<typeof runUxConversion>>,
+  context: RunRequestContext,
 ): Promise<void> {
+  const scanId = scan.id;
   const deterministicChecks = 3;
-  const aiResponse = ux.ai.outcome.kind === 'response' ? ux.ai.outcome.response : null;
-  const aiRequestKey = ux.ai.outcome.kind === 'response' ? ux.ai.outcome.aiRequestKey : undefined;
+  const aiOutcome = ux.ai.outcome?.kind === 'response' ? ux.ai.outcome : null;
+  const aiResponse = aiOutcome?.response ?? null;
+  const aiRequestKey = aiOutcome?.aiRequestKey;
   // Coverage counts the three declared deterministic rules plus the one AI
   // review, not the number of pages. Page count made a 12-page scan look 92%
   // complete when its entire AI quarter had not run.
   const completedApplicableChecks = deterministicChecks + (aiResponse === null ? 0 : 1);
   const applicableChecks = deterministicChecks + 1;
   const uxReason = ux.ai.statusReason === null ? null : `UxAi${ux.ai.statusReason}`;
-  await setModule(prisma, scanId, 'UX/Conversion', {
-    runtimeStatus: aiResponse === null ? 'Partial' : 'Completed',
-    statusReason: aiResponse === null ? uxReason : null,
-    coverage: completedApplicableChecks / applicableChecks,
-    // A Partial run scores only the checks that ran (§15): without the AI review
-    // that is the three static rules, and the coverage above says so.
-    score: ux.score,
-    applicableChecks,
-    completedApplicableChecks,
-    usableOutput: ux.staticEvidence.pages.length > 0,
-    metadataJson: JSON.stringify({
-      standard: 'UX/Conversion',
-      automation: 'static-html + AI-assisted',
-      providerTokenRequired: true,
-      limitation: ux.staticEvidence.limitation,
-      staticSignals: ux.staticEvidence.summary,
-      staticFindings: ux.staticEvidence.findings.length,
-      ruleChecks: uxRuleCheckSummaries(ux.staticEvidence, ux.ai),
-      pages: redactEvidence(ux.staticEvidence.pages),
-      ai: {
-        status: ux.ai.status,
-        statusReason: uxReason,
-        findings: ux.ai.findings.length,
-        ...(aiResponse === null
-          ? {}
-          : {
-              provider: aiResponse.provider,
-              modelId: aiResponse.modelId,
-              promptVersion: ux.ai.outcome.request.promptVersion,
-              requestId: aiResponse.requestId,
-              aiRequestKey,
-              usage: aiResponse.usage,
-            }),
-      },
-    }),
+  await persistModuleResult(prisma, scan, {
+    module: 'UX/Conversion',
+    row: {
+      runtimeStatus: aiResponse === null ? 'Partial' : 'Completed',
+      statusReason: aiResponse === null ? uxReason : null,
+      coverage: completedApplicableChecks / applicableChecks,
+      // A Partial run scores only the checks that ran (§15): without the AI review
+      // that is the three static rules, and the coverage above says so.
+      score: ux.score,
+      applicableChecks,
+      completedApplicableChecks,
+      usableOutput: ux.staticEvidence.pages.length > 0,
+      metadataJson: JSON.stringify({
+        standard: 'UX/Conversion',
+        automation: 'static-html + AI-assisted',
+        providerTokenRequired: true,
+        limitation: ux.staticEvidence.limitation,
+        staticSignals: ux.staticEvidence.summary,
+        staticFindings: ux.staticEvidence.findings.length,
+        ruleChecks: uxRuleCheckSummaries(ux.staticEvidence, ux.ai),
+        pages: redactEvidence(ux.staticEvidence.pages),
+        ai: {
+          status: ux.ai.status,
+          statusReason: uxReason,
+          findings: ux.ai.findings.length,
+          ...(aiOutcome === null
+            ? {}
+            : {
+                provider: aiOutcome.response.provider,
+                modelId: aiOutcome.response.modelId,
+                promptVersion: aiOutcome.request.promptVersion,
+                requestId: aiOutcome.response.requestId,
+                aiRequestKey,
+                usage: aiOutcome.response.usage,
+              }),
+        },
+      }),
+    },
+    issueRows: ux.issueRows,
+    coverage: { rules: uxRuleCoverage(ux), context },
   });
-  if (ux.ai.outcome.kind === 'response') {
-    await persistAiResponse(prisma, scanId, 'UX/Conversion', ux.ai.outcome);
+  if (aiOutcome !== null) {
+    await persistAiResponse(prisma, scanId, 'UX/Conversion', aiOutcome);
   }
 }
 
@@ -342,14 +232,71 @@ async function persistUxModule(
  */
 export interface ScanAttemptFacts {
   readonly analyticsPages: readonly AnalyticsPageFact[];
+  /**
+   * True when the attempt stopped because the owner asked it to, rather than
+   * because it finished. The caller decides what that means for the scan — a
+   * pause and a cancellation both stop the work, and only the scan row says
+   * which one happened.
+   */
+  readonly stopped: boolean;
 }
 
-/** Полная попытка прогона; бросает только при platform-сбое (обрабатывает вызывающий). */
+/** The checkpoint stage name for the crawl phase; modules use their own names. */
+export const CRAWL_STAGE = 'crawl';
+
+/**
+ * How an attempt is paused and resumed.
+ *
+ * `isStopRequested` has to be synchronous and cheap — the crawler asks it
+ * before every request — so the caller polls and this only reads the answer.
+ */
+export interface ScanAttemptControl {
+  /** Checkpoint to continue from; null starts the attempt from scratch. */
+  readonly resumeFrom: ScanCheckpointState | null;
+  /**
+   * True when this attempt is a *replacement* of the previous result rather
+   * than a continuation of it — the external retry the customer was granted
+   * after a Partial run. Everything is re-run and re-written, including the
+   * paid stages, because that is what the retry was granted for.
+   *
+   * Every other attempt continues: it keeps the modules that already settled,
+   * whether or not a checkpoint survived to say so.
+   */
+  readonly replacesPreviousResult?: boolean;
+  isStopRequested(): boolean;
+  save(state: ScanCheckpointState): Promise<void>;
+}
+
+export interface RunScanAttemptOptions {
+  readonly retryModule?: string;
+  /**
+   * Hard cancellation. Unlike `control.isStopRequested` — which a pause reads at
+   * stage boundaries — this reaches the transports, so a cancelled scan stops
+   * the request already on the wire instead of paying for its answer.
+   */
+  readonly signal?: AbortSignal;
+  readonly control?: ScanAttemptControl;
+}
+
+/**
+ * Полная попытка прогона.
+ *
+ * Бросает при platform-сбое и при отмене (ScanCancelledError) — оба случая
+ * разбирает вызывающий. Отмена проверяется между фазами и прокидывается в
+ * обход и в GEO, чтобы отменённый скан перестал слать запросы наружу.
+ */
 export async function runScanAttempt(
   deps: WorkerDeps,
   scanId: string,
-  retryModule?: string,
+  options: RunScanAttemptOptions = {},
 ): Promise<ScanAttemptFacts> {
+  const retryModule = options.retryModule;
+  const signal = options.signal;
+  const control = options.control;
+  // Пауза и отмена сходятся в одну проверку на границах шагов: всё, что умеет
+  // остановиться между фазами, обязано останавливаться и по отмене.
+  const isStopRequested = (): boolean =>
+    control?.isStopRequested() === true || signal?.aborted === true;
   const { prisma } = deps;
   const now = deps.now ?? ((): Date => new Date());
   const scan = (await prisma.scan.findUnique({
@@ -364,8 +311,10 @@ export async function runScanAttempt(
   const plan = scan.plan as Plan;
   const profile = executionProfile(scan, scan.siteProfile);
   const modulePlan = modulePlanFor(plan);
-  const scope =
-    storedExecutionConfig(scan.executionConfigJson)?.scope ?? parseScope(scan.scopeJson);
+  const scope = scanScopeOf(scan);
+  // Конфигурация запроса едет в доказательство покрытия: один и тот же URL под
+  // desktop- и mobile-агентом — разные данные (run-context.ts).
+  const requestContext = crawlRequestContext(scope);
   const origin = deps.crawl?.originOverride?.(scan) ?? profile.domain;
 
   const plannedModules = [
@@ -381,59 +330,201 @@ export async function runScanAttempt(
   ) {
     throw new Error(`runScanAttempt: module ${retryModule} is not runnable for ${plan}`);
   }
-  // Full attempts replace the snapshot. A module retry replaces only its own
-  // rows, preserving usable output and evidence from the other modules.
-  await prisma.issue.deleteMany({
-    where: { scanId, ...(retryModule === undefined ? {} : { module: retryModule }) },
-  });
-  if (retryModule === undefined) {
-    await prisma.aiResponseRecord.deleteMany({ where: { scanId } });
-  } else if (retryModule === 'AI SEO / GEO' || retryModule === 'UX/Conversion') {
-    await prisma.aiResponseRecord.deleteMany({ where: { scanId, module: retryModule } });
+  // Re-running the scan discards its Action Plans and resets their counters:
+  // the snapshot the plans were written from no longer exists (D-232). A module
+  // retry rewrites issues too, so both kinds of attempt clear them.
+  await clearActionPlansForScan(prisma, scanId, now());
+  // What this attempt must not run again.
+  //
+  // The checkpoint is *not* the authority here, and it deliberately was not
+  // made one: a process that wrote a module's rows and then failed to write —
+  // or to keep — its checkpoint would otherwise run that module, and pay a
+  // provider for it, a second time. The persisted `ScanModule` rows say what
+  // settled, and they survive a lost checkpoint, a crashed process and a
+  // platform retry alike.
+  //
+  // Two attempts genuinely replace the previous result and so consult nothing:
+  // a module retry, which exists to re-run exactly one module, and the external
+  // retry granted after a Partial run.
+  const continues =
+    retryModule === undefined && control !== undefined && control.replacesPreviousResult !== true;
+  const completedStages = new Set(continues ? (control.resumeFrom?.completedStages ?? []) : []);
+  if (continues) {
+    for (const module of await settledModules(prisma, scanId)) completedStages.add(module);
   }
-  await prisma.scanModule.deleteMany({
-    where: { scanId, ...(retryModule === undefined ? {} : { module: retryModule }) },
+  // Gated on the same flag as the stages, and for the same reason: an attempt
+  // that replaces the previous result starts from nothing, so pages read by the
+  // run it replaces are not its evidence. The previous attempt clears its
+  // resume state before such a retry is granted, which makes this a guard
+  // rather than a live path — but it is the one place the flag has to hold for
+  // the rest of it to mean anything.
+  const resumedCrawl = continues ? (control?.resumeFrom?.crawl ?? null) : null;
+  const restoredCrawl =
+    resumedCrawl === null ? null : await restoreCrawl(prisma, scanId, resumedCrawl, now());
+  const modulesToRun = targetModules.filter((module) => !completedStages.has(module));
+  await clearPreviousModuleRows(prisma, scanId, {
+    retryModule,
+    // A continuing attempt keeps what settled; anything else replaces the
+    // whole snapshot exactly as it did before checkpoints existed.
+    modules: continues ? modulesToRun : null,
   });
-  for (const module of targetModules) {
+  for (const module of modulesToRun) {
     await setModule(prisma, scanId, module, { runtimeStatus: 'Pending' });
   }
 
-  const crawlResult = await crawl(buildCrawlScope(origin, scope, plan), {
-    ...(deps.crawl?.fetcher !== undefined ? { fetcher: deps.crawl.fetcher } : {}),
-    ...(deps.crawl?.dangerouslyAllowLoopback === true ? { dangerouslyAllowLoopback: true } : {}),
-    ...(deps.crawl?.limiter !== undefined ? { limiter: deps.crawl.limiter } : {}),
-    logger: { warn: (message, context) => deps.logger.warn(message, context) },
-    userAgent: scope.userAgent === 'mobile' ? `${CRAWLER_USER_AGENT} Mobile` : CRAWLER_USER_AGENT,
+  throwIfCancelled(scanId, signal);
+  const crawlScope = buildCrawlScope(origin, scope, plan);
+  const renderRuntime =
+    crawlScope.renderJs === true ? await (deps.createRenderRuntime?.() ?? undefined) : undefined;
+  const progress = new CrawlProgressWriter(
+    prisma,
+    scanId,
+    restoredCrawl?.pages.length ?? 0,
+    resumedCrawl?.discoveredUrlCount ?? 0,
+  );
+  let crawlResult: CrawlResult;
+  try {
+    crawlResult = await crawl(crawlScope, {
+      ...(deps.crawl?.fetcher !== undefined ? { fetcher: deps.crawl.fetcher } : {}),
+      ...(deps.crawl?.dangerouslyAllowLoopback === true ? { dangerouslyAllowLoopback: true } : {}),
+      ...(deps.crawl?.limiter !== undefined ? { limiter: deps.crawl.limiter } : {}),
+      ...(renderRuntime !== undefined ? { renderRuntime } : {}),
+      // Two sources feed the frontier of a resumed crawl: what was still
+      // queued, and what was read but whose evidence did not fit the store.
+      ...(resumedCrawl !== null
+        ? { resumeSeeds: [...resumedCrawl.frontier, ...resumedCrawl.unretained] }
+        : {}),
+      ...(restoredCrawl !== null ? { restored: restoredCrawl } : {}),
+      // A Free check is one homepage read; probing its media would turn it into
+      // a few hundred requests for a check nobody paid for.
+      probeMedia: plan !== 'Free',
+      shouldStop: isStopRequested,
+      // The signal goes to the transport as well as to the loop: a cancel must
+      // stop the request already on the wire, not only the next one.
+      ...(signal !== undefined ? { signal } : {}),
+      onProgress: (_url, done, total) => progress.record(done, total),
+      logger: { warn: (message, context) => deps.logger.warn(message, context) },
+      userAgent: scope.userAgent === 'mobile' ? `${CRAWLER_USER_AGENT} Mobile` : CRAWLER_USER_AGENT,
+    });
+  } finally {
+    if (renderRuntime?.kind === 'ready') await renderRuntime.runtime.close();
+  }
+  await progress.flush();
+  // Обход отдаёт частичный результат, а не ошибку: решение о судьбе скана
+  // принимается здесь, до того как неполный обход попадёт в правила. Пауза
+  // проходит дальше — её результат сохраняется, — а отмена прекращает попытку.
+  throwIfCancelled(scanId, signal);
+  // The pages are persisted here, once, rather than when a pause arrives: a
+  // pause is not the only way a run stops, and a process that dies mid-module
+  // must not cost the customer a second crawl of their site.
+  const crawlCheckpoint =
+    control === undefined
+      ? EMPTY_CRAWL_CHECKPOINT
+      : await persistCrawlEvidence(deps, scan.accountId, scanId, crawlResult, progress.counts());
+  const saveCheckpoint = async (stage: string): Promise<void> => {
+    if (control === undefined) return;
+    try {
+      await control.save({
+        schemaVersion: 2,
+        stage,
+        completedStages: [...completedStages],
+        crawl: crawlCheckpoint,
+      });
+    } catch (error) {
+      // The checkpoint saves a re-crawl; it is not what keeps a paid stage from
+      // running twice. Failing the attempt over it would escalate a transient
+      // database error into a platform retry — the one path that *does* discard
+      // the run — so it is recorded and the attempt continues.
+      deps.logger.error('scan checkpoint could not be written; the run continues without it', {
+        scanId,
+        stage,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      });
+    }
+  };
+  if (crawlResult.stoppedEarly) {
+    // Stopped before the first module: nothing was charged for, and the pages
+    // already read are stored, so resuming continues the same run.
+    await saveCheckpoint(CRAWL_STAGE);
+    return { analyticsPages: [], stopped: true };
+  }
+  // A crash between here and the first module boundary is a resume, not a
+  // re-crawl: the checkpoint now names the crawl as finished.
+  await saveCheckpoint(CRAWL_STAGE);
+
+  const apiCheckRun =
+    modulesToRun.includes('Reliability') && (scope.apiChecks?.length ?? 0) > 0
+      ? await runApiChecks(scope.apiChecks ?? [], origin, scope, {
+          userAgent:
+            scope.userAgent === 'mobile' ? `${CRAWLER_USER_AGENT} Mobile` : CRAWLER_USER_AGENT,
+          ...(deps.crawl?.limiter !== undefined ? { limiter: deps.crawl.limiter } : {}),
+          ...(deps.crawl?.dangerouslyAllowLoopback === true
+            ? { dangerouslyAllowLoopback: true }
+            : {}),
+          shouldStop: isStopRequested,
+        })
+      : { checks: [], results: [] };
+  const ctx: SiteContext = createSiteContext({
+    origin,
+    crawl: crawlResult,
+    plan,
+    ...(apiCheckRun.checks.length > 0 ? { apiChecks: apiCheckRun.checks } : {}),
   });
-  const ctx: SiteContext = createSiteContext({ origin, crawl: crawlResult, plan });
   const siteReachable = crawlResult.pages.some((page) => page.fetchError === undefined);
   // Эффективный normalized origin — поле domain fingerprint-ов и export context
   // (в тестах обходится fixture-origin, а не https-домен профиля).
   await prisma.scan.update({ where: { id: scanId }, data: { domain: ctx.domain } });
 
   const observedAt = now();
-  const issueRows: IssueRowData[] = [];
+  const moduleContext: RuleModuleContext = {
+    rendering: crawlResult.rendering,
+    apiCheckResults: apiCheckRun.results,
+  };
   let aiQuota = AiQuotaTracker.forPlan(plan);
   for (const module of modulePlan.runnable.filter((candidate) =>
-    targetModules.includes(candidate),
+    modulesToRun.includes(candidate),
   )) {
+    if (isStopRequested()) {
+      await saveCheckpoint(module);
+      return { analyticsPages: [], stopped: true };
+    }
+    throwIfCancelled(scanId, signal);
     await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
     const result = plan === 'Free' ? runFreeCheck(ctx) : runModuleRules(module, ctx);
     const finalized = finalizeRuleModule(result, plan, siteReachable);
-    await setModule(prisma, scanId, module, {
-      runtimeStatus: finalized.runtimeStatus,
-      statusReason: finalized.statusReason,
-      coverage: finalized.coverage,
-      score: finalized.score,
-      applicableChecks: finalized.applicableChecks,
-      completedApplicableChecks: finalized.completedApplicableChecks,
-      usableOutput: finalized.usableOutput,
-      metadataJson: metadataForRuleModule(module, plan, result.evaluations),
+    // Строка модуля и его findings пишутся вместе: отмена после этой точки
+    // оставляет секцию с её доказательствами, а не score без находок.
+    await persistModuleResult(prisma, scan, {
+      module,
+      row: {
+        runtimeStatus: finalized.runtimeStatus,
+        statusReason: finalized.statusReason,
+        coverage: finalized.coverage,
+        score: finalized.score,
+        applicableChecks: finalized.applicableChecks,
+        completedApplicableChecks: finalized.completedApplicableChecks,
+        usableOutput: finalized.usableOutput,
+        metadataJson: metadataForRuleModule(
+          module as ModuleName,
+          plan,
+          result.evaluations,
+          moduleContext,
+        ),
+      },
+      issueRows: issueRowsForModule(scanId, module, result.findings, finalized, observedAt),
+      coverage: ruleModuleCoverage(result, requestContext),
     });
-    issueRows.push(...issueRowsForModule(scanId, module, result.findings, finalized, observedAt));
+    completedStages.add(module);
+    await saveCheckpoint(module);
   }
 
-  if (modulePlan.geo && targetModules.includes('AI SEO / GEO')) {
+  if (modulePlan.geo && modulesToRun.includes('AI SEO / GEO')) {
+    if (isStopRequested()) {
+      await saveCheckpoint('AI SEO / GEO');
+      return { analyticsPages: [], stopped: true };
+    }
+    // Платные внешние запросы: перед ними проверка отмены обязательна.
+    throwIfCancelled(scanId, signal);
     await setModule(prisma, scanId, 'AI SEO / GEO', { runtimeStatus: 'Running' });
     const siteHostname = new URL(ctx.domain).hostname;
     const consent = loadConsent(scan);
@@ -446,6 +537,7 @@ export async function runScanAttempt(
       consent,
       provider,
       quota: aiQuota,
+      ...(signal !== undefined ? { signal } : {}),
     });
     const geo = await runGeoModule(
       {
@@ -455,15 +547,39 @@ export async function runScanAttempt(
         siteOrigin: ctx.domain,
         siteDomain: siteHostname,
         consent,
-        requests: buildGeoRequests(scanId, profile.name, siteHostname, generation.questions),
+        requests: buildGeoRequests(
+          scanId,
+          profile.name,
+          siteHostname,
+          generation.questions,
+          geoProvidersFor(consent),
+        ),
       },
-      { provider, quota: generation.quota },
+      { provider, quota: generation.quota, ...(signal !== undefined ? { signal } : {}) },
     );
+    // Записывается ДО проверки отмены, и это принципиально: ответы, которые
+    // провайдер уже прислал, оплачены, а их ai_response record — единственный
+    // носитель deletion_evidence_ref (AI-001/DATA-006). Выбросить их значило бы
+    // оставить у провайдера данные, на которые у системы нет ни записи, ни
+    // ссылки на удаление, — и скан уже терминальный, второго шанса не будет.
+    // Незавершённая часть при этом не выдаётся за результат: geoModuleRow
+    // считает знаменателем все заданные вопросы, поэтому строка получает
+    // Partial с реальным числом завершённых проверок (§575).
     await persistGeoModule(prisma, scanId, geo, generation, assessAiCrawlerReadiness(crawlResult));
     aiQuota = geo.quota;
+    completedStages.add('AI SEO / GEO');
+    await saveCheckpoint('AI SEO / GEO');
+    // Уже полученные ответы записаны выше; отмена прекращает попытку здесь,
+    // после того как оплаченная часть сохранена.
+    throwIfCancelled(scanId, signal);
   }
 
-  if (modulePlan.ux && targetModules.includes('UX/Conversion')) {
+  if (modulePlan.ux && modulesToRun.includes('UX/Conversion')) {
+    if (isStopRequested()) {
+      await saveCheckpoint('UX/Conversion');
+      return { analyticsPages: [], stopped: true };
+    }
+    throwIfCancelled(scanId, signal);
     await setModule(prisma, scanId, 'UX/Conversion', { runtimeStatus: 'Running' });
     const uxEvidence = analyzeUxStatic(ctx);
     if (uxEvidence.pages.length === 0) {
@@ -494,75 +610,94 @@ export async function runScanAttempt(
         deps.createAiProvider(scan, profile),
         aiQuota,
         observedAt,
+        signal,
       );
-      await persistUxModule(prisma, scanId, ux);
-      issueRows.push(...ux.issueRows);
+      // Как и у GEO: завершённая часть сохраняется до проверки отмены. Три
+      // статические проверки уже отработали, и §575 требует записать их как
+      // Partial, а не выбросить вместе с прерванной AI-четвертью.
+      await persistUxModule(prisma, scan, ux, requestContext);
+      throwIfCancelled(scanId, signal);
     }
+    completedStages.add('UX/Conversion');
+    await saveCheckpoint('UX/Conversion');
   }
 
   for (const module of modulePlan.external.filter((candidate) =>
-    targetModules.includes(candidate),
+    modulesToRun.includes(candidate),
   )) {
+    if (isStopRequested()) {
+      await saveCheckpoint(module);
+      return { analyticsPages: [], stopped: true };
+    }
+    // Внешний провайдер: отменённый скан за него не платит.
+    throwIfCancelled(scanId, signal);
     await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
     if (module !== 'Performance') continue;
-    const runner = deps.createPerformanceRunner?.();
-    if (runner === undefined) {
-      await setModule(prisma, scanId, module, {
-        runtimeStatus: 'Unavailable',
-        statusReason: 'PerformanceIntegrationNotConfigured',
-        coverage: 0,
-        score: null,
-        applicableChecks: 1,
-        completedApplicableChecks: 0,
-        usableOutput: false,
-      });
-      continue;
-    }
-    try {
-      const snapshot = await runner(ctx.domain, scope.userAgent ?? 'desktop');
-      await setModule(prisma, scanId, module, {
-        runtimeStatus: snapshot.performanceScore === null ? 'Partial' : 'Completed',
-        ...(snapshot.performanceScore === null
-          ? { statusReason: 'PerformanceScoreUnavailable' }
-          : {}),
-        coverage: snapshot.performanceScore === null ? 0.5 : 1,
-        score: snapshot.performanceScore,
-        applicableChecks: 1,
-        completedApplicableChecks: 1,
-        usableOutput: true,
-        metadataJson: JSON.stringify(snapshot),
-      });
-    } catch {
-      // External performance data is optional: a provider outage must be shown
-      // as unavailable and must not fail an otherwise valid website scan.
-      await setModule(prisma, scanId, module, {
-        runtimeStatus: 'Unavailable',
-        statusReason: 'PerformanceProviderUnavailable',
-        coverage: 0,
-        score: null,
-        applicableChecks: 1,
-        completedApplicableChecks: 0,
-        usableOutput: false,
-      });
-    }
+    await runPerformanceModule(deps, {
+      scan,
+      origin: ctx.domain,
+      // The crawl's own pages, in its order; the audit bounds and orders them
+      // itself (integrations/performance/url-selection.ts).
+      // The URL a visitor ends on, not the one the link pointed at: measuring a
+      // redirect source would report the redirect's timing as the page's.
+      candidateUrls: crawlResult.pages
+        .filter((page) => page.fetchError === undefined && page.html !== null)
+        .map((page) => page.finalUrl),
+      // The profile's own device leads. A keyed deployment measures both, so this
+      // is only an order; a keyless one measures the first and nothing else, and
+      // that one must be the device this scan was asked for.
+      strategies: devicePreferenceFor(scope.userAgent),
+    });
+    // The stage settled, so a resumed attempt must not pay for it again.
+    completedStages.add(module);
+    await saveCheckpoint(module);
   }
 
-  // Начальные статусы (Reopened/перенос пользовательских, §14/D-110) и вставка.
-  const statuses = await initialIssueStatuses(
-    prisma,
-    scan,
-    issueRows.map((row) => row.fingerprint),
-  );
-  if (issueRows.length > 0) {
-    await prisma.issue.createMany({
-      data: issueRows.map((row): Prisma.IssueCreateManyInput => ({
-        ...row,
-        severityRank: severityRank(row.severity),
-        status: statuses.get(row.fingerprint) ?? 'New',
-      })),
-    });
-  }
+  // Findings уже записаны — каждым модулем вместе с его строкой. Отмена после
+  // завершившегося модуля оставляет его результат целиком, а незавершённые
+  // модули терминализирует worker: снимок неполного модуля описывал бы момент
+  // отмены, а не сайт.
+  throwIfCancelled(scanId, signal);
+  // The attempt finished, so there is nothing left to resume. Releasing the
+  // evidence here — rather than only when the scan settles — is what keeps the
+  // store bounded by the number of *interrupted* scans rather than by every
+  // scan ever run, and it keeps an external retry starting from a clean slate.
+  if (control !== undefined) await releaseResumeState(prisma, scanId);
   return {
     analyticsPages: includesAnalytics(plan) ? analyticsPageFacts(ctx) : [],
+    stopped: false,
   };
+}
+
+/**
+ * Clears what this attempt is about to rewrite, and nothing else.
+ *
+ * `modules === null` means the whole snapshot is being replaced — a first run,
+ * a module-less retry, or an attempt without a control. Otherwise only the
+ * stages this attempt will actually run are cleared, so a module that already
+ * settled keeps its row, its findings and its provider records.
+ */
+async function clearPreviousModuleRows(
+  prisma: PrismaClient,
+  scanId: string,
+  options: { readonly retryModule?: string; readonly modules: readonly string[] | null },
+): Promise<void> {
+  const { retryModule, modules } = options;
+  if (retryModule !== undefined) {
+    await prisma.issue.deleteMany({ where: { scanId, module: retryModule } });
+    if (retryModule === 'AI SEO / GEO' || retryModule === 'UX/Conversion') {
+      await prisma.aiResponseRecord.deleteMany({ where: { scanId, module: retryModule } });
+    }
+    await prisma.scanModule.deleteMany({ where: { scanId, module: retryModule } });
+    return;
+  }
+  if (modules === null) {
+    await prisma.issue.deleteMany({ where: { scanId } });
+    await prisma.aiResponseRecord.deleteMany({ where: { scanId } });
+    await prisma.scanModule.deleteMany({ where: { scanId } });
+    return;
+  }
+  await prisma.issue.deleteMany({ where: { scanId, module: { in: [...modules] } } });
+  await prisma.aiResponseRecord.deleteMany({ where: { scanId, module: { in: [...modules] } } });
+  await prisma.scanModule.deleteMany({ where: { scanId, module: { in: [...modules] } } });
 }

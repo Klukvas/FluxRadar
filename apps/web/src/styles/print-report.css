@@ -173,3 +173,10 @@
     break-after: avoid;
   }
 }
+
+/* The plan is part of the document the buyer hands over, so it must not be
+   split mid-Action by a page break. */
+.print-action-plan ol > li {
+  margin-bottom: var(--sp-3);
+  break-inside: avoid;
+}

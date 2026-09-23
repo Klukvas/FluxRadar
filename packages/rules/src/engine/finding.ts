@@ -28,6 +28,8 @@ interface FindingDetails {
   readonly parameter?: string;
   readonly targetUnreachable?: boolean;
   readonly evidenceGroupId?: string;
+  /** Чужие снимки, на которых держится эта находка (RuleFinding.dependencyTargets). */
+  readonly dependencyTargets?: readonly string[];
 }
 
 /** Page-level finding: цель — сама страница (normalizedUrl из снимка). */
@@ -86,6 +88,9 @@ function buildFinding(
     confidence,
     ...(details.targetUnreachable === true ? { targetUnreachable: true } : {}),
     ...(details.evidenceGroupId !== undefined ? { evidenceGroupId: details.evidenceGroupId } : {}),
+    ...(details.dependencyTargets !== undefined && details.dependencyTargets.length > 0
+      ? { dependencyTargets: details.dependencyTargets }
+      : {}),
   };
 }
 

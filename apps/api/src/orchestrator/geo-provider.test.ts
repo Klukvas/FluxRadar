@@ -1,8 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AiQuotaTracker, MockAiProvider, runGeoModule } from '@fluxradar/ai';
+import {
+  AiQuotaTracker,
+  CURRENT_AI_PROCESSING_NOTICE_VERSION,
+  MockAiProvider,
+  RoutingAiProvider,
+  runGeoModule,
+} from '@fluxradar/ai';
 
-import { buildGeoRequests, createDefaultAiProvider, generateGeoDiscoveryQuestions } from './geo.ts';
+import {
+  buildGeoRequests,
+  createDefaultAiProvider,
+  generateGeoDiscoveryQuestions,
+  geoProvidersFor,
+  GEO_VISIBILITY_PROVIDERS,
+} from './geo.ts';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -46,7 +58,11 @@ describe('default AI provider wiring', () => {
         targetAudience: 'families',
         targetLanguages: 'Ukrainian, English',
       },
-      consent: { scanId: 'scan-context', providers: ['anthropic'], noticeVersion: 'v2' },
+      consent: {
+        scanId: 'scan-context',
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
       provider,
       quota: AiQuotaTracker.forPlan('Complete'),
     });
@@ -63,6 +79,7 @@ describe('default AI provider wiring', () => {
       'Smile Clinic',
       'smile.example',
       generation.questions,
+      ['anthropic'],
     );
 
     expect(requests).toHaveLength(4);
@@ -72,6 +89,92 @@ describe('default AI provider wiring', () => {
     expect(requests[3]?.question).toContain('families');
     expect(requests[0]?.promptVersion).toContain('awareness');
     expect(requests[2]?.promptVersion).toContain('discovery');
+  });
+
+  it('asks every default provider the same questions, with sequences restarting at 1', () => {
+    const requests = buildGeoRequests('scan-two', 'Smile Clinic', 'smile.example', [
+      'Which dental clinics in Kyiv offer implants?',
+    ]);
+
+    expect(GEO_VISIBILITY_PROVIDERS).toEqual(['anthropic', 'openai']);
+    expect(requests).toHaveLength(6);
+    expect(requests.map((request) => request.provider)).toEqual([
+      'anthropic',
+      'anthropic',
+      'anthropic',
+      'openai',
+      'openai',
+      'openai',
+    ]);
+    // `ai_request_key` carries the provider (D-015), so both lists start at 1.
+    expect(requests.map((request) => request.sequence)).toEqual([1, 2, 3, 1, 2, 3]);
+    expect(new Set(requests.map((request) => request.question)).size).toBe(3);
+    // Search on every visibility request, and the whole output budget for the
+    // answer rather than for hidden reasoning.
+    expect(requests.every((request) => request.webSearch === true)).toBe(true);
+    expect(requests.every((request) => request.reasoningMode === 'disabled')).toBe(true);
+    expect(requests[0]?.promptVersion).toBe('geo-questions-v5-awareness');
+    expect(requests[2]?.promptVersion).toBe('geo-questions-v5-discovery');
+  });
+
+  it('never builds a request for an opt-in provider the scan did not name', () => {
+    const withoutOptIn = geoProvidersFor({
+      scanId: 'scan-opt',
+      providers: ['anthropic', 'openai'],
+      noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+    });
+    expect(withoutOptIn).toEqual(['anthropic', 'openai']);
+
+    const withOptIn = geoProvidersFor({
+      scanId: 'scan-opt',
+      providers: ['anthropic', 'openai', 'perplexity'],
+      noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+    });
+    expect(withOptIn).toEqual(['anthropic', 'openai', 'perplexity']);
+    // No consent record at all still asks the defaults, so the module can
+    // report ConsentMissing honestly instead of silently skipping them.
+    expect(geoProvidersFor(null)).toEqual(['anthropic', 'openai']);
+  });
+
+  it('generation and the UX review never carry web search', async () => {
+    const provider = new MockAiProvider(
+      [
+        {
+          questionIncludes: 'Generate neutral discovery questions',
+          response: {
+            status: 'completed',
+            output_text: JSON.stringify({
+              questions: ['Which clinics in Kyiv offer implants?', 'Where to find dental care?'],
+            }),
+          },
+        },
+      ],
+      {
+        config: {
+          provider: 'anthropic',
+          apiVersion: '2023-06-01',
+          modelId: 'claude-sonnet-5',
+          timeoutMs: 1000,
+          maxRetries: 1,
+        },
+      },
+    );
+    const send = vi.spyOn(provider, 'send');
+    await generateGeoDiscoveryQuestions({
+      scanId: 'no-search',
+      brand: 'Smile Clinic',
+      siteHostname: 'smile.example',
+      context: { industry: 'dental clinic', offerings: 'implants', region: 'Kyiv' },
+      consent: {
+        scanId: 'no-search',
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+      provider,
+      quota: AiQuotaTracker.forPlan('Complete'),
+    });
+
+    expect(send.mock.calls[0]?.[0].webSearch).toBeUndefined();
   });
 
   it('keeps the query-generation and discovery provider prompts free of brand identifiers', async () => {
@@ -121,7 +224,11 @@ describe('default AI provider wiring', () => {
         targetAudience: 'families',
         targetLanguages: 'Ukrainian',
       },
-      consent: { scanId: 'neutral-scan', providers: ['anthropic'], noticeVersion: 'v2' },
+      consent: {
+        scanId: 'neutral-scan',
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
       provider,
       quota: AiQuotaTracker.forPlan('Complete'),
     });
@@ -141,6 +248,7 @@ describe('default AI provider wiring', () => {
       'SableOrchid',
       'sableorchid.example',
       generation.questions,
+      ['anthropic'],
     ).filter((request) => request.promptVersion.includes('discovery'));
     await runGeoModule(
       {
@@ -149,7 +257,11 @@ describe('default AI provider wiring', () => {
         brand: 'SableOrchid',
         siteOrigin: 'https://sableorchid.example',
         siteDomain: 'sableorchid.example',
-        consent: { scanId: 'neutral-scan', providers: ['anthropic'], noticeVersion: 'v1' },
+        consent: {
+          scanId: 'neutral-scan',
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
         requests,
       },
       { provider, quota: generation.quota },
@@ -194,7 +306,11 @@ describe('default AI provider wiring', () => {
       brand: 'SableOrchid',
       siteHostname: 'sableorchid.example',
       context: { industry: 'dental clinic', offerings: 'implants', region: 'Kyiv' },
-      consent: { scanId: 'bad-generation', providers: ['anthropic'], noticeVersion: 'v2' },
+      consent: {
+        scanId: 'bad-generation',
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
       provider,
       quota: AiQuotaTracker.forPlan('Complete'),
     });
@@ -240,7 +356,11 @@ describe('default AI provider wiring', () => {
         offerings: 'cosmetic dentistry',
         region: 'London',
       },
-      consent: { scanId: 'short-domain-label', providers: ['anthropic'], noticeVersion: 'v2' },
+      consent: {
+        scanId: 'short-domain-label',
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
       provider,
       quota: AiQuotaTracker.forPlan('Complete'),
     });
@@ -252,6 +372,7 @@ describe('default AI provider wiring', () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('VITEST', '');
     vi.stubEnv('ANTHROPIC_API_KEY', '');
+    vi.stubEnv('OPENAI_API_KEY', '');
 
     const scanId = 'scan-provider-unconfigured';
     const result = await runGeoModule(
@@ -261,7 +382,11 @@ describe('default AI provider wiring', () => {
         brand: 'Example',
         siteOrigin: 'https://example.com',
         siteDomain: 'example.com',
-        consent: { scanId, providers: ['anthropic'], noticeVersion: 'v1' },
+        consent: {
+          scanId,
+          providers: ['anthropic', 'openai'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
         requests: buildGeoRequests(scanId, 'Example', 'example.com'),
       },
       { provider: createDefaultAiProvider('Example', 'example.com') },
@@ -272,17 +397,118 @@ describe('default AI provider wiring', () => {
     expect(result.responses).toEqual([]);
   });
 
-  it('uses the configured Anthropic model instead of a second env parser', () => {
+  it('reports the module Partial when only one provider is configured', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('VITEST', '');
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    vi.stubEnv('OPENAI_API_KEY', '');
+
+    const scanId = 'scan-one-configured';
+    const provider = createDefaultAiProvider('Example', 'example.com');
+    // A configured Anthropic without a configured OpenAI is the deploy order
+    // this release warns about; the module must say so, not skip a provider.
+    const routing = provider as RoutingAiProvider;
+    expect(routing.configFor('openai')).toMatchObject({ provider: 'openai' });
+
+    const result = await runGeoModule(
+      {
+        scanId,
+        plan: 'Complete',
+        brand: 'Example',
+        siteOrigin: 'https://example.com',
+        siteDomain: 'example.com',
+        consent: {
+          scanId,
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
+        requests: buildGeoRequests(scanId, 'Example', 'example.com'),
+      },
+      { provider },
+    );
+
+    // Every OpenAI request records a reason of its own rather than vanishing.
+    expect(
+      result.outcomes.filter(
+        (outcome) => outcome.kind === 'unavailable' && outcome.request.provider === 'openai',
+      ),
+    ).toHaveLength(2);
+    expect(result.outcomes.every((outcome) => outcome.kind === 'unavailable')).toBe(true);
+  });
+
+  // The transition the current notice was written for: a scan bought under v3
+  // keeps its 30-day retry entitlement, and v3 named Anthropic alone. The retry
+  // must run what that buyer agreed to and record the rest as ConsentMissing —
+  // not ask OpenAI anyway, and not refuse the whole module.
+  it('runs a v3 scan against Anthropic and reports OpenAI as ConsentMissing in a Partial module', async () => {
+    const scanId = 'scan-legacy-notice';
+    const provider = createDefaultAiProvider('Example', 'example.com');
+    const send = vi.spyOn(provider, 'send');
+
+    const result = await runGeoModule(
+      {
+        scanId,
+        plan: 'Complete',
+        brand: 'Example',
+        siteOrigin: 'https://example.com',
+        siteDomain: 'example.com',
+        consent: {
+          scanId,
+          providers: ['anthropic'],
+          noticeVersion: 'core-ai-processing-notice-v3',
+        },
+        requests: buildGeoRequests(scanId, 'Example', 'example.com'),
+      },
+      { provider },
+    );
+
+    expect(result.status).toBe('Partial');
+    expect(result.statusReason).toMatch(/ConsentMissing/);
+    const refused = result.outcomes.filter((outcome) => outcome.kind === 'unavailable');
+    expect(refused.map((outcome) => outcome.request.provider)).toEqual(['openai', 'openai']);
+    expect(refused.every((outcome) => outcome.reason === 'ConsentMissing')).toBe(true);
+    expect(result.responses.map((outcome) => outcome.response.provider)).toEqual([
+      'anthropic',
+      'anthropic',
+    ]);
+    // Refused before the adapter, so the provider was never asked for them.
+    expect(send.mock.calls.every(([request]) => request.provider === 'anthropic')).toBe(true);
+  });
+
+  it('routes every provider name, so an opt-in scan records consent, not a wiring bug', () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('VITEST', '');
     vi.stubEnv('ANTHROPIC_API_KEY', 'sk-test');
     vi.stubEnv('ANTHROPIC_MODEL', 'claude-sonnet-5');
     vi.stubEnv('ANTHROPIC_API_VERSION', '2023-06-01');
 
-    expect(createDefaultAiProvider('Example', 'example.com').config).toMatchObject({
+    const provider = createDefaultAiProvider('Example', 'example.com') as RoutingAiProvider;
+
+    expect(provider.providers).toEqual(['anthropic', 'openai', 'google', 'perplexity']);
+    expect(provider.config).toMatchObject({
       provider: 'anthropic',
       modelId: 'claude-sonnet-5',
       apiVersion: '2023-06-01',
     });
+  });
+
+  it('answers with mocks for every provider under Vitest, never a real transport', async () => {
+    const provider = createDefaultAiProvider('Example', 'example.com') as RoutingAiProvider;
+
+    expect(provider.providers).toEqual(['anthropic', 'openai', 'google', 'perplexity']);
+    const answer = await provider.send(
+      {
+        scanId: 'scan-mock',
+        provider: 'openai',
+        promptVersion: 'geo-questions-v5-awareness',
+        sequence: 1,
+        question: 'What is Example, what does its official website offer?',
+        brandFacts: [],
+        pageTitles: [],
+        systemInstructions: 'x',
+      },
+      'prompt',
+    );
+    expect(answer.provider).toBe('openai');
   });
 });

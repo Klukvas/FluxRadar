@@ -2,6 +2,7 @@
 // report already reads from GA4 — totals for the period — plus the crawl, so
 // they add no call to the Google Analytics API.
 
+import { normalizeUrl } from '@fluxradar/fingerprint';
 import { findingMessage } from '@fluxradar/rules';
 
 import type { Ga4Summary } from '../../integrations/google/types.ts';
@@ -54,6 +55,7 @@ export function googleTagCoverage(input: AnalyticsCheckInput): AnalyticsCheck {
     ran: true,
     applicableTargets: input.pages.length,
     affectedTargets: untagged.length,
+    checkedTargets: input.pages.map((page) => normalizeUrl(page.url)),
     findings: untagged.map((page) => ({
       ruleId,
       targetKind: 'page',

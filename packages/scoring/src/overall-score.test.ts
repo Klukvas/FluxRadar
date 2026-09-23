@@ -34,6 +34,56 @@ function notApplicable(module: ModuleScoreSummary['module']): ModuleScoreSummary
   });
 }
 
+describe('computeOverallScore — модуль без числового score (informational GEO)', () => {
+  it('Basic: отработавший GEO без score держит normal и отдаёт балл SEO', () => {
+    // GEO informational-only: его coverage подтверждает, что проверки шли
+    // (wc = 0.6 + 0.4 = 1.0 → normal), но выдуманного балла у него нет, и
+    // взвешенное среднее считается по одному SEO.
+    const result = computeOverallScore('Basic', [
+      moduleSummary({ module: 'SEO', score: 90 }),
+      moduleSummary({ module: 'AI SEO / GEO', score: null }),
+    ]);
+    expect(result.verdict).toBe('normal');
+    expect(result.score).toBe(90);
+    expect(result.weightedCoverage).toBeCloseTo(1, 12);
+  });
+
+  it('Basic остаётся пригодным: SEO Partial + GEO без score → provisional по SEO', () => {
+    const result = computeOverallScore('Basic', [
+      moduleSummary({ module: 'SEO', moduleStatus: 'Partial', coverage: 0.5, score: 80 }),
+      moduleSummary({ module: 'AI SEO / GEO', score: null }),
+    ]);
+    expect(result.verdict).toBe('provisional');
+    expect(result.score).toBe(80);
+    expect(result.weightedCoverage).toBeCloseTo(0.7, 12);
+  });
+
+  it('Complete: GEO без score не тянет средний балл ни вверх, ни вниз', () => {
+    const scoredModules: readonly ModuleScoreSummary[] = [
+      moduleSummary({ module: 'SEO', score: 80 }),
+      moduleSummary({ module: 'Security', score: 80 }),
+      moduleSummary({ module: 'Performance', score: 80 }),
+      moduleSummary({ module: 'Accessibility', score: 80 }),
+      moduleSummary({ module: 'Reliability', score: 80 }),
+      moduleSummary({ module: 'Content Quality', score: 80 }),
+      moduleSummary({ module: 'Privacy', score: 80 }),
+    ];
+    const result = computeOverallScore('Complete', [
+      ...scoredModules,
+      moduleSummary({ module: 'AI SEO / GEO', score: null }),
+    ]);
+    expect(result.verdict).toBe('normal');
+    expect(result.score).toBe(80);
+    // Прежняя константа 100 подняла бы общий балл до 83 на ровном месте.
+    expect(
+      computeOverallScore('Complete', [
+        ...scoredModules,
+        moduleSummary({ module: 'AI SEO / GEO', score: 100 }),
+      ]).score,
+    ).toBe(83);
+  });
+});
+
 describe('computeOverallScore — Basic (§15, D-017)', () => {
   it('golden Partial coverage: SEO 90 @ 0.5 + AI 100 @ 1.0 → Provisional 95.71', () => {
     // ew_SEO = 0.6 × 0.5 = 0.30; ew_AI = 0.4 × 1 = 0.40; wc = 0.70

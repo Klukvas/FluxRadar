@@ -12,7 +12,8 @@
 // `Scan.scopeJson` remains the immutable snapshot of the settings used by one
 // completed or in-flight scan.
 
-import type { ProfileScanConfig, Scan } from './api';
+import type { ApiCheckConfig, ProfileScanConfig, Scan } from './api';
+import { apiCheckLines, parseApiCheckLines } from './api-check-lines';
 import { PLAN_URL_LIMIT, type Plan } from './plan-modules';
 
 /** The scan settings as the form holds them — numbers and lists as typed text. */
@@ -22,6 +23,12 @@ export interface ScanScopeForm {
   readonly maxDepth: string;
   readonly includePatterns: string;
   readonly excludePatterns: string;
+  /** URLs the owner listed by hand, one per line. */
+  readonly seedUrls: string;
+  /** Whether pages are read in a browser after their own scripts have run. */
+  readonly renderJs: boolean;
+  /** Public endpoints to check, one per line: `GET /api/health 200,204`. */
+  readonly apiChecks: string;
   readonly queryPolicy: 'include' | 'ignore';
   readonly respectRobots: boolean;
   readonly robotsOverrideConfirmed: boolean;
@@ -35,6 +42,9 @@ export const DEFAULT_SCOPE_FORM: ScanScopeForm = {
   maxDepth: '5',
   includePatterns: '',
   excludePatterns: '',
+  seedUrls: '',
+  renderJs: false,
+  apiChecks: '',
   queryPolicy: 'ignore',
   respectRobots: true,
   robotsOverrideConfirmed: false,
@@ -53,6 +63,7 @@ export const FREE_FIXED_SCOPE = {
   includeSubdomains: false,
   maxPages: 1,
   maxDepth: 0,
+  renderJs: false,
   queryPolicy: 'ignore',
   respectRobots: true,
   robotsOverrideConfirmed: false,
@@ -128,6 +139,9 @@ export interface ScanScopePayload {
   readonly maxDepth?: number;
   readonly urlPatterns?: readonly string[];
   readonly excludePatterns?: readonly string[];
+  readonly seedUrls?: readonly string[];
+  readonly renderJs: boolean;
+  readonly apiChecks?: readonly ApiCheckConfig[];
   readonly queryPolicy: 'include' | 'ignore';
   readonly respectRobots: boolean;
   readonly robotsOverrideConfirmed: boolean;
@@ -148,6 +162,8 @@ export function scanScopeFrom(form: ScanScopeForm, plan: Plan): ScanScopePayload
   }
   const urlPatterns = patternList(form.includePatterns);
   const excludePatterns = patternList(form.excludePatterns);
+  const seedUrls = lineList(form.seedUrls);
+  const apiChecks = parseApiCheckLines(form.apiChecks).valid;
   const maxPages = scopeNumber(form.maxPages, 'maxPages', plan);
   const maxDepth = scopeNumber(form.maxDepth, 'maxDepth', plan);
   return {
@@ -160,6 +176,9 @@ export function scanScopeFrom(form: ScanScopeForm, plan: Plan): ScanScopePayload
     ...(maxDepth === null ? {} : { maxDepth }),
     ...(urlPatterns.length > 0 ? { urlPatterns } : {}),
     ...(excludePatterns.length > 0 ? { excludePatterns } : {}),
+    ...(seedUrls.length > 0 ? { seedUrls } : {}),
+    ...(apiChecks.length > 0 ? { apiChecks } : {}),
+    renderJs: form.renderJs,
     queryPolicy: form.queryPolicy,
     respectRobots: form.respectRobots,
     robotsOverrideConfirmed: form.robotsOverrideConfirmed,
@@ -189,6 +208,9 @@ export function scopeFormFromScan(scan: Scan): ScanScopeForm {
     maxDepth: numberText(scope?.maxDepth, DEFAULT_SCOPE_FORM.maxDepth),
     includePatterns: (scope?.urlPatterns ?? []).join(', '),
     excludePatterns: (scope?.excludePatterns ?? []).join(', '),
+    seedUrls: (scope?.seedUrls ?? []).join('\n'),
+    renderJs: scope?.renderJs ?? DEFAULT_SCOPE_FORM.renderJs,
+    apiChecks: apiCheckLines(scope?.apiChecks ?? []),
     queryPolicy: scope?.queryPolicy ?? DEFAULT_SCOPE_FORM.queryPolicy,
     respectRobots: scope?.respectRobots ?? DEFAULT_SCOPE_FORM.respectRobots,
     // Legacy scan history is only a fallback during rollout. A robots override
@@ -211,6 +233,9 @@ export function scopeFormFromProfileConfig(config: ProfileScanConfig): ScanScope
     maxDepth: numberText(scope.maxDepth, ''),
     includePatterns: (scope.urlPatterns ?? []).join(', '),
     excludePatterns: (scope.excludePatterns ?? []).join(', '),
+    seedUrls: (scope.seedUrls ?? []).join('\n'),
+    renderJs: scope.renderJs ?? DEFAULT_SCOPE_FORM.renderJs,
+    apiChecks: apiCheckLines(scope.apiChecks ?? []),
     queryPolicy: scope.queryPolicy,
     respectRobots: scope.respectRobots,
     robotsOverrideConfirmed: scope.robotsOverrideConfirmed,
@@ -223,9 +248,43 @@ export function profileScanConfigFromForm(form: ScanScopeForm, plan: Plan): Prof
   return { plan, scope: scanScopeFrom(form, plan) };
 }
 
-/** A stable comparison key for the editable part of a saved profile. */
+/**
+ * A stable comparison key for the editable part of a saved profile.
+ *
+ * "Stable" has to mean more than `JSON.stringify`: the key order of a config
+ * the API parsed and the key order of one this form just built are not the same
+ * thing, and a setting added after a profile was saved is absent from it
+ * entirely. Either difference would make an untouched form read as unsaved and
+ * offer to save what is already there, so the key is canonical — object keys
+ * sorted, the settings with defaults filled in. Array order is preserved,
+ * because for seeds and API checks it is the owner's own ordering.
+ */
 export function profileScanConfigFingerprint(config: ProfileScanConfig): string {
-  return JSON.stringify(config);
+  return JSON.stringify(
+    canonicalValue({
+      plan: config.plan,
+      scope: { ...config.scope, renderJs: config.scope.renderJs ?? false },
+    }),
+  );
+}
+
+function canonicalValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (typeof value !== 'object' || value === null) return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, canonicalValue(entry)]),
+  );
+}
+
+/** A line-separated list as the API wants it: trimmed, without empty entries. */
+function lineList(value: string): readonly string[] {
+  return value
+    .split('\n')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '');
 }
 
 /** A comma-separated list as the API wants it: trimmed, without empty entries. */

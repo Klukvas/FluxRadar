@@ -3,18 +3,20 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { AiProvider } from '@fluxradar/ai';
 import {
   CURRENT_AI_PROCESSING_NOTICE_VERSION,
-  MockAiProvider,
+  mockRoutingProvider,
   UnavailableError,
 } from '@fluxradar/ai';
 import { validateExportRecords } from '@fluxradar/export';
 import type { Scan, SiteProfile } from '@prisma/client';
 import { buildExportRecords } from './export/build-records.ts';
 import type { GoogleScanData } from './integrations/google/types.ts';
+import type { PerformanceAuditRequest } from './integrations/performance/index.ts';
 import type { WorkerDeps } from './orchestrator/deps.ts';
 import { defaultGeoFixtures } from './orchestrator/geo.ts';
 import { processScan } from './orchestrator/worker.ts';
 import { createApp } from './index.ts';
 import { silentLogger } from './http/logger.ts';
+import { fakePerformanceRunner } from './test-utils/performance-fixtures.ts';
 import { createTestDb, TEST_WEBHOOK_SECRET, type TestDb } from './test-utils/test-db.ts';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 
@@ -68,7 +70,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         plan: 'Complete',
         scope: { includeSubdomains: false, maxPages: 15 },
         aiConsent: {
-          providers: ['anthropic'],
+          providers: ['anthropic', 'openai'],
           noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
         },
       });
@@ -131,15 +133,23 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       usableOutput: true,
       metadata: {
         providerVisibility: {
-          method: 'AI-generated neutral context questions plus direct brand-awareness questions',
+          method:
+            'AI-generated neutral context questions plus direct brand-awareness questions, ' +
+            'asked of each provider with its own web search enabled',
+          providers: ['anthropic', 'openai'],
+          webSearch: true,
           queryGeneration: {
             status: 'Completed',
             promptVersion: 'geo-query-generation-v2',
             generatedQuestions: expect.arrayContaining([expect.stringContaining('providers')]),
           },
+          // Every entry names the provider it was asked of, so an unavailable
+          // one can still be grouped under it in the report.
           requests: expect.arrayContaining([
-            expect.objectContaining({ purpose: 'awareness' }),
-            expect.objectContaining({ purpose: 'discovery' }),
+            expect.objectContaining({ purpose: 'awareness', provider: 'anthropic' }),
+            expect.objectContaining({ purpose: 'discovery', provider: 'anthropic' }),
+            expect.objectContaining({ purpose: 'awareness', provider: 'openai' }),
+            expect.objectContaining({ purpose: 'discovery', provider: 'openai' }),
           ]),
         },
       },
@@ -162,6 +172,14 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         }),
       ]),
     );
+    // Both providers answered the same questions, so the report can group them.
+    expect(
+      new Set(
+        (dashboard.body.data.geoObservations as { provider: string | null }[]).map(
+          (observation) => observation.provider,
+        ),
+      ),
+    ).toEqual(new Set(['anthropic', 'openai']));
 
     const issues = await agent
       .get(`/scans/${scanId}/issues?limit=100&module=UX%2FConversion`)
@@ -228,6 +246,14 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
           module: 'AI SEO / GEO',
           prompt_version: 'geo-query-generation-v2',
           raw_text: expect.stringContaining('questions'),
+        }),
+        // The export shape is unchanged; there are simply more ai_response rows
+        // per scan now, and OpenAI's carry its own provider name.
+        expect.objectContaining({
+          record_type: 'ai_response',
+          module: 'AI SEO / GEO',
+          provider: 'openai',
+          prompt_version: 'geo-questions-v5-awareness',
         }),
       ]),
     );
@@ -412,13 +438,17 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         plan: 'Complete',
         scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
         aiConsent: {
-          providers: ['anthropic'],
+          providers: ['anthropic', 'openai'],
           noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
         },
       });
 
     expect(checkout.status).toBe(201);
     const scanId = checkout.body.data.scanId as string;
+    // The scan's own device preference has to reach the audit: a deployment
+    // without a PageSpeed API key measures the first device and nothing else, so
+    // a scope that never arrives means a desktop profile measured on mobile.
+    const audited: PerformanceAuditRequest[] = [];
     const result = await processScan(
       {
         prisma: db.prisma,
@@ -429,14 +459,16 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
             throw new UnavailableError('Anthropic request timed out');
           },
         }),
-        createPerformanceRunner: () => async (origin, strategy) => ({
-          source: 'pagespeed',
-          origin,
-          strategy,
-          performanceScore: 71,
-          metrics: { lcpMs: 2_400 },
-          fetchedAt: '2026-09-10T23:00:00.000Z',
-        }),
+        createPerformanceRunner: () => {
+          const runner = fakePerformanceRunner({
+            score: 71,
+            fetchedAt: '2026-09-10T23:00:00.000Z',
+          });
+          return async (auditRequest) => {
+            audited.push(auditRequest);
+            return runner(auditRequest);
+          };
+        },
         crawl: { originOverride: () => fixture.origin, dangerouslyAllowLoopback: true },
       },
       scanId,
@@ -460,6 +492,11 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         }),
       ]),
     );
+    // The scope stated no device, so it is the contract's default — desktop —
+    // that has to lead, with mobile behind it for a deployment that can afford
+    // both.
+    expect(audited).toHaveLength(1);
+    expect(audited[0]?.strategies).toEqual(['desktop', 'mobile']);
   }, 15_000);
 
   it('terminalizes incomplete modules after an exhausted platform retry so export stays valid', async () => {
@@ -480,7 +517,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         plan: 'Complete',
         scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
         aiConsent: {
-          providers: ['anthropic'],
+          providers: ['anthropic', 'openai'],
           noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
         },
       });
@@ -545,11 +582,22 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         siteProfileId: profile.id,
         plan: 'Complete',
         scope: { includeSubdomains: false, maxPages: 1, maxDepth: 0 },
-        aiConsent: { providers: ['anthropic'], noticeVersion: 'v1' },
+        aiConsent: {
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
       });
 
     expect(checkout.status).toBe(201);
     const scanId = checkout.body.data.scanId as string;
+    // The notice the buyer accepted is retired before the scan gets to run — a
+    // paid scan can wait days, and a withdrawn disclosure authorises nothing.
+    // Checkout refuses such a version outright, so the only way in is the way it
+    // happens in production: the stored record outlives the notice it names.
+    await db.prisma.aiConsent.update({
+      where: { scanId },
+      data: { noticeVersion: 'retired-v0' },
+    });
     await runScan(scanId, () => ({
       config: AI_CONFIG,
       send: () => {
@@ -676,8 +724,15 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
     return () => async () => data;
   }
 
+  /**
+   * One mock adapter per consented provider, all answering the same fixtures.
+   *
+   * A single-provider mock would be wrong here in a way that hides a real bug:
+   * a request routed to the adapter of another company is a caller mistake, and
+   * the mock says so rather than answering it.
+   */
   function uxAwareProvider(brand: string): AiProvider {
-    return new MockAiProvider(
+    return mockRoutingProvider(
       [
         ...defaultGeoFixtures(brand, 'smile.example'),
         {
@@ -702,7 +757,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
           },
         },
       ],
-      { config: AI_CONFIG },
+      ['anthropic', 'openai'],
     );
   }
 });

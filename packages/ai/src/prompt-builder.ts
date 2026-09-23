@@ -4,8 +4,14 @@
 // с явным маркером [TRUNCATED]. Всё детерминировано.
 
 import { AI_REQUEST_CAPS } from '@fluxradar/contracts';
+import type { AiRequestCapsShape } from '@fluxradar/contracts';
 
 import type { AiRequest } from './types.js';
+
+/** The caps this request runs under: its own override, or the §5 module caps. */
+export function capsFor(request: Pick<AiRequest, 'caps'>): AiRequestCapsShape {
+  return request.caps ?? AI_REQUEST_CAPS;
+}
 
 export const TOKENIZER_VERSION = 'approx-v2';
 export const TRUNCATION_MARKER = '[TRUNCATED]';
@@ -41,8 +47,11 @@ export interface CappedText {
  * redaction — маркеры `[REDACTED:<type>]` длиннее заменённых значений и могут
  * вытолкнуть уже усечённый prompt за cap (D-177).
  */
-export function enforceInputCap(text: string): CappedText {
-  const charBudget = AI_REQUEST_CAPS.maxInputTokens * CHARS_PER_TOKEN;
+export function enforceInputCap(
+  text: string,
+  caps: AiRequestCapsShape = AI_REQUEST_CAPS,
+): CappedText {
+  const charBudget = caps.maxInputTokens * CHARS_PER_TOKEN;
   if (text.length <= charBudget) return { text, truncated: false };
 
   const markerChars = TRUNCATION_MARKER.length + 1;
@@ -68,7 +77,7 @@ export function buildPrompt(request: AiRequest): BuiltPrompt {
     ...listSection('brand-facts', request.brandFacts),
     ...listSection('page-titles', request.pageTitles),
   ];
-  const capped = enforceInputCap(sections.join('\n\n'));
+  const capped = enforceInputCap(sections.join('\n\n'), capsFor(request));
   return {
     promptText: capped.text,
     inputTokens: estimateTokens(capped.text),

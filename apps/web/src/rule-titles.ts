@@ -243,6 +243,17 @@ export function moduleLabel(module: string, language: Language): string {
 }
 
 /**
+ * The section whose findings are Google's data and never leave the product.
+ *
+ * It is also the section the Action Plan cannot plan from, which is why the
+ * report has to know the name: a scan whose only open findings are here has
+ * nothing to plan, and the server refuses the click
+ * (`ACTION_PLAN_NOTHING_TO_PLAN`). Pinned against the API's own constant by
+ * `apps/api/src/action-plan/web-declaration-parity.test.ts`.
+ */
+export const ANALYTICS_MODULE = 'Analytics';
+
+/**
  * Where the public coverage page explains a section's checks. Sections the page
  * does not have a heading of their own for land on the evidence notes.
  */

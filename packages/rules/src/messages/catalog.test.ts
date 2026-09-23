@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FINDING_MESSAGES,
   MODULE_MESSAGE_CATALOGS,
+  RENDER_ONLY_MESSAGE_CODES,
   placeholdersOf,
   renderFindingMessage,
   renderTemplate,
@@ -88,5 +89,71 @@ describe('rendering a message', () => {
 
   it('does not render a code this build does not know', () => {
     expect(renderFindingMessage({ code: 'unknown.evidence', params: {} }, 'en')).toBeNull();
+  });
+});
+
+// A finding stores its message code, and the report renders the code rather than
+// the sentence stored with it. A code a rule stopped using therefore still has
+// readers: the findings of every scan that ran before the change.
+
+describe('historical message codes', () => {
+  it('are all still in the catalog, in every language', () => {
+    for (const code of RENDER_ONLY_MESSAGE_CODES) {
+      const template = CATALOG[code];
+      expect({ code, known: template !== undefined }).toEqual({ code, known: true });
+      expect({ code, en: template?.en.trim() !== '', uk: template?.uk.trim() !== '' }).toEqual({
+        code,
+        en: true,
+        uk: true,
+      });
+    }
+  });
+
+  it('render a CONTENT-004 row stored with four failure kinds, in both languages', () => {
+    // Reproduced defect: with `unconfirmed` dropped from the template, this row
+    // rendered "Broken media: 3" and then listed one of them — in English to a
+    // Ukrainian reader too, because the localized rendering wins over the stored
+    // sentence.
+    const stored = {
+      code: 'content-004.evidence.mixed',
+      params: {
+        count: 3,
+        unreachable: '—',
+        httpErrors: '—',
+        htmlResponses: 'img[src="/other.html"]',
+        unconfirmed: 'img[src="/img/a.png"], img[src="/img/b.png"]',
+      },
+    };
+    expect(renderFindingMessage(stored, 'en')).toBe(
+      'Broken media: 3. Unreachable: —. HTTP error: —. Returns an HTML page instead of media: ' +
+        'img[src="/other.html"]. Internal, not confirmed by the crawl: img[src="/img/a.png"], img[src="/img/b.png"].',
+    );
+    expect(renderFindingMessage(stored, 'uk')).toContain(
+      'Внутрішні, не підтверджені обходом: img[src="/img/a.png"], img[src="/img/b.png"].',
+    );
+  });
+
+  it('render a CONTENT-004 row whose only kind was the unconfirmed one', () => {
+    const stored = {
+      code: 'content-004.evidence.unconfirmed',
+      params: { count: 2, items: 'img[src="/img/a.png"], img[src="/img/b.png"]' },
+    };
+    expect(renderFindingMessage(stored, 'en')).toBe(
+      'Internal media the crawl could not confirm (2): img[src="/img/a.png"], img[src="/img/b.png"]',
+    );
+    expect(renderFindingMessage(stored, 'uk')).toBe(
+      'Внутрішні медіафайли, не підтверджені обходом (2): img[src="/img/a.png"], img[src="/img/b.png"]',
+    );
+  });
+
+  it('keep the current breakdown on a code of its own', () => {
+    // `mixed` names four kinds, `mixed-v2` the three that remain: rendering
+    // answers null for a missing value, so the two cannot share a code.
+    expect(placeholdersOf(CATALOG['content-004.evidence.mixed']?.en ?? '')).toContain(
+      'unconfirmed',
+    );
+    expect(placeholdersOf(CATALOG['content-004.evidence.mixed-v2']?.en ?? '')).not.toContain(
+      'unconfirmed',
+    );
   });
 });

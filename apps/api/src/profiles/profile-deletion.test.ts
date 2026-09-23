@@ -156,9 +156,12 @@ describe('site profile deletion', () => {
     expect(await db.prisma.refundRecord.count({ where: { purchaseId: gone.purchaseId } })).toBe(0);
     expect(await db.prisma.webhookEvent.count({ where: { providerEventId: 'evt_gone' } })).toBe(0);
     expect(objectStore.deletedKeys).toEqual(['exports/gone.json']);
-    expect(await db.prisma.deletedScan.findUnique({ where: { scanId: gone.scanId } })).toMatchObject(
-      { reason: PROFILE_DELETION_REASON, accountIdHash: accountDeletionHash(accountId) },
-    );
+    expect(
+      await db.prisma.deletedScan.findUnique({ where: { scanId: gone.scanId } }),
+    ).toMatchObject({
+      reason: PROFILE_DELETION_REASON,
+      accountIdHash: accountDeletionHash(accountId),
+    });
 
     expect(await db.prisma.scan.count({ where: { id: other.scanId } })).toBe(1);
     expect(await db.prisma.purchase.count({ where: { id: other.purchaseId } })).toBe(1);
@@ -171,14 +174,44 @@ describe('site profile deletion', () => {
     expect(readded.status).toBe(201);
   });
 
-  it.each(['Pending', 'Queued', 'Running'] as const)(
+  // Deleting a profile is the cheapest way a customer could reach the Action
+  // Plan spend log, so it is the one that must not clear it: the row loses its
+  // scan and keeps counting against the hourly and daily caps until retention
+  // decides it counts for nothing (D-232, data-retention.ts).
+  it('keeps the Action Plan spend log of the scans it deletes', async () => {
+    const { agent, accountId } = await signIn('spend@example.com');
+    const profile = await createProfile(agent, accountId, 'https://spend.example.com');
+    const history = await seedPaidHistory(profile, 'spend');
+    await db.prisma.actionPlanAttempt.create({
+      data: {
+        scanId: history.scanId,
+        accountId,
+        language: 'en',
+        status: 'Succeeded',
+        noticeVersion: 'action-plan-notice-v1',
+      },
+    });
+
+    expect((await agent.delete(`/profiles/${profile.siteProfileId}`)).status).toBe(200);
+
+    expect(await db.prisma.scan.count({ where: { id: history.scanId } })).toBe(0);
+    expect(await db.prisma.actionPlanAttempt.count({ where: { accountId, scanId: null } })).toBe(1);
+  });
+
+  // Paused belongs on this list: the run has not been given up on, and a resume
+  // would crawl a site whose profile is gone. It leaves the same way the others
+  // do — the owner cancels or resumes it first.
+  it.each(['Pending', 'Queued', 'Running', 'Paused'] as const)(
     'refuses while a scan is %s and keeps everything',
     async (status) => {
       const { agent, accountId } = await signIn('busy@example.com');
       const profile = await createProfile(agent, accountId, 'https://busy.example.com');
       const { scan } = await seedScan(db.prisma, { account: profile, status, withPurchase: false });
 
-      expectBlocked(await agent.delete(`/profiles/${profile.siteProfileId}`), 'PROFILE_HAS_ACTIVE_SCAN');
+      expectBlocked(
+        await agent.delete(`/profiles/${profile.siteProfileId}`),
+        'PROFILE_HAS_ACTIVE_SCAN',
+      );
       expect(await db.prisma.siteProfile.count({ where: { id: profile.siteProfileId } })).toBe(1);
       expect(await db.prisma.scan.count({ where: { id: scan.id } })).toBe(1);
     },
@@ -195,7 +228,10 @@ describe('site profile deletion', () => {
         data: { status: refundStatus },
       });
 
-      expectBlocked(await agent.delete(`/profiles/${profile.siteProfileId}`), 'PROFILE_HAS_OPEN_REFUND');
+      expectBlocked(
+        await agent.delete(`/profiles/${profile.siteProfileId}`),
+        'PROFILE_HAS_OPEN_REFUND',
+      );
       expect(await db.prisma.purchase.count({ where: { id: history.purchaseId } })).toBe(1);
 
       await db.prisma.refundRecord.update({

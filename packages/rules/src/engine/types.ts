@@ -34,6 +34,25 @@ export interface ApiCheck {
   /** Заголовки из конфига проверки — вход policy-скана REL-API-005. */
   readonly requestHeaders?: Readonly<Record<string, string>>;
   readonly snapshot?: ApiCheckSnapshot;
+  /**
+   * Why this check has no snapshot. Present exactly when `snapshot` is absent
+   * and the caller knows why.
+   */
+  readonly unavailable?: ApiCheckUnavailable;
+}
+
+export interface ApiCheckUnavailable {
+  /** Operator-facing reason: a transport failure, a stop, an off-site redirect. */
+  readonly reason: string;
+  /**
+   * Whether this endpoint was part of what the module was asked to check.
+   *
+   * An endpoint on somebody else's site never was, so it belongs in no
+   * denominator. One that timed out was, and has to count as an applicable
+   * target the module did not complete — otherwise "no API problems found"
+   * reads the same whether every endpoint passed or none was reachable.
+   */
+  readonly applicable: boolean;
 }
 
 /** Вход движка: результат обхода + идентичность сайта и тариф скана. */
@@ -79,6 +98,18 @@ export interface RuleFinding {
   /** true — единственное содержание находки это недоступность цели (D-026). */
   readonly targetUnreachable?: boolean;
   /**
+   * Материал обхода, на котором держится ИМЕННО ЭТА находка.
+   *
+   * У SEO-TECH-006 это снимок цели ссылки, у CONTENT-004 — снимки битых media
+   * этой страницы. Находка исчезает и тогда, когда исчез её материал, поэтому
+   * политика Resolved спрашивает про него, а не про весь обход: иначе один
+   * необойдённый URL замораживал бы все находки правила (§14,
+   * apps/api/src/orchestrator/resolution-policy.ts).
+   *
+   * Поле не входит в fingerprint и не влияет на score.
+   */
+  readonly dependencyTargets?: readonly string[];
+  /**
    * Non-scoring связь findings разных модулей с общим evidence (§14
    * cross-module policy): не входит в fingerprint и не влияет на score.
    */
@@ -91,6 +122,48 @@ export interface RuleEvaluation {
   readonly applicableTargets: number;
   readonly affectedTargets: number;
   readonly findings: readonly RuleFinding[];
+  /**
+   * Что именно это правило прочитало в этом прогоне — доказательство повторной
+   * проверки для политики Resolved (§14).
+   *
+   * Для page/api-правил это normalizedUrl каждой взятой в работу цели: счётчик
+   * applicableTargets говорит «сколько», но не «каких», а закрывать находку
+   * можно только на той цели, которую правило действительно смотрело.
+   * Site-правило само называет входы, от которых зависит его вердикт
+   * (homepage, robots.txt, HTML-страницы обхода) — у него applicableTargets
+   * почти всегда 1 и потому не доказывает ничего. Пустой список означает
+   * «правило ни на что не смотрело», и молчание о прошлой находке ничего не
+   * значит.
+   */
+  readonly checkedTargets: readonly string[];
+  /**
+   * Материал обхода, от которого зависит вердикт правила ПОМИМО самой цели.
+   *
+   * У большинства page-правил его нет: вердикт о странице целиком выводится из
+   * её собственного снимка. Но SEO-TECH-006 читает снимки страниц, на которые
+   * ведут ссылки, CONTENT-004 — снимки media, SEO-TECH-008 — ссылки всех
+   * страниц обхода и sitemap. Для них «страницу снова посмотрели» — не
+   * доказательство: находка исчезает и тогда, когда пропал вход, а не когда
+   * что-то починили. Политика Resolved требует, чтобы прогон прочитал как
+   * минимум те же входы (§14, resolution-policy.ts).
+   *
+   * Пустой список означает «своих входов у правила нет», и это нормальное
+   * состояние: проверка совпадает с целью.
+   */
+  readonly inputTargets: readonly string[];
+  /**
+   * Всё, о чём правило спрашивало обход, — и отвеченное (inputTargets), и нет.
+   *
+   * Разница между «вход пропал» и «сайт больше о нём не спрашивает» — это
+   * разница между неизвестностью и починкой. Ссылка, которую владелец удалил,
+   * из requestedInputs исчезает, и прошлая находка о ней закрывается; ссылка,
+   * оставшаяся на странице, но чья цель не обойдена, остаётся здесь — и находка
+   * остаётся открытой (§14, resolution-policy.ts).
+   *
+   * undefined — правило о своём спросе не отчиталось: тогда «больше не
+   * спрашивают» доказать нечем и любой пропавший вход блокирует Resolved.
+   */
+  readonly requestedInputs: readonly string[] | undefined;
 }
 
 /**
@@ -103,12 +176,57 @@ export interface PageRule {
   readonly descriptor: RuleDescriptor;
   isApplicable(page: PageSnapshot): boolean;
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[];
+  /**
+   * Входы за пределами самой страницы (см. RuleEvaluation.inputTargets).
+   * Метод объявляют только правила, которым нужен контекст всего обхода.
+   */
+  inputTargets?(ctx: SiteContext): readonly string[];
+  /**
+   * Всё, о чём правило спрашивало обход (см. RuleEvaluation.requestedInputs).
+   * Объявляется вместе с inputTargets и обязан быть его надмножеством.
+   */
+  requestedInputs?(ctx: SiteContext): readonly string[];
 }
 
 export interface SiteRuleResult {
   readonly findings: readonly RuleFinding[];
   readonly applicableTargets: number;
   readonly affectedTargets: number;
+  /**
+   * Входы, которые правило прочитало (см. RuleEvaluation.checkedTargets).
+   *
+   * Не задано — движок считает, что правило о своих входах не отчиталось, и
+   * политика Resolved трактует его находки как недоказуемые. Site-правило
+   * обязано перечислить входы, если хочет, чтобы его починенную находку когда-
+   * нибудь закрыли: applicableTargets = 1 у него бывает и тогда, когда обход
+   * не принёс ни одной нужной страницы.
+   */
+  readonly checkedTargets?: readonly string[];
+  /**
+   * Входы за пределами названных целей (см. RuleEvaluation.inputTargets).
+   * Site-правило обычно называет свои входы прямо в checkedTargets, поэтому
+   * поле остаётся пустым; оно существует, чтобы api-правила и будущие
+   * site-правила могли разделить «что судил» и «на что при этом смотрел».
+   */
+  readonly inputTargets?: readonly string[];
+  /**
+   * Всё, о чём правило спрашивало обход (см. RuleEvaluation.requestedInputs).
+   *
+   * Site-правилу, чей вердикт строится на наборе страниц (SEO-TECH-007), это
+   * нужно не меньше, чем page-правилу: без него удалённая страница навсегда
+   * замораживает находку, потому что прошлый набор входов уже не повторить.
+   */
+  readonly requestedInputs?: readonly string[];
+  /**
+   * Applicable targets the rule actually reached; absent means all of them.
+   *
+   * Page rules already model this (an unreachable page counts applicable and
+   * not completed, §15). Site and API rules need it for the same reason: an
+   * endpoint that timed out is not "nothing to report", and leaving it out of
+   * the denominator would let a module that reached none of its targets report
+   * full coverage.
+   */
+  readonly completedTargets?: number;
 }
 
 /** Site-level правило: одна цель — сам сайт (applicable/affected ∈ {0,1}). */

@@ -443,6 +443,33 @@ describe('refresh-safe scan routes', () => {
     expect(screen.queryByText('Unified site signal')).not.toBeInTheDocument();
   });
 
+  // A report link is handed to a client, who may not read the language the
+  // workspace is in. Restoring the scan normalises the address, and the plan
+  // language used to be dropped there — the document then printed whatever
+  // plan the reader's own language had, or none at all.
+  it('prints the Action Plan language a shared report link asked for', async () => {
+    window.history.replaceState(null, '', `/scans/${completedScan.id}/report?plan=uk`);
+    const fetchMock = stubApi((path) => {
+      if (path === '/auth/me') return envelope(account);
+      if (path === '/profiles') return envelope([]);
+      if (path === `/scans/${completedScan.id}`) return envelope(completedScan);
+      if (path === `/scans/${completedScan.id}/dashboard`) return envelope(dashboard);
+      if (path === `/scans/${completedScan.id}/issues`) return envelope([]);
+      return envelope(null);
+    });
+
+    render(<App />);
+
+    const planPath = `/scans/${completedScan.id}/action-plan`;
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([input]) => pathOf(input) === planPath)).toBe(true),
+    );
+    const planCall = fetchMock.mock.calls.find(([input]) => pathOf(input) === planPath);
+    expect(new URL(String(planCall?.[0])).searchParams.get('language')).toBe('uk');
+    // Still shareable afterwards: a refresh has to print the same plan.
+    expect(window.location.search).toBe('?plan=uk');
+  });
+
   it('shows an explicit completed state while keeping progress accessible', async () => {
     window.history.replaceState(null, '', `/scans/${scan.id}`);
     let scanRequests = 0;
@@ -619,10 +646,11 @@ describe('new scan modal — Close window button', () => {
     // Clicking Close must NOT POST /billing/dev-checkout or /profiles/*/free-check.
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
 
-    // Desktop is restored. Landing on it is no longer call-free — the site
-    // status panel reads this account's last check when it mounts — so what is
-    // asserted is the thing the test is named for: nothing that leaves the form
-    // writes. Every request made by going back is a plain read.
+    // Desktop is restored. Landing on it is no longer call-free — its panels
+    // read this account's last check and its optional ownership proof when they
+    // mount — so what is asserted is the thing the test is named for: nothing
+    // that leaves the form writes. The list of reads is deliberately not
+    // enumerated; adding another read panel is not this test's business.
     expect(screen.getByText('Site Profiles')).toBeInTheDocument();
     const afterClose = fetchMock.mock.calls.slice(callCountBefore);
     expect(
@@ -630,7 +658,10 @@ describe('new scan modal — Close window button', () => {
         pathOf(input),
         (init as RequestInit | undefined)?.method ?? 'GET',
       ]),
-    ).toEqual([['/scans', 'GET']]);
+    ).toEqual(afterClose.map(([input]) => [pathOf(input), 'GET']));
+    expect(
+      afterClose.some(([input]) => /free-check|dev-checkout|checkout-session/.test(pathOf(input))),
+    ).toBe(false);
   });
 
   it('stays on the new-scan screen when Escape is pressed (non-modal window)', async () => {

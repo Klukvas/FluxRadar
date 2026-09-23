@@ -7,6 +7,10 @@ import {
   type ChargebackCreatedEvent,
   type ReturnCreatedEvent,
 } from './events.ts';
+import {
+  notePartialProviderRefund,
+  reconcileDispatchFromProviderRefund,
+} from '../refunds/outbox.ts';
 import { NOTHING, WEBHOOK_OUTCOMES, type DispatchResult } from './outcomes.ts';
 import {
   chargeBasisOf,
@@ -188,15 +192,54 @@ export async function processReturn(
     await tx.refundRecord.update({ where: { id: purchase.refund.id }, data: refundFields });
   }
 
+  // The outbound half, reconciled against what the provider actually did. This is
+  // the only writer of a settled dispatch: our own submission getting a 200 says a
+  // return was created, and this event is the money arriving. It also takes a
+  // dispatch that was still queued off the sweep's list, so a return issued from
+  // the provider's console cannot be followed by a second one from here.
+  const reconciled = refunded.isFull
+    ? await reconcileDispatchFromProviderRefund(tx, {
+        purchaseId: purchase.id,
+        providerRefundId: refundId,
+        now,
+        reason: `provider reported the full charge returned (${refundId})`,
+      })
+    : await notePartialProviderRefund(tx, {
+        purchaseId: purchase.id,
+        reason:
+          `provider returned ${refunded.amountCharged} of ${basis.total} ${basis.currency}; ` +
+          'the remainder has to be issued by hand',
+        now,
+      });
+
   return {
     outcome: alreadyCounted ? WEBHOOK_OUTCOMES.deduplicated : WEBHOOK_OUTCOMES.processed,
-    reason: returnReason(refunded, basis, alreadyCounted ? refundId : null, purchase.status),
+    // A dispatch row this handler could not move is stated in the stored
+    // outcome rather than dropped. It is the money half of the event: the
+    // purchase and the refund record are correct, and one row still needs a
+    // person, which nobody would ever learn from a silent return value.
+    reason: withDispatchNote(
+      returnReason(refunded, basis, alreadyCounted ? refundId : null, purchase.status),
+      reconciled,
+    ),
     accountId: purchase.accountId,
     orderId: event.originalOrderId,
     purchaseId: purchase.id,
     entitlementId: purchase.entitlement?.id ?? null,
     scanId: purchase.scan?.id ?? null,
   };
+}
+
+/** Appends the unresolved-dispatch fact to a webhook outcome's stored reason. */
+function withDispatchNote(
+  reason: string | null,
+  reconciled: { readonly outcome: string; readonly observedState?: string },
+): string | null {
+  if (reconciled.outcome !== 'unresolved') return reason;
+  const note =
+    `the refund dispatch row could not be moved (it reads ${reconciled.observedState ?? 'unknown'}) ` +
+    'and needs an operator';
+  return reason === null ? note : `${reason}; ${note}`;
 }
 
 export async function processChargeback(

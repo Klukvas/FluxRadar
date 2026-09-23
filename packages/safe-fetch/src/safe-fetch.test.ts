@@ -9,12 +9,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   NetworkError,
   RedirectLimitError,
+  RequestAbortedError,
   SsrfBlockedError,
   TimeoutError,
   UrlValidationError,
 } from './errors.js';
 import type { DnsResolver } from './resolver.js';
-import { safeFetch } from './safe-fetch.js';
+import { responseBytes, safeFetch } from './safe-fetch.js';
+
+/** Байты, которые не переживают round-trip через UTF-8 (lone 0x80..0xFF). */
+const BINARY_FIXTURE = Buffer.from([0x00, 0x80, 0xfe, 0xff, 0x41]);
 
 const mockResolver = (map: Readonly<Record<string, readonly string[]>>): DnsResolver => ({
   resolveAll(host: string): Promise<readonly string[]> {
@@ -75,6 +79,11 @@ beforeAll(async () => {
     if (url.pathname === '/slow') {
       const lateReply = setTimeout(() => res.end('late'), 5_000);
       res.on('close', () => clearTimeout(lateReply));
+      return;
+    }
+    if (url.pathname === '/binary') {
+      res.writeHead(200, { 'content-type': 'application/octet-stream' });
+      res.end(BINARY_FIXTURE);
       return;
     }
     if (url.pathname === '/big') {
@@ -249,6 +258,39 @@ describe('safeFetch: запросы к локальному серверу', () 
     await expect(promise).rejects.toBeInstanceOf(TimeoutError);
   });
 
+  it('отмена вызывающего в полёте → RequestAbortedError, а не TimeoutError', async () => {
+    // Отменённый скан обязан отпустить запрос сразу, не дожидаясь чужого
+    // таймаута; и это не факт о сайте — из TimeoutError сделали бы вывод о нём.
+    const controller = new AbortController();
+    const promise = safeFetch(`${baseUrl}/slow`, {
+      dangerouslyAllowLoopback: true,
+      timeoutMs: 30_000,
+      signal: controller.signal,
+    });
+    setTimeout(() => controller.abort(), 20);
+    await expect(promise).rejects.toBeInstanceOf(RequestAbortedError);
+  });
+
+  it('уже отменённый сигнал не даёт сделать запрос', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    let requests = 0;
+    const resolver: DnsResolver = {
+      resolveAll: (host) => {
+        requests += 1;
+        return Promise.resolve(['127.0.0.1', host].slice(0, 1));
+      },
+    };
+    await expect(
+      safeFetch(`${baseUrl}/ok`, {
+        dangerouslyAllowLoopback: true,
+        signal: controller.signal,
+        resolver,
+      }),
+    ).rejects.toBeInstanceOf(RequestAbortedError);
+    expect(requests).toBe(0);
+  });
+
   it('тело сверх maxBodyBytes обрывается с truncated=true', async () => {
     const result = await safeFetch(`${baseUrl}/big`, {
       dangerouslyAllowLoopback: true,
@@ -267,5 +309,72 @@ describe('safeFetch: запросы к локальному серверу', () 
     expect(result.status).toBe(200);
     expect(result.body).toBe('');
     expect(result.truncated).toBe(false);
+  });
+});
+
+describe('safeFetch: отмена вызывающим', () => {
+  it('уже отменённый signal не открывает соединение', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const promise = safeFetch(`${baseUrl}/ok`, {
+      dangerouslyAllowLoopback: true,
+      signal: controller.signal,
+    });
+    await expect(promise).rejects.toBeInstanceOf(RequestAbortedError);
+  });
+
+  it('отмена запроса в полёте — RequestAbortedError, а не TimeoutError', async () => {
+    const controller = new AbortController();
+    const promise = safeFetch(`${baseUrl}/slow`, {
+      dangerouslyAllowLoopback: true,
+      timeoutMs: 10_000,
+      signal: controller.signal,
+    });
+    setTimeout(() => controller.abort(), 50);
+    await expect(promise).rejects.toBeInstanceOf(RequestAbortedError);
+  });
+});
+
+describe('safeFetch: тело как байты', () => {
+  it('bodyBytes — это байты с провода, а не результат перекодирования', async () => {
+    const result = await safeFetch(`${baseUrl}/binary`, { dangerouslyAllowLoopback: true });
+    expect(responseBytes(result).equals(BINARY_FIXTURE)).toBe(true);
+    // Та же последовательность через строку меняется: именно поэтому рендер
+    // отдаёт браузеру байты, а не body.
+    expect(Buffer.from(result.body, 'utf8').equals(BINARY_FIXTURE)).toBe(false);
+  });
+
+  it('responseBytes восстанавливает тело результата, собранного тестовым транспортом', () => {
+    const bytes = responseBytes({
+      finalUrl: 'https://example.com/',
+      status: 200,
+      headers: {},
+      body: 'plain fixture',
+      redirectChain: [],
+      timingMs: 1,
+      truncated: false,
+    });
+    expect(bytes.toString('utf8')).toBe('plain fixture');
+  });
+});
+
+describe('safeFetch: redirectPolicy manual', () => {
+  it('возвращает сам 3xx, чтобы вызывающий применил свою политику к цели', async () => {
+    const result = await safeFetch(`${baseUrl}/chain-start`, {
+      dangerouslyAllowLoopback: true,
+      redirectPolicy: 'manual',
+    });
+    expect(result.status).toBe(302);
+    expect(result.headers.location).toBe('/chain-mid');
+    expect(result.redirectChain).toEqual([]);
+  });
+
+  it('не-redirect ответ ведёт себя как обычно', async () => {
+    const result = await safeFetch(`${baseUrl}/ok`, {
+      dangerouslyAllowLoopback: true,
+      redirectPolicy: 'manual',
+    });
+    expect(result.status).toBe(200);
+    expect(result.body).toBe('hello world');
   });
 });

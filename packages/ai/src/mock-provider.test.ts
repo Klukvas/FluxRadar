@@ -5,20 +5,11 @@ import { AI_REQUEST_CAPS } from '@fluxradar/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { AiModuleError, UnavailableError } from './errors.js';
-import {
-  geoVisibilityFixtures,
-  MOCK_FIXED_TIME_ISO,
-  MockAiProvider,
-} from './mock-provider.js';
+import { geoVisibilityFixtures, MOCK_FIXED_TIME_ISO, MockAiProvider } from './mock-provider.js';
 import type { MockAiFixture } from './mock-provider.js';
 import { CHARS_PER_TOKEN, TOKENIZER_VERSION } from './prompt-builder.js';
 import { validateNormalizedResponse } from './response-contract.js';
-import {
-  BRAND,
-  DOMAIN,
-  makeRequest,
-  QUESTION_WITHOUT_BRAND,
-} from './testing/harness.js';
+import { BRAND, DOMAIN, makeRequest, QUESTION_WITHOUT_BRAND } from './testing/harness.js';
 
 const fixtures = geoVisibilityFixtures(BRAND, DOMAIN);
 const provider = new MockAiProvider(fixtures);
@@ -64,7 +55,9 @@ describe('MockAiProvider — нормализация §5', () => {
     expect(response.requestIdSource).toBe('provider');
     expect(response.requestId).toBe('resp_mock_0001');
     expect(response.usageSource).toBe('provider');
-    expect(response.usage.totalTokens).toBe(response.usage.inputTokens + response.usage.outputTokens);
+    expect(response.usage.totalTokens).toBe(
+      response.usage.inputTokens + response.usage.outputTokens,
+    );
     expect(response.tokenizerVersion).toBeUndefined();
     expect(validateNormalizedResponse(response)).toEqual([]);
   });
@@ -76,7 +69,9 @@ describe('MockAiProvider — нормализация §5', () => {
     expect(response.tokenizerVersion).toBe(TOKENIZER_VERSION);
     expect(response.requestIdSource).toBe('local');
     expect(response.requestId).toMatch(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/);
-    expect(response.usage.totalTokens).toBe(response.usage.inputTokens + response.usage.outputTokens);
+    expect(response.usage.totalTokens).toBe(
+      response.usage.inputTokens + response.usage.outputTokens,
+    );
     expect(validateNormalizedResponse(response)).toEqual([]);
     // Локальный id детерминирован: тот же prompt → тот же id.
     const again = await provider.send(request, PROMPT);
@@ -145,5 +140,57 @@ describe('MockAiProvider — недоступность (GEO-METHOD-005)', () =>
     await expect(provider.send(makeRequest({ provider: 'google' }), PROMPT)).rejects.toSatisfy(
       (error) => error instanceof AiModuleError && !(error instanceof UnavailableError),
     );
+  });
+});
+
+describe('MockAiProvider — web search и caps запроса', () => {
+  it('web_search_calls фикстуры становится usage.searchUnits', async () => {
+    const searching = new MockAiProvider([
+      {
+        questionIncludes: 'best',
+        response: {
+          status: 'completed',
+          output_text: 'An answer with sources.',
+          citations: ['https://example.test/a', 'https://example.test/b'],
+          web_search_calls: 3,
+          usage: { input_tokens: 20_000, output_tokens: 40 },
+        },
+      },
+    ]);
+
+    // The flag itself is ignored — the mock has no transport — but the search
+    // facts a test asserts on come through.
+    const response = await searching.send(makeRequest({ webSearch: true }), PROMPT);
+
+    expect(response.usage).toMatchObject({
+      inputTokens: 20_000,
+      searchUnits: 3,
+      citationUnits: 2,
+    });
+  });
+
+  it('caps запроса заменяют модульные при усечении вывода', async () => {
+    const long = new MockAiProvider([
+      {
+        questionIncludes: 'best',
+        response: { status: 'completed', output_text: 'x'.repeat(6_000) },
+      },
+    ]);
+    const caps = {
+      maxInputTokens: 24_000,
+      maxOutputTokens: 16_000,
+      maxReasoningUnits: 4_000,
+      maxSearchUnits: 0,
+      maxCitationUnits: 0,
+      maxSearchContentTokens: 0,
+    };
+
+    const capped = await long.send(makeRequest({}), PROMPT);
+    const uncapped = await long.send(makeRequest({ caps }), PROMPT);
+
+    expect(capped.rawText).toHaveLength(4_000);
+    expect(capped.finishReason).toBe('length');
+    expect(uncapped.rawText).toHaveLength(6_000);
+    expect(uncapped.finishReason).toBe('stop');
   });
 });

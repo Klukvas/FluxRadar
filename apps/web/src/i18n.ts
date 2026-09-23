@@ -281,6 +281,33 @@ export const copy = {
       googleSearchConsole: 'Search Console',
       googleAnalytics: 'Analytics',
     },
+    domainOwnership: {
+      title: 'Domain ownership (optional)',
+      optionalNote:
+        'FluxRadar audits public pages, so nothing here is required: your checks, plans and prices are the same with or without a proof. Confirming ownership simply records that this account controls the site.',
+      site: 'Site',
+      status: 'Status',
+      statusPending: 'Waiting for the record',
+      statusVerified: 'Confirmed',
+      statusFailed: 'Not found yet',
+      labelMethod: 'Proof method',
+      methodDns: 'DNS TXT record',
+      methodFile: 'File at a well-known path',
+      methodMeta: 'Meta tag on the homepage',
+      instruction: 'What to publish',
+      value: 'Value',
+      tokenExpires: 'Token valid until',
+      tokenExpired: 'This token has expired. Issue a new one and publish it again.',
+      verifiedAt: 'Confirmed on',
+      lastCheck: 'Last check',
+      lastCheckFailed: 'Did not find the record ({reason}).',
+      stale: 'This proof was confirmed a while ago. Check it again to keep the record current.',
+      start: 'Get a verification token',
+      verify: 'Check now',
+      reissue: 'Issue a new token',
+      working: 'Working…',
+      unknown: 'Not recorded',
+    },
     home: {
       signIn: 'Sign in',
       createAccount: 'Create account',
@@ -553,6 +580,20 @@ export const copy = {
       labelQueryPolicy: 'URL query parameters',
       queryIgnore: 'Ignore parameters',
       queryInclude: 'Include parameters',
+      labelSeedUrls: 'Start URLs (one per line)',
+      seedUrlsHint:
+        'Pages to check even if nothing links to them. They still follow this scan’s scope, robots.txt rule and page limit.',
+      seedUrlsError: 'Each line must be a full address starting with http:// or https://.',
+      labelApiChecks: 'API endpoints to check (one per line)',
+      apiChecksHint:
+        'Read-only: GET or HEAD, no headers and no body. Add the statuses you expect after the address — “GET https://example.com/api/health 200,204”.',
+      apiChecksError:
+        'Each line must be an optional GET or HEAD, a full https address, and optionally the expected statuses.',
+      labelRenderJs: 'Read pages after their JavaScript has run',
+      renderInfoTitle: 'JavaScript rendering',
+      renderInfoMode: 'Off by default',
+      renderInfoBody:
+        'Off, FluxRadar reads the HTML the server sends. On, it opens each page in a headless browser and reads the DOM once the page’s own scripts have run — which is what a single-page app needs. All browser traffic goes through the same public-address guard as the crawl: GET and HEAD only, no cookies, no downloads and no sockets. If the deployment has no browser runtime the report says so; it never presents the static HTML as a rendered page.',
       advancedTitle: 'Advanced crawl rules',
       blockedByRobots: 'To start this scan, confirm the robots.txt override under Audit depth.',
       labelRespectRobots: 'Respect robots.txt',
@@ -562,11 +603,21 @@ export const copy = {
       robotsInfoBody:
         'Before crawling, FluxRadar reads the site’s public robots.txt. When “Respect robots.txt” is on, pages disallowed for crawlers are skipped. Turn it off only when you are authorized to inspect those paths; the confirmation below records that choice.',
       labelAiConsent:
-        'Anthropic processes site context and public-page evidence for the included AI checks',
+        'Anthropic and OpenAI process site context and public-page evidence for the included AI checks',
       aiConsentTitle: 'AI processing included in this audit',
       aiConsentOptional: 'Included',
       aiConsentBody:
-        'By starting this paid audit, you instruct FluxRadar to use Anthropic for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain. Separate awareness questions include the brand and domain; on Complete, UX review can include saved context and bounded public-page evidence. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
+        'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks, and both answer the visibility questions with their own web search enabled. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain. Separate awareness questions include the brand and domain and go to both providers; on Complete, UX review can include saved context and bounded public-page evidence and goes to Anthropic only. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
+      aiConsentOptInTitle: 'Optional: ask Gemini and Perplexity too',
+      aiConsentOptInMode: 'Off by default',
+      aiConsentOptInBody:
+        'You can also ask Google (Gemini) and Perplexity the same visibility questions. They are off by default and receive nothing at all unless you select them here: the choice is stored with this scan and applies only to it. If you select one, it receives exactly what Anthropic and OpenAI receive — the questions and the site context above — and never your account or payment data, your Google or Bing access tokens, or page evidence.',
+      // Keyed by provider name: the form renders the offered recipients from
+      // the declared list, so a new one needs a label here and nothing else.
+      aiConsentOptIn: {
+        google: 'Also ask Google (Gemini)',
+        perplexity: 'Also ask Perplexity',
+      },
       aiConsentPrivacy: 'Privacy policy',
       aiConsentTerms: 'Terms of service',
       performanceInfoTitle: 'External performance measurement',
@@ -666,6 +717,12 @@ export const copy = {
       openReport: 'Open report',
       cancel: 'Cancel scan',
       cancelling: 'Cancelling…',
+      pause: 'Pause scan',
+      resume: 'Resume scan',
+      pauseWorking: 'Working…',
+      pausing: 'Finishing the current section, then pausing — no new pages are being read.',
+      pausedBody: 'Paused. Nothing is being read from your site; resume to continue this scan.',
+      scannedUrls: '{scanned} of {discovered} pages read',
       statusPartial: 'Your report is partially ready.',
       statusFailed: 'The scan could not finish.',
       statusCancelled: 'The scan was cancelled.',
@@ -714,11 +771,23 @@ export const copy = {
       helpFindingsBody:
         'Specific issues we detected, each with the evidence behind it. Open the findings list below to review them and see recommended fixes.',
       noScore: 'No score',
+      // A section that ran and reported real observations, but has nothing a
+      // 0–100 number could honestly measure. AI SEO / GEO is the one: its
+      // checks are informational, so a score there would be invented rather
+      // than measured. The observations themselves are on the section's card.
+      informationalLabel: 'Observations only',
       coverageUnavailable: 'coverage unavailable',
       geoObservationsLead:
-        'These are the model’s answers to this scan’s exact prompts. They show whether the answer mentioned your brand or official domain in this run; they do not prove what the model has memorized or will answer later.',
+        'These are each model’s answers to this scan’s exact prompts, produced with the provider’s own web search, and the citations are the sources it used. They show whether an answer mentioned your brand or official domain in this run; they do not prove what a model has memorized or will answer later.',
       geoAwarenessQuestion: 'Direct awareness question',
       geoDiscoveryQuestion: 'Domain discovery question',
+      geoProviderOpenai: 'ChatGPT · OpenAI',
+      geoProviderAnthropic: 'Claude · Anthropic',
+      geoProviderGoogle: 'Gemini · Google',
+      geoProviderPerplexity: 'Perplexity',
+      geoProviderUnknown: 'Provider not recorded',
+      geoMentionCounts:
+        'Brand mentioned in {brand} of {total} answers · official domain referenced in {domain} of {total}.',
       geoProvider: 'Provider/model',
       geoAnswerLabel: 'Model answer',
       geoMentionSignals: 'Mention signals',
@@ -790,10 +859,14 @@ export const copy = {
           'FluxRadar has no public, evidence-based check for this area yet, so nothing was measured and no score is claimed. The section is listed so you can see it was not silently skipped.',
         platformFailure:
           'The audit itself failed while this section was running. Run the check again; if it fails a second time, contact support.',
+        scanCancelled:
+          'You cancelled this audit before the section finished, so it was stopped where it stood. Nothing is wrong with your site here — the sections that did finish are still reported in full.',
         performanceNotConfigured:
           'Performance is measured by an external service, and this FluxRadar deployment has none configured. Nothing was measured here and the rest of the report is unaffected.',
         performanceScoreUnavailable:
           'The performance service answered but returned no overall performance score, so this section reports what it did measure and leaves the score empty.',
+        performanceSamplesIncomplete:
+          'Some of the measurement runs did not finish, so this section covers the pages and devices that were measured rather than all of the ones it set out to measure. Everything shown was measured for real.',
         performanceProviderUnavailable:
           'The external performance service did not answer. Nothing was measured for this section — run the check again to try once more.',
         aiConsentMissing:
@@ -818,8 +891,16 @@ export const copy = {
           'The static UX checks ran, but the AI-assisted UX provider is not configured or did not answer.',
         uxAiProviderContract:
           'The static UX checks ran, but the AI response did not meet FluxRadar’s strict evidence contract and was discarded.',
+        uxAiScanCancelled:
+          'The static UX checks ran and are reported in full; the AI-assisted UX review was stopped when you cancelled the audit.',
         aiPartial:
           '{unavailable} of {total} AI questions could not be asked, so this section covers only the ones that were. Each cause is named below.',
+        aiCancelled:
+          'You cancelled the audit while the AI questions were running: {answered} of {total} were answered, and those answers are reported here. The rest were never asked.',
+        aiQueryGenerationUnavailable:
+          'The neutral discovery questions for this scan could not be generated, so this section asked only its fixed brand questions. The cause is named below.',
+        aiQueryGenerationInvalidResponse:
+          'The neutral discovery questions for this scan could not be generated: the provider answered in a shape FluxRadar refuses to use, so the section asked only its fixed brand questions.',
         analyticsNotConnected:
           'Google is not connected for this workspace, so no Search Console or Analytics data could be read. Connect Google on the Integrations screen.',
         analyticsPropertyNotSelected:
@@ -889,6 +970,55 @@ export const copy = {
         detailRequestFailed:
           'Google did not respond in time. The rest of the report is unaffected.',
       },
+      // ── The Bing panel ────────────────────────────────────────────────────
+      //
+      // Its own panel, not a second column of the Google one: a separate grant
+      // over a separate index. Every sentence is written here rather than taken
+      // from the API, which sends English.
+      bing: {
+        panelTitle: 'Bing data',
+        sourceNote: 'Source: Bing Webmaster Tools · read-only · period',
+        lastFetched: 'last fetched',
+        metricsLabel: 'Bing metrics',
+        clicks: 'Clicks',
+        impressions: 'Impressions',
+        ctr: 'CTR',
+        daysReported: 'Days reported',
+        previousPeriod: 'Previous period: {clicks} clicks · {impressions} impressions',
+        topQueries: 'Top Bing queries',
+        query: 'Query',
+        bingPosition: 'Bing average position',
+        positionNote:
+          'Bing states its own average position over its own index. It is not comparable with the position Search Console reports, so the two are never differenced.',
+        trafficUnavailable:
+          'Bing did not return daily clicks and impressions for this period, so no totals are shown. They are left blank rather than shown as zero.',
+        queriesUnavailable:
+          'Bing did not return the query list for this period. The totals above are unaffected.',
+        findingsHeading: 'What the Bing data shows',
+        findingsNote:
+          'Notes, not scored findings: Bing coverage is informational in this release and takes no part in any score.',
+        severityAttention: 'Worth checking',
+        severityInfo: 'Note',
+        stateConnected: 'Data received',
+        stateNotConnected: 'Bing not connected',
+        stateNoSiteSelected: 'No Bing site linked',
+        stateNeedsReconnect: 'Reconnect required',
+        stateNoAccess: 'No access to this site',
+        stateNoData: 'No data for this period',
+        stateNotVerified: 'Site not verified in Bing',
+        stateRequestFailed: 'Bing data unavailable',
+        detailConnected: 'Bing returned data for this period.',
+        detailNotConnected: 'Bing Webmaster Tools is not connected for this workspace.',
+        detailNoSiteSelected:
+          'No Bing site is linked to this profile yet. Choose one in Integrations to include Bing data.',
+        detailNeedsReconnect:
+          'Bing access has expired or was revoked. Reconnect Bing Webmaster Tools to continue.',
+        detailNoAccess: 'This Bing account cannot read the selected site.',
+        detailNoData: 'Bing has no data for this site in the selected period.',
+        detailNotVerified: 'Bing has not verified ownership of this site yet.',
+        detailRequestFailed:
+          'Bing did not answer, or answered with data FluxRadar could not read. The rest of the report is unaffected.',
+      },
       // ── What a section checked ────────────────────────────────────────────
       //
       // Opened from a section's card. The card says how the section ended; this
@@ -899,9 +1029,22 @@ export const copy = {
         heading: '{module} · checks performed',
         ruleLead:
           'Every automated check this section ran on the pages FluxRadar read, and what each one found. The Issue Center has the evidence behind each finding.',
+        apiLead:
+          'The API endpoints this scan was configured to check, read with GET or HEAD and no credentials.',
+        apiAnswered: 'Answered {status} · expected {expected} · {timing} ms',
+        apiNoResponse: 'No response was recorded ({reason}).',
+        renderUsed:
+          'Pages were read in a browser after their own scripts ran ({engine}) · rendered: {rendered} · not rendered: {unrendered}.',
+        renderUnavailable:
+          'JavaScript rendering was requested but unavailable ({reason}), so these checks read the HTML the server sent. Markup that only appears after the page’s scripts run was not evaluated.',
+        renderReasonUnknown: 'no reason recorded',
+        renderIncomplete:
+          'On {incomplete} of them the page asked for resources this scan could not load ({reasons}), so what those scripts would have added was not evaluated.',
         resultPassed: 'Passed',
         resultIssues: 'Issues found',
         resultNoted: 'Noted',
+        /** A target of this section that produced no answer — it lowered the coverage. */
+        resultNotChecked: 'Not checked',
         resultNotApplicable: 'Not applicable',
         resultPartial: 'Partial',
         resultMissing: 'Missing',
@@ -986,7 +1129,61 @@ export const copy = {
         perfInp: 'Interaction to Next Paint (INP)',
         perfCls: 'Cumulative Layout Shift (CLS)',
         perfTtfb: 'Server response time (TTFB)',
+        // Total Blocking Time is the lab proxy for responsiveness. It is not INP
+        // and is never presented as one: Lighthouse cannot measure INP at all.
+        perfTbt: 'Total Blocking Time (TBT, lab proxy)',
         perfWeight: 'Total page weight',
+        // Only a report written before the bounded audit carries this one, and
+        // it measured the HTML document alone — not the page.
+        perfHtmlWeight: 'HTML document size',
+        perfRequests: 'Requests per page load',
+        // ── The bounded audit ─────────────────────────────────────────────
+        //
+        // The lead is chosen from what the audit actually did, not from what the
+        // full audit does: a deployment without a PageSpeed API key measures one
+        // page, on one device, once, and the section must not open by describing
+        // medians of repeated runs on two devices above a row that reads
+        // "1 of 1 runs usable".
+        perfAuditLeadRepeated:
+          'Each page below was measured {devices}, more than once. The figure shown is the median of those runs; where the runs disagreed widely, the row says so.',
+        perfAuditLeadSingle:
+          'Each page below was measured {devices}, once. Each figure is that single run — there is no median and no spread to state.',
+        perfAuditDevicesBoth: 'on both emulated devices',
+        perfAuditDevicesOne: 'on one emulated device ({device})',
+        perfAuditDevicesUnstated: 'on the devices this audit recorded',
+        perfProvider: 'Lab measurements by Lighthouse {version} via PageSpeed Insights',
+        perfProviderUnknown: 'Lab measurements by PageSpeed Insights (version not reported)',
+        perfBudget: '{used} of {cap} provider requests used',
+        perfBudgetCapped:
+          'the request budget was reached, so some runs were not taken; the pages below are what was measured',
+        perfPrimaryPage: 'headline page',
+        perfRuns: '{usable} of {requested} runs usable',
+        perfDeviceUnmeasured:
+          'None of the {requested} runs produced a measurement for this device, so nothing is shown for it.',
+        perfRegressionsHeading: 'Compared with the previous scan',
+        perfNoRegressions: 'Nothing measured here got materially worse since the previous scan.',
+        perfNotCompared:
+          'Not compared with the previous scan: {reason}. A figure from a different measurement setup would look like a change in your site.',
+        // The reason itself, from the code the audit stored. The English sentence
+        // stored beside it is the fallback for a report written before the code
+        // existed, and for a code this build does not know.
+        perfIncomparableAuditVersion:
+          'the previous scan was measured by {previous}, this one by {current}',
+        perfIncomparableVersionUnrecorded:
+          'one of the two scans did not record a single Lighthouse version',
+        perfIncomparableMajorChanged:
+          'Lighthouse {previous} measured the previous scan and Lighthouse {current} this one',
+        perfRegressed: 'Worse',
+        perfUnstable: 'unstable: the runs differed by {spread} of the median',
+        perfBudgetNote: 'FluxRadar budget, not a published standard',
+        perfFieldNotConfigured:
+          'Real-visitor data was not requested for this scan, so Interaction to Next Paint could not be measured.',
+        perfFieldNoData:
+          'The Chrome UX Report has no record for this site, which means too few Chrome visitors to report on.',
+        perfFieldFailed:
+          'The Chrome UX Report did not answer. The lab measurements above are unaffected.',
+        perfInpUnavailable:
+          'Interaction to Next Paint needs real visitors and was not measured. A lab run never produces it, so no figure above stands in for it.',
         perfGood: 'Good',
         perfNeedsImprovement: 'Needs improvement',
         perfPoor: 'Poor',
@@ -1080,6 +1277,47 @@ export const copy = {
         google:
           'This connection puts what your own Google account already records — the searches people used to find you, and the visits each page received — beside the audit results. FluxRadar only reads that data; it changes nothing in Google and nothing on your pages.',
         bing: 'This connection shows how the same pages do in Bing search: the searches they appeared for and the clicks they got. It is read-only as well, so nothing in your Bing account is changed.',
+      },
+      // ── The Bing site picker ──────────────────────────────────────────────
+      bing: {
+        title: 'Bing site',
+        readOnly:
+          'FluxRadar only reads Bing Webmaster Tools — it never writes to your Bing property. Bing is a separate search engine from Google: its clicks, impressions and average position are its own measurements and are reported beside Google’s, never merged with them.',
+        notConnected:
+          'Connect Bing Webmaster Tools above to choose which Bing site each profile reports on.',
+        profileLabel: 'Profile',
+        siteLabel: 'Bing site',
+        notLinked: 'Not linked',
+        unverifiedSuffix: 'not verified in Bing',
+        loading: 'Loading Bing sites…',
+        save: 'Save selection',
+        saving: 'Saving…',
+        refresh: 'Refresh list',
+        saved: 'Saved. The next scan of this profile will include this Bing data.',
+        cleared: 'Bing site unlinked. Reports will not include Bing data.',
+        noBinding:
+          'No Bing site is linked to this profile yet, so reports will show Bing data as not configured.',
+        unverifiedWarning:
+          'Bing had not verified {site} when it was chosen. Bing reports little or no data for an unverified site — finish verification in Bing Webmaster Tools.',
+        // Stated, never refused: a subdomain or another verified host is a valid
+        // property to report on. What would not be valid is showing its figures
+        // under this profile's domain without saying whose they are.
+        hostMismatch:
+          'This profile is {domain}, and {site} is a different host. That is allowed — a subdomain or another verified property can be the right choice — but the Bing figures in its reports will describe {site}.',
+        discoveryReconnect:
+          'Bing access has expired or was revoked. Reconnect Bing above, then refresh the list.',
+        discoveryMissingScope:
+          'The Bing connection does not include read access. Reconnect Bing above and allow it.',
+        discoveryDenied:
+          'Bing refused to list the sites this account can read, so there is nothing to choose yet. Refresh the list; if it is refused again, reconnect Bing above.',
+        discoveryEmpty:
+          'This Bing account has no sites in Bing Webmaster Tools. Add the site there first.',
+        discoveryFailed: 'Bing did not answer in time. Refresh the list to try again.',
+        saveFailed: 'The selection could not be saved. Try again in a moment.',
+        emptyTitle: 'No profile to link yet',
+        emptyBody:
+          'Bing is connected, but Bing data is linked per profile. Create a profile first, then choose its Bing site here.',
+        emptyAction: 'Add profile',
       },
       google: {
         title: 'Google properties',
@@ -1399,6 +1637,33 @@ export const copy = {
       googleSearchConsole: 'Search Console',
       googleAnalytics: 'Analytics',
     },
+    domainOwnership: {
+      title: 'Підтвердження домену (необов’язково)',
+      optionalNote:
+        'FluxRadar перевіряє публічні сторінки, тож нічого з цього не є обов’язковим: перевірки, тарифи й ціни однакові з підтвердженням і без нього. Підтвердження лише фіксує, що цей акаунт контролює сайт.',
+      site: 'Сайт',
+      status: 'Стан',
+      statusPending: 'Чекаємо на запис',
+      statusVerified: 'Підтверджено',
+      statusFailed: 'Поки не знайдено',
+      labelMethod: 'Спосіб підтвердження',
+      methodDns: 'DNS TXT-запис',
+      methodFile: 'Файл за відомим шляхом',
+      methodMeta: 'Meta-тег на головній сторінці',
+      instruction: 'Що опублікувати',
+      value: 'Значення',
+      tokenExpires: 'Токен дійсний до',
+      tokenExpired: 'Термін дії токена минув. Отримайте новий і опублікуйте його знову.',
+      verifiedAt: 'Підтверджено',
+      lastCheck: 'Остання перевірка',
+      lastCheckFailed: 'Запис не знайдено ({reason}).',
+      stale: 'Це підтвердження зроблено давно. Перевірте ще раз, щоб запис лишався актуальним.',
+      start: 'Отримати токен підтвердження',
+      verify: 'Перевірити зараз',
+      reissue: 'Випустити новий токен',
+      working: 'Виконуємо…',
+      unknown: 'Не зафіксовано',
+    },
     home: {
       signIn: 'Увійти',
       createAccount: 'Створити акаунт',
@@ -1671,6 +1936,20 @@ export const copy = {
       labelQueryPolicy: 'Параметри URL-запиту',
       queryIgnore: 'Ігнорувати параметри',
       queryInclude: 'Включати параметри',
+      labelSeedUrls: 'Початкові URL (по одному в рядку)',
+      seedUrlsHint:
+        'Сторінки, які треба перевірити, навіть якщо на них немає посилань. Вони так само підпадають під область перевірки, правило robots.txt і ліміт сторінок.',
+      seedUrlsError: 'Кожен рядок має бути повною адресою, що починається з http:// або https://.',
+      labelApiChecks: 'API-ендпойнти для перевірки (по одному в рядку)',
+      apiChecksHint:
+        'Лише читання: GET або HEAD, без заголовків і без тіла запиту. Очікувані статуси вкажіть після адреси — «GET https://example.com/api/health 200,204».',
+      apiChecksError:
+        'Кожен рядок — необов’язковий GET або HEAD, повна https-адреса і, за бажанням, очікувані статуси.',
+      labelRenderJs: 'Читати сторінки після виконання JavaScript',
+      renderInfoTitle: 'Рендеринг JavaScript',
+      renderInfoMode: 'Вимкнено за замовчуванням',
+      renderInfoBody:
+        'Вимкнено — FluxRadar читає HTML, який віддає сервер. Увімкнено — відкриває кожну сторінку в headless-браузері й читає DOM після виконання її власних скриптів; саме це потрібно SPA. Увесь трафік браузера проходить через той самий захист публічних адрес, що й обхід: тільки GET і HEAD, без cookies, без завантажень і без сокетів. Якщо в цьому середовищі немає браузерного runtime, звіт про це скаже і не видасть статичний HTML за відрендерену сторінку.',
       advancedTitle: 'Додаткові правила обходу',
       blockedByRobots:
         'Щоб запустити перевірку, підтвердіть заміну robots.txt у розділі «Глибина аудиту».',
@@ -1681,11 +1960,19 @@ export const copy = {
       robotsInfoBody:
         'Перед обходом FluxRadar читає публічний robots.txt сайту. Якщо «Дотримуватись robots.txt» увімкнено, сторінки, заборонені для сканерів, пропускаються. Вимикайте цю опцію лише якщо маєте право перевіряти такі шляхи: нижче потрібно буде окремо підтвердити відхилення правил.',
       labelAiConsent:
-        'Anthropic обробляє контекст сайту та публічні докази для включених AI-перевірок',
+        'Anthropic і OpenAI обробляють контекст сайту та публічні докази для включених AI-перевірок',
       aiConsentTitle: 'AI-обробка включена в цей аудит',
       aiConsentOptional: 'Включено',
       aiConsentBody:
-        'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену. Окремі awareness-запитання містять бренд і домен; у Complete UX-аналіз може включати збережений контекст та обмежені докази з публічних сторінок. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
+        'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) і OpenAI (ChatGPT) для включених AI-перевірок, і обидва відповідають на запитання про видимість із увімкненим власним вебпошуком. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену. Окремі awareness-запитання містять бренд і домен і йдуть до обох провайдерів; у Complete UX-аналіз може включати збережений контекст та обмежені докази з публічних сторінок і йде лише до Anthropic. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
+      aiConsentOptInTitle: 'Необовʼязково: запитати також Gemini і Perplexity',
+      aiConsentOptInMode: 'Вимкнено за замовчуванням',
+      aiConsentOptInBody:
+        'Ви можете поставити ті самі запитання про видимість Google (Gemini) і Perplexity. Вони вимкнені за замовчуванням і не отримують нічого, доки ви не оберете їх тут: вибір зберігається разом із цим скануванням і діє лише для нього. Якщо ви оберете провайдера, він отримає рівно те саме, що Anthropic і OpenAI, — запитання та описаний вище контекст сайту — і ніколи дані акаунта чи оплати, ваші Google- або Bing-tokens чи докази зі сторінок.',
+      aiConsentOptIn: {
+        google: 'Запитати також Google (Gemini)',
+        perplexity: 'Запитати також Perplexity',
+      },
       aiConsentPrivacy: 'Політика приватності',
       aiConsentTerms: 'Умови користування',
       performanceInfoTitle: 'Зовнішнє вимірювання швидкодії',
@@ -1786,6 +2073,12 @@ export const copy = {
       openReport: 'Відкрити звіт',
       cancel: 'Скасувати перевірку',
       cancelling: 'Скасовуємо…',
+      pause: 'Призупинити',
+      resume: 'Продовжити',
+      pauseWorking: 'Виконуємо…',
+      pausing: 'Завершуємо поточний розділ і зупиняємось — нові сторінки вже не читаються.',
+      pausedBody: 'Призупинено. Ми нічого не читаємо з вашого сайту; натисніть «Продовжити».',
+      scannedUrls: 'Прочитано {scanned} з {discovered} сторінок',
       statusPartial: 'Ваш звіт готовий частково.',
       statusFailed: 'Перевірку не вдалося завершити.',
       statusCancelled: 'Перевірку скасовано.',
@@ -1825,11 +2118,19 @@ export const copy = {
       helpFindingsBody:
         'Конкретні проблеми, які ми виявили, кожна з доказом. Відкрийте список знахідок нижче, щоб переглянути їх і побачити рекомендовані виправлення.',
       noScore: 'Без оцінки',
+      informationalLabel: 'Лише спостереження',
       coverageUnavailable: 'покриття недоступне',
       geoObservationsLead:
-        'Це відповіді моделі на конкретні запити цієї перевірки. Вони показують, чи згадала відповідь ваш бренд або офіційний домен саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
+        'Це відповіді кожної моделі на конкретні запити цієї перевірки, отримані з увімкненим вебпошуком провайдера; посилання — це джерела, якими вона скористалася. Вони показують, чи згадала відповідь ваш бренд або офіційний домен саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
       geoAwarenessQuestion: 'Пряме питання про впізнаваність',
       geoDiscoveryQuestion: 'Пошукове питання про послугу',
+      geoProviderOpenai: 'ChatGPT · OpenAI',
+      geoProviderAnthropic: 'Claude · Anthropic',
+      geoProviderGoogle: 'Gemini · Google',
+      geoProviderPerplexity: 'Perplexity',
+      geoProviderUnknown: 'Постачальника не зафіксовано',
+      geoMentionCounts:
+        'Бренд згадано у {brand} з {total} відповідей · офіційний домен наведено у {domain} з {total}.',
       geoProvider: 'Постачальник/модель',
       geoAnswerLabel: 'Відповідь моделі',
       geoMentionSignals: 'Ознаки згадки',
@@ -1877,10 +2178,14 @@ export const copy = {
           'У FluxRadar поки немає публічної перевірки з доказами для цієї області, тому нічого не вимірювалося і жодної оцінки не заявлено. Розділ показано, щоб було видно: його не пропустили мовчки.',
         platformFailure:
           'Сам аудит зупинився з помилкою, поки виконувався цей розділ. Запустіть перевірку ще раз; якщо помилка повториться — зверніться до підтримки.',
+        scanCancelled:
+          'Ви скасували цей аудит до того, як розділ завершився, тому його зупинено на тому місці, де він був. Із вашим сайтом тут нічого не сталося — розділи, що встигли завершитися, показані повністю.',
         performanceNotConfigured:
           'Швидкодію вимірює зовнішній сервіс, а в цьому розгортанні FluxRadar його не налаштовано. Тут нічого не виміряно, на решту звіту це не впливає.',
         performanceScoreUnavailable:
           'Сервіс швидкодії відповів, але не повернув загальної оцінки, тому розділ показує виміряні дані й лишає оцінку порожньою.',
+        performanceSamplesIncomplete:
+          'Частина вимірювальних запусків не завершилася, тому цей розділ охоплює ті сторінки та пристрої, які вдалося виміряти, а не всі заплановані. Усе показане виміряно насправді.',
         performanceProviderUnavailable:
           'Зовнішній сервіс швидкодії не відповів. Для цього розділу нічого не виміряно — запустіть перевірку ще раз, щоб спробувати знову.',
         aiConsentMissing:
@@ -1905,8 +2210,16 @@ export const copy = {
           'Статичні UX-перевірки виконано, але AI-провайдер UX не налаштовано або він не відповів.',
         uxAiProviderContract:
           'Статичні UX-перевірки виконано, але відповідь AI не відповіла суворому контракту доказів FluxRadar і була відхилена.',
+        uxAiScanCancelled:
+          'Статичні UX-перевірки виконано й показані повністю; AI-аналіз UX зупинено, коли ви скасували аудит.',
         aiPartial:
           'Не вдалося поставити {unavailable} з {total} AI-питань, тому розділ охоплює лише ті, які було поставлено. Кожну причину названо нижче.',
+        aiCancelled:
+          'Ви скасували аудит, поки виконувалися AI-питання: відповіді отримано на {answered} з {total}, і саме вони показані тут. Решту питань не ставили.',
+        aiQueryGenerationUnavailable:
+          'Нейтральні питання для пошуку згадок цієї перевірки не вдалося згенерувати, тому розділ поставив лише свої сталі питання про бренд. Причину названо нижче.',
+        aiQueryGenerationInvalidResponse:
+          'Нейтральні питання для пошуку згадок цієї перевірки не вдалося згенерувати: провайдер відповів у формі, яку FluxRadar відмовляється використовувати, тому розділ поставив лише свої сталі питання про бренд.',
         analyticsNotConnected:
           'Google не підключено для цього робочого простору, тому дані Search Console та Analytics прочитати не вдалося. Підключіть Google на екрані інтеграцій.',
         analyticsPropertyNotSelected:
@@ -1966,15 +2279,72 @@ export const copy = {
         detailNoData: 'Google не має даних про цей сайт за вибраний період.',
         detailRequestFailed: 'Google не відповів вчасно. На решту звіту це не впливає.',
       },
+      // ── Панель Bing ───────────────────────────────────────────────────────
+      bing: {
+        panelTitle: 'Дані Bing',
+        sourceNote: 'Джерело: Bing Webmaster Tools · лише читання · період',
+        lastFetched: 'останнє отримання',
+        metricsLabel: 'Показники Bing',
+        clicks: 'Кліки',
+        impressions: 'Показів',
+        ctr: 'CTR',
+        daysReported: 'Днів у даних',
+        previousPeriod: 'Попередній період: {clicks} кліків · {impressions} показів',
+        topQueries: 'Головні запити Bing',
+        query: 'Запит',
+        bingPosition: 'Середня позиція Bing',
+        positionNote:
+          'Bing подає власну середню позицію за власним індексом. Вона не порівнянна з позицією Search Console, тому різницю між ними не обчислюють.',
+        trafficUnavailable:
+          'Bing не повернув щоденні кліки та покази за цей період, тому підсумків немає. Їх залишено порожніми, а не нульовими.',
+        queriesUnavailable:
+          'Bing не повернув список запитів за цей період. Підсумки вище це не змінює.',
+        findingsHeading: 'Що показують дані Bing',
+        findingsNote:
+          'Це нотатки, а не оцінені знахідки: покриття Bing у цьому випуску інформаційне й не впливає на жодну оцінку.',
+        severityAttention: 'Варто перевірити',
+        severityInfo: 'Нотатка',
+        stateConnected: 'Дані отримано',
+        stateNotConnected: 'Bing не підключено',
+        stateNoSiteSelected: 'Сайт Bing не привʼязано',
+        stateNeedsReconnect: 'Потрібне перепідключення',
+        stateNoAccess: 'Немає доступу до цього сайту',
+        stateNoData: 'Немає даних за цей період',
+        stateNotVerified: 'Сайт не підтверджено в Bing',
+        stateRequestFailed: 'Дані Bing недоступні',
+        detailConnected: 'Bing повернув дані за цей період.',
+        detailNotConnected: 'Bing Webmaster Tools не підключено для цього робочого простору.',
+        detailNoSiteSelected:
+          'До цього профілю ще не привʼязано сайт Bing. Виберіть його в «Інтеграціях», щоб додати дані Bing.',
+        detailNeedsReconnect:
+          'Доступ до Bing закінчився або його відкликано. Перепідключіть Bing Webmaster Tools.',
+        detailNoAccess: 'Цей акаунт Bing не може читати вибраний сайт.',
+        detailNoData: 'Bing не має даних для цього сайту за вибраний період.',
+        detailNotVerified: 'Bing ще не підтвердив право власності на цей сайт.',
+        detailRequestFailed:
+          'Bing не відповів або відповів даними, які FluxRadar не зміг прочитати. Решту звіту це не змінює.',
+      },
       checks: {
         show: 'Показати перевірки',
         hide: 'Сховати перевірки',
         heading: '{module} · виконані перевірки',
         ruleLead:
           'Усі автоматичні перевірки цього розділу на сторінках, які прочитав FluxRadar, і що знайшла кожна з них. Докази до кожної знахідки — у Центрі проблем.',
+        apiLead:
+          'API-ендпойнти, налаштовані для цієї перевірки: читаються через GET або HEAD, без облікових даних.',
+        apiAnswered: 'Відповідь {status} · очікувалось {expected} · {timing} мс',
+        apiNoResponse: 'Відповіді не зафіксовано ({reason}).',
+        renderUsed:
+          'Сторінки прочитано в браузері після виконання їхніх скриптів ({engine}) · відрендерено: {rendered} · не відрендерено: {unrendered}.',
+        renderUnavailable:
+          'Рендеринг JavaScript запитували, але він був недоступний ({reason}), тож ці перевірки читали HTML від сервера. Розмітку, що з’являється лише після скриптів сторінки, не оцінювали.',
+        renderReasonUnknown: 'причину не зафіксовано',
+        renderIncomplete:
+          'На {incomplete} із них сторінка запитувала ресурси, які ця перевірка не змогла завантажити ({reasons}), тож те, що додали б ці скрипти, не оцінювали.',
         resultPassed: 'Пройдено',
         resultIssues: 'Є проблеми',
         resultNoted: 'Зафіксовано',
+        resultNotChecked: 'Не перевірено',
         resultNotApplicable: 'Не застосовується',
         resultPartial: 'Частково',
         resultMissing: 'Відсутнє',
@@ -2060,7 +2430,46 @@ export const copy = {
         perfInp: 'Затримка реакції на дію (INP)',
         perfCls: 'Зсув макета (CLS)',
         perfTtfb: 'Час відповіді сервера (TTFB)',
+        perfTbt: 'Загальний час блокування (TBT, лабораторний замінник)',
         perfWeight: 'Загальна вага сторінки',
+        perfHtmlWeight: 'Розмір HTML-документа',
+        perfRequests: 'Запитів на завантаження сторінки',
+        perfAuditLeadRepeated:
+          'Кожну сторінку нижче виміряно {devices}, кілька разів. Показано медіану цих запусків; якщо запуски сильно розійшлися, рядок про це повідомляє.',
+        perfAuditLeadSingle:
+          'Кожну сторінку нижче виміряно {devices}, один раз. Кожне значення — це той один запуск: медіани й розкиду тут немає.',
+        perfAuditDevicesBoth: 'на двох емульованих пристроях',
+        perfAuditDevicesOne: 'на одному емульованому пристрої ({device})',
+        perfAuditDevicesUnstated: 'на пристроях, які записав цей аудит',
+        perfProvider: 'Лабораторні вимірювання: Lighthouse {version} через PageSpeed Insights',
+        perfProviderUnknown: 'Лабораторні вимірювання: PageSpeed Insights (версію не повідомлено)',
+        perfBudget: 'Використано {used} з {cap} запитів до постачальника',
+        perfBudgetCapped:
+          'ліміт запитів досягнуто, тому частину запусків не виконано; нижче — те, що виміряно',
+        perfPrimaryPage: 'основна сторінка',
+        perfRuns: 'придатних запусків: {usable} з {requested}',
+        perfDeviceUnmeasured:
+          'Жоден із {requested} запусків не дав вимірювання для цього пристрою, тому для нього нічого не показано.',
+        perfRegressionsHeading: 'Порівняння з попереднім скануванням',
+        perfNoRegressions: 'Ніщо з виміряного не стало суттєво гіршим із попереднього сканування.',
+        perfNotCompared:
+          'Порівняння з попереднім скануванням немає: {reason}. Значення з іншого середовища вимірювання виглядало б як зміна вашого сайту.',
+        perfIncomparableAuditVersion:
+          'попереднє сканування виміряно версією {previous}, а це — версією {current}',
+        perfIncomparableVersionUnrecorded:
+          'в одному з двох сканувань не записано єдиної версії Lighthouse',
+        perfIncomparableMajorChanged:
+          'попереднє сканування виміряв Lighthouse {previous}, а це — Lighthouse {current}',
+        perfRegressed: 'Гірше',
+        perfUnstable: 'нестабільно: запуски розійшлися на {spread} від медіани',
+        perfBudgetNote: 'бюджет FluxRadar, а не опублікований стандарт',
+        perfFieldNotConfigured:
+          'Дані реальних відвідувачів для цього сканування не запитували, тому INP не виміряно.',
+        perfFieldNoData:
+          'Chrome UX Report не має запису для цього сайту — відвідувачів Chrome занадто мало для звіту.',
+        perfFieldFailed: 'Chrome UX Report не відповів. Лабораторні вимірювання вище це не змінює.',
+        perfInpUnavailable:
+          'INP потребує реальних відвідувачів і не був виміряний. Лабораторний запуск його не дає, тому жодне значення вище його не замінює.',
         perfGood: 'Добре',
         perfNeedsImprovement: 'Варто покращити',
         perfPoor: 'Погано',
@@ -2157,6 +2566,44 @@ export const copy = {
         google:
           'Це підключення показує поруч із результатами перевірки те, що вже фіксує ваш акаунт Google: за якими запитами вас знаходять і скільки відвідувань отримала кожна сторінка. FluxRadar лише читає ці дані — він нічого не змінює ні в Google, ні на ваших сторінках.',
         bing: 'Це підключення показує, як ті самі сторінки працюють у пошуку Bing: за якими запитами їх показували і скільки кліків вони отримали. Тут теж лише читання, тож у вашому акаунті Bing нічого не змінюється.',
+      },
+      // ── Вибір сайту Bing ──────────────────────────────────────────────────
+      bing: {
+        title: 'Сайт Bing',
+        readOnly:
+          'FluxRadar лише читає Bing Webmaster Tools і нічого не змінює у вашій властивості Bing. Bing — окрема пошукова система: його кліки, покази та середня позиція є власними вимірюваннями й показані поряд із даними Google, а не разом із ними.',
+        notConnected:
+          'Підключіть Bing Webmaster Tools вище, щоб вибрати, який сайт Bing використовує кожен профіль.',
+        profileLabel: 'Профіль',
+        siteLabel: 'Сайт Bing',
+        notLinked: 'Не привʼязано',
+        unverifiedSuffix: 'не підтверджено в Bing',
+        loading: 'Завантаження сайтів Bing…',
+        save: 'Зберегти вибір',
+        saving: 'Збереження…',
+        refresh: 'Оновити список',
+        saved: 'Збережено. Наступне сканування цього профілю включить дані Bing.',
+        cleared: 'Сайт Bing відʼєднано. Звіти не включатимуть дані Bing.',
+        noBinding:
+          'До цього профілю ще не привʼязано сайт Bing, тому у звітах дані Bing позначені як не налаштовані.',
+        unverifiedWarning:
+          'Коли {site} вибирали, Bing ще не підтвердив право власності. Для непідтвердженого сайту Bing майже не дає даних — завершіть підтвердження в Bing Webmaster Tools.',
+        hostMismatch:
+          'Цей профіль — {domain}, а {site} є іншим хостом. Так можна: піддомен або інший підтверджений ресурс цілком може бути правильним вибором, — але дані Bing у звітах описуватимуть саме {site}.',
+        discoveryReconnect:
+          'Доступ до Bing минув або його відкликано. Перепідключіть Bing вище та оновіть список.',
+        discoveryMissingScope:
+          'Підключення Bing не містить доступу на читання. Перепідключіть Bing вище й дозвольте його.',
+        discoveryDenied:
+          'Bing відмовився показати сайти цього акаунта, тому вибирати поки нічого. Оновіть список; якщо відмова повториться — перепідключіть Bing вище.',
+        discoveryEmpty:
+          'У цьому акаунті Bing немає сайтів у Bing Webmaster Tools. Спершу додайте сайт там.',
+        discoveryFailed: 'Bing не відповів вчасно. Оновіть список, щоб спробувати ще раз.',
+        saveFailed: 'Не вдалося зберегти вибір. Спробуйте ще раз за мить.',
+        emptyTitle: 'Ще немає профілю для привʼязки',
+        emptyBody:
+          'Bing підключено, але дані Bing привʼязуються до профілю. Спершу створіть профіль, а потім виберіть тут його сайт Bing.',
+        emptyAction: 'Додати профіль',
       },
       google: {
         title: 'Ресурси Google',

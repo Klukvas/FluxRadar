@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { AiModuleError } from './errors.js';
+import { AiModuleError, AiRequestAbortedError } from './errors.js';
 import { runGeoModule } from './geo-module.js';
 import type { GeoModuleInput, GeoModuleOptions } from './geo-module.js';
 import { geoVisibilityFixtures, MockAiProvider } from './mock-provider.js';
@@ -186,9 +186,9 @@ describe('runGeoModule — деградации', () => {
 describe('runGeoModule — валидация входа', () => {
   it('запрос чужого скана — ошибка вызывающего кода', async () => {
     const foreign = makeRequest({ scanId: 'other-scan' });
-    await expect(
-      runGeoModule(moduleInput({ requests: [foreign] }), makeOptions()),
-    ).rejects.toThrow(AiModuleError);
+    await expect(runGeoModule(moduleInput({ requests: [foreign] }), makeOptions())).rejects.toThrow(
+      AiModuleError,
+    );
   });
 
   it('пустой brand/siteDomain — ошибка, не молчаливый прогон', async () => {
@@ -198,5 +198,104 @@ describe('runGeoModule — валидация входа', () => {
     await expect(runGeoModule(moduleInput({ siteDomain: '' }), makeOptions())).rejects.toThrow(
       AiModuleError,
     );
+  });
+});
+
+describe('runGeoModule: кооперативная отмена', () => {
+  it('после аборта следующий вопрос провайдеру не уходит', async () => {
+    const controller = new AbortController();
+    const inner = new MockAiProvider(geoVisibilityFixtures(BRAND, DOMAIN));
+    let sendCalls = 0;
+    const provider: AiProvider = {
+      config: inner.config,
+      send: (request, promptText) => {
+        sendCalls += 1;
+        // Отмена приходит из другого процесса, пока первый запрос ещё в полёте.
+        controller.abort();
+        return inner.send(request, promptText);
+      },
+    };
+    const result = await runGeoModule(
+      moduleInput(),
+      makeOptions({ provider, signal: controller.signal }),
+    );
+    expect(sendCalls).toBe(1);
+    expect(result.outcomes).toHaveLength(1);
+    // Первый ответ получен и оплачен — он остаётся пригодным результатом.
+    expect(result.responses).toHaveLength(1);
+    expect(result.interrupted).toBe(true);
+    expect(result.requested).toBe(2);
+    expect(result.status).toBe('Partial');
+    expect(result.statusReason).toContain('ScanCancelled');
+  });
+
+  it('прерванный в полёте запрос не выбрасывает уже полученные ответы', async () => {
+    // Ответ на первый вопрос оплачен, и только ai_response record хранит ссылку
+    // на его удаление (AI-001). Уронить прогон исключением значило бы оставить
+    // у провайдера данные, о которых у системы нет ни строчки.
+    const controller = new AbortController();
+    const inner = new MockAiProvider(geoVisibilityFixtures(BRAND, DOMAIN));
+    let sendCalls = 0;
+    const provider: AiProvider = {
+      config: inner.config,
+      send: (request, promptText, signal) => {
+        sendCalls += 1;
+        if (sendCalls === 1) {
+          return inner.send(request, promptText);
+        }
+        controller.abort();
+        expect(signal?.aborted).toBe(true);
+        return Promise.reject(new AiRequestAbortedError(request.scanId));
+      },
+    };
+    const result = await runGeoModule(
+      moduleInput(),
+      makeOptions({ provider, signal: controller.signal }),
+    );
+    expect(sendCalls).toBe(2);
+    expect(result.responses).toHaveLength(1);
+    expect(result.interrupted).toBe(true);
+    expect(result.status).toBe('Partial');
+    // Отмена — не факт о провайдере: ProviderUnavailable в исходах не появляется.
+    expect(result.outcomes.map((outcome) => outcome.kind)).toEqual(['response']);
+    expect(result.quota.outstanding).toBe(0);
+  });
+
+  it('отмена до первого ответа оставляет модуль Unavailable по причине отмены', async () => {
+    const controller = new AbortController();
+    const inner = new MockAiProvider(geoVisibilityFixtures(BRAND, DOMAIN));
+    const provider: AiProvider = {
+      config: inner.config,
+      send: (request) => {
+        controller.abort();
+        return Promise.reject(new AiRequestAbortedError(request.scanId));
+      },
+    };
+    const result = await runGeoModule(
+      moduleInput(),
+      makeOptions({ provider, signal: controller.signal }),
+    );
+    expect(result.responses).toEqual([]);
+    expect(result.status).toBe('Unavailable');
+    expect(result.statusReason).toBe('ScanCancelled');
+    // Unavailable-модуль findings не строит (§5).
+    expect(result.findings).toEqual([]);
+  });
+
+  it('уже отменённый прогон не делает ни одного запроса и не тратит квоту', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const counting = countingProvider();
+    const result = await runGeoModule(
+      moduleInput(),
+      makeOptions({
+        provider: counting.provider,
+        quota: AiQuotaTracker.withLimit(10),
+        signal: controller.signal,
+      }),
+    );
+    expect(counting.calls()).toBe(0);
+    expect(result.outcomes).toEqual([]);
+    expect(result.responses).toEqual([]);
   });
 });

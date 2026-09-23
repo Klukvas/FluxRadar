@@ -3,8 +3,12 @@ import type { PrismaClient } from '@prisma/client';
 import { FASTSPRING_PROVIDER } from '../billing/fastspring/config.ts';
 import { emailText, type Mailer } from './mailer.ts';
 
-export type ScanNotificationKind =
-  'purchase_confirmed' | 'scan_started' | 'scan_completed' | 'scan_failed' | 'refund_created';
+/**
+ * Money events only. A scan's own progress — started, completed, failed — is not
+ * mailed: it runs in about two minutes with the workspace open in front of the
+ * owner, so the mail would arrive after they have already seen the result.
+ */
+export type ScanNotificationKind = 'purchase_confirmed' | 'refund_created';
 
 interface NotifiedPurchase {
   readonly provider: string;
@@ -13,7 +17,7 @@ interface NotifiedPurchase {
 
 /**
  * FastSpring test-mode orders are production E2E runs, not customers: mailing
- * them would deliver real purchase/scan emails for a payment that never
+ * them would deliver a real purchase or refund email for a payment that never
  * happened. Only an explicit test-mode checkout is silenced, so a live, Free or
  * legacy scan — or a purchase whose checkout row is gone — is still mailed.
  */

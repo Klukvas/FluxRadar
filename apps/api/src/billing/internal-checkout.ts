@@ -5,6 +5,8 @@ import type { PrismaClient, Scan } from '@prisma/client';
 import { JOB_TYPES } from './constants.ts';
 import type { PaddleCustomData, PaidPlan } from './webhook-schema.ts';
 import { captureExecutionConfig, lockOwnProfile } from '../profiles/execution-config.ts';
+import { validationError } from '../http/errors.ts';
+import { scopeTargetMessage, scopeTargetProblems } from '../scans/scope-targets.ts';
 
 export interface InternalCheckoutParams {
   readonly prisma: PrismaClient;
@@ -30,6 +32,11 @@ export async function createInternalFreeScan(params: InternalCheckoutParams): Pr
       params.siteProfileId,
       params.expectedProfileConfigVersion,
     );
+    // Seeds and API checks name addresses; they have to be this site's.
+    const problems = scopeTargetProblems(params.scope, profile.domain);
+    if (problems.length > 0) {
+      throw validationError(scopeTargetMessage(problems));
+    }
 
     const scan = await tx.scan.create({
       data: {

@@ -18,8 +18,12 @@ export const seoTech001RobotsTxt: SiteRule = {
   descriptor,
   evaluateSite(ctx: SiteContext): SiteRuleResult {
     const robotsTxt = ctx.robotsTxt ?? ctx.crawl.robotsTxt;
+    // Вход правила один — попытка получить robots.txt origin-а, и обход делает её
+    // всегда. Находка исчезает только тогда, когда файл теперь отдаётся: этого
+    // достаточно, чтобы политика Resolved закрыла прошлую (§14).
+    const checkedTargets = [`${ctx.domain}/robots.txt`];
     if (robotsTxt !== undefined) {
-      return { findings: [], applicableTargets: 1, affectedTargets: 0 };
+      return { findings: [], applicableTargets: 1, affectedTargets: 0, checkedTargets };
     }
     const targetUrl = `${ctx.domain}/robots.txt`;
     const finding = siteFinding(descriptor, targetUrl, {
@@ -28,6 +32,6 @@ export const seoTech001RobotsTxt: SiteRule = {
       recommendation: findingMessage('seo-tech-001.recommendation', {}),
       resource: '/robots.txt',
     });
-    return { findings: [finding], applicableTargets: 1, affectedTargets: 1 };
+    return { findings: [finding], applicableTargets: 1, affectedTargets: 1, checkedTargets };
   },
 };

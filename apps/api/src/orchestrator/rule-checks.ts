@@ -6,7 +6,7 @@
 // title comes from the registry, so the report names a check the same way the
 // rest of the product does.
 
-import type { UxAiResponseResult } from '@fluxradar/ai';
+import type { AiRequestOutcome, UxAiFinding } from '@fluxradar/ai';
 import { ruleById } from '@fluxradar/contracts';
 import type { RuleDescriptor } from '@fluxradar/contracts';
 import type { ModuleRunResult, UxStaticEvidence } from '@fluxradar/rules';
@@ -22,8 +22,12 @@ interface PageFinding {
   readonly targetUrl: string;
 }
 
-const UX_STATIC_RULE_IDS = ['UX-CONV-STATIC-001', 'UX-CONV-STATIC-002', 'UX-CONV-STATIC-003'];
-const UX_AI_RULE_IDS = ['UX-CONV-AI-001', 'UX-CONV-AI-002', 'UX-CONV-AI-003'];
+export const UX_STATIC_RULE_IDS = [
+  'UX-CONV-STATIC-001',
+  'UX-CONV-STATIC-002',
+  'UX-CONV-STATIC-003',
+];
+export const UX_AI_RULE_IDS = ['UX-CONV-AI-001', 'UX-CONV-AI-002', 'UX-CONV-AI-003'];
 
 export interface RuleCheckSummary {
   readonly ruleId: string;
@@ -52,16 +56,17 @@ export function ruleCheckSummaries(
  *
  * UX/Conversion does not run through the rule engine, so there are no per-rule
  * aggregates to copy; `uxRuleCounts` derives them. The AI checks are listed
- * only when the provider answered — a review that never ran looked at nothing,
+ * only when the provider answered — a review that never ran (unavailable, or
+ * interrupted by a cancellation, and then `outcome` is null) looked at nothing,
  * and "not applicable" would claim the pages gave it nothing to review.
  */
 export function uxRuleCheckSummaries(
   evidence: UxStaticEvidence,
-  ai: Pick<UxAiResponseResult, 'outcome' | 'findings'>,
+  ai: { readonly outcome: AiRequestOutcome | null; readonly findings: readonly UxAiFinding[] },
 ): readonly RuleCheckSummary[] {
   const ruleIds = [
     ...UX_STATIC_RULE_IDS,
-    ...(ai.outcome.kind === 'response' ? UX_AI_RULE_IDS : []),
+    ...(ai.outcome?.kind === 'response' ? UX_AI_RULE_IDS : []),
   ];
   const findings = [...evidence.findings, ...ai.findings];
   return ruleIds.map((ruleId) => ruleCheckSummary(uxRuleCounts(evidence, findings, ruleId)));
@@ -90,16 +95,32 @@ export function uxRuleCounts(
   };
 }
 
-function uxApplicableTargets(evidence: UxStaticEvidence, ruleId: string): number {
+/**
+ * The pages one UX check is allowed to look at.
+ *
+ * The heading and action checks judge the entry page, the submit check only
+ * pages that have a form, the AI review every analysed page. This list is both
+ * the §15 denominator of that rule and the proof of what it re-checked (§14,
+ * run-coverage.ts) — deriving them from one function keeps the check list and
+ * the resolution proof from telling different stories about the same run.
+ */
+export function uxRulePages(
+  evidence: UxStaticEvidence,
+  ruleId: string,
+): readonly UxStaticEvidence['pages'][number][] {
   switch (ruleId) {
     case 'UX-CONV-STATIC-001':
     case 'UX-CONV-STATIC-002':
-      return Math.min(evidence.pages.length, 1);
+      return evidence.pages.slice(0, 1);
     case 'UX-CONV-STATIC-003':
-      return evidence.summary.pagesWithForms;
+      return evidence.pages.filter((page) => page.forms.length > 0);
     default:
-      return evidence.pages.length;
+      return evidence.pages;
   }
+}
+
+function uxApplicableTargets(evidence: UxStaticEvidence, ruleId: string): number {
+  return uxRulePages(evidence, ruleId).length;
 }
 
 function pagesWith(findings: readonly PageFinding[], ruleId: string): number {

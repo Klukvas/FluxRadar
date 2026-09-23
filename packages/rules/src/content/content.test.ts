@@ -2,9 +2,12 @@
 // видимых символов, boundary 199/200) и CONTENT-004 (битые media по снимкам
 // обхода + внутренние media без снимка, D-165).
 
+import { computeModuleScore } from '@fluxradar/scoring';
 import { describe, expect, it } from 'vitest';
 
 import type { IssueCandidate } from '../engine/run-module.js';
+import { runModuleRules } from '../engine/run-module.js';
+import { RENDER_ONLY_MESSAGE_CODES } from '../messages/index.js';
 import {
   htmlContext,
   loadFixtureContext,
@@ -89,16 +92,94 @@ describe('CONTENT-004 битые media', () => {
     ).toEqual([]);
   });
 
-  it('внутренняя media без снимка → finding со сниженным confidence (D-165)', () => {
+  it('проба media 404 → подтверждённая находка, хотя страницы-снимка нет', () => {
+    const finding = single(
+      runRule(
+        'Content Quality',
+        'CONTENT-004',
+        siteContext({
+          pages: [
+            {
+              path: '/page.html',
+              html:
+                '<!doctype html><html lang="en"><head><title>Probed media page</title></head>' +
+                '<body><img src="/img/gone.png" alt="Gone" /></body></html>',
+            },
+          ],
+          resources: [{ path: '/img/gone.png', status: 404, contentType: 'text/html' }],
+        }),
+      ),
+    );
+    expect(finding.confidence).toBe(1);
+    expect(finding.evidenceExcerpt).toBe(
+      'Media that returns an HTTP error (1): img[src="/img/gone.png"] (HTTP 404)',
+    );
+  });
+
+  it('проба media 200 → находки нет', () => {
+    expect(
+      runRule(
+        'Content Quality',
+        'CONTENT-004',
+        siteContext({
+          pages: [
+            {
+              path: '/page.html',
+              html:
+                '<!doctype html><html lang="en"><head><title>Working media page</title></head>' +
+                '<body><img src="/img/ok.png" alt="Fine" /></body></html>',
+            },
+          ],
+          resources: [{ path: '/img/ok.png', status: 200, contentType: 'image/png' }],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('непроверенная проба (robots/бюджет) не становится подтверждённой поломкой', () => {
+    for (const unverifiedReason of [
+      'RobotsDisallowed',
+      'BudgetExhausted',
+      'RequestFailed',
+    ] as const) {
+      expect(
+        runRule(
+          'Content Quality',
+          'CONTENT-004',
+          siteContext({
+            pages: [
+              {
+                path: '/page.html',
+                html:
+                  '<!doctype html><html lang="en"><head><title>Unchecked media page</title></head>' +
+                  '<body><img src="/img/unchecked.png" alt="Unchecked" /></body></html>',
+              },
+            ],
+            resources: [{ path: '/img/unchecked.png', unverifiedReason }],
+          }),
+        ),
+      ).toEqual([]);
+    }
+  });
+
+  it('внутренняя media без снимка и без пробы → пусто: обход её не проверял', () => {
     const ctx = htmlContext(
-      '<!doctype html><html lang="en"><head><title>Unconfirmed media page</title></head>' +
+      '<!doctype html><html lang="en"><head><title>Unverified media page</title></head>' +
         '<body><img src="/img/unknown.png" alt="Unknown picture" /></body></html>',
     );
-    const finding = single(runRule('Content Quality', 'CONTENT-004', ctx));
-    expect(finding.confidence).toBe(0.6);
-    expect(finding.evidenceExcerpt).toBe(
-      'Internal media the crawl could not confirm (1): img[src="/img/unknown.png"]',
+    expect(runRule('Content Quality', 'CONTENT-004', ctx)).toEqual([]);
+  });
+
+  it('здоровая страница без снимков media сохраняет score 100', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Healthy content page</title></head>' +
+        `<body><p>${'Real editorial content. '.repeat(20)}</p>` +
+        '<img src="/healthy-logo.png" alt="Logo" /></body></html>',
     );
+    const result = runModuleRules('Content Quality', ctx);
+    expect(result.findings.filter((finding) => finding.ruleId === 'CONTENT-004')).toEqual([]);
+    // Unknown media availability may not cost the page a single point.
+    expect(computeModuleScore(result.findings).score).toBe(100);
   });
 
   it('media на HTML-страницу (2xx) — битая: img не может отдавать text/html', () => {
@@ -131,22 +212,77 @@ describe('CONTENT-004 битые media', () => {
           html:
             '<!doctype html><html lang="en"><head><title>Mixed media page</title></head>' +
             '<body><img src="/other.html" alt="Wrong target" />' +
-            '<img src="/img/unknown.png" alt="Unknown picture" /></body></html>',
+            '<img src="/img/missing.png" alt="Missing picture" /></body></html>',
         },
         {
           path: '/other.html',
           html: '<!doctype html><html lang="en"><head><title>Other page</title></head><body><p>Other</p></body></html>',
         },
+        { path: '/img/missing.png', status: 404, html: null, contentType: 'image/png' },
       ],
     });
     const finding = runRule('Content Quality', 'CONTENT-004', ctx).find((entry) =>
       entry.normalizedUrl.endsWith('/page.html'),
     );
-    expect(finding?.messages?.evidence.code).toBe('content-004.evidence.mixed');
+    // The three-kind breakdown is its own code: `content-004.evidence.mixed`
+    // still names a fourth kind and renders the findings stored with it.
+    expect(finding?.messages?.evidence.code).toBe('content-004.evidence.mixed-v2');
+    expect(RENDER_ONLY_MESSAGE_CODES).not.toContain(finding?.messages?.evidence.code);
     expect(finding?.evidenceExcerpt).toBe(
-      'Broken media: 2. Unreachable: —. HTTP error: —. ' +
-        'Returns an HTML page instead of media: img[src="/other.html"]. ' +
-        'Internal, not confirmed by the crawl: img[src="/img/unknown.png"].',
+      'Broken media: 2. Unreachable: —. HTTP error: img[src="/img/missing.png"] (HTTP 404). ' +
+        'Returns an HTML page instead of media: img[src="/other.html"].',
+    );
+  });
+
+  it('ни одна комбинация причин не выдаёт исторический код', () => {
+    // Исторические коды остаются в каталоге ради уже сохранённых находок; новая
+    // находка обязана ссылаться только на текущие.
+    const ctx = siteContext({
+      pages: [
+        {
+          path: '/page.html',
+          html:
+            '<!doctype html><html lang="en"><head><title>Every kind page</title></head>' +
+            '<body><img src="/other.html" alt="Wrong target" />' +
+            '<img src="/img/missing.png" alt="Missing picture" />' +
+            '<img src="/img/offline.png" alt="Offline picture" /></body></html>',
+        },
+        {
+          path: '/other.html',
+          html: '<!doctype html><html lang="en"><head><title>Other page</title></head><body><p>Other</p></body></html>',
+        },
+        { path: '/img/missing.png', status: 404, html: null, contentType: 'image/png' },
+        { path: '/img/offline.png', fetchError: 'connection refused' },
+      ],
+    });
+    const codes = runRule('Content Quality', 'CONTENT-004', ctx).map(
+      (finding) => finding.messages?.evidence.code,
+    );
+    expect(codes).not.toEqual([]);
+    for (const code of codes) {
+      expect(RENDER_ONLY_MESSAGE_CODES).not.toContain(code);
+    }
+  });
+
+  it('внешняя media без снимка не оценивается, подтверждённая поломка — оценивается', () => {
+    const ctx = siteContext({
+      pages: [
+        {
+          path: '/page.html',
+          html:
+            '<!doctype html><html lang="en"><head><title>External media page</title></head>' +
+            '<body><img src="https://cdn.example.net/remote.png" alt="Remote" />' +
+            '<img src="/img/gone.png" alt="Gone" /></body></html>',
+        },
+        { path: '/img/gone.png', status: 500, html: null, contentType: 'image/png' },
+      ],
+    });
+    const finding = runRule('Content Quality', 'CONTENT-004', ctx).find((entry) =>
+      entry.normalizedUrl.endsWith('/page.html'),
+    );
+    expect(finding?.confidence).toBe(1);
+    expect(finding?.evidenceExcerpt).toBe(
+      'Media that returns an HTTP error (1): img[src="/img/gone.png"] (HTTP 500)',
     );
   });
 });

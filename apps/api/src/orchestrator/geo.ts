@@ -10,20 +10,65 @@
 import type {
   AiConsent,
   AiProvider,
-  AiProviderConfig,
+  AiProviderName,
   AiQuotaTracker,
   AiRequest,
   AiRequestOutcome,
   MockAiFixture,
 } from '@fluxradar/ai';
-import { AnthropicProvider, MockAiProvider, runAiRequest, UnavailableError } from '@fluxradar/ai';
+import {
+  AnthropicProvider,
+  GeminiProvider,
+  mockRoutingProvider,
+  OpenAiProvider,
+  OPT_IN_VISIBILITY_PROVIDERS,
+  PerplexityProvider,
+  RoutingAiProvider,
+  runAiRequest,
+  UnconfiguredProvider,
+} from '@fluxradar/ai';
 
 import { readIntegrationConfig } from '../integrations/config.ts';
+import type { IntegrationConfig } from '../integrations/config.ts';
 
-export const GEO_PROMPT_VERSION = 'geo-questions-v4';
+/**
+ * The providers a paid scan asks its visibility questions, in execution order.
+ * Google and Perplexity are deliberately absent: they are opt-in recipients and
+ * a scan reaches them only by naming them with a notice that covers them.
+ */
+export const GEO_VISIBILITY_PROVIDERS: readonly AiProviderName[] = ['anthropic', 'openai'];
+
+/**
+ * The providers this scan asks.
+ *
+ * The defaults are always asked, even when the stored consent does not cover
+ * them: the request then records `ConsentMissing` and the module reports
+ * Partial with the reason, which is the honest answer. An opt-in provider is
+ * the opposite — it is asked only when the scan's own consent names it, so a
+ * customer who never chose Gemini or Perplexity never has a request built for
+ * them at all.
+ */
+export function geoProvidersFor(consent: AiConsent | null): readonly AiProviderName[] {
+  const optedIn = (consent?.providers ?? []).filter((provider) =>
+    OPT_IN_VISIBILITY_PROVIDERS.includes(provider as (typeof OPT_IN_VISIBILITY_PROVIDERS)[number]),
+  );
+  return [...GEO_VISIBILITY_PROVIDERS, ...new Set(optedIn)];
+}
+
+/** How the report names each provider: the product first, then the vendor. */
+export const GEO_PROVIDER_DISPLAY_NAMES: Readonly<Record<AiProviderName, string>> = {
+  openai: 'ChatGPT · OpenAI',
+  anthropic: 'Claude · Anthropic',
+  google: 'Gemini · Google',
+  perplexity: 'Perplexity',
+};
+
+export const GEO_PROMPT_VERSION = 'geo-questions-v5';
 export const GEO_QUERY_GENERATOR_PROMPT_VERSION = 'geo-query-generation-v2';
 export const GEO_SYSTEM_INSTRUCTIONS =
-  'Answer factually. Cite sources when possible. State uncertainty and do not invent facts. ' +
+  'Search the web before answering, and cite the pages you rely on. ' +
+  'Answer factually in at most 200 words. Do not narrate the searches you ran. ' +
+  'State uncertainty, say what you could not verify, and do not invent facts. ' +
   'An answer is an observation from this request, not proof of remembered or training knowledge.';
 
 export interface GeoProfileContext {
@@ -168,6 +213,12 @@ export interface GenerateGeoDiscoveryQuestionsInput {
   readonly consent: AiConsent | null;
   readonly provider: AiProvider;
   readonly quota: AiQuotaTracker;
+  /**
+   * Отмена прогона. Генерация вопросов — первый платный запрос GEO, и отменённый
+   * скан обязан прервать его, а не дожидаться ответа: наружу идёт
+   * AiRequestCancelledError, который разбирает worker.
+   */
+  readonly signal?: AbortSignal;
 }
 
 interface ParsedQuestions {
@@ -269,6 +320,7 @@ export async function generateGeoDiscoveryQuestions(
     provider: input.provider,
     quota: input.quota,
     consent: input.consent,
+    ...(input.signal !== undefined ? { signal: input.signal } : {}),
   });
   if (result.outcome.kind === 'unavailable') {
     return {
@@ -310,34 +362,44 @@ export async function generateGeoDiscoveryQuestions(
 }
 
 /**
- * Библиотека вопросов скана. Фиксированные awareness-вопросы используют
- * стабильный `q<sequence>`, а generated discovery-вопросы получают identity
- * из нормализованного текста вопроса (D-176).
+ * Библиотека вопросов скана — по одному набору на провайдера.
+ *
+ * Фиксированные awareness-вопросы используют стабильный `q<sequence>`, а
+ * generated discovery-вопросы получают identity из нормализованного текста
+ * вопроса (D-176). Sequence restarts at 1 for each provider: `ai_request_key`
+ * already carries the provider name (D-015) and GEO findings carry it in
+ * `normalized_resource`, so quota, idempotency and fingerprints stay distinct.
+ *
+ * Only these visibility requests carry `webSearch`. Question generation and the
+ * UX review must stay recall-only and never get tools.
  */
 export function buildGeoRequests(
   scanId: string,
   brand: string,
   siteHostname: string,
   discoveryQuestions: readonly string[] = [],
+  providers: readonly AiProviderName[] = GEO_VISIBILITY_PROVIDERS,
 ): readonly AiRequest[] {
   const questions = [
     `What is ${brand}, what does its official website https://${siteHostname} offer, and who is it for?`,
     `What independently verifiable facts can you report about ${brand} and its official website https://${siteHostname}? State what you cannot verify.`,
     ...discoveryQuestions,
   ];
-  const shared = {
-    scanId,
-    provider: 'anthropic' as const,
-    brandFacts: [],
-    pageTitles: [],
-    systemInstructions: GEO_SYSTEM_INSTRUCTIONS,
-  };
-  return questions.map((question, index) => ({
-    ...shared,
-    sequence: index + 1,
-    question,
-    promptVersion: `${GEO_PROMPT_VERSION}-${index < 2 ? 'awareness' : 'discovery'}`,
-  }));
+  return providers.flatMap((provider) =>
+    questions.map((question, index) => ({
+      scanId,
+      provider,
+      brandFacts: [],
+      pageTitles: [],
+      systemInstructions: GEO_SYSTEM_INSTRUCTIONS,
+      sequence: index + 1,
+      question,
+      promptVersion: `${GEO_PROMPT_VERSION}-${index < 2 ? 'awareness' : 'discovery'}`,
+      webSearch: true as const,
+      // The whole output budget belongs to the answer, not to hidden reasoning.
+      reasoningMode: 'disabled' as const,
+    })),
+  );
 }
 
 /**
@@ -404,50 +466,83 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
   ];
 }
 
-export function createDefaultAiProvider(brand: string, siteHostname: string): AiProvider {
-  // Never spend money or send customer context during tests, even when a
-  // developer has a real key in the local .env file.
-  if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true') {
-    return new MockAiProvider(defaultGeoFixtures(brand, siteHostname), {
-      config: {
-        provider: 'anthropic',
-        apiVersion: process.env.ANTHROPIC_API_VERSION ?? '2023-06-01',
-        modelId: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5',
-        timeoutMs: 10_000,
-        maxRetries: 1,
-      },
-    });
-  }
-  const config = readIntegrationConfig();
-  if (config.anthropicApiKey !== null) {
-    return new AnthropicProvider({
-      apiKey: config.anthropicApiKey,
-      modelId: config.anthropicModel,
-      apiVersion: config.anthropicApiVersion,
-    });
-  }
-  return new UnconfiguredAnthropicProvider(config.anthropicModel, config.anthropicApiVersion);
+/** True while Vitest runs, where no real transport may ever be built. */
+export function isTestRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV === 'test' || env.VITEST === 'true';
 }
 
 /**
+ * The adapter for one provider name, or a refusal.
+ *
  * Production must never turn a missing external key into a fake visibility
- * result. Keeping the refusal as an AiProvider lets the normal GEO pipeline
- * record `ProviderUnavailable`, release quota, and keep the scan itself alive.
+ * result, so an unconfigured provider stays an `AiProvider` that refuses: the
+ * normal pipeline then records `ProviderUnavailable`, releases quota, reports
+ * the module as Partial and keeps the scan itself alive.
  */
-class UnconfiguredAnthropicProvider implements AiProvider {
-  readonly config: AiProviderConfig;
-
-  constructor(modelId: string, apiVersion: string) {
-    this.config = {
-      provider: 'anthropic',
-      apiVersion,
-      modelId,
-      timeoutMs: 15_000,
-      maxRetries: 1,
-    };
+function realProviderFor(provider: AiProviderName, config: IntegrationConfig): AiProvider {
+  if (provider === 'anthropic') {
+    return config.anthropicApiKey === null
+      ? new UnconfiguredProvider(
+          'anthropic',
+          config.anthropicModel,
+          config.anthropicApiVersion,
+          'Anthropic',
+        )
+      : new AnthropicProvider({
+          apiKey: config.anthropicApiKey,
+          modelId: config.anthropicModel,
+          apiVersion: config.anthropicApiVersion,
+        });
   }
-
-  async send(): Promise<never> {
-    throw new UnavailableError('Anthropic API key is not configured');
+  if (provider === 'openai') {
+    return config.openAiApiKey === null
+      ? new UnconfiguredProvider('openai', config.openAiModel, 'v1', 'OpenAI')
+      : new OpenAiProvider({ apiKey: config.openAiApiKey, modelId: config.openAiModel });
   }
+  if (provider === 'google') {
+    return config.googleAiApiKey === null
+      ? new UnconfiguredProvider('google', config.googleAiModel, 'v1beta', 'Google')
+      : new GeminiProvider({
+          apiKey: config.googleAiApiKey,
+          modelId: config.googleAiModel,
+          ...(config.googleAiApiVersion === null ? {} : { apiVersion: config.googleAiApiVersion }),
+        });
+  }
+  return config.perplexityApiKey === null
+    ? new UnconfiguredProvider('perplexity', config.perplexityModel, 'v1', 'Perplexity')
+    : new PerplexityProvider({
+        apiKey: config.perplexityApiKey,
+        modelId: config.perplexityModel,
+        ...(config.perplexityEndpointUrl === null
+          ? {}
+          : { endpointUrl: config.perplexityEndpointUrl }),
+      });
+}
+
+/**
+ * The provider the worker uses for a scan: one routing adapter covering every
+ * name a scan may ask for.
+ *
+ * Every name is wired, including the opt-in ones — an unwired name would be a
+ * routing bug rather than the honest `ConsentMissing` an opt-in scan without
+ * consent must record. What actually reaches a provider is decided by the
+ * scan's request list and its stored consent, never by this factory.
+ */
+export function createDefaultAiProvider(brand: string, siteHostname: string): AiProvider {
+  // Never spend money or send customer context during tests, even when a
+  // developer has a real key in the local .env file.
+  if (isTestRuntime()) {
+    return mockRoutingProvider(defaultGeoFixtures(brand, siteHostname), [
+      'anthropic',
+      'openai',
+      'google',
+      'perplexity',
+    ]);
+  }
+  const config = readIntegrationConfig();
+  return new RoutingAiProvider(
+    (['anthropic', 'openai', 'google', 'perplexity'] as const).map((provider) =>
+      realProviderFor(provider, config),
+    ),
+  );
 }

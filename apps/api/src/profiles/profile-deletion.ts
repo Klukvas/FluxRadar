@@ -32,7 +32,9 @@ import { createConfiguredObjectStore, type PrivateObjectStore } from '../integra
 
 export const PROFILE_DELETION_REASON = 'profile-deletion';
 
-const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running'];
+// Paused is active: the run has not been given up on, and deleting the profile
+// under it would remove the site a resume is about to crawl.
+const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running', 'Paused'];
 const OPEN_REFUND_STATUSES = [REFUND_STATUSES.requested, REFUND_STATUSES.processing];
 
 export const PROFILE_DELETION_BLOCKERS = {
@@ -129,6 +131,11 @@ async function deleteProfileRows(
     await tx.webhookEvent.deleteMany({ where: { OR: purchaseDeliveryFilters(purchases) } });
   }
   await tx.siteGoogleBinding.deleteMany({ where: { siteProfileId } });
+  // The ownership proof is about this profile's domain and means nothing
+  // without it; the Bing binding is a pointer at a provider resource chosen for
+  // this profile and means nothing without it either.
+  await tx.domainVerification.deleteMany({ where: { siteProfileId } });
+  await tx.siteBingBinding.deleteMany({ where: { siteProfileId } });
   await tx.siteProfile.delete({ where: { id: siteProfileId } });
   return {
     kind: 'deleted',

@@ -13,7 +13,9 @@ describe('validateNormalizedResponse', () => {
   });
 
   it('total != input + output — ядро GEO-PROVIDER-001', () => {
-    const broken = makeResponse({ usage: { inputTokens: 100, outputTokens: 40, totalTokens: 141 } });
+    const broken = makeResponse({
+      usage: { inputTokens: 100, outputTokens: 40, totalTokens: 141 },
+    });
     const violations = validateNormalizedResponse(broken);
     expect(violations.some((violation) => violation.includes('totalTokens'))).toBe(true);
   });
@@ -22,7 +24,9 @@ describe('validateNormalizedResponse', () => {
     const violations = validateNormalizedResponse(makeResponse({ usageSource: 'estimated' }));
     expect(violations.some((violation) => violation.includes('tokenizerVersion'))).toBe(true);
     expect(
-      validateNormalizedResponse(makeResponse({ usageSource: 'estimated', tokenizerVersion: 'approx-v2' })),
+      validateNormalizedResponse(
+        makeResponse({ usageSource: 'estimated', tokenizerVersion: 'approx-v2' }),
+      ),
     ).toEqual([]);
   });
 
@@ -66,7 +70,60 @@ describe('validateNormalizedResponse', () => {
   });
 
   it('дробные/отрицательные токены отклоняются', () => {
-    const broken = makeResponse({ usage: { inputTokens: 1.5, outputTokens: -1, totalTokens: 0.5 } });
+    const broken = makeResponse({
+      usage: { inputTokens: 1.5, outputTokens: -1, totalTokens: 0.5 },
+    });
     expect(validateNormalizedResponse(broken).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('search content раздвигает input allowance ровно на searchUnits × 16000', () => {
+    // Web search bills its result pages as input tokens. Reporting the provider's
+    // number as-is is the point; the allowance is what keeps it in contract.
+    const searched = makeResponse({
+      usage: { inputTokens: 40_000, outputTokens: 100, totalTokens: 40_100, searchUnits: 2 },
+    });
+    expect(validateNormalizedResponse(searched)).toEqual([]);
+
+    const overAllowance = makeResponse({
+      usage: { inputTokens: 40_001, outputTokens: 100, totalTokens: 40_101, searchUnits: 2 },
+    });
+    expect(validateNormalizedResponse(overAllowance)).toEqual([
+      'usage.inputTokens 40001 exceeds cap 40000',
+    ]);
+  });
+
+  it('searchUnits и citations сверх caps — нарушение контракта', () => {
+    const tooManySearches = makeResponse({
+      usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110, searchUnits: 9 },
+    });
+    expect(validateNormalizedResponse(tooManySearches)).toEqual([
+      'usage.searchUnits 9 exceeds cap 8',
+    ]);
+
+    const tooManyCitations = makeResponse({
+      citations: Array.from({ length: 33 }, (_value, index) => `https://example.test/${index}`),
+    });
+    expect(validateNormalizedResponse(tooManyCitations)).toEqual(['citations 33 exceeds cap 32']);
+  });
+
+  it('caps запроса заменяют модульные caps', () => {
+    const planCaps = {
+      maxInputTokens: 24_000,
+      maxOutputTokens: 16_000,
+      maxReasoningUnits: 4_000,
+      maxSearchUnits: 0,
+      maxCitationUnits: 0,
+      maxSearchContentTokens: 0,
+    };
+    const plan = makeResponse({
+      citations: [],
+      usage: { inputTokens: 20_000, outputTokens: 12_000, totalTokens: 32_000 },
+    });
+
+    expect(validateNormalizedResponse(plan, planCaps)).toEqual([]);
+    expect(validateNormalizedResponse(plan)).toEqual([
+      'usage.inputTokens 20000 exceeds cap 8000',
+      'usage.outputTokens 12000 exceeds cap 2000',
+    ]);
   });
 });

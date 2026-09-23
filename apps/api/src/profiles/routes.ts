@@ -18,7 +18,7 @@ import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 import { openCheckoutSessionWhere } from '../billing/checkout-lifecycle.ts';
 import { isUniqueViolation } from '../billing/prisma-errors.ts';
 import { sendOk } from '../http/envelope.ts';
-import { conflict, notFound } from '../http/errors.ts';
+import { conflict, notFound, validationError } from '../http/errors.ts';
 import type { ApiLogger } from '../http/logger.ts';
 import {
   MAX_PAGE_SIZE,
@@ -29,6 +29,7 @@ import {
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import type { PrivateObjectStore } from '../integrations/s3.ts';
+import { scopeTargetMessage, scopeTargetProblems } from '../scans/scope-targets.ts';
 import { deleteSiteProfileData, type ProfileDeletionBlocker } from './profile-deletion.ts';
 import { resolveOwnProfile } from './resolve.ts';
 
@@ -209,6 +210,15 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
     }
     const nextScanConfig =
       input.scanConfig === undefined ? undefined : profileScanConfigSchema.parse(input.scanConfig);
+    if (nextScanConfig !== undefined) {
+      // The saved configuration is what a later scan runs with, so its seed
+      // URLs and API checks are checked against the site now rather than at
+      // checkout, where the owner has already committed to paying.
+      const problems = scopeTargetProblems(nextScanConfig.scope, input.domain ?? profile.domain);
+      if (problems.length > 0) {
+        throw validationError(scopeTargetMessage(problems));
+      }
+    }
     const scanConfigChanged =
       nextScanConfig !== undefined &&
       JSON.stringify(nextScanConfig) !==

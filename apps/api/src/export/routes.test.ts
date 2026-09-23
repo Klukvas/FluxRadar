@@ -282,6 +282,25 @@ describe('export route – storage failure regression', () => {
       });
     }
 
+    /**
+     * The machine-readable export carries the audit's own records and nothing the
+     * AI features add on top: no action plan, and above all no prompt text. A
+     * prompt is FluxRadar's own instruction set, and the export is a file a
+     * customer can hand to anyone.
+     */
+    it('carries no action plan and no prompt text', async () => {
+      const prisma = makePrisma(makeScan());
+      const app = makeApp(prisma, null);
+
+      const res = await authed(request(app).get('/scans/scan_abc123/export?format=json'));
+
+      expect(res.status).toBe(200);
+      const serialized = JSON.stringify(res.body);
+      for (const forbidden of ['actionPlan', 'action_plan', 'promptText', 'prompt_text']) {
+        expect(serialized).not.toContain(forbidden);
+      }
+    });
+
     it('still exports a Free scan, which never had a purchase to return', async () => {
       const prisma = makePrisma(makeScan({ purchaseId: null, purchase: null }));
       const app = makeApp(prisma, null);

@@ -17,7 +17,12 @@ import { findingMessage, type CataloguedFindingMessage } from '../messages/index
 import { headerValue } from '../shared/headers.js';
 import { metaContent, parsePage } from './dom.js';
 import { hasNoindexToken } from './indexing.js';
-import { internalLinkSources, sitemapNormalizedUrls } from './site-index.js';
+import {
+  discoveredTargets,
+  internalLinkSources,
+  SITEMAP_INPUT,
+  sitemapNormalizedUrls,
+} from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-008');
 
@@ -29,6 +34,23 @@ export const seoTech008Noindex: PageRule = {
   kind: 'page',
   descriptor,
   isApplicable: isSuccessfulHtmlPage,
+  // Противоречие живёт вне страницы: его создают ссылки ДРУГИХ страниц обхода
+  // и sitemap. Обход, не дошедший до страницы-источника, теряет противоречие,
+  // ничего не исправив, поэтому входы — набор страниц, чьи ссылки прочитаны
+  // (internalLinkSources берёт ровно успешные HTML-страницы), и факт того, что
+  // sitemap вообще был прочитан.
+  inputTargets: (ctx: SiteContext): readonly string[] => [
+    ...ctx.crawl.pages.filter(isSuccessfulHtmlPage).map((page) => page.normalizedUrl),
+    ...(sitemapNormalizedUrls(ctx.crawl).size > 0 ? [SITEMAP_INPUT] : []),
+  ],
+  // Спрос правила — все URL, которые обход вообще увидел. Страница, которой
+  // сайт больше не упоминает нигде (ни ссылкой, ни sitemap-ом), противоречия
+  // создать не может, и её исчезновение — не потеря данных. Sitemap остаётся
+  // в спросе всегда: прогон, не нашедший его, ничего о нём не доказывает.
+  requestedInputs: (ctx: SiteContext): readonly string[] => [
+    ...discoveredTargets(ctx.crawl),
+    SITEMAP_INPUT,
+  ],
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[] {
     const metaRobots = metaContent(parsePage(page), 'robots');
     const metaNoindex = metaRobots !== null && hasNoindexToken(metaRobots);

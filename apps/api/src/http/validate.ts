@@ -10,9 +10,24 @@ const MAX_REPORTED_ISSUES = 5;
 function summarize(error: z.ZodError): string {
   const parts = error.issues
     .slice(0, MAX_REPORTED_ISSUES)
-    .map((issue) => (issue.path.length > 0 ? `${issue.path.join('.')}: ${issue.message}` : issue.message));
+    .map((issue) =>
+      issue.path.length > 0 ? `${issue.path.join('.')}: ${issue.message}` : issue.message,
+    );
   const rest = error.issues.length - MAX_REPORTED_ISSUES;
   return rest > 0 ? `${parts.join('; ')} (+${rest} more)` : parts.join('; ');
+}
+
+/**
+ * A readonly allowlist as the non-empty tuple `z.enum` requires.
+ *
+ * Throws at module load when the list is empty rather than building a schema
+ * that accepts nothing (or, worse, an empty string): an allowlist that lost its
+ * only entry is a build mistake, and it should stop the process, not requests.
+ */
+export function enumValues(values: readonly string[], name: string): [string, ...string[]] {
+  const [first, ...rest] = values;
+  if (first === undefined) throw new Error(`${name}: allowlist is empty`);
+  return [first, ...rest];
 }
 
 /** Парсит внешние данные схемой; ошибка → 400 VALIDATION через error-handler. */

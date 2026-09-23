@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { apiRequest, type IntegrationStatus, type SiteProfile } from './api';
+import { BingProperties } from './BingProperties';
 import { Button, LoadingState, Panel, StatusChip, Window } from './components';
 import { GoogleProperties } from './GoogleProperties';
 import { copy, type Copy, type Language } from './i18n';
@@ -170,9 +171,9 @@ export function IntegrationsScreen(props: {
                     )}
                   </div>
                 </div>
-                {/* The property picker belongs to the Google connection, so it
-                    is nested in that row — above Bing, not floating after the
-                    list where it read as a setting for every integration. */}
+                {/* Each picker is nested in the row of the connection it
+                    configures. Floating after the list, they read as settings
+                    for every integration at once. */}
                 {integration.provider === 'google' ? (
                   <div className="integration-group__detail">
                     <GoogleProperties
@@ -181,6 +182,16 @@ export function IntegrationsScreen(props: {
                       language={props.language}
                       onAddProfile={props.onAddProfile}
                       onProfilesChanged={props.onProfilesChanged}
+                    />
+                  </div>
+                ) : null}
+                {integration.provider === 'bing' ? (
+                  <div className="integration-group__detail">
+                    <BingProperties
+                      profiles={props.profiles}
+                      connected={integration.status === 'connected'}
+                      language={props.language}
+                      onAddProfile={props.onAddProfile}
                     />
                   </div>
                 ) : null}

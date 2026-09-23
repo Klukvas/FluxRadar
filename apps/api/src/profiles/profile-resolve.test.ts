@@ -102,6 +102,8 @@ describe('POST /profiles/resolve', () => {
         includeSubdomains: false,
         maxPages: 15,
         maxDepth: 5,
+        // Rendering is off unless the owner asks for it: it costs a browser.
+        renderJs: false,
         queryPolicy: 'ignore',
         respectRobots: true,
         robotsOverrideConfirmed: false,

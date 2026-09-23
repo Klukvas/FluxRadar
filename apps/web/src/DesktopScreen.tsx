@@ -20,6 +20,7 @@ import { copy, type Language } from './i18n';
 import { ProfileDeletion } from './ProfileDeletion';
 import { displayDomain, isTerminalScanStatus } from './scan-status';
 import { normalizeSiteAddress, siteNameFromAddress } from './site-address-input';
+import { DomainOwnershipPanel } from './DomainOwnership';
 import { SiteStatusPanel } from './SiteStatus';
 import { TargetLanguagesField } from './TargetLanguagesField';
 import './styles/desktop.css';
@@ -82,6 +83,11 @@ export function DesktopScreen(props: DesktopScreenProps) {
     editingProfile !== null ||
     formRequested ||
     props.tourActive === true;
+  // The site the right-hand column is already about: the one last checked, or
+  // the first saved one. `undefined` means the account has no sites yet, and
+  // the optional ownership panel simply does not appear.
+  const ownershipProfile =
+    props.profiles.find((candidate) => candidate.id === latest?.profileId) ?? props.profiles[0];
   const hasContext = [
     industry,
     businessDescription,
@@ -374,6 +380,16 @@ export function DesktopScreen(props: DesktopScreenProps) {
             profiles={props.profiles}
             onLatest={onLatest}
           />
+          {/* Optional, and last: it changes nothing about the audits above it.
+              Shown for the site the workspace is already talking about, so the
+              owner is never asked which one they mean. */}
+          {ownershipProfile === undefined ? null : (
+            <DomainOwnershipPanel
+              language={props.language}
+              profile={ownershipProfile}
+              onError={props.onError}
+            />
+          )}
           <div className="button-row">
             <Button onClick={props.onOnboarding}>{t.workspace.guide}</Button>
           </div>

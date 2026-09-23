@@ -72,6 +72,51 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
 }
 
 /**
+ * A binary download from the API, as a Blob.
+ *
+ * `apiRequest` speaks JSON (and CSV); a PDF is bytes, and putting it through a
+ * string would corrupt it. A refusal still arrives as the usual JSON envelope, so
+ * the failure path is parsed exactly as everywhere else and the caller can act on
+ * the code — `PDF_TOO_LARGE` gets its own sentence rather than a generic error.
+ */
+export async function apiDownload(
+  path: string,
+): Promise<{ readonly blob: Blob; readonly filename: string | null }> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, { credentials: 'include' });
+  } catch {
+    throw new ApiRequestError('FluxRadar is temporarily unavailable. Try again in a moment.', {
+      code: null,
+      status: 0,
+    });
+  }
+  if (!response.ok) {
+    let envelope: ApiResult<unknown> | null = null;
+    try {
+      envelope = (await response.json()) as ApiResult<unknown>;
+    } catch {
+      // Non-JSON refusal: the status decides the sentence below.
+    }
+    const backendMessage = envelope?.error?.message;
+    throw new ApiRequestError(
+      backendMessage !== undefined && !TECHNICAL_ERROR.test(backendMessage)
+        ? backendMessage
+        : friendlyStatusMessage(response.status),
+      { code: envelope?.error?.code ?? null, status: response.status },
+    );
+  }
+  return { blob: await response.blob(), filename: filenameFrom(response) };
+}
+
+/** The filename the server asked for, when it stated one in Content-Disposition. */
+function filenameFrom(response: Response): string | null {
+  const header = response.headers.get('content-disposition');
+  const match = header === null ? null : /filename="([^"]+)"/.exec(header);
+  return match?.[1] ?? null;
+}
+
+/**
  * The same request as `apiRequest`, keeping the envelope's `meta` instead of
  * dropping it. Only list screens that page need it; everything else stays on
  * `apiRequest` and is unaffected by this existing.
@@ -150,6 +195,13 @@ export interface SiteProfile {
   readonly scanConfigVersion?: number;
 }
 
+/** One public endpoint the Reliability section checks. GET/HEAD only. */
+export interface ApiCheckConfig {
+  readonly method: 'GET' | 'HEAD';
+  readonly url: string;
+  readonly expectedStatus?: readonly number[];
+}
+
 export interface ProfileScanConfig {
   readonly plan: 'Free' | 'Basic' | 'Complete';
   readonly scope: {
@@ -158,6 +210,9 @@ export interface ProfileScanConfig {
     readonly maxDepth?: number;
     readonly urlPatterns?: readonly string[];
     readonly excludePatterns?: readonly string[];
+    readonly seedUrls?: readonly string[];
+    readonly renderJs?: boolean;
+    readonly apiChecks?: readonly ApiCheckConfig[];
     readonly queryPolicy: 'include' | 'ignore';
     readonly respectRobots: boolean;
     readonly robotsOverrideConfirmed: boolean;
@@ -190,6 +245,9 @@ export interface Scan {
     readonly maxDepth?: number;
     readonly urlPatterns?: readonly string[];
     readonly excludePatterns?: readonly string[];
+    readonly seedUrls?: readonly string[];
+    readonly renderJs?: boolean;
+    readonly apiChecks?: readonly ApiCheckConfig[];
     readonly queryPolicy?: 'include' | 'ignore';
     readonly respectRobots?: boolean;
     readonly robotsOverrideConfirmed?: boolean;
@@ -197,7 +255,15 @@ export interface Scan {
   };
   readonly profileConfigVersion?: number;
   readonly rulesetVersion: string;
-  readonly progress: { readonly completedModules: number; readonly totalModules: number };
+  readonly progress: {
+    readonly completedModules: number;
+    readonly totalModules: number;
+    /** URLs read so far and known to the crawl; absent from an older API. */
+    readonly scannedUrls?: number;
+    readonly discoveredUrls?: number;
+  };
+  /** Set while a pause has been asked for but the run has not stopped yet. */
+  readonly pauseRequestedAt?: string | null;
   /**
    * Retries already used. A Partial scan may retry one unfinished section once
    * (`moduleRetryCount < 1` on the server); absent from an older API.
@@ -207,6 +273,24 @@ export interface Scan {
   readonly completedAt: string | null;
   readonly createdAt: string;
   readonly modules: readonly ScanModule[];
+}
+
+/** The optional proof that this account controls a site, as the API reports it. */
+export interface DomainVerification {
+  readonly method: 'dns-txt' | 'file' | 'meta';
+  readonly status: 'pending' | 'verified' | 'failed';
+  readonly domain: string;
+  readonly token: string;
+  readonly record: string;
+  readonly instruction: string;
+  readonly issuedAt: string;
+  readonly tokenExpiresAt: string;
+  readonly tokenExpired: boolean;
+  readonly verifiedAt: string | null;
+  readonly lastCheckedAt: string | null;
+  readonly lastFailureReason: string | null;
+  readonly attempts: number;
+  readonly stale?: boolean;
 }
 
 /** Whether a finished scan can still retry one unfinished section. */
@@ -430,6 +514,124 @@ export interface GoogleDataSnapshot {
   }>;
 }
 
+// ── Bing Webmaster Tools ────────────────────────────────────────────────────
+//
+// A separate grant over a separate search engine, so it has its own types rather
+// than reusing Google's: a report has to be able to say "Bing has no site
+// selected" while Search Console has one, and the two must never be read as one
+// number. Bing's average position is its own measurement over its own index and
+// is deliberately not comparable with Search Console's.
+
+/** The same vocabulary as the Google states, so one panel can explain both. */
+export type BingDataState = GoogleDataState | 'not_verified';
+
+export interface BingSite {
+  /** The site exactly as Bing stated it; Bing matches on this string. */
+  readonly siteUrl: string;
+  readonly isVerified: boolean;
+}
+
+export interface BingDiscovery {
+  readonly connection: { readonly state: BingDataState; readonly detail: string };
+  readonly sites: {
+    readonly state: BingDataState;
+    readonly detail: string;
+    readonly reason?: 'missing_scope' | null;
+    readonly items: readonly BingSite[];
+  };
+}
+
+export interface BingBinding {
+  readonly siteProfileId: string;
+  readonly siteUrl: string | null;
+  readonly verifiedAtSelection: boolean;
+  readonly updatedAt: string;
+}
+
+export interface BingQueryRow {
+  readonly query: string;
+  readonly clicks: number;
+  readonly impressions: number;
+  readonly ctr: number;
+  /** Bing's own measurement. Never averaged with Search Console's position. */
+  readonly avgImpressionPosition: number | null;
+  readonly avgClickPosition: number | null;
+  readonly date: string | null;
+}
+
+/**
+ * One query's totals over the report period.
+ *
+ * Bing states one row per query per day; the API adds up the days inside the
+ * period, so a query appears once here however many days it had traffic on.
+ */
+export interface BingQueryTotal {
+  readonly query: string;
+  readonly clicks: number;
+  readonly impressions: number;
+  readonly ctr: number;
+  readonly avgImpressionPosition: number | null;
+  readonly avgClickPosition: number | null;
+  /** Days of the period this query appeared on. */
+  readonly days: number;
+}
+
+export interface BingTotals {
+  readonly clicks: number;
+  readonly impressions: number;
+  readonly ctr: number;
+  /** Days Bing actually reported, which can be fewer than the period. */
+  readonly days: number;
+}
+
+export interface BingSiteSummary {
+  readonly siteUrl: string;
+  /** Null when the traffic read failed: zeroes would read as "no clicks". */
+  readonly totals: BingTotals | null;
+  readonly previousTotals: BingTotals | null;
+  /** Null when the query read failed; empty when Bing reported no queries. */
+  readonly topQueries: readonly BingQueryTotal[] | null;
+  readonly dailyTraffic: readonly {
+    readonly date: string;
+    readonly clicks: number;
+    readonly impressions: number;
+  }[];
+  readonly unavailableReads: readonly ('traffic' | 'queries')[];
+}
+
+export interface BingFinding {
+  readonly code: string;
+  readonly severity: 'info' | 'attention';
+  /** The API's own English sentence: the fallback, never what is shown by default. */
+  readonly summary: string;
+  readonly recommendation: string;
+  /**
+   * The numbers the sentence was derived from. `bing-findings-copy.ts` rebuilds
+   * the sentence from these in the reader's language, so they are what the
+   * report actually reads. Optional: a report stored before they existed has
+   * only the English sentence above.
+   */
+  readonly evidence?: Readonly<Record<string, number | string | null>>;
+}
+
+export interface BingDataSnapshot {
+  readonly source: 'bing';
+  readonly readOnly: boolean;
+  readonly fetchedAt: string;
+  readonly dateRange: { readonly startDate: string; readonly endDate: string };
+  readonly webmaster: {
+    readonly state: BingDataState;
+    readonly detail: string;
+    readonly data: BingSiteSummary | null;
+  };
+}
+
+/** What the Analytics section stores under `bing`: the snapshot and its findings. */
+export interface BingSection {
+  readonly snapshot: BingDataSnapshot;
+  readonly findings: readonly BingFinding[];
+}
+
 /**
  * Why paid checkout is off, as a closed set of codes. The server deliberately
  * never names the configuration behind it — the sentence the buyer reads is
@@ -460,6 +662,12 @@ export interface CheckoutConfig {
     readonly priceUsd: number;
     readonly currency: string;
   }[];
+  /**
+   * The optional AI recipients this deployment can actually send to, by name.
+   * Absent from an older server, which reads as "none": the form then offers no
+   * optional recipient rather than one the scan would fail on.
+   */
+  readonly optInAiProviders?: readonly string[];
 }
 
 /** What the server hands back when a checkout starts: never an entitlement. */
@@ -490,4 +698,145 @@ export interface CheckoutStatus {
   readonly scanId: string | null;
   readonly purchaseId: string | null;
   readonly expiresAt: string | null;
+}
+
+/** One Action of a written Action Plan, with its live counts (D-232). */
+export interface ActionPlanAction {
+  readonly title: string;
+  readonly why: string;
+  readonly steps: readonly string[];
+  readonly effort: string;
+  readonly ruleIds: readonly string[];
+  readonly openIssues: number;
+  readonly totalIssues: number;
+  readonly settled: boolean;
+}
+
+export interface ActionPlanReach {
+  readonly share: number;
+  readonly addressedOpenIssues: number;
+  readonly totalOpenIssues: number;
+  readonly rules: number;
+}
+
+export interface ActionPlanContent {
+  readonly language: string;
+  readonly overview: string;
+  readonly actions: readonly ActionPlanAction[];
+  readonly reach: ActionPlanReach | null;
+  /** Modules that did not complete; the plan may be incomplete because of them. */
+  readonly caveats: readonly string[];
+  readonly generatedAt: string;
+  readonly modelId: string;
+  readonly noticeVersion: string;
+}
+
+/** Everything the report needs to draw the Action Plan block in any state. */
+export interface ActionPlanState {
+  readonly scanId: string;
+  readonly languages: readonly string[];
+  readonly running: { readonly language: string | null; readonly startedAt: string | null } | null;
+  readonly lastFailure: { readonly code: string | null; readonly language: string } | null;
+  readonly remaining: { readonly successes: number; readonly attempts: number };
+  readonly windowEndsAt: string | null;
+  readonly plan: ActionPlanContent | null;
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isActionPlanAction(value: unknown): value is ActionPlanAction {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.title === 'string' &&
+    typeof value.why === 'string' &&
+    isStringArray(value.steps) &&
+    typeof value.effort === 'string' &&
+    isStringArray(value.ruleIds) &&
+    typeof value.openIssues === 'number' &&
+    typeof value.totalIssues === 'number' &&
+    typeof value.settled === 'boolean'
+  );
+}
+
+function isActionPlanReach(value: unknown): value is ActionPlanReach {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.share === 'number' &&
+    typeof value.addressedOpenIssues === 'number' &&
+    typeof value.totalOpenIssues === 'number' &&
+    typeof value.rules === 'number'
+  );
+}
+
+function isActionPlanContent(value: unknown): value is ActionPlanContent {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.language === 'string' &&
+    typeof value.overview === 'string' &&
+    Array.isArray(value.actions) &&
+    value.actions.every(isActionPlanAction) &&
+    (value.reach === null || isActionPlanReach(value.reach)) &&
+    isStringArray(value.caveats) &&
+    typeof value.generatedAt === 'string' &&
+    typeof value.modelId === 'string' &&
+    typeof value.noticeVersion === 'string'
+  );
+}
+
+/**
+ * Whether a response really is the Action Plan state.
+ *
+ * The report tests answer any `/scans/...` path with a scan or dashboard
+ * object, and so can a stale deployment. A mismatch means "unavailable" and the
+ * block renders nothing — never an idle button that would spend a generation.
+ *
+ * The plan itself is checked down to each Action, not just at the top level.
+ * A plan is a document written by a model and stored for months: a record from
+ * an older release whose `steps` is a string, or whose `reach` lost a field, is
+ * exactly what the report must survive. Half-validating it would move the crash
+ * from here into the renderer, where it takes the whole report down with it.
+ */
+export function isActionPlanState(value: unknown): value is ActionPlanState {
+  if (!isRecord(value)) return false;
+  if (
+    typeof value.scanId !== 'string' ||
+    !isStringArray(value.languages) ||
+    !isNullableString(value.windowEndsAt)
+  ) {
+    return false;
+  }
+  if (
+    !isRecord(value.remaining) ||
+    typeof value.remaining.successes !== 'number' ||
+    typeof value.remaining.attempts !== 'number'
+  ) {
+    return false;
+  }
+  if (
+    value.running !== null &&
+    (!isRecord(value.running) ||
+      !isNullableString(value.running.language) ||
+      !isNullableString(value.running.startedAt))
+  ) {
+    return false;
+  }
+  if (
+    value.lastFailure !== null &&
+    (!isRecord(value.lastFailure) ||
+      !isNullableString(value.lastFailure.code) ||
+      typeof value.lastFailure.language !== 'string')
+  ) {
+    return false;
+  }
+  return value.plan === null || isActionPlanContent(value.plan);
 }

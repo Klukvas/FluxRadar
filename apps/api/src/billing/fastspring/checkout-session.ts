@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { captureExecutionConfig, lockOwnProfile } from '../../profiles/execution-config.ts';
+import { scopeTargetMessage, scopeTargetProblems } from '../../scans/scope-targets.ts';
 
 import type { AiConsentInput } from '../checkout-metadata.ts';
 import { CHECKOUT_STATUS_REASONS, provisionalCheckoutDeadline } from '../checkout-lifecycle.ts';
@@ -58,6 +59,12 @@ export async function createCheckoutSession(
     throw new BillingNotFoundError('site profile not found');
   }
   assertScopeWithinPlan(params.plan, params.scope);
+  // Seed URLs and API checks name addresses of their own. A checkout must not
+  // open on a scan that would have to refuse half of what it was asked for.
+  const targetProblems = scopeTargetProblems(params.scope, profile.domain);
+  if (targetProblems.length > 0) {
+    throw new WebhookValidationError(scopeTargetMessage(targetProblems));
+  }
 
   const productPath = deps.config.productPaths[params.plan];
   const reference = `frcs_${randomUUID()}`;

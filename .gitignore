@@ -1,4 +1,6 @@
 node_modules/
+.pnpm-store/
+.browser-cache/
 dist/
 coverage/
 .env
@@ -12,3 +14,10 @@ client_secret_*.json
 # Stray installer downloads — a 275 MB DMG in the repo root is one `git add -A`
 # away from living in the history forever.
 *.dmg
+
+# Scratch space for automated agent runs: a PostgreSQL data directory, run logs
+# and rendered artifacts. Hundreds of megabytes, none of it shipped, and one
+# `git add -A` from the same fate as the DMG above.
+.agent-runs/
+.agent-tmp/
+.agent-local/

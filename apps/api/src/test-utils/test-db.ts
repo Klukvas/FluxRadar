@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { describe } from 'vitest';
 import type { PrismaClient, Purchase, Scan } from '@prisma/client';
 import { RULESET_VERSION, TARIFFS } from '@fluxradar/contracts';
 import type { ScanRuntimeStatus } from '@fluxradar/contracts';
@@ -6,8 +7,26 @@ import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 import { createPrismaClient } from '../db.ts';
 import { PURCHASE_STATUSES } from '../billing/constants.ts';
 import { testDatabaseUrl } from './template-db.ts';
+import { isTestDatabaseReady, testDatabaseSkipReason } from './test-database-url.ts';
+import { TRUNCATED_TABLES } from './truncated-tables.ts';
 
 export const TEST_WEBHOOK_SECRET = 'test-paddle-webhook-secret';
+
+/**
+ * A suite that needs the disposable PostgreSQL database.
+ *
+ * Without one it is SKIPPED, with the guard's reason in the suite name, so a run
+ * on a machine that has no test database reports "skipped, because …" instead of
+ * either failing or quietly passing. A database that is configured but refused
+ * never reaches here: global-setup.ts already failed the run.
+ */
+export function describeDb(name: string, suite: () => void): void {
+  if (isTestDatabaseReady()) {
+    describe(name, suite);
+    return;
+  }
+  describe.skip(`${name} [skipped: ${testDatabaseSkipReason()}]`, suite);
+}
 
 export interface TestDb {
   readonly prisma: PrismaClient;
@@ -16,19 +35,25 @@ export interface TestDb {
 }
 
 /**
- * Isolated test state in the shared disposable PostgreSQL database.
+ * Isolated test state in the disposable PostgreSQL database.
+ *
+ * `testDatabaseUrl()` re-runs the guard here rather than trusting the one
+ * global-setup ran, so the TRUNCATE below cannot reach a database the guard
+ * would refuse — including on a run that never went through global setup at all.
  * Vitest runs DB-backed files sequentially; truncation keeps each file isolated.
  */
 export async function createTestDb(): Promise<TestDb> {
   const databaseUrl = testDatabaseUrl();
   const prisma = createPrismaClient(databaseUrl);
-  await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "AccountDeletionAudit", "DeletedScan", "FreeCheckClaim", "Session", "EmailToken", "EmailNotification", "Account", "SiteProfile", "Purchase", "Entitlement", "Scan", "ScanModule", "Issue", "AiResponseRecord", "AiConsent", "IntegrationConnection", "IntegrationOAuthState", "ExportArtifact", "WebhookEvent", "RefundRecord", "ProviderRefund", "CheckoutSession", "Job" CASCADE',
-  );
+  const tables = TRUNCATED_TABLES.map((table) => `"${table}"`).join(', ');
+  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables} CASCADE`);
   return {
     prisma,
     databaseUrl,
     async cleanup(): Promise<void> {
+      // Teardown is a disconnect and nothing else: a suite that failed halfway
+      // leaves its rows for the next run's TRUNCATE, which is guarded, rather
+      // than issuing a second destructive statement from an error path.
       await prisma.$disconnect();
     },
   };

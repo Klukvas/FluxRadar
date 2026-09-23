@@ -5,7 +5,7 @@
 import type { CrawlResult, PageSnapshot } from '@fluxradar/crawler';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
-import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { hasHttpResponse, isSuccessfulHtmlPage } from '../engine/types.js';
 import { parsePage } from './dom.js';
 
 export interface PageLink {
@@ -94,6 +94,81 @@ export function sitemapNormalizedUrls(crawl: CrawlResult): ReadonlySet<string> {
   sitemapUrlsCache.set(crawl, normalized);
   return normalized;
 }
+
+/**
+ * Все снимки обхода, которые правило может спросить о чужом URL.
+ *
+ * Это входы CONTENT-004: любой снимок media — вердикт (transport-сбой,
+ * 4xx/5xx, HTML вместо картинки), а его отсутствие означает «не проверяли».
+ * Пропавший снимок делает находку невидимой, ничего не починив, поэтому
+ * политика Resolved сравнивает именно этот набор (§14,
+ * RuleEvaluation.inputTargets).
+ */
+export function crawledTargets(crawl: CrawlResult): readonly string[] {
+  return [...snapshotByNormalizedUrl(crawl).keys()];
+}
+
+/**
+ * Снимки, на которые получен HTTP-ответ.
+ *
+ * Входы SEO-TECH-006: «ссылка битая» это вывод из статуса цели, и снимок с
+ * transport-сбоем говорит о ней ровно столько же, сколько отсутствующий —
+ * ничего (D-152). Поэтому такая цель входом не считается, и прогон, у которого
+ * она перестала отвечать, прошлую находку не закрывает.
+ */
+export function respondingTargets(crawl: CrawlResult): readonly string[] {
+  return [...snapshotByNormalizedUrl(crawl).values()]
+    .filter((page) => hasHttpResponse(page))
+    .map((page) => page.normalizedUrl);
+}
+
+/**
+ * Все цели внутренних ссылок, о которых правило спрашивало обход.
+ *
+ * Это спрос SEO-TECH-006: правило смотрит снимок КАЖДОЙ ссылки загруженных
+ * страниц. Цель, которой здесь больше нет, сайтом больше не упоминается — и
+ * прошлая находка о ней говорит об удалённой ссылке, а не о потерянном снимке
+ * (§14, RuleEvaluation.requestedInputs).
+ */
+export function linkTargets(crawl: CrawlResult): readonly string[] {
+  return [
+    ...new Set(
+      crawl.pages
+        .filter((page) => isSuccessfulHtmlPage(page))
+        .flatMap((page) => pageLinks(page).map((link) => link.normalizedTarget)),
+    ),
+  ];
+}
+
+/**
+ * Все URL, которые обход вообще увидел: загруженные, не влезшие в лимит,
+ * закрытые robots.txt, упавшие с ошибкой и пришедшие из sitemap.
+ *
+ * Это спрос правил, чей вердикт строится на наборе страниц (SEO-TECH-007,
+ * SEO-TECH-008): страница, которой здесь нет, больше не существует для сайта —
+ * ни ссылки, ни sitemap на неё не ведут. А страница, которая здесь есть, но
+ * снимка не получила, — потерянные данные, и находку закрывать нельзя.
+ */
+export function discoveredTargets(crawl: CrawlResult): readonly string[] {
+  return [
+    ...new Set([
+      ...crawl.pages.map((page) => page.normalizedUrl),
+      ...crawl.skippedOverLimit,
+      ...crawl.blockedByRobots,
+      ...crawl.errors.map((error) => error.url),
+      ...sitemapNormalizedUrls(crawl),
+    ]),
+  ];
+}
+
+/**
+ * Псевдо-вход «sitemap обхода прочитан».
+ *
+ * У SEO-TECH-008 sitemap — источник, а не наблюдение: если прогон его прочитал,
+ * то исчезновение страницы из sitemap — настоящая починка противоречия. А вот
+ * прогон, не нашедший sitemap вовсе, о нём ничего не доказывает.
+ */
+export const SITEMAP_INPUT = 'sitemap:read';
 
 function resolveAndNormalize(href: string, baseUrl: string): string | null {
   try {

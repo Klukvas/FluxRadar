@@ -20,7 +20,12 @@ import { headerValue } from '../shared/headers.js';
 
 const descriptor = requireDescriptor('SEC-PASSIVE-003');
 
-const NOT_APPLICABLE: SiteRuleResult = { findings: [], applicableTargets: 0, affectedTargets: 0 };
+const NOT_APPLICABLE: SiteRuleResult = {
+  findings: [],
+  applicableTargets: 0,
+  affectedTargets: 0,
+  checkedTargets: [],
+};
 
 export const secPassive003Hsts: SiteRule = {
   kind: 'site',
@@ -31,11 +36,15 @@ export const secPassive003Hsts: SiteRule = {
     }
     const homepage = findHomepage(ctx);
     if (homepage === undefined || !hasHttpResponse(homepage)) {
-      return { findings: [], applicableTargets: 1, affectedTargets: 0 };
+      // Правило applicable (сайт на https), но смотреть было не на что:
+      // заголовков homepage в этом прогоне нет (§14 — доказательства нет).
+      return { findings: [], applicableTargets: 1, affectedTargets: 0, checkedTargets: [] };
     }
+    // Единственный вход — HTTP-ответ главной страницы, любой статус.
+    const checkedTargets = [homepage.normalizedUrl];
     const hsts = headerValue(homepage, 'strict-transport-security');
     if (hsts !== null && hasPositiveMaxAge(hsts)) {
-      return { findings: [], applicableTargets: 1, affectedTargets: 0 };
+      return { findings: [], applicableTargets: 1, affectedTargets: 0, checkedTargets };
     }
     const finding = siteFinding(descriptor, homepage.finalUrl, {
       evidenceType: 'http',
@@ -46,7 +55,7 @@ export const secPassive003Hsts: SiteRule = {
       recommendation: findingMessage('sec-passive-003.recommendation', {}),
       resource: 'strict-transport-security',
     });
-    return { findings: [finding], applicableTargets: 1, affectedTargets: 1 };
+    return { findings: [finding], applicableTargets: 1, affectedTargets: 1, checkedTargets };
   },
 };
 

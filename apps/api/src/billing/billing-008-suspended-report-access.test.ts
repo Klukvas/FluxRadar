@@ -51,7 +51,9 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
   }
 
   async function register(agent: TestAgent, email: string): Promise<string> {
-    const response = await agent.post('/auth/register').send({ email, password: 'correct-horse-1' });
+    const response = await agent
+      .post('/auth/register')
+      .send({ email, password: 'correct-horse-1' });
     expect(response.status).toBe(201);
     const cookie = response.headers['set-cookie']?.[0]?.split(';', 1)[0];
     if (cookie === undefined) throw new Error('registration did not set a session cookie');
@@ -143,7 +145,11 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
   async function paidScan(app: ReturnType<typeof makeApp>, email: string): Promise<PaidScan> {
     const agent = request.agent(app);
     const cookie = await register(agent, email);
-    const profileId = await createProfile(agent, cookie, `https://${email.split('@')[0]}.example.com`);
+    const profileId = await createProfile(
+      agent,
+      cookie,
+      `https://${email.split('@')[0]}.example.com`,
+    );
     const checkout = await agent
       .post('/billing/dev-checkout')
       .set('Cookie', cookie)
@@ -194,7 +200,10 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
   for (const revocation of revocations) {
     it(`refuses every read of the report after ${revocation.name}`, async () => {
       const app = makeApp();
-      const paid = await paidScan(app, `revoked-${revocation.purchaseStatus}-${revocation.suspended}@example.com`);
+      const paid = await paidScan(
+        app,
+        `revoked-${revocation.purchaseStatus}-${revocation.suspended}@example.com`,
+      );
 
       // Before: the report reads, everywhere.
       expect(Object.values(await readReport(paid)).every((status) => status === 200)).toBe(true);
@@ -239,9 +248,9 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
 
     expect(patched.status).toBe(403);
     expect(patched.body.error.code).toBe('ENTITLEMENT_SUSPENDED');
-    expect(
-      (await db.prisma.issue.findUniqueOrThrow({ where: { id: paid.issueId } })).status,
-    ).toBe('New');
+    expect((await db.prisma.issue.findUniqueOrThrow({ where: { id: paid.issueId } })).status).toBe(
+      'New',
+    );
   });
 
   it('lists the scan without its report payload instead of hiding or leaking it', async () => {
@@ -264,7 +273,14 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
     expect(listed.body.data[0].id).toBe(paid.scanId);
     expect(listed.body.data[0].status).toBe('Completed');
     expect(listed.body.data[0].modules).toEqual([]);
-    expect(listed.body.data[0].progress).toEqual({ completedModules: 0, totalModules: 0 });
+    // URL counters are progress, not report content: they say how far the run
+    // got, never what it found, so a suspended entitlement still sees them.
+    expect(listed.body.data[0].progress).toEqual({
+      completedModules: 0,
+      totalModules: 0,
+      scannedUrls: 0,
+      discoveredUrls: 0,
+    });
     expect(JSON.stringify(listed.body)).not.toContain('"score":74');
   });
 

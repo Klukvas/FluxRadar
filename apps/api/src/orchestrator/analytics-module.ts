@@ -10,6 +10,11 @@ import { SEVERITIES, type Severity } from '@fluxradar/contracts';
 import type { AnalyticsPageFact } from '@fluxradar/rules';
 import type { Prisma, PrismaClient, Scan } from '@prisma/client';
 
+import {
+  bingNotConnectedResult,
+  bingStateResult,
+  type BingScanResult,
+} from '../integrations/bing/runner.ts';
 import { detailFor } from '../integrations/google/errors.ts';
 import { connectionStateSnapshot } from '../integrations/google/snapshot.ts';
 import type { GoogleScanData } from '../integrations/google/types.ts';
@@ -18,8 +23,10 @@ import { runAnalyticsChecks } from './analytics/run-checks.ts';
 import { scoredAnalyticsIssues } from './analytics/scored-issues.ts';
 import { ANALYTICS_MODULE, type ReportIssue } from './analytics/types.ts';
 import type { WorkerDeps } from './deps.ts';
-import { initialIssueStatuses } from './issue-sync.ts';
+import { issueStatusesForModule } from './issue-sync.ts';
 import { includesAnalytics } from './module-plan.ts';
+import { crawlRequestContext, scanScopeOf, type RunRequestContext } from './run-context.ts';
+import { coverageProofWrite, writesCoverageProof } from './run-coverage.ts';
 
 export async function persistAnalyticsModule(
   deps: WorkerDeps,
@@ -32,7 +39,13 @@ export async function persistAnalyticsModule(
   if (!includesAnalytics(scan.plan)) {
     return;
   }
-  const data = await collectGoogleData(deps, scan, now);
+  // Two independent providers, read in parallel. Bing never feeds the Google
+  // checks and never contributes to the module's coverage or score — see
+  // analytics/module-row.ts — so neither one failing can degrade the other.
+  const [data, bing] = await Promise.all([
+    collectGoogleData(deps, scan, now),
+    collectBingData(deps, scan, now),
+  ]);
   const run = runAnalyticsChecks({
     origin: scan.domain,
     snapshot: data.snapshot,
@@ -45,10 +58,17 @@ export async function persistAnalyticsModule(
   // part of that scan: it is stamped with the scan's completion.
   const observedAt = scan.completedAt ?? now();
   const { score, issueRows } = scoredAnalyticsIssues(scanId, scan.domain, run.checks, observedAt);
-  const row = analyticsModuleRow(data.snapshot, run, score);
-  const statuses = await initialIssueStatuses(
+  const { row, coverage } = analyticsModuleRow(
+    data.snapshot,
+    run,
+    score,
+    analyticsRequestContext(scan, data, bing),
+    { snapshot: bing.snapshot, findings: bing.findings },
+  );
+  const statuses = await issueStatusesForModule(
     prisma,
     scan,
+    ANALYTICS_MODULE,
     issueRows.map((issue) => issue.fingerprint),
   );
   await prisma.$transaction([
@@ -64,7 +84,34 @@ export async function persistAnalyticsModule(
         status: statuses.get(issue.fingerprint) ?? 'New',
       })),
     }),
+    // Доказательство повторной проверки — в той же транзакции, что строка и
+    // findings: Analytics пишется отдельным путём, но правило одно (§14).
+    ...(writesCoverageProof(scan.plan)
+      ? [coverageProofWrite(prisma, scanId, ANALYTICS_MODULE, coverage)]
+      : []),
   ]);
+}
+
+/**
+ * Под какой конфигурацией судили Analytics-проверки.
+ *
+ * Их цель — не страница, а привязанное свойство: ANALYTICS-GA-001 называет
+ * property прямо в evidence, а SC-проверки судят набор страниц конкретного
+ * Search Console site. Перепривязка к другому property даёт те же origin-цели
+ * при совершенно других данных, поэтому она обязана запретить закрытие прошлых
+ * находок (§14, run-context.ts).
+ */
+function analyticsRequestContext(
+  scan: Scan,
+  data: GoogleScanData,
+  bing: BingScanResult,
+): RunRequestContext {
+  return {
+    ...crawlRequestContext(scanScopeOf(scan)),
+    ga4PropertyId: data.snapshot.analytics.data?.propertyId ?? null,
+    searchConsoleSiteUrl: data.snapshot.searchConsole.data?.siteUrl ?? null,
+    bingSiteUrl: bing.snapshot?.webmaster.data?.siteUrl ?? null,
+  };
 }
 
 async function collectGoogleData(
@@ -92,6 +139,34 @@ async function collectGoogleData(
       snapshot: connectionStateSnapshot('request_failed', detailFor('request_failed'), now()),
       searchConsoleDetail: null,
     };
+  }
+}
+
+/**
+ * The Bing section for this scan, or an explicit "not connected" one.
+ *
+ * The runner already degrades internally, so reaching the catch means the Bing
+ * client itself failed in a way it did not anticipate. Even then the result is a
+ * snapshot: a terminal scan is never lost to a search engine that is not the one
+ * the report is scored on.
+ */
+async function collectBingData(
+  deps: WorkerDeps,
+  scan: Scan,
+  now: () => Date,
+): Promise<BingScanResult> {
+  const runner = deps.createBingDataRunner?.();
+  if (runner === undefined) {
+    return bingNotConnectedResult(now());
+  }
+  try {
+    return await runner(scan.accountId, scan.siteProfileId);
+  } catch (error) {
+    deps.logger.warn('bing data collection failed', {
+      scanId: scan.id,
+      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    });
+    return bingStateResult('request_failed', now());
   }
 }
 

@@ -13,7 +13,12 @@ import { describe, expect, it } from 'vitest';
 import type { ScanModule } from './api';
 import { copy } from './i18n';
 import { isNotApplicable, moduleStatusReasons } from './module-status';
-import { chipStatusFor, moduleResultLabel, sectionStatusLabel } from './scan-status';
+import {
+  chipStatusFor,
+  moduleResultLabel,
+  moduleScoreLabel,
+  sectionStatusLabel,
+} from './scan-status';
 import { statusKind } from './status-kind';
 
 function moduleRow(overrides: Partial<ScanModule> = {}): ScanModule {
@@ -117,6 +122,26 @@ describe('why a section is unavailable or partial', () => {
       copy.en.report.moduleReason.performanceProviderUnavailable,
     ]);
     expect(moduleStatusReasons(notConfigured, 'en')).not.toEqual(moduleStatusReasons(outage, 'en'));
+  });
+
+  // One failed PageSpeed sample out of the twelve an audit takes is enough to
+  // produce this row, so the untranslated token would have been an ordinary
+  // sight rather than an exotic one.
+  it('explains an audit that measured fewer runs than it asked for', () => {
+    const partial = moduleRow({
+      module: 'Performance',
+      status: 'Partial',
+      statusReason: 'PerformanceSamplesIncomplete',
+      coverage: 0.5,
+      score: 71,
+    });
+
+    expect(moduleStatusReasons(partial, 'en')).toEqual([
+      copy.en.report.moduleReason.performanceSamplesIncomplete,
+    ]);
+    expect(moduleStatusReasons(partial, 'uk')).toEqual([
+      copy.uk.report.moduleReason.performanceSamplesIncomplete,
+    ]);
   });
 
   it('reports a performance run that produced measurements but no score', () => {
@@ -232,6 +257,7 @@ describe('why a section is unavailable or partial', () => {
       'PlatformFailure',
       'PerformanceIntegrationNotConfigured',
       'PerformanceScoreUnavailable',
+      'PerformanceSamplesIncomplete',
       'PerformanceProviderUnavailable',
       'ConsentMissing',
       'RedactionBlocked',
@@ -263,6 +289,138 @@ describe('why a section is unavailable or partial', () => {
         // generic word" has to mean in practice.
         expect((sentences[0] ?? '').length).toBeGreaterThan(40);
       }
+    }
+  });
+});
+
+describe('what a section puts where its score would go', () => {
+  it('an informational section says so instead of showing a number it did not measure', () => {
+    const geo = moduleRow({
+      module: 'AI SEO / GEO',
+      status: 'Completed',
+      score: null,
+      usableOutput: true,
+      metadata: { scoring: 'InformationalOnly' },
+    });
+    for (const language of ['en', 'uk'] as const) {
+      expect(moduleScoreLabel(geo, language)).toBe(copy[language].report.informationalLabel);
+      // Not the Free-plan sentence: the plan is not why this row has no number.
+      expect(moduleScoreLabel(geo, language)).not.toBe(copy[language].report.unscoredLabel);
+    }
+  });
+
+  it('a section that produced nothing still reports the plain absence', () => {
+    const unavailable = moduleRow({
+      module: 'AI SEO / GEO',
+      status: 'Unavailable',
+      statusReason: 'ConsentMissing',
+      score: null,
+      usableOutput: false,
+      metadata: { scoring: 'InformationalOnly' },
+    });
+    expect(moduleScoreLabel(unavailable, 'en')).toBe(copy.en.report.noScore);
+  });
+
+  it('a measured section still shows its number', () => {
+    expect(moduleScoreLabel(moduleRow({ score: 90 }), 'en')).toBe('90.00');
+  });
+});
+
+describe('a section stopped by the owner', () => {
+  it('is explained as a cancellation, not as a platform failure or a site fault', () => {
+    const cancelled = moduleRow({
+      module: 'AI SEO / GEO',
+      status: 'Unavailable',
+      statusReason: 'ScanCancelled',
+      score: null,
+      usableOutput: false,
+    });
+    for (const language of ['en', 'uk'] as const) {
+      const sentences = moduleStatusReasons(cancelled, language);
+      expect(sentences).toEqual([copy[language].report.moduleReason.scanCancelled]);
+      // Not the raw token, and not the platform-failure sentence.
+      expect(sentences[0]).not.toContain('ScanCancelled');
+      expect(sentences[0]).not.toBe(copy[language].report.moduleReason.platformFailure);
+    }
+  });
+
+  it('a partly answered GEO section reports how much of it was answered', () => {
+    // The run keeps the answers it already received, so the reader is owed the
+    // numbers rather than the raw English sentence the API assembled.
+    const partlyAnswered = moduleRow({
+      module: 'AI SEO / GEO',
+      status: 'Partial',
+      statusReason: 'ScanCancelled: 2 of 5 questions answered',
+      score: null,
+      usableOutput: true,
+    });
+    for (const language of ['en', 'uk'] as const) {
+      const sentences = moduleStatusReasons(partlyAnswered, language);
+      expect(sentences).toHaveLength(1);
+      expect(sentences[0]).toContain('2');
+      expect(sentences[0]).toContain('5');
+      expect(sentences[0]).not.toContain('ScanCancelled');
+    }
+  });
+
+  it('a composite GEO reason is read clause by clause, not quoted in English', () => {
+    // A cancel that lands after question generation already failed produces two
+    // clauses in one string. It matches no single token, and the whole sentence
+    // used to fall through to the "the audit recorded this reason: …" quote —
+    // with the English original inside a Ukrainian report.
+    const composite = moduleRow({
+      module: 'AI SEO / GEO',
+      status: 'Partial',
+      statusReason:
+        'ScanCancelled: 1 of 2 questions answered; QueryGenerationUnavailable: ConsentMissing',
+      score: null,
+      usableOutput: true,
+    });
+    for (const language of ['en', 'uk'] as const) {
+      const t = copy[language].report.moduleReason;
+      const sentences = moduleStatusReasons(composite, language);
+      expect(sentences).toHaveLength(3);
+      expect(sentences[0]).toContain('1');
+      expect(sentences[0]).toContain('2');
+      expect(sentences[1]).toBe(t.aiQueryGenerationUnavailable);
+      expect(sentences[2]).toBe(t.aiConsentMissing);
+      for (const sentence of sentences) {
+        expect(sentence).not.toContain('QueryGeneration');
+        expect(sentence).not.toContain('ConsentMissing');
+      }
+    }
+  });
+
+  it('a generation failure on its own is a sentence, and its developer detail is not quoted', () => {
+    const invalid = moduleRow({
+      module: 'AI SEO / GEO',
+      status: 'Partial',
+      statusReason:
+        'QueryGenerationInvalidResponse: [{"code":"invalid_type","path":["questions"]}]',
+      score: null,
+      usableOutput: true,
+    });
+    for (const language of ['en', 'uk'] as const) {
+      const sentences = moduleStatusReasons(invalid, language);
+      expect(sentences).toEqual([
+        copy[language].report.moduleReason.aiQueryGenerationInvalidResponse,
+      ]);
+      expect(sentences[0]).not.toContain('invalid_type');
+    }
+  });
+
+  it('an interrupted UX review says the static checks still ran', () => {
+    const uxPartial = moduleRow({
+      module: 'UX/Conversion',
+      status: 'Partial',
+      statusReason: 'UxAiScanCancelled',
+      score: 80,
+      usableOutput: true,
+    });
+    for (const language of ['en', 'uk'] as const) {
+      expect(moduleStatusReasons(uxPartial, language)).toEqual([
+        copy[language].report.moduleReason.uxAiScanCancelled,
+      ]);
     }
   });
 });

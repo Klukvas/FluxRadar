@@ -19,5 +19,13 @@
     "@fluxradar/fingerprint": "workspace:*",
     "@fluxradar/safe-fetch": "workspace:*",
     "node-html-parser": "^7.0.1"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.48.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
   }
 }

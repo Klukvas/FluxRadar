@@ -1,19 +1,27 @@
 import type { UxAiResponseResult } from '@fluxradar/ai';
 import { ruleById } from '@fluxradar/contracts';
-import type { UxStaticEvidence } from '@fluxradar/rules';
+import type { ModuleRunResult, UxStaticEvidence } from '@fluxradar/rules';
 import { describe, expect, it } from 'vitest';
 
 import { ruleCheckSummaries, uxRuleCheckSummaries } from './rule-checks.ts';
 
 type UxAi = Pick<UxAiResponseResult, 'outcome' | 'findings'>;
 
-/** Three analysed pages; only their count matters to the summaries. */
+/**
+ * Three analysed pages, the first `pagesWithForms` of them carrying a form.
+ *
+ * The forms matter: the submit check counts the pages that have one, and that
+ * same list is the proof of what it re-checked (uxRulePages).
+ */
 function uxEvidence(
   findings: UxStaticEvidence['findings'],
   pagesWithForms: number,
 ): UxStaticEvidence {
   return {
-    pages: Array.from({ length: 3 }, () => ({})) as unknown as UxStaticEvidence['pages'],
+    pages: Array.from({ length: 3 }, (_unused, index) => ({
+      url: `https://example.com/page-${index}`,
+      forms: index < pagesWithForms ? ['form 1: 2 controls, 0 submit controls'] : [],
+    })) as unknown as UxStaticEvidence['pages'],
     findings,
     summary: {
       pagesAnalyzed: 3,
@@ -100,11 +108,28 @@ describe('UX/Conversion check summaries', () => {
 // the module row could not say which checks those were, or which of them found
 // something, so the row records one summary per evaluated rule.
 
+/** A rule evaluation reduced to what the check list reads from it. */
+function evaluation(
+  ruleId: string,
+  applicableTargets: number,
+  affectedTargets: number,
+): ModuleRunResult['evaluations'][number] {
+  return {
+    ruleId,
+    applicableTargets,
+    affectedTargets,
+    findings: [],
+    checkedTargets: [],
+    inputTargets: [],
+    requestedInputs: undefined,
+  };
+}
+
 describe('rule check summaries', () => {
   it('records each evaluated rule with its registry title and its own counts', () => {
     const summaries = ruleCheckSummaries([
-      { ruleId: 'A11Y-001', applicableTargets: 5, affectedTargets: 2, findings: [] },
-      { ruleId: 'A11Y-011', applicableTargets: 1, affectedTargets: 0, findings: [] },
+      evaluation('A11Y-001', 5, 2),
+      evaluation('A11Y-011', 1, 0),
     ]);
 
     expect(summaries).toEqual([
@@ -128,18 +153,12 @@ describe('rule check summaries', () => {
   });
 
   it('keeps a rule that had nothing to look at, so the report can say so', () => {
-    const [summary] = ruleCheckSummaries([
-      { ruleId: 'A11Y-004', applicableTargets: 0, affectedTargets: 0, findings: [] },
-    ]);
+    const [summary] = ruleCheckSummaries([evaluation('A11Y-004', 0, 0)]);
 
     expect(summary).toMatchObject({ ruleId: 'A11Y-004', applicableTargets: 0 });
   });
 
   it('refuses a rule the registry does not know rather than inventing a title', () => {
-    expect(() =>
-      ruleCheckSummaries([
-        { ruleId: 'A11Y-999', applicableTargets: 1, affectedTargets: 0, findings: [] },
-      ]),
-    ).toThrow(/A11Y-999/);
+    expect(() => ruleCheckSummaries([evaluation('A11Y-999', 1, 0)])).toThrow(/A11Y-999/);
   });
 });

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Reachable only from the rendered DOM — Fixture Site</title>
+    <meta name="description" content="Linked by spa-app.js, so only a rendered crawl finds it." />
+  </head>
+  <body>
+    <h1>Found through the rendered DOM</h1>
+    <p>
+      A static crawl of spa.html cannot reach this page: the link does not exist until the page's
+      own script has written it.
+    </p>
+  </body>
+</html>

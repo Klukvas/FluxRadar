@@ -1,12 +1,14 @@
 /**
  * Vitest setup: deterministic, non-production defaults for env-derived secrets.
  *
- * `pnpm test` loads the repository `.env` when one exists, so a developer
- * checkout picks up SESSION_SECRET and integrations/crypto.ts falls back to it.
- * CI has no `.env`, so DB-backed suites that encrypt integration tokens failed
- * with "INTEGRATION_ENCRYPTION_KEY is not configured". These defaults are
- * test-only placeholders and never override a value the environment already
- * provides; production validation still lives in integrations/config.ts.
+ * The test run no longer loads the repository `.env` — `apps/api/package.json`
+ * dropped `--env-file-if-exists`, so a developer's own credentials and database
+ * URL cannot reach the suite and a checkout runs exactly what CI runs. That
+ * makes these defaults the only source for them: without
+ * INTEGRATION_ENCRYPTION_KEY the DB-backed suites fail encrypting integration
+ * tokens. They are test-only placeholders, they never override a value the
+ * environment already provides, and production validation still lives in
+ * integrations/config.ts.
  */
 process.env.INTEGRATION_ENCRYPTION_KEY ??= 'test-only-integration-encryption-key';
 

@@ -1,5 +1,8 @@
 import { redact, type AiResponseOutcome } from '@fluxradar/ai';
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
+
+/** Works both on the root client and inside a `$transaction` callback. */
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 /** Private scan data uses the same fail-closed redaction as provider input. */
 export function redactEvidence(value: unknown): unknown {
@@ -14,7 +17,7 @@ export function redactEvidence(value: unknown): unknown {
 }
 
 export async function persistAiResponse(
-  prisma: PrismaClient,
+  prisma: DbClient,
   scanId: string,
   module: 'AI SEO / GEO' | 'UX/Conversion',
   outcome: AiResponseOutcome,

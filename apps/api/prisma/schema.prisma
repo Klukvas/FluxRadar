@@ -32,10 +32,16 @@ model Account {
   aiConsents         AiConsent[]
   integrations       IntegrationConnection[]
   googleBindings     SiteGoogleBinding[]
+  bingBindings       SiteBingBinding[]
   oauthStates        IntegrationOAuthState[]
   artifacts          ExportArtifact[]
   emailTokens        EmailToken[]
   emailNotifications EmailNotification[]
+  actionPlanLog      ActionPlanAttempt[]
+  scanCheckpoints    ScanCheckpoint[]
+  crawlPages         ScanCrawlPage[]
+  crawlResourceSets  ScanCrawlResourceSet[]
+  domainVerifications DomainVerification[]
 }
 
 model EmailToken {
@@ -121,6 +127,8 @@ model SiteProfile {
   checkoutSessions CheckoutSession[]
   scans            Scan[]
   googleBinding    SiteGoogleBinding?
+  bingBinding      SiteBingBinding?
+  domainVerification DomainVerification?
 
   // T-12: one profile per (account, domain) — a second profile for the same
   // origin would split scan history and break Resolved/Reopened comparison.
@@ -263,33 +271,59 @@ model Entitlement {
 // purchaseId is nullable-unique: the Free check runs without a purchase,
 // every paid purchase owns exactly one scan (§18 idempotency contract).
 model Scan {
-  id                 String    @id @default(cuid())
-  purchaseId         String?   @unique
-  accountId          String
-  siteProfileId      String
-  plan               String
-  domain             String
-  status             String    @default("Pending")
-  statusReason       String?
-  scopeJson          String
-  profileConfigVersion Int @default(1)
-  executionConfigJson String?
-  rulesetVersion     String
-  platformRetryCount Int       @default(0)
-  moduleRetryCount   Int       @default(0)
-  startedAt          DateTime?
-  completedAt        DateTime?
-  createdAt          DateTime  @default(now())
+  id                     String    @id @default(cuid())
+  purchaseId             String?   @unique
+  accountId              String
+  siteProfileId          String
+  plan                   String
+  domain                 String
+  status                 String    @default("Pending")
+  statusReason           String?
+  scopeJson              String
+  profileConfigVersion   Int       @default(1)
+  executionConfigJson    String?
+  rulesetVersion         String
+  platformRetryCount     Int       @default(0)
+  moduleRetryCount       Int       @default(0)
+  /// Set when the owner asks the run to stop. The worker reads it between
+  /// bounded steps, which is what makes "paused" mean "no new outbound work"
+  /// rather than "the status column changed".
+  pauseRequestedAt       DateTime?
+  /// How much of the site this run has actually read. Module counts answer
+  /// "which sections are done"; these answer "how far through my site is it".
+  scannedUrlCount        Int       @default(0)
+  discoveredUrlCount     Int       @default(0)
+  // Action Plan spend counters for the CURRENT snapshot (D-232). Re-running the
+  // scan clears the plans and resets all five: the snapshot they were written
+  // from no longer exists.
+  //
+  // actionPlanRunAttemptId is the fence, not the timestamp: it identifies the
+  // one attempt that owns the slot, so a superseded run finishing late can never
+  // match a newer claim no matter how close together the two started.
+  actionPlanAttempts     Int       @default(0)
+  actionPlanSuccesses    Int       @default(0)
+  actionPlanRunStartedAt DateTime?
+  actionPlanRunAttemptId String?
+  actionPlanRunLanguage  String?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  createdAt              DateTime  @default(now())
 
-  purchase    Purchase?          @relation(fields: [purchaseId], references: [id])
-  account     Account            @relation(fields: [accountId], references: [id])
-  siteProfile SiteProfile        @relation(fields: [siteProfileId], references: [id])
-  modules     ScanModule[]
-  issues      Issue[]
-  aiResponses AiResponseRecord[]
-  aiConsent   AiConsent?
-  job         Job?
-  artifacts   ExportArtifact[]
+  purchase             Purchase?             @relation(fields: [purchaseId], references: [id])
+  account              Account               @relation(fields: [accountId], references: [id])
+  siteProfile          SiteProfile           @relation(fields: [siteProfileId], references: [id])
+  modules              ScanModule[]
+  issues               Issue[]
+  coverageProofs       RuleCoverageProof[]
+  aiResponses          AiResponseRecord[]
+  aiConsent            AiConsent?
+  job                  Job?
+  artifacts            ExportArtifact[]
+  actionPlans          ActionPlan[]
+  actionPlanLog        ActionPlanAttempt[]
+  checkpoint           ScanCheckpoint?
+  crawlPages           ScanCrawlPage[]
+  crawlResourceSet     ScanCrawlResourceSet?
 
   /// Scan history is read one page at a time, newest first, for one account —
   /// with and without a site-profile filter. Both list endpoints order by
@@ -307,6 +341,134 @@ model Scan {
   /// Profile deletion counts the scans that block it, and the SiteProfile
   /// foreign key is checked on every profile write.
   @@index([siteProfileId])
+}
+
+// Where a paused run got to, so resuming it continues the scan the owner
+// already paid for instead of starting a second one.
+//
+// It is a bounded index, never a copy of the crawl: the frontier and the visited
+// URLs are capped by SCAN_CHECKPOINT_LIMITS and page bodies are deliberately
+// absent, which keeps one row per paused scan affordable. Everything already
+// finished — module rows, issues, AI responses — stays where it is; this row
+// only records WHICH stages those were, so a resumed attempt does not re-run
+// (and re-charge for) work that completed.
+model ScanCheckpoint {
+  id            String   @id @default(cuid())
+  scanId        String   @unique
+  /// Denormalized so account deletion and the retention sweep can reach these
+  /// rows without joining through the scan they belong to.
+  accountId     String
+  schemaVersion Int      @default(1)
+  /// The stage the run stopped in: 'crawl' or a module name.
+  stage         String
+  payloadJson   String
+  sizeBytes     Int
+  /// A checkpoint nobody resumed is swept like any other stale artifact.
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Cascade for the same reason as CheckoutSession: the previous release does
+  // not know this table, so a rollback's account deletion would fail on a
+  // RESTRICT foreign key. The current release still deletes these rows itself.
+  scan    Scan    @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
+}
+
+// The pages a paused run already read, kept so resuming is not a re-crawl.
+//
+// This is the expensive half of a pause, and every bound on it
+// (SCAN_EVIDENCE_LIMITS) exists for that reason: a capped number of pages, a
+// capped compressed size each, a capped total, and a TTL. A page that does not
+// fit is not stored — and its URL goes back on the frontier, so the resumed
+// scan re-reads it rather than reporting a page whose evidence is gone.
+model ScanCrawlPage {
+  id            String   @id @default(cuid())
+  scanId        String
+  /// Denormalized like ScanCheckpoint.accountId, for deletion and the sweep.
+  accountId     String
+  normalizedUrl String
+  /// Position in the crawl. A batched insert gives every row the same
+  /// `createdAt`, so without this the restored order is whatever the database
+  /// happens to return.
+  ordinal       Int      @default(0)
+  /// gzip of the page snapshot as JSON. Bytes, because a site's worth of HTML
+  /// in a text column is the one thing this table must not become.
+  payload       Bytes
+  sizeBytes     Int
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  scan    Scan    @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  /// One row per URL per scan: resuming twice must not double the evidence.
+  @@unique([scanId, normalizedUrl])
+  @@index([accountId])
+  @@index([expiresAt])
+}
+
+/// The media probes of a paused scan.
+///
+/// Probing the media a site references costs up to MEDIA_PROBE_LIMITS.maxProbes
+/// requests to the owner's server. Without this the whole set was re-issued on
+/// every resume, including a resume whose pages were all restored and whose
+/// frontier was empty — the same few hundred requests for an answer already
+/// known. One row per scan: the set is small, bounded and only useful whole.
+model ScanCrawlResourceSet {
+  id        String   @id @default(cuid())
+  scanId    String   @unique
+  /// Denormalized like ScanCrawlPage.accountId, for deletion and the sweep.
+  accountId String
+  /// gzip of the ResourceSnapshot array as JSON, bounded by SCAN_EVIDENCE_LIMITS.
+  payload   Bytes
+  sizeBytes Int
+  count     Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  scan    Scan    @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
+}
+
+// Optional proof that an account controls the site it is auditing.
+//
+// Nothing in the audit pipeline reads this: public pages stay auditable without
+// it and no tariff depends on it (docs/CUSTOMER_READINESS_TASKS.md keeps the
+// gating decision with the owner). One row per site profile, because the proof
+// is about a domain and a profile is how an account names one.
+model DomainVerification {
+  id                String    @id @default(cuid())
+  accountId         String
+  siteProfileId     String    @unique
+  /// The origin the token was issued for. A profile moved to another domain
+  /// invalidates its proof, and this is what makes that detectable.
+  domain            String
+  method            String
+  /// Random, per (account, profile). It is a lookup value published by the
+  /// site owner, never a credential for FluxRadar.
+  token             String
+  status            String    @default("pending")
+  issuedAt          DateTime  @default(now())
+  tokenExpiresAt    DateTime
+  verifiedAt        DateTime?
+  lastCheckedAt     DateTime?
+  /// Why the last check did not find the token; operator-safe text only.
+  lastFailureReason String?
+  attempts          Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  account     Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  siteProfile SiteProfile @relation(fields: [siteProfileId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
 }
 
 model ScanModule {
@@ -372,6 +534,28 @@ model Issue {
   @@index([fingerprint])
 }
 
+// Доказательство повторной проверки одного модуля (§14): что каждое его
+// правило прочитало, о чём спрашивало и на каком материале держится каждая его
+// находка. Читает его ТОЛЬКО политика Resolved следующего Complete-скана
+// (apps/api/src/orchestrator/run-coverage.ts), поэтому оно живёт отдельно от
+// ScanModule.metadataJson, который грузится на каждом обращении к скану —
+// /scans, /scans/active, дашборд, поллинг статуса.
+//
+// Пишется в одной транзакции со строкой модуля и его issues, поэтому у скана
+// не бывает findings без доказательства и наоборот. Содержимое — gzip(JSON)
+// (формат и границы размера — там же, в run-coverage.ts).
+model RuleCoverageProof {
+  id        String   @id @default(cuid())
+  scanId    String
+  module    String
+  proof     Bytes
+  createdAt DateTime @default(now())
+
+  scan Scan @relation(fields: [scanId], references: [id])
+
+  @@unique([scanId, module])
+}
+
 // Normalized provider response (§5/§16); aiRequestKey is the deterministic
 // idempotency key ai:{scan_id}:{provider}:{prompt_hash}:{sequence} (D-015).
 model AiResponseRecord {
@@ -396,6 +580,81 @@ model AiResponseRecord {
   createdAt           DateTime @default(now())
 
   scan Scan @relation(fields: [scanId], references: [id])
+}
+
+// A written Action Plan (D-232). Only READY content lives here, so a running or
+// failed regeneration can never hide or lose the plan the owner already has.
+// It is not a canonical record: it never reaches JSON/CSV export, and it is
+// deleted with its scan.
+model ActionPlan {
+  id            String   @id @default(cuid())
+  scanId        String
+  language      String
+  contentJson   String
+  promptText    String
+  promptVersion String
+  modelId       String
+  requestId     String
+  usageJson     String
+  /// The Action Plan click notice the owner accepted, not the purchase notice.
+  noticeVersion String
+  /// Always written explicitly by the one upsert that stores a plan, so the
+  /// column carries no database default.
+  generatedAt   DateTime
+
+  // Cascade for the same reason as CheckoutSession: a release that predates this
+  // table deletes a scan without clearing its plans, and RESTRICT would turn
+  // account deletion and retention into a failure after a rollback. The current
+  // release still deletes them explicitly (data-retention.ts).
+  scan Scan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@unique([scanId, language])
+}
+
+// The spend log behind the Action Plan limits. It keeps failed attempts too —
+// they cost provider time — and stores a failure CODE, never provider text.
+//
+// Re-running the scan does NOT delete these rows: the money was spent whatever
+// the snapshot now says. They are marked cleared instead, which is what keeps
+// them out of the report while they still count against the daily and hourly
+// caps.
+//
+// DELETING the scan does not delete them either, which is why `scanId` is
+// nullable and the foreign key is SET NULL rather than Cascade. Deleting a site
+// profile deletes its scans and is something a customer may do at any moment;
+// taking the log with them would make it a way to clear the account's hourly
+// counter and the product's daily one. The detached row keeps no description of
+// the scan — the language, the outcome and what it cost — and retention removes
+// it once it is older than the widest counting window
+// (`purgeDetachedActionPlanAttempts`).
+//
+// `accountId` is nullable and SET NULL for the same reason read the other way:
+// an erased account must not leave its id behind in a log nobody can reach it
+// through. The deletion path removes these rows explicitly first
+// (data-retention.ts), so the foreign key is the floor, not the mechanism.
+model ActionPlanAttempt {
+  id            String    @id @default(cuid())
+  scanId        String?
+  accountId     String?
+  language      String
+  status        String
+  failureCode   String?
+  usageJson     String?
+  /// The Action Plan click notice this attempt was started under. NULL on rows
+  /// written before the column existed — not recorded, not "no notice shown".
+  noticeVersion String?
+  createdAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  clearedAt     DateTime?
+
+  scan    Scan?    @relation(fields: [scanId], references: [id], onDelete: SetNull)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  /// The product-wide daily cap counts rows by time, across every scan.
+  @@index([createdAt])
+  /// The per-account hourly cap counts one account's rows, under the spend lock.
+  @@index([accountId, createdAt])
+  @@index([scanId])
 }
 
 model AiConsent {
@@ -458,6 +717,45 @@ model SiteGoogleBinding {
 
   account     Account     @relation(fields: [accountId], references: [id])
   siteProfile SiteProfile @relation(fields: [siteProfileId], references: [id])
+
+  @@index([accountId])
+}
+
+// Which Bing Webmaster Tools site an account chose for one of its site profiles.
+//
+// Deliberately a table of its own rather than two more columns on
+// SiteGoogleBinding: the two providers are separate grants over separate data,
+// and a report has to be able to say "Bing has no property selected" while
+// Search Console does. Only the provider's own site URL is stored — never a
+// token, never a metric.
+model SiteBingBinding {
+  id            String   @id @default(cuid())
+  accountId     String
+  siteProfileId String   @unique
+  /**
+   * The site exactly as Bing's GetUserSites reported it (e.g. "https://example.com/").
+   * Bing matches on the string it gave out, so it is never normalised here.
+   */
+  siteUrl       String?
+  /**
+   * Whether Bing said the site was verified at the moment it was chosen. A site
+   * can lose verification later, which the scan-time read reports for itself;
+   * this is what the owner was shown when they picked it.
+   */
+  verifiedAtSelection Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // CASCADE, not the default RESTRICT: this row is a pointer at a provider
+  // resource, not a record anyone is owed. A RESTRICT here would make a binding
+  // able to block the deletion of the account or the site profile it belongs to —
+  // i.e. one optional integration could refuse a GDPR erasure — and the failure
+  // would appear as an opaque foreign-key error in the middle of a transaction.
+  // The deletion paths also remove it explicitly (data-retention.ts,
+  // profiles/profile-deletion.ts); the cascade is what makes a path that forgets
+  // to safe rather than broken.
+  account     Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  siteProfile SiteProfile @relation(fields: [siteProfileId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
 }
@@ -567,7 +865,71 @@ model RefundRecord {
   requestedAt           DateTime  @default(now())
   processedAt           DateTime?
 
-  purchase Purchase @relation(fields: [purchaseId], references: [id])
+  purchase Purchase        @relation(fields: [purchaseId], references: [id])
+  dispatch RefundDispatch?
+}
+
+// The outbound half of a refund: what FluxRadar asked the provider to do, and
+// what it knows about the answer.
+//
+// RefundRecord is the decision — "this purchase is to be refunded, for this
+// reason, in this amount" — and ProviderRefund is what actually came back
+// through the webhook. Neither of them can say whether a submission was sent,
+// which is the one fact that must not be guessed at: a refund is a money write
+// on a provider API that has no idempotency key, so "did it go through?" cannot
+// be answered by trying again.
+//
+// This row is therefore the record of the attempt itself, one per purchase
+// (both unique columns say so), and its `state` is allowed to be honest about
+// not knowing:
+//
+//   requested  — recorded, nothing sent. The default, and where the manual
+//                policy leaves every refund.
+//   submitting — a submission is in flight. Written BEFORE the request leaves,
+//                so a crash mid-call is visible instead of invisible.
+//   submitted  — the provider accepted it and named its own refund id.
+//   settled    — the provider's own webhook later reported the money back.
+//   manual     — an operator is handling it outside the API.
+//   uncertain  — the call did not produce an answer we can act on (timeout,
+//                5xx, unparseable body). It may or may not have refunded the
+//                buyer. NOTHING retries this automatically.
+//   failed     — the provider refused it outright, and said so. No money moved.
+model RefundDispatch {
+  id                 String    @id @default(cuid())
+  refundRecordId     String    @unique
+  /** One dispatch per purchase, mirroring the RefundRecord aggregate. */
+  purchaseId         String    @unique
+  provider           String
+  /** Stable logical key for the submission: refund-dispatch:{purchaseId}. */
+  idempotencyKey     String    @unique
+  state              String
+  stateReason        String?
+  amountUsd          Float
+  currency           String
+  /** The provider's order identifier the return was requested against. */
+  providerOrderId    String?
+  /** The provider's own id for the return it created, once it stated one. */
+  providerRefundId   String?
+  /** The provider's reason code the submission carried, verbatim. */
+  providerReasonCode String?
+  /**
+   * How many submissions were started. It exists to make a second attempt
+   * VISIBLE, not to drive one: the dispatcher refuses to leave `submitting` or
+   * `uncertain` on its own.
+   */
+  attempts           Int       @default(0)
+  requestedAt        DateTime  @default(now())
+  submittedAt        DateTime?
+  settledAt          DateTime?
+  /** Who resolved a `manual` or `uncertain` dispatch, for the audit trail. */
+  resolvedBy         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  refundRecord RefundRecord @relation(fields: [refundRecordId], references: [id], onDelete: Cascade)
+
+  /// The operator queue: "what is waiting to be sent, and what is stuck?"
+  @@index([state, requestedAt])
 }
 
 // One refund the provider actually reported against a purchase (a FastSpring

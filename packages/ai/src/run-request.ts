@@ -8,12 +8,14 @@ import { ensureConsent } from './consent.js';
 import type { AiConsent } from './consent.js';
 import {
   AiModuleError,
+  AiRequestAbortedError,
   ConsentMissingError,
   QuotaExceededError,
   RedactionBlockedError,
   UnavailableError,
 } from './errors.js';
-import { buildPrompt, enforceInputCap } from './prompt-builder.js';
+import { buildPrompt, capsFor, enforceInputCap } from './prompt-builder.js';
+import { cancellationReason } from './provider-support.js';
 import type { AiQuotaTracker } from './quota.js';
 import { redact } from './redaction.js';
 import type { RedactionOptions, RedactionType } from './redaction.js';
@@ -62,6 +64,16 @@ export interface RunAiRequestOptions {
   readonly quota: AiQuotaTracker;
   readonly consent: AiConsent | null;
   readonly redaction?: RedactionOptions;
+  /**
+   * Отмена вызывающего (отменённый скан, останов воркера). Уже отменённый
+   * прогон запрос не отправляет; отмена в полёте прерывает его и поднимает
+   * AiRequestAbortedError, освободив резерв квоты.
+   *
+   * Ни то ни другое не становится ветвью «unavailable» §5: иначе модуль счёл бы
+   * вопрос повторяемым и оплатил его второй раз, а в строку модуля попал бы
+   * ложный факт о провайдере.
+   */
+  readonly signal?: AbortSignal;
 }
 
 /** Пара «итог запроса + новое состояние квоты» (трекер иммутабелен). */
@@ -79,10 +91,24 @@ function unavailable(
   return { outcome: { kind: 'unavailable', request, reason, detail }, quota };
 }
 
+/**
+ * Читается заново на каждом обращении: сигнал абортится извне и в любой момент,
+ * поэтому кэшировать (и позволять компилятору сузить) этот флаг нельзя.
+ */
+function isAborted(signal: AbortSignal | undefined): boolean {
+  return signal !== undefined && signal.aborted;
+}
+
 export async function runAiRequest(
   request: AiRequest,
   options: RunAiRequestOptions,
 ): Promise<RunAiRequestResult> {
+  // Прогон, отменённый до старта, не строит prompt, не резервирует квоту и не
+  // уходит к провайдеру: результат уже никому не нужен.
+  if (isAborted(options.signal)) {
+    throw new AiRequestAbortedError(request.scanId, cancellationReason(options.signal));
+  }
+
   // Consent с чужим scanId — отсутствие записи для этого скана (§5, комментарий
   // в consent.ts: несоответствие записи блокирует запрос).
   const consent =
@@ -111,7 +137,8 @@ export async function runAiRequest(
   // prompt за input cap — повторное усечение гарантирует cap для точного
   // текста, уходящего провайдеру (D-177). Секреты уже заменены: повторный срез
   // ничего не раскрывает.
-  const capped = enforceInputCap(redacted.text);
+  const caps = capsFor(request);
+  const capped = enforceInputCap(redacted.text, caps);
 
   // Ключ считается от финального redacted-текста — именно он уходит провайдеру
   // (D-015/D-175).
@@ -128,9 +155,18 @@ export async function runAiRequest(
 
   let response;
   try {
-    response = await options.provider.send(request, capped.text);
+    response = await options.provider.send(request, capped.text, options.signal);
   } catch (error) {
     const releasedQuota = reservedQuota.release(requestKey);
+    // Отмена вызывающего — не ветка §5: не превращаем её в Unavailable, иначе
+    // модуль сочтёт запрос повторяемым и оплатит его второй раз. Наверх уходит
+    // причина отмены, а не транспортный AbortError конкретного адаптера.
+    if (error instanceof AiRequestAbortedError) {
+      throw error;
+    }
+    if (isAborted(options.signal)) {
+      throw new AiRequestAbortedError(request.scanId, cancellationReason(options.signal) ?? error);
+    }
     if (error instanceof UnavailableError) {
       return unavailable(request, releasedQuota, 'ProviderUnavailable', error.message);
     }
@@ -138,7 +174,7 @@ export async function runAiRequest(
     throw new AiModuleError(`ai: provider send failed for "${requestKey}"`, { cause: error });
   }
 
-  const violations = validateNormalizedResponse(response);
+  const violations = validateNormalizedResponse(response, caps);
   if (violations.length > 0) {
     // Ответ вне контракта §5 = Unavailable адаптера, не fail-open данные (D-175).
     return unavailable(

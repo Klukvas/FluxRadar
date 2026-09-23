@@ -1315,6 +1315,13 @@ code,
   font: 11px/1.35 var(--mono-font);
   overflow-wrap: anywhere;
 }
+/* One block per provider, so two models' answers to the same questions read as
+   two answers rather than one interleaved list. */
+.geo-observations__provider {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
 .geo-observations__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));

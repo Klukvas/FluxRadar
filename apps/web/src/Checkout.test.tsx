@@ -187,8 +187,10 @@ describe('paid checkout flow', () => {
       plan: 'Complete',
       scope: expect.objectContaining({ includeSubdomains: false }),
       aiConsent: {
-        providers: ['anthropic'],
-        noticeVersion: 'core-ai-processing-notice-v3',
+        // The default recipients; Google and Perplexity stay out unless the
+        // owner ticks them, which this flow does not.
+        providers: ['anthropic', 'openai'],
+        noticeVersion: 'core-ai-processing-notice-v4',
       },
     });
 
@@ -582,5 +584,91 @@ describe('paid checkout flow', () => {
     await screen.findByText(account.email);
 
     expect(screen.queryByText('Payment — confirming')).not.toBeInTheDocument();
+  });
+});
+
+// The optional AI recipients: the only path by which a customer's site context
+// can reach a company beyond the two the price includes. What it must do is
+// send exactly what was ticked — and offer nothing this deployment cannot send
+// to, because a paid scan naming an unconfigured provider comes back Partial.
+describe('optional AI recipients at checkout', () => {
+  const OPT_IN_LABEL = 'Also ask Google (Gemini)';
+
+  async function openPaidForm(optInAiProviders?: readonly string[]) {
+    vi.stubGlobal(
+      'open',
+      vi.fn(() => ({}) as Window),
+    );
+    const fetchMock = await openNewScan((path) => {
+      if (path === '/auth/me') return envelope(account);
+      if (path === '/profiles') return envelope([profile]);
+      if (path === '/scans/active') return envelope(null);
+      if (path === '/billing/checkout-config') {
+        return envelope(
+          optInAiProviders === undefined ? checkoutConfig : { ...checkoutConfig, optInAiProviders },
+        );
+      }
+      if (path === '/billing/checkout-session') return envelope(session, 201);
+      return envelope(null);
+    });
+    await screen.findByText('Complete · $120');
+    selectPlan('Complete');
+    return fetchMock;
+  }
+
+  function submittedConsent(fetchMock: ReturnType<typeof stubApi>): unknown {
+    const posted = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        new URL(String(input)).pathname === '/billing/checkout-session' &&
+        (init as RequestInit | undefined)?.method === 'POST',
+    );
+    return (JSON.parse(String((posted?.[1] as RequestInit).body)) as { aiConsent: unknown })
+      .aiConsent;
+  }
+
+  it('offers no optional recipient when the deployment can serve none', async () => {
+    await openPaidForm([]);
+
+    expect(screen.queryByRole('checkbox', { name: OPT_IN_LABEL })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Also ask Perplexity' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Optional: ask Gemini and Perplexity too')).not.toBeInTheDocument();
+  });
+
+  it('offers only the recipients the deployment can serve', async () => {
+    await openPaidForm(['perplexity']);
+
+    expect(
+      await screen.findByRole('checkbox', { name: 'Also ask Perplexity' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: OPT_IN_LABEL })).not.toBeInTheDocument();
+  });
+
+  it('sends only the default recipients while the offered boxes are left alone', async () => {
+    const fetchMock = await openPaidForm(['google', 'perplexity']);
+    await screen.findByRole('checkbox', { name: OPT_IN_LABEL });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+    await waitFor(() => expect(called(fetchMock, '/billing/checkout-session')).toBe(true));
+
+    expect(submittedConsent(fetchMock)).toEqual({
+      providers: ['anthropic', 'openai'],
+      noticeVersion: 'core-ai-processing-notice-v4',
+    });
+  });
+
+  it('adds exactly the recipient the owner ticked, and removes it when unticked', async () => {
+    const fetchMock = await openPaidForm(['google', 'perplexity']);
+    const google = await screen.findByRole('checkbox', { name: OPT_IN_LABEL });
+
+    fireEvent.click(google);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Also ask Perplexity' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Also ask Perplexity' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+    await waitFor(() => expect(called(fetchMock, '/billing/checkout-session')).toBe(true));
+
+    expect(submittedConsent(fetchMock)).toEqual({
+      providers: ['anthropic', 'openai', 'google'],
+      noticeVersion: 'core-ai-processing-notice-v4',
+    });
   });
 });

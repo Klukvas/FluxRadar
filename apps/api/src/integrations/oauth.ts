@@ -19,7 +19,16 @@ export const GOOGLE_ANALYTICS_SCOPE = 'https://www.googleapis.com/auth/analytics
 // The consent screen's Data Access list must name exactly these two.
 const GOOGLE_SCOPES = [GOOGLE_SEARCH_CONSOLE_SCOPE, GOOGLE_ANALYTICS_SCOPE] as const;
 
-const BING_SCOPES = ['webmaster.read'] as const;
+/**
+ * Read-only access to the owner's Bing Webmaster Tools data — the narrowest
+ * scope Bing publishes, and the only one FluxRadar asks for. `Webmaster.manage`
+ * would additionally allow writes to the property and is deliberately not
+ * requested (learn.microsoft.com/en-us/bingwebmaster/oauth2, "Authorization
+ * Scopes").
+ */
+export const BING_WEBMASTER_READ_SCOPE = 'webmaster.read';
+
+const BING_SCOPES = [BING_WEBMASTER_READ_SCOPE] as const;
 
 export function createOAuthState(): string {
   return randomBytes(32).toString('base64url');
@@ -100,9 +109,10 @@ export async function exchangeOAuthCode(
 }
 
 /**
- * Raised when Google refuses the refresh grant itself (revoked consent, deleted
- * client, rotated secret). It is terminal for the stored connection: retrying
- * cannot help, the user has to authorize again.
+ * Raised when the provider refuses the refresh grant itself (revoked consent,
+ * deleted client, rotated secret). It is terminal for the stored connection:
+ * retrying cannot help, the user has to authorize again. Google answers
+ * `invalid_grant` with a 400 for it; Bing answers 400 or 401.
  */
 export class OAuthGrantRevokedError extends Error {
   constructor(provider: UserIntegrationProvider) {
@@ -112,9 +122,11 @@ export class OAuthGrantRevokedError extends Error {
 }
 
 /**
- * Exchanges a refresh token for a fresh access token. Google does not return a
- * new refresh token here, so the caller keeps the stored one; the returned
- * `refreshToken` is null to make that explicit rather than implied.
+ * Exchanges a refresh token for a fresh access token. Neither provider returns a
+ * new refresh token here — Bing's documented refresh response carries only
+ * `access_token`, `expires_in` and `token_type` — so the caller keeps the stored
+ * one; the returned `refreshToken` is null to make that explicit rather than
+ * implied.
  */
 export async function refreshOAuthTokens(
   provider: UserIntegrationProvider,

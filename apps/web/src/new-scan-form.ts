@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { apiRequest, type CheckoutSession, type Scan, type SiteProfile } from './api';
-import { openCheckoutWindow, useCheckoutConfig, type PendingCheckout } from './Checkout';
-import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
-import { copy, fillCopy, type Language } from './i18n';
+import { apiRequest, type CheckoutConfig, type Scan, type SiteProfile } from './api';
+import { AI_PROCESSING_OPT_IN_PROVIDERS } from './ai-processing-notice';
+import type { AiProcessingOptInProvider } from './ai-processing-notice';
+import { parseApiCheckLines, type ApiCheckLineProblem } from './api-check-lines';
+import { useCheckoutConfig, type PendingCheckout } from './Checkout';
+import { copy, type Language } from './i18n';
+import {
+  configurationStateOf,
+  configurationStatusLabel,
+  scopeFromLastScan,
+  type ConfigurationState,
+} from './new-scan-configuration';
+import { requestScan } from './new-scan-request';
+import type { Plan } from './plan-modules';
 import { normalizeSiteAddress } from './site-address-input';
 import {
   DEFAULT_SCOPE_FORM,
@@ -14,7 +24,6 @@ import {
   profileScanConfigFromForm,
   scanScopeFrom,
   scopeFormFromProfileConfig,
-  scopeFormFromScan,
   type ScanScopeForm,
   type ScopeNumberField,
 } from './scan-scope';
@@ -28,6 +37,10 @@ import {
  * complete. That is one subject, and it sat 400 lines deep inside a component
  * whose other half is the form's markup, so the file holding it changed for
  * both reasons at once. It lives here; the screen destructures it and renders.
+ *
+ * Two neighbours carry what is not about holding form state: where the starting
+ * settings come from (`new-scan-configuration.ts`) and which request actually
+ * creates a scan (`new-scan-request.ts`).
  */
 
 /**
@@ -44,6 +57,28 @@ const SCOPE_FIELD_NAMES: Readonly<Record<ScopeNumberField, string>> = {
   maxPages: 'scan-max-pages',
   maxDepth: 'scan-max-depth',
 };
+
+/**
+ * The seed lines that are not a site address.
+ *
+ * The server refuses these too — and refuses one pointed at another site,
+ * which only it can judge — but a seed rejected after a checkout has opened is
+ * a page the owner paid to have checked and did not get.
+ */
+function invalidSeedLines(value: string): readonly string[] {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .filter((line) => {
+      try {
+        const url = new URL(line);
+        return url.protocol !== 'http:' && url.protocol !== 'https:';
+      } catch {
+        return true;
+      }
+    });
+}
 
 export interface NewScanFormProps {
   accountId: string;
@@ -62,10 +97,76 @@ export interface NewScanFormProps {
    * or with "Run Complete for this site" on a Free report. Applied once, and
    * only when that plan can actually be bought here.
    */
-  initialPlan?: 'Free' | 'Basic' | 'Complete' | null;
+  initialPlan?: Plan | null;
 }
 
-export function useNewScanForm(props: NewScanFormProps) {
+interface PlanOption {
+  readonly value: Plan;
+  readonly label: string;
+}
+
+/**
+ * What the screen renders from and acts through.
+ *
+ * The actions are named after the decision they carry out rather than the state
+ * they happen to set: choosing a plan also moves the limits under it, and a
+ * screen handed a bare `setPlan` would have to know that.
+ */
+export interface NewScanForm {
+  readonly address: string;
+  readonly addressError: string | null;
+  readonly advancedOpen: boolean;
+  readonly busy: boolean;
+  /** False while a submission would be refused, for whatever reason. */
+  readonly canLaunch: boolean;
+  /** False while the settings cannot be stored on the profile. */
+  readonly canSave: boolean;
+  readonly carriedOver: boolean;
+  readonly checkoutConfig: CheckoutConfig | null;
+  readonly checkoutPending: boolean;
+  readonly configurationState: ConfigurationState;
+  readonly configurationStatusLabel: string;
+  readonly invalidScope: readonly ScopeNumberField[];
+  /**
+   * The same contract as `invalidScope`, for the two settings that are lists of
+   * addresses rather than numbers.
+   */
+  readonly invalidSeedUrls: readonly string[];
+  readonly apiCheckProblems: readonly ApiCheckLineProblem[];
+  /**
+   * The optional AI recipients this deployment can actually send to, and the
+   * ones the owner turned on. Empty offer means no optional block is shown.
+   */
+  readonly offeredOptInAiProviders: readonly AiProcessingOptInProvider[];
+  readonly optInAiProviders: readonly AiProcessingOptInProvider[];
+  /** What the submit button says right now, including while it is working. */
+  readonly launchLabel: string;
+  readonly launchSite: string;
+  readonly paidAvailable: boolean;
+  /** True on the plans whose crawl the form may actually shape. */
+  readonly paidScopeControls: boolean;
+  readonly plan: Plan;
+  readonly planLabel: string;
+  readonly planOptions: readonly PlanOption[];
+  readonly robotsUnconfirmed: boolean;
+  readonly savingConfiguration: boolean;
+  readonly scope: ScanScopeForm;
+  /** True when this submission is a purchase, and says so beside the button. */
+  readonly showsPurchaseTerms: boolean;
+  readonly target: string;
+  readonly targetLabel: string;
+  readonly usingSavedProfile: boolean;
+  readonly chooseTarget: (target: string) => void;
+  readonly choosePlan: (plan: Plan) => void;
+  readonly editAddress: (value: string) => void;
+  readonly toggleAdvanced: (open: boolean) => void;
+  readonly updateScope: (change: Partial<ScanScopeForm>) => void;
+  readonly toggleOptInAiProvider: (provider: AiProcessingOptInProvider, selected: boolean) => void;
+  readonly saveConfiguration: () => Promise<void>;
+  readonly submit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+}
+
+export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const t = copy[props.language];
   // Whether a real checkout exists is a server fact, not a build-time flag: an
   // unreachable or unconfigured provider must never look like a working one.
@@ -85,7 +186,7 @@ export function useNewScanForm(props: NewScanFormProps) {
   // A saved profile owns its preferred plan. New addresses keep the existing
   // free-first flow; internal accounts start on Complete so they can exercise
   // the full report without a payment.
-  const [plan, setPlan] = useState<'Free' | 'Basic' | 'Complete'>(
+  const [plan, setPlan] = useState<Plan>(
     props.selectedProfile?.scanConfig?.plan ?? (props.internalFreeAccess ? 'Complete' : 'Free'),
   );
   // Legacy profile fixtures and profiles created before the migration still
@@ -104,6 +205,40 @@ export function useNewScanForm(props: NewScanFormProps) {
   // finds one: a form that reddens while someone is still typing into it is
   // telling them they are wrong before they have finished being right.
   const [invalidScope, setInvalidScope] = useState<readonly ScopeNumberField[]>([]);
+  // The same contract as `invalidScope`, for the two settings that are lists of
+  // addresses rather than numbers.
+  const [invalidSeedUrls, setInvalidSeedUrls] = useState<readonly string[]>([]);
+  const [apiCheckProblems, setApiCheckProblems] = useState<readonly ApiCheckLineProblem[]>([]);
+  // The optional recipients this deployment can actually send to. Offering one
+  // it cannot serve would sell a Partial scan: the worker builds that
+  // provider's requests, every one of them meets an unconfigured provider, and
+  // a Partial paid scan carries no automatic refund. The server refuses such a
+  // checkout as well — this is the form not asking for the refusal.
+  //
+  // An internal free-access account never asks for the checkout configuration
+  // (it never checks out), so it is offered both and told by the server if one
+  // is not configured. That path takes no payment, so there is nothing to
+  // protect it from beyond an honest refusal.
+  const offeredOptInAiProviders: readonly AiProcessingOptInProvider[] = props.internalFreeAccess
+    ? AI_PROCESSING_OPT_IN_PROVIDERS
+    : AI_PROCESSING_OPT_IN_PROVIDERS.filter((provider) =>
+        (checkoutConfig?.optInAiProviders ?? []).includes(provider),
+      );
+  // Extra AI recipients, off until the owner turns one on. An unselected
+  // provider is not sent — it is not in the list the scan stores, so the worker
+  // never builds a request for it.
+  const [optInAiProviders, setOptInAiProviders] = useState<readonly AiProcessingOptInProvider[]>(
+    [],
+  );
+  const toggleOptInAiProvider = (provider: AiProcessingOptInProvider, selected: boolean): void => {
+    setOptInAiProviders((current) =>
+      selected
+        ? current.includes(provider)
+          ? current
+          : [...current, provider]
+        : current.filter((entry) => entry !== provider),
+    );
+  };
   // True once the settings below came from the reusable profile configuration.
   const [carriedOver, setCarriedOver] = useState(false);
   // The crawl rules most scans never touch. Whatever a saved configuration sets
@@ -159,6 +294,43 @@ export function useNewScanForm(props: NewScanFormProps) {
     // does: the message described the value that has just been replaced.
     const edited = Object.keys(change);
     setInvalidScope((current) => current.filter((field) => !edited.includes(field)));
+    if (edited.includes('seedUrls')) setInvalidSeedUrls([]);
+    if (edited.includes('apiChecks')) setApiCheckProblems([]);
+  };
+
+  /**
+   * Choosing a plan moves the limits with it.
+   *
+   * A site last checked on Complete opens on Complete-sized limits; carrying
+   * those into Basic asks for more pages than Basic sells, which the API
+   * refuses. The numbers move to the chosen plan here, where the owner can see
+   * what they are about to buy — not in the screen, which would have to know
+   * that choosing a plan is three state changes.
+   */
+  const choosePlan = (chosen: Plan): void => {
+    setPlan(chosen);
+    setScope((current) => clampScopeToPlan(current, chosen));
+    setInvalidScope([]);
+  };
+
+  const editAddress = (value: string): void => {
+    setAddress(value);
+    if (addressError !== null) setAddressError(null);
+  };
+
+  /**
+   * The workspace lists the account's sites, and a submission may have just
+   * added one. Refreshing that list is a convenience and deliberately cannot
+   * fail the submission: the profile exists either way, and a list that could
+   * not be re-read must not cancel the check it was created for. It is logged
+   * rather than swallowed — a refresh that always fails is otherwise invisible.
+   */
+  const refreshProfiles = async (): Promise<void> => {
+    try {
+      await props.onProfilesChanged();
+    } catch (caught) {
+      console.error('FluxRadar site list could not be refreshed', caught);
+    }
   };
 
   /** Opens the form on the reusable settings stored with the selected profile. */
@@ -187,27 +359,10 @@ export function useNewScanForm(props: NewScanFormProps) {
     let cancelled = false;
     setConfigLoading(true);
     void (async () => {
-      let latest: Scan | undefined;
-      try {
-        const scans = await apiRequest<readonly Scan[] | null>(
-          `/profiles/${encodeURIComponent(target)}/scans?limit=1&offset=0`,
-        );
-        latest = Array.isArray(scans) ? scans[0] : undefined;
-      } catch {
-        latest = undefined;
-      }
+      const carried = await scopeFromLastScan(target, planRef.current);
       if (cancelled) return;
-      // Brought inside the chosen plan on the way in, not only on the way out:
-      // the payload is clamped as well (`scanScopeFrom`), but a form that shows
-      // a Complete-sized page count while Basic is selected is offering a scan
-      // that is not the one the checkout would open on.
-      const legacyPlan = planRef.current;
-      setScope(
-        latest === undefined
-          ? DEFAULT_SCOPE_FORM
-          : clampScopeToPlan(scopeFormFromScan(latest), legacyPlan),
-      );
-      setCarriedOver(latest !== undefined);
+      setScope(carried ?? DEFAULT_SCOPE_FORM);
+      setCarriedOver(carried !== null);
       setSavedConfigFingerprint(null);
       setSavedConfigVersion(null);
       setConfigLoading(false);
@@ -248,12 +403,7 @@ export function useNewScanForm(props: NewScanFormProps) {
       '/profiles/resolve',
       { method: 'POST', body: JSON.stringify({ domain: normalized.origin }) },
     );
-    // The workspace has one more site now, and the panels that list them are
-    // rendered from the app's copy of that list. Refreshing it is a convenience
-    // and is deliberately not awaited or allowed to fail the submission: the
-    // profile exists either way, and a list that could not be re-read must not
-    // cancel the check it was created for.
-    void props.onProfilesChanged().catch(() => undefined);
+    void refreshProfiles();
     resolvedProfileVersion.current = resolved.profile.scanConfigVersion;
     return resolved.profile.id;
   };
@@ -270,6 +420,15 @@ export function useNewScanForm(props: NewScanFormProps) {
     });
   };
 
+  /** Stores what the form holds, and answers with the version it now sits on. */
+  const rememberSavedConfiguration = (updated: SiteProfile | null): number | undefined => {
+    setSavedConfigFingerprint(
+      profileScanConfigFingerprint(updated?.scanConfig ?? currentProfileConfig),
+    );
+    setSavedConfigVersion(updated?.scanConfigVersion ?? (savedConfigVersion ?? 0) + 1);
+    return updated?.scanConfigVersion ?? savedConfigVersion ?? undefined;
+  };
+
   const saveConfiguration = async (): Promise<void> => {
     setSavingConfiguration(true);
     try {
@@ -278,12 +437,9 @@ export function useNewScanForm(props: NewScanFormProps) {
       const updated = unavailablePlanFallback
         ? selected
         : await persistProfileConfiguration(profileId);
-      setSavedConfigFingerprint(
-        profileScanConfigFingerprint(updated?.scanConfig ?? currentProfileConfig),
-      );
-      setSavedConfigVersion(updated?.scanConfigVersion ?? (savedConfigVersion ?? 0) + 1);
+      rememberSavedConfiguration(updated ?? null);
       setCarriedOver(true);
-      await props.onProfilesChanged().catch(() => undefined);
+      await refreshProfiles();
     } catch (caught) {
       props.onError(caught instanceof Error ? caught.message : 'Configuration could not be saved');
     } finally {
@@ -291,7 +447,7 @@ export function useNewScanForm(props: NewScanFormProps) {
     }
   };
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     // A page count of 0 or 2.5 is a typo, and the request it would become asks
     // for a scan nobody chose. It is said here, on the field, rather than left
@@ -307,99 +463,60 @@ export function useNewScanForm(props: NewScanFormProps) {
       if (field instanceof HTMLElement) field.focus();
       return;
     }
+    // The two lists of addresses, for the same reason: a line that is not a URL
+    // would simply be dropped, and the owner would find the page they typed
+    // missing from a report they had already bought.
+    const badSeeds = paidScopeControls ? invalidSeedLines(scope.seedUrls) : [];
+    const badApiChecks = paidScopeControls ? parseApiCheckLines(scope.apiChecks).problems : [];
+    setInvalidSeedUrls(badSeeds);
+    setApiCheckProblems(badApiChecks);
+    if (badSeeds.length > 0 || badApiChecks.length > 0) {
+      const badListField = badSeeds.length > 0 ? 'scan-seed-urls' : 'scan-api-checks';
+      const field = event.currentTarget.elements.namedItem(badListField);
+      if (field instanceof HTMLElement) field.focus();
+      return;
+    }
     setBusy(true);
     try {
       const profileId = await resolveTargetProfileId();
       if (profileId === null) return;
-      let scan: Scan;
       const updated = unavailablePlanFallback
         ? selected
         : await persistProfileConfiguration(profileId);
-      const expectedProfileConfigVersion =
-        updated?.scanConfigVersion ?? savedConfigVersion ?? undefined;
-      setSavedConfigFingerprint(
-        profileScanConfigFingerprint(updated?.scanConfig ?? currentProfileConfig),
-      );
-      setSavedConfigVersion(updated?.scanConfigVersion ?? (savedConfigVersion ?? 0) + 1);
-      await props.onProfilesChanged().catch(() => undefined);
-      // Free sends the settings it will actually run with, not the ones the
-      // form happens to hold; the server stores its own answer either way.
-      const scopePayload = scanScopeFrom(scope, plan);
-      // Basic and Complete include provider-backed AI checks as part of the
-      // purchased audit. The UI presents the data-transfer notice before
-      // checkout; this compatibility field records which notice applied to the
-      // scan so the orchestrator can enforce that contract boundary.
-      const aiConsent =
-        plan === 'Free'
-          ? {}
-          : {
-              aiConsent: {
-                providers: ['anthropic'],
-                noticeVersion: AI_PROCESSING_NOTICE_VERSION,
-              },
-            };
-      if (plan === 'Free') {
-        scan = await apiRequest<Scan>(`/profiles/${profileId}/free-check`, {
-          method: 'POST',
-          body: JSON.stringify({ scope: scopePayload, expectedProfileConfigVersion }),
-        });
-      } else if (props.internalFreeAccess) {
-        // Internal allowlist only: creates a scan without a purchase, and is
-        // refused for everyone else (and in production).
-        scan = await apiRequest<{ scanId: string } & Record<string, unknown>>(
-          '/billing/dev-checkout',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              siteProfileId: profileId,
-              plan,
-              scope: scopePayload,
-              expectedProfileConfigVersion,
-              ...aiConsent,
-            }),
-          },
-        ).then((value) => apiRequest<Scan>(`/scans/${value.scanId}`));
-      } else {
-        // Paid plans hand off to the provider. No scan exists until the signed
-        // provider webhook creates one, so nothing is created here.
-        const session = await apiRequest<CheckoutSession>('/billing/checkout-session', {
-          method: 'POST',
-          body: JSON.stringify({
-            siteProfileId: profileId,
-            plan,
-            scope: scopePayload,
-            expectedProfileConfigVersion,
-            ...aiConsent,
-          }),
-        });
-        // With a popup checkout configured, the FastSpring iframe opens over this
-        // page from `CheckoutPending` and the hosted URL is never opened by us —
-        // it stays only as the link the buyer clicks if the popup could not load.
-        // Without one (the older hosted storefront), the provider page opens in a
-        // tab as before.
-        const storefront = checkoutConfig?.popup?.storefront ?? null;
-        props.onCheckoutStarted({
-          accountId: props.accountId,
-          reference: session.reference,
-          sessionId: session.sessionId,
-          checkoutUrl: session.checkoutUrl,
-          storefront,
-          restored: false,
-          popupBlocked: storefront === null && !openCheckoutWindow(session.checkoutUrl),
-        });
-        return;
-      }
-      props.onCreated(scan);
+      const expectedProfileConfigVersion = rememberSavedConfiguration(updated ?? null);
+      await refreshProfiles();
+      const scan = await requestScan({
+        accountId: props.accountId,
+        profileId,
+        plan,
+        // Free sends the settings it will actually run with, not the ones the
+        // form happens to hold; the server stores its own answer either way.
+        scope: scanScopeFrom(scope, plan),
+        expectedProfileConfigVersion,
+        // The default recipients plus whatever extra ones the owner turned on.
+        // A provider absent from this list receives nothing, and one the
+        // deployment stopped offering while the form was open is dropped rather
+        // than sent to a checkout that refuses it.
+        optInAiProviders: optInAiProviders.filter((provider) =>
+          offeredOptInAiProviders.includes(provider),
+        ),
+        internalFreeAccess: props.internalFreeAccess,
+        storefront: checkoutConfig?.popup?.storefront ?? null,
+        onCheckoutStarted: props.onCheckoutStarted,
+      });
+      // Null means a paid checkout took over and no scan exists yet.
+      if (scan !== null) props.onCreated(scan);
     } catch (caught) {
       props.onError(caught instanceof Error ? caught.message : 'Scan could not be created');
     } finally {
       setBusy(false);
     }
   };
-  const planOptions = [
+
+  const planOptions: readonly PlanOption[] = [
     { value: 'Free', label: t.newScan.planFree },
     ...(paidAvailable
-      ? [
+      ? ([
           {
             value: 'Basic',
             label: props.internalFreeAccess ? t.newScan.planBasicInternal : t.newScan.planBasicPaid,
@@ -410,7 +527,7 @@ export function useNewScanForm(props: NewScanFormProps) {
               ? t.newScan.planCompleteInternal
               : t.newScan.planCompletePaid,
           },
-        ]
+        ] as const)
       : []),
   ];
   // Free is the fixed homepage check: the crawl controls below do not reach it,
@@ -425,42 +542,60 @@ export function useNewScanForm(props: NewScanFormProps) {
     : normalizeSiteAddress(address).ok
       ? address.trim()
       : t.newScan.noAddress;
-  const configurationState = !usingSavedProfile
-    ? 'new'
-    : configLoading
-      ? 'loading'
-      : savedConfigFingerprint === null
-        ? 'new'
-        : configurationDirty
-          ? 'dirty'
-          : 'saved';
-  const configurationStatusLabel =
-    configurationState === 'dirty'
-      ? t.newScan.configurationUnsaved
-      : configurationState === 'new'
-        ? t.newScan.configurationNew
-        : configurationState === 'loading'
-          ? t.newScan.configurationLoading
-          : fillCopy(t.newScan.configurationSaved, {
-              version: savedConfigVersion ?? 1,
-            });
+  const configurationState = configurationStateOf({
+    usingSavedProfile,
+    loading: configLoading,
+    savedFingerprint: savedConfigFingerprint,
+    dirty: configurationDirty,
+  });
   const planLabel = planOptions.find((option) => option.value === plan)?.label ?? plan;
   const launchSite = usingSavedProfile ? targetLabel : address.trim() || '—';
   // The one thing standing between a filled-in form and the checkout, said
   // beside the button rather than only at the checkbox two columns away.
   const robotsUnconfirmed =
     paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed;
+  // Both buttons refuse for the same reasons; saving refuses for two more,
+  // because settings nobody can store are worse than a scan nobody can start.
+  const targetChosen = usingSavedProfile ? target !== '' : address.trim() !== '';
+  const idle = !busy && !savingConfiguration;
+  const canLaunch = idle && targetChosen && !robotsUnconfirmed;
+  const canSave =
+    canLaunch && !unavailablePlanFallback && invalidScopeFields(scope, plan).length === 0;
+  // Who is about to be charged decides both the button and the terms line, so
+  // the two cannot disagree about whether this submission is a purchase.
+  const purchasing = paidScopeControls && !props.internalFreeAccess;
+  const launchLabel = busy
+    ? purchasing
+      ? t.newScan.openingCheckout
+      : t.newScan.creating
+    : paidScopeControls
+      ? props.internalFreeAccess
+        ? t.newScan.runInternal
+        : t.newScan.runPaid
+      : t.newScan.runFree;
+
   return {
     address,
     addressError,
     advancedOpen,
     busy,
+    canLaunch,
+    canSave,
     carriedOver,
     checkoutConfig,
     checkoutPending,
     configurationState,
-    configurationStatusLabel,
+    configurationStatusLabel: configurationStatusLabel(
+      configurationState,
+      props.language,
+      savedConfigVersion,
+    ),
     invalidScope,
+    invalidSeedUrls,
+    apiCheckProblems,
+    offeredOptInAiProviders,
+    optInAiProviders,
+    launchLabel,
     launchSite,
     paidAvailable,
     paidScopeControls,
@@ -468,21 +603,19 @@ export function useNewScanForm(props: NewScanFormProps) {
     planLabel,
     planOptions,
     robotsUnconfirmed,
-    saveConfiguration,
     savingConfiguration,
     scope,
-    setAddress,
-    setAddressError,
-    setAdvancedChoice,
-    setInvalidScope,
-    setPlan,
-    setScope,
-    setTarget,
-    submit,
+    showsPurchaseTerms: purchasing,
     target,
     targetLabel,
-    unavailablePlanFallback,
-    updateScope,
     usingSavedProfile,
+    chooseTarget: setTarget,
+    choosePlan,
+    editAddress,
+    toggleAdvanced: setAdvancedChoice,
+    updateScope,
+    toggleOptInAiProvider,
+    saveConfiguration,
+    submit,
   };
 }

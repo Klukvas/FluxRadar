@@ -21,6 +21,22 @@ export default tseslint.config(
     },
   },
   {
+    // Fixture-site scripts: served verbatim to a real browser by the crawler's
+    // local test site, so they are browser code, not workspace code.
+    files: ['packages/crawler/fixtures/**/*.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: {
+        document: 'readonly',
+        globalThis: 'readonly',
+        location: 'readonly',
+        navigator: 'readonly',
+        WebSocket: 'readonly',
+        window: 'readonly',
+      },
+    },
+  },
+  {
     // Deploy-time Node scripts: plain CommonJS, run by `node <file>` inside a
     // release image rather than bundled or type-checked with the app.
     files: ['deploy/**/*.cjs'],

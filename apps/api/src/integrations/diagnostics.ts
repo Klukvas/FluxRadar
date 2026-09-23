@@ -14,6 +14,9 @@ import { readTelegramConfig } from '../support/telegram-config.ts';
 import { readAnthropicConfig } from './anthropic-config.ts';
 import { readObjectStorageConfig } from './object-storage-config.ts';
 import { readOAuthConfig } from './oauth-config.ts';
+import { readOpenAiConfig } from './openai-config.ts';
+import { readGeminiConfig, readPerplexityConfig } from './opt-in-ai-config.ts';
+import { KEYLESS_AUDIT_LIMITS } from './performance/index.ts';
 
 export type IntegrationStatusState = 'configured' | 'not_configured' | 'invalid';
 
@@ -25,6 +28,9 @@ export interface IntegrationStatus {
 }
 
 const SINGLE_KEY_INTEGRATIONS = [{ integration: 'crux', variable: 'CRUX_API_KEY' }] as const;
+
+/** Absent, this does not turn PageSpeed off — it makes the audit smaller. */
+const PAGESPEED_KEY_VARIABLE = 'PAGESPEED_API_KEY';
 
 function trimmed(value: string | undefined): string | null {
   const result = value?.trim() ?? '';
@@ -45,9 +51,14 @@ export function readIntegrationStatuses(
   return [
     status('storage', readObjectStorageConfig(env)),
     status('anthropic', readAnthropicConfig(env)),
-    // PageSpeed Insights is usable without a key. PAGESPEED_API_KEY only
-    // raises the platform quota, so the provider is enabled even when it is
-    // absent from the environment.
+    status('openai', readOpenAiConfig(env)),
+    // Opt-in recipients. "configured" here means "an opt-in scan could reach
+    // them", not "scans use them": nothing selects these two on its own.
+    status('google-ai', readGeminiConfig(env)),
+    status('perplexity', readPerplexityConfig(env)),
+    // PageSpeed Insights is usable without a key, so the provider is enabled
+    // even when PAGESPEED_API_KEY is absent — but the audit it runs is then the
+    // reduced keyless one, which `logPerformanceAuditMode` states separately.
     status('pagespeed', { state: 'configured' }),
     ...SINGLE_KEY_INTEGRATIONS.map(({ integration, variable }) =>
       status(integration, {
@@ -91,4 +102,28 @@ export function logIntegrationStatuses(
       });
     }
   }
+}
+
+/**
+ * States which Performance audit this deployment will actually run.
+ *
+ * `pagespeed` is reported as configured with or without a key, because the
+ * provider does answer either way. What changes is the size of the audit: Google
+ * throttles keyless callers rather than granting them a quota, so the audit
+ * falls back to one measured page on one device (KEYLESS_AUDIT_LIMITS). An
+ * operator who has not been told that reads the smaller Performance section as a
+ * defect in the product instead of a missing variable.
+ */
+export function logPerformanceAuditMode(
+  logger: ApiLogger,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (trimmed(env[PAGESPEED_KEY_VARIABLE]) !== null) return;
+  logger.warn('performance audit runs in its reduced keyless mode', {
+    variable: PAGESPEED_KEY_VARIABLE,
+    maxUrls: KEYLESS_AUDIT_LIMITS.maxUrls,
+    devices: 1,
+    samplesPerTarget: KEYLESS_AUDIT_LIMITS.samplesPerTarget,
+    maxRequests: KEYLESS_AUDIT_LIMITS.maxRequests,
+  });
 }

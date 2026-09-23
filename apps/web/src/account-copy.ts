@@ -81,15 +81,14 @@ export const accountCopy: Record<Language, AccountCopy> = {
       status: 'Status',
       verified: 'Confirmed',
       unverified: 'Not confirmed',
-      unverifiedBody:
-        'Confirm your address so receipts, report notifications and password resets reach you.',
+      unverifiedBody: 'Confirm your address so payment and password emails reach you.',
       resend: 'Send the confirmation email again',
       resending: 'Sending…',
       resent: (email) => `Sent to ${email}. The link is valid for 24 hours.`,
     },
     banner: {
       body: (email) =>
-        `Confirm your email: we sent a link to ${email}. Receipts and "report ready" emails go there.`,
+        `Confirm your email: we sent a link to ${email}. Payment and password emails go there.`,
       resend: 'Send again',
       dismiss: 'Hide',
     },
@@ -124,12 +123,12 @@ export const accountCopy: Record<Language, AccountCopy> = {
     },
     emails: {
       heading: 'Emails we send',
-      lead: (email) => `FluxRadar writes to ${email} only about your own purchases and scans:`,
+      lead: (email) =>
+        `FluxRadar writes to ${email} about your account and payments only — a scan's own progress stays in the app:`,
       items: [
-        'a receipt when a payment is confirmed',
-        'when a paid scan starts and when its report is ready',
-        'if a scan fails, and what happens to the payment',
+        'when a payment is confirmed and your scan can run',
         'when a refund is issued',
+        'the confirmation and password-reset links you ask for',
       ],
     },
     deletion: {
@@ -154,15 +153,14 @@ export const accountCopy: Record<Language, AccountCopy> = {
       status: 'Статус',
       verified: 'Підтверджено',
       unverified: 'Не підтверджено',
-      unverifiedBody:
-        'Підтвердьте адресу, щоб до вас доходили чеки, повідомлення про звіти та скидання пароля.',
+      unverifiedBody: 'Підтвердьте адресу, щоб до вас доходили листи про оплати та пароль.',
       resend: 'Надіслати лист підтвердження ще раз',
       resending: 'Надсилаємо…',
       resent: (email) => `Надіслано на ${email}. Посилання дійсне 24 години.`,
     },
     banner: {
       body: (email) =>
-        `Підтвердьте email: ми надіслали посилання на ${email}. Туди приходять чеки та листи «звіт готовий».`,
+        `Підтвердьте email: ми надіслали посилання на ${email}. Туди приходять листи про оплати та пароль.`,
       resend: 'Надіслати ще раз',
       dismiss: 'Сховати',
     },
@@ -197,12 +195,12 @@ export const accountCopy: Record<Language, AccountCopy> = {
     },
     emails: {
       heading: 'Які листи ми надсилаємо',
-      lead: (email) => `FluxRadar пише на ${email} лише про ваші покупки й перевірки:`,
+      lead: (email) =>
+        `FluxRadar пише на ${email} лише про акаунт і оплати — хід самої перевірки видно в застосунку:`,
       items: [
-        'чек, коли оплату підтверджено',
-        'коли платна перевірка почалася і коли звіт готовий',
-        'якщо перевірка не вдалася — і що буде з оплатою',
+        'коли оплату підтверджено і перевірку можна запускати',
         'коли оформлено повернення коштів',
+        'посилання для підтвердження email і зміни пароля, коли ви їх запросили',
       ],
     },
     deletion: {

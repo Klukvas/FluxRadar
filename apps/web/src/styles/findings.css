@@ -210,3 +210,40 @@
   border-color: #8a5b00;
   background: #fff4de;
 }
+
+/* The AI Action Plan block. A settled Action stays on screen but steps back:
+   it is done with, not gone, and the plan's order still has to make sense. */
+.action-plan__overview {
+  font-size: 15px;
+}
+.action-plan__actions,
+.action-plan__steps {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 0;
+  padding-left: var(--sp-4);
+}
+.action-plan__action {
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--plat-400);
+}
+.action-plan__action--settled {
+  opacity: 0.72;
+}
+.action-plan__rules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.action-plan__caveat,
+.action-plan__reach,
+.action-plan__meta,
+.action-plan__consent,
+.action-plan__running,
+.action-plan__refusal,
+.action-plan__failed {
+  margin: var(--sp-2) 0 0;
+  font-size: 12px;
+}

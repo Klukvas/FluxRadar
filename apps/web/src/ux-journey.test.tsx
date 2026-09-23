@@ -401,7 +401,7 @@ describe('a Free report', () => {
     window.history.replaceState(null, '', `/scans/${freeScan.id}`);
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Client report (PDF)' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Printable report' }));
 
     await waitFor(() => expect(window.location.pathname).toBe(`/scans/${freeScan.id}/report`));
     expect(

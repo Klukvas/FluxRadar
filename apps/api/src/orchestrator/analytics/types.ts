@@ -27,6 +27,16 @@ export interface AnalyticsCheck {
   readonly applicableTargets: number;
   readonly affectedTargets: number;
   readonly findings: readonly AnalyticsFinding[];
+  /**
+   * What the check actually judged, in the normalization its findings use: page
+   * URLs for a page-level check, the site origin for a site-level one.
+   *
+   * This is the proof the next scan needs before it may call one of these
+   * findings fixed (§14, run-coverage.ts). A disconnected integration, a
+   * property with no data, or a crawl that never reached the page all make a
+   * finding disappear without anything being fixed, and an empty list says so.
+   */
+  readonly checkedTargets?: readonly string[];
 }
 
 /** A finding of another section, reduced to what the top-pages check matches on. */
@@ -71,6 +81,8 @@ export function siteCheck(
     ran: true,
     applicableTargets: 1,
     affectedTargets: found === null ? 0 : 1,
+    // The judged target is the site itself: the check had its source's data.
+    checkedTargets: [input.origin],
     findings:
       found === null
         ? []

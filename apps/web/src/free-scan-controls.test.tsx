@@ -147,6 +147,7 @@ describe('free plan controls', () => {
         includeSubdomains: false,
         maxPages: 1,
         maxDepth: 0,
+        renderJs: false,
         queryPolicy: 'ignore',
         respectRobots: true,
         robotsOverrideConfirmed: false,
@@ -267,8 +268,8 @@ describe('paid plan controls', () => {
       siteProfileId: profile.id,
       plan: 'Complete',
       aiConsent: {
-        providers: ['anthropic'],
-        noticeVersion: 'core-ai-processing-notice-v3',
+        providers: ['anthropic', 'openai'],
+        noticeVersion: 'core-ai-processing-notice-v4',
       },
       scope: {
         includeSubdomains: true,
@@ -306,6 +307,7 @@ describe('paid plan controls', () => {
         includeSubdomains: false,
         maxPages: 1,
         maxDepth: 0,
+        renderJs: false,
         queryPolicy: 'ignore',
         respectRobots: true,
         robotsOverrideConfirmed: false,
@@ -412,6 +414,29 @@ describe('what a callout discloses before the purchase', () => {
     expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).toBeVisible();
     expect(screen.getByText(/do not connect a Google account/)).toBeVisible();
     expect(screen.getByText(/reads the site’s public robots\.txt/)).not.toBeVisible();
+  });
+
+  // `defaultOpen` is applied when the screen mounts and never again, so the
+  // reader owns the fold from then on. What that may not cost is the next
+  // purchase: someone who folded the disclosure away must meet it open when
+  // they come back to buy, rather than carrying their fold into a new scan.
+  it('opens the AI-processing disclosure again on the next visit', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+    const disclosure = screen
+      .getByText(/instruct FluxRadar to use Anthropic/)
+      .closest('details') as HTMLDetailsElement;
+    // What a click on the summary does, without relying on the environment to
+    // implement the summary's own default behaviour.
+    disclosure.open = false;
+    fireEvent(disclosure, new Event('toggle'));
+    expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).not.toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'New scan' }))[0] as HTMLElement);
+
+    await screen.findByText('New scan — scope and tariff');
+    expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).toBeVisible();
   });
 
   it('opens the AI-processing disclosure in Ukrainian too', async () => {

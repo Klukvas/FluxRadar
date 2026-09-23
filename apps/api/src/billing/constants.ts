@@ -15,6 +15,15 @@ export const STATUS_REASONS = {
   externalModuleFailure: 'ExternalModuleFailure',
   /** Partial: modules usable but not all applicable checks are closed (§18). */
   incompleteChecks: 'IncompleteChecks',
+  /**
+   * Paused, and what the scan was doing when it stopped. The distinction is not
+   * cosmetic: cancelling a scan paused before it was queued is still a
+   * pre-queue cancellation and still refunds in full (§18), which the status
+   * alone could no longer tell.
+   */
+  pausedPreQueue: 'UserPausedBeforeQueue',
+  pausedAfterQueue: 'UserPausedAfterQueue',
+  pausedAfterStart: 'UserPausedAfterStart',
 } as const;
 
 export const JOB_TYPES = { scan: 'scan' } as const;
@@ -22,6 +31,8 @@ export const JOB_TYPES = { scan: 'scan' } as const;
 export const JOB_STATUSES = {
   pending: 'Pending',
   claimed: 'Claimed',
+  /** Parked while its scan is paused: the drain skips it, nothing else changes. */
+  paused: 'Paused',
   done: 'Done',
 } as const;
 

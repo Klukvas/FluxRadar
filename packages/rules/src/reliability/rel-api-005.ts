@@ -8,6 +8,8 @@
 // сконфигурированные проверки (policy-скан прошёл над каждой); negative —
 // проверки с чистыми заголовками. parameter = первый offending заголовок.
 
+import { normalizeUrl } from '@fluxradar/fingerprint';
+
 import { requireDescriptor } from '../engine/descriptor.js';
 import { apiFinding } from '../engine/finding.js';
 import type {
@@ -35,6 +37,9 @@ export const relApi005NoCredentials: ApiRule = {
       findings,
       applicableTargets: checks.length,
       affectedTargets: findings.length,
+      // Policy-скан проходит над каждой сконфигурированной проверкой, поэтому
+      // проверенные цели — все они, а не только выполненные запросы.
+      checkedTargets: checks.map((check) => normalizeUrl(check.url)),
     };
   },
 };

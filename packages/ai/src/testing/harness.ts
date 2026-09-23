@@ -3,6 +3,7 @@
 // Вопросы фабрик согласованы с geoVisibilityFixtures: «best…» матчит фикстуру
 // с брендом и ссылкой, «alternatives…» — фикстуру без бренда и без ссылки.
 
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '../consent.js';
 import type { AiConsent } from '../consent.js';
 import { MOCK_FIXED_TIME_ISO } from '../mock-provider.js';
 import type { AiRequestOutcome, AiResponseOutcome } from '../run-request.js';
@@ -30,18 +31,21 @@ export function makeRequest(overrides: Partial<AiRequest> = {}): AiRequest {
   };
 }
 
+/**
+ * Consent as the product writes it today. The notice is the CURRENT one on
+ * purpose: `ensureConsent` fails closed on a version this release does not
+ * publish, so a made-up string would make every fixture a consent test.
+ */
 export function makeConsent(overrides: Partial<AiConsent> = {}): AiConsent {
   return {
     scanId: SCAN_ID,
     providers: ['openai'],
-    noticeVersion: 'notice-v1',
+    noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
     ...overrides,
   };
 }
 
-export function makeResponse(
-  overrides: Partial<NormalizedAiResponse> = {},
-): NormalizedAiResponse {
+export function makeResponse(overrides: Partial<NormalizedAiResponse> = {}): NormalizedAiResponse {
   return {
     provider: 'openai',
     apiVersion: 'v1',

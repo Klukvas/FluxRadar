@@ -4,10 +4,12 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
- * Changed when the policy gained the section on how Google user data is
- * protected, which Google's OAuth verification requires the policy to state.
+ * Changed when OpenAI became an active AI recipient beside Anthropic, Google
+ * and Perplexity became opt-in recipients, and the AI Action Plan was added as
+ * an AI purpose. The previous date, 16 September 2026, was the section on how
+ * Google user data is protected, which Google's OAuth verification requires.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '16 вересня 2026 року', en: '16 September 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '23 вересня 2026 року', en: '23 September 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -146,11 +148,21 @@ function UkrainianPrivacy(): JSX.Element {
         </p>
         <p>
           Платні аудити включають застосовний AI‑аналіз: Basic — AI SEO / GEO, Complete — AI SEO /
-          GEO та UX/Conversion. До оплати й запуску помітний дисклеймер називає активного провайдера
-          та пояснює передачу публічних сторінок і введеного контексту. На дату цієї Політики
-          production‑адаптер використовує Anthropic. OpenAI може бути доданий лише після оновлення
-          цього повідомлення; ми не стверджуємо, що він уже отримує дані. Дані акаунта, оплати,
-          повний номер картки та Google/Bing tokens не входять до AI‑запиту.
+          GEO, UX/Conversion і AI‑план дій на вимогу. До оплати й запуску помітний дисклеймер
+          називає активних провайдерів та пояснює передачу публічних сторінок і введеного контексту.
+          На дату цієї Політики запитання про видимість отримують <strong>Anthropic</strong> і{' '}
+          <strong>OpenAI</strong>, обидва — з увімкненим власним вебпошуком; UX/Conversion і AI‑план
+          дій отримує лише Anthropic. <strong>Google (Gemini)</strong> і <strong>Perplexity</strong>{' '}
+          доступні як необовʼязковий вибір перед оплатою: вони не отримують нічого, доки ви не
+          оберете їх для конкретної перевірки, і цей вибір зберігається разом із нею. Дані акаунта,
+          оплати, повний номер картки та Google/Bing tokens не входять до AI‑запиту.
+        </p>
+        <p>
+          AI‑план дій (Complete) надсилає до Anthropic лише метадані правил цього звіту:
+          ідентифікатор і назву правила, розділ, найвищу відкриту серйозність, кількість відкритих
+          знахідок, до трьох адрес сторінок без query та fragment, рекомендації правила й статуси
+          розділів. Уривки доказів, знімки екрана та будь‑що з розділу «Аналітика» (дані Google) не
+          надсилаються.
         </p>
         <p>
           GEO може надсилати нейтралізований контекст для створення discovery questions без назви й
@@ -188,10 +200,24 @@ function UkrainianPrivacy(): JSX.Element {
             .
           </li>
           <li>
-            <strong>OpenAI</strong> не використовується поточним production‑адаптером. Якщо його
-            буде підключено, активний pre‑purchase notice і ця Політика будуть оновлені до першої
-            передачі. Див.{' '}
-            <a href="https://openai.com/policies/privacy-policy/">Privacy Policy OpenAI</a>.
+            <strong>OpenAI</strong> — активний AI‑провайдер для запитань про видимість. Кожен запит
+            надсилається з <code>store: false</code>; за замовчуванням дані API не використовуються
+            для навчання, копія може зберігатися до 30 днів для моніторингу зловживань, і ми не
+            обіцяємо zero retention (вебпошук не підпадає під ZDR). Див.{' '}
+            <a href="https://developers.openai.com/api/docs/guides/your-data">
+              OpenAI API data controls
+            </a>{' '}
+            і <a href="https://openai.com/policies/privacy-policy/">Privacy Policy OpenAI</a>.
+          </li>
+          <li>
+            <strong>Google (Gemini)</strong> і <strong>Perplexity</strong> — необовʼязкові
+            отримувачі. Вони не отримують нічого, доки ви явно не оберете їх перед оплатою; тоді
+            вони отримують рівно те саме, що Anthropic і OpenAI. Див.{' '}
+            <a href="https://ai.google.dev/gemini-api/terms">Gemini API Terms</a> і{' '}
+            <a href="https://www.perplexity.ai/hub/legal/privacy-policy">
+              Privacy Policy Perplexity
+            </a>
+            .
           </li>
           <li>
             <strong>FastSpring</strong> — merchant of record і checkout provider. Див.{' '}
@@ -399,12 +425,22 @@ function EnglishPrivacy(): JSX.Element {
         </p>
         <p>
           Paid audits include the applicable AI analysis: Basic includes AI SEO / GEO, while
-          Complete includes AI SEO / GEO and UX/Conversion. Before payment and launch, a prominent
-          disclaimer names the active provider and explains the transfer of public pages and
-          supplied project context. At this Policy’s effective date the production adapter uses
-          Anthropic. OpenAI may be added only after that notice is updated; we do not claim it
-          currently receives data. Account details, payment data, the full card number and
-          Google/Bing tokens are not AI inputs.
+          Complete includes AI SEO / GEO, UX/Conversion and the AI Action Plan you can ask for.
+          Before payment and launch, a prominent disclaimer names the active providers and explains
+          the transfer of public pages and supplied project context. At this Policy’s effective date
+          the visibility questions go to <strong>Anthropic</strong> and <strong>OpenAI</strong>,
+          both answering with their own web search enabled; UX/Conversion and the AI Action Plan go
+          to Anthropic only. <strong>Google (Gemini)</strong> and <strong>Perplexity</strong> are an
+          opt-in choice made before purchase: they receive nothing at all unless you select them for
+          a particular audit, and that choice is stored with it. Account details, payment data, the
+          full card number and Google/Bing tokens are not AI inputs.
+        </p>
+        <p>
+          The AI Action Plan (Complete) sends Anthropic the report’s rule metadata only: the rule id
+          and title, the section, the highest open severity, the number of open findings, up to
+          three page addresses with query and fragment removed, the rule’s recommendations and the
+          section statuses. It never sends evidence excerpts, screenshots, or anything from the
+          Analytics section, which is Google data.
         </p>
         <p>
           GEO can send neutralized context to generate discovery questions without the name or
@@ -442,9 +478,24 @@ function EnglishPrivacy(): JSX.Element {
             .
           </li>
           <li>
-            <strong>OpenAI</strong> is not used by the current production adapter. If enabled, the
-            active pre-purchase notice and this Policy will be updated before the first transfer.
-            See <a href="https://openai.com/policies/privacy-policy/">OpenAI Privacy Policy</a>.
+            <strong>OpenAI</strong> is an active AI provider for the visibility questions. Every
+            request is sent with <code>store: false</code>; by default API inputs are not used for
+            training, an abuse-monitoring copy may be kept for up to 30 days, and we do not promise
+            zero provider retention (web search is not ZDR-eligible). See{' '}
+            <a href="https://developers.openai.com/api/docs/guides/your-data">
+              OpenAI API data controls
+            </a>{' '}
+            and <a href="https://openai.com/policies/privacy-policy/">OpenAI Privacy Policy</a>.
+          </li>
+          <li>
+            <strong>Google (Gemini)</strong> and <strong>Perplexity</strong> are opt-in recipients.
+            They receive nothing unless you select them before purchase; when you do, they receive
+            exactly what Anthropic and OpenAI receive. See the{' '}
+            <a href="https://ai.google.dev/gemini-api/terms">Gemini API Terms</a> and the{' '}
+            <a href="https://www.perplexity.ai/hub/legal/privacy-policy">
+              Perplexity Privacy Policy
+            </a>
+            .
           </li>
           <li>
             <strong>FastSpring</strong> is the merchant of record and checkout provider. See the{' '}

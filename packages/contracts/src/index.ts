@@ -5,4 +5,6 @@ export * from './tariffs.js';
 export * from './ruleset.js';
 export * from './records.js';
 export * from './api.js';
+export * from './domain-verification.js';
 export * from './statuses.js';
+export * from './action-plan.js';

@@ -5,44 +5,54 @@
 // check it ran and what each one found. The AI SEO / GEO section lists what
 // robots.txt lets AI crawlers read, how ready its pages are to be quoted, and
 // the questions it put to the AI provider together with the answers.
-// Performance lists each measurement against its threshold, UX/Conversion
-// adds what the page HTML showed and whether its AI review ran, and Analytics
-// adds what its checks concluded and the Google data they read.
+// Performance lists every page it measured, on both emulated devices, with how
+// many runs each figure came from; UX/Conversion adds what the page HTML showed
+// and whether its AI review ran; and Analytics adds what its checks concluded
+// plus the Google and Bing data they read, each in its own panel.
 //
 // Everything is read from what the audit recorded, never filled in from the
 // plan: a scan run before a field existed shows less, not something assumed.
 
 import { AnalyticsDetails } from './AnalyticsChecks';
 import type { GeoObservation, ScanModule } from './api';
+import { BingDataPanel, bingSectionIn } from './BingDataPanel';
 import { CheckRow } from './CheckRow';
 import { GoogleDataPanel, googleSnapshotIn } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
 import {
+  apiCheckOutcomesOf,
   geoChecksOf,
+  renderingStateOf,
   ruleCheckResult,
   ruleChecksOf,
   uxChecksOf,
   type AiCrawlerStatus,
+  type ApiCheckOutcome,
   type GeoChecks,
   type PageReadiness,
   type QueryGeneration,
+  type RenderingState,
   type RuleCheck,
+  type RuleCheckOutcome,
   type RuleCheckResult,
   type UxChecks,
 } from './module-metadata';
-import { performanceChecksOf } from './performance-checks';
+import { performanceAuditOf, performanceChecksOf } from './performance-checks';
 import { PerformanceChecksBody } from './PerformanceChecks';
+import { ANALYTICS_MODULE } from './rule-titles';
 
 const GEO_MODULE = 'AI SEO / GEO';
 const PERFORMANCE_MODULE = 'Performance';
 const UX_MODULE = 'UX/Conversion';
-const ANALYTICS_MODULE = 'Analytics';
 
 /** Class suffix per result. The colour repeats the word beside it, never replaces it. */
 const RESULT_CLASS: Readonly<Record<RuleCheckResult, string>> = {
   passed: 'passed',
   issues: 'issues',
   noted: 'noted',
+  // Unchecked is not a pass and not a failure: it reads as the same muted row
+  // as a check nobody needed, with the word beside it saying which it was.
+  notChecked: 'skipped',
   notApplicable: 'skipped',
 };
 
@@ -61,16 +71,31 @@ export function hasModuleChecks(
     return observations.length > 0 || geoChecksOf(module.metadata) !== null;
   }
   if (module.module === PERFORMANCE_MODULE) {
-    return performanceChecksOf(module.metadata) !== null;
+    // Either generation of stored row is openable: the bounded audit, or the flat
+    // snapshot a report written before it carries.
+    return (
+      performanceAuditOf(module.metadata) !== null || performanceChecksOf(module.metadata) !== null
+    );
   }
   if (module.module === UX_MODULE) {
     return ruleChecksOf(module.metadata).length > 0 || uxChecksOf(module.metadata) !== null;
   }
   if (module.module === ANALYTICS_MODULE) {
-    // A report from before the Analytics checks still opens to its Google data.
-    return ruleChecksOf(module.metadata).length > 0 || googleSnapshotIn(module) !== null;
+    // A report from before the Analytics checks still opens to its provider data,
+    // and a deployment with Bing but no Google grant still has something to show.
+    return (
+      ruleChecksOf(module.metadata).length > 0 ||
+      googleSnapshotIn(module) !== null ||
+      bingSectionIn(module) !== null
+    );
   }
-  return ruleChecksOf(module.metadata).length > 0;
+  // The endpoints and the rendering note are openable on their own: a section
+  // whose rule list is empty can still have something recorded to show.
+  return (
+    ruleChecksOf(module.metadata).length > 0 ||
+    apiCheckOutcomesOf(module.metadata).length > 0 ||
+    renderingStateOf(module.metadata) !== null
+  );
 }
 
 /** The id a card's toggle points at; stable per section name. */
@@ -127,8 +152,108 @@ function ModuleChecksBody(props: {
     case ANALYTICS_MODULE:
       return <AnalyticsChecksBody module={props.module} language={props.language} />;
     default:
-      return <RuleChecksList checks={ruleChecksOf(metadata)} language={props.language} />;
+      return (
+        <>
+          {/* Which DOM the rules read, before the rules themselves: every
+              result below is a statement about that markup. */}
+          <RenderingNote state={renderingStateOf(metadata)} language={props.language} />
+          <RuleChecksList checks={ruleChecksOf(metadata)} language={props.language} />
+          <ApiChecksList checks={apiCheckOutcomesOf(metadata)} language={props.language} />
+        </>
+      );
   }
+}
+
+/**
+ * What a requested JS render actually did.
+ *
+ * Nothing is drawn when rendering was not asked for. When it was asked for and
+ * could not run, the note is the whole point: the section read the server's
+ * HTML, and saying nothing would let a reader take an empty single-page app for
+ * an empty page.
+ */
+function RenderingNote(props: { state: RenderingState | null; language: Language }) {
+  const t = copy[props.language].report.checks;
+  const { state } = props;
+  if (state === null) return null;
+  if (state.status === 'Unavailable') {
+    return (
+      <p className="muted">
+        {fillCopy(t.renderUnavailable, { reason: state.reason ?? t.renderReasonUnknown })}
+      </p>
+    );
+  }
+  return (
+    <p className="muted">
+      {fillCopy(t.renderUsed, {
+        engine: state.engine ?? '—',
+        rendered: state.renderedPages ?? 0,
+        unrendered: state.unrenderedPages ?? 0,
+      })}
+      {(state.incompletePages ?? 0) > 0 ? (
+        <>
+          {' '}
+          {fillCopy(t.renderIncomplete, {
+            incomplete: state.incompletePages ?? 0,
+            reasons: state.incompleteReasons.join(', '),
+          })}
+        </>
+      ) : null}
+    </p>
+  );
+}
+
+/** The configured endpoints and what each answered. */
+function ApiChecksList(props: { checks: readonly ApiCheckOutcome[]; language: Language }) {
+  const t = copy[props.language].report.checks;
+  if (props.checks.length === 0) return null;
+  return (
+    <>
+      <p className="muted">{t.apiLead}</p>
+      <ul className="module-checks__list">
+        {props.checks.map((check) => (
+          <CheckRow
+            key={`${check.method} ${check.url}`}
+            resultClass={RESULT_CLASS[apiCheckResult(check)]}
+            resultLabel={resultLabel(apiCheckResult(check), props.language)}
+            title={`${check.method} ${check.url}`}
+            detail={apiCheckDetail(check, props.language)}
+          />
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/**
+ * A check with no response is not a failure of the endpoint: the request was
+ * refused or never completed, and the section says so rather than scoring it.
+ *
+ * Which of the two silences it was matters. An endpoint on another site was
+ * never part of this audit — that one really is not applicable. One that timed
+ * out *was* a target, and it is what lowered the section's own coverage, so it
+ * is shown as unchecked rather than as something nobody needed to look at.
+ */
+function apiCheckResult(check: ApiCheckOutcome): RuleCheckResult {
+  if (check.status === null) return check.applicable ? 'notChecked' : 'notApplicable';
+  const expected = check.expectedStatus;
+  const matched =
+    expected.length === 0
+      ? check.status >= 200 && check.status < 300
+      : expected.includes(check.status);
+  return matched ? 'passed' : 'issues';
+}
+
+function apiCheckDetail(check: ApiCheckOutcome, language: Language): string {
+  const t = copy[language].report.checks;
+  if (check.status === null) {
+    return fillCopy(t.apiNoResponse, { reason: check.skippedReason ?? t.renderReasonUnknown });
+  }
+  return fillCopy(t.apiAnswered, {
+    status: check.status,
+    expected: check.expectedStatus.length === 0 ? '2xx' : check.expectedStatus.join('/'),
+    timing: check.timingMs ?? 0,
+  });
 }
 
 function RuleChecksList(props: {
@@ -206,6 +331,9 @@ function AnalyticsChecksBody(props: { module: ScanModule; language: Language }) 
   const t = copy[props.language].report.checks;
   const checks = ruleChecksOf(props.module.metadata);
   const snapshot = googleSnapshotIn(props.module);
+  // Bing sits after Google and stays a panel of its own: the section is scored on
+  // the Google checks, and Bing is read-only context beside them.
+  const bing = bingSectionIn(props.module);
   const someDidNotRun =
     checks.length > 0 &&
     props.module.completedApplicableChecks !== null &&
@@ -219,6 +347,7 @@ function AnalyticsChecksBody(props: { module: ScanModule; language: Language }) 
       {someDidNotRun ? <p className="muted">{t.analyticsNotRan}</p> : null}
       <AnalyticsDetails module={props.module} language={props.language} />
       {snapshot === null ? null : <GoogleDataPanel snapshot={snapshot} language={props.language} />}
+      {bing === null ? null : <BingDataPanel section={bing} language={props.language} />}
     </>
   );
 }
@@ -260,6 +389,7 @@ function resultLabel(result: RuleCheckResult, language: Language): string {
     passed: t.resultPassed,
     issues: t.resultIssues,
     noted: t.resultNoted,
+    notChecked: t.resultNotChecked,
     notApplicable: t.resultNotApplicable,
   };
   return labels[result];
@@ -276,7 +406,7 @@ function checkTitle(check: RuleCheck, language: Language): string {
   return titles[check.ruleId] ?? check.title.charAt(0).toUpperCase() + check.title.slice(1);
 }
 
-function checkDetail(check: RuleCheck, result: RuleCheckResult, language: Language): string {
+function checkDetail(check: RuleCheck, result: RuleCheckOutcome, language: Language): string {
   const t = copy[language].report.checks;
   const counts = { affected: check.affectedTargets, applicable: check.applicableTargets };
   const perPage = check.targetKind === 'page';
@@ -319,20 +449,95 @@ function GeoChecksBody(props: {
         ) : (
           <>
             <p className="muted">{report.geoObservationsLead}</p>
-            <div className="geo-observations__grid">
-              {props.observations.map((observation, index) => (
-                <GeoObservationCard
-                  key={`${observation.purpose}:${index}:${observation.question}`}
-                  observation={observation}
-                  language={props.language}
-                />
-              ))}
-            </div>
+            {groupObservationsByProvider(props.observations).map((group) => (
+              <section className="geo-observations__provider" key={group.provider ?? 'unknown'}>
+                <h5 className="module-checks__subheading">
+                  {providerDisplayName(group.provider, props.language)}
+                  {group.modelId === null ? null : (
+                    <small className="technical"> · {group.modelId}</small>
+                  )}
+                </h5>
+                <p className="muted">{mentionCountsLine(group, props.language)}</p>
+                <div className="geo-observations__grid">
+                  {group.observations.map((observation, index) => (
+                    <GeoObservationCard
+                      key={`${observation.purpose}:${index}:${observation.question}`}
+                      observation={observation}
+                      language={props.language}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
           </>
         )}
       </div>
     </>
   );
+}
+
+/** Report order: what customers ask about first, then the rest as they come. */
+const GEO_PROVIDER_ORDER: readonly string[] = ['openai', 'anthropic', 'google', 'perplexity'];
+
+interface GeoProviderGroup {
+  readonly provider: string | null;
+  readonly modelId: string | null;
+  readonly observations: readonly GeoObservation[];
+}
+
+/**
+ * Observations per provider.
+ *
+ * A report written before providers were recorded on unavailable rows has a
+ * null provider there; those land in one trailing group instead of being
+ * attributed to whichever model happens to be first.
+ */
+function groupObservationsByProvider(
+  observations: readonly GeoObservation[],
+): readonly GeoProviderGroup[] {
+  const byProvider = new Map<string | null, GeoObservation[]>();
+  for (const observation of observations) {
+    const key = observation.provider;
+    const existing = byProvider.get(key);
+    if (existing === undefined) byProvider.set(key, [observation]);
+    else existing.push(observation);
+  }
+  return [...byProvider.entries()]
+    .map(([provider, grouped]): GeoProviderGroup => ({
+      provider,
+      modelId: grouped.find((observation) => observation.modelId !== null)?.modelId ?? null,
+      observations: grouped,
+    }))
+    .sort((left, right) => providerRank(left.provider) - providerRank(right.provider));
+}
+
+function providerRank(provider: string | null): number {
+  if (provider === null) return GEO_PROVIDER_ORDER.length + 1;
+  const index = GEO_PROVIDER_ORDER.indexOf(provider);
+  return index === -1 ? GEO_PROVIDER_ORDER.length : index;
+}
+
+function providerDisplayName(provider: string | null, language: Language): string {
+  const t = copy[language].report;
+  if (provider === null) return t.geoProviderUnknown;
+  const names: Readonly<Record<string, string>> = {
+    openai: t.geoProviderOpenai,
+    anthropic: t.geoProviderAnthropic,
+    google: t.geoProviderGoogle,
+    perplexity: t.geoProviderPerplexity,
+  };
+  return names[provider] ?? provider;
+}
+
+/** "Brand mentioned in n of m answers · domain referenced in n of m". */
+function mentionCountsLine(group: GeoProviderGroup, language: Language): string {
+  const t = copy[language].report;
+  const answered = group.observations.filter((observation) => observation.mentions !== null);
+  return fillCopy(t.geoMentionCounts, {
+    brand: answered.filter((observation) => observation.mentions?.brand === true).length,
+    domain: answered.filter((observation) => observation.mentions?.domain === true).length,
+    total: answered.length,
+  });
 }
 
 /**

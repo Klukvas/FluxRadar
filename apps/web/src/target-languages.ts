@@ -9,8 +9,14 @@
 
 import type { Language } from './i18n';
 
-/** ISO 639-1 codes, in the order the picker lists them. */
-const LANGUAGE_CODES = [
+/**
+ * ISO 639-1 codes, in the order the picker lists them.
+ *
+ * Exported because the Action Plan language picker offers the same list, and an
+ * API-side contract test reads this declaration and fails when it drifts from
+ * `ACTION_PLAN_LANGUAGES` in `@fluxradar/contracts`.
+ */
+export const LANGUAGE_CODES = [
   'uk',
   'en',
   'ru',
@@ -88,4 +94,19 @@ export function targetLanguageLabel(name: string, language: Language): string {
   if (code === undefined) return name;
   const label = languageName(code, language);
   return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+}
+
+/** An ISO 639-1 code as the reader's language spells it; an unknown code stays as written. */
+export function languageCodeLabel(code: string, language: Language): string {
+  if (!(LANGUAGE_CODES as readonly string[]).includes(code)) return code;
+  const label = languageName(code, language);
+  return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+}
+
+/** The codes behind a profile's stored target-language names, in their order. */
+export function targetLanguageCodes(value: string | null | undefined): readonly string[] {
+  return parseTargetLanguages(value ?? '').flatMap((name) => {
+    const code = CODE_BY_NAME.get(name);
+    return code === undefined ? [] : [code];
+  });
 }

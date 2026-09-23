@@ -58,6 +58,25 @@ export const FINDING_MESSAGES = {
 
 export type FindingMessageCode = keyof typeof FINDING_MESSAGES;
 
+/**
+ * Codes that only render stored findings and are never emitted again.
+ *
+ * A finding keeps its message code, and the report renders the code rather than
+ * the sentence stored with it. So a code cannot be deleted when a rule stops
+ * using it — the reports that already refer to it would lose their Ukrainian
+ * text and fall back to the stored English — and it cannot be re-pointed at a
+ * template with a different set of values either: rendering answers null when a
+ * value is missing, and a reused name with a new meaning prints a wrong sentence
+ * with the right shape. A changed sentence therefore gets a new code, and the
+ * old one stays here.
+ */
+export const RENDER_ONLY_MESSAGE_CODES: readonly FindingMessageCode[] = [
+  // CONTENT-004 before it stopped reporting media the crawl never requested:
+  // four failure kinds, one of them "internal, not confirmed" (see content-004.ts).
+  'content-004.evidence.unconfirmed',
+  'content-004.evidence.mixed',
+];
+
 type Placeholders<Template extends string> =
   Template extends `${string}{${infer Name}}${infer Rest}` ? Name | Placeholders<Rest> : never;
 

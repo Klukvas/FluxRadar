@@ -62,6 +62,22 @@ export class TimeoutError extends SafeFetchError {
   }
 }
 
+/**
+ * Запрос прерван вызывающим (options.signal) — например паузой или отменой скана.
+ *
+ * Отдельный тип, а не TimeoutError и не NetworkError: это не поломка цели и не
+ * наш дедлайн, а решение вызывающего, и путать его с недоступностью сайта
+ * нельзя — из такого «ответа» сделали бы вывод о сайте.
+ */
+export class RequestAbortedError extends SafeFetchError {
+  readonly url: string;
+
+  constructor(url: string) {
+    super(`safe-fetch: request to "${truncateForMessage(url)}" was aborted by the caller`);
+    this.url = url;
+  }
+}
+
 /** DNS/соединение/чтение упали по причинам вне наших лимитов; детали в cause. */
 export class NetworkError extends SafeFetchError {}
 

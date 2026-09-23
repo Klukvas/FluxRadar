@@ -15,6 +15,7 @@ import { Router } from 'express';
 import type { RequestHandler } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import { TARIFFS, scanScopeSchema } from '@fluxradar/contracts';
+import type { AiProviderName } from '@fluxradar/ai';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
@@ -23,7 +24,9 @@ import { isMockCheckoutEnabled } from '../billing/mock-checkout.ts';
 import { createInternalFreeScan } from '../billing/internal-checkout.ts';
 import { handlePaddleWebhook, simulatePaidCheckout } from '../billing/index.ts';
 import { aiConsentSchema } from '../billing/checkout-metadata.ts';
+import { assertOptInProvidersAvailable } from '../billing/opt-in-consent.ts';
 import { PAID_PLANS } from '../billing/plans.ts';
+import { availableOptInAiProviders } from '../integrations/opt-in-ai-config.ts';
 import { sendOk } from '../http/envelope.ts';
 import { paymentRequired, unauthorized, validationError } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
@@ -68,6 +71,8 @@ export interface BillingRouterDeps {
   readonly mailer?: Mailer;
   /** Test seam; production reads FLUXRADAR_ENABLE_MOCK_CHECKOUT. */
   readonly mockCheckoutEnabled?: boolean;
+  /** Test seam; production reads GOOGLE_AI_API_KEY / PERPLEXITY_API_KEY. */
+  readonly optInAiProviders?: readonly AiProviderName[];
 }
 
 type WebhookHandlerDeps = Pick<BillingRouterDeps, 'prisma' | 'webhookSecret' | 'now'> & {
@@ -106,9 +111,14 @@ export function billingRouter(deps: BillingRouterDeps): Router {
   const auth = requireAuth(deps.prisma, deps.now);
   const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
   const mockCheckoutEnabled = deps.mockCheckoutEnabled ?? isMockCheckoutEnabled();
+  const optInAiProviders = deps.optInAiProviders ?? availableOptInAiProviders();
 
   router.post('/billing/dev-checkout', auth, async (req, res) => {
     const input = parseInput(devCheckoutInputSchema, req.body);
+    // No payment on this path, but the same promise: an internal scan that
+    // named an unconfigured recipient would run every one of its requests into
+    // a closed provider and report Partial. Say so instead.
+    assertOptInProvidersAvailable(input.aiConsent, optInAiProviders);
     const accountId = accountIdFrom(res);
     requestRateLimiter.assertAllowedAll(
       scanActionRules('checkout', accountId, req.ip ?? 'unknown'),

@@ -2,7 +2,11 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
+import type { AiProviderName } from '@fluxradar/ai';
 
+import { actionPlanRouter } from './action-plan/routes.ts';
+import type { ActionPlanRouterDeps } from './action-plan/routes.ts';
+import { actionPlanPdfLoader } from './action-plan/pdf-loader.ts';
 import { LoginRateLimiter, RequestRateLimiter } from './auth/rate-limit.ts';
 import { accountRouter } from './auth/account-routes.ts';
 import { authRouter } from './auth/routes.ts';
@@ -13,6 +17,9 @@ import {
 import { getInternalFreeEmails } from './billing/internal-access.ts';
 import { isMockCheckoutEnabled } from './billing/mock-checkout.ts';
 import { resolvePaddleWebhookSecret } from './billing/paddle-signature.ts';
+import { dispatchPendingRefunds } from './billing/refunds/dispatcher.ts';
+import { fastSpringReturnsAdapter } from './billing/refunds/fastspring-returns.ts';
+import type { RefundProviderAdapter } from './billing/refunds/provider.ts';
 import { billingRouter, webhookHandler } from './billing-http/routes.ts';
 import { fastSpringRouter, fastSpringWebhookHandler } from './billing-http/fastspring-routes.ts';
 import {
@@ -24,6 +31,8 @@ import {
 import type { FastSpringConfigResult, FetchLike } from './billing/fastspring/index.ts';
 import { createPrismaClient } from './db.ts';
 import { exportRouter } from './export/routes.ts';
+import { reportPdfRouter } from './export/pdf-routes.ts';
+import { BackgroundRuns } from './http/background-runs.ts';
 import { errorHandler, notFoundHandler } from './http/error-handler.ts';
 import { healthRouter } from './http/health.ts';
 import { stdoutLogger } from './http/logger.ts';
@@ -31,18 +40,24 @@ import { resolveTrustProxy } from './http/trust-proxy.ts';
 import type { ApiLogger } from './http/logger.ts';
 import { requestLogger } from './http/request-logger.ts';
 import { issuesRouter } from './issues/routes.ts';
+import { bingIntegrationRouter } from './integrations/bing/routes.ts';
+import { createBingDataRunner } from './integrations/bing/runner.ts';
 import { googleIntegrationRouter } from './integrations/google/routes.ts';
 import { createGoogleDataRunner } from './integrations/google/runner.ts';
 import { integrationsRouter } from './integrations/routes.ts';
 import { validateRuntimeConfig } from './integrations/config.ts';
-import { logIntegrationStatuses } from './integrations/diagnostics.ts';
+import { logIntegrationStatuses, logPerformanceAuditMode } from './integrations/diagnostics.ts';
+import { availableOptInAiProviders } from './integrations/opt-in-ai-config.ts';
 import { createMailer, type Mailer } from './email/mailer.ts';
-import { createDefaultPerformanceRunner } from './integrations/performance.ts';
+import { createDefaultPerformanceRunner } from './integrations/performance/index.ts';
 import { createDefaultAiProvider } from './orchestrator/geo.ts';
+import { createRenderRuntime } from './orchestrator/render-config.ts';
 import { sweepRetention } from './data-retention.ts';
+import type { DomainVerificationDeps } from './profiles/domain-verification.ts';
 import type { WorkerCrawlOptions, WorkerDeps } from './orchestrator/deps.ts';
 import { recoverClaimedJobs } from './orchestrator/claim.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
+import { domainVerificationRouter } from './profiles/domain-verification-routes.ts';
 import { profilesRouter } from './profiles/routes.ts';
 import { scansRouter } from './scans/routes.ts';
 import { supportRouter } from './support/routes.ts';
@@ -53,6 +68,15 @@ export const packageName = '@fluxradar/api';
 
 const QUEUE_RECOVERY_INTERVAL_MS = 30_000;
 
+/**
+ * How often the refund outbox is swept.
+ *
+ * Far slower than the inbound pending-refund sweep: this one is about money
+ * leaving, the queue is an exception path, and in every configuration that has
+ * not explicitly enabled outbound refunds the pass only reports the queue.
+ */
+const REFUND_DISPATCH_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+
 export interface CreateAppOptions {
   readonly prisma: PrismaClient;
   readonly webhookSecret: string;
@@ -62,8 +86,23 @@ export interface CreateAppOptions {
   readonly corsOrigin?: string;
   readonly crawl?: WorkerCrawlOptions;
   readonly createAiProvider?: WorkerDeps['createAiProvider'];
+  /**
+   * Test seam for the Action Plan. It needs its own: `createDefaultAiProvider`
+   * answers GEO visibility fixtures under Vitest, which are not a plan.
+   */
+  readonly createActionPlanProvider?: ActionPlanRouterDeps['createActionPlanProvider'];
+  /**
+   * Where detached Action Plan generations live. `startServer` passes the one it
+   * stops on shutdown; a test passes its own and awaits it.
+   */
+  readonly actionPlanRuns?: BackgroundRuns;
   readonly createPerformanceRunner?: WorkerDeps['createPerformanceRunner'];
   readonly createGoogleDataRunner?: WorkerDeps['createGoogleDataRunner'];
+  /** Test seam for the DNS/HTTP reads the optional ownership proof performs. */
+  readonly domainVerification?: DomainVerificationDeps;
+  /** Test seam; production reads FLUXRADAR_RENDER_* (orchestrator/render-config.ts). */
+  readonly createRenderRuntime?: WorkerDeps['createRenderRuntime'];
+  readonly createBingDataRunner?: WorkerDeps['createBingDataRunner'];
   /** Test seam; production reads FLUXRADAR_INTERNAL_FREE_EMAILS. */
   readonly internalFreeEmails?: ReadonlySet<string>;
   /** Test seam; production reads FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS. */
@@ -77,6 +116,12 @@ export interface CreateAppOptions {
   readonly objectStore?: PrivateObjectStore | null;
   /** Test seam; production reads the FASTSPRING_* environment. */
   readonly fastSpring?: FastSpringConfigResult;
+  /**
+   * The optional AI recipients this deployment can serve, offered to the
+   * new-scan form and refused at both checkout routes when a request names one
+   * of the others. Test seam; production reads the opt-in provider keys.
+   */
+  readonly optInAiProviders?: readonly AiProviderName[];
   /** Test seam for the FastSpring Sessions API call. */
   readonly fastSpringFetch?: FetchLike;
   /**
@@ -103,6 +148,7 @@ export function createApp(options: CreateAppOptions): Express {
   const requestRateLimiter = options.requestRateLimiter ?? new RequestRateLimiter();
   const mailer = options.mailer ?? createMailer();
   const fastSpring = options.fastSpring ?? readFastSpringConfig();
+  const optInAiProviders = options.optInAiProviders ?? availableOptInAiProviders();
   const supportChannel =
     options.supportChannel !== undefined ? options.supportChannel : createSupportChannel(logger);
   // Undefined means "this deployment did not say", which is the production path:
@@ -112,6 +158,7 @@ export function createApp(options: CreateAppOptions): Express {
   logFastSpringState(logger, fastSpring);
   // Names and statuses only; see integrations/diagnostics.ts.
   logIntegrationStatuses(logger);
+  logPerformanceAuditMode(logger);
   const workerDeps: WorkerDeps = {
     prisma: options.prisma,
     logger,
@@ -125,6 +172,10 @@ export function createApp(options: CreateAppOptions): Express {
     createGoogleDataRunner:
       options.createGoogleDataRunner ??
       (() => createGoogleDataRunner({ prisma: options.prisma, now, requestOptions: { logger } })),
+    createRenderRuntime: options.createRenderRuntime ?? (() => createRenderRuntime()),
+    createBingDataRunner:
+      options.createBingDataRunner ??
+      (() => createBingDataRunner({ prisma: options.prisma, now, requestOptions: { logger } })),
     ...(options.crawl !== undefined ? { crawl: options.crawl } : {}),
     mailer,
   };
@@ -220,14 +271,26 @@ export function createApp(options: CreateAppOptions): Express {
     }),
   );
   app.use(profilesRouter({ prisma: options.prisma, now, requestRateLimiter, objectStore, logger }));
+  app.use(
+    domainVerificationRouter({
+      prisma: options.prisma,
+      now,
+      requestRateLimiter,
+      ...(options.domainVerification !== undefined
+        ? { verification: options.domainVerification }
+        : {}),
+    }),
+  );
   app.use(integrationsRouter({ prisma: options.prisma, now }));
   app.use(googleIntegrationRouter({ prisma: options.prisma, now, logger }));
+  app.use(bingIntegrationRouter({ prisma: options.prisma, now, logger }));
   app.use(
     fastSpringRouter({
       prisma: options.prisma,
       fastSpring,
       now,
       requestRateLimiter,
+      optInAiProviders,
       ...(options.fastSpringFetch !== undefined ? { fetchImpl: options.fastSpringFetch } : {}),
     }),
   );
@@ -241,6 +304,7 @@ export function createApp(options: CreateAppOptions): Express {
       requestRateLimiter,
       mailer,
       mockCheckoutEnabled,
+      optInAiProviders,
     }),
   );
   app.use(
@@ -254,12 +318,40 @@ export function createApp(options: CreateAppOptions): Express {
   );
   app.use(issuesRouter({ prisma: options.prisma, now }));
   app.use(
+    actionPlanRouter({
+      prisma: options.prisma,
+      now,
+      logger,
+      requestRateLimiter,
+      ...(options.createActionPlanProvider !== undefined
+        ? { createActionPlanProvider: options.createActionPlanProvider }
+        : {}),
+      ...(options.actionPlanRuns !== undefined ? { backgroundRuns: options.actionPlanRuns } : {}),
+    }),
+  );
+  app.use(
     exportRouter({
       prisma: options.prisma,
       now,
       logger,
       objectStore,
       requestRateLimiter,
+    }),
+  );
+  app.use(
+    reportPdfRouter({
+      prisma: options.prisma,
+      now,
+      logger,
+      objectStore,
+      requestRateLimiter,
+      // The slot the PDF renderer left for the AI lane's plan, filled here and
+      // nowhere else. `readOwnActionPlan` re-checks that this account owns the
+      // scan before it returns anything, and it reads the plan stored for the
+      // language the document is being written in — never another one. Only a
+      // READY plan exists in that table, so a generation in flight or a failed
+      // one yields null and the document simply has no plan chapter.
+      loadActionPlan: actionPlanPdfLoader(options.prisma),
     }),
   );
 
@@ -278,7 +370,8 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   // One store for the whole process: the export route, account deletion and the
   // retention sweep all address the same bucket.
   const objectStore = createConfiguredObjectStore();
-  const app = createApp({ prisma, webhookSecret, logger, mailer, objectStore });
+  const actionPlanRuns = new BackgroundRuns();
+  const app = createApp({ prisma, webhookSecret, logger, mailer, objectStore, actionPlanRuns });
   // Recover before listen so a newly submitted scan cannot be claimed by the
   // HTTP path while startup is requeueing jobs left by the previous process.
   const recovered = await recoverClaimedJobs(prisma);
@@ -296,6 +389,8 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       createDefaultAiProvider(profile.name, new URL(scan.domain).hostname),
     createPerformanceRunner: () => createDefaultPerformanceRunner(),
     createGoogleDataRunner: () => createGoogleDataRunner({ prisma, requestOptions: { logger } }),
+    createRenderRuntime: () => createRenderRuntime(),
+    createBingDataRunner: () => createBingDataRunner({ prisma, requestOptions: { logger } }),
   };
   let queueDrainRunning = false;
   const drainQueue = async (): Promise<void> => {
@@ -337,6 +432,34 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   }, PENDING_REFUND_SWEEP_INTERVAL_MS);
   pendingRefundTimer.unref();
   void sweepPending();
+  // The outbound half of the same story: refunds this API decided on and has not
+  // sent. The pass reports the queue on every deployment and submits on none of
+  // them unless FLUXRADAR_REFUND_DISPATCH=auto was set together with its
+  // acknowledgement (billing/refunds/config.ts).
+  let refundDispatchRunning = false;
+  const sweepRefundDispatch = async (): Promise<void> => {
+    if (refundDispatchRunning) return;
+    refundDispatchRunning = true;
+    try {
+      await dispatchPendingRefunds({
+        prisma,
+        logger,
+        now: () => new Date(),
+        adapters: refundAdapters(readFastSpringConfig()),
+      });
+    } catch (error: unknown) {
+      logger.error('refund dispatch sweep failed', {
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      });
+    } finally {
+      refundDispatchRunning = false;
+    }
+  };
+  const refundDispatchTimer = setInterval(() => {
+    void sweepRefundDispatch();
+  }, REFUND_DISPATCH_SWEEP_INTERVAL_MS);
+  refundDispatchTimer.unref();
+  void sweepRefundDispatch();
   const queueRecoveryTimer = setInterval(() => {
     void recoverClaimedJobs(prisma)
       .then((recoveredCount) => {
@@ -357,13 +480,30 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
     close: async () => {
       clearInterval(retentionTimer);
       clearInterval(pendingRefundTimer);
+      clearInterval(refundDispatchTimer);
       clearInterval(queueRecoveryTimer);
       await new Promise<void>((resolveClose, reject) => {
         server.close((error) => (error ? reject(error) : resolveClose()));
       });
+      // Before the client closes: a plan still talking to Anthropic is cancelled
+      // and its attempt released, rather than left holding the scan's slot.
+      await actionPlanRuns.stop();
       await prisma.$disconnect();
     },
   };
+}
+
+/**
+ * The refund adapters this process can submit through.
+ *
+ * A provider whose client is not completely configured contributes none: the
+ * dispatcher then finds no adapter for the mode it was switched into and says so,
+ * which is the loud version of "nothing was sent".
+ */
+function refundAdapters(fastSpring: FastSpringConfigResult): readonly RefundProviderAdapter[] {
+  return fastSpring.state === 'configured'
+    ? [fastSpringReturnsAdapter({ config: fastSpring.config })]
+    : [];
 }
 
 /**
@@ -429,6 +569,10 @@ function corsMiddleware(origin: string) {
     if (requestOrigin === origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
+      // The PDF download reads the filename the server chose. Without this the
+      // browser hides Content-Disposition from the fetch and the app has to
+      // invent a name for a file the server already named.
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
       res.setHeader('Vary', 'Origin');
     }
     if (req.method === 'OPTIONS') {

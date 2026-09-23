@@ -2,10 +2,28 @@
 // В v0.1 существует только MockAiProvider; реальные HTTP-адаптеры появляются
 // отдельной версией registry после AI-001 sign-off.
 
-import type { AiFinishReason, RequestIdSource, UsageSource } from '@fluxradar/contracts';
+import type {
+  AiFinishReason,
+  AiRequestCapsShape,
+  RequestIdSource,
+  UsageSource,
+} from '@fluxradar/contracts';
 
 export const AI_PROVIDER_NAMES = ['anthropic', 'openai', 'google', 'perplexity'] as const;
 export type AiProviderName = (typeof AI_PROVIDER_NAMES)[number];
+
+/**
+ * The providers a paid scan asks by default. Google (Gemini) and Perplexity are
+ * adapters this release ships but never selects on its own: they receive data
+ * only when a scan explicitly names them AND the stored notice covers them
+ * (see consent.ts).
+ */
+export const DEFAULT_VISIBILITY_PROVIDERS = ['anthropic', 'openai'] as const;
+export const OPT_IN_VISIBILITY_PROVIDERS = ['google', 'perplexity'] as const;
+
+export function isOptInProvider(provider: AiProviderName): boolean {
+  return (OPT_IN_VISIBILITY_PROVIDERS as readonly AiProviderName[]).includes(provider);
+}
 
 export type ProviderMode = 'mock' | 'real';
 
@@ -63,13 +81,36 @@ export interface AiRequest {
   readonly reasoningMode?: 'disabled';
   /** Optional JSON Schema used by providers that support constrained structured output. */
   readonly responseSchema?: Readonly<Record<string, unknown>>;
+  /**
+   * Provider web search. Only the GEO visibility questions set it: generation
+   * and the UX review must stay recall-only, so they never carry tools.
+   */
+  readonly webSearch?: true;
+  /**
+   * Per-request caps. Absent means the §5 module caps (`AI_REQUEST_CAPS`); the
+   * Action Plan overrides them because adaptive thinking does not fit in 2,000
+   * output tokens (D-232).
+   */
+  readonly caps?: AiRequestCapsShape;
+  /**
+   * Ask the provider to serve a fallback model rather than refuse. Anthropic
+   * calls this server-side fallback; adapters that have no equivalent ignore it.
+   */
+  readonly allowModelFallback?: true;
 }
 
 /**
  * Adapter-интерфейс. Реальный адаптер обязан отправлять провайдеру только
  * promptText (уже прошедший redaction) — request используется как метаданные.
+ *
+ * `signal` is the caller's cancellation — a cancelled scan, a closed request,
+ * a shutting-down worker. An adapter that receives an already-aborted signal
+ * must not call the provider at all, and a cancel that arrives mid-flight is
+ * rethrown rather than reported as an unavailable provider: the difference
+ * decides whether the module retries and spends a second paid call. An adapter
+ * that needs none of this (the mock) simply does not declare the parameter.
  */
 export interface AiProvider {
   readonly config: AiProviderConfig;
-  send(request: AiRequest, promptText: string): Promise<NormalizedAiResponse>;
+  send(request: AiRequest, promptText: string, signal?: AbortSignal): Promise<NormalizedAiResponse>;
 }

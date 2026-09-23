@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import type { ApiLogger } from '../http/logger.ts';
 import { FAKE_TELEGRAM_BOT_TOKEN } from '../test-utils/fake-credentials.ts';
-import { logIntegrationStatuses, readIntegrationStatuses } from './diagnostics.ts';
+import {
+  logIntegrationStatuses,
+  logPerformanceAuditMode,
+  readIntegrationStatuses,
+} from './diagnostics.ts';
 import { OBJECT_STORAGE_ENV_VARS } from './object-storage-config.ts';
 import { OAUTH_ENV_VARS } from './oauth-config.ts';
+import { GEMINI_ENV_VARS, PERPLEXITY_ENV_VARS } from './opt-in-ai-config.ts';
 
 interface LoggedLine {
   readonly level: 'info' | 'warn' | 'error';
@@ -40,6 +45,9 @@ describe('startup integration diagnostics', () => {
     expect(statuses.map((entry) => entry.integration)).toEqual([
       'storage',
       'anthropic',
+      'openai',
+      'google-ai',
+      'perplexity',
       'pagespeed',
       'crux',
       'resend',
@@ -60,6 +68,23 @@ describe('startup integration diagnostics', () => {
     expect(statusOf({ PAGESPEED_API_KEY: 'key' }, 'pagespeed')).toBe('configured');
     expect(statusOf({ CRUX_API_KEY: 'key' }, 'crux')).toBe('configured');
     expect(statusOf({ ANTHROPIC_API_KEY: 'key' }, 'anthropic')).toBe('configured');
+    expect(statusOf({ OPENAI_API_KEY: 'key' }, 'openai')).toBe('configured');
+    expect(statusOf({ [GEMINI_ENV_VARS.apiKey]: 'key' }, 'google-ai')).toBe('configured');
+    expect(statusOf({ [PERPLEXITY_ENV_VARS.apiKey]: 'key' }, 'perplexity')).toBe('configured');
+  });
+
+  it('refuses a Perplexity endpoint nobody documented instead of falling back', () => {
+    // The request carries customer page context. Silently using the default
+    // would send it somewhere the operator did not choose; accepting the value
+    // would send it somewhere Perplexity never published.
+    const env = {
+      [PERPLEXITY_ENV_VARS.apiKey]: 'key',
+      [PERPLEXITY_ENV_VARS.endpointUrl]: 'https://attacker.example/v1/chat/completions',
+    };
+
+    expect(statusOf(env, 'perplexity')).toBe('invalid');
+    const status = readIntegrationStatuses(env).find((entry) => entry.integration === 'perplexity');
+    expect(status?.missing).toContain(PERPLEXITY_ENV_VARS.endpointUrl);
   });
 
   it('reports a half-configured Resend pair', () => {
@@ -113,6 +138,29 @@ describe('startup integration diagnostics', () => {
     expect(summary?.context.configured).toContain('pagespeed');
     expect(summary?.context.disabled).toContain('bing');
     expect(summary?.context.invalid).toContain('storage');
+  });
+
+  // "pagespeed: configured" is true either way — the provider answers keyless
+  // requests. What it does not say is that the audit is then a single measured
+  // page, which an operator would otherwise read as a defect in the report.
+  it('says at boot which Performance audit a keyless deployment will run', () => {
+    const { lines, logger } = recordingLogger();
+
+    logPerformanceAuditMode(logger, {});
+
+    const reduced = lines.find(
+      (line) => line.message === 'performance audit runs in its reduced keyless mode',
+    );
+    expect(reduced?.level).toBe('warn');
+    expect(reduced?.context).toMatchObject({ variable: 'PAGESPEED_API_KEY', maxRequests: 1 });
+  });
+
+  it('stays quiet about the audit mode once a PageSpeed key is configured', () => {
+    const { lines, logger } = recordingLogger();
+
+    logPerformanceAuditMode(logger, { PAGESPEED_API_KEY: SECRET_VALUE });
+
+    expect(lines).toEqual([]);
   });
 
   it('names the missing variables of a half-configured integration', () => {

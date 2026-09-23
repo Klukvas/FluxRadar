@@ -89,6 +89,18 @@ export function moduleResultLabel(module: ScanModule, language: Language): strin
 const NOT_SCORED_ON_PLAN = 'NotScoredOnFreePlan';
 
 /**
+ * The wire value a module row uses to say its checks are informational.
+ *
+ * AI SEO / GEO asks a model questions and records what came back. None of its
+ * rules penalize anything, so there is no measurement a 0–100 number could
+ * report — the row used to carry a hardcoded 100 for every run the provider
+ * answered at all, which told a Basic customer that 40% of their overall score
+ * was earned by a successful HTTP response. This is the API's
+ * `GEO_SCORING_REASON`, matched as a literal for the same reason as above.
+ */
+const INFORMATIONAL_ONLY = 'InformationalOnly';
+
+/**
  * What one audit section puts where its score would go.
  *
  * Two unrelated facts produce a null score — the plan carries no score weight,
@@ -109,9 +121,15 @@ export function moduleScoreLabel(module: ScanModule, language: Language): string
     return module.score.toFixed(2);
   }
   const t = copy[language].report;
-  return module.usableOutput && module.metadata?.scoring === NOT_SCORED_ON_PLAN
-    ? t.unscoredLabel
-    : t.noScore;
+  if (!module.usableOutput) {
+    return t.noScore;
+  }
+  if (module.metadata?.scoring === NOT_SCORED_ON_PLAN) {
+    return t.unscoredLabel;
+  }
+  // A section that did produce results and has nothing to score is saying so
+  // about itself, not about the plan or about the site being unreadable.
+  return module.metadata?.scoring === INFORMATIONAL_ONLY ? t.informationalLabel : t.noScore;
 }
 
 /**

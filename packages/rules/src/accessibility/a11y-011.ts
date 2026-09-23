@@ -11,5 +11,12 @@ const descriptor = requireDescriptor('A11Y-011');
 export const a11y011ReportTransparency: SiteRule = {
   kind: 'site',
   descriptor,
-  evaluateSite: () => ({ findings: [], applicableTargets: 1, affectedTargets: 0 }),
+  // checkedTargets пуст сознательно: правило ничего не читает и находок не
+  // создаёт, поэтому доказывать повторную проверку ему нечем и не за что.
+  evaluateSite: () => ({
+    findings: [],
+    applicableTargets: 1,
+    affectedTargets: 0,
+    checkedTargets: [],
+  }),
 };

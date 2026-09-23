@@ -4,7 +4,7 @@
 
 import type { Plan } from '@fluxradar/contracts';
 
-import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from './consent.js';
+import { isAcceptedNoticeVersion } from './consent.js';
 import type { AiConsent } from './consent.js';
 import { AiModuleError } from './errors.js';
 import { AiQuotaTracker } from './quota.js';
@@ -100,6 +100,13 @@ export interface UxAiInput {
 export interface UxAiOptions {
   readonly provider: AiProvider;
   readonly quota: AiQuotaTracker;
+  /**
+   * Отмена прогона вызывающим (отменённый скан, останов воркера). Единственный
+   * AI-запрос этого модуля прерывается, и наружу идёт AiRequestCancelledError,
+   * а не статус Unavailable: отменённая проверка не результат модуля, и строку
+   * модуля по ней писать нельзя.
+   */
+  readonly signal?: AbortSignal;
 }
 
 export interface UxAiResponseResult {
@@ -260,7 +267,10 @@ export async function runUxAiAnalysis(
     provider: options.provider,
     quota: options.quota,
     consent:
-      input.consent?.noticeVersion === CURRENT_AI_PROCESSING_NOTICE_VERSION ? input.consent : null,
+      input.consent !== null && isAcceptedNoticeVersion(input.consent.noticeVersion)
+        ? input.consent
+        : null,
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
   });
   if (result.outcome.kind === 'unavailable') {
     return {

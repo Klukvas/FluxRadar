@@ -12,6 +12,7 @@ import { WEBHOOK_OUTCOMES } from './billing/fastspring/outcomes.ts';
 import {
   createTestDb,
   seedAccountWithProfile,
+  seedScan,
   type SeededAccount,
   type TestDb,
 } from './test-utils/test-db.ts';
@@ -403,6 +404,39 @@ describe('unbound webhook event retention', () => {
     const kept = await db.prisma.providerRefund.findMany();
     expect(kept).toHaveLength(1);
     expect(kept[0]?.providerRefundId).toBe('ret_kept');
+  });
+
+  // The Action Plan spend log survives a deleted SCAN on purpose — otherwise
+  // deleting a site profile would clear the caps it feeds. An erased ACCOUNT is
+  // the opposite case: there are no caps left to enforce for it, and an
+  // activity record of a person who asked to be forgotten is exactly what must
+  // not linger.
+  it('erases the Action Plan spend log of a deleted account', async () => {
+    const account = await seedAccountWithProfile(db.prisma);
+    const { scan } = await seedScan(db.prisma, { account, status: 'Completed' });
+    await db.prisma.actionPlanAttempt.createMany({
+      data: [
+        {
+          scanId: scan.id,
+          accountId: account.accountId,
+          language: 'en',
+          status: 'Succeeded',
+          noticeVersion: 'action-plan-notice-v1',
+        },
+        {
+          scanId: null,
+          accountId: account.accountId,
+          language: 'uk',
+          status: 'Failed',
+          failureCode: 'Superseded',
+          noticeVersion: 'action-plan-notice-v1',
+        },
+      ],
+    });
+
+    await deleteAccountData(db.prisma, account.accountId, null);
+
+    expect(await db.prisma.actionPlanAttempt.count()).toBe(0);
   });
 
   // Deleting one account must not delete another provider's delivery that merely

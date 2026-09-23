@@ -59,10 +59,25 @@ describe('public legal documents', () => {
 
     const policy = screen.getByRole('article');
     expect(policy).toHaveTextContent(
-      /Basic includes AI SEO \/ GEO.*Complete includes AI SEO \/ GEO and UX\/Conversion/is,
+      /Basic includes AI SEO \/ GEO.*Complete includes AI SEO \/ GEO, UX\/Conversion and the AI Action Plan/is,
     );
-    expect(policy).toHaveTextContent(/production adapter uses Anthropic/i);
-    expect(policy).toHaveTextContent(/OpenAI.*not used by the current production adapter/is);
+    expect(policy).toHaveTextContent(
+      /visibility questions go to Anthropic and OpenAI, both answering with their own web search/is,
+    );
+    expect(policy).toHaveTextContent(
+      /OpenAI is an active AI provider for the visibility questions/i,
+    );
+    // Naming the opt-in recipients is what makes the choice on the new-scan
+    // screen honest; a policy that omitted them would be the dishonest half.
+    expect(policy).toHaveTextContent(
+      /Google \(Gemini\) and Perplexity are opt-in recipients.*receive nothing unless you select them/is,
+    );
+    expect(policy).toHaveTextContent(
+      /AI Action Plan \(Complete\) sends Anthropic the report’s rule metadata only/i,
+    );
+    expect(policy).toHaveTextContent(
+      /never sends evidence excerpts, screenshots, or anything from the Analytics section/i,
+    );
     // The Query Ideas generator that sent Search Console queries to the AI
     // provider was removed; a policy still describing it would disclose a
     // transfer of Google user data the product no longer makes.
@@ -72,7 +87,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 16 September 2026/);
+    expect(policy).toHaveTextContent(/Effective 23 September 2026/);
     expect(policy).toHaveTextContent(/PageSpeed Insights and CrUX.*public URL or origin/is);
     expect(policy).toHaveTextContent(
       /Free and Basic reports.*30 days.*Complete reports.*365 days/is,

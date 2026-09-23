@@ -528,7 +528,11 @@ describe('BILLING-007 migration rollback safety', () => {
       async () => {
         const scratch = createPrismaClient(scratchUrl);
         try {
-          await scratch.$executeRawUnsafe('DROP TABLE "RefundRecord"');
+          // CASCADE because RefundDispatch references this table: PostgreSQL
+          // refuses the bare DROP, and an operator running the contract phase
+          // would reach for CASCADE exactly as the hint tells them to. The point
+          // of the case is what the probe says afterwards, not how the table went.
+          await scratch.$executeRawUnsafe('DROP TABLE "RefundRecord" CASCADE');
         } finally {
           await scratch.$disconnect();
         }

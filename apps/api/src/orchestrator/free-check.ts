@@ -96,6 +96,13 @@ export function runFreeCheck(ctx: SiteContext): ModuleRunResult {
       applicableTargets: applicablePages.length,
       affectedTargets,
       findings,
+      // Как и в движке: проверенными считаются только страницы, которые правило
+      // взяло в работу (§14, run-coverage.ts).
+      checkedTargets: applicablePages.map((page) => page.normalizedUrl),
+      // Free — одна homepage-проверка четырьмя правилами, ни одно из которых не
+      // смотрит за пределы самой страницы.
+      inputTargets: rule.inputTargets?.(ctx) ?? [],
+      requestedInputs: rule.requestedInputs?.(ctx),
     });
     applicableChecks += applicablePages.length + unreachableOutside.length;
     completedApplicableChecks += applicablePages.length;

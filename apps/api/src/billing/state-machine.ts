@@ -61,6 +61,18 @@ export async function transitionScan(
         '(scan missing, state already changed, or retry budget exhausted)',
     );
   }
+  if (to === 'Running' && from === 'Queued') {
+    // `startedAt` is when this run first began, not when it was last picked up.
+    // A run that was paused and resumed re-enters Queued → Running, and moving
+    // its start forward would date it after findings the earlier half already
+    // recorded — which the export contract rejects outright (EXPORT-001/2).
+    // The guard is a second statement rather than part of the CAS above because
+    // the CAS is what decides the transition; this only fills a blank.
+    await db.scan.updateMany({
+      where: { id: scanId, startedAt: null },
+      data: { startedAt: options.now ?? new Date() },
+    });
+  }
 }
 
 function timestampChanges(
@@ -70,11 +82,25 @@ function timestampChanges(
 ): Prisma.ScanUpdateManyMutationInput {
   if (to === 'Running') {
     // Partial -> Running is the free module retry: keep the original startedAt.
-    return from === 'Queued' ? { startedAt: now, completedAt: null } : { completedAt: null };
+    // Queued -> Running fills startedAt only when it is still blank, which the
+    // caller does separately; a resumed run keeps the start it already had.
+    return { completedAt: null };
+  }
+  if (to === 'Paused') {
+    // Not a result state. A paused run has not completed, so writing a
+    // completion time would be a plain falsehood in the report; and it has not
+    // un-started either, so its start stands.
+    return {};
   }
   if (to === 'Queued') {
-    // Initial queueing or platform re-queue: the previous run's marks are stale.
-    return { startedAt: null, completedAt: null };
+    // `startedAt` is when this *scan* first began reading the site, and both
+    // queueings that reach here continue the same scan: a resume, and a
+    // platform retry. The retry keeps the modules that already settled — an AI
+    // stage is not paid for twice because an unrelated one crashed — so moving
+    // the start forward would date those findings before their own scan began,
+    // which the export contract rejects outright (EXPORT-001/2). The first
+    // queueing has no start to keep.
+    return { completedAt: null };
   }
   // Completed / Partial / Failed / Cancelled are result states.
   return { completedAt: now };
