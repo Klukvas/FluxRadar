@@ -25,6 +25,7 @@ import {
   scanStateLabel,
 } from './scan-status';
 import { statusKind } from './status-kind';
+import { planName } from './plan-modules';
 
 /**
  * How many reports one page holds.
@@ -228,7 +229,7 @@ function ReportRow(props: { scan: Scan; language: Language; onOpen: () => void }
       <div className="report-row__copy">
         <strong className="report-row__domain">{displayDomain(scan.domain)}</strong>
         <p className="muted report-row__meta">
-          {scan.plan}
+          {planName(scan.plan)}
           {scan.profileConfigVersion === undefined ? '' : ` · v${scan.profileConfigVersion}`}
           {finished !== null
             ? ` · ${fillCopy(t.finishedAt, { time: finished })}`

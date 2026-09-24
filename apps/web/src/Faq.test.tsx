@@ -221,7 +221,9 @@ describe('/faq content — what each check does', () => {
 
     expect(screen.getByText(/GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot/)).toBeInTheDocument();
     expect(
-      screen.getByText(/Paid audits include provider-backed AI visibility checks/i),
+      screen.getByText(
+        /Basic and Complete include provider-backed AI visibility checks; Website Audit does not run them at all/i,
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/asks both Anthropic \(Claude\) and OpenAI \(ChatGPT\)/i),

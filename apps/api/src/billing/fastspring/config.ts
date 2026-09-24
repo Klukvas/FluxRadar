@@ -69,8 +69,15 @@ export interface FastSpringConfig {
    * configured mode by `popup-storefront.ts`.
    */
   readonly popupStorefront: string | null;
-  /** One FastSpring product path per paid plan. */
-  readonly productPaths: Readonly<Record<PaidPlan, string>>;
+  /**
+   * The FastSpring product path of each paid plan that has one.
+   *
+   * Partial on purpose. A plan whose product has not been created in the
+   * FastSpring app yet is simply absent: the deployment still boots, and the
+   * plans that do have a product still sell. A plan added to the catalogue
+   * before its product exists must not take the checkout down with it.
+   */
+  readonly productPaths: Readonly<Partial<Record<PaidPlan, string>>>;
   /**
    * How long the buyer link stays valid, in days (1–7). Sent to the Sessions v1
    * API as the session expiration, and used by both APIs as the deadline a
@@ -99,12 +106,38 @@ export const FASTSPRING_ENV_VARS = {
   sessionExpirationDays: 'FASTSPRING_SESSION_EXPIRATION_DAYS',
   productPathBasic: 'FASTSPRING_PRODUCT_PATH_BASIC',
   productPathComplete: 'FASTSPRING_PRODUCT_PATH_COMPLETE',
+  productPathWebsiteAudit: 'FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT',
 } as const;
 
 const PRODUCT_PATH_VARS: Readonly<Record<PaidPlan, string>> = {
   Basic: FASTSPRING_ENV_VARS.productPathBasic,
+  WebsiteAudit: FASTSPRING_ENV_VARS.productPathWebsiteAudit,
   Complete: FASTSPRING_ENV_VARS.productPathComplete,
 };
+
+/**
+ * The plans whose product path this deployment refuses to boot without.
+ *
+ * Basic and Complete have been sold from the start, so an environment that
+ * configures FastSpring at all and forgets one of them is misconfigured rather
+ * than deliberately narrowed. Website Audit is newer than some stores, so its
+ * absence is a plan that cannot be bought yet, not a broken checkout.
+ */
+const REQUIRED_PRODUCT_PATH_PLANS: readonly PaidPlan[] = ['Basic', 'Complete'];
+
+/**
+ * FastSpring variable names this deployment may be missing and still boot.
+ *
+ * `readFastSpringConfig` is all-or-nothing for everything else on purpose — one
+ * FASTSPRING_* variable present turns the provider from "not configured" into a
+ * set that is judged as a whole — which is why DEPLOY-003 insists every name it
+ * knows is wired into the release. These names are the exception the reader
+ * itself makes: absent, they do not invalidate anything; they only mean the plan
+ * behind them cannot be bought here yet.
+ */
+export const OPTIONAL_FASTSPRING_ENV_VARS: readonly string[] = PAID_PLANS.filter(
+  (plan) => !REQUIRED_PRODUCT_PATH_PLANS.includes(plan),
+).map((plan) => PRODUCT_PATH_VARS[plan]);
 
 const DEFAULT_API_BASE_URL = 'https://api.fastspring.com';
 const DEFAULT_SESSION_EXPIRATION_DAYS = 1;
@@ -139,10 +172,14 @@ export function readFastSpringConfig(env: NodeJS.ProcessEnv = process.env): Fast
   const apiUsername = require(FASTSPRING_ENV_VARS.apiUsername);
   const apiPassword = require(FASTSPRING_ENV_VARS.apiPassword);
   const webhookSecret = require(FASTSPRING_ENV_VARS.webhookSecret);
-  const productPaths = {
-    Basic: require(PRODUCT_PATH_VARS.Basic),
-    Complete: require(PRODUCT_PATH_VARS.Complete),
-  };
+  const productPaths = Object.fromEntries(
+    PAID_PLANS.flatMap((plan) => {
+      const value = REQUIRED_PRODUCT_PATH_PLANS.includes(plan)
+        ? require(PRODUCT_PATH_VARS[plan])
+        : trimmed(env[PRODUCT_PATH_VARS[plan]]);
+      return value === null || value === '' ? [] : [[plan, value] as const];
+    }),
+  ) as Readonly<Partial<Record<PaidPlan, string>>>;
 
   const sessionApi = (trimmed(env[FASTSPRING_ENV_VARS.sessionApi]) ?? 'v1') as FastSpringSessionApi;
   const storefrontUrl = trimmed(env[FASTSPRING_ENV_VARS.storefrontUrl]);
@@ -289,5 +326,13 @@ function readExpirationDays(env: NodeJS.ProcessEnv): number | null {
 
 /** The plan a FastSpring product path belongs to, or null for a foreign product. */
 export function planForProductPath(config: FastSpringConfig, productPath: string): PaidPlan | null {
+  // An unmapped plan has `undefined` here, which must never match a request
+  // that also failed to name a product path.
+  if (productPath.trim() === '') return null;
   return PAID_PLANS.find((plan) => config.productPaths[plan] === productPath) ?? null;
+}
+
+/** Whether this deployment can actually open a checkout for the plan. */
+export function isPlanPurchasable(config: FastSpringConfig, plan: PaidPlan): boolean {
+  return config.productPaths[plan] !== undefined;
 }

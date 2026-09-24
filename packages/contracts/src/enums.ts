@@ -51,8 +51,29 @@ export type IssueStatus = (typeof ISSUE_STATUSES)[number];
 export const SEVERITIES = ['Critical', 'High', 'Medium', 'Low'] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
-export const PLANS = ['Free', 'Basic', 'Complete'] as const;
+// 'WebsiteAudit' is the stable identifier stored in the database and sent over
+// the wire; 'Website Audit' is only ever its display name (§18 tariff matrix).
+export const PLANS = ['Free', 'Basic', 'Complete', 'WebsiteAudit'] as const;
 export type Plan = (typeof PLANS)[number];
+
+export function isPlan(value: string): value is Plan {
+  return (PLANS as readonly string[]).includes(value);
+}
+
+/**
+ * The plan literal a stored row carries, refused rather than cast.
+ *
+ * `plan` is a string column, so a row written by a deployment that knows a plan
+ * this one does not is possible. Treating it as a known plan would read a
+ * tariff of `undefined` and fail somewhere far away; this fails where the value
+ * is read.
+ */
+export function parsePlan(value: string): Plan {
+  if (!isPlan(value)) {
+    throw new Error(`unknown plan "${value}"`);
+  }
+  return value;
+}
 
 export const RECORD_TYPES = ['summary', 'module', 'ai_response', 'issue'] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];

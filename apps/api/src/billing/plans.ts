@@ -3,7 +3,7 @@ import { TARIFFS } from '@fluxradar/contracts';
 // The paid-plan vocabulary. The checkout, the webhook and the internal
 // free-access path all speak these literals; none of them owns them.
 
-export const PAID_PLANS = ['Basic', 'Complete'] as const;
+export const PAID_PLANS = ['Basic', 'WebsiteAudit', 'Complete'] as const;
 export type PaidPlan = (typeof PAID_PLANS)[number];
 
 export function isPaidPlan(value: string): value is PaidPlan {

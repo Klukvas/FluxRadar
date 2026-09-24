@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FASTSPRING_ENV_VARS,
   FASTSPRING_STORE_VERIFIED_VALUE,
+  isPlanPurchasable,
   planForProductPath,
   readFastSpringConfig,
 } from './config.ts';
@@ -39,6 +40,52 @@ describe('FASTSPRING-002 configuration', () => {
     expect(result.config.apiBaseUrl).toBe('https://api.fastspring.com');
     expect(result.config.sessionApi).toBe('v1');
     expect(result.config.productPaths.Basic).toBe('fluxradar-basic-scan');
+  });
+
+  // A plan whose product does not exist at the provider yet must not take the
+  // deployment — or the plans that do exist — down with it.
+  describe('an optional product path', () => {
+    it('boots, and keeps selling the existing plans, without the Website Audit product', () => {
+      const result = readFastSpringConfig(COMPLETE_ENV);
+      expect(result.state).toBe('configured');
+      if (result.state !== 'configured') return;
+      expect(result.config.productPaths.WebsiteAudit).toBeUndefined();
+      expect(isPlanPurchasable(result.config, 'Basic')).toBe(true);
+      expect(isPlanPurchasable(result.config, 'Complete')).toBe(true);
+      expect(isPlanPurchasable(result.config, 'WebsiteAudit')).toBe(false);
+    });
+
+    it('never resolves an unmapped plan from a foreign or empty product path', () => {
+      const result = readFastSpringConfig(COMPLETE_ENV);
+      if (result.state !== 'configured') throw new Error('expected a configured environment');
+      // The bug this guards: `config.productPaths.WebsiteAudit` is `undefined`,
+      // and an order that names no product would match it by `=== undefined`.
+      expect(planForProductPath(result.config, '')).toBeNull();
+      expect(planForProductPath(result.config, '   ')).toBeNull();
+      expect(planForProductPath(result.config, 'someone-elses-product')).toBeNull();
+    });
+
+    it('sells the plan once the product path is configured', () => {
+      const result = readFastSpringConfig({
+        ...COMPLETE_ENV,
+        FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT: 'fluxradar-website-audit',
+      });
+      expect(result.state).toBe('configured');
+      if (result.state !== 'configured') return;
+      expect(isPlanPurchasable(result.config, 'WebsiteAudit')).toBe(true);
+      expect(planForProductPath(result.config, 'fluxradar-website-audit')).toBe('WebsiteAudit');
+    });
+
+    it('still refuses a half-set environment that omits a required product', () => {
+      const withoutComplete = { ...COMPLETE_ENV, FASTSPRING_PRODUCT_PATH_COMPLETE: '' };
+      const result = readFastSpringConfig({
+        ...withoutComplete,
+        FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT: 'fluxradar-website-audit',
+      });
+      expect(result.state).toBe('invalid');
+      if (result.state !== 'invalid') return;
+      expect(result.missing).toContain(FASTSPRING_ENV_VARS.productPathComplete);
+    });
   });
 
   it('names every missing variable when the set is incomplete, and no values', () => {

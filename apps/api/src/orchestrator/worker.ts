@@ -4,6 +4,7 @@
 // replaced by a separate worker process without changing scan semantics.
 
 import type { ScanRuntimeStatus } from '@fluxradar/contracts';
+import { parsePlan } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
 
 import { InvalidTransitionError } from '../billing/errors.ts';
@@ -676,7 +677,7 @@ async function isBillingBlocked(
 
 async function persistUnavailableModules(prisma: PrismaClient, scanId: string): Promise<void> {
   const scan = await prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
-  for (const stub of modulePlanFor(scan.plan as 'Free' | 'Basic' | 'Complete').stubs) {
+  for (const stub of modulePlanFor(parsePlan(scan.plan)).stubs) {
     await prisma.scanModule.upsert({
       where: { scanId_module: { scanId, module: stub.module } },
       create: {

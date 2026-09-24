@@ -7,7 +7,7 @@ export { EconInputError, ExportBuildError, ExportError } from './errors.js';
 export { EXPORT_RECORD_FIELDS } from './fields.js';
 export type { ExportRecordField } from './fields.js';
 
-export { EXPORT_RECORD_SCHEMA } from './schema.js';
+export { EXPORT_RECORD_SCHEMA, EXPORT_RECORD_SCHEMA_1_1 } from './schema.js';
 
 export { validateExportRecordSchema } from './schema-validator.js';
 export type { SchemaValidationResult, SchemaViolation } from './schema-validator.js';

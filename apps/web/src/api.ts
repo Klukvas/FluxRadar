@@ -203,7 +203,7 @@ export interface ApiCheckConfig {
 }
 
 export interface ProfileScanConfig {
-  readonly plan: 'Free' | 'Basic' | 'Complete';
+  readonly plan: 'Free' | 'Basic' | 'WebsiteAudit' | 'Complete';
   readonly scope: {
     readonly includeSubdomains: boolean;
     readonly maxPages?: number;
@@ -298,7 +298,7 @@ export interface CrawlSummary {
 export interface Scan {
   readonly id: string;
   readonly profileId: string;
-  readonly plan: 'Free' | 'Basic' | 'Complete';
+  readonly plan: 'Free' | 'Basic' | 'WebsiteAudit' | 'Complete';
   readonly domain: string;
   readonly status: string;
   readonly statusReason: string | null;
@@ -457,7 +457,7 @@ export interface ScanChanges {
 /** One purchase on the account screen. `amount` is what the card was charged. */
 export interface Purchase {
   readonly id: string;
-  readonly plan: 'Basic' | 'Complete' | string;
+  readonly plan: 'Basic' | 'WebsiteAudit' | 'Complete' | string;
   readonly status: string;
   readonly amount: number;
   readonly currency: string;
@@ -755,6 +755,14 @@ export interface CheckoutConfig {
     readonly plan: string;
     readonly priceUsd: number;
     readonly currency: string;
+    /**
+     * Whether this deployment can open a checkout for this plan. A plan whose
+     * product does not exist at the provider is listed and unavailable rather
+     * than missing, so the form can say so instead of quietly dropping it.
+     * Absent on a server that predates the field — read as available, which is
+     * what it meant before plans could differ.
+     */
+    readonly available?: boolean;
   }[];
   /**
    * The optional AI recipients this deployment can actually send to, by name.

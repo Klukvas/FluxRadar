@@ -1,13 +1,20 @@
-// Resolved/Reopened по fingerprint между Complete-сканами профиля (§14, D-110).
-// Начальный статус нового issue наследует последнюю известную судьбу того же
-// fingerprint в успешных Complete-сканах: Resolved → Reopened, пользовательские
-// Acknowledged/Ignored/False Positive переносятся (решение принято о том же
-// evidence), остальное → New. После успешного Complete-скана issues предыдущего
-// Complete-скана помечаются Resolved — но только те, повторную проверку которых
-// прогон действительно доказал (resolution-policy.ts).
+// Resolved/Reopened по fingerprint между сканами ОДНОГО плана внутри профиля
+// (§14, D-110). Начальный статус нового issue наследует последнюю известную
+// судьбу того же fingerprint в успешных сканах того же плана: Resolved →
+// Reopened, пользовательские Acknowledged/Ignored/False Positive переносятся
+// (решение принято о том же evidence), остальное → New. После успешного скана
+// issues предыдущего скана того же плана помечаются Resolved — но только те,
+// повторную проверку которых прогон действительно доказал
+// (resolution-policy.ts).
+//
+// Сравнение ограничено одним планом, потому что планы читают разные наборы
+// модулей: Website Audit не запускает SEO и GEO вовсе, поэтому отсутствие
+// SEO-находки в нём — не исправление, а другой набор проверок. Сравнение
+// Complete → Website Audit пометило бы каждую SEO/GEO-находку как Resolved.
 
 import type { PrismaClient, Scan } from '@prisma/client';
 import type { IssueStatus } from '@fluxradar/contracts';
+import { planSupports } from '@fluxradar/contracts';
 
 import { previousRunCoverage, resolvableIssues } from './resolution-policy.ts';
 import type { RunCoverage } from './resolution-policy.ts';
@@ -26,15 +33,15 @@ function inheritedStatus(previous: string): IssueStatus {
 }
 
 /**
- * Начальные статусы новых issues Complete-скана. Ищется последнее вхождение
- * каждого fingerprint среди более ранних успешных Complete-сканов профиля.
+ * Начальные статусы новых issues скана. Ищется последнее вхождение каждого
+ * fingerprint среди более ранних успешных сканов ТОГО ЖЕ плана в профиле.
  */
 export async function initialIssueStatuses(
   prisma: PrismaClient,
   scan: Scan,
   fingerprints: readonly string[],
 ): Promise<ReadonlyMap<string, IssueStatus>> {
-  if (scan.plan !== 'Complete' || fingerprints.length === 0) {
+  if (!planSupports(scan.plan, 'issueHistory') || fingerprints.length === 0) {
     return new Map();
   }
   const previous = await prisma.issue.findMany({
@@ -42,7 +49,7 @@ export async function initialIssueStatuses(
       fingerprint: { in: [...fingerprints] },
       scan: {
         siteProfileId: scan.siteProfileId,
-        plan: 'Complete',
+        plan: scan.plan,
         status: 'Completed',
         id: { not: scan.id },
       },
@@ -104,7 +111,7 @@ export interface ResolveOptions {
 }
 
 /**
- * После успешного Complete-скана: issues предыдущего Complete-скана, которых
+ * После успешного скана: issues предыдущего скана ТОГО ЖЕ плана, которых
  * в новом нет И повторную проверку которых этот прогон действительно доказал,
  * получают Resolved (§14 + политика resolution-policy.ts).
  *
@@ -120,13 +127,13 @@ export async function markResolvedAgainstPrevious(
   run: RunCoverage,
   options: ResolveOptions = {},
 ): Promise<number> {
-  if (scan.plan !== 'Complete') {
+  if (!planSupports(scan.plan, 'issueHistory')) {
     return 0;
   }
   const previousScan = await prisma.scan.findFirst({
     where: {
       siteProfileId: scan.siteProfileId,
-      plan: 'Complete',
+      plan: scan.plan,
       status: 'Completed',
       id: { not: scan.id },
     },

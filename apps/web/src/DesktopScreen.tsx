@@ -31,7 +31,7 @@ export interface DesktopScreenProps {
   /** Called once a profile is gone, so screens still holding it can let it go. */
   readonly onProfileDeleted: (profile: SiteProfile) => void;
   readonly onSelectProfile: (profile: SiteProfile) => void;
-  readonly onNewScan: (profile: SiteProfile, plan?: 'Free' | 'Complete') => void;
+  readonly onNewScan: (profile: SiteProfile, plan?: 'Free' | 'WebsiteAudit' | 'Complete') => void;
   readonly onOpenScan: (scanId: string) => void;
   /** Retries the one unfinished section of a Partial scan. */
   readonly onRetryScan: (scanId: string) => Promise<void>;
@@ -463,7 +463,7 @@ function NextStep(props: {
   profiles: readonly SiteProfile[];
   latest: Scan | null;
   onAddSite: () => void;
-  onNewScan: (profile: SiteProfile, plan?: 'Free' | 'Complete') => void;
+  onNewScan: (profile: SiteProfile, plan?: 'Free' | 'WebsiteAudit' | 'Complete') => void;
   onOpenScan: (scanId: string) => void;
   onRetryScan: (scanId: string) => Promise<void>;
 }) {

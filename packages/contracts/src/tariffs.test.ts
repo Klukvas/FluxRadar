@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import { PLANS } from './enums.js';
-import { ENTITLEMENT_DAYS, FREE_CHECK_RULE_IDS, SIDE_SCORE_MODULES, TARIFFS } from './tariffs.js';
+import {
+  ENTITLEMENT_DAYS,
+  FREE_CHECK_RULE_IDS,
+  SEARCH_MODULES,
+  SIDE_SCORE_MODULES,
+  TARIFFS,
+  normalizeScoreWeights,
+  planRunsModule,
+  planSupports,
+} from './tariffs.js';
 
 const weightSum = (weights: Readonly<Partial<Record<string, number>>>): number =>
   Object.values(weights).reduce((sum: number, weight) => sum + (weight ?? 0), 0);
@@ -10,6 +19,7 @@ describe('tariff matrix §18', () => {
   it('sums score weights of scoring plans to exactly 1.0', () => {
     expect(weightSum(TARIFFS.Basic.scoreWeights)).toBeCloseTo(1, 10);
     expect(weightSum(TARIFFS.Complete.scoreWeights)).toBeCloseTo(1, 10);
+    expect(weightSum(TARIFFS.WebsiteAudit.scoreWeights)).toBeCloseTo(1, 10);
   });
 
   it('computes no score for Free', () => {
@@ -67,6 +77,86 @@ describe('tariff matrix §18', () => {
       retentionDays: 365,
       label: 'Complete Scan',
     });
+  });
+
+  it('sells Website Audit as the eight non-search modules at $79', () => {
+    expect(TARIFFS.WebsiteAudit).toMatchObject({
+      priceUsd: 79,
+      urlLimit: 50_000,
+      aiRequestLimit: 500,
+      retentionDays: 365,
+      label: 'Website Audit Scan',
+    });
+    expect(TARIFFS.WebsiteAudit.modules).toEqual([
+      'Security',
+      'Performance',
+      'Accessibility',
+      'Reliability',
+      'Content Quality',
+      'Privacy',
+      'UX/Conversion',
+      'Analytics',
+    ]);
+  });
+
+  it('is exactly Complete without the search modules', () => {
+    expect(TARIFFS.WebsiteAudit.modules).toEqual(
+      TARIFFS.Complete.modules.filter((module) => !SEARCH_MODULES.includes(module)),
+    );
+  });
+
+  it('weights every scored module the plan runs, and only those', () => {
+    for (const plan of ['Basic', 'Complete', 'WebsiteAudit'] as const) {
+      const scored = TARIFFS[plan].modules.filter(
+        (module) => !SIDE_SCORE_MODULES.includes(module),
+      );
+      expect(Object.keys(TARIFFS[plan].scoreWeights).sort()).toEqual([...scored].sort());
+    }
+  });
+
+  it('runs neither search module on Website Audit', () => {
+    for (const searchModule of SEARCH_MODULES) {
+      expect(TARIFFS.WebsiteAudit.modules).not.toContain(searchModule);
+      expect(TARIFFS.WebsiteAudit.scoreWeights).not.toHaveProperty(searchModule);
+      expect(planRunsModule('WebsiteAudit', searchModule)).toBe(false);
+    }
+  });
+
+  it('keeps Complete’s relative weights on Website Audit, rescaled over the .65 that remains', () => {
+    const websiteAudit = TARIFFS.WebsiteAudit.scoreWeights;
+    expect(websiteAudit.Security).toBeCloseTo(0.2 / 0.65, 10);
+    expect(websiteAudit.Performance).toBeCloseTo(0.15 / 0.65, 10);
+    expect(websiteAudit.Accessibility).toBeCloseTo(0.1 / 0.65, 10);
+    expect(websiteAudit.Reliability).toBeCloseTo(0.1 / 0.65, 10);
+    expect(websiteAudit['Content Quality']).toBeCloseTo(0.05 / 0.65, 10);
+    expect(websiteAudit.Privacy).toBeCloseTo(0.05 / 0.65, 10);
+    // Security still matters exactly twice what Accessibility does, as on Complete.
+    expect((websiteAudit.Security ?? 0) / (websiteAudit.Accessibility ?? 1)).toBeCloseTo(2, 10);
+  });
+
+  it('leaves Basic and Complete untouched by the third package', () => {
+    expect(TARIFFS.Basic.priceUsd).toBe(55);
+    expect(TARIFFS.Complete.priceUsd).toBe(120);
+    expect(TARIFFS.Complete.modules).toHaveLength(10);
+    expect(TARIFFS.Basic.modules).toEqual(['SEO', 'AI SEO / GEO']);
+  });
+
+  it('gives Website Audit the same report entitlements as Complete, and Basic none', () => {
+    expect(TARIFFS.WebsiteAudit.capabilities).toEqual(TARIFFS.Complete.capabilities);
+    for (const capability of ['scanHistory', 'issueHistory', 'export', 'actionPlan'] as const) {
+      expect(planSupports('WebsiteAudit', capability)).toBe(true);
+      expect(planSupports('Basic', capability)).toBe(false);
+      expect(planSupports('Free', capability)).toBe(false);
+    }
+  });
+
+  it('refuses a capability for a plan literal it does not know', () => {
+    expect(planSupports('Enterprise', 'export')).toBe(false);
+    expect(planRunsModule('Enterprise', 'Security')).toBe(false);
+  });
+
+  it('returns no weights when nothing survives normalization', () => {
+    expect(normalizeScoreWeights({ SEO: 0.6 }, ['Security'])).toEqual({});
   });
 
   it('keeps the entitlement window at 30 days', () => {

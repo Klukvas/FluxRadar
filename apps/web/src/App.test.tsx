@@ -1021,18 +1021,26 @@ describe('home pricing and workspace onboarding', () => {
     render(<App />);
   }
 
-  it('describes both one-time products on the home page with their prices', async () => {
+  it('describes every one-time product on the home page with its price', async () => {
     renderHome();
     await screen.findByRole('heading', { name: 'One URL. Every signal.' });
 
-    const pricing = screen.getByRole('region', { name: 'Two one-time reports. No subscription.' });
+    const pricing = screen.getByRole('region', {
+      name: 'Three one-time reports. No subscription.',
+    });
     const basic = within(pricing).getByRole('heading', { name: 'Basic' }).closest('article');
+    const websiteAudit = within(pricing)
+      .getByRole('heading', { name: 'Website Audit' })
+      .closest('article');
     const complete = within(pricing).getByRole('heading', { name: 'Complete' }).closest('article');
-    if (basic === null || complete === null) throw new Error('expected both product cards');
+    if (basic === null || websiteAudit === null || complete === null) {
+      throw new Error('expected all three product cards');
+    }
 
     // The currency is stated, not implied: the checkout localises, so a bare "$"
     // is a figure the buyer may not see again.
     expect(within(basic).getByText('$55 USD')).toBeInTheDocument();
+    expect(within(websiteAudit).getByText('$79 USD')).toBeInTheDocument();
     expect(within(complete).getByText('$120 USD')).toBeInTheDocument();
 
     // Each card says what it does, who it is for and where it stops.
@@ -1040,7 +1048,14 @@ describe('home pricing and workspace onboarding', () => {
     expect(within(basic).getByText('Best for')).toBeInTheDocument();
     expect(within(basic).getByText('Not covered')).toBeInTheDocument();
     expect(within(basic).getByText(/up to 5,000 crawled pages/i)).toBeInTheDocument();
+    expect(within(websiteAudit).getByText(/up to 50,000 crawled pages/i)).toBeInTheDocument();
     expect(within(complete).getByText(/up to 50,000 crawled pages/i)).toBeInTheDocument();
+
+    // The middle card is the one that has to say what it does not run, because
+    // that is the only thing separating it from the dearest package.
+    expect(
+      within(websiteAudit).getByText(/The SEO analysis and AI SEO \/ GEO/i),
+    ).toBeInTheDocument();
   });
 
   it('presents Complete as one price with every module and no add-on', async () => {
@@ -1069,7 +1084,7 @@ describe('home pricing and workspace onboarding', () => {
     ).toBeInTheDocument();
     // The choice is a comparison, and it is laid out as one — the structure of
     // the table is pinned in pricing-comparison.test.tsx.
-    const comparison = screen.getByRole('table', { name: /Basic and Complete side by side/ });
+    const comparison = screen.getByRole('table', { name: /The three packages side by side/ });
     expect(
       within(comparison).getByRole('rowheader', { name: 'The question it answers' }),
     ).toBeInTheDocument();
@@ -1077,25 +1092,28 @@ describe('home pricing and workspace onboarding', () => {
       within(comparison).getByText('Why is my site not being found — in search, or in AI answers?'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/It is a first look at the report format, not a third product/i),
+      screen.getByText(/It is a first look at the report format, not a product of its own/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/the scan starts once the payment provider confirms/i),
     ).toBeInTheDocument();
   });
 
-  it('describes both products in Ukrainian after switching language', async () => {
+  it('describes every product in Ukrainian after switching language', async () => {
     renderHome();
     await screen.findByRole('heading', { name: 'One URL. Every signal.' });
 
     switchLanguageToUkrainian();
 
     expect(
-      screen.getByRole('heading', { name: 'Два разові звіти. Без підписки.' }),
+      screen.getByRole('heading', { name: 'Три разові звіти. Без підписки.' }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText('Що ви отримуєте')).toHaveLength(2);
+    expect(screen.getAllByText('Що ви отримуєте')).toHaveLength(3);
     expect(screen.getByText(/до 5 000 сторінок обходу/)).toBeInTheDocument();
-    expect(screen.getByText(/до 50 000 сторінок обходу/)).toBeInTheDocument();
+    // Website Audit and Complete share the 50,000-URL limit, so the sentence
+    // appears once per card rather than once on the page.
+    expect(screen.getAllByText(/до 50 000 сторінок обходу/)).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'Website Audit' })).toBeInTheDocument();
     expect(
       screen.getByText(/Усі модулі, які запускає FluxRadar, уже входять у цю ціну/),
     ).toBeInTheDocument();
@@ -1108,7 +1126,7 @@ describe('home pricing and workspace onboarding', () => {
 
     await screen.findByRole('heading', { name: 'One URL. Every signal.' });
     expect(
-      screen.getByRole('region', { name: 'Two one-time reports. No subscription.' }),
+      screen.getByRole('region', { name: 'Three one-time reports. No subscription.' }),
     ).toBeInTheDocument();
     // The URL is cleaned by a passive effect of the home screen, which React
     // flushes after the heading is already in the DOM; on a slow CI runner the

@@ -1,12 +1,12 @@
 import { Button } from './components';
 import { copy, type Language } from './i18n';
 
-// The two one-time products live on the home page: there is no separate plans
-// screen to navigate to, so everything a buyer needs to choose between Basic
-// and Complete has to be readable in one place.
+// The three one-time products live on the home page: there is no separate plans
+// screen to navigate to, so everything a buyer needs to choose between Basic,
+// Website Audit and Complete has to be readable in one place.
 
 /** A plan chosen on the pricing cards, carried through sign-up to the scan form. */
-export type ChosenPlan = 'Basic' | 'Complete';
+export type ChosenPlan = 'Basic' | 'WebsiteAudit' | 'Complete';
 
 export function PricingCards(props: { language: Language; onChoose: (plan: ChosenPlan) => void }) {
   const t = copy[props.language].pricing;
@@ -36,6 +36,31 @@ export function PricingCards(props: { language: Language; onChoose: (plan: Chose
           </div>
         </dl>
         <Button onClick={() => props.onChoose('Basic')}>{t.chooseBasic}</Button>
+      </article>
+      <article className="home__plan home__plan--website-audit">
+        <span className="home__card-index">{t.cards.websiteAudit.eyebrow}</span>
+        <h3>{t.cards.websiteAudit.title}</h3>
+        <div className="home__price">{t.cards.websiteAudit.price}</div>
+        <p>{t.cards.websiteAudit.description}</p>
+        <dl className="plan-card__details">
+          <div>
+            <dt>{t.included}</dt>
+            <dd>{t.cards.websiteAudit.included}</dd>
+          </div>
+          <div>
+            <dt>{t.bestFor}</dt>
+            <dd>{t.cards.websiteAudit.bestFor}</dd>
+          </div>
+          <div>
+            <dt>{t.notIncluded}</dt>
+            <dd>{t.cards.websiteAudit.notIncluded}</dd>
+          </div>
+          <div>
+            <dt>{t.limits}</dt>
+            <dd>{t.cards.websiteAudit.limits}</dd>
+          </div>
+        </dl>
+        <Button onClick={() => props.onChoose('WebsiteAudit')}>{t.chooseWebsiteAudit}</Button>
       </article>
       <article className="home__plan home__plan--complete">
         <span className="home__card-index">{t.cards.complete.eyebrow}</span>
@@ -79,8 +104,9 @@ const COMPARISON_ROWS = [
 ] as const;
 
 /**
- * Basic and Complete as a table rather than two paragraphs, because the reader's
- * question is a comparison and prose makes them hold both halves in their head.
+ * The three packages as a table rather than three paragraphs, because the
+ * reader's question is a comparison and prose makes them hold all of it in their
+ * head.
  *
  * It stays a real table — caption, column headers, a row header per question —
  * so the relationship survives being read out. Below the phone breakpoint the
@@ -102,6 +128,7 @@ export function PricingExplainer(props: { language: Language }) {
             <tr>
               <th scope="col">{t.explainer.aspect}</th>
               <th scope="col">{t.explainer.basicColumn}</th>
+              <th scope="col">{t.explainer.websiteAuditColumn}</th>
               <th scope="col">{t.explainer.completeColumn}</th>
             </tr>
           </thead>
@@ -110,6 +137,9 @@ export function PricingExplainer(props: { language: Language }) {
               <tr key={row}>
                 <th scope="row">{t.explainer.rows[row].label}</th>
                 <td data-label={t.explainer.basicColumn}>{t.explainer.rows[row].basic}</td>
+                <td data-label={t.explainer.websiteAuditColumn}>
+                  {t.explainer.rows[row].websiteAudit}
+                </td>
                 <td data-label={t.explainer.completeColumn}>{t.explainer.rows[row].complete}</td>
               </tr>
             ))}

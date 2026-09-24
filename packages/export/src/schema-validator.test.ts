@@ -49,6 +49,53 @@ describe('validateExportRecordSchema', () => {
     });
   });
 
+  // Версия record-а решает, по какой схеме он читается: архивный 1.0-файл и
+  // дальше проверяется контрактом 1.0 и не получает разрешений, добавленных
+  // позже, а 1.1 допускает план, который 1.0 по определению не мог нести.
+  describe('версии схемы', () => {
+    const WEBSITE_AUDIT_RECORD = {
+      ...CANONICAL_ISSUE_EXAMPLE,
+      schema_version: '1.1',
+      plan: 'Website Audit Scan',
+    };
+
+    it('принимает Website Audit record в версии 1.1', () => {
+      expect(validateExportRecordSchema(WEBSITE_AUDIT_RECORD).ok).toBe(true);
+    });
+
+    it('принимает Complete record в версии 1.1 тоже', () => {
+      expect(
+        validateExportRecordSchema({ ...CANONICAL_ISSUE_EXAMPLE, schema_version: '1.1' }).ok,
+      ).toBe(true);
+    });
+
+    it('не пускает Website Audit в версию 1.0: она Complete-only по определению', () => {
+      expect(
+        validateExportRecordSchema({ ...CANONICAL_ISSUE_EXAMPLE, plan: 'Website Audit Scan' }).ok,
+      ).toBe(false);
+    });
+
+    it('отклоняет неизвестную версию, не подставляя схему по умолчанию', () => {
+      const result = validateExportRecordSchema({
+        ...CANONICAL_ISSUE_EXAMPLE,
+        schema_version: '2.0',
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.violations[0]?.path).toBe('/schema_version');
+    });
+
+    it('1.1 сохраняет остальные правила формы 1.0', () => {
+      expect(
+        validateExportRecordSchema({ ...WEBSITE_AUDIT_RECORD, plan: 'Basic Scan' }).ok,
+      ).toBe(false);
+      expect(
+        validateExportRecordSchema({ ...WEBSITE_AUDIT_RECORD, fingerprint: 'not-a-fingerprint' })
+          .ok,
+      ).toBe(false);
+    });
+  });
+
   describe('негативные пробы формы', () => {
     it('plan, отличный от Complete Scan, отклоняется (Complete-only export)', () => {
       const result = validateExportRecordSchema({ ...CANONICAL_ISSUE_EXAMPLE, plan: 'Basic Scan' });

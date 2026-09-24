@@ -24,6 +24,7 @@ import { ACTION_PLAN_NOTICE_VERSION } from './ai-processing-notice';
 import { Button, SelectField, StatusChip } from './components';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
+import { planIncludesActionPlan } from './plan-modules';
 import { moduleLabel, ruleTitle } from './rule-titles';
 import { LANGUAGE_CODES, languageCodeLabel, targetLanguageCodes } from './target-languages';
 import './styles/findings.css';
@@ -138,7 +139,9 @@ export function ActionPlan(props: ActionPlanProps) {
     };
   }, [load]);
 
-  const planReady = state?.plan != null && !unavailable && props.scan.plan === 'Complete';
+  // The Action Plan is an entitlement of the plan, not of one plan literal.
+  const hasActionPlan = planIncludesActionPlan(props.scan.plan);
+  const planReady = state?.plan != null && !unavailable && hasActionPlan;
   const notifyPlanReady = props.onPlanReadyChange;
   useEffect(() => {
     notifyPlanReady?.(planReady);
@@ -170,7 +173,7 @@ export function ActionPlan(props: ActionPlanProps) {
   }, [windowEndsAt, now]);
 
   if (props.scan.plan === 'Free') return null;
-  if (props.scan.plan !== 'Complete') {
+  if (!hasActionPlan) {
     return props.hasOpenIssues === true ? (
       <section className="report-block" aria-labelledby="action-plan-heading">
         <h3 id="action-plan-heading">{t.lockedTitle}</h3>

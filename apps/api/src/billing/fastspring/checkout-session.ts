@@ -10,7 +10,12 @@ import type { AiConsentInput } from '../checkout-metadata.ts';
 import { CHECKOUT_STATUS_REASONS, provisionalCheckoutDeadline } from '../checkout-lifecycle.ts';
 import { checkoutReasonCode, type CheckoutReasonCode } from '../checkout-status-reason.ts';
 import { CHECKOUT_SESSION_STATUSES } from '../constants.ts';
-import { BillingNotFoundError, SitePreconditionError, WebhookValidationError } from '../errors.ts';
+import {
+  BillingNotFoundError,
+  PlanNotPurchasableError,
+  SitePreconditionError,
+  WebhookValidationError,
+} from '../errors.ts';
 import { planPriceUsd, planUrlLimit, type PaidPlan } from '../plans.ts';
 import { createFastSpringSession, type CreatedSession, type FetchLike } from './client.ts';
 import { FASTSPRING_PROVIDER, type FastSpringConfig } from './config.ts';
@@ -56,6 +61,13 @@ export async function createCheckoutSession(
   deps: CheckoutSessionDeps,
   params: CheckoutSessionParams,
 ): Promise<CheckoutSessionView> {
+  // Before anything is read or written: a plan with no product at the provider
+  // cannot be paid for, so opening a session for it would only produce a dead
+  // checkout row.
+  const productPath = deps.config.productPaths[params.plan];
+  if (productPath === undefined) {
+    throw new PlanNotPurchasableError(params.plan);
+  }
   const profile = await deps.prisma.siteProfile.findFirst({
     where: { id: params.siteProfileId, accountId: params.accountId },
   });
@@ -72,7 +84,6 @@ export async function createCheckoutSession(
   assertScopeWithinPlan(params.plan, scope);
   await assertSiteIsReachable(deps, profile.id, profile.domain, scope.egressLocation ?? null);
 
-  const productPath = deps.config.productPaths[params.plan];
   const reference = `frcs_${randomUUID()}`;
   const createdAt = deps.now();
   // The row carries a deadline from the very first moment. FastSpring reports

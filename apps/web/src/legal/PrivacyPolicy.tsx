@@ -157,40 +157,43 @@ function UkrainianPrivacy(): JSX.Element {
           лише щоб розуміти, які сторінки й кроки допомагають відвідувачам і де вони зупиняються.
         </p>
         <p>
-          Платні аудити включають застосовний AI‑аналіз: Basic — AI SEO / GEO, Complete — AI SEO /
-          GEO, UX/Conversion і AI‑план дій на вимогу. До оплати й запуску помітний дисклеймер
-          називає активних провайдерів та пояснює передачу публічних сторінок і введеного контексту.
-          На дату цієї Політики запитання про видимість отримують <strong>Anthropic</strong> і{' '}
-          <strong>OpenAI</strong>, обидва — з увімкненим власним вебпошуком; UX/Conversion і AI‑план
-          дій отримує лише Anthropic. <strong>Google (Gemini)</strong> і <strong>Perplexity</strong>{' '}
-          доступні як необовʼязковий вибір перед оплатою: вони не отримують нічого, доки ви не
-          оберете їх для конкретної перевірки, і цей вибір зберігається разом із нею. Дані акаунта,
-          оплати, повний номер картки та Google/Bing tokens не входять до AI‑запиту.
+          Платні аудити включають застосовний AI‑аналіз: Basic — AI SEO / GEO, Website Audit — лише
+          UX/Conversion, Complete — AI SEO / GEO та UX/Conversion. Website Audit не запускає AI SEO
+          / GEO, тому для нього AI‑провайдеру не надсилаються ні discovery questions, ні awareness
+          questions про бренд. До оплати й запуску помітний дисклеймер називає активних провайдерів
+          та пояснює передачу публічних сторінок і введеного контексту. На дату цієї Політики
+          запитання про видимість отримують <strong>Anthropic</strong> і <strong>OpenAI</strong>,
+          обидва — з увімкненим власним вебпошуком; UX/Conversion і AI‑план дій отримує лише
+          Anthropic. <strong>Google (Gemini)</strong> і <strong>Perplexity</strong> доступні як
+          необовʼязковий вибір перед оплатою: вони не отримують нічого, доки ви не оберете їх для
+          конкретної перевірки, і цей вибір зберігається разом із нею. Дані акаунта, оплати, повний
+          номер картки та Google/Bing tokens не входять до AI‑запиту.
         </p>
         <p>
-          AI‑план дій (Complete) надсилає до Anthropic лише метадані правил цього звіту:
-          ідентифікатор і назву правила, розділ, найвищу відкриту серйозність, кількість відкритих
-          знахідок, до трьох адрес сторінок без query та fragment, рекомендації правила й статуси
-          розділів. Уривки доказів, знімки екрана та будь‑що з розділу «Аналітика» (дані Google) не
-          надсилаються.
+          AI‑план дій (Website Audit і Complete) надсилає до Anthropic лише метадані правил цього
+          звіту: ідентифікатор і назву правила, розділ, найвищу відкриту серйозність, кількість
+          відкритих знахідок, до трьох адрес сторінок без query та fragment, рекомендації правила й
+          статуси розділів. Уривки доказів, знімки екрана та будь‑що з розділу «Аналітика» (дані
+          Google) не надсилаються.
         </p>
         <p>
-          GEO може надсилати нейтралізований контекст для створення discovery questions без назви й
-          домену, а потім окремо ставити awareness questions із назвою та доменом. UX/Conversion
-          може включати обмежені публічні докази: URL, titles, headings, calls to action, links і
-          form information. Автоматичне приховування секретів не гарантує видалення всіх
-          персональних даних. Уже надісланий провайдеру запит неможливо відкликати.
+          У Basic і Complete GEO може надсилати нейтралізований контекст для створення discovery
+          questions без назви й домену, а потім окремо ставити awareness questions із назвою та
+          доменом. У Website Audit і Complete UX/Conversion може включати обмежені публічні докази:
+          URL, titles, headings, calls to action, links і form information. Автоматичне приховування
+          секретів не гарантує видалення всіх персональних даних. Уже надісланий провайдеру запит
+          неможливо відкликати.
         </p>
         <p>
-          У звіті Complete власник може також попросити AI‑план дій: короткий упорядкований список
-          змін, який Claude від Anthropic складає за цим звітом. Нічого не надсилається, доки
-          власник не натисне кнопку, а рядок під нею пояснює, що саме передається: домен сайту,
-          статус, оцінку й покриття кожного розділу, а для кожного правила з відкритими проблемами —
-          його назву, критичність, кількість відкритих проблем, до трьох адрес сторінок без
-          параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана й
-          трасування не надсилаються, як і будь‑що з розділу «Аналітика» (дані Google Search Console
-          і GA4). План зберігається разом зі звітом і видаляється з ним; до експорту JSON чи CSV він
-          не входить.
+          У звіті Website Audit або Complete власник може також попросити AI‑план дій: короткий
+          упорядкований список змін, який Claude від Anthropic складає за цим звітом. Нічого не
+          надсилається, доки власник не натисне кнопку, а рядок під нею пояснює, що саме
+          передається: домен сайту, статус, оцінку й покриття кожного розділу, а для кожного правила
+          з відкритими проблемами — його назву, критичність, кількість відкритих проблем, до трьох
+          адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів,
+          знімки екрана й трасування не надсилаються, як і будь‑що з розділу «Аналітика» (дані
+          Google Search Console і GA4). План зберігається разом зі звітом і видаляється з ним; до
+          експорту JSON чи CSV він не входить.
         </p>
         <p>
           Ми не продаємо персональні дані й не передаємо їх рекламним партнерам. Дозволено
@@ -209,7 +212,8 @@ function UkrainianPrivacy(): JSX.Element {
           <li>
             <strong>Google і Microsoft/Bing</strong> — read‑only integration requests;
             <strong> Google PageSpeed Insights і CrUX</strong> отримують публічний URL або origin
-            для Complete performance check без підключення користувацького Google‑акаунта.
+            для performance check у Website Audit і Complete без підключення користувацького
+            Google‑акаунта.
           </li>
           <li>
             <strong>Anthropic</strong> — AI‑провайдер для описаних вище AI‑запитів, включно із
@@ -270,7 +274,10 @@ function UkrainianPrivacy(): JSX.Element {
         <span className="legal-section__label">07 / СТРОКИ</span>
         <h2>Зберігання та видалення</h2>
         <ul>
-          <li>Free і Basic reports — 30 днів від створення scan; Complete reports — 365 днів.</li>
+          <li>
+            Free і Basic reports — 30 днів від створення scan; Website Audit і Complete reports —
+            365 днів.
+          </li>
           <li>
             Профілі, конфігурації й інтеграції зберігаються до видалення користувачем або акаунта,
             якщо коротший строк не встановлено для конкретного report artifact.
@@ -463,37 +470,40 @@ function EnglishPrivacy(): JSX.Element {
           pages and steps help visitors and where they stop.
         </p>
         <p>
-          Paid audits include the applicable AI analysis: Basic includes AI SEO / GEO, while
-          Complete includes AI SEO / GEO, UX/Conversion and the AI Action Plan you can ask for.
-          Before payment and launch, a prominent disclaimer names the active providers and explains
-          the transfer of public pages and supplied project context. At this Policy’s effective date
-          the visibility questions go to <strong>Anthropic</strong> and <strong>OpenAI</strong>,
-          both answering with their own web search enabled; UX/Conversion and the AI Action Plan go
-          to Anthropic only. <strong>Google (Gemini)</strong> and <strong>Perplexity</strong> are an
-          opt-in choice made before purchase: they receive nothing at all unless you select them for
-          a particular audit, and that choice is stored with it. Account details, payment data, the
-          full card number and Google/Bing tokens are not AI inputs.
+          Paid audits include the applicable AI analysis: Basic includes AI SEO / GEO, Website Audit
+          includes UX/Conversion only, and Complete includes AI SEO / GEO and UX/Conversion. Website
+          Audit does not run AI SEO / GEO, so no discovery or brand-awareness question is sent to an
+          AI provider for it. Before payment and launch, a prominent disclaimer names the active
+          providers and explains the transfer of public pages and supplied project context. At this
+          Policy’s effective date the visibility questions go to <strong>Anthropic</strong> and{' '}
+          <strong>OpenAI</strong>, both answering with their own web search enabled; UX/Conversion
+          and the AI Action Plan go to Anthropic only. <strong>Google (Gemini)</strong> and{' '}
+          <strong>Perplexity</strong> are an opt-in choice made before purchase: they receive
+          nothing at all unless you select them for a particular audit, and that choice is stored
+          with it. Account details, payment data, the full card number and Google/Bing tokens are
+          not AI inputs.
         </p>
         <p>
-          The AI Action Plan (Complete) sends Anthropic the report’s rule metadata only: the rule id
-          and title, the section, the highest open severity, the number of open findings, up to
-          three page addresses with query and fragment removed, the rule’s recommendations and the
-          section statuses. It never sends evidence excerpts, screenshots, or anything from the
-          Analytics section, which is Google data.
+          The AI Action Plan (Website Audit and Complete) sends Anthropic the report’s rule metadata
+          only: the rule id and title, the section, the highest open severity, the number of open
+          findings, up to three page addresses with query and fragment removed, the rule’s
+          recommendations and the section statuses. It never sends evidence excerpts, screenshots,
+          or anything from the Analytics section, which is Google data.
         </p>
         <p>
-          GEO can send neutralized context to generate discovery questions without the name or
-          domain, then separately ask awareness questions that include them. UX/Conversion can
-          include limited public evidence such as URLs, titles, headings, calls to action, links and
-          form information. Automated secret redaction cannot guarantee removal of all personal
-          data. A request already sent to a provider cannot be recalled.
+          On Basic and Complete, GEO can send neutralized context to generate discovery questions
+          without the name or domain, then separately ask awareness questions that include them. On
+          Website Audit and Complete, UX/Conversion can include limited public evidence such as
+          URLs, titles, headings, calls to action, links and form information. Automated secret
+          redaction cannot guarantee removal of all personal data. A request already sent to a
+          provider cannot be recalled.
         </p>
         <p>
-          On a Complete report the owner may also ask for an AI Action Plan: a short, ordered list
-          of changes that Anthropic’s Claude writes from that report. Nothing is sent until the
-          owner presses the button, and a line under it says what is sent: the site’s domain, each
-          section’s status, score and coverage, and for each rule with open issues its name,
-          severity, number of open issues, up to three page addresses without query strings or
+          On a Website Audit or Complete report the owner may also ask for an AI Action Plan: a
+          short, ordered list of changes that Anthropic’s Claude writes from that report. Nothing is
+          sent until the owner presses the button, and a line under it says what is sent: the site’s
+          domain, each section’s status, score and coverage, and for each rule with open issues its
+          name, severity, number of open issues, up to three page addresses without query strings or
           fragments, and the rule’s recommendations. Evidence excerpts, screenshots and traces are
           not sent, and neither is anything from the Analytics section (Google Search Console and
           GA4 data). The plan is kept with the report and deleted with it; it is not part of the
@@ -516,7 +526,7 @@ function EnglishPrivacy(): JSX.Element {
           <li>
             <strong>Google and Microsoft/Bing</strong> receive read-only integration requests;
             <strong> Google PageSpeed Insights and CrUX</strong> receive a public URL or origin for
-            Complete performance checks without a connected user Google account.
+            Website Audit and Complete performance checks without a connected user Google account.
           </li>
           <li>
             <strong>Anthropic</strong> is an AI provider for the AI requests described above,
@@ -577,7 +587,10 @@ function EnglishPrivacy(): JSX.Element {
         <span className="legal-section__label">07 / RETENTION</span>
         <h2>Storage and deletion</h2>
         <ul>
-          <li>Free and Basic reports: 30 days from scan creation; Complete reports: 365 days.</li>
+          <li>
+            Free and Basic reports: 30 days from scan creation; Website Audit and Complete reports:
+            365 days.
+          </li>
           <li>
             Profiles, configurations and integrations remain until deleted by the user or with the
             account, unless a shorter period applies to a particular report artifact.

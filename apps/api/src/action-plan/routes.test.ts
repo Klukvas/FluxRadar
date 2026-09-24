@@ -22,11 +22,7 @@ import { deleteScanResult } from '../data-retention.ts';
 import { BackgroundRuns } from '../http/background-runs.ts';
 import { silentLogger } from '../http/logger.ts';
 import { createApp } from '../index.ts';
-import {
-  createTestDb,
-  type SeededAccount,
-  type TestDb,
-} from '../test-utils/test-db.ts';
+import { createTestDb, type SeededAccount, type TestDb } from '../test-utils/test-db.ts';
 import { clearActionPlansForScan } from './service.ts';
 
 const PASSWORD = 'sufficiently-long-password';
@@ -348,6 +344,18 @@ describe('Action Plan routes', () => {
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('NOT_FOUND');
     expect(await db.prisma.actionPlanAttempt.count({ where: { scanId } })).toBe(0);
+  });
+
+  it('writes a plan for a Website Audit scan: the package includes it', async () => {
+    const { scanId } = await seedPlannableScan(db.prisma, account, { plan: 'WebsiteAudit' });
+
+    const response = await generate(scanId);
+
+    expect(response.status).toBe(202);
+    const stored = await db.prisma.actionPlan.findUniqueOrThrow({
+      where: { scanId_language: { scanId, language: 'en' } },
+    });
+    expect(stored.promptVersion).toBe('action-plan-v1');
   });
 
   it('refuses a Basic scan, an unfinished one and a closed window', async () => {

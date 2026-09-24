@@ -72,7 +72,9 @@ function useSelectionState() {
   const [issueRuleFilter, setIssueRuleFilter] = useState<string | null>(null);
   // The plan the scan form opens on: chosen on the pricing cards, or from a Free
   // report's "Run Complete for this site".
-  const [newScanPlan, setNewScanPlan] = useState<'Free' | 'Basic' | 'Complete' | null>(null);
+  const [newScanPlan, setNewScanPlan] = useState<
+    'Free' | 'Basic' | 'WebsiteAudit' | 'Complete' | null
+  >(null);
   return {
     selectedProfile,
     setSelectedProfile,

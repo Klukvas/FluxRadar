@@ -27,7 +27,7 @@ import {
   type ConfigurationState,
 } from './new-scan-configuration';
 import { requestScan } from './new-scan-request';
-import type { Plan } from './plan-modules';
+import { PLAN_MODULES, type Plan } from './plan-modules';
 import { normalizeSiteAddress } from './site-address-input';
 import {
   DEFAULT_SCOPE_FORM,
@@ -281,6 +281,15 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         : current.filter((entry) => entry !== provider),
     );
   };
+  // The opt-ins this scan will actually be asked to honour: only recipients the
+  // deployment still offers, and only on a plan that runs the module they serve.
+  // Both filters answer the same question — a tick the screen stopped showing is
+  // not consent — so the request reads this rather than the raw selection.
+  const selectedOptInAiProviders: readonly AiProcessingOptInProvider[] = PLAN_MODULES[
+    plan
+  ].includes('AI SEO / GEO')
+    ? optInAiProviders.filter((provider) => offeredOptInAiProviders.includes(provider))
+    : [];
   // True once the settings below came from the reusable profile configuration.
   const [carriedOver, setCarriedOver] = useState(false);
   // The crawl rules most scans never touch. Whatever a saved configuration sets
@@ -551,9 +560,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         // A provider absent from this list receives nothing, and one the
         // deployment stopped offering while the form was open is dropped rather
         // than sent to a checkout that refuses it.
-        optInAiProviders: optInAiProviders.filter((provider) =>
-          offeredOptInAiProviders.includes(provider),
-        ),
+        //
+        // A plan without AI SEO / GEO drops them all: the selection is only ever
+        // offered beside that module, so on Website Audit it can only be a
+        // leftover from a plan the owner switched away from. Sending it would
+        // record consent to a recipient this scan never asks — the same
+        // inaccuracy as the notice promising a transfer that does not happen.
+        optInAiProviders: selectedOptInAiProviders,
         internalFreeAccess: props.internalFreeAccess,
         storefront: checkoutConfig?.popup?.storefront ?? null,
         onCheckoutStarted: props.onCheckoutStarted,
@@ -567,22 +580,40 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     }
   };
 
+  // Which paid plans this deployment can actually open a checkout for.
+  //
+  // The server answers per plan, because a product can exist at the provider for
+  // one plan and not another; a plan it cannot sell is left off the picker
+  // rather than offered and refused at the pay button. Two deliberate
+  // fallbacks to what the answer used to mean: a server that lists no plans at
+  // all, and a listed plan with no `available` field, are both read as "sellable
+  // if the checkout is", which is the only thing the older answer could say.
+  const listedPlans = checkoutConfig?.plans ?? [];
+  const sellablePlans = new Set(
+    listedPlans.filter((entry) => entry.available !== false).map((entry) => entry.plan),
+  );
+  const offersPlan = (value: string): boolean =>
+    props.internalFreeAccess || listedPlans.length === 0 || sellablePlans.has(value);
+  const everyPaidPlanOption: readonly PlanOption[] = [
+    {
+      value: 'Basic',
+      label: props.internalFreeAccess ? t.newScan.planBasicInternal : t.newScan.planBasicPaid,
+    },
+    {
+      value: 'WebsiteAudit',
+      label: props.internalFreeAccess
+        ? t.newScan.planWebsiteAuditInternal
+        : t.newScan.planWebsiteAuditPaid,
+    },
+    {
+      value: 'Complete',
+      label: props.internalFreeAccess ? t.newScan.planCompleteInternal : t.newScan.planCompletePaid,
+    },
+  ];
+  const paidPlanOptions = everyPaidPlanOption.filter((option) => offersPlan(option.value));
   const planOptions: readonly PlanOption[] = [
     { value: 'Free', label: t.newScan.planFree },
-    ...(paidAvailable
-      ? ([
-          {
-            value: 'Basic',
-            label: props.internalFreeAccess ? t.newScan.planBasicInternal : t.newScan.planBasicPaid,
-          },
-          {
-            value: 'Complete',
-            label: props.internalFreeAccess
-              ? t.newScan.planCompleteInternal
-              : t.newScan.planCompletePaid,
-          },
-        ] as const)
-      : []),
+    ...(paidAvailable ? paidPlanOptions : []),
   ];
   // Free is the fixed homepage check: the crawl controls below do not reach it,
   // so they are not offered on it. The server enforces the same thing whatever

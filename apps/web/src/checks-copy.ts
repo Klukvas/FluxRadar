@@ -373,7 +373,7 @@ export const checksCopyEn: ChecksCopy = {
         { term: 'The next step', body: 'a recommended remediation step.' },
       ],
       outro: [
-        'The JSON and CSV export (Complete plan) contains the full raw evidence for every finding so you can reproduce the check independently.',
+        'The JSON and CSV export (Website Audit and Complete plans) contains the full raw evidence for every finding so you can reproduce the check independently.',
       ],
     },
     limits: {
@@ -711,7 +711,7 @@ export const checksCopyUk: ChecksCopy = {
         { term: 'Наступний крок', body: 'рекомендована дія для виправлення.' },
       ],
       outro: [
-        'Експорт JSON і CSV (тариф Complete) містить повні сирі докази для кожної знахідки, тож перевірку можна відтворити самостійно.',
+        'Експорт JSON і CSV (тарифи Website Audit і Complete) містить повні сирі докази для кожної знахідки, тож перевірку можна відтворити самостійно.',
       ],
     },
     limits: {

@@ -1,10 +1,11 @@
-// Complete-only export HTTP API. Records are built through the canonical
+// Export HTTP API for the plans that include it. Records are built through the canonical
 // package builders and validated as a set before either JSON or CSV leaves the
 // server; no user-controlled raw record is serialized directly.
 
 import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import type { ScanExportStatus } from '@fluxradar/contracts';
+import { planSupports } from '@fluxradar/contracts';
 import { validateExportRecords, writeExportCsv } from '@fluxradar/export';
 import { z } from 'zod';
 
@@ -77,14 +78,16 @@ export function exportRouter(deps: ExportRouterDeps): Router {
     if (scan === null) {
       throw notFound('scan not found');
     }
-    // Before the plan gate, so a refunded Complete scan gives the same answer as
+    // Before the plan gate, so a refunded exportable scan gives the same answer as
     // a refunded Basic one: an export is the whole report in one file, and it is
     // the last place a returned payment may still hand it over.
     assertPaidReportAccess(scan);
-    if (scan.plan !== 'Complete') {
+    if (!planSupports(scan.plan, 'export')) {
+      // The code is unchanged so existing clients keep matching on it; the
+      // entitlement behind it is now the tariff's, not one plan literal.
       throw forbidden(
         'EXPORT_COMPLETE_ONLY',
-        'JSON and CSV export are available on Complete scans only',
+        'JSON and CSV export are not included in this plan',
       );
     }
     if (!EXPORTABLE_STATUSES.has(scan.status as ScanExportStatus)) {

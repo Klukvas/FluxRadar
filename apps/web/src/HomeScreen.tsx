@@ -8,6 +8,7 @@ import { HeroSiteForm } from './HeroSiteForm';
 import { HeroTitle } from './HeroTitle';
 import { copy, type Language } from './i18n';
 import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
+import { PAID_PLAN_ORDER } from './plan-modules';
 
 /**
  * The public landing page: the hero, the instrument preview, the pricing block
@@ -152,7 +153,8 @@ export function HomeScreen(props: {
                 <strong>06</strong> {t.home.hero.proofSignals}
               </span>
               <span>
-                <strong>02</strong> {t.home.hero.proofTiers}
+                <strong>{String(PAID_PLAN_ORDER.length).padStart(2, '0')}</strong>{' '}
+                {t.home.hero.proofTiers}
               </span>
             </div>
           </div>

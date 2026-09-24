@@ -5,7 +5,14 @@ import { Router } from 'express';
 import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
 import { computeOverallScore } from '@fluxradar/scoring';
 import { RULESET_VERSION, scanRequestInputSchema, scanScopeSchema } from '@fluxradar/contracts';
-import { isModuleName, parseCrawlSummary } from '@fluxradar/contracts';
+import {
+  PLANS,
+  TARIFFS,
+  isModuleName,
+  parseCrawlSummary,
+  parsePlan,
+  planSupports,
+} from '@fluxradar/contracts';
 import { MENTION_SIGNALS, type MentionSignal } from '@fluxradar/ai';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
@@ -134,7 +141,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
     if (input.plan !== 'Free') {
-      throw paymentRequired('Basic and Complete scans must be purchased before creation');
+      throw paymentRequired('paid scans must be purchased before creation');
     }
     const scan = await createFreeScan(deps.prisma, {
       accountId,
@@ -193,7 +200,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     const profileId = requiredParam(req.params.profileId, 'profileId');
     await findOwnProfile(deps.prisma, accountId, profileId);
     // Never the history view: this list is the profile's own results, so the
-    // Complete-only gate applies here exactly as it does with history=false.
+    // the history gate applies here exactly as it does with history=false.
     const listed = await listScanHistory(
       deps.prisma,
       { accountId, siteProfileId: profileId },
@@ -250,7 +257,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     const overall =
       scan.plan === 'Free'
         ? computeOverallScore('Free', [])
-        : computeOverallScore(scan.plan as 'Basic' | 'Complete', moduleSummaries);
+        : computeOverallScore(parsePlan(scan.plan), moduleSummaries);
     sendOk(res, {
       scan: toScanDto(scan, scan.modules),
       overall,
@@ -300,7 +307,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       .object({ module: z.string().min(1).optional() })
       .optional()
       .parse(req.body);
-    const plan = modulePlanFor(scan.plan as 'Free' | 'Basic' | 'Complete');
+    const plan = modulePlanFor(parsePlan(scan.plan));
     const retryModule = input?.module ?? retryableModule(scan.modules, plan);
     if (retryModule === null) {
       throw conflict('RETRY_NOT_ALLOWED', 'the scan has no retryable module');
@@ -795,11 +802,22 @@ interface ScanHistoryPage {
   readonly meta: PageMeta;
 }
 
+/** The plans whose purchase unlocks the full historical list. */
+const HISTORY_PLANS: readonly string[] = PLANS.filter((plan) =>
+  planSupports(plan, 'scanHistory'),
+);
+
+/** Paid plans that do not: owning one of these shows the current result only. */
+const PAID_PLANS_WITHOUT_HISTORY: readonly string[] = PLANS.filter(
+  (plan) => !planSupports(plan, 'scanHistory') && TARIFFS[plan].priceUsd > 0,
+);
+
 /**
  * One page of scan history, gated and counted by PostgreSQL.
  *
- * The gate is unchanged: a Complete purchase unlocks the full historical list,
- * an account that has bought Basic but never Complete sees only its current
+ * The gate is what it was, stated as an entitlement instead of a plan literal:
+ * a purchase that includes scan history unlocks the full historical list, an
+ * account that has bought only a paid plan without it sees only its current
  * result, and a Free/Basic result stays reachable by its own scan id in either
  * case — the gate hides the list, not the scan. What changed
  * is where the work happens — this used to load every scan the account had ever
@@ -813,15 +831,21 @@ async function listScanHistory(
   page: PageRequest,
   historyRequested: boolean,
 ): Promise<ScanHistoryPage> {
-  const [complete, basic] = await Promise.all([
-    prisma.scan.findFirst({ where: { ...where, plan: 'Complete' }, select: { id: true } }),
-    prisma.scan.findFirst({ where: { ...where, plan: 'Basic' }, select: { id: true } }),
+  const [unlocking, gated] = await Promise.all([
+    prisma.scan.findFirst({
+      where: { ...where, plan: { in: [...HISTORY_PLANS] } },
+      select: { id: true },
+    }),
+    prisma.scan.findFirst({
+      where: { ...where, plan: { in: [...PAID_PLANS_WITHOUT_HISTORY] } },
+      select: { id: true },
+    }),
   ]);
-  if (complete === null && basic !== null) {
+  if (unlocking === null && gated !== null) {
     if (historyRequested) {
       throw forbidden(
         'HISTORY_REQUIRES_COMPLETE',
-        'scan history is available on Complete scans only',
+        'scan history is not included in this plan',
       );
     }
     // Exactly one row is visible, so only the first page can carry it.

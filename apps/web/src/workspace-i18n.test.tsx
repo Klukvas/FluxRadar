@@ -168,12 +168,23 @@ describe('one word for a saved site, in both languages', () => {
     'tour',
   ] as const;
 
+  // "Website Audit" is the name of a product, not a word for a saved record, so
+  // it is the one place the workspace may say Website — the same way it may say
+  // Basic or Complete. Everything else the rule catches stays caught.
+  const SAVED_RECORD_CALLED_WEBSITE = /website(?!\s*audit)|вебсайт|веб-сайт/i;
+
   it('never calls a saved profile a Website on a workspace surface', () => {
     for (const language of ['en', 'uk'] as const) {
       for (const surface of workspaceSurfaces) {
-        expect(JSON.stringify(copy[language][surface])).not.toMatch(/website|вебсайт|веб-сайт/i);
+        expect(JSON.stringify(copy[language][surface])).not.toMatch(SAVED_RECORD_CALLED_WEBSITE);
       }
     }
+  });
+
+  it('still catches a saved record called a Website', () => {
+    expect('Choose a website to scan').toMatch(SAVED_RECORD_CALLED_WEBSITE);
+    expect('Оберіть вебсайт').toMatch(SAVED_RECORD_CALLED_WEBSITE);
+    expect('Website Audit · $79').not.toMatch(SAVED_RECORD_CALLED_WEBSITE);
   });
 
   // The scan screen named its picker after what a profile *holds* — a public

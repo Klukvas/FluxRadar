@@ -11,7 +11,7 @@ import type {
   ModuleRecord,
   SummaryRecord,
 } from '@fluxradar/contracts';
-import { EXPORT_SCHEMA_VERSION } from '@fluxradar/contracts';
+import { EXPORT_SCHEMA_VERSIONS, planLabelsForSchemaVersion } from '@fluxradar/contracts';
 import { computeFingerprint } from '@fluxradar/fingerprint';
 
 import { aggregateViolations } from './semantic-aggregation.js';
@@ -66,16 +66,34 @@ function recordViolations(record: ExportRecord, index: number): readonly Semanti
   }
 }
 
-/** Инвариант 1: Complete-only plan и единственная schema_version. */
+/**
+ * Инвариант 1: известная schema_version и plan, который эта версия допускает.
+ *
+ * Версия 1.0 по определению Complete-only, поэтому пара «версия + plan»
+ * проверяется вместе: 1.0 с любым другим планом — нарушение, как и раньше,
+ * а Website Audit допустим только в 1.1.
+ */
 function planViolations(record: ExportRecord, index: number): readonly SemanticViolation[] {
-  const found: SemanticViolation[] = [];
-  if (record.plan !== 'Complete Scan') {
-    found.push(violation('EXPORT-001/1', index, `plan «${record.plan}» — export существует только для Complete Scan`));
+  const allowedPlans = planLabelsForSchemaVersion(record.schema_version);
+  if (allowedPlans === undefined) {
+    return [
+      violation(
+        'EXPORT-001/1',
+        index,
+        `schema_version «${record.schema_version}» не входит в известные версии: ${EXPORT_SCHEMA_VERSIONS.join(', ')}`,
+      ),
+    ];
   }
-  if (record.schema_version !== EXPORT_SCHEMA_VERSION) {
-    found.push(violation('EXPORT-001/1', index, `schema_version «${record.schema_version}» != «${EXPORT_SCHEMA_VERSION}»`));
+  if (!allowedPlans.includes(record.plan)) {
+    return [
+      violation(
+        'EXPORT-001/1',
+        index,
+        `plan «${record.plan}» не допускается schema_version «${record.schema_version}» (разрешено: ${allowedPlans.join(', ')})`,
+      ),
+    ];
   }
-  return found;
+  return [];
 }
 
 /** Инвариант 2: UTC Z и started_at <= observed_at <= completed_at. */

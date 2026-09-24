@@ -488,3 +488,22 @@ export const EXPORT_RECORD_SCHEMA = {
     deletion_evidence_ref: { type: ['string', 'null'] },
   },
 } as const;
+
+/**
+ * Schema `1.1` — the `1.0` contract with one difference: the plan may be any
+ * paid tariff's export label, not only `Complete Scan`.
+ *
+ * Derived from the схема above rather than written out again, exactly because
+ * §16 says the letter of `1.0` is not to be rewritten: every other keyword,
+ * branch and bound is the same object, so the two versions cannot drift, and a
+ * `1.0` file keeps validating against the `1.0` schema it was written under.
+ */
+export const EXPORT_RECORD_SCHEMA_1_1 = {
+  ...EXPORT_RECORD_SCHEMA,
+  $id: 'https://fluxradar.com/schemas/export/1.1/record.schema.json',
+  properties: {
+    ...EXPORT_RECORD_SCHEMA.properties,
+    schema_version: { const: '1.1' },
+    plan: { enum: ['Complete Scan', 'Website Audit Scan'] },
+  },
+} as const;

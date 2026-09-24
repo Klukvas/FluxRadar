@@ -2,7 +2,7 @@ import type { EgressLocation } from './api';
 import { FieldRow, Panel } from './components';
 import { egressLocationLabel } from './egress-location';
 import { copy, type Language } from './i18n';
-import type { Plan } from './plan-modules';
+import { PLAN_MODULES, type Plan } from './plan-modules';
 import type { ScanScopeForm } from './scan-scope';
 
 /**
@@ -19,6 +19,16 @@ import type { ScanScopeForm } from './scan-scope';
  * this file, which is how a summary starts disagreeing with the form it claims
  * to describe.
  */
+type NewScanCopy = (typeof copy)[Language]['newScan'];
+
+/** What the AI row says for one plan: which AI work it buys, if any. */
+function aiValue(plan: Plan, t: NewScanCopy): string {
+  const modules = PLAN_MODULES[plan];
+  if (modules.includes('AI SEO / GEO')) return t.launchSummaryEnabled;
+  if (modules.includes('UX/Conversion')) return t.launchSummaryAiUxOnly;
+  return t.launchSummaryDisabled;
+}
+
 export function LaunchSummary(props: {
   language: Language;
   /** The address as the form resolved it — a profile domain or a typed site. */
@@ -84,11 +94,13 @@ export function LaunchSummary(props: {
             }
           />
         )}
-        <FieldRow
-          label={t.launchSummaryAi}
-          value={free ? t.launchSummaryDisabled : t.launchSummaryEnabled}
-        />
-        {props.plan === 'Complete' ? (
+        {/* What this plan actually asks a provider, not "AI: on". Website Audit
+            runs no AI SEO / GEO at all, so calling its AI visibility "enabled"
+            would promise a section the report will not contain — while its UX
+            review does send evidence to Anthropic, so "off" would be just as
+            wrong. Each plan says its own truth. */}
+        <FieldRow label={t.launchSummaryAi} value={aiValue(props.plan, t)} />
+        {PLAN_MODULES[props.plan].includes('Performance') ? (
           <FieldRow label={t.launchSummaryPerformance} value={t.launchSummaryPerformanceValue} />
         ) : null}
       </div>
