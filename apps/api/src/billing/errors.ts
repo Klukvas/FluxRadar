@@ -75,6 +75,26 @@ export class SitePreconditionError extends BillingError {
 }
 
 /**
+ * The plan exists in the catalogue, but this deployment cannot sell it.
+ *
+ * A plan whose provider product has not been created yet has no product path
+ * (`FASTSPRING_PRODUCT_PATH_*`), so no checkout can be opened for it. Refused
+ * here, before a CheckoutSession row exists and before the provider is called,
+ * so a buyer never ends up with an open session that can never be paid. The
+ * other plans keep selling; which one is unavailable is not a buyer's problem
+ * to diagnose, so the detail stays in the log.
+ */
+export class PlanNotPurchasableError extends BillingError {
+  constructor(plan: string) {
+    super(
+      'PLAN_NOT_AVAILABLE',
+      'this plan cannot be bought here yet',
+      `no product path is configured for plan "${plan}"`,
+    );
+  }
+}
+
+/**
  * A billing provider is not configured (or only partially): fail closed, 503.
  *
  * `reason` is the same closed code `/billing/checkout-config` reports, so a

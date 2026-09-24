@@ -12,10 +12,40 @@ import type {
   UsageSource,
 } from './enums.js';
 
+/**
+ * §16 schema version `1.0` is *defined* as Complete-only, so a record for any
+ * other plan cannot be a valid `1.0` record no matter how well formed it is.
+ * Export beyond Complete therefore carries its own version rather than widening
+ * `1.0` underneath every consumer already reading it: a `1.0` file still means
+ * exactly what it meant, and a reader that knows only `1.0` is never handed a
+ * plan it cannot interpret.
+ */
 export const EXPORT_SCHEMA_VERSION = '1.0';
+export const EXPORT_SCHEMA_VERSION_MULTI_PLAN = '1.1';
 
-/** §16 export records exist only for the Complete plan. */
-export type ExportPlanLabel = 'Complete Scan';
+export const EXPORT_SCHEMA_VERSIONS = [
+  EXPORT_SCHEMA_VERSION,
+  EXPORT_SCHEMA_VERSION_MULTI_PLAN,
+] as const;
+export type ExportSchemaVersion = (typeof EXPORT_SCHEMA_VERSIONS)[number];
+
+/** The plan literal a record carries; one per paid tariff that can be exported. */
+export const EXPORT_PLAN_LABELS = ['Complete Scan', 'Website Audit Scan'] as const;
+export type ExportPlanLabel = (typeof EXPORT_PLAN_LABELS)[number];
+
+/** The plan labels a given schema version is allowed to carry. */
+export function planLabelsForSchemaVersion(
+  version: string,
+): readonly ExportPlanLabel[] | undefined {
+  if (version === EXPORT_SCHEMA_VERSION) return ['Complete Scan'];
+  if (version === EXPORT_SCHEMA_VERSION_MULTI_PLAN) return EXPORT_PLAN_LABELS;
+  return undefined;
+}
+
+/** The version a freshly built record carries, given the plan it belongs to. */
+export function exportSchemaVersionFor(plan: ExportPlanLabel): ExportSchemaVersion {
+  return plan === 'Complete Scan' ? EXPORT_SCHEMA_VERSION : EXPORT_SCHEMA_VERSION_MULTI_PLAN;
+}
 
 export interface AiUsage {
   readonly input_tokens: number;
@@ -33,7 +63,7 @@ export interface AiUsage {
  * Narrowed record types below pin the per-record_type nullability of §16.
  */
 export interface ExportRecordBase {
-  readonly schema_version: typeof EXPORT_SCHEMA_VERSION;
+  readonly schema_version: ExportSchemaVersion;
   readonly record_type: RecordType;
   readonly scan_id: string;
   /** Normalized public origin. */

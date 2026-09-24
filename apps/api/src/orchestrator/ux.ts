@@ -23,7 +23,7 @@ import {
   type UxAiProfileContext,
   type UxAiResponseResult,
 } from '@fluxradar/ai';
-import type { Severity } from '@fluxradar/contracts';
+import type { Plan, Severity } from '@fluxradar/contracts';
 import type { SiteProfile } from '@prisma/client';
 
 import type { IssueRowData } from './module-result.ts';
@@ -233,7 +233,8 @@ function normalizedPageUrls(
 
 export async function runUxConversion(
   scanId: string,
-  plan: 'Complete',
+  /** The plan that bought this run — more than one sells UX/Conversion now. */
+  plan: Plan,
   brand: string,
   siteOrigin: string,
   ctx: SiteContext,

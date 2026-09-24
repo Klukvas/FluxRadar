@@ -6,6 +6,7 @@
 import type {
   AiFinishReason,
   EvidenceType,
+  ExportPlanLabel,
   IssueStatus,
   ModuleExportStatus,
   ModuleName,
@@ -21,6 +22,13 @@ export interface ScanExportContext {
   readonly scanId: string;
   /** Normalized public origin (§16); он же поле domain fingerprint-а (D-019). */
   readonly domain: string;
+  /**
+   * The plan label every record of this snapshot carries, and the plan whose
+   * schema version they are written under. Required rather than defaulted: the
+   * label used to be a constant in the builder, which silently made every
+   * export a "Complete Scan" regardless of what was bought.
+   */
+  readonly plan: ExportPlanLabel;
   /** RFC3339 UTC c суффиксом Z — как и остальные timestamp-поля. */
   readonly startedAt: string;
   readonly completedAt: string;

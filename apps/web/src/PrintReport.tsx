@@ -24,6 +24,7 @@ import { Button, LoadingState, StatusChip } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
+import { planName } from './plan-modules';
 import { moduleLabel, ruleTitle } from './rule-titles';
 import { displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import './styles/print-report.css';
@@ -213,7 +214,7 @@ function PrintCover(props: { dashboard: Dashboard; language: Language }) {
       <dl className="print-facts">
         <div>
           <dt>{f.print.plan}</dt>
-          <dd>{scan.plan}</dd>
+          <dd>{planName(scan.plan)}</dd>
         </div>
         <div>
           <dt>{f.print.scanned}</dt>

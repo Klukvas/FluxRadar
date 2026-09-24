@@ -7,12 +7,11 @@
 
 import type {
   AiResponseRecord,
-  ExportPlanLabel,
   IssueRecord,
   ModuleRecord,
   SummaryRecord,
 } from '@fluxradar/contracts';
-import { EXPORT_SCHEMA_VERSION } from '@fluxradar/contracts';
+import { exportSchemaVersionFor } from '@fluxradar/contracts';
 import { computeFingerprint } from '@fluxradar/fingerprint';
 
 import type {
@@ -33,9 +32,6 @@ import {
   assertUtcTimestamp,
 } from './builder-guards.js';
 import { ExportBuildError } from './errors.js';
-
-/** §16/D-108: export records существуют только для Complete-плана. */
-const EXPORT_PLAN_LABEL: ExportPlanLabel = 'Complete Scan';
 
 // Явные null-блоки вместо спредов по типам contracts: WithNull*-интерфейсы там
 // внутренние, а литералы с as const дают точные типы null для narrowed records.
@@ -280,10 +276,12 @@ function identityFields(context: ScanExportContext, observedAt: string | undefin
     );
   }
   return {
-    schema_version: EXPORT_SCHEMA_VERSION,
+    // §16: version 1.0 is Complete-only by definition, so a record of any other
+    // plan is written under the version that admits it (D-108 расширен).
+    schema_version: exportSchemaVersionFor(context.plan),
     scan_id: context.scanId,
     domain: context.domain,
-    plan: EXPORT_PLAN_LABEL,
+    plan: context.plan,
     started_at: context.startedAt,
     completed_at: context.completedAt,
     observed_at: observed,

@@ -11,7 +11,8 @@ import type {
   TargetKind,
   UsageSource,
 } from '@fluxradar/contracts';
-import { isModuleName } from '@fluxradar/contracts';
+import { EXPORT_PLAN_LABELS, TARIFFS, isModuleName, parsePlan } from '@fluxradar/contracts';
+import type { ExportPlanLabel } from '@fluxradar/contracts';
 import { computeOverallScore } from '@fluxradar/scoring';
 import {
   buildAiResponseRecord,
@@ -28,6 +29,21 @@ export type ExportScan = Scan & {
   readonly aiResponses: Awaited<ReturnType<PrismaClient['aiResponseRecord']['findMany']>>;
 };
 
+/**
+ * The §16 plan literal for a stored plan — the tariff's own label, refused when
+ * that label is not an export label.
+ *
+ * The label used to be a constant reading 'Complete Scan' on every record, so an
+ * export of any other plan would have described itself as a Complete scan.
+ */
+function exportPlanLabel(plan: string): ExportPlanLabel {
+  const label = TARIFFS[parsePlan(plan)].label;
+  if (!(EXPORT_PLAN_LABELS as readonly string[]).includes(label)) {
+    throw conflict('EXPORT_PLAN_UNSUPPORTED', 'this plan has no export format');
+  }
+  return label as ExportPlanLabel;
+}
+
 /** Maps the persisted aggregate into the canonical export records. */
 export function buildExportRecords(scan: ExportScan) {
   if (scan.startedAt === null || scan.completedAt === null) {
@@ -40,11 +56,12 @@ export function buildExportRecords(scan: ExportScan) {
     domain: scan.domain,
     startedAt,
     completedAt,
+    plan: exportPlanLabel(scan.plan),
     rulesetVersion: scan.rulesetVersion,
   } as const;
   const moduleByName = new Map(scan.modules.map((module) => [module.module, module]));
   const summaries = scan.modules.flatMap((module) => moduleSummary(module));
-  const overall = computeOverallScore(scan.plan as 'Complete', summaries);
+  const overall = computeOverallScore(parsePlan(scan.plan), summaries);
   const scanStatus = scan.status as ScanExportStatus;
   const statusReason =
     scanStatus === 'Completed' ? null : (scan.statusReason ?? `Scan${scanStatus}`);

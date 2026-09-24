@@ -160,16 +160,18 @@ describe('the plan-scope disclosure', () => {
       .getAllByRole('listitem')
       .map((item) => item.textContent);
 
+    // Each section names the cheapest plan that runs it, and by its display
+    // name — not the identifier the API speaks ("WebsiteAudit").
     expect(entries).toEqual([
       'AI SEO / GEOIncluded in Basic',
-      'SecurityIncluded in Complete',
-      'PerformanceIncluded in Complete',
-      'AccessibilityIncluded in Complete',
-      'ReliabilityIncluded in Complete',
-      'Content QualityIncluded in Complete',
-      'PrivacyIncluded in Complete',
-      'UX/ConversionIncluded in Complete',
-      'AnalyticsIncluded in Complete',
+      'SecurityIncluded in Website Audit',
+      'PerformanceIncluded in Website Audit',
+      'AccessibilityIncluded in Website Audit',
+      'ReliabilityIncluded in Website Audit',
+      'Content QualityIncluded in Website Audit',
+      'PrivacyIncluded in Website Audit',
+      'UX/ConversionIncluded in Website Audit',
+      'AnalyticsIncluded in Website Audit',
     ]);
   });
 
@@ -186,7 +188,7 @@ describe('the plan-scope disclosure', () => {
       .map((item) => item.textContent);
 
     expect(locked.join(' ')).not.toContain('AI SEO / GEO');
-    expect(locked).toContain('SecurityIncluded in Complete');
+    expect(locked).toContain('SecurityIncluded in Website Audit');
     // A partial section is still a section that ran, and says how it ended.
     const completed = within(screen.getByRole('region', { name: 'Ran in this report' }));
     expect(completed.getByText(/AI SEO \/ GEO/)).toBeTruthy();

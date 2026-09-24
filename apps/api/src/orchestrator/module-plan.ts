@@ -38,6 +38,19 @@ const PLANS_TO_MODULES: Readonly<Record<Plan, ModulePlan>> = {
   // Free — фиксированная SEO-проверка homepage (§18), без GEO и score.
   Free: { runnable: ['SEO'], external: [], geo: false, ux: false, stubs: [] },
   Basic: { runnable: ['SEO'], external: [], geo: true, ux: false, stubs: [] },
+  // Website Audit — Complete without the two search modules. `geo: false` is
+  // what stops GEO at the source: the attempt never generates discovery
+  // questions, never sends a provider request and never writes the AI-crawler
+  // module row, on a first run, a retry or a resume. SEO is simply not runnable,
+  // so no rule of it is evaluated either. The scan form mirrors this; it does
+  // not enforce it.
+  WebsiteAudit: {
+    runnable: ['Security', 'Accessibility', 'Reliability', 'Content Quality', 'Privacy'],
+    external: ['Performance'],
+    geo: false,
+    ux: true,
+    stubs: [],
+  },
   Complete: {
     runnable: ['SEO', 'Security', 'Accessibility', 'Reliability', 'Content Quality', 'Privacy'],
     external: ['Performance'],

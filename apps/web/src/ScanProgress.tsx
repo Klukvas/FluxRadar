@@ -11,6 +11,7 @@ import { apiRequest, type Scan, type ScanModule } from './api';
 import { Button, EmptyState, FieldRow, Panel, ProgressBar, StatusChip, Window } from './components';
 import { copy, fillCopy, type Language } from './i18n';
 import { moduleStatusReasons } from './module-status';
+import { planName } from './plan-modules';
 import {
   displayDomain,
   formatTimestamp,
@@ -124,7 +125,7 @@ export function ScanScreen(props: {
     }
   };
   return (
-    <Window title={`${t.windowTitle} · ${scan.plan}`}>
+    <Window title={`${t.windowTitle} · ${planName(scan.plan)}`}>
       <Panel title={t.panelTitle}>
         <p className="muted">{fillCopy(t.reviewing, { domain: displayDomain(scan.domain) })}</p>
         {/* A finished scan's bar is a measurement, not a running one: the

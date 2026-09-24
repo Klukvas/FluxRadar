@@ -34,6 +34,7 @@ import {
   createCheckoutSession,
   findCheckoutStatus,
   handleFastSpringWebhook,
+  isPlanPurchasable,
   type FastSpringConfig,
   type FastSpringConfigResult,
   type FetchLike,
@@ -140,15 +141,25 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
   // the names this deployment can actually send to, so the form offers no
   // choice the scan would then fail. Names only — no key, host or model.
   router.get('/billing/checkout-config', auth, (_req, res) => {
-    const available = deps.fastSpring.state === 'configured';
-    const popupStorefront = available ? deps.fastSpring.config.popupStorefront : null;
+    const config = deps.fastSpring.state === 'configured' ? deps.fastSpring.config : null;
+    const available = config !== null;
+    const popupStorefront = config?.popupStorefront ?? null;
     sendOk(res, {
       provider: FASTSPRING_PROVIDER,
       available,
-      mode: available ? deps.fastSpring.config.mode : null,
+      mode: config?.mode ?? null,
       unavailableReason: available ? null : unavailableReason(deps.fastSpring),
       popup: popupStorefront === null ? null : { storefront: popupStorefront },
-      plans: PAID_PLANS.map((plan) => ({ plan, priceUsd: planPriceUsd(plan), currency: 'USD' })),
+      // `available` per plan, because a product can exist at the provider for
+      // one plan and not another. A plan without one is still listed with its
+      // price and marked unavailable, so the UI can say it cannot be bought here
+      // rather than silently dropping a product the catalogue advertises.
+      plans: PAID_PLANS.map((plan) => ({
+        plan,
+        priceUsd: planPriceUsd(plan),
+        currency: 'USD',
+        available: config !== null && isPlanPurchasable(config, plan),
+      })),
       optInAiProviders,
     });
   });

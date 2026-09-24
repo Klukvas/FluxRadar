@@ -69,8 +69,8 @@ function UkrainianTerms(): JSX.Element {
         <span className="legal-section__label">04 / ПОКУПКИ</span>
         <h2>Разові аудити, строк виконання та повернення</h2>
         <p>
-          Basic і Complete — разові аудити без підписки й автоматичного продовження. Ціна,
-          конфігурація, обсяг, вибір <code>robots.txt</code>, зовнішні провайдери та обмеження
+          Basic, Website Audit і Complete — разові аудити без підписки й автоматичного продовження.
+          Ціна, конфігурація, обсяг, вибір <code>robots.txt</code>, зовнішні провайдери та обмеження
           показуються до відкриття checkout. Аудит запускається лише після серверного підтвердження
           платежу FastSpring і має бути наданий протягом 24 годин після такого підтвердження.
         </p>
@@ -236,10 +236,11 @@ function EnglishTerms(): JSX.Element {
         <span className="legal-section__label">04 / PURCHASES</span>
         <h2>One-time audits, delivery and refunds</h2>
         <p>
-          Basic and Complete are one-time audits with no subscription or automatic renewal. The
-          price, configuration, scope, <code>robots.txt</code> choice, external providers and known
-          limitations are shown before checkout opens. An audit starts only after FastSpring’s
-          server confirmation of payment and will be delivered within 24 hours of that confirmation.
+          Basic, Website Audit and Complete are one-time audits with no subscription or automatic
+          renewal. The price, configuration, scope, <code>robots.txt</code> choice, external
+          providers and known limitations are shown before checkout opens. An audit starts only
+          after FastSpring’s server confirmation of payment and will be delivered within 24 hours of
+          that confirmation.
         </p>
         <p>
           FluxRadar offers no voluntary refunds except for non-delivery of a paid audit or a

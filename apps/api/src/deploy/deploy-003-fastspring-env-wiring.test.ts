@@ -3,7 +3,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
-import { FASTSPRING_ENV_VARS } from '../billing/fastspring/config.ts';
+import {
+  FASTSPRING_ENV_VARS,
+  OPTIONAL_FASTSPRING_ENV_VARS,
+} from '../billing/fastspring/config.ts';
 
 // DEPLOY-003: the deploy workflow must carry the WHOLE FastSpring set.
 //
@@ -37,12 +40,34 @@ function sourceVarFor(key: string): string {
  */
 const TEST_ONLY_VARS: readonly string[] = [FASTSPRING_ENV_VARS.apiBaseUrl];
 
+/**
+ * The names whose absence does NOT make the set incomplete.
+ *
+ * The rule above — forward every name or the checkout turns "misconfigured" —
+ * is a consequence of `readFastSpringConfig` being all-or-nothing, and it does
+ * not reach the names the reader itself treats as optional: a missing product
+ * path for a plan only means that plan cannot be bought here, and every other
+ * plan still sells. Read from the config module rather than listed here, so the
+ * exemption cannot grow without the reader growing with it.
+ *
+ * The exemption is from *this* list only — an optional name is still forwarded
+ * by the workflow, and the test below says so.
+ */
 const DEPLOYED_VARS = Object.values(FASTSPRING_ENV_VARS).filter(
-  (name) => !TEST_ONLY_VARS.includes(name),
+  (name) => !TEST_ONLY_VARS.includes(name) && !OPTIONAL_FASTSPRING_ENV_VARS.includes(name),
 );
 
 describe('DEPLOY-003 FastSpring env wiring', () => {
   const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
+
+  // Pinned, so the exemption above stays a short, deliberate list rather than
+  // the place a forgotten required variable quietly ends up.
+  it('exempts only the product path of a plan that is not sold everywhere', () => {
+    expect(OPTIONAL_FASTSPRING_ENV_VARS).toEqual(['FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT']);
+    expect(DEPLOYED_VARS).toContain(FASTSPRING_ENV_VARS.productPathBasic);
+    expect(DEPLOYED_VARS).toContain(FASTSPRING_ENV_VARS.productPathComplete);
+    expect(DEPLOYED_VARS).toContain(FASTSPRING_ENV_VARS.webhookSecret);
+  });
 
   it.each(DEPLOYED_VARS)('forwards %s into the release env file', (key) => {
     expect(workflow).toContain(`upsert_env ${key} ${sourceVarFor(key)}`);
@@ -52,6 +77,33 @@ describe('DEPLOY-003 FastSpring env wiring', () => {
     // Every upsert reads `printenv`, so the source has to exist as a step-level
     // env entry too — an upsert whose source is never bound silently does nothing.
     expect(workflow).toMatch(new RegExp(`^\\s*${sourceVarFor(key)}:\\s*\\$\\{\\{`, 'm'));
+  });
+
+  // "Optional to the API" is not "unsettable by the deployment". A name the
+  // reader tolerates the absence of still has to be *reachable* from a
+  // repository variable, or the only way to sell the plan behind it in
+  // production is editing the env file on the host by hand — a change no commit
+  // records and the next deploy overwrites.
+  //
+  // Forwarding it changes nothing until the variable is set: `upsert_env` skips
+  // an empty source, so an unconfigured optional path never reaches the
+  // container and never turns the provider into "misconfigured".
+  it.each(OPTIONAL_FASTSPRING_ENV_VARS)('forwards %s even though it is optional', (key) => {
+    expect(workflow).toContain(`upsert_env ${key} ${sourceVarFor(key)}`);
+    expect(workflow).toMatch(new RegExp(`^\\s*${sourceVarFor(key)}:\\s*\\$\\{\\{`, 'm'));
+  });
+
+  // The wiring above must not be mistaken for a promotion. "We forward it now,
+  // so it may as well be required" is the tempting next step, and it would turn
+  // every deployment that has not created the product into one that sells
+  // nothing at all. The required set therefore still excludes it — the wiring
+  // is what lets a deployment set the variable, not a demand that it does.
+  //
+  // That the API itself still boots without the value is the config reader's
+  // own contract, proved against it in `fastspring-002-config`; here the point
+  // is only that wiring the name did not move it into the required list.
+  it.each(OPTIONAL_FASTSPRING_ENV_VARS)('does not become required by being wired: %s', (key) => {
+    expect(DEPLOYED_VARS).not.toContain(key);
   });
 
   // A value pinned in the workflow outranks PRODUCTION_ENV_FILE and cannot be

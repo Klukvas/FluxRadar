@@ -53,6 +53,24 @@ function setViolations(records: readonly ExportRecord[]): readonly SemanticViola
       message: `records смешивают сканы: ${scanIds.join(', ')}`,
     });
   }
+  // Один snapshot — один купленный план и одна версия схемы. Смешение означало
+  // бы файл, части которого описывают разные наборы модулей.
+  const plans = [...new Set(records.map((record) => record.plan))];
+  if (plans.length > 1) {
+    found.push({
+      invariant: 'EXPORT-001/13',
+      recordIndex: null,
+      message: `records смешивают планы: ${plans.join(', ')}`,
+    });
+  }
+  const versions = [...new Set(records.map((record) => record.schema_version))];
+  if (versions.length > 1) {
+    found.push({
+      invariant: 'EXPORT-001/13',
+      recordIndex: null,
+      message: `records смешивают версии схемы: ${versions.join(', ')}`,
+    });
+  }
   return found;
 }
 

@@ -59,6 +59,28 @@ export async function purchaseScan(
   prisma: PrismaClient,
   params: PurchaseScanParams,
 ): Promise<PurchasedScan> {
+  const opened = await openCheckout(prisma, params);
+  return completeOrder(prisma, opened.reference, params.plan, opened.now);
+}
+
+/** A checkout session opened by production code, left unpaid. */
+export interface OpenedCheckout {
+  readonly reference: string;
+  readonly productPath: string;
+  readonly now: Date;
+}
+
+/**
+ * Opens the checkout without settling it, so a test can deliver its own order.
+ *
+ * The half `purchaseScan` does first, exported for the cases that are about the
+ * order rather than the purchase: a replayed delivery, one naming another
+ * product, one carrying the wrong amount.
+ */
+export async function openCheckout(
+  prisma: PrismaClient,
+  params: PurchaseScanParams,
+): Promise<OpenedCheckout> {
   const profile = await prisma.siteProfile.findUniqueOrThrow({
     where: { id: params.siteProfileId },
   });
@@ -76,7 +98,55 @@ export async function purchaseScan(
       expectedProfileConfigVersion: params.expectedProfileConfigVersion,
     },
   );
-  return completeOrder(prisma, checkout.reference, params.plan, now);
+  return { reference: checkout.reference, productPath: productPathFor(params.plan), now };
+}
+
+export interface DeliveredOrderParams {
+  readonly reference: string;
+  readonly productPath: string;
+  readonly amount: number;
+  /** Reuse an id to replay a delivery the provider already sent. */
+  readonly orderId?: string;
+  readonly eventId?: string;
+}
+
+/** Delivers one signed `order.completed` through the real webhook handler. */
+export async function deliverOrder(
+  prisma: PrismaClient,
+  params: DeliveredOrderParams,
+): Promise<{
+  readonly createdScanIds: readonly string[];
+  readonly orderId: string;
+  readonly eventId: string;
+}> {
+  const orderId = params.orderId ?? `ord_${randomUUID()}`;
+  const eventId = params.eventId ?? `evt_${randomUUID()}`;
+  const order = orderCompletedData({
+    orderId,
+    reference: params.reference,
+    productPath: params.productPath,
+    amount: params.amount,
+  });
+  const { rawBody, signature } = signedDelivery(
+    [{ id: eventId, type: 'order.completed', data: order }],
+    CHECKOUT_CONFIG.webhookSecret,
+  );
+  const delivered = await handleFastSpringWebhook(prisma, rawBody, signature, {
+    secret: CHECKOUT_CONFIG.webhookSecret,
+    expectLive: CHECKOUT_CONFIG.liveMode,
+    currencyPolicy: CHECKOUT_CONFIG.currencyPolicy,
+    now: new Date(),
+  });
+  return { createdScanIds: delivered.createdScanIds, orderId, eventId };
+}
+
+/** The product path the test store maps a plan to; absent is a fixture bug. */
+export function productPathFor(plan: PaidPlan): string {
+  const productPath = CHECKOUT_CONFIG.productPaths[plan];
+  if (productPath === undefined) {
+    throw new Error(`purchaseScan: the test FastSpring config has no product for ${plan}`);
+  }
+  return productPath;
 }
 
 /** Delivers the signed order.completed for a session, as FastSpring would. */
@@ -89,7 +159,7 @@ async function completeOrder(
   const order = orderCompletedData({
     orderId: `ord_${randomUUID()}`,
     reference,
-    productPath: CHECKOUT_CONFIG.productPaths[plan],
+    productPath: productPathFor(plan),
     amount: planPriceUsd(plan),
   });
   const { rawBody, signature } = signedDelivery(
@@ -157,6 +227,7 @@ function testCheckoutConfig(): FastSpringConfig {
     FASTSPRING_STOREFRONT_URL: 'https://fluxradar.test.onfastspring.com',
     FASTSPRING_PRODUCT_PATH_BASIC: 'fluxradar-basic-scan',
     FASTSPRING_PRODUCT_PATH_COMPLETE: 'fluxradar-complete-scan',
+    FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT: 'fluxradar-website-audit',
   });
   if (result.state !== 'configured') {
     throw new Error(`purchaseScan: the test FastSpring config is ${result.state}`);

@@ -13,7 +13,7 @@ import type { ErrorObject, ValidateFunction } from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 import { EXPORT_RECORD_FIELDS } from './fields.js';
-import { EXPORT_RECORD_SCHEMA } from './schema.js';
+import { EXPORT_RECORD_SCHEMA, EXPORT_RECORD_SCHEMA_1_1 } from './schema.js';
 
 export interface SchemaViolation {
   /** JSON Pointer внутри record ('' — сам record). */
@@ -32,16 +32,38 @@ const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true });
 (addFormats as unknown as (instance: typeof ajv) => void)(ajv);
 
 // Компиляция на загрузке модуля: сломанная схема падает при импорте, не в проде.
-const validateRecord: ValidateFunction = ajv.compile(EXPORT_RECORD_SCHEMA);
+const VALIDATORS: Readonly<Record<string, ValidateFunction>> = {
+  '1.0': ajv.compile(EXPORT_RECORD_SCHEMA),
+  '1.1': ajv.compile(EXPORT_RECORD_SCHEMA_1_1),
+};
+
+/**
+ * The version a record declares decides the schema it is read under, so an
+ * archived `1.0` file is still validated by the `1.0` contract it was written
+ * against and never gains permissions a later version added.
+ */
+function validatorFor(value: unknown): ValidateFunction | null {
+  const declared = (value as { schema_version?: unknown } | null)?.schema_version;
+  return typeof declared === 'string' ? (VALIDATORS[declared] ?? null) : null;
+}
 
 /** Прогоняет значение через JSON Schema §16 и нормализует его к форме D-014. */
 export function validateExportRecordSchema(value: unknown): SchemaValidationResult {
+  const validateRecord = validatorFor(value);
+  if (validateRecord === null) {
+    return { ok: false, violations: [UNKNOWN_SCHEMA_VERSION_VIOLATION] };
+  }
   if (validateRecord(value)) {
     return { ok: true, record: normalizeRecord(value as Record<string, unknown>) };
   }
   const violations = (validateRecord.errors ?? []).map(toViolation);
   return { ok: false, violations: violations.length > 0 ? violations : [UNKNOWN_VIOLATION] };
 }
+
+const UNKNOWN_SCHEMA_VERSION_VIOLATION: SchemaViolation = {
+  path: '/schema_version',
+  message: `schema_version отсутствует или не входит в известные версии: ${Object.keys(VALIDATORS).join(', ')}`,
+};
 
 const UNKNOWN_VIOLATION: SchemaViolation = {
   path: '',

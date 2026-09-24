@@ -26,6 +26,7 @@ import { formatDate } from './format-date';
 import type { Language } from './i18n';
 import { displayDomain } from './scan-status';
 import './styles/account.css';
+import { planName } from './plan-modules';
 
 function formatAmount(amount: number, currency: string, language: Language): string {
   try {
@@ -261,7 +262,7 @@ function PurchasesPanel(props: { language: Language; onOpenScan: (scanId: string
                 <td data-label={t.site} className="technical">
                   {displayDomain(purchase.domain)}
                 </td>
-                <td data-label={t.plan}>{purchase.plan}</td>
+                <td data-label={t.plan}>{planName(purchase.plan)}</td>
                 <td data-label={t.amount}>
                   {formatAmount(purchase.amount, purchase.currency, props.language)}
                 </td>

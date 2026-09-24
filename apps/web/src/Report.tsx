@@ -31,7 +31,7 @@ import { copy, fillCopy, type Language } from './i18n';
 import { asRecord, numberValue } from './module-metadata';
 import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
 import { moduleStatusReasons } from './module-status';
-import { modulesBeyondPlan } from './plan-modules';
+import { modulesBeyondPlan, planIncludesExport, planName } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { ReportNextSteps } from './ReportNextSteps';
 import { SiteCoveragePanel } from './SiteCoverage';
@@ -158,7 +158,7 @@ export function ResultsScreen(props: {
               </span>
               <span>
                 <small>{t.plan}</small>
-                <strong>{scan.plan}</strong>
+                <strong>{planName(scan.plan)}</strong>
               </span>
               <span>
                 <small>{t.report}</small>
@@ -208,7 +208,7 @@ export function ResultsScreen(props: {
           )}
         </div>
         {unscoredPlan ? (
-          <p className="muted">{fillCopy(t.unscoredLead, { plan: scan.plan })}</p>
+          <p className="muted">{fillCopy(t.unscoredLead, { plan: planName(scan.plan) })}</p>
         ) : null}
         <ReportNextSteps
           scan={scan}
@@ -226,7 +226,7 @@ export function ResultsScreen(props: {
               <dt>{t.helpScoreTerm}</dt>
               <dd>
                 {unscoredPlan
-                  ? fillCopy(t.unscoredScoreBody, { plan: scan.plan })
+                  ? fillCopy(t.unscoredScoreBody, { plan: planName(scan.plan) })
                   : t.helpScoreBody}
               </dd>
             </div>
@@ -337,7 +337,7 @@ export function ResultsScreen(props: {
               {findingsCopy[props.language].print.open}
             </Button>
           )}
-          {scan.plan === 'Complete' ? (
+          {planIncludesExport(scan.plan) ? (
             <ExportButtons scan={scan} onError={props.onError} />
           ) : (
             <span className="muted">{t.exportComplete}</span>
@@ -465,7 +465,7 @@ function PlanScope(props: {
                 <li key={entry.module}>
                   <strong>{entry.module}</strong>
                   <span className="plan-scope__detail">
-                    {fillCopy(t.scopeUnlock, { plan: entry.plan })}
+                    {fillCopy(t.scopeUnlock, { plan: planName(entry.plan) })}
                   </span>
                 </li>
               ))}

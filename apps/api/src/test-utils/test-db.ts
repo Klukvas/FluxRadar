@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { describe } from 'vitest';
 import type { PrismaClient, Purchase, Scan } from '@prisma/client';
 import { RULESET_VERSION, TARIFFS } from '@fluxradar/contracts';
+import type { Plan } from '@fluxradar/contracts';
 import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 
 import { createPrismaClient } from '../db.ts';
@@ -83,7 +84,7 @@ export async function seedAccountWithProfile(prisma: PrismaClient): Promise<Seed
 export interface SeedScanParams {
   readonly account: SeededAccount;
   readonly status: ScanRuntimeStatus;
-  readonly plan?: 'Free' | 'Basic' | 'Complete';
+  readonly plan?: Plan;
   readonly withPurchase?: boolean;
   readonly statusReason?: string;
   readonly moduleRetryCount?: number;

@@ -15,7 +15,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { ACTION_PLAN_LIMITS } from '@fluxradar/contracts';
+import { ACTION_PLAN_LIMITS, planSupports } from '@fluxradar/contracts';
 import type { Prisma, PrismaClient, Scan } from '@prisma/client';
 
 import { PAID_ACCESS_INCLUDE, paidAccessDenial } from '../billing/report-access.ts';
@@ -86,11 +86,10 @@ export async function assertPlanGenerationAllowed(
   scan: Scan & ActionPlanScanState,
   now: Date,
 ): Promise<void> {
-  if (scan.plan !== 'Complete') {
-    throw forbidden(
-      'ACTION_PLAN_COMPLETE_ONLY',
-      'the AI Action Plan is written from a Complete scan',
-    );
+  // The Action Plan is bought with the report, not with one plan literal. Free
+  // and Basic are still refused — neither tariff includes it.
+  if (!planSupports(scan.plan, 'actionPlan')) {
+    throw forbidden('ACTION_PLAN_COMPLETE_ONLY', 'the AI Action Plan is not included in this plan');
   }
   const job = await prisma.job.findUnique({ where: { scanId: scan.id }, select: { status: true } });
   // The worker writes the Analytics module after the scan outcome is resolved,
@@ -123,7 +122,7 @@ function isPlannableSnapshot(
   job: { readonly status: string } | null,
 ): boolean {
   return (
-    scan.plan === 'Complete' &&
+    planSupports(scan.plan, 'actionPlan') &&
     PLANNABLE_SCAN_STATUSES.has(scan.status) &&
     job !== null &&
     job.status === 'Done'

@@ -1,6 +1,6 @@
-// "Which one is right for you?" used to be two paragraphs of prose, so a
-// visitor who is not a developer had to hold Basic in their head while reading
-// Complete. It is a comparison, so it is a table — and a table only helps if it
+// "Which one is right for you?" used to be paragraphs of prose, so a visitor
+// who is not a developer had to hold one product in their head while reading
+// the next. It is a comparison, so it is a table — and a table only helps if it
 // is a real one: a caption that says what is being compared, a column per
 // product, a row header per question, and both languages carrying the same
 // grid. On a phone it stacks instead of scrolling sideways, which is a
@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { PricingExplainer } from './Pricing';
 import { copy, type Language } from './i18n';
-import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
+import { BASIC_PRICE, COMPLETE_PRICE, WEBSITE_AUDIT_PRICE } from './tariff-prices';
 
 const BASE_CSS = readFileSync(join(resolve(process.cwd()), 'src', 'styles', 'base.css'), 'utf8');
 
@@ -46,7 +46,7 @@ function comparisonTable(language: Language): HTMLElement {
 }
 
 describe('the plain-language pricing comparison', () => {
-  it.each<Language>(['en', 'uk'])('compares the two products in %s', (language) => {
+  it.each<Language>(['en', 'uk'])('compares the three products in %s', (language) => {
     const explainer = copy[language].pricing.explainer;
     const table = comparisonTable(language);
 
@@ -55,7 +55,12 @@ describe('the plain-language pricing comparison', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual([explainer.aspect, explainer.basicColumn, explainer.completeColumn]);
+    ).toEqual([
+      explainer.aspect,
+      explainer.basicColumn,
+      explainer.websiteAuditColumn,
+      explainer.completeColumn,
+    ]);
 
     // One row per question, each headed by the question it answers.
     expect(
@@ -73,7 +78,7 @@ describe('the plain-language pricing comparison', () => {
   });
 
   it.each<Language>(['en', 'uk'])(
-    'answers every row for both products in %s, from the dictionary',
+    'answers every row for every product in %s, from the dictionary',
     (language) => {
       const rows = copy[language].pricing.explainer.rows;
       const table = comparisonTable(language);
@@ -81,8 +86,9 @@ describe('the plain-language pricing comparison', () => {
       for (const row of Object.values(rows)) {
         const line = within(table).getByRole('rowheader', { name: row.label }).closest('tr');
         if (line === null) throw new Error(`${row.label} has no row`);
-        const [basic, complete] = Array.from(line.querySelectorAll('td'));
+        const [basic, websiteAudit, complete] = Array.from(line.querySelectorAll('td'));
         expect(basic?.textContent).toBe(row.basic);
+        expect(websiteAudit?.textContent).toBe(row.websiteAudit);
         expect(complete?.textContent).toBe(row.complete);
       }
     },
@@ -96,7 +102,9 @@ describe('the plain-language pricing comparison', () => {
     const labels = Array.from(table.querySelectorAll('tbody td')).map((cell) =>
       cell.getAttribute('data-label'),
     );
-    expect(new Set(labels)).toEqual(new Set([explainer.basicColumn, explainer.completeColumn]));
+    expect(new Set(labels)).toEqual(
+      new Set([explainer.basicColumn, explainer.websiteAuditColumn, explainer.completeColumn]),
+    );
   });
 
   // The two things a buyer must not have to guess: this is one payment for one
@@ -113,6 +121,9 @@ describe('the plain-language pricing comparison', () => {
       const row = price.closest('tr') as HTMLElement;
       expect(
         within(row).getByText(new RegExp(BASIC_PRICE.replace('$', '\\$'))),
+      ).toBeInTheDocument();
+      expect(
+        within(row).getByText(new RegExp(WEBSITE_AUDIT_PRICE.replace('$', '\\$'))),
       ).toBeInTheDocument();
       expect(
         within(row).getByText(new RegExp(COMPLETE_PRICE.replace('$', '\\$'))),
@@ -136,7 +147,7 @@ describe('the plain-language pricing comparison', () => {
 
   // The prose the table replaced described one product at a time, which is the
   // reading it was meant to end.
-  it('no longer asks the reader to compare two paragraphs', () => {
+  it('no longer asks the reader to compare paragraphs', () => {
     render(<PricingExplainer language="en" />);
     expect(screen.queryByText(/Take Basic if the question is visibility/)).not.toBeInTheDocument();
     expect(

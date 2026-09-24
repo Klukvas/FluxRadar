@@ -340,6 +340,14 @@ jobs:
           PRODUCTION_FASTSPRING_POPUP_STOREFRONT: ${{ vars.PRODUCTION_FASTSPRING_POPUP_STOREFRONT }}
           PRODUCTION_FASTSPRING_STOREFRONT_URL: ${{ vars.PRODUCTION_FASTSPRING_STOREFRONT_URL }}
           PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC: ${{ vars.PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC }}
+          # Website Audit is the one product path readFastSpringConfig treats as
+          # optional: absent, the deployment still boots and still sells Basic and
+          # Complete, and the plan simply cannot be bought. Forwarded anyway,
+          # because "optional to the API" is not "unsettable by the deployment" —
+          # without this line the only way to sell the plan is a hand-edited env
+          # file on the host. An unset variable is skipped by upsert_env, so this
+          # is a no-op until the product exists and the variable is set.
+          PRODUCTION_FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT: ${{ vars.PRODUCTION_FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT }}
           PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE: ${{ vars.PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE }}
           PRODUCTION_FASTSPRING_CURRENCY_POLICY: ${{ vars.PRODUCTION_FASTSPRING_CURRENCY_POLICY }}
           PRODUCTION_FASTSPRING_STORE_VERIFIED: ${{ vars.PRODUCTION_FASTSPRING_STORE_VERIFIED }}
@@ -422,6 +430,7 @@ jobs:
           upsert_env FASTSPRING_POPUP_STOREFRONT PRODUCTION_FASTSPRING_POPUP_STOREFRONT
           upsert_env FASTSPRING_STOREFRONT_URL PRODUCTION_FASTSPRING_STOREFRONT_URL
           upsert_env FASTSPRING_PRODUCT_PATH_BASIC PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC
+          upsert_env FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT PRODUCTION_FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT
           upsert_env FASTSPRING_PRODUCT_PATH_COMPLETE PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE
           upsert_env FASTSPRING_CURRENCY_POLICY PRODUCTION_FASTSPRING_CURRENCY_POLICY
           upsert_env FASTSPRING_STORE_VERIFIED PRODUCTION_FASTSPRING_STORE_VERIFIED

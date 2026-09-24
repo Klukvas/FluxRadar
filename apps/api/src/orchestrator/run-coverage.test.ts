@@ -317,9 +317,14 @@ describe('чтение чужой записи', () => {
 });
 
 describe('какие сканы вообще пишут доказательство', () => {
-  it('только Complete: закрывать находки вправе только он (§515)', () => {
+  it('те, кому разрешено закрывать находки (§515)', () => {
     expect(writesCoverageProof('Complete')).toBe(true);
+    // Website Audit ведёт историю issues внутри своего плана, поэтому обязан
+    // оставить доказательство: без него следующий скан того же плана не закроет
+    // ничего.
+    expect(writesCoverageProof('WebsiteAudit')).toBe(true);
     expect(writesCoverageProof('Basic')).toBe(false);
     expect(writesCoverageProof('Free')).toBe(false);
+    expect(writesCoverageProof('NotAPlan')).toBe(false);
   });
 });

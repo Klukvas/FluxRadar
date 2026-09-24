@@ -84,6 +84,7 @@ export const FIXTURE_CONTEXT: ScanExportContext = {
   domain: 'https://example.com',
   startedAt: '2026-09-03T10:00:00Z',
   completedAt: '2026-09-03T10:12:00Z',
+  plan: 'Complete Scan',
   rulesetVersion: 'rules-mvp-0.1',
 };
 

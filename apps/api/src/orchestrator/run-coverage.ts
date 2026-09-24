@@ -40,13 +40,14 @@
 // 52 КБ; 50 000 (лимит Complete) — 5,4 МБ → 787 КБ, кодирование 213 мс.
 // Распаковать строку вручную: `gunzip -c` над выгруженным bytea.
 //
-// Пишется только для Complete-сканов: закрывать находки вправе только Complete
-// (§515), и сравнивается он тоже только с предыдущим Complete — доказательство
-// Free/Basic не прочитает никто и никогда (writesCoverageProof).
+// Пишется только для планов, которым разрешено закрывать находки (§515) —
+// Complete и Website Audit, — и сравнивается только с предыдущим сканом ТОГО ЖЕ
+// плана: доказательство Free/Basic не прочитает никто и никогда
+// (writesCoverageProof).
 
 import { gunzipSync, gzipSync } from 'node:zlib';
 
-import type { Plan } from '@fluxradar/contracts';
+import { planSupports } from '@fluxradar/contracts';
 import type { Prisma, PrismaClient, Scan } from '@prisma/client';
 import { z } from 'zod';
 
@@ -161,9 +162,15 @@ export type EncodedRuleCoverage = z.infer<typeof encodedCoverageSchema>;
  */
 export const LEGACY_COVERAGE_PROOF_KEY = 'coverageProof';
 
-/** Плану, который не умеет закрывать находки, доказательство не нужно (§515). */
+/**
+ * Плану, который не умеет закрывать находки, доказательство не нужно (§515).
+ *
+ * Спрашивается та же способность, что и у разбора Resolved (issue-sync.ts):
+ * план, которому разрешено закрывать находки, обязан оставить доказательство,
+ * иначе следующий скан того же плана не сможет ничего закрыть.
+ */
 export function writesCoverageProof(plan: string): boolean {
-  return (plan as Plan) === 'Complete';
+  return planSupports(plan, 'issueHistory');
 }
 
 export function encodeRuleCoverage(coverage: ModuleCoverage): EncodedRuleCoverage {
@@ -433,14 +440,20 @@ export const COVERAGE_PROOF_HISTORY = 2;
  * Вызывается после разбора Resolved: к этому моменту всё, что политике нужно,
  * уже прочитано. Возвращает число удалённых строк — это единственный след
  * автоматического удаления, и вызывающий его логирует.
+ *
+ * История считается внутри ОДНОГО плана, как и сам разбор Resolved: политика
+ * ищет предыдущий скан того же плана, поэтому окно хранения должно совпадать с
+ * ним. Окно только по Complete вытеснило бы доказательство предыдущего
+ * Website Audit сразу после следующей уборки, и следующее сравнение того же
+ * плана осталось бы без покрытия, которое ему нужно прочитать.
  */
 export async function pruneCoverageProofs(
   prisma: PrismaClient,
-  scan: Pick<Scan, 'id' | 'siteProfileId'>,
+  scan: Pick<Scan, 'id' | 'siteProfileId' | 'plan'>,
   keep: number = COVERAGE_PROOF_HISTORY,
 ): Promise<number> {
   const recent = await prisma.scan.findMany({
-    where: { siteProfileId: scan.siteProfileId, plan: 'Complete', status: 'Completed' },
+    where: { siteProfileId: scan.siteProfileId, plan: scan.plan, status: 'Completed' },
     orderBy: { createdAt: 'desc' },
     take: keep,
     select: { id: true },
@@ -448,7 +461,7 @@ export async function pruneCoverageProofs(
   const keepIds = new Set([scan.id, ...recent.map((completed) => completed.id)]);
   const { count } = await prisma.ruleCoverageProof.deleteMany({
     where: {
-      scan: { siteProfileId: scan.siteProfileId },
+      scan: { siteProfileId: scan.siteProfileId, plan: scan.plan },
       scanId: { notIn: [...keepIds] },
     },
   });

@@ -21,7 +21,7 @@ import {
   type NewScanForm,
   type NewScanFormProps,
 } from './new-scan-form';
-import type { Plan } from './plan-modules';
+import { PLAN_MODULES, type Plan } from './plan-modules';
 import type { ScanScopeForm } from './scan-scope';
 
 /**
@@ -425,14 +425,21 @@ function ScanDepthPanel(props: { form: NewScanForm; language: Language }) {
                 the performance disclosure below say what leaves the site and who
                 processes it, and the buyer agrees to both by paying. Folding
                 them would trade a guarantee for height. */}
+          {/* The disclosure names the AI work THIS plan does. A plan without
+              AI SEO / GEO sends no brand or domain to a provider for discovery
+              or awareness questions, so it must not be shown a notice that says
+              it does — and it is not AI-free either: its UX review still sends
+              bounded page evidence. */}
           <ScanCallout
-            eyebrow="AI SEO / GEO · UX"
+            eyebrow={PLAN_MODULES[plan].includes('AI SEO / GEO') ? 'AI SEO / GEO · UX' : 'UX'}
             title={t.newScan.aiConsentTitle}
             titleId="ai-consent-title"
             mode={t.newScan.aiConsentOptional}
             defaultOpen
           >
-            {t.newScan.aiConsentBody}{' '}
+            {PLAN_MODULES[plan].includes('AI SEO / GEO')
+              ? t.newScan.aiConsentBody
+              : t.newScan.aiConsentBodyUxOnly}{' '}
             <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
             {' · '}
             <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>
@@ -445,8 +452,16 @@ function ScanDepthPanel(props: { form: NewScanForm; language: Language }) {
               only for the recipients this deployment can actually send to: an
               offer it cannot keep would cost the buyer a Partial GEO module on
               a scan they paid for. A deployment with neither key shows no
-              optional block at all. */}
-          {offeredOptInAiProviders.length === 0 ? null : (
+              optional block at all.
+
+              And only on a plan that runs AI SEO / GEO. These recipients exist
+              to answer GEO's discovery and awareness questions; a plan that
+              asks none of them would offer a choice with nothing behind it —
+              directly under the notice that has just said no such question is
+              sent. The request drops the same selections (new-scan-form.ts), so
+              the offer and what is sent stay one answer. */}
+          {offeredOptInAiProviders.length === 0 ||
+          !PLAN_MODULES[plan].includes('AI SEO / GEO') ? null : (
             <>
               <ScanCallout
                 eyebrow="AI SEO / GEO · OPTIONAL"
@@ -470,7 +485,7 @@ function ScanDepthPanel(props: { form: NewScanForm; language: Language }) {
               ))}
             </>
           )}
-          {plan === 'Complete' ? (
+          {PLAN_MODULES[plan].includes('Performance') ? (
             <ScanCallout
               eyebrow="PERFORMANCE · GOOGLE"
               title={t.newScan.performanceInfoTitle}

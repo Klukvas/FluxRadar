@@ -32,6 +32,10 @@ describe('tariff prices', () => {
     expect(TARIFF_PRICES_USD.Basic).toBe(contractPriceUsd(source, 'Basic'));
   });
 
+  it('shows the Website Audit price the contract charges', () => {
+    expect(TARIFF_PRICES_USD.WebsiteAudit).toBe(contractPriceUsd(source, 'WebsiteAudit'));
+  });
+
   it('shows the Complete price the contract charges', () => {
     expect(TARIFF_PRICES_USD.Complete).toBe(contractPriceUsd(source, 'Complete'));
   });

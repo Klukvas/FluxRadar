@@ -27,6 +27,7 @@ import {
   createTestDb,
   seedAccountWithProfile,
   seedScan,
+  type SeededAccount,
   type TestDb,
 } from '../test-utils/test-db.ts';
 
@@ -178,7 +179,7 @@ async function seedScanPair(db: TestDb) {
   return { account, first, second };
 }
 
-describe('Complete issue lifecycle by fingerprint', () => {
+describe('issue lifecycle by fingerprint', () => {
   let db: TestDb | undefined;
 
   afterEach(async () => {
@@ -652,5 +653,302 @@ describe('Complete issue lifecycle by fingerprint', () => {
         expect(await db.prisma.ruleCoverageProof.count({ where: { scanId: one.scan.id } })).toBe(1);
       }
     });
+
+    // One profile, two packages, one table.
+    //
+    // Everything above runs on a profile whose scans are all Complete, which is
+    // exactly the shape that cannot tell a plan-scoped prune from a plan-blind
+    // one. Both halves of the query are scoped to the plan, and each is wrong on
+    // its own in a way the other does not cover:
+    //
+    //   * the retention window (`findMany`) — without `plan` it would pick the
+    //     two newest COMPLETED scans of the profile whatever they are, so a
+    //     Website Audit finishing between two Complete scans would evict the
+    //     Complete predecessor the next comparison reads, and every finding
+    //     fixed since would come back as New instead of Resolved;
+    //   * the delete scope (`deleteMany`) — without `plan` it would reach every
+    //     proof of the profile that is not in this plan's keep set, so finishing
+    //     a Complete scan would delete the other package's proof outright.
+    //
+    // The fixtures below interleave the two packages so that each mistake
+    // produces a different count and a different survivor, which is what makes
+    // the assertions evidence rather than description.
+    describe('two packages sharing one profile', () => {
+      /** A completed scan pinned to a known place in the profile's history, with its proof. */
+      async function seedCompletedWithProof(
+        database: TestDb,
+        account: SeededAccount,
+        plan: 'Complete' | 'WebsiteAudit',
+        createdAt: string,
+      ) {
+        const { scan } = await seedScan(database.prisma, {
+          account,
+          plan,
+          status: 'Completed',
+          withPurchase: false,
+        });
+        await database.prisma.scan.update({
+          where: { id: scan.id },
+          data: { createdAt: new Date(createdAt) },
+        });
+        await seedModuleCoverage(database.prisma, scan.id, 'SEO', [
+          { ruleId: PAGE_RULE, checkedTargets: [ISSUE_URL] },
+        ]);
+        return scan;
+      }
+
+      const proofCount = (database: TestDb, scanId: string): Promise<number> =>
+        database.prisma.ruleCoverageProof.count({ where: { scanId } });
+
+      it('prunes a Complete scan without touching the Website Audit proof beside it', async () => {
+        db = await createTestDb();
+        const account = await seedAccountWithProfile(db.prisma);
+        const oldestComplete = await seedCompletedWithProof(
+          db,
+          account,
+          'Complete',
+          '2026-09-03T12:00:00.000Z',
+        );
+        const previousComplete = await seedCompletedWithProof(
+          db,
+          account,
+          'Complete',
+          '2026-09-03T12:01:00.000Z',
+        );
+        // Newer than the Complete predecessor on purpose: a plan-blind window
+        // would count this one and drop `previousComplete` instead.
+        const websiteAudit = await seedCompletedWithProof(
+          db,
+          account,
+          'WebsiteAudit',
+          '2026-09-03T12:02:00.000Z',
+        );
+        const finishing = await seedCompletedWithProof(
+          db,
+          account,
+          'Complete',
+          '2026-09-03T12:03:00.000Z',
+        );
+
+        expect(await pruneCoverageProofs(db.prisma, finishing)).toBe(1);
+
+        // The window is the two newest COMPLETE scans, not the two newest scans.
+        expect(await proofCount(db, finishing.id)).toBe(1);
+        expect(await proofCount(db, previousComplete.id)).toBe(1);
+        expect(await proofCount(db, oldestComplete.id)).toBe(0);
+        // The delete never left this plan: the other package's proof is not in
+        // the keep set and survives anyway, because it was never in scope.
+        expect(await proofCount(db, websiteAudit.id)).toBe(1);
+      });
+
+      it('prunes a Website Audit scan without touching the Complete proof beside it', async () => {
+        db = await createTestDb();
+        const account = await seedAccountWithProfile(db.prisma);
+        const oldestAudit = await seedCompletedWithProof(
+          db,
+          account,
+          'WebsiteAudit',
+          '2026-09-03T12:00:00.000Z',
+        );
+        const previousAudit = await seedCompletedWithProof(
+          db,
+          account,
+          'WebsiteAudit',
+          '2026-09-03T12:01:00.000Z',
+        );
+        const complete = await seedCompletedWithProof(
+          db,
+          account,
+          'Complete',
+          '2026-09-03T12:02:00.000Z',
+        );
+        const finishing = await seedCompletedWithProof(
+          db,
+          account,
+          'WebsiteAudit',
+          '2026-09-03T12:03:00.000Z',
+        );
+
+        expect(await pruneCoverageProofs(db.prisma, finishing)).toBe(1);
+
+        expect(await proofCount(db, finishing.id)).toBe(1);
+        expect(await proofCount(db, previousAudit.id)).toBe(1);
+        expect(await proofCount(db, oldestAudit.id)).toBe(0);
+        expect(await proofCount(db, complete.id)).toBe(1);
+      });
+    });
+  });
+});
+
+/**
+ * A finding of one package is not a finding of another.
+ *
+ * Website Audit runs neither SEO nor AI SEO / GEO, so every SEO finding of a
+ * previous Complete report is absent from it — and a comparison across the two
+ * would report all of them as fixed. The same fingerprint, the same profile, a
+ * different package: nothing may carry over.
+ */
+describe('the issue lifecycle is scoped to one plan', () => {
+  let db: TestDb | undefined;
+
+  afterEach(async () => {
+    await db?.cleanup();
+    db = undefined;
+  });
+
+  const SEO_FINGERPRINT = 'fluxradar-fp-v1:cross-plan-fixture';
+
+  async function seedSeoIssue(prisma: TestDb['prisma'], scanId: string): Promise<void> {
+    await prisma.issue.create({
+      data: {
+        scanId,
+        ruleId: 'SEO-TECH-004',
+        module: 'SEO',
+        fingerprint: SEO_FINGERPRINT,
+        severity: 'High',
+        category: 'Technical SEO',
+        status: 'New',
+        targetKind: 'page',
+        normalizedUrl: 'https://example.com/',
+        normalizedResource: '',
+        normalizedSelector: '',
+        normalizedParameter: '',
+        ruleVariant: 'canonical-mismatch',
+        targetUrl: 'https://example.com/',
+        evidenceType: 'dom',
+        evidenceRef: 'issue/fixture',
+        evidenceExcerpt: 'canonical mismatch',
+        recommendation: 'Fix canonical',
+        confidence: 1,
+        applicableTargets: 1,
+        affectedTargets: 1,
+        rulePenalty: 10,
+        scoreDelta: -10,
+        observedAt: new Date('2026-09-03T12:00:30.000Z'),
+      },
+    });
+  }
+
+  it('never calls a Complete SEO finding resolved because a Website Audit did not look', async () => {
+    db = await createTestDb();
+    const account = await seedAccountWithProfile(db.prisma);
+    const complete = await seedScan(db.prisma, {
+      account,
+      plan: 'Complete',
+      status: 'Completed',
+      withPurchase: false,
+    });
+    await seedSeoIssue(db.prisma, complete.scan.id);
+    await seedPageRuleCoverage(db.prisma, complete.scan.id, [
+      { ruleId: PAGE_RULE, checkedTargets: [HOME_URL] },
+    ]);
+    const websiteAudit = await seedScan(db.prisma, {
+      account,
+      plan: 'WebsiteAudit',
+      status: 'Completed',
+      withPurchase: false,
+    });
+
+    // Coverage generous enough to close the finding if the plans matched: the
+    // only thing standing between it and Resolved is that they do not.
+    const sawTheSamePage = coverage({
+      coverageByRule: checked({ [PAGE_RULE]: [HOME_URL] }),
+    });
+    expect(await markResolvedAgainstPrevious(db.prisma, websiteAudit.scan, sawTheSamePage)).toBe(0);
+    const untouched = await db.prisma.issue.findFirstOrThrow({
+      where: { scanId: complete.scan.id },
+    });
+    expect(untouched.status).toBe('New');
+  });
+
+  it('inherits nothing across packages, in either direction', async () => {
+    db = await createTestDb();
+    const account = await seedAccountWithProfile(db.prisma);
+    const complete = await seedScan(db.prisma, {
+      account,
+      plan: 'Complete',
+      status: 'Completed',
+      withPurchase: false,
+    });
+    await seedSeoIssue(db.prisma, complete.scan.id);
+    await db.prisma.issue.updateMany({
+      where: { scanId: complete.scan.id },
+      data: { status: 'Ignored' },
+    });
+
+    const websiteAudit = await seedScan(db.prisma, {
+      account,
+      plan: 'WebsiteAudit',
+      status: 'Pending',
+      withPurchase: false,
+    });
+    expect((await initialIssueStatuses(db.prisma, websiteAudit.scan, [SEO_FINGERPRINT])).size).toBe(
+      0,
+    );
+
+    const nextComplete = await seedScan(db.prisma, {
+      account,
+      plan: 'Complete',
+      status: 'Pending',
+      withPurchase: false,
+    });
+    // ...but within one package it still carries, which is the behaviour the
+    // scoping must not have cost.
+    expect(
+      (await initialIssueStatuses(db.prisma, nextComplete.scan, [SEO_FINGERPRINT])).get(
+        SEO_FINGERPRINT,
+      ),
+    ).toBe('Ignored');
+  });
+
+  it('carries a Website Audit finding across two Website Audit reports', async () => {
+    db = await createTestDb();
+    const account = await seedAccountWithProfile(db.prisma);
+    const first = await seedScan(db.prisma, {
+      account,
+      plan: 'WebsiteAudit',
+      status: 'Completed',
+      withPurchase: false,
+    });
+    await seedSeoIssue(db.prisma, first.scan.id);
+    // Website Audit writes a coverage proof of its own (writesCoverageProof),
+    // which is what lets the next scan of the same package close a finding.
+    await seedPageRuleCoverage(db.prisma, first.scan.id, [
+      { ruleId: PAGE_RULE, checkedTargets: [HOME_URL] },
+    ]);
+    const second = await seedScan(db.prisma, {
+      account,
+      plan: 'WebsiteAudit',
+      status: 'Completed',
+      withPurchase: false,
+    });
+
+    const sawTheSamePage = coverage({
+      coverageByRule: checked({ [PAGE_RULE]: [HOME_URL] }),
+    });
+    expect(await markResolvedAgainstPrevious(db.prisma, second.scan, sawTheSamePage)).toBe(1);
+    const resolved = await db.prisma.issue.findFirstOrThrow({ where: { scanId: first.scan.id } });
+    expect(resolved.status).toBe('Resolved');
+  });
+
+  it('gives a Basic scan no lifecycle at all, as before', async () => {
+    db = await createTestDb();
+    const account = await seedAccountWithProfile(db.prisma);
+    const first = await seedScan(db.prisma, {
+      account,
+      plan: 'Basic',
+      status: 'Completed',
+      withPurchase: false,
+    });
+    await seedSeoIssue(db.prisma, first.scan.id);
+    const second = await seedScan(db.prisma, {
+      account,
+      plan: 'Basic',
+      status: 'Completed',
+      withPurchase: false,
+    });
+
+    expect(await markResolvedAgainstPrevious(db.prisma, second.scan, coverage())).toBe(0);
+    expect((await initialIssueStatuses(db.prisma, second.scan, [SEO_FINGERPRINT])).size).toBe(0);
   });
 });

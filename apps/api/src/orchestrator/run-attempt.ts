@@ -64,11 +64,7 @@ import {
 import { geoModuleRow } from './geo-module-row.ts';
 import { includesAnalytics, modulePlanFor } from './module-plan.ts';
 import { metadataForRuleModule, type RuleModuleContext } from './module-metadata.ts';
-import {
-  markEveryModuleUnreadable,
-  persistModuleResult,
-  setModule,
-} from './module-persistence.ts';
+import { markEveryModuleUnreadable, persistModuleResult, setModule } from './module-persistence.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
 import { devicePreferenceFor, runPerformanceModule } from './performance-module.ts';
 import { uxRuleCheckSummaries } from './rule-checks.ts';
@@ -716,7 +712,7 @@ export async function runScanAttempt(
     } else {
       const ux = await runUxConversion(
         scanId,
-        'Complete',
+        plan,
         profile.name,
         ctx.domain,
         ctx,

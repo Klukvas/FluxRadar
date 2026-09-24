@@ -2,7 +2,14 @@ import { botCopyEn, botCopyUk } from './bot-copy';
 import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
-import { BASIC_PRICE, BASIC_PRICE_USD, COMPLETE_PRICE, COMPLETE_PRICE_USD } from './tariff-prices';
+import {
+  BASIC_PRICE,
+  BASIC_PRICE_USD,
+  COMPLETE_PRICE,
+  COMPLETE_PRICE_USD,
+  WEBSITE_AUDIT_PRICE,
+  WEBSITE_AUDIT_PRICE_USD,
+} from './tariff-prices';
 import { tourStepCopy } from './tour-steps';
 
 export type Language = 'en' | 'uk';
@@ -165,7 +172,7 @@ export const copy = {
       home: {
         title: 'FluxRadar — public website audit for SEO, AI crawlers, security and accessibility',
         description:
-          'FluxRadar audits any public website and reports what search engines, AI crawlers and users can observe: SEO, AI readiness, security headers, accessibility, performance and privacy signals. Two one-time reports, no subscription.',
+          'FluxRadar audits any public website and reports what search engines, AI crawlers and users can observe: SEO, AI readiness, security headers, accessibility, performance and privacy signals. Three one-time reports, no subscription.',
       },
       faq: {
         title: 'FAQ — what every FluxRadar check means | FluxRadar',
@@ -322,7 +329,7 @@ export const copy = {
       freeCta: 'Run a free homepage check',
       seePricing: 'See what you get',
       startPublicSite: 'Start with a public site',
-      pricingTitle: 'Two one-time reports. No subscription.',
+      pricingTitle: 'Three one-time reports. No subscription.',
       pricingLead:
         'Pay once for a single scan of one public website and keep the report. Nothing renews, there is no monthly quota, and every module you paid for is included in the price.',
       accountBar: 'FLUXRADAR / PUBLIC WEB AUDIT STATION',
@@ -466,11 +473,12 @@ export const copy = {
       notIncluded: 'Not covered',
       limits: 'Limits',
       chooseBasic: 'Start with Basic',
+      chooseWebsiteAudit: 'Start with Website Audit',
       chooseComplete: 'Start with Complete',
       startInWorkspace:
-        'You buy a report inside the workspace: pick a saved profile, choose Basic or Complete, and the scan starts once the payment provider confirms the payment.',
+        'You buy a report inside the workspace: pick a saved profile, choose a package, and the scan starts once the payment provider confirms the payment.',
       freeNote:
-        'There is also a free homepage check — title, meta description, headings and indexability of one page, once per account and once per site. It is a first look at the report format, not a third product.',
+        'There is also a free homepage check — title, meta description, headings and indexability of one page, once per account and once per site. It is a first look at the report format, not a product of its own.',
       coverageLink: 'Read the full audit coverage →',
       faqLink: 'Read the FAQ →',
       cards: {
@@ -486,6 +494,20 @@ export const copy = {
           notIncluded:
             'Security, accessibility, performance, reliability, privacy and content-quality modules.',
           limits: 'One scan of one website · up to 5,000 crawled pages · results kept for 30 days.',
+        },
+        websiteAudit: {
+          eyebrow: 'FLUXRADAR WEBSITE AUDIT / THE SITE ITSELF',
+          title: 'Website Audit',
+          price: WEBSITE_AUDIT_PRICE_USD,
+          description: 'One report on the state of the website itself, without the search modules.',
+          included:
+            'Security (public OWASP ASVS profile), performance, accessibility (WCAG 2.2 AA), reliability, content quality, privacy and consent, UX/Conversion and Analytics — with scan history and JSON/CSV export.',
+          bestFor:
+            'Owners and developers whose question is “what is wrong with this website?” — before a launch, a handover or a redesign — and who are not buying a search answer today.',
+          notIncluded:
+            'The SEO analysis and AI SEO / GEO — the two search modules. Basic sells those, Complete sells both halves together.',
+          limits:
+            'One scan of one website · up to 50,000 crawled pages · results kept for 365 days.',
         },
         complete: {
           eyebrow: 'FLUXRADAR COMPLETE AUDIT / EVERY MODULE',
@@ -504,46 +526,55 @@ export const copy = {
         kicker: 'IN PLAIN LANGUAGE',
         title: 'Which one is right for you?',
         tableCaption:
-          'Basic and Complete side by side: the question each report answers, what it covers, what it leaves out and when to choose it.',
+          'The three packages side by side: the question each report answers, what it covers, what it leaves out and when to choose it.',
         aspect: 'What you are comparing',
         basicColumn: 'Basic',
+        websiteAuditColumn: 'Website Audit',
         completeColumn: 'Complete',
         rows: {
           question: {
             label: 'The question it answers',
             basic: 'Why is my site not being found — in search, or in AI answers?',
+            websiteAudit: 'What is wrong with this website itself?',
             complete: 'What is wrong with this website, across everything we can read?',
           },
           included: {
             label: 'What is included',
             basic: 'The full SEO analysis — 16 checks — and AI crawler readiness.',
+            websiteAudit:
+              'Security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics, with scan history and JSON/CSV export.',
             complete:
-              'Everything in Basic, plus security, accessibility, performance, reliability, privacy and content quality, with scan history and JSON/CSV export.',
+              'Everything in Basic and everything in Website Audit — all ten modules — with scan history and JSON/CSV export.',
           },
           notIncluded: {
             label: 'What is not included',
             basic:
               'Security, accessibility, performance, reliability, privacy and content quality.',
+            websiteAudit: 'The SEO analysis and AI SEO / GEO. Those are what Basic sells.',
             complete: 'Nothing FluxRadar can read is held back.',
           },
           chooseWhen: {
             label: 'Choose it when',
             basic: 'Being found is the question, and nothing else is urgent yet.',
-            complete: 'A redesign, a launch, a handover or a client report is coming.',
+            websiteAudit:
+              'The state of the site is the question — a launch, a handover, a redesign — and search is already handled or not your job.',
+            complete: 'You want both halves in one report and one comparable score.',
           },
           price: {
             label: 'What you pay',
             basic: `${BASIC_PRICE_USD}, once, for one scan of one website.`,
+            websiteAudit: `${WEBSITE_AUDIT_PRICE_USD}, once, for one scan of one website.`,
             complete: `${COMPLETE_PRICE_USD}, once, for one scan of one website.`,
           },
           difference: {
             label: 'The difference in one line',
             basic: 'Depth on a single question: how your site is read.',
+            websiteAudit: 'The site itself, without the search modules.',
             complete: 'Every module FluxRadar runs, in one report.',
           },
         },
         footnote:
-          'Both read public pages only, need no CMS password, and stay inside the crawl scope you set before the scan starts.',
+          'All three read public pages only, need no CMS password, and stay inside the crawl scope you set before the scan starts. Basic and Website Audit are separate packages — neither contains the other; Complete is both of them together.',
       },
     },
     newScan: {
@@ -597,8 +628,11 @@ export const copy = {
       planFree: 'Free · homepage only',
       planBasicInternal: 'Basic · internal free',
       planBasicPaid: `Basic · ${BASIC_PRICE}`,
+      planWebsiteAuditInternal: 'Website Audit · internal free',
+      planWebsiteAuditPaid: `Website Audit · ${WEBSITE_AUDIT_PRICE}`,
       planCompleteInternal: 'Complete · internal free',
       planCompletePaid: `Complete · ${COMPLETE_PRICE}`,
+      planUnavailableSuffix: 'not available here yet',
       labelMaxPages: 'Maximum pages',
       maxPagesError: 'Enter a whole number of pages, 1 or more, or leave it empty.',
       labelMaxDepth: 'Maximum crawl depth',
@@ -636,6 +670,11 @@ export const copy = {
       aiConsentOptional: 'Included',
       aiConsentBody:
         'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks, and both answer the visibility questions with their own web search enabled. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain. Separate awareness questions include the brand and domain and go to both providers; on Complete, UX review can include saved context and bounded public-page evidence and goes to Anthropic only. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
+      // The same disclosure for a plan that runs UX/Conversion but no AI SEO /
+      // GEO: no discovery or awareness question is ever sent, so nothing here
+      // may claim a brand or domain transfer that does not happen.
+      aiConsentBodyUxOnly:
+        'By starting this paid audit, you instruct FluxRadar to use Anthropic for one AI check: the UX/Conversion review. It receives the site context you saved on the profile and bounded evidence from the public pages that were crawled — headings, visible text, links, form fields and calls to action. This plan runs no AI SEO / GEO, so no discovery or brand-awareness question about your site is sent to any AI provider. AI can be wrong or be temporarily unavailable; its findings are advisory and stay outside the overall score. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
       aiConsentOptInTitle: 'Optional: ask Gemini and Perplexity too',
       aiConsentOptInMode: 'Off by default',
       aiConsentOptInBody:
@@ -696,6 +735,8 @@ export const copy = {
       launchSummaryEgress: 'Checked from',
       launchSummaryEgressDefault: 'default for Free',
       launchSummaryEnabled: 'Enabled',
+      // Website Audit runs no AI SEO / GEO, but its UX review is AI-assisted.
+      launchSummaryAiUxOnly: 'Not in this plan · AI is used for the UX review',
       launchSummaryDisabled: 'Off',
       launchSummaryHomepage: 'Homepage only',
       launchSummaryIncluded: 'Included',
@@ -897,7 +938,7 @@ export const copy = {
       issuesCta:
         'The Issue Center lists every finding with its evidence and a recommended fix, so you can decide what to work on first.',
       openIssues: 'Open Issue Center',
-      exportComplete: 'Export is reserved for Complete scans.',
+      exportComplete: 'Export is included with Website Audit and Complete scans.',
       // A plan with no tariff score weights. The scoring engine answers
       // `insufficient_data` with a weighted coverage of 0 for it — the same
       // verdict a paid scan gets when it could not read the site — so a Free
@@ -1618,7 +1659,7 @@ export const copy = {
       home: {
         title: 'FluxRadar — аудит публічного сайту: SEO, AI-краулери, безпека та доступність',
         description:
-          'FluxRadar перевіряє будь-який публічний сайт і показує те, що бачать пошукові системи, AI-краулери та люди: SEO, готовність до AI, заголовки безпеки, доступність, продуктивність і сигнали приватності. Два разові звіти, без підписки.',
+          'FluxRadar перевіряє будь-який публічний сайт і показує те, що бачать пошукові системи, AI-краулери та люди: SEO, готовність до AI, заголовки безпеки, доступність, продуктивність і сигнали приватності. Три разові звіти, без підписки.',
       },
       faq: {
         title: 'Часті питання — що означає кожна перевірка FluxRadar | FluxRadar',
@@ -1774,7 +1815,7 @@ export const copy = {
       freeCta: 'Запустити безкоштовну перевірку',
       seePricing: 'Що входить у звіт',
       startPublicSite: 'Почати з публічного сайту',
-      pricingTitle: 'Два разові звіти. Без підписки.',
+      pricingTitle: 'Три разові звіти. Без підписки.',
       pricingLead:
         'Ви платите один раз за одну перевірку одного публічного сайту і залишаєте звіт собі. Нічого не поновлюється, місячної квоти немає, а всі модулі, за які ви заплатили, уже входять у ціну.',
       accountBar: 'FLUXRADAR / СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ',
@@ -1918,11 +1959,12 @@ export const copy = {
       notIncluded: 'Не входить',
       limits: 'Обмеження',
       chooseBasic: 'Почати з Basic',
+      chooseWebsiteAudit: 'Почати з Website Audit',
       chooseComplete: 'Почати з Complete',
       startInWorkspace:
-        'Звіт купується в робочому просторі: оберіть збережений профіль, оберіть Basic або Complete — перевірка стартує, щойно платіжний провайдер підтвердить оплату.',
+        'Звіт купується в робочому просторі: оберіть збережений профіль, оберіть пакет — перевірка стартує, щойно платіжний провайдер підтвердить оплату.',
       freeNote:
-        'Є також безкоштовна перевірка головної сторінки — заголовок, meta description, заголовки та індексація однієї сторінки, один раз на акаунт і один раз на сайт. Це перший погляд на формат звіту, а не третій продукт.',
+        'Є також безкоштовна перевірка головної сторінки — заголовок, meta description, заголовки та індексація однієї сторінки, один раз на акаунт і один раз на сайт. Це перший погляд на формат звіту, а не окремий продукт.',
       coverageLink: 'Переглянути всі перевірки →',
       faqLink: 'Читати FAQ →',
       cards: {
@@ -1938,6 +1980,19 @@ export const copy = {
           notIncluded:
             'Модулі безпеки, доступності, продуктивності, надійності, приватності та якості контенту.',
           limits: 'Одна перевірка одного сайту · до 5 000 сторінок обходу · результати 30 днів.',
+        },
+        websiteAudit: {
+          eyebrow: 'FLUXRADAR WEBSITE AUDIT / САМ САЙТ',
+          title: 'Website Audit',
+          price: WEBSITE_AUDIT_PRICE_USD,
+          description: 'Один звіт про стан самого сайту, без пошукових модулів.',
+          included:
+            'Безпека (публічний профіль OWASP ASVS), продуктивність, доступність (WCAG 2.2 AA), надійність, якість контенту, приватність і згода, UX/Конверсія та Аналітика — разом з історією перевірок і експортом JSON/CSV.',
+          bestFor:
+            'Власникам і розробникам, чиє питання — «що не так із самим сайтом?» перед запуском, передачею або редизайном, і хто сьогодні не купує відповідь про пошук.',
+          notIncluded:
+            'SEO-аналіз і AI SEO / GEO — два пошукові модулі. Їх продає Basic, а Complete продає обидві половини разом.',
+          limits: 'Одна перевірка одного сайту · до 50 000 сторінок обходу · результати 365 днів.',
         },
         complete: {
           eyebrow: 'FLUXRADAR COMPLETE AUDIT / УСІ МОДУЛІ',
@@ -1955,46 +2010,55 @@ export const copy = {
         kicker: 'ПРОСТОЮ МОВОЮ',
         title: 'Що обрати саме вам?',
         tableCaption:
-          'Basic і Complete поруч: на яке питання відповідає кожен звіт, що входить, що не входить і коли його брати.',
+          'Три пакети поруч: на яке питання відповідає кожен звіт, що входить, що не входить і коли його брати.',
         aspect: 'Що порівнюємо',
         basicColumn: 'Basic',
+        websiteAuditColumn: 'Website Audit',
         completeColumn: 'Complete',
         rows: {
           question: {
             label: 'На яке питання відповідає',
             basic: 'Чому мій сайт не знаходять — у пошуку чи у відповідях AI?',
+            websiteAudit: 'Що не так із самим сайтом?',
             complete: 'Що не так із сайтом загалом — в усьому, що ми можемо прочитати?',
           },
           included: {
             label: 'Що входить',
             basic: 'Повний SEO-аналіз — 16 перевірок — і готовність до AI-роботів.',
+            websiteAudit:
+              'Безпека, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсія та Аналітика — з історією перевірок та експортом JSON/CSV.',
             complete:
-              'Усе з Basic, а також безпека, доступність, продуктивність, надійність, приватність і якість контенту — з історією перевірок та експортом JSON/CSV.',
+              'Усе з Basic і все з Website Audit — усі десять модулів — з історією перевірок та експортом JSON/CSV.',
           },
           notIncluded: {
             label: 'Що не входить',
             basic:
               'Безпека, доступність, продуктивність, надійність, приватність і якість контенту.',
+            websiteAudit: 'SEO-аналіз і AI SEO / GEO. Саме їх продає Basic.',
             complete: 'Нічого з того, що FluxRadar уміє прочитати, не лишається поза звітом.',
           },
           chooseWhen: {
             label: 'Коли обирати',
             basic: 'Питання саме у видимості, а решта поки не термінова.',
-            complete: 'Попереду редизайн, запуск, передача сайту або звіт для клієнта.',
+            websiteAudit:
+              'Питання — стан сайту: запуск, передача, редизайн, а пошук уже під контролем або не ваша зона.',
+            complete: 'Потрібні обидві половини в одному звіті й один порівнюваний бал.',
           },
           price: {
             label: 'Скільки коштує',
             basic: `${BASIC_PRICE_USD}, один раз, за одну перевірку одного сайту.`,
+            websiteAudit: `${WEBSITE_AUDIT_PRICE_USD}, один раз, за одну перевірку одного сайту.`,
             complete: `${COMPLETE_PRICE_USD}, один раз, за одну перевірку одного сайту.`,
           },
           difference: {
             label: 'Різниця в одному рядку',
             basic: 'Глибина в одному питанні: як читають ваш сайт.',
+            websiteAudit: 'Сам сайт, без пошукових модулів.',
             complete: 'Усі модулі FluxRadar в одному звіті.',
           },
         },
         footnote:
-          'Обидва читають лише публічні сторінки, не потребують пароля до CMS і працюють у межах області обходу, яку ви задаєте перед стартом.',
+          'Усі три читають лише публічні сторінки, не потребують пароля до CMS і працюють у межах області обходу, яку ви задаєте перед стартом. Basic і Website Audit — окремі пакети, жоден не входить в інший; Complete — це вони обидва разом.',
       },
     },
     newScan: {
@@ -2049,8 +2113,11 @@ export const copy = {
       planFree: 'Free · лише головна',
       planBasicInternal: 'Basic · внутрішній безкоштовний',
       planBasicPaid: `Basic · ${BASIC_PRICE}`,
+      planWebsiteAuditInternal: 'Website Audit · внутрішній безкоштовний',
+      planWebsiteAuditPaid: `Website Audit · ${WEBSITE_AUDIT_PRICE}`,
       planCompleteInternal: 'Complete · внутрішній безкоштовний',
       planCompletePaid: `Complete · ${COMPLETE_PRICE}`,
+      planUnavailableSuffix: 'поки недоступний тут',
       labelMaxPages: 'Максимум сторінок',
       maxPagesError: 'Введіть ціле число сторінок — 1 або більше, або залиште поле порожнім.',
       labelMaxDepth: 'Максимальна глибина обходу',
@@ -2089,6 +2156,8 @@ export const copy = {
       aiConsentOptional: 'Включено',
       aiConsentBody:
         'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) і OpenAI (ChatGPT) для включених AI-перевірок, і обидва відповідають на запитання про видимість із увімкненим власним вебпошуком. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену. Окремі awareness-запитання містять бренд і домен і йдуть до обох провайдерів; у Complete UX-аналіз може включати збережений контекст та обмежені докази з публічних сторінок і йде лише до Anthropic. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
+      aiConsentBodyUxOnly:
+        'Починаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic для однієї AI-перевірки — огляду UX/Конверсії. Він отримує контекст сайту, збережений у профілі, і обмежені свідчення з публічних сторінок, які були обійдені: заголовки, видимий текст, посилання, поля форм і заклики до дії. Цей тариф не запускає AI SEO / GEO, тому жодного discovery- чи brand-запиту про ваш сайт до AI-провайдерів не надсилається. AI може помилятися або бути тимчасово недоступним; його висновки є рекомендаційними і не входять у загальний бал. Не вводьте конфіденційні, чутливі або незаконно отримані персональні дані. Дані акаунта, платежів і токени доступу Google/Bing не надсилаються ніколи.',
       aiConsentOptInTitle: 'Необовʼязково: запитати також Gemini і Perplexity',
       aiConsentOptInMode: 'Вимкнено за замовчуванням',
       aiConsentOptInBody:
@@ -2147,6 +2216,7 @@ export const copy = {
       launchSummaryEgress: 'Країна перевірки',
       launchSummaryEgressDefault: 'за замовчуванням для Free',
       launchSummaryEnabled: 'Увімкнено',
+      launchSummaryAiUxOnly: 'Не входить у цей тариф · AI використовується для UX-огляду',
       launchSummaryDisabled: 'Вимкнено',
       launchSummaryHomepage: 'Лише головна',
       launchSummaryIncluded: 'Включено',
@@ -2336,7 +2406,7 @@ export const copy = {
       issuesCta:
         'Центр проблем показує кожну знахідку з доказом і рекомендованим виправленням, щоб ви вирішили, з чого почати.',
       openIssues: 'Відкрити Центр проблем',
-      exportComplete: 'Експорт доступний лише для тарифу Complete.',
+      exportComplete: 'Експорт входить у тарифи Website Audit і Complete.',
       unscoredLabel: 'Цей тариф не оцінюється',
       unscoredChecks: 'виконано перевірок: {completed}/{applicable}',
       unscoredChecksNone: 'не вдалося прочитати головну сторінку',
