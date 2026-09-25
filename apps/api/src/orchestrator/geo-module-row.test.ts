@@ -5,7 +5,13 @@
 // нейтрального discovery.
 
 import { describe, expect, it } from 'vitest';
-import type { AiRequest, GeoModuleResult, MentionSignal } from '@fluxradar/ai';
+import type {
+  AiRequest,
+  GeoAnswerEvaluation,
+  GeoEvidenceSnapshot,
+  GeoModuleResult,
+  MentionSignal,
+} from '@fluxradar/ai';
 
 import { GEO_SCORING_REASON, geoModuleRow } from './geo-module-row.ts';
 import type { GeoQuestionGenerationResult } from './geo.ts';
@@ -145,6 +151,66 @@ function visibilityOf(row: ReturnType<typeof geoModuleRow>): Record<string, neve
     providerVisibility: Record<string, never>;
   };
   return metadata.providerVisibility;
+}
+
+/** The two sentences the report shows about how the row was produced. */
+function wordingOf(row: ReturnType<typeof geoModuleRow>): {
+  readonly method: string;
+  readonly interpretation: string;
+} {
+  const metadata = JSON.parse(row.metadataJson ?? '{}') as {
+    providerVisibility: { method: string; interpretation: string };
+  };
+  const { method, interpretation } = metadata.providerVisibility;
+  return { method, interpretation };
+}
+
+/** A snapshot with one profile source — enough to be the evidence a verdict cites. */
+const EVIDENCE: GeoEvidenceSnapshot = {
+  siteDomain: 'smile.example',
+  sources: [
+    {
+      id: 'profile-1',
+      kind: 'profile',
+      label: 'name',
+      url: null,
+      excerpt: 'Smile Clinic',
+      provenance: 'a field the site owner typed into their profile',
+    },
+  ],
+  limits: ['A profile field confirms identity only.'],
+  sufficiency: 'profile-only',
+};
+
+function verdict(
+  parentAiRequestKey: string,
+  status: 'Completed' | 'Unavailable',
+): GeoAnswerEvaluation {
+  const completed = status === 'Completed';
+  return {
+    parentAiRequestKey,
+    purpose: 'closed-book',
+    status,
+    reason: completed ? null : 'ScanCancelled',
+    detail: null,
+    payload: null,
+    aiRequestKey: completed ? `judge-${parentAiRequestKey}` : null,
+    provider: completed ? 'anthropic' : null,
+    modelId: completed ? 'claude-sonnet-5' : null,
+    promptVersion: 'geo-answer-evaluation-v1',
+    usage: null,
+  };
+}
+
+function verdicts(
+  entries: Readonly<Record<string, 'Completed' | 'Unavailable'>>,
+): GeoModuleResult['answerEvaluations'] {
+  return new Map(
+    Object.entries(entries).map(([parentAiRequestKey, status]) => [
+      parentAiRequestKey,
+      verdict(parentAiRequestKey, status),
+    ]),
+  );
 }
 
 describe('AI SEO / GEO module row', () => {
@@ -398,5 +464,79 @@ describe('AI SEO / GEO module row', () => {
       },
       discovery: NOTHING_OBSERVED,
     });
+  });
+
+  // A scan bought under an older accepted notice still asks its questions, and
+  // no evidence of the site is ever sent for judging them. A row that describes
+  // the evaluation anyway sells a check that never ran for that customer.
+  it('says no answer was evaluated when the scan sent no evidence', () => {
+    const row = geoModuleRow(
+      geoResult({ outcomes: [answered(1, 'awareness'), answered(2, 'discovery')] }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+    );
+    const { method, interpretation } = wordingOf(row);
+    expect(method).toContain('no answer was evaluated');
+    expect(method).not.toContain('evaluated separately');
+    expect(interpretation).not.toContain('An evaluation states');
+    // The metadata DTO keeps its shape: absent evidence is null, not missing.
+    expect(visibilityOf(row).evidence).toBeNull();
+  });
+
+  it('counts the answers actually evaluated when evidence was sent', () => {
+    const row = geoModuleRow(
+      geoResult({
+        outcomes: [answered(1, 'awareness'), answered(2, 'discovery')],
+        answerEvaluations: verdicts({ 'key-1': 'Completed', 'key-2': 'Unavailable' }),
+      }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+      EVIDENCE,
+    );
+    const { method, interpretation } = wordingOf(row);
+    expect(method).toContain(
+      '1 of 2 answers evaluated separately against this scan’s own evidence',
+    );
+    expect(interpretation).toContain(
+      'An evaluation states only what this scan’s evidence supports.',
+    );
+    expect(visibilityOf(row).evidence).toMatchObject({ sufficiency: 'profile-only' });
+  });
+
+  // Cancellation leaves the snapshot built and every verdict missing: the row
+  // must not read as if all of them completed.
+  it('does not claim completed evaluations when every judge was cancelled', () => {
+    const row = geoModuleRow(
+      geoResult({
+        status: 'Partial',
+        statusReason: 'ScanCancelled',
+        outcomes: [answered(1, 'awareness'), answered(2, 'discovery')],
+        answerEvaluations: verdicts({ 'key-1': 'Unavailable', 'key-2': 'Unavailable' }),
+        interrupted: true,
+      }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+      EVIDENCE,
+    );
+    const { method, interpretation } = wordingOf(row);
+    expect(method).toContain('none of the 2 evaluations');
+    expect(method).not.toContain('evaluated separately');
+    expect(interpretation).not.toContain('An evaluation states');
+    expect(row.statusReason).toContain('AnswerEvaluationUnavailable');
+  });
+
+  // Evidence was built, the scan stopped before the first judge request: there
+  // is nothing to report as evaluated, and nothing to report as failed either.
+  it('says no answer reached evaluation when the judge never ran', () => {
+    const row = geoModuleRow(
+      geoResult({ outcomes: [answered(1, 'awareness')], interrupted: true }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+      EVIDENCE,
+    );
+    const { method, interpretation } = wordingOf(row);
+    expect(method).toContain('no answer reached evaluation');
+    expect(method).not.toContain('evaluated separately');
+    expect(interpretation).not.toContain('An evaluation states');
   });
 });

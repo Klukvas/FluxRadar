@@ -186,6 +186,64 @@ function evidenceRecord(evidence: GeoEvidenceSnapshot | null): Record<string, un
   };
 }
 
+/** How many answers were sent to the judge, and how many came back with a verdict. */
+interface EvaluationTally {
+  readonly attempted: number;
+  readonly completed: number;
+}
+
+function evaluationTally(geo: GeoModuleResult): EvaluationTally {
+  const evaluations = [...geo.answerEvaluations.values()];
+  return {
+    attempted: evaluations.length,
+    completed: evaluations.filter((evaluation) => evaluation.status === 'Completed').length,
+  };
+}
+
+const QUESTION_METHOD =
+  'AI-generated neutral discovery questions asked of each provider with its own web ' +
+  'search enabled, plus closed-book questions about the business asked without search ' +
+  'or tools';
+
+/**
+ * What this scan did with its answers after they came back, in the row's own words.
+ *
+ * The evaluation is not part of every scan: it runs only when the notice the
+ * scan was bought under disclosed that the site's own evidence is sent for
+ * judging, and even then a scan cancelled before the first verdict ends with
+ * evidence and nothing judged. A constant "each answer evaluated separately"
+ * described a check that never ran for those scans, which is exactly the claim
+ * the metadata must not make.
+ */
+function evaluationMethod(tally: EvaluationTally, evidence: GeoEvidenceSnapshot | null): string {
+  if (evidence === null) {
+    return `${QUESTION_METHOD}; no answer was evaluated, because this scan sent no site evidence for judging`;
+  }
+  if (tally.completed === 0) {
+    return tally.attempted === 0
+      ? `${QUESTION_METHOD}; no answer reached evaluation against this scan’s own evidence`
+      : `${QUESTION_METHOD}; none of the ${tally.attempted} evaluations against this scan’s own evidence completed`;
+  }
+  return (
+    `${QUESTION_METHOD}; ${tally.completed} of ${tally.attempted} answers evaluated separately ` +
+    'against this scan’s own evidence'
+  );
+}
+
+const OBSERVATION_INTERPRETATION =
+  'Prompt-specific observations; a discovery citation is a source the model used, and a ' +
+  'mention does not prove remembered knowledge.';
+
+/** How to read the row; the verdict sentence appears only when there is a verdict. */
+function evaluationInterpretation(
+  tally: EvaluationTally,
+  evidence: GeoEvidenceSnapshot | null,
+): string {
+  return evidence !== null && tally.completed > 0
+    ? `${OBSERVATION_INTERPRETATION} An evaluation states only what this scan’s evidence supports.`
+    : OBSERVATION_INTERPRETATION;
+}
+
 /** Why some answers have no verdict — named, never rounded away. */
 function evaluationStatusReason(geo: GeoModuleResult): string | null {
   const reasons = [...geo.answerEvaluations.values()]
@@ -237,16 +295,14 @@ export function geoModuleRow(
   const reasonParts = statusReasonParts(geo, generation);
   // Each answer's evaluation is a check of its own: a judge that could not run
   // has to lower coverage, not disappear behind a Completed module.
-  const completedEvaluations = [...geo.answerEvaluations.values()].filter(
-    (evaluation) => evaluation.status === 'Completed',
-  ).length;
+  const tally = evaluationTally(geo);
   const coverage = computeCoverage({
     // Знаменатель — все вопросы библиотеки, а не только заданные: прерванный
     // отменой прогон обязан показать, что часть проверок не выполнялась, иначе
     // две заданные из пяти выглядели бы как полное покрытие (§15/§575).
-    applicableChecks: geo.requested + generation.applicableChecks + geo.answerEvaluations.size,
+    applicableChecks: geo.requested + generation.applicableChecks + tally.attempted,
     completedApplicableChecks:
-      geo.responses.length + generation.completedApplicableChecks + completedEvaluations,
+      geo.responses.length + generation.completedApplicableChecks + tally.completed,
     ...(reasonParts.length > 0 ? { statusReason: reasonParts.join('; ') } : {}),
   });
   return {
@@ -276,14 +332,8 @@ export function geoModuleRow(
         // discovery question needs a searching assistant, a direct one is
         // answered from memory or not at all.
         webSearch: { discovery: true, closedBook: false },
-        method:
-          'AI-generated neutral discovery questions asked of each provider with its own web ' +
-          'search enabled, plus closed-book questions about the business asked without search ' +
-          'or tools, each answer evaluated separately against this scan’s own evidence',
-        interpretation:
-          'Prompt-specific observations; a discovery citation is a source the model used, a ' +
-          'mention does not prove remembered knowledge, and an evaluation states only what ' +
-          'this scan’s evidence supports.',
+        method: evaluationMethod(tally, evidence),
+        interpretation: evaluationInterpretation(tally, evidence),
         observations: geoObservations(geo),
         evidence: evidenceRecord(evidence),
         queryGeneration: queryGenerationMetadata(generation),
