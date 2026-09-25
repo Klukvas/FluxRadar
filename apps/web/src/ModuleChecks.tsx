@@ -14,9 +14,10 @@
 // plan: a scan run before a field existed shows less, not something assumed.
 
 import { AnalyticsDetails } from './AnalyticsChecks';
-import type { GeoObservation, MentionSignal, ScanModule } from './api';
+import type { GeoEvidence, GeoObservation, MentionSignal, ScanModule } from './api';
 import { BingDataPanel, bingSectionIn } from './BingDataPanel';
 import { CheckRow } from './CheckRow';
+import { GeoEvaluationBlock, geoEvaluationSummary, safeHttpUrl } from './GeoEvaluation';
 import { GoogleDataPanel, googleSnapshotIn } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
 import {
@@ -106,6 +107,8 @@ export function moduleChecksId(module: string): string {
 export function ModuleChecksPanel(props: {
   module: ScanModule;
   observations: readonly GeoObservation[];
+  /** What the AI answers were judged against; null when the scan recorded none. */
+  evidence?: GeoEvidence | null;
   language: Language;
 }) {
   const t = copy[props.language].report.checks;
@@ -118,6 +121,7 @@ export function ModuleChecksPanel(props: {
       <ModuleChecksBody
         module={props.module}
         observations={props.observations}
+        evidence={props.evidence ?? null}
         language={props.language}
       />
     </section>
@@ -127,6 +131,7 @@ export function ModuleChecksPanel(props: {
 function ModuleChecksBody(props: {
   module: ScanModule;
   observations: readonly GeoObservation[];
+  evidence: GeoEvidence | null;
   language: Language;
 }) {
   const { metadata } = props.module;
@@ -136,6 +141,7 @@ function ModuleChecksBody(props: {
         <GeoChecksBody
           checks={geoChecksOf(metadata)}
           observations={props.observations}
+          evidence={props.evidence}
           language={props.language}
         />
       );
@@ -427,10 +433,18 @@ function checkDetail(check: RuleCheck, result: RuleCheckOutcome, language: Langu
 function GeoChecksBody(props: {
   checks: GeoChecks | null;
   observations: readonly GeoObservation[];
+  evidence: GeoEvidence | null;
   language: Language;
 }) {
   const report = copy[props.language].report;
   const generation = props.checks?.queryGeneration ?? null;
+  // Only answered questions can have been evaluated, so only those are counted.
+  const evaluationSummary = geoEvaluationSummary(
+    props.observations
+      .filter((observation) => observation.status === 'answered')
+      .map((observation) => observation.evaluation ?? null),
+    props.language,
+  );
   return (
     <>
       {props.checks === null ? null : (
@@ -449,10 +463,12 @@ function GeoChecksBody(props: {
         ) : (
           <>
             <p className="muted">{report.geoObservationsLead}</p>
+            {evaluationSummary === null ? null : <p className="muted">{evaluationSummary}</p>}
             {geoProviderGroups(props.observations).map((group) => (
               <GeoProviderGroup
                 key={group.provider ?? 'unnamed'}
                 group={group}
+                evidence={props.evidence}
                 language={props.language}
               />
             ))}
@@ -550,7 +566,11 @@ function geoMentionCounts(
   ];
 }
 
-function GeoProviderGroup(props: { group: GeoProviderGroupData; language: Language }) {
+function GeoProviderGroup(props: {
+  group: GeoProviderGroupData;
+  evidence: GeoEvidence | null;
+  language: Language;
+}) {
   const { group } = props;
   const label = geoProviderLabel(group.provider, props.language);
   const counts = geoMentionCounts(group.observations, props.language);
@@ -565,6 +585,7 @@ function GeoProviderGroup(props: { group: GeoProviderGroupData; language: Langua
           <GeoObservationCard
             key={`${observation.purpose}:${index}:${observation.question}`}
             observation={observation}
+            evidence={props.evidence}
             language={props.language}
           />
         ))}
@@ -710,7 +731,30 @@ function domainSignalLabel(signal: MentionSignal, language: Language): string {
   }
 }
 
-function GeoObservationCard(props: { observation: GeoObservation; language: Language }) {
+/**
+ * How the question was put, in the reader's words.
+ *
+ * `awareness` belongs to scans that ran before the direct questions became
+ * closed-book. Those questions named the brand and spelled out the domain, and
+ * calling them closed-book now would claim a check that never ran.
+ */
+function purposeLabel(observation: GeoObservation, language: Language): string {
+  const t = copy[language].report;
+  switch (observation.purpose) {
+    case 'discovery':
+      return t.geoDiscoveryQuestion;
+    case 'closed-book':
+      return t.geoClosedBookQuestion;
+    default:
+      return t.geoAwarenessQuestion;
+  }
+}
+
+function GeoObservationCard(props: {
+  observation: GeoObservation;
+  evidence: GeoEvidence | null;
+  language: Language;
+}) {
   const t = copy[props.language].report;
   const { observation } = props;
   const citations = [
@@ -724,9 +768,7 @@ function GeoObservationCard(props: { observation: GeoObservation; language: Lang
   return (
     <article className="geo-observation">
       <div className="split geo-observation__header">
-        <strong>
-          {observation.purpose === 'discovery' ? t.geoDiscoveryQuestion : t.geoAwarenessQuestion}
-        </strong>
+        <strong>{purposeLabel(observation, props.language)}</strong>
         {observation.provider === null || observation.modelId === null ? null : (
           <small className="technical">
             {t.geoProvider}: {observation.provider} · {observation.modelId}
@@ -740,7 +782,13 @@ function GeoObservationCard(props: { observation: GeoObservation; language: Lang
             <strong>{t.geoAnswerLabel}</strong>
             <p>{observation.answer}</p>
           </div>
-          {observation.mentions === null ? null : (
+          {/* A closed-book question names the business in the prompt itself, so
+              a brand mention in the answer measures nothing. Per the UI plan the
+              badge pair is replaced there by the claim evaluation, which says
+              what the answer actually asserted about the business. A discovery
+              question keeps its signals: there, a mention is a real
+              measurement. */}
+          {observation.mentions === null || observation.purpose === 'closed-book' ? null : (
             <div className="geo-observation__mentions" aria-label={t.geoMentionSignals}>
               <span className={signalClass(observation.mentions.brand)}>
                 {brandSignalLabel(observation.mentions.brand, props.language)}
@@ -749,6 +797,17 @@ function GeoObservationCard(props: { observation: GeoObservation; language: Lang
                 {domainSignalLabel(observation.mentions.domain, props.language)}
               </span>
             </div>
+          )}
+          {/* A historical awareness row never had an evaluation and is not
+              given an empty slot for one; it keeps the badges it was written
+              with. */}
+          {observation.purpose === 'awareness' && !observation.evaluation ? null : (
+            <GeoEvaluationBlock
+              evaluation={observation.evaluation ?? null}
+              evidence={props.evidence}
+              purpose={observation.purpose}
+              language={props.language}
+            />
           )}
           {citations.length === 0 ? null : (
             <div className="geo-observation__citations">
@@ -770,13 +829,4 @@ function GeoObservationCard(props: { observation: GeoObservation; language: Lang
       )}
     </article>
   );
-}
-
-function safeHttpUrl(value: string): string | null {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null;
-  } catch {
-    return null;
-  }
 }

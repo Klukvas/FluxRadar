@@ -2,10 +2,11 @@
 //
 //   node --env-file=../../.env src/orchestrator/geo-smoke.ts <brand> <hostname> [provider...]
 //
-// It sends ONE awareness question to each configured provider with web search
-// on, and prints what came back: the model that served it, the search count,
-// the citations, the usage, the finish reason and the elapsed time. It never
-// writes to the database, and it refuses to run under Vitest.
+// It sends ONE closed-book question to each configured provider — no search,
+// no tools — and prints what came back: the model that served it, the search
+// count (zero for a closed-book answer), the citations, the usage, the finish
+// reason and the elapsed time. It never writes to the database, and it refuses
+// to run under Vitest.
 //
 // All FOUR adapters are smokeable, not only the two a paid scan selects on its
 // own: Gemini and Perplexity are the ones an owner most needs to try before a
@@ -73,8 +74,8 @@ async function main(): Promise<void> {
     noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
   };
   const provider = createDefaultAiProvider(brand, hostname);
-  // One awareness question per provider: the first entry of each provider's list.
-  const requests = buildGeoRequests(scanId, brand, [], providers).filter(
+  // One direct question per provider: the first entry of each provider's list.
+  const requests = buildGeoRequests(scanId, brand, hostname, [], providers).filter(
     (request) => request.sequence === 1,
   );
 

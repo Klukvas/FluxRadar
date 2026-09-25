@@ -8,6 +8,14 @@ import type { ModuleName, ModuleRuntimeStatus, Plan } from '@fluxradar/contracts
 
 import type { AiConsent } from './consent.js';
 import { AiModuleError, AiRequestCancelledError } from './errors.js';
+import { evaluateGeoAnswer, GEO_EVALUATION_PROMPT_VERSION } from './geo-evaluation.js';
+import type {
+  GeoAnswerEvaluation,
+  GeoAnswerPurpose,
+  GeoEvaluationUnavailableReason,
+} from './geo-evaluation.js';
+import { redactGeoEvidenceSnapshot } from './geo-evidence.js';
+import type { GeoEvidenceSnapshot } from './geo-evidence.js';
 import type { GeoFinding } from './geo-findings.js';
 import { evaluateGeoRules, geoMentionSignals } from './geo-rules.js';
 import type { GeoMentionSignals, GeoRuleEvaluation } from './geo-rules.js';
@@ -31,6 +39,14 @@ export interface GeoModuleInput {
   readonly siteDomain: string;
   readonly consent: AiConsent | null;
   readonly requests: readonly AiRequest[];
+  /**
+   * What this scan actually observed about the site, for judging each answer.
+   *
+   * Omitted or null means no answer is evaluated — an older caller, or a scan
+   * that read nothing. The report then says the answers were not evaluated; it
+   * never implies a check that did not run.
+   */
+  readonly evidence?: GeoEvidenceSnapshot | null;
 }
 
 export interface GeoModuleOptions {
@@ -67,6 +83,24 @@ export interface GeoModuleResult {
    * for this answer", which is how they came to be green on every scan.
    */
   readonly mentions: ReadonlyMap<string, GeoMentionSignals>;
+  /**
+   * Per answer (by its `aiRequestKey`), what a separate, stateless evaluator
+   * made of it against the scan's evidence — or the reason there is no verdict.
+   *
+   * Empty when the caller supplied no evidence snapshot. An answer with no
+   * entry here is shown as unevaluated, never as verified.
+   */
+  readonly answerEvaluations: ReadonlyMap<string, GeoAnswerEvaluation>;
+  /**
+   * The exact snapshot the evaluators read: redacted once, frozen, shared.
+   *
+   * This is what belongs beside the verdicts, because it is the text they were
+   * checked against. null when no evaluation ran — no snapshot was supplied, or
+   * the snapshot could not be sanitised — and then nothing was sent either.
+   */
+  readonly evaluatedEvidence: GeoEvidenceSnapshot | null;
+  /** The evaluators' own provider exchanges, for the ai_response ledger. */
+  readonly evaluationOutcomes: readonly AiRequestOutcome[];
   /** Финальное состояние квоты: spent = число ответов, outstanding = 0. */
   readonly quota: AiQuotaTracker;
   /** Сколько вопросов было в библиотеке прогона — знаменатель coverage (§15). */
@@ -134,6 +168,111 @@ function summarizeStatus(
   return { status: 'Completed', statusReason: null };
 }
 
+/** Which rubric an answer is judged under; a discovery answer is not a company profile. */
+function purposeOf(request: AiRequest): GeoAnswerPurpose {
+  return request.promptVersion.endsWith('-discovery') ? 'discovery' : 'closed-book';
+}
+
+interface EvaluationPass {
+  readonly evaluations: ReadonlyMap<string, GeoAnswerEvaluation>;
+  readonly outcomes: readonly AiRequestOutcome[];
+  readonly evidence: GeoEvidenceSnapshot | null;
+  readonly quota: AiQuotaTracker;
+}
+
+/** Every answer gets the same reason, because the one snapshot is the blocker. */
+function evaluationsBlocked(
+  responses: readonly AiResponseOutcome[],
+  reason: GeoEvaluationUnavailableReason,
+  detail: string,
+): ReadonlyMap<string, GeoAnswerEvaluation> {
+  return new Map(
+    responses.map((answer) => [
+      answer.aiRequestKey,
+      {
+        parentAiRequestKey: answer.aiRequestKey,
+        purpose: purposeOf(answer.request),
+        status: 'Unavailable' as const,
+        reason,
+        detail,
+        payload: null,
+        aiRequestKey: null,
+        provider: null,
+        modelId: null,
+        promptVersion: GEO_EVALUATION_PROMPT_VERSION,
+        usage: null,
+      },
+    ]),
+  );
+}
+
+/**
+ * Judges each answered question separately.
+ *
+ * One request per answer, in order, threading the immutable quota tracker from
+ * one to the next. Sequential on purpose: the tracker is a value object, and
+ * running judges concurrently would mean two callers reserving against the same
+ * state and one of the reservations vanishing.
+ */
+async function evaluateAnswers(
+  input: GeoModuleInput,
+  responses: readonly AiResponseOutcome[],
+  rawEvidence: GeoEvidenceSnapshot,
+  options: GeoModuleOptions,
+  startingQuota: AiQuotaTracker,
+): Promise<EvaluationPass> {
+  // Sanitised once for the whole scan: the judges, the quote checks and the
+  // stored record all read this one object, so they cannot disagree about what
+  // the evidence said.
+  let evidence: GeoEvidenceSnapshot;
+  try {
+    evidence = redactGeoEvidenceSnapshot(rawEvidence, options.redaction);
+  } catch (error) {
+    return {
+      evaluations: evaluationsBlocked(
+        responses,
+        'RedactionBlocked',
+        error instanceof Error ? error.message : 'the evidence could not be redacted',
+      ),
+      outcomes: [],
+      evidence: null,
+      quota: startingQuota,
+    };
+  }
+
+  const evaluations = new Map<string, GeoAnswerEvaluation>();
+  const outcomes: AiRequestOutcome[] = [];
+  let quota = startingQuota;
+
+  for (const answer of responses) {
+    const result = await evaluateGeoAnswer(
+      {
+        scanId: input.scanId,
+        parentAiRequestKey: answer.aiRequestKey,
+        purpose: purposeOf(answer.request),
+        question: answer.request.question,
+        // Exactly one answer. Nothing from a sibling answer, and nothing from
+        // any previous verdict, is in this request.
+        answer: answer.response.rawText,
+        evidence,
+        // The answer's own sequence: the same answer keeps the same judge key
+        // across a retry, however many of its siblings failed that time.
+        index: answer.request.sequence,
+        consent: input.consent,
+      },
+      {
+        provider: options.provider,
+        quota,
+        ...(options.redaction !== undefined ? { redaction: options.redaction } : {}),
+      },
+    );
+    quota = result.quota;
+    evaluations.set(answer.aiRequestKey, result.evaluation);
+    if (result.outcome !== null) outcomes.push(result.outcome);
+  }
+  return { evaluations, outcomes, evidence, quota };
+}
+
 /**
  * Прогон модуля. Запросы выполняются последовательно (детерминированный порядок
  * квоты и outcomes); квота передаётся по цепочке иммутабельных состояний.
@@ -189,6 +328,13 @@ export async function runGeoModule(
     return outcome.kind === 'response';
   });
 
+  const evidence = input.evidence ?? null;
+  const evaluated: EvaluationPass =
+    evidence === null || responses.length === 0
+      ? { evaluations: new Map(), outcomes: [], evidence: null, quota }
+      : await evaluateAnswers(input, responses, evidence, options, quota);
+  quota = evaluated.quota;
+
   // Unavailable-модуль — только module record со status_reason (§5): без issue-
   // findings; GEO-METHOD-005 документирует пропуски в Completed/Partial-ветке.
   const ruleInput = {
@@ -211,6 +357,9 @@ export async function runGeoModule(
       status === 'Unavailable'
         ? new Map<string, GeoMentionSignals>()
         : geoMentionSignals(ruleInput),
+    answerEvaluations: evaluated.evaluations,
+    evaluatedEvidence: evaluated.evidence,
+    evaluationOutcomes: evaluated.outcomes,
     quota,
     requested: input.requests.length,
     interrupted,

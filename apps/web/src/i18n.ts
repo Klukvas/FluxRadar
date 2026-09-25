@@ -669,7 +669,7 @@ export const copy = {
       aiConsentTitle: 'AI processing included in this audit',
       aiConsentOptional: 'Included',
       aiConsentBody:
-        'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks, and both answer the visibility questions with their own web search enabled. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain. Separate awareness questions include the brand and domain and go to both providers; on Complete, UX review can include saved context and bounded public-page evidence and goes to Anthropic only. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
+        'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain; both providers answer those discovery questions with their own web search enabled. Separate direct questions name the brand or domain, go to both providers and are asked closed-book, without browsing or tools. Each answer is then checked by Anthropic, in its own request, against a bounded snapshot of this audit’s evidence: the profile fields you saved and text from the public pages that were crawled. On Complete, UX review can include the same saved context and bounded public-page evidence and goes to Anthropic only. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
       // The same disclosure for a plan that runs UX/Conversion but no AI SEO /
       // GEO: no discovery or awareness question is ever sent, so nothing here
       // may claim a brand or domain transfer that does not happen.
@@ -913,14 +913,48 @@ export const copy = {
         'No page of the site could be read, so nothing below describes your site. See the scan status for what the site answered.',
       siteCoverageNoAddresses: 'The crawl found no addresses to read.',
       geoObservationsLead:
-        'These are each model’s answers to this scan’s exact prompts, produced with the provider’s own web search, and the citations are the sources it used. They show whether an answer mentioned your brand or official domain in this run; they do not prove what a model has memorized or will answer later.',
+        'These are each model’s answers to this scan’s exact prompts. Each card shows the question as it was put, the answer as it came back, and — where an evaluation ran — how that answer checked out against what this scan read from your site; a discovery answer’s citations are the sources the model searched. They show what happened in this run; they do not prove what a model has memorized or will answer later.',
       geoAwarenessQuestion: 'Direct awareness question',
+      geoClosedBookQuestion: 'Direct question, asked closed-book',
       geoDiscoveryQuestion: 'Domain discovery question',
       geoProviderOpenai: 'ChatGPT · OpenAI',
       geoProviderAnthropic: 'Claude · Anthropic',
       geoProviderGoogle: 'Gemini · Google',
       geoProviderPerplexity: 'Perplexity',
       geoProviderUnknown: 'Provider not recorded',
+      geoEvaluationHeading: 'Checked against this site’s evidence',
+      geoEvaluationSummary: 'Evaluated {count} of {total} answers against evidence from this scan.',
+      geoEvaluationNotRun: 'This answer was not evaluated in this scan.',
+      geoEvaluationUnavailable:
+        'The evaluation could not run for this answer, so it stays unverified. The answer above is shown as the model gave it.',
+      geoEvaluationInsufficient:
+        'This scan read too little of your site — no profile detail and no readable page — to check this answer against anything.',
+      geoEvaluationTruncated:
+        'The evidence did not fit one evaluation request, so no verdict was produced rather than one based on part of it.',
+      geoEvaluationNoClaims:
+        'This answer carried no description of your business to check against your site’s evidence.',
+      geoEvaluationNotMentioned:
+        'This answer did not mention your business, so there was nothing about it to check. It is one answer to one question, and says nothing about what the model knows.',
+      geoEvaluationNothingCheckable:
+        'The answer made no statement about this business that could be checked against the evidence.',
+      geoEvaluationScope:
+        'This covers only the claims listed above, checked against what this scan read from your site. It is not a check of everything the answer said, and evidence that says nothing about a claim neither supports nor disproves it.',
+      geoVerdictNoDescription: 'No description given',
+      geoVerdictNotMentioned: 'Your business was not mentioned',
+      geoVerdictMatches: 'Checked claims supported by your site’s evidence',
+      geoVerdictPartial: 'Partly supported — some checked claims unverified',
+      geoVerdictContradicts: 'Contradicted by your site’s evidence',
+      geoVerdictUnverified: 'Not verifiable from your site’s evidence',
+      geoClaimMatched: 'Supported',
+      geoClaimContradicted: 'Contradicted',
+      geoClaimUnverified: 'Unverified',
+      geoClaimAnswerQuote: 'From the answer',
+      geoClaimSource: 'Your site’s evidence',
+      geoSourceProfile: 'Profile field you saved — your own claim, not verified by us',
+      geoSourcePage: 'Text read from your public page',
+      geoSourceStructuredData: 'Structured data declared on your page, not verified by us',
+      geoSourceUnknown: 'Evidence recorded by this scan',
+      geoSourceMissing: 'source not stored with this report',
       geoProvider: 'Provider/model',
       geoGroupBrandCount: 'Brand mentioned in {count} of {total} answers',
       geoGroupDomainCount: 'Official domain referenced in {count} of {total}',
@@ -2155,7 +2189,7 @@ export const copy = {
       aiConsentTitle: 'AI-обробка включена в цей аудит',
       aiConsentOptional: 'Включено',
       aiConsentBody:
-        'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) і OpenAI (ChatGPT) для включених AI-перевірок, і обидва відповідають на запитання про видимість із увімкненим власним вебпошуком. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену. Окремі awareness-запитання містять бренд і домен і йдуть до обох провайдерів; у Complete UX-аналіз може включати збережений контекст та обмежені докази з публічних сторінок і йде лише до Anthropic. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
+        'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) і OpenAI (ChatGPT) для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену; на ці discovery-запитання обидва провайдери відповідають із увімкненим власним вебпошуком. Окремі прямі запитання містять бренд або домен, ідуть до обох провайдерів і ставляться «із закритою книгою» — без пошуку в мережі та без інструментів. Потім кожну відповідь Anthropic окремим запитом звіряє з обмеженим набором доказів цього аудиту: полями профілю, які ви зберегли, і текстом публічних сторінок, які було обійдено. У Complete UX-аналіз може включати той самий збережений контекст та обмежені докази з публічних сторінок і йде лише до Anthropic. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
       aiConsentBodyUxOnly:
         'Починаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic для однієї AI-перевірки — огляду UX/Конверсії. Він отримує контекст сайту, збережений у профілі, і обмежені свідчення з публічних сторінок, які були обійдені: заголовки, видимий текст, посилання, поля форм і заклики до дії. Цей тариф не запускає AI SEO / GEO, тому жодного discovery- чи brand-запиту про ваш сайт до AI-провайдерів не надсилається. AI може помилятися або бути тимчасово недоступним; його висновки є рекомендаційними і не входять у загальний бал. Не вводьте конфіденційні, чутливі або незаконно отримані персональні дані. Дані акаунта, платежів і токени доступу Google/Bing не надсилаються ніколи.',
       aiConsentOptInTitle: 'Необовʼязково: запитати також Gemini і Perplexity',
@@ -2380,14 +2414,50 @@ export const copy = {
         'Жодної сторінки сайту прочитати не вдалося, тому ніщо нижче не описує ваш сайт. Що саме відповів сайт — дивіться у стані перевірки.',
       siteCoverageNoAddresses: 'Обхід не знайшов жодної адреси для читання.',
       geoObservationsLead:
-        'Це відповіді кожної моделі на конкретні запити цієї перевірки, отримані з увімкненим вебпошуком провайдера; посилання — це джерела, якими вона скористалася. Вони показують, чи згадала відповідь ваш бренд або офіційний домен саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
+        'Це відповіді кожної моделі на конкретні запити цієї перевірки. Кожна картка показує поставлене питання, отриману відповідь і — якщо оцінювання виконувалося — як цю відповідь звірили з тим, що ця перевірка прочитала на вашому сайті; посилання під пошуковим питанням — це джерела, якими модель скористалася. Вони показують, що сталося саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
       geoAwarenessQuestion: 'Пряме питання про впізнаваність',
+      geoClosedBookQuestion: 'Пряме питання «із закритою книгою»',
       geoDiscoveryQuestion: 'Пошукове питання про послугу',
       geoProviderOpenai: 'ChatGPT · OpenAI',
       geoProviderAnthropic: 'Claude · Anthropic',
       geoProviderGoogle: 'Gemini · Google',
       geoProviderPerplexity: 'Perplexity',
       geoProviderUnknown: 'Постачальника не зафіксовано',
+      geoEvaluationHeading: 'Звірено з доказами з вашого сайту',
+      geoEvaluationSummary: 'Оцінено {count} із {total} відповідей за доказами цієї перевірки.',
+      geoEvaluationNotRun: 'Цю відповідь не оцінювали в межах цієї перевірки.',
+      geoEvaluationUnavailable:
+        'Оцінку для цієї відповіді виконати не вдалося, тому вона лишається непідтвердженою. Відповідь вище показано так, як її дала модель.',
+      geoEvaluationInsufficient:
+        'Ця перевірка прочитала замало з вашого сайту — ні даних профілю, ні придатної сторінки, — щоб було з чим звіряти цю відповідь.',
+      geoEvaluationTruncated:
+        'Докази не вмістилися в один запит на оцінку, тому висновку не робили — краще жодного, ніж висновок за частиною доказів.',
+      geoEvaluationNoClaims:
+        'У цій відповіді немає опису вашого бізнесу, який можна було б звірити з доказами вашого сайту.',
+      geoEvaluationNotMentioned:
+        'Ця відповідь не згадала ваш бізнес, тож звіряти не було чого. Це одна відповідь на одне питання, і вона нічого не говорить про те, що модель знає.',
+      geoEvaluationNothingCheckable:
+        'У відповіді немає тверджень про цей бізнес, які можна було б звірити з доказами.',
+      geoEvaluationScope:
+        'Це стосується лише перелічених вище тверджень, звірених із тим, що ця перевірка прочитала на вашому сайті. Це не перевірка всього, що сказала модель, а доказ, який про твердження мовчить, його не підтверджує і не спростовує.',
+      geoVerdictNoDescription: 'Опису не надано',
+      geoVerdictNotMentioned: 'Ваш бізнес не згадано',
+      geoVerdictMatches: 'Перевірені твердження підтверджено доказами вашого сайту',
+      geoVerdictPartial: 'Частково підтверджено — частину тверджень не підтверджено',
+      geoVerdictContradicts: 'Суперечить доказам вашого сайту',
+      geoVerdictUnverified: 'Не перевіряється за доказами вашого сайту',
+      geoClaimMatched: 'Підтверджено',
+      geoClaimContradicted: 'Суперечить',
+      geoClaimUnverified: 'Не підтверджено',
+      geoClaimAnswerQuote: 'З відповіді',
+      geoClaimSource: 'Доказ із вашого сайту',
+      geoSourceProfile:
+        'Поле профілю, яке ви зберегли, — ваше власне твердження, нами не перевірене',
+      geoSourcePage: 'Текст, прочитаний з вашої публічної сторінки',
+      geoSourceStructuredData:
+        'Структуровані дані, оголошені на вашій сторінці, нами не перевірені',
+      geoSourceUnknown: 'Доказ, записаний цією перевіркою',
+      geoSourceMissing: 'джерело не збережено з цим звітом',
       geoProvider: 'Постачальник/модель',
       geoGroupBrandCount: 'Бренд згадано у {count} з {total} відповідей',
       geoGroupDomainCount: 'Офіційний домен наведено у {count} з {total}',

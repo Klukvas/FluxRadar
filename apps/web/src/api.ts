@@ -469,8 +469,71 @@ export interface Purchase {
   readonly scanStatus: string | null;
 }
 
+/** Mirrors `GeoClaimVerdict` in @fluxradar/ai. */
+export type GeoClaimVerdict = 'matched' | 'contradicted' | 'unverified';
+
+/** Mirrors `GeoEvaluationVerdict` in @fluxradar/ai. */
+export type GeoEvaluationVerdict =
+  | 'no-description'
+  | 'matches-evidence'
+  | 'partially-supported'
+  | 'contradicts-evidence'
+  | 'unverified';
+
+export interface GeoEvaluatedClaim {
+  readonly claim: string;
+  readonly verdict: GeoClaimVerdict;
+  /** Verified by the API to occur in the answer. */
+  readonly answerQuote: string;
+  /** An id in `Dashboard.geoEvidence`; null for a claim that cites nothing. */
+  readonly sourceId: string | null;
+  readonly sourceQuote: string | null;
+}
+
+/**
+ * What a separate evaluator made of one answer, against this scan's evidence.
+ *
+ * Null when no verdict was recorded for the answer at all — a scan from before
+ * evaluations existed, or a current one where no judge ran for that answer.
+ * Which of the two it was cannot be told from here, so the report says only
+ * that the answer was not evaluated. An evaluation that ran and failed is not
+ * null: it is `Unavailable` with a reason. Neither is a pass.
+ */
+export interface GeoEvaluation {
+  readonly status: 'Completed' | 'Unavailable';
+  readonly reason: string | null;
+  readonly overall: GeoEvaluationVerdict | null;
+  readonly answerDescribesSubject: boolean | null;
+  readonly claims: readonly GeoEvaluatedClaim[];
+  readonly provider: string | null;
+  readonly modelId: string | null;
+}
+
+export interface GeoEvidenceSource {
+  readonly id: string;
+  readonly kind: string;
+  readonly label: string;
+  readonly url: string | null;
+  readonly excerpt: string;
+  readonly provenance: string;
+}
+
+export interface GeoEvidence {
+  readonly sufficiency: string;
+  readonly limits: readonly string[];
+  readonly sources: readonly GeoEvidenceSource[];
+}
+
+/**
+ * Why the question was asked — and therefore what an answer not describing the
+ * subject means. `awareness` only ever appears on a scan that ran before the
+ * direct questions became closed-book; it is never rewritten into
+ * `closed-book`.
+ */
+export type GeoObservationPurpose = 'closed-book' | 'awareness' | 'discovery';
+
 export interface GeoObservation {
-  readonly purpose: 'awareness' | 'discovery';
+  readonly purpose: GeoObservationPurpose;
   readonly question: string;
   readonly status: 'answered' | 'unavailable';
   readonly reason: string | null;
@@ -492,6 +555,8 @@ export interface GeoObservation {
     readonly brand: MentionSignal;
     readonly domain: MentionSignal;
   } | null;
+  /** Absent on responses created by older API versions; null when none ran. */
+  readonly evaluation?: GeoEvaluation | null;
 }
 
 export interface Dashboard {
@@ -509,6 +574,8 @@ export interface Dashboard {
   readonly modules: readonly ScanModule[];
   /** Absent on responses created by older API versions and empty without GEO. */
   readonly geoObservations?: readonly GeoObservation[];
+  /** What the answers were judged against; absent when the scan recorded none. */
+  readonly geoEvidence?: GeoEvidence | null;
 }
 
 export interface ExportPayload {

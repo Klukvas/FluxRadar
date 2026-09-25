@@ -28,6 +28,8 @@ const SCAN: Scan = {
   modules: [],
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function stateOf(overrides: Partial<ActionPlanState> = {}): ActionPlanState {
   return {
     scanId: SCAN.id,
@@ -35,7 +37,11 @@ function stateOf(overrides: Partial<ActionPlanState> = {}): ActionPlanState {
     running: null,
     lastFailure: null,
     remaining: { successes: 3, attempts: 6 },
-    windowEndsAt: '2026-09-25T00:01:00.000Z',
+    // Relative, not a fixed date: the default fixture means "the window is
+    // still open", and a hard-coded instant silently turns every test that
+    // relies on that into a failure once the clock passes it. The tests that
+    // are about a closed window set their own `windowEndsAt`.
+    windowEndsAt: new Date(Date.now() + DAY_MS).toISOString(),
     plan: null,
     ...overrides,
   };

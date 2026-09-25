@@ -129,27 +129,62 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       usableOutput: true,
       metadata: {
         providerVisibility: {
-          method:
-            'AI-generated neutral context questions plus direct brand-awareness questions, ' +
-            'asked of each provider with its own web search enabled',
+          method: expect.stringContaining('closed-book'),
           providers: ['anthropic', 'openai'],
-          webSearch: true,
+          webSearch: { discovery: true, closedBook: false },
           queryGeneration: {
             status: 'Completed',
             promptVersion: 'geo-query-generation-v2',
             generatedQuestions: expect.arrayContaining([expect.stringContaining('providers')]),
           },
+          // What every answer of this scan was judged against, with the
+          // provenance that keeps an owner's claim apart from a page's text.
+          evidence: expect.objectContaining({
+            sufficiency: expect.any(String),
+            sources: expect.arrayContaining([
+              expect.objectContaining({ id: 'profile-1', kind: 'profile' }),
+            ]),
+          }),
           // Every entry names the provider it was asked of, so an unavailable
           // one can still be grouped under it in the report.
           requests: expect.arrayContaining([
-            expect.objectContaining({ purpose: 'awareness', provider: 'anthropic' }),
+            expect.objectContaining({
+              purpose: 'closed-book',
+              provider: 'anthropic',
+              evaluation: expect.objectContaining({
+                status: 'Completed',
+                promptVersion: 'geo-answer-evaluation-v1',
+              }),
+            }),
             expect.objectContaining({ purpose: 'discovery', provider: 'anthropic' }),
-            expect.objectContaining({ purpose: 'awareness', provider: 'openai' }),
+            expect.objectContaining({ purpose: 'closed-book', provider: 'openai' }),
             expect.objectContaining({ purpose: 'discovery', provider: 'openai' }),
           ]),
         },
       },
     });
+    // The query generator's and the evaluators' exchanges are billed and
+    // auditable, so they are in the ledger — and they are not questions the
+    // customer was asked, so they are not in the visibility request list.
+    const visibilityKeys = new Set(
+      (geo.metadata.providerVisibility.requests as { aiRequestKey?: string }[]).flatMap(
+        (request) => (request.aiRequestKey === undefined ? [] : [request.aiRequestKey]),
+      ),
+    );
+    const ledger = await db.prisma.aiResponseRecord.findMany({
+      where: { scanId, module: 'AI SEO / GEO' },
+      select: { aiRequestKey: true, promptVersion: true },
+    });
+    expect(
+      ledger.filter((record) => record.promptVersion === 'geo-answer-evaluation-v1').length,
+    ).toBeGreaterThan(0);
+    for (const record of ledger) {
+      if (record.promptVersion.startsWith('geo-questions-')) {
+        expect(visibilityKeys.has(record.aiRequestKey)).toBe(true);
+      } else {
+        expect(visibilityKeys.has(record.aiRequestKey)).toBe(false);
+      }
+    }
 
     const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
     expect(dashboard.status).toBe(200);
@@ -166,10 +201,11 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
           // unrelated URL into an official-domain mention.
           //
           // A discovery question is neutral — it names neither the brand nor
-          // the domain — so both signals are real measurements here. The two
-          // awareness questions name the brand by construction and are reported
-          // as `named-in-question` instead, which is what stopped both badges
-          // being green on every scan.
+          // the domain — so both signals are real measurements here. The
+          // closed-book questions name their subject by construction and are
+          // reported as `named-in-question` instead, which is what stopped both
+          // badges being green on every scan; what those answers actually said
+          // is judged against the scan's evidence below.
           mentions: { brand: 'mentioned', domain: 'not-mentioned' },
         }),
       ]),
@@ -182,6 +218,28 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         ),
       ),
     ).toEqual(new Set(['anthropic', 'openai']));
+    expect(dashboard.body.data.geoObservations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          purpose: 'closed-book',
+          status: 'answered',
+          evaluation: expect.objectContaining({
+            status: 'Completed',
+            overall: expect.any(String),
+            claims: expect.any(Array),
+          }),
+        }),
+      ]),
+    );
+    expect(dashboard.body.data.geoEvidence).toEqual(
+      expect.objectContaining({
+        sufficiency: expect.any(String),
+        limits: expect.arrayContaining([expect.any(String)]),
+        sources: expect.arrayContaining([
+          expect.objectContaining({ id: 'profile-1', excerpt: expect.any(String) }),
+        ]),
+      }),
+    );
 
     const issues = await agent
       .get(`/scans/${scanId}/issues?limit=100&module=UX%2FConversion`)
@@ -250,17 +308,255 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
           raw_text: expect.stringContaining('questions'),
         }),
         // Every visibility question is now asked of OpenAI too, and a
-        // search-enabled answer carries its search count all the way to the
-        // export's `search_units` column.
+        // discovery answer — the only kind still allowed to search — carries
+        // its search count all the way to the export's `search_units` column.
         expect.objectContaining({
           record_type: 'ai_response',
           module: 'AI SEO / GEO',
           provider: 'openai',
-          prompt_version: 'geo-questions-v5-awareness',
+          prompt_version: 'geo-questions-v5-discovery',
           usage: expect.objectContaining({ search_units: 2 }),
         }),
       ]),
     );
+  }, 15_000);
+
+  // Bumping the notice to v5 added one data flow — the per-answer evaluation —
+  // and must not cancel the AI checks a pending scan on an earlier accepted
+  // notice already paid for and was properly told about. The gate is per flow,
+  // not per release.
+  it('runs the AI checks a v3 scan bought and sends no site evidence for judging', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      autoProcess: false,
+      createPerformanceRunner: () => undefined,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'geo-notice-v3-e2e@example.com');
+    const profile = await createProfile(agent, account.cookie);
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 3 },
+      aiConsent: { providers: ['anthropic'], noticeVersion: 'core-ai-processing-notice-v3' },
+    });
+    const scanId = checkout.scanId;
+
+    await runScan(scanId, () => uxAwareProvider(profile.name));
+
+    const scan = await agent.get(`/scans/${scanId}`).set('Cookie', account.cookie);
+    expect(scan.status).toBe(200);
+    const geo = scan.body.data.modules.find(
+      (module: { module: string }) => module.module === 'AI SEO / GEO',
+    );
+    const visibility = geo.metadata.providerVisibility;
+    // The questions the v3 notice covered were asked and answered.
+    expect(
+      visibility.requests.some((request: { status: string }) => request.status === 'response'),
+    ).toBe(true);
+    expect(geo.usableOutput).toBe(true);
+    // The flow v3 never disclosed did not run, and nothing about the site was
+    // sent for it: no snapshot stored, no verdict, no judge in the ledger.
+    expect(visibility.evidence).toBeNull();
+    for (const request of visibility.requests as { evaluation?: unknown }[]) {
+      expect(request.evaluation ?? null).toBeNull();
+    }
+    const ledger = await db.prisma.aiResponseRecord.findMany({
+      where: { scanId },
+      select: { promptVersion: true },
+    });
+    expect(ledger.some((record) => record.promptVersion.startsWith('geo-questions-'))).toBe(true);
+    expect(ledger.some((record) => record.promptVersion === 'geo-answer-evaluation-v1')).toBe(
+      false,
+    );
+    // The UX review is a v3 flow too, and it still runs.
+    const ux = scan.body.data.modules.find(
+      (module: { module: string }) => module.module === 'UX/Conversion',
+    );
+    expect(ux.metadata.ai).toMatchObject({ status: 'Completed', statusReason: null });
+
+    const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
+    expect(dashboard.status).toBe(200);
+    expect(dashboard.body.data.geoEvidence).toBeNull();
+    for (const observation of dashboard.body.data.geoObservations as { evaluation: unknown }[]) {
+      expect(observation.evaluation).toBeNull();
+    }
+  }, 15_000);
+
+  // A stored verdict is the one thing a historical report cannot re-derive, so
+  // the API re-checks it instead of trusting it. Dropping unreadable claims and
+  // keeping the label turned a corrupt row into a green "supported by your
+  // site's evidence" with nothing underneath it. The last case is the one that
+  // has no bad field anywhere: only the evidence it cites is missing, which is
+  // exactly when trusting the record would be trusting it blind.
+  it('refuses to show a stored verdict whose claims no longer check out', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      autoProcess: false,
+      createPerformanceRunner: () => undefined,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'geo-stored-verdict-e2e@example.com');
+    const profile = await createProfile(agent, account.cookie);
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 3 },
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+    });
+    const scanId = checkout.scanId;
+    await runScan(scanId, () => uxAwareProvider(profile.name));
+
+    interface StoredObservation {
+      readonly answer: string | null;
+      readonly evaluation: { status: string; reason: string | null } | null;
+    }
+
+    const observationOf = async (): Promise<StoredObservation> => {
+      const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
+      expect(dashboard.status).toBe(200);
+      const observation = (
+        dashboard.body.data.geoObservations as ({ purpose: string } & StoredObservation)[]
+      ).find((entry) => entry.purpose === 'closed-book' && entry.evaluation !== null);
+      return observation ?? { answer: null, evaluation: null };
+    };
+
+    const evaluationOf = async (): Promise<{ status: string; reason: string | null }> =>
+      (await observationOf()).evaluation ?? { status: 'missing', reason: null };
+
+    // As written by this scan, the verdict is readable.
+    expect((await evaluationOf()).status).toBe('Completed');
+    const answer = (await observationOf()).answer ?? '';
+    expect(answer).not.toBe('');
+
+    interface StoredVisibility {
+      evidence?: unknown;
+      requests: { purpose: string; evaluation: Record<string, unknown> }[];
+    }
+
+    const corruptVisibility = async (
+      mutate: (visibility: StoredVisibility) => void,
+    ): Promise<void> => {
+      const row = await db.prisma.scanModule.findFirstOrThrow({
+        where: { scanId, module: 'AI SEO / GEO' },
+      });
+      const metadata = JSON.parse(row.metadataJson ?? '{}') as {
+        providerVisibility: StoredVisibility;
+      };
+      mutate(metadata.providerVisibility);
+      await db.prisma.scanModule.update({
+        where: { id: row.id },
+        data: { metadataJson: JSON.stringify(metadata) },
+      });
+    };
+
+    const corrupt = (mutate: (evaluation: Record<string, unknown>) => void): Promise<void> =>
+      corruptVisibility((visibility) => {
+        const target = visibility.requests.find(
+          (entry) => entry.purpose === 'closed-book' && entry.evaluation !== null,
+        );
+        expect(target).toBeDefined();
+        mutate(target?.evaluation ?? {});
+      });
+
+    // A quote nobody can find in the answer beside it.
+    await corrupt((evaluation) => {
+      evaluation.claims = [
+        {
+          claim: 'The business was founded in 1998.',
+          verdict: 'matched',
+          answerQuote: 'founded in 1998',
+          sourceId: 'profile-1',
+          sourceQuote: profile.name,
+        },
+      ];
+    });
+    expect(await evaluationOf()).toMatchObject({
+      status: 'Unavailable',
+      reason: 'StoredEvaluationInvalid',
+    });
+
+    // A claim list that is not a list at all.
+    await corrupt((evaluation) => {
+      evaluation.claims = 'all of them matched';
+    });
+    expect(await evaluationOf()).toMatchObject({
+      status: 'Unavailable',
+      reason: 'StoredEvaluationInvalid',
+    });
+
+    // A record with nothing wrong in it: the claim quotes the answer, cites the
+    // profile source by id and quotes it correctly. With the snapshot in place
+    // it reads as a verdict.
+    await corrupt((evaluation) => {
+      evaluation.status = 'Completed';
+      evaluation.answerDescribesSubject = true;
+      evaluation.overall = 'matches-evidence';
+      evaluation.claims = [
+        {
+          claim: `The answer is about ${profile.name}.`,
+          verdict: 'matched',
+          // The opening words of the answer, verbatim.
+          answerQuote: answer.slice(0, 24),
+          sourceId: 'profile-1',
+          sourceQuote: profile.name,
+        },
+      ];
+    });
+    expect(await evaluationOf()).toMatchObject({ status: 'Completed' });
+
+    // The same record with its evidence snapshot gone. Nothing about the claim
+    // changed — only the thing it cites is no longer there to be produced, so
+    // the citation cannot be re-checked. An unverifiable citation must not be
+    // shown as "supported by your site's evidence"; the record becomes
+    // unreadable instead, and the answer itself stays on the report.
+    await corruptVisibility((visibility) => {
+      delete visibility.evidence;
+    });
+    expect(await evaluationOf()).toMatchObject({
+      status: 'Unavailable',
+      reason: 'StoredEvaluationInvalid',
+    });
+    expect((await observationOf()).answer).toBe(answer);
+  }, 15_000);
+
+  // An unknown notice string is not a disclosure anybody can point at, so it
+  // grants nothing — the fail-closed half of the same gate.
+  it('treats an unrecognised processing notice as no consent at all', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      autoProcess: false,
+      createPerformanceRunner: () => undefined,
+      logger: silentLogger,
+    });
+    const agent = request.agent(app);
+    const account = await register(agent, 'geo-notice-unknown-e2e@example.com');
+    const profile = await createProfile(agent, account.cookie);
+    const checkout = await purchaseScan(db.prisma, {
+      siteProfileId: profile.id,
+      plan: 'Complete',
+      scope: { includeSubdomains: false, maxPages: 3 },
+      aiConsent: { providers: ['anthropic'], noticeVersion: 'core-ai-processing-notice-v2' },
+    });
+
+    await runScan(checkout.scanId, () => uxAwareProvider(profile.name));
+
+    const scan = await agent.get(`/scans/${checkout.scanId}`).set('Cookie', account.cookie);
+    const geo = scan.body.data.modules.find(
+      (module: { module: string }) => module.module === 'AI SEO / GEO',
+    );
+    expect(geo.status).toBe('Unavailable');
+    expect(geo.statusReason).toContain('ConsentMissing');
+    const ledger = await db.prisma.aiResponseRecord.findMany({
+      where: { scanId: checkout.scanId },
+      select: { promptVersion: true },
+    });
+    expect(ledger).toEqual([]);
   }, 15_000);
 
   it('keeps static UX evidence when AI consent is absent and explains the partial result', async () => {

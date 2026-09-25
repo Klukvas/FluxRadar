@@ -178,11 +178,15 @@ function UkrainianPrivacy(): JSX.Element {
         </p>
         <p>
           У Basic і Complete GEO може надсилати нейтралізований контекст для створення discovery
-          questions без назви й домену, а потім окремо ставити awareness questions із назвою та
-          доменом. У Website Audit і Complete UX/Conversion може включати обмежені публічні докази:
-          URL, titles, headings, calls to action, links і form information. Автоматичне приховування
-          секретів не гарантує видалення всіх персональних даних. Уже надісланий провайдеру запит
-          неможливо відкликати.
+          questions без назви й домену, а потім окремо ставити прямі питання із назвою або доменом.
+          За повідомленням core-ai-processing-notice-v5 кожну отриману відповідь додатково
+          перевіряють окремим запитом до того самого провайдера: у ньому передають саму відповідь і
+          обмежений набір доказів цієї перевірки — збережені поля профілю та уривки тексту з
+          публічних сторінок, які обійшов сканер. Перевірка, куплена за попереднім повідомленням,
+          цього запиту не робить. У Website Audit і Complete UX/Conversion може включати обмежені
+          публічні докази: URL, titles, headings, calls to action, links і form information.
+          Автоматичне приховування секретів не гарантує видалення всіх персональних даних. Уже
+          надісланий провайдеру запит неможливо відкликати.
         </p>
         <p>
           У звіті Website Audit або Complete власник може також попросити AI‑план дій: короткий
@@ -492,11 +496,15 @@ function EnglishPrivacy(): JSX.Element {
         </p>
         <p>
           On Basic and Complete, GEO can send neutralized context to generate discovery questions
-          without the name or domain, then separately ask awareness questions that include them. On
-          Website Audit and Complete, UX/Conversion can include limited public evidence such as
-          URLs, titles, headings, calls to action, links and form information. Automated secret
-          redaction cannot guarantee removal of all personal data. A request already sent to a
-          provider cannot be recalled.
+          without the name or domain, then separately ask direct questions that include the name or
+          the domain. Under the core-ai-processing-notice-v5 disclosure each answer received is then
+          checked in a further request to the same provider, which carries that one answer and a
+          bounded set of this audit’s own evidence: the profile fields you saved and excerpts of
+          text from the public pages the crawl read. An audit bought under an earlier notice does
+          not make that request. On Website Audit and Complete, UX/Conversion can include limited
+          public evidence such as URLs, titles, headings, calls to action, links and form
+          information. Automated secret redaction cannot guarantee removal of all personal data. A
+          request already sent to a provider cannot be recalled.
         </p>
         <p>
           On a Website Audit or Complete report the owner may also ask for an AI Action Plan: a

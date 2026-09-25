@@ -92,6 +92,16 @@ const NOTHING_OBSERVED = {
   domainMentioned: 0,
 } as const;
 
+const NO_OBSERVATIONS = {
+  asked: 0,
+  answered: 0,
+  evaluated: 0,
+  brandMeasured: 0,
+  domainMeasured: 0,
+  brandMentioned: 0,
+  domainMentioned: 0,
+} as const;
+
 function geoResult(overrides: Partial<GeoModuleResult> = {}): GeoModuleResult {
   const outcomes = overrides.outcomes ?? [];
   return {
@@ -103,6 +113,10 @@ function geoResult(overrides: Partial<GeoModuleResult> = {}): GeoModuleResult {
     evaluations: [],
     findings: [],
     mentions: mentions({}),
+    // No evidence snapshot reached the module, so no answer was judged.
+    answerEvaluations: new Map(),
+    evaluatedEvidence: null,
+    evaluationOutcomes: [],
     quota: undefined as never,
     // Непрерванный прогон задал ровно те вопросы, что были в библиотеке.
     requested: outcomes.length,
@@ -164,6 +178,9 @@ describe('AI SEO / GEO module row', () => {
     );
     expect(row.score).toBeNull();
     expect(visibilityOf(row).observations).toEqual({
+      // No question of this scan was asked closed-book; the bucket still exists
+      // so the shape is the same for every scan.
+      'closed-book': NO_OBSERVATIONS,
       awareness: {
         asked: 1,
         answered: 1,
@@ -197,6 +214,9 @@ describe('AI SEO / GEO module row', () => {
       AI_CRAWLER_READINESS,
     );
     expect(visibilityOf(row).observations).toEqual({
+      // No question of this scan was asked closed-book; the bucket still exists
+      // so the shape is the same for every scan.
+      'closed-book': NO_OBSERVATIONS,
       awareness: {
         asked: 1,
         answered: 1,
@@ -232,6 +252,9 @@ describe('AI SEO / GEO module row', () => {
       AI_CRAWLER_READINESS,
     );
     expect(visibilityOf(row).observations).toEqual({
+      // No question of this scan was asked closed-book; the bucket still exists
+      // so the shape is the same for every scan.
+      'closed-book': NO_OBSERVATIONS,
       awareness: {
         asked: 1,
         answered: 1,
@@ -274,6 +297,9 @@ describe('AI SEO / GEO module row', () => {
     expect(row.usableOutput).toBe(false);
     expect(row.coverage).toBe(0);
     expect(visibilityOf(row).observations).toEqual({
+      // No question of this scan was asked closed-book; the bucket still exists
+      // so the shape is the same for every scan.
+      'closed-book': NO_OBSERVATIONS,
       awareness: { ...NOTHING_OBSERVED, asked: 1 },
       discovery: { ...NOTHING_OBSERVED, asked: 1 },
     });
@@ -358,6 +384,9 @@ describe('AI SEO / GEO module row', () => {
     expect(row.runtimeStatus).toBe('Completed');
     expect(row.score).toBeNull();
     expect(visibilityOf(row).observations).toEqual({
+      // No question of this scan was asked closed-book; the bucket still exists
+      // so the shape is the same for every scan.
+      'closed-book': NO_OBSERVATIONS,
       awareness: {
         asked: 1,
         answered: 1,

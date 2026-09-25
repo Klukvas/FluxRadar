@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
 import { App } from './App';
 import { CheckoutPending, openCheckoutWindow, type PendingCheckout } from './Checkout';
 
@@ -222,7 +223,7 @@ describe('paid checkout flow', () => {
         // The default recipients; Google and Perplexity stay out unless the
         // owner ticks them, which this flow does not.
         providers: ['anthropic', 'openai'],
-        noticeVersion: 'core-ai-processing-notice-v4',
+        noticeVersion: AI_PROCESSING_NOTICE_VERSION,
       },
     });
 
@@ -690,7 +691,7 @@ describe('optional AI recipients at checkout', () => {
 
     expect(submittedConsent(fetchMock)).toEqual({
       providers: ['anthropic', 'openai'],
-      noticeVersion: 'core-ai-processing-notice-v4',
+      noticeVersion: AI_PROCESSING_NOTICE_VERSION,
     });
   });
 
@@ -706,7 +707,7 @@ describe('optional AI recipients at checkout', () => {
 
     expect(submittedConsent(fetchMock)).toEqual({
       providers: ['anthropic', 'openai', 'google'],
-      noticeVersion: 'core-ai-processing-notice-v4',
+      noticeVersion: AI_PROCESSING_NOTICE_VERSION,
     });
   });
 });

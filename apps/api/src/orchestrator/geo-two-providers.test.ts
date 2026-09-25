@@ -102,8 +102,13 @@ describe('a paid scan asked of two providers', () => {
     const metadata = JSON.parse(module.metadataJson ?? '{}') as {
       providerVisibility: {
         providers: readonly string[];
-        webSearch: boolean;
-        requests: readonly { provider: string; status: string; reason?: string }[];
+        webSearch: { discovery: boolean; closedBook: boolean };
+        requests: readonly {
+          provider: string;
+          status: string;
+          reason?: string;
+          aiRequestKey?: string;
+        }[];
       };
     };
     return { module, visibility: metadata.providerVisibility };
@@ -118,17 +123,28 @@ describe('a paid scan asked of two providers', () => {
     const { module, visibility } = await geoModuleOf(scanId);
     expect(module.runtimeStatus).toBe('Completed');
     expect(visibility.providers).toEqual([...GEO_VISIBILITY_PROVIDERS]);
-    expect(visibility.webSearch).toBe(true);
+    // A direct question is asked closed-book; only the discovery ones search.
+    expect(visibility.webSearch).toEqual({ discovery: true, closedBook: false });
 
     const responses = await db.prisma.aiResponseRecord.findMany({ where: { scanId } });
-    const byProvider = (provider: string) =>
-      responses.filter((response) => response.provider === provider).length;
-    // One generation request at Anthropic, then the same visibility questions
-    // twice over: 1 + 2 × N, with N the same on both sides.
-    expect(byProvider('openai')).toBeGreaterThan(0);
-    expect(byProvider('anthropic')).toBe(byProvider('openai') + 1);
-    expect(responses).toHaveLength(1 + 2 * byProvider('openai'));
+    // The same questions twice over, once per vendor, and every one answered.
     expect(visibility.requests.every((entry) => entry.status === 'response')).toBe(true);
+    const visibilityKeys = new Set(
+      visibility.requests.map((entry) => entry.aiRequestKey).filter((key) => key !== undefined),
+    );
+    expect(visibilityKeys.size).toBe(visibility.requests.length);
+    const shownRows = responses.filter((response) => visibilityKeys.has(response.aiRequestKey));
+    expect(shownRows).toHaveLength(visibility.requests.length);
+    const askedOf = (provider: string) =>
+      shownRows.filter((response) => response.provider === provider).length;
+    expect(askedOf('openai')).toBeGreaterThan(0);
+    expect(askedOf('anthropic')).toBe(askedOf('openai'));
+    // The generator's request and the evaluators' are billed and auditable, so
+    // they are in the ledger — and deliberately not among the questions the
+    // report shows.
+    const ledgerOnly = responses.filter((response) => !visibilityKeys.has(response.aiRequestKey));
+    expect(ledgerOnly.length).toBeGreaterThan(0);
+    expect(ledgerOnly.every((response) => response.provider === 'anthropic')).toBe(true);
   });
 
   it('gives a scan bought under the previous notice only the provider it disclosed', async () => {

@@ -1,7 +1,8 @@
 // GEO-модуль в оркестраторе: двухэтапная генерация контекстных вопросов v0.4.
 // Первый AI-запрос получает только обезличенный структурированный контекст
 // профиля и генерирует discovery-вопросы; отдельные запросы затем проверяют
-// видимость сайта по ним. Awareness-вопросы явно называют бренд/домен.
+// видимость сайта по ним. Прямые вопросы называют бренд/домен и задаются
+// closed-book — без поиска и инструментов.
 // Тесты получают согласованные дефолтные фикстуры, а production — Anthropic
 // либо fail-closed provider без фиктивных ответов.
 // Провайдер инъектируется через WorkerDeps — тесты и production собирают его
@@ -18,6 +19,7 @@ import type {
 } from '@fluxradar/ai';
 import {
   AnthropicProvider,
+  brandIsHostname,
   GeminiProvider,
   mockRoutingProvider,
   OpenAiProvider,
@@ -70,6 +72,27 @@ export const GEO_SYSTEM_INSTRUCTIONS =
   'Answer factually in at most 200 words. Do not narrate your searches. ' +
   'State what you could not verify and do not invent facts. ' +
   'An answer is an observation from this request, not proof of remembered or training knowledge.';
+
+/**
+ * The direct questions are closed-book observations, and the prompt has to say
+ * so in every way that matters.
+ *
+ * Asked without these constraints, a model reads a business out of the words
+ * inside a domain and the country its TLD belongs to, writes a fluent paragraph
+ * about a company it has never heard of, and the report records it as what AI
+ * assistants "know" about the site. Abstention is therefore named as a complete
+ * answer, guessing from spelling is named as something not to do, and nothing
+ * the model returns may be presented as proof of its training data.
+ */
+export const GEO_CLOSED_BOOK_SYSTEM_INSTRUCTIONS =
+  'Answer only from what you already know. Do not browse the web, do not search, do not use any ' +
+  'tool, and do not use anything from earlier in this conversation. ' +
+  'If you do not recognise the subject, say so plainly: "I have no information about this" is a ' +
+  'complete and correct answer, and is more useful than a guess. ' +
+  'Never infer a business from the spelling of a name, from the words inside a domain, or from ' +
+  'its country code, and never describe what such a site probably or typically offers. ' +
+  'State plainly which parts you are unsure about. Your answer is one observation from one ' +
+  'request: do not claim it proves what is or is not in your training data.';
 
 export interface GeoProfileContext {
   readonly industry?: string | null;
@@ -361,74 +384,236 @@ export async function generateGeoDiscoveryQuestions(
   };
 }
 
+const NO_GUESSING_SUFFIX =
+  ' If you do not recognise it, say that you have no information instead of guessing.';
+
+/**
+ * The direct questions of one scan.
+ *
+ * A profile whose owner never typed a name is called after its hostname, so the
+ * subject of the question *is* the domain. Asking such a profile to "name its
+ * official website" hands it the answer and measures nothing, so that second
+ * question is asked only when there is a real brand name and the domain is
+ * genuinely absent from the question — which is the only case where naming the
+ * site is something the model has to know.
+ */
+export function closedBookQuestions(brand: string, siteDomain: string): readonly string[] {
+  if (brandIsHostname(brand, siteDomain)) {
+    return [
+      `What do you know about the business associated with ${siteDomain}?${NO_GUESSING_SUFFIX}`,
+    ];
+  }
+  return [
+    `What do you know about ${brand}?${NO_GUESSING_SUFFIX}`,
+    `What independently verifiable facts can you report about ${brand}? Name its official ` +
+      `website if you know it, and state what you cannot verify.${NO_GUESSING_SUFFIX}`,
+  ];
+}
+
 /**
  * Библиотека вопросов скана — по одному набору на провайдера.
  *
- * Фиксированные awareness-вопросы используют стабильный `q<sequence>`, а
+ * Фиксированные closed-book-вопросы используют стабильный `q<sequence>`, а
  * generated discovery-вопросы получают identity из нормализованного текста
  * вопроса (D-176). Sequence restarts at 1 for each provider: `ai_request_key`
  * already carries the provider name (D-015) and GEO findings carry it in
  * `normalized_resource`, so quota, idempotency and fingerprints stay distinct.
  *
- * Only these visibility requests carry `webSearch`. Question generation and the
- * UX review must stay recall-only and never get tools.
+ * `brandFacts` and `pageTitles` stay empty for every question here: a
+ * closed-book observation that was handed the site's own description would be
+ * measuring our prompt, not the model.
+ *
+ * Only the discovery questions carry `webSearch`. A direct question is now a
+ * closed-book observation, and question generation and the UX review must stay
+ * recall-only — none of the three may ever get tools.
  */
 export function buildGeoRequests(
   scanId: string,
   brand: string,
+  siteDomain: string,
   discoveryQuestions: readonly string[] = [],
   providers: readonly AiProviderName[] = GEO_VISIBILITY_PROVIDERS,
 ): readonly AiRequest[] {
-  // The domain is deliberately absent. These questions used to read "What is
-  // <brand>, what does its official website https://<hostname> offer…", and
-  // then GEO-VIS-004 checked the answer for that hostname — so a model
-  // repeating the subject of the question scored "official domain cited" on
-  // every site we ever scanned. Asked this way, naming the site is something
-  // the model has to know.
-  //
-  // The brand still appears, because a question about a brand has to name it;
-  // GEO-VIS-003 therefore treats these two as unmeasurable for brand awareness
-  // (`geoMentionSignals`), and measures that on the neutral discovery questions
-  // instead, which is the only place it ever meant anything.
-  const questions = [
-    `What is ${brand}? What is its official website, and who is it for?`,
-    `What independently verifiable facts can you report about ${brand}? Name its official website if you know it, and state what you cannot verify.`,
-    ...discoveryQuestions,
-  ];
+  const direct = closedBookQuestions(brand, siteDomain);
+  const questions = [...direct, ...discoveryQuestions];
   const shared = {
     scanId,
     brandFacts: [],
     pageTitles: [],
-    systemInstructions: GEO_SYSTEM_INSTRUCTIONS,
-    // A visibility question asks what an assistant says about this site today,
-    // which only a searching assistant can answer. Sonnet 5 thinks by default,
-    // and thinking shares the answer's token budget it does not need here.
-    webSearch: true as const,
+    // Sonnet 5 thinks by default, and thinking shares the answer's token budget
+    // it does not need here.
     reasoningMode: 'disabled' as const,
   };
   // Sequence restarts per provider: it is part of ai_request_key together with
   // the provider (D-015), so the same question asked of two vendors stays two
   // distinct requests for quota, idempotency and fingerprints.
   return providers.flatMap((provider) =>
-    questions.map((question, index) => ({
-      ...shared,
-      provider,
-      sequence: index + 1,
-      question,
-      promptVersion: `${GEO_PROMPT_VERSION}-${index < 2 ? 'awareness' : 'discovery'}`,
-    })),
+    questions.map((question, index) => {
+      const isDirect = index < direct.length;
+      return {
+        ...shared,
+        provider,
+        sequence: index + 1,
+        question,
+        systemInstructions: isDirect
+          ? GEO_CLOSED_BOOK_SYSTEM_INSTRUCTIONS
+          : GEO_SYSTEM_INSTRUCTIONS,
+        // A discovery question asks what an assistant says about this market
+        // today, which only a searching assistant can answer. A direct question
+        // asks what the model already knows, so it gets no search and no tools —
+        // an answer produced by reading the site back to us measures nothing.
+        ...(isDirect ? {} : { webSearch: true as const }),
+        promptVersion: `${GEO_PROMPT_VERSION}-${isDirect ? 'closed-book' : 'discovery'}`,
+      };
+    }),
   );
 }
 
 /**
- * Дефолтные фикстуры мока покрывают awareness-вопрос и оба варианта
- * контекстного вопроса; ответы упоминают бренд и ссылаются на сайт, чтобы
- * локальный Complete-flow проверял именно успешную видимость. Вопросы
- * видимости идут с web search, поэтому фикстуры заявляют и число поисков — так
- * `search_units` доходит до экспорта в тестах, как дошёл бы в проде.
+ * Deterministic answer texts, so an evaluator fixture can quote them exactly.
+ *
+ * `knownBrand` is written the way a model actually fails on an unknown site: it
+ * keeps the name it was given and invents everything around it — a trade, a
+ * city, and a brand name that is not the one the profile states. A fixture that
+ * instead described the profile correctly would make every local run and every
+ * screenshot end in a green verdict that the evaluator had not earned.
+ *
+ * The invented name contradicts the profile on the *same* attribute it states:
+ * the profile's `Brand name` field against a different asserted brand name. An
+ * answer that gave the business a legal entity name would not be a
+ * contradiction at all — a trading brand and a registered company name coexist
+ * routinely — and a demo fixture must not teach the opposite.
+ */
+function defaultGeoAnswers(brand: string, siteHostname: string) {
+  return {
+    unknownDomain:
+      `I have no reliable information about the business associated with ${siteHostname}. ` +
+      'I would be guessing from the name, and a guess is not an answer.',
+    knownBrand:
+      `${brand} is a website audit service for small teams. Its brand name is ` +
+      `Northwind Digital, not ${brand}, and it is based in Berlin. ` +
+      `See https://${siteHostname}/ for scan pricing and module coverage.`,
+    verifiableFacts:
+      `The official website of ${brand} appears to be https://${siteHostname}/. ` +
+      'I cannot verify its ownership, size or location.',
+    discoveryBest:
+      `${brand} could be relevant for this audience. ` +
+      `See https://${siteHostname}/ for the official details.`,
+    discoveryOptions: `${brand} is one option worth comparing: https://${siteHostname}/.`,
+  } as const;
+}
+
+function evaluationBody(payload: Record<string, unknown>): MockAiFixture['response'] {
+  return {
+    status: 'completed',
+    output_text: JSON.stringify(payload),
+    usage: { input_tokens: 900, output_tokens: 90 },
+  };
+}
+
+/**
+ * Дефолтные фикстуры мока покрывают closed-book-вопросы, оба варианта
+ * контекстного вопроса и оценку каждого полученного ответа.
+ *
+ * The evaluator fixtures come first and key on a phrase that exists only inside
+ * an answer: an evaluation request quotes the original question back, so a
+ * fixture keyed on the question itself would answer the judge with the answer.
+ *
+ * Only the discovery answers declare `web_search_calls`: they are the only
+ * requests that still carry web search, and declaring it keeps `search_units`
+ * reaching the export in tests exactly as it would in production.
  */
 export function defaultGeoFixtures(brand: string, siteHostname: string): readonly MockAiFixture[] {
+  const answers = defaultGeoAnswers(brand, siteHostname);
   return [
+    {
+      questionIncludes: 'I have no reliable information about the business',
+      response: evaluationBody({
+        answerDescribesSubject: false,
+        claims: [],
+        overall: 'no-description',
+      }),
+    },
+    {
+      // The judge's fixture for that answer, claim by claim: the name is the
+      // one thing the profile can confirm, and a name confirms identity only —
+      // never what the business does or where it is. The same field does
+      // contradict a *different* brand name, which is the one thing here the
+      // profile can settle outright.
+      questionIncludes: 'is a website audit service for small teams',
+      response: evaluationBody({
+        answerDescribesSubject: true,
+        claims: [
+          {
+            claim: `The answer is about the business the profile names, ${brand}.`,
+            verdict: 'matched',
+            answerQuote: `${brand} is`,
+            sourceId: 'profile-1',
+            sourceQuote: brand,
+          },
+          {
+            claim: 'The business is a website audit service for small teams.',
+            verdict: 'unverified',
+            answerQuote: 'a website audit service for small teams',
+          },
+          {
+            claim: `The brand name of the business is Northwind Digital, not ${brand}.`,
+            verdict: 'contradicted',
+            answerQuote: `Its brand name is Northwind Digital, not ${brand}`,
+            sourceId: 'profile-1',
+            sourceQuote: brand,
+          },
+          {
+            claim: 'The business is based in Berlin.',
+            verdict: 'unverified',
+            answerQuote: 'it is based in Berlin',
+          },
+        ],
+        overall: 'contradicts-evidence',
+      }),
+    },
+    {
+      questionIncludes: 'The official website of',
+      response: evaluationBody({
+        answerDescribesSubject: true,
+        claims: [
+          {
+            claim: 'The answer names an official website for the business.',
+            verdict: 'unverified',
+            answerQuote: 'The official website of',
+          },
+        ],
+        overall: 'unverified',
+      }),
+    },
+    {
+      questionIncludes: 'could be relevant for this audience',
+      response: evaluationBody({
+        answerDescribesSubject: true,
+        claims: [
+          {
+            claim: 'The answer suggests the business fits this audience.',
+            verdict: 'unverified',
+            answerQuote: 'could be relevant for this audience',
+          },
+        ],
+        overall: 'unverified',
+      }),
+    },
+    {
+      questionIncludes: 'is one option worth comparing',
+      response: evaluationBody({
+        answerDescribesSubject: true,
+        claims: [
+          {
+            claim: 'The answer lists the business among the options.',
+            verdict: 'unverified',
+            answerQuote: 'is one option worth comparing',
+          },
+        ],
+        overall: 'unverified',
+      }),
+    },
     {
       questionIncludes: 'Generate neutral discovery questions',
       response: {
@@ -443,14 +628,19 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
       },
     },
     {
-      questionIncludes: 'What is',
+      questionIncludes: 'the business associated with',
       response: {
         status: 'completed',
-        output_text:
-          `${brand} is a strong option for small teams — ` +
-          `see https://${siteHostname}/ for scan pricing and module coverage.`,
+        output_text: answers.unknownDomain,
+        usage: { input_tokens: 90, output_tokens: 36 },
+      },
+    },
+    {
+      questionIncludes: 'What do you know about',
+      response: {
+        status: 'completed',
+        output_text: answers.knownBrand,
         citations: [`https://${siteHostname}/`],
-        web_search_calls: 2,
         usage: { input_tokens: 120, output_tokens: 42 },
       },
     },
@@ -458,10 +648,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
       questionIncludes: 'independently verifiable',
       response: {
         status: 'completed',
-        output_text:
-          `${brand} is a relevant option for this search intent. ` +
-          `The official website is https://${siteHostname}/.`,
-        web_search_calls: 1,
+        output_text: answers.verifiableFacts,
         usage: { input_tokens: 96, output_tokens: 31 },
       },
     },
@@ -469,9 +656,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
       questionIncludes: 'Which providers best match',
       response: {
         status: 'completed',
-        output_text:
-          `${brand} could be relevant for this audience. ` +
-          `See https://${siteHostname}/ for the official details.`,
+        output_text: answers.discoveryBest,
         citations: [`https://${siteHostname}/`],
         web_search_calls: 2,
         usage: { input_tokens: 104, output_tokens: 28 },
@@ -481,7 +666,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
       questionIncludes: 'What are the best options',
       response: {
         status: 'completed',
-        output_text: `${brand} is one option: https://${siteHostname}/.`,
+        output_text: answers.discoveryOptions,
         citations: [`https://${siteHostname}/`],
         web_search_calls: 3,
         usage: { input_tokens: 104, output_tokens: 28 },

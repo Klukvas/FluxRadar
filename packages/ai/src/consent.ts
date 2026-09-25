@@ -7,25 +7,63 @@ import { ConsentMissingError } from './errors.js';
 import { isOptInProvider } from './types.js';
 import type { AiProviderName } from './types.js';
 
-export const CURRENT_AI_PROCESSING_NOTICE_VERSION = 'core-ai-processing-notice-v4';
+// v5 adds one data flow to AI SEO / GEO: each answer is checked against a
+// bounded snapshot of the owner-entered profile and text from the public pages
+// this scan crawled. A plan that ran GEO alone previously sent no page content
+// at all, so a record written under an earlier notice — including v4, which
+// disclosed the second provider and web search and nothing about evidence —
+// cannot establish that the disclosure for *that* processing was shown before
+// purchase.
+export const CURRENT_AI_PROCESSING_NOTICE_VERSION = 'core-ai-processing-notice-v5';
 
 /**
  * Notices a stored record may carry and still authorise work.
  *
- * A scan bought under v3 keeps its 30-day retry entitlement, and v3 named only
- * Anthropic — so such a retry runs the Anthropic requests and records every
- * other provider as `ConsentMissing`. Web search does not change what a v3
- * customer agreed to send; only the list of recipients does.
+ * A version bump must not retroactively cancel processing a customer already
+ * paid for and was properly told about. A scan bought under v3 keeps its 30-day
+ * retry entitlement and exactly the flows v3 disclosed — question generation,
+ * the direct and discovery questions, the UX review; v3 named only Anthropic,
+ * so such a retry runs the Anthropic requests and records every other provider
+ * as `ConsentMissing`. A v4 scan adds the second provider and web search, and
+ * still no evidence evaluation. Anything outside this list (a retired notice,
+ * an unknown string, a downgrade written by hand) is treated as no consent at
+ * all.
  *
- * Remove `…-v3` 30 days after this release ships.
+ * Remove `…-v3` 30 days after the release that introduced v4 shipped.
  */
 export const ACCEPTED_AI_PROCESSING_NOTICE_VERSIONS: readonly string[] = [
   'core-ai-processing-notice-v3',
+  'core-ai-processing-notice-v4',
+  CURRENT_AI_PROCESSING_NOTICE_VERSION,
+];
+
+/**
+ * The notices that named the opt-in visibility providers.
+ *
+ * The disclosure that lets a byte reach Google or Perplexity arrived in v4, so
+ * the gate is "this notice named them", not "this notice is the newest one" —
+ * otherwise every later bump would silently revoke an entitlement a v4 customer
+ * paid for and was told about.
+ */
+const NOTICES_NAMING_OPT_IN_PROVIDERS: readonly string[] = [
+  'core-ai-processing-notice-v4',
   CURRENT_AI_PROCESSING_NOTICE_VERSION,
 ];
 
 export function isAcceptedNoticeVersion(version: string): boolean {
   return ACCEPTED_AI_PROCESSING_NOTICE_VERSIONS.includes(version);
+}
+
+/**
+ * Whether this scan's disclosure covered sending the site's own evidence.
+ *
+ * Only the v5 notice states that each answer is checked, in its own request,
+ * against the saved profile fields and text from the crawled public pages.
+ * Under an earlier notice that request is never built, so no profile field and
+ * no page text leaves the machine for evaluation.
+ */
+export function noticeCoversGeoEvidence(noticeVersion: string): boolean {
+  return noticeVersion === CURRENT_AI_PROCESSING_NOTICE_VERSION;
 }
 
 /**
@@ -84,7 +122,10 @@ export function ensureConsent(consent: AiConsent | null, provider: AiProviderNam
       `consent (notice ${consent.noticeVersion}) does not cover this provider`,
     );
   }
-  if (isOptInProvider(provider) && consent.noticeVersion !== CURRENT_AI_PROCESSING_NOTICE_VERSION) {
+  if (
+    isOptInProvider(provider) &&
+    !NOTICES_NAMING_OPT_IN_PROVIDERS.includes(consent.noticeVersion)
+  ) {
     throw new ConsentMissingError(
       provider,
       `notice ${consent.noticeVersion} predates the opt-in disclosure naming this provider`,

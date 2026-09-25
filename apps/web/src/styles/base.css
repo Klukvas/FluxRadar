@@ -1386,6 +1386,92 @@ code,
   margin: 0;
   padding-left: 18px;
 }
+/* What the site's own evidence says about the answer above it. Separated by a
+   rule, like the answer is from the question: it is a different kind of fact. */
+.geo-evaluation {
+  display: grid;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--plat-300);
+}
+.geo-evaluation__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+.geo-evaluation__note {
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--plat-300);
+}
+.geo-evaluation__verdict,
+.geo-claim__verdict {
+  padding: 2px 5px;
+  border: 1px solid var(--plat-400);
+  background: var(--plat-100);
+  font-size: 11px;
+}
+/* Colour repeats the word inside the badge; it never carries the fact alone.
+   Same two inks the check list uses for passed and for issues. */
+.geo-evaluation__verdict--matched,
+.geo-claim__verdict--matched {
+  color: #1a6b2f;
+}
+.geo-evaluation__verdict--contradicted,
+.geo-claim__verdict--contradicted {
+  color: #9b1c12;
+}
+/* Partly supported is its own ink: it is neither the green of a checked answer
+   nor the grey of one nothing could be said about. */
+.geo-evaluation__verdict--partial {
+  border-style: dashed;
+  color: #8a5a00;
+}
+.geo-evaluation__verdict--neutral,
+.geo-claim__verdict--unverified {
+  border-style: dashed;
+  background: transparent;
+  color: var(--plat-600);
+}
+.geo-evaluation__claims {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.geo-claim {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.geo-claim__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+.geo-claim__text,
+.geo-claim__quote,
+.geo-claim__source {
+  overflow-wrap: anywhere;
+}
+.geo-claim__quote,
+.geo-claim__source {
+  margin: 0;
+  color: var(--plat-600);
+  font-size: 12px;
+}
+/* Where the quote came from — owner-entered, page text, declared markup. It
+   sits with the quote because it changes what the quote is worth. */
+.geo-claim__origin {
+  display: inline;
+}
+/* What the verdict does not cover, kept with the claims it qualifies. */
+.geo-evaluation__scope {
+  margin: 0;
+  font-size: 12px;
+}
 .module-card__meta {
   display: block;
   min-height: 32px;

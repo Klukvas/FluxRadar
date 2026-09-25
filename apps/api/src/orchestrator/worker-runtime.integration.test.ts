@@ -614,7 +614,7 @@ describe('a finished Complete run', () => {
       providerVisibility: { observations: Record<string, { asked: number; answered: number }> };
     };
     expect(metadata.scoring).toBe('InformationalOnly');
-    expect(metadata.providerVisibility.observations.awareness?.asked).toBeGreaterThan(0);
+    expect(metadata.providerVisibility.observations['closed-book']?.asked).toBeGreaterThan(0);
     // The section never carried a rule-level coverage proof, and must not
     // pretend to: its rules are informational and close nothing.
     expect(
