@@ -5,7 +5,7 @@
 // answer and every unavailable row has to name the provider it belongs to, and
 // a customer who only consented to one of them has to get exactly that one.
 
-import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION, GEO_EVALUATION_PROMPT_VERSION } from '@fluxradar/ai';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -108,6 +108,7 @@ describe('a paid scan asked of two providers', () => {
           status: string;
           reason?: string;
           aiRequestKey?: string;
+          evaluation?: { status: string; aiRequestKey: string | null } | null;
         }[];
       };
     };
@@ -145,6 +146,46 @@ describe('a paid scan asked of two providers', () => {
     const ledgerOnly = responses.filter((response) => !visibilityKeys.has(response.aiRequestKey));
     expect(ledgerOnly.length).toBeGreaterThan(0);
     expect(ledgerOnly.every((response) => response.provider === 'anthropic')).toBe(true);
+  });
+
+  // Both vendors are asked the same questions, numbered from 1 again for each
+  // of them, and a fixture answers both with the same words — which is exactly
+  // what two real models do on a question with one obvious answer. The judge
+  // runs on one provider under one rubric, so those two verdicts differed in
+  // nothing the request key was derived from: one key, one reservation, and one
+  // ai_response row upserted over itself for two paid exchanges.
+  it('stores a separate evaluation for each of two identical answers', async () => {
+    const { scanId } = await runPaidScan('identical-answers@example.com', {
+      providers: ['anthropic', 'openai'],
+      noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+    });
+
+    const { visibility } = await geoModuleOf(scanId);
+    const responses = await db.prisma.aiResponseRecord.findMany({ where: { scanId } });
+    const answered = visibility.requests.filter((entry) => entry.status === 'response');
+
+    // The premise: at least one question got the same answer from both vendors
+    // under the same sequence number.
+    const answerRows = responses.filter((response) =>
+      response.promptVersion.startsWith('geo-questions-'),
+    );
+    const answeredWordForWordByBoth = answerRows.filter((row) =>
+      answerRows.some((other) => other.rawText === row.rawText && other.provider !== row.provider),
+    );
+    expect(answeredWordForWordByBoth.length).toBeGreaterThan(1);
+
+    // One verdict per answer, each with a key of its own.
+    const judgeKeys = answered.map((entry) => entry.evaluation?.aiRequestKey ?? null);
+    expect(judgeKeys.filter((key) => key === null)).toEqual([]);
+    expect(new Set(judgeKeys).size).toBe(answered.length);
+
+    // And one ledger row per verdict: a shared key would have left fewer rows
+    // than exchanges, with no deletion reference for the ones it swallowed.
+    const judgeRows = responses.filter(
+      (response) => response.promptVersion === GEO_EVALUATION_PROMPT_VERSION,
+    );
+    expect(judgeRows).toHaveLength(answered.length);
+    expect(new Set(judgeRows.map((row) => row.aiRequestKey))).toEqual(new Set(judgeKeys));
   });
 
   it('gives a scan bought under the previous notice only the provider it disclosed', async () => {

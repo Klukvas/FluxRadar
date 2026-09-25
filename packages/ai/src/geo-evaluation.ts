@@ -24,7 +24,7 @@
 import type { AiRequestCapsShape } from '@fluxradar/contracts';
 
 import type { AiConsent } from './consent.js';
-import { AiModuleError, RedactionBlockedError } from './errors.js';
+import { AiModuleError, AiRequestCancelledError, RedactionBlockedError } from './errors.js';
 import { renderGeoEvidence, evidenceSourceById, type GeoEvidenceSnapshot } from './geo-evidence.js';
 import { buildPrompt, capsFor } from './prompt-builder.js';
 import type { AiQuotaTracker } from './quota.js';
@@ -123,7 +123,16 @@ export type GeoEvaluationUnavailableReason =
   /** The scan read nothing to judge against — not the model's fault, and not a pass. */
   | 'InsufficientEvidence'
   /** The evidence would not have survived the input cap intact, so nothing was asked. */
-  | 'EvidenceTruncated';
+  | 'EvidenceTruncated'
+  /**
+   * The run was cancelled before this answer was judged.
+   *
+   * Not a provider outcome and not a retryable one: the judge was never asked,
+   * so the answer is unevaluated and the module says so rather than dropping
+   * the check out of its own denominator. Same token as the module's
+   * `GEO_CANCELLED_REASON`.
+   */
+  | 'ScanCancelled';
 
 export interface GeoAnswerEvaluation {
   /** The answer this verdict belongs to. */
@@ -252,6 +261,15 @@ const OUTPUT_CONTRACT =
 
 export interface GeoEvaluationRequestInput {
   readonly scanId: string;
+  /**
+   * The answer this request judges.
+   *
+   * Part of the judge's own key, because nothing else in the request tells two
+   * judges apart: the rubric is shared, the sequence restarts at 1 for every
+   * provider, and two providers can return the same question the same answer
+   * word for word.
+   */
+  readonly parentAiRequestKey: string;
   readonly purpose: GeoAnswerPurpose;
   /** The question the answer replies to. */
   readonly question: string;
@@ -282,6 +300,11 @@ export function buildGeoEvaluationRequest(input: GeoEvaluationRequestInput): AiR
     provider: 'anthropic',
     promptVersion: GEO_EVALUATION_PROMPT_VERSION,
     sequence: GEO_EVALUATION_SEQUENCE_BASE + input.index,
+    // One key per judged answer. The judge always runs on one provider, so the
+    // key's own provider field cannot separate the verdict on an Anthropic
+    // answer from the verdict on an identical OpenAI one — the parent's key
+    // can, and it is as stable across a retry as the answer it names.
+    keyIdentity: input.parentAiRequestKey,
     question: [
       rubric(input.purpose, input.evidence.siteDomain),
       OUTPUT_CONTRACT,
@@ -459,7 +482,6 @@ export function parseGeoEvaluation(
 }
 
 export interface EvaluateGeoAnswerInput extends GeoEvaluationRequestInput {
-  readonly parentAiRequestKey: string;
   readonly consent: AiConsent | null;
 }
 
@@ -467,6 +489,12 @@ export interface EvaluateGeoAnswerOptions {
   readonly provider: AiProvider;
   readonly quota: AiQuotaTracker;
   readonly redaction?: RedactionOptions;
+  /**
+   * Отмена вызывающего. Уже отменённый прогон не платит за вердикт, который
+   * никто не прочитает, а отмена в полёте прерывает запрос и поднимается
+   * наверх — вызывающий решает судьбу уже полученных вердиктов сам.
+   */
+  readonly signal?: AbortSignal;
 }
 
 export interface EvaluateGeoAnswerResult {
@@ -502,7 +530,8 @@ function unavailable(
  * One answer, one judge, one verdict — or an honest reason there is none.
  *
  * Nothing here can fail a scan: every failure path returns an `Unavailable`
- * evaluation, and the answer it belongs to stays visible and unverified.
+ * evaluation, and the answer it belongs to stays visible and unverified. The
+ * one thing that does not stop here is cancellation — see below.
  */
 export async function evaluateGeoAnswer(
   input: EvaluateGeoAnswerInput,
@@ -511,6 +540,12 @@ export async function evaluateGeoAnswer(
   try {
     return await evaluateOneAnswer(input, options);
   } catch (error) {
+    // Отмена — не «провайдер недоступен»: недоступный провайдер значит, что
+    // вопрос можно задать снова, и следующий проход оплатил бы ещё один
+    // вердикт по отменённому скану. Пусть решает вызывающий.
+    if (error instanceof AiRequestCancelledError) {
+      throw error;
+    }
     // The verdict is an extra on top of an answer the customer already has.
     // Whatever goes wrong in here — a provider adapter bug, a malformed
     // request — it costs that one verdict, never the scan.
@@ -580,6 +615,9 @@ async function evaluateOneAnswer(
     quota: options.quota,
     consent: input.consent,
     ...(options.redaction !== undefined ? { redaction: options.redaction } : {}),
+    // Отмена доходит до адаптера: иначе отменённый скан всё равно ждал бы
+    // вердикта и платил за него.
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
   });
   if (result.outcome.kind === 'unavailable') {
     return {

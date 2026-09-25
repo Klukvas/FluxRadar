@@ -141,8 +141,15 @@ export async function runAiRequest(
   const capped = enforceInputCap(redacted.text, caps);
 
   // Ключ считается от финального redacted-текста — именно он уходит провайдеру
-  // (D-015/D-175).
-  const requestKey = aiRequestKey(request.scanId, request.provider, capped.text, request.sequence);
+  // (D-015/D-175) — плюс identity запроса, когда один и тот же текст может
+  // принадлежать двум разным запросам (GEO judge: один вердикт на ответ).
+  const requestKey = aiRequestKey(
+    request.scanId,
+    request.provider,
+    capped.text,
+    request.sequence,
+    request.keyIdentity,
+  );
   let reservedQuota;
   try {
     reservedQuota = options.quota.reserve(requestKey);

@@ -73,6 +73,13 @@ export interface AiRequest {
   readonly promptVersion: string;
   /** 1-based порядковый номер вопроса внутри прогона (входит в ai_request_key, D-015). */
   readonly sequence: number;
+  /**
+   * What this request is about, when provider, sequence and prompt text do not
+   * say it on their own. Folded into `ai_request_key` and never sent to the
+   * provider (see `aiRequestKey`); absent for every request whose prompt is
+   * already its own identity.
+   */
+  readonly keyIdentity?: string;
   readonly question: string;
   readonly brandFacts: readonly string[];
   readonly pageTitles: readonly string[];

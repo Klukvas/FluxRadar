@@ -18,6 +18,7 @@ import {
   quoteOccursIn,
 } from './geo-evaluation.js';
 import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from './consent.js';
+import { AiRequestCancelledError } from './errors.js';
 import { buildGeoEvidenceSnapshot, redactGeoEvidenceSnapshot } from './geo-evidence.js';
 import type { GeoEvidenceSnapshot } from './geo-evidence.js';
 import { MockAiProvider } from './mock-provider.js';
@@ -155,6 +156,20 @@ describe('geo evaluation request', () => {
     expect(closedBook.question).toContain('without any access to smile.example');
     expect(discovery.question).toContain('ignore everything it says about anyone else');
     expect(discovery.question).not.toContain('without any access to');
+  });
+
+  // The judge always runs on one provider under one rubric, and the questions
+  // are numbered from 1 again for every provider asked — so nothing in the
+  // request itself separates the verdict on one answer from the verdict on an
+  // identical answer from another vendor. The answer's own key does.
+  it('is keyed by the answer it judges, without showing the provider that key', () => {
+    const request = buildGeoEvaluationRequest(evaluationInput());
+
+    expect(request.keyIdentity).toBe('ai:scan-eval:anthropic:abcd:1');
+    // Identity belongs to the key, not to the prompt: the model is judging an
+    // answer, and our internal request key is none of its business.
+    expect(request.question).not.toContain('ai:scan-eval:anthropic:abcd:1');
+    expect(request.systemInstructions).not.toContain('ai:scan-eval:anthropic:abcd:1');
   });
 
   // The contract used to state the claim limit only. A judge obeying it could
@@ -662,6 +677,31 @@ describe('evaluating one answer end to end', () => {
 
     expect(result.evaluation.status).toBe('Unavailable');
     expect(result.evaluation.payload).toBeNull();
+  });
+
+  // The catch-all above turns everything into an unavailable verdict so that a
+  // judge can never fail a scan. A cancellation is the one thing it must let
+  // through: reported as an unavailable provider, it would look retryable, and
+  // the next pass would pay for a verdict on a scan that was called off.
+  it('raises a cancellation instead of reporting an unavailable provider', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const provider = judge([
+      {
+        questionIncludes: 'answer-to-judge',
+        response: { status: 'completed', output_text: MATCHED_OUTPUT },
+      },
+    ]);
+    const send = vi.spyOn(provider, 'send');
+
+    await expect(
+      evaluateGeoAnswer(evaluationInput(), {
+        provider,
+        quota: AiQuotaTracker.withLimit(5),
+        signal: controller.signal,
+      }),
+    ).rejects.toBeInstanceOf(AiRequestCancelledError);
+    expect(send).not.toHaveBeenCalled();
   });
 });
 

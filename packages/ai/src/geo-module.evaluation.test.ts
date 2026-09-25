@@ -9,7 +9,7 @@ import { buildGeoEvidenceSnapshot } from './geo-evidence.js';
 import type { GeoEvidenceSnapshot } from './geo-evidence.js';
 import { runGeoModule } from './geo-module.js';
 import type { GeoModuleInput } from './geo-module.js';
-import { MockAiProvider } from './mock-provider.js';
+import { MockAiProvider, mockRoutingProvider } from './mock-provider.js';
 import type { MockAiFixture } from './mock-provider.js';
 import { AiQuotaTracker } from './quota.js';
 import type { AiProvider, AiProviderConfig, AiRequest } from './types.js';
@@ -99,22 +99,33 @@ function moduleInput(overrides: Partial<GeoModuleInput> = {}): GeoModuleInput {
   };
 }
 
+interface RecordedCall {
+  readonly request: AiRequest;
+  readonly promptText: string;
+  /** What the module handed the adapter — undefined means the cancel never reached it. */
+  readonly signal: AbortSignal | undefined;
+}
+
 function recordingProvider(fixtures: readonly MockAiFixture[] = FIXTURES): {
   provider: AiProvider;
-  prompts: () => readonly { request: AiRequest; promptText: string }[];
+  prompts: () => readonly RecordedCall[];
 } {
   const inner = new MockAiProvider(fixtures, { config: ANTHROPIC_CONFIG });
-  const seen: { request: AiRequest; promptText: string }[] = [];
+  const seen: RecordedCall[] = [];
   return {
     provider: {
       config: inner.config,
-      send: async (request, promptText) => {
-        seen.push({ request, promptText });
-        return inner.send(request, promptText);
+      send: async (request, promptText, signal) => {
+        seen.push({ request, promptText, signal });
+        return inner.send(request, promptText, signal);
       },
     },
     prompts: () => seen,
   };
+}
+
+function isJudgeCall(call: RecordedCall): boolean {
+  return call.request.promptVersion === GEO_EVALUATION_PROMPT_VERSION;
 }
 
 describe('GEO answer evaluation inside the module', () => {
@@ -291,6 +302,83 @@ describe('GEO answer evaluation inside the module', () => {
     expect(judgeKeyOf(partial)).toBe(judgeKeyOf(complete));
   });
 
+  // Two providers get the same question, and the question numbering restarts at
+  // 1 for each of them, so two identical answers produce two judge requests
+  // whose rubric, wording, sequence and judging provider are all the same. Keyed
+  // by the prompt alone they were ONE key: one quota reservation for two paid
+  // calls, and one ai_response row upserted twice.
+  it('gives two providers that answered identically two distinct judge keys', async () => {
+    const bothProviders = (['anthropic', 'openai'] as const).map((provider) => ({
+      ...question(0),
+      provider,
+    }));
+    const input = moduleInput({
+      requests: bothProviders,
+      consent: {
+        scanId: SCAN_ID,
+        providers: ['anthropic', 'openai'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+    });
+
+    const result = await runGeoModule(input, {
+      provider: mockRoutingProvider(FIXTURES, ['anthropic', 'openai']),
+      quota: AiQuotaTracker.withLimit(10),
+    });
+
+    // The premise: the two answers really are the same text under the same
+    // sequence, which is what used to collapse the two verdicts into one.
+    expect(result.responses.map((answer) => answer.response.rawText)).toEqual([
+      FIRST_ANSWER,
+      FIRST_ANSWER,
+    ]);
+    expect(result.responses.map((answer) => answer.request.sequence)).toEqual([1, 1]);
+
+    const judgeKeys = result.responses.map(
+      (answer) => result.answerEvaluations.get(answer.aiRequestKey)?.aiRequestKey,
+    );
+    expect(judgeKeys.every((key) => typeof key === 'string')).toBe(true);
+    expect(new Set(judgeKeys).size).toBe(2);
+    // Two ledger entries, because two provider exchanges were paid for. One
+    // shared key would mean one ai_response row upserted over itself.
+    const ledgerKeys = result.evaluationOutcomes.flatMap((outcome) =>
+      outcome.kind === 'response' ? [outcome.aiRequestKey] : [],
+    );
+    expect(ledgerKeys).toHaveLength(2);
+    expect(new Set(ledgerKeys).size).toBe(2);
+    // And two units of quota, because a shared key made the second judge look
+    // like a retry of the first and cost nothing.
+    expect(result.quota.spent).toBe(4);
+  });
+
+  it('gives the same answer the same judge key when the scan is run again', async () => {
+    const bothProviders = (['anthropic', 'openai'] as const).map((provider) => ({
+      ...question(0),
+      provider,
+    }));
+    const input = moduleInput({
+      requests: bothProviders,
+      consent: {
+        scanId: SCAN_ID,
+        providers: ['anthropic', 'openai'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+    });
+    const judgeKeysOf = async (): Promise<readonly (string | null)[]> => {
+      const result = await runGeoModule(input, {
+        provider: mockRoutingProvider(FIXTURES, ['anthropic', 'openai']),
+        quota: AiQuotaTracker.withLimit(10),
+      });
+      return result.responses.map(
+        (answer) => result.answerEvaluations.get(answer.aiRequestKey)?.aiRequestKey ?? null,
+      );
+    };
+
+    // A retry must not pay twice for the same verdict: the key is derived from
+    // the answer it judges, not from the order the judges happened to run in.
+    expect(await judgeKeysOf()).toEqual(await judgeKeysOf());
+  });
+
   it('hands every judge the redacted snapshot, and returns that same one to store', async () => {
     const { provider, prompts } = recordingProvider();
 
@@ -376,5 +464,124 @@ describe('GEO answer evaluation inside the module', () => {
     expect(send).not.toHaveBeenCalled();
     expect(result.status).toBe('Unavailable');
     expect(result.answerEvaluations.size).toBe(0);
+  });
+});
+
+// A cancelled scan stops asking. That has to hold for the judges too: they are
+// paid provider calls made after every answer is already in hand, so a pass
+// that ignores the signal spends the customer's quota on verdicts for a scan
+// nobody is waiting for — and then reports a coverage that hides the gap.
+describe('cancelling the evaluation pass', () => {
+  const THIRD_ANSWER = 'Smile Clinic sees emergency patients in Kyiv.';
+  const THIRD_QUESTION: AiRequest = {
+    ...question(1),
+    sequence: 3,
+    question: 'ASK-THIRD about emergency care',
+  };
+  const THREE_ANSWER_FIXTURES: readonly MockAiFixture[] = [
+    {
+      questionIncludes: 'sees emergency patients',
+      response: { status: 'completed', output_text: unverifiedVerdict('sees emergency patients') },
+    },
+    ...FIXTURES,
+    { questionIncludes: 'ASK-THIRD', response: { status: 'completed', output_text: THIRD_ANSWER } },
+  ];
+
+  it('asks no judge at all when the cancel lands before the pass', async () => {
+    const controller = new AbortController();
+    const { provider, prompts } = recordingProvider();
+    const cancelled: AiProvider = {
+      config: provider.config,
+      send: async (request, promptText, signal) => {
+        const response = await provider.send(request, promptText, signal);
+        // Both answers are in and paid for; the cancel arrives before the first
+        // judge, which is the window this test is about.
+        if (prompts().length === 2) controller.abort();
+        return response;
+      },
+    };
+
+    const result = await runGeoModule(moduleInput(), {
+      provider: cancelled,
+      quota: AiQuotaTracker.withLimit(10),
+      signal: controller.signal,
+    });
+
+    expect(prompts().filter(isJudgeCall)).toEqual([]);
+    expect(result.quota.spent).toBe(2);
+    expect(result.quota.outstanding).toBe(0);
+    // The answers survive: they were paid for, and each carries the deletion
+    // reference that is the only record the provider ever held them.
+    expect(result.responses.map((answer) => answer.response.rawText)).toEqual([
+      FIRST_ANSWER,
+      SECOND_ANSWER,
+    ]);
+    expect(result.interrupted).toBe(true);
+    // Every answer still has an entry, so the checks that did not run stay in
+    // the module row's denominator instead of vanishing from it.
+    expect(result.answerEvaluations.size).toBe(2);
+    expect([...result.answerEvaluations.values()].map((evaluation) => evaluation.reason)).toEqual([
+      'ScanCancelled',
+      'ScanCancelled',
+    ]);
+    expect(result.evaluationOutcomes).toEqual([]);
+    // Nothing was judged, so no snapshot was read — storing one would claim a
+    // comparison that never happened.
+    expect(result.evaluatedEvidence).toBeNull();
+  });
+
+  it('keeps the verdicts already paid for when a judge is cancelled mid-flight', async () => {
+    const controller = new AbortController();
+    const { provider, prompts } = recordingProvider(THREE_ANSWER_FIXTURES);
+    const cancelled: AiProvider = {
+      config: provider.config,
+      send: async (request, promptText, signal) => {
+        // The second judge is the one the cancel catches in flight: the adapter
+        // sees an aborted signal and refuses, exactly as a real one would.
+        if (
+          request.promptVersion === GEO_EVALUATION_PROMPT_VERSION &&
+          prompts().filter(isJudgeCall).length === 1
+        ) {
+          controller.abort();
+        }
+        return provider.send(request, promptText, signal);
+      },
+    };
+
+    const result = await runGeoModule(
+      moduleInput({ requests: [question(0), question(1), THIRD_QUESTION] }),
+      { provider: cancelled, quota: AiQuotaTracker.withLimit(10), signal: controller.signal },
+    );
+
+    const judgeCalls = prompts().filter(isJudgeCall);
+    // One verdict, one cancelled attempt, and no third call: the pass stops
+    // rather than working its way through the rest of the answers.
+    expect(judgeCalls).toHaveLength(2);
+    // The cancel reached the adapter — without that, a judge in flight runs to
+    // completion and is billed after the scan was called off.
+    expect(judgeCalls.map((call) => call.signal)).toEqual([controller.signal, controller.signal]);
+
+    const verdicts = result.responses.map((answer) =>
+      result.answerEvaluations.get(answer.aiRequestKey),
+    );
+    expect(verdicts.map((evaluation) => evaluation?.status)).toEqual([
+      'Completed',
+      'Unavailable',
+      'Unavailable',
+    ]);
+    // A cancel is not an unavailable provider: calling it one would invite the
+    // next attempt to ask again and pay again.
+    expect(verdicts.map((evaluation) => evaluation?.reason)).toEqual([
+      null,
+      'ScanCancelled',
+      'ScanCancelled',
+    ]);
+    // The completed exchange keeps its ledger entry; the cancelled one has none
+    // and released its reservation.
+    expect(result.evaluationOutcomes).toHaveLength(1);
+    expect(result.quota.spent).toBe(4);
+    expect(result.quota.outstanding).toBe(0);
+    expect(result.responses).toHaveLength(3);
+    expect(result.interrupted).toBe(true);
   });
 });
