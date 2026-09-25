@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AiProvider } from '@fluxradar/ai';
+import type { AiProvider, AiProviderName } from '@fluxradar/ai';
 import {
   CURRENT_AI_PROCESSING_NOTICE_VERSION,
   mockRoutingProvider,
@@ -324,65 +324,85 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
   // Bumping the notice to v5 added one data flow — the per-answer evaluation —
   // and must not cancel the AI checks a pending scan on an earlier accepted
   // notice already paid for and was properly told about. The gate is per flow,
-  // not per release.
-  it('runs the AI checks a v3 scan bought and sends no site evidence for judging', async () => {
-    const app = createApp({
-      prisma: db.prisma,
-      autoProcess: false,
-      createPerformanceRunner: () => undefined,
-      logger: silentLogger,
-    });
-    const agent = request.agent(app);
-    const account = await register(agent, 'geo-notice-v3-e2e@example.com');
-    const profile = await createProfile(agent, account.cookie);
-    const checkout = await purchaseScan(db.prisma, {
-      siteProfileId: profile.id,
-      plan: 'Complete',
-      scope: { includeSubdomains: false, maxPages: 3 },
-      aiConsent: { providers: ['anthropic'], noticeVersion: 'core-ai-processing-notice-v3' },
-    });
-    const scanId = checkout.scanId;
+  // not per release: v3 keeps Anthropic alone, v4 keeps the opt-in recipients it
+  // named, and neither sends a byte of the site for judging.
+  it.each([
+    { notice: 'core-ai-processing-notice-v3', providers: ['anthropic'] as const },
+    {
+      notice: 'core-ai-processing-notice-v4',
+      providers: ['anthropic', 'openai', 'google'] as const,
+    },
+  ])(
+    'runs the AI checks a $notice scan bought and sends no site evidence for judging',
+    async ({ notice, providers }) => {
+      const app = createApp({
+        prisma: db.prisma,
+        autoProcess: false,
+        createPerformanceRunner: () => undefined,
+        logger: silentLogger,
+      });
+      const agent = request.agent(app);
+      const account = await register(agent, `geo-${notice}-e2e@example.com`);
+      const profile = await createProfile(agent, account.cookie);
+      const checkout = await purchaseScan(db.prisma, {
+        siteProfileId: profile.id,
+        plan: 'Complete',
+        scope: { includeSubdomains: false, maxPages: 3 },
+        aiConsent: { providers: [...providers], noticeVersion: notice },
+      });
+      const scanId = checkout.scanId;
 
-    await runScan(scanId, () => uxAwareProvider(profile.name));
+      await runScan(scanId, () => uxAwareProvider(profile.name, providers));
 
-    const scan = await agent.get(`/scans/${scanId}`).set('Cookie', account.cookie);
-    expect(scan.status).toBe(200);
-    const geo = scan.body.data.modules.find(
-      (module: { module: string }) => module.module === 'AI SEO / GEO',
-    );
-    const visibility = geo.metadata.providerVisibility;
-    // The questions the v3 notice covered were asked and answered.
-    expect(
-      visibility.requests.some((request: { status: string }) => request.status === 'response'),
-    ).toBe(true);
-    expect(geo.usableOutput).toBe(true);
-    // The flow v3 never disclosed did not run, and nothing about the site was
-    // sent for it: no snapshot stored, no verdict, no judge in the ledger.
-    expect(visibility.evidence).toBeNull();
-    for (const request of visibility.requests as { evaluation?: unknown }[]) {
-      expect(request.evaluation ?? null).toBeNull();
-    }
-    const ledger = await db.prisma.aiResponseRecord.findMany({
-      where: { scanId },
-      select: { promptVersion: true },
-    });
-    expect(ledger.some((record) => record.promptVersion.startsWith('geo-questions-'))).toBe(true);
-    expect(ledger.some((record) => record.promptVersion === 'geo-answer-evaluation-v1')).toBe(
-      false,
-    );
-    // The UX review is a v3 flow too, and it still runs.
-    const ux = scan.body.data.modules.find(
-      (module: { module: string }) => module.module === 'UX/Conversion',
-    );
-    expect(ux.metadata.ai).toMatchObject({ status: 'Completed', statusReason: null });
+      const scan = await agent.get(`/scans/${scanId}`).set('Cookie', account.cookie);
+      expect(scan.status).toBe(200);
+      const geo = scan.body.data.modules.find(
+        (module: { module: string }) => module.module === 'AI SEO / GEO',
+      );
+      const visibility = geo.metadata.providerVisibility;
+      // The questions this notice covered were asked and answered — of every
+      // provider it named, including the opt-in ones v4 disclosed.
+      const answeredProviders = new Set(
+        (visibility.requests as { status: string; provider: string }[])
+          .filter((request) => request.status === 'response')
+          .map((request) => request.provider),
+      );
+      for (const provider of providers) {
+        expect(answeredProviders).toContain(provider);
+      }
+      expect(geo.usableOutput).toBe(true);
+      // The flow this notice never disclosed did not run, and nothing about the
+      // site was sent for it: no snapshot stored, no verdict, no judge in the
+      // ledger — and the row says so instead of describing an evaluation.
+      expect(visibility.evidence).toBeNull();
+      expect(visibility.method).toContain('no answer was evaluated');
+      expect(visibility.method).not.toContain('evaluated separately');
+      for (const request of visibility.requests as { evaluation?: unknown }[]) {
+        expect(request.evaluation ?? null).toBeNull();
+      }
+      const ledger = await db.prisma.aiResponseRecord.findMany({
+        where: { scanId },
+        select: { promptVersion: true },
+      });
+      expect(ledger.some((record) => record.promptVersion.startsWith('geo-questions-'))).toBe(true);
+      expect(ledger.some((record) => record.promptVersion === 'geo-answer-evaluation-v1')).toBe(
+        false,
+      );
+      // The UX review is a v3 flow too, and it still runs.
+      const ux = scan.body.data.modules.find(
+        (module: { module: string }) => module.module === 'UX/Conversion',
+      );
+      expect(ux.metadata.ai).toMatchObject({ status: 'Completed', statusReason: null });
 
-    const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
-    expect(dashboard.status).toBe(200);
-    expect(dashboard.body.data.geoEvidence).toBeNull();
-    for (const observation of dashboard.body.data.geoObservations as { evaluation: unknown }[]) {
-      expect(observation.evaluation).toBeNull();
-    }
-  }, 15_000);
+      const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
+      expect(dashboard.status).toBe(200);
+      expect(dashboard.body.data.geoEvidence).toBeNull();
+      for (const observation of dashboard.body.data.geoObservations as { evaluation: unknown }[]) {
+        expect(observation.evaluation).toBeNull();
+      }
+    },
+    20_000,
+  );
 
   // A stored verdict is the one thing a historical report cannot re-derive, so
   // the API re-checks it instead of trusting it. Dropping unreadable claims and
@@ -995,7 +1015,11 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
    * a request routed to the adapter of another company is a caller mistake, and
    * the mock says so rather than answering it.
    */
-  function uxAwareProvider(brand: string): AiProvider {
+  function uxAwareProvider(brand: string, consented: readonly AiProviderName[] = []): AiProvider {
+    // The default providers are always routed, because a scan asks them
+    // whatever the stored record says; an opt-in recipient is routed only when
+    // the scan's own consent named it.
+    const providers = [...new Set([...GEO_VISIBILITY_PROVIDERS, ...consented])];
     return mockRoutingProvider(
       [
         ...defaultGeoFixtures(brand, 'smile.example'),
@@ -1021,7 +1045,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
           },
         },
       ],
-      GEO_VISIBILITY_PROVIDERS,
+      providers,
     );
   }
 });
