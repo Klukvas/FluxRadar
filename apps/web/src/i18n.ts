@@ -665,7 +665,7 @@ export const copy = {
       robotsInfoBody:
         'Before crawling, FluxRadar reads the site’s public robots.txt. When “Respect robots.txt” is on, pages disallowed for crawlers are skipped. Turn it off only when you are authorized to inspect those paths; the confirmation below records that choice.',
       labelAiConsent:
-        'Anthropic and OpenAI process site context and public-page evidence for the included AI checks',
+        'Anthropic and OpenAI answer the included AI checks; only Anthropic also receives public-page evidence',
       aiConsentTitle: 'AI processing included in this audit',
       aiConsentOptional: 'Included',
       aiConsentBody:
@@ -678,7 +678,7 @@ export const copy = {
       aiConsentOptInTitle: 'Optional: ask Gemini and Perplexity too',
       aiConsentOptInMode: 'Off by default',
       aiConsentOptInBody:
-        'You can also ask Google (Gemini) and Perplexity the same visibility questions. They are off by default and receive nothing at all unless you select them here: the choice is stored with this scan and applies only to it. If you select one, it receives exactly what Anthropic and OpenAI receive — the questions and the site context above — and never your account or payment data, your Google or Bing access tokens, or page evidence.',
+        'You can also ask Google (Gemini) and Perplexity the same visibility questions. They are off by default and receive nothing at all unless you select them here: the choice is stored with this scan and applies only to it. If you select one, it receives the visibility questions and nothing else — no page evidence, no account or payment data, and no Google or Bing access tokens. Its answers are then checked by Anthropic, in the separate request described above.',
       // Keyed by provider name: the form renders the offered recipients from
       // the declared list, so a new one needs a label here and nothing else.
       aiConsentOptIn: {
@@ -2185,7 +2185,7 @@ export const copy = {
       robotsInfoBody:
         'Перед обходом FluxRadar читає публічний robots.txt сайту. Якщо «Дотримуватись robots.txt» увімкнено, сторінки, заборонені для сканерів, пропускаються. Вимикайте цю опцію лише якщо маєте право перевіряти такі шляхи: нижче потрібно буде окремо підтвердити відхилення правил.',
       labelAiConsent:
-        'Anthropic і OpenAI обробляють контекст сайту та публічні докази для включених AI-перевірок',
+        'Anthropic і OpenAI відповідають на включені AI-перевірки; докази з публічних сторінок отримує лише Anthropic',
       aiConsentTitle: 'AI-обробка включена в цей аудит',
       aiConsentOptional: 'Включено',
       aiConsentBody:
@@ -2195,7 +2195,7 @@ export const copy = {
       aiConsentOptInTitle: 'Необовʼязково: запитати також Gemini і Perplexity',
       aiConsentOptInMode: 'Вимкнено за замовчуванням',
       aiConsentOptInBody:
-        'Ви можете поставити ті самі запитання про видимість Google (Gemini) і Perplexity. Вони вимкнені за замовчуванням і не отримують нічого, доки ви не оберете їх тут: вибір зберігається разом із цим скануванням і діє лише для нього. Якщо ви оберете провайдера, він отримає рівно те саме, що Anthropic і OpenAI, — запитання та описаний вище контекст сайту — і ніколи дані акаунта чи оплати, ваші Google- або Bing-tokens чи докази зі сторінок.',
+        'Ви можете поставити ті самі запитання про видимість Google (Gemini) і Perplexity. Вони вимкнені за замовчуванням і не отримують нічого, доки ви не оберете їх тут: вибір зберігається разом із цим скануванням і діє лише для нього. Якщо ви оберете провайдера, він отримає лише запитання про видимість і нічого більше — без доказів зі сторінок, без даних акаунта чи оплати та без ваших Google- або Bing-tokens. Його відповіді потім перевіряє Anthropic окремим запитом, описаним вище.',
       aiConsentOptIn: {
         google: 'Запитати також Google (Gemini)',
         perplexity: 'Запитати також Perplexity',
