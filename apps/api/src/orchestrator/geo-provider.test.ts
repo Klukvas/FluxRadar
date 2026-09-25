@@ -74,21 +74,26 @@ describe('default AI provider wiring', () => {
     ]);
     expect(generation.quota.spent).toBe(1);
 
-    const requests = buildGeoRequests('scan-context', 'Smile Clinic', generation.questions, [
-      'anthropic',
-    ]);
+    const requests = buildGeoRequests(
+      'scan-context',
+      'Smile Clinic',
+      'smile.example',
+      generation.questions,
+      ['anthropic'],
+    );
 
     expect(requests).toHaveLength(4);
-    expect(requests[0]?.question).toContain('official website');
+    expect(requests[0]?.question).toContain('What do you know about Smile Clinic?');
+    expect(requests[1]?.question).toContain('official website');
     expect(requests[2]?.question).toContain('implants and emergency appointments');
     expect(requests[2]?.question).toContain('Kyiv');
     expect(requests[3]?.question).toContain('families');
-    expect(requests[0]?.promptVersion).toContain('awareness');
+    expect(requests[0]?.promptVersion).toContain('closed-book');
     expect(requests[2]?.promptVersion).toContain('discovery');
   });
 
   it('asks every default provider the same questions, with sequences restarting at 1', () => {
-    const requests = buildGeoRequests('scan-two', 'Smile Clinic', [
+    const requests = buildGeoRequests('scan-two', 'Smile Clinic', 'smile.example', [
       'Which dental clinics in Kyiv offer implants?',
     ]);
 
@@ -105,11 +110,19 @@ describe('default AI provider wiring', () => {
     // `ai_request_key` carries the provider (D-015), so both lists start at 1.
     expect(requests.map((request) => request.sequence)).toEqual([1, 2, 3, 1, 2, 3]);
     expect(new Set(requests.map((request) => request.question)).size).toBe(3);
-    // Search on every visibility request, and the whole output budget for the
-    // answer rather than for hidden reasoning.
-    expect(requests.every((request) => request.webSearch === true)).toBe(true);
+    // Search on the discovery question only — a direct question is answered
+    // closed-book — and the whole output budget for the answer rather than for
+    // hidden reasoning.
+    expect(requests.map((request) => request.webSearch)).toEqual([
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      true,
+    ]);
     expect(requests.every((request) => request.reasoningMode === 'disabled')).toBe(true);
-    expect(requests[0]?.promptVersion).toBe('geo-questions-v5-awareness');
+    expect(requests[0]?.promptVersion).toBe('geo-questions-v5-closed-book');
     expect(requests[2]?.promptVersion).toBe('geo-questions-v5-discovery');
   });
 
@@ -239,9 +252,13 @@ describe('default AI provider wiring', () => {
       },
     });
 
-    const requests = buildGeoRequests('neutral-scan', 'SableOrchid', generation.questions, [
-      'anthropic',
-    ]).filter((request) => request.promptVersion.includes('discovery'));
+    const requests = buildGeoRequests(
+      'neutral-scan',
+      'SableOrchid',
+      'sableorchid.example',
+      generation.questions,
+      ['anthropic'],
+    ).filter((request) => request.promptVersion.includes('discovery'));
     await runGeoModule(
       {
         scanId: 'neutral-scan',
@@ -379,7 +396,7 @@ describe('default AI provider wiring', () => {
           providers: ['anthropic', 'openai'],
           noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
         },
-        requests: buildGeoRequests(scanId, 'Example'),
+        requests: buildGeoRequests(scanId, 'Example', 'example.com'),
       },
       { provider: createDefaultAiProvider('Example', 'example.com') },
     );
@@ -414,7 +431,7 @@ describe('default AI provider wiring', () => {
           providers: ['anthropic'],
           noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
         },
-        requests: buildGeoRequests(scanId, 'Example'),
+        requests: buildGeoRequests(scanId, 'Example', 'example.com'),
       },
       { provider },
     );
@@ -449,7 +466,7 @@ describe('default AI provider wiring', () => {
           providers: ['anthropic'],
           noticeVersion: 'core-ai-processing-notice-v3',
         },
-        requests: buildGeoRequests(scanId, 'Example'),
+        requests: buildGeoRequests(scanId, 'Example', 'example.com'),
       },
       { provider },
     );
@@ -534,9 +551,9 @@ describe('default AI provider wiring', () => {
           {
             scanId: 'scan-mocked',
             provider,
-            promptVersion: 'geo-questions-v5-awareness',
+            promptVersion: 'geo-questions-v5-closed-book',
             sequence: 1,
-            question: 'What is Example? What is its official website, and who is it for?',
+            question: 'What do you know about Example?',
             brandFacts: [],
             pageTitles: [],
             systemInstructions: 'irrelevant',
@@ -554,7 +571,7 @@ describe('visibility requests', () => {
   const questions = ['Which providers serve families in Kyiv?', 'What are the best options there?'];
 
   it('asks every provider every question, restarting the sequence for each', () => {
-    const requests = buildGeoRequests('scan-two-providers', 'Example', questions);
+    const requests = buildGeoRequests('scan-two-providers', 'Example', 'example.com', questions);
 
     expect(requests).toHaveLength(2 * (2 + questions.length));
     expect(requests.map((request) => request.provider)).toEqual([
@@ -578,10 +595,15 @@ describe('visibility requests', () => {
     expect(requests.every((request) => request.pageTitles.length === 0)).toBe(true);
   });
 
-  it('turns web search on for visibility questions and leaves generation without it', async () => {
-    const requests = buildGeoRequests('scan-search-flag', 'Example', questions);
+  it('turns web search on for discovery questions only, and never for generation', async () => {
+    const requests = buildGeoRequests('scan-search-flag', 'Example', 'example.com', questions);
 
-    expect(requests.every((request) => request.webSearch === true)).toBe(true);
+    const searchBy = (suffix: string) =>
+      requests
+        .filter((request) => request.promptVersion.endsWith(suffix))
+        .map((request) => request.webSearch);
+    expect(searchBy('-discovery')).toEqual([true, true, true, true]);
+    expect(searchBy('-closed-book')).toEqual([undefined, undefined, undefined, undefined]);
     expect(requests.every((request) => request.reasoningMode === 'disabled')).toBe(true);
     expect(requests.every((request) => request.promptVersion.startsWith('geo-questions-v5-'))).toBe(
       true,
@@ -635,9 +657,9 @@ describe('visibility requests', () => {
       {
         scanId: 'scan-mock',
         provider: 'openai',
-        promptVersion: 'geo-questions-v5-awareness',
+        promptVersion: 'geo-questions-v5-closed-book',
         sequence: 1,
-        question: 'What is Example, what does its official website offer?',
+        question: 'What do you know about Example?',
         brandFacts: [],
         pageTitles: [],
         systemInstructions: 'x',

@@ -8,6 +8,14 @@ import type { ModuleName, ModuleRuntimeStatus, Plan } from '@fluxradar/contracts
 
 import type { AiConsent } from './consent.js';
 import { AiModuleError, AiRequestCancelledError } from './errors.js';
+import { evaluateGeoAnswer, GEO_EVALUATION_PROMPT_VERSION } from './geo-evaluation.js';
+import type {
+  GeoAnswerEvaluation,
+  GeoAnswerPurpose,
+  GeoEvaluationUnavailableReason,
+} from './geo-evaluation.js';
+import { redactGeoEvidenceSnapshot } from './geo-evidence.js';
+import type { GeoEvidenceSnapshot } from './geo-evidence.js';
 import type { GeoFinding } from './geo-findings.js';
 import { evaluateGeoRules, geoMentionSignals } from './geo-rules.js';
 import type { GeoMentionSignals, GeoRuleEvaluation } from './geo-rules.js';
@@ -31,6 +39,14 @@ export interface GeoModuleInput {
   readonly siteDomain: string;
   readonly consent: AiConsent | null;
   readonly requests: readonly AiRequest[];
+  /**
+   * What this scan actually observed about the site, for judging each answer.
+   *
+   * Omitted or null means no answer is evaluated — an older caller, or a scan
+   * that read nothing. The report then says the answers were not evaluated; it
+   * never implies a check that did not run.
+   */
+  readonly evidence?: GeoEvidenceSnapshot | null;
 }
 
 export interface GeoModuleOptions {
@@ -39,11 +55,11 @@ export interface GeoModuleOptions {
   readonly quota?: AiQuotaTracker;
   readonly redaction?: RedactionOptions;
   /**
-   * Отмена прогона. Вопросы идут последовательно, поэтому отмена прерывает
-   * цикл до следующего платного запроса, а не после всех; запрос, который уже
-   * в полёте, прерывается адаптером и поднимает AiRequestCancelledError.
-   * Уже полученные ответы остаются результатом — их оплатили. Судьбу самого
-   * скана решает оркестратор.
+   * Отмена прогона. Вопросы и судьи идут последовательно, поэтому отмена
+   * прерывает цикл до следующего платного запроса, а не после всех; запрос,
+   * который уже в полёте, прерывается адаптером и поднимает
+   * AiRequestCancelledError. Уже полученные ответы и вынесенные вердикты
+   * остаются результатом — их оплатили. Судьбу самого скана решает оркестратор.
    */
   readonly signal?: AbortSignal;
 }
@@ -67,16 +83,41 @@ export interface GeoModuleResult {
    * for this answer", which is how they came to be green on every scan.
    */
   readonly mentions: ReadonlyMap<string, GeoMentionSignals>;
+  /**
+   * Per answer (by its `aiRequestKey`), what a separate, stateless evaluator
+   * made of it against the scan's evidence — or the reason there is no verdict.
+   *
+   * Empty when the caller supplied no evidence snapshot. An answer with no
+   * entry here is shown as unevaluated, never as verified.
+   */
+  readonly answerEvaluations: ReadonlyMap<string, GeoAnswerEvaluation>;
+  /**
+   * The exact snapshot the evaluators read: redacted once, frozen, shared.
+   *
+   * This is what belongs beside the verdicts, because it is the text they were
+   * checked against. null when no evaluation ran — no snapshot was supplied, or
+   * the snapshot could not be sanitised — and then nothing was sent either.
+   */
+  readonly evaluatedEvidence: GeoEvidenceSnapshot | null;
+  /** The evaluators' own provider exchanges, for the ai_response ledger. */
+  readonly evaluationOutcomes: readonly AiRequestOutcome[];
   /** Финальное состояние квоты: spent = число ответов, outstanding = 0. */
   readonly quota: AiQuotaTracker;
   /** Сколько вопросов было в библиотеке прогона — знаменатель coverage (§15). */
   readonly requested: number;
-  /** Прогон прерван отменой: часть вопросов не задавалась вовсе. */
+  /**
+   * Прогон прерван отменой: часть вопросов не задавалась вовсе либо часть
+   * ответов осталась без вердикта. Что именно недоделано, говорят statusReason
+   * и ScanCancelled-вердикты в `answerEvaluations`.
+   */
   readonly interrupted: boolean;
 }
 
 /** Причина незавершённости прерванного отменой прогона (§16). */
 export const GEO_CANCELLED_REASON = 'ScanCancelled';
+
+/** Что стоит вместо вердикта у ответа, до которого отмена не дала дойти. */
+const CANCELLED_EVALUATION_DETAIL = 'the scan was cancelled before this answer was judged';
 
 function validateInput(input: GeoModuleInput): void {
   if (input.scanId.trim() === '') throw new AiModuleError('ai: geo-module — пустой scanId');
@@ -135,6 +176,168 @@ function summarizeStatus(
 }
 
 /**
+ * Читается заново на каждом обращении: сигнал абортится извне и в любой момент,
+ * поэтому кэшировать (и позволять компилятору сузить) этот флаг нельзя.
+ */
+function isCancelled(signal: AbortSignal | undefined): boolean {
+  return signal !== undefined && signal.aborted;
+}
+
+/** Which rubric an answer is judged under; a discovery answer is not a company profile. */
+function purposeOf(request: AiRequest): GeoAnswerPurpose {
+  return request.promptVersion.endsWith('-discovery') ? 'discovery' : 'closed-book';
+}
+
+interface EvaluationPass {
+  readonly evaluations: ReadonlyMap<string, GeoAnswerEvaluation>;
+  readonly outcomes: readonly AiRequestOutcome[];
+  readonly evidence: GeoEvidenceSnapshot | null;
+  readonly quota: AiQuotaTracker;
+  /** Отмена застала проход судей: часть ответов осталась без вердикта. */
+  readonly cancelled: boolean;
+}
+
+/** Every answer gets the same reason, because the one snapshot is the blocker. */
+function evaluationsBlocked(
+  responses: readonly AiResponseOutcome[],
+  reason: GeoEvaluationUnavailableReason,
+  detail: string,
+): ReadonlyMap<string, GeoAnswerEvaluation> {
+  return new Map(
+    responses.map((answer) => [
+      answer.aiRequestKey,
+      {
+        parentAiRequestKey: answer.aiRequestKey,
+        purpose: purposeOf(answer.request),
+        status: 'Unavailable' as const,
+        reason,
+        detail,
+        payload: null,
+        aiRequestKey: null,
+        provider: null,
+        modelId: null,
+        promptVersion: GEO_EVALUATION_PROMPT_VERSION,
+        usage: null,
+      },
+    ]),
+  );
+}
+
+/**
+ * Judges each answered question separately.
+ *
+ * One request per answer, in order, threading the immutable quota tracker from
+ * one to the next. Sequential on purpose: the tracker is a value object, and
+ * running judges concurrently would mean two callers reserving against the same
+ * state and one of the reservations vanishing.
+ *
+ * Отмена обрывает проход так же, как цикл вопросов: следующий судья не
+ * запускается, уже полученные вердикты и их ai_response-материал остаются, а
+ * каждый несудившийся ответ получает явный ScanCancelled — иначе непройденная
+ * проверка просто исчезла бы из знаменателя coverage.
+ */
+async function evaluateAnswers(
+  input: GeoModuleInput,
+  responses: readonly AiResponseOutcome[],
+  rawEvidence: GeoEvidenceSnapshot,
+  options: GeoModuleOptions,
+  startingQuota: AiQuotaTracker,
+): Promise<EvaluationPass> {
+  if (isCancelled(options.signal)) {
+    // Отменённый скан не отправляет провайдеру ни снапшот, ни ответ: судить
+    // уже нечего и некому, поэтому evidence здесь — null, а не текст, который
+    // никто не прочитал.
+    return {
+      evaluations: evaluationsBlocked(responses, GEO_CANCELLED_REASON, CANCELLED_EVALUATION_DETAIL),
+      outcomes: [],
+      evidence: null,
+      quota: startingQuota,
+      cancelled: true,
+    };
+  }
+
+  // Sanitised once for the whole scan: the judges, the quote checks and the
+  // stored record all read this one object, so they cannot disagree about what
+  // the evidence said.
+  let evidence: GeoEvidenceSnapshot;
+  try {
+    evidence = redactGeoEvidenceSnapshot(rawEvidence, options.redaction);
+  } catch (error) {
+    return {
+      evaluations: evaluationsBlocked(
+        responses,
+        'RedactionBlocked',
+        error instanceof Error ? error.message : 'the evidence could not be redacted',
+      ),
+      outcomes: [],
+      evidence: null,
+      quota: startingQuota,
+      cancelled: false,
+    };
+  }
+
+  const evaluations = new Map<string, GeoAnswerEvaluation>();
+  const outcomes: AiRequestOutcome[] = [];
+  let quota = startingQuota;
+  let cancelled = false;
+
+  for (const answer of responses) {
+    if (isCancelled(options.signal)) {
+      cancelled = true;
+      break;
+    }
+    let result;
+    try {
+      result = await evaluateGeoAnswer(
+        {
+          scanId: input.scanId,
+          parentAiRequestKey: answer.aiRequestKey,
+          purpose: purposeOf(answer.request),
+          question: answer.request.question,
+          // Exactly one answer. Nothing from a sibling answer, and nothing from
+          // any previous verdict, is in this request.
+          answer: answer.response.rawText,
+          evidence,
+          // The answer's own sequence: the same answer keeps the same judge key
+          // across a retry, however many of its siblings failed that time.
+          index: answer.request.sequence,
+          consent: input.consent,
+        },
+        {
+          provider: options.provider,
+          quota,
+          ...(options.redaction !== undefined ? { redaction: options.redaction } : {}),
+          ...(options.signal !== undefined ? { signal: options.signal } : {}),
+        },
+      );
+    } catch (error) {
+      // Отмена в полёте: вердикт этого ответа не состоялся, но предыдущие —
+      // состоялись и оплачены, и их ledger-записи уходят наверх целиком.
+      if (error instanceof AiRequestCancelledError) {
+        cancelled = true;
+        break;
+      }
+      throw error;
+    }
+    quota = result.quota;
+    evaluations.set(answer.aiRequestKey, result.evaluation);
+    if (result.outcome !== null) outcomes.push(result.outcome);
+  }
+
+  if (cancelled) {
+    const unjudged = responses.filter((answer) => !evaluations.has(answer.aiRequestKey));
+    for (const [key, evaluation] of evaluationsBlocked(
+      unjudged,
+      GEO_CANCELLED_REASON,
+      CANCELLED_EVALUATION_DETAIL,
+    )) {
+      evaluations.set(key, evaluation);
+    }
+  }
+  return { evaluations, outcomes, evidence, quota, cancelled };
+}
+
+/**
  * Прогон модуля. Запросы выполняются последовательно (детерминированный порядок
  * квоты и outcomes); квота передаётся по цепочке иммутабельных состояний.
  *
@@ -155,7 +358,7 @@ export async function runGeoModule(
   let interrupted = false;
 
   for (const request of input.requests) {
-    if (options.signal?.aborted === true) {
+    if (isCancelled(options.signal)) {
       interrupted = true;
       break;
     }
@@ -189,6 +392,13 @@ export async function runGeoModule(
     return outcome.kind === 'response';
   });
 
+  const evidence = input.evidence ?? null;
+  const evaluated: EvaluationPass =
+    evidence === null || responses.length === 0
+      ? { evaluations: new Map(), outcomes: [], evidence: null, quota, cancelled: false }
+      : await evaluateAnswers(input, responses, evidence, options, quota);
+  quota = evaluated.quota;
+
   // Unavailable-модуль — только module record со status_reason (§5): без issue-
   // findings; GEO-METHOD-005 документирует пропуски в Completed/Partial-ветке.
   const ruleInput = {
@@ -211,8 +421,14 @@ export async function runGeoModule(
       status === 'Unavailable'
         ? new Map<string, GeoMentionSignals>()
         : geoMentionSignals(ruleInput),
+    answerEvaluations: evaluated.evaluations,
+    evaluatedEvidence: evaluated.evidence,
+    evaluationOutcomes: evaluated.outcomes,
     quota,
     requested: input.requests.length,
-    interrupted,
+    // Статус модуля считается по вопросам — их отмена и обрывает. Отмена,
+    // заставшая проход судей, вопросов уже не касается: она видна здесь и в
+    // ScanCancelled-вердиктах, из которых строка модуля получает свой Partial.
+    interrupted: interrupted || evaluated.cancelled,
   };
 }

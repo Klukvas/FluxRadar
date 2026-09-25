@@ -9,9 +9,10 @@ import {
   AI_PROVIDER_NAMES,
   AiQuotaTracker,
   isAcceptedNoticeVersion,
+  noticeCoversGeoEvidence,
   runGeoModule,
 } from '@fluxradar/ai';
-import type { AiConsent, GeoModuleResult } from '@fluxradar/ai';
+import type { AiConsent, GeoEvidenceSnapshot, GeoModuleResult } from '@fluxradar/ai';
 import { crawl } from '@fluxradar/crawler';
 import type { CrawlResult, CrawlScope } from '@fluxradar/crawler';
 import {
@@ -61,6 +62,7 @@ import {
   geoProvidersFor,
   type GeoQuestionGenerationResult,
 } from './geo.ts';
+import { buildScanEvidence } from './geo-evidence.ts';
 import { geoModuleRow } from './geo-module-row.ts';
 import { includesAnalytics, modulePlanFor } from './module-plan.ts';
 import { metadataForRuleModule, type RuleModuleContext } from './module-metadata.ts';
@@ -197,12 +199,15 @@ async function persistGeoModule(
   geo: GeoModuleResult,
   generation: GeoQuestionGenerationResult,
   aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
+  // What the evaluators actually read: the same redacted snapshot, so the
+  // stored evidence is the evidence a stored verdict was checked against.
+  evidence: GeoEvidenceSnapshot | null,
 ): Promise<void> {
   // Строку модуля строит чистый билдер (geo-module-row.ts), а пишется она в
   // одной транзакции с ответами провайдера: строка — это то, что следующая
   // попытка читает как «эта платная стадия закончена», и строка без своих
   // ответов закрыла бы стадию, потеряв оплаченный материал (AI-001).
-  const moduleRow = geoModuleRow(geo, generation, aiCrawlerReadiness);
+  const moduleRow = geoModuleRow(geo, generation, aiCrawlerReadiness, evidence);
   await prisma.$transaction(async (tx) => {
     await setModule(tx, scanId, geo.module, moduleRow);
     if (generation.outcome?.kind === 'response') {
@@ -210,6 +215,15 @@ async function persistGeoModule(
     }
     for (const outcome of geo.responses) {
       await persistAiResponse(tx, scanId, 'AI SEO / GEO', outcome);
+    }
+    // The evaluators' exchanges belong in the ledger — they are billed requests
+    // and they are auditable — but, like the query generator's, they are not in
+    // `providerVisibility.requests`, so they can never surface as a question the
+    // customer was shown.
+    for (const outcome of geo.evaluationOutcomes) {
+      if (outcome.kind === 'response') {
+        await persistAiResponse(tx, scanId, 'AI SEO / GEO', outcome);
+      }
     }
   });
 }
@@ -651,6 +665,17 @@ export async function runScanAttempt(
       quota: aiQuota,
       ...(signal !== undefined ? { signal } : {}),
     });
+    // One snapshot for the whole scan, built once and handed unchanged to every
+    // evaluator, so two answers cannot be judged against different evidence.
+    //
+    // It is built only when the notice this scan was bought under disclosed that
+    // the site's own evidence is sent for evaluation. Under an older supported
+    // notice the answers are still asked and shown — the customer paid for them —
+    // and no profile field or page text is sent anywhere for judging.
+    const geoEvidence =
+      consent !== null && noticeCoversGeoEvidence(consent.noticeVersion)
+        ? buildScanEvidence(ctx, profile, siteHostname)
+        : null;
     const geo = await runGeoModule(
       {
         scanId,
@@ -662,9 +687,11 @@ export async function runScanAttempt(
         requests: buildGeoRequests(
           scanId,
           profile.name,
+          siteHostname,
           generation.questions,
           geoProvidersFor(consent),
         ),
+        evidence: geoEvidence,
       },
       { provider, quota: generation.quota, ...(signal !== undefined ? { signal } : {}) },
     );
@@ -676,7 +703,14 @@ export async function runScanAttempt(
     // Незавершённая часть при этом не выдаётся за результат: geoModuleRow
     // считает знаменателем все заданные вопросы, поэтому строка получает
     // Partial с реальным числом завершённых проверок (§575).
-    await persistGeoModule(prisma, scanId, geo, generation, assessAiCrawlerReadiness(crawlResult));
+    await persistGeoModule(
+      prisma,
+      scanId,
+      geo,
+      generation,
+      assessAiCrawlerReadiness(crawlResult),
+      geo.evaluatedEvidence,
+    );
     aiQuota = geo.quota;
     completedStages.add('AI SEO / GEO');
     await saveCheckpoint('AI SEO / GEO');

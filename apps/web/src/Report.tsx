@@ -145,6 +145,7 @@ export function ResultsScreen(props: {
   const scoreUnavailable = /failed|cancelled/i.test(scan.status);
   const checksLine = checksSummary(dashboard.modules, props.language);
   const geoObservations = dashboard.geoObservations ?? [];
+  const geoEvidence = dashboard.geoEvidence ?? null;
   return (
     <div className="stack">
       <Window title={`${t.windowTitle} · ${displayDomain(scan.domain)}`}>
@@ -313,6 +314,7 @@ export function ResultsScreen(props: {
                   <ModuleChecksPanel
                     module={module}
                     observations={geoObservations}
+                    evidence={geoEvidence}
                     language={props.language}
                   />
                 ) : null}

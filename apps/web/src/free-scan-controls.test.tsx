@@ -2,6 +2,7 @@ import { saveCookieConsent } from './browser-consent';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
 import { App } from './App';
 
 // What the new-scan form is allowed to offer on the Free plan.
@@ -316,7 +317,7 @@ describe('paid plan controls', () => {
       plan: 'Complete',
       aiConsent: {
         providers: ['anthropic', 'openai'],
-        noticeVersion: 'core-ai-processing-notice-v4',
+        noticeVersion: AI_PROCESSING_NOTICE_VERSION,
       },
       scope: {
         includeSubdomains: true,

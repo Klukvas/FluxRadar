@@ -4,13 +4,14 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
- * Changed when OpenAI became an active AI recipient beside Anthropic, Google
- * and Perplexity became opt-in recipients, the AI Action Plan was added as an
- * AI purpose, and the site gained consent-based Google Analytics 4. The
- * previous date, 16 September 2026, was the section on how Google user data is
- * protected, which Google's OAuth verification requires.
+ * Changed when GEO's direct questions became closed-book and every visibility
+ * answer, from whichever provider produced it, started being judged in a
+ * further request to Anthropic that carries this audit's own evidence. The
+ * previous date, 23 September 2026, was OpenAI becoming an active AI recipient
+ * beside Anthropic, Google and Perplexity becoming opt-in recipients, the AI
+ * Action Plan as an AI purpose, and consent-based Google Analytics 4.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '23 вересня 2026 року', en: '23 September 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '25 вересня 2026 року', en: '25 September 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -159,15 +160,17 @@ function UkrainianPrivacy(): JSX.Element {
         <p>
           Платні аудити включають застосовний AI‑аналіз: Basic — AI SEO / GEO, Website Audit — лише
           UX/Conversion, Complete — AI SEO / GEO та UX/Conversion. Website Audit не запускає AI SEO
-          / GEO, тому для нього AI‑провайдеру не надсилаються ні discovery questions, ні awareness
-          questions про бренд. До оплати й запуску помітний дисклеймер називає активних провайдерів
-          та пояснює передачу публічних сторінок і введеного контексту. На дату цієї Політики
-          запитання про видимість отримують <strong>Anthropic</strong> і <strong>OpenAI</strong>,
-          обидва — з увімкненим власним вебпошуком; UX/Conversion і AI‑план дій отримує лише
-          Anthropic. <strong>Google (Gemini)</strong> і <strong>Perplexity</strong> доступні як
-          необовʼязковий вибір перед оплатою: вони не отримують нічого, доки ви не оберете їх для
-          конкретної перевірки, і цей вибір зберігається разом із нею. Дані акаунта, оплати, повний
-          номер картки та Google/Bing tokens не входять до AI‑запиту.
+          / GEO, тому для нього AI‑провайдеру не надсилаються ні discovery questions, ні прямі
+          запитання про бренд чи домен. До оплати й запуску помітний дисклеймер називає активних
+          провайдерів та пояснює передачу публічних сторінок і введеного контексту. На дату цієї
+          Політики запитання про видимість отримують <strong>Anthropic</strong> і{' '}
+          <strong>OpenAI</strong>: на discovery questions кожен відповідає з увімкненим власним
+          вебпошуком, а прямі запитання з назвою або доменом ставляться «із закритою книгою» — без
+          вебпошуку та інших інструментів. UX/Conversion і AI‑план дій отримує лише Anthropic.{' '}
+          <strong>Google (Gemini)</strong> і <strong>Perplexity</strong> доступні як необовʼязковий
+          вибір перед оплатою: вони не отримують нічого, доки ви не оберете їх для конкретної
+          перевірки, і цей вибір зберігається разом із нею. Дані акаунта, оплати, повний номер
+          картки та Google/Bing tokens не входять до AI‑запиту.
         </p>
         <p>
           AI‑план дій (Website Audit і Complete) надсилає до Anthropic лише метадані правил цього
@@ -178,11 +181,17 @@ function UkrainianPrivacy(): JSX.Element {
         </p>
         <p>
           У Basic і Complete GEO може надсилати нейтралізований контекст для створення discovery
-          questions без назви й домену, а потім окремо ставити awareness questions із назвою та
-          доменом. У Website Audit і Complete UX/Conversion може включати обмежені публічні докази:
-          URL, titles, headings, calls to action, links і form information. Автоматичне приховування
-          секретів не гарантує видалення всіх персональних даних. Уже надісланий провайдеру запит
-          неможливо відкликати.
+          questions без назви й домену, а потім окремо ставити прямі питання із назвою або доменом.
+          За повідомленням core-ai-processing-notice-v5 кожну отриману відповідь — незалежно від
+          того, який провайдер її дав — додатково перевіряють окремим запитом до Anthropic: єдиним
+          оцінювачем завжди є <strong>Anthropic</strong>. У цьому запиті передають саму відповідь і
+          обмежений набір доказів цієї перевірки — збережені поля профілю та уривки тексту з
+          публічних сторінок, які обійшов сканер. Тому відповідь OpenAI, Gemini чи Perplexity для
+          такої перевірки передається до Anthropic. Перевірка, куплена за попереднім повідомленням,
+          цього запиту не робить. У Website Audit і Complete UX/Conversion може включати обмежені
+          публічні докази: URL, titles, headings, calls to action, links і form information.
+          Автоматичне приховування секретів не гарантує видалення всіх персональних даних. Уже
+          надісланий провайдеру запит неможливо відкликати.
         </p>
         <p>
           У звіті Website Audit або Complete власник може також попросити AI‑план дій: короткий
@@ -216,9 +225,11 @@ function UkrainianPrivacy(): JSX.Element {
             Google‑акаунта.
           </li>
           <li>
-            <strong>Anthropic</strong> — AI‑провайдер для описаних вище AI‑запитів, включно із
-            запитами про видимість, які виконуються з увімкненим вебпошуком провайдера. Retention і
-            processing залежать від чинних API terms та налаштувань; ми не обіцяємо zero retention у
+            <strong>Anthropic</strong> — AI‑провайдер для описаних вище AI‑запитів. Його discovery
+            questions виконуються з увімкненим вебпошуком провайдера, прямі запитання — «із закритою
+            книгою», і він додатково оцінює кожну відповідь про видимість, зокрема отримані від
+            інших провайдерів, разом з описаними вище обмеженими доказами. Retention і processing
+            залежать від чинних API terms та налаштувань; ми не обіцяємо zero retention у
             провайдера. Див.{' '}
             <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">
               інформацію Anthropic про зберігання комерційних даних
@@ -238,7 +249,8 @@ function UkrainianPrivacy(): JSX.Element {
           <li>
             <strong>Google (Gemini)</strong> і <strong>Perplexity</strong> — необовʼязкові
             отримувачі. Вони не отримують нічого, доки ви явно не оберете їх перед оплатою; тоді
-            вони отримують рівно те саме, що Anthropic і OpenAI. Див.{' '}
+            вони отримують ті самі запитання про видимість, що й активні провайдери, і жодних
+            доказів зі сторінок, а їхні відповіді так само перевіряє Anthropic. Див.{' '}
             <a href="https://ai.google.dev/gemini-api/terms">Gemini API Terms</a> і{' '}
             <a href="https://www.perplexity.ai/hub/legal/privacy-policy">
               Privacy Policy Perplexity
@@ -476,12 +488,13 @@ function EnglishPrivacy(): JSX.Element {
           AI provider for it. Before payment and launch, a prominent disclaimer names the active
           providers and explains the transfer of public pages and supplied project context. At this
           Policy’s effective date the visibility questions go to <strong>Anthropic</strong> and{' '}
-          <strong>OpenAI</strong>, both answering with their own web search enabled; UX/Conversion
-          and the AI Action Plan go to Anthropic only. <strong>Google (Gemini)</strong> and{' '}
-          <strong>Perplexity</strong> are an opt-in choice made before purchase: they receive
-          nothing at all unless you select them for a particular audit, and that choice is stored
-          with it. Account details, payment data, the full card number and Google/Bing tokens are
-          not AI inputs.
+          <strong>OpenAI</strong>: each answers the discovery questions with its own web search
+          enabled, while the direct questions naming the brand or the domain are asked closed-book,
+          with no web search and no other tools. UX/Conversion and the AI Action Plan go to
+          Anthropic only. <strong>Google (Gemini)</strong> and <strong>Perplexity</strong> are an
+          opt-in choice made before purchase: they receive nothing at all unless you select them for
+          a particular audit, and that choice is stored with it. Account details, payment data, the
+          full card number and Google/Bing tokens are not AI inputs.
         </p>
         <p>
           The AI Action Plan (Website Audit and Complete) sends Anthropic the report’s rule metadata
@@ -492,11 +505,17 @@ function EnglishPrivacy(): JSX.Element {
         </p>
         <p>
           On Basic and Complete, GEO can send neutralized context to generate discovery questions
-          without the name or domain, then separately ask awareness questions that include them. On
-          Website Audit and Complete, UX/Conversion can include limited public evidence such as
-          URLs, titles, headings, calls to action, links and form information. Automated secret
-          redaction cannot guarantee removal of all personal data. A request already sent to a
-          provider cannot be recalled.
+          without the name or domain, then separately ask direct questions that include the name or
+          the domain. Under the core-ai-processing-notice-v5 disclosure each answer received —
+          whichever provider produced it — is then checked in a further request to{' '}
+          <strong>Anthropic</strong>, which is always the sole judge; that request carries that one
+          answer and a bounded set of this audit’s own evidence: the profile fields you saved and
+          excerpts of text from the public pages the crawl read. An answer from OpenAI, Gemini or
+          Perplexity is therefore transferred to Anthropic for that check. An audit bought under an
+          earlier notice does not make that request. On Website Audit and Complete, UX/Conversion
+          can include limited public evidence such as URLs, titles, headings, calls to action, links
+          and form information. Automated secret redaction cannot guarantee removal of all personal
+          data. A request already sent to a provider cannot be recalled.
         </p>
         <p>
           On a Website Audit or Complete report the owner may also ask for an AI Action Plan: a
@@ -529,8 +548,10 @@ function EnglishPrivacy(): JSX.Element {
             Website Audit and Complete performance checks without a connected user Google account.
           </li>
           <li>
-            <strong>Anthropic</strong> is an AI provider for the AI requests described above,
-            including the visibility requests, which run with the provider’s web search turned on.
+            <strong>Anthropic</strong> is an AI provider for the AI requests described above. Its
+            discovery questions run with the provider’s web search turned on and its direct
+            questions run closed-book, and it additionally judges every visibility answer, including
+            the ones the other providers produced, against the bounded evidence described above.
             Retention and processing depend on applicable API terms and settings; we do not promise
             zero provider retention. See{' '}
             <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">
@@ -551,7 +572,8 @@ function EnglishPrivacy(): JSX.Element {
           <li>
             <strong>Google (Gemini)</strong> and <strong>Perplexity</strong> are opt-in recipients.
             They receive nothing unless you select them before purchase; when you do, they receive
-            exactly what Anthropic and OpenAI receive. See the{' '}
+            the same visibility questions the active providers receive and no page evidence, and
+            their answers are judged by Anthropic in the same way. See the{' '}
             <a href="https://ai.google.dev/gemini-api/terms">Gemini API Terms</a> and the{' '}
             <a href="https://www.perplexity.ai/hub/legal/privacy-policy">
               Perplexity Privacy Policy

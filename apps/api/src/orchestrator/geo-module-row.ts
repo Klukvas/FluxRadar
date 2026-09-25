@@ -21,7 +21,12 @@
 // только модули с числовым score). Basic при отработавшем GEO сохраняет
 // weighted coverage 1.0 и вердикт normal, а общий балл становится баллом SEO.
 
-import type { GeoMentionSignals, GeoModuleResult } from '@fluxradar/ai';
+import type {
+  GeoAnswerEvaluation,
+  GeoEvidenceSnapshot,
+  GeoMentionSignals,
+  GeoModuleResult,
+} from '@fluxradar/ai';
 import { isMeasured } from '@fluxradar/ai';
 import { computeCoverage } from '@fluxradar/scoring';
 import type { assessAiCrawlerReadiness } from '@fluxradar/rules';
@@ -38,7 +43,15 @@ import type { ModuleRowData } from './module-row.ts';
  */
 export const GEO_SCORING_REASON = 'InformationalOnly';
 
-type QuestionPurpose = 'awareness' | 'discovery';
+/**
+ * How a question was asked, as the report must label it.
+ *
+ * A row written before the closed-book release says `awareness`: those
+ * questions named the brand and spelled out the domain with web search on, and
+ * calling them closed-book now would relabel history into a check that never
+ * ran.
+ */
+type QuestionPurpose = 'closed-book' | 'awareness' | 'discovery';
 
 /** Наблюдения одного типа вопросов; все поля — счётчики реальных исходов. */
 interface PurposeObservations {
@@ -67,7 +80,8 @@ const EMPTY_OBSERVATIONS: PurposeObservations = {
 };
 
 function purposeOf(promptVersion: string): QuestionPurpose {
-  return promptVersion.endsWith('-discovery') ? 'discovery' : 'awareness';
+  if (promptVersion.endsWith('-discovery')) return 'discovery';
+  return promptVersion.endsWith('-closed-book') ? 'closed-book' : 'awareness';
 }
 
 /**
@@ -100,7 +114,8 @@ function addOutcome(
     evaluated: totals.evaluated + (brandMeasured || domainMeasured ? 1 : 0),
     brandMeasured: totals.brandMeasured + (brandMeasured ? 1 : 0),
     domainMeasured: totals.domainMeasured + (domainMeasured ? 1 : 0),
-    brandMentioned: totals.brandMentioned + (brandMeasured && signals.brand === 'mentioned' ? 1 : 0),
+    brandMentioned:
+      totals.brandMentioned + (brandMeasured && signals.brand === 'mentioned' ? 1 : 0),
     domainMentioned:
       totals.domainMentioned + (domainMeasured && signals.domain === 'mentioned' ? 1 : 0),
   };
@@ -117,7 +132,127 @@ export function geoObservations(
       const signals = answered ? mentionSignals(geo, outcome.aiRequestKey) : null;
       return { ...totals, [purpose]: addOutcome(totals[purpose], signals, answered) };
     },
-    { awareness: EMPTY_OBSERVATIONS, discovery: EMPTY_OBSERVATIONS },
+    {
+      'closed-book': EMPTY_OBSERVATIONS,
+      awareness: EMPTY_OBSERVATIONS,
+      discovery: EMPTY_OBSERVATIONS,
+    },
+  );
+}
+
+/** One answer's verdict, or the honest reason it has none. */
+function evaluationRecord(
+  evaluation: GeoAnswerEvaluation | undefined,
+): Record<string, unknown> | null {
+  if (evaluation === undefined) return null;
+  return {
+    status: evaluation.status,
+    reason: evaluation.reason,
+    detail: evaluation.detail === null ? null : redactEvidence(evaluation.detail),
+    purpose: evaluation.purpose,
+    promptVersion: evaluation.promptVersion,
+    // The judge's own request key, kept so a stored verdict can be traced back
+    // to the exact provider exchange that produced it.
+    aiRequestKey: evaluation.aiRequestKey,
+    provider: evaluation.provider,
+    modelId: evaluation.modelId,
+    usage: evaluation.usage,
+    ...(evaluation.payload === null
+      ? {}
+      : {
+          overall: evaluation.payload.overall,
+          overallAdjusted: evaluation.payload.overallAdjusted,
+          answerDescribesSubject: evaluation.payload.answerDescribesSubject,
+          claims: redactEvidence(evaluation.payload.claims),
+        }),
+  };
+}
+
+/**
+ * The evidence every answer of this scan was judged against, with its provenance.
+ *
+ * The snapshot arrives already redacted — the module sanitises it once, before
+ * any judge reads it, so that the text sent, the text quotes are checked
+ * against and the text stored here are one string. `redactEvidence` runs over
+ * it anyway: it is idempotent, and this is the boundary where every other piece
+ * of stored scan material is sanitised.
+ */
+function evidenceRecord(evidence: GeoEvidenceSnapshot | null): Record<string, unknown> | null {
+  if (evidence === null) return null;
+  return {
+    sufficiency: evidence.sufficiency,
+    limits: evidence.limits,
+    sources: redactEvidence(evidence.sources),
+  };
+}
+
+/** How many answers were sent to the judge, and how many came back with a verdict. */
+interface EvaluationTally {
+  readonly attempted: number;
+  readonly completed: number;
+}
+
+function evaluationTally(geo: GeoModuleResult): EvaluationTally {
+  const evaluations = [...geo.answerEvaluations.values()];
+  return {
+    attempted: evaluations.length,
+    completed: evaluations.filter((evaluation) => evaluation.status === 'Completed').length,
+  };
+}
+
+const QUESTION_METHOD =
+  'AI-generated neutral discovery questions asked of each provider with its own web ' +
+  'search enabled, plus closed-book questions about the business asked without search ' +
+  'or tools';
+
+/**
+ * What this scan did with its answers after they came back, in the row's own words.
+ *
+ * The evaluation is not part of every scan: it runs only when the notice the
+ * scan was bought under disclosed that the site's own evidence is sent for
+ * judging, and even then a scan cancelled before the first verdict ends with
+ * evidence and nothing judged. A constant "each answer evaluated separately"
+ * described a check that never ran for those scans, which is exactly the claim
+ * the metadata must not make.
+ */
+function evaluationMethod(tally: EvaluationTally, evidence: GeoEvidenceSnapshot | null): string {
+  if (evidence === null) {
+    return `${QUESTION_METHOD}; no answer was evaluated, because this scan sent no site evidence for judging`;
+  }
+  if (tally.completed === 0) {
+    return tally.attempted === 0
+      ? `${QUESTION_METHOD}; no answer reached evaluation against this scan’s own evidence`
+      : `${QUESTION_METHOD}; none of the ${tally.attempted} evaluations against this scan’s own evidence completed`;
+  }
+  return (
+    `${QUESTION_METHOD}; ${tally.completed} of ${tally.attempted} answers evaluated separately ` +
+    'against this scan’s own evidence'
+  );
+}
+
+const OBSERVATION_INTERPRETATION =
+  'Prompt-specific observations; a discovery citation is a source the model used, and a ' +
+  'mention does not prove remembered knowledge.';
+
+/** How to read the row; the verdict sentence appears only when there is a verdict. */
+function evaluationInterpretation(
+  tally: EvaluationTally,
+  evidence: GeoEvidenceSnapshot | null,
+): string {
+  return evidence !== null && tally.completed > 0
+    ? `${OBSERVATION_INTERPRETATION} An evaluation states only what this scan’s evidence supports.`
+    : OBSERVATION_INTERPRETATION;
+}
+
+/** Why some answers have no verdict — named, never rounded away. */
+function evaluationStatusReason(geo: GeoModuleResult): string | null {
+  const reasons = [...geo.answerEvaluations.values()]
+    .filter((evaluation) => evaluation.status === 'Unavailable')
+    .map((evaluation) => evaluation.reason ?? 'Unavailable');
+  if (reasons.length === 0) return null;
+  return (
+    `AnswerEvaluationUnavailable: ${reasons.length} of ${geo.answerEvaluations.size} ` +
+    `(${[...new Set(reasons)].join(', ')})`
   );
 }
 
@@ -130,6 +265,7 @@ function statusReasonParts(
     generation.status === 'Unavailable' || generation.status === 'InvalidResponse'
       ? `QueryGeneration${generation.status}: ${generation.statusReason ?? 'unknown reason'}`
       : null,
+    evaluationStatusReason(geo),
   ].filter((reason): reason is string => reason !== null);
 }
 
@@ -154,14 +290,19 @@ export function geoModuleRow(
   geo: GeoModuleResult,
   generation: GeoQuestionGenerationResult,
   aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
+  evidence: GeoEvidenceSnapshot | null = null,
 ): ModuleRowData {
   const reasonParts = statusReasonParts(geo, generation);
+  // Each answer's evaluation is a check of its own: a judge that could not run
+  // has to lower coverage, not disappear behind a Completed module.
+  const tally = evaluationTally(geo);
   const coverage = computeCoverage({
     // Знаменатель — все вопросы библиотеки, а не только заданные: прерванный
     // отменой прогон обязан показать, что часть проверок не выполнялась, иначе
     // две заданные из пяти выглядели бы как полное покрытие (§15/§575).
-    applicableChecks: geo.requested + generation.applicableChecks,
-    completedApplicableChecks: geo.responses.length + generation.completedApplicableChecks,
+    applicableChecks: geo.requested + generation.applicableChecks + tally.attempted,
+    completedApplicableChecks:
+      geo.responses.length + generation.completedApplicableChecks + tally.completed,
     ...(reasonParts.length > 0 ? { statusReason: reasonParts.join('; ') } : {}),
   });
   return {
@@ -187,14 +328,14 @@ export function geoModuleRow(
         statusReason: coverage.statusReason,
         requiresConsent: true,
         providers: [...new Set(geo.outcomes.map((outcome) => outcome.request.provider))],
-        webSearch: true,
-        method:
-          'AI-generated neutral context questions plus direct brand-awareness questions, ' +
-          'asked of each provider with its own web search enabled',
-        interpretation:
-          'Prompt-specific observations produced with provider web search; citations are the ' +
-          'sources the model used, and a mention does not prove remembered knowledge.',
+        // Per purpose, because it is no longer one answer for the module: a
+        // discovery question needs a searching assistant, a direct one is
+        // answered from memory or not at all.
+        webSearch: { discovery: true, closedBook: false },
+        method: evaluationMethod(tally, evidence),
+        interpretation: evaluationInterpretation(tally, evidence),
         observations: geoObservations(geo),
+        evidence: evidenceRecord(evidence),
         queryGeneration: queryGenerationMetadata(generation),
         requests: geo.outcomes.map((outcome) => ({
           purpose: purposeOf(outcome.request.promptVersion),
@@ -210,6 +351,7 @@ export function geoModuleRow(
                 aiRequestKey: outcome.aiRequestKey,
                 usage: outcome.response.usage,
                 mentions: mentionSignals(geo, outcome.aiRequestKey),
+                evaluation: evaluationRecord(geo.answerEvaluations.get(outcome.aiRequestKey)),
               }
             : { reason: outcome.reason }),
         })),

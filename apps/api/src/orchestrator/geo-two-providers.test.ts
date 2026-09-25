@@ -5,7 +5,7 @@
 // answer and every unavailable row has to name the provider it belongs to, and
 // a customer who only consented to one of them has to get exactly that one.
 
-import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
+import { CURRENT_AI_PROCESSING_NOTICE_VERSION, GEO_EVALUATION_PROMPT_VERSION } from '@fluxradar/ai';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -102,8 +102,14 @@ describe('a paid scan asked of two providers', () => {
     const metadata = JSON.parse(module.metadataJson ?? '{}') as {
       providerVisibility: {
         providers: readonly string[];
-        webSearch: boolean;
-        requests: readonly { provider: string; status: string; reason?: string }[];
+        webSearch: { discovery: boolean; closedBook: boolean };
+        requests: readonly {
+          provider: string;
+          status: string;
+          reason?: string;
+          aiRequestKey?: string;
+          evaluation?: { status: string; aiRequestKey: string | null } | null;
+        }[];
       };
     };
     return { module, visibility: metadata.providerVisibility };
@@ -118,17 +124,68 @@ describe('a paid scan asked of two providers', () => {
     const { module, visibility } = await geoModuleOf(scanId);
     expect(module.runtimeStatus).toBe('Completed');
     expect(visibility.providers).toEqual([...GEO_VISIBILITY_PROVIDERS]);
-    expect(visibility.webSearch).toBe(true);
+    // A direct question is asked closed-book; only the discovery ones search.
+    expect(visibility.webSearch).toEqual({ discovery: true, closedBook: false });
 
     const responses = await db.prisma.aiResponseRecord.findMany({ where: { scanId } });
-    const byProvider = (provider: string) =>
-      responses.filter((response) => response.provider === provider).length;
-    // One generation request at Anthropic, then the same visibility questions
-    // twice over: 1 + 2 × N, with N the same on both sides.
-    expect(byProvider('openai')).toBeGreaterThan(0);
-    expect(byProvider('anthropic')).toBe(byProvider('openai') + 1);
-    expect(responses).toHaveLength(1 + 2 * byProvider('openai'));
+    // The same questions twice over, once per vendor, and every one answered.
     expect(visibility.requests.every((entry) => entry.status === 'response')).toBe(true);
+    const visibilityKeys = new Set(
+      visibility.requests.map((entry) => entry.aiRequestKey).filter((key) => key !== undefined),
+    );
+    expect(visibilityKeys.size).toBe(visibility.requests.length);
+    const shownRows = responses.filter((response) => visibilityKeys.has(response.aiRequestKey));
+    expect(shownRows).toHaveLength(visibility.requests.length);
+    const askedOf = (provider: string) =>
+      shownRows.filter((response) => response.provider === provider).length;
+    expect(askedOf('openai')).toBeGreaterThan(0);
+    expect(askedOf('anthropic')).toBe(askedOf('openai'));
+    // The generator's request and the evaluators' are billed and auditable, so
+    // they are in the ledger — and deliberately not among the questions the
+    // report shows.
+    const ledgerOnly = responses.filter((response) => !visibilityKeys.has(response.aiRequestKey));
+    expect(ledgerOnly.length).toBeGreaterThan(0);
+    expect(ledgerOnly.every((response) => response.provider === 'anthropic')).toBe(true);
+  });
+
+  // Both vendors are asked the same questions, numbered from 1 again for each
+  // of them, and a fixture answers both with the same words — which is exactly
+  // what two real models do on a question with one obvious answer. The judge
+  // runs on one provider under one rubric, so those two verdicts differed in
+  // nothing the request key was derived from: one key, one reservation, and one
+  // ai_response row upserted over itself for two paid exchanges.
+  it('stores a separate evaluation for each of two identical answers', async () => {
+    const { scanId } = await runPaidScan('identical-answers@example.com', {
+      providers: ['anthropic', 'openai'],
+      noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+    });
+
+    const { visibility } = await geoModuleOf(scanId);
+    const responses = await db.prisma.aiResponseRecord.findMany({ where: { scanId } });
+    const answered = visibility.requests.filter((entry) => entry.status === 'response');
+
+    // The premise: at least one question got the same answer from both vendors
+    // under the same sequence number.
+    const answerRows = responses.filter((response) =>
+      response.promptVersion.startsWith('geo-questions-'),
+    );
+    const answeredWordForWordByBoth = answerRows.filter((row) =>
+      answerRows.some((other) => other.rawText === row.rawText && other.provider !== row.provider),
+    );
+    expect(answeredWordForWordByBoth.length).toBeGreaterThan(1);
+
+    // One verdict per answer, each with a key of its own.
+    const judgeKeys = answered.map((entry) => entry.evaluation?.aiRequestKey ?? null);
+    expect(judgeKeys.filter((key) => key === null)).toEqual([]);
+    expect(new Set(judgeKeys).size).toBe(answered.length);
+
+    // And one ledger row per verdict: a shared key would have left fewer rows
+    // than exchanges, with no deletion reference for the ones it swallowed.
+    const judgeRows = responses.filter(
+      (response) => response.promptVersion === GEO_EVALUATION_PROMPT_VERSION,
+    );
+    expect(judgeRows).toHaveLength(answered.length);
+    expect(new Set(judgeRows.map((row) => row.aiRequestKey))).toEqual(new Set(judgeKeys));
   });
 
   it('gives a scan bought under the previous notice only the provider it disclosed', async () => {

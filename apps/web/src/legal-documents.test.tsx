@@ -66,9 +66,12 @@ describe('public legal documents', () => {
     expect(policy).toHaveTextContent(
       /Website Audit does not run AI SEO \/ GEO, so no discovery or brand-awareness question is sent/is,
     );
+    // Only the discovery questions search; a direct question naming the brand
+    // is asked closed-book, so the policy may not claim search for both.
     expect(policy).toHaveTextContent(
-      /visibility questions go to Anthropic and OpenAI, both answering with their own web search/is,
+      /visibility questions go to Anthropic and OpenAI.*discovery questions.*web search enabled.*closed-book/is,
     );
+    expect(policy).not.toHaveTextContent(/both answering with their own web search/i);
     expect(policy).toHaveTextContent(
       /OpenAI is an active AI provider for the visibility questions/i,
     );
@@ -92,7 +95,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 23 September 2026/);
+    expect(policy).toHaveTextContent(/Effective 25 September 2026/);
     expect(policy).toHaveTextContent(/PageSpeed Insights and CrUX.*public URL or origin/is);
     expect(policy).toHaveTextContent(
       /Free and Basic reports.*30 days.*Website Audit and Complete reports.*365 days/is,
@@ -112,6 +115,39 @@ describe('public legal documents', () => {
     expect(
       screen.getByRole('link', { name: /Google API Services User Data Policy/i }),
     ).toHaveAttribute('href', 'https://developers.google.com/terms/api-services-user-data-policy');
+  });
+
+  // Who judges an answer is a recipient fact, not a wording detail: the judge
+  // is always Anthropic, so an answer produced by OpenAI, Gemini or Perplexity
+  // leaves that provider and reaches Anthropic together with this audit's
+  // evidence. A policy saying "the same provider" would hide that transfer.
+  it('names Anthropic as the sole judge of every provider’s answer, in both languages', () => {
+    render(<LegalDocumentScreen kind="privacy" language="en" onLanguageChange={() => {}} />);
+
+    const policy = screen.getByRole('article');
+    expect(policy).toHaveTextContent(
+      /each answer received.*whichever provider produced it.*further request to Anthropic/is,
+    );
+    expect(policy).toHaveTextContent(
+      /from OpenAI, Gemini or Perplexity is therefore transferred to Anthropic/i,
+    );
+    expect(policy).toHaveTextContent(
+      /Anthropic.*judges every visibility answer.*other providers produced/is,
+    );
+    expect(policy).not.toHaveTextContent(/further request to the same provider/i);
+
+    cleanup();
+    render(<LegalDocumentScreen kind="privacy" language="uk" onLanguageChange={() => {}} />);
+
+    const controlling = screen.getByRole('article');
+    expect(controlling).toHaveTextContent(/єдиним оцінювачем завжди є Anthropic/i);
+    expect(controlling).toHaveTextContent(
+      /відповідь OpenAI, Gemini чи Perplexity.*передається до Anthropic/is,
+    );
+    expect(controlling).toHaveTextContent(
+      /discovery questions.*вебпошуком.*«із закритою книгою»/is,
+    );
+    expect(controlling).not.toHaveTextContent(/до того самого провайдера/i);
   });
 
   // Google's OAuth verification rejects a policy that does not say how Google
@@ -194,6 +230,6 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 23 вересня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 25 вересня 2026 року/);
   });
 });

@@ -1,7 +1,7 @@
 // The web bundle deliberately has no workspace-package dependencies. The API
 // contract test reads these declarations and fails if the worker and the notice
 // shown before checkout ever drift apart again.
-export const AI_PROCESSING_NOTICE_VERSION = 'core-ai-processing-notice-v4';
+export const AI_PROCESSING_NOTICE_VERSION = 'core-ai-processing-notice-v5';
 
 /**
  * The providers a paid scan asks by default, exactly as the notice names them.

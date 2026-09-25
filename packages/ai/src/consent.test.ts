@@ -13,11 +13,14 @@ import {
   CURRENT_AI_PROCESSING_NOTICE_VERSION,
   ensureConsent,
   isAcceptedNoticeVersion,
+  noticeCoversGeoEvidence,
   type AiConsent,
 } from './consent.js';
 import { ConsentMissingError } from './errors.js';
 
 const LEGACY_NOTICE_VERSION = 'core-ai-processing-notice-v3';
+/** The notice that named Gemini and Perplexity, and nothing about evidence. */
+const OPT_IN_NOTICE_VERSION = 'core-ai-processing-notice-v4';
 
 function consentOf(overrides: Partial<AiConsent> = {}): AiConsent {
   return {
@@ -82,5 +85,31 @@ describe('ensureConsent', () => {
     expect(() => ensureConsent(forged, 'perplexity')).toThrow(ConsentMissingError);
     // The same record still authorises what v3 actually disclosed.
     expect(() => ensureConsent(forged, 'anthropic')).not.toThrow();
+  });
+
+  // The v5 bump added the evaluator, not a new recipient list. A v4 customer
+  // paid for Gemini and Perplexity after reading the notice that named them,
+  // and gating the opt-in providers on "newest notice" would have revoked that
+  // entitlement on release day.
+  it('keeps the opt-in providers a v4 record named', () => {
+    const optedIn = consentOf({
+      providers: ['anthropic', 'openai', 'google', 'perplexity'],
+      noticeVersion: OPT_IN_NOTICE_VERSION,
+    });
+    expect(() => ensureConsent(optedIn, 'google')).not.toThrow();
+    expect(() => ensureConsent(optedIn, 'perplexity')).not.toThrow();
+    expect(() => ensureConsent(optedIn, 'openai')).not.toThrow();
+  });
+});
+
+describe('noticeCoversGeoEvidence', () => {
+  // The evaluator is the only flow that sends profile fields and page text to a
+  // provider, and only v5 disclosed it. If an earlier accepted notice ever
+  // returned true here, a customer's site content would leave the machine under
+  // a disclosure that never mentioned it.
+  it('covers the current notice and no earlier one', () => {
+    expect(noticeCoversGeoEvidence(CURRENT_AI_PROCESSING_NOTICE_VERSION)).toBe(true);
+    expect(noticeCoversGeoEvidence(OPT_IN_NOTICE_VERSION)).toBe(false);
+    expect(noticeCoversGeoEvidence(LEGACY_NOTICE_VERSION)).toBe(false);
   });
 });

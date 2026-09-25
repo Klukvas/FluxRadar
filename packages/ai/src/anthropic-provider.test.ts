@@ -62,6 +62,47 @@ describe('AnthropicProvider', () => {
     expect(validateNormalizedResponse(response)).toEqual([]);
   });
 
+  it('sends no tool of any kind, so a closed-book question is closed-book in fact', async () => {
+    // The prompt asks the model not to browse. This asserts the stronger thing:
+    // the request never offers it the means. A promise in a prompt is a
+    // request; the absence of a tool block is a guarantee.
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'msg_closed_book',
+          model: 'claude-sonnet-5',
+          stop_reason: 'end_turn',
+          content: [{ type: 'text', text: 'I have no information about this.' }],
+          usage: { input_tokens: 30, output_tokens: 8 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const provider = new AnthropicProvider({ apiKey: 'sk-test', fetcher });
+
+    await provider.send(
+      makeRequest({
+        provider: 'anthropic',
+        question: 'What do you know about the business associated with smile.example?',
+      }),
+      'What do you know about the business associated with smile.example?',
+    );
+
+    const body: unknown = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+    for (const field of ['tools', 'tool_choice', 'mcp_servers', 'container', 'betas']) {
+      expect(body).not.toHaveProperty(field);
+    }
+    expect(String(fetcher.mock.calls[0]?.[1]?.body)).not.toMatch(/web_search|web_fetch|code_exec/i);
+    expect(Object.keys(body as Record<string, unknown>).sort()).toEqual([
+      'max_tokens',
+      'messages',
+      'model',
+      'system',
+    ]);
+    // One user turn: no conversation history travels with the question either.
+    expect((body as { messages: unknown[] }).messages).toHaveLength(1);
+  });
+
   it('disables reasoning and requests schema-constrained JSON when configured', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({
