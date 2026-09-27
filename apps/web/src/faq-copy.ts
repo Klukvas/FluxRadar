@@ -81,7 +81,7 @@ function faqSections(sections: Record<FaqSectionId, FaqSectionText>): readonly F
 
 export const faqCopyEn: FaqCopy = {
   kicker: 'FLUXRADAR / FREQUENTLY ASKED QUESTIONS',
-  meta: ['Updated 2026-09-06', 'No account needed to read this', 'Ruleset v0.1'],
+  meta: ['Updated 2026-09-27', 'No account needed to read this', 'Ruleset v0.1'],
   title: 'Every check, explained in plain language',
   lede: 'What each FluxRadar check looks at, what the report can prove, and where the honest limits are. Written for site owners, not only for engineers.',
   back: '← Back to home',
@@ -407,7 +407,7 @@ export const faqCopyEn: FaqCopy = {
 
 export const faqCopyUk: FaqCopy = {
   kicker: 'FLUXRADAR / ЧАСТІ ПИТАННЯ',
-  meta: ['Оновлено 2026-09-06', 'Акаунт для читання не потрібен', 'Набір правил v0.1'],
+  meta: ['Оновлено 2026-09-27', 'Акаунт для читання не потрібен', 'Набір правил v0.1'],
   title: 'Кожна перевірка простими словами',
   lede: 'Що саме дивиться кожна перевірка FluxRadar, що звіт може довести, а де проходять чесні межі. Написано для власників сайтів, а не лише для інженерів.',
   back: '← Назад на головну',

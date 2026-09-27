@@ -91,7 +91,7 @@ function checksSections(
 
 export const checksCopyEn: ChecksCopy = {
   kicker: 'FLUXRADAR / PUBLIC WEB AUDIT STATION',
-  meta: ['Updated 2026-09-05', 'No login required to read this', 'Ruleset v0.1'],
+  meta: ['Updated 2026-09-27', 'No login required to read this', 'Ruleset v0.1'],
   title: 'Audit coverage',
   lede: 'Exactly what FluxRadar inspects, why, and what it cannot certify — with no customer credentials required for the core public audit.',
   back: '← Back to home',
@@ -455,7 +455,7 @@ export const checksCopyEn: ChecksCopy = {
 
 export const checksCopyUk: ChecksCopy = {
   kicker: 'FLUXRADAR / СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ',
-  meta: ['Оновлено 2026-09-05', 'Читати можна без входу', 'Набір правил v0.1'],
+  meta: ['Оновлено 2026-09-27', 'Читати можна без входу', 'Набір правил v0.1'],
   title: 'Обсяг аудиту',
   lede: 'Що саме перевіряє FluxRadar, навіщо і чого він не сертифікує — для основного публічного аудиту облікові дані клієнта не потрібні.',
   back: '← Назад на головну',
