@@ -8,9 +8,11 @@
 // presence:
 //
 //   1. IPs are masked before a line is written, the query keys that carry
-//      one-time secrets are deleted, the Referer and Location lose their query
-//      string, and credentials are deleted outright. The secret keys are
-//      cross-checked against the places the app builds those URLs.
+//      one-time secrets — and the ones the Creem return page carries — are
+//      deleted, the Referer and Location lose their query string, and
+//      credentials are deleted outright. The secret keys are cross-checked
+//      against the places the app builds those URLs, and the Creem keys
+//      against the list the app reads them from.
 //   2. Retention stays inside the Privacy Policy's 30 days (the arithmetic is
 //      at the retention test: Caddy 2.10 rolls by size, not by time).
 //   3. scripts/traffic-report.sh reads the container and directory production
@@ -33,6 +35,7 @@ import { dirname, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { CREEM_RETURN_QUERY_KEYS } from '../billing/creem/return-url.ts';
 import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
@@ -169,6 +172,24 @@ describe('the production access log', () => {
     expect(verifyCallKeys).toEqual(['token']);
     for (const key of [...mailedLinkKeys, ...verifyCallKeys, ...STANDARD_SECRET_QUERY_KEYS]) {
       expect(deleted).toContain(key);
+    }
+  });
+
+  // The Creem return page: the hosted checkout sends the buyer back to
+  // /checkout/return with the checkout, order and customer ids and Creem's
+  // signature over them in the query string. None of them grants anything —
+  // the scan exists only because the signed webhook created it — but an order
+  // id and a signature are not what a two-week log is for. The list is the
+  // app's own (billing/creem/return-url.ts), so a key the return page starts
+  // reading fails here until the filter learns it too.
+  it('deletes every query key the Creem return page carries', () => {
+    const deleted = blockOf(logBlock, 'request>uri query {')
+      .filter((line) => line.startsWith('delete '))
+      .map((line) => line.split(/\s+/)[1]);
+
+    expect(CREEM_RETURN_QUERY_KEYS.length).toBeGreaterThan(0);
+    for (const key of CREEM_RETURN_QUERY_KEYS) {
+      expect(deleted, key).toContain(key);
     }
   });
 

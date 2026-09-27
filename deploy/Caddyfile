@@ -43,10 +43,13 @@ fluxradar.net {
     #     proxies and client_ip equals remote_ip; both are masked anyway.
     #   - One-time secrets travel as query parameters: the mailed reset and
     #     verification links (?reset_token=, ?verify_email=), the API call that
-    #     spends one (?token=), OAuth's callback (?code=, ?state=). Those keys
-    #     are deleted from the URI. The Referer carries the whole same-origin
-    #     URL and a redirect's Location can carry OAuth state, so both lose
-    #     their query string entirely.
+    #     spends one (?token=), OAuth's callback (?code=, ?state=), and the
+    #     Creem return page, which the hosted checkout sends the buyer back to
+    #     with the checkout, order and customer ids and Creem's signature over
+    #     them (?checkout_id=, ?order_id=, ?signature=...). Those keys are
+    #     deleted from the URI. The Referer carries the whole same-origin URL
+    #     and a redirect's Location can carry OAuth state, so both lose their
+    #     query string entirely.
     #   - Credentials and client-supplied forwarding headers (which can carry
     #     an unmasked address) are deleted, not left as Caddy's REDACTED.
     #
@@ -78,6 +81,18 @@ fluxradar.net {
                 delete code
                 delete state
                 delete email
+                # The Creem return page (/checkout/return). A payment is
+                # confirmed by the signed webhook, never by these, but an order
+                # id and Creem's signature over it must not sit in a log for
+                # two weeks. One line per key in billing/creem/return-url.ts;
+                # DEPLOY-018 checks the two lists agree.
+                delete checkout_id
+                delete order_id
+                delete customer_id
+                delete subscription_id
+                delete product_id
+                delete request_id
+                delete signature
             }
             request>headers>Referer regexp "[?].*" ""
             resp_headers>Location regexp "[?].*" ""
