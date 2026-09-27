@@ -10,7 +10,6 @@
 
 export {
   CHECKS_INDEX_RULE_BEFORE,
-  checksSections,
   type ChecksBullet,
   type ChecksCopy,
   type ChecksSection,
