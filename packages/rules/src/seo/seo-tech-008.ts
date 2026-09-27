@@ -5,7 +5,15 @@
 // страница одновременно присутствует в sitemap ИЛИ на неё ведут внутренние
 // ссылки с других страниц. Просто noindex без противоречия — осознанное
 // намерение владельца, НЕ finding (D-153). Self-ссылки страницы на саму
-// себя противоречием не считаются. При обоих сигналах evidence — meta (dom).
+// себя противоречием не считаются — включая случай, когда страница ссылается на
+// себя вторым своим адресом (`/p/` ссылается на `/p`, который 301 ведёт назад).
+// При обоих сигналах evidence — meta (dom).
+//
+// Ссылки и sitemap читаются под ключом обхода (site-index.ts): под queryPolicy
+// 'ignore' единственная ссылка `/p?page=2` ведёт на прочитанную страницу `/p`,
+// а ссылка на `/about` — на страницу `/about/`, куда уводит её редирект. Обе
+// раньше не считались противоречием — и обе им являются: сайт действительно
+// ведёт на страницу, которую закрыл от индексации.
 
 import type { PageSnapshot } from '@fluxradar/crawler';
 
@@ -19,7 +27,7 @@ import { metaContent, parsePage } from './dom.js';
 import { hasNoindexToken } from './indexing.js';
 import {
   discoveredTargets,
-  internalLinkSources,
+  inboundSources,
   SITEMAP_INPUT,
   sitemapNormalizedUrls,
 } from './site-index.js';
@@ -73,10 +81,13 @@ function findContradiction(page: PageSnapshot, ctx: SiteContext): Contradiction 
   if (sitemapNormalizedUrls(ctx.crawl).has(page.normalizedUrl)) {
     return { kind: 'sitemap' };
   }
-  const sources = internalLinkSources(ctx.crawl).get(page.normalizedUrl);
-  const externalSources = [...(sources ?? [])].filter((source) => source !== page.normalizedUrl);
-  if (externalSources.length > 0) {
-    return { kind: 'internal-links', sources: externalSources.length };
+  // «Чужая страница» считается по документам, а не по адресам: страница,
+  // ссылающаяся на себя вторым своим адресом (`/p/` → `/p`), противоречия не
+  // создаёт, а две ссылки с одного документа под двумя его адресами — это одна
+  // ссылка (inboundSources).
+  const sources = inboundSources(ctx.crawl, page.normalizedUrl);
+  if (sources.size > 0) {
+    return { kind: 'internal-links', sources: sources.size };
   }
   return null;
 }

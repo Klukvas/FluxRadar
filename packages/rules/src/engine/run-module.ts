@@ -10,6 +10,7 @@ import { computeFingerprint, normalizeField } from '@fluxradar/fingerprint';
 
 import { rulesForModule } from '../registry.js';
 import type {
+  NotApplicableReason,
   PageRule,
   Rule,
   RuleEvaluation,
@@ -101,6 +102,10 @@ function evaluatePageRule(rule: PageRule, ctx: SiteContext): RuleRun {
       // спрашивает (удалённая ссылка, снятая картинка), — это починка, а не
       // потеря данных.
       requestedInputs: rule.requestedInputs?.(ctx),
+      // Причину записываем ровно тогда, когда судить было нечего: у правила с
+      // непустым знаменателем она отчёту не нужна и только вводила бы в
+      // заблуждение.
+      ...notApplicableReasonOf(applicablePages.length, rule.notApplicableReason?.(ctx)),
     },
     applicableChecks: applicablePages.length + unreachableOutside.length,
     completedChecks: applicablePages.length,
@@ -125,10 +130,19 @@ function toScopedRuleRun(ruleId: string, result: SiteRuleResult): RuleRun {
       checkedTargets: result.checkedTargets ?? [],
       inputTargets: result.inputTargets ?? [],
       requestedInputs: result.requestedInputs,
+      ...notApplicableReasonOf(result.applicableTargets, result.notApplicableReason),
     },
     applicableChecks: result.applicableTargets,
     completedChecks: result.completedTargets ?? result.applicableTargets,
   };
+}
+
+/** Причина живёт только рядом с пустым знаменателем — см. RuleEvaluation. */
+function notApplicableReasonOf(
+  applicableTargets: number,
+  reason: NotApplicableReason | undefined,
+): { readonly notApplicableReason?: NotApplicableReason } {
+  return applicableTargets === 0 && reason !== undefined ? { notApplicableReason: reason } : {};
 }
 
 function toIssueCandidates(run: RuleRun, ctx: SiteContext): readonly IssueCandidate[] {

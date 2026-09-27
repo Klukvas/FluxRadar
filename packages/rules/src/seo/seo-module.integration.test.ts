@@ -16,7 +16,7 @@ import type { ModuleRunResult } from '../engine/run-module.js';
 import { runModuleRules } from '../engine/run-module.js';
 import { createSiteContext } from '../engine/site-context.js';
 import type { RuleEvaluation } from '../engine/types.js';
-import { clickDepthsFromEntry } from './site-index.js';
+import { clickDepthsFromEntry } from './click-depth.js';
 
 let site: FixtureSite;
 let origin = '';
@@ -89,9 +89,10 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
       'SEO-TECH-009': ['/orphan.html'],
       // Fixture-сайт — «звезда» из главной: каждую страницу держит ровно одна
       // ссылка. /orphan.html здесь нет (нулю ссылок место в TECH-009), / — точка
-      // входа, /missing — не 2xx, /private/secret.html закрыт robots.txt, а
-      // /redirect-a — адрес редиректа, а не страница (его ссылка засчитана
-      // /redirect-final.html, снимка которого в обходе нет).
+      // входа, /missing — не 2xx, а /private/secret.html закрыт robots.txt.
+      // /redirect-a в списке есть: своего снимка у /redirect-final.html в обходе
+      // нет, поэтому страница судится под адресом назначения — и её тоже держит
+      // ровно одна ссылка с главной.
       'SEO-TECH-011': [
         '/broken-image.html',
         '/broken-link.html',
@@ -104,6 +105,7 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
         '/mixed-content.html',
         '/no-title.html',
         '/noindex.html',
+        '/redirect-a',
         '/trackers.html',
         '/wrong-canonical.html',
       ],
@@ -150,17 +152,18 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
     expect(duplicate?.normalizedParameter).toBe(`${origin}/dup-a.html`);
     const fingerprints = result.findings.map((finding) => finding.fingerprint);
     expect(new Set(fingerprints).size).toBe(fingerprints.length);
-    expect(result.findings).toHaveLength(64);
+    expect(result.findings).toHaveLength(65);
   });
 
   it('агрегаты и coverage: 17 снимков без fetchError → все checks завершены', () => {
     expect(crawlResult.pages).toHaveLength(17);
     // 12 default page-rules × 16 (2xx HTML) + TECH-003/005 × 17 + 3 site-rules +
-    // TECH-009 × 2 (страницы sitemap, кроме точки входа) + TECH-011 × 14 (2xx HTML
-    // без точки входа и без адреса редиректа). Граф ссылок полон, поэтому
-    // применимы все три правила перелинковки, включая TECH-010 (в «12 page-rules»).
-    expect(result.applicableChecks).toBe(245);
-    expect(result.completedApplicableChecks).toBe(245);
+    // TECH-009 × 2 (страницы sitemap, кроме точки входа: адрес редиректа среди
+    // них не считается — это предмет TECH-005) + TECH-011 × 15 (2xx HTML без
+    // точки входа). Граф ссылок полон, поэтому применимы все три правила
+    // перелинковки, включая TECH-010 (в «12 page-rules»).
+    expect(result.applicableChecks).toBe(246);
+    expect(result.completedApplicableChecks).toBe(246);
     const canonical = result.evaluations.find((entry) => entry.ruleId === 'SEO-TECH-004');
     expect(canonical?.applicableTargets).toBe(16);
     expect(canonical?.affectedTargets).toBe(15);
@@ -268,7 +271,7 @@ describe('перелинковка на настоящем обходе fixture-
     expect(rulePaths(withoutSitemap, 'SEO-TECH-009')).toEqual([]);
     expect(ruleRun(withoutSitemap, 'SEO-TECH-009').applicableTargets).toBe(0);
     // Слабая связность от sitemap не зависит и продолжает работать.
-    expect(ruleRun(withoutSitemap, 'SEO-TECH-011').applicableTargets).toBe(14);
+    expect(ruleRun(withoutSitemap, 'SEO-TECH-011').applicableTargets).toBe(15);
   });
 
   it('обход, усечённый лимитом страниц, не выдаёт ложных orphan и слабых связей', async () => {

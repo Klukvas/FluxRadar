@@ -29,15 +29,12 @@ import type { PageSnapshot } from '@fluxradar/crawler';
 
 import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
-import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
+import type { NotApplicableReason, PageRule, RuleFinding, SiteContext } from '../engine/types.js';
 import { isSuccessfulHtmlPage } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
-import {
-  clickDepthsFromEntry,
-  discoveredTargets,
-  linkGraphGap,
-  linkSourcePages,
-} from './site-index.js';
+import { clickDepthsFromEntry } from './click-depth.js';
+import { linkGraphGap } from './link-graph-gap.js';
+import { discoveredTargets, linkSourceAddresses } from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-010');
 
@@ -58,11 +55,16 @@ export const seoTech010DeepPages: PageRule = {
   // Вердикт о странице выносят ссылки ДРУГИХ страниц обхода: путь к ней
   // складывается из них, и выпавшая из обхода страница-источник делает путь
   // неизвестным, а не длинным (§14, RuleEvaluation.inputTargets).
-  inputTargets: (ctx: SiteContext): readonly string[] =>
-    linkSourcePages(ctx.crawl).map((page) => page.normalizedUrl),
+  inputTargets: (ctx: SiteContext): readonly string[] => linkSourceAddresses(ctx.crawl),
   // Спрос — всё, что обход увидел: страница, которую сайт больше нигде не
   // упоминает, из спроса исчезает, и это починка, а не потеря данных.
   requestedInputs: (ctx: SiteContext): readonly string[] => discoveredTargets(ctx.crawl),
+  // Применимых страниц не бывает по двум разным причинам, и отчёт обязан их
+  // различать: граф ссылок неполон — или обход не принёс ни одной прочитанной
+  // HTML-страницы вовсе. Вторую правило не называет: там молчит весь модуль, и
+  // «переходы посчитать нельзя» о ней сказало бы не больше, чем общая строка.
+  notApplicableReason: (ctx: SiteContext): NotApplicableReason | undefined =>
+    linkGraphGap(ctx) === null ? undefined : 'link-graph-gap',
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[] {
     const depth = clickDepthsFromEntry(ctx).get(page.normalizedUrl);
     if (depth === undefined || depth < DEEP_PAGE_MIN_DEPTH) {

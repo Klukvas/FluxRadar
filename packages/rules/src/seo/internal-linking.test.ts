@@ -12,7 +12,7 @@ import type { RuleEvaluation, SiteContext } from '../engine/types.js';
 import type { FixturePageInput } from '../testing/fixture-harness.js';
 import { FIXTURE_ORIGIN, runSeoRule, siteContext } from '../testing/fixture-harness.js';
 import { DEEP_PAGE_MIN_DEPTH } from './seo-tech-010.js';
-import { linkGraphGap } from './site-index.js';
+import { linkGraphGap } from './link-graph-gap.js';
 
 const url = (path: string): string => `${FIXTURE_ORIGIN}${path}`;
 
@@ -25,6 +25,20 @@ function page(path: string, links: readonly string[] = [], depth = 0): FixturePa
     html:
       `<!doctype html><html lang="en"><head><title>Page ${path}</title></head>` +
       `<body><h1>Page ${path}</h1>${anchors}</body></html>`,
+  };
+}
+
+/** Тот же снимок, отданный по адресу `path` и уехавший редиректом на `finalPath`. */
+function redirected(
+  path: string,
+  finalPath: string,
+  links: readonly string[] = [],
+  depth = 1,
+): FixturePageInput {
+  return {
+    ...page(path, links, depth),
+    finalPath,
+    redirectChain: [{ url: url(path), status: 301, location: url(finalPath) }],
   };
 }
 
@@ -483,6 +497,121 @@ describe('SEO-TECH-011 слабо связанные страницы', () => {
     expect(run.inputTargets).toEqual([url('/'), url('/weak.html'), url('/hub.html')]);
     expect(run.applicableTargets).toBe(2);
     expect(run.affectedTargets).toBe(1);
+  });
+});
+
+describe('документ под двумя адресами — одна страница, а не две', () => {
+  // Так выглядит обычный сайт, а не редкость: sitemap перечисляет `/p/`,
+  // навигация ссылается на `/p`. В `seen` краулера лежит только адрес из
+  // sitemap, поэтому ссылку он ставит в очередь и получает через 301 второй
+  // снимок той же страницы.
+
+  it('ссылка с обоих адресов одного документа — один источник, а не два', () => {
+    const ctx = siteContext({
+      sitemapUrls: [url('/p/'), url('/q')],
+      pages: [
+        page('/', ['/p']),
+        redirected('/p', '/p/', ['/q']),
+        page('/p/', ['/q'], 1),
+        page('/q', [], 2),
+      ],
+    });
+    expect(linkGraphGap(ctx)).toBeNull();
+    // /q держит ровно одна страница — та, что обход прочитал дважды.
+    expect(paths(runSeoRule('SEO-TECH-011', ctx))).toEqual(['/p/', '/q']);
+    const weak = single(
+      runSeoRule('SEO-TECH-011', ctx).filter((candidate) => candidate.normalizedUrl === url('/q')),
+    );
+    expect(weak.evidenceExcerpt).toBe(`Only one crawled page links to this one: ${url('/p/')}`);
+    // Источник назван адресом, по которому страница живёт, — и находка держится
+    // на нём же (§14).
+    expect(weak.dependencyTargets).toEqual([url('/p/')]);
+  });
+
+  it('ссылка страницы на саму себя вторым своим адресом источником не становится', () => {
+    // /p/ ссылается только на /p, который 301 ведёт назад на /p/. Ссылок на эту
+    // страницу нет ни одной: это orphan, а не «страница с одной ссылкой».
+    const ctx = siteContext({
+      sitemapUrls: [url('/p/')],
+      pages: [
+        page('/', ['/other']),
+        page('/other', [], 1),
+        page('/p/', ['/p'], 1),
+        redirected('/p', '/p/', ['/p'], 2),
+      ],
+    });
+    expect(linkGraphGap(ctx)).toBeNull();
+    expect(paths(runSeoRule('SEO-TECH-009', ctx))).toEqual(['/p/']);
+    expect(paths(runSeoRule('SEO-TECH-011', ctx))).toEqual(['/other']);
+  });
+
+  it('страница, на которую ссылаются только редиректящим адресом, всё равно судится', () => {
+    // Sitemap-а нет, вся навигация написана как /about, сервер уводит на
+    // /about/. Своего снимка у /about/ не будет никогда (markFinalUrlSeen),
+    // поэтому единственный снимок судится под адресом назначения.
+    const ctx = siteContext({
+      pages: [page('/', ['/about']), redirected('/about', '/about/', ['/'])],
+    });
+    const finding = single(runSeoRule('SEO-TECH-011', ctx));
+    expect(finding.normalizedUrl).toBe(url('/about'));
+    expect(finding.targetUrl).toBe(url('/about/'));
+    expect(finding.evidenceExcerpt).toBe(`Only one crawled page links to this one: ${url('/')}`);
+  });
+
+  it('два адреса, ведущие на одну непрочитанную страницу, дают один вердикт', () => {
+    const ctx = siteContext({
+      pages: [
+        page('/', ['/about', '/about.html']),
+        redirected('/about', '/about/'),
+        redirected('/about.html', '/about/'),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-TECH-011', ctx))).toEqual(['/about']);
+    expect(evaluation('SEO-TECH-011', ctx).applicableTargets).toBe(1);
+  });
+
+  it('когда у адреса назначения есть свой снимок, судит он, а не адрес редиректа', () => {
+    const ctx = siteContext({
+      pages: [
+        page('/', ['/about', '/about/']),
+        redirected('/about', '/about/'),
+        page('/about/', ['/'], 1),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-TECH-011', ctx))).toEqual(['/about/']);
+    expect(evaluation('SEO-TECH-011', ctx).checkedTargets).toEqual([url('/about/')]);
+  });
+});
+
+describe('Not applicable называет свою причину, а не общую фразу', () => {
+  it('обход из одной страницы: судить некого, а не «обход не дочитал»', () => {
+    const ctx = siteContext({ pages: [page('/', [])] });
+    expect(linkGraphGap(ctx)).toBeNull();
+    const weak = evaluation('SEO-TECH-011', ctx);
+    expect(weak.applicableTargets).toBe(0);
+    expect(weak.notApplicableReason).toBe('no-candidates');
+    // Sitemap-а этот обход не читал вовсе — у TECH-009 причина другая.
+    expect(evaluation('SEO-TECH-009', ctx).notApplicableReason).toBe('no-sitemap');
+    // А глубина клика на одной странице считается: точка входа — это глубина 0.
+    expect(evaluation('SEO-TECH-010', ctx).applicableTargets).toBe(1);
+  });
+
+  it('sitemap перечисляет одну точку входа: кандидатов нет, но sitemap прочитан', () => {
+    const ctx = siteContext({ sitemapUrls: [url('/')], pages: [page('/', [])] });
+    const run = evaluation('SEO-TECH-009', ctx);
+    expect(run.applicableTargets).toBe(0);
+    expect(run.notApplicableReason).toBe('no-candidates');
+  });
+
+  it('неполный граф: все три правила называют именно пробел', () => {
+    const ctx = withCrawl(siteWithOrphan(), { skippedOverLimit: [url('/over-limit.html')] });
+    for (const ruleId of ['SEO-TECH-009', 'SEO-TECH-010', 'SEO-TECH-011']) {
+      expect(evaluation(ruleId, ctx).notApplicableReason).toBe('link-graph-gap');
+    }
+  });
+
+  it('у правила с непустым знаменателем причины нет вовсе', () => {
+    expect(evaluation('SEO-TECH-011', siteWithOrphan()).notApplicableReason).toBeUndefined();
   });
 });
 

@@ -8,10 +8,15 @@
 // колонтитул, ссылающийся на `/about`, держит страницу `/about/` наравне с
 // навигацией, которая ссылается на неё напрямую.
 //
-// КАНДИДАТ — СТРАНИЦА, ОТДАННАЯ ПО СВОЕМУ АДРЕСУ. Снимок, уехавший редиректом,
-// судится под адресом назначения, а не под своим (isOwnAddress — тот же фильтр,
-// что у TECH-009): «страницу /about держит одна ссылка» было бы утверждением о
-// редиректе, а не о странице, и считало бы её ссылки дважды.
+// КАНДИДАТ — СТРАНИЦА, А НЕ АДРЕС. Снимок, уехавший редиректом, судится под
+// адресом назначения: «страницу /about держит одна ссылка» было бы утверждением
+// о редиректе, а не о странице. Пока у назначения есть свой снимок, судит он, а
+// адрес редиректа кандидатом не бывает — иначе один документ получил бы вердикт
+// дважды. Но на сайте, где вся навигация написана как `/about`, а сервер уводит
+// на `/about/`, второго снимка не существует вовсе (markFinalUrlSeen), и
+// молчание о такой странице — это молчание о целом классе сайтов. Тогда
+// единственный снимок судится под адресом назначения (isJudgeablePage), и
+// evidence называет именно его: адрес, по которому страница живёт.
 //
 // ТОЧКА ВХОДА ИСКЛЮЧЕНА. К ней приходят по адресу, а не по ссылке, поэтому её
 // входящие ссылки ничего не говорят о доступности: главная с одной ссылкой из
@@ -26,16 +31,20 @@
 // ложное. Partial отвергнут по той же причине: он сделал бы Partial весь скан
 // любого сайта крупнее лимита тарифа.
 
+import type { PageSnapshot } from '@fluxradar/crawler';
+
 import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { RuleFinding, SiteContext, SiteRule, SiteRuleResult } from '../engine/types.js';
-import { NOT_APPLICABLE } from '../engine/types.js';
+import { notApplicable } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
+import { linkGraphGap } from './link-graph-gap.js';
 import {
+  canonicalAddress,
   discoveredTargets,
   entryPageUrls,
-  isOwnAddress,
-  linkGraphGap,
+  isJudgeablePage,
+  linkSourceAddresses,
   linkSourcePages,
   soleInboundSource,
 } from './site-index.js';
@@ -47,13 +56,15 @@ export const seoTech011WeaklyLinkedPages: SiteRule = {
   descriptor,
   evaluateSite(ctx: SiteContext): SiteRuleResult {
     if (linkGraphGap(ctx) !== null) {
-      return NOT_APPLICABLE;
+      return notApplicable('link-graph-gap');
     }
-    const sources = linkSourcePages(ctx.crawl);
-    const entry = entryPageUrls(ctx);
-    const candidates = sources
-      .filter((page) => !entry.has(page.normalizedUrl) && isOwnAddress(page, ctx.crawl))
-      .sort((left, right) => left.normalizedUrl.localeCompare(right.normalizedUrl));
+    const candidates = judgeablePages(ctx);
+    if (candidates.length === 0) {
+      // Обход, прочитавший одну только точку входа, граф не потерял: судить о
+      // входящих ссылках здесь просто некого, и сказать «обход не дочитал
+      // страницы» значило бы приписать прогону незаконченность.
+      return notApplicable('no-candidates');
+    }
     const findings = candidates.flatMap((page): readonly RuleFinding[] => {
       // Единственный источник и есть проверка: «ровно одна ссылка» и названная в
       // evidence страница приходят из одного вызова и разойтись не могут.
@@ -79,11 +90,38 @@ export const seoTech011WeaklyLinkedPages: SiteRule = {
       affectedTargets: findings.length,
       checkedTargets: candidates.map((page) => page.normalizedUrl),
       // Вердикт о странице выносят ссылки ДРУГИХ страниц обхода, поэтому входы —
-      // весь набор прочитанных страниц (§14, RuleEvaluation.inputTargets).
-      inputTargets: sources.map((page) => page.normalizedUrl),
+      // весь набор прочитанных страниц под адресами документов: под тем же
+      // именем, каким находка называет свой единственный источник (§14,
+      // RuleEvaluation.inputTargets).
+      inputTargets: linkSourceAddresses(ctx.crawl),
       // Спрос — всё, что обход увидел: исчезнувшая из него страница сайтом
       // больше не упоминается, и её потеря не замораживает находку.
       requestedInputs: discoveredTargets(ctx.crawl),
     };
   },
 };
+
+/**
+ * Страницы, о которых правило судит: прочитанный HTML, кроме точки входа и
+ * кроме адресов, у которых есть собственный снимок назначения.
+ *
+ * Два запрошенных адреса могут вести на один и тот же непрочитанный отдельно
+ * документ (`/about` и `/about.html` → `/about/`). Вердикт он получает один:
+ * иначе одна страница пришла бы в отчёт дважды под разными именами. Порядок —
+ * по normalizedUrl, чтобы набор findings не зависел от порядка очереди обхода.
+ */
+function judgeablePages(ctx: SiteContext): readonly PageSnapshot[] {
+  const entry = entryPageUrls(ctx);
+  const judged = new Set<string>();
+  return linkSourcePages(ctx.crawl)
+    .filter((page) => isJudgeablePage(page, ctx.crawl))
+    .sort((left, right) => left.normalizedUrl.localeCompare(right.normalizedUrl))
+    .filter((page) => {
+      const address = canonicalAddress(ctx.crawl, page.normalizedUrl);
+      if (entry.has(page.normalizedUrl) || entry.has(address) || judged.has(address)) {
+        return false;
+      }
+      judged.add(address);
+      return true;
+    });
+}

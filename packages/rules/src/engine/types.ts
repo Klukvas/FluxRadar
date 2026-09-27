@@ -11,6 +11,23 @@ import type { FindingMessages } from '../messages/catalog.js';
 export const RULE_VARIANT_V1 = 'v1';
 export type RuleVariant = typeof RULE_VARIANT_V1;
 
+/**
+ * Почему у правила не нашлось ни одной цели.
+ *
+ * Код, а не готовая фраза: отчёт печатает её на языке читателя. Без кода отчёт
+ * вынужден угадывать причину по ruleId — и «обход не дочитал страницы» читается
+ * одинаково и на усечённом обходе, и на сайте из одной страницы, где обход
+ * дочитал всё. Правило причину знает; угадывать её в UI — значит писать
+ * читателю то, чего не было.
+ */
+export type NotApplicableReason =
+  /** Граф внутренних ссылок неполон: любой вердикт о входящих ссылках был бы ложным. */
+  | 'link-graph-gap'
+  /** Sitemap не прочитан: правилу, судящему его страницы, не из чего брать кандидатов. */
+  | 'no-sitemap'
+  /** Обход не оставил ни одной цели, о которой это правило вправе судить. */
+  | 'no-candidates';
+
 /** Метод API-проверки: allowlist §9 (Reliability contract v1). */
 export const API_CHECK_METHODS = ['GET', 'HEAD', 'OPTIONS'] as const;
 export type ApiCheckMethod = (typeof API_CHECK_METHODS)[number];
@@ -164,6 +181,11 @@ export interface RuleEvaluation {
    * спрашивают» доказать нечем и любой пропавший вход блокирует Resolved.
    */
   readonly requestedInputs: readonly string[] | undefined;
+  /**
+   * Почему целей не нашлось. Есть только при applicableTargets = 0 и только у
+   * правил, которые причину назвали (NotApplicableReason).
+   */
+  readonly notApplicableReason?: NotApplicableReason;
 }
 
 /**
@@ -190,6 +212,14 @@ export interface PageRule {
    * Объявляется вместе с inputTargets и обязан быть его надмножеством.
    */
   requestedInputs?(ctx: SiteContext): readonly string[];
+  /**
+   * Почему у правила может не оказаться ни одной применимой страницы.
+   *
+   * Объявляют правила, чей знаменатель зависит не только от снимка
+   * (SEO-TECH-010 — от целости графа ссылок): движок запишет причину, только
+   * если applicable-набор действительно пуст.
+   */
+  notApplicableReason?(ctx: SiteContext): NotApplicableReason | undefined;
 }
 
 export interface SiteRuleResult {
@@ -231,6 +261,11 @@ export interface SiteRuleResult {
    * full coverage.
    */
   readonly completedTargets?: number;
+  /**
+   * Почему целей не нашлось (NotApplicableReason). Осмысленно только при
+   * applicableTargets = 0 — движок записывает причину лишь тогда.
+   */
+  readonly notApplicableReason?: NotApplicableReason;
 }
 
 /**
@@ -263,14 +298,19 @@ export type Rule = PageRule | SiteRule | ApiRule;
  * Пустой результат site-правила: ни одного кандидата и ни одного доказательства.
  *
  * Читается в отчёте как «эта проверка к прогону не применялась» (ModuleChecks,
- * notApplicableReasons), а не как «проблем нет», и это разные утверждения.
+ * notApplicableReasons), а не как «проблем нет», и это разные утверждения. А
+ * какое именно — говорит причина: она и отличает усечённый обход от сайта, на
+ * котором правилу просто нечего судить.
  */
-export const NOT_APPLICABLE: SiteRuleResult = {
-  findings: [],
-  applicableTargets: 0,
-  affectedTargets: 0,
-  checkedTargets: [],
-};
+export function notApplicable(reason: NotApplicableReason): SiteRuleResult {
+  return {
+    findings: [],
+    applicableTargets: 0,
+    affectedTargets: 0,
+    checkedTargets: [],
+    notApplicableReason: reason,
+  };
+}
 
 /** Applicable target по умолчанию: финальный 2xx и HTML-тело (T-08). */
 export function isSuccessfulHtmlPage(page: PageSnapshot): boolean {

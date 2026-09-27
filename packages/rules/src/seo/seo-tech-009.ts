@@ -19,7 +19,10 @@
 // нашедший sitemap, не знает ни одной страницы, о которой владелец заявил
 // отдельно от ссылок. Молчание с applicable = 0 читается в отчёте как «эта
 // проверка к прогону не применялась» (ModuleChecks, notApplicableReasons), а не
-// как «orphan-страниц нет».
+// как «orphan-страниц нет». Причину правило называет само
+// (NotApplicableReason): «sitemap не прочитан», «в sitemap нечего судить» и
+// «граф ссылок неполон» — три разных факта, и отчёт, угадывающий их по ruleId,
+// говорит читателю о незаконченном обходе там, где обход закончился.
 //
 // ГРАФ ССЫЛОК НЕПОЛОН → тоже Not applicable. Вывод «никто не ссылается»
 // держится на прочитанных ссылках каждой страницы сайта, поэтому при пробеле
@@ -40,15 +43,16 @@
 import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { SiteContext, SiteRule, SiteRuleResult } from '../engine/types.js';
-import { NOT_APPLICABLE } from '../engine/types.js';
+import { notApplicable } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
+import { linkGraphGap } from './link-graph-gap.js';
 import {
   SITEMAP_INPUT,
   discoveredTargets,
   entryPageUrls,
   inboundSourceCount,
-  linkGraphGap,
-  linkSourcePages,
+  linkSourceAddresses,
+  sitemapNormalizedUrls,
   sitemapPages,
 } from './site-index.js';
 
@@ -59,16 +63,25 @@ export const seoTech009OrphanPages: SiteRule = {
   descriptor,
   evaluateSite(ctx: SiteContext): SiteRuleResult {
     if (linkGraphGap(ctx) !== null) {
-      return NOT_APPLICABLE;
+      return notApplicable('link-graph-gap');
     }
     // Точка входа кандидатом не бывает: к ней приходят по адресу, а не по
     // ссылке — и под оба своих адреса, если она уводит редиректом (entryPageUrls).
     const entry = entryPageUrls(ctx);
     const candidates = sitemapPages(ctx.crawl).filter((page) => !entry.has(page.normalizedUrl));
     if (candidates.length === 0) {
-      return NOT_APPLICABLE;
+      // Две разные причины, и отчёт обязан их различать: sitemap не прочитан
+      // вовсе — или прочитан, но не назвал ни одной страницы, о которой это
+      // правило вправе судить (только точка входа, не загрузившиеся URL,
+      // адреса редиректов).
+      return notApplicable(
+        sitemapNormalizedUrls(ctx.crawl).size === 0 ? 'no-sitemap' : 'no-candidates',
+      );
     }
-    const sources = linkSourcePages(ctx.crawl);
+    // Источники считаются документами, а не снимками: `/p` и `/p/` — одна
+    // страница, и «ни одна из N прочитанных» обязана называть то же N, по
+    // которому считались входящие ссылки (linkSourceAddresses).
+    const sources = linkSourceAddresses(ctx.crawl);
     const findings = candidates
       .filter((page) => inboundSourceCount(ctx.crawl, page.normalizedUrl) === 0)
       .map((page) =>
@@ -91,7 +104,7 @@ export const seoTech009OrphanPages: SiteRule = {
       // А смотрело — на ссылки всех прочитанных страниц и на сам факт того, что
       // sitemap был прочитан: без страницы-источника находка исчезает не потому,
       // что ссылку добавили (§14, RuleEvaluation.inputTargets).
-      inputTargets: [...sources.map((page) => page.normalizedUrl), SITEMAP_INPUT],
+      inputTargets: [...sources, SITEMAP_INPUT],
       // Спрашивало — обо всём, что обход вообще увидел: страница, которую сайт
       // больше нигде не упоминает, из спроса исчезает, и это починка, а не
       // потеря данных.
