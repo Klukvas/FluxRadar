@@ -316,6 +316,29 @@ describe('a section card that recorded its checks', () => {
     expect(rows[0]).toHaveTextContent('the inbound links of a page cannot be counted');
   });
 
+  it('names the reason in the reader’s language, not only the check', async () => {
+    // The reason is copy like any other row text: a Ukrainian reader must get
+    // the sentence the rule named, not the English one and not the generic
+    // fallback about the pages read.
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          metadata: {
+            ruleChecks: [seoCheck('SEO-TECH-011', 'слабо пов’язані сторінки', 'no-candidates')],
+          },
+        }),
+      ]),
+      'uk',
+    );
+
+    fireEvent.click(card('SEO'));
+
+    const region = screen.getByRole('region', { name: 'SEO · виконані перевірки' });
+    const [row] = within(region).getAllByRole('listitem');
+    expect(row).toHaveTextContent('Окрім вхідної сторінки, обхід не прочитав жодної сторінки');
+    expect(row).not.toHaveTextContent('На прочитаних сторінках немає нічого');
+  });
+
   it('toggles from its own button too, and says whether the list is open', async () => {
     await openReport(dashboardOf([accessibilityModule()]));
 
