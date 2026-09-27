@@ -1,0 +1,277 @@
+// SEO-ONPAGE-004 (дубль title) и SEO-ONPAGE-006 (дубль meta description):
+// находки, покрытие и текст evidence. Общая механика групп — в
+// shared/duplicate-groups.test.ts, вопросы личности находки — в
+// duplicate-identity.test.ts.
+
+import { describe, expect, it } from 'vitest';
+
+import type { RuleEvaluation, SiteContext } from '../engine/types.js';
+import { runModuleRules } from '../engine/run-module.js';
+import { siteContext, type FixturePageInput } from '../testing/fixture-harness.js';
+import { runSeoRule } from '../testing/fixture-harness.js';
+import { paths, single, url } from '../testing/link-fixtures.js';
+
+/** Страница с заданными title/description и собственным текстом body. */
+function metaPage(options: {
+  readonly path: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly canonical?: string;
+}): FixturePageInput {
+  const head = [
+    options.title === undefined ? '' : `<title>${options.title}</title>`,
+    options.description === undefined
+      ? ''
+      : `<meta name="description" content="${options.description}">`,
+    options.canonical === undefined ? '' : `<link rel="canonical" href="${options.canonical}">`,
+  ].join('');
+  return {
+    path: options.path,
+    html:
+      `<!doctype html><html lang="en"><head>${head}</head>` +
+      `<body><h1>Heading</h1><p>Body text unique to ${options.path}</p></body></html>`,
+  };
+}
+
+function evaluationOf(ruleId: string, ctx: SiteContext): RuleEvaluation {
+  const found = runModuleRules('SEO', ctx).evaluations.find((entry) => entry.ruleId === ruleId);
+  if (found === undefined) {
+    throw new Error(`правило ${ruleId} не прогонялось`);
+  }
+  return found;
+}
+
+describe('SEO-ONPAGE-004 — дубль title', () => {
+  it('обе страницы с одним заголовком получают находку', () => {
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Emergency dental care in Kyiv' }),
+        metaPage({ path: '/b.html', title: 'Emergency dental care in Kyiv' }),
+        metaPage({ path: '/c.html', title: 'Implants in Kyiv' }),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-ONPAGE-004', ctx))).toEqual(['/a.html', '/b.html']);
+  });
+
+  it('evidence называет заголовок, число партнёров и их адреса', () => {
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Shared title of two pages' }),
+        metaPage({ path: '/b.html', title: 'Shared title of two pages' }),
+      ],
+    });
+    const finding = single(
+      runSeoRule('SEO-ONPAGE-004', ctx).filter(
+        (candidate) => candidate.normalizedUrl === url('/a.html'),
+      ),
+    );
+    expect(finding.evidenceExcerpt).toBe(
+      `Other crawled pages with the same title: 1 (${url('/b.html')}); ` +
+        'no <link rel="canonical"> ties this page to any of them. ' +
+        'Title: "Shared title of two pages"',
+    );
+    expect(finding.normalizedSelector).toBe('title');
+    // Находка держится на снимке названной страницы: пропал он — и вердикт
+    // больше ничем не подтверждён, а не починен (§14).
+    expect(finding.dependencyTargets).toEqual([url('/b.html')]);
+  });
+
+  it('evidence большой группы называет три адреса, но полный счёт', () => {
+    const ctx = siteContext({
+      pages: ['/a.html', '/b.html', '/c.html', '/d.html', '/e.html'].map((path) =>
+        metaPage({ path, title: 'One title for the whole catalogue' }),
+      ),
+    });
+    const finding = single(
+      runSeoRule('SEO-ONPAGE-004', ctx).filter(
+        (candidate) => candidate.normalizedUrl === url('/a.html'),
+      ),
+    );
+    expect(finding.evidenceExcerpt).toContain('the same title: 4 (');
+    expect(finding.evidenceExcerpt).toContain(
+      [url('/b.html'), url('/c.html'), url('/d.html')].join(', '),
+    );
+    expect(finding.evidenceExcerpt).not.toContain(url('/e.html'));
+    expect(finding.dependencyTargets).toHaveLength(3);
+  });
+
+  it('canonical на другую страницу группы снимает находку с обоих', () => {
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Shared title of two pages' }),
+        metaPage({
+          path: '/b.html',
+          title: 'Shared title of two pages',
+          canonical: url('/a.html'),
+        }),
+      ],
+    });
+    expect(runSeoRule('SEO-ONPAGE-004', ctx)).toEqual([]);
+    // Проверка при этом прошла на обеих страницах, а не «не применялась».
+    expect(evaluationOf('SEO-ONPAGE-004', ctx).applicableTargets).toBe(2);
+  });
+
+  it('canonical на себя внутри группы находку не снимает', () => {
+    const ctx = siteContext({
+      pages: [
+        metaPage({
+          path: '/a.html',
+          title: 'Shared title of two pages',
+          canonical: url('/a.html'),
+        }),
+        metaPage({
+          path: '/b.html',
+          title: 'Shared title of two pages',
+          canonical: url('/b.html'),
+        }),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-ONPAGE-004', ctx))).toEqual(['/a.html', '/b.html']);
+  });
+
+  it('страница без title находки не даёт — это SEO-ONPAGE-001', () => {
+    const ctx = siteContext({
+      pages: [metaPage({ path: '/a.html' }), metaPage({ path: '/b.html' })],
+    });
+    expect(runSeoRule('SEO-ONPAGE-004', ctx)).toEqual([]);
+    expect(runSeoRule('SEO-ONPAGE-001', ctx)).toHaveLength(2);
+  });
+
+  it('checkedTargets — каждая судимая страница, даже без заголовка', () => {
+    // Инвариант покрытия: страница, названная проверенной, действительно была
+    // судима. Иначе прошлая находка о ней закрылась бы как исправленная (§14).
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Shared title of two pages' }),
+        metaPage({ path: '/b.html', title: 'Shared title of two pages' }),
+        metaPage({ path: '/c.html' }),
+      ],
+    });
+    const evaluation = evaluationOf('SEO-ONPAGE-004', ctx);
+    expect([...evaluation.checkedTargets].toSorted()).toEqual([
+      url('/a.html'),
+      url('/b.html'),
+      url('/c.html'),
+    ]);
+    expect(evaluation.applicableTargets).toBe(3);
+    expect(evaluation.affectedTargets).toBe(2);
+    // Входы — те же страницы: вердикт о каждой выносят заголовки остальных.
+    expect([...evaluation.inputTargets].toSorted()).toEqual([
+      url('/a.html'),
+      url('/b.html'),
+      url('/c.html'),
+    ]);
+  });
+
+  it('одна прочитанная страница → Not applicable с причиной no-candidates', () => {
+    // Сравнивать не с чем — это не «дублей нет». Так выглядит free-проверка
+    // главной и сайт из одной страницы.
+    const ctx = siteContext({ pages: [metaPage({ path: '/only.html', title: 'The only page' })] });
+    const evaluation = evaluationOf('SEO-ONPAGE-004', ctx);
+    expect(evaluation.applicableTargets).toBe(0);
+    expect(evaluation.notApplicableReason).toBe('no-candidates');
+    expect(evaluation.findings).toEqual([]);
+  });
+
+  it('усечённый лимитом обход всё равно отвечает по существу', () => {
+    // Граф ссылок неполон, но дубль двух прочитанных страниц от этого не
+    // перестаёт быть дублем: правило не зависит от полноты графа (в отличие от
+    // SEO-TECH-009/010/011).
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Shared title of two pages' }),
+        metaPage({ path: '/b.html', title: 'Shared title of two pages' }),
+      ],
+      skippedOverLimit: [url('/over-limit.html')],
+    });
+    expect(paths(runSeoRule('SEO-ONPAGE-004', ctx))).toEqual(['/a.html', '/b.html']);
+    expect(runSeoRule('SEO-TECH-011', ctx)).toEqual([]);
+  });
+});
+
+describe('SEO-ONPAGE-006 — дубль meta description', () => {
+  const shared = 'One description reused across the whole catalogue of pages.';
+
+  it('страницы с одним описанием получают находку, разные — нет', () => {
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Page A', description: shared }),
+        metaPage({ path: '/b.html', title: 'Page B', description: shared }),
+        metaPage({ path: '/c.html', title: 'Page C', description: 'Something else entirely.' }),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-ONPAGE-006', ctx))).toEqual(['/a.html', '/b.html']);
+  });
+
+  it('evidence называет описание, счёт и селектор тега', () => {
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Page A', description: shared }),
+        metaPage({ path: '/b.html', title: 'Page B', description: shared }),
+      ],
+    });
+    const finding = single(
+      runSeoRule('SEO-ONPAGE-006', ctx).filter(
+        (candidate) => candidate.normalizedUrl === url('/a.html'),
+      ),
+    );
+    expect(finding.evidenceExcerpt).toBe(
+      `Other crawled pages with the same meta description: 1 (${url('/b.html')}); ` +
+        'no <link rel="canonical"> ties this page to any of them. ' +
+        `Description: "${shared}"`,
+    );
+    expect(finding.normalizedSelector).toBe('meta[name="description"]');
+  });
+
+  it('первый тег description и есть значение страницы', () => {
+    // Два description на странице — её собственная проблема (SEO-ONPAGE-002), а
+    // не совпадение с чужой: правило читает первый, как и 002.
+    const ctx = siteContext({
+      pages: [
+        {
+          path: '/a.html',
+          html:
+            '<!doctype html><html lang="en"><head><title>Page A</title>' +
+            `<meta name="description" content="${shared}">` +
+            '<meta name="description" content="A second, different description tag.">' +
+            '</head><body><h1>A</h1><p>Body of A</p></body></html>',
+        },
+        metaPage({ path: '/b.html', title: 'Page B', description: shared }),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-ONPAGE-006', ctx))).toEqual(['/a.html', '/b.html']);
+  });
+
+  it('страница без description находки не даёт — это SEO-ONPAGE-002', () => {
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Page A' }),
+        metaPage({ path: '/b.html', title: 'Page B' }),
+      ],
+    });
+    expect(runSeoRule('SEO-ONPAGE-006', ctx)).toEqual([]);
+    expect(runSeoRule('SEO-ONPAGE-002', ctx)).toHaveLength(2);
+  });
+
+  it('canonical на другую страницу группы снимает находку', () => {
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Page A', description: shared }),
+        metaPage({
+          path: '/b.html',
+          title: 'Page B',
+          description: shared,
+          canonical: url('/a.html'),
+        }),
+      ],
+    });
+    expect(runSeoRule('SEO-ONPAGE-006', ctx)).toEqual([]);
+  });
+
+  it('одна прочитанная страница → Not applicable с причиной no-candidates', () => {
+    const ctx = siteContext({
+      pages: [metaPage({ path: '/only.html', title: 'The only page', description: shared })],
+    });
+    expect(evaluationOf('SEO-ONPAGE-006', ctx).notApplicableReason).toBe('no-candidates');
+  });
+});

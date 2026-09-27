@@ -33,6 +33,23 @@ function headings(body: string): SiteContext {
   return page('', body);
 }
 
+/**
+ * Три страницы с одним значением, у третьей canonical на первую.
+ *
+ * Ровно одна из них — находка правил дублей: заявившая дубль и названная
+ * канонической молчат обе, и на прогон остаётся один finding, как ждёт эта
+ * таблица.
+ */
+function duplicateTrio(head: string): SiteContext {
+  const body = (path: string): string =>
+    `<!doctype html><html lang="en"><head><title>One title for three pages</title>${head}` +
+    `${path === '/c.html' ? '<link rel="canonical" href="https://fixture.test/a.html">' : ''}` +
+    '</head><body><h1>Shared</h1><p>The very same paragraph on every one of the three pages.</p></body></html>';
+  return siteContext({
+    pages: ['/a.html', '/b.html', '/c.html'].map((path) => ({ path, html: body(path) })),
+  });
+}
+
 function noindexLinkedFrom(hidden: {
   readonly head?: string;
   readonly headers?: Record<string, string>;
@@ -335,6 +352,21 @@ const CASES: readonly MessageCase[] = [
     ctx: () => loadFixtureContext('fx-SEO-ONPAGE-003-positive.html'),
     evidence: 'seo-onpage-003.evidence.level-skip',
     recommendation: 'seo-onpage-003.recommendation',
+  },
+  {
+    name: 'title shared with another page',
+    ruleId: 'SEO-ONPAGE-004',
+    ctx: () => duplicateTrio(''),
+    evidence: 'seo-onpage-004.evidence',
+    recommendation: 'seo-onpage-004.recommendation',
+  },
+  {
+    name: 'meta description shared with another page',
+    ruleId: 'SEO-ONPAGE-006',
+    ctx: () =>
+      duplicateTrio('<meta name="description" content="One description for three pages.">'),
+    evidence: 'seo-onpage-006.evidence',
+    recommendation: 'seo-onpage-006.recommendation',
   },
   {
     name: 'images without alt',
