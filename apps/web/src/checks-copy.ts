@@ -18,6 +18,7 @@ export type ChecksSectionId =
   | 'security'
   | 'accessibility'
   | 'reliability'
+  | 'content'
   | 'privacy'
   | 'evidence'
   | 'limits';
@@ -30,6 +31,7 @@ const SECTION_ORDER: readonly ChecksSectionId[] = [
   'security',
   'accessibility',
   'reliability',
+  'content',
   'privacy',
   'evidence',
   'limits',
@@ -122,16 +124,16 @@ export const checksCopyEn: ChecksCopy = {
       label: '01 / SEO VISIBILITY',
       title: 'SEO — what FluxRadar checks',
       intro: [
-        'The SEO module runs up to **19 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
+        'The SEO module runs up to **21 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
       ],
       bullets: [
         {
           term: 'Title tag',
-          body: 'presence, character length (≤ 60 chars recommended), uniqueness across crawled pages.',
+          body: 'presence, character length (≤ 60 chars recommended), and uniqueness across crawled pages: a title another crawled page already uses is reported unless a `<link rel="canonical">` ties the two together.',
         },
         {
           term: 'Meta description',
-          body: 'presence and recommended length window (120–158 chars).',
+          body: 'presence, recommended length window (120–158 chars), and uniqueness across crawled pages, judged the same way as the title.',
         },
         {
           term: 'Heading hierarchy',
@@ -335,9 +337,32 @@ export const checksCopyEn: ChecksCopy = {
       ],
       outro: [],
     },
+    content: {
+      nav: 'Content quality',
+      label: '06 / CONTENT QUALITY',
+      title: 'Content quality — what FluxRadar checks',
+      intro: [
+        'The Content Quality module reads the text and media the page already serves. It judges what is measurably there — how much text, whether the media loads, whether another crawled page carries the same text — and never how good the writing is.',
+      ],
+      bullets: [
+        {
+          term: 'Duplicate page content',
+          body: 'two crawled pages whose visible text is identical, character for character. A page whose `<link rel="canonical">` points at another page in the group is not reported: naming the canonical version is the fix, and the check passes over both the page that declares it and the page it names. Only exact matches are reported; near-duplicates are not.',
+        },
+        {
+          term: 'Empty or low-value pages',
+          body: 'visible body text under 200 characters, counted with script and style content excluded.',
+        },
+        {
+          term: 'Broken images and media',
+          body: 'referenced images, video and audio the crawl actually probed and found unreachable, returning an HTTP error, or answering with an HTML page instead of a file. Media the crawl never reached is not counted against the page.',
+        },
+      ],
+      outro: [],
+    },
     privacy: {
       nav: 'Privacy & consent',
-      label: '06 / PRIVACY & CONSENT',
+      label: '07 / PRIVACY & CONSENT',
       title: 'Privacy and consent signals',
       intro: [
         'FluxRadar reads publicly visible consent and tracking signals. It does not install tracking code, set cookies on behalf of the target site, or interact with third-party consent infrastructure beyond reading what is embedded in the page.',
@@ -368,7 +393,7 @@ export const checksCopyEn: ChecksCopy = {
     },
     evidence: {
       nav: 'Evidence',
-      label: '07 / EVIDENCE',
+      label: '08 / EVIDENCE',
       title: 'How findings are evidenced',
       intro: ['Every issue in the Issue Center includes:'],
       bullets: [
@@ -390,7 +415,7 @@ export const checksCopyEn: ChecksCopy = {
     },
     limits: {
       nav: 'What we cannot certify',
-      label: '08 / LIMITATIONS',
+      label: '09 / LIMITATIONS',
       title: 'What FluxRadar cannot certify',
       intro: ['FluxRadar is a public-signal audit tool. There are important things it cannot do:'],
       bullets: [
@@ -463,16 +488,16 @@ export const checksCopyUk: ChecksCopy = {
       label: '01 / ВИДИМІСТЬ У ПОШУКУ',
       title: 'SEO — що перевіряє FluxRadar',
       intro: [
-        'Модуль SEO виконує до **19 детермінованих перевірок**, складених за документованими рекомендаціями пошукових систем (Google Search Central, Bing Webmaster Guidelines, schema.org). Усі перевірки засновані на правилах; жодного висновку моделі тут немає.',
+        'Модуль SEO виконує до **21 детермінованої перевірки**, складеної за документованими рекомендаціями пошукових систем (Google Search Central, Bing Webmaster Guidelines, schema.org). Усі перевірки засновані на правилах; жодного висновку моделі тут немає.',
       ],
       bullets: [
         {
           term: 'Тег title',
-          body: 'наявність, довжина (рекомендовано ≤ 60 символів), унікальність серед обійдених сторінок.',
+          body: 'наявність, довжина (рекомендовано ≤ 60 символів) та унікальність серед обійдених сторінок: заголовок, який уже має інша обійдена сторінка, потрапляє у звіт, якщо `<link rel="canonical">` не пов’язує ці сторінки між собою.',
         },
         {
           term: 'Meta description',
-          body: 'наявність і рекомендований діапазон довжини (120–158 символів).',
+          body: 'наявність, рекомендований діапазон довжини (120–158 символів) та унікальність серед обійдених сторінок — за тим самим правилом, що й title.',
         },
         {
           term: 'Ієрархія заголовків',
@@ -682,9 +707,32 @@ export const checksCopyUk: ChecksCopy = {
       ],
       outro: [],
     },
+    content: {
+      nav: 'Якість контенту',
+      label: '06 / ЯКІСТЬ КОНТЕНТУ',
+      title: 'Якість контенту — що перевіряє FluxRadar',
+      intro: [
+        'Модуль якості контенту читає текст і медіа, які сторінка вже віддає. Він судить те, що можна виміряти — скільки тексту, чи завантажується медіа, чи не несе той самий текст інша обійдена сторінка, — і ніколи не оцінює, добре чи погано написано.',
+      ],
+      bullets: [
+        {
+          term: 'Дубльований зміст сторінки',
+          body: 'дві обійдені сторінки, чий видимий текст збігається знак у знак. Сторінка, чий `<link rel="canonical">` вказує на іншу сторінку групи, у звіт не потрапляє: назвати канонічну версію і є розв’язанням, тому перевірка мовчить і про сторінку, яка це заявила, і про ту, яку вона назвала. Повідомляються лише точні збіги, майже-дублікати — ні.',
+        },
+        {
+          term: 'Порожні та малозмістовні сторінки',
+          body: 'видимий текст body коротший за 200 символів; вміст script і style не враховується.',
+        },
+        {
+          term: 'Биті зображення та медіа',
+          body: 'зображення, відео й аудіо, які обхід справді перевірив і застав недоступними, з помилкою HTTP або з HTML-сторінкою замість файла. Медіа, до якого обхід не дійшов, сторінці не зараховується.',
+        },
+      ],
+      outro: [],
+    },
     privacy: {
       nav: 'Приватність і згода',
-      label: '06 / ПРИВАТНІСТЬ І ЗГОДА',
+      label: '07 / ПРИВАТНІСТЬ І ЗГОДА',
       title: 'Сигнали приватності та згоди',
       intro: [
         'FluxRadar читає публічно видимі сигнали згоди та відстеження. Він не встановлює код відстеження, не ставить cookie від імені перевіреного сайту й не взаємодіє зі сторонньою інфраструктурою згоди поза читанням того, що вбудовано у сторінку.',
@@ -715,7 +763,7 @@ export const checksCopyUk: ChecksCopy = {
     },
     evidence: {
       nav: 'Докази',
-      label: '07 / ДОКАЗИ',
+      label: '08 / ДОКАЗИ',
       title: 'Як підтверджується кожна знахідка',
       intro: ['Кожна проблема в Issue Center містить:'],
       bullets: [
@@ -740,7 +788,7 @@ export const checksCopyUk: ChecksCopy = {
     },
     limits: {
       nav: 'Чого ми не сертифікуємо',
-      label: '08 / ОБМЕЖЕННЯ',
+      label: '09 / ОБМЕЖЕННЯ',
       title: 'Чого FluxRadar не сертифікує',
       intro: [
         'FluxRadar — інструмент аудиту публічних сигналів. Є важливі речі, яких він робити не може:',

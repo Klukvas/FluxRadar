@@ -308,6 +308,46 @@ describe('a section card that recorded its checks', () => {
     expect(rows[2]).toHaveTextContent('the inbound links of a page cannot be counted');
   });
 
+  it('names why a duplicate check did not apply: there was no second page', async () => {
+    // The three cross-page duplicate checks compare one page against the others
+    // the crawl read. On a one-page crawl "nothing on the pages read matched"
+    // would read as "your titles are unique" — a claim this scan never made.
+    const rows = await seoRows([
+      seoCheck('SEO-ONPAGE-004', 'duplicate title', 'no-candidates'),
+      seoCheck('SEO-ONPAGE-006', 'duplicate meta description', 'no-candidates'),
+    ]);
+
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).toHaveTextContent('Not applicable');
+      expect(row).not.toHaveTextContent('Nothing on the pages read');
+      expect(row).not.toHaveTextContent('did not finish');
+    }
+    expect(rows[0]).toHaveTextContent('no second title to compare it with');
+    expect(rows[1]).toHaveTextContent('no second description to compare it with');
+  });
+
+  it('names the duplicate-content reason in the reader’s language', async () => {
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          module: 'Content Quality',
+          metadata: {
+            ruleChecks: [seoCheck('CONTENT-001', 'дубль змісту сторінки', 'no-candidates')],
+          },
+        }),
+      ]),
+      'uk',
+    );
+
+    fireEvent.click(card('Content Quality'));
+
+    const region = screen.getByRole('region', { name: 'Content Quality · виконані перевірки' });
+    const [row] = within(region).getAllByRole('listitem');
+    expect(row).toHaveTextContent('Обхід прочитав лише одну сторінку');
+    expect(row).not.toHaveTextContent('На прочитаних сторінках немає нічого');
+  });
+
   it('falls back to the rule sentence for a reason it does not know', async () => {
     const rows = await seoRows([
       seoCheck('SEO-TECH-011', 'weakly linked pages', 'from-the-future'),
