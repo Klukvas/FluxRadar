@@ -6,8 +6,8 @@ import type { CrawlResult, CrawlScope } from '@fluxradar/crawler';
 import { isHostInScope, isPathnameAllowedByPatterns } from '@fluxradar/crawler';
 
 import type { SiteContext } from '../engine/types.js';
-import { isSuccessfulHtmlPage } from '../engine/types.js';
-import { crawlKey, pageLinks } from './site-index.js';
+import { hostnameOf } from './crawl-scope.js';
+import { crawlKey, linkSourcePages, pageLinks } from './site-index.js';
 
 /**
  * Почему граф внутренних ссылок этого обхода нельзя считать полным.
@@ -81,24 +81,18 @@ function computeLinkGraphGap(crawl: CrawlResult): LinkGraphGap | null {
   if (originHostname === null) {
     return null;
   }
-  const unreached = crawl.pages
-    .filter(isSuccessfulHtmlPage)
-    .some((page) =>
-      pageLinks(page, crawl).some(
-        (link) =>
-          !accounted.has(link.crawlTarget) &&
-          !isDeliberatelyUncrawled(crawl.scope, originHostname, link.crawlTarget, page.depth + 1),
-      ),
-    );
+  // Ссылки читаются ровно у тех страниц, у которых их читают правила
+  // (linkSourcePages): адрес, на который ссылается чужая страница, уведшая
+  // редиректом за область, обход и не обещал читать — а пробел погасил бы все
+  // три правила на целом сайте.
+  const unreached = linkSourcePages(crawl).some((page) =>
+    pageLinks(page, crawl).some(
+      (link) =>
+        !accounted.has(link.crawlTarget) &&
+        !isDeliberatelyUncrawled(crawl.scope, originHostname, link.crawlTarget, page.depth + 1),
+    ),
+  );
   return unreached ? 'unreached-url' : null;
-}
-
-function hostnameOf(origin: string): string | null {
-  try {
-    return new URL(origin).hostname;
-  } catch {
-    return null;
-  }
 }
 
 /**

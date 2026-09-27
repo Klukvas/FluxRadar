@@ -12,6 +12,7 @@ import type { RuleEvaluation, SiteContext } from '../engine/types.js';
 import type { FixturePageInput } from '../testing/fixture-harness.js';
 import { FIXTURE_ORIGIN, runSeoRule, siteContext } from '../testing/fixture-harness.js';
 import { DEEP_PAGE_MIN_DEPTH } from './seo-tech-010.js';
+import { clickDepthsFromEntry } from './click-depth.js';
 import { linkGraphGap } from './link-graph-gap.js';
 
 const url = (path: string): string => `${FIXTURE_ORIGIN}${path}`;
@@ -612,6 +613,94 @@ describe('Not applicable называет свою причину, а не об�
 
   it('у правила с непустым знаменателем причины нет вовсе', () => {
     expect(evaluation('SEO-TECH-011', siteWithOrphan()).notApplicableReason).toBeUndefined();
+  });
+});
+
+describe('редирект за область обхода не делает чужую страницу страницей сайта', () => {
+  const PARTNER = 'https://partner.example/landing';
+
+  /** Снимок, уехавший редиректом на адрес за областью обхода. */
+  function redirectedOutside(
+    path: string,
+    finalUrl: string,
+    links: readonly string[] = [],
+    depth = 1,
+  ): FixturePageInput {
+    return {
+      ...page(path, links, depth),
+      finalPath: finalUrl,
+      redirectChain: [{ url: url(path), status: 302, location: finalUrl }],
+    };
+  }
+
+  it('снимок чужой страницы кандидатом не бывает и глубины не получает', () => {
+    // /go отвечает 302 на чужой хост, и там лежит 200 HTML. Краулер снимок
+    // сохраняет (redirectChain — evidence TECH-005), но «эту страницу держит
+    // одна ссылка» о ней было бы утверждением о чужом сайте.
+    const ctx = siteContext({
+      sitemapUrls: [url('/team')],
+      pages: [
+        page('/', ['/go', '/team']),
+        redirectedOutside('/go', PARTNER),
+        page('/team', ['/'], 1),
+      ],
+    });
+    expect(linkGraphGap(ctx)).toBeNull();
+
+    expect(paths(runSeoRule('SEO-TECH-011', ctx))).toEqual(['/team']);
+    const weak = evaluation('SEO-TECH-011', ctx);
+    expect(weak.checkedTargets).toEqual([url('/team')]);
+    expect(weak.applicableTargets).toBe(1);
+    // И TECH-010 не даёт ей глубины: судить о навигации владельца по чужой
+    // странице нельзя, поэтому её нет ни в знаменателе, ни в карте глубин.
+    expect(evaluation('SEO-TECH-010', ctx).checkedTargets).toEqual([url('/'), url('/team')]);
+    expect([...clickDepthsFromEntry(ctx).keys()]).toEqual([url('/'), url('/team')]);
+  });
+
+  it('ссылки чужой страницы — не ссылки сайта и не пробел в его графе', () => {
+    // Чужая страница ссылается на адрес сайта, которого обход не видел, и на
+    // /team. Краулер её ссылок не извлекает вовсе (mayUseAsLinkSource): считать
+    // их значило бы и погасить все три правила ложным пробелом, и объявить
+    // /team связанным чужой навигацией.
+    const ctx = siteContext({
+      pages: [
+        page('/', ['/go', '/team']),
+        redirectedOutside('/go', PARTNER, [url('/secret.html'), url('/team')]),
+        page('/team', ['/'], 1),
+      ],
+    });
+    expect(linkGraphGap(ctx)).toBeNull();
+    const weak = single(runSeoRule('SEO-TECH-011', ctx));
+    expect(weak.normalizedUrl).toBe(url('/team'));
+    expect(weak.evidenceExcerpt).toBe(`Only one crawled page links to this one: ${url('/')}`);
+  });
+
+  it('свой поддомен — «чужой» ровно тогда, когда обход по поддоменам не ходит', () => {
+    const blog = 'https://blog.fixture.test/';
+    const site = (includeSubdomains: boolean): SiteContext =>
+      siteContext({
+        scope: { includeSubdomains },
+        pages: [
+          page('/', ['/blog', '/team']),
+          redirectedOutside('/blog', blog),
+          page('/team', ['/'], 1),
+        ],
+      });
+
+    // Профиль по умолчанию — includeSubdomains false, и это самая частая форма
+    // ухода за область: /blog → https://blog.example.com/.
+    const outside = site(false);
+    expect(linkGraphGap(outside)).toBeNull();
+    expect(paths(runSeoRule('SEO-TECH-011', outside))).toEqual(['/team']);
+
+    // Обход, которому поддомены разрешены, читает ту же страницу как свою — и
+    // судит её под адресом, по которому она живёт.
+    const inside = site(true);
+    expect(linkGraphGap(inside)).toBeNull();
+    // Та же страница — своя: обход по поддоменам ходит, и правило её судит
+    // наравне с остальными.
+    expect(evaluation('SEO-TECH-011', inside).applicableTargets).toBe(2);
+    expect(runSeoRule('SEO-TECH-011', inside)).toHaveLength(2);
   });
 });
 

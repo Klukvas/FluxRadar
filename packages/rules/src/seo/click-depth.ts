@@ -5,9 +5,10 @@
 import type { CrawlResult } from '@fluxradar/crawler';
 
 import type { SiteContext } from '../engine/types.js';
-import { isSuccessfulHtmlPage } from '../engine/types.js';
+import { leftCrawlScope } from './crawl-scope.js';
 import {
   entryPageUrls,
+  linkSourcePages,
   pageLinks,
   redirectAliases,
   snapshotByNormalizedUrl,
@@ -28,6 +29,10 @@ const clickDepthCache = new WeakMap<CrawlResult, Map<string, ReadonlyMap<string,
  * (redirectAliases), поэтому переход считается один раз, а не дважды. Страница,
  * до которой от точки входа ссылками не дойти, в карте отсутствует: у неё нет
  * глубины, а не «глубина большая» — это предмет TECH-009, а не TECH-010.
+ *
+ * Снимок, уехавший редиректом за область обхода, глубины не получает и ссылок
+ * не отдаёт (leftCrawlScope): «эта страница в четырёх переходах от вашей
+ * главной» о чужом сайте — утверждение не о навигации владельца, а о чужой.
  */
 export function clickDepthsFromEntry(ctx: SiteContext): ReadonlyMap<string, number> {
   const { crawl } = ctx;
@@ -50,6 +55,7 @@ function breadthFirstDepths(
 ): ReadonlyMap<string, number> {
   const snapshots = snapshotByNormalizedUrl(crawl);
   const aliases = redirectAliases(crawl);
+  const linkSources = new Set(linkSourcePages(crawl).map((page) => page.normalizedUrl));
   const depths = new Map<string, number>();
   const queue: string[] = [];
   for (const entry of entryUrls) {
@@ -62,16 +68,23 @@ function breadthFirstDepths(
   while (head < queue.length) {
     const current = queue[head];
     head += 1;
-    const page = current === undefined ? undefined : snapshots.get(current);
-    const depth = current === undefined ? 0 : (depths.get(current) ?? 0);
-    if (page === undefined || !isSuccessfulHtmlPage(page)) {
-      continue; // непрочитанная страница ссылок не отдаёт — её путей мы не знаем
+    // Ссылки отдаёт только страница самого сайта: непрочитанная не отдаёт их
+    // вовсе, а уехавшая за область обхода — не свои (linkSourcePages).
+    const page =
+      current === undefined || !linkSources.has(current) ? undefined : snapshots.get(current);
+    if (current === undefined || page === undefined) {
+      continue;
     }
+    const depth = depths.get(current) ?? 0;
     // Обе формы адреса проходят по очереди, а не через временный массив на
     // каждую ссылку: снимок у обхода бывает под любой из них, а ссылок на
     // сайте столько же, сколько строк в его разметке.
     const visit = (target: string | undefined): void => {
-      if (target === undefined || depths.has(target) || !snapshots.has(target)) {
+      if (target === undefined || depths.has(target)) {
+        return;
+      }
+      const snapshot = snapshots.get(target);
+      if (snapshot === undefined || leftCrawlScope(snapshot, crawl)) {
         return;
       }
       depths.set(target, depth + 1);

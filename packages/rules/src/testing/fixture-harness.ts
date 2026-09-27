@@ -32,6 +32,13 @@ const FixturePageSchema = z.object({
   html: z.string().nullable().default(null),
   headers: z.record(z.string(), z.string()).default({}),
   redirectChain: z.array(RedirectHopSchema).default([]),
+  /**
+   * Куда снимок уехал редиректом: путь того же сайта или абсолютный URL.
+   *
+   * Абсолютный нужен там, где редирект уводит за область обхода (чужой хост,
+   * свой поддомен при includeSubdomains = false): краулер такой ответ проходит и
+   * снимок сохраняет, а правила обязаны не считать его страницей сайта.
+   */
   finalPath: z.string().optional(),
   fetchError: z.string().optional(),
   timingMs: z.number().int().min(0).default(5),
@@ -200,7 +207,7 @@ function toResourceSnapshot(origin: string, resource: FixtureResource): Resource
 
 function toSnapshot(origin: string, page: FixturePage): PageSnapshot {
   const requestedUrl = `${origin}${page.path}`;
-  const finalUrl = `${origin}${page.finalPath ?? page.path}`;
+  const finalUrl = new URL(page.finalPath ?? page.path, origin).href;
   const failed = page.fetchError !== undefined;
   return {
     requestedUrl,

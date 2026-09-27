@@ -15,6 +15,7 @@ import { normalizeUrl } from '@fluxradar/fingerprint';
 
 import type { SiteContext } from '../engine/types.js';
 import { hasHttpResponse, isSuccessfulHtmlPage } from '../engine/types.js';
+import { leftCrawlScope } from './crawl-scope.js';
 import { parsePage } from './dom.js';
 
 export interface PageLink {
@@ -130,6 +131,11 @@ export function redirectAliases(crawl: CrawlResult): ReadonlyMap<string, string>
  * `/p/`) и получает второй снимок через 301. Без приведения обоих концов такой
  * документ считался бы двумя разными источниками ссылки, а собственный адрес
  * страницы — ссылкой на неё саму.
+ *
+ * Один переход, а не цепочка: finalUrl снимка — уже конец цепочки редиректов
+ * (safe-fetch проходит её целиком), поэтому у адреса назначения своего
+ * назначения не бывает. Итерация здесь добавила бы только шанс зациклиться на
+ * ручной фикстуре, которой обход соответствовать не обязан.
  */
 export function canonicalAddress(crawl: CrawlResult, url: string): string {
   return redirectAliases(crawl).get(url) ?? url;
@@ -144,6 +150,9 @@ const linkSourcesCache = new WeakMap<CrawlResult, ReadonlyMap<string, ReadonlySe
  * ссылка засчитывается ровно один раз: для вопроса «сколько ссылок держит
  * страницу» `/p` и `/p/` — один документ, и спросить о нём вправе как правило,
  * судящее адрес из sitemap, так и правило, судящее прочитанный снимок.
+ *
+ * Источники — ровно linkSourcePages: страница, уехавшая редиректом за область
+ * обхода, ссылок сайту не даёт, потому что и краулер их с неё не берёт.
  */
 export function internalLinkSources(crawl: CrawlResult): ReadonlyMap<string, ReadonlySet<string>> {
   const cached = linkSourcesCache.get(crawl);
@@ -159,7 +168,7 @@ export function internalLinkSources(crawl: CrawlResult): ReadonlyMap<string, Rea
     }
     existing.add(source);
   };
-  for (const page of crawl.pages.filter(isSuccessfulHtmlPage)) {
+  for (const page of linkSourcePages(crawl)) {
     const source = canonicalAddress(crawl, page.normalizedUrl);
     for (const link of pageLinks(page, crawl)) {
       credit(canonicalAddress(crawl, link.crawlTarget), source);
@@ -318,6 +327,10 @@ export function entryPageUrls(ctx: SiteContext): ReadonlySet<string> {
  * нём «sitemap перечисляет /about/» было бы неправдой: sitemap перечисляет
  * /about, а это уже находка SEO-TECH-005.
  *
+ * Отсюда же следует, что у кандидата TECH-009 canonicalAddress всегда равен его
+ * собственному адресу: судить под адресом назначения тут нечего, и раздвоить
+ * личность находки между прогонами (как это было у TECH-011) невозможно.
+ *
  * Порядок — по normalizedUrl, чтобы набор findings не зависел от порядка
  * очереди обхода.
  */
@@ -346,23 +359,45 @@ export function isOwnAddress(page: PageSnapshot, crawl: CrawlResult): boolean {
  * судить о целом классе сайтов. Поэтому он судится под адресом назначения — и
  * только пока своего снимка у назначения нет: иначе один документ получил бы
  * вердикт дважды.
+ *
+ * И только пока назначение лежит В ОБЛАСТИ обхода: редирект на чужой хост
+ * оставляет снимок чужой страницы (leftCrawlScope), а «страницу держит одна
+ * ссылка» о ней было бы утверждением о чужом сайте.
  */
 export function isJudgeablePage(page: PageSnapshot, crawl: CrawlResult): boolean {
-  if (!isSuccessfulHtmlPage(page)) {
+  if (!isSuccessfulHtmlPage(page) || leftCrawlScope(page, crawl)) {
     return false;
   }
   const alias = redirectAliases(crawl).get(page.normalizedUrl);
   return alias === undefined || !snapshotByNormalizedUrl(crawl).has(alias);
 }
 
+const linkSourcePagesCache = new WeakMap<CrawlResult, readonly PageSnapshot[]>();
+
 /**
  * Страницы обхода, чьи ссылки правило прочитало (и на которых строит вердикт).
  *
  * Это же множество — вход internalLinkSources, поэтому оба правила графа
  * называют входами ровно его.
+ *
+ * Страница, уехавшая редиректом за область обхода, источником не считается:
+ * краулер её ссылок не извлекает (mayUseAsLinkSource), и правило, читающее их
+ * как ссылки сайта, приписало бы сайту чужую навигацию — а заодно объявило бы
+ * пробелом в графе каждый адрес, на который чужая страница ссылается.
+ *
+ * Кэш на обход: набор спрашивают и на каждую страницу (inputTargets TECH-010),
+ * и на каждую цель ссылки, а фильтр разбирает finalUrl каждого снимка.
  */
 export function linkSourcePages(crawl: CrawlResult): readonly PageSnapshot[] {
-  return crawl.pages.filter((page) => isSuccessfulHtmlPage(page));
+  const cached = linkSourcePagesCache.get(crawl);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const pages = crawl.pages.filter(
+    (page) => isSuccessfulHtmlPage(page) && !leftCrawlScope(page, crawl),
+  );
+  linkSourcePagesCache.set(crawl, pages);
+  return pages;
 }
 
 /**

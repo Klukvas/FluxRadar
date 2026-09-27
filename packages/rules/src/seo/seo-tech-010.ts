@@ -15,6 +15,12 @@
 // не «глубина большая». Это предмет SEO-TECH-009 (страница, на которую не ведёт
 // ни одна ссылка), и называть её «в N переходах» правило не вправе.
 //
+// СНИМОК, УЕХАВШИЙ ЗА ОБЛАСТЬ ОБХОДА, КАНДИДАТОМ НЕ БЫВАЕТ. Редирект на чужой
+// хост краулер проходит и снимок сохраняет (evidence SEO-TECH-005), но «эта
+// страница в четырёх переходах от вашей главной» о ней — утверждение о чужой
+// навигации, а не о навигации владельца. Поэтому знаменатель правила —
+// isJudgeablePage, а не всякий прочитанный HTML (leftCrawlScope).
+//
 // ГРАФ ССЫЛОК НЕПОЛОН → Not applicable, как у TECH-009/011 (см. их шапки).
 // Непрочитанная страница может СКРЫТЬ короткий путь: сайт home → /nav (таймаут)
 // → /x, где /x доступна ещё и через четыре других перехода, дал бы «/x в 4
@@ -30,11 +36,10 @@ import type { PageSnapshot } from '@fluxradar/crawler';
 import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
 import type { NotApplicableReason, PageRule, RuleFinding, SiteContext } from '../engine/types.js';
-import { isSuccessfulHtmlPage } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
 import { clickDepthsFromEntry } from './click-depth.js';
 import { linkGraphGap } from './link-graph-gap.js';
-import { discoveredTargets, linkSourceAddresses } from './site-index.js';
+import { discoveredTargets, isJudgeablePage, linkSourceAddresses } from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-010');
 
@@ -51,7 +56,7 @@ export const seoTech010DeepPages: PageRule = {
   kind: 'page',
   descriptor,
   isApplicable: (page: PageSnapshot, ctx: SiteContext): boolean =>
-    isSuccessfulHtmlPage(page) && linkGraphGap(ctx) === null,
+    isJudgeablePage(page, ctx.crawl) && linkGraphGap(ctx) === null,
   // Вердикт о странице выносят ссылки ДРУГИХ страниц обхода: путь к ней
   // складывается из них, и выпавшая из обхода страница-источник делает путь
   // неизвестным, а не длинным (§14, RuleEvaluation.inputTargets).
