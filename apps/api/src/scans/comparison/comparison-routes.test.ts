@@ -9,7 +9,12 @@
 
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { COMPARISON_SAMPLE_LIMIT, scanComparisonSchema } from '@fluxradar/contracts';
+import {
+  COMPARISON_SAMPLE_LIMIT,
+  scanComparisonSchema,
+  type ReadableComparedScan,
+  type ScanComparison,
+} from '@fluxradar/contracts';
 
 import { createApp } from '../../index.ts';
 import { PURCHASE_STATUSES } from '../../billing/constants.ts';
@@ -89,6 +94,21 @@ describe('comparing a report with the previous scan', () => {
       .get(`/scans/${scanId}/comparison`)
       .set('Cookie', owner.cookie);
     return response;
+  }
+
+  /**
+   * The previous scan with the figures of its own report.
+   *
+   * Only a readable previous report carries them: when its payment was reversed,
+   * `previous` is identity alone, so reading a page count off it has to be a
+   * statement that this comparison is not that case.
+   */
+  function readablePrevious(parsed: ScanComparison): ReadableComparedScan {
+    const previous = parsed.previous;
+    if (previous === null || !previous.readable) {
+      throw new Error('this comparison has no readable previous scan');
+    }
+    return previous;
   }
 
   it('refuses the comparison on a plan that carries no finding history', async () => {
@@ -246,7 +266,7 @@ describe('comparing a report with the previous scan', () => {
     const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
 
     expect(parsed.comparable).toEqual({ ok: false, reason: 'crawl-not-recorded' });
-    expect(parsed.previous?.pagesRead).toBeNull();
+    expect(readablePrevious(parsed).pagesRead).toBeNull();
   });
 
   it('refuses to compare two crawls that were asked for different pages', async () => {
@@ -260,7 +280,7 @@ describe('comparing a report with the previous scan', () => {
     const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
 
     expect(parsed.comparable).toEqual({ ok: false, reason: 'scope-changed' });
-    expect(parsed.previous?.scope.maxPages).toBe(50);
+    expect(readablePrevious(parsed).scope.maxPages).toBe(50);
     expect(parsed.current.scope.maxPages).toBe(500);
   });
 
@@ -273,7 +293,7 @@ describe('comparing a report with the previous scan', () => {
     const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
 
     expect(parsed.comparable).toEqual({ ok: false, reason: 'scope-changed' });
-    expect(parsed.previous?.scope.excludePatterns).toEqual(['/blog']);
+    expect(readablePrevious(parsed).scope.excludePatterns).toEqual(['/blog']);
   });
 
   it('counts findings as new, resolved, reopened and still open, by section and severity', async () => {
@@ -508,6 +528,7 @@ describe('comparing a report with the previous scan', () => {
 
     expect(parsed.comparable).toEqual({ ok: true });
     expect(parsed.issues.new).toBe(1);
+    expect(parsed.issues.firstChecked.known).toBe(true);
     expect(parsed.issues.firstChecked.count).toBe(10);
     expect(parsed.issues.firstChecked.ruleIds).toEqual(['SEO-TECH-011']);
     expect(parsed.issues.firstChecked.byModule).toEqual([{ module: 'SEO', count: 10 }]);
@@ -541,9 +562,12 @@ describe('comparing a report with the previous scan', () => {
     expect(parsed.issues.firstChecked.count).toBe(0);
   });
 
-  it('draws no first-checked conclusion when one scan kept no proof of what it checked', async () => {
-    // "No stored proof" is not "no rule ran": treating it as such would move
-    // every finding of the other scan into the first-checked bucket.
+  it('says rule coverage is unknown when one scan kept no proof of what it checked', async () => {
+    // "No stored proof" is not "no rule ran": treating it as such would move every
+    // finding of the other scan into the first-checked bucket. But the silence is
+    // not free either — the proof is kept for the last two reports of a plan, so
+    // this is the state of every older report, and a bare `count: 0` reads as "no
+    // check was added between these two scans". The flag says which it is.
     const app = makeApp();
     const owner = await signUp(app, 'coverage-unknown@example.com');
     const { secondId } = await twoScans(
@@ -554,6 +578,7 @@ describe('comparing a report with the previous scan', () => {
 
     const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
 
+    expect(parsed.issues.firstChecked.known).toBe(false);
     expect(parsed.issues.new).toBe(1);
     expect(parsed.issues.firstChecked.count).toBe(0);
     expect(parsed.issues.noLongerChecked).toEqual([]);
@@ -742,6 +767,8 @@ describe('comparing a report with the previous scan', () => {
     expect(parsed.pages).toMatchObject({ added: 1, removed: 1, kept: 1 });
     expect(parsed.pages.addedSample).toEqual([`${site}/fresh`]);
     expect(parsed.pages.removedSample).toEqual([`${site}/retired`]);
+    // And the other half the proof answers: which rules each side ran.
+    expect(parsed.issues.firstChecked.known).toBe(true);
   });
 
   it('does not hand one account another account’s comparison', async () => {

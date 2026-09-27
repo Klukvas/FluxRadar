@@ -58,6 +58,9 @@ export function ComparisonPrintBlock(props: {
                   {t.issuesFirstChecked}: {comparison.issues.firstChecked.count}
                 </p>
               )}
+              {/* And told when nobody can make that split at all: on a printed
+                  page an unexplained "12 new" is the claim itself. */}
+              {comparison.issues.firstChecked.known ? null : <p>{t.coverageUnknownNote}</p>}
               {comparison.pages.comparable.ok ? (
                 <p>
                   {t.pagesHeading} — {t.pagesAdded}: {comparison.pages.added} · {t.pagesRemoved}:{' '}

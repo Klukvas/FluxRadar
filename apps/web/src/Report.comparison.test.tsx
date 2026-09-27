@@ -165,7 +165,14 @@ function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
           normalizedUrl: 'https://shop.example/retired',
         },
       ],
-      firstChecked: { count: 0, byModule: [], bySeverity: [], ruleIds: [], sample: [] },
+      firstChecked: {
+        known: true,
+        count: 0,
+        byModule: [],
+        bySeverity: [],
+        ruleIds: [],
+        sample: [],
+      },
       noLongerChecked: [],
     },
     ...overrides,
@@ -469,6 +476,7 @@ describe('the comparison panel', () => {
           ...comparisonOf().issues,
           new: 1,
           firstChecked: {
+            known: true,
             count: 10,
             byModule: [{ module: 'SEO', count: 10 }],
             bySeverity: [{ severity: 'High', count: 10 }],
@@ -495,6 +503,61 @@ describe('the comparison panel', () => {
     expect(
       within(block).getByRole('button', { name: /Show findings · Checked for the first time/ }),
     ).toBeInTheDocument();
+  });
+
+  it('says which checks ran in the previous scan is no longer recorded', async () => {
+    // The proof is kept for the two most recent reports of a plan, so this is the
+    // state of every older one. Without the sentence the panel shows "1 new" and
+    // "0 checked for the first time", which reads as "no check was added since" —
+    // the one thing nobody knows here.
+    await openReport({
+      comparison: comparisonOf({
+        issues: {
+          ...comparisonOf().issues,
+          new: 1,
+          firstChecked: {
+            known: false,
+            count: 0,
+            byModule: [],
+            bySeverity: [],
+            ruleIds: [],
+            sample: [],
+          },
+        },
+      }),
+    });
+
+    const block = await panel(EN_HEADING);
+    expect(
+      within(block).getByText(/no longer recorded, so findings of checks added since/i),
+    ).toBeInTheDocument();
+  });
+
+  it('says the same in Ukrainian, and stays quiet when the coverage is known', async () => {
+    await openReport({
+      language: 'uk',
+      comparison: comparisonOf({
+        issues: {
+          ...comparisonOf().issues,
+          firstChecked: {
+            known: false,
+            count: 0,
+            byModule: [],
+            bySeverity: [],
+            ruleIds: [],
+            sample: [],
+          },
+        },
+      }),
+    });
+
+    const block = await panel(UK_HEADING);
+    expect(within(block).getByText(/більше не зафіксовано/)).toBeInTheDocument();
+
+    cleanup();
+    await openReport({ comparison: comparisonOf() });
+    const known = await panel(EN_HEADING);
+    expect(within(known).queryByText(/no longer recorded/i)).not.toBeInTheDocument();
   });
 
   it('counts a finding the owner settled apart from the ones still open', async () => {

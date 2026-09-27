@@ -97,7 +97,14 @@ function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
       bySeverity: [],
       newSample: [],
       resolvedSample: [],
-      firstChecked: { count: 0, byModule: [], bySeverity: [], ruleIds: [], sample: [] },
+      firstChecked: {
+        known: true,
+        count: 0,
+        byModule: [],
+        bySeverity: [],
+        ruleIds: [],
+        sample: [],
+      },
       noLongerChecked: [],
     },
     ...overrides,
@@ -228,6 +235,32 @@ describe('the printable report and the comparison', () => {
     expect(paths.some((path) => path.includes('/comparison'))).toBe(true);
   });
 
+  it('prints the sentence when nobody knows which checks the previous scan ran', async () => {
+    // A printed "1 new" with no such note is the claim itself, and the reader
+    // cannot expand anything to find out otherwise.
+    stubFetch({
+      dashboard: dashboardOf(),
+      comparison: comparisonOf({
+        issues: {
+          ...comparisonOf().issues,
+          firstChecked: {
+            known: false,
+            count: 0,
+            byModule: [],
+            bySeverity: [],
+            ruleIds: [],
+            sample: [],
+          },
+        },
+      }),
+    });
+    render(<PrintReport scanId="scan-print" language="en" onBack={() => {}} onError={() => {}} />);
+
+    expect(
+      await screen.findByText(/Which checks ran in the previous scan is no longer recorded/i),
+    ).toBeInTheDocument();
+  });
+
   it('prints the settled count and the first-checked findings beside the rest', async () => {
     stubFetch({
       dashboard: dashboardOf(),
@@ -236,6 +269,7 @@ describe('the printable report and the comparison', () => {
           ...comparisonOf().issues,
           settled: 2,
           firstChecked: {
+            known: true,
             count: 4,
             byModule: [{ module: 'SEO', count: 4 }],
             bySeverity: [{ severity: 'High', count: 4 }],

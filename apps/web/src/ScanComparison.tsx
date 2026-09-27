@@ -569,6 +569,14 @@ function Findings(props: { readonly comparison: ScanComparison; readonly languag
         <Stat value={issues.settled} label={t.issuesSettled} />
       </div>
       <p className="muted">{t.resolvedNote}</p>
+      {/* Beside "New", because that is the number it qualifies: with the previous
+          scan's proof gone, a finding of a check that shipped since is counted
+          there instead of under "Checked for the first time". */}
+      {issues.firstChecked.known ? null : (
+        <p className="muted" role="status">
+          {t.coverageUnknownNote}
+        </p>
+      )}
       {issues.settled > 0 ? <p className="muted">{t.settledNote}</p> : null}
       {issues.reopened > 0 ? <p className="muted">{t.reopenedNote}</p> : null}
       {issues.noLongerChecked.length === 0 ? null : (

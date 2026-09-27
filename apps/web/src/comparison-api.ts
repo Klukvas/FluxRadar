@@ -136,6 +136,14 @@ export interface IssueSample {
 
 /** Findings under rules that ran here and not in the previous scan. */
 export interface FirstCheckedFindings {
+  /**
+   * Whether both scans recorded which rules they ran.
+   *
+   * False is not "no new check shipped": the stored proof of one of the two scans
+   * is gone, so findings of rules added since may be sitting in `new`. The panel
+   * says so — a silent zero here reads as the opposite claim.
+   */
+  readonly known: boolean;
   readonly count: number;
   readonly byModule: readonly { readonly module: string; readonly count: number }[];
   readonly bySeverity: readonly { readonly severity: string; readonly count: number }[];
@@ -296,6 +304,7 @@ function isNamedCount(value: unknown, field: 'module' | 'severity'): boolean {
 function isFirstChecked(value: unknown): value is FirstCheckedFindings {
   if (!isRecord(value)) return false;
   return (
+    typeof value.known === 'boolean' &&
     typeof value.count === 'number' &&
     Array.isArray(value.byModule) &&
     value.byModule.every((entry) => isNamedCount(entry, 'module')) &&

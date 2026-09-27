@@ -115,6 +115,7 @@ function comparison(): ScanComparison {
         },
       ],
       firstChecked: {
+        known: true,
         count: 1,
         byModule: [{ module: 'SEO', count: 1 }],
         bySeverity: [{ severity: 'High', count: 1 }],
@@ -169,7 +170,14 @@ describe('scanComparisonSchema', () => {
         bySeverity: [],
         newSample: [],
         resolvedSample: [],
-        firstChecked: { count: 0, byModule: [], bySeverity: [], ruleIds: [], sample: [] },
+        firstChecked: {
+          known: false,
+          count: 0,
+          byModule: [],
+          bySeverity: [],
+          ruleIds: [],
+          sample: [],
+        },
         noLongerChecked: [],
       },
     };
@@ -291,6 +299,16 @@ describe('scanComparisonSchema', () => {
     const withoutFlag: Record<string, unknown> = { ...base.current };
     delete withoutFlag.readable;
     expect(scanComparisonSchema.safeParse({ ...base, current: withoutFlag }).success).toBe(false);
+  });
+
+  it('refuses a first-checked block that does not say whether coverage is known', () => {
+    // A zero count and "nobody recorded which checks ran" are the same zero and
+    // opposite claims about the report, so the flag is not optional.
+    const base = comparison();
+    const firstChecked: Record<string, unknown> = { ...base.issues.firstChecked };
+    delete firstChecked.known;
+    const issues = { ...base.issues, firstChecked };
+    expect(scanComparisonSchema.safeParse({ ...base, issues }).success).toBe(false);
   });
 
   it('bounds the first-checked sample by the same limit as the others', () => {

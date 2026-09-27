@@ -45,6 +45,14 @@ export interface RuleCoverageDelta {
   readonly firstChecked: readonly string[];
   /** Ran before, absent from this scan's proof. */
   readonly noLongerChecked: readonly string[];
+  /**
+   * Whether both sides could answer at all.
+   *
+   * False means the two lists are empty because nobody knows, not because the
+   * rulesets match — and those are opposite statements about the report. It
+   * travels with the delta so the answer cannot be rendered without it.
+   */
+  readonly known: boolean;
 }
 
 export function ruleCoverageDelta(
@@ -54,5 +62,6 @@ export function ruleCoverageDelta(
   return {
     firstChecked: ruleDifference(current, previous),
     noLongerChecked: ruleDifference(previous, current),
+    known: current.known && previous.known,
   };
 }

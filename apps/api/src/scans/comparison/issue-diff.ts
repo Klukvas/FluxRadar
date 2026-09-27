@@ -54,7 +54,7 @@ import {
 } from '@fluxradar/contracts';
 
 import { OPEN_ISSUE_STATUSES } from '../../issues/summary.ts';
-import { ruleCoverageDelta, type CheckedRules } from './checked-rules.ts';
+import { ruleCoverageDelta, type CheckedRules, type RuleCoverageDelta } from './checked-rules.ts';
 
 /** Both scans of the comparison, in the only terms this file needs. */
 export interface IssueDiffScans {
@@ -244,7 +244,15 @@ function declaredOrder(names: readonly string[]): (left: string, right: string) 
 const bySeverityOrder = declaredOrder(SEVERITIES);
 const byModuleOrder = declaredOrder(MODULE_NAMES);
 
+/**
+ * No first-checked findings, and no claim that there are none.
+ *
+ * `known: false` because this constant is used where nothing was read at all —
+ * the two scans do not compare — and "no rule shipped between them" would be a
+ * statement about the ruleset that nobody checked.
+ */
 export const NO_FIRST_CHECKED: FirstCheckedFindings = {
+  known: false,
   count: 0,
   byModule: [],
   bySeverity: [],
@@ -262,16 +270,58 @@ export const NO_ISSUE_COMPARISON: IssueComparison = {
   noLongerChecked: [],
 };
 
-export async function compareIssues(
+/** The four tallies every row of the response is drawn from. */
+interface Tallies {
+  readonly byModule: ReadonlyMap<string, Counts>;
+  readonly bySeverity: ReadonlyMap<string, Counts>;
+  readonly firstCheckedByModule: ReadonlyMap<string, number>;
+  readonly firstCheckedBySeverity: ReadonlyMap<string, number>;
+}
+
+/** One grouped row per (module, severity), as the three queries return them. */
+interface GroupedRows {
+  readonly split: readonly SplitCountsRow[];
+  readonly resolved: readonly CountsRow[];
+  readonly reopened: readonly {
+    readonly module: string;
+    readonly severity: string;
+    readonly _count: { readonly _all: number };
+  }[];
+}
+
+/** Every grouped row folded into the tallies, each bucket kept apart. */
+function tallyRows(rows: GroupedRows): Tallies {
+  const byModule = new Map<string, Counts>();
+  const bySeverity = new Map<string, Counts>();
+  const firstCheckedByModule = new Map<string, number>();
+  const firstCheckedBySeverity = new Map<string, number>();
+  for (const row of rows.split) {
+    const delta = { new: row.newCount, stillOpen: row.stillOpenCount, settled: row.settledCount };
+    addTo(byModule, row.module, delta);
+    addTo(bySeverity, row.severity, delta);
+    if (row.firstCheckedCount > 0) {
+      addOne(firstCheckedByModule, row.module, row.firstCheckedCount);
+      addOne(firstCheckedBySeverity, row.severity, row.firstCheckedCount);
+    }
+  }
+  for (const row of rows.resolved) {
+    addTo(byModule, row.module, { resolved: row.count });
+    addTo(bySeverity, row.severity, { resolved: row.count });
+  }
+  for (const row of rows.reopened) {
+    addTo(byModule, row.module, { reopened: row._count._all });
+    addTo(bySeverity, row.severity, { reopened: row._count._all });
+  }
+  return { byModule, bySeverity, firstCheckedByModule, firstCheckedBySeverity };
+}
+
+/** Every read this comparison makes of the two scans' findings, in one round trip. */
+function readIssueGroups(
   prisma: PrismaClient,
   scans: IssueDiffScans,
-  coverage: IssueDiffCoverage,
-): Promise<IssueComparison> {
-  const { firstChecked: firstCheckedRules, noLongerChecked } = ruleCoverageDelta(
-    coverage.current,
-    coverage.previous,
-  );
-  const [split, resolved, reopened, newest, firstCheckedSample, closed] = await Promise.all([
+  firstCheckedRules: readonly string[],
+) {
+  return Promise.all([
     splitByPresence(prisma, scans, firstCheckedRules),
     resolvedCounts(prisma, scans),
     prisma.issue.groupBy({
@@ -285,56 +335,64 @@ export async function compareIssues(
       : absentSample(prisma, scans, firstCheckedRules, true),
     resolvedSample(prisma, scans),
   ]);
-  const byModule = new Map<string, Counts>();
-  const bySeverity = new Map<string, Counts>();
-  const firstCheckedByModule = new Map<string, number>();
-  const firstCheckedBySeverity = new Map<string, number>();
-  for (const row of split) {
-    const delta = { new: row.newCount, stillOpen: row.stillOpenCount, settled: row.settledCount };
-    addTo(byModule, row.module, delta);
-    addTo(bySeverity, row.severity, delta);
-    if (row.firstCheckedCount > 0) {
-      addOne(firstCheckedByModule, row.module, row.firstCheckedCount);
-      addOne(firstCheckedBySeverity, row.severity, row.firstCheckedCount);
-    }
-  }
-  for (const row of resolved) {
-    addTo(byModule, row.module, { resolved: row.count });
-    addTo(bySeverity, row.severity, { resolved: row.count });
-  }
-  for (const row of reopened) {
-    addTo(byModule, row.module, { reopened: row._count._all });
-    addTo(bySeverity, row.severity, { reopened: row._count._all });
-  }
-  const totals = [...byModule.values()].reduce<Counts>(
+}
+
+/**
+ * The first-checked block, `known` included.
+ *
+ * `known` is not derived from the count: zero findings under new rules and "no
+ * proof survives to say which rules ran" are the same zero and opposite claims,
+ * and the report has to be able to state the second one.
+ */
+function firstCheckedOf(
+  tallies: Tallies,
+  delta: RuleCoverageDelta,
+  sample: readonly IssueSample[],
+): FirstCheckedFindings {
+  return {
+    known: delta.known,
+    count: [...tallies.firstCheckedByModule.values()].reduce((sum, count) => sum + count, 0),
+    byModule: [...tallies.firstCheckedByModule.entries()]
+      .map(([module, count]) => ({ module, count }))
+      .toSorted((left, right) => byModuleOrder(left.module, right.module)),
+    bySeverity: [...tallies.firstCheckedBySeverity.entries()]
+      .map(([severity, count]) => ({ severity, count }))
+      .toSorted((left, right) => bySeverityOrder(left.severity, right.severity)),
+    ruleIds: [...delta.firstChecked],
+    sample: [...sample],
+  };
+}
+
+export async function compareIssues(
+  prisma: PrismaClient,
+  scans: IssueDiffScans,
+  coverage: IssueDiffCoverage,
+): Promise<IssueComparison> {
+  const delta = ruleCoverageDelta(coverage.current, coverage.previous);
+  const [split, resolved, reopened, newest, firstCheckedSample, closed] = await readIssueGroups(
+    prisma,
+    scans,
+    delta.firstChecked,
+  );
+  const tallies = tallyRows({ split, resolved, reopened });
+  // The totals are the per-module tally summed, not a query of their own: two
+  // reads of the same rows could disagree, and a table whose rows do not add up
+  // to its own header is worse than no table.
+  const totals = [...tallies.byModule.values()].reduce<Counts>(
     (sum, counts) => plus(sum, counts),
     EMPTY_COUNTS,
   );
-  const firstCheckedCount = [...firstCheckedByModule.values()].reduce(
-    (sum, count) => sum + count,
-    0,
-  );
   return {
     ...totals,
-    byModule: [...byModule.entries()]
+    byModule: [...tallies.byModule.entries()]
       .map(([module, counts]) => ({ module, ...counts }))
       .toSorted((left, right) => byModuleOrder(left.module, right.module)),
-    bySeverity: [...bySeverity.entries()]
+    bySeverity: [...tallies.bySeverity.entries()]
       .map(([severity, counts]) => ({ severity, ...counts }))
       .toSorted((left, right) => bySeverityOrder(left.severity, right.severity)),
     newSample: [...newest],
     resolvedSample: [...closed],
-    firstChecked: {
-      count: firstCheckedCount,
-      byModule: [...firstCheckedByModule.entries()]
-        .map(([module, count]) => ({ module, count }))
-        .toSorted((left, right) => byModuleOrder(left.module, right.module)),
-      bySeverity: [...firstCheckedBySeverity.entries()]
-        .map(([severity, count]) => ({ severity, count }))
-        .toSorted((left, right) => bySeverityOrder(left.severity, right.severity)),
-      ruleIds: [...firstCheckedRules],
-      sample: [...firstCheckedSample],
-    },
-    noLongerChecked: [...noLongerChecked],
+    firstChecked: firstCheckedOf(tallies, delta, firstCheckedSample),
+    noLongerChecked: [...delta.noLongerChecked],
   };
 }

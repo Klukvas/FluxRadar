@@ -594,6 +594,18 @@ export type IssueSample = z.infer<typeof issueSampleSchema>;
  * difference between the two readings of the site.
  */
 export const firstCheckedSchema = z.object({
+  /**
+   * Whether both scans recorded WHICH rules they ran.
+   *
+   * False means the separation above could not be made at all: the stored proof
+   * of one of the two scans is gone — it is kept for the last two completed scans
+   * of a plan — so nobody can say which rules ran there, and every finding of a
+   * rule that shipped since is counted as `new` rather than as first-checked.
+   * `count: 0` alone cannot say that: it reads as "no rule shipped between these
+   * two scans", which is the opposite claim. Every report but the latest one of a
+   * plan is in this state, so the reader is told.
+   */
+  known: z.boolean(),
   count: z.number().int().min(0),
   byModule: z.array(z.object({ module: z.string(), count: z.number().int().min(0) })),
   bySeverity: z.array(z.object({ severity: z.string(), count: z.number().int().min(0) })),

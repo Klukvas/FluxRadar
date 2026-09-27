@@ -1564,6 +1564,12 @@ export const copy = {
         firstCheckedNote:
           'These were found by checks that ran for the first time in this scan, so they are not counted as new: they are not problems you introduced, they are problems nobody had looked for yet. {rules}',
         firstCheckedRules: 'New checks: {list}.',
+        // Said out loud rather than left as a zero. The record of which checks
+        // ran is kept for the two most recent reports of a plan, so every older
+        // report is in this state — and "0 checked for the first time" reads as
+        // "no check was added since", which is the opposite claim.
+        coverageUnknownNote:
+          'Which checks ran in the previous scan is no longer recorded, so findings of checks added since may appear here as new.',
         noLongerCheckedNote:
           'Some checks did not run in this scan: {list}. Whatever they found last time is absent for that reason and is not counted as resolved.',
         showFindings: 'Show findings',
@@ -3167,6 +3173,8 @@ export const copy = {
         firstCheckedNote:
           'Їх знайшли перевірки, які виконалися вперше саме в цьому скані, тож вони не враховані як нові: це не проблеми, які ви створили, а проблеми, яких досі ніхто не шукав. {rules}',
         firstCheckedRules: 'Нові перевірки: {list}.',
+        coverageUnknownNote:
+          'Які саме перевірки виконувалися в попередньому скані, більше не зафіксовано, тож знахідки перевірок, доданих відтоді, можуть тут виглядати як нові.',
         noLongerCheckedNote:
           'Деякі перевірки в цьому скані не виконувалися: {list}. Те, що вони знайшли минулого разу, відсутнє саме тому і не враховане як виправлене.',
         showFindings: 'Показати знахідки',
