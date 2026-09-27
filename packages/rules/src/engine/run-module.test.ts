@@ -47,10 +47,12 @@ describe('runModuleRules: движок', () => {
     const result = runModuleRules('SEO', ctx);
     // 8 default page-rules: 1 applicable (2xx html) + 1 незавершённый (down);
     // TECH-003/TECH-005 (любой HTTP-ответ): 2 applicable + 1 незавершённый;
-    // 3 site-rules: 1/1. Three discovery page-rules make it 11×2 + 2×3 + 3 = 31,
-    // with 11×1 + 2×2 + 3 = 18 completed checks.
-    expect(result.applicableChecks).toBe(31);
-    expect(result.completedApplicableChecks).toBe(18);
+    // 3 site-rules: 1/1. Three discovery page-rules and TECH-010 (глубина клика)
+    // make it 12×2 + 2×3 + 3 = 33, with 12×1 + 2×2 + 3 = 19 completed checks.
+    // TECH-009/011 здесь не применимы: sitemap не прочитан, а страница с
+    // fetchError делает граф ссылок неполным.
+    expect(result.applicableChecks).toBe(33);
+    expect(result.completedApplicableChecks).toBe(19);
   });
 
   it('site-level: normalizedUrl пуст, fingerprint по D-019, агрегаты 1/1', () => {

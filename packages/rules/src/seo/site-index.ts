@@ -1,10 +1,12 @@
 // Индексы уровня обхода для правил, которым нужен контекст всего сайта
-// (TECH-006 битые ссылки, TECH-008 противоречие noindex). Строятся один раз
-// на CrawlResult (WeakMap-кэш) — правила остаются чистыми функциями от ctx.
+// (TECH-006 битые ссылки, TECH-008 противоречие noindex, TECH-009/011
+// перелинковка). Строятся один раз на CrawlResult (WeakMap-кэш) — правила
+// остаются чистыми функциями от ctx.
 
 import type { CrawlResult, PageSnapshot } from '@fluxradar/crawler';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
+import type { SiteContext } from '../engine/types.js';
 import { hasHttpResponse, isSuccessfulHtmlPage } from '../engine/types.js';
 import { parsePage } from './dom.js';
 
@@ -176,4 +178,158 @@ function resolveAndNormalize(href: string, baseUrl: string): string | null {
   } catch {
     return null; // не-http(s) схема, userinfo и прочий мусор веба — не target
   }
+}
+
+/**
+ * Почему граф внутренних ссылок этого обхода нельзя считать полным.
+ *
+ * Вывод «на эту страницу никто не ссылается» держится на том, что ссылки
+ * ПРОЧИТАНЫ у каждой страницы сайта. Любой непрочитанный документ мог нести
+ * ровно ту ссылку, которой правило не нашло, поэтому SEO-TECH-009/011 при
+ * непустом пробеле молчат (и отчитываются Not applicable — см. шапки правил).
+ */
+export type LinkGraphGap =
+  /** URL-ы не влезли в лимит тарифа: skippedOverLimit. */
+  | 'page-limit'
+  /** Обход прервали паузой или отменой — очередь осталась необработанной. */
+  | 'stopped'
+  /** Страница не отдала тела: transport-сбой или остановка хоста (D-030). */
+  | 'unread-page'
+  /**
+   * Ссылка на страницу того же хоста, о которой обход не отчитался нигде.
+   *
+   * Так выглядит усечение по scope: URL, отброшенный шаблонами include/exclude
+   * или лимитом глубины, нигде не отмечается (run-context.ts, crawlScopeKey) —
+   * единственный его след это ссылка, ведущая в никуда.
+   */
+  | 'unreached-url';
+
+export function linkGraphGap(ctx: SiteContext): LinkGraphGap | null {
+  const { crawl } = ctx;
+  if (crawl.skippedOverLimit.length > 0) {
+    return 'page-limit';
+  }
+  if (crawl.stoppedEarly || crawl.pendingQueue.length > 0) {
+    return 'stopped';
+  }
+  if (crawl.errors.length > 0 || crawl.pages.some((page) => page.fetchError !== undefined)) {
+    return 'unread-page';
+  }
+  return hasUnreachedInScopeUrl(crawl, hostnameOf(ctx.domain)) ? 'unreached-url' : null;
+}
+
+const unreachedCache = new WeakMap<CrawlResult, Map<string, boolean>>();
+
+/**
+ * Есть ли внутренняя ссылка на тот же хост, о судьбе которой обход молчит.
+ *
+ * Чужой хост — включая собственный поддомен — пробелом не считается: обход по
+ * умолчанию туда не ходит (includeSubdomains=false), и требовать от него чужой
+ * хост значило бы молчать на каждом сайте, у которого есть blog.example.com.
+ * Проверка идёт по хосту, а не по origin: http- и https-форма одного хоста для
+ * scope краулера — одна и та же область (isHostInScope).
+ */
+function hasUnreachedInScopeUrl(crawl: CrawlResult, hostname: string): boolean {
+  const cached = unreachedCache.get(crawl)?.get(hostname);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const accounted = accountedUrls(crawl);
+  const unreached = linkTargets(crawl).some(
+    (target) => hostnameOf(target) === hostname && !accounted.has(target),
+  );
+  const byHost = unreachedCache.get(crawl) ?? new Map<string, boolean>();
+  byHost.set(hostname, unreached);
+  unreachedCache.set(crawl, byHost);
+  return unreached;
+}
+
+/**
+ * URL-ы, о которых обход что-то сказал: снимок, лимит, robots.txt или ошибка.
+ *
+ * finalUrl снимка входит наравне с запрошенным: страницу, на которую вёл
+ * redirect, обход прочитал (markFinalUrlSeen), и ссылка прямо на неё пробелом
+ * не является.
+ */
+function accountedUrls(crawl: CrawlResult): ReadonlySet<string> {
+  const accounted = new Set<string>([
+    ...crawl.skippedOverLimit,
+    ...crawl.blockedByRobots,
+    ...crawl.errors.map((error) => error.url),
+  ]);
+  for (const page of crawl.pages) {
+    accounted.add(page.normalizedUrl);
+    const final = resolveAndNormalize(page.finalUrl, page.finalUrl);
+    if (final !== null) {
+      accounted.add(final);
+    }
+  }
+  return accounted;
+}
+
+/** hostname URL-а; пустая строка — строка не разбирается как URL. */
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Точка входа обхода: страница, к которой приходят по адресу, а не по ссылке.
+ *
+ * Её входящие ссылки ничего не говорят о доступности, поэтому ни TECH-009, ни
+ * TECH-011 о ней не судят: «на главную никто не ссылается» — утверждение о
+ * навигации сайта, а не о том, что страницу нельзя найти. Берётся именно
+ * ctx.origin, а не всякая страница глубины 0: явный seed владельца говорит, как
+ * МЫ нашли страницу, а не как на неё ссылается сайт.
+ */
+export function entryPageUrl(ctx: SiteContext): string {
+  return normalizeUrl(ctx.origin);
+}
+
+/**
+ * Страницы sitemap, о которых правило вообще вправе судить.
+ *
+ * Только успешно загруженный HTML: URL из sitemap, отдавший 404, — предмет
+ * SEO-TECH-003, а не разговора о перелинковке. URL, уехавший редиректом на
+ * другой адрес, тоже не кандидат: страница живёт по адресу назначения, ссылки
+ * ведут туда же, и «на этот URL никто не ссылается» сказало бы о содержимом
+ * sitemap (SEO-TECH-005), а не о доступности страницы.
+ *
+ * Порядок — по normalizedUrl, чтобы набор findings не зависел от порядка
+ * очереди обхода.
+ */
+export function sitemapPages(crawl: CrawlResult): readonly PageSnapshot[] {
+  const sitemap = sitemapNormalizedUrls(crawl);
+  const snapshots = snapshotByNormalizedUrl(crawl);
+  return [...sitemap]
+    .map((url) => snapshots.get(url))
+    .filter((page): page is PageSnapshot => page !== undefined && isOwnAddress(page))
+    .sort((left, right) => left.normalizedUrl.localeCompare(right.normalizedUrl));
+}
+
+/** Снимок 2xx HTML, отданный по самому запрошенному адресу, а не через редирект. */
+function isOwnAddress(page: PageSnapshot): boolean {
+  return (
+    isSuccessfulHtmlPage(page) &&
+    resolveAndNormalize(page.finalUrl, page.finalUrl) === page.normalizedUrl
+  );
+}
+
+/**
+ * Страницы обхода, чьи ссылки правило прочитало (и на которых строит вердикт).
+ *
+ * Это же множество — вход internalLinkSources, поэтому оба правила графа
+ * называют входами ровно его.
+ */
+export function linkSourcePages(crawl: CrawlResult): readonly PageSnapshot[] {
+  return crawl.pages.filter((page) => isSuccessfulHtmlPage(page));
+}
+
+/** normalizedUrl-ы страниц, ссылающихся на цель, кроме самой цели. */
+export function inboundSources(crawl: CrawlResult, target: string): readonly string[] {
+  const sources = internalLinkSources(crawl).get(target) ?? new Set<string>();
+  return [...sources].filter((source) => source !== target).sort();
 }

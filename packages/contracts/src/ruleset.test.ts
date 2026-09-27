@@ -20,7 +20,7 @@ describe('rules-mvp-0.1 registry', () => {
   });
 
   it('contains every enumerated group of IMPLEMENTATION_PLAN §3 in full', () => {
-    expect(countByPrefix('SEO-TECH-')).toBe(9);
+    expect(countByPrefix('SEO-TECH-')).toBe(12);
     expect(countByPrefix('SEO-ONPAGE-')).toBe(4);
     expect(countByPrefix('SEO-STRUCT-')).toBe(2);
     expect(countByPrefix('SEO-SOCIAL-')).toBe(1);
@@ -42,11 +42,12 @@ describe('rules-mvp-0.1 registry', () => {
   // The public-only discovery/security/privacy extensions add eight descriptors.
   // omits the GEO group (13 SEO + 14 passive + 10 platform). The registry keeps
   // every enumerated rule because T-08/T-09/T-10 depend on each of them.
-  // D-219 adds the eight Analytics rules.
-  it('splits into 63 scanning+GEO+UX+Analytics rules and 10 platform contracts, 73 in total', () => {
-    expect(RULES_MVP_01).toHaveLength(63);
+  // D-219 adds the eight Analytics rules, and the internal-linking pass adds the
+  // three SEO-TECH rules that read the crawl graph (009/010/011).
+  it('splits into 66 scanning+GEO+UX+Analytics rules and 10 platform contracts, 76 in total', () => {
+    expect(RULES_MVP_01).toHaveLength(66);
     expect(PLATFORM_CONTRACTS).toHaveLength(10);
-    expect(RULESET_ALL).toHaveLength(73);
+    expect(RULESET_ALL).toHaveLength(76);
   });
 
   it('has a unique ruleId for every descriptor', () => {
@@ -120,7 +121,7 @@ describe('rules-mvp-0.1 registry', () => {
   });
 
   it('filters rules by module', () => {
-    expect(rulesForModule('SEO')).toHaveLength(16);
+    expect(rulesForModule('SEO')).toHaveLength(19);
     expect(rulesForModule('platform')).toHaveLength(10);
     expect(rulesForModule('Performance')).toHaveLength(0);
   });

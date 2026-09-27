@@ -15,6 +15,9 @@ import { seoTech005RedirectChains } from './seo-tech-005.js';
 import { seoTech006BrokenLinks } from './seo-tech-006.js';
 import { seoTech007DuplicateUrls } from './seo-tech-007.js';
 import { seoTech008Noindex } from './seo-tech-008.js';
+import { seoTech009OrphanPages } from './seo-tech-009.js';
+import { seoTech010DeepPages } from './seo-tech-010.js';
+import { seoTech011WeaklyLinkedPages } from './seo-tech-011.js';
 import { seoTech013MixedContent } from './seo-tech-013.js';
 import { seoSocial001Preview } from './social-preview.js';
 import { seoStruct001JsonLdSyntax, seoStruct002JsonLdCompleteness } from './structured-data.js';
@@ -28,6 +31,9 @@ export const SEO_RULES: readonly Rule[] = [
   seoTech006BrokenLinks,
   seoTech007DuplicateUrls,
   seoTech008Noindex,
+  seoTech009OrphanPages,
+  seoTech010DeepPages,
+  seoTech011WeaklyLinkedPages,
   seoTech013MixedContent,
   seoOnpage001Title,
   seoOnpage002MetaDescription,

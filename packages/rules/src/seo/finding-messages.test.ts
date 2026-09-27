@@ -171,6 +171,79 @@ const CASES: readonly MessageCase[] = [
     recommendation: 'seo-tech-008.recommendation',
   },
   {
+    name: 'page only the sitemap knows',
+    ruleId: 'SEO-TECH-009',
+    ctx: () =>
+      siteContext({
+        sitemapUrls: ['https://fixture.test/orphan.html'],
+        pages: [
+          {
+            path: '/',
+            html:
+              '<!doctype html><html lang="en"><head><title>Home fixture page</title></head>' +
+              '<body><h1>Home</h1></body></html>',
+          },
+          {
+            path: '/orphan.html',
+            depth: 1,
+            html:
+              '<!doctype html><html lang="en"><head><title>Orphan fixture page</title></head>' +
+              '<body><h1>Orphan</h1></body></html>',
+          },
+        ],
+      }),
+    evidence: 'seo-tech-009.evidence',
+    recommendation: 'seo-tech-009.recommendation',
+  },
+  {
+    name: 'page four hops from the entry URL',
+    ruleId: 'SEO-TECH-010',
+    ctx: () =>
+      siteContext({
+        pages: [
+          {
+            path: '/',
+            html:
+              '<!doctype html><html lang="en"><head><title>Home fixture page</title></head>' +
+              '<body><h1>Home</h1><a href="/deep.html">deep</a></body></html>',
+          },
+          {
+            path: '/deep.html',
+            depth: 4,
+            html:
+              '<!doctype html><html lang="en"><head><title>Deep fixture page</title></head>' +
+              '<body><h1>Deep</h1></body></html>',
+          },
+        ],
+      }),
+    evidence: 'seo-tech-010.evidence',
+    recommendation: 'seo-tech-010.recommendation',
+  },
+  {
+    name: 'page held by a single internal link',
+    ruleId: 'SEO-TECH-011',
+    ctx: () =>
+      siteContext({
+        pages: [
+          {
+            path: '/',
+            html:
+              '<!doctype html><html lang="en"><head><title>Home fixture page</title></head>' +
+              '<body><h1>Home</h1><a href="/weak.html">weak</a></body></html>',
+          },
+          {
+            path: '/weak.html',
+            depth: 1,
+            html:
+              '<!doctype html><html lang="en"><head><title>Weak fixture page</title></head>' +
+              '<body><h1>Weak</h1></body></html>',
+          },
+        ],
+      }),
+    evidence: 'seo-tech-011.evidence',
+    recommendation: 'seo-tech-011.recommendation',
+  },
+  {
     name: 'mixed content',
     ruleId: 'SEO-TECH-013',
     ctx: () => loadFixtureContext('fx-SEO-TECH-013-positive.html'),
