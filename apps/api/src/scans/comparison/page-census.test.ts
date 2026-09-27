@@ -10,7 +10,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildScanComparison } from './build.ts';
-import { diffPages, pageSetsFor, readPageCensus } from './page-census.ts';
+import { readCoverageEvidence } from './coverage-evidence.ts';
+import { diffPages, pageSetsFor } from './page-census.ts';
 import { silentLogger } from '../../http/logger.ts';
 import {
   allModules,
@@ -83,6 +84,70 @@ describe('the page census of two finished scans', () => {
 
     expect(comparison.pages.identity).toBe('canonical-document');
     expect(comparison.pages).toMatchObject({ added: 0, removed: 0, kept: 2 });
+  });
+
+  it('does not report a page as appeared because a document rule shipped between the scans', async () => {
+    // The probe this test exists for. `/deep.html` is one document reached under
+    // one address; the previous scan predates the rules that resolve redirects,
+    // the current one ran them and named the document `/deep/`. Pooling both
+    // names into one set gave the current scan an extra entry, so an unchanged
+    // site reported a page that appeared. That is the state of every site's next
+    // Complete scan after a release, not a corner case.
+    const firstId = await buy();
+    await finishScan(db.prisma, firstId, {
+      proofs: { SEO: [pageRuleCoverage([`${SITE}/`, `${SITE}/deep.html`])] },
+    });
+    const secondId = await buy();
+    await finishScan(db.prisma, secondId, {
+      proofs: {
+        SEO: [
+          pageRuleCoverage([`${SITE}/`, `${SITE}/deep.html`]),
+          canonicalRuleCoverage([`${SITE}/`, `${SITE}/deep/`]),
+        ],
+      },
+    });
+
+    const comparison = await compare(secondId);
+
+    // One side knows the documents and the other does not: the two censuses are
+    // named differently, and the answer is that they are, not a page diff drawn
+    // under the weaker name.
+    expect(comparison.pages.comparable).toEqual({
+      ok: false,
+      reason: 'page-identity-mismatch',
+    });
+    expect(comparison.pages.added).toBe(0);
+    expect(comparison.pages.identity).toBeNull();
+  });
+
+  it('counts a document once in the totals, whatever else judged its addresses', async () => {
+    // Two addresses of one document, both judged by the ordinary page rules and
+    // resolved to one by the canonical ones. The previous total is the number of
+    // documents — two — and not four names for them.
+    const firstId = await buy();
+    await finishScan(db.prisma, firstId, {
+      proofs: {
+        SEO: [
+          pageRuleCoverage([`${SITE}/`, `${SITE}/deep.html`, `${SITE}/deep`]),
+          canonicalRuleCoverage([`${SITE}/`, `${SITE}/deep/`]),
+        ],
+      },
+    });
+    const secondId = await buy();
+    await finishScan(db.prisma, secondId, {
+      proofs: {
+        SEO: [
+          pageRuleCoverage([`${SITE}/`, `${SITE}/deep.html`]),
+          canonicalRuleCoverage([`${SITE}/`, `${SITE}/deep/`]),
+        ],
+      },
+    });
+
+    const comparison = await compare(secondId);
+
+    expect(comparison.pages.comparable).toEqual({ ok: true });
+    expect(comparison.pages.identity).toBe('canonical-document');
+    expect(comparison.pages).toMatchObject({ previousTotal: 2, currentTotal: 2, removed: 0 });
   });
 
   it('falls back to crawl addresses, and says so, when no rule named a document', async () => {
@@ -219,13 +284,17 @@ describe('the page census of two finished scans', () => {
       proofs: { SEO: [pageRuleCoverage([`${SITE}/a`, `${SITE}/b`])] },
     });
 
-    const census = await readPageCensus(db.prisma, scanId);
+    const { census } = await readCoverageEvidence(db.prisma, scanId);
 
     expect(census.problem).toBeNull();
     expect([...census.crawlAddress].toSorted()).toEqual([`${SITE}/a`, `${SITE}/b`]);
-    const diff = diffPages(
-      pageSetsFor(census, { ...census, crawlAddress: new Set([`${SITE}/b`]) }),
-    );
-    expect(diff).toEqual({ added: [`${SITE}/a`], removed: [], kept: 1 });
+    const read = pageSetsFor(census, { ...census, crawlAddress: new Set([`${SITE}/b`]) });
+
+    expect(read.sets).not.toBeNull();
+    expect(read.sets === null ? null : diffPages(read.sets)).toEqual({
+      added: [`${SITE}/a`],
+      removed: [],
+      kept: 1,
+    });
   });
 });

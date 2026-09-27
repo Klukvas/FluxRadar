@@ -269,52 +269,70 @@ export function decodeCoverageProof(stored: Uint8Array): CoverageRead {
   return decoded.problem === null ? indexOf(decoded.encoded) : unusable(decoded.problem);
 }
 
-/** What one module's proof says a chosen set of rules judged. */
-export interface CheckedTargetsRead {
-  /** Union of the checked targets of the named rules; empty when none ran. */
-  readonly targets: readonly string[];
+/** What one module's proof says, read in a single pass over it. */
+export interface ProofFacts {
+  /** Every rule the proof carries an entry for — the rules that ran. */
+  readonly ruleIds: readonly string[];
+  /** Per named group, the union of the checked targets of its rules. */
+  readonly targets: Readonly<Record<string, readonly string[]>>;
   /** Why the proof could not be read at all; null when it was. */
   readonly problem: string | null;
 }
 
 /**
- * The targets a named set of rules judged, without indexing the whole proof.
+ * The targets named groups of rules judged, and which rules ran, without
+ * indexing the whole proof.
  *
- * The scan comparison needs one thing from a stored proof — which pages the page
- * rules read — and `decodeCoverageProof` would build a Set per rule to hand it
- * over. On a 50 000-page crawl the SEO module alone has a dozen page rules over
- * the same addresses, so that is hundreds of thousands of Set entries for a union
- * that fits in one. This walks the target sets the chosen rules point at and
- * collects them once.
+ * The scan comparison asks a stored proof two questions — which pages the page
+ * rules read, under each of the two names a page can have, and which rules ran
+ * at all — and `decodeCoverageProof` would build a Set per rule to answer
+ * either. On a 50 000-page crawl the SEO module alone has a dozen page rules
+ * over the same addresses, so that is hundreds of thousands of Set entries for
+ * unions that fit in three. Both answers come out of ONE decode here, because
+ * the decode is a gunzip of up to 800 KB per module and asking twice is paying
+ * twice.
  *
- * An unusable proof yields no targets AND a reason, exactly as the policy read
+ * An unusable proof yields no facts AND a reason, exactly as the policy read
  * does: a comparison with no page evidence says so rather than reporting a site
  * whose every page disappeared.
  */
-export function checkedTargetsOfProof(
+export function readProofFacts(
   stored: Uint8Array,
-  ruleIds: ReadonlySet<string>,
-): CheckedTargetsRead {
+  groups: Readonly<Record<string, ReadonlySet<string>>>,
+): ProofFacts {
   const decoded = decodeEncodedProof(stored);
   if (decoded.problem !== null) {
-    return { targets: [], problem: decoded.problem };
+    return { ruleIds: [], targets: {}, problem: decoded.problem };
   }
   const encoded = decoded.encoded;
-  const targets = new Set<string>();
+  const names = Object.keys(groups);
+  const collected = new Map<string, Set<string>>(names.map((name) => [name, new Set<string>()]));
+  const ruleIds: string[] = [];
   for (const [ruleId, entry] of Object.entries(encoded.rules)) {
-    if (!ruleIds.has(ruleId)) continue;
+    ruleIds.push(ruleId);
+    const wanted = names.filter((name) => groups[name]?.has(ruleId) === true);
+    if (wanted.length === 0) continue;
+    // Resolved once per rule, however many groups claim it.
     const checked = targetsOf(encoded, entry.checked);
     if (checked === null) {
       return {
-        targets: [],
+        ruleIds: [],
+        targets: {},
         problem: `coverage proof of ${ruleId} references an unknown target set or URL`,
       };
     }
-    for (const target of checked) {
-      targets.add(target);
+    for (const name of wanted) {
+      const into = collected.get(name);
+      for (const target of checked) {
+        into?.add(target);
+      }
     }
   }
-  return { targets: [...targets], problem: null };
+  return {
+    ruleIds,
+    targets: Object.fromEntries([...collected].map(([name, targets]) => [name, [...targets]])),
+    problem: null,
+  };
 }
 
 /** The stored proof as it was written, or the reason it cannot be read. */

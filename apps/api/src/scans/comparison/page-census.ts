@@ -8,35 +8,44 @@
 // rule names the targets it judged. The targets of a page rule are pages, under
 // the same name its findings use (@fluxradar/rules PAGE_RULE_IDS).
 //
-// WHICH NAME THE PAGES COME UNDER. Preferably the document's own address: the
-// rules that declare `judgedAddress` name a page by where the site's redirects
-// say the document lives, one entry per document (CANONICAL_PAGE_RULE_IDS). That
-// is what keeps `/p` and `/p/` from reading as one page removed and another
-// added when only the linked form changed. When no such rule ran — a one-page
-// crawl leaves the duplicate-value rules with nothing to compare — the census
-// falls back to the addresses each snapshot was read under, and the response
-// says which identity was used rather than letting the reader assume the
-// stronger one.
+// WHICH NAME THE PAGES COME UNDER, AND WHY THE TWO NAMES NEVER MIX. The rules
+// that declare `judgedAddress` name a page by where the site's redirects say the
+// document lives, one entry per document (CANONICAL_PAGE_RULE_IDS); every other
+// page rule names the snapshot's own address, so two addresses of one document
+// are two entries. Those are two different censuses of the same crawl, and a set
+// that pools them is neither: a redirect-aliased document would appear once
+// under its document address AND once per snapshot address, so a scan that ran
+// one more canonical rule than the other would report pages that "appeared"
+// although nothing changed. That is not hypothetical — six page rules shipped in
+// one week, four of them canonical. So each census is built from its own rules,
+// and the two are only ever compared like with like:
+//
+//   • both scans established document identity → compare documents;
+//   • neither did (a one-page crawl leaves the duplicate-value rules nothing to
+//     compare) → compare snapshot addresses, and say so;
+//   • one did and the other did not → refuse (`page-identity-mismatch`), because
+//     collapsing aliases on one side only turns every alias of the other side
+//     into a page that came or went.
+//
+// The census itself is read out of the stored proofs in coverage-evidence.ts,
+// together with the rules that ran: both answers come from one pass over the
+// same table. What lives here is what the two censuses MEAN and how they may be
+// compared.
 //
 // WHAT IS NOT KNOWN, AND IS SAID. The proof is kept for the last two completed
 // scans of a plan (`pruneCoverageProofs`), which is exactly the pair a fresh
 // report compares — and nothing older. An earlier report therefore compares its
 // findings and reports `page-evidence-missing` for its pages. A proof that is
 // present but unreadable, or that names no page at all, gets its own reason. None
-// of the three is ever rendered as "0 pages added, 0 removed".
+// of them is ever rendered as "0 pages added, 0 removed".
 
-import { CANONICAL_PAGE_RULE_IDS, PAGE_RULE_IDS } from '@fluxradar/rules';
 import type { PageComparisonReason, PageIdentityKind } from '@fluxradar/contracts';
-import type { PrismaClient } from '@prisma/client';
 
-import { checkedTargetsOfProof } from '../../orchestrator/run-coverage.ts';
-
-const CANONICAL_RULES: ReadonlySet<string> = new Set(CANONICAL_PAGE_RULE_IDS);
-const PAGE_RULES: ReadonlySet<string> = new Set(PAGE_RULE_IDS);
-
-/** One scan's page census: the addresses it judged, under a named identity. */
+/** One scan's page census: the addresses it judged, under each of the two names. */
 export interface PageCensus {
+  /** One entry per document, from the rules that resolve redirects. */
   readonly canonical: ReadonlySet<string>;
+  /** One entry per address a snapshot was read under. */
   readonly crawlAddress: ReadonlySet<string>;
   /** Why the census is unusable; null when at least one page was named. */
   readonly problem: PageComparisonReason | null;
@@ -48,88 +57,52 @@ export const NO_PAGE_CENSUS: PageCensus = {
   problem: 'page-evidence-missing',
 };
 
-/** An unreadable proof of any module makes the whole census unusable. */
-export type CensusProblemLog = (detail: {
-  scanId: string;
-  module: string;
-  problem: string;
-}) => void;
-
-/**
- * Reads one scan's page census out of its stored re-check proofs.
- *
- * Module by module, and only the target sets the page rules point at: the proof
- * of a 50 000-URL crawl is hundreds of kilobytes compressed per module, and
- * indexing all of it to answer "which pages" would hold the whole thing in
- * memory for nothing (`checkedTargetsOfProof`).
- */
-export async function readPageCensus(
-  prisma: PrismaClient,
-  scanId: string,
-  onProblem?: CensusProblemLog,
-): Promise<PageCensus> {
-  const proofs = await prisma.ruleCoverageProof.findMany({
-    where: { scanId },
-    select: { module: true, proof: true },
-  });
-  if (proofs.length === 0) {
-    return NO_PAGE_CENSUS;
-  }
-  const canonical = new Set<string>();
-  const crawlAddress = new Set<string>();
-  let unreadable = false;
-  for (const stored of proofs) {
-    const read = checkedTargetsOfProof(stored.proof, PAGE_RULES);
-    if (read.problem !== null) {
-      // Fail closed for the whole scan: a module whose proof is gone is a set of
-      // pages nobody can account for, and a census missing them would report
-      // them as removed.
-      onProblem?.({ scanId, module: stored.module, problem: read.problem });
-      unreadable = true;
-      continue;
-    }
-    for (const target of read.targets) {
-      crawlAddress.add(target);
-    }
-    const documents = checkedTargetsOfProof(stored.proof, CANONICAL_RULES);
-    for (const target of documents.targets) {
-      canonical.add(target);
-    }
-  }
-  if (unreadable) {
-    return { canonical: new Set(), crawlAddress: new Set(), problem: 'page-evidence-unreadable' };
-  }
-  if (crawlAddress.size === 0) {
-    return { canonical, crawlAddress, problem: 'page-evidence-empty' };
-  }
-  return { canonical, crawlAddress, problem: null };
-}
-
 export interface PageSets {
   readonly identity: PageIdentityKind;
   readonly current: ReadonlySet<string>;
   readonly previous: ReadonlySet<string>;
 }
 
+/** The two sets to diff — or the reason they must not be diffed at all. */
+export type PageSetsRead =
+  | { readonly sets: PageSets; readonly problem: null }
+  | {
+      readonly sets: null;
+      readonly problem: PageComparisonReason;
+    };
+
 /**
  * The two sets to diff, and the identity they are named under.
  *
- * Document addresses are used only when BOTH scans established them: comparing a
- * document census with an address census would collapse aliases on one side
- * only, and every alias of the other side would read as a page that appeared.
+ * Document addresses are used only when BOTH scans established them, and
+ * snapshot addresses only when NEITHER did. The mixed case is refused rather
+ * than answered under the weaker name: the side that ran the canonical rules
+ * carries one extra entry per redirect-aliased document, which is a difference
+ * in what was checked and not a page the owner added.
  */
-export function pageSetsFor(current: PageCensus, previous: PageCensus): PageSets {
-  if (current.canonical.size > 0 && previous.canonical.size > 0) {
+export function pageSetsFor(current: PageCensus, previous: PageCensus): PageSetsRead {
+  const currentHasDocuments = current.canonical.size > 0;
+  const previousHasDocuments = previous.canonical.size > 0;
+  if (currentHasDocuments !== previousHasDocuments) {
+    return { sets: null, problem: 'page-identity-mismatch' };
+  }
+  if (currentHasDocuments && previousHasDocuments) {
     return {
-      identity: 'canonical-document',
-      current: current.canonical,
-      previous: previous.canonical,
+      sets: {
+        identity: 'canonical-document',
+        current: current.canonical,
+        previous: previous.canonical,
+      },
+      problem: null,
     };
   }
   return {
-    identity: 'crawl-address',
-    current: current.crawlAddress,
-    previous: previous.crawlAddress,
+    sets: {
+      identity: 'crawl-address',
+      current: current.crawlAddress,
+      previous: previous.crawlAddress,
+    },
+    problem: null,
   };
 }
 
