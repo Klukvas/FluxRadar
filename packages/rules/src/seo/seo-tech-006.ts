@@ -41,7 +41,7 @@ export const seoTech006BrokenLinks: PageRule = {
     const snapshots = snapshotByNormalizedUrl(ctx.crawl);
     const reportedHrefs = new Set<string>();
     const findings: RuleFinding[] = [];
-    for (const link of pageLinks(page)) {
+    for (const link of pageLinks(page, ctx.crawl)) {
       if (reportedHrefs.has(link.rawHref)) {
         continue;
       }

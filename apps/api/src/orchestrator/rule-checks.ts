@@ -9,12 +9,20 @@
 import type { AiRequestOutcome, UxAiFinding } from '@fluxradar/ai';
 import { ruleById } from '@fluxradar/contracts';
 import type { RuleDescriptor } from '@fluxradar/contracts';
-import type { ModuleRunResult, UxStaticEvidence } from '@fluxradar/rules';
+import type { ModuleRunResult, NotApplicableReason, UxStaticEvidence } from '@fluxradar/rules';
 
 export interface RuleCounts {
   readonly ruleId: string;
   readonly applicableTargets: number;
   readonly affectedTargets: number;
+  /**
+   * Why the rule had nothing to judge, when it said so.
+   *
+   * Only the rule knows which it was — a crawl cut short, or a site with a
+   * single page and nothing to compare. Without it the report has to guess from
+   * the rule id, and tells the reader about an unfinished crawl that finished.
+   */
+  readonly notApplicableReason?: NotApplicableReason;
 }
 
 interface PageFinding {
@@ -36,6 +44,8 @@ export interface RuleCheckSummary {
   readonly scoring: RuleDescriptor['scoring'];
   readonly applicableTargets: number;
   readonly affectedTargets: number;
+  /** Present only on a check with no applicable target (see RuleCounts). */
+  readonly notApplicableReason?: NotApplicableReason;
 }
 
 /**
@@ -142,5 +152,10 @@ export function ruleCheckSummary(counts: RuleCounts): RuleCheckSummary {
     scoring: descriptor.scoring,
     applicableTargets: counts.applicableTargets,
     affectedTargets: counts.affectedTargets,
+    // Recorded only beside an empty denominator: a reason next to a check that
+    // did run would describe a state the row is not in.
+    ...(counts.applicableTargets === 0 && counts.notApplicableReason !== undefined
+      ? { notApplicableReason: counts.notApplicableReason }
+      : {}),
   };
 }

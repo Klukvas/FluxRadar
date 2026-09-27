@@ -209,8 +209,13 @@ describe('/faq content — what each check does', () => {
     const section = screen.getByRole('heading', {
       name: 'SEO — being found by search engines',
     }).parentElement as HTMLElement;
-    expect(within(section).getByText(/Sixteen rule-based checks/i)).toBeInTheDocument();
+    expect(within(section).getByText(/Nineteen rule-based checks/i)).toBeInTheDocument();
     expect(within(section).getByText(/canonical tags/i)).toBeInTheDocument();
+    // The internal-linking checks are part of the count, so the answer names them.
+    expect(
+      within(section).getByText(/pages the sitemap lists that nothing links to/i),
+    ).toBeInTheDocument();
+    expect(within(section).getByText(/held by a single internal link/i)).toBeInTheDocument();
     // It must not promise ranking data the scan cannot produce.
     expect(within(section).getByText(/Not from a scan/i)).toBeInTheDocument();
   });
@@ -341,10 +346,10 @@ describe('/faq content — Ukrainian', () => {
     expect(
       screen.getByRole('heading', { name: 'Доступність — WCAG 2.2, EN 301 549, Section 508' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Шістнадцять правил/)).toBeInTheDocument();
+    expect(screen.getByText(/Дев’ятнадцять правил/)).toBeInTheDocument();
     expect(screen.getByText(/Не власним обходом/)).toBeInTheDocument();
     expect(screen.getAllByText(/Google Search Console або Bing Webmaster Tools/)).toHaveLength(2);
     // The Ukrainian page must be a real translation, not English fallback text.
-    expect(screen.queryByText(/Sixteen rule-based checks/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nineteen rule-based checks/i)).not.toBeInTheDocument();
   });
 });

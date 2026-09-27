@@ -36,6 +36,7 @@ function result(overrides: Partial<CrawlResult> = {}): CrawlResult {
     resources: [],
     pendingQueue: [],
     stoppedEarly: false,
+    scope: { origin: ORIGIN, includeSubdomains: false, maxPages: 50 },
     ...overrides,
   };
 }

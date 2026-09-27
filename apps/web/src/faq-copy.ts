@@ -169,7 +169,7 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'What does the SEO check look at?',
           answer: [
-            'Sixteen rule-based checks, split between the technical side and the page side. Technical: robots.txt, the XML sitemap, HTTP status codes, canonical tags, redirect chains, broken internal links, duplicate URLs, noindex signals and mixed content on HTTPS pages.',
+            'Nineteen rule-based checks, split between the technical side and the page side. Technical: robots.txt, the XML sitemap, HTTP status codes, canonical tags, redirect chains, broken internal links, duplicate URLs, noindex signals, mixed content on HTTPS pages, pages the sitemap lists that nothing links to, how many link hops separate a page from the entry URL, and pages held by a single internal link.',
             'On the page: the title, the meta description, the heading structure, image alt text, JSON-LD structured data (both its syntax and whether the required properties are there) and the social preview tags.',
             'These are deterministic rules, not opinions: the same page produces the same findings every time.',
           ],
@@ -495,7 +495,7 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Що саме перевіряє SEO-модуль?',
           answer: [
-            'Шістнадцять правил, поділених на технічну та сторінкову частини. Технічна: robots.txt, XML-мапа сайту, коди HTTP-статусів, канонічні теги, ланцюжки редиректів, биті внутрішні посилання, дублікати адрес, сигнали noindex і змішаний контент на HTTPS-сторінках.',
+            'Дев’ятнадцять правил, поділених на технічну та сторінкову частини. Технічна: robots.txt, XML-мапа сайту, коди HTTP-статусів, канонічні теги, ланцюжки редиректів, биті внутрішні посилання, дублікати адрес, сигнали noindex, змішаний контент на HTTPS-сторінках, сторінки з мапи сайту, на які ніщо не посилається, кількість переходів за посиланнями від точки входу та сторінки, які тримає єдине внутрішнє посилання.',
             'Сторінкова: заголовок, meta description, структура заголовків, alt-тексти зображень, структуровані дані JSON-LD (і синтаксис, і наявність обовʼязкових властивостей) та теги соціального прев’ю.',
             'Це детерміновані правила, а не оцінки на смак: та сама сторінка щоразу дає той самий результат.',
           ],

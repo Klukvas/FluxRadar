@@ -122,7 +122,7 @@ export const checksCopyEn: ChecksCopy = {
       label: '01 / SEO VISIBILITY',
       title: 'SEO — what FluxRadar checks',
       intro: [
-        'The SEO module runs up to **16 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
+        'The SEO module runs up to **19 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
       ],
       bullets: [
         {
@@ -178,6 +178,18 @@ export const checksCopyEn: ChecksCopy = {
         {
           term: 'Page speed signals',
           body: 'server response time, uncompressed transfer size and HTTP/2 support as measurable proxies.',
+        },
+        {
+          term: 'Internal linking',
+          body: 'pages the XML sitemap lists that no crawled page links to, and pages reachable through a single internal link. A link that redirects counts for the page it lands on.',
+        },
+        {
+          term: 'Click depth',
+          body: 'how many link hops separate a page from the entry URL, counted over the links the crawl read; four or more is reported.',
+        },
+        {
+          term: 'When the three above are reported',
+          body: 'only when the crawl finished reading the pages it set out to read. A crawl cut short by the page limit, a pause or a page that never answered cannot tell an unlinked page from an unread one, and each check then says so instead of guessing. A link the scan’s own scope excluded — another host, an excluded path, a hop past the depth limit — is not a gap: that page was never in scope to begin with.',
         },
         {
           term: 'HTTPS enforcement',
@@ -451,7 +463,7 @@ export const checksCopyUk: ChecksCopy = {
       label: '01 / ВИДИМІСТЬ У ПОШУКУ',
       title: 'SEO — що перевіряє FluxRadar',
       intro: [
-        'Модуль SEO виконує до **16 детермінованих перевірок**, складених за документованими рекомендаціями пошукових систем (Google Search Central, Bing Webmaster Guidelines, schema.org). Усі перевірки засновані на правилах; жодного висновку моделі тут немає.',
+        'Модуль SEO виконує до **19 детермінованих перевірок**, складених за документованими рекомендаціями пошукових систем (Google Search Central, Bing Webmaster Guidelines, schema.org). Усі перевірки засновані на правилах; жодного висновку моделі тут немає.',
       ],
       bullets: [
         {
@@ -513,6 +525,18 @@ export const checksCopyUk: ChecksCopy = {
         {
           term: 'Сигнали швидкості',
           body: 'час відповіді сервера, нестиснений обсяг передачі та підтримка HTTP/2 як вимірювані показники.',
+        },
+        {
+          term: 'Внутрішня перелінковка',
+          body: 'сторінки, які є в XML-мапі сайту, але на які не веде жодна обійдена сторінка, і сторінки, доступні лише через одне внутрішнє посилання. Посилання з редиректом зараховується сторінці, на яку воно веде.',
+        },
+        {
+          term: 'Глибина кліків',
+          body: 'скільки переходів за посиланнями відділяють сторінку від точки входу — за посиланнями, які прочитав обхід; чотири й більше позначаються.',
+        },
+        {
+          term: 'Коли ці три перевірки виконуються',
+          body: 'лише тоді, коли обхід дочитав сторінки, які збирався прочитати. Обхід, зупинений лімітом сторінок, паузою або сторінкою, що не відповіла, не відрізнить сторінку без посилань від непрочитаної — і кожна перевірка так і повідомляє, замість вгадувати. Посилання, яке виключила сама область перевірки (інший хост, виключений шлях, крок за межею глибини), пропуском не вважається: такої сторінки в області й не було.',
         },
         {
           term: 'Примусовий HTTPS',

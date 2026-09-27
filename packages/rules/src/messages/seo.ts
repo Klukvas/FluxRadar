@@ -111,6 +111,33 @@ export const SEO_MESSAGES = {
     uk: 'Усуньте суперечність сигналів індексації: або приберіть noindex, або виключіть сторінку із sitemap і приберіть внутрішні посилання на неї.',
   },
 
+  'seo-tech-009.evidence': {
+    en: 'The XML sitemap lists {url}, yet none of the {sources} crawled pages links to it',
+    uk: 'XML-sitemap містить {url}, але на нього не веде жодна з {sources} прочитаних сторінок',
+  },
+  'seo-tech-009.recommendation': {
+    en: 'Link the page from where it belongs — the navigation, a hub page or a related article: a page only the sitemap mentions is found late and has to earn its place on its own.',
+    uk: 'Додайте посилання на сторінку там, де їй місце, — у навігації, на сторінці-хабі або в суміжній статті: сторінку, про яку знає лише sitemap, знаходять пізно, і вона мусить пробиватися сама.',
+  },
+
+  'seo-tech-010.evidence': {
+    en: 'The page is {depth} link hops away from the entry URL {entryUrl} (threshold: {threshold})',
+    uk: 'Сторінка розташована за {depth} переходами за посиланнями від точки входу {entryUrl} (поріг: {threshold})',
+  },
+  'seo-tech-010.recommendation': {
+    en: 'Shorten the path to the page: a link from the main navigation or from a hub page closer to the entry URL brings it within reach of both visitors and crawlers.',
+    uk: 'Скоротіть шлях до сторінки: посилання з головної навігації або зі сторінки-хаба, ближчої до точки входу, робить її доступною і відвідувачам, і пошуковим роботам.',
+  },
+
+  'seo-tech-011.evidence': {
+    en: 'Only one crawled page links to this one: {source}',
+    uk: 'На цю сторінку веде лише одна прочитана сторінка: {source}',
+  },
+  'seo-tech-011.recommendation': {
+    en: 'Add links from other relevant pages: a page held by a single internal link loses its place in the site structure the moment that link changes.',
+    uk: 'Додайте посилання з інших доречних сторінок: сторінка, яку тримає єдине внутрішнє посилання, втрачає місце в структурі сайту щойно це посилання зміниться.',
+  },
+
   'seo-tech-013.evidence': {
     en: '{selector} is loaded over unencrypted http:// ({url})',
     uk: '{selector} завантажується через незашифрований http:// ({url})',

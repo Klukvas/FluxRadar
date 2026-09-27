@@ -133,6 +133,95 @@ describe('page-level findings', () => {
   });
 });
 
+describe('страница под двумя адресами — одна находка', () => {
+  // Документ, который сайт держит под двумя адресами (`/about` с 301 и
+  // `/about/`), обход в одном прогоне читает одним снимком, а в другом — двумя:
+  // это решает порядок его очереди (markFinalUrlSeen), а не сайт. Правила графа
+  // ссылок поэтому называют страницу адресом ДОКУМЕНТА (canonicalAddress), и
+  // здесь проверяется, что политика на этом действительно закрывает находку.
+  const ABOUT = 'https://example.com/about/';
+  const ALIAS = 'https://example.com/about';
+
+  const weakLink = issue({
+    id: 'issue-weak',
+    fingerprint: 'fp-weak',
+    ruleId: 'SEO-TECH-011',
+    normalizedUrl: ABOUT,
+  });
+  /** Прогон A: снимок только у /about, и он судился под адресом назначения. */
+  const runA = previous({
+    coverageByRule: checked(
+      { 'SEO-TECH-011': [ABOUT] },
+      { inputs: { 'SEO-TECH-011': [HOME] }, requested: { 'SEO-TECH-011': [HOME, ALIAS, ABOUT] } },
+    ),
+  });
+
+  it('прогон, получивший свой снимок назначения, закрывает находку прогона без него', () => {
+    const runB = run({
+      coverageByRule: checked(
+        { 'SEO-TECH-011': [ABOUT] },
+        { inputs: { 'SEO-TECH-011': [HOME] }, requested: { 'SEO-TECH-011': [HOME, ALIAS, ABOUT] } },
+      ),
+    });
+    expect(provesRepeatCheck(weakLink, runB, runA)).toBe(true);
+  });
+
+  it('а назови он ту же страницу адресом редиректа — находка осталась бы открытой', () => {
+    // Это и есть цена ошибки идентичности: правило проверило ту же страницу,
+    // отчиталось о ней другим именем, и починенная находка не закрывается.
+    const namedByAlias = run({
+      coverageByRule: checked(
+        { 'SEO-TECH-011': [ALIAS] },
+        { inputs: { 'SEO-TECH-011': [HOME] }, requested: { 'SEO-TECH-011': [HOME, ALIAS, ABOUT] } },
+      ),
+    });
+    expect(provesRepeatCheck(weakLink, namedByAlias, runA)).toBe(false);
+  });
+});
+
+describe('глубокая страница, чей снимок живёт под адресом редиректа', () => {
+  // Прогон A прочитал /about/ своим снимком и нашёл её в четырёх переходах от
+  // точки входа. Прогон B получил тот же документ одним снимком под /about
+  // (sitemap перечисляет /about, навигация ссылается на /about/) — и покрытие у
+  // обоих одно и то же: страница названа адресом документа. Значит, всё, что
+  // отделяет всё ещё глубокую страницу от ложного Resolved, — это обязанность
+  // SEO-TECH-010 действительно измерить то, что он назвал проверенным
+  // (packages/rules click-depth.ts: инвариант checkedTargets).
+  const ABOUT = 'https://example.com/about/';
+  const ALIAS = 'https://example.com/about';
+  const CHAIN = [HOME, 'https://example.com/s1', 'https://example.com/s2'];
+
+  const deepPage = issue({
+    id: 'issue-deep',
+    fingerprint: 'fp-deep',
+    ruleId: 'SEO-TECH-010',
+    normalizedUrl: ABOUT,
+  });
+  const coverage = (requested: readonly string[]): RuleCoverageIndex =>
+    checked(
+      { 'SEO-TECH-010': [...CHAIN, ABOUT] },
+      {
+        inputs: { 'SEO-TECH-010': [...CHAIN, ABOUT] },
+        requested: { 'SEO-TECH-010': requested },
+      },
+    );
+  const runA = previous({ coverageByRule: coverage([...CHAIN, ABOUT]) });
+  const runB = run({ coverageByRule: coverage([...CHAIN, ALIAS, ABOUT]) });
+
+  it('прогон, снова нашедший страницу глубокой, находку прошлого не закрывает', () => {
+    expect(resolvableIssues([deepPage], new Set(['fp-deep']), runB, runA)).toEqual([]);
+  });
+
+  it('а промолчи он о ней — Resolved назначился бы: покрытие этой разницы не видит', () => {
+    // Поэтому правило не вправе называть страницу проверенной, не измерив её:
+    // здесь эта ошибка выглядит ровно как починка.
+    expect(provesRepeatCheck(deepPage, runB, runA)).toBe(true);
+    expect(resolvableIssues([deepPage], new Set(), runB, runA).map((entry) => entry.id)).toEqual([
+      'issue-deep',
+    ]);
+  });
+});
+
 describe('входы page-правил (зависимость от чужих снимков)', () => {
   // SEO-TECH-006 судит страницу-ИСТОЧНИК ссылки, а вердикт берёт из снимка её
   // ЦЕЛИ. Пропавшая из обхода цель убирает находку, ничего не починив.

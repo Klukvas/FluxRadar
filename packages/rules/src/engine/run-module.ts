@@ -10,6 +10,7 @@ import { computeFingerprint, normalizeField } from '@fluxradar/fingerprint';
 
 import { rulesForModule } from '../registry.js';
 import type {
+  NotApplicableReason,
   PageRule,
   Rule,
   RuleEvaluation,
@@ -76,7 +77,7 @@ function evaluateRule(rule: Rule, ctx: SiteContext): RuleRun {
  * проверки недостижимых страниц снижают coverage модуля (§15).
  */
 function evaluatePageRule(rule: PageRule, ctx: SiteContext): RuleRun {
-  const applicablePages = ctx.crawl.pages.filter((page) => rule.isApplicable(page));
+  const applicablePages = ctx.crawl.pages.filter((page) => rule.isApplicable(page, ctx));
   const applicableSet = new Set<PageSnapshot>(applicablePages);
   const unreachableOutside = ctx.crawl.pages.filter(
     (page) => page.fetchError !== undefined && !applicableSet.has(page),
@@ -91,8 +92,11 @@ function evaluatePageRule(rule: PageRule, ctx: SiteContext): RuleRun {
       findings,
       // Правило смотрело ровно на эти страницы: 404 и не-HTML в applicable-набор
       // по умолчанию не попадают, и находка на такой странице потом не может
-      // быть закрыта как «исправленная» (§14, resolution policy).
-      checkedTargets: applicablePages.map((page) => page.normalizedUrl),
+      // быть закрыта как «исправленная» (§14, resolution policy). Имя цели —
+      // то же, каким её называет находка (judgedAddress).
+      checkedTargets: applicablePages.map(
+        (page) => rule.judgedAddress?.(page, ctx) ?? page.normalizedUrl,
+      ),
       // И отдельно — материал обхода, без которого вердикт этого правила
       // неполон: у SEO-TECH-006/008 и CONTENT-004 находка на живой странице
       // исчезает, если из обхода выпала её цель, а не если что-то починили.
@@ -101,6 +105,10 @@ function evaluatePageRule(rule: PageRule, ctx: SiteContext): RuleRun {
       // спрашивает (удалённая ссылка, снятая картинка), — это починка, а не
       // потеря данных.
       requestedInputs: rule.requestedInputs?.(ctx),
+      // Причину записываем ровно тогда, когда судить было нечего: у правила с
+      // непустым знаменателем она отчёту не нужна и только вводила бы в
+      // заблуждение.
+      ...notApplicableReasonOf(applicablePages.length, rule.notApplicableReason?.(ctx)),
     },
     applicableChecks: applicablePages.length + unreachableOutside.length,
     completedChecks: applicablePages.length,
@@ -125,10 +133,19 @@ function toScopedRuleRun(ruleId: string, result: SiteRuleResult): RuleRun {
       checkedTargets: result.checkedTargets ?? [],
       inputTargets: result.inputTargets ?? [],
       requestedInputs: result.requestedInputs,
+      ...notApplicableReasonOf(result.applicableTargets, result.notApplicableReason),
     },
     applicableChecks: result.applicableTargets,
     completedChecks: result.completedTargets ?? result.applicableTargets,
   };
+}
+
+/** Причина живёт только рядом с пустым знаменателем — см. RuleEvaluation. */
+function notApplicableReasonOf(
+  applicableTargets: number,
+  reason: NotApplicableReason | undefined,
+): { readonly notApplicableReason?: NotApplicableReason } {
+  return applicableTargets === 0 && reason !== undefined ? { notApplicableReason: reason } : {};
 }
 
 function toIssueCandidates(run: RuleRun, ctx: SiteContext): readonly IssueCandidate[] {

@@ -227,6 +227,57 @@ describe('SEO-TECH-008 index/noindex', () => {
     expect(finding.evidenceExcerpt).toContain('other pages link to it internally');
   });
 
+  it('единственная ссылка написана с query: обход ведёт на ту же страницу → finding', () => {
+    // Профиль по умолчанию — queryPolicy 'ignore': /hidden.html?page=2 и есть
+    // прочитанная страница /hidden.html, и сайт действительно на неё ссылается.
+    const ctx = siteContext({
+      pages: [
+        {
+          path: '/linker.html',
+          html:
+            '<!doctype html><html lang="en"><head><title>Linking fixture page</title></head>' +
+            '<body><h1>Linker</h1><a href="/hidden.html?page=2">hidden</a></body></html>',
+        },
+        {
+          path: '/hidden.html',
+          html:
+            '<!doctype html><html lang="en"><head><title>Hidden fixture page</title>' +
+            '<meta name="robots" content="noindex"></head><body><h1>Hidden</h1></body></html>',
+        },
+      ],
+    });
+    const finding = single(runSeoRule('SEO-TECH-008', ctx));
+    expect(finding.normalizedUrl).toBe('https://fixture.test/hidden.html');
+    expect(finding.evidenceExcerpt).toContain('other pages link to it internally');
+  });
+
+  it('ссылка страницы на саму себя вторым своим адресом — НЕ противоречие', () => {
+    // /hidden/ ссылается на /hidden, который 301 ведёт назад на /hidden/. Это
+    // одна страница, ссылающаяся на себя, и чужих ссылок на неё нет ни одной.
+    const hiddenHtml =
+      '<!doctype html><html lang="en"><head><title>Hidden fixture page</title>' +
+      '<meta name="robots" content="noindex"></head>' +
+      '<body><h1>Hidden</h1><a href="/hidden">self</a></body></html>';
+    const ctx = siteContext({
+      pages: [
+        { path: '/hidden/', html: hiddenHtml },
+        {
+          path: '/hidden',
+          html: hiddenHtml,
+          finalPath: '/hidden/',
+          redirectChain: [
+            {
+              url: 'https://fixture.test/hidden',
+              status: 301,
+              location: 'https://fixture.test/hidden/',
+            },
+          ],
+        },
+      ],
+    });
+    expect(runSeoRule('SEO-TECH-008', ctx)).toEqual([]);
+  });
+
   it('X-Robots-Tag: noindex + sitemap → finding с http-evidence', () => {
     const ctx = siteContext({
       sitemapUrls: ['https://fixture.test/hidden.html'],

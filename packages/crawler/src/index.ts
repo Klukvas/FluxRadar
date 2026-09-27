@@ -38,6 +38,7 @@ export type {
 } from './render/types.js';
 export type { RobotsGroup, RobotsRule, RobotsTxt } from './robots.js';
 export { isPathAllowed, matchesPattern, parseRobotsTxt } from './robots.js';
+export { applyQueryPolicy, isHostInScope, isPathnameAllowedByPatterns } from './scope.js';
 export { fetchSitemapUrls, SITEMAP_MAX_URLS } from './sitemap.js';
 export { RESOURCE_UNVERIFIED_REASONS } from './types.js';
 export {

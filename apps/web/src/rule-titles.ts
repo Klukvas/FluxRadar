@@ -49,6 +49,18 @@ export const RULE_TITLES: Readonly<Record<string, RuleTitle>> = {
     en: 'Noindex page is still in the sitemap or linked to',
     uk: 'Сторінка з noindex досі в sitemap або на неї посилаються',
   },
+  'SEO-TECH-009': {
+    en: 'Page only the sitemap links to',
+    uk: 'Сторінка, на яку веде лише sitemap',
+  },
+  'SEO-TECH-010': {
+    en: 'Page too many clicks from the entry page',
+    uk: 'Сторінка задалеко за кліками від точки входу',
+  },
+  'SEO-TECH-011': {
+    en: 'Page held by a single internal link',
+    uk: 'Сторінку тримає єдине внутрішнє посилання',
+  },
   'SEO-TECH-013': {
     en: 'Insecure (HTTP) resources on an HTTPS page',
     uk: 'Незахищені (HTTP) ресурси на HTTPS-сторінці',
