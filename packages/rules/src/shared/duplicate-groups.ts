@@ -143,54 +143,75 @@ export function listedDuplicates(partners: readonly string[]): readonly string[]
 }
 
 function buildIndex(crawl: CrawlResult, kind: DuplicateValueKind): DuplicateIndex {
+  // Адреса лежат параллельно снимкам: addressJudges уже отдал по одному снимку
+  // на адрес документа, поэтому индекс — это и есть личность страницы.
   const judged = [...addressJudges(crawl)];
-  const addressOf = new Map<PageSnapshot, string>(
-    judged.map((page) => [page, canonicalAddress(crawl, page.normalizedUrl)]),
-  );
-  const byValue = new Map<string, string[]>();
-  for (const page of judged) {
-    const value = duplicateValueOf(page, kind);
-    if (value === '') {
-      continue;
-    }
-    const key = groupingKey(value, kind);
-    const members = byValue.get(key);
-    if (members === undefined) {
-      byValue.set(key, [asAddress(addressOf, page)]);
-      continue;
-    }
-    members.push(asAddress(addressOf, page));
-  }
-  // canonical читается только у страниц, у которых вообще есть с кем совпадать:
-  // на сайте без дублей разбор link[rel=canonical] каждой страницы был бы
-  // работой ради пустого ответа.
-  const duplicated = new Set([...byValue.values()].filter((members) => members.length > 1).flat());
-  const canonicalByAddress = new Map<string, string>();
-  for (const page of judged) {
-    const address = asAddress(addressOf, page);
-    if (!duplicated.has(address)) {
-      continue;
-    }
-    const declared = declaredCanonicalAddress(page, crawl);
-    if (declared !== null) {
-      canonicalByAddress.set(address, declared);
-    }
-  }
+  const addresses = judged.map((page) => canonicalAddress(crawl, page.normalizedUrl));
+  const byValue = groupAddressesByValue(judged, addresses, kind);
+  const declared = declaredCanonicals(judged, addresses, crawl, byValue);
   const groups = new Map<string, DuplicateGroup>();
   for (const members of byValue.values()) {
     if (members.length < 2) {
       continue;
     }
-    const group = toGroup(members, canonicalByAddress);
+    const group = toGroup(members, declared);
     for (const address of group.addresses) {
       groups.set(address, group);
     }
   }
-  return {
-    judged,
-    addresses: judged.map((page) => asAddress(addressOf, page)),
-    groups,
-  };
+  return { judged, addresses, groups };
+}
+
+/** Ключ значения → адреса страниц, которые его несут (одна Map, один проход). */
+function groupAddressesByValue(
+  judged: readonly PageSnapshot[],
+  addresses: readonly string[],
+  kind: DuplicateValueKind,
+): ReadonlyMap<string, readonly string[]> {
+  const byValue = new Map<string, string[]>();
+  judged.forEach((page, index) => {
+    const value = duplicateValueOf(page, kind);
+    if (value === '') {
+      return;
+    }
+    const address = addresses[index] ?? page.normalizedUrl;
+    const key = groupingKey(value, kind);
+    const members = byValue.get(key);
+    if (members === undefined) {
+      byValue.set(key, [address]);
+      return;
+    }
+    members.push(address);
+  });
+  return byValue;
+}
+
+/**
+ * Адрес страницы → адрес документа, который она объявила каноническим.
+ *
+ * Читается только у страниц, у которых вообще есть с кем совпадать: на сайте без
+ * дублей разбор link[rel=canonical] каждой страницы был бы работой ради пустого
+ * ответа (а SEO-TECH-004 всё равно разбирает его сам, на своём кэше DOM).
+ */
+function declaredCanonicals(
+  judged: readonly PageSnapshot[],
+  addresses: readonly string[],
+  crawl: CrawlResult,
+  byValue: ReadonlyMap<string, readonly string[]>,
+): ReadonlyMap<string, string> {
+  const duplicated = new Set([...byValue.values()].filter((members) => members.length > 1).flat());
+  const canonicalByAddress = new Map<string, string>();
+  judged.forEach((page, index) => {
+    const address = addresses[index] ?? page.normalizedUrl;
+    if (!duplicated.has(address)) {
+      return;
+    }
+    const declared = declaredCanonicalAddress(page, crawl);
+    if (declared !== null) {
+      canonicalByAddress.set(address, declared);
+    }
+  });
+  return canonicalByAddress;
 }
 
 function toGroup(
@@ -243,14 +264,6 @@ function groupingKey(value: string, kind: DuplicateValueKind): string {
     return value;
   }
   return createHash('sha256').update(value, 'utf8').digest('hex');
-}
-
-function asAddress(addressOf: ReadonlyMap<PageSnapshot, string>, page: PageSnapshot): string {
-  const address = addressOf.get(page);
-  if (address === undefined) {
-    throw new Error('duplicate-groups: у судящего снимка нет адреса документа');
-  }
-  return address;
 }
 
 function collapse(value: string): string {
