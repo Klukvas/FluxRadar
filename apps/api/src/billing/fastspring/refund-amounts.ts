@@ -1,6 +1,23 @@
-import type { Purchase } from '@prisma/client';
-
+import {
+  FULL_REFUND_RATIO,
+  chargeBasisOf,
+  cumulativeRefund,
+  roundCents as cents,
+  type ChargeBasis,
+  type CumulativeRefund,
+} from '../refund-basis.ts';
 import type { ReturnCreatedEvent } from './events.ts';
+
+// The basis itself — what the purchase was charged, the full-refund ratio and
+// the cumulative sum — is provider-neutral and lives in billing/refund-basis.ts.
+// It is re-exported here so every FastSpring caller keeps one import.
+export {
+  FULL_REFUND_RATIO,
+  chargeBasisOf,
+  cumulativeRefund,
+  type ChargeBasis,
+  type CumulativeRefund,
+};
 
 // What one FastSpring return is worth, and what everything returned so far adds
 // up to.
@@ -34,21 +51,6 @@ import type { ReturnCreatedEvent } from './events.ts';
 // fail-closed branch above by design.
 
 /**
- * A return covering at least this share of the charge is treated as full.
- *
- * Not 1.0, and deliberately not configurable. The two figures being compared
- * travel through different roundings — FastSpring rounds the localised charge to
- * the buyer's currency, the refund to the same, and the cumulative sum here to
- * cents — so an exact equality test would leave a genuinely full refund a cent
- * short and hand the buyer a readable report. One percent of the smallest plan
- * ($55) is 55 cents, far above any rounding this arithmetic can produce and far
- * below any partial refund a seller would actually issue. Widening it would start
- * suspending real partial refunds; narrowing it would start missing full ones,
- * which is the failure that costs money.
- */
-export const FULL_REFUND_RATIO = 0.99;
-
-/**
  * The payout currency whose figures can convert a foreign-currency return onto
  * the charged basis.
  *
@@ -63,15 +65,6 @@ export const FULL_REFUND_RATIO = 0.99;
  */
 export const CONVERTIBLE_PAYOUT_CURRENCY = 'USD';
 
-/** What the purchase was charged, on the one basis every return is measured in. */
-export interface ChargeBasis {
-  /** What the buyer was charged, in `currency`. */
-  readonly total: number;
-  readonly currency: string;
-  /** The same charge, USD-normalised (`Purchase.amountUsd`). */
-  readonly totalUsd: number;
-}
-
 /** One return, expressed on the charge basis and in USD. */
 export interface ReturnLine {
   readonly amountCharged: number;
@@ -79,25 +72,6 @@ export interface ReturnLine {
   readonly currency: string;
   /** Set whenever the figures needed more than reading the payload. */
   readonly reason: string | null;
-}
-
-/** Everything returned against a purchase so far. */
-export interface CumulativeRefund {
-  readonly amountCharged: number;
-  readonly amountUsd: number;
-  /** Share of the charge that is back, capped at 1. */
-  readonly share: number;
-  readonly isFull: boolean;
-}
-
-export function chargeBasisOf(
-  purchase: Pick<Purchase, 'amountUsd' | 'currency' | 'settledAmount' | 'settledCurrency'>,
-): ChargeBasis {
-  return {
-    total: purchase.settledAmount ?? purchase.amountUsd,
-    currency: purchase.settledCurrency ?? purchase.currency,
-    totalUsd: purchase.amountUsd,
-  };
 }
 
 export function resolveReturnLine(event: ReturnCreatedEvent, basis: ChargeBasis): ReturnLine {
@@ -140,20 +114,6 @@ export function resolveReturnLine(event: ReturnCreatedEvent, basis: ChargeBasis)
   );
 }
 
-export function cumulativeRefund(
-  totals: { readonly amountCharged: number | null; readonly amountUsd: number | null },
-  basis: ChargeBasis,
-): CumulativeRefund {
-  const amountCharged = cents(totals.amountCharged ?? 0);
-  const share = basis.total > 0 ? Math.min(1, Math.max(0, amountCharged / basis.total)) : 1;
-  return {
-    amountCharged,
-    amountUsd: cents(totals.amountUsd ?? 0),
-    share,
-    isFull: share >= FULL_REFUND_RATIO,
-  };
-}
-
 /** The whole charge came back — or could not be measured, which counts the same. */
 function whole(basis: ChargeBasis, reason: string): ReturnLine {
   return {
@@ -192,9 +152,4 @@ function usdReturn(event: ReturnCreatedEvent): number | null {
   return event.payoutCurrency === CONVERTIBLE_PAYOUT_CURRENCY
     ? event.totalReturnInPayoutCurrency
     : null;
-}
-
-/** Currency amounts are cents; the arithmetic must not accumulate FP noise. */
-function cents(value: number): number {
-  return Math.round(value * 100) / 100;
 }
