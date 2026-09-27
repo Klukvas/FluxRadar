@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Query-string links — Fixture Site</title>
+    <meta
+      name="description"
+      content="Links that carry a non-tracking query string, for the crawl's query policy."
+    />
+    <link rel="canonical" href="{{ORIGIN}}/query-links.html" />
+  </head>
+  <body>
+    <h1>Links with a query string</h1>
+    <p>
+      Nothing links here and the sitemap does not list it, so the default crawl never sees this page
+      and the seventeen-page expectations of every other test stay as they are. A crawl given this
+      URL as an explicit seed reads it, and the link below carries a query parameter that URL
+      normalization keeps — unlike utm campaign parameters, which it strips. Under the default query
+      policy the crawl folds it into the query-less address, and the internal-linking rules have to
+      fold it the same way.
+    </p>
+    <p><a href="/dup-a.html?sort=asc">The duplicate story, sorted</a></p>
+  </body>
+</html>

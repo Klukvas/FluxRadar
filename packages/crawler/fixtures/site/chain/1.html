@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Link chain start — Fixture Site</title>
+    <meta
+      name="description"
+      content="The first page of a five-page chain the default crawl never reaches."
+    />
+    <link rel="canonical" href="{{ORIGIN}}/chain/1.html" />
+  </head>
+  <body>
+    <h1>Link chain start</h1>
+    <p>
+      Nothing on the fixture site links to this page and the sitemap does not list it, so the
+      default crawl never sees it. A crawl given this URL as an explicit seed starts here at depth 0
+      and walks the chain below — that is how the depth rules get a page four hops from an entry
+      point without changing the seventeen-page crawl every other test expects.
+    </p>
+    <p><a href="/chain/2.html">One hop deeper</a></p>
+  </body>
+</html>

@@ -1,8 +1,10 @@
 import type { UxAiResponseResult } from '@fluxradar/ai';
 import { ruleById } from '@fluxradar/contracts';
-import type { ModuleRunResult, UxStaticEvidence } from '@fluxradar/rules';
+import type { CrawlRendering } from '@fluxradar/crawler';
+import type { ModuleRunResult, NotApplicableReason, UxStaticEvidence } from '@fluxradar/rules';
 import { describe, expect, it } from 'vitest';
 
+import { metadataForRuleModule } from './module-metadata.ts';
 import { ruleCheckSummaries, uxRuleCheckSummaries } from './rule-checks.ts';
 
 type UxAi = Pick<UxAiResponseResult, 'outcome' | 'findings'>;
@@ -113,6 +115,7 @@ function evaluation(
   ruleId: string,
   applicableTargets: number,
   affectedTargets: number,
+  notApplicableReason?: NotApplicableReason,
 ): ModuleRunResult['evaluations'][number] {
   return {
     ruleId,
@@ -122,6 +125,7 @@ function evaluation(
     checkedTargets: [],
     inputTargets: [],
     requestedInputs: undefined,
+    ...(notApplicableReason === undefined ? {} : { notApplicableReason }),
   };
 }
 
@@ -160,5 +164,57 @@ describe('rule check summaries', () => {
 
   it('refuses a rule the registry does not know rather than inventing a title', () => {
     expect(() => ruleCheckSummaries([evaluation('A11Y-999', 1, 0)])).toThrow(/A11Y-999/);
+  });
+
+  // Only the rule knows why it had nothing to judge — a crawl cut short, or a
+  // one-page site with nothing to compare. The report has to be able to say
+  // which, and must not say it next to a check that did run.
+  it('records the rule’s own reason beside an empty denominator', () => {
+    const [summary] = ruleCheckSummaries([evaluation('SEO-TECH-011', 0, 0, 'no-candidates')]);
+
+    expect(summary).toMatchObject({
+      ruleId: 'SEO-TECH-011',
+      applicableTargets: 0,
+      notApplicableReason: 'no-candidates',
+    });
+  });
+
+  it('drops a reason from a check that did have something to judge', () => {
+    // A rule that names its reason unconditionally would otherwise have the
+    // report explain away a check that ran on eleven pages.
+    const [summary] = ruleCheckSummaries([evaluation('SEO-TECH-011', 11, 2, 'link-graph-gap')]);
+
+    expect(summary).not.toHaveProperty('notApplicableReason');
+    expect(summary).toMatchObject({ applicableTargets: 11, affectedTargets: 2 });
+  });
+
+  it('carries the reason into the module row the report reads', () => {
+    // The check list lives in ScanModule.metadataJson, so the reason has to
+    // survive that serialisation — the web app reads it from there and nowhere
+    // else (apps/web/src/module-metadata.ts).
+    const rendering: CrawlRendering = { status: 'NotRequested' };
+    const metadata: unknown = JSON.parse(
+      metadataForRuleModule(
+        'SEO',
+        'Complete',
+        [
+          evaluation('SEO-TECH-009', 0, 0, 'no-sitemap'),
+          evaluation('SEO-TECH-010', 0, 0, 'link-graph-gap'),
+          evaluation('SEO-TECH-011', 3, 1),
+        ],
+        { rendering, apiCheckResults: [] },
+      ),
+    );
+
+    expect(metadata).toMatchObject({
+      ruleChecks: [
+        { ruleId: 'SEO-TECH-009', notApplicableReason: 'no-sitemap' },
+        { ruleId: 'SEO-TECH-010', notApplicableReason: 'link-graph-gap' },
+        { ruleId: 'SEO-TECH-011', applicableTargets: 3 },
+      ],
+    });
+    const rows = (metadata as { readonly ruleChecks: readonly Record<string, unknown>[] })
+      .ruleChecks;
+    expect(rows[2]).not.toHaveProperty('notApplicableReason');
   });
 });

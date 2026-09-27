@@ -41,11 +41,32 @@ export function isHostInScope(
 }
 
 /**
+ * URL в форме, в которой обход его дедупит: queryPolicy 'ignore' срезает query.
+ *
+ * Отдельная функция, а не две строки внутри enqueue, потому что спрашивает об
+ * этом не только обход: правила графа ссылок (SEO-TECH-009/010/011) обязаны
+ * приводить найденный href к ТОМУ ЖЕ ключу — иначе ссылка на `/p?page=2`
+ * выглядит адресом, о котором обход не отчитался, хотя он прочитал `/p`.
+ * Возвращается новый URL: аргумент вызывающего не меняется.
+ */
+export function applyQueryPolicy(url: URL, policy: CrawlScope['queryPolicy']): URL {
+  if (policy !== 'ignore') {
+    return url;
+  }
+  const withoutQuery = new URL(url.href);
+  withoutQuery.search = '';
+  return withoutQuery;
+}
+
+/**
  * Include/exclude-шаблоны по pathname: exclude сильнее include; при заданных
  * includePatterns требуется совпадение хотя бы с одним. Шаблон — полное
  * совпадение, `*` матчит любую последовательность символов (включая `/`).
  */
-export function isPathnameAllowedByPatterns(pathname: string, scope: CrawlScope): boolean {
+export function isPathnameAllowedByPatterns(
+  pathname: string,
+  scope: Pick<CrawlScope, 'includePatterns' | 'excludePatterns'>,
+): boolean {
   const excluded = (scope.excludePatterns ?? []).some((pattern) =>
     matchesGlob(pattern, pathname),
   );

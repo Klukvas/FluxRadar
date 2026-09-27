@@ -35,6 +35,23 @@ describe('public AI crawler readiness', () => {
     });
   });
 
+  it('measures extractable content on the decoded text, at the 200-character boundary', () => {
+    // The gate reads the same visible text CONTENT-003 measures, and that text
+    // has its entities decoded: `&amp;` is one character a reader sees, not
+    // five. On this page the markup is 595 characters long and the text is 199,
+    // so counting the markup would report a page as extractable that an AI
+    // crawler has almost nothing to extract from.
+    const escaped = (units: number, tail = ''): string =>
+      `<!doctype html><html lang="en"><head><title>Entities</title></head>` +
+      `<body><main><h1>H</h1><p>${'A&amp;'.repeat(units)}${tail}</p></main></body></html>`;
+
+    const below = assessAiCrawlerReadiness(htmlContext(escaped(99)).crawl);
+    expect(below.pages).toMatchObject({ checked: 1, extractableContent: 0 });
+
+    const atBoundary = assessAiCrawlerReadiness(htmlContext(escaped(99, 'A')).crawl);
+    expect(atBoundary.pages).toMatchObject({ checked: 1, extractableContent: 1 });
+  });
+
   it('marks an explicit AI bot block and missing robots as unknown', () => {
     const ctx = htmlContext(
       '<!doctype html><html><head><title>Page</title></head><body></body></html>',

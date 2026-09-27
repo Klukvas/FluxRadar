@@ -9,6 +9,7 @@ export type {
   ApiCheckMethod,
   ApiCheckSnapshot,
   ApiRule,
+  NotApplicableReason,
   PageRule,
   Rule,
   RuleEvaluation,

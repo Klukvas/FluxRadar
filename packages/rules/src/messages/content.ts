@@ -3,6 +3,30 @@
 import type { FindingMessageCatalog } from './catalog.js';
 
 export const CONTENT_MESSAGES = {
+  // Текст страницы в evidence целиком не влезает и не нужен: читателю хватает
+  // его начала, длины и адресов, по которым лежит то же самое. Список адресов
+  // ограничен тремя, и текст это говорит: счёт и перечисление расходятся на
+  // большой группе. Оговорка «as crawled» называет границу вердикта — canonical
+  // на адрес, снимка которого у обхода нет, связать страницу с членом группы не
+  // может. Длина считается по раскрытому тексту в форме NFC (`&amp;` — один
+  // символ), тому же самому, который меряет CONTENT-003.
+  //
+  // Причин у находки две, и средняя фраза у них разная — ровно как у дублей
+  // title и description (см. seo-onpage-004 в messages/seo.ts и UnclaimedReason
+  // в shared/duplicate-groups.ts).
+  'content-001.evidence.no-canonical': {
+    en: 'Other crawled pages with the same visible text: {count}; at most three are listed here: {pages}. No <link rel="canonical"> ties this page to any of them, as crawled. The text is {length} characters and begins: "{preview}"',
+    uk: 'Інших прочитаних сторінок із таким самим видимим текстом: {count}; тут названо не більше трьох: {pages}. <link rel="canonical"> не пов’язує цю сторінку з жодною з них — за тим, як їх прочитав обхід. Текст має {length} символів і починається так: «{preview}»',
+  },
+  'content-001.evidence.unresolved-chain': {
+    en: 'Other crawled pages with the same visible text: {count}; at most three are listed here: {pages}. This page has a <link rel="canonical">, but the chain it starts leaves these pages or loops back and names no final version among them, as crawled. The text is {length} characters and begins: "{preview}"',
+    uk: 'Інших прочитаних сторінок із таким самим видимим текстом: {count}; тут названо не більше трьох: {pages}. У цієї сторінки є <link rel="canonical">, але ланцюжок, який вона починає, виходить за межі цих сторінок або замикається в петлю й не називає остаточної версії серед них — за тим, як їх прочитав обхід. Текст має {length} символів і починається так: «{preview}»',
+  },
+  'content-001.recommendation': {
+    en: 'Keep one address for this text and point the copies at it with <link rel="canonical">, or rewrite each page around what only it covers. Duplicated pages compete with each other for the same queries.',
+    uk: 'Залиште для цього тексту одну адресу, а копії вкажіть на неї через <link rel="canonical">, або перепишіть кожну сторінку про те, що є лише на ній. Сторінки-дублікати конкурують між собою за ті самі запити.',
+  },
+
   'content-003.evidence': {
     en: 'Visible text length is {length}, below the minimum of {minimum} characters for a page with real content: "{preview}"',
     uk: 'Довжина видимого тексту — {length}, це менше за мінімум для змістовної сторінки ({minimum} символів): "{preview}"',

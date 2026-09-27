@@ -84,6 +84,7 @@ const ALL_HTML_PAGES = [
   '/deep/level2/page.html',
   '/dup-a.html',
   '/dup-b.html',
+  '/dup-c.html',
   '/empty.html',
   '/form.html',
   '/mixed-content.html',
@@ -119,9 +120,9 @@ describe('passive-модули на fixture-сайте краулера', () => 
     const byRule = new Map(
       moduleResult('Reliability').evaluations.map((entry) => [entry.ruleId, entry]),
     );
-    expect(byRule.get('REL-URL-001')?.applicableTargets).toBe(17);
-    expect(byRule.get('REL-URL-003')?.applicableTargets).toBe(17);
-    expect(byRule.get('REL-URL-009')?.applicableTargets).toBe(17);
+    expect(byRule.get('REL-URL-001')?.applicableTargets).toBe(18);
+    expect(byRule.get('REL-URL-003')?.applicableTargets).toBe(18);
+    expect(byRule.get('REL-URL-009')?.applicableTargets).toBe(18);
     expect(byRule.get('REL-API-003')?.applicableTargets).toBe(0);
     expect(byRule.get('REL-API-005')?.applicableTargets).toBe(0);
   });
@@ -153,6 +154,11 @@ describe('passive-модули на fixture-сайте краулера', () => 
 
   it('Content Quality: четыре страницы < 200 символов; media судится только по пробе', () => {
     expect(findingPathsByRule('Content Quality')).toEqual({
+      // Три страницы несут один и тот же текст, но /dup-c.html объявила
+      // canonical-ом /dup-a.html — и молчат обе: сайт сам сказал, какой адрес
+      // настоящий. Остаётся /dup-b.html, которая делит текст ни с кем не
+      // связавшись.
+      'CONTENT-001': ['/dup-b.html'],
       'CONTENT-003': ['/deep/level2/page.html', '/empty.html', '/orphan.html', '/trackers.html'],
       // Ровно одна страница: та, чью media проба обхода застала битой. Ни одна
       // из остальных пятнадцати за непроверенный ресурс не штрафуется.
@@ -185,20 +191,19 @@ describe('passive-модули на fixture-сайте краулера', () => 
     expect(thirdParty?.evidenceExcerpt).toContain('stats.example.com');
   });
 
-  it('coverage: снимков без fetchError 17 → все checks каждого модуля завершены', () => {
-    expect(crawlResult.pages).toHaveLength(17);
+  it('coverage: снимков без fetchError 18 → все checks каждого модуля завершены', () => {
+    expect(crawlResult.pages).toHaveLength(18);
     const expectedChecks: Readonly<Record<string, number>> = {
-      // Existing 33 checks + ASVS-001×16 + ASVS-002×16 + ASVS-003×17.
-      Security: 82,
-      // REL-URL-001/003/009×17; api-правила без ctx.apiChecks — 0.
-      Reliability: 51,
-      // A11Y-002/004×16.
-      // A11Y-001..010 ×16 HTML pages + A11Y-011 site report contract ×1.
-      Accessibility: 161,
-      // CONTENT-003/004×16.
-      'Content Quality': 32,
-      // PRIVACY-001×17 + PRIVACY-002×16 + PRIVACY-003×16 + PRIVACY-004×1.
-      Privacy: 50,
+      // Existing 35 checks + ASVS-001×17 + ASVS-002×17 + ASVS-003×18.
+      Security: 87,
+      // REL-URL-001/003/009×18; api-правила без ctx.apiChecks — 0.
+      Reliability: 54,
+      // A11Y-001..010 ×17 HTML pages + A11Y-011 site report contract ×1.
+      Accessibility: 171,
+      // CONTENT-001/003/004×17.
+      'Content Quality': 51,
+      // PRIVACY-001×18 + PRIVACY-002×17 + PRIVACY-003×17 + PRIVACY-004×1.
+      Privacy: 53,
     };
     for (const module of PASSIVE_MODULES) {
       const result = moduleResult(module);
@@ -217,6 +222,7 @@ describe('passive-модули на fixture-сайте краулера', () => 
     expect(severityByRule.get('SEC-PASSIVE-002')).toBe('Medium');
     expect(severityByRule.get('SEC-PASSIVE-005')).toBe('Medium');
     expect(severityByRule.get('A11Y-002')).toBe('Medium');
+    expect(severityByRule.get('CONTENT-001')).toBe('Medium');
     expect(severityByRule.get('CONTENT-003')).toBe('Medium');
     expect(severityByRule.get('PRIVACY-001')).toBe('Low');
     expect(severityByRule.get('PRIVACY-003')).toBe('Low');

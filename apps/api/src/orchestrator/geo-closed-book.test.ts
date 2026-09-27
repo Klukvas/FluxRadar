@@ -69,6 +69,7 @@ function siteContext(html: string = HOME_HTML) {
       resources: [],
       pendingQueue: [],
       stoppedEarly: false,
+      scope: { origin: 'https://smile.example', includeSubdomains: false, maxPages: 50 },
     },
   });
 }
@@ -201,6 +202,7 @@ describe('scan evidence assembly', () => {
         resources: [],
         pendingQueue: [],
         stoppedEarly: false,
+        scope: { origin: 'https://smile.example', includeSubdomains: false, maxPages: 50 },
       },
     });
     const bare = profile({

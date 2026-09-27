@@ -59,6 +59,18 @@ export const RULE_TITLES: Readonly<Record<string, LocalizedName>> = {
     en: 'Noindex page is still in the sitemap or linked to',
     uk: 'Сторінка з noindex досі в sitemap або на неї посилаються',
   },
+  'SEO-TECH-009': {
+    en: 'Page only the sitemap links to',
+    uk: 'Сторінка, на яку веде лише sitemap',
+  },
+  'SEO-TECH-010': {
+    en: 'Page too many clicks from the entry page',
+    uk: 'Сторінка задалеко за кліками від точки входу',
+  },
+  'SEO-TECH-011': {
+    en: 'Page held by a single internal link',
+    uk: 'Сторінку тримає єдине внутрішнє посилання',
+  },
   'SEO-TECH-013': {
     en: 'Insecure (HTTP) resources on an HTTPS page',
     uk: 'Незахищені (HTTP) ресурси на HTTPS-сторінці',
@@ -75,9 +87,17 @@ export const RULE_TITLES: Readonly<Record<string, LocalizedName>> = {
     en: 'Heading structure is broken (H1–H6)',
     uk: 'Порушена структура заголовків (H1–H6)',
   },
+  'SEO-ONPAGE-004': {
+    en: 'Page title is not unique',
+    uk: 'Заголовок сторінки (title) не унікальний',
+  },
   'SEO-ONPAGE-005': {
     en: 'Images without alt text',
     uk: 'Зображення без alt-тексту',
+  },
+  'SEO-ONPAGE-006': {
+    en: 'Meta description is not unique',
+    uk: 'Meta description не унікальний',
   },
   'SEO-STRUCT-001': {
     en: 'Structured data (JSON-LD) does not parse',
@@ -178,6 +198,10 @@ export const RULE_TITLES: Readonly<Record<string, LocalizedName>> = {
   'A11Y-011': {
     en: 'Needs a manual accessibility review',
     uk: 'Потрібна ручна перевірка доступності',
+  },
+  'CONTENT-001': {
+    en: 'Page content duplicates another page',
+    uk: 'Зміст сторінки дублює іншу сторінку',
   },
   'CONTENT-003': {
     en: 'Page has little or no content',

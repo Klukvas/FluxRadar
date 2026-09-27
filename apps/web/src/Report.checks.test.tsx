@@ -220,6 +220,165 @@ describe('a section card that recorded its checks', () => {
     expect(rows[2]).toHaveTextContent('Not applicable');
   });
 
+  /** One recorded check row of the SEO section, with counts the caller chooses. */
+  function seoCheck(
+    ruleId: string,
+    title: string,
+    notApplicableReason?: string,
+  ): Record<string, unknown> {
+    return {
+      ruleId,
+      title,
+      targetKind: 'page',
+      scoring: 'scored',
+      applicableTargets: 0,
+      affectedTargets: 0,
+      ...(notApplicableReason === undefined ? {} : { notApplicableReason }),
+    };
+  }
+
+  async function seoRows(checks: readonly Record<string, unknown>[]): Promise<HTMLElement[]> {
+    await openReport(dashboardOf([moduleOf({ metadata: { ruleChecks: checks } })]));
+    fireEvent.click(card('SEO'));
+    const region = screen.getByRole('region', { name: 'SEO · checks performed' });
+    return within(region).getAllByRole('listitem');
+  }
+
+  it('names why an internal-linking check did not apply, instead of blaming the pages', async () => {
+    // All three need the crawl's whole link graph, so "nothing on the pages read
+    // matched this check" would name the wrong reason: the pages were fine, the
+    // crawl was cut short.
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          metadata: {
+            ruleChecks: [
+              seoCheck('SEO-TECH-009', 'orphan pages'),
+              seoCheck('SEO-TECH-010', 'click depth'),
+              seoCheck('SEO-TECH-011', 'weakly linked pages'),
+            ],
+          },
+        }),
+      ]),
+    );
+
+    fireEvent.click(card('SEO'));
+
+    const region = screen.getByRole('region', { name: 'SEO · checks performed' });
+    const rows = within(region).getAllByRole('listitem');
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).toHaveTextContent('Not applicable');
+      expect(row).not.toHaveTextContent('Nothing on the pages read');
+    }
+    expect(rows[0]).toHaveTextContent('No sitemap was read');
+    expect(rows[1]).toHaveTextContent('the number of link hops to a page cannot be counted');
+    expect(rows[2]).toHaveTextContent('the inbound links of a page cannot be counted');
+  });
+
+  it('says a one-page site had nothing to judge, not that the crawl was cut short', async () => {
+    // A Complete crawl of a single-page site finishes everything it set out to
+    // read. Telling its owner the crawl did not finish would be a claim about
+    // this scan that is simply untrue.
+    const rows = await seoRows([
+      seoCheck('SEO-TECH-009', 'orphan pages', 'no-sitemap'),
+      seoCheck('SEO-TECH-011', 'weakly linked pages', 'no-candidates'),
+    ]);
+
+    expect(rows[0]).toHaveTextContent('No XML sitemap was read');
+    expect(rows[0]).not.toHaveTextContent('did not finish');
+    expect(rows[1]).toHaveTextContent('no page besides the entry page');
+    expect(rows[1]).not.toHaveTextContent('did not finish');
+  });
+
+  it('still blames the crawl when the rule says the link graph was incomplete', async () => {
+    const rows = await seoRows([
+      seoCheck('SEO-TECH-009', 'orphan pages', 'link-graph-gap'),
+      seoCheck('SEO-TECH-010', 'click depth', 'link-graph-gap'),
+      seoCheck('SEO-TECH-011', 'weakly linked pages', 'link-graph-gap'),
+    ]);
+
+    for (const row of rows) {
+      expect(row).toHaveTextContent(
+        'The crawl did not finish reading the pages it set out to read',
+      );
+    }
+    expect(rows[0]).toHaveTextContent('a page it never opened could hold the missing link');
+    expect(rows[1]).toHaveTextContent('the number of link hops to a page cannot be counted');
+    expect(rows[2]).toHaveTextContent('the inbound links of a page cannot be counted');
+  });
+
+  it('names why a duplicate check did not apply: there was no second page', async () => {
+    // The three cross-page duplicate checks compare one page against the others
+    // the crawl read. On a one-page crawl "nothing on the pages read matched"
+    // would read as "your titles are unique" — a claim this scan never made.
+    const rows = await seoRows([
+      seoCheck('SEO-ONPAGE-004', 'duplicate title', 'no-candidates'),
+      seoCheck('SEO-ONPAGE-006', 'duplicate meta description', 'no-candidates'),
+    ]);
+
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).toHaveTextContent('Not applicable');
+      expect(row).not.toHaveTextContent('Nothing on the pages read');
+      expect(row).not.toHaveTextContent('did not finish');
+    }
+    expect(rows[0]).toHaveTextContent('no second title to compare it with');
+    expect(rows[1]).toHaveTextContent('no second description to compare it with');
+  });
+
+  it('names the duplicate-content reason in the reader’s language', async () => {
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          module: 'Content Quality',
+          metadata: {
+            ruleChecks: [seoCheck('CONTENT-001', 'дубль змісту сторінки', 'no-candidates')],
+          },
+        }),
+      ]),
+      'uk',
+    );
+
+    fireEvent.click(card('Content Quality'));
+
+    const region = screen.getByRole('region', { name: 'Content Quality · виконані перевірки' });
+    const [row] = within(region).getAllByRole('listitem');
+    expect(row).toHaveTextContent('Обхід прочитав лише одну сторінку');
+    expect(row).not.toHaveTextContent('На прочитаних сторінках немає нічого');
+  });
+
+  it('falls back to the rule sentence for a reason it does not know', async () => {
+    const rows = await seoRows([
+      seoCheck('SEO-TECH-011', 'weakly linked pages', 'from-the-future'),
+    ]);
+
+    expect(rows[0]).toHaveTextContent('the inbound links of a page cannot be counted');
+  });
+
+  it('names the reason in the reader’s language, not only the check', async () => {
+    // The reason is copy like any other row text: a Ukrainian reader must get
+    // the sentence the rule named, not the English one and not the generic
+    // fallback about the pages read.
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          metadata: {
+            ruleChecks: [seoCheck('SEO-TECH-011', 'слабо пов’язані сторінки', 'no-candidates')],
+          },
+        }),
+      ]),
+      'uk',
+    );
+
+    fireEvent.click(card('SEO'));
+
+    const region = screen.getByRole('region', { name: 'SEO · виконані перевірки' });
+    const [row] = within(region).getAllByRole('listitem');
+    expect(row).toHaveTextContent('Окрім вхідної сторінки, обхід не прочитав жодної сторінки');
+    expect(row).not.toHaveTextContent('На прочитаних сторінках немає нічого');
+  });
+
   it('toggles from its own button too, and says whether the list is open', async () => {
     await openReport(dashboardOf([accessibilityModule()]));
 

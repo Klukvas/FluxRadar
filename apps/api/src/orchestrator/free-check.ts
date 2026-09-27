@@ -82,7 +82,7 @@ export function runFreeCheck(ctx: SiteContext): ModuleRunResult {
     if (descriptor === undefined) {
       throw new Error(`free-check: ${rule.descriptor.ruleId} отсутствует в реестре`);
     }
-    const applicablePages = ctx.crawl.pages.filter((page) => rule.isApplicable(page));
+    const applicablePages = ctx.crawl.pages.filter((page) => rule.isApplicable(page, ctx));
     const applicableSet = new Set<PageSnapshot>(applicablePages);
     // Снимок с fetchError вне applicable-набора — незакрытая проверка (D-156).
     const unreachableOutside = ctx.crawl.pages.filter(

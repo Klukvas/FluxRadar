@@ -41,6 +41,24 @@ export function pageFinding(
   return buildFinding(descriptor, page.normalizedUrl, page.finalUrl, details);
 }
 
+/**
+ * Page-level finding под адресом ДОКУМЕНТА, а не под адресом снимка.
+ *
+ * Нужен правилам графа ссылок: один документ обход держит под двумя адресами
+ * (`/about` с 301 и `/about/`), и какой из них получит снимок, решает порядок
+ * очереди. Находка, названная адресом снимка, меняла бы личность от прогона к
+ * прогону — новый прогон открывал бы вторую issue о той же странице и не мог
+ * закрыть первую (§14, resolution-policy). Поэтому её имя — canonicalAddress.
+ */
+export function pageFindingAt(
+  descriptor: RuleDescriptor,
+  address: string,
+  page: PageSnapshot,
+  details: FindingDetails,
+): RuleFinding {
+  return buildFinding(descriptor, address, page.finalUrl, details);
+}
+
 /** Site-level finding: normalizedUrl — пустая строка по D-019. */
 export function siteFinding(
   descriptor: RuleDescriptor,
