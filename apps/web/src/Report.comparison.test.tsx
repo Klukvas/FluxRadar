@@ -9,7 +9,8 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Dashboard, Scan, ScanComparison, ScanModule } from './api';
+import type { Dashboard, Scan, ScanChanges, ScanModule } from './api';
+import type { ScanComparison } from './comparison-api';
 import type { Language } from './i18n';
 import { ResultsScreen } from './Report';
 
@@ -88,6 +89,7 @@ function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
       urlsDiscovered: 42,
       urlsOverLimit: 0,
       scope: scope(),
+      readable: true,
     },
     previous: {
       id: 'scan-1',
@@ -98,6 +100,7 @@ function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
       urlsDiscovered: 40,
       urlsOverLimit: 0,
       scope: scope(),
+      readable: true,
     },
     comparable: { ok: true },
     overall: { previousScore: 70, currentScore: 74.5, delta: 4.5 },
@@ -133,8 +136,11 @@ function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
       resolved: 5,
       reopened: 1,
       stillOpen: 8,
-      byModule: [{ module: 'SEO', new: 2, resolved: 5, reopened: 1, stillOpen: 8 }],
-      bySeverity: [{ severity: 'High', new: 2, resolved: 5, reopened: 1, stillOpen: 8 }],
+      settled: 0,
+      byModule: [{ module: 'SEO', new: 2, resolved: 5, reopened: 1, stillOpen: 8, settled: 0 }],
+      bySeverity: [
+        { severity: 'High', new: 2, resolved: 5, reopened: 1, stillOpen: 8, settled: 0 },
+      ],
       newSample: [
         {
           fingerprint: 'fp-new',
@@ -153,6 +159,8 @@ function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
           normalizedUrl: 'https://shop.example/retired',
         },
       ],
+      firstChecked: { count: 0, byModule: [], bySeverity: [], ruleIds: [], sample: [] },
+      noLongerChecked: [],
     },
     ...overrides,
   };
@@ -170,6 +178,19 @@ function jsonResponse(data: unknown): Response {
  * dashboard — which is exactly what the workspace test mocks do, and what a
  * deployment without this endpoint effectively does too.
  */
+/** What the older `GET /scans/:id/changes` block would have to draw. */
+function scanChangesOf(): ScanChanges {
+  return {
+    previous: { id: 'scan-1', plan: 'Complete', completedAt: '2026-09-06T00:01:00.000Z' },
+    egressComparison: 'same',
+    introduced: 2,
+    fixed: 5,
+    persisting: 8,
+    introducedByRule: [],
+    fixedByRule: [],
+  };
+}
+
 async function openReport(
   options: {
     readonly dashboard?: Dashboard;
@@ -188,6 +209,10 @@ async function openReport(
           jsonResponse(options.comparison === 'generic' ? dashboard : options.comparison),
         );
       }
+      // The older "since last scan" block only draws itself on a real payload,
+      // so the mock has to offer one: a test that proves it is absent has to be
+      // able to fail.
+      if (input.includes('/changes')) return Promise.resolve(jsonResponse(scanChangesOf()));
       return Promise.resolve(jsonResponse(dashboard));
     }),
   );
@@ -307,7 +332,9 @@ describe('the comparison panel', () => {
     expect(stat(block, 'Resolved').textContent).toContain('5');
     expect(stat(block, 'Reopened').textContent).toContain('1');
     expect(within(block).getByText(/two addresses of one page count once/i)).toBeInTheDocument();
-    expect(within(block).getByText(/counted among the new ones/i)).toBeInTheDocument();
+    expect(
+      within(block).getByText(/counted among the ones that were not in the previous report/i),
+    ).toBeInTheDocument();
   });
 
   it('keeps the address and finding samples behind a control', async () => {
@@ -396,6 +423,133 @@ describe('the comparison panel', () => {
       expect(screen.queryByText(EN_HEADING)).not.toBeInTheDocument();
     },
   );
+
+  it('names a blank setting the way that setting reads, never as "whole plan"', async () => {
+    // Both of these were rendered as "whole plan": a crawl location nobody chose
+    // read as "Crawl location: whole plan → ua", and a click depth nobody set
+    // read as "Click depth: whole plan".
+    await openReport({
+      comparison: comparisonOf({
+        comparable: { ok: false, reason: 'scope-changed' },
+        modules: [],
+        previous: {
+          ...comparisonOf().previous!,
+          scope: { ...scope(), egressLocation: null, maxDepth: null },
+        },
+      }),
+    });
+
+    const block = await panel(EN_HEADING);
+    expect(
+      within(block).getByText('Crawl location: the default location → ua'),
+    ).toBeInTheDocument();
+    expect(within(block).getByText('Click depth: no limit → 5')).toBeInTheDocument();
+    expect(within(block).queryByText(/whole plan/)).not.toBeInTheDocument();
+  });
+
+  it('treats a reason it has no sentence for as no comparison at all', async () => {
+    // The panel indexes its copy by the reason, so an unrecognised one used to
+    // render an empty paragraph where the explanation belongs.
+    await openReport({
+      comparison: comparisonOf({
+        comparable: { ok: false, reason: 'because-i-said-so' } as never,
+        modules: [],
+      }),
+    });
+
+    expect(
+      await screen.findByText(/comparison with your previous scan could not be loaded/i),
+    ).toBeInTheDocument();
+  });
+
+  it('holds first-checked findings apart from the new ones, and names the checks', async () => {
+    await openReport({
+      comparison: comparisonOf({
+        issues: {
+          ...comparisonOf().issues,
+          new: 1,
+          firstChecked: {
+            count: 10,
+            byModule: [{ module: 'SEO', count: 10 }],
+            bySeverity: [{ severity: 'High', count: 10 }],
+            ruleIds: ['SEO-TECH-010'],
+            sample: [
+              {
+                fingerprint: 'fp-first',
+                ruleId: 'SEO-TECH-010',
+                module: 'SEO',
+                severity: 'High',
+                normalizedUrl: 'https://shop.example/deep',
+              },
+            ],
+          },
+          noLongerChecked: ['SEO-TECH-013'],
+        },
+      }),
+    });
+
+    const block = await panel(EN_HEADING);
+    expect(stat(block, 'New').textContent).toContain('1');
+    expect(within(block).getByText(/not problems you introduced/i)).toBeInTheDocument();
+    expect(within(block).getByText(/Some checks did not run in this scan/i)).toBeInTheDocument();
+    expect(
+      within(block).getByRole('button', { name: /Show findings · Checked for the first time/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('counts a finding the owner settled apart from the ones still open', async () => {
+    await openReport({
+      comparison: comparisonOf({
+        issues: { ...comparisonOf().issues, stillOpen: 6, settled: 2 },
+      }),
+    });
+
+    const block = await panel(EN_HEADING);
+    expect(stat(block, 'Still open').textContent).toContain('6');
+    expect(stat(block, 'Settled by you').textContent).toContain('2');
+    expect(within(block).getByText(/ignored or a false positive/i)).toBeInTheDocument();
+  });
+
+  it('names a previous report the account may no longer open, without offering it', async () => {
+    const opened: string[] = [];
+    await openReport({
+      comparison: comparisonOf({
+        previous: { ...comparisonOf().previous!, readable: false },
+      }),
+      onOpenScan: (id) => opened.push(id),
+    });
+
+    const block = await panel(EN_HEADING);
+    // Still named — the numbers are drawn against it — and not linked.
+    expect(within(block).getByText(/Against the Complete report of/)).toBeInTheDocument();
+    expect(
+      within(block).queryByRole('button', { name: 'Open the previous report' }),
+    ).not.toBeInTheDocument();
+    expect(opened).toEqual([]);
+  });
+
+  it('leaves exactly one "since last scan" block on a report that has the panel', async () => {
+    // Two blocks answering the same question with two different numbers: the
+    // panel counts a finding resolved only where the §14 proof says the run
+    // re-checked it, while the older block calls every absence a fix. Whichever
+    // number the reader believes, the report contradicts itself.
+    await openReport({ comparison: comparisonOf() });
+
+    await panel(EN_HEADING);
+    expect(screen.queryByText('Since your last scan')).not.toBeInTheDocument();
+    expect(
+      (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .map((call) => String(call[0]))
+        .some((path) => path.includes('/changes')),
+    ).toBe(false);
+  });
+
+  it('keeps the older block on Basic, which has no panel to replace it', async () => {
+    await openReport({ dashboard: dashboardOf('Basic') });
+
+    expect(await screen.findByText('Since your last scan')).toBeInTheDocument();
+    expect(panelOrNull(EN_HEADING)).toBeNull();
+  });
 
   it('asks for the comparison only on a plan that includes it', async () => {
     await openReport({ dashboard: dashboardOf('Basic'), comparison: comparisonOf() });

@@ -6,7 +6,7 @@
 // saying "3 resolved" without saying what the two crawls were is the one thing
 // this feature must not put in front of a client.
 
-import type { ScanComparison } from './api';
+import type { ScanComparison } from './comparison-api';
 import { movement, scoreText } from './comparison-format';
 import { formatDate } from './format-date';
 import { copy, fillCopy, type Language } from './i18n';
@@ -47,8 +47,17 @@ export function ComparisonPrintBlock(props: {
               <p>
                 {t.issuesNew}: {comparison.issues.new} · {t.issuesResolved}:{' '}
                 {comparison.issues.resolved} · {t.issuesReopened}: {comparison.issues.reopened} ·{' '}
-                {t.issuesStillOpen}: {comparison.issues.stillOpen}
+                {t.issuesStillOpen}: {comparison.issues.stillOpen} · {t.issuesSettled}:{' '}
+                {comparison.issues.settled}
               </p>
+              {/* Printed too: a client reading "12 new" has to be told which of
+                  them are new checks rather than new problems, and they cannot
+                  expand anything to find out. */}
+              {comparison.issues.firstChecked.count === 0 ? null : (
+                <p>
+                  {t.issuesFirstChecked}: {comparison.issues.firstChecked.count}
+                </p>
+              )}
               {comparison.pages.comparable.ok ? (
                 <p>
                   {t.pagesHeading} — {t.pagesAdded}: {comparison.pages.added} · {t.pagesRemoved}:{' '}

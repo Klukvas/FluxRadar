@@ -15,16 +15,17 @@
 
 import { useEffect, useState } from 'react';
 
+import type { Scan } from './api';
 import {
   fetchScanComparison,
   type CrawlScopeFacts,
+  type FirstCheckedFindings,
   type IssueCounts,
   type IssueSample,
   type ModuleScoreDelta,
   type PageComparison,
-  type Scan,
   type ScanComparison,
-} from './api';
+} from './comparison-api';
 import { Button, Panel } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
@@ -112,7 +113,11 @@ function ComparisonBody(props: {
           date: formatDate(previous.completedAt, props.language),
         })}
       </p>
-      {props.onOpenScan === undefined ? null : (
+      {/* A previous report whose payment was reversed is still the baseline the
+          Resolved statuses were written against — so it is compared with — but it
+          is no longer the owner's to open, and offering the link would send them
+          into a 403. */}
+      {props.onOpenScan === undefined || !previous.readable ? null : (
         <div className="button-row">
           <Button onClick={() => props.onOpenScan?.(previous.id)}>{t.openPrevious}</Button>
         </div>
@@ -122,6 +127,7 @@ function ComparisonBody(props: {
           <Scores comparison={comparison} language={props.language} />
           <Pages pages={comparison.pages} language={props.language} />
           <Findings comparison={comparison} language={props.language} />
+          <FirstChecked firstChecked={comparison.issues.firstChecked} language={props.language} />
         </>
       ) : (
         <section aria-labelledby="comparison-reason">
@@ -140,9 +146,26 @@ function ComparisonBody(props: {
   );
 }
 
+type ScopeField = keyof ComparisonCopy['scopeField'];
+type UnsetScopeField = keyof ComparisonCopy['scopeUnset'];
+
+/**
+ * The three scope settings that can be blank, and mean something of their own.
+ *
+ * "Not set" is not one sentence: a missing page ceiling means the plan's own
+ * limit applies, a missing depth means none does, and a missing crawl location
+ * means the default one — which is how "Crawl location: whole plan → ua" got in
+ * front of a reader.
+ */
+function isUnsetScopeField(field: ScopeField): field is UnsetScopeField & ScopeField {
+  return field === 'maxPages' || field === 'maxDepth' || field === 'egressLocation';
+}
+
 /** A scope value as a reader would name it, never as the JSON spells it. */
-function scopeValue(value: unknown, t: ComparisonCopy): string {
-  if (value === null || value === undefined) return t.scopeNoLimit;
+function scopeValue(field: ScopeField, value: unknown, t: ComparisonCopy): string {
+  if (value === null || value === undefined) {
+    return isUnsetScopeField(field) ? t.scopeUnset[field] : t.scopeNotSet;
+  }
   if (typeof value === 'boolean') return value ? t.scopeOn : t.scopeOff;
   if (Array.isArray(value)) return value.length === 0 ? t.scopeNone : value.join(', ');
   return String(value);
@@ -160,7 +183,7 @@ function ScopeChanges(props: {
   readonly language: Language;
 }) {
   const t = copy[props.language].report.comparison;
-  const fields: readonly (keyof typeof t.scopeField)[] = [
+  const fields: readonly ScopeField[] = [
     'entryUrl',
     'maxPages',
     'maxDepth',
@@ -175,7 +198,8 @@ function ScopeChanges(props: {
     'egressLocation',
   ];
   const changed = fields.filter(
-    (field) => scopeValue(props.current[field], t) !== scopeValue(props.previous[field], t),
+    (field) =>
+      scopeValue(field, props.current[field], t) !== scopeValue(field, props.previous[field], t),
   );
   if (changed.length === 0) return null;
   return (
@@ -186,8 +210,8 @@ function ScopeChanges(props: {
           <li key={field}>
             {fillCopy(t.scopeChangedRow, {
               field: t.scopeField[field],
-              previous: scopeValue(props.previous[field], t),
-              current: scopeValue(props.current[field], t),
+              previous: scopeValue(field, props.previous[field], t),
+              current: scopeValue(field, props.current[field], t),
             })}
           </li>
         ))}
@@ -410,6 +434,7 @@ function CountsTable(props: {
             <th scope="col">{t.issuesResolved}</th>
             <th scope="col">{t.issuesReopened}</th>
             <th scope="col">{t.issuesStillOpen}</th>
+            <th scope="col">{t.issuesSettled}</th>
           </tr>
         </thead>
         <tbody>
@@ -420,11 +445,107 @@ function CountsTable(props: {
               <td>{row.resolved}</td>
               <td>{row.reopened}</td>
               <td>{row.stillOpen}</td>
+              <td>{row.settled}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </>
+  );
+}
+
+/** One column of counts — the first-checked breakdowns, which have no verdicts. */
+function SimpleCountsTable(props: {
+  readonly heading: string;
+  readonly firstColumn: string;
+  readonly rows: readonly { readonly label: string; readonly count: number }[];
+  readonly language: Language;
+}) {
+  const t = copy[props.language].report.comparison;
+  if (props.rows.length === 0) return null;
+  return (
+    <>
+      <h5>{props.heading}</h5>
+      <table className="comparison-table">
+        <thead>
+          <tr>
+            <th scope="col">{props.firstColumn}</th>
+            <th scope="col">{t.columnFindings}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.rows.map((row) => (
+            <tr key={row.label}>
+              <th scope="row">{row.label}</th>
+              <td>{row.count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+/** Rule ids as the reader knows them, so a note never prints SEO-TECH-011. */
+function ruleList(ruleIds: readonly string[], language: Language): string {
+  return ruleIds.map((ruleId) => ruleTitle(ruleId, language)).join(', ');
+}
+
+/**
+ * Findings of checks that ran here for the first time.
+ *
+ * Held apart from "new" because the two answer different questions: one is what
+ * changed on the site, the other is what the product started looking at. Folding
+ * them together told an owner who had changed nothing that they had introduced
+ * forty problems.
+ */
+function FirstChecked(props: {
+  readonly firstChecked: FirstCheckedFindings;
+  readonly language: Language;
+}) {
+  const t = copy[props.language].report.comparison;
+  const severityLabels = findingsCopy[props.language].severity;
+  const { firstChecked } = props;
+  if (firstChecked.count === 0) return null;
+  return (
+    <section aria-labelledby="comparison-first-checked">
+      <h4 id="comparison-first-checked">{t.issuesFirstChecked}</h4>
+      <p className="muted" role="status">
+        {fillCopy(t.firstCheckedNote, {
+          rules:
+            firstChecked.ruleIds.length === 0
+              ? ''
+              : fillCopy(t.firstCheckedRules, {
+                  list: ruleList(firstChecked.ruleIds, props.language),
+                }),
+        })}
+      </p>
+      <FindingSample
+        id="comparison-findings-first-checked"
+        heading={t.firstCheckedList}
+        total={firstChecked.count}
+        items={firstChecked.sample}
+        language={props.language}
+      />
+      <SimpleCountsTable
+        heading={t.bySeverityHeading}
+        firstColumn={t.columnSeverity}
+        rows={firstChecked.bySeverity.map((row) => ({
+          label: severityLabels[row.severity] ?? row.severity,
+          count: row.count,
+        }))}
+        language={props.language}
+      />
+      <SimpleCountsTable
+        heading={t.byModuleHeading}
+        firstColumn={t.columnModule}
+        rows={firstChecked.byModule.map((row) => ({
+          label: moduleLabel(row.module, props.language),
+          count: row.count,
+        }))}
+        language={props.language}
+      />
+    </section>
   );
 }
 
@@ -440,9 +561,18 @@ function Findings(props: { readonly comparison: ScanComparison; readonly languag
         <Stat value={issues.resolved} label={t.issuesResolved} kind="fixed" />
         <Stat value={issues.reopened} label={t.issuesReopened} />
         <Stat value={issues.stillOpen} label={t.issuesStillOpen} />
+        <Stat value={issues.settled} label={t.issuesSettled} />
       </div>
       <p className="muted">{t.resolvedNote}</p>
+      {issues.settled > 0 ? <p className="muted">{t.settledNote}</p> : null}
       {issues.reopened > 0 ? <p className="muted">{t.reopenedNote}</p> : null}
+      {issues.noLongerChecked.length === 0 ? null : (
+        <p className="muted" role="status">
+          {fillCopy(t.noLongerCheckedNote, {
+            list: ruleList(issues.noLongerChecked, props.language),
+          })}
+        </p>
+      )}
       <FindingSample
         id="comparison-findings-new"
         heading={t.newList}

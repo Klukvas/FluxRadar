@@ -13,15 +13,14 @@ import { actionPlanCopy } from './action-plan-copy';
 import {
   apiRequest,
   apiRequestWithMeta,
-  fetchScanComparison,
   isActionPlanState,
   type ActionPlanContent,
   type Dashboard,
   type Issue,
   type IssueRuleGroup,
   type IssueSummary,
-  type ScanComparison,
 } from './api';
+import { fetchScanComparison, type ScanComparison } from './comparison-api';
 import { Button, LoadingState, StatusChip } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
@@ -47,8 +46,9 @@ interface PrintData {
   readonly actionPlan: ActionPlanContent | null;
   /**
    * The comparison with the previous scan; null when this plan carries no
-   * finding history, or when the read did not come back. The document is worth
-   * printing either way, so it is never the reason the page fails to load.
+   * finding history — in which case it is never asked for — or when the read did
+   * not come back. The document is worth printing either way, so it is never the
+   * reason the page fails to load.
    */
   readonly comparison: ScanComparison | null;
 }
@@ -68,8 +68,19 @@ async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: 
 }
 
 async function loadPrintData(scanId: string, planLanguage: string | null): Promise<PrintData> {
+  const dashboardRead = apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`);
+  // Asked only where the plan buys it. The endpoint would answer 403 on Free and
+  // Basic and `fetchScanComparison` would swallow it — but a refusal is still a
+  // request, and it counts against the comparison rate limit every time such a
+  // report is printed. The plan is known one round trip in, so the read waits
+  // for that instead of being fired blind; everything else still runs alongside.
+  const comparisonRead = dashboardRead
+    .then((dashboard) =>
+      planIncludesIssueHistory(dashboard.scan.plan) ? fetchScanComparison(scanId) : null,
+    )
+    .catch(() => null);
   const [dashboard, summary, findings, actionPlan, comparison] = await Promise.all([
-    apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`),
+    dashboardRead,
     apiRequest<IssueSummary>(`/scans/${encodeURIComponent(scanId)}/issues/summary`).catch(
       () => null,
     ),
@@ -83,10 +94,7 @@ async function loadPrintData(scanId: string, planLanguage: string | null): Promi
         )
           .then((value) => (isActionPlanState(value) ? value.plan : null))
           .catch(() => null),
-    // Asked for unconditionally: the endpoint answers 403 on a plan without
-    // finding history and `fetchScanComparison` turns every refusal into null,
-    // which is also what an older deployment produces.
-    fetchScanComparison(scanId),
+    comparisonRead,
   ]);
   return {
     dashboard,

@@ -1491,7 +1491,16 @@ export const copy = {
           egressLocation: 'Crawl location',
         },
         scopeChangedRow: '{field}: {previous} → {current}',
-        scopeNoLimit: 'whole plan',
+        // A setting that was never given a value reads differently per field:
+        // "whole plan" is true of a missing page ceiling and nonsense for a
+        // missing crawl location, which is how "Crawl location: whole plan → ua"
+        // reached the screen.
+        scopeUnset: {
+          maxPages: 'the plan’s own limit',
+          maxDepth: 'no limit',
+          egressLocation: 'the default location',
+        },
+        scopeNotSet: 'not set',
         scopeNone: 'none',
         scopeOn: 'on',
         scopeOff: 'off',
@@ -1526,6 +1535,8 @@ export const copy = {
             'The record of what one of these scans read could not be decoded, so no page list is claimed. The findings below are compared from the findings themselves.',
           'page-evidence-empty':
             'One of these scans recorded no page-level check at all, so there is no page list to compare.',
+          'page-identity-mismatch':
+            'Only one of these two scans could work out which address each document really lives at, so the two page lists are named differently. Comparing them would report your redirects as pages that came and went.',
           'scans-not-comparable': 'The pages are not compared, for the reason given above.',
         },
         showPages: 'Show addresses',
@@ -1536,18 +1547,29 @@ export const copy = {
         issuesResolved: 'Resolved',
         issuesReopened: 'Reopened',
         issuesStillOpen: 'Still open',
+        issuesSettled: 'Settled by you',
+        issuesFirstChecked: 'Checked for the first time',
         reopenedNote:
-          'Reopened findings are counted among the new ones: each of them was closed by an earlier report of this plan and is back.',
+          'Reopened findings are counted among the ones that were not in the previous report: each of them was closed by an earlier report of this plan and is back.',
         resolvedNote:
           'A finding counts as resolved only where this scan checked the same thing again and no longer found it. Anything this scan could not re-check stays open.',
+        settledNote:
+          'Settled means you marked it ignored or a false positive, so it is held apart from the problems still waiting for you.',
+        firstCheckedNote:
+          'These were found by checks that ran for the first time in this scan, so they are not counted as new: they are not problems you introduced, they are problems nobody had looked for yet. {rules}',
+        firstCheckedRules: 'New checks: {list}.',
+        noLongerCheckedNote:
+          'Some checks did not run in this scan: {list}. Whatever they found last time is absent for that reason and is not counted as resolved.',
         showFindings: 'Show findings',
         hideFindings: 'Hide findings',
         newList: 'New in this report',
+        firstCheckedList: 'Checked for the first time',
         resolvedList: 'Resolved since the previous report',
         bySeverityHeading: 'By severity',
         byModuleHeading: 'By section',
         columnSeverity: 'Severity',
         columnModule: 'Section',
+        columnFindings: 'Findings',
       },
     },
     issues: {
@@ -3074,7 +3096,12 @@ export const copy = {
           egressLocation: 'Локація обходу',
         },
         scopeChangedRow: '{field}: {previous} → {current}',
-        scopeNoLimit: 'увесь тариф',
+        scopeUnset: {
+          maxPages: 'власний ліміт тарифу',
+          maxDepth: 'без обмеження',
+          egressLocation: 'локація за замовчуванням',
+        },
+        scopeNotSet: 'не задано',
         scopeNone: 'немає',
         scopeOn: 'увімкнено',
         scopeOff: 'вимкнено',
@@ -3109,6 +3136,8 @@ export const copy = {
             'Запис про те, що прочитала одна з цих перевірок, не вдалося розібрати, тож жодного списку сторінок ми не стверджуємо. Знахідки нижче порівняно за самими знахідками.',
           'page-evidence-empty':
             'Одна з цих перевірок не записала жодної перевірки рівня сторінки, тож списку сторінок для порівняння немає.',
+          'page-identity-mismatch':
+            'Лише одна з цих двох перевірок змогла з’ясувати, за якою адресою насправді живе кожен документ, тож два списки сторінок названі по-різному. Порівняння показало б ваші перенаправлення як сторінки, що з’явилися та зникли.',
           'scans-not-comparable': 'Сторінки не порівнюються — причина вище.',
         },
         showPages: 'Показати адреси',
@@ -3119,18 +3148,29 @@ export const copy = {
         issuesResolved: 'Виправлені',
         issuesReopened: 'Повернулися',
         issuesStillOpen: 'Досі відкриті',
+        issuesSettled: 'Закриті вами',
+        issuesFirstChecked: 'Перевірено вперше',
         reopenedNote:
-          'Знахідки, що повернулися, враховані серед нових: кожну з них закрив попередній звіт цього тарифу, і вона з’явилася знову.',
+          'Знахідки, що повернулися, враховані серед тих, яких не було в попередньому звіті: кожну з них закрив попередній звіт цього тарифу, і вона з’явилася знову.',
         resolvedNote:
           'Знахідка вважається виправленою лише там, де ця перевірка подивилася на те саме знову і більше цього не знайшла. Усе, що перевірити не вдалося, залишається відкритим.',
+        settledNote:
+          'Закриті вами — це позначені як проігноровані або хибні спрацювання, тож вони відділені від проблем, які ще чекають на вас.',
+        firstCheckedNote:
+          'Їх знайшли перевірки, які виконалися вперше саме в цьому скані, тож вони не враховані як нові: це не проблеми, які ви створили, а проблеми, яких досі ніхто не шукав. {rules}',
+        firstCheckedRules: 'Нові перевірки: {list}.',
+        noLongerCheckedNote:
+          'Деякі перевірки в цьому скані не виконувалися: {list}. Те, що вони знайшли минулого разу, відсутнє саме тому і не враховане як виправлене.',
         showFindings: 'Показати знахідки',
         hideFindings: 'Сховати знахідки',
         newList: 'Нове в цьому звіті',
+        firstCheckedList: 'Перевірено вперше',
         resolvedList: 'Виправлено з попереднього звіту',
         bySeverityHeading: 'За критичністю',
         byModuleHeading: 'За розділом',
         columnSeverity: 'Критичність',
         columnModule: 'Розділ',
+        columnFindings: 'Знахідки',
       },
     },
     issues: {

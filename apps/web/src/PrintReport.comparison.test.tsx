@@ -9,7 +9,8 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Dashboard, Scan, ScanComparison } from './api';
+import type { Dashboard, Scan } from './api';
+import type { ScanComparison } from './comparison-api';
 import { PrintReport } from './PrintReport';
 
 function scanOf(plan: Scan['plan'] = 'Complete'): Scan {
@@ -67,6 +68,7 @@ function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
     urlsDiscovered: 12,
     urlsOverLimit: 0,
     scope: scope(),
+    readable: true,
   });
   return {
     current: side('scan-print', '2026-09-22T00:01:00.000Z'),
@@ -90,10 +92,13 @@ function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
       resolved: 7,
       reopened: 0,
       stillOpen: 3,
+      settled: 2,
       byModule: [],
       bySeverity: [],
       newSample: [],
       resolvedSample: [],
+      firstChecked: { count: 0, byModule: [], bySeverity: [], ruleIds: [], sample: [] },
+      noLongerChecked: [],
     },
     ...overrides,
   };
@@ -196,5 +201,53 @@ describe('the printable report and the comparison', () => {
 
     await screen.findByRole('button', { name: 'Print or save as PDF' });
     await waitFor(() => expect(screen.queryByText('Compared with the previous scan')).toBeNull());
+  });
+
+  it.each(['Basic', 'Free'] as const)(
+    'does not ask for a comparison at all when printing a %s report',
+    async (plan) => {
+      // A refusal is still a request, and it counts against the comparison rate
+      // limit every time such a report is printed — so the plan decides before
+      // the read, not after it.
+      const { paths } = stubFetch({ dashboard: dashboardOf(plan), comparison: comparisonOf() });
+      render(
+        <PrintReport scanId="scan-print" language="en" onBack={() => {}} onError={() => {}} />,
+      );
+
+      await screen.findByRole('button', { name: 'Print or save as PDF' });
+      await waitFor(() => expect(paths.some((path) => path.includes('/dashboard'))).toBe(true));
+      expect(paths.some((path) => path.includes('/comparison'))).toBe(false);
+    },
+  );
+
+  it('still asks for it on a plan that includes it', async () => {
+    const { paths } = stubFetch({ dashboard: dashboardOf(), comparison: comparisonOf() });
+    render(<PrintReport scanId="scan-print" language="en" onBack={() => {}} onError={() => {}} />);
+
+    expect(await screen.findByText('Compared with the previous scan')).toBeInTheDocument();
+    expect(paths.some((path) => path.includes('/comparison'))).toBe(true);
+  });
+
+  it('prints the settled count and the first-checked findings beside the rest', async () => {
+    stubFetch({
+      dashboard: dashboardOf(),
+      comparison: comparisonOf({
+        issues: {
+          ...comparisonOf().issues,
+          settled: 2,
+          firstChecked: {
+            count: 4,
+            byModule: [{ module: 'SEO', count: 4 }],
+            bySeverity: [{ severity: 'High', count: 4 }],
+            ruleIds: ['SEO-TECH-010'],
+            sample: [],
+          },
+        },
+      }),
+    });
+    render(<PrintReport scanId="scan-print" language="en" onBack={() => {}} onError={() => {}} />);
+
+    expect(await screen.findByText(/Settled by you: 2/)).toBeInTheDocument();
+    expect(screen.getByText('Checked for the first time: 4')).toBeInTheDocument();
   });
 });
