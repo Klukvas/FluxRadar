@@ -26,9 +26,11 @@ import { CREEM_CHECKOUT_REFERENCE_KEY } from './events.ts';
 // Server-side checkout start, the Creem way. Everything that decides what the
 // buyer is paying for — account, site profile, plan, crawl scope, AI consent — is
 // validated here and stored in our own CheckoutSession row BEFORE Creem is
-// called. Only an opaque reference travels to the provider and back (as the
+// called. An opaque reference travels to the provider and back (as the
 // checkout's `request_id`, and again in its metadata), so a manipulated browser
-// (or a foreign order) can never bind a payment to someone else's profile.
+// (or a foreign order) can never bind a payment to someone else's profile. The
+// account email goes along with it, only to pre-fill the hosted checkout; the
+// privacy policy discloses that transfer.
 //
 // Creem hosts the checkout page itself: the browser is sent to the URL this
 // module returns and comes back to the deployment's return URL afterwards. That
