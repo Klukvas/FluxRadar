@@ -80,16 +80,33 @@ export const PLAN_URL_LIMIT: Readonly<Record<Plan, number>> = {
  * yes. The server still decides; this is the UI agreeing with it.
  */
 export const PLAN_CAPABILITIES: Readonly<
-  Record<Plan, { readonly export: boolean; readonly actionPlan: boolean }>
+  Record<
+    Plan,
+    { readonly export: boolean; readonly actionPlan: boolean; readonly issueHistory: boolean }
+  >
 > = {
-  Free: { export: false, actionPlan: false },
-  Basic: { export: false, actionPlan: false },
-  WebsiteAudit: { export: true, actionPlan: true },
-  Complete: { export: true, actionPlan: true },
+  Free: { export: false, actionPlan: false, issueHistory: false },
+  Basic: { export: false, actionPlan: false, issueHistory: false },
+  WebsiteAudit: { export: true, actionPlan: true, issueHistory: true },
+  Complete: { export: true, actionPlan: true, issueHistory: true },
 };
 
 export function planIncludesExport(plan: Plan): boolean {
   return PLAN_CAPABILITIES[plan]?.export ?? false;
+}
+
+/**
+ * Whether this plan compares a report with the previous scan of the site.
+ *
+ * The same entitlement the Resolved/Reopened lifecycle is sold under
+ * (`issueHistory`), so the two can never disagree: a plan whose findings do not
+ * carry across scans has no previous scan to be compared with either. The server
+ * still decides — `GET /scans/:id/comparison` answers 403 without it — and this
+ * is what keeps the report from offering the panel to a plan that would be
+ * refused.
+ */
+export function planIncludesIssueHistory(plan: Plan): boolean {
+  return PLAN_CAPABILITIES[plan]?.issueHistory ?? false;
 }
 
 export function planIncludesActionPlan(plan: Plan): boolean {

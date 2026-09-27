@@ -1439,6 +1439,116 @@ export const copy = {
         analyticsFindingsColumn: 'Findings',
         analyticsSeverityColumn: 'Most severe',
       },
+      // ── Compared with the previous scan ───────────────────────────────────
+      //
+      // The report could say what one scan found; it could not say what changed
+      // since the last one, and a customer who has just spent a week on fixes is
+      // asking exactly that. Every sentence here is written so that "nothing is
+      // shown" is never mistaken for "nothing changed": a comparison the product
+      // cannot stand behind names the reason instead of printing a number.
+      comparison: {
+        heading: 'Compared with the previous scan',
+        since: 'Against the {plan} report of {date}.',
+        openPrevious: 'Open the previous report',
+        unavailable:
+          'The comparison with your previous scan could not be loaded. Everything above is this scan’s own result.',
+        firstReport:
+          'This is the first {plan} report for this site. Run the next one after your fixes, and this panel will show exactly what changed.',
+        notComparableHeading: 'Not compared, and why',
+        reason: {
+          'no-previous-scan':
+            'There is no earlier finished scan of this plan for this site, so there is nothing to compare with yet.',
+          'previous-plan-differs':
+            'This site has earlier reports, but none on this plan. Two plans check different sections, so a finding missing from the other plan’s report is not a fix — comparing them would call work "done" that was never checked.',
+          'previous-not-usable':
+            'The previous scan of this plan produced no usable result, so there is nothing in it to compare against.',
+          'scope-changed':
+            'The two scans were not asked for the same pages, so a difference between them is a difference in the question, not in your site.',
+          'current-crawl-truncated':
+            'This scan stopped at its page limit, so the pages it never reached would show up as pages you removed. Raise the limit — or keep it the same as last time — and the next report can compare.',
+          'previous-crawl-truncated':
+            'The previous scan stopped at its page limit, so part of your site was never read in it. What is missing there was not fixed; it was never checked.',
+          'current-stopped-early':
+            'This scan did not finish every section — it was paused, cancelled, or a section failed — so it is a partial reading of the site rather than a picture to compare.',
+          'previous-stopped-early':
+            'The previous scan did not finish every section, so it is a partial reading of the site and a difference against it would not mean what it looks like.',
+          'crawl-not-recorded':
+            'One of these two scans did not record what its crawl read, so there is no way to tell whether it covered the whole site. A comparison would be a guess.',
+        },
+        scopeChangedHeading: 'What changed in the settings',
+        scopeField: {
+          entryUrl: 'Starting address',
+          maxPages: 'Page limit',
+          maxDepth: 'Click depth',
+          includeSubdomains: 'Subdomains',
+          urlPatterns: 'Include patterns',
+          excludePatterns: 'Exclude patterns',
+          seedUrls: 'Extra starting pages',
+          queryPolicy: 'Query strings',
+          renderJs: 'JavaScript rendering',
+          respectRobots: 'robots.txt rules',
+          userAgent: 'Device',
+          egressLocation: 'Crawl location',
+        },
+        scopeChangedRow: '{field}: {previous} → {current}',
+        scopeNoLimit: 'whole plan',
+        scopeNone: 'none',
+        scopeOn: 'on',
+        scopeOff: 'off',
+        scoresHeading: 'Scores',
+        overall: 'Overall score',
+        scoreMove: '{previous} → {current}',
+        scoreUp: 'up {delta}',
+        scoreDown: 'down {delta}',
+        scoreSame: 'unchanged',
+        scoreNone: 'no score',
+        moduleReason: {
+          'module-absent-previously': 'ran for the first time in this scan',
+          'module-absent-now': 'did not run in this scan',
+          'module-not-scored-previously': 'had no score in the previous scan',
+          'module-not-scored-now': 'has no score in this scan',
+        },
+        pagesHeading: 'Pages',
+        pagesAdded: 'Appeared',
+        pagesRemoved: 'Gone',
+        pagesKept: 'In both',
+        pagesTotals: '{current} pages read now, {previous} last time.',
+        pagesIdentity: {
+          'canonical-document':
+            'Pages are compared by the address your site says each document lives at, so two addresses of one page count once.',
+          'crawl-address':
+            'Pages are compared by the address each one was read under. This scan established no document identity, so a page that changed which of its two addresses is linked may appear on both lists.',
+        },
+        pagesReason: {
+          'page-evidence-missing':
+            'The list of addresses one of these scans read is no longer stored — it is kept for the two most recent reports of a plan — so the findings below are compared and the pages are not.',
+          'page-evidence-unreadable':
+            'The record of what one of these scans read could not be decoded, so no page list is claimed. The findings below are compared from the findings themselves.',
+          'page-evidence-empty':
+            'One of these scans recorded no page-level check at all, so there is no page list to compare.',
+          'scans-not-comparable': 'The pages are not compared, for the reason given above.',
+        },
+        showPages: 'Show addresses',
+        hidePages: 'Hide addresses',
+        sampleNote: 'First {shown} of {total}, in alphabetical order.',
+        issuesHeading: 'Findings',
+        issuesNew: 'New',
+        issuesResolved: 'Resolved',
+        issuesReopened: 'Reopened',
+        issuesStillOpen: 'Still open',
+        reopenedNote:
+          'Reopened findings are counted among the new ones: each of them was closed by an earlier report of this plan and is back.',
+        resolvedNote:
+          'A finding counts as resolved only where this scan checked the same thing again and no longer found it. Anything this scan could not re-check stays open.',
+        showFindings: 'Show findings',
+        hideFindings: 'Hide findings',
+        newList: 'New in this report',
+        resolvedList: 'Resolved since the previous report',
+        bySeverityHeading: 'By severity',
+        byModuleHeading: 'By section',
+        columnSeverity: 'Severity',
+        columnModule: 'Section',
+      },
     },
     issues: {
       windowTitle: 'Issue Center',
@@ -2918,6 +3028,109 @@ export const copy = {
           'Знахідки решти цього звіту на кожній із них і перевірки, що їх знайшли, — знайдіть перевірку в Центрі проблем за її id. Виправлення саме тут дістанеться найбільшій кількості відвідувачів.',
         analyticsFindingsColumn: 'Знахідки',
         analyticsSeverityColumn: 'Найсерйозніша',
+      },
+      comparison: {
+        heading: 'Порівняння з попередньою перевіркою',
+        since: 'Проти звіту {plan} від {date}.',
+        openPrevious: 'Відкрити попередній звіт',
+        unavailable:
+          'Порівняння з попередньою перевіркою не завантажилося. Усе вище — власний результат цієї перевірки.',
+        firstReport:
+          'Це перший звіт {plan} для цього сайту. Запустіть наступну перевірку після виправлень — і ця панель покаже, що саме змінилося.',
+        notComparableHeading: 'Не порівнюємо, і чому',
+        reason: {
+          'no-previous-scan':
+            'Для цього сайту немає жодної завершеної перевірки цього тарифу раніше, тож порівнювати поки що ні з чим.',
+          'previous-plan-differs':
+            'Для цього сайту є попередні звіти, але жодного на цьому тарифі. Різні тарифи перевіряють різні розділи, тож відсутність знахідки у звіті іншого тарифу — це не виправлення: таке порівняння назвало б зробленим те, що ніхто не перевіряв.',
+          'previous-not-usable':
+            'Попередня перевірка цього тарифу не дала придатного результату, тож у ній немає з чим порівнювати.',
+          'scope-changed':
+            'Дві перевірки отримали різні завдання щодо сторінок, тож різниця між ними — це різниця в питанні, а не у вашому сайті.',
+          'current-crawl-truncated':
+            'Ця перевірка зупинилася на своєму лімiті сторінок, тож сторінки, до яких вона не дійшла, виглядали б як видалені вами. Підніміть ліміт — або залиште таким, як минулого разу, — і наступний звіт зможе порівняти.',
+          'previous-crawl-truncated':
+            'Попередня перевірка зупинилася на своєму лімiті сторінок, тож частину сайту в ній так і не прочитали. Те, чого там немає, не виправлено — його не перевіряли.',
+          'current-stopped-early':
+            'Ця перевірка завершила не всі розділи — її поставили на паузу, скасували або розділ не вдався, — тож це часткове прочитання сайту, а не картина для порівняння.',
+          'previous-stopped-early':
+            'Попередня перевірка завершила не всі розділи, тож це часткове прочитання сайту, і різниця проти неї означала б не те, на що схожа.',
+          'crawl-not-recorded':
+            'Одна з цих двох перевірок не записала, що саме прочитав обхід, тож неможливо сказати, чи охопив він весь сайт. Порівняння було б припущенням.',
+        },
+        scopeChangedHeading: 'Що змінилося в налаштуваннях',
+        scopeField: {
+          entryUrl: 'Початкова адреса',
+          maxPages: 'Ліміт сторінок',
+          maxDepth: 'Глибина переходів',
+          includeSubdomains: 'Субдомени',
+          urlPatterns: 'Шаблони включення',
+          excludePatterns: 'Шаблони виключення',
+          seedUrls: 'Додаткові початкові сторінки',
+          queryPolicy: 'Параметри в адресі',
+          renderJs: 'Виконання JavaScript',
+          respectRobots: 'Правила robots.txt',
+          userAgent: 'Пристрій',
+          egressLocation: 'Локація обходу',
+        },
+        scopeChangedRow: '{field}: {previous} → {current}',
+        scopeNoLimit: 'увесь тариф',
+        scopeNone: 'немає',
+        scopeOn: 'увімкнено',
+        scopeOff: 'вимкнено',
+        scoresHeading: 'Оцінки',
+        overall: 'Загальна оцінка',
+        scoreMove: '{previous} → {current}',
+        scoreUp: 'вище на {delta}',
+        scoreDown: 'нижче на {delta}',
+        scoreSame: 'без змін',
+        scoreNone: 'без оцінки',
+        moduleReason: {
+          'module-absent-previously': 'уперше виконано в цій перевірці',
+          'module-absent-now': 'у цій перевірці не виконувався',
+          'module-not-scored-previously': 'у попередній перевірці був без оцінки',
+          'module-not-scored-now': 'у цій перевірці без оцінки',
+        },
+        pagesHeading: 'Сторінки',
+        pagesAdded: 'З’явилися',
+        pagesRemoved: 'Зникли',
+        pagesKept: 'В обох',
+        pagesTotals: 'Зараз прочитано {current} сторінок, минулого разу — {previous}.',
+        pagesIdentity: {
+          'canonical-document':
+            'Сторінки порівнюються за адресою, на якій, за словами вашого сайту, живе документ, тож дві адреси однієї сторінки рахуються один раз.',
+          'crawl-address':
+            'Сторінки порівнюються за адресою, під якою кожну прочитали. Ця перевірка не встановила тожсамість документів, тож сторінка, у якої змінилася лише форма посилання, може потрапити в обидва списки.',
+        },
+        pagesReason: {
+          'page-evidence-missing':
+            'Список адрес, які прочитала одна з цих перевірок, більше не зберігається — його тримають для двох останніх звітів тарифу, — тож знахідки нижче порівняно, а сторінки ні.',
+          'page-evidence-unreadable':
+            'Запис про те, що прочитала одна з цих перевірок, не вдалося розібрати, тож жодного списку сторінок ми не стверджуємо. Знахідки нижче порівняно за самими знахідками.',
+          'page-evidence-empty':
+            'Одна з цих перевірок не записала жодної перевірки рівня сторінки, тож списку сторінок для порівняння немає.',
+          'scans-not-comparable': 'Сторінки не порівнюються — причина вище.',
+        },
+        showPages: 'Показати адреси',
+        hidePages: 'Сховати адреси',
+        sampleNote: 'Перші {shown} із {total}, за алфавітом.',
+        issuesHeading: 'Знахідки',
+        issuesNew: 'Нові',
+        issuesResolved: 'Виправлені',
+        issuesReopened: 'Повернулися',
+        issuesStillOpen: 'Досі відкриті',
+        reopenedNote:
+          'Знахідки, що повернулися, враховані серед нових: кожну з них закрив попередній звіт цього тарифу, і вона з’явилася знову.',
+        resolvedNote:
+          'Знахідка вважається виправленою лише там, де ця перевірка подивилася на те саме знову і більше цього не знайшла. Усе, що перевірити не вдалося, залишається відкритим.',
+        showFindings: 'Показати знахідки',
+        hideFindings: 'Сховати знахідки',
+        newList: 'Нове в цьому звіті',
+        resolvedList: 'Виправлено з попереднього звіту',
+        bySeverityHeading: 'За критичністю',
+        byModuleHeading: 'За розділом',
+        columnSeverity: 'Критичність',
+        columnModule: 'Розділ',
       },
     },
     issues: {

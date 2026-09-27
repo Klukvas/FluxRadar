@@ -1,0 +1,57 @@
+/* The "compared with the previous scan" panel.
+ *
+ * Direction is never carried by colour alone: every row that is tinted also
+ * says "up 4.20" or "down 1.10" in words, and the tint only repeats it. */
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.comparison-scores {
+  list-style: none;
+  margin: 0 0 var(--sp-3);
+  padding: 0;
+}
+.comparison-score {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: var(--sp-2);
+  align-items: baseline;
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--plat-300);
+}
+.comparison-score--up > span:last-child {
+  color: #1a6b2f;
+}
+.comparison-score--down > span:last-child {
+  color: #9b1c12;
+}
+.comparison-sample {
+  margin: var(--sp-1) 0 var(--sp-3);
+  padding-left: var(--sp-4);
+  word-break: break-all;
+}
+.comparison-scope {
+  margin: var(--sp-1) 0 var(--sp-3);
+  padding-left: var(--sp-4);
+}
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--sp-3);
+}
+.comparison-table th,
+.comparison-table td {
+  padding: var(--sp-1) var(--sp-2);
+  border-bottom: 1px solid var(--plat-300);
+  text-align: left;
+}
+.comparison-table td {
+  font: 400 13px var(--mono-font);
+}
+@media (max-width: 720px) {
+  .comparison-score {
+    grid-template-columns: 1fr;
+  }
+}

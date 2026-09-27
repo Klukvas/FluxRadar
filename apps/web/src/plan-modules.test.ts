@@ -15,10 +15,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   PAID_PLAN_ORDER,
+  PLAN_CAPABILITIES,
   PLAN_MODULES,
   PLAN_ORDER,
   PLAN_URL_LIMIT,
   modulesBeyondPlan,
+  planIncludesActionPlan,
+  planIncludesExport,
+  planIncludesIssueHistory,
 } from './plan-modules';
 
 // Vitest runs with `apps/web` as its working directory (see blog-page.test.ts).
@@ -34,6 +38,30 @@ function tariffModules(plan: string): readonly string[] {
   const list = /modules: \[([\s\S]*?)\]/.exec(block)?.[1];
   if (list === undefined) throw new Error(`tariffs.ts gives ${plan} no module list`);
   return [...list.matchAll(/'([^']+)'/g)].map((match) => match[1] as string);
+}
+
+/**
+ * `TARIFFS.<plan>.capabilities` as the contracts package declares them.
+ *
+ * The tariff table names a shared constant — `NO_CAPABILITIES` or
+ * `FULL_REPORT_CAPABILITIES` — so the plan's line is followed to that constant's
+ * own declaration and the flags are read from there.
+ */
+function tariffCapabilities(plan: string): Readonly<Record<string, boolean>> {
+  const block = new RegExp(`\\n  ${plan}: \\{([\\s\\S]*?)\\n  \\},`).exec(TARIFFS)?.[1];
+  if (block === undefined) throw new Error(`tariffs.ts declares no ${plan} tariff`);
+  const named = /capabilities: ([A-Z_]+),/.exec(block)?.[1];
+  if (named === undefined) throw new Error(`tariffs.ts gives ${plan} no capabilities`);
+  const declaration = new RegExp(
+    `const ${named}: TariffCapabilities = \\{([\\s\\S]*?)\\n\\};`,
+  ).exec(TARIFFS)?.[1];
+  if (declaration === undefined) throw new Error(`tariffs.ts declares no ${named}`);
+  return Object.fromEntries(
+    [...declaration.matchAll(/(\w+): (true|false)/g)].map((match) => [
+      match[1],
+      match[2] === 'true',
+    ]),
+  );
 }
 
 /** `TARIFFS.<plan>.urlLimit` as the contracts package actually declares it. */
@@ -113,6 +141,49 @@ describe('what a plan leaves out', () => {
       for (const locked of modulesBeyondPlan(plan)) {
         expect(PLAN_MODULES[locked.plan]).toContain(locked.module);
       }
+    }
+  });
+});
+
+/**
+ * The report features the screens offer, against the tariff that sells them.
+ *
+ * `issueHistory` is the one the comparison panel asks for: a plan whose findings
+ * do not carry across scans has no previous scan to be compared with, and the
+ * endpoint answers 403 without it. Offering the panel anyway would put a block on
+ * the report that can only ever say "unavailable".
+ */
+describe('the plan/capability mirror', () => {
+  it.each(['Free', 'Basic', 'WebsiteAudit', 'Complete'])(
+    'matches the %s tariff capability by capability',
+    (plan) => {
+      const declared = tariffCapabilities(plan);
+      expect(Object.keys(declared).length).toBeGreaterThan(0);
+      const mirrored = PLAN_CAPABILITIES[plan as keyof typeof PLAN_CAPABILITIES];
+      expect(mirrored.export).toBe(declared.export);
+      expect(mirrored.actionPlan).toBe(declared.actionPlan);
+      expect(mirrored.issueHistory).toBe(declared.issueHistory);
+    },
+  );
+
+  it('reads the capability table it is checked against', () => {
+    // Guards the parser: a rename that made the regexes miss would leave the
+    // assertions above comparing undefined to undefined.
+    expect(tariffCapabilities('Free').issueHistory).toBe(false);
+    expect(tariffCapabilities('Complete').issueHistory).toBe(true);
+  });
+
+  it('answers the three questions the screens ask', () => {
+    expect(planIncludesIssueHistory('Complete')).toBe(true);
+    expect(planIncludesIssueHistory('WebsiteAudit')).toBe(true);
+    expect(planIncludesIssueHistory('Basic')).toBe(false);
+    expect(planIncludesIssueHistory('Free')).toBe(false);
+    // The comparison is sold with the same entitlement as the rest of the full
+    // report, and a plan that gains one without the others is a product decision
+    // this test should be updated for deliberately.
+    for (const plan of PLAN_ORDER) {
+      expect(planIncludesIssueHistory(plan)).toBe(planIncludesExport(plan));
+      expect(planIncludesIssueHistory(plan)).toBe(planIncludesActionPlan(plan));
     }
   });
 });

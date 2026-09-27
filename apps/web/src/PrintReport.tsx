@@ -13,18 +13,21 @@ import { actionPlanCopy } from './action-plan-copy';
 import {
   apiRequest,
   apiRequestWithMeta,
+  fetchScanComparison,
   isActionPlanState,
   type ActionPlanContent,
   type Dashboard,
   type Issue,
   type IssueRuleGroup,
   type IssueSummary,
+  type ScanComparison,
 } from './api';
 import { Button, LoadingState, StatusChip } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
-import { planName } from './plan-modules';
+import { planIncludesIssueHistory, planName } from './plan-modules';
+import { ComparisonPrintBlock } from './ScanComparisonPrint';
 import { moduleLabel, ruleTitle } from './rule-titles';
 import { displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import './styles/print-report.css';
@@ -42,6 +45,12 @@ interface PrintData {
   readonly totalIssues: number;
   /** The Action Plan in the requested language, when one has been written. */
   readonly actionPlan: ActionPlanContent | null;
+  /**
+   * The comparison with the previous scan; null when this plan carries no
+   * finding history, or when the read did not come back. The document is worth
+   * printing either way, so it is never the reason the page fails to load.
+   */
+  readonly comparison: ScanComparison | null;
 }
 
 async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: number }> {
@@ -59,7 +68,7 @@ async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: 
 }
 
 async function loadPrintData(scanId: string, planLanguage: string | null): Promise<PrintData> {
-  const [dashboard, summary, findings, actionPlan] = await Promise.all([
+  const [dashboard, summary, findings, actionPlan, comparison] = await Promise.all([
     apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`),
     apiRequest<IssueSummary>(`/scans/${encodeURIComponent(scanId)}/issues/summary`).catch(
       () => null,
@@ -74,6 +83,10 @@ async function loadPrintData(scanId: string, planLanguage: string | null): Promi
         )
           .then((value) => (isActionPlanState(value) ? value.plan : null))
           .catch(() => null),
+    // Asked for unconditionally: the endpoint answers 403 on a plan without
+    // finding history and `fetchScanComparison` turns every refusal into null,
+    // which is also what an older deployment produces.
+    fetchScanComparison(scanId),
   ]);
   return {
     dashboard,
@@ -81,6 +94,7 @@ async function loadPrintData(scanId: string, planLanguage: string | null): Promi
     issues: findings.issues,
     totalIssues: findings.total,
     actionPlan,
+    comparison,
   };
 }
 
@@ -336,6 +350,9 @@ function PrintDocument(props: { data: PrintData; language: Language }) {
       <PrintSummary data={props.data} language={props.language} />
       {actionPlan === null ? null : <PrintActionPlan plan={actionPlan} language={props.language} />}
       <PrintSections modules={dashboard.modules} language={props.language} />
+      {props.data.comparison === null || !planIncludesIssueHistory(dashboard.scan.plan) ? null : (
+        <ComparisonPrintBlock comparison={props.data.comparison} language={props.language} />
+      )}
       <PrintProblems data={props.data} language={props.language} />
       <footer className="print-footer muted">{f.print.footer}</footer>
     </article>
