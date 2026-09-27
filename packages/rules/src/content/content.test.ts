@@ -56,6 +56,22 @@ describe('CONTENT-003 малосодержательные страницы', ()
     expect(finding.evidenceExcerpt).toContain('Visible text length is 199,');
   });
 
+  it('длина считается по раскрытому тексту, а не по разметке сущностей', () => {
+    // `&amp;` — один видимый символ, а не пять: порог 200 меряет то, что видит
+    // читатель. Иначе страница из одних сущностей дотягивала бы до порога
+    // разметкой, а CONTENT-001 считал бы две одинаковые страницы разными
+    // (visible-text.ts — общий текст обоих правил).
+    const decoded = 'Salt & Pepper — «menu»';
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Entity heavy page</title></head>' +
+        '<body><p>Salt &amp; Pepper &mdash; &laquo;menu&raquo;</p></body></html>',
+    );
+    const finding = single(runRule('Content Quality', 'CONTENT-003', ctx));
+    expect(finding.evidenceExcerpt).toContain(`Visible text length is ${[...decoded].length},`);
+    expect(finding.evidenceExcerpt).toContain(decoded);
+    expect(finding.evidenceExcerpt).not.toContain('&amp;');
+  });
+
   it('whitespace схлопывается до подсчёта', () => {
     const padded = `  ${'word '.repeat(10)}  `;
     const ctx = htmlContext(
