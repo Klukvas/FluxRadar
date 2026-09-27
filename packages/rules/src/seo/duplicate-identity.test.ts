@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { runModuleRules } from '../engine/run-module.js';
+import { renderFindingMessage } from '../messages/index.js';
 import type { IssueCandidate } from '../engine/run-module.js';
 import type { RuleEvaluation, SiteContext } from '../engine/types.js';
 import type { FixturePageInput } from '../testing/fixture-harness.js';
@@ -203,6 +204,117 @@ describe.each(DUPLICATE_RULES)('$ruleId: документ под двумя ад
       url('/a.html'),
       url('/other.html'),
     ]);
+  });
+});
+
+describe('граница с SEO-TECH-007 под queryPolicy include', () => {
+  // Под 'ignore' группа 007 не может дать двух членов группы дублей: обход
+  // читает такой адрес один раз. Под 'include' адрес с параметром — отдельный
+  // документ, и обход читает каждый: это и есть настоящий дубль, а не дубль
+  // самого себя, и правила обязаны сказать о всех трёх.
+  const ctx = () =>
+    siteContext({
+      scope: { queryPolicy: 'include' },
+      urlVariants: {
+        [url('/p.html')]: [url('/p.html'), `${url('/p.html')}?utm_source=x`],
+      },
+      pages: [
+        sharedPage('/p.html'),
+        sharedPage('/p.html?sort=asc'),
+        sharedPage('/p.html?sort=desc'),
+      ],
+    });
+
+  it('utm-вариант остаётся одной группой 007 и второго снимка не даёт', () => {
+    expect(runSeoRule('SEO-TECH-007', ctx())).toHaveLength(1);
+  });
+
+  it.each(DUPLICATE_RULES)('$ruleId называет все три прочитанных адреса', ({ ruleId }) => {
+    const built = ctx();
+    expect(paths(findings(ruleId, built))).toEqual([
+      '/p.html',
+      '/p.html?sort=asc',
+      '/p.html?sort=desc',
+    ]);
+    expect(evaluationOf(ruleId, built).applicableTargets).toBe(3);
+  });
+});
+
+describe('два снимка одного normalizedUrl', () => {
+  // Обход такого не отдаёт, но фикстура и повтор в очереди — отдают: правило
+  // обязано остаться вердиктом о ДОКУМЕНТЕ, иначе страница оказалась бы дублем
+  // самой себя, и «починить» это было бы нечем.
+  it.each(DUPLICATE_RULES)('$ruleId судит документ, а не каждый снимок', ({ ruleId }) => {
+    const ctx = siteContext({
+      pages: [sharedPage('/p.html'), sharedPage('/p.html'), ownPage('/other.html')],
+    });
+    expect(findings(ruleId, ctx)).toEqual([]);
+    const evaluation = evaluationOf(ruleId, ctx);
+    expect(evaluation.applicableTargets).toBe(2);
+    expect([...evaluation.checkedTargets].toSorted()).toEqual([url('/other.html'), url('/p.html')]);
+  });
+});
+
+describe('порядок обхода не меняет отчёт', () => {
+  // Какая страница пришла первой, решает очередь краулера, а не сайт: находка,
+  // зависящая от неё, меняла бы личность между прогонами (§14).
+  const pages = ['/z.html', '/a.html', '/m.html', '/q.html', '/b.html'].map((path) =>
+    sharedPage(path),
+  );
+
+  it.each(DUPLICATE_RULES)(
+    '$ruleId: те же fingerprint и evidence в обратном порядке',
+    ({ ruleId }) => {
+      const forward = findings(ruleId, siteContext({ pages }));
+      const reversed = findings(ruleId, siteContext({ pages: [...pages].reverse() }));
+      const identity = (candidates: readonly IssueCandidate[]): readonly string[] =>
+        candidates
+          .map(
+            (candidate) =>
+              `${candidate.normalizedUrl}|${candidate.fingerprint}|${candidate.evidenceExcerpt}`,
+          )
+          .toSorted();
+
+      expect(identity(reversed)).toEqual(identity(forward));
+      expect(paths(forward)).toEqual(['/a.html', '/b.html', '/m.html', '/q.html', '/z.html']);
+    },
+  );
+});
+
+describe('canonical на адрес, снимка которого у обхода нет', () => {
+  it('вердикт остаётся, а evidence говорит «as crawled»', () => {
+    // Обход прочитал /a/, а копия указывает на /a: что это одна страница,
+    // известно только серверу, и без снимка /a краулер знать этого не может.
+    // Вердикт от этого не меняется — меняется то, за что он отвечает.
+    const ctx = siteContext({ pages: [sharedPage('/a/'), sharedPage('/copy.html')] });
+    const copy = siteContext({
+      pages: [
+        sharedPage('/a/'),
+        {
+          ...sharedPage('/copy.html'),
+          html: sharedPage('/copy.html').html?.replace(
+            '</head>',
+            `<link rel="canonical" href="${url('/a')}"></head>`,
+          ),
+        },
+      ],
+    });
+    expect(paths(findings('SEO-ONPAGE-004', ctx))).toEqual(['/a/', '/copy.html']);
+    expect(paths(findings('SEO-ONPAGE-004', copy))).toEqual(['/a/', '/copy.html']);
+
+    const finding = single(
+      findings('SEO-ONPAGE-004', copy).filter(
+        (candidate) => candidate.normalizedUrl === url('/copy.html'),
+      ),
+    );
+    expect(finding.evidenceExcerpt).toContain(
+      'No <link rel="canonical"> ties this page to any of them, as crawled.',
+    );
+    expect(finding.evidenceExcerpt).toContain(url('/a/'));
+    const evidence = finding.messages?.evidence;
+    expect(evidence).toBeDefined();
+    if (evidence === undefined) return;
+    expect(renderFindingMessage(evidence, 'uk')).toContain('за тим, як їх прочитав обхід');
   });
 });
 
