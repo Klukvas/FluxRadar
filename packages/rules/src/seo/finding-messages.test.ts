@@ -198,23 +198,19 @@ const CASES: readonly MessageCase[] = [
   {
     name: 'page four hops from the entry URL',
     ruleId: 'SEO-TECH-010',
+    // Глубину считает правило по прочитанным ссылкам, поэтому фикстура — цепочка
+    // из четырёх переходов, а не страница с подставленной глубиной снимка.
     ctx: () =>
       siteContext({
-        pages: [
-          {
-            path: '/',
-            html:
-              '<!doctype html><html lang="en"><head><title>Home fixture page</title></head>' +
-              '<body><h1>Home</h1><a href="/deep.html">deep</a></body></html>',
-          },
-          {
-            path: '/deep.html',
-            depth: 4,
-            html:
-              '<!doctype html><html lang="en"><head><title>Deep fixture page</title></head>' +
-              '<body><h1>Deep</h1></body></html>',
-          },
-        ],
+        pages: [0, 1, 2, 3, 4].map((step) => ({
+          path: step === 0 ? '/' : `/step-${step}.html`,
+          depth: step,
+          html:
+            `<!doctype html><html lang="en"><head><title>Step ${step} fixture page</title></head>` +
+            `<body><h1>Step ${step}</h1>` +
+            (step === 4 ? '' : `<a href="/step-${step + 1}.html">next</a>`) +
+            '</body></html>',
+        })),
       }),
     evidence: 'seo-tech-010.evidence',
     recommendation: 'seo-tech-010.recommendation',

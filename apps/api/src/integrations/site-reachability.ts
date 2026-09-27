@@ -62,13 +62,13 @@ export async function probeSiteReachability(
     // The site told us not to read it. We do not fetch the page to confirm —
     // asking anyway would be the one thing this product promises not to do.
     return verdict(
-      assessSiteReach(crawlResultOf([], [safeNormalize(startUrl.href)]), origin),
+      assessSiteReach(crawlResultOf(origin, [], [safeNormalize(startUrl.href)]), origin),
       now(),
     );
   }
 
   const page = await fetchAsSnapshot(fetcher, startUrl.href);
-  return verdict(assessSiteReach(crawlResultOf([page], []), origin), now());
+  return verdict(assessSiteReach(crawlResultOf(origin, [page], []), origin), now());
 }
 
 function verdict(
@@ -153,6 +153,7 @@ async function fetchAsSnapshot(
 }
 
 function crawlResultOf(
+  origin: string,
   pages: readonly PageSnapshot[],
   blockedByRobots: readonly string[],
 ): CrawlResult {
@@ -171,6 +172,9 @@ function crawlResultOf(
     resources: [],
     pendingQueue: [],
     stoppedEarly: false,
+    // One page and its robots.txt: the probe reads the start URL itself, so its
+    // scope is that origin and nothing the page links to.
+    scope: { origin, includeSubdomains: false, maxPages: 1, maxDepth: 0 },
   };
 }
 

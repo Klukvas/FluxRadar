@@ -76,7 +76,7 @@ function evaluateRule(rule: Rule, ctx: SiteContext): RuleRun {
  * проверки недостижимых страниц снижают coverage модуля (§15).
  */
 function evaluatePageRule(rule: PageRule, ctx: SiteContext): RuleRun {
-  const applicablePages = ctx.crawl.pages.filter((page) => rule.isApplicable(page));
+  const applicablePages = ctx.crawl.pages.filter((page) => rule.isApplicable(page, ctx));
   const applicableSet = new Set<PageSnapshot>(applicablePages);
   const unreachableOutside = ctx.crawl.pages.filter(
     (page) => page.fetchError !== undefined && !applicableSet.has(page),

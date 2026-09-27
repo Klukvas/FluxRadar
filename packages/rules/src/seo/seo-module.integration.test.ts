@@ -16,6 +16,7 @@ import type { ModuleRunResult } from '../engine/run-module.js';
 import { runModuleRules } from '../engine/run-module.js';
 import { createSiteContext } from '../engine/site-context.js';
 import type { RuleEvaluation } from '../engine/types.js';
+import { clickDepthsFromEntry } from './site-index.js';
 
 let site: FixtureSite;
 let origin = '';
@@ -88,7 +89,9 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
       'SEO-TECH-009': ['/orphan.html'],
       // Fixture-сайт — «звезда» из главной: каждую страницу держит ровно одна
       // ссылка. /orphan.html здесь нет (нулю ссылок место в TECH-009), / — точка
-      // входа, /missing — не 2xx, /private/secret.html закрыт robots.txt.
+      // входа, /missing — не 2xx, /private/secret.html закрыт robots.txt, а
+      // /redirect-a — адрес редиректа, а не страница (его ссылка засчитана
+      // /redirect-final.html, снимка которого в обходе нет).
       'SEO-TECH-011': [
         '/broken-image.html',
         '/broken-link.html',
@@ -101,7 +104,6 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
         '/mixed-content.html',
         '/no-title.html',
         '/noindex.html',
-        '/redirect-a',
         '/trackers.html',
         '/wrong-canonical.html',
       ],
@@ -148,16 +150,17 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
     expect(duplicate?.normalizedParameter).toBe(`${origin}/dup-a.html`);
     const fingerprints = result.findings.map((finding) => finding.fingerprint);
     expect(new Set(fingerprints).size).toBe(fingerprints.length);
-    expect(result.findings).toHaveLength(65);
+    expect(result.findings).toHaveLength(64);
   });
 
   it('агрегаты и coverage: 17 снимков без fetchError → все checks завершены', () => {
     expect(crawlResult.pages).toHaveLength(17);
     // 12 default page-rules × 16 (2xx HTML) + TECH-003/005 × 17 + 3 site-rules +
-    // TECH-009 × 2 (страницы sitemap, кроме точки входа) + TECH-011 × 15 (2xx HTML
-    // без точки входа). Полный граф ссылок, поэтому обе проверки применимы.
-    expect(result.applicableChecks).toBe(246);
-    expect(result.completedApplicableChecks).toBe(246);
+    // TECH-009 × 2 (страницы sitemap, кроме точки входа) + TECH-011 × 14 (2xx HTML
+    // без точки входа и без адреса редиректа). Граф ссылок полон, поэтому
+    // применимы все три правила перелинковки, включая TECH-010 (в «12 page-rules»).
+    expect(result.applicableChecks).toBe(245);
+    expect(result.completedApplicableChecks).toBe(245);
     const canonical = result.evaluations.find((entry) => entry.ruleId === 'SEO-TECH-004');
     expect(canonical?.applicableTargets).toBe(16);
     expect(canonical?.affectedTargets).toBe(15);
@@ -192,19 +195,26 @@ function seoRun(crawl: CrawlResult, entryUrl: string = origin): ModuleRunResult 
 }
 
 describe('перелинковка на настоящем обходе fixture-сайта', () => {
-  it('глубина в снимках — это переходы по ссылкам от точки входа', () => {
+  it('глубина клика считается по ссылкам обхода, а не по глубине снимка', () => {
     const depthOf = (path: string): number | undefined =>
       crawlResult.pages.find((page) => page.normalizedUrl === `${origin}${path}`)?.depth;
 
     expect(depthOf('/')).toBe(0);
     expect(depthOf('/deep/')).toBe(1);
     expect(depthOf('/deep/level2/page.html')).toBe(2);
-    // Страница из sitemap — seed обхода, а не находка по ссылкам: глубина 1
-    // независимо от того, сколько кликов до неё на самом деле (см. шапку TECH-010).
+    // Страница из sitemap — seed обхода: снимок получает глубину 1 независимо от
+    // того, сколько кликов до неё ведёт. Правило же считает переходы от точки
+    // входа, и до /orphan.html их нет вовсе — это предмет TECH-009.
     expect(depthOf('/orphan.html')).toBe(1);
+    const depths = clickDepthsFromEntry(
+      createSiteContext({ origin, crawl: crawlResult, plan: 'Complete' }),
+    );
+    expect(depths.get(`${origin}/`)).toBe(0);
+    expect(depths.get(`${origin}/deep/level2/page.html`)).toBe(2);
+    expect(depths.has(`${origin}/orphan.html`)).toBe(false);
     // Самая глубокая страница сайта — на два перехода от главной, поэтому порог
     // TECH-010 на обходе по умолчанию не достигается вовсе.
-    expect(Math.max(...crawlResult.pages.map((page) => page.depth))).toBe(2);
+    expect(Math.max(...depths.values())).toBe(2);
     expect(rulePaths(result, 'SEO-TECH-010')).toEqual([]);
   });
 
@@ -234,12 +244,15 @@ describe('перелинковка на настоящем обходе fixture-
       '/chain/5.html': 4,
     });
 
-    const chainedRun = seoRun(chained);
+    // Точка входа этого прогона — сама цепочка: правило считает переходы от неё,
+    // и остальной сайт ссылками с /chain/1.html недостижим.
+    const chainEntry = `${origin}/chain/1.html`;
+    const chainedRun = seoRun(chained, chainEntry);
     // Ровно последняя страница цепочки: /chain/4.html на один переход ближе порога.
     expect(rulePaths(chainedRun, 'SEO-TECH-010')).toEqual(['/chain/5.html']);
     const deep = chainedRun.findings.find((finding) => finding.ruleId === 'SEO-TECH-010');
     expect(deep?.evidenceExcerpt).toBe(
-      `The page is 4 link hops away from the entry URL ${origin} (threshold: 4)`,
+      `The page is 4 link hops away from the entry URL ${chainEntry} (threshold: 4)`,
     );
     // Каждую страницу цепочки держит ровно одна ссылка с предыдущей; /chain/1.html
     // не держит ни одна — он seed.
@@ -255,7 +268,7 @@ describe('перелинковка на настоящем обходе fixture-
     expect(rulePaths(withoutSitemap, 'SEO-TECH-009')).toEqual([]);
     expect(ruleRun(withoutSitemap, 'SEO-TECH-009').applicableTargets).toBe(0);
     // Слабая связность от sitemap не зависит и продолжает работать.
-    expect(ruleRun(withoutSitemap, 'SEO-TECH-011').applicableTargets).toBe(15);
+    expect(ruleRun(withoutSitemap, 'SEO-TECH-011').applicableTargets).toBe(14);
   });
 
   it('обход, усечённый лимитом страниц, не выдаёт ложных orphan и слабых связей', async () => {
@@ -269,15 +282,69 @@ describe('перелинковка на настоящем обходе fixture-
     expect(truncated.skippedOverLimit.length).toBeGreaterThan(0);
 
     const truncatedRun = seoRun(truncated);
-    for (const ruleId of ['SEO-TECH-009', 'SEO-TECH-011']) {
+    for (const ruleId of ['SEO-TECH-009', 'SEO-TECH-010', 'SEO-TECH-011']) {
       expect({ ruleId, paths: rulePaths(truncatedRun, ruleId) }).toEqual({ ruleId, paths: [] });
       expect({ ruleId, applicable: ruleRun(truncatedRun, ruleId).applicableTargets }).toEqual({
         ruleId,
         applicable: 0,
       });
     }
-    // Глубина же известна из самого снимка, поэтому TECH-010 усечение не глушит.
-    expect(ruleRun(truncatedRun, 'SEO-TECH-010').applicableTargets).toBeGreaterThan(0);
+  });
+
+  it('queryPolicy ignore: ссылка с query засчитывается странице без query', async () => {
+    // /query-links.html ни с чего не связан и в sitemap не указан, поэтому обход
+    // по умолчанию его не видит; явный seed добавляет ровно одну страницу, и
+    // единственная её ссылка написана как /dup-a.html?sort=asc (не utm — такой
+    // параметр normalizeUrl не срезает).
+    const withQueryLink = await crawl(
+      {
+        origin,
+        includeSubdomains: false,
+        maxPages: 50,
+        queryPolicy: 'ignore',
+        seedUrls: [`${origin}/query-links.html`],
+      },
+      crawlOptions(),
+    );
+    expect(withQueryLink.pages).toHaveLength(18);
+    expect(withQueryLink.pages.map((page) => page.normalizedUrl)).toContain(
+      `${origin}/query-links.html`,
+    );
+    // Отдельной страницы под ?sort=asc обход не завёл: это тот же /dup-a.html.
+    expect(withQueryLink.pages.map((page) => page.normalizedUrl)).not.toContain(
+      `${origin}/dup-a.html?sort=asc`,
+    );
+
+    const queryRun = seoRun(withQueryLink);
+    // Граф ссылок полон: адрес с query — не пробел в обходе, а прочитанная страница.
+    expect(ruleRun(queryRun, 'SEO-TECH-009').applicableTargets).toBeGreaterThan(0);
+    expect(ruleRun(queryRun, 'SEO-TECH-011').applicableTargets).toBeGreaterThan(0);
+    // И ссылка засчитана /dup-a.html: с главной и с /query-links.html — две
+    // ссылки, поэтому в обходе по умолчанию слабо связанная страница, а здесь нет.
+    expect(rulePaths(result, 'SEO-TECH-011')).toContain('/dup-a.html');
+    expect(rulePaths(queryRun, 'SEO-TECH-011')).not.toContain('/dup-a.html');
+  });
+
+  it('обход, ограниченный глубиной, остаётся полным в пределах своей области', async () => {
+    // maxDepth — решение владельца, а не потеря данных: ссылка на шаг глубже
+    // нигде не отмечается, но обход прочитал всё, что собирался, и правила
+    // перелинковки обязаны работать (иначе профиль по умолчанию с maxDepth 5
+    // молча гасил бы их почти на каждом сайте).
+    const shallow = await crawl(
+      { origin, includeSubdomains: false, maxPages: 50, maxDepth: 1 },
+      crawlOptions(),
+    );
+    const read = shallow.pages.map((page) => page.normalizedUrl);
+    expect(read).toContain(`${origin}/deep/`);
+    // Страница на глубине 2 в обход не попала и нигде не отмечена.
+    expect(read).not.toContain(`${origin}/deep/level2/page.html`);
+    expect(shallow.skippedOverLimit).toEqual([]);
+    expect(shallow.pendingQueue).toEqual([]);
+
+    const shallowRun = seoRun(shallow);
+    expect(rulePaths(shallowRun, 'SEO-TECH-009')).toEqual(['/orphan.html']);
+    expect(ruleRun(shallowRun, 'SEO-TECH-011').applicableTargets).toBeGreaterThan(0);
+    expect(ruleRun(shallowRun, 'SEO-TECH-010').applicableTargets).toBeGreaterThan(0);
   });
 
   it('точка входа исключена из слабо связанных страниц', () => {

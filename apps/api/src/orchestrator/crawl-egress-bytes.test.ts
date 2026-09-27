@@ -39,6 +39,7 @@ function crawl(pages: readonly PageSnapshot[]): CrawlResult {
     resources: [],
     pendingQueue: [],
     stoppedEarly: false,
+    scope: { origin: ORIGIN, includeSubdomains: false, maxPages: 50 },
   };
 }
 

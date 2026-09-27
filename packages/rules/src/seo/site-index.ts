@@ -1,9 +1,16 @@
 // Индексы уровня обхода для правил, которым нужен контекст всего сайта
-// (TECH-006 битые ссылки, TECH-008 противоречие noindex, TECH-009/011
+// (TECH-006 битые ссылки, TECH-008 противоречие noindex, TECH-009/010/011
 // перелинковка). Строятся один раз на CrawlResult (WeakMap-кэш) — правила
 // остаются чистыми функциями от ctx.
+//
+// Ключ адреса здесь тот же, что у обхода: сначала queryPolicy, потом
+// normalizeUrl v1 (crawlKey). Правило, нормализующее ссылку иначе, чем краулер,
+// спрашивает его о несуществующем адресе: под queryPolicy 'ignore' (default
+// профиля) ссылка `/p?page=2` ведёт на прочитанную страницу `/p`, а не в
+// пустоту.
 
-import type { CrawlResult, PageSnapshot } from '@fluxradar/crawler';
+import type { CrawlResult, CrawlScope, PageSnapshot } from '@fluxradar/crawler';
+import { applyQueryPolicy, isHostInScope, isPathnameAllowedByPatterns } from '@fluxradar/crawler';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
 import type { SiteContext } from '../engine/types.js';
@@ -13,19 +20,38 @@ import { parsePage } from './dom.js';
 export interface PageLink {
   /** href как он записан в разметке (селектор для evidence). */
   readonly rawHref: string;
-  /** Абсолютный нормализованный target (normalizeUrl v1). */
+  /** Абсолютный нормализованный target (normalizeUrl v1), как написан в разметке. */
   readonly normalizedTarget: string;
+  /**
+   * Тот же target под ключом дедупа обхода: query-политика применена.
+   *
+   * Отличается от normalizedTarget только при queryPolicy 'ignore', и тогда
+   * именно этот ключ совпадает с normalizedUrl снимков. Оба поля нужны рядом:
+   * вердикт о СТРАНИЦЕ (TECH-008/009/010/011) выносится по ключу обхода, а
+   * вердикт о самой ССЫЛКЕ (TECH-006 «ссылка ведёт на 404») — по адресу, как он
+   * написан в разметке, потому что снимок `/p` о статусе `/p?page=2` не
+   * свидетельствует (D-152).
+   */
+  readonly crawlTarget: string;
 }
 
-const pageLinksCache = new WeakMap<PageSnapshot, readonly PageLink[]>();
+/**
+ * Кэш ссылок: сначала обход, потом снимок.
+ *
+ * Ключ обхода нельзя кэшировать на одном снимке: crawlTarget зависит от
+ * queryPolicy ОБХОДА, и снимок, прочитанный сначала правилом одного прогона, а
+ * потом правилом другого, отдал бы второму ключи первого.
+ */
+const pageLinksCache = new WeakMap<CrawlResult, WeakMap<PageSnapshot, readonly PageLink[]>>();
 
 /**
  * <a href> страницы: разрешение против finalUrl; мусор и не-http(s) отброшены.
- * Кэш на снимок: результат нужен и TECH-006 (по страницам), и TECH-008
+ * Кэш на снимок: результат нужен и TECH-006 (по страницам), и TECH-008/009/011
  * (через internalLinkSources) — извлекаем и нормализуем один раз.
  */
-export function pageLinks(page: PageSnapshot): readonly PageLink[] {
-  const cached = pageLinksCache.get(page);
+export function pageLinks(page: PageSnapshot, crawl: CrawlResult): readonly PageLink[] {
+  const byPage = pageLinksCache.get(crawl) ?? new WeakMap<PageSnapshot, readonly PageLink[]>();
+  const cached = byPage.get(page);
   if (cached !== undefined) {
     return cached;
   }
@@ -33,13 +59,20 @@ export function pageLinks(page: PageSnapshot): readonly PageLink[] {
     .querySelectorAll('a')
     .map((anchor) => anchor.getAttribute('href')?.trim())
     .filter((href): href is string => href !== undefined && href !== '')
-    .map((rawHref) => {
-      const normalizedTarget = resolveAndNormalize(rawHref, page.finalUrl);
-      return normalizedTarget === null ? null : { rawHref, normalizedTarget };
-    })
+    .map((rawHref) => toPageLink(rawHref, page.finalUrl, crawl.scope))
     .filter((link): link is PageLink => link !== null);
-  pageLinksCache.set(page, links);
+  byPage.set(page, links);
+  pageLinksCache.set(crawl, byPage);
   return links;
+}
+
+function toPageLink(rawHref: string, baseUrl: string, scope: CrawlScope): PageLink | null {
+  const normalizedTarget = resolveAndNormalize(rawHref, baseUrl);
+  if (normalizedTarget === null) {
+    return null;
+  }
+  const crawlTarget = crawlKey(rawHref, baseUrl, scope) ?? normalizedTarget;
+  return { rawHref, normalizedTarget, crawlTarget };
 }
 
 const snapshotIndexCache = new WeakMap<CrawlResult, ReadonlyMap<string, PageSnapshot>>();
@@ -60,20 +93,65 @@ export function snapshotByNormalizedUrl(crawl: CrawlResult): ReadonlyMap<string,
   return index;
 }
 
+const aliasCache = new WeakMap<CrawlResult, ReadonlyMap<string, string>>();
+
+/**
+ * Запрошенный адрес → адрес, по которому страница на самом деле живёт.
+ *
+ * Редирект — это заявление сайта «эта страница здесь»: ссылка на `/about`,
+ * отвечающий 301 на `/about/`, ведёт на страницу `/about/`. Без этой карты
+ * правила графа считают входящие ссылки по буквальному адресу и получают две
+ * ложные картины: страница-цель редиректа выглядит orphan-ом, а сам адрес
+ * редиректа — страницей, которую держит одна ссылка.
+ */
+export function redirectAliases(crawl: CrawlResult): ReadonlyMap<string, string> {
+  const cached = aliasCache.get(crawl);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const aliases = new Map<string, string>();
+  for (const page of crawl.pages) {
+    const final = crawlKey(page.finalUrl, page.finalUrl, crawl.scope);
+    if (final !== null && final !== page.normalizedUrl) {
+      aliases.set(page.normalizedUrl, final);
+    }
+  }
+  aliasCache.set(crawl, aliases);
+  return aliases;
+}
+
 const linkSourcesCache = new WeakMap<CrawlResult, ReadonlyMap<string, ReadonlySet<string>>>();
 
-/** target normalizedUrl → normalizedUrl-ы страниц (2xx HTML), ссылающихся на него. */
+/**
+ * target → normalizedUrl-ы страниц (2xx HTML), ссылающихся на него.
+ *
+ * Ссылка засчитывается И запрошенному адресу, И адресу, на который он ведёт
+ * редиректом (redirectAliases): для вопроса «сколько ссылок держит страницу»
+ * это один и тот же документ, и спросить о нём вправе как правило, судящее
+ * адрес из sitemap, так и правило, судящее прочитанный снимок.
+ */
 export function internalLinkSources(crawl: CrawlResult): ReadonlyMap<string, ReadonlySet<string>> {
   const cached = linkSourcesCache.get(crawl);
   if (cached !== undefined) {
     return cached;
   }
+  const aliases = redirectAliases(crawl);
   const sources = new Map<string, Set<string>>();
+  const credit = (target: string, source: string): void => {
+    const existing = sources.get(target);
+    if (existing === undefined) {
+      sources.set(target, new Set([source]));
+      return;
+    }
+    existing.add(source);
+  };
   for (const page of crawl.pages.filter(isSuccessfulHtmlPage)) {
-    for (const link of pageLinks(page)) {
-      const existing = sources.get(link.normalizedTarget) ?? new Set<string>();
-      existing.add(page.normalizedUrl);
-      sources.set(link.normalizedTarget, existing);
+    for (const link of pageLinks(page, crawl)) {
+      credit(link.crawlTarget, page.normalizedUrl);
+      const alias = aliases.get(link.crawlTarget);
+      if (alias !== undefined) {
+        credit(alias, page.normalizedUrl);
+      }
     }
   }
   linkSourcesCache.set(crawl, sources);
@@ -82,7 +160,7 @@ export function internalLinkSources(crawl: CrawlResult): ReadonlyMap<string, Rea
 
 const sitemapUrlsCache = new WeakMap<CrawlResult, ReadonlySet<string>>();
 
-/** Нормализованные URL из sitemap-seed-ов обхода. */
+/** URL из sitemap-seed-ов обхода под ключом обхода (queryPolicy применена). */
 export function sitemapNormalizedUrls(crawl: CrawlResult): ReadonlySet<string> {
   const cached = sitemapUrlsCache.get(crawl);
   if (cached !== undefined) {
@@ -90,7 +168,7 @@ export function sitemapNormalizedUrls(crawl: CrawlResult): ReadonlySet<string> {
   }
   const normalized = new Set(
     crawl.sitemapUrls
-      .map((url) => resolveAndNormalize(url, url))
+      .map((url) => crawlKey(url, url, crawl.scope))
       .filter((url): url is string => url !== null),
   );
   sitemapUrlsCache.set(crawl, normalized);
@@ -137,7 +215,7 @@ export function linkTargets(crawl: CrawlResult): readonly string[] {
     ...new Set(
       crawl.pages
         .filter((page) => isSuccessfulHtmlPage(page))
-        .flatMap((page) => pageLinks(page).map((link) => link.normalizedTarget)),
+        .flatMap((page) => pageLinks(page, crawl).map((link) => link.normalizedTarget)),
     ),
   ];
 }
@@ -180,12 +258,21 @@ function resolveAndNormalize(href: string, baseUrl: string): string | null {
   }
 }
 
+/** Ключ, под которым обход дедупил бы этот адрес: queryPolicy → normalizeUrl. */
+function crawlKey(href: string, baseUrl: string, scope: CrawlScope): string | null {
+  try {
+    return normalizeUrl(applyQueryPolicy(new URL(href, baseUrl), scope.queryPolicy).href);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Почему граф внутренних ссылок этого обхода нельзя считать полным.
  *
  * Вывод «на эту страницу никто не ссылается» держится на том, что ссылки
  * ПРОЧИТАНЫ у каждой страницы сайта. Любой непрочитанный документ мог нести
- * ровно ту ссылку, которой правило не нашло, поэтому SEO-TECH-009/011 при
+ * ровно ту ссылку, которой правило не нашло, поэтому SEO-TECH-009/010/011 при
  * непустом пробеле молчат (и отчитываются Not applicable — см. шапки правил).
  */
 export type LinkGraphGap =
@@ -196,16 +283,44 @@ export type LinkGraphGap =
   /** Страница не отдала тела: transport-сбой или остановка хоста (D-030). */
   | 'unread-page'
   /**
-   * Ссылка на страницу того же хоста, о которой обход не отчитался нигде.
+   * Ссылка на адрес, который обход считал своим, но нигде о нём не отчитался.
    *
-   * Так выглядит усечение по scope: URL, отброшенный шаблонами include/exclude
-   * или лимитом глубины, нигде не отмечается (run-context.ts, crawlScopeKey) —
-   * единственный его след это ссылка, ведущая в никуда.
+   * Так выглядит расхождение между тем, что обход обещал прочитать, и тем, что
+   * прочитал: адрес прошёл все фильтры scope, но снимка, лимита, robots.txt или
+   * ошибки под ним нет. Адрес, отброшенный самим scope (чужой хост, шаблоны
+   * include/exclude, maxDepth), пробелом НЕ считается — см. isDeliberatelyUncrawled.
    */
   | 'unreached-url';
 
+const gapCache = new WeakMap<CrawlResult, LinkGraphGap | null>();
+
+/**
+ * Пробел зависит только от обхода, поэтому считается один раз на CrawlResult:
+ * его спрашивает и site-правило (однажды), и page-правило TECH-010 — у каждой
+ * страницы, а «есть ли среди 50 тысяч страниц недочитанная» сама по себе задача
+ * на весь набор.
+ */
 export function linkGraphGap(ctx: SiteContext): LinkGraphGap | null {
   const { crawl } = ctx;
+  if (gapCache.has(crawl)) {
+    return gapCache.get(crawl) ?? null;
+  }
+  const gap = computeLinkGraphGap(crawl);
+  gapCache.set(crawl, gap);
+  return gap;
+}
+
+/**
+ * Последний из пробелов — внутренняя ссылка, о судьбе которой обход молчит,
+ * хотя обещал её пройти.
+ *
+ * Сравнение идёт по ключу обхода и по фильтрам обхода (crawl.scope), поэтому
+ * «пробел» здесь означает ровно одно: адрес, который краулер поставил бы в
+ * очередь, нигде в его отчёте не появился. Это страховка от расхождения правил
+ * с краулером, а не отчёт об области: всё, что scope отбрасывает сам,
+ * отсеивается раньше (isDeliberatelyUncrawled).
+ */
+function computeLinkGraphGap(crawl: CrawlResult): LinkGraphGap | null {
   if (crawl.skippedOverLimit.length > 0) {
     return 'page-limit';
   }
@@ -215,33 +330,58 @@ export function linkGraphGap(ctx: SiteContext): LinkGraphGap | null {
   if (crawl.errors.length > 0 || crawl.pages.some((page) => page.fetchError !== undefined)) {
     return 'unread-page';
   }
-  return hasUnreachedInScopeUrl(crawl, hostnameOf(ctx.domain)) ? 'unreached-url' : null;
+  const accounted = accountedUrls(crawl);
+  const unreached = crawl.pages
+    .filter(isSuccessfulHtmlPage)
+    .some((page) =>
+      pageLinks(page, crawl).some(
+        (link) =>
+          !accounted.has(link.crawlTarget) &&
+          !isDeliberatelyUncrawled(crawl.scope, link.crawlTarget, page.depth + 1),
+      ),
+    );
+  return unreached ? 'unreached-url' : null;
 }
 
-const unreachedCache = new WeakMap<CrawlResult, Map<string, boolean>>();
-
 /**
- * Есть ли внутренняя ссылка на тот же хост, о судьбе которой обход молчит.
+ * Адрес, который обход и не собирался читать, — решение области, а не пробел.
  *
- * Чужой хост — включая собственный поддомен — пробелом не считается: обход по
- * умолчанию туда не ходит (includeSubdomains=false), и требовать от него чужой
- * хост значило бы молчать на каждом сайте, у которого есть blog.example.com.
- * Проверка идёт по хосту, а не по origin: http- и https-форма одного хоста для
- * scope краулера — одна и та же область (isHostInScope).
+ * Три причины, и все три — выбор владельца, записанный в scope:
+ *  • чужой хост (включая свой поддомен при includeSubdomains=false): обход туда
+ *    не ходит, и требовать от него blog.example.com значило бы молчать на каждом
+ *    сайте с поддоменом. Проверка по хосту, а не по origin: http- и https-форма
+ *    одного хоста для scope краулера — одна область (isHostInScope);
+ *  • pathname, отброшенный шаблонами include/exclude;
+ *  • ссылка глубже maxDepth: краулер отбрасывает её при постановке в очередь
+ *    (enqueue), и глубина ссылки — это глубина несущей её страницы + 1. Очередь
+ *    обхода — BFS, поэтому первый раз адрес обнаруживается на своей минимальной
+ *    глубине: «глубже maxDepth хотя бы на этой странице» и есть «глубже
+ *    maxDepth вообще».
+ *
+ * Считать такой адрес пробелом означало бы гасить TECH-009/010/011 на любом
+ * сайте, у которого есть ссылка на шаг глубже maxDepth (в профиле по умолчанию
+ * maxDepth = 5) — то есть почти на каждом, и молча. Цена решения честна и
+ * названа в самой находке: её evidence говорит «ни одна из N ПРОЧИТАННЫХ
+ * страниц не ссылается», а не «на странице нет ссылок вообще». Пробелом
+ * остаётся только то, что обход читать СОБИРАЛСЯ и не прочитал: лимит тарифа,
+ * пауза, упавшая страница — там неизвестна не область, а сам ответ сайта.
  */
-function hasUnreachedInScopeUrl(crawl: CrawlResult, hostname: string): boolean {
-  const cached = unreachedCache.get(crawl)?.get(hostname);
-  if (cached !== undefined) {
-    return cached;
+function isDeliberatelyUncrawled(scope: CrawlScope, url: string, linkDepth: number): boolean {
+  if (scope.maxDepth !== undefined && linkDepth > scope.maxDepth) {
+    return true;
   }
-  const accounted = accountedUrls(crawl);
-  const unreached = linkTargets(crawl).some(
-    (target) => hostnameOf(target) === hostname && !accounted.has(target),
+  let parsed: URL;
+  let originHostname: string;
+  try {
+    parsed = new URL(url);
+    originHostname = new URL(scope.origin).hostname;
+  } catch {
+    return true; // адрес, который краулер и разобрать бы не смог, он не просил
+  }
+  return (
+    !isHostInScope(parsed.hostname, originHostname, scope.includeSubdomains) ||
+    !isPathnameAllowedByPatterns(parsed.pathname, scope)
   );
-  const byHost = unreachedCache.get(crawl) ?? new Map<string, boolean>();
-  byHost.set(hostname, unreached);
-  unreachedCache.set(crawl, byHost);
-  return unreached;
 }
 
 /**
@@ -259,7 +399,7 @@ function accountedUrls(crawl: CrawlResult): ReadonlySet<string> {
   ]);
   for (const page of crawl.pages) {
     accounted.add(page.normalizedUrl);
-    const final = resolveAndNormalize(page.finalUrl, page.finalUrl);
+    const final = crawlKey(page.finalUrl, page.finalUrl, crawl.scope);
     if (final !== null) {
       accounted.add(final);
     }
@@ -267,26 +407,22 @@ function accountedUrls(crawl: CrawlResult): ReadonlySet<string> {
   return accounted;
 }
 
-/** hostname URL-а; пустая строка — строка не разбирается как URL. */
-function hostnameOf(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return '';
-  }
-}
-
 /**
- * Точка входа обхода: страница, к которой приходят по адресу, а не по ссылке.
+ * Адреса точки входа обхода: запрошенный и тот, на который он уводит редиректом.
  *
  * Её входящие ссылки ничего не говорят о доступности, поэтому ни TECH-009, ни
  * TECH-011 о ней не судят: «на главную никто не ссылается» — утверждение о
  * навигации сайта, а не о том, что страницу нельзя найти. Берётся именно
  * ctx.origin, а не всякая страница глубины 0: явный seed владельца говорит, как
- * МЫ нашли страницу, а не как на неё ссылается сайт.
+ * МЫ нашли страницу, а не как на неё ссылается сайт. Адрес назначения редиректа
+ * исключается вместе с ним: `https://site/` → `https://site/en/` это одна
+ * страница, и судить её под вторым именем значило бы объявить главную orphan-ом.
  */
-export function entryPageUrl(ctx: SiteContext): string {
-  return normalizeUrl(ctx.origin);
+export function entryPageUrls(ctx: SiteContext): ReadonlySet<string> {
+  const entry = normalizeUrl(ctx.origin);
+  const requested = crawlKey(entry, entry, ctx.crawl.scope) ?? entry;
+  const alias = redirectAliases(ctx.crawl).get(requested);
+  return new Set(alias === undefined ? [requested] : [requested, alias]);
 }
 
 /**
@@ -306,16 +442,13 @@ export function sitemapPages(crawl: CrawlResult): readonly PageSnapshot[] {
   const snapshots = snapshotByNormalizedUrl(crawl);
   return [...sitemap]
     .map((url) => snapshots.get(url))
-    .filter((page): page is PageSnapshot => page !== undefined && isOwnAddress(page))
+    .filter((page): page is PageSnapshot => page !== undefined && isOwnAddress(page, crawl))
     .sort((left, right) => left.normalizedUrl.localeCompare(right.normalizedUrl));
 }
 
 /** Снимок 2xx HTML, отданный по самому запрошенному адресу, а не через редирект. */
-function isOwnAddress(page: PageSnapshot): boolean {
-  return (
-    isSuccessfulHtmlPage(page) &&
-    resolveAndNormalize(page.finalUrl, page.finalUrl) === page.normalizedUrl
-  );
+export function isOwnAddress(page: PageSnapshot, crawl: CrawlResult): boolean {
+  return isSuccessfulHtmlPage(page) && !redirectAliases(crawl).has(page.normalizedUrl);
 }
 
 /**
@@ -328,8 +461,97 @@ export function linkSourcePages(crawl: CrawlResult): readonly PageSnapshot[] {
   return crawl.pages.filter((page) => isSuccessfulHtmlPage(page));
 }
 
-/** normalizedUrl-ы страниц, ссылающихся на цель, кроме самой цели. */
-export function inboundSources(crawl: CrawlResult, target: string): readonly string[] {
+/**
+ * Сколько ЧУЖИХ страниц обхода ссылается на цель (ссылка на себя не считается).
+ *
+ * Оба правила графа спрашивают о размере, а не о списке: на сайте в 50 тысяч
+ * страниц навигационная цель собирает десятки тысяч источников, и копировать их
+ * в массив ради `.length` значило бы строить такой массив на каждую страницу.
+ */
+export function inboundSourceCount(crawl: CrawlResult, target: string): number {
+  const sources = internalLinkSources(crawl).get(target);
+  if (sources === undefined) {
+    return 0;
+  }
+  return sources.has(target) ? sources.size - 1 : sources.size;
+}
+
+/** Единственная чужая страница-источник, либо null, если их не ровно одна. */
+export function soleInboundSource(crawl: CrawlResult, target: string): string | null {
+  if (inboundSourceCount(crawl, target) !== 1) {
+    return null;
+  }
   const sources = internalLinkSources(crawl).get(target) ?? new Set<string>();
-  return [...sources].filter((source) => source !== target).sort();
+  for (const source of sources) {
+    if (source !== target) {
+      return source;
+    }
+  }
+  return null;
+}
+
+const clickDepthCache = new WeakMap<CrawlResult, Map<string, ReadonlyMap<string, number>>>();
+
+/**
+ * Глубина клика каждой страницы от точки входа — BFS по прочитанным ссылкам.
+ *
+ * Считает правило, а не обход: depth снимка это длина пути от БЛИЖАЙШЕГО seed-а
+ * обхода, а seed-ом служит и каждый URL из sitemap (crawler.ts enqueue(url, 1)).
+ * На сайте, чей sitemap перечисляет все страницы, такая глубина всегда ≤ 1 и о
+ * навигации не говорит ничего. Здесь же корень ровно один — точка входа, — и
+ * рёбра только те, которые правило действительно прочитало.
+ *
+ * Редирект прозрачен: ссылка на `/about` ведёт к странице `/about/`
+ * (redirectAliases), поэтому переход считается один раз, а не дважды. Страница,
+ * до которой от точки входа ссылками не дойти, в карте отсутствует: у неё нет
+ * глубины, а не «глубина большая» — это предмет TECH-009, а не TECH-010.
+ */
+export function clickDepthsFromEntry(ctx: SiteContext): ReadonlyMap<string, number> {
+  const { crawl } = ctx;
+  const entryKey = [...entryPageUrls(ctx)].sort().join(' ');
+  const byEntry = clickDepthCache.get(crawl) ?? new Map<string, ReadonlyMap<string, number>>();
+  const cached = byEntry.get(entryKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const depths = breadthFirstDepths(crawl, entryPageUrls(ctx));
+  byEntry.set(entryKey, depths);
+  clickDepthCache.set(crawl, byEntry);
+  return depths;
+}
+
+function breadthFirstDepths(
+  crawl: CrawlResult,
+  entryUrls: ReadonlySet<string>,
+): ReadonlyMap<string, number> {
+  const snapshots = snapshotByNormalizedUrl(crawl);
+  const aliases = redirectAliases(crawl);
+  const depths = new Map<string, number>();
+  const queue: string[] = [];
+  for (const entry of entryUrls) {
+    if (snapshots.has(entry)) {
+      depths.set(entry, 0);
+      queue.push(entry);
+    }
+  }
+  let head = 0;
+  while (head < queue.length) {
+    const current = queue[head];
+    head += 1;
+    const page = current === undefined ? undefined : snapshots.get(current);
+    const depth = current === undefined ? 0 : (depths.get(current) ?? 0);
+    if (page === undefined || !isSuccessfulHtmlPage(page)) {
+      continue; // непрочитанная страница ссылок не отдаёт — её путей мы не знаем
+    }
+    for (const link of pageLinks(page, crawl)) {
+      for (const target of [link.crawlTarget, aliases.get(link.crawlTarget)]) {
+        if (target === undefined || depths.has(target) || !snapshots.has(target)) {
+          continue;
+        }
+        depths.set(target, depth + 1);
+        queue.push(target);
+      }
+    }
+  }
+  return depths;
 }

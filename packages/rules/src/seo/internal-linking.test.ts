@@ -170,9 +170,10 @@ describe('SEO-TECH-009 orphan-страницы', () => {
   });
 
   it('ссылка на страницу того же хоста, о которой обход молчит, закрывает правило', () => {
-    // Так выглядит усечение по scope: /excluded.html отброшен шаблонами и нигде
-    // не отмечен, а его ссылки могли вести как раз на «orphan»-страницу.
-    const ctx = siteWithOrphan(['/linked.html', '/excluded.html']);
+    // Адрес прошёл все фильтры области (свой хост, без шаблонов, без maxDepth),
+    // но снимка, лимита, robots.txt или ошибки под ним нет: обход обещал его
+    // прочитать и не прочитал, а его ссылки могли вести на «orphan»-страницу.
+    const ctx = siteWithOrphan(['/linked.html', '/unaccounted.html']);
     expect(linkGraphGap(ctx)).toBe('unreached-url');
     expect(evaluation('SEO-TECH-009', ctx).applicableTargets).toBe(0);
   });
@@ -199,6 +200,58 @@ describe('SEO-TECH-009 orphan-страницы', () => {
     expect(paths(runSeoRule('SEO-TECH-009', ctx))).toEqual(['/orphan.html']);
   });
 
+  it('ссылка через редирект засчитывается странице назначения', () => {
+    // Навигация ссылается на /about, сервер уводит на /about/: страница живёт по
+    // адресу назначения, и ссылка ведёт именно на неё.
+    const ctx = siteContext({
+      sitemapUrls: [url('/about/')],
+      pages: [
+        page('/', ['/about']),
+        {
+          ...page('/about', [], 1),
+          finalPath: '/about/',
+          redirectChain: [{ url: url('/about'), status: 301, location: url('/about/') }],
+        },
+        page('/about/', ['/'], 1),
+      ],
+    });
+    expect(runSeoRule('SEO-TECH-009', ctx)).toEqual([]);
+    expect(evaluation('SEO-TECH-009', ctx).checkedTargets).toEqual([url('/about/')]);
+  });
+
+  it('точка входа, уводящая редиректом, исключена и под адресом назначения', () => {
+    // https://fixture.test/ отвечает 301 на /en/, sitemap перечисляет /en/, а вся
+    // навигация ссылается на `/`. Главная — это /en/, и orphan-ом она не бывает.
+    const ctx = siteContext({
+      sitemapUrls: [url('/en/'), url('/en/pricing.html')],
+      pages: [
+        {
+          ...page('/', ['/en/pricing.html'], 0),
+          finalPath: '/en/',
+          redirectChain: [{ url: url('/'), status: 301, location: url('/en/') }],
+        },
+        page('/en/', ['/en/pricing.html'], 1),
+        page('/en/pricing.html', ['/'], 2),
+      ],
+    });
+    expect(runSeoRule('SEO-TECH-009', ctx)).toEqual([]);
+    expect(evaluation('SEO-TECH-009', ctx).checkedTargets).toEqual([url('/en/pricing.html')]);
+  });
+
+  it('ссылка со страницы 404 источником не считается: это и есть orphan', () => {
+    // 404 отдаёт HTML, и в нём бывают ссылки, но страницы, на которой они
+    // «лежат», у сайта нет — навигацией такая ссылка не является.
+    const ctx = siteContext({
+      sitemapUrls: [url('/orphan.html')],
+      pages: [
+        page('/', ['/gone.html']),
+        { ...page('/gone.html', ['/orphan.html'], 1), status: 404 },
+        page('/orphan.html', [], 1),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-TECH-009', ctx))).toEqual(['/orphan.html']);
+  });
+
   it('называет входами прочитанные ссылки и сам факт чтения sitemap', () => {
     const run = evaluation('SEO-TECH-009', siteWithOrphan());
     expect(run.inputTargets).toEqual([
@@ -212,13 +265,27 @@ describe('SEO-TECH-009 orphan-страницы', () => {
 });
 
 describe('SEO-TECH-010 глубина клика', () => {
-  const deepSite = (depth: number): SiteContext =>
-    siteContext({ pages: [page('/', ['/deep.html']), page('/deep.html', [], depth)] });
+  /**
+   * Цепочка из `hops` переходов от точки входа: / → /step-1.html → … → /deep.html.
+   *
+   * `snapshotDepths` подменяет глубину снимков, не меняя ссылок: так выглядит
+   * страница, которую обход нашёл seed-ом из sitemap, а не переходами.
+   */
+  function chain(hops: number, snapshotDepths: Readonly<Record<number, number>> = {}) {
+    const pathAt = (step: number): string =>
+      step === 0 ? '/' : step === hops ? '/deep.html' : `/step-${step}.html`;
+    return Array.from({ length: hops + 1 }, (unused, step) =>
+      page(pathAt(step), step === hops ? [] : [pathAt(step + 1)], snapshotDepths[step] ?? step),
+    );
+  }
+
+  const deepSite = (hops: number): SiteContext => siteContext({ pages: chain(hops) });
 
   it('positive: страница на пороговой глубине → finding (Low) с глубиной и точкой входа', () => {
     const finding = single(runSeoRule('SEO-TECH-010', deepSite(DEEP_PAGE_MIN_DEPTH)));
     expect(finding.targetKind).toBe('page');
     expect(finding.severity).toBe('Low');
+    expect(finding.evidenceType).toBe('http');
     expect(finding.normalizedUrl).toBe(url('/deep.html'));
     expect(finding.evidenceExcerpt).toBe(
       `The page is 4 link hops away from the entry URL ${FIXTURE_ORIGIN} (threshold: 4)`,
@@ -234,23 +301,69 @@ describe('SEO-TECH-010 глубина клика', () => {
 
   it('глубже порога — та же находка: fingerprint не зависит от самой глубины', () => {
     const atThreshold = single(runSeoRule('SEO-TECH-010', deepSite(DEEP_PAGE_MIN_DEPTH)));
-    const deeper = single(runSeoRule('SEO-TECH-010', deepSite(DEEP_PAGE_MIN_DEPTH + 3)));
+    const deeper = single(
+      runSeoRule('SEO-TECH-010', deepSite(DEEP_PAGE_MIN_DEPTH + 3)).filter((candidate) =>
+        candidate.normalizedUrl.endsWith('/deep.html'),
+      ),
+    );
     expect(deeper.fingerprint).toBe(atThreshold.fingerprint);
     expect(deeper.evidenceExcerpt).toContain('7 link hops');
   });
 
-  it('усечённый обход правило не глушит: глубина известна из самого снимка', () => {
-    const ctx = withCrawl(deepSite(DEEP_PAGE_MIN_DEPTH), {
-      skippedOverLimit: [url('/over-limit.html')],
+  it('глубина считается от точки входа, а не от ближайшего seed-а обхода', () => {
+    // /step-5.html обход нашёл в sitemap и записал ему depth 1, но ссылками от
+    // точки входа до /deep.html шесть переходов — о них и говорит evidence.
+    const ctx = siteContext({
+      sitemapUrls: [url('/step-5.html')],
+      pages: chain(6, { 5: 1 }),
+    });
+    const finding = single(
+      runSeoRule('SEO-TECH-010', ctx).filter((candidate) =>
+        candidate.normalizedUrl.endsWith('/deep.html'),
+      ),
+    );
+    expect(finding.evidenceExcerpt).toContain('6 link hops');
+  });
+
+  it('страница, до которой ссылками не дойти, глубины не получает', () => {
+    // /alone.html есть только в sitemap: «в N переходах» о ней сказать нельзя,
+    // и это предмет TECH-009, а не TECH-010.
+    const ctx = siteContext({
+      sitemapUrls: [url('/alone.html')],
+      pages: [...chain(DEEP_PAGE_MIN_DEPTH), page('/alone.html', [], 1)],
     });
     expect(paths(runSeoRule('SEO-TECH-010', ctx))).toEqual(['/deep.html']);
   });
 
-  it('судит каждую прочитанную HTML-страницу и своих входов не имеет', () => {
+  it('недочитанная страница могла скрыть короткий путь → Not applicable', () => {
+    // /hub.html не отдал тела: на самом деле /deep.html может быть в двух
+    // переходах от точки входа, а по прочитанным ссылкам их четыре. Правило
+    // обязано сказать «не применялось», а не назвать число, которого не знает.
+    const ctx = siteContext({
+      pages: [
+        ...chain(DEEP_PAGE_MIN_DEPTH),
+        { path: '/hub.html', fetchError: 'socket hang up', depth: 1 },
+      ],
+    });
+    expect(linkGraphGap(ctx)).toBe('unread-page');
+    const run = evaluation('SEO-TECH-010', ctx);
+    expect(run.applicableTargets).toBe(0);
+    expect(run.findings).toEqual([]);
+  });
+
+  it('обход, усечённый лимитом тарифа, тоже гасит правило', () => {
+    const ctx = withCrawl(deepSite(DEEP_PAGE_MIN_DEPTH), {
+      skippedOverLimit: [url('/over-limit.html')],
+    });
+    expect(evaluation('SEO-TECH-010', ctx).applicableTargets).toBe(0);
+  });
+
+  it('судит каждую прочитанную HTML-страницу, а входы — ссылки всех страниц', () => {
     const run = evaluation('SEO-TECH-010', deepSite(DEEP_PAGE_MIN_DEPTH));
-    expect(run.applicableTargets).toBe(2);
+    expect(run.applicableTargets).toBe(DEEP_PAGE_MIN_DEPTH + 1);
     expect(run.affectedTargets).toBe(1);
-    expect(run.inputTargets).toEqual([]);
+    expect(run.inputTargets).toHaveLength(DEEP_PAGE_MIN_DEPTH + 1);
+    expect(run.requestedInputs).toContain(url('/deep.html'));
   });
 });
 
@@ -318,6 +431,43 @@ describe('SEO-TECH-011 слабо связанные страницы', () => {
     expect(runSeoRule('SEO-TECH-011', ctx)).toEqual([]);
   });
 
+  it('адрес, уводящий редиректом, кандидатом не бывает, а его ссылки идут цели', () => {
+    // Подвал ссылается на /about один раз, навигация трёх страниц — на /about/.
+    // Страница одна, ссылок на неё четыре: «держит одна ссылка» не про неё, а
+    // сам /about судить нельзя — это редирект, а не страница.
+    const ctx = siteContext({
+      pages: [
+        page('/', ['/about', '/hub-a.html', '/hub-b.html']),
+        {
+          ...page('/about', [], 1),
+          finalPath: '/about/',
+          redirectChain: [{ url: url('/about'), status: 301, location: url('/about/') }],
+        },
+        page('/about/', ['/'], 1),
+        page('/hub-a.html', ['/about/', '/hub-b.html'], 1),
+        page('/hub-b.html', ['/about/', '/hub-a.html'], 1),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-TECH-011', ctx))).toEqual([]);
+    // Кандидатами были три настоящие страницы, /about среди них нет.
+    expect(evaluation('SEO-TECH-011', ctx).checkedTargets).toEqual([
+      url('/about/'),
+      url('/hub-a.html'),
+      url('/hub-b.html'),
+    ]);
+  });
+
+  it('единственная ссылающаяся страница — 404: не «слабая связь», а ноль ссылок', () => {
+    const ctx = siteContext({
+      pages: [
+        page('/', ['/gone.html']),
+        { ...page('/gone.html', ['/weak.html'], 1), status: 404 },
+        page('/weak.html', [], 1),
+      ],
+    });
+    expect(runSeoRule('SEO-TECH-011', ctx)).toEqual([]);
+  });
+
   it('неполный граф ссылок → Not applicable, без ложной находки', () => {
     const run = evaluation(
       'SEO-TECH-011',
@@ -333,5 +483,72 @@ describe('SEO-TECH-011 слабо связанные страницы', () => {
     expect(run.inputTargets).toEqual([url('/'), url('/weak.html'), url('/hub.html')]);
     expect(run.applicableTargets).toBe(2);
     expect(run.affectedTargets).toBe(1);
+  });
+});
+
+describe('пробел в графе ссылок меряется областью самого обхода', () => {
+  type FixtureScope = Parameters<typeof siteContext>[0]['scope'];
+
+  /** Сайт из трёх страниц с одной дополнительной ссылкой с главной. */
+  function siteLinking(href: string, scope: FixtureScope = {}): SiteContext {
+    return siteContext({
+      scope,
+      sitemapUrls: [url('/'), url('/orphan.html')],
+      pages: [
+        page('/', ['/linked.html', href]),
+        page('/linked.html', ['/'], 1),
+        page('/orphan.html', [], 1),
+      ],
+    });
+  }
+
+  it('queryPolicy ignore: ссылка с query ведёт на прочитанную страницу без query', () => {
+    // Профиль по умолчанию — queryPolicy 'ignore', и обход прочитал /linked.html
+    // один раз. Правило, нормализующее href по-своему, увидело бы здесь адрес, о
+    // котором обход не отчитался, и замолчало бы на каждом сайте с ?page=2.
+    const ctx = siteLinking('/linked.html?page=2');
+    expect(linkGraphGap(ctx)).toBeNull();
+    expect(paths(runSeoRule('SEO-TECH-009', ctx))).toEqual(['/orphan.html']);
+  });
+
+  it('queryPolicy ignore: ссылка с query — это ссылка на страницу без query', () => {
+    // Единственная ссылка на /products.html написана с ?page=2. Обход дедупит её
+    // к /products.html, поэтому страница связана, а не orphan.
+    const ctx = siteContext({
+      sitemapUrls: [url('/products.html')],
+      pages: [page('/', ['/products.html?page=2']), page('/products.html', ['/'], 1)],
+    });
+    expect(runSeoRule('SEO-TECH-009', ctx)).toEqual([]);
+    expect(evaluation('SEO-TECH-009', ctx).applicableTargets).toBe(1);
+  });
+
+  it('queryPolicy include: тот же адрес — отдельная страница, о которой обход молчит', () => {
+    const ctx = siteLinking('/linked.html?page=2', { queryPolicy: 'include' });
+    expect(linkGraphGap(ctx)).toBe('unreached-url');
+    expect(evaluation('SEO-TECH-009', ctx).applicableTargets).toBe(0);
+  });
+
+  it('ссылка глубже maxDepth пробелом не считается: её и не собирались читать', () => {
+    // Ссылка с главной — это глубина 1, а обходу разрешили только глубину 0.
+    const ctx = siteLinking('/deeper.html', { maxDepth: 0 });
+    expect(linkGraphGap(ctx)).toBeNull();
+    expect(paths(runSeoRule('SEO-TECH-009', ctx))).toEqual(['/orphan.html']);
+    // Без ограничения глубины тот же адрес — настоящий пробел: обход обещал его
+    // прочитать и не прочитал.
+    expect(linkGraphGap(siteLinking('/deeper.html'))).toBe('unreached-url');
+  });
+
+  it('ссылка, отброшенная шаблонами scope, пробелом не считается', () => {
+    const excluded = siteLinking('/private/secret.html', { excludePatterns: ['/private/*'] });
+    expect(linkGraphGap(excluded)).toBeNull();
+    expect(paths(runSeoRule('SEO-TECH-009', excluded))).toEqual(['/orphan.html']);
+  });
+
+  it('поддомен: пробел ровно тогда, когда обход обещал по поддоменам ходить', () => {
+    const subdomainLink = 'https://blog.fixture.test/post.html';
+    expect(linkGraphGap(siteLinking(subdomainLink))).toBeNull();
+    expect(linkGraphGap(siteLinking(subdomainLink, { includeSubdomains: true }))).toBe(
+      'unreached-url',
+    );
   });
 });

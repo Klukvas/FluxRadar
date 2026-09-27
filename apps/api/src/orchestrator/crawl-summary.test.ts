@@ -39,6 +39,7 @@ function crawl(pageCount: number, overCount: number): CrawlResult {
     resources: [],
     pendingQueue: [],
     stoppedEarly: false,
+    scope: { origin: ORIGIN, includeSubdomains: false, maxPages: 50 },
   };
 }
 

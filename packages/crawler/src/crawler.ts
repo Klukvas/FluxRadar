@@ -12,7 +12,12 @@ import type { BlockedRequestReason, RenderRuntimeResult } from './render/types.j
 import { probeMediaResources } from './resources.js';
 import { hostKey, RobotsHostCache } from './robots-host-cache.js';
 import { isPathAllowed } from './robots.js';
-import { isHostInScope, isPathnameAllowedByPatterns, validateScope } from './scope.js';
+import {
+  applyQueryPolicy,
+  isHostInScope,
+  isPathnameAllowedByPatterns,
+  validateScope,
+} from './scope.js';
 import { CRAWLER_USER_AGENT } from './user-agent.js';
 import { fetchSitemapUrls, SITEMAP_MAX_URLS } from './sitemap.js';
 import type {
@@ -337,6 +342,9 @@ class CrawlRun {
       resources: this.resources,
       pendingQueue: this.queue.map((entry) => ({ url: entry.rawUrl, depth: entry.depth })),
       stoppedEarly: this.stoppedEarly,
+      // Область отдаётся обратно как есть: правилам нужно знать не «что мы
+      // просили», а по каким фильтрам URL мог исчезнуть из обхода бесследно.
+      scope: this.scope,
     };
   }
 
@@ -712,14 +720,6 @@ class CrawlRun {
       release();
     }
   }
-}
-
-function applyQueryPolicy(url: URL, policy: CrawlScope['queryPolicy']): URL {
-  if (policy !== 'ignore') {
-    return url;
-  }
-  url.search = '';
-  return url;
 }
 
 /** Только ключи с ≥2 raw-вариантами; варианты отсортированы для детерминизма. */

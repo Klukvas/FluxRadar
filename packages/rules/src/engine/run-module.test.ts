@@ -47,12 +47,13 @@ describe('runModuleRules: движок', () => {
     const result = runModuleRules('SEO', ctx);
     // 8 default page-rules: 1 applicable (2xx html) + 1 незавершённый (down);
     // TECH-003/TECH-005 (любой HTTP-ответ): 2 applicable + 1 незавершённый;
-    // 3 site-rules: 1/1. Three discovery page-rules and TECH-010 (глубина клика)
-    // make it 12×2 + 2×3 + 3 = 33, with 12×1 + 2×2 + 3 = 19 completed checks.
-    // TECH-009/011 здесь не применимы: sitemap не прочитан, а страница с
-    // fetchError делает граф ссылок неполным.
-    expect(result.applicableChecks).toBe(33);
-    expect(result.completedApplicableChecks).toBe(19);
+    // 3 site-rules: 1/1. Three discovery page-rules make it 11×2 + 2×3 + 3 = 31.
+    // Ни одно правило перелинковки здесь не применимо: sitemap не прочитан
+    // (TECH-009), а страница с fetchError делает граф ссылок неполным
+    // (TECH-010/011). Плюс один: недочитанная страница остаётся незавершённой
+    // проверкой и у TECH-010 — снимка, по которому можно было бы судить, нет.
+    expect(result.applicableChecks).toBe(32);
+    expect(result.completedApplicableChecks).toBe(18);
   });
 
   it('site-level: normalizedUrl пуст, fingerprint по D-019, агрегаты 1/1', () => {

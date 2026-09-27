@@ -170,11 +170,15 @@ export interface RuleEvaluation {
  * Page-level правило. isApplicable определяет знаменатель агрегата
  * (по умолчанию — успешно загруженная HTML-страница); движок не вызывает
  * evaluatePage для страниц вне applicable-набора.
+ *
+ * Контекст обхода приходит и в isApplicable: у правила, чей вердикт выводится из
+ * графа ссылок (SEO-TECH-010), знаменатель зависит не только от снимка — на
+ * неполном графе оно обязано отчитаться «не применялось», а не «проблем нет».
  */
 export interface PageRule {
   readonly kind: 'page';
   readonly descriptor: RuleDescriptor;
-  isApplicable(page: PageSnapshot): boolean;
+  isApplicable(page: PageSnapshot, ctx: SiteContext): boolean;
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[];
   /**
    * Входы за пределами самой страницы (см. RuleEvaluation.inputTargets).
@@ -229,7 +233,14 @@ export interface SiteRuleResult {
   readonly completedTargets?: number;
 }
 
-/** Site-level правило: одна цель — сам сайт (applicable/affected ∈ {0,1}). */
+/**
+ * Site-level правило: цели считает само (SiteRuleResult), движок их не выводит.
+ *
+ * Обычно цель одна — сайт (applicable/affected ∈ {0,1}, как у TECH-007), но
+ * правило вправе судить набор страниц и отдавать page-level findings: у
+ * SEO-TECH-009/011 знаменатель — страницы sitemap и прочитанные HTML-страницы,
+ * и объявить его может только правило, видящее весь обход.
+ */
 export interface SiteRule {
   readonly kind: 'site';
   readonly descriptor: RuleDescriptor;
@@ -247,6 +258,19 @@ export interface ApiRule {
 }
 
 export type Rule = PageRule | SiteRule | ApiRule;
+
+/**
+ * Пустой результат site-правила: ни одного кандидата и ни одного доказательства.
+ *
+ * Читается в отчёте как «эта проверка к прогону не применялась» (ModuleChecks,
+ * notApplicableReasons), а не как «проблем нет», и это разные утверждения.
+ */
+export const NOT_APPLICABLE: SiteRuleResult = {
+  findings: [],
+  applicableTargets: 0,
+  affectedTargets: 0,
+  checkedTargets: [],
+};
 
 /** Applicable target по умолчанию: финальный 2xx и HTML-тело (T-08). */
 export function isSuccessfulHtmlPage(page: PageSnapshot): boolean {
