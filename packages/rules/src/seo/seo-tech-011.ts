@@ -51,12 +51,11 @@ import { notApplicable } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
 import { linkGraphGap } from './link-graph-gap.js';
 import {
+  addressJudges,
   canonicalAddress,
   discoveredTargets,
   entryPageUrls,
-  isJudgeablePage,
   linkSourceAddresses,
-  linkSourcePages,
   soleInboundSource,
 } from './site-index.js';
 
@@ -115,26 +114,14 @@ export const seoTech011WeaklyLinkedPages: SiteRule = {
 };
 
 /**
- * Страницы, о которых правило судит: прочитанный HTML, кроме точки входа и
- * кроме адресов, у которых есть собственный снимок назначения.
- *
- * Два запрошенных адреса могут вести на один и тот же непрочитанный отдельно
- * документ (`/about` и `/about.html` → `/about/`). Вердикт он получает один:
- * иначе одна страница пришла бы в отчёт дважды под разными именами. Порядок —
- * по normalizedUrl, чтобы набор findings не зависел от порядка очереди обхода.
+ * Страницы, о которых правило судит: по одному снимку на адрес документа
+ * (addressJudges — там же и дедуп двух адресов одного документа, и порядок),
+ * кроме точки входа под любым из её адресов.
  */
 function judgeablePages(ctx: SiteContext): readonly PageSnapshot[] {
   const entry = entryPageUrls(ctx);
-  const judged = new Set<string>();
-  return linkSourcePages(ctx.crawl)
-    .filter((page) => isJudgeablePage(page, ctx.crawl))
-    .sort((left, right) => left.normalizedUrl.localeCompare(right.normalizedUrl))
-    .filter((page) => {
-      const address = canonicalAddress(ctx.crawl, page.normalizedUrl);
-      if (entry.has(page.normalizedUrl) || entry.has(address) || judged.has(address)) {
-        return false;
-      }
-      judged.add(address);
-      return true;
-    });
+  return [...addressJudges(ctx.crawl)].filter(
+    (page) =>
+      !entry.has(page.normalizedUrl) && !entry.has(canonicalAddress(ctx.crawl, page.normalizedUrl)),
+  );
 }

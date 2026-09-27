@@ -408,6 +408,46 @@ export function isJudgeablePage(page: PageSnapshot, crawl: CrawlResult): boolean
   return alias === undefined || !snapshotByNormalizedUrl(crawl).has(alias);
 }
 
+const addressJudgeCache = new WeakMap<CrawlResult, ReadonlySet<PageSnapshot>>();
+
+/**
+ * По одному снимку на адрес документа: тот, кто о СТРАНИЦЕ и судит.
+ *
+ * Два запрошенных адреса могут вести на один и тот же отдельно не прочитанный
+ * документ (`/deep` и `/deep.html` → `/deep/`), и оба снимка судимы под адресом
+ * назначения (isJudgeablePage). Вердикт такой документ получает один: иначе
+ * одна страница пришла бы в отчёт дважды под одним именем, а знаменатель
+ * правила («N страниц проверено») посчитал бы снимки вместо страниц.
+ *
+ * Судит лексикографически первый адрес — и Set сохраняет именно этот порядок,
+ * поэтому набор findings не зависит от порядка очереди обхода.
+ */
+export function addressJudges(crawl: CrawlResult): ReadonlySet<PageSnapshot> {
+  const cached = addressJudgeCache.get(crawl);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const judgedAddresses = new Set<string>();
+  const judges = new Set<PageSnapshot>();
+  for (const page of [...linkSourcePages(crawl)].sort((left, right) =>
+    left.normalizedUrl.localeCompare(right.normalizedUrl),
+  )) {
+    const address = canonicalAddress(crawl, page.normalizedUrl);
+    if (!isJudgeablePage(page, crawl) || judgedAddresses.has(address)) {
+      continue;
+    }
+    judgedAddresses.add(address);
+    judges.add(page);
+  }
+  addressJudgeCache.set(crawl, judges);
+  return judges;
+}
+
+/** Этот ли снимок судит свой адрес документа (addressJudges). */
+export function judgesPageAddress(page: PageSnapshot, crawl: CrawlResult): boolean {
+  return addressJudges(crawl).has(page);
+}
+
 const linkSourcePagesCache = new WeakMap<CrawlResult, readonly PageSnapshot[]>();
 
 /**

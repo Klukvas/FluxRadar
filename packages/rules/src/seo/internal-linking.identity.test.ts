@@ -82,6 +82,31 @@ describe('документ под двумя адресами — одна ст�
     expect(evaluation('SEO-TECH-011', ctx).applicableTargets).toBe(1);
   });
 
+  it('TECH-010: те же два адреса — одна применимая цель и одна проверенная', () => {
+    // Знаменатель правила считает документы: /deep и /deep.html — один документ,
+    // и «N страниц проверено» обязано назвать его один раз. Иначе отчёт считает
+    // снимки обхода, а checkedTargets дважды обещает одну и ту же проверку.
+    const ctx = siteContext({
+      pages: [
+        page('/', ['/s1.html']),
+        page('/s1.html', ['/s2.html'], 1),
+        page('/s2.html', ['/s3.html'], 2),
+        page('/s3.html', ['/deep', '/deep.html'], 3),
+        redirected('/deep', '/deep/', ['/'], 4),
+        redirected('/deep.html', '/deep/', ['/'], 4),
+      ],
+    });
+    const run = evaluation('SEO-TECH-010', ctx);
+    expect(run.findings.map((finding) => finding.normalizedUrl)).toEqual([url('/deep/')]);
+    expect(run.checkedTargets.filter((target) => target === url('/deep/'))).toEqual([
+      url('/deep/'),
+    ]);
+    // Пять документов у TECH-010 и четыре у TECH-011 — разница ровно в точке
+    // входа, которую TECH-011 кандидатом не считает.
+    expect(run.applicableTargets).toBe(5);
+    expect(evaluation('SEO-TECH-011', ctx).applicableTargets).toBe(4);
+  });
+
   it('когда у адреса назначения есть свой снимок, судит он, а не адрес редиректа', () => {
     const ctx = siteContext({
       pages: [
