@@ -818,6 +818,14 @@ export interface CheckoutConfig {
   readonly unavailableReason: CheckoutUnavailableReason | null;
   /** null when the deployment checks out on the provider-hosted page instead. */
   readonly popup: CheckoutPopupConfig | null;
+  /**
+   * How the browser reaches the checkout: FastSpring's popup over this page, the
+   * provider page in a new tab, or — Creem — a hosted page this tab navigates
+   * to and is sent back from. Absent on a server that predates the field, which
+   * only ever sold through FastSpring: read as popup when one is configured,
+   * else tab (`checkout-flow.ts`).
+   */
+  readonly checkoutFlow?: 'popup' | 'tab' | 'redirect';
   readonly plans: readonly {
     readonly plan: string;
     readonly priceUsd: number;

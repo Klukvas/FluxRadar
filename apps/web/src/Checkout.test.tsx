@@ -63,6 +63,7 @@ function hostedCheckout(reference: string): PendingCheckout {
     sessionId: session.sessionId,
     checkoutUrl: session.checkoutUrl,
     storefront: null,
+    flow: 'tab',
     restored: false,
     popupBlocked: false,
   };
@@ -477,6 +478,7 @@ describe('paid checkout flow', () => {
           onConfirmed={() => undefined}
           onCancel={() => undefined}
           onError={() => undefined}
+          onNotFound={() => undefined}
         />
       </div>
     );
@@ -521,6 +523,7 @@ describe('paid checkout flow', () => {
         onConfirmed={() => undefined}
         onCancel={() => undefined}
         onError={() => undefined}
+        onNotFound={() => undefined}
       />,
     );
 
@@ -529,6 +532,59 @@ describe('paid checkout flow', () => {
     const polls = (): string[] => requested.filter((path) => path !== '/billing/checkout-config');
     await waitFor(() => expect(polls()).toHaveLength(1));
     expect(polls()).toEqual(['/billing/checkout-session/..%2F..%2Fscans%2Fsomeone-elses-scan']);
+  });
+
+  // A return address can name any well-formed reference. The server answers
+  // 404 to one it never issued for this account, and that is a verdict, not a
+  // dropped request: the watch ends at once and the parent is told to drop the
+  // record — with no "could not read the status" sentence about a payment that
+  // never existed, and no retries against the error budget.
+  it('ends the watch on the first 404 and reports no error', async () => {
+    const requested: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const path = new URL(String(input)).pathname;
+        requested.push(path);
+        if (path === '/billing/checkout-config') return Promise.resolve(envelope(checkoutConfig));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: false,
+              data: null,
+              error: { code: 'NOT_FOUND', message: 'Checkout not found' },
+            }),
+            { status: 404, headers: { 'content-type': 'application/json' } },
+          ),
+        );
+      }),
+    );
+    const onNotFound = vi.fn();
+    const onError = vi.fn();
+
+    render(
+      <CheckoutPending
+        language="en"
+        checkout={hostedCheckout('frcs_unknown')}
+        onConfirmed={() => undefined}
+        onCancel={() => undefined}
+        onError={onError}
+        onNotFound={onNotFound}
+      />,
+    );
+
+    await waitFor(() => expect(onNotFound).toHaveBeenCalledTimes(1));
+    expect(onError).not.toHaveBeenCalled();
+    const polls = (): string[] =>
+      requested.filter((path) => path.startsWith('/billing/checkout-session/'));
+    expect(polls()).toHaveLength(1);
+
+    // Asking by hand gets the same verdict, not the generic failure.
+    fireEvent.click(screen.getByRole('button', { name: 'Check payment status' }));
+
+    await waitFor(() => expect(onNotFound).toHaveBeenCalledTimes(2));
+    expect(onError).not.toHaveBeenCalled();
+    expect(polls()).toHaveLength(2);
   });
 
   // The contract every caller depends on: "false" must mean the browser refused

@@ -40,6 +40,24 @@ function paidUnavailableCopy(t: (typeof copy)[Language], config: CheckoutConfig 
 }
 
 /**
+ * Who takes the payment, for the note beside the pay button.
+ *
+ * The sentence names the merchant of record, so it follows the provider the
+ * server sells through rather than the one this deployment used to have. With
+ * no config yet, or a provider this bundle has no sentence for, the note closes
+ * on the policies instead of naming the wrong company.
+ */
+function purchaseTermsMerchant(
+  t: (typeof copy)[Language],
+  config: CheckoutConfig | null,
+): string | null {
+  if (config === null) return null;
+  const byProvider: Readonly<Record<string, string | undefined>> =
+    t.newScan.purchaseTermsMerchantByProvider;
+  return byProvider[config.provider] ?? null;
+}
+
+/**
  * The new-scan screen: what is being checked, and what it costs.
  *
  * The state, the saved-configuration sync and the submission live in
@@ -512,6 +530,7 @@ function ScanLaunchColumn(props: {
   const {
     canLaunch,
     canSave,
+    checkoutConfig,
     egressBlocked,
     egressLocation,
     launchConfig,
@@ -530,6 +549,7 @@ function ScanLaunchColumn(props: {
     targetLabel,
     usingSavedProfile,
   } = props.form;
+  const merchant = purchaseTermsMerchant(t, checkoutConfig);
   return (
     // Not an `aside`: a complementary landmark is content beside the page, and
     // this column carries the form's own submit.
@@ -571,7 +591,8 @@ function ScanLaunchColumn(props: {
             <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
             {' · '}
             <a href={`/cookies?lang=${props.language}`}>{t.legal.cookies.title}</a>
-            {t.newScan.purchaseTermsSuffix}
+            {'.'}
+            {merchant === null ? null : ` ${merchant}`}
           </p>
         ) : null}
       </div>

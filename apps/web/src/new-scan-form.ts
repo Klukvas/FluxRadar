@@ -12,6 +12,7 @@ import { AI_PROCESSING_OPT_IN_PROVIDERS } from './ai-processing-notice';
 import type { AiProcessingOptInProvider } from './ai-processing-notice';
 import { parseApiCheckLines, type ApiCheckLineProblem } from './api-check-lines';
 import { useCheckoutConfig, type PendingCheckout } from './Checkout';
+import { checkoutFlowOf } from './checkout-flow';
 import {
   effectiveEgressLocation,
   freeEgressLocation,
@@ -569,6 +570,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         optInAiProviders: selectedOptInAiProviders,
         internalFreeAccess: props.internalFreeAccess,
         storefront: checkoutConfig?.popup?.storefront ?? null,
+        checkoutFlow: checkoutFlowOf(checkoutConfig),
         onCheckoutStarted: props.onCheckoutStarted,
       });
       // Null means a paid checkout took over and no scan exists yet.

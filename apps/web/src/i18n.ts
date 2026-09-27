@@ -704,7 +704,10 @@ export const copy = {
       purchaseTermsLabel: 'Purchase terms',
       purchaseTermsPrefix: 'By selecting “Pay and run scan”, you agree to the',
       purchaseTermsJoin: 'and acknowledge the',
-      purchaseTermsSuffix: '. FastSpring handles payment as merchant of record.',
+      purchaseTermsMerchantByProvider: {
+        fastspring: 'FastSpring handles payment as merchant of record.',
+        creem: 'Creem handles payment as merchant of record.',
+      },
       saveConfiguration: 'Save configuration',
       savingConfiguration: 'Saving configuration…',
       configurationTitle: 'Profile configuration',
@@ -1602,9 +1605,14 @@ export const copy = {
         'Paid checkout is misconfigured for this environment, so the checkout could not open. Nothing has been charged.',
       popupFallbackHint:
         'You can finish the same payment on the FastSpring checkout page instead — it is the same order, opened in a new tab:',
+      redirectOpening: 'Taking you to the secure Creem checkout…',
+      redirectReturned:
+        'Thanks — if you completed the payment, FluxRadar is waiting for Creem to confirm it. This usually takes a few seconds.',
       checkAgain: 'Check payment status',
       close: 'Close',
       pollFailed: 'FluxRadar could not read the payment status. Try again in a moment.',
+      notFound:
+        'FluxRadar has no checkout with this reference for your account, so there is nothing to confirm here. If you did pay, contact support with the link you came back on.',
       testMode: 'Payment provider is in test mode — no real charge is made.',
       unavailable:
         'Paid checkout is not configured for this environment yet. The free homepage check is available now.',
@@ -2219,7 +2227,10 @@ export const copy = {
       purchaseTermsLabel: 'Умови придбання',
       purchaseTermsPrefix: 'Натискаючи «Оплатити та запустити», ви погоджуєтеся з',
       purchaseTermsJoin: 'і підтверджуєте, що ознайомилися з',
-      purchaseTermsSuffix: '. FastSpring обробляє оплату як merchant of record.',
+      purchaseTermsMerchantByProvider: {
+        fastspring: 'FastSpring обробляє оплату як merchant of record.',
+        creem: 'Creem обробляє оплату як merchant of record.',
+      },
       saveConfiguration: 'Зберегти конфігурацію',
       savingConfiguration: 'Зберігаємо конфігурацію…',
       configurationTitle: 'Конфігурація профілю',
@@ -3050,9 +3061,14 @@ export const copy = {
         'Платний checkout налаштовано некоректно для цього середовища, тому вікно не відкрилося. Кошти не списано.',
       popupFallbackHint:
         'Ту саму оплату можна завершити на сторінці checkout FastSpring — це те саме замовлення, відкриється в новій вкладці:',
+      redirectOpening: 'Переходимо до захищеного checkout Creem…',
+      redirectReturned:
+        'Дякуємо — якщо ви завершили оплату, FluxRadar очікує її підтвердження від Creem. Зазвичай це займає кілька секунд.',
       checkAgain: 'Перевірити статус оплати',
       close: 'Закрити',
       pollFailed: 'FluxRadar не зміг прочитати статус оплати. Спробуйте за мить.',
+      notFound:
+        'FluxRadar не має checkout з таким номером для вашого акаунта, тому підтверджувати тут нічого. Якщо ви оплатили, зверніться до підтримки та надішліть посилання, за яким повернулися.',
       testMode: 'Платіжний провайдер у тестовому режимі — реального списання немає.',
       unavailable:
         'Платний checkout ще не налаштовано для цього середовища. Безкоштовна перевірка головної сторінки доступна зараз.',
