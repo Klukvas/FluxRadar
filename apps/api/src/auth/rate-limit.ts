@@ -70,6 +70,15 @@ export const EXPORT_ACTION_LIMIT = 30;
 export const EXPORT_ACTION_IP_LIMIT = 90;
 export const EXPORT_ACTION_WINDOW_MS = 10 * 60 * 1000;
 /**
+ * Сравнение с предыдущим сканом читает доказательства повторной проверки двух
+ * сканов (до сотен килобайт gzip на модуль) и считает разность отпечатков в
+ * базе. Дешевле экспорта, но дороже обычного GET-а отчёта, поэтому у него свой
+ * потолок, а не общий лимит действий со сканом.
+ */
+export const COMPARISON_ACTION_LIMIT = 60;
+export const COMPARISON_ACTION_IP_LIMIT = 180;
+export const COMPARISON_ACTION_WINDOW_MS = 10 * 60 * 1000;
+/**
  * Запуск Action Plan — платный запрос к Anthropic (D-232). Потолок на аккаунт в
  * час; per-scan, часовой и дневной лимиты трат считаются в базе
  * (action-plan/service.ts) — этот лимитер стоит перед ними как защита от флуда.

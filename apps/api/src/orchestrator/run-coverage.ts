@@ -265,31 +265,92 @@ function unusable(problem: string): CoverageRead {
 }
 
 export function decodeCoverageProof(stored: Uint8Array): CoverageRead {
+  const decoded = decodeEncodedProof(stored);
+  return decoded.problem === null ? indexOf(decoded.encoded) : unusable(decoded.problem);
+}
+
+/** What one module's proof says a chosen set of rules judged. */
+export interface CheckedTargetsRead {
+  /** Union of the checked targets of the named rules; empty when none ran. */
+  readonly targets: readonly string[];
+  /** Why the proof could not be read at all; null when it was. */
+  readonly problem: string | null;
+}
+
+/**
+ * The targets a named set of rules judged, without indexing the whole proof.
+ *
+ * The scan comparison needs one thing from a stored proof — which pages the page
+ * rules read — and `decodeCoverageProof` would build a Set per rule to hand it
+ * over. On a 50 000-page crawl the SEO module alone has a dozen page rules over
+ * the same addresses, so that is hundreds of thousands of Set entries for a union
+ * that fits in one. This walks the target sets the chosen rules point at and
+ * collects them once.
+ *
+ * An unusable proof yields no targets AND a reason, exactly as the policy read
+ * does: a comparison with no page evidence says so rather than reporting a site
+ * whose every page disappeared.
+ */
+export function checkedTargetsOfProof(
+  stored: Uint8Array,
+  ruleIds: ReadonlySet<string>,
+): CheckedTargetsRead {
+  const decoded = decodeEncodedProof(stored);
+  if (decoded.problem !== null) {
+    return { targets: [], problem: decoded.problem };
+  }
+  const encoded = decoded.encoded;
+  const targets = new Set<string>();
+  for (const [ruleId, entry] of Object.entries(encoded.rules)) {
+    if (!ruleIds.has(ruleId)) continue;
+    const checked = targetsOf(encoded, entry.checked);
+    if (checked === null) {
+      return {
+        targets: [],
+        problem: `coverage proof of ${ruleId} references an unknown target set or URL`,
+      };
+    }
+    for (const target of checked) {
+      targets.add(target);
+    }
+  }
+  return { targets: [...targets], problem: null };
+}
+
+/** The stored proof as it was written, or the reason it cannot be read. */
+function decodeEncodedProof(
+  stored: Uint8Array,
+):
+  | { readonly encoded: EncodedRuleCoverage; readonly problem: null }
+  | { readonly encoded: null; readonly problem: string } {
   let json: string;
   try {
     json = gunzipSync(stored).toString('utf8');
   } catch (error) {
-    return unusable(
-      `coverage proof could not be decompressed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return {
+      encoded: null,
+      problem: `coverage proof could not be decompressed: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(json) as unknown;
   } catch {
-    return unusable('coverage proof is not valid JSON');
+    return { encoded: null, problem: 'coverage proof is not valid JSON' };
   }
   const validated = encodedCoverageSchema.safeParse(parsed);
   if (!validated.success) {
-    return unusable(`coverage proof is malformed: ${validated.error.message}`);
+    return { encoded: null, problem: `coverage proof is malformed: ${validated.error.message}` };
   }
   if (validated.data.truncated === true) {
-    return unusable(
-      `run exceeded the ${MAX_COVERAGE_PROOF_TARGETS}-target coverage proof limit; ` +
+    return {
+      encoded: null,
+      problem:
+        `run exceeded the ${MAX_COVERAGE_PROOF_TARGETS}-target coverage proof limit; ` +
         'findings of this module stay open',
-    );
+    };
   }
-  return indexOf(validated.data);
+  return { encoded: validated.data, problem: null };
 }
 
 function indexOf(encoded: EncodedRuleCoverage): CoverageRead {
