@@ -141,6 +141,42 @@ export function canonicalAddress(crawl: CrawlResult, url: string): string {
   return redirectAliases(crawl).get(url) ?? url;
 }
 
+const addressAliasCache = new WeakMap<CrawlResult, ReadonlyMap<string, readonly string[]>>();
+
+/**
+ * Обратный индекс к redirectAliases: адрес, по которому живёт документ →
+ * запрошенные адреса, уводящие на него редиректом.
+ *
+ * Нужен там, где ответ ищут по адресу НАЗНАЧЕНИЯ, а снимок у обхода есть только
+ * под запрошенным: sitemap перечисляет `/about`, навигация ссылается на
+ * `/about/`, и второго снимка не бывает вовсе (markFinalUrlSeen). Спросить
+ * «что обход знает о странице /about/» иначе нечем, и правило, спросившее
+ * только snapshotByNormalizedUrl, получило бы «ничего».
+ *
+ * Порядок адресов — лексикографический: он определяет, какой снимок обходят
+ * первым, и зависеть от порядка очереди краулера не вправе.
+ */
+export function addressAliases(crawl: CrawlResult): ReadonlyMap<string, readonly string[]> {
+  const cached = addressAliasCache.get(crawl);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const byAddress = new Map<string, string[]>();
+  for (const [requested, address] of redirectAliases(crawl)) {
+    const existing = byAddress.get(address);
+    if (existing === undefined) {
+      byAddress.set(address, [requested]);
+      continue;
+    }
+    existing.push(requested);
+  }
+  for (const requested of byAddress.values()) {
+    requested.sort((left, right) => left.localeCompare(right));
+  }
+  addressAliasCache.set(crawl, byAddress);
+  return byAddress;
+}
+
 const linkSourcesCache = new WeakMap<CrawlResult, ReadonlyMap<string, ReadonlySet<string>>>();
 
 /**

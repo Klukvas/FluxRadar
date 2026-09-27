@@ -10,9 +10,19 @@
 import { describe, expect, it } from 'vitest';
 import type { SiteContext } from '../engine/types.js';
 import { FIXTURE_ORIGIN, runSeoRule, siteContext } from '../testing/fixture-harness.js';
-import { evaluation, page, paths, single, url, withCrawl } from '../testing/link-fixtures.js';
+import {
+  evaluation,
+  page,
+  paths,
+  redirected,
+  single,
+  url,
+  withCrawl,
+} from '../testing/link-fixtures.js';
+import { clickDepthsFromEntry } from './click-depth.js';
 import { linkGraphGap } from './link-graph-gap.js';
 import { DEEP_PAGE_MIN_DEPTH } from './seo-tech-010.js';
+import { inboundSources } from './site-index.js';
 
 /** Сайт из трёх страниц: главная ссылается на /linked.html, /orphan.html — в sitemap. */
 function siteWithOrphan(homeLinks: readonly string[] = ['/linked.html']): SiteContext {
@@ -293,6 +303,67 @@ describe('SEO-TECH-010 глубина клика', () => {
       pages: [...chain(DEEP_PAGE_MIN_DEPTH), page('/alone.html', [], 1)],
     });
     expect(paths(runSeoRule('SEO-TECH-010', ctx))).toEqual(['/deep.html']);
+  });
+
+  /**
+   * Цепочка в DEEP_PAGE_MIN_DEPTH переходов, последний из которых написан
+   * адресом НАЗНАЧЕНИЯ: sitemap перечисляет /about, сервер уводит на /about/,
+   * снимка у /about/ не будет никогда (markFinalUrlSeen), и глубину странице
+   * даёт ссылка, написанная не тем адресом, под которым снимок лежит.
+   */
+  function aliasOnlyDeepSite(): SiteContext {
+    const hops = DEEP_PAGE_MIN_DEPTH;
+    const step = (index: number): string => (index === 0 ? '/' : `/step-${index}.html`);
+    return siteContext({
+      sitemapUrls: [url('/about')],
+      pages: [
+        ...Array.from({ length: hops }, (unused, index) =>
+          page(step(index), [index === hops - 1 ? '/about/' : step(index + 1)], index),
+        ),
+        redirected('/about', '/about/', ['/'], 1),
+      ],
+    });
+  }
+
+  /**
+   * Цели, на которых правило нарушило бы свой инвариант: названы проверенными,
+   * глубины не получили, хотя на них ссылается страница, у которой глубина есть.
+   */
+  function checkedWithoutMeasuredDepth(ctx: SiteContext): readonly string[] {
+    const depths = clickDepthsFromEntry(ctx);
+    return evaluation('SEO-TECH-010', ctx).checkedTargets.filter(
+      (target) =>
+        depths.get(target) === undefined &&
+        [...inboundSources(ctx.crawl, target)].some((source) => depths.get(source) !== undefined),
+    );
+  }
+
+  it('ссылка, написанная адресом назначения, даёт глубину странице под адресом редиректа', () => {
+    // Единственный снимок страницы обход держит под /about, а ссылка на неё
+    // написана /about/. Глубина лежит под адресом документа — иначе правило
+    // назвало бы страницу проверенной, ничего не измерив.
+    const ctx = aliasOnlyDeepSite();
+    const finding = single(runSeoRule('SEO-TECH-010', ctx));
+    expect(finding.normalizedUrl).toBe(url('/about/'));
+    expect(finding.evidenceExcerpt).toContain(`${DEEP_PAGE_MIN_DEPTH} link hops`);
+    expect(clickDepthsFromEntry(ctx).get(url('/about/'))).toBe(DEEP_PAGE_MIN_DEPTH);
+    expect(evaluation('SEO-TECH-010', ctx).checkedTargets).toContain(url('/about/'));
+  });
+
+  it('инвариант: названная проверенной страница либо измерена, либо до неё не дойти ссылками', () => {
+    // checkedTargets — это и есть доказательство повторной проверки (§14,
+    // provesRepeatCheck): страница, названная проверенной без измерения, закрыла
+    // бы прошлую находку о всё ещё глубокой странице как исправленную.
+    expect(checkedWithoutMeasuredDepth(aliasOnlyDeepSite())).toEqual([]);
+    expect(checkedWithoutMeasuredDepth(deepSite(DEEP_PAGE_MIN_DEPTH))).toEqual([]);
+    // Отсутствие глубины нарушением не бывает само по себе: до /alone.html не
+    // ведёт ни одна ссылка, и это предмет TECH-009.
+    const orphan = siteContext({
+      sitemapUrls: [url('/alone.html')],
+      pages: [...chain(DEEP_PAGE_MIN_DEPTH), page('/alone.html', [], 1)],
+    });
+    expect(clickDepthsFromEntry(orphan).has(url('/alone.html'))).toBe(false);
+    expect(checkedWithoutMeasuredDepth(orphan)).toEqual([]);
   });
 
   it('недочитанная страница могла скрыть короткий путь → Not applicable', () => {

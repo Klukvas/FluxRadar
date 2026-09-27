@@ -151,6 +151,31 @@ describe('находка о странице названа адресом до�
     expect(evaluation('SEO-TECH-010', deepRunB).checkedTargets).toContain(first.normalizedUrl);
   });
 
+  it('TECH-010: прогон, знающий страницу только адресом редиректа, находит ту же находку', () => {
+    // Прогон A прочитал /about/ своим снимком. В прогоне B sitemap перечислил
+    // /about, снимок остался один, а ссылка на страницу написана адресом
+    // назначения — и глубину правило обязано измерить всё равно: иначе прогон B
+    // молча закрыл бы находку прогона A как исправленную (§14).
+    const steps = [
+      page('/', ['/s1.html']),
+      page('/s1.html', ['/s2.html'], 1),
+      page('/s2.html', ['/s3.html'], 2),
+      page('/s3.html', ['/about/'], 3),
+    ];
+    const ownSnapshot = siteContext({ pages: [...steps, page('/about/', ['/'], 4)] });
+    const aliasOnly = siteContext({
+      sitemapUrls: [url('/about')],
+      pages: [...steps, redirected('/about', '/about/', ['/'], 1)],
+    });
+
+    const first = single(runSeoRule('SEO-TECH-010', ownSnapshot));
+    const second = single(runSeoRule('SEO-TECH-010', aliasOnly));
+    expect(first.normalizedUrl).toBe(url('/about/'));
+    expect(second.normalizedUrl).toBe(first.normalizedUrl);
+    expect(second.fingerprint).toBe(first.fingerprint);
+    expect(evaluation('SEO-TECH-010', aliasOnly).checkedTargets).toContain(first.normalizedUrl);
+  });
+
   it('TECH-009 судит только собственные адреса, поэтому личность раздвоить нечем', () => {
     // Адрес из sitemap, уехавший редиректом, кандидатом не бывает вовсе
     // (sitemapPages → isOwnAddress): у кандидата TECH-009 адрес документа всегда

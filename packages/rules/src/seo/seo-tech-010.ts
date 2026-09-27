@@ -26,6 +26,14 @@
 // переходах от вашей главной» о чужом сайте — утверждение не о навигации
 // владельца (leftCrawlScope).
 //
+// ГЛУБИНУ ПРАВИЛО СПРАШИВАЕТ ТЕМ ЖЕ АДРЕСОМ ДОКУМЕНТА. Ссылка на страницу бывает
+// написана и адресом назначения (`/about/`) при единственном снимке под адресом
+// редиректа (`/about`) — тогда глубина лежит под адресом документа, и спросить
+// её адресом снимка значило бы назвать страницу проверенной, ничего не измерив
+// (click-depth.ts). ИНВАРИАНТ: страница, попавшая в checkedTargets, либо
+// получила глубину, либо до неё действительно не дойти ссылками — иначе прошлая
+// находка о всё ещё глубокой странице закрылась бы как исправленная (§14).
+//
 // ГРАФ ССЫЛОК НЕПОЛОН → Not applicable, как у TECH-009/011 (см. их шапки).
 // Непрочитанная страница может СКРЫТЬ короткий путь: сайт home → /nav (таймаут)
 // → /x, где /x доступна ещё и через четыре других перехода, дал бы «/x в 4
@@ -85,7 +93,9 @@ export const seoTech010DeepPages: PageRule = {
   notApplicableReason: (ctx: SiteContext): NotApplicableReason | undefined =>
     linkGraphGap(ctx) === null ? undefined : 'link-graph-gap',
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[] {
-    const depth = clickDepthsFromEntry(ctx).get(page.normalizedUrl);
+    // Адресом документа, а не адресом снимка: глубину странице дала ссылка, и
+    // написана она бывает любой из двух форм её адреса (click-depth.ts).
+    const depth = clickDepthsFromEntry(ctx).get(canonicalAddress(ctx.crawl, page.normalizedUrl));
     if (depth === undefined || depth < DEEP_PAGE_MIN_DEPTH) {
       return [];
     }
