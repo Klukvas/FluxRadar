@@ -10,7 +10,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Dashboard, Scan } from './api';
-import type { ScanComparison } from './comparison-api';
+import type { ReadableComparedScan, ScanComparison } from './comparison-api';
 import { PrintReport } from './PrintReport';
 
 function scanOf(plan: Scan['plan'] = 'Complete'): Scan {
@@ -59,9 +59,9 @@ function scope(): ScanComparison['current']['scope'] {
 }
 
 function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
-  const side = (id: string, completedAt: string) => ({
+  const side = (id: string, completedAt: string): ReadableComparedScan => ({
     id,
-    plan: 'Complete' as const,
+    plan: 'Complete',
     status: 'Completed',
     completedAt,
     pagesRead: 12,

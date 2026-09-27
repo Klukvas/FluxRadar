@@ -10,7 +10,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Dashboard, Scan, ScanChanges, ScanModule } from './api';
-import type { ScanComparison } from './comparison-api';
+import type { ReadableComparedScan, ScanComparison } from './comparison-api';
 import type { Language } from './i18n';
 import { ResultsScreen } from './Report';
 
@@ -78,6 +78,22 @@ function scope(): ScanComparison['current']['scope'] {
   };
 }
 
+/** The previous scan as the server sends it while its report is still readable. */
+function previousScan(overrides: Partial<ReadableComparedScan> = {}): ReadableComparedScan {
+  return {
+    id: 'scan-1',
+    plan: 'Complete',
+    status: 'Completed',
+    completedAt: '2026-09-06T00:01:00.000Z',
+    pagesRead: 40,
+    urlsDiscovered: 40,
+    urlsOverLimit: 0,
+    scope: scope(),
+    readable: true,
+    ...overrides,
+  };
+}
+
 function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
   return {
     current: {
@@ -91,17 +107,7 @@ function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
       scope: scope(),
       readable: true,
     },
-    previous: {
-      id: 'scan-1',
-      plan: 'Complete',
-      status: 'Completed',
-      completedAt: '2026-09-06T00:01:00.000Z',
-      pagesRead: 40,
-      urlsDiscovered: 40,
-      urlsOverLimit: 0,
-      scope: scope(),
-      readable: true,
-    },
+    previous: previousScan(),
     comparable: { ok: true },
     overall: { previousScore: 70, currentScore: 74.5, delta: 4.5 },
     modules: [
@@ -300,10 +306,7 @@ describe('the comparison panel', () => {
         comparable: { ok: false, reason: 'scope-changed' },
         overall: { previousScore: 70, currentScore: 74.5, delta: null },
         modules: [],
-        previous: {
-          ...comparisonOf().previous!,
-          scope: { ...scope(), maxPages: 50, excludePatterns: ['/blog'] },
-        },
+        previous: previousScan({ scope: { ...scope(), maxPages: 50, excludePatterns: ['/blog'] } }),
       }),
     });
 
@@ -432,10 +435,7 @@ describe('the comparison panel', () => {
       comparison: comparisonOf({
         comparable: { ok: false, reason: 'scope-changed' },
         modules: [],
-        previous: {
-          ...comparisonOf().previous!,
-          scope: { ...scope(), egressLocation: null, maxDepth: null },
-        },
+        previous: previousScan({ scope: { ...scope(), egressLocation: null, maxDepth: null } }),
       }),
     });
 
@@ -510,22 +510,57 @@ describe('the comparison panel', () => {
     expect(within(block).getByText(/ignored or a false positive/i)).toBeInTheDocument();
   });
 
-  it('names a previous report the account may no longer open, without offering it', async () => {
+  it('names a previous report the account may no longer open, and compares nothing', async () => {
+    // The scan is still named — it is the run this report's Resolved statuses
+    // were written against — and every number the panel would have shown is read
+    // out of a report the payment reversal took away, so none is shown and none
+    // arrives (D-216).
     const opened: string[] = [];
     await openReport({
       comparison: comparisonOf({
-        previous: { ...comparisonOf().previous!, readable: false },
+        previous: {
+          id: 'scan-1',
+          plan: 'Complete',
+          completedAt: '2026-09-06T00:01:00.000Z',
+          readable: false,
+        },
+        comparable: { ok: false, reason: 'previous-not-readable' },
+        overall: { previousScore: null, currentScore: 74.5, delta: null },
+        modules: [],
       }),
       onOpenScan: (id) => opened.push(id),
     });
 
     const block = await panel(EN_HEADING);
-    // Still named — the numbers are drawn against it — and not linked.
     expect(within(block).getByText(/Against the Complete report of/)).toBeInTheDocument();
+    expect(within(block).getByText(/payment behind it was reversed/i)).toBeInTheDocument();
     expect(
       within(block).queryByRole('button', { name: 'Open the previous report' }),
     ).not.toBeInTheDocument();
     expect(opened).toEqual([]);
+    // No stat tile of any kind: not scores, not pages, not findings.
+    expect(block.querySelector('.comparison-grid')).toBeNull();
+    expect(block.querySelector('.comparison-scores')).toBeNull();
+  });
+
+  it('says in Ukrainian why a reversed payment leaves nothing to compare', async () => {
+    await openReport({
+      language: 'uk',
+      comparison: comparisonOf({
+        previous: {
+          id: 'scan-1',
+          plan: 'Complete',
+          completedAt: '2026-09-06T00:01:00.000Z',
+          readable: false,
+        },
+        comparable: { ok: false, reason: 'previous-not-readable' },
+        overall: { previousScore: null, currentScore: 74.5, delta: null },
+        modules: [],
+      }),
+    });
+
+    const block = await panel(UK_HEADING);
+    expect(within(block).getByText(/платіж за нього повернули/)).toBeInTheDocument();
   });
 
   it('leaves exactly one "since last scan" block on a report that has the panel', async () => {

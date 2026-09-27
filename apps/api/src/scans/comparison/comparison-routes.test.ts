@@ -593,28 +593,62 @@ describe('comparing a report with the previous scan', () => {
     ]);
   });
 
-  it('compares against a previous report whose payment was reversed, and does not offer it', async () => {
-    // The Resolved statuses of this report were written against that run, so it
-    // is the only honest baseline. What the refund takes away is the right to
-    // OPEN it, which is a separate flag the panel uses for the link alone.
+  it('names a previous report whose payment was reversed, and states nothing it found', async () => {
+    // The §14 selection does not move — that run is what this report's Resolved
+    // statuses were written against — but every number a comparison would state
+    // is read out of its rows, and a count derived from them is still a read of
+    // them (D-216). So the verdict names the payment and `previous` is identity
+    // alone: id, plan, completion, and the flag.
     const app = makeApp();
     const owner = await signUp(app, 'refunded-previous@example.com');
-    const { firstId, secondId } = await twoScans(owner);
+    const site = 'https://refunded-previous.example.com';
+    const { firstId, secondId } = await twoScans(
+      owner,
+      {
+        modules: allModules(40),
+        findings: [{ fingerprint: 'paid-for-then-refunded', status: 'Resolved' }],
+        proofs: { SEO: [pageRuleCoverage([`${site}/`, `${site}/retired-page`])] },
+      },
+      { modules: allModules(60), proofs: { SEO: [pageRuleCoverage([`${site}/`])] } },
+    );
     await refund(firstId);
 
-    const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
+    const response = await comparison(owner, secondId);
+    const parsed = scanComparisonSchema.parse(response.body.data);
 
-    expect(parsed.previous?.id).toBe(firstId);
-    expect(parsed.previous?.readable).toBe(false);
+    expect(parsed.comparable).toEqual({ ok: false, reason: 'previous-not-readable' });
+    expect(parsed.previous).toEqual({
+      id: firstId,
+      plan: 'Complete',
+      completedAt: EARLIER_COMPLETED_AT.toISOString(),
+      readable: false,
+    });
     expect(parsed.current.readable).toBe(true);
-    expect(parsed.comparable).toEqual({ ok: true });
+    // Its score, its pages and its findings: all absent, not zeroed-with-a-hint.
+    expect(parsed.overall).toEqual({ previousScore: null, currentScore: 60, delta: null });
+    expect(parsed.modules).toEqual([]);
+    expect(parsed.pages).toMatchObject({
+      comparable: { ok: false, reason: 'scans-not-comparable' },
+      previousTotal: 0,
+      removed: 0,
+      removedSample: [],
+    });
+    expect(parsed.issues.resolved).toBe(0);
+    expect(parsed.issues.resolvedSample).toEqual([]);
+    expect(parsed.issues.stillOpen).toBe(0);
+    expect(parsed.issues.byModule).toEqual([]);
+    // Nothing of that report is anywhere in the body, under any key.
+    const body = JSON.stringify(response.body);
+    expect(body).not.toContain('paid-for-then-refunded');
+    expect(body).not.toContain('retired-page');
   });
 
-  it('still compares when the last five reports of the plan were all refunded', async () => {
+  it('still names the previous scan when the last five reports of the plan were refunded', async () => {
     // The older read looked through a fixed five candidates for a readable one
     // and gave up, so a profile with five reversed purchases was told it had no
-    // previous scan at all. There is no candidate limit any more: the previous
-    // scan is the previous scan.
+    // previous scan at all — "this is your first report" about a site with six.
+    // There is no candidate limit any more: the previous scan is the previous
+    // scan, and the verdict says what happened to it.
     const app = makeApp();
     const owner = await signUp(app, 'five-refunded@example.com');
     let day = 1;
@@ -632,7 +666,7 @@ describe('comparing a report with the previous scan', () => {
 
     const parsed = scanComparisonSchema.parse((await comparison(owner, current)).body.data);
 
-    expect(parsed.comparable).toEqual({ ok: true });
+    expect(parsed.comparable).toEqual({ ok: false, reason: 'previous-not-readable' });
     expect(parsed.previous?.id).toBe(latest);
     expect(parsed.previous?.readable).toBe(false);
   });

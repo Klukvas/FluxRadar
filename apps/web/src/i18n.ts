@@ -1460,6 +1460,12 @@ export const copy = {
             'There is no earlier finished scan of this plan for this site, so there is nothing to compare with yet.',
           'previous-plan-differs':
             'This site has earlier reports, but none on this plan. Two plans check different sections, so a finding missing from the other plan’s report is not a fix — comparing them would call work "done" that was never checked.',
+          // Not "we chose a different baseline": the previous scan is still the
+          // one this report's Resolved statuses were written against. What the
+          // reversed payment takes away is the right to read it — and every
+          // number a comparison would show is read out of it.
+          'previous-not-readable':
+            'The previous report of this plan is no longer available — the payment behind it was reversed — so there is nothing in it left to compare this scan with.',
           'previous-not-usable':
             'The previous scan of this plan produced no usable result, so there is nothing in it to compare against.',
           'scope-changed':
@@ -3065,6 +3071,8 @@ export const copy = {
             'Для цього сайту немає жодної завершеної перевірки цього тарифу раніше, тож порівнювати поки що ні з чим.',
           'previous-plan-differs':
             'Для цього сайту є попередні звіти, але жодного на цьому тарифі. Різні тарифи перевіряють різні розділи, тож відсутність знахідки у звіті іншого тарифу — це не виправлення: таке порівняння назвало б зробленим те, що ніхто не перевіряв.',
+          'previous-not-readable':
+            'Попередній звіт цього тарифу більше недоступний — платіж за нього повернули, — тож порівнювати цю перевірку вже ні з чим.',
           'previous-not-usable':
             'Попередня перевірка цього тарифу не дала придатного результату, тож у ній немає з чим порівнювати.',
           'scope-changed':

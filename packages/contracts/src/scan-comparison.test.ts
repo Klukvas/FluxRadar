@@ -234,15 +234,54 @@ describe('scanComparisonSchema', () => {
     expect(scanComparisonSchema.safeParse({ ...comparison(), modules }).success).toBe(false);
   });
 
-  it('carries a previous scan whose report is no longer readable', () => {
-    // A reversed payment does not un-observe what that run found, so it stays
-    // the baseline; the flag is what tells the panel not to link to it.
+  it('carries a previous scan whose report is no longer readable as identity alone', () => {
+    // A reversed payment does not un-observe what that run found, so it stays the
+    // baseline the Resolved statuses were written against and it is still named.
+    // What it may not carry is anything the report itself says: a score, a page
+    // total or a finding count is read out of the rows the refund took away
+    // (D-216), so the shape has nowhere to put one.
     const base = comparison();
     const value: ScanComparison = {
       ...base,
-      previous: { ...base.previous!, readable: false },
+      previous: {
+        id: 'scan-1',
+        plan: 'Complete',
+        completedAt: '2026-09-01T10:00:00.000Z',
+        readable: false,
+      },
+      comparable: { ok: false, reason: 'previous-not-readable' },
     };
-    expect(scanComparisonSchema.parse(JSON.parse(JSON.stringify(value))).previous?.readable).toBe(
+    const parsed = scanComparisonSchema.parse(JSON.parse(JSON.stringify(value)));
+    expect(Object.keys(parsed.previous ?? {}).toSorted()).toEqual([
+      'completedAt',
+      'id',
+      'plan',
+      'readable',
+    ]);
+    expect(parsed.previous?.readable).toBe(false);
+  });
+
+  it('drops a paid field a server tried to send with an unreadable previous scan', () => {
+    // The route sends what this schema returns, so the boundary is the last line
+    // of defence: a build that kept "just the page count" leaks nothing.
+    const base = comparison();
+    const leaky = { ...base.previous, readable: false };
+    const parsed = scanComparisonSchema.parse({
+      ...base,
+      previous: leaky,
+      comparable: { ok: false, reason: 'previous-not-readable' },
+    });
+    expect(parsed.previous).toEqual({
+      id: 'scan-1',
+      plan: 'Complete',
+      completedAt: '2026-09-01T10:00:00.000Z',
+      readable: false,
+    });
+  });
+
+  it('refuses an unreadable previous scan that is missing its identity', () => {
+    const base = comparison();
+    expect(scanComparisonSchema.safeParse({ ...base, previous: { readable: false } }).success).toBe(
       false,
     );
   });

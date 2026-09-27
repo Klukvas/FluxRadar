@@ -18,6 +18,11 @@
 // The checks are ordered by what a reader can act on: a scope the owner changed
 // is named before the truncation it caused, so they are not sent looking for a
 // site problem behind their own setting.
+//
+// ONE REASON IS NOT DECIDED HERE. `previous-not-readable` — the previous report's
+// payment was reversed — is answered by the caller (build.ts) before this runs,
+// because every input below is a reading OF that report, and the point of that
+// reason is that nothing is read from it at all.
 
 import {
   MODULE_NAMES,

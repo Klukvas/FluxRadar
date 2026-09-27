@@ -125,8 +125,10 @@ export interface PreviousScanRead {
    *
    * It does NOT change which scan was selected — the comparison has to be drawn
    * against the same run the Resolved statuses were written against, or the two
-   * halves of the report disagree. It decides one thing: whether that report may
-   * be linked to.
+   * halves of the report disagree. What it changes is what may be said about it:
+   * false means the comparison names that scan and states no number derived from
+   * its rows, because a count derived from them is still a read of them (D-216).
+   * The endpoint answers `previous-not-readable` and an identity-only `previous`.
    */
   readonly readable: boolean;
 }
@@ -153,12 +155,14 @@ export async function findPreviousScanRead(
 /**
  * How far back the LEGACY "since last scan" block looks for a readable report.
  *
- * The comparison endpoint does not use it: it compares against the §14 scan
- * whatever became of the payment, and reports readability separately. This is
- * the older `GET /scans/:id/changes` read, which counts findings of the previous
- * report and therefore may not reach into one the owner no longer owns. A
- * reversed payment can hide the latest one or two; a profile with more
- * unreadable reports in a row than this has no such block worth drawing.
+ * The comparison endpoint does not use it: it selects the §14 scan whatever
+ * became of the payment, and then either compares against it or — when its
+ * report is no longer readable — names it and stops. This is the older
+ * `GET /scans/:id/changes` read, which has no such verdict to fall back on and
+ * counts the previous report's findings outright, so it looks past a report the
+ * owner no longer owns instead. A reversed payment can hide the latest one or
+ * two; a profile with more unreadable reports in a row than this has no such
+ * block worth drawing.
  */
 export const PREVIOUS_SCAN_CANDIDATES = 5;
 

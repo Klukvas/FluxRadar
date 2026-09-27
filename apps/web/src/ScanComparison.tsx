@@ -113,10 +113,11 @@ function ComparisonBody(props: {
           date: formatDate(previous.completedAt, props.language),
         })}
       </p>
-      {/* A previous report whose payment was reversed is still the baseline the
-          Resolved statuses were written against — so it is compared with — but it
-          is no longer the owner's to open, and offering the link would send them
-          into a 403. */}
+      {/* A previous report whose payment was reversed is still the scan this
+          report's Resolved statuses were written against, so it is still named —
+          but it is no longer the owner's to open, and offering the link would
+          send them into a 403. The server states nothing else about it: the
+          verdict below is `previous-not-readable` and every section is empty. */}
       {props.onOpenScan === undefined || !previous.readable ? null : (
         <div className="button-row">
           <Button onClick={() => props.onOpenScan?.(previous.id)}>{t.openPrevious}</Button>
@@ -133,7 +134,11 @@ function ComparisonBody(props: {
         <section aria-labelledby="comparison-reason">
           <h4 id="comparison-reason">{t.notComparableHeading}</h4>
           <p role="status">{t.reason[comparison.comparable.reason]}</p>
-          {comparison.comparable.reason === 'scope-changed' ? (
+          {/* `previous.readable` is what makes the previous scope readable at
+              all: an unreadable previous report has no scope in the payload, and
+              never reaches `scope-changed` — the verdict names the payment
+              first. */}
+          {comparison.comparable.reason === 'scope-changed' && previous.readable ? (
             <ScopeChanges
               current={comparison.current.scope}
               previous={previous.scope}

@@ -17,6 +17,7 @@ import { apiRequest, isNullableString, isRecord, isStringArray } from './api';
 export const COMPARISON_INCOMPARABLE_REASONS = [
   'no-previous-scan',
   'previous-plan-differs',
+  'previous-not-readable',
   'previous-not-usable',
   'scope-changed',
   'current-crawl-truncated',
@@ -67,18 +68,35 @@ export interface CrawlScopeFacts {
   readonly scopeKey: string;
 }
 
-export interface ComparedScan {
+/** Which scan is being compared — the whole of `previous` when it is unreadable. */
+export interface ComparedScanIdentity {
   readonly id: string;
   readonly plan: string;
-  readonly status: string;
   readonly completedAt: string | null;
+}
+
+/**
+ * A previous report the account may no longer open.
+ *
+ * Nothing but its identity: the server states no score, page total or finding
+ * count drawn from a report whose payment was reversed, so there is no field here
+ * for the panel to render one from either.
+ */
+export interface UnreadableComparedScan extends ComparedScanIdentity {
+  readonly readable: false;
+}
+
+export interface ReadableComparedScan extends ComparedScanIdentity {
+  readonly status: string;
   readonly pagesRead: number | null;
   readonly urlsDiscovered: number | null;
   readonly urlsOverLimit: number | null;
   readonly scope: CrawlScopeFacts;
   /** Whether this report is still the account's to open; see the panel's link. */
-  readonly readable: boolean;
+  readonly readable: true;
 }
+
+export type ComparedScan = ReadableComparedScan | UnreadableComparedScan;
 
 export interface ModuleScoreDelta {
   readonly module: string;
@@ -136,7 +154,7 @@ export interface IssueComparison extends IssueCounts {
 
 /** What this report changed against the previous scan of the same site and plan. */
 export interface ScanComparison {
-  readonly current: ComparedScan;
+  readonly current: ReadableComparedScan;
   readonly previous: ComparedScan | null;
   readonly comparable: Comparability<ComparisonIncomparableReason>;
   readonly overall: {
@@ -186,19 +204,40 @@ function isCrawlScopeFacts(value: unknown): value is CrawlScopeFacts {
   );
 }
 
-function isComparedScan(value: unknown): value is ComparedScan {
+function isComparedScanIdentity(value: unknown): value is ComparedScanIdentity {
   if (!isRecord(value)) return false;
   return (
     typeof value.id === 'string' &&
     typeof value.plan === 'string' &&
+    isNullableString(value.completedAt)
+  );
+}
+
+/**
+ * A compared scan: identity always, the report's own figures only where the
+ * account may still read them.
+ *
+ * `readable: false` is checked as a shape of its own rather than waved through,
+ * because it is the discriminant the panel narrows on: a payload that said
+ * `false` and still carried a page count would let a renderer print a number the
+ * server promised not to state.
+ */
+function isComparedScan(value: unknown): value is ComparedScan {
+  if (!isComparedScanIdentity(value) || !isRecord(value)) return false;
+  if (value.readable === false) return true;
+  return (
+    value.readable === true &&
     typeof value.status === 'string' &&
-    isNullableString(value.completedAt) &&
     isNullableNumber(value.pagesRead) &&
     isNullableNumber(value.urlsDiscovered) &&
     isNullableNumber(value.urlsOverLimit) &&
-    typeof value.readable === 'boolean' &&
     isCrawlScopeFacts(value.scope)
   );
+}
+
+/** The current report is always one the account may read; the endpoint refuses otherwise. */
+function isReadableComparedScan(value: unknown): value is ReadableComparedScan {
+  return isComparedScan(value) && value.readable;
 }
 
 function isModuleScoreDelta(value: unknown): value is ModuleScoreDelta {
@@ -301,7 +340,7 @@ function isIssueComparison(value: unknown): value is IssueComparison {
  */
 export function isScanComparison(value: unknown): value is ScanComparison {
   if (!isRecord(value)) return false;
-  if (!isComparedScan(value.current)) return false;
+  if (!isReadableComparedScan(value.current)) return false;
   if (value.previous !== null && !isComparedScan(value.previous)) return false;
   if (!isComparability(value.comparable, COMPARISON_INCOMPARABLE_REASONS)) return false;
   if (

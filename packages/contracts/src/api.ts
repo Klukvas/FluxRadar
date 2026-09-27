@@ -322,6 +322,14 @@ export type ApiEnvelope<T> =
  *   previous-plan-differs    earlier scans exist, but none of this plan — two
  *                            plans read different modules, so one's absence is
  *                            not the other's fix (§14, D-110);
+ *   previous-not-readable    the previous scan is there, and its report is no
+ *                            longer the account's to read: the purchase behind
+ *                            it was reversed, suspended or expired. Every number
+ *                            a comparison would state — a score, a page count, a
+ *                            resolved finding — is derived from that report's own
+ *                            rows, and a count derived from them is still a read
+ *                            of them (D-216), so the answer carries the previous
+ *                            scan's identity and nothing else;
  *   previous-not-usable      the earlier scan produced no usable output;
  *   scope-changed            the crawl was pointed at a different set of pages
  *                            (page limit, patterns, subdomains, query policy,
@@ -336,6 +344,7 @@ export type ApiEnvelope<T> =
 export const COMPARISON_INCOMPARABLE_REASONS = [
   'no-previous-scan',
   'previous-plan-differs',
+  'previous-not-readable',
   'previous-not-usable',
   'scope-changed',
   'current-crawl-truncated',
@@ -454,28 +463,62 @@ export const crawlScopeFactsSchema = z.object({
 });
 export type CrawlScopeFacts = z.infer<typeof crawlScopeFactsSchema>;
 
-/** Which scan is being compared, in the terms a report header needs. */
-export const comparedScanSchema = z.object({
+/**
+ * WHICH scan is being compared — never a word about what it found.
+ *
+ * These three fields name a report the way the reports list names it, and the
+ * list is the one place a scan the account no longer owns still appears: it
+ * carries the row "but without the report payload" (D-216). So this is the whole
+ * of `previous` when that report is no longer readable, and the base of it when
+ * it is.
+ */
+const comparedScanIdentity = {
   id: z.string(),
   plan: z.enum(PLANS),
-  status: z.string(),
   completedAt: z.string().nullable(),
+} as const;
+
+/** The previous scan of a report the account may not read: identity, and the flag. */
+export const unreadableComparedScanSchema = z.object({
+  ...comparedScanIdentity,
+  /**
+   * False: the purchase behind this scan was reversed, suspended or expired.
+   *
+   * Nothing else about the scan is here, and that is the point — a score, a page
+   * total or a resolved count is derived from the report's own rows, and a count
+   * derived from them is still a read of them. The verdict beside it is
+   * `previous-not-readable`, so no section of the comparison carries a number
+   * either.
+   */
+  readable: z.literal(false),
+});
+export type UnreadableComparedScan = z.infer<typeof unreadableComparedScanSchema>;
+
+/** Which scan is being compared, in the terms a report header needs. */
+export const readableComparedScanSchema = z.object({
+  ...comparedScanIdentity,
+  status: z.string(),
   /** From `Scan.crawlSummaryJson`; null on a scan that recorded no crawl. */
   pagesRead: z.number().int().min(0).nullable(),
   urlsDiscovered: z.number().int().min(0).nullable(),
   urlsOverLimit: z.number().int().min(0).nullable(),
   scope: crawlScopeFactsSchema,
   /**
-   * Whether this scan's own report is still the account's to open.
+   * True: this report is still the account's to open.
    *
    * Always true for `current` — the endpoint refuses a report the account may
-   * not read at all. It is `previous` that can be false: a purchase that was
-   * reversed, suspended or expired does not un-observe what the run found, so
-   * the comparison is still drawn against it, but the report behind it may not
-   * be linked to. The panel uses this for exactly that one decision.
+   * not read at all. It is the discriminant of the union below, so a client that
+   * reads `pagesRead` or `scope` has to check it first, and a server that fills
+   * them in for an unreadable report cannot typecheck.
    */
-  readable: z.boolean(),
+  readable: z.literal(true),
 });
+export type ReadableComparedScan = z.infer<typeof readableComparedScanSchema>;
+
+export const comparedScanSchema = z.discriminatedUnion('readable', [
+  readableComparedScanSchema,
+  unreadableComparedScanSchema,
+]);
 export type ComparedScan = z.infer<typeof comparedScanSchema>;
 
 export const moduleScoreDeltaSchema = z.object({
@@ -578,8 +621,14 @@ export const issueComparisonSchema = issueCountsSchema.extend({
 export type IssueComparison = z.infer<typeof issueComparisonSchema>;
 
 export const scanComparisonSchema = z.object({
-  current: comparedScanSchema,
-  /** Null exactly when `comparable` names a reason about there being none. */
+  current: readableComparedScanSchema,
+  /**
+   * Null exactly when `comparable` names a reason about there being none.
+   *
+   * Identity only — `readable: false` — when the report behind it is no longer
+   * the account's; the verdict is then `previous-not-readable` and every section
+   * below is empty rather than counted.
+   */
   previous: comparedScanSchema.nullable(),
   comparable: comparabilitySchema(COMPARISON_INCOMPARABLE_REASONS),
   overall: z.object({
