@@ -137,8 +137,11 @@ export function duplicateValueOf(page: PageSnapshot, kind: DuplicateValueKind): 
     case 'meta-description':
       return collapse(metaContent(parsePage(page), 'description') ?? '');
     case 'visible-text':
-      // visibleText уже схлопывает пробелы и обрезает края (content/visible-text.ts).
-      return normalizeUnicode(visibleText(page));
+      // visibleText уже схлопывает пробелы, обрезает края и приводит к NFC —
+      // той же форме, что и collapse (content/visible-text.ts). Нормализовать
+      // его повторно здесь значило бы мерить длину не тем текстом, которым её
+      // меряет CONTENT-003.
+      return visibleText(page);
   }
 }
 

@@ -214,6 +214,37 @@ describe('CONTENT-001 — дубль содержимого страницы', (
     expect(paths(runRule('Content Quality', 'CONTENT-003', ctx))).toEqual(['/a.html', '/b.html']);
   });
 
+  it('длина текста у CONTENT-001 и CONTENT-003 одна и та же — даже в NFD', () => {
+    // Текст, набранный на macOS, приходит в NFD: «é» в нём два code point-а.
+    // Пока к NFC приводил только индекс дублей, CONTENT-001 сообщал об этой
+    // странице 169 символов, а CONTENT-003 мерил против порога 203 — и о
+    // малосодержательности молчал. Два правила о ОДНОМ тексте не вправе
+    // называть читателю разные его длины.
+    const composed = 'Cafe\u0301 '.repeat(34);
+    expect([...composed.trim()].length).toBe(203);
+    expect([...composed.normalize('NFC').trim()].length).toBe(169);
+
+    const ctx = siteContext({
+      pages: [
+        contentPage({ path: '/a.html', body: composed }),
+        contentPage({ path: '/b.html', body: composed }),
+      ],
+    });
+    const duplicate = single(
+      runContent001(ctx).filter((candidate) => candidate.normalizedUrl === url('/a.html')),
+    );
+    const lowValue = single(
+      runRule('Content Quality', 'CONTENT-003', ctx).filter(
+        (candidate) => candidate.normalizedUrl === url('/a.html'),
+      ),
+    );
+    expect(duplicate.messages?.evidence.params.length).toBe(169);
+    expect(lowValue.messages?.evidence.params.length).toBe(169);
+    expect(lowValue.messages?.evidence.params.length).toBe(
+      duplicate.messages?.evidence.params.length,
+    );
+  });
+
   it('checkedTargets — каждая судимая страница, включая пустую', () => {
     const ctx = siteContext({
       pages: [
