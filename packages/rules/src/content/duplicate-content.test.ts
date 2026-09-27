@@ -78,6 +78,25 @@ describe('CONTENT-001 — дубль содержимого страницы', (
     expect(paths(runContent001(ctx))).toEqual(['/plain.html', '/wrapped.html']);
   });
 
+  it('сущности раскрыты: экранированная копия — тот же текст', () => {
+    // Один и тот же абзац, набранный в двух редакторах: один экранировал `&`,
+    // другой нет. Читатель видит одну страницу дважды, и правило обязано
+    // видеть то же самое.
+    const ctx = siteContext({
+      pages: [
+        contentPage({ path: '/a.html', body: `Tom &amp; Jerry. ${LONG_TEXT}` }),
+        contentPage({ path: '/b.html', body: `Tom & Jerry. ${LONG_TEXT}` }),
+      ],
+    });
+    expect(paths(runContent001(ctx))).toEqual(['/a.html', '/b.html']);
+    const finding = single(
+      runContent001(ctx).filter((candidate) => candidate.normalizedUrl === url('/a.html')),
+    );
+    // И в evidence текст показан раскрытым, а не разметкой.
+    expect(finding.evidenceExcerpt).toContain('Tom & Jerry.');
+    expect(finding.evidenceExcerpt).not.toContain('&amp;');
+  });
+
   it('evidence называет счёт, адреса, длину текста и его начало', () => {
     const ctx = siteContext({
       pages: [contentPage({ path: '/a.html' }), contentPage({ path: '/b.html' })],
@@ -86,8 +105,9 @@ describe('CONTENT-001 — дубль содержимого страницы', (
       runContent001(ctx).filter((candidate) => candidate.normalizedUrl === url('/a.html')),
     );
     expect(finding.evidenceExcerpt).toBe(
-      `Other crawled pages with the same visible text: 1 (${url('/b.html')}); ` +
-        'no <link rel="canonical"> ties this page to any of them. ' +
+      'Other crawled pages with the same visible text: 1; ' +
+        `at most three are listed here: ${url('/b.html')}. ` +
+        'No <link rel="canonical"> ties this page to any of them, as crawled. ' +
         `The text is ${[...LONG_TEXT].length} characters and begins: ` +
         `"${[...LONG_TEXT].slice(0, 120).join('')}"`,
     );

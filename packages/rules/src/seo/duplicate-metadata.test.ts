@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { RuleEvaluation, SiteContext } from '../engine/types.js';
 import { runModuleRules } from '../engine/run-module.js';
+import { renderFindingMessage } from '../messages/index.js';
 import { siteContext, type FixturePageInput } from '../testing/fixture-harness.js';
 import { runSeoRule } from '../testing/fixture-harness.js';
 import { paths, single, url } from '../testing/link-fixtures.js';
@@ -66,8 +67,8 @@ describe('SEO-ONPAGE-004 — дубль title', () => {
       ),
     );
     expect(finding.evidenceExcerpt).toBe(
-      `Other crawled pages with the same title: 1 (${url('/b.html')}); ` +
-        'no <link rel="canonical"> ties this page to any of them. ' +
+      `Other crawled pages with the same title: 1; at most three are listed here: ${url('/b.html')}. ` +
+        'No <link rel="canonical"> ties this page to any of them, as crawled. ' +
         'Title: "Shared title of two pages"',
     );
     expect(finding.normalizedSelector).toBe('title');
@@ -76,7 +77,10 @@ describe('SEO-ONPAGE-004 — дубль title', () => {
     expect(finding.dependencyTargets).toEqual([url('/b.html')]);
   });
 
-  it('evidence большой группы называет три адреса, но полный счёт', () => {
+  it('evidence большой группы называет три адреса и говорит, что их три', () => {
+    // Счёт и список расходятся начиная с четвёртого партнёра, и текст обязан
+    // это назвать: иначе читатель принял бы перечисление за полное и решил, что
+    // отчёт противоречит сам себе.
     const ctx = siteContext({
       pages: ['/a.html', '/b.html', '/c.html', '/d.html', '/e.html'].map((path) =>
         metaPage({ path, title: 'One title for the whole catalogue' }),
@@ -87,12 +91,47 @@ describe('SEO-ONPAGE-004 — дубль title', () => {
         (candidate) => candidate.normalizedUrl === url('/a.html'),
       ),
     );
-    expect(finding.evidenceExcerpt).toContain('the same title: 4 (');
-    expect(finding.evidenceExcerpt).toContain(
-      [url('/b.html'), url('/c.html'), url('/d.html')].join(', '),
+    expect(finding.evidenceExcerpt).toBe(
+      'Other crawled pages with the same title: 4; at most three are listed here: ' +
+        `${[url('/b.html'), url('/c.html'), url('/d.html')].join(', ')}. ` +
+        'No <link rel="canonical"> ties this page to any of them, as crawled. ' +
+        'Title: "One title for the whole catalogue"',
     );
     expect(finding.evidenceExcerpt).not.toContain(url('/e.html'));
     expect(finding.dependencyTargets).toHaveLength(3);
+  });
+
+  it('украинский текст тоже называет счёт, три адреса и границу вердикта', () => {
+    const ctx = siteContext({
+      pages: ['/a.html', '/b.html', '/c.html', '/d.html', '/e.html'].map((path) =>
+        metaPage({ path, title: 'One title for the whole catalogue' }),
+      ),
+    });
+    const finding = single(
+      runSeoRule('SEO-ONPAGE-004', ctx).filter(
+        (candidate) => candidate.normalizedUrl === url('/a.html'),
+      ),
+    );
+    const evidence = finding.messages?.evidence;
+    expect(evidence).toBeDefined();
+    if (evidence === undefined) return;
+    const ukrainian = renderFindingMessage(evidence, 'uk');
+    expect(ukrainian).toContain('таким самим title: 4');
+    expect(ukrainian).toContain('тут названо не більше трьох');
+    expect(ukrainian).toContain('за тим, як їх прочитав обхід');
+    expect(ukrainian).not.toContain(url('/e.html'));
+  });
+
+  it('NFC: один и тот же заголовок в двух кодировках — один заголовок', () => {
+    // Составное é из macOS и готовое é из CMS выглядят одинаково и в выдаче, и
+    // у читателя: разными их делает только форма нормализации.
+    const ctx = siteContext({
+      pages: [
+        metaPage({ path: '/a.html', title: 'Caf\u00e9 menu of the week' }),
+        metaPage({ path: '/b.html', title: 'Cafe\u0301 menu of the week' }),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-ONPAGE-004', ctx))).toEqual(['/a.html', '/b.html']);
   });
 
   it('canonical на другую страницу группы снимает находку с обоих', () => {
@@ -216,8 +255,9 @@ describe('SEO-ONPAGE-006 — дубль meta description', () => {
       ),
     );
     expect(finding.evidenceExcerpt).toBe(
-      `Other crawled pages with the same meta description: 1 (${url('/b.html')}); ` +
-        'no <link rel="canonical"> ties this page to any of them. ' +
+      'Other crawled pages with the same meta description: 1; ' +
+        `at most three are listed here: ${url('/b.html')}. ` +
+        'No <link rel="canonical"> ties this page to any of them, as crawled. ' +
         `Description: "${shared}"`,
     );
     expect(finding.normalizedSelector).toBe('meta[name="description"]');

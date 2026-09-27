@@ -4,11 +4,15 @@ import type { FindingMessageCatalog } from './catalog.js';
 
 export const CONTENT_MESSAGES = {
   // Текст страницы в evidence целиком не влезает и не нужен: читателю хватает
-  // его начала, длины и адресов, по которым лежит то же самое. Оговорка про
-  // canonical называет условие, при котором правило молчит.
+  // его начала, длины и адресов, по которым лежит то же самое. Список адресов
+  // ограничен тремя, и текст это говорит: счёт и перечисление расходятся на
+  // большой группе. Оговорка «as crawled» называет границу вердикта — canonical
+  // на адрес, снимка которого у обхода нет, связать страницу с членом группы не
+  // может. Длина считается по раскрытому тексту (`&amp;` — один символ), как и
+  // у CONTENT-003.
   'content-001.evidence': {
-    en: 'Other crawled pages with the same visible text: {count} ({pages}); no <link rel="canonical"> ties this page to any of them. The text is {length} characters and begins: "{preview}"',
-    uk: 'Інших прочитаних сторінок із таким самим видимим текстом: {count} ({pages}); <link rel="canonical"> не пов’язує цю сторінку з жодною з них. Текст має {length} символів і починається так: «{preview}»',
+    en: 'Other crawled pages with the same visible text: {count}; at most three are listed here: {pages}. No <link rel="canonical"> ties this page to any of them, as crawled. The text is {length} characters and begins: "{preview}"',
+    uk: 'Інших прочитаних сторінок із таким самим видимим текстом: {count}; тут названо не більше трьох: {pages}. <link rel="canonical"> не пов’язує цю сторінку з жодною з них — за тим, як їх прочитав обхід. Текст має {length} символів і починається так: «{preview}»',
   },
   'content-001.recommendation': {
     en: 'Keep one address for this text and point the copies at it with <link rel="canonical">, or rewrite each page around what only it covers. Duplicated pages compete with each other for the same queries.',

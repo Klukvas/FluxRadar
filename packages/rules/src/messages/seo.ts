@@ -211,11 +211,15 @@ export const SEO_MESSAGES = {
   },
 
   // Дубли метаданных: сначала счёт и адреса (register content-004), потом само
-  // значение. Оговорка про canonical в тексте не лишняя — она называет читателю
-  // ровно то условие, при котором правило молчит.
+  // значение. Две оговорки в тексте не лишние. «Не більше трьох» / «at most
+  // three» — потому что счёт и список расходятся на большой группе, и читатель
+  // иначе решил бы, что список полон. «As crawled» — потому что вердикт стоит
+  // на том, что обход прочитал: canonical на адрес, снимка которого нет,
+  // связать страницу с членом группы не может, и утверждать больше правило не
+  // вправе.
   'seo-onpage-004.evidence': {
-    en: 'Other crawled pages with the same title: {count} ({pages}); no <link rel="canonical"> ties this page to any of them. Title: "{title}"',
-    uk: 'Інших прочитаних сторінок із таким самим title: {count} ({pages}); <link rel="canonical"> не пов’язує цю сторінку з жодною з них. Title: «{title}»',
+    en: 'Other crawled pages with the same title: {count}; at most three are listed here: {pages}. No <link rel="canonical"> ties this page to any of them, as crawled. Title: "{title}"',
+    uk: 'Інших прочитаних сторінок із таким самим title: {count}; тут названо не більше трьох: {pages}. <link rel="canonical"> не пов’язує цю сторінку з жодною з них — за тим, як їх прочитав обхід. Title: «{title}»',
   },
   'seo-onpage-004.recommendation': {
     en: 'Give each page a title of its own that says what is on it. If the pages really are the same, leave one title and point the copies at the original with <link rel="canonical">.',
@@ -223,8 +227,8 @@ export const SEO_MESSAGES = {
   },
 
   'seo-onpage-006.evidence': {
-    en: 'Other crawled pages with the same meta description: {count} ({pages}); no <link rel="canonical"> ties this page to any of them. Description: "{description}"',
-    uk: 'Інших прочитаних сторінок із таким самим meta description: {count} ({pages}); <link rel="canonical"> не пов’язує цю сторінку з жодною з них. Description: «{description}»',
+    en: 'Other crawled pages with the same meta description: {count}; at most three are listed here: {pages}. No <link rel="canonical"> ties this page to any of them, as crawled. Description: "{description}"',
+    uk: 'Інших прочитаних сторінок із таким самим meta description: {count}; тут названо не більше трьох: {pages}. <link rel="canonical"> не пов’язує цю сторінку з жодною з них — за тим, як їх прочитав обхід. Description: «{description}»',
   },
   'seo-onpage-006.recommendation': {
     en: 'Write a description for each page from its own content: a description repeated across pages gives search engines nothing to tell them apart by.',

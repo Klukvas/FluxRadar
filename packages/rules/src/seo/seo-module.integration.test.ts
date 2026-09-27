@@ -389,8 +389,9 @@ describe('дубли метаданных на настоящем обходе f
     const duplicateTitle = result.findings.find((finding) => finding.ruleId === 'SEO-ONPAGE-004');
     expect(duplicateTitle?.normalizedUrl).toBe(`${origin}/dup-b.html`);
     expect(duplicateTitle?.evidenceExcerpt).toBe(
-      `Other crawled pages with the same title: 2 (${origin}/dup-a.html, ${origin}/dup-c.html); ` +
-        'no <link rel="canonical"> ties this page to any of them. ' +
+      'Other crawled pages with the same title: 2; at most three are listed here: ' +
+        `${origin}/dup-a.html, ${origin}/dup-c.html. ` +
+        'No <link rel="canonical"> ties this page to any of them, as crawled. ' +
         'Title: "Shared story — Fixture Site"',
     );
     expect(duplicateTitle?.dependencyTargets).toEqual([
