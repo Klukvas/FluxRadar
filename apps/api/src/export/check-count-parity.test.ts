@@ -1,17 +1,20 @@
 // The number of SEO checks the public pages promise, against the registry.
 //
 // Three places tell a visitor how many deterministic SEO checks a paid scan
-// runs: the coverage page (`checks-copy.ts`), the FAQ (`faq-copy.ts`) and the
-// home page and pricing copy (`i18n.ts`), each in English and Ukrainian. The
-// figure is prose, not a computed value — `apps/web` has no workspace dependency
-// on `packages/contracts` on purpose — so adding a rule to the registry leaves
-// six sentences quietly claiming the old number.
+// runs: the coverage page (`checks-copy.en.ts` / `checks-copy.uk.ts`), the FAQ
+// (`faq-copy.ts`) and the home page and pricing copy (`i18n.ts`), each in
+// English and Ukrainian. The figure is prose, not a computed value — `apps/web`
+// has no workspace dependency on `packages/contracts` on purpose — so adding a
+// rule to the registry leaves those sentences quietly claiming the old number.
 //
 // That is the defect this pins: the promise is read as a commitment by anyone
 // comparing packages, and a report that runs twenty-one checks beside a page
 // promising nineteen looks like the page was written about a different product.
-// The web files are read as text, the same seam `rule-titles.test.ts` and
-// `plan-modules.test.ts` use.
+//
+// The test lives here rather than in `apps/web` because it needs the registry,
+// and only a package that depends on `packages/contracts` can read it. The web
+// files are read as text — `apps/web` stays free of that dependency — which is
+// why this sits in a package that has it, not in the one it describes.
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -56,12 +59,14 @@ describe('the SEO check count the public pages promise', () => {
   });
 
   it('matches on the coverage page in both languages', () => {
-    const counts = claimedCounts('checks-copy.ts', [
-      /\*\*(\d+) deterministic checks\*\*/g,
+    // One file per language since the coverage page outgrew a single one; the
+    // count has to be claimed in both, so each pattern is asserted separately.
+    const english = claimedCounts('checks-copy.en.ts', [/\*\*(\d+) deterministic checks\*\*/g]);
+    const ukrainian = claimedCounts('checks-copy.uk.ts', [
       /\*\*(\d+) детермінован[а-яіїєґ']+ перевірк[а-яіїєґ']+\*\*/g,
     ]);
-    expect(counts).toHaveLength(2);
-    expect(counts).toEqual([expected, expected]);
+    expect(english).toEqual([expected]);
+    expect(ukrainian).toEqual([expected]);
   });
 
   it('matches in the home page, pricing and package copy in both languages', () => {
