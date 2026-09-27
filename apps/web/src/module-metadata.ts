@@ -31,6 +31,15 @@ export interface RuleCheck {
   readonly informational: boolean;
   readonly applicableTargets: number;
   readonly affectedTargets: number;
+  /**
+   * Why the check had nothing to look at, as the rule itself named it.
+   *
+   * Null for every scan recorded before rules said so, and for every check that
+   * did have targets. A check that ran on a truncated crawl and one that ran on
+   * a one-page site both end with no targets, and only the rule can tell the
+   * reader which of the two happened.
+   */
+  readonly notApplicableReason: string | null;
 }
 
 /**
@@ -75,6 +84,8 @@ export function ruleChecksOf(metadata: Metadata): readonly RuleCheck[] {
         informational: record.scoring === 'informational',
         applicableTargets,
         affectedTargets,
+        notApplicableReason:
+          typeof record.notApplicableReason === 'string' ? record.notApplicableReason : null,
       },
     ];
   });

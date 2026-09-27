@@ -221,7 +221,11 @@ describe('a section card that recorded its checks', () => {
   });
 
   /** One recorded check row of the SEO section, with counts the caller chooses. */
-  function seoCheck(ruleId: string, title: string): Record<string, unknown> {
+  function seoCheck(
+    ruleId: string,
+    title: string,
+    notApplicableReason?: string,
+  ): Record<string, unknown> {
     return {
       ruleId,
       title,
@@ -229,7 +233,15 @@ describe('a section card that recorded its checks', () => {
       scoring: 'scored',
       applicableTargets: 0,
       affectedTargets: 0,
+      ...(notApplicableReason === undefined ? {} : { notApplicableReason }),
     };
+  }
+
+  async function seoRows(checks: readonly Record<string, unknown>[]): Promise<HTMLElement[]> {
+    await openReport(dashboardOf([moduleOf({ metadata: { ruleChecks: checks } })]));
+    fireEvent.click(card('SEO'));
+    const region = screen.getByRole('region', { name: 'SEO · checks performed' });
+    return within(region).getAllByRole('listitem');
   }
 
   it('names why an internal-linking check did not apply, instead of blaming the pages', async () => {
@@ -262,6 +274,46 @@ describe('a section card that recorded its checks', () => {
     expect(rows[0]).toHaveTextContent('No sitemap was read');
     expect(rows[1]).toHaveTextContent('the number of link hops to a page cannot be counted');
     expect(rows[2]).toHaveTextContent('the inbound links of a page cannot be counted');
+  });
+
+  it('says a one-page site had nothing to judge, not that the crawl was cut short', async () => {
+    // A Complete crawl of a single-page site finishes everything it set out to
+    // read. Telling its owner the crawl did not finish would be a claim about
+    // this scan that is simply untrue.
+    const rows = await seoRows([
+      seoCheck('SEO-TECH-009', 'orphan pages', 'no-sitemap'),
+      seoCheck('SEO-TECH-011', 'weakly linked pages', 'no-candidates'),
+    ]);
+
+    expect(rows[0]).toHaveTextContent('No XML sitemap was read');
+    expect(rows[0]).not.toHaveTextContent('did not finish');
+    expect(rows[1]).toHaveTextContent('no page besides the entry page');
+    expect(rows[1]).not.toHaveTextContent('did not finish');
+  });
+
+  it('still blames the crawl when the rule says the link graph was incomplete', async () => {
+    const rows = await seoRows([
+      seoCheck('SEO-TECH-009', 'orphan pages', 'link-graph-gap'),
+      seoCheck('SEO-TECH-010', 'click depth', 'link-graph-gap'),
+      seoCheck('SEO-TECH-011', 'weakly linked pages', 'link-graph-gap'),
+    ]);
+
+    for (const row of rows) {
+      expect(row).toHaveTextContent(
+        'The crawl did not finish reading the pages it set out to read',
+      );
+    }
+    expect(rows[0]).toHaveTextContent('a page it never opened could hold the missing link');
+    expect(rows[1]).toHaveTextContent('the number of link hops to a page cannot be counted');
+    expect(rows[2]).toHaveTextContent('the inbound links of a page cannot be counted');
+  });
+
+  it('falls back to the rule sentence for a reason it does not know', async () => {
+    const rows = await seoRows([
+      seoCheck('SEO-TECH-011', 'weakly linked pages', 'from-the-future'),
+    ]);
+
+    expect(rows[0]).toHaveTextContent('the inbound links of a page cannot be counted');
   });
 
   it('toggles from its own button too, and says whether the list is open', async () => {

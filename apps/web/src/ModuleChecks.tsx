@@ -418,8 +418,16 @@ function checkDetail(check: RuleCheck, result: RuleCheckOutcome, language: Langu
   const perPage = check.targetKind === 'page';
   switch (result) {
     case 'notApplicable': {
+      // The rule's own reason first, the rule's general sentence next: a report
+      // written before rules named their reason still says something truer than
+      // "nothing on the pages matched", and one written after says exactly what
+      // happened.
       const reasons: Readonly<Record<string, string | undefined>> = t.notApplicableReasons;
-      return reasons[check.ruleId] ?? t.detailNotApplicable;
+      const named =
+        check.notApplicableReason === null
+          ? undefined
+          : reasons[`${check.ruleId}:${check.notApplicableReason}`];
+      return named ?? reasons[check.ruleId] ?? t.detailNotApplicable;
     }
     case 'passed':
       return perPage ? fillCopy(t.detailPassedPages, counts) : t.detailPassed;

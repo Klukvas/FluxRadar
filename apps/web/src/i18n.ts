@@ -1232,12 +1232,28 @@ export const copy = {
         // internal-linking checks each need the whole link graph of the crawl,
         // and the Analytics ones read Google data rather than pages.
         notApplicableReasons: {
+          // Keyed by rule id, and by `ruleId:reason` where the rule named why it
+          // had nothing to judge. The bare rule id stays as what a report
+          // recorded before rules said so, and names every possibility rather
+          // than picking one.
           'SEO-TECH-009':
-            'No sitemap was read, or the crawl did not finish reading the pages it set out to read — a page it never opened could hold the missing link',
+            'No sitemap was read, the sitemap listed no page this check could judge, or the crawl did not finish reading the pages it set out to read',
+          'SEO-TECH-009:link-graph-gap':
+            'The crawl did not finish reading the pages it set out to read — a page it never opened could hold the missing link',
+          'SEO-TECH-009:no-sitemap':
+            'No XML sitemap was read, so there was no list of the pages the site itself calls its own',
+          'SEO-TECH-009:no-candidates':
+            'The sitemap listed no page this check could judge: only the entry page, pages that did not load, or addresses that redirect elsewhere',
           'SEO-TECH-010':
+            'No page was read, or the crawl did not finish reading the pages it set out to read, so the number of link hops to a page cannot be counted',
+          'SEO-TECH-010:link-graph-gap':
             'The crawl did not finish reading the pages it set out to read, so the number of link hops to a page cannot be counted',
           'SEO-TECH-011':
+            'No page was left to judge, or the crawl did not finish reading the pages it set out to read, so the inbound links of a page cannot be counted',
+          'SEO-TECH-011:link-graph-gap':
             'The crawl did not finish reading the pages it set out to read, so the inbound links of a page cannot be counted',
+          'SEO-TECH-011:no-candidates':
+            'The crawl read no page besides the entry page, so there were no inbound links to count',
           'ANALYTICS-SC-001': 'Too little search traffic in the previous 28 days to call a trend',
           'ANALYTICS-SC-002': 'No page had enough first-page impressions to judge its clicks',
           'ANALYTICS-SC-004':
@@ -2698,11 +2714,23 @@ export const copy = {
         detailNotApplicable: 'На прочитаних сторінках немає нічого, що підпадає під цю перевірку',
         notApplicableReasons: {
           'SEO-TECH-009':
-            'Sitemap не прочитано, або обхід не дочитав сторінки, які збирався прочитати, — відкрите ним посилання могло бути саме на цій сторінці',
+            'Sitemap не прочитано, у sitemap немає жодної сторінки, яку ця перевірка може судити, або обхід не дочитав сторінки, які збирався прочитати',
+          'SEO-TECH-009:link-graph-gap':
+            'Обхід не дочитав сторінки, які збирався прочитати, — потрібне посилання могло лежати на сторінці, якої він не відкрив',
+          'SEO-TECH-009:no-sitemap':
+            'XML-sitemap не прочитано, тож не було переліку сторінок, які сайт називає своїми',
+          'SEO-TECH-009:no-candidates':
+            'У sitemap немає жодної сторінки, яку ця перевірка може судити: лише вхідна сторінка, сторінки, що не завантажилися, або адреси, які ведуть редиректом',
           'SEO-TECH-010':
+            'Жодної сторінки не прочитано, або обхід не дочитав сторінки, які збирався прочитати, тому кількість переходів до сторінки порахувати не можна',
+          'SEO-TECH-010:link-graph-gap':
             'Обхід не дочитав сторінки, які збирався прочитати, тому кількість переходів до сторінки порахувати не можна',
           'SEO-TECH-011':
+            'Не лишилося сторінки, яку можна судити, або обхід не дочитав сторінки, які збирався прочитати, тому вхідні посилання сторінки порахувати не можна',
+          'SEO-TECH-011:link-graph-gap':
             'Обхід не дочитав сторінки, які збирався прочитати, тому вхідні посилання сторінки порахувати не можна',
+          'SEO-TECH-011:no-candidates':
+            'Окрім вхідної сторінки, обхід не прочитав жодної сторінки, тому вхідних посилань рахувати нема де',
           'ANALYTICS-SC-001':
             'За попередні 28 днів пошукового трафіку замало, щоб говорити про динаміку',
           'ANALYTICS-SC-002':
