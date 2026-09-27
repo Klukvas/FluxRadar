@@ -92,8 +92,11 @@ function evaluatePageRule(rule: PageRule, ctx: SiteContext): RuleRun {
       findings,
       // Правило смотрело ровно на эти страницы: 404 и не-HTML в applicable-набор
       // по умолчанию не попадают, и находка на такой странице потом не может
-      // быть закрыта как «исправленная» (§14, resolution policy).
-      checkedTargets: applicablePages.map((page) => page.normalizedUrl),
+      // быть закрыта как «исправленная» (§14, resolution policy). Имя цели —
+      // то же, каким её называет находка (judgedAddress).
+      checkedTargets: applicablePages.map(
+        (page) => rule.judgedAddress?.(page, ctx) ?? page.normalizedUrl,
+      ),
       // И отдельно — материал обхода, без которого вердикт этого правила
       // неполон: у SEO-TECH-006/008 и CONTENT-004 находка на живой странице
       // исчезает, если из обхода выпала её цель, а не если что-то починили.

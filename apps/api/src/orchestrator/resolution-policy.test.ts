@@ -133,6 +133,52 @@ describe('page-level findings', () => {
   });
 });
 
+describe('страница под двумя адресами — одна находка', () => {
+  // Документ, который сайт держит под двумя адресами (`/about` с 301 и
+  // `/about/`), обход в одном прогоне читает одним снимком, а в другом — двумя:
+  // это решает порядок его очереди (markFinalUrlSeen), а не сайт. Правила графа
+  // ссылок поэтому называют страницу адресом ДОКУМЕНТА (canonicalAddress), и
+  // здесь проверяется, что политика на этом действительно закрывает находку.
+  const ABOUT = 'https://example.com/about/';
+  const ALIAS = 'https://example.com/about';
+
+  const weakLink = issue({
+    id: 'issue-weak',
+    fingerprint: 'fp-weak',
+    ruleId: 'SEO-TECH-011',
+    normalizedUrl: ABOUT,
+  });
+  /** Прогон A: снимок только у /about, и он судился под адресом назначения. */
+  const runA = previous({
+    coverageByRule: checked(
+      { 'SEO-TECH-011': [ABOUT] },
+      { inputs: { 'SEO-TECH-011': [HOME] }, requested: { 'SEO-TECH-011': [HOME, ALIAS, ABOUT] } },
+    ),
+  });
+
+  it('прогон, получивший свой снимок назначения, закрывает находку прогона без него', () => {
+    const runB = run({
+      coverageByRule: checked(
+        { 'SEO-TECH-011': [ABOUT] },
+        { inputs: { 'SEO-TECH-011': [HOME] }, requested: { 'SEO-TECH-011': [HOME, ALIAS, ABOUT] } },
+      ),
+    });
+    expect(provesRepeatCheck(weakLink, runB, runA)).toBe(true);
+  });
+
+  it('а назови он ту же страницу адресом редиректа — находка осталась бы открытой', () => {
+    // Это и есть цена ошибки идентичности: правило проверило ту же страницу,
+    // отчиталось о ней другим именем, и починенная находка не закрывается.
+    const namedByAlias = run({
+      coverageByRule: checked(
+        { 'SEO-TECH-011': [ALIAS] },
+        { inputs: { 'SEO-TECH-011': [HOME] }, requested: { 'SEO-TECH-011': [HOME, ALIAS, ABOUT] } },
+      ),
+    });
+    expect(provesRepeatCheck(weakLink, namedByAlias, runA)).toBe(false);
+  });
+});
+
 describe('входы page-правил (зависимость от чужих снимков)', () => {
   // SEO-TECH-006 судит страницу-ИСТОЧНИК ссылки, а вердикт берёт из снимка её
   // ЦЕЛИ. Пропавшая из обхода цель убирает находку, ничего не починив.

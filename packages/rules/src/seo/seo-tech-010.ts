@@ -15,11 +15,16 @@
 // не «глубина большая». Это предмет SEO-TECH-009 (страница, на которую не ведёт
 // ни одна ссылка), и называть её «в N переходах» правило не вправе.
 //
-// СНИМОК, УЕХАВШИЙ ЗА ОБЛАСТЬ ОБХОДА, КАНДИДАТОМ НЕ БЫВАЕТ. Редирект на чужой
-// хост краулер проходит и снимок сохраняет (evidence SEO-TECH-005), но «эта
-// страница в четырёх переходах от вашей главной» о ней — утверждение о чужой
-// навигации, а не о навигации владельца. Поэтому знаменатель правила —
-// isJudgeablePage, а не всякий прочитанный HTML (leftCrawlScope).
+// КАНДИДАТ — СТРАНИЦА, А НЕ АДРЕС, и называется она адресом документа. Один
+// документ обход держит под двумя адресами всякий раз, когда навигация
+// ссылается на `/about`, а сервер уводит на `/about/`: судит его тот снимок,
+// которому адрес назначения принадлежит (isJudgeablePage), а находка и
+// checkedTargets названы canonicalAddress. Иначе одна страница получала бы
+// вердикт дважды на одном прогоне и меняла бы личность между прогонами — по
+// порядку очереди обхода, а не по состоянию сайта. Снимок, уехавший редиректом
+// за область обхода, кандидатом не бывает вовсе: «эта страница в четырёх
+// переходах от вашей главной» о чужом сайте — утверждение не о навигации
+// владельца (leftCrawlScope).
 //
 // ГРАФ ССЫЛОК НЕПОЛОН → Not applicable, как у TECH-009/011 (см. их шапки).
 // Непрочитанная страница может СКРЫТЬ короткий путь: сайт home → /nav (таймаут)
@@ -34,12 +39,17 @@
 import type { PageSnapshot } from '@fluxradar/crawler';
 
 import { requireDescriptor } from '../engine/descriptor.js';
-import { pageFinding } from '../engine/finding.js';
+import { pageFindingAt } from '../engine/finding.js';
 import type { NotApplicableReason, PageRule, RuleFinding, SiteContext } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
 import { clickDepthsFromEntry } from './click-depth.js';
 import { linkGraphGap } from './link-graph-gap.js';
-import { discoveredTargets, isJudgeablePage, linkSourceAddresses } from './site-index.js';
+import {
+  canonicalAddress,
+  discoveredTargets,
+  isJudgeablePage,
+  linkSourceAddresses,
+} from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-TECH-010');
 
@@ -57,6 +67,10 @@ export const seoTech010DeepPages: PageRule = {
   descriptor,
   isApplicable: (page: PageSnapshot, ctx: SiteContext): boolean =>
     isJudgeablePage(page, ctx.crawl) && linkGraphGap(ctx) === null,
+  // Знаменатель считает документы, а не снимки: страница, прочитанная под двумя
+  // адресами, — одна применимая цель, и названа она адресом, по которому живёт.
+  judgedAddress: (page: PageSnapshot, ctx: SiteContext): string =>
+    canonicalAddress(ctx.crawl, page.normalizedUrl),
   // Вердикт о странице выносят ссылки ДРУГИХ страниц обхода: путь к ней
   // складывается из них, и выпавшая из обхода страница-источник делает путь
   // неизвестным, а не длинным (§14, RuleEvaluation.inputTargets).
@@ -76,7 +90,7 @@ export const seoTech010DeepPages: PageRule = {
       return [];
     }
     return [
-      pageFinding(descriptor, page, {
+      pageFindingAt(descriptor, canonicalAddress(ctx.crawl, page.normalizedUrl), page, {
         evidenceType: 'http',
         evidence: findingMessage('seo-tech-010.evidence', {
           depth,

@@ -220,6 +220,16 @@ export interface PageRule {
    * если applicable-набор действительно пуст.
    */
   notApplicableReason?(ctx: SiteContext): NotApplicableReason | undefined;
+  /**
+   * Адрес, которым правило называет эту страницу (по умолчанию — её
+   * normalizedUrl).
+   *
+   * Объявляет правило, чьи находки названы адресом ДОКУМЕНТА, а не снимка
+   * (SEO-TECH-010, pageFindingAt): checkedTargets обязаны называть цель тем же
+   * именем, что и находка, иначе политика Resolved не узнаёт в новом прогоне ту
+   * же проверку (§14, resolution-policy.ts).
+   */
+  judgedAddress?(page: PageSnapshot, ctx: SiteContext): string;
 }
 
 export interface SiteRuleResult {

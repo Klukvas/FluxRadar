@@ -18,6 +18,17 @@
 // единственный снимок судится под адресом назначения (isJudgeablePage), и
 // evidence называет именно его: адрес, по которому страница живёт.
 //
+// И ИМЯ НАХОДКИ — ТОТ ЖЕ АДРЕС ДОКУМЕНТА. Есть ли у `/about/` свой снимок,
+// решает порядок очереди обхода (markFinalUrlSeen), а не сайт: находка,
+// названная адресом снимка, меняла бы личность от прогона к прогону — новый
+// прогон открывал бы вторую issue о той же странице и не мог закрыть первую.
+// Поэтому и normalizedUrl находки, и checkedTargets — canonicalAddress.
+//
+// РЕДИРЕКТ ЗА ОБЛАСТЬ ОБХОДА КАНДИДАТА НЕ ДАЁТ. `/go`, отвечающий 302 на
+// https://partner.example/landing, оставляет снимок чужой страницы: «её держит
+// одна ссылка» было бы утверждением о чужом сайте, и ссылки такой страницы
+// сайту тоже не принадлежат (leftCrawlScope, как и у самого краулера).
+//
 // ТОЧКА ВХОДА ИСКЛЮЧЕНА. К ней приходят по адресу, а не по ссылке, поэтому её
 // входящие ссылки ничего не говорят о доступности: главная с одной ссылкой из
 // подвала — не слабо связанная страница. Исключается именно точка входа обхода
@@ -34,7 +45,7 @@
 import type { PageSnapshot } from '@fluxradar/crawler';
 
 import { requireDescriptor } from '../engine/descriptor.js';
-import { pageFinding } from '../engine/finding.js';
+import { pageFindingAt } from '../engine/finding.js';
 import type { RuleFinding, SiteContext, SiteRule, SiteRuleResult } from '../engine/types.js';
 import { notApplicable } from '../engine/types.js';
 import { findingMessage } from '../messages/index.js';
@@ -73,7 +84,7 @@ export const seoTech011WeaklyLinkedPages: SiteRule = {
         return [];
       }
       return [
-        pageFinding(descriptor, page, {
+        pageFindingAt(descriptor, canonicalAddress(ctx.crawl, page.normalizedUrl), page, {
           evidenceType: 'http',
           evidence: findingMessage('seo-tech-011.evidence', { source: only }),
           recommendation: findingMessage('seo-tech-011.recommendation', {}),
@@ -88,7 +99,9 @@ export const seoTech011WeaklyLinkedPages: SiteRule = {
       findings,
       applicableTargets: candidates.length,
       affectedTargets: findings.length,
-      checkedTargets: candidates.map((page) => page.normalizedUrl),
+      // Под тем же именем, каким находку называет pageFindingAt: политика
+      // Resolved ищет в этом наборе именно normalizedUrl прошлой issue.
+      checkedTargets: candidates.map((page) => canonicalAddress(ctx.crawl, page.normalizedUrl)),
       // Вердикт о странице выносят ссылки ДРУГИХ страниц обхода, поэтому входы —
       // весь набор прочитанных страниц под адресами документов: под тем же
       // именем, каким находка называет свой единственный источник (§14,

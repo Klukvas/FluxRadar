@@ -90,8 +90,9 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
       // Fixture-сайт — «звезда» из главной: каждую страницу держит ровно одна
       // ссылка. /orphan.html здесь нет (нулю ссылок место в TECH-009), / — точка
       // входа, /missing — не 2xx, а /private/secret.html закрыт robots.txt.
-      // /redirect-a в списке есть: своего снимка у /redirect-final.html в обходе
-      // нет, поэтому страница судится под адресом назначения — и её тоже держит
+      // /redirect-final.html в списке есть: своего снимка у него в обходе нет,
+      // поэтому единственный снимок (/redirect-a, 301) судится под адресом
+      // назначения — и называется им же, а не адресом редиректа. Его тоже держит
       // ровно одна ссылка с главной.
       'SEO-TECH-011': [
         '/broken-image.html',
@@ -105,7 +106,7 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
         '/mixed-content.html',
         '/no-title.html',
         '/noindex.html',
-        '/redirect-a',
+        '/redirect-final.html',
         '/trackers.html',
         '/wrong-canonical.html',
       ],
