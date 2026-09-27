@@ -1497,14 +1497,25 @@ export const copy = {
           egressLocation: 'Crawl location',
         },
         scopeChangedRow: '{field}: {previous} → {current}',
+        // D-228 again, and the same sentence the older "since last scan" block
+        // prints: the crawl location is part of the scope fingerprint, so two
+        // countries land here as a changed setting — and the difference the reader
+        // is looking at may be the network rather than their site.
+        scopeEgressNote:
+          'A site can answer visitors from different countries differently — language, redirects, consent banners, blocks — so part of the difference between these two reports may come from where each check ran rather than from your site.',
         // A setting that was never given a value reads differently per field:
         // "whole plan" is true of a missing page ceiling and nonsense for a
         // missing crawl location, which is how "Crawl location: whole plan → ua"
         // reached the screen.
+        //
+        // The crawl location is the same null the report header already names —
+        // `egressLocationUnrecorded` — and it is not "the default location": the
+        // earliest scans left from a server in Germany and nothing recorded which
+        // (D-228). Two screens of one report must not read that null two ways.
         scopeUnset: {
           maxPages: 'the plan’s own limit',
           maxDepth: 'no limit',
-          egressLocation: 'the default location',
+          egressLocation: 'Not recorded',
         },
         scopeNotSet: 'not set',
         scopeNone: 'none',
@@ -3110,10 +3121,12 @@ export const copy = {
           egressLocation: 'Локація обходу',
         },
         scopeChangedRow: '{field}: {previous} → {current}',
+        scopeEgressNote:
+          'Сайт може по-різному відповідати відвідувачам з різних країн — мова, редиректи, банери згоди, блокування, — тож частина різниці між цими двома звітами може бути пов’язана з тим, звідки йшла кожна перевірка, а не з вашим сайтом.',
         scopeUnset: {
           maxPages: 'власний ліміт тарифу',
           maxDepth: 'без обмеження',
-          egressLocation: 'локація за замовчуванням',
+          egressLocation: 'Не зафіксовано',
         },
         scopeNotSet: 'не задано',
         scopeNone: 'немає',

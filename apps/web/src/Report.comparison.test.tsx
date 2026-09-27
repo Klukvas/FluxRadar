@@ -434,10 +434,12 @@ describe('the comparison panel', () => {
     },
   );
 
-  it('names a blank setting the way that setting reads, never as "whole plan"', async () => {
-    // Both of these were rendered as "whole plan": a crawl location nobody chose
-    // read as "Crawl location: whole plan → ua", and a click depth nobody set
-    // read as "Click depth: whole plan".
+  it('names a blank setting the way that setting reads, and the location as a place', async () => {
+    // Three wrong readings of the same row, in order: "Crawl location: whole plan
+    // → ua", then "the default location → ua" — which the report header already
+    // calls "Not recorded", because the earliest scans left from another country
+    // and nothing recorded it (D-228) — and the id itself, which no other screen
+    // of this product shows a reader.
     await openReport({
       comparison: comparisonOf({
         comparable: { ok: false, reason: 'scope-changed' },
@@ -447,11 +449,63 @@ describe('the comparison panel', () => {
     });
 
     const block = await panel(EN_HEADING);
-    expect(
-      within(block).getByText('Crawl location: the default location → ua'),
-    ).toBeInTheDocument();
+    expect(within(block).getByText('Crawl location: Not recorded → UA')).toBeInTheDocument();
     expect(within(block).getByText('Click depth: no limit → 5')).toBeInTheDocument();
     expect(within(block).queryByText(/whole plan/)).not.toBeInTheDocument();
+    expect(within(block).queryByText(/the default location/)).not.toBeInTheDocument();
+    // An unrecorded location on either side is a reason to say part of the
+    // difference may be the network, not the site.
+    expect(
+      within(block).getByText(/may come from where each check ran rather than from your site/i),
+    ).toBeInTheDocument();
+  });
+
+  it('names the same blank location in Ukrainian', async () => {
+    await openReport({
+      language: 'uk',
+      comparison: comparisonOf({
+        comparable: { ok: false, reason: 'scope-changed' },
+        modules: [],
+        previous: previousScan({ scope: { ...scope(), egressLocation: null, maxDepth: null } }),
+      }),
+    });
+
+    const block = await panel(UK_HEADING);
+    expect(within(block).getByText('Локація обходу: Не зафіксовано → UA')).toBeInTheDocument();
+    expect(within(block).getByText('Глибина переходів: без обмеження → 5')).toBeInTheDocument();
+    expect(within(block).getByText(/звідки йшла кожна перевірка/)).toBeInTheDocument();
+  });
+
+  it('labels both crawl locations, and warns that the difference may be the network', async () => {
+    await openReport({
+      comparison: comparisonOf({
+        comparable: { ok: false, reason: 'scope-changed' },
+        modules: [],
+        previous: previousScan({ scope: { ...scope(), egressLocation: 'de-fra' } }),
+      }),
+    });
+
+    const block = await panel(EN_HEADING);
+    expect(within(block).getByText('Crawl location: DE-FRA → UA')).toBeInTheDocument();
+    expect(
+      within(block).getByText(/A site can answer visitors from different countries differently/i),
+    ).toBeInTheDocument();
+  });
+
+  it('leaves the network note out when both crawls left from the same recorded place', async () => {
+    await openReport({
+      comparison: comparisonOf({
+        comparable: { ok: false, reason: 'scope-changed' },
+        modules: [],
+        previous: previousScan({ scope: { ...scope(), maxPages: 50 } }),
+      }),
+    });
+
+    const block = await panel(EN_HEADING);
+    expect(within(block).getByText('Page limit: 50 → 500')).toBeInTheDocument();
+    expect(
+      within(block).queryByText(/A site can answer visitors from different countries/i),
+    ).not.toBeInTheDocument();
   });
 
   it('treats a reason it has no sentence for as no comparison at all', async () => {

@@ -27,6 +27,7 @@ import {
   type ScanComparison,
 } from './comparison-api';
 import { Button, Panel } from './components';
+import { egressLocationLabel } from './egress-location';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import { movement, scoreText, type ComparisonCopy } from './comparison-format';
@@ -167,13 +168,44 @@ function isUnsetScopeField(field: ScopeField): field is UnsetScopeField & ScopeF
 }
 
 /** A scope value as a reader would name it, never as the JSON spells it. */
-function scopeValue(field: ScopeField, value: unknown, t: ComparisonCopy): string {
+function scopeValue(
+  field: ScopeField,
+  value: unknown,
+  t: ComparisonCopy,
+  language: Language,
+): string {
   if (value === null || value === undefined) {
     return isUnsetScopeField(field) ? t.scopeUnset[field] : t.scopeNotSet;
+  }
+  // The crawl location is stored as an id, and no screen of this product shows a
+  // reader one: the same helper the report header and the launch screen use
+  // decides how a location reads (D-228). The comparison has no label catalogue
+  // for another scan's location, so that helper falls back to the bare code —
+  // "UA", never the raw "ua" this row used to print.
+  if (field === 'egressLocation') {
+    return egressLocationLabel(
+      { id: String(value), countryCode: null, city: null, label: null },
+      language,
+    );
   }
   if (typeof value === 'boolean') return value ? t.scopeOn : t.scopeOff;
   if (Array.isArray(value)) return value.length === 0 ? t.scopeNone : value.join(', ');
   return String(value);
+}
+
+/**
+ * Whether where the two crawls left from can account for part of the difference.
+ *
+ * True when the locations differ, and true when either is unrecorded: "somewhere
+ * unknown" is not evidence of the same place twice, and the earliest scans of this
+ * product left from a server in another country with nothing recording it.
+ */
+function egressMayExplainDifference(current: CrawlScopeFacts, previous: CrawlScopeFacts): boolean {
+  return (
+    current.egressLocation === null ||
+    previous.egressLocation === null ||
+    current.egressLocation !== previous.egressLocation
+  );
 }
 
 /**
@@ -202,25 +234,40 @@ function ScopeChanges(props: {
     'userAgent',
     'egressLocation',
   ];
+  const language = props.language;
   const changed = fields.filter(
     (field) =>
-      scopeValue(field, props.current[field], t) !== scopeValue(field, props.previous[field], t),
+      scopeValue(field, props.current[field], t, language) !==
+      scopeValue(field, props.previous[field], t, language),
   );
-  if (changed.length === 0) return null;
+  // The note is not tied to the list: two crawls can differ in a setting this
+  // list does not name (the API checks), and an egress nobody recorded on either
+  // side is a reason to warn even when the two spell it the same way.
+  const egressNote = egressMayExplainDifference(props.current, props.previous);
+  if (changed.length === 0 && !egressNote) return null;
   return (
     <>
-      <h5>{t.scopeChangedHeading}</h5>
-      <ul className="comparison-scope">
-        {changed.map((field) => (
-          <li key={field}>
-            {fillCopy(t.scopeChangedRow, {
-              field: t.scopeField[field],
-              previous: scopeValue(field, props.previous[field], t),
-              current: scopeValue(field, props.current[field], t),
-            })}
-          </li>
-        ))}
-      </ul>
+      {changed.length === 0 ? null : (
+        <>
+          <h5>{t.scopeChangedHeading}</h5>
+          <ul className="comparison-scope">
+            {changed.map((field) => (
+              <li key={field}>
+                {fillCopy(t.scopeChangedRow, {
+                  field: t.scopeField[field],
+                  previous: scopeValue(field, props.previous[field], t, language),
+                  current: scopeValue(field, props.current[field], t, language),
+                })}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {egressNote ? (
+        <p className="muted" role="note">
+          {t.scopeEgressNote}
+        </p>
+      ) : null}
     </>
   );
 }
