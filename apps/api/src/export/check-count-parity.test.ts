@@ -75,9 +75,12 @@ describe('the SEO check count the public pages promise', () => {
       /(\d+) SEO-перевірк[а-яіїєґ']+, готовність до AI-краулерів/g,
       /Повний SEO-аналіз — (\d+) перевірк[а-яіїєґ']*/g,
     ]);
-    // Two of the eight phrases appear twice (the package list and its short
-    // form), so the count is what matters here, not the exact tally.
-    expect(counts.length).toBeGreaterThanOrEqual(8);
+    // Pinned exactly, not as a floor: a reworded sentence stops matching its
+    // pattern, and a floor would let that pass while the guard on it quietly
+    // disappeared. Ten, because the package description and its short form
+    // repeat the same phrase in each language. If this fails after a copy edit,
+    // the phrase moved — update the pattern, do not lower the number.
+    expect(counts).toHaveLength(10);
     expect([...new Set(counts)]).toEqual([expected]);
   });
 
