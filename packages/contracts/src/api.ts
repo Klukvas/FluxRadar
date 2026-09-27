@@ -372,6 +372,14 @@ export const PAGE_COMPARISON_REASONS = [
   'page-evidence-missing',
   'page-evidence-unreadable',
   'page-evidence-empty',
+  /**
+   * One scan named its pages by document and the other could not.
+   *
+   * Diffing the two under the weaker name would collapse redirect aliases on one
+   * side only, so every alias of the other side would read as a page that
+   * appeared or went. The census is refused instead of being drawn wrong.
+   */
+  'page-identity-mismatch',
   /** The two scans do not compare at all; the verdict above says why. */
   'scans-not-comparable',
 ] as const;
@@ -392,6 +400,16 @@ export type PageIdentityKind = (typeof PAGE_IDENTITY_KINDS)[number];
 
 /** At most this many addresses or findings are listed per sample. */
 export const COMPARISON_SAMPLE_LIMIT = 20;
+
+/**
+ * The one verdict shape every section of the comparison repeats.
+ *
+ * Declared here rather than in each consumer: the server's verdict builder and
+ * the web client's mirror were two independent copies of it, and a shape this
+ * small is exactly the kind that drifts unnoticed.
+ */
+export type Comparability<Reason extends string> =
+  { readonly ok: true } | { readonly ok: false; readonly reason: Reason };
 
 const comparabilitySchema = <Reason extends string>(reasons: readonly [Reason, ...Reason[]]) =>
   z.union([
@@ -447,6 +465,16 @@ export const comparedScanSchema = z.object({
   urlsDiscovered: z.number().int().min(0).nullable(),
   urlsOverLimit: z.number().int().min(0).nullable(),
   scope: crawlScopeFactsSchema,
+  /**
+   * Whether this scan's own report is still the account's to open.
+   *
+   * Always true for `current` — the endpoint refuses a report the account may
+   * not read at all. It is `previous` that can be false: a purchase that was
+   * reversed, suspended or expired does not un-observe what the run found, so
+   * the comparison is still drawn against it, but the report behind it may not
+   * be linked to. The panel uses this for exactly that one decision.
+   */
+  readable: z.boolean(),
 });
 export type ComparedScan = z.infer<typeof comparedScanSchema>;
 
@@ -474,14 +502,29 @@ export const pageComparisonSchema = z.object({
 export type PageComparison = z.infer<typeof pageComparisonSchema>;
 
 const issueCountsSchema = z.object({
-  /** Fingerprint present now, absent from the previous scan. */
+  /**
+   * Fingerprint present now, absent from the previous scan, under a rule that
+   * BOTH scans ran. A finding under a rule the previous scan never ran is not
+   * news about the site — it is news about the product — and is counted in
+   * `firstChecked` instead.
+   */
   new: z.number().int().min(0),
   /** Findings of the previous scan this run closed (§14 Resolved policy). */
   resolved: z.number().int().min(0),
-  /** Closed by an earlier scan of the plan and back — a subset of `new`. */
+  /** Closed by an earlier scan of the plan and back — a subset of what is absent
+      from the previous scan, so of `new` and `firstChecked` together. */
   reopened: z.number().int().min(0),
-  /** Fingerprint present in both scans. */
+  /** Present in both scans, and still asking the owner for work. */
   stillOpen: z.number().int().min(0),
+  /**
+   * Present in both scans, and settled by the owner: Ignored or False Positive
+   * (and Resolved, where a later scan has already closed it).
+   *
+   * Split out of `stillOpen` so the two numbers add up to "present in both" and
+   * neither overstates the work left: a finding the owner marked a false
+   * positive is not an open problem the report may keep counting.
+   */
+  settled: z.number().int().min(0),
 });
 
 export const issueSampleSchema = z.object({
@@ -493,11 +536,44 @@ export const issueSampleSchema = z.object({
 });
 export type IssueSample = z.infer<typeof issueSampleSchema>;
 
+/**
+ * Findings under rules the previous scan never ran.
+ *
+ * The ruleset grows between two scans of a site, and it grows without moving
+ * `RULESET_VERSION`: six page rules shipped in one week under the same version
+ * string. Counted by fingerprint alone, every finding of a newly shipped rule is
+ * "new" — the report would tell an owner who changed nothing that they had
+ * introduced forty problems. What the stored re-check proof knows, and a version
+ * string does not, is which rules actually ran in each scan, so these findings
+ * are named for what they are: checked here for the first time.
+ *
+ * They are real findings and the Issue Center lists them; they are simply not a
+ * difference between the two readings of the site.
+ */
+export const firstCheckedSchema = z.object({
+  count: z.number().int().min(0),
+  byModule: z.array(z.object({ module: z.string(), count: z.number().int().min(0) })),
+  bySeverity: z.array(z.object({ severity: z.string(), count: z.number().int().min(0) })),
+  /** The rules that ran here and not in the previous scan, sorted by id. */
+  ruleIds: z.array(z.string()),
+  sample: z.array(issueSampleSchema).max(COMPARISON_SAMPLE_LIMIT),
+});
+export type FirstCheckedFindings = z.infer<typeof firstCheckedSchema>;
+
 export const issueComparisonSchema = issueCountsSchema.extend({
   byModule: z.array(issueCountsSchema.extend({ module: z.string() })),
   bySeverity: z.array(issueCountsSchema.extend({ severity: z.string() })),
   newSample: z.array(issueSampleSchema).max(COMPARISON_SAMPLE_LIMIT),
   resolvedSample: z.array(issueSampleSchema).max(COMPARISON_SAMPLE_LIMIT),
+  firstChecked: firstCheckedSchema,
+  /**
+   * Rules the previous scan ran and this one did not — the other half of the
+   * same honesty. No findings: a rule that did not run found nothing, and
+   * whatever it had found before is absent for that reason and not because it
+   * was fixed. The §14 Resolved policy already refuses to close those findings;
+   * this is the report saying so out loud.
+   */
+  noLongerChecked: z.array(z.string()),
 });
 export type IssueComparison = z.infer<typeof issueComparisonSchema>;
 

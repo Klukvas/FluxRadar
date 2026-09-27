@@ -23,6 +23,7 @@ import {
   MODULE_NAMES,
   isModuleName,
   parseCrawlSummary,
+  type Comparability,
   type ComparisonIncomparableReason,
   type CrawlScopeFacts,
   type CrawlSummary,
@@ -33,10 +34,6 @@ import {
 import type { Scan } from '@prisma/client';
 
 import { sameCrawlScope } from './scope-facts.ts';
-
-/** The one verdict shape every section of the response repeats. */
-export type Comparability<Reason extends string> =
-  { readonly ok: true } | { readonly ok: false; readonly reason: Reason };
 
 /** A module row, in the only fields a comparison reads. */
 export interface ComparedModule {

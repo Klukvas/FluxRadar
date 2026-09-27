@@ -44,6 +44,7 @@ function comparison(): ScanComparison {
       urlsDiscovered: 120,
       urlsOverLimit: 0,
       scope: scopeFacts(),
+      readable: true,
     },
     previous: {
       id: 'scan-1',
@@ -54,6 +55,7 @@ function comparison(): ScanComparison {
       urlsDiscovered: 118,
       urlsOverLimit: 0,
       scope: scopeFacts(),
+      readable: true,
     },
     comparable: { ok: true },
     overall: { previousScore: 71.5, currentScore: 80, delta: 8.5 },
@@ -89,8 +91,11 @@ function comparison(): ScanComparison {
       resolved: 4,
       reopened: 1,
       stillOpen: 9,
-      byModule: [{ module: 'SEO', new: 2, resolved: 4, reopened: 1, stillOpen: 9 }],
-      bySeverity: [{ severity: 'High', new: 2, resolved: 4, reopened: 1, stillOpen: 9 }],
+      settled: 1,
+      byModule: [{ module: 'SEO', new: 2, resolved: 4, reopened: 1, stillOpen: 9, settled: 1 }],
+      bySeverity: [
+        { severity: 'High', new: 2, resolved: 4, reopened: 1, stillOpen: 9, settled: 1 },
+      ],
       newSample: [
         {
           fingerprint: 'fp-new',
@@ -109,6 +114,22 @@ function comparison(): ScanComparison {
           normalizedUrl: 'https://example.com/old',
         },
       ],
+      firstChecked: {
+        count: 1,
+        byModule: [{ module: 'SEO', count: 1 }],
+        bySeverity: [{ severity: 'High', count: 1 }],
+        ruleIds: ['SEO-TECH-011'],
+        sample: [
+          {
+            fingerprint: 'fp-first',
+            ruleId: 'SEO-TECH-011',
+            module: 'SEO',
+            severity: 'High',
+            normalizedUrl: 'https://example.com/deep',
+          },
+        ],
+      },
+      noLongerChecked: ['SEO-TECH-009'],
     },
   };
 }
@@ -143,10 +164,13 @@ describe('scanComparisonSchema', () => {
         resolved: 0,
         reopened: 0,
         stillOpen: 0,
+        settled: 0,
         byModule: [],
         bySeverity: [],
         newSample: [],
         resolvedSample: [],
+        firstChecked: { count: 0, byModule: [], bySeverity: [], ruleIds: [], sample: [] },
+        noLongerChecked: [],
       },
     };
     expect(scanComparisonSchema.parse(JSON.parse(JSON.stringify(first)))).toEqual(first);
@@ -208,5 +232,41 @@ describe('scanComparisonSchema', () => {
   it('refuses a module the product does not have', () => {
     const modules = [{ ...comparison().modules[0], module: 'Astrology' }];
     expect(scanComparisonSchema.safeParse({ ...comparison(), modules }).success).toBe(false);
+  });
+
+  it('carries a previous scan whose report is no longer readable', () => {
+    // A reversed payment does not un-observe what that run found, so it stays
+    // the baseline; the flag is what tells the panel not to link to it.
+    const base = comparison();
+    const value: ScanComparison = {
+      ...base,
+      previous: { ...base.previous!, readable: false },
+    };
+    expect(scanComparisonSchema.parse(JSON.parse(JSON.stringify(value))).previous?.readable).toBe(
+      false,
+    );
+  });
+
+  it('refuses a comparison that forgot to say whether a scan is readable', () => {
+    const base = comparison();
+    const withoutFlag: Record<string, unknown> = { ...base.current };
+    delete withoutFlag.readable;
+    expect(scanComparisonSchema.safeParse({ ...base, current: withoutFlag }).success).toBe(false);
+  });
+
+  it('bounds the first-checked sample by the same limit as the others', () => {
+    const base = comparison();
+    const firstChecked = {
+      ...base.issues.firstChecked,
+      sample: Array.from({ length: COMPARISON_SAMPLE_LIMIT + 1 }, (_unused, index) => ({
+        fingerprint: `fp-${index}`,
+        ruleId: 'SEO-TECH-011',
+        module: 'SEO',
+        severity: 'High',
+        normalizedUrl: `https://example.com/${index}`,
+      })),
+    };
+    const issues = { ...base.issues, firstChecked };
+    expect(scanComparisonSchema.safeParse({ ...base, issues }).success).toBe(false);
   });
 });

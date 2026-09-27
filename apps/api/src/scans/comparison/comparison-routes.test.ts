@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { COMPARISON_SAMPLE_LIMIT, scanComparisonSchema } from '@fluxradar/contracts';
 
 import { createApp } from '../../index.ts';
+import { PURCHASE_STATUSES } from '../../billing/constants.ts';
 import { silentLogger } from '../../http/logger.ts';
 import {
   COMPARISON_NOW,
@@ -72,6 +73,16 @@ describe('comparing a report with the previous scan', () => {
     return scanId;
   }
 
+  /** Reverses the purchase behind a scan, as a chargeback webhook would. */
+  async function refund(scanId: string): Promise<void> {
+    const scan = await db.prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
+    if (scan.purchaseId === null) throw new Error(`scan ${scanId} was not bought`);
+    await db.prisma.purchase.update({
+      where: { id: scan.purchaseId },
+      data: { status: PURCHASE_STATUSES.refunded },
+    });
+  }
+
   async function comparison(owner: Awaited<ReturnType<typeof signUp>>, scanId: string) {
     const response = await owner.agent
       .get(`/scans/${scanId}/comparison`)
@@ -127,6 +138,9 @@ describe('comparing a report with the previous scan', () => {
     expect(parsed.previous).toBeNull();
   });
 
+  /** When the earlier of a pair finished: the previous scan is the earlier one. */
+  const EARLIER_COMPLETED_AT = new Date('2026-09-06T12:00:00.000Z');
+
   /** Two finished Complete scans of one site, the second compared with the first. */
   async function twoScans(
     owner: Awaited<ReturnType<typeof signUp>>,
@@ -134,7 +148,10 @@ describe('comparing a report with the previous scan', () => {
     second: Parameters<typeof finishScan>[2] = {},
   ) {
     const firstId = await buy(owner.profileId);
-    await finishScan(db.prisma, firstId, first);
+    // Stated rather than left to the id tie-break: "the previous scan" is
+    // ordered by when a scan COMPLETED, and a fixture pair that finishes in the
+    // same millisecond is pinning the tie-break instead of the rule.
+    await finishScan(db.prisma, firstId, { completedAt: EARLIER_COMPLETED_AT, ...first });
     const secondId = await buy(owner.profileId);
     await finishScan(db.prisma, secondId, second);
     return { firstId, secondId };
@@ -300,13 +317,13 @@ describe('comparing a report with the previous scan', () => {
     // Sections in the tariff table's order, not alphabetically: SEO is the first
     // section of a Complete report and reads as the first row of this table too.
     expect(parsed.issues.byModule).toEqual([
-      { module: 'SEO', new: 2, resolved: 1, reopened: 1, stillOpen: 1 },
-      { module: 'Security', new: 0, resolved: 1, reopened: 0, stillOpen: 0 },
+      { module: 'SEO', new: 2, resolved: 1, reopened: 1, stillOpen: 1, settled: 0 },
+      { module: 'Security', new: 0, resolved: 1, reopened: 0, stillOpen: 0, settled: 0 },
     ]);
     expect(parsed.issues.bySeverity).toEqual([
-      { severity: 'Critical', new: 0, resolved: 2, reopened: 0, stillOpen: 0 },
-      { severity: 'High', new: 2, resolved: 0, reopened: 1, stillOpen: 0 },
-      { severity: 'Medium', new: 0, resolved: 0, reopened: 0, stillOpen: 1 },
+      { severity: 'Critical', new: 0, resolved: 2, reopened: 0, stillOpen: 0, settled: 0 },
+      { severity: 'High', new: 2, resolved: 0, reopened: 1, stillOpen: 0, settled: 0 },
+      { severity: 'Medium', new: 0, resolved: 0, reopened: 0, stillOpen: 1, settled: 0 },
     ]);
     expect(parsed.issues.newSample.map((issue) => issue.fingerprint)).toEqual([
       'back-again',
@@ -457,6 +474,167 @@ describe('comparing a report with the previous scan', () => {
     expect(parsed.pages.comparable).toEqual({ ok: false, reason: 'page-evidence-missing' });
     expect(parsed.pages.added).toBe(0);
     expect(parsed.pages.removed).toBe(0);
+  });
+
+  it('holds findings of a rule the previous scan never ran apart from the new ones', async () => {
+    // The ruleset grows between two scans of a site, and it grows without moving
+    // RULESET_VERSION. Counted by fingerprint alone, every finding of a rule that
+    // shipped in between is "new" — and an owner who changed nothing is told they
+    // introduced ten problems. The stored proof knows which rules ran.
+    const app = makeApp();
+    const owner = await signUp(app, 'first-checked@example.com');
+    const site = 'https://first-checked.example.com';
+    const shipped = Array.from({ length: 10 }, (_unused, index) => ({
+      fingerprint: `deep-${String(index).padStart(2, '0')}`,
+      ruleId: 'SEO-TECH-011',
+      normalizedUrl: `${site}/deep/${index}`,
+    }));
+    const { secondId } = await twoScans(
+      owner,
+      { proofs: { SEO: [pageRuleCoverage([`${site}/`])] } },
+      {
+        findings: [...shipped, { fingerprint: 'genuinely-new' }],
+        proofs: {
+          SEO: [
+            pageRuleCoverage([`${site}/`]),
+            { ruleId: 'SEO-TECH-011', checkedTargets: [`${site}/`] },
+          ],
+        },
+      },
+    );
+
+    const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
+
+    expect(parsed.comparable).toEqual({ ok: true });
+    expect(parsed.issues.new).toBe(1);
+    expect(parsed.issues.firstChecked.count).toBe(10);
+    expect(parsed.issues.firstChecked.ruleIds).toEqual(['SEO-TECH-011']);
+    expect(parsed.issues.firstChecked.byModule).toEqual([{ module: 'SEO', count: 10 }]);
+    expect(parsed.issues.firstChecked.sample).toHaveLength(10);
+    expect(parsed.issues.newSample.map((issue) => issue.fingerprint)).toEqual(['genuinely-new']);
+    expect(parsed.issues.byModule).toEqual([
+      { module: 'SEO', new: 1, resolved: 0, reopened: 0, stillOpen: 0, settled: 0 },
+    ]);
+  });
+
+  it('names a rule the previous scan ran and this one did not, without calling it a fix', async () => {
+    const app = makeApp();
+    const owner = await signUp(app, 'no-longer-checked@example.com');
+    const site = 'https://no-longer-checked.example.com';
+    const { secondId } = await twoScans(
+      owner,
+      {
+        proofs: {
+          SEO: [
+            pageRuleCoverage([`${site}/`]),
+            { ruleId: 'SEO-TECH-011', checkedTargets: [`${site}/`] },
+          ],
+        },
+      },
+      { proofs: { SEO: [pageRuleCoverage([`${site}/`])] } },
+    );
+
+    const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
+
+    expect(parsed.issues.noLongerChecked).toEqual(['SEO-TECH-011']);
+    expect(parsed.issues.firstChecked.count).toBe(0);
+  });
+
+  it('draws no first-checked conclusion when one scan kept no proof of what it checked', async () => {
+    // "No stored proof" is not "no rule ran": treating it as such would move
+    // every finding of the other scan into the first-checked bucket.
+    const app = makeApp();
+    const owner = await signUp(app, 'coverage-unknown@example.com');
+    const { secondId } = await twoScans(
+      owner,
+      {},
+      { findings: [{ fingerprint: 'fresh', ruleId: 'SEO-TECH-011' }] },
+    );
+
+    const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
+
+    expect(parsed.issues.new).toBe(1);
+    expect(parsed.issues.firstChecked.count).toBe(0);
+    expect(parsed.issues.noLongerChecked).toEqual([]);
+  });
+
+  it('counts a finding the owner marked a false positive as settled, not as still open', async () => {
+    // "Present in both scans" is not "still asking for work": the Issue Center
+    // treats Ignored and False Positive as settled, and a panel that folded them
+    // into "still open" would keep billing the owner for a decision they made.
+    const app = makeApp();
+    const owner = await signUp(app, 'settled@example.com');
+    const { secondId } = await twoScans(
+      owner,
+      {
+        findings: [
+          { fingerprint: 'wrong-call' },
+          { fingerprint: 'ignored-by-owner' },
+          { fingerprint: 'real' },
+        ],
+      },
+      {
+        findings: [
+          { fingerprint: 'wrong-call', status: 'False Positive' },
+          { fingerprint: 'ignored-by-owner', status: 'Ignored' },
+          { fingerprint: 'real', status: 'Acknowledged' },
+        ],
+      },
+    );
+
+    const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
+
+    expect(parsed.issues.stillOpen).toBe(1);
+    expect(parsed.issues.settled).toBe(2);
+    // The two still add up to "present in both scans", so nothing is lost.
+    expect(parsed.issues.new).toBe(0);
+    expect(parsed.issues.byModule).toEqual([
+      { module: 'SEO', new: 0, resolved: 0, reopened: 0, stillOpen: 1, settled: 2 },
+    ]);
+  });
+
+  it('compares against a previous report whose payment was reversed, and does not offer it', async () => {
+    // The Resolved statuses of this report were written against that run, so it
+    // is the only honest baseline. What the refund takes away is the right to
+    // OPEN it, which is a separate flag the panel uses for the link alone.
+    const app = makeApp();
+    const owner = await signUp(app, 'refunded-previous@example.com');
+    const { firstId, secondId } = await twoScans(owner);
+    await refund(firstId);
+
+    const parsed = scanComparisonSchema.parse((await comparison(owner, secondId)).body.data);
+
+    expect(parsed.previous?.id).toBe(firstId);
+    expect(parsed.previous?.readable).toBe(false);
+    expect(parsed.current.readable).toBe(true);
+    expect(parsed.comparable).toEqual({ ok: true });
+  });
+
+  it('still compares when the last five reports of the plan were all refunded', async () => {
+    // The older read looked through a fixed five candidates for a readable one
+    // and gave up, so a profile with five reversed purchases was told it had no
+    // previous scan at all. There is no candidate limit any more: the previous
+    // scan is the previous scan.
+    const app = makeApp();
+    const owner = await signUp(app, 'five-refunded@example.com');
+    let day = 1;
+    let latest = '';
+    for (let index = 0; index < 5; index += 1) {
+      latest = await buy(owner.profileId);
+      await finishScan(db.prisma, latest, {
+        completedAt: new Date(`2026-09-0${String(day)}T12:00:00.000Z`),
+      });
+      await refund(latest);
+      day += 1;
+    }
+    const current = await buy(owner.profileId);
+    await finishScan(db.prisma, current);
+
+    const parsed = scanComparisonSchema.parse((await comparison(owner, current)).body.data);
+
+    expect(parsed.comparable).toEqual({ ok: true });
+    expect(parsed.previous?.id).toBe(latest);
+    expect(parsed.previous?.readable).toBe(false);
   });
 
   it('does not hand one account another account’s comparison', async () => {

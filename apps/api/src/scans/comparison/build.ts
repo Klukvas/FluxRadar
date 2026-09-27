@@ -8,8 +8,12 @@
 // a delta that the server declined to stand behind.
 //
 // The previous scan is NOT chosen here: it is the §14 selection shared with the
-// Resolved/Reopened pass and the report's "since last scan" read
-// (scans/previous-scan.ts).
+// Resolved/Reopened pass (scans/previous-scan.ts), taken exactly as that pass
+// takes it — including a previous report whose payment was reversed. Skipping
+// such a scan here would compare against a DIFFERENT run from the one the
+// Resolved statuses were written against, and the panel would then show
+// "resolved" counts drawn from one baseline beside a page diff drawn from
+// another. Whether that report may still be opened is a separate flag on it.
 
 import { computeOverallScore } from '@fluxradar/scoring';
 import {
@@ -22,9 +26,10 @@ import {
 import type { PrismaClient, Scan } from '@prisma/client';
 
 import type { ApiLogger } from '../../http/logger.ts';
-import { findPreviousReadableScan, hasEarlierScanOfAnotherPlan } from '../previous-scan.ts';
+import { findPreviousScanRead, hasEarlierScanOfAnotherPlan } from '../previous-scan.ts';
+import { readCoverageEvidence } from './coverage-evidence.ts';
 import { compareIssues, NO_ISSUE_COMPARISON } from './issue-diff.ts';
-import { diffPages, pageSetsFor, readPageCensus, type PageCensus } from './page-census.ts';
+import { diffPages, pageSetsFor, type PageCensus } from './page-census.ts';
 import { crawlScopeFactsOf } from './scope-facts.ts';
 import {
   comparisonSideOf,
@@ -52,7 +57,7 @@ async function sideOf(prisma: PrismaClient, scan: Scan): Promise<ComparisonSide>
   return comparisonSideOf(scan, modules, crawlScopeFactsOf(scan));
 }
 
-function identityOf(side: ComparisonSide): ComparedScan {
+function identityOf(side: ComparisonSide, readable: boolean): ComparedScan {
   return {
     id: side.scan.id,
     plan: parsePlan(side.scan.plan),
@@ -62,6 +67,7 @@ function identityOf(side: ComparisonSide): ComparedScan {
     urlsDiscovered: side.summary?.urlsDiscovered ?? null,
     urlsOverLimit: side.summary?.urlsOverLimit ?? null,
     scope: side.scope,
+    readable,
   };
 }
 
@@ -91,7 +97,11 @@ function comparePages(current: PageCensus, previous: PageCensus): PageComparison
   if (problem !== null) {
     return { ...NO_PAGE_COMPARISON, comparable: { ok: false, reason: problem } };
   }
-  const sets = pageSetsFor(current, previous);
+  const read = pageSetsFor(current, previous);
+  if (read.sets === null) {
+    return { ...NO_PAGE_COMPARISON, comparable: { ok: false, reason: read.problem } };
+  }
+  const sets = read.sets;
   const diff = diffPages(sets);
   return {
     comparable: { ok: true },
@@ -118,19 +128,25 @@ export async function buildScanComparison(
 ): Promise<ScanComparison> {
   const { prisma } = deps;
   const current = await sideOf(prisma, scan);
-  const previousScan = await findPreviousReadableScan(prisma, scan);
-  const previous = previousScan === null ? null : await sideOf(prisma, previousScan);
+  // The §14 scan itself, not the latest one that is still readable: the Resolved
+  // statuses this comparison reports were written against THIS run, and drawing
+  // the comparison against a different one would make the two halves of the
+  // report disagree. A refunded previous report is compared against and simply
+  // not linked to (`previous.readable`).
+  const previousRead = await findPreviousScanRead(prisma, scan);
+  const previous = previousRead === null ? null : await sideOf(prisma, previousRead.scan);
   const verdict = comparisonVerdict({
     current,
     previous,
     earlierOtherPlan:
-      previousScan !== null ? false : await hasEarlierScanOfAnotherPlan(prisma, scan),
+      previousRead !== null ? false : await hasEarlierScanOfAnotherPlan(prisma, scan),
   });
   const currentScore = overallScoreOf(current);
   const previousScore = previous === null ? null : overallScoreOf(previous);
   const identity = {
-    current: identityOf(current),
-    previous: previous === null ? null : identityOf(previous),
+    // The route has already refused a current report this account may not read.
+    current: identityOf(current, true),
+    previous: previous === null ? null : identityOf(previous, previousRead?.readable ?? false),
   };
   if (!verdict.ok || previous === null) {
     return {
@@ -145,14 +161,15 @@ export async function buildScanComparison(
   const onProblem = (detail: { scanId: string; module: string; problem: string }): void => {
     deps.logger?.warn('scan comparison could not read a re-check proof', detail);
   };
-  const [currentPages, previousPages, issues] = await Promise.all([
-    readPageCensus(prisma, current.scan.id, onProblem),
-    readPageCensus(prisma, previous.scan.id, onProblem),
-    compareIssues(prisma, {
-      currentScanId: current.scan.id,
-      previousScanId: previous.scan.id,
-    }),
+  const [currentEvidence, previousEvidence] = await Promise.all([
+    readCoverageEvidence(prisma, current.scan.id, onProblem),
+    readCoverageEvidence(prisma, previous.scan.id, onProblem),
   ]);
+  const issues = await compareIssues(
+    prisma,
+    { currentScanId: current.scan.id, previousScanId: previous.scan.id },
+    { current: currentEvidence.checkedRules, previous: previousEvidence.checkedRules },
+  );
   return {
     ...identity,
     comparable: verdict,
@@ -165,7 +182,7 @@ export async function buildScanComparison(
           : round2(currentScore - previousScore),
     },
     modules: [...moduleScoreDeltas(current.modules, previous.modules)],
-    pages: comparePages(currentPages, previousPages),
+    pages: comparePages(currentEvidence.census, previousEvidence.census),
     issues,
   };
 }

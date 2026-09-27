@@ -144,6 +144,33 @@ describe('the comparison verdict', () => {
       reason: 'crawl-not-recorded',
     });
   });
+
+  it('names a previous scan that produced nothing before this scan stopping early', () => {
+    // Both hold. "The previous scan produced nothing usable" is about the pair
+    // and cannot be fixed by re-running this one; "this scan stopped early" asks
+    // the owner to do exactly that. Naming the second first sends them to retry
+    // a run that would still have nothing to be compared with.
+    const previous = side({}, [completed({ usableOutput: false, score: null })]);
+    const current = side({ status: 'Partial' });
+    expect(comparisonVerdict({ current, previous, earlierOtherPlan: false })).toEqual({
+      ok: false,
+      reason: 'previous-not-usable',
+    });
+  });
+
+  it('names the changed scope before the crawl one of them never recorded', () => {
+    // A scan older than `Scan.crawlSummaryJson` compared with a rescoped one:
+    // the setting the owner changed is the one they can act on, and the missing
+    // record is a fact about an old run that no action reaches.
+    const previous = side({
+      scopeJson: JSON.stringify({ ...SCOPE, maxPages: 50 }),
+      crawlSummaryJson: null,
+    });
+    expect(comparisonVerdict({ current: side(), previous, earlierOtherPlan: false })).toEqual({
+      ok: false,
+      reason: 'scope-changed',
+    });
+  });
 });
 
 describe('what counts as the same crawl scope', () => {
