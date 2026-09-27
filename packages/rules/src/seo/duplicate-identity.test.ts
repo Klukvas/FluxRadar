@@ -307,8 +307,13 @@ describe('canonical на адрес, снимка которого у обход
         (candidate) => candidate.normalizedUrl === url('/copy.html'),
       ),
     );
+    // Canonical у копии ЕСТЬ, и указывает он на /a: сказать «canonical не
+    // связывает эту страницу ни с одной из них» значило бы соврать о теге.
+    // Правда в другом — заявление кончилось на адресе, снимка которого нет.
+    expect(finding.messages?.evidence.code).toBe('seo-onpage-004.evidence.unresolved-chain');
     expect(finding.evidenceExcerpt).toContain(
-      'No <link rel="canonical"> ties this page to any of them, as crawled.',
+      'This page has a <link rel="canonical">, but the chain it starts leaves these pages or ' +
+        'loops back and names no final version among them, as crawled.',
     );
     expect(finding.evidenceExcerpt).toContain(url('/a/'));
     const evidence = finding.messages?.evidence;

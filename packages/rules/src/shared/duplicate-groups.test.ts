@@ -5,8 +5,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { siteContext } from '../testing/fixture-harness.js';
-import { url } from '../testing/link-fixtures.js';
+import { runSeoRule, siteContext } from '../testing/fixture-harness.js';
+import { paths, url } from '../testing/link-fixtures.js';
 import {
   duplicateIndex,
   duplicateValueOf,
@@ -164,10 +164,12 @@ describe('canonical — это ответ сайта, а не нарушение
     expect(unclaimedDuplicatesOf(built, url('/a.html'))).toEqual({
       count: 1,
       listed: [url('/b.html')],
+      reason: 'no-canonical',
     });
     expect(unclaimedDuplicatesOf(built, url('/b.html'))).toEqual({
       count: 1,
       listed: [url('/a.html')],
+      reason: 'no-canonical',
     });
   });
 
@@ -176,13 +178,17 @@ describe('canonical — это ответ сайта, а не нарушение
       pageWith({ path: '/a.html', title: 'Shared title', canonical: url('/elsewhere.html') }),
       pageWith({ path: '/b.html', title: 'Shared title' }),
     ]);
+    // /a назвала настоящей чужую страницу: её цепочка кончилась вне группы, и
+    // причина у находки другая, чем у /b, которая не назвала никого.
     expect(unclaimedDuplicatesOf(built, url('/a.html'))).toEqual({
       count: 1,
       listed: [url('/b.html')],
+      reason: 'unresolved-chain',
     });
     expect(unclaimedDuplicatesOf(built, url('/b.html'))).toEqual({
       count: 1,
       listed: [url('/a.html')],
+      reason: 'no-canonical',
     });
   });
 
@@ -215,6 +221,7 @@ describe('canonical — это ответ сайта, а не нарушение
     expect(unclaimedDuplicatesOf(built, url('/b.html'))).toEqual({
       count: 2,
       listed: [url('/a.html'), url('/c.html')],
+      reason: 'no-canonical',
     });
   });
 });
@@ -229,6 +236,10 @@ describe('топология canonical: заявление должно чем-�
 
   const reported = (built: ReturnType<typeof index>, path: string) =>
     unclaimedDuplicatesOf(built, url(path)) !== null;
+
+  /** Причина находки: её evidence называет другим предложением, чем «canonical-а нет». */
+  const reasonOf = (built: ReturnType<typeof index>, path: string) =>
+    unclaimedDuplicatesOf(built, url(path))?.reason ?? null;
 
   it('названная страница сама указывает наружу группы — говорят обе', () => {
     // /b назвала настоящей /a, а /a говорит, что настоящая не она: настоящей не
@@ -249,6 +260,10 @@ describe('топология canonical: заявление должно чем-�
     ]);
     expect(reported(built, '/a.html')).toBe(true);
     expect(reported(built, '/b.html')).toBe(true);
+    // Обе назвали canonical-ом партнёра по группе: «canonical не связывает эту
+    // страницу ни с одной из них» было бы о них ложью, и причина это различает.
+    expect(reasonOf(built, '/a.html')).toBe('unresolved-chain');
+    expect(reasonOf(built, '/b.html')).toBe('unresolved-chain');
   });
 
   it('цепочка c → b → a с canonical на себя у a — молчат все три', () => {
@@ -273,6 +288,11 @@ describe('топология canonical: заявление должно чем-�
     expect(reported(built, '/a.html')).toBe(true);
     expect(reported(built, '/b.html')).toBe(true);
     expect(reported(built, '/c.html')).toBe(true);
+    // Каждая из трёх кого-то назвала — и ни одна не назвала того, на ком
+    // цепочка кончается внутри группы.
+    expect(reasonOf(built, '/a.html')).toBe('unresolved-chain');
+    expect(reasonOf(built, '/b.html')).toBe('unresolved-chain');
+    expect(reasonOf(built, '/c.html')).toBe('unresolved-chain');
   });
 
   it('страница, ведущая в петлю, находку тоже получает', () => {
@@ -283,6 +303,30 @@ describe('топология canonical: заявление должно чем-�
     ]);
     // /c назвала настоящей /a, но /a своей настоящей версии так и не нашла.
     expect(reported(built, '/c.html')).toBe(true);
+    expect(reasonOf(built, '/c.html')).toBe('unresolved-chain');
+  });
+
+  it('canonical со схемой, которая не адрес, — это «canonical-а нет»', () => {
+    // mailto: и javascript: нормализация адресов v1 не покрывает (D-113): у /a
+    // канонической версии не объявлено вовсе, поэтому её цепочка кончается на
+    // ней самой, а /b, назвавшая её, заявление о дубле довела до конца — молчат
+    // обе. Сам мусор в href не теряется: его называет SEO-TECH-004, и делать о
+    // том же теге второй вердикт здесь значило бы показать одну ошибку дважды.
+    for (const scheme of ['mailto:owner@site.test', 'javascript:void(0)']) {
+      const built = index([
+        pageWith({ path: '/a.html', title: 'Shared title', canonical: scheme }),
+        pageWith({ path: '/b.html', title: 'Shared title', canonical: url('/a.html') }),
+      ]);
+      expect(reported(built, '/a.html')).toBe(false);
+      expect(reported(built, '/b.html')).toBe(false);
+    }
+    const junk = siteContext({
+      pages: [
+        pageWith({ path: '/a.html', title: 'Shared title', canonical: 'mailto:owner@site.test' }),
+        pageWith({ path: '/b.html', title: 'Shared title', canonical: url('/a.html') }),
+      ],
+    });
+    expect(paths(runSeoRule('SEO-TECH-004', junk))).toEqual(['/a.html']);
   });
 
   it('canonical на непрочитанный адрес члена группы — заявление наружу', () => {
@@ -382,6 +426,7 @@ describe('ограниченный список партнёров', () => {
     expect(unclaimedDuplicatesOf(duplicateIndex(ctx, 'title'), url('/a.html'))).toEqual({
       count: 3,
       listed: [url('/b.html'), url('/c.html'), url('/d.html')],
+      reason: 'no-canonical',
     });
   });
 

@@ -124,7 +124,7 @@ describe('CONTENT-001 — дубль содержимого страницы', (
     const finding = single(
       runContent001(ctx).filter((candidate) => candidate.normalizedUrl === url('/a.html')),
     );
-    expect(finding.messages?.evidence.code).toBe('content-001.evidence');
+    expect(finding.messages?.evidence.code).toBe('content-001.evidence.no-canonical');
     expect(finding.messages?.recommendation.code).toBe('content-001.recommendation');
     const messages = finding.messages;
     if (messages === undefined) return;
@@ -132,6 +132,35 @@ describe('CONTENT-001 — дубль содержимого страницы', (
     // называет перевод, — иначе читатель получил бы шаблон с дырой.
     expect(renderFindingMessage(messages.evidence, 'uk')).toContain(url('/b.html'));
     expect(renderFindingMessage(messages.recommendation, 'uk')).not.toBeNull();
+  });
+
+  it('петля canonical-ов: evidence называет причину, а не отсутствие canonical-а', () => {
+    // Тот же второй абзац, что у дублей title и description: причина общая
+    // (UnclaimedReason), и текст о ней у трёх правил совпадает дословно.
+    const ctx = siteContext({
+      pages: [
+        contentPage({ path: '/a.html', canonical: url('/b.html') }),
+        contentPage({ path: '/b.html', canonical: url('/a.html') }),
+      ],
+    });
+    const finding = single(
+      runContent001(ctx).filter((candidate) => candidate.normalizedUrl === url('/a.html')),
+    );
+    expect(finding.messages?.evidence.code).toBe('content-001.evidence.unresolved-chain');
+    expect(finding.evidenceExcerpt).toBe(
+      'Other crawled pages with the same visible text: 1; ' +
+        `at most three are listed here: ${url('/b.html')}. ` +
+        'This page has a <link rel="canonical">, but the chain it starts leaves these pages or ' +
+        'loops back and names no final version among them, as crawled. ' +
+        `The text is ${[...LONG_TEXT].length} characters and begins: ` +
+        `"${[...LONG_TEXT].slice(0, 120).join('')}"`,
+    );
+    const evidence = finding.messages?.evidence;
+    expect(evidence).toBeDefined();
+    if (evidence === undefined) return;
+    expect(renderFindingMessage(evidence, 'uk')).toContain(
+      'але ланцюжок, який вона починає, виходить за межі цих сторінок або замикається в петлю',
+    );
   });
 
   it('canonical на другую страницу группы снимает находку с обоих', () => {

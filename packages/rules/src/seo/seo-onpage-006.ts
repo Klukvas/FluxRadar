@@ -26,16 +26,23 @@ import type { PageSnapshot } from '@fluxradar/crawler';
 import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFindingAt } from '../engine/finding.js';
 import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
-import { findingMessage } from '../messages/index.js';
+import { findingMessage, type FindingMessageCode } from '../messages/index.js';
 import {
   duplicateIndex,
   duplicateValueOf,
   unclaimedDuplicatesOf,
+  type UnclaimedReason,
 } from '../shared/duplicate-groups.js';
 import { duplicateCoverage } from '../shared/duplicate-rule.js';
 import { canonicalAddress } from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-ONPAGE-006');
+
+/** Причина находки → предложение о ней, как у SEO-ONPAGE-004. */
+const EVIDENCE_CODES = {
+  'no-canonical': 'seo-onpage-006.evidence.no-canonical',
+  'unresolved-chain': 'seo-onpage-006.evidence.unresolved-chain',
+} as const satisfies Record<UnclaimedReason, FindingMessageCode>;
 
 export const seoOnpage006DuplicateMetaDescription: PageRule = {
   kind: 'page',
@@ -50,7 +57,7 @@ export const seoOnpage006DuplicateMetaDescription: PageRule = {
     return [
       pageFindingAt(descriptor, address, page, {
         evidenceType: 'dom',
-        evidence: findingMessage('seo-onpage-006.evidence', {
+        evidence: findingMessage(EVIDENCE_CODES[duplicates.reason], {
           description: duplicateValueOf(page, 'meta-description'),
           count: duplicates.count,
           pages: duplicates.listed.join(', '),

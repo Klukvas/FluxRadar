@@ -357,7 +357,7 @@ const CASES: readonly MessageCase[] = [
     name: 'title shared with another page',
     ruleId: 'SEO-ONPAGE-004',
     ctx: () => duplicateTrio(''),
-    evidence: 'seo-onpage-004.evidence',
+    evidence: 'seo-onpage-004.evidence.no-canonical',
     recommendation: 'seo-onpage-004.recommendation',
   },
   {
@@ -365,7 +365,7 @@ const CASES: readonly MessageCase[] = [
     ruleId: 'SEO-ONPAGE-006',
     ctx: () =>
       duplicateTrio('<meta name="description" content="One description for three pages.">'),
-    evidence: 'seo-onpage-006.evidence',
+    evidence: 'seo-onpage-006.evidence.no-canonical',
     recommendation: 'seo-onpage-006.recommendation',
   },
   {

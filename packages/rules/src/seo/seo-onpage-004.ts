@@ -26,8 +26,14 @@
 // кончаться: цепочка, уходящая из группы, и петля canonical-ов сообщают, что
 // настоящая версия где-то есть, и не сообщают какая, — такие страницы находку
 // получают все (duplicate-groups.ts, silencedMembers). Получает её и страница
-// без canonical или с canonical на себя, которую никто каноничной не назвал, —
-// и evidence говорит об этом прямо.
+// без canonical или с canonical на себя, которую никто каноничной не назвал.
+//
+// И EVIDENCE НАЗЫВАЕТ, КОТОРЫЙ ЭТО ИЗ ДВУХ СЛУЧАЕВ. О странице, никого не
+// назвавшей, текст говорит «canonical не связывает её ни с одной из них»; о
+// странице в петле — что её цепочка не называет настоящей версии среди них.
+// Первое предложение о второй странице было бы ложью: её canonical указывает
+// прямо на партнёра, и читатель, открыв исходник, поймал бы отчёт на слове
+// (UnclaimedReason).
 //
 // ДУБЛЬ URL (SEO-TECH-007) ЗДЕСЬ НЕ ДУБЛИРУЕТСЯ. Группа 007 — это ОДИН
 // normalizedUrl, найденный в ≥2 raw-формах (`/p` и `/p?utm=x`); обход такой
@@ -40,16 +46,23 @@ import type { PageSnapshot } from '@fluxradar/crawler';
 import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFindingAt } from '../engine/finding.js';
 import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
-import { findingMessage } from '../messages/index.js';
+import { findingMessage, type FindingMessageCode } from '../messages/index.js';
 import {
   duplicateIndex,
   duplicateValueOf,
   unclaimedDuplicatesOf,
+  type UnclaimedReason,
 } from '../shared/duplicate-groups.js';
 import { duplicateCoverage } from '../shared/duplicate-rule.js';
 import { canonicalAddress } from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-ONPAGE-004');
+
+/** Причина находки → предложение о ней: оба утверждения правдивы только о своём случае. */
+const EVIDENCE_CODES = {
+  'no-canonical': 'seo-onpage-004.evidence.no-canonical',
+  'unresolved-chain': 'seo-onpage-004.evidence.unresolved-chain',
+} as const satisfies Record<UnclaimedReason, FindingMessageCode>;
 
 export const seoOnpage004DuplicateTitle: PageRule = {
   kind: 'page',
@@ -64,7 +77,7 @@ export const seoOnpage004DuplicateTitle: PageRule = {
     return [
       pageFindingAt(descriptor, address, page, {
         evidenceType: 'dom',
-        evidence: findingMessage('seo-onpage-004.evidence', {
+        evidence: findingMessage(EVIDENCE_CODES[duplicates.reason], {
           title: duplicateValueOf(page, 'title'),
           count: duplicates.count,
           pages: duplicates.listed.join(', '),

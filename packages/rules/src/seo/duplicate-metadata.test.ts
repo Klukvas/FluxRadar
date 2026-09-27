@@ -122,6 +122,97 @@ describe('SEO-ONPAGE-004 — дубль title', () => {
     expect(ukrainian).not.toContain(url('/e.html'));
   });
 
+  it('петля canonical-ов: evidence не утверждает, что canonical-а нет', () => {
+    // Обе страницы назвали каноничной друг друга: сайт сообщил, что настоящая
+    // версия есть, и не сообщил какая. Предложение «canonical не связывает эту
+    // страницу ни с одной из них» было бы здесь ложью о теге, который читатель
+    // видит в исходнике первой же строкой head.
+    const ctx = siteContext({
+      pages: [
+        metaPage({
+          path: '/a.html',
+          title: 'Shared title of two pages',
+          canonical: url('/b.html'),
+        }),
+        metaPage({
+          path: '/b.html',
+          title: 'Shared title of two pages',
+          canonical: url('/a.html'),
+        }),
+      ],
+    });
+    const finding = single(
+      runSeoRule('SEO-ONPAGE-004', ctx).filter(
+        (candidate) => candidate.normalizedUrl === url('/a.html'),
+      ),
+    );
+    expect(finding.messages?.evidence.code).toBe('seo-onpage-004.evidence.unresolved-chain');
+    expect(finding.evidenceExcerpt).toBe(
+      `Other crawled pages with the same title: 1; at most three are listed here: ${url('/b.html')}. ` +
+        'This page has a <link rel="canonical">, but the chain it starts leaves these pages or ' +
+        'loops back and names no final version among them, as crawled. ' +
+        'Title: "Shared title of two pages"',
+    );
+    const evidence = finding.messages?.evidence;
+    expect(evidence).toBeDefined();
+    if (evidence === undefined) return;
+    expect(renderFindingMessage(evidence, 'uk')).toBe(
+      'Інших прочитаних сторінок із таким самим title: 1; тут названо не більше трьох: ' +
+        `${url('/b.html')}. У цієї сторінки є <link rel="canonical">, але ланцюжок, який вона ` +
+        'починає, виходить за межі цих сторінок або замикається в петлю й не називає остаточної ' +
+        'версії серед них — за тим, як їх прочитав обхід. Title: «Shared title of two pages»',
+    );
+  });
+
+  it('цепочка, уходящая из группы: то же предложение — и о назвавшей, и о названной', () => {
+    // /a назвала каноничной страницу с другим заголовком, /b назвала /a.
+    // Настоящей версии среди двух совпавших не назвал никто, и находку получают
+    // обе — с причиной, которая говорит именно это.
+    const ctx = siteContext({
+      pages: [
+        metaPage({
+          path: '/a.html',
+          title: 'Shared title of two pages',
+          canonical: url('/elsewhere.html'),
+        }),
+        metaPage({
+          path: '/b.html',
+          title: 'Shared title of two pages',
+          canonical: url('/a.html'),
+        }),
+        metaPage({ path: '/elsewhere.html', title: 'A title of its own' }),
+      ],
+    });
+    const leaving = single(
+      runSeoRule('SEO-ONPAGE-004', ctx).filter(
+        (candidate) => candidate.normalizedUrl === url('/a.html'),
+      ),
+    );
+    expect(leaving.evidenceExcerpt).toBe(
+      `Other crawled pages with the same title: 1; at most three are listed here: ${url('/b.html')}. ` +
+        'This page has a <link rel="canonical">, but the chain it starts leaves these pages or ' +
+        'loops back and names no final version among them, as crawled. ' +
+        'Title: "Shared title of two pages"',
+    );
+    const evidence = leaving.messages?.evidence;
+    expect(evidence).toBeDefined();
+    if (evidence === undefined) return;
+    expect(renderFindingMessage(evidence, 'uk')).toContain(
+      'але ланцюжок, який вона починає, виходить за межі цих сторінок або замикається в петлю',
+    );
+    // И о странице, которая назвала каноничной /a, отчёт говорит то же самое:
+    // её заявление тоже ничем не кончилось.
+    const pointing = single(
+      runSeoRule('SEO-ONPAGE-004', ctx).filter(
+        (candidate) => candidate.normalizedUrl === url('/b.html'),
+      ),
+    );
+    expect(pointing.messages?.evidence.code).toBe('seo-onpage-004.evidence.unresolved-chain');
+    expect(pointing.evidenceExcerpt).toContain(
+      'the chain it starts leaves these pages or loops back and names no final version among them',
+    );
+  });
+
   it('NFC: один и тот же заголовок в двух кодировках — один заголовок', () => {
     // Составное é из macOS и готовое é из CMS выглядят одинаково и в выдаче, и
     // у читателя: разными их делает только форма нормализации.
@@ -261,6 +352,45 @@ describe('SEO-ONPAGE-006 — дубль meta description', () => {
         `Description: "${shared}"`,
     );
     expect(finding.normalizedSelector).toBe('meta[name="description"]');
+  });
+
+  it('петля canonical-ов: у описания то же второе предложение, что у заголовка', () => {
+    // Средняя фраза у трёх правил дублей общая: причина одна и та же, и
+    // читатель не должен разбирать её заново в каждом разделе отчёта.
+    const ctx = siteContext({
+      pages: [
+        metaPage({
+          path: '/a.html',
+          title: 'Page A',
+          description: shared,
+          canonical: url('/b.html'),
+        }),
+        metaPage({
+          path: '/b.html',
+          title: 'Page B',
+          description: shared,
+          canonical: url('/a.html'),
+        }),
+      ],
+    });
+    const finding = single(
+      runSeoRule('SEO-ONPAGE-006', ctx).filter(
+        (candidate) => candidate.normalizedUrl === url('/a.html'),
+      ),
+    );
+    expect(finding.messages?.evidence.code).toBe('seo-onpage-006.evidence.unresolved-chain');
+    expect(finding.evidenceExcerpt).toBe(
+      'Other crawled pages with the same meta description: 1; at most three are listed here: ' +
+        `${url('/b.html')}. This page has a <link rel="canonical">, but the chain it starts ` +
+        'leaves these pages or loops back and names no final version among them, as crawled. ' +
+        `Description: "${shared}"`,
+    );
+    const evidence = finding.messages?.evidence;
+    expect(evidence).toBeDefined();
+    if (evidence === undefined) return;
+    expect(renderFindingMessage(evidence, 'uk')).toContain(
+      'але ланцюжок, який вона починає, виходить за межі цих сторінок або замикається в петлю',
+    );
   });
 
   it('первый тег description и есть значение страницы', () => {

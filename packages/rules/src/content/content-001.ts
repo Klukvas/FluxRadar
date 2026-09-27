@@ -32,7 +32,9 @@
 // заявлений кончается внутри группы. Петля canonical-ов и цепочка, уходящая из
 // группы, настоящей версии не называют, и находку получают все их страницы
 // (duplicate-groups.ts, silencedMembers). Остаются и те, кто делит текст без
-// canonical или с canonical на себя, — и evidence говорит об этом прямо.
+// canonical или с canonical на себя. Что именно случилось, evidence называет
+// отдельным предложением на каждый из двух случаев: у страницы в петле canonical
+// есть, и утверждать обратное правило не вправе (UnclaimedReason).
 //
 // ДУБЛЬ URL (SEO-TECH-007) ЗДЕСЬ НЕ ДУБЛИРУЕТСЯ: группа 007 — это один
 // normalizedUrl в нескольких raw-формах, обход читает его один раз, и на всю
@@ -44,13 +46,14 @@ import type { PageSnapshot } from '@fluxradar/crawler';
 import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFindingAt } from '../engine/finding.js';
 import type { PageRule, RuleFinding, SiteContext } from '../engine/types.js';
-import { findingMessage } from '../messages/index.js';
+import { findingMessage, type FindingMessageCode } from '../messages/index.js';
 import { codePointLength } from '../seo/dom.js';
 import { canonicalAddress } from '../seo/site-index.js';
 import {
   duplicateIndex,
   duplicateValueOf,
   unclaimedDuplicatesOf,
+  type UnclaimedReason,
 } from '../shared/duplicate-groups.js';
 import { duplicateCoverage } from '../shared/duplicate-rule.js';
 
@@ -58,6 +61,12 @@ const descriptor = requireDescriptor('CONTENT-001');
 
 /** Сколько символов текста показывать в evidence — как у CONTENT-003. */
 const EXCERPT_PREVIEW_CHARS = 120;
+
+/** Причина находки → предложение о ней, как у SEO-ONPAGE-004. */
+const EVIDENCE_CODES = {
+  'no-canonical': 'content-001.evidence.no-canonical',
+  'unresolved-chain': 'content-001.evidence.unresolved-chain',
+} as const satisfies Record<UnclaimedReason, FindingMessageCode>;
 
 export const content001DuplicateContent: PageRule = {
   kind: 'page',
@@ -75,7 +84,7 @@ export const content001DuplicateContent: PageRule = {
     return [
       pageFindingAt(descriptor, address, page, {
         evidenceType: 'dom',
-        evidence: findingMessage('content-001.evidence', {
+        evidence: findingMessage(EVIDENCE_CODES[duplicates.reason], {
           count: duplicates.count,
           pages: duplicates.listed.join(', '),
           length: codePointLength(text),

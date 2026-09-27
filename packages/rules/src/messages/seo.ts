@@ -217,18 +217,36 @@ export const SEO_MESSAGES = {
   // на том, что обход прочитал: canonical на адрес, снимка которого нет,
   // связать страницу с членом группы не может, и утверждать больше правило не
   // вправе.
-  'seo-onpage-004.evidence': {
+  //
+  // ПРИЧИНА НАХОДКИ — ЭТО ДВА РАЗНЫХ ПРЕДЛОЖЕНИЯ, и оба обязаны быть правдой
+  // (UnclaimedReason в shared/duplicate-groups.ts). `no-canonical`: страница не
+  // назвала каноничной ни одну из группы, и её саму никто не назвал.
+  // `unresolved-chain`: назвала — но цепочка заявлений уходит из группы или
+  // замыкается в петлю, и настоящей версии среди них не назвал никто. Одно
+  // предложение на оба случая утверждало бы о странице в петле, что canonical-а,
+  // указывающего на партнёра, у неё нет, — тогда как он там есть и назван прямо.
+  // Средняя фраза у всех трёх правил дублей одна и та же: причина общая, и
+  // читатель не должен разбирать её заново в каждом отчёте.
+  'seo-onpage-004.evidence.no-canonical': {
     en: 'Other crawled pages with the same title: {count}; at most three are listed here: {pages}. No <link rel="canonical"> ties this page to any of them, as crawled. Title: "{title}"',
     uk: 'Інших прочитаних сторінок із таким самим title: {count}; тут названо не більше трьох: {pages}. <link rel="canonical"> не пов’язує цю сторінку з жодною з них — за тим, як їх прочитав обхід. Title: «{title}»',
+  },
+  'seo-onpage-004.evidence.unresolved-chain': {
+    en: 'Other crawled pages with the same title: {count}; at most three are listed here: {pages}. This page has a <link rel="canonical">, but the chain it starts leaves these pages or loops back and names no final version among them, as crawled. Title: "{title}"',
+    uk: 'Інших прочитаних сторінок із таким самим title: {count}; тут названо не більше трьох: {pages}. У цієї сторінки є <link rel="canonical">, але ланцюжок, який вона починає, виходить за межі цих сторінок або замикається в петлю й не називає остаточної версії серед них — за тим, як їх прочитав обхід. Title: «{title}»',
   },
   'seo-onpage-004.recommendation': {
     en: 'Give each page a title of its own that says what is on it. If the pages really are the same, leave one title and point the copies at the original with <link rel="canonical">.',
     uk: 'Дайте кожній сторінці власний title, який описує саме її. Якщо сторінки справді однакові, залиште один заголовок, а копії вкажіть на оригінал через <link rel="canonical">.',
   },
 
-  'seo-onpage-006.evidence': {
+  'seo-onpage-006.evidence.no-canonical': {
     en: 'Other crawled pages with the same meta description: {count}; at most three are listed here: {pages}. No <link rel="canonical"> ties this page to any of them, as crawled. Description: "{description}"',
     uk: 'Інших прочитаних сторінок із таким самим meta description: {count}; тут названо не більше трьох: {pages}. <link rel="canonical"> не пов’язує цю сторінку з жодною з них — за тим, як їх прочитав обхід. Description: «{description}»',
+  },
+  'seo-onpage-006.evidence.unresolved-chain': {
+    en: 'Other crawled pages with the same meta description: {count}; at most three are listed here: {pages}. This page has a <link rel="canonical">, but the chain it starts leaves these pages or loops back and names no final version among them, as crawled. Description: "{description}"',
+    uk: 'Інших прочитаних сторінок із таким самим meta description: {count}; тут названо не більше трьох: {pages}. У цієї сторінки є <link rel="canonical">, але ланцюжок, який вона починає, виходить за межі цих сторінок або замикається в петлю й не називає остаточної версії серед них — за тим, як їх прочитав обхід. Description: «{description}»',
   },
   'seo-onpage-006.recommendation': {
     en: 'Write a description for each page from its own content: a description repeated across pages gives search engines nothing to tell them apart by.',

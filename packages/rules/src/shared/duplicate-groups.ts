@@ -33,6 +33,12 @@
 // canonicalAddress): правило, нормализующее адрес иначе, спрашивало бы группу о
 // несуществующем члене.
 //
+// И ПОТОМУ У НАХОДКИ ДВЕ ПРИЧИНЫ, А НЕ ОДНА. «Canonical не связывает эту
+// страницу ни с одной из них» — правда только о странице, которая никого не
+// назвала. Страница в петле назвала партнёра прямо, и то же предложение о ней
+// было бы ложью: её находка стоит на том, что цепочка ничем не кончилась
+// (UnclaimedReason).
+//
 // ПОЧЕМУ ЗДЕСЬ НЕТ ПОЧТИ-ДУБЛЕЙ. Этот файл судит только ПОЛНОЕ совпадение
 // значения. Подпись почти-дубля (simhash/minhash по шинглам текста) встала бы
 // ровно в одно место — рядом с groupingKey: вместо одного ключа страница
@@ -58,6 +64,8 @@ export interface DuplicateGroup {
   readonly addresses: readonly string[];
   /** Члены, о которых сайт уже ответил canonical-ом: правило о них молчит. */
   readonly silenced: ReadonlySet<string>;
+  /** Члены, чья цепочка canonical кончается вне группы или в петле (unresolvedMembers). */
+  readonly unresolved: ReadonlySet<string>;
 }
 
 export interface DuplicateIndex {
@@ -97,7 +105,21 @@ export interface UnclaimedDuplicates {
   readonly count: number;
   /** Первые MAX_LISTED_DUPLICATES адресов группы по алфавиту, кроме своего. */
   readonly listed: readonly string[];
+  /** Почему сайт о дубле не ответил — это разные предложения в evidence. */
+  readonly reason: UnclaimedReason;
 }
+
+/**
+ * Почему находка осталась: двум причинам соответствуют два РАЗНЫХ утверждения.
+ *
+ * 'no-canonical' — canonical не связывает страницу ни с одним членом группы:
+ * его нет, он указывает на саму страницу или его href вообще не адрес
+ * (declaredCanonicalAddress). 'unresolved-chain' — страница canonical-ом
+ * НАЗЫВАЕТ кого-то, но цепочка заявлений кончается вне группы или в петле.
+ * Сказать о второй странице «canonical не связывает её ни с одной из них» было
+ * бы неправдой: её canonical может указывать прямо на названного партнёра.
+ */
+export type UnclaimedReason = 'no-canonical' | 'unresolved-chain';
 
 /**
  * Нормализованное значение страницы: trim, схлопнутые пробелы и NFC, регистр НЕ
@@ -152,6 +174,7 @@ export function unclaimedDuplicatesOf(
   return {
     count: group.addresses.length - 1,
     listed: leadingPartners(group.addresses, address),
+    reason: group.unresolved.has(address) ? 'unresolved-chain' : 'no-canonical',
   };
 }
 
@@ -256,7 +279,11 @@ function toGroup(
   const addresses = [...members].sort((left, right) => left.localeCompare(right));
   const inGroup = new Set(addresses);
   const terminals = chainTerminals(addresses, canonicalByAddress, inGroup);
-  return { addresses, silenced: silencedMembers(addresses, terminals) };
+  return {
+    addresses,
+    silenced: silencedMembers(addresses, terminals),
+    unresolved: unresolvedMembers(addresses, terminals),
+  };
 }
 
 /**
@@ -353,6 +380,28 @@ function silencedMembers(
 }
 
 /**
+ * Члены, чья цепочка canonical не кончается внутри группы.
+ *
+ * Это ровно те находки, о которых нельзя сказать «canonical не связывает эту
+ * страницу ни с одной из них»: у каждой из них canonical ЕСТЬ и называет другой
+ * адрес — просто цепочка уходит наружу или замыкается в петлю (chainTerminals).
+ * С silencedMembers этот набор не пересекается: тот молчит только о членах, у
+ * которых конец цепочки нашёлся.
+ */
+function unresolvedMembers(
+  addresses: readonly string[],
+  terminals: ReadonlyMap<string, string | null>,
+): ReadonlySet<string> {
+  const unresolved = new Set<string>();
+  for (const member of addresses) {
+    if ((terminals.get(member) ?? null) === null) {
+      unresolved.add(member);
+    }
+  }
+  return unresolved;
+}
+
+/**
  * Адрес документа, который страница объявила своей канонической версией.
  *
  * href разрешается против finalUrl (как в SEO-TECH-004) и приводится к ключу
@@ -360,6 +409,14 @@ function silencedMembers(
  * несуществующий адрес с параметром. Дальше — canonicalAddress, потому что
  * группа названа адресами документов: canonical на `/p` при `/p` → 301 → `/p/`
  * указывает на страницу `/p/`.
+ *
+ * HREF, КОТОРЫЙ ВООБЩЕ НЕ АДРЕС, — это «canonical-а нет». `mailto:`, `tel:` и
+ * `javascript:` нормализация адресов v1 не покрывает (D-113), и crawlKey отдаёт
+ * null: страница становится концом своей цепочки, поэтому указавший на неё
+ * партнёр молчит, а сама она молчит как названная. Мусор в href при этом не
+ * теряется — его называет SEO-TECH-004 («canonical не разрешается»), у которого
+ * это и есть предмет. Выдумывать здесь второй вердикт о том же теге значило бы
+ * показать читателю одну ошибку дважды и под двумя разными именами.
  */
 function declaredCanonicalAddress(page: PageSnapshot, crawl: CrawlResult): string | null {
   const href = canonicalHref(page);
