@@ -358,7 +358,7 @@ export const copy = {
         findingsHint: 'evidence-backed findings',
         terminalLines: [
           'scope homepage + public links',
-          'seo       19 checks · complete',
+          'seo       21 checks · complete',
           'ai seo    public readiness · ready',
           'security  ASVS public profile · queued',
         ],
@@ -384,7 +384,7 @@ export const copy = {
           index: 'A / SEARCH',
           title: 'SEO visibility',
           body: 'Titles, descriptions, headings, canonicals, indexing and the technical details that help search engines understand your pages.',
-          foot: '19 deterministic checks · JSON-LD preview',
+          foot: '21 deterministic checks · JSON-LD preview',
         },
         ai: {
           index: 'B / AI SYSTEMS',
@@ -402,7 +402,7 @@ export const copy = {
       coverageEntry: {
         eyebrow: 'EXACTLY WHAT WE CHECK',
         title: 'Every check. Every standard. No surprises.',
-        body: '19 SEO checks, AI crawler readiness, OWASP ASVS public signals, WCAG 2.2 AA / EN 301 549 / Section 508 accessibility rules, performance signals and privacy / consent detection — all sourced from public HTTP responses, no credentials needed.',
+        body: '21 SEO checks, AI crawler readiness, OWASP ASVS public signals, WCAG 2.2 AA / EN 301 549 / Section 508 accessibility rules, performance signals and privacy / consent detection — all sourced from public HTTP responses, no credentials needed.',
       },
       workflow: {
         eyebrow: 'THE OPERATING LOOP',
@@ -488,7 +488,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'One report on how search engines and AI systems read your website.',
           included:
-            'The full SEO analysis — 19 checks covering titles, meta descriptions, headings, canonicals, robots.txt, sitemap, redirects, broken links, duplicate URLs, internal linking, click depth, structured data and social previews — plus AI crawler readiness: which AI crawlers your robots.txt allows and whether your pages are machine-readable.',
+            'The full SEO analysis — 21 checks covering titles, meta descriptions, headings, canonicals, robots.txt, sitemap, redirects, broken links, duplicate URLs, duplicate titles and descriptions, internal linking, click depth, structured data and social previews — plus AI crawler readiness: which AI crawlers your robots.txt allows and whether your pages are machine-readable.',
           bestFor:
             'Owners and marketers whose question is “why am I not being found — in search or in AI answers?”',
           notIncluded:
@@ -540,7 +540,7 @@ export const copy = {
           },
           included: {
             label: 'What is included',
-            basic: 'The full SEO analysis — 19 checks — and AI crawler readiness.',
+            basic: 'The full SEO analysis — 21 checks — and AI crawler readiness.',
             websiteAudit:
               'Security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics, with scan history and JSON/CSV export.',
             complete:
@@ -1230,7 +1230,8 @@ export const copy = {
         // Checks whose "not applicable" has a reason of its own, because
         // "nothing on the pages read" would name the wrong one: the three
         // internal-linking checks each need the whole link graph of the crawl,
-        // and the Analytics ones read Google data rather than pages.
+        // the three duplicate checks need a second page to compare against, and
+        // the Analytics ones read Google data rather than pages.
         notApplicableReasons: {
           // Keyed by rule id, and by `ruleId:reason` where the rule named why it
           // had nothing to judge. The bare rule id stays as what a report
@@ -1254,6 +1255,21 @@ export const copy = {
             'The crawl did not finish reading the pages it set out to read, so the inbound links of a page cannot be counted',
           'SEO-TECH-011:no-candidates':
             'The crawl read no page besides the entry page, so there were no inbound links to count',
+          // The three duplicate checks compare one page against the others the
+          // crawl read. With a single page there is nothing to compare it with,
+          // and "no duplicates found" would pass off missing data as a result.
+          'SEO-ONPAGE-004':
+            'The crawl read fewer than two pages, so there was no second title to compare this one with',
+          'SEO-ONPAGE-004:no-candidates':
+            'The crawl read only one page, so there was no second title to compare it with',
+          'SEO-ONPAGE-006':
+            'The crawl read fewer than two pages, so there was no second description to compare this one with',
+          'SEO-ONPAGE-006:no-candidates':
+            'The crawl read only one page, so there was no second description to compare it with',
+          'CONTENT-001':
+            'The crawl read fewer than two pages, so there was no second page to compare this text with',
+          'CONTENT-001:no-candidates':
+            'The crawl read only one page, so there was no second page to compare its text with',
           'ANALYTICS-SC-001': 'Too little search traffic in the previous 28 days to call a trend',
           'ANALYTICS-SC-002': 'No page had enough first-page impressions to judge its clicks',
           'ANALYTICS-SC-004':
@@ -1902,7 +1918,7 @@ export const copy = {
         findingsHint: 'висновки з доказами',
         terminalLines: [
           'область: головна + публічні посилання',
-          'seo       19 перевірок · завершено',
+          'seo       21 перевірка · завершено',
           'ai seo    публічна готовність · готово',
           'security  публічний профіль ASVS · у черзі',
         ],
@@ -1928,7 +1944,7 @@ export const copy = {
           index: 'A / ПОШУК',
           title: 'SEO-видимість',
           body: 'Заголовки, описи, structure заголовків, канонічні посилання, індексація та технічні деталі, які допомагають пошуковим системам розуміти ваші сторінки.',
-          foot: '19 детермінованих перевірок · перегляд JSON-LD',
+          foot: '21 детермінована перевірка · перегляд JSON-LD',
         },
         ai: {
           index: 'B / AI-СИСТЕМИ',
@@ -1946,7 +1962,7 @@ export const copy = {
       coverageEntry: {
         eyebrow: 'ЩО САМЕ МИ ПЕРЕВІРЯЄМО',
         title: 'Кожна перевірка. Кожен стандарт. Без сюрпризів.',
-        body: '19 SEO-перевірок, готовність до AI-краулерів, публічні сигнали OWASP ASVS, правила доступності WCAG 2.2 AA / EN 301 549 / Section 508, сигнали продуктивності та виявлення приватності / згоди — усе з публічних HTTP-відповідей, облікові дані не потрібні.',
+        body: '21 SEO-перевірка, готовність до AI-краулерів, публічні сигнали OWASP ASVS, правила доступності WCAG 2.2 AA / EN 301 549 / Section 508, сигнали продуктивності та виявлення приватності / згоди — усе з публічних HTTP-відповідей, облікові дані не потрібні.',
       },
       workflow: {
         eyebrow: 'РОБОЧИЙ ЦИКЛ',
@@ -2032,7 +2048,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'Один звіт про те, як ваш сайт читають пошукові системи та AI-системи.',
           included:
-            'Повний SEO-аналіз — 19 перевірок: заголовки, meta description, структура заголовків, канонічні теги, robots.txt, мапа сайту, редиректи, биті посилання, дублікати адрес, внутрішня перелінковка, глибина кліків, структуровані дані та соціальні прев’ю — плюс готовність до AI-роботів: яким AI-роботам дозволяє ваш robots.txt і чи придатні ваші сторінки для машинного читання.',
+            'Повний SEO-аналіз — 21 перевірка: заголовки, meta description, структура заголовків, канонічні теги, robots.txt, мапа сайту, редиректи, биті посилання, дублікати адрес, дублікати заголовків і описів, внутрішня перелінковка, глибина кліків, структуровані дані та соціальні прев’ю — плюс готовність до AI-роботів: яким AI-роботам дозволяє ваш robots.txt і чи придатні ваші сторінки для машинного читання.',
           bestFor:
             'Власникам і маркетологам, чиє питання звучить так: «чому мене не знаходять — у пошуку чи у відповідях AI?»',
           notIncluded:
@@ -2082,7 +2098,7 @@ export const copy = {
           },
           included: {
             label: 'Що входить',
-            basic: 'Повний SEO-аналіз — 19 перевірок — і готовність до AI-роботів.',
+            basic: 'Повний SEO-аналіз — 21 перевірка — і готовність до AI-роботів.',
             websiteAudit:
               'Безпека, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсія та Аналітика — з історією перевірок та експортом JSON/CSV.',
             complete:
@@ -2731,6 +2747,18 @@ export const copy = {
             'Обхід не дочитав сторінки, які збирався прочитати, тому вхідні посилання сторінки порахувати не можна',
           'SEO-TECH-011:no-candidates':
             'Окрім вхідної сторінки, обхід не прочитав жодної сторінки, тому вхідних посилань рахувати нема де',
+          'SEO-ONPAGE-004':
+            'Обхід прочитав менше ніж дві сторінки, тому порівняти цей заголовок не було з чим',
+          'SEO-ONPAGE-004:no-candidates':
+            'Обхід прочитав лише одну сторінку, тому порівняти її заголовок не було з чим',
+          'SEO-ONPAGE-006':
+            'Обхід прочитав менше ніж дві сторінки, тому порівняти цей опис не було з чим',
+          'SEO-ONPAGE-006:no-candidates':
+            'Обхід прочитав лише одну сторінку, тому порівняти її опис не було з чим',
+          'CONTENT-001':
+            'Обхід прочитав менше ніж дві сторінки, тому порівняти цей текст не було з чим',
+          'CONTENT-001:no-candidates':
+            'Обхід прочитав лише одну сторінку, тому порівняти її текст не було з чим',
           'ANALYTICS-SC-001':
             'За попередні 28 днів пошукового трафіку замало, щоб говорити про динаміку',
           'ANALYTICS-SC-002':

@@ -52,7 +52,7 @@ describe('runModuleRules: движок', () => {
     // (TECH-009), а страница с fetchError делает граф ссылок неполным
     // (TECH-010/011). Плюс один: недочитанная страница остаётся незавершённой
     // проверкой и у TECH-010 — снимка, по которому можно было бы судить, нет.
-    expect(result.applicableChecks).toBe(32);
+    expect(result.applicableChecks).toBe(34);
     expect(result.completedApplicableChecks).toBe(18);
   });
 

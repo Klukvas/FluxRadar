@@ -81,6 +81,7 @@ describe('crawl: fixture-сайт', () => {
       `${origin}/deep/level2/page.html`,
       `${origin}/dup-a.html`,
       `${origin}/dup-b.html`,
+      `${origin}/dup-c.html`,
       `${origin}/empty.html`,
       `${origin}/form.html`,
       `${origin}/missing`,
