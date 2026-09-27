@@ -16,6 +16,7 @@ import type { PrismaClient, Scan } from '@prisma/client';
 import type { IssueStatus } from '@fluxradar/contracts';
 import { planSupports } from '@fluxradar/contracts';
 
+import { findPreviousScan } from '../scans/previous-scan.ts';
 import { previousRunCoverage, resolvableIssues } from './resolution-policy.ts';
 import type { RunCoverage } from './resolution-policy.ts';
 import { loadScanCoverage, type UnreadableCoverage } from './run-coverage.ts';
@@ -115,6 +116,10 @@ export interface ResolveOptions {
  * в новом нет И повторную проверку которых этот прогон действительно доказал,
  * получают Resolved (§14 + политика resolution-policy.ts).
  *
+ * Предыдущий скан выбирает общее правило — scans/previous-scan.ts: то же самое
+ * определение читает «что изменилось» в отчёте и сравнение сканов, и второй его
+ * копии здесь больше нет.
+ *
  * Отсутствия fingerprint-а мало: суженный scope, недоступный модуль, лимит URL
  * и смена ruleset дают ровно то же отсутствие, не починив ничего. Поэтому сюда
  * передаётся покрытие самого прогона, а покрытие прошлого скана читается из его
@@ -130,15 +135,7 @@ export async function markResolvedAgainstPrevious(
   if (!planSupports(scan.plan, 'issueHistory')) {
     return 0;
   }
-  const previousScan = await prisma.scan.findFirst({
-    where: {
-      siteProfileId: scan.siteProfileId,
-      plan: scan.plan,
-      status: 'Completed',
-      id: { not: scan.id },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const previousScan = await findPreviousScan(prisma, scan);
   if (previousScan === null) {
     return 0;
   }
