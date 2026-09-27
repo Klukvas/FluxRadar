@@ -16,7 +16,7 @@ import type { PrismaClient, Scan } from '@prisma/client';
 import type { IssueStatus } from '@fluxradar/contracts';
 import { planSupports } from '@fluxradar/contracts';
 
-import { findPreviousScan } from '../scans/previous-scan.ts';
+import { findPreviousScan, previousScanWhere } from '../scans/previous-scan.ts';
 import { previousRunCoverage, resolvableIssues } from './resolution-policy.ts';
 import type { RunCoverage } from './resolution-policy.ts';
 import { loadScanCoverage, type UnreadableCoverage } from './run-coverage.ts';
@@ -36,6 +36,14 @@ function inheritedStatus(previous: string): IssueStatus {
 /**
  * Начальные статусы новых issues скана. Ищется последнее вхождение каждого
  * fingerprint среди более ранних успешных сканов ТОГО ЖЕ плана в профиле.
+ *
+ * Набор кандидатов — тот же предикат §14, что выбирает предыдущий скан для
+ * разбора Resolved (scans/previous-scan.ts), и порядок тот же: по времени
+ * ЗАВЕРШЕНИЯ скана, а не по observedAt находки. Иначе две половины §14
+ * расходятся: одна унаследовала бы статус из скана, который для другой ещё не
+ * наступил. Пока этот скан не терминализован, времени завершения у него нет —
+ * и «раньше» означает «любой уже завершённый скан плана», что и есть верное
+ * прочтение на момент записи модуля.
  */
 export async function initialIssueStatuses(
   prisma: PrismaClient,
@@ -46,16 +54,8 @@ export async function initialIssueStatuses(
     return new Map();
   }
   const previous = await prisma.issue.findMany({
-    where: {
-      fingerprint: { in: [...fingerprints] },
-      scan: {
-        siteProfileId: scan.siteProfileId,
-        plan: scan.plan,
-        status: 'Completed',
-        id: { not: scan.id },
-      },
-    },
-    orderBy: { observedAt: 'desc' },
+    where: { fingerprint: { in: [...fingerprints] }, scan: previousScanWhere(scan) },
+    orderBy: [{ scan: { completedAt: 'desc' } }, { scanId: 'desc' }],
     select: { fingerprint: true, status: true },
   });
   const statuses = new Map<string, IssueStatus>();

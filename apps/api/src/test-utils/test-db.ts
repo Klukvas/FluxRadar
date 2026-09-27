@@ -89,6 +89,8 @@ export interface SeedScanParams {
   readonly statusReason?: string;
   readonly moduleRetryCount?: number;
   readonly platformRetryCount?: number;
+  /** When this scan finished; defaults to now for a result state. */
+  readonly completedAt?: Date;
 }
 
 export interface SeededScan {
@@ -104,6 +106,14 @@ export interface SeededScan {
  * scan seeded here answers 403 `ENTITLEMENT_SUSPENDED` on the report endpoints;
  * create the entitlement in the test when it needs to read one.
  */
+/** Statuses a scan can only reach by finishing; the rest have no completion time. */
+const RESULT_STATUSES: ReadonlySet<string> = new Set([
+  'Completed',
+  'Partial',
+  'Failed',
+  'Cancelled',
+]);
+
 export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Promise<SeededScan> {
   const plan = params.plan ?? 'Basic';
   const purchase =
@@ -135,6 +145,12 @@ export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Pr
       moduleRetryCount: params.moduleRetryCount ?? 0,
       platformRetryCount: params.platformRetryCount ?? 0,
       startedAt: params.status === 'Running' ? new Date() : null,
+      // A result state carries a completion time in production — the state
+      // machine writes one on every transition into one — and "the previous
+      // scan of this plan" is ordered by it (scans/previous-scan.ts). A fixture
+      // that left it blank would be a scan no worker can produce, and one that
+      // no §14 read could place in the order.
+      completedAt: RESULT_STATUSES.has(params.status) ? (params.completedAt ?? new Date()) : null,
     },
   });
   return { scan, purchase };
