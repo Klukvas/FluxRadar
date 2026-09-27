@@ -210,6 +210,27 @@ export const SEO_MESSAGES = {
     uk: 'Використовуйте рівно один h1 і будуйте ієрархію без пропуску рівнів (h1 → h2 → h3 …).',
   },
 
+  // Дубли метаданных: сначала счёт и адреса (register content-004), потом само
+  // значение. Оговорка про canonical в тексте не лишняя — она называет читателю
+  // ровно то условие, при котором правило молчит.
+  'seo-onpage-004.evidence': {
+    en: 'Other crawled pages with the same title: {count} ({pages}); no <link rel="canonical"> ties this page to any of them. Title: "{title}"',
+    uk: 'Інших прочитаних сторінок із таким самим title: {count} ({pages}); <link rel="canonical"> не пов’язує цю сторінку з жодною з них. Title: «{title}»',
+  },
+  'seo-onpage-004.recommendation': {
+    en: 'Give each page a title of its own that says what is on it. If the pages really are the same, leave one title and point the copies at the original with <link rel="canonical">.',
+    uk: 'Дайте кожній сторінці власний title, який описує саме її. Якщо сторінки справді однакові, залиште один заголовок, а копії вкажіть на оригінал через <link rel="canonical">.',
+  },
+
+  'seo-onpage-006.evidence': {
+    en: 'Other crawled pages with the same meta description: {count} ({pages}); no <link rel="canonical"> ties this page to any of them. Description: "{description}"',
+    uk: 'Інших прочитаних сторінок із таким самим meta description: {count} ({pages}); <link rel="canonical"> не пов’язує цю сторінку з жодною з них. Description: «{description}»',
+  },
+  'seo-onpage-006.recommendation': {
+    en: 'Write a description for each page from its own content: a description repeated across pages gives search engines nothing to tell them apart by.',
+    uk: 'Напишіть опис для кожної сторінки за її власним змістом: однаковий опис на кількох сторінках не дає пошуковим системам чим їх розрізнити.',
+  },
+
   'seo-onpage-005.evidence': {
     en: '{count} <img> without an alt attribute; first: <img src="{src}"> (decorative images need an empty alt="")',
     uk: 'Зображень <img> без атрибута alt: {count}; перше: <img src="{src}"> (декоративним потрібен порожній alt="")',

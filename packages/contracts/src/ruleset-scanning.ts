@@ -156,6 +156,17 @@ const SEO_ONPAGE_RULES: readonly RuleDescriptor[] = [
     oracle: 'H1 missing/duplicated or heading levels skip in the DOM outline',
   },
   {
+    ruleId: 'SEO-ONPAGE-004',
+    module: 'SEO',
+    title: 'duplicate title',
+    category: 'on-page',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle:
+      'crawled page shares its normalized <title> with another crawled page and no canonical ties them',
+  },
+  {
     ruleId: 'SEO-ONPAGE-005',
     module: 'SEO',
     title: 'image alt',
@@ -164,6 +175,17 @@ const SEO_ONPAGE_RULES: readonly RuleDescriptor[] = [
     severity: 'Low',
     scoring: 'scored',
     oracle: 'content <img> elements without an alt attribute',
+  },
+  {
+    ruleId: 'SEO-ONPAGE-006',
+    module: 'SEO',
+    title: 'duplicate meta description',
+    category: 'on-page',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle:
+      'crawled page shares its normalized meta description with another crawled page and no canonical ties them',
   },
 ];
 
@@ -493,6 +515,17 @@ const ACCESSIBILITY_RULES: readonly RuleDescriptor[] = [
 ];
 
 const CONTENT_RULES: readonly RuleDescriptor[] = [
+  {
+    ruleId: 'CONTENT-001',
+    module: 'Content Quality',
+    title: 'duplicate page content',
+    category: 'quality',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle:
+      'crawled page has the same visible text as another crawled page and no canonical ties them',
+  },
   {
     ruleId: 'CONTENT-003',
     module: 'Content Quality',

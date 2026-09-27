@@ -3,6 +3,18 @@
 import type { FindingMessageCatalog } from './catalog.js';
 
 export const CONTENT_MESSAGES = {
+  // Текст страницы в evidence целиком не влезает и не нужен: читателю хватает
+  // его начала, длины и адресов, по которым лежит то же самое. Оговорка про
+  // canonical называет условие, при котором правило молчит.
+  'content-001.evidence': {
+    en: 'Other crawled pages with the same visible text: {count} ({pages}); no <link rel="canonical"> ties this page to any of them. The text is {length} characters and begins: "{preview}"',
+    uk: 'Інших прочитаних сторінок із таким самим видимим текстом: {count} ({pages}); <link rel="canonical"> не пов’язує цю сторінку з жодною з них. Текст має {length} символів і починається так: «{preview}»',
+  },
+  'content-001.recommendation': {
+    en: 'Keep one address for this text and point the copies at it with <link rel="canonical">, or rewrite each page around what only it covers. Duplicated pages compete with each other for the same queries.',
+    uk: 'Залиште для цього тексту одну адресу, а копії вкажіть на неї через <link rel="canonical">, або перепишіть кожну сторінку про те, що є лише на ній. Сторінки-дублікати конкурують між собою за ті самі запити.',
+  },
+
   'content-003.evidence': {
     en: 'Visible text length is {length}, below the minimum of {minimum} characters for a page with real content: "{preview}"',
     uk: 'Довжина видимого тексту — {length}, це менше за мінімум для змістовної сторінки ({minimum} символів): "{preview}"',

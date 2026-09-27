@@ -6,7 +6,9 @@ import type { Rule } from '../engine/types.js';
 import { seoOnpage001Title } from './seo-onpage-001.js';
 import { seoOnpage002MetaDescription } from './seo-onpage-002.js';
 import { seoOnpage003Headings } from './seo-onpage-003.js';
+import { seoOnpage004DuplicateTitle } from './seo-onpage-004.js';
 import { seoOnpage005ImageAlt } from './seo-onpage-005.js';
+import { seoOnpage006DuplicateMetaDescription } from './seo-onpage-006.js';
 import { seoTech001RobotsTxt } from './seo-tech-001.js';
 import { seoTech002Sitemap } from './seo-tech-002.js';
 import { seoTech003HttpStatus } from './seo-tech-003.js';
@@ -38,7 +40,9 @@ export const SEO_RULES: readonly Rule[] = [
   seoOnpage001Title,
   seoOnpage002MetaDescription,
   seoOnpage003Headings,
+  seoOnpage004DuplicateTitle,
   seoOnpage005ImageAlt,
+  seoOnpage006DuplicateMetaDescription,
   seoStruct001JsonLdSyntax,
   seoStruct002JsonLdCompleteness,
   seoSocial001Preview,
