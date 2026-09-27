@@ -19,12 +19,15 @@
 // addressJudges). Снимок, уехавший редиректом за область обхода, страницей сайта
 // не считается вовсе.
 //
-// CANONICAL СНИМАЕТ НАХОДКУ. Одинаковый title у двух страниц, одна из которых
-// объявила другую своей канонической версией, — это не проблема, а её решение:
-// сайт сказал поисковику, какой адрес настоящий. Молчит правило и о самой
-// канонической странице. Находку получает страница, которая делит заголовок и ни
-// с кем из группы canonical-ом не связана — без canonical вовсе или с canonical
-// на себя, — и evidence говорит об этом прямо.
+// CANONICAL СНИМАЕТ НАХОДКУ, ЕСЛИ ДОВОДИТ ДО КОНЦА. Одинаковый title у двух
+// страниц, одна из которых объявила другую своей канонической версией, — это не
+// проблема, а её решение: сайт сказал поисковику, какой адрес настоящий. Молчит
+// правило и о самой канонической странице. Но заявление должно чем-то
+// кончаться: цепочка, уходящая из группы, и петля canonical-ов сообщают, что
+// настоящая версия где-то есть, и не сообщают какая, — такие страницы находку
+// получают все (duplicate-groups.ts, silencedMembers). Получает её и страница
+// без canonical или с canonical на себя, которую никто каноничной не назвал, —
+// и evidence говорит об этом прямо.
 //
 // ДУБЛЬ URL (SEO-TECH-007) ЗДЕСЬ НЕ ДУБЛИРУЕТСЯ. Группа 007 — это ОДИН
 // normalizedUrl, найденный в ≥2 raw-формах (`/p` и `/p?utm=x`); обход такой
@@ -41,7 +44,6 @@ import { findingMessage } from '../messages/index.js';
 import {
   duplicateIndex,
   duplicateValueOf,
-  listedDuplicates,
   unclaimedDuplicatesOf,
 } from '../shared/duplicate-groups.js';
 import { duplicateCoverage } from '../shared/duplicate-rule.js';
@@ -55,18 +57,17 @@ export const seoOnpage004DuplicateTitle: PageRule = {
   ...duplicateCoverage('title'),
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[] {
     const address = canonicalAddress(ctx.crawl, page.normalizedUrl);
-    const partners = unclaimedDuplicatesOf(duplicateIndex(ctx, 'title'), address);
-    if (partners === null) {
+    const duplicates = unclaimedDuplicatesOf(duplicateIndex(ctx, 'title'), address);
+    if (duplicates === null) {
       return [];
     }
-    const listed = listedDuplicates(partners);
     return [
       pageFindingAt(descriptor, address, page, {
         evidenceType: 'dom',
         evidence: findingMessage('seo-onpage-004.evidence', {
           title: duplicateValueOf(page, 'title'),
-          count: partners.length,
-          pages: listed.join(', '),
+          count: duplicates.count,
+          pages: duplicates.listed.join(', '),
         }),
         recommendation: findingMessage('seo-onpage-004.recommendation', {}),
         // Стабильный селектор, а не список партнёров: fingerprint находки не
@@ -77,7 +78,7 @@ export const seoOnpage004DuplicateTitle: PageRule = {
         // «заголовок не уникален» больше ничем не подтверждено, а не починено.
         // Список ограничен тем же, что и evidence: требование покрытия обязано
         // называть то, что читатель видит (§14, RuleFinding.dependencyTargets).
-        dependencyTargets: listed,
+        dependencyTargets: duplicates.listed,
       }),
     ];
   },

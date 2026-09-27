@@ -10,7 +10,6 @@ import { url } from '../testing/link-fixtures.js';
 import {
   duplicateIndex,
   duplicateValueOf,
-  listedDuplicates,
   MAX_LISTED_DUPLICATES,
   unclaimedDuplicatesOf,
   type DuplicateValueKind,
@@ -83,6 +82,43 @@ describe('нормализация значения', () => {
     expect(groupOf(ctx, 'title', '/absent.html')).toBeNull();
   });
 
+  it('NFC: «Café» составным и готовым é — одно значение', () => {
+    // Текст, набранный на macOS, приходит в NFD; та же строка из CMS — в NFC.
+    // Разными их делает только кодировка, и читатель разницы не видит.
+    const nfc = siteContext({
+      pages: [
+        pageWith({ path: '/a.html', title: 'Caf\u00e9 menu' }),
+        pageWith({ path: '/b.html', title: 'Cafe\u0301 menu' }),
+      ],
+    });
+    expect(duplicateValueOf(nfc.crawl.pages[1]!, 'title')).toBe('Caf\u00e9 menu');
+    expect(groupOf(nfc, 'title', '/a.html')).toEqual([url('/a.html'), url('/b.html')]);
+  });
+
+  it('сущности раскрываются: «Tom &amp; Jerry» и «Tom & Jerry» — одно значение', () => {
+    const entities = siteContext({
+      pages: [
+        {
+          path: '/a.html',
+          html:
+            '<!doctype html><html lang="en"><head><title>A &amp; B</title></head>' +
+            '<body><p>Tom &amp; Jerry, and nothing else on this page at all.</p></body></html>',
+        },
+        {
+          path: '/b.html',
+          html:
+            '<!doctype html><html lang="en"><head><title>A & B</title></head>' +
+            '<body><p>Tom & Jerry, and nothing else on this page at all.</p></body></html>',
+        },
+      ],
+    });
+    expect(duplicateValueOf(entities.crawl.pages[0]!, 'visible-text')).toBe(
+      'Tom & Jerry, and nothing else on this page at all.',
+    );
+    expect(groupOf(entities, 'title', '/a.html')).toEqual([url('/a.html'), url('/b.html')]);
+    expect(groupOf(entities, 'visible-text', '/a.html')).toEqual([url('/a.html'), url('/b.html')]);
+  });
+
   it('видимый текст читается без script и style', () => {
     const scripted = siteContext({
       pages: [
@@ -125,8 +161,14 @@ describe('canonical — это ответ сайта, а не нарушение
       pageWith({ path: '/b.html', title: 'Shared title', canonical: url('/b.html') }),
     ]);
     // Обе говорят «я оригинал»: заявления о дубле нет ни у одной.
-    expect(unclaimedDuplicatesOf(built, url('/a.html'))).toEqual([url('/b.html')]);
-    expect(unclaimedDuplicatesOf(built, url('/b.html'))).toEqual([url('/a.html')]);
+    expect(unclaimedDuplicatesOf(built, url('/a.html'))).toEqual({
+      count: 1,
+      listed: [url('/b.html')],
+    });
+    expect(unclaimedDuplicatesOf(built, url('/b.html'))).toEqual({
+      count: 1,
+      listed: [url('/a.html')],
+    });
   });
 
   it('canonical за пределы группы находку не снимает', () => {
@@ -134,8 +176,14 @@ describe('canonical — это ответ сайта, а не нарушение
       pageWith({ path: '/a.html', title: 'Shared title', canonical: url('/elsewhere.html') }),
       pageWith({ path: '/b.html', title: 'Shared title' }),
     ]);
-    expect(unclaimedDuplicatesOf(built, url('/a.html'))).toEqual([url('/b.html')]);
-    expect(unclaimedDuplicatesOf(built, url('/b.html'))).toEqual([url('/a.html')]);
+    expect(unclaimedDuplicatesOf(built, url('/a.html'))).toEqual({
+      count: 1,
+      listed: [url('/b.html')],
+    });
+    expect(unclaimedDuplicatesOf(built, url('/b.html'))).toEqual({
+      count: 1,
+      listed: [url('/a.html')],
+    });
   });
 
   it('canonical разбирается ключом обхода: query-параметры не делают адрес чужим', () => {
@@ -164,7 +212,88 @@ describe('canonical — это ответ сайта, а не нарушение
     expect(unclaimedDuplicatesOf(built, url('/c.html'))).toBeNull();
     expect(unclaimedDuplicatesOf(built, url('/a.html'))).toBeNull();
     // /b делит заголовок с /a и canonical-ом ни с кем не связана.
-    expect(unclaimedDuplicatesOf(built, url('/b.html'))).toEqual([url('/a.html'), url('/c.html')]);
+    expect(unclaimedDuplicatesOf(built, url('/b.html'))).toEqual({
+      count: 2,
+      listed: [url('/a.html'), url('/c.html')],
+    });
+  });
+});
+
+describe('топология canonical: заявление должно чем-то кончаться', () => {
+  // Молчать о странице, НА КОТОРУЮ указали, правильно ровно тогда, когда
+  // указавший дошёл до конца цепочки внутри группы. Цепочка, уходящая наружу, и
+  // петля сообщают, что настоящая версия есть, и не сообщают какая: до этой
+  // ревизии обе давали группу, о которой не отчитывалось ни одно правило.
+  const index = (pages: readonly ReturnType<typeof pageWith>[]) =>
+    duplicateIndex(siteContext({ pages: [...pages] }), 'title');
+
+  const reported = (built: ReturnType<typeof index>, path: string) =>
+    unclaimedDuplicatesOf(built, url(path)) !== null;
+
+  it('названная страница сама указывает наружу группы — говорят обе', () => {
+    // /b назвала настоящей /a, а /a говорит, что настоящая не она: настоящей не
+    // названа ни одна, и снимать находку не с чего.
+    const built = index([
+      pageWith({ path: '/a.html', title: 'Shared title', canonical: url('/elsewhere.html') }),
+      pageWith({ path: '/b.html', title: 'Shared title', canonical: url('/a.html') }),
+      pageWith({ path: '/elsewhere.html', title: 'A title of its own' }),
+    ]);
+    expect(reported(built, '/a.html')).toBe(true);
+    expect(reported(built, '/b.html')).toBe(true);
+  });
+
+  it('петля canonical-ов — говорят обе', () => {
+    const built = index([
+      pageWith({ path: '/a.html', title: 'Shared title', canonical: url('/b.html') }),
+      pageWith({ path: '/b.html', title: 'Shared title', canonical: url('/a.html') }),
+    ]);
+    expect(reported(built, '/a.html')).toBe(true);
+    expect(reported(built, '/b.html')).toBe(true);
+  });
+
+  it('цепочка c → b → a с canonical на себя у a — молчат все три', () => {
+    const built = index([
+      pageWith({ path: '/a.html', title: 'Shared title', canonical: url('/a.html') }),
+      pageWith({ path: '/b.html', title: 'Shared title', canonical: url('/a.html') }),
+      pageWith({ path: '/c.html', title: 'Shared title', canonical: url('/b.html') }),
+    ]);
+    // Сайт назвал настоящей /a, и до неё дошли обе остальные.
+    expect(reported(built, '/a.html')).toBe(false);
+    expect(reported(built, '/b.html')).toBe(false);
+    expect(reported(built, '/c.html')).toBe(false);
+  });
+
+  it('цепочка, уходящая из группы, — говорят все её страницы', () => {
+    const built = index([
+      pageWith({ path: '/a.html', title: 'Shared title', canonical: url('/elsewhere.html') }),
+      pageWith({ path: '/b.html', title: 'Shared title', canonical: url('/a.html') }),
+      pageWith({ path: '/c.html', title: 'Shared title', canonical: url('/b.html') }),
+      pageWith({ path: '/elsewhere.html', title: 'A title of its own' }),
+    ]);
+    expect(reported(built, '/a.html')).toBe(true);
+    expect(reported(built, '/b.html')).toBe(true);
+    expect(reported(built, '/c.html')).toBe(true);
+  });
+
+  it('страница, ведущая в петлю, находку тоже получает', () => {
+    const built = index([
+      pageWith({ path: '/a.html', title: 'Shared title', canonical: url('/b.html') }),
+      pageWith({ path: '/b.html', title: 'Shared title', canonical: url('/a.html') }),
+      pageWith({ path: '/c.html', title: 'Shared title', canonical: url('/a.html') }),
+    ]);
+    // /c назвала настоящей /a, но /a своей настоящей версии так и не нашла.
+    expect(reported(built, '/c.html')).toBe(true);
+  });
+
+  it('canonical на непрочитанный адрес члена группы — заявление наружу', () => {
+    // Обход прочитал /a/, а copy указывает на /a: без снимка /a краулер не
+    // знает, что это одна страница, и правило не вправе знать больше.
+    const built = index([
+      pageWith({ path: '/a/', title: 'Shared title' }),
+      pageWith({ path: '/copy.html', title: 'Shared title', canonical: url('/a') }),
+    ]);
+    expect(reported(built, '/a/')).toBe(true);
+    expect(reported(built, '/copy.html')).toBe(true);
   });
 });
 
@@ -232,8 +361,58 @@ describe('состав группы', () => {
 
 describe('ограниченный список партнёров', () => {
   it('называет первые по алфавиту и не растёт вместе с группой', () => {
-    const partners = ['/e', '/d', '/c', '/b', '/a'].map((path) => url(path)).toSorted();
-    expect(listedDuplicates(partners)).toHaveLength(MAX_LISTED_DUPLICATES);
-    expect(listedDuplicates(partners)).toEqual([url('/a'), url('/b'), url('/c')]);
+    const ctx = siteContext({
+      pages: ['/e', '/d', '/c', '/b', '/a'].map((path) =>
+        pageWith({ path: `${path}.html`, title: 'One title for five pages' }),
+      ),
+    });
+    const duplicates = unclaimedDuplicatesOf(duplicateIndex(ctx, 'title'), url('/e.html'));
+    // Счёт — вся группа, список — только её голова: одно не подменяет другое.
+    expect(duplicates?.count).toBe(4);
+    expect(duplicates?.listed).toHaveLength(MAX_LISTED_DUPLICATES);
+    expect(duplicates?.listed).toEqual([url('/a.html'), url('/b.html'), url('/c.html')]);
   });
+
+  it('свой адрес в список не попадает, даже если он первый по алфавиту', () => {
+    const ctx = siteContext({
+      pages: ['/a', '/b', '/c', '/d'].map((path) =>
+        pageWith({ path: `${path}.html`, title: 'One title for four pages' }),
+      ),
+    });
+    expect(unclaimedDuplicatesOf(duplicateIndex(ctx, 'title'), url('/a.html'))).toEqual({
+      count: 3,
+      listed: [url('/b.html'), url('/c.html'), url('/d.html')],
+    });
+  });
+
+  it('группа в 20 000 страниц отвечает каждому её члену за доли секунды', () => {
+    // Сайт с общим шаблоном — это одна группа размером со сайт, и вопрос ей
+    // задают на каждой странице. Ответ, перечисляющий партнёров, стоил бы
+    // квадрат размера группы: 20 000 страниц — 3.3 с на одно правило из трёх,
+    // и 50 000 страниц превратили бы скан в минуты чистого перебора.
+    const ctx = siteContext({
+      pages: Array.from({ length: 20_000 }, (_, position) =>
+        pageWith({ path: `/p${String(position).padStart(6, '0')}.html`, title: 'One title' }),
+      ),
+    });
+    const index = duplicateIndex(ctx, 'title');
+    const startedAt = performance.now();
+    let answered = 0;
+    let listedTotal = 0;
+    for (const address of index.addresses) {
+      const duplicates = unclaimedDuplicatesOf(index, address);
+      if (duplicates === null) {
+        continue;
+      }
+      answered += duplicates.count === 19_999 ? 1 : 0;
+      listedTotal += duplicates.listed.length;
+    }
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(answered).toBe(20_000);
+    expect(listedTotal).toBe(20_000 * MAX_LISTED_DUPLICATES);
+    // Порог щедрый нарочно: он ловит возврат к перебору группы (секунды на
+    // порядок больше), а не разницу между быстрой и медленной машиной CI.
+    expect(elapsedMs).toBeLessThan(2000);
+  }, 60_000);
 });

@@ -17,14 +17,21 @@
 // Результат кэшируется на CrawlResult (WeakMap, как в site-index.ts), отдельно
 // на каждый вид значения: правила остаются чистыми функциями от ctx.
 //
+// И ОТВЕТ О ГРУППЕ ТОЖЕ O(1). Сайт с общим шаблоном даёт группу в десятки тысяч
+// страниц, и вопрос «с кем совпало» задают каждой из них: ответ, перечисляющий
+// партнёров, стоил бы квадрат размера группы на каждое из трёх правил (замер:
+// 20 000 страниц — 3.3 с только на этот перечень). Поэтому ответ — счёт и первые
+// MAX_LISTED_DUPLICATES адресов, а не список.
+//
 // CANONICAL — ЭТО ОТВЕТ САЙТА, А НЕ НАРУШЕНИЕ. `<link rel="canonical">`,
-// указывающий на другого члена группы, и есть правильный способ заявить дубль:
-// такая страница находки не даёт. Не даёт её и та, НА КОТОРУЮ указали, — сайт
-// назвал её настоящей версией. Находку получает страница, которая делит значение
-// и при этом не связана canonical ни с кем из группы: без canonical вовсе или с
-// canonical на себя. Ссылка разбирается ровно так, как её разобрал бы краулер
-// (crawlKey → canonicalAddress): правило, нормализующее адрес иначе, спрашивало
-// бы группу о несуществующем члене.
+// указывающий на другого члена группы, и есть правильный способ заявить дубль.
+// Но ответом это становится только тогда, когда цепочка заявлений КОНЧАЕТСЯ
+// внутри группы: страница, назвавшая канонической ту, которая сама указывает
+// наружу, не названа настоящей никем, и молчать о ней значило бы принять за
+// ответ вопрос (см. «ЦЕПОЧКА, А НЕ ОДИН ШАГ» у silencedMembers). Ссылка
+// разбирается ровно так, как её разобрал бы краулер (crawlKey →
+// canonicalAddress): правило, нормализующее адрес иначе, спрашивало бы группу о
+// несуществующем члене.
 //
 // ПОЧЕМУ ЗДЕСЬ НЕТ ПОЧТИ-ДУБЛЕЙ. Этот файл судит только ПОЛНОЕ совпадение
 // значения. Подпись почти-дубля (simhash/minhash по шинглам текста) встала бы
@@ -49,10 +56,8 @@ export type DuplicateValueKind = 'title' | 'meta-description' | 'visible-text';
 export interface DuplicateGroup {
   /** Адреса документов группы, лексикографически: набор findings не зависит от очереди обхода. */
   readonly addresses: readonly string[];
-  /** Члены группы, назвавшие canonical-ом ДРУГОГО её члена. */
-  readonly declaredDuplicates: ReadonlySet<string>;
-  /** Члены группы, которых кто-то из неё назвал canonical-ом. */
-  readonly declaredCanonicals: ReadonlySet<string>;
+  /** Члены, о которых сайт уже ответил canonical-ом: правило о них молчит. */
+  readonly silenced: ReadonlySet<string>;
 }
 
 export interface DuplicateIndex {
@@ -73,8 +78,29 @@ export interface DuplicateIndex {
 /** Сколько адресов-партнёров называет evidence (и на скольких держится находка). */
 export const MAX_LISTED_DUPLICATES = 3;
 
+/** Снимок и адрес документа, под которым он судится, — всегда вместе. */
+interface JudgedPage {
+  readonly page: PageSnapshot;
+  readonly address: string;
+}
+
 /**
- * Нормализованное значение страницы: trim и схлопнутые пробелы, регистр НЕ
+ * Что находка говорит о группе: сколько в ней ещё страниц и первые из них.
+ *
+ * Списка «все партнёры» здесь нет намеренно. Группа бывает размером со сайт, а
+ * спрашивают о ней каждого её члена: материализовать партнёров значило бы
+ * заплатить квадрат размера группы за ответ, из которого evidence всё равно
+ * покажет три адреса (§16), а dependencyTargets — те же три (§14).
+ */
+export interface UnclaimedDuplicates {
+  /** Сколько ещё прочитанных страниц несут то же значение. */
+  readonly count: number;
+  /** Первые MAX_LISTED_DUPLICATES адресов группы по алфавиту, кроме своего. */
+  readonly listed: readonly string[];
+}
+
+/**
+ * Нормализованное значение страницы: trim, схлопнутые пробелы и NFC, регистр НЕ
  * меняется. `Pricing` и `pricing` — разные заголовки: поисковая выдача
  * показывает их как написано, и объявить их одним значило бы придумать дубль.
  *
@@ -90,7 +116,7 @@ export function duplicateValueOf(page: PageSnapshot, kind: DuplicateValueKind): 
       return collapse(metaContent(parsePage(page), 'description') ?? '');
     case 'visible-text':
       // visibleText уже схлопывает пробелы и обрезает края (content/visible-text.ts).
-      return visibleText(page);
+      return normalizeUnicode(visibleText(page));
   }
 }
 
@@ -110,45 +136,54 @@ export function duplicateIndex(ctx: SiteContext, kind: DuplicateValueKind): Dupl
 }
 
 /**
- * Адреса-партнёры, о которых говорит находка, либо null — находки нет.
+ * Счёт и первые адреса-партнёры для находки, либо null — находки нет.
  *
- * null приходит в трёх разных случаях, и все три означают «правило молчит»:
- * значение уникально, страница сама объявила себя дублем через canonical, или
- * сайт назвал каноничной именно её.
+ * null приходит в двух случаях, и оба означают «правило молчит»: значение
+ * уникально или сайт уже ответил canonical-ом (silencedMembers).
  */
 export function unclaimedDuplicatesOf(
   index: DuplicateIndex,
   address: string,
-): readonly string[] | null {
+): UnclaimedDuplicates | null {
   const group = index.groups.get(address);
-  if (group === undefined) {
+  if (group === undefined || group.silenced.has(address)) {
     return null;
   }
-  if (group.declaredDuplicates.has(address) || group.declaredCanonicals.has(address)) {
-    return null;
-  }
-  return group.addresses.filter((member) => member !== address);
+  return {
+    count: group.addresses.length - 1,
+    listed: leadingPartners(group.addresses, address),
+  };
 }
 
 /**
- * Адреса, которые называет evidence: первые MAX_LISTED_DUPLICATES из
- * отсортированного списка.
+ * Первые MAX_LISTED_DUPLICATES членов группы, кроме самой страницы.
  *
- * Список ограничен намеренно: на сайте с общим шаблоном группа бывает в тысячи
- * страниц, и ни excerpt (§16), ни dependencyTargets каждой находки не вправе
- * расти вместе с ней — иначе одна группа стоила бы квадрат своего размера.
+ * Адреса уже отсортированы, поэтому достаточно прочитать голову списка: не
+ * больше MAX_LISTED_DUPLICATES + 1 элементов независимо от размера группы.
  */
-export function listedDuplicates(partners: readonly string[]): readonly string[] {
-  return partners.slice(0, MAX_LISTED_DUPLICATES);
+function leadingPartners(addresses: readonly string[], address: string): readonly string[] {
+  const listed: string[] = [];
+  for (const member of addresses) {
+    if (member === address) {
+      continue;
+    }
+    listed.push(member);
+    if (listed.length === MAX_LISTED_DUPLICATES) {
+      break;
+    }
+  }
+  return listed;
 }
 
 function buildIndex(crawl: CrawlResult, kind: DuplicateValueKind): DuplicateIndex {
-  // Адреса лежат параллельно снимкам: addressJudges уже отдал по одному снимку
-  // на адрес документа, поэтому индекс — это и есть личность страницы.
-  const judged = [...addressJudges(crawl)];
-  const addresses = judged.map((page) => canonicalAddress(crawl, page.normalizedUrl));
-  const byValue = groupAddressesByValue(judged, addresses, kind);
-  const declared = declaredCanonicals(judged, addresses, crawl, byValue);
+  // Снимок и его адрес документа едут вместе: addressJudges уже отдал по одному
+  // снимку на адрес, и пара — это и есть личность страницы.
+  const judges: readonly JudgedPage[] = [...addressJudges(crawl)].map((page) => ({
+    page,
+    address: canonicalAddress(crawl, page.normalizedUrl),
+  }));
+  const byValue = groupAddressesByValue(judges, kind);
+  const declared = declaredCanonicals(judges, crawl, byValue);
   const groups = new Map<string, DuplicateGroup>();
   for (const members of byValue.values()) {
     if (members.length < 2) {
@@ -159,30 +194,32 @@ function buildIndex(crawl: CrawlResult, kind: DuplicateValueKind): DuplicateInde
       groups.set(address, group);
     }
   }
-  return { judged, addresses, groups };
+  return {
+    judged: judges.map((judge) => judge.page),
+    addresses: judges.map((judge) => judge.address),
+    groups,
+  };
 }
 
 /** Ключ значения → адреса страниц, которые его несут (одна Map, один проход). */
 function groupAddressesByValue(
-  judged: readonly PageSnapshot[],
-  addresses: readonly string[],
+  judges: readonly JudgedPage[],
   kind: DuplicateValueKind,
 ): ReadonlyMap<string, readonly string[]> {
   const byValue = new Map<string, string[]>();
-  judged.forEach((page, index) => {
+  for (const { page, address } of judges) {
     const value = duplicateValueOf(page, kind);
     if (value === '') {
-      return;
+      continue;
     }
-    const address = addresses[index] ?? page.normalizedUrl;
     const key = groupingKey(value, kind);
     const members = byValue.get(key);
     if (members === undefined) {
       byValue.set(key, [address]);
-      return;
+      continue;
     }
     members.push(address);
-  });
+  }
   return byValue;
 }
 
@@ -194,23 +231,21 @@ function groupAddressesByValue(
  * ответа (а SEO-TECH-004 всё равно разбирает его сам, на своём кэше DOM).
  */
 function declaredCanonicals(
-  judged: readonly PageSnapshot[],
-  addresses: readonly string[],
+  judges: readonly JudgedPage[],
   crawl: CrawlResult,
   byValue: ReadonlyMap<string, readonly string[]>,
 ): ReadonlyMap<string, string> {
   const duplicated = new Set([...byValue.values()].filter((members) => members.length > 1).flat());
   const canonicalByAddress = new Map<string, string>();
-  judged.forEach((page, index) => {
-    const address = addresses[index] ?? page.normalizedUrl;
+  for (const { page, address } of judges) {
     if (!duplicated.has(address)) {
-      return;
+      continue;
     }
     const declared = declaredCanonicalAddress(page, crawl);
     if (declared !== null) {
       canonicalByAddress.set(address, declared);
     }
-  });
+  }
   return canonicalByAddress;
 }
 
@@ -220,19 +255,101 @@ function toGroup(
 ): DuplicateGroup {
   const addresses = [...members].sort((left, right) => left.localeCompare(right));
   const inGroup = new Set(addresses);
-  const declaredDuplicates = new Set<string>();
-  const declaredCanonicals = new Set<string>();
-  for (const address of addresses) {
-    const declared = canonicalByAddress.get(address);
-    // canonical на саму себя ничего о дубле не заявляет: страница говорит
-    // «я и есть оригинал», ровно то же говорит и вторая — заявления нет.
-    if (declared === undefined || declared === address || !inGroup.has(declared)) {
+  const terminals = chainTerminals(addresses, canonicalByAddress, inGroup);
+  return { addresses, silenced: silencedMembers(addresses, terminals) };
+}
+
+/**
+ * Член группы → член, на котором его цепочка canonical заканчивается ВНУТРИ
+ * группы, либо null — конца нет.
+ *
+ * Конец цепочки — член без canonical или с canonical на себя: дальше идти
+ * некуда, и именно он объявлен настоящей версией. Конца не существует в двух
+ * случаях: цепочка ушла из группы (canonical на чужой хост, на непрочитанный
+ * адрес, на страницу с другим значением) или замкнулась в петлю — сайт не
+ * назвал настоящей ни одну из них.
+ *
+ * Проход по всем членам линеен: пройденный путь запоминается целиком, поэтому
+ * каждый адрес разрешается один раз, а цепочка из g членов не стоит g².
+ */
+function chainTerminals(
+  addresses: readonly string[],
+  canonicalByAddress: ReadonlyMap<string, string>,
+  inGroup: ReadonlySet<string>,
+): ReadonlyMap<string, string | null> {
+  const terminals = new Map<string, string | null>();
+  for (const start of addresses) {
+    if (terminals.has(start)) {
       continue;
     }
-    declaredDuplicates.add(address);
-    declaredCanonicals.add(declared);
+    const walked: string[] = [];
+    const onPath = new Set<string>();
+    let cursor = start;
+    let terminal: string | null = null;
+    for (;;) {
+      if (terminals.has(cursor)) {
+        terminal = terminals.get(cursor) ?? null;
+        break;
+      }
+      if (onPath.has(cursor)) {
+        break;
+      }
+      walked.push(cursor);
+      onPath.add(cursor);
+      const declared = canonicalByAddress.get(cursor);
+      if (declared === undefined || declared === cursor) {
+        terminal = cursor;
+        break;
+      }
+      if (!inGroup.has(declared)) {
+        break;
+      }
+      cursor = declared;
+    }
+    for (const member of walked) {
+      terminals.set(member, terminal);
+    }
   }
-  return { addresses, declaredDuplicates, declaredCanonicals };
+  return terminals;
+}
+
+/**
+ * Члены группы, о которых правило молчит: сайт о них уже ответил.
+ *
+ * ЦЕПОЧКА, А НЕ ОДИН ШАГ. Молчать о странице, НА КОТОРУЮ указали, правильно
+ * ровно тогда, когда указавший на неё сам дошёл до конца цепочки: `/b` →
+ * `/a`, и `/a` собой цепочку закрывает — сайт назвал `/a` настоящей версией, и
+ * сказано всё. Но если `/a` сама указывает наружу группы, то она настоящей не
+ * названа никем: молчать о ней значило бы принять за ответ вопрос, и обе
+ * страницы остаются находками. Петля (`/a` ↔ `/b`) — тот же случай: сайт
+ * сообщил, что настоящая версия есть, и не сообщил, какая.
+ *
+ * Конец цепочки молчит только тогда, когда кто-то ещё из группы до него дошёл:
+ * иначе это просто страница с canonical на себя, а две страницы, каждая из
+ * которых зовёт настоящей себя, заявления о дубле не сделали вовсе.
+ */
+function silencedMembers(
+  addresses: readonly string[],
+  terminals: ReadonlyMap<string, string | null>,
+): ReadonlySet<string> {
+  const claimed = new Set<string>();
+  for (const member of addresses) {
+    const terminal = terminals.get(member) ?? null;
+    if (terminal !== null && terminal !== member) {
+      claimed.add(terminal);
+    }
+  }
+  const silenced = new Set<string>();
+  for (const member of addresses) {
+    const terminal = terminals.get(member) ?? null;
+    if (terminal === null) {
+      continue;
+    }
+    if (terminal !== member || claimed.has(member)) {
+      silenced.add(member);
+    }
+  }
+  return silenced;
 }
 
 /**
@@ -267,5 +384,17 @@ function groupingKey(value: string, kind: DuplicateValueKind): string {
 }
 
 function collapse(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
+  return normalizeUnicode(value.replace(/\s+/g, ' ').trim());
+}
+
+/**
+ * NFC — та же форма, к которой приводят адреса (нормализация URL v1) и
+ * normalizeField.
+ *
+ * «Café», набранное составным é, и «Café» с готовым é — одно и то же слово для
+ * читателя и для выдачи; разными их делает только кодировка, и не свести их
+ * значило бы пропустить дубль на любом сайте, который редактируют на macOS.
+ */
+function normalizeUnicode(value: string): string {
+  return value.normalize('NFC');
 }

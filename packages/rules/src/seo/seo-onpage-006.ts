@@ -30,7 +30,6 @@ import { findingMessage } from '../messages/index.js';
 import {
   duplicateIndex,
   duplicateValueOf,
-  listedDuplicates,
   unclaimedDuplicatesOf,
 } from '../shared/duplicate-groups.js';
 import { duplicateCoverage } from '../shared/duplicate-rule.js';
@@ -44,22 +43,21 @@ export const seoOnpage006DuplicateMetaDescription: PageRule = {
   ...duplicateCoverage('meta-description'),
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[] {
     const address = canonicalAddress(ctx.crawl, page.normalizedUrl);
-    const partners = unclaimedDuplicatesOf(duplicateIndex(ctx, 'meta-description'), address);
-    if (partners === null) {
+    const duplicates = unclaimedDuplicatesOf(duplicateIndex(ctx, 'meta-description'), address);
+    if (duplicates === null) {
       return [];
     }
-    const listed = listedDuplicates(partners);
     return [
       pageFindingAt(descriptor, address, page, {
         evidenceType: 'dom',
         evidence: findingMessage('seo-onpage-006.evidence', {
           description: duplicateValueOf(page, 'meta-description'),
-          count: partners.length,
-          pages: listed.join(', '),
+          count: duplicates.count,
+          pages: duplicates.listed.join(', '),
         }),
         recommendation: findingMessage('seo-onpage-006.recommendation', {}),
         selector: 'meta[name="description"]',
-        dependencyTargets: listed,
+        dependencyTargets: duplicates.listed,
       }),
     ];
   },

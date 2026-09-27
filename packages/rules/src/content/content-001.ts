@@ -28,9 +28,11 @@
 // CANONICAL СНИМАЕТ НАХОДКУ — и здесь это важнее, чем у заголовков: публиковать
 // один текст по двум адресам законно ровно до тех пределов, пока сайт назвал
 // канонический. Страница, объявившая canonical-ом другого члена группы, находки
-// не даёт; не даёт её и та, на которую указали. Остаются те, кто делит текст, не
-// связан canonical ни с кем из группы (нет canonical или canonical на себя) — и
-// evidence говорит об этом прямо.
+// не даёт; не даёт её и та, на которую указали, — при условии, что цепочка
+// заявлений кончается внутри группы. Петля canonical-ов и цепочка, уходящая из
+// группы, настоящей версии не называют, и находку получают все их страницы
+// (duplicate-groups.ts, silencedMembers). Остаются и те, кто делит текст без
+// canonical или с canonical на себя, — и evidence говорит об этом прямо.
 //
 // ДУБЛЬ URL (SEO-TECH-007) ЗДЕСЬ НЕ ДУБЛИРУЕТСЯ: группа 007 — это один
 // normalizedUrl в нескольких raw-формах, обход читает его один раз, и на всю
@@ -48,7 +50,6 @@ import { canonicalAddress } from '../seo/site-index.js';
 import {
   duplicateIndex,
   duplicateValueOf,
-  listedDuplicates,
   unclaimedDuplicatesOf,
 } from '../shared/duplicate-groups.js';
 import { duplicateCoverage } from '../shared/duplicate-rule.js';
@@ -64,18 +65,19 @@ export const content001DuplicateContent: PageRule = {
   ...duplicateCoverage('visible-text'),
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[] {
     const address = canonicalAddress(ctx.crawl, page.normalizedUrl);
-    const partners = unclaimedDuplicatesOf(duplicateIndex(ctx, 'visible-text'), address);
-    if (partners === null) {
+    const duplicates = unclaimedDuplicatesOf(duplicateIndex(ctx, 'visible-text'), address);
+    if (duplicates === null) {
       return [];
     }
+    // Разбора DOM здесь уже не происходит: текст снимка посчитан при построении
+    // индекса и лежит в кэше (content/visible-text.ts).
     const text = duplicateValueOf(page, 'visible-text');
-    const listed = listedDuplicates(partners);
     return [
       pageFindingAt(descriptor, address, page, {
         evidenceType: 'dom',
         evidence: findingMessage('content-001.evidence', {
-          count: partners.length,
-          pages: listed.join(', '),
+          count: duplicates.count,
+          pages: duplicates.listed.join(', '),
           length: codePointLength(text),
           preview: [...text].slice(0, EXCERPT_PREVIEW_CHARS).join(''),
         }),
@@ -83,7 +85,7 @@ export const content001DuplicateContent: PageRule = {
         // Никакого селектора и параметра: цель — страница целиком, а всё
         // изменчивое (число партнёров, их адреса) в fingerprint не входит, иначе
         // каждый прогон открывал бы новую issue о той же странице (§14).
-        dependencyTargets: listed,
+        dependencyTargets: duplicates.listed,
       }),
     ];
   },
