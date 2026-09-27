@@ -1228,14 +1228,16 @@ export const copy = {
         detailNoted: 'An observation was recorded',
         detailNotApplicable: 'Nothing on the pages read matched this check',
         // Checks whose "not applicable" has a reason of its own, because
-        // "nothing on the pages read" would name the wrong one: the two internal-
-        // linking checks need every page in scope to have been read, and the
-        // Analytics ones read Google data rather than pages.
+        // "nothing on the pages read" would name the wrong one: the three
+        // internal-linking checks each need the whole link graph of the crawl,
+        // and the Analytics ones read Google data rather than pages.
         notApplicableReasons: {
           'SEO-TECH-009':
-            'No sitemap was read, or the crawl did not read every page in scope that could link to its URLs',
+            'No sitemap was read, or the crawl did not finish reading the pages it set out to read — a page it never opened could hold the missing link',
+          'SEO-TECH-010':
+            'The crawl did not finish reading the pages it set out to read, so the number of link hops to a page cannot be counted',
           'SEO-TECH-011':
-            'The crawl did not read every page in scope, so the inbound links of a page cannot be counted',
+            'The crawl did not finish reading the pages it set out to read, so the inbound links of a page cannot be counted',
           'ANALYTICS-SC-001': 'Too little search traffic in the previous 28 days to call a trend',
           'ANALYTICS-SC-002': 'No page had enough first-page impressions to judge its clicks',
           'ANALYTICS-SC-004':
@@ -2696,9 +2698,11 @@ export const copy = {
         detailNotApplicable: 'На прочитаних сторінках немає нічого, що підпадає під цю перевірку',
         notApplicableReasons: {
           'SEO-TECH-009':
-            'Sitemap не прочитано, або обхід прочитав не всі сторінки в межах області, які могли б посилатися на його URL',
+            'Sitemap не прочитано, або обхід не дочитав сторінки, які збирався прочитати, — відкрите ним посилання могло бути саме на цій сторінці',
+          'SEO-TECH-010':
+            'Обхід не дочитав сторінки, які збирався прочитати, тому кількість переходів до сторінки порахувати не можна',
           'SEO-TECH-011':
-            'Обхід прочитав не всі сторінки в межах області, тому вхідні посилання сторінки порахувати не можна',
+            'Обхід не дочитав сторінки, які збирався прочитати, тому вхідні посилання сторінки порахувати не можна',
           'ANALYTICS-SC-001':
             'За попередні 28 днів пошукового трафіку замало, щоб говорити про динаміку',
           'ANALYTICS-SC-002':

@@ -220,6 +220,50 @@ describe('a section card that recorded its checks', () => {
     expect(rows[2]).toHaveTextContent('Not applicable');
   });
 
+  /** One recorded check row of the SEO section, with counts the caller chooses. */
+  function seoCheck(ruleId: string, title: string): Record<string, unknown> {
+    return {
+      ruleId,
+      title,
+      targetKind: 'page',
+      scoring: 'scored',
+      applicableTargets: 0,
+      affectedTargets: 0,
+    };
+  }
+
+  it('names why an internal-linking check did not apply, instead of blaming the pages', async () => {
+    // All three need the crawl's whole link graph, so "nothing on the pages read
+    // matched this check" would name the wrong reason: the pages were fine, the
+    // crawl was cut short.
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          metadata: {
+            ruleChecks: [
+              seoCheck('SEO-TECH-009', 'orphan pages'),
+              seoCheck('SEO-TECH-010', 'click depth'),
+              seoCheck('SEO-TECH-011', 'weakly linked pages'),
+            ],
+          },
+        }),
+      ]),
+    );
+
+    fireEvent.click(card('SEO'));
+
+    const region = screen.getByRole('region', { name: 'SEO · checks performed' });
+    const rows = within(region).getAllByRole('listitem');
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).toHaveTextContent('Not applicable');
+      expect(row).not.toHaveTextContent('Nothing on the pages read');
+    }
+    expect(rows[0]).toHaveTextContent('No sitemap was read');
+    expect(rows[1]).toHaveTextContent('the number of link hops to a page cannot be counted');
+    expect(rows[2]).toHaveTextContent('the inbound links of a page cannot be counted');
+  });
+
   it('toggles from its own button too, and says whether the list is open', async () => {
     await openReport(dashboardOf([accessibilityModule()]));
 
