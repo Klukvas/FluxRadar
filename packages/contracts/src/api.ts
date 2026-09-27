@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { PLANS } from './enums.js';
+import { MODULE_NAMES, PLANS } from './enums.js';
 import { API_CHECK_LIMITS, CRAWL_LIMITS, CRAWL_SEED_LIMITS } from './limits.js';
 import { TARIFFS } from './tariffs.js';
 
@@ -301,3 +301,218 @@ export type IssueStatusUpdateInput = z.infer<typeof issueStatusUpdateInputSchema
 export type ApiEnvelope<T> =
   | { readonly ok: true; readonly data: T; readonly error: null }
   | { readonly ok: false; readonly data: null; readonly error: string };
+
+// ---------------------------------------------------------------------------
+// GET /scans/:scanId/comparison — this report against the previous scan.
+// ---------------------------------------------------------------------------
+//
+// The shape exists to make one promise enforceable: a comparison either states a
+// difference it can stand behind, or names why it cannot. That is why every
+// number here sits beside a comparability verdict — the whole read, each module,
+// and the page census separately — and why the reasons are a closed list rather
+// than prose. A client can act on `scope-changed`; it cannot act on a sentence.
+
+/**
+ * Why two scans of one site are not two readings of the same thing.
+ *
+ * Each of these makes "the finding is gone" mean something other than "it was
+ * fixed", so the report says which one happened instead of showing a delta:
+ *
+ *   no-previous-scan         first scan of this plan for the site;
+ *   previous-plan-differs    earlier scans exist, but none of this plan — two
+ *                            plans read different modules, so one's absence is
+ *                            not the other's fix (§14, D-110);
+ *   previous-not-usable      the earlier scan produced no usable output;
+ *   scope-changed            the crawl was pointed at a different set of pages
+ *                            (page limit, patterns, subdomains, query policy,
+ *                            depth, render mode, entry URL, seeds, egress);
+ *   *-crawl-truncated        that crawl stopped at its page limit, so the pages
+ *                            it never read are missing rather than removed;
+ *   *-stopped-early          that scan is not a finished one: paused, cancelled,
+ *                            or terminal with a module that failed;
+ *   crawl-not-recorded       one of them predates `Scan.crawlSummaryJson`, so
+ *                            nobody can say whether its crawl was complete.
+ */
+export const COMPARISON_INCOMPARABLE_REASONS = [
+  'no-previous-scan',
+  'previous-plan-differs',
+  'previous-not-usable',
+  'scope-changed',
+  'current-crawl-truncated',
+  'previous-crawl-truncated',
+  'current-stopped-early',
+  'previous-stopped-early',
+  'crawl-not-recorded',
+] as const;
+export type ComparisonIncomparableReason = (typeof COMPARISON_INCOMPARABLE_REASONS)[number];
+
+/**
+ * Why one module carries no delta even when the two scans compare.
+ *
+ * A module that ran once is not a module that improved or regressed, and a
+ * module with no score has nothing to subtract.
+ */
+export const MODULE_COMPARISON_REASONS = [
+  'module-absent-previously',
+  'module-absent-now',
+  'module-not-scored-previously',
+  'module-not-scored-now',
+] as const;
+export type ModuleComparisonReason = (typeof MODULE_COMPARISON_REASONS)[number];
+
+/**
+ * Why the pages of two scans cannot be diffed even when their findings can.
+ *
+ * The addresses a finished crawl read survive only in the re-check proof of the
+ * plans that close findings (`RuleCoverageProof`), and that proof is kept for the
+ * last two completed scans of a plan. An older report therefore compares its
+ * findings and says this about its pages rather than inventing a census.
+ */
+export const PAGE_COMPARISON_REASONS = [
+  'page-evidence-missing',
+  'page-evidence-unreadable',
+  'page-evidence-empty',
+  /** The two scans do not compare at all; the verdict above says why. */
+  'scans-not-comparable',
+] as const;
+export type PageComparisonReason = (typeof PAGE_COMPARISON_REASONS)[number];
+
+/**
+ * Which name the page diff compared pages under.
+ *
+ * `canonical-document`: the address the site's own redirects say the document
+ * lives at, one entry per document — `/p` and `/p/` are one page, so a change in
+ * which form the site links does not read as one page removed and another added.
+ * `crawl-address`: the address each snapshot was read under, used when no rule
+ * of the run established document identity (a single-page crawl). The weaker of
+ * the two, and named so the reader knows which one they are looking at.
+ */
+export const PAGE_IDENTITY_KINDS = ['canonical-document', 'crawl-address'] as const;
+export type PageIdentityKind = (typeof PAGE_IDENTITY_KINDS)[number];
+
+/** At most this many addresses or findings are listed per sample. */
+export const COMPARISON_SAMPLE_LIMIT = 20;
+
+const comparabilitySchema = <Reason extends string>(reasons: readonly [Reason, ...Reason[]]) =>
+  z.union([
+    z.object({ ok: z.literal(true) }),
+    z.object({ ok: z.literal(false), reason: z.enum(reasons) }),
+  ]);
+
+/**
+ * What a crawl was pointed at, as the verdict above reads it.
+ *
+ * Sent for both scans so a reader who is told "the scope changed" can see which
+ * setting moved, instead of being asked to trust the word. `scopeKey` is the
+ * crawl-filter fingerprint the re-check policy already compares runs by
+ * (`crawlScopeKey`); the fields beside it are the ones it deliberately leaves
+ * out, and a page diff needs them.
+ */
+export const crawlScopeFactsSchema = z.object({
+  /** The address the crawl started from — the scan's own recorded origin. */
+  entryUrl: z.string(),
+  /** Page ceiling actually applied; null when the scan recorded none. */
+  maxPages: z.number().int().min(1).nullable(),
+  maxDepth: z.number().int().min(0).nullable(),
+  includeSubdomains: z.boolean(),
+  queryPolicy: z.enum(['include', 'ignore']),
+  urlPatterns: z.array(z.string()).max(100),
+  excludePatterns: z.array(z.string()).max(100),
+  seedUrls: z.array(z.string()).max(CRAWL_SEED_LIMITS.maxSeedUrls),
+  renderJs: z.boolean(),
+  /**
+   * Whether the crawl obeyed the site's own robots.txt.
+   *
+   * Beside `maxPages` for the same reason: the crawl RECORDS an address robots
+   * closed, so the re-check policy can tolerate the difference — but a page
+   * census cannot. Turning the rule off adds pages that would read as pages the
+   * owner published.
+   */
+  respectRobots: z.boolean(),
+  userAgent: z.string(),
+  egressLocation: z.string().nullable(),
+  /** Fingerprint of the crawl filters (`crawlScopeKey`); equal means equal. */
+  scopeKey: z.string(),
+});
+export type CrawlScopeFacts = z.infer<typeof crawlScopeFactsSchema>;
+
+/** Which scan is being compared, in the terms a report header needs. */
+export const comparedScanSchema = z.object({
+  id: z.string(),
+  plan: z.enum(PLANS),
+  status: z.string(),
+  completedAt: z.string().nullable(),
+  /** From `Scan.crawlSummaryJson`; null on a scan that recorded no crawl. */
+  pagesRead: z.number().int().min(0).nullable(),
+  urlsDiscovered: z.number().int().min(0).nullable(),
+  urlsOverLimit: z.number().int().min(0).nullable(),
+  scope: crawlScopeFactsSchema,
+});
+export type ComparedScan = z.infer<typeof comparedScanSchema>;
+
+export const moduleScoreDeltaSchema = z.object({
+  module: z.enum(MODULE_NAMES),
+  previousScore: z.number().nullable(),
+  currentScore: z.number().nullable(),
+  /** Current minus previous; null whenever `comparable.ok` is false. */
+  delta: z.number().nullable(),
+  comparable: comparabilitySchema(MODULE_COMPARISON_REASONS),
+});
+export type ModuleScoreDelta = z.infer<typeof moduleScoreDeltaSchema>;
+
+export const pageComparisonSchema = z.object({
+  comparable: comparabilitySchema(PAGE_COMPARISON_REASONS),
+  identity: z.enum(PAGE_IDENTITY_KINDS).nullable(),
+  added: z.number().int().min(0),
+  removed: z.number().int().min(0),
+  kept: z.number().int().min(0),
+  currentTotal: z.number().int().min(0),
+  previousTotal: z.number().int().min(0),
+  addedSample: z.array(z.string()).max(COMPARISON_SAMPLE_LIMIT),
+  removedSample: z.array(z.string()).max(COMPARISON_SAMPLE_LIMIT),
+});
+export type PageComparison = z.infer<typeof pageComparisonSchema>;
+
+const issueCountsSchema = z.object({
+  /** Fingerprint present now, absent from the previous scan. */
+  new: z.number().int().min(0),
+  /** Findings of the previous scan this run closed (§14 Resolved policy). */
+  resolved: z.number().int().min(0),
+  /** Closed by an earlier scan of the plan and back — a subset of `new`. */
+  reopened: z.number().int().min(0),
+  /** Fingerprint present in both scans. */
+  stillOpen: z.number().int().min(0),
+});
+
+export const issueSampleSchema = z.object({
+  fingerprint: z.string(),
+  ruleId: z.string(),
+  module: z.string(),
+  severity: z.string(),
+  normalizedUrl: z.string(),
+});
+export type IssueSample = z.infer<typeof issueSampleSchema>;
+
+export const issueComparisonSchema = issueCountsSchema.extend({
+  byModule: z.array(issueCountsSchema.extend({ module: z.string() })),
+  bySeverity: z.array(issueCountsSchema.extend({ severity: z.string() })),
+  newSample: z.array(issueSampleSchema).max(COMPARISON_SAMPLE_LIMIT),
+  resolvedSample: z.array(issueSampleSchema).max(COMPARISON_SAMPLE_LIMIT),
+});
+export type IssueComparison = z.infer<typeof issueComparisonSchema>;
+
+export const scanComparisonSchema = z.object({
+  current: comparedScanSchema,
+  /** Null exactly when `comparable` names a reason about there being none. */
+  previous: comparedScanSchema.nullable(),
+  comparable: comparabilitySchema(COMPARISON_INCOMPARABLE_REASONS),
+  overall: z.object({
+    previousScore: z.number().nullable(),
+    currentScore: z.number().nullable(),
+    delta: z.number().nullable(),
+  }),
+  modules: z.array(moduleScoreDeltaSchema),
+  pages: pageComparisonSchema,
+  issues: issueComparisonSchema,
+});
+export type ScanComparison = z.infer<typeof scanComparisonSchema>;
