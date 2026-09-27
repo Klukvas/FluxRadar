@@ -7,6 +7,7 @@
 // is half-configured, the names of the variables that are missing. No value of
 // any variable is read into a log line, ever.
 
+import { readCreemConfig } from '../billing/creem/config.ts';
 import { readFastSpringConfig } from '../billing/fastspring/config.ts';
 import { readResendConfig } from '../email/resend-config.ts';
 import type { ApiLogger } from '../http/logger.ts';
@@ -74,6 +75,7 @@ export function readIntegrationStatuses(
     status('google', readOAuthConfig('google', env)),
     status('bing', readOAuthConfig('bing', env)),
     status('fastspring', readFastSpringConfig(env)),
+    status('creem', readCreemConfig(env)),
   ];
 }
 

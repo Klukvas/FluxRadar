@@ -1,3 +1,5 @@
+import { resolveCheckoutProvider } from '../billing/checkout-provider.ts';
+import { readCreemConfig } from '../billing/creem/config.ts';
 import { readFastSpringConfig } from '../billing/fastspring/config.ts';
 import { readRefundDispatchConfig } from '../billing/refunds/config.ts';
 import { MOCK_EMAIL_ENV, isMockEmailOptIn } from '../email/mock-email.ts';
@@ -116,6 +118,7 @@ function partialIntegrationFailures(env: NodeJS.ProcessEnv): readonly string[] {
   const results = [
     readIntegrationEncryptionKey(env),
     readFastSpringConfig(env),
+    readCreemConfig(env),
     readOAuthConfig('google', env),
     readOAuthConfig('bing', env),
     readObjectStorageConfig(env),
@@ -147,6 +150,17 @@ export function validateRuntimeConfig(env: NodeJS.ProcessEnv = process.env): voi
   const invalid = partialIntegrationFailures(env);
   if (invalid.length > 0) {
     throw new Error(`Invalid production configuration: ${invalid.join('; ')}`);
+  }
+  // Which provider opens new checkouts. Two configured providers with nothing
+  // saying which one sells is not a guess this process may make: the wrong one
+  // sells a plan with the other provider's products (billing/checkout-provider.ts).
+  const checkoutProvider = resolveCheckoutProvider(
+    readFastSpringConfig(env),
+    readCreemConfig(env),
+    env,
+  );
+  if (checkoutProvider.state === 'invalid') {
+    throw new Error(`Invalid production configuration: ${checkoutProvider.reason}`);
   }
   // Defence in depth for the fake mailbox, and only ever in the closing
   // direction. `createMailer` already refuses to hand MockMailer to anything

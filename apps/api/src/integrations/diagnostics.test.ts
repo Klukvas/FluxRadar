@@ -55,6 +55,7 @@ describe('startup integration diagnostics', () => {
       'google',
       'bing',
       'fastspring',
+      'creem',
     ]);
     expect(statusOf({}, 'pagespeed')).toBe('configured');
     expect(
