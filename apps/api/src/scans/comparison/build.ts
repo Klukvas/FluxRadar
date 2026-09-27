@@ -110,6 +110,16 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** The headline row: both overall scores, and their difference where both exist. */
+function overallOf(previousScore: number | null, currentScore: number | null) {
+  return {
+    previousScore,
+    currentScore,
+    delta:
+      previousScore === null || currentScore === null ? null : round2(currentScore - previousScore),
+  };
+}
+
 const NO_PAGE_COMPARISON: PageComparison = {
   comparable: { ok: false, reason: 'scans-not-comparable' },
   identity: null,
@@ -170,6 +180,37 @@ function noComparison(
   };
 }
 
+/**
+ * The three reads a comparable pair actually carries, once the verdict allows
+ * them: per-module deltas, the page census and the finding diff.
+ *
+ * One pass over each scan's stored proof serves the last two — the census and the
+ * rules each side ran are both in it, and it costs a gunzip per module to reach.
+ */
+async function comparedSections(
+  deps: ComparisonDeps,
+  current: ComparisonSide,
+  previous: ComparisonSide,
+): Promise<Pick<ScanComparison, 'modules' | 'pages' | 'issues'>> {
+  const onProblem = (detail: { scanId: string; module: string; problem: string }): void => {
+    deps.logger?.warn('scan comparison could not read a re-check proof', detail);
+  };
+  const [currentEvidence, previousEvidence] = await Promise.all([
+    readCoverageEvidence(deps.prisma, current.scan.id, onProblem),
+    readCoverageEvidence(deps.prisma, previous.scan.id, onProblem),
+  ]);
+  const issues = await compareIssues(
+    deps.prisma,
+    { currentScanId: current.scan.id, previousScanId: previous.scan.id },
+    { current: currentEvidence.checkedRules, previous: previousEvidence.checkedRules },
+  );
+  return {
+    modules: [...moduleScoreDeltas(current.modules, previous.modules)],
+    pages: comparePages(currentEvidence.census, previousEvidence.census),
+    issues,
+  };
+}
+
 export async function buildScanComparison(
   deps: ComparisonDeps,
   scan: Scan,
@@ -210,32 +251,12 @@ export async function buildScanComparison(
       currentScore,
     });
   }
-  const onProblem = (detail: { scanId: string; module: string; problem: string }): void => {
-    deps.logger?.warn('scan comparison could not read a re-check proof', detail);
-  };
-  const [currentEvidence, previousEvidence] = await Promise.all([
-    readCoverageEvidence(prisma, current.scan.id, onProblem),
-    readCoverageEvidence(prisma, previous.scan.id, onProblem),
-  ]);
-  const issues = await compareIssues(
-    prisma,
-    { currentScanId: current.scan.id, previousScanId: previous.scan.id },
-    { current: currentEvidence.checkedRules, previous: previousEvidence.checkedRules },
-  );
+  const sections = await comparedSections(deps, current, previous);
   return {
     current: currentIdentity,
     previous: identityOf(previous),
     comparable: verdict,
-    overall: {
-      previousScore,
-      currentScore,
-      delta:
-        previousScore === null || currentScore === null
-          ? null
-          : round2(currentScore - previousScore),
-    },
-    modules: [...moduleScoreDeltas(current.modules, previous.modules)],
-    pages: comparePages(currentEvidence.census, previousEvidence.census),
-    issues,
+    overall: overallOf(previousScore, currentScore),
+    ...sections,
   };
 }

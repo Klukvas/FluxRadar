@@ -44,8 +44,17 @@ import {
   type PaidAccessScan,
 } from '../billing/report-access.ts';
 
-/** Latest completion first, with the id as the tie-break. */
-export const PREVIOUS_SCAN_ORDER = [{ completedAt: 'desc' }, { id: 'desc' }] as const;
+/**
+ * Latest completion first, with the id as the tie-break.
+ *
+ * `nulls: 'last'` because PostgreSQL sorts nulls FIRST under `desc`: a Completed
+ * row with no completion time — which the state machine never writes, and a hand
+ * fix might — would otherwise be every scan's previous one.
+ */
+export const PREVIOUS_SCAN_ORDER = [
+  { completedAt: { sort: 'desc', nulls: 'last' } },
+  { id: 'desc' },
+] as const;
 
 /** What a scan has to be to serve as another's previous scan. */
 export type ComparedAgainst = Pick<

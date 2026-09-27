@@ -624,7 +624,11 @@ describe('the comparison panel', () => {
     const block = await panel(EN_HEADING);
     expect(stat(block, 'Still open').textContent).toContain('6');
     expect(stat(block, 'Settled by you').textContent).toContain('2');
-    expect(within(block).getByText(/ignored or a false positive/i)).toBeInTheDocument();
+    // The whole definition: the owner's two decisions AND a finding a later scan
+    // has already closed, which also lands in this count.
+    expect(
+      within(block).getByText(/ignored or a false positive, or a later scan has already closed/i),
+    ).toBeInTheDocument();
   });
 
   it('names a previous report the account may no longer open, and compares nothing', async () => {

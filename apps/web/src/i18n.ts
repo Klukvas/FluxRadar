@@ -1570,8 +1570,12 @@ export const copy = {
           'Reopened findings are counted among the ones that were not in the previous report: each of them was closed by an earlier report of this plan and is back.',
         resolvedNote:
           'A finding counts as resolved only where this scan checked the same thing again and no longer found it. Anything this scan could not re-check stays open.',
+        // "Settled" is the whole of the contract's definition, not the common
+        // half of it: a finding present in both reports also lands here when a
+        // LATER scan has already closed it, and a sentence that named only the
+        // owner's two decisions left that count unexplained.
         settledNote:
-          'Settled means you marked it ignored or a false positive, so it is held apart from the problems still waiting for you.',
+          'Settled means you marked it ignored or a false positive, or a later scan has already closed it — either way it is held apart from the problems still waiting for you.',
         firstCheckedNote:
           'These were found by checks that ran for the first time in this scan, so they are not counted as new: they are not problems you introduced, they are problems nobody had looked for yet. {rules}',
         firstCheckedRules: 'New checks: {list}.',
@@ -3182,7 +3186,7 @@ export const copy = {
         resolvedNote:
           'Знахідка вважається виправленою лише там, де ця перевірка подивилася на те саме знову і більше цього не знайшла. Усе, що перевірити не вдалося, залишається відкритим.',
         settledNote:
-          'Закриті вами — це позначені як проігноровані або хибні спрацювання, тож вони відділені від проблем, які ще чекають на вас.',
+          'Закриті — це позначені вами як проігноровані чи хибні спрацювання або вже закриті пізнішою перевіркою; так чи інак, вони відділені від проблем, які ще чекають на вас.',
         firstCheckedNote:
           'Їх знайшли перевірки, які виконалися вперше саме в цьому скані, тож вони не враховані як нові: це не проблеми, які ви створили, а проблеми, яких досі ніхто не шукав. {rules}',
         firstCheckedRules: 'Нові перевірки: {list}.',

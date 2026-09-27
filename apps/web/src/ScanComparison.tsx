@@ -234,11 +234,10 @@ function ScopeChanges(props: {
     'userAgent',
     'egressLocation',
   ];
-  const language = props.language;
   const changed = fields.filter(
     (field) =>
-      scopeValue(field, props.current[field], t, language) !==
-      scopeValue(field, props.previous[field], t, language),
+      scopeValue(field, props.current[field], t, props.language) !==
+      scopeValue(field, props.previous[field], t, props.language),
   );
   // The note is not tied to the list: two crawls can differ in a setting this
   // list does not name (the API checks), and an egress nobody recorded on either
@@ -255,8 +254,8 @@ function ScopeChanges(props: {
               <li key={field}>
                 {fillCopy(t.scopeChangedRow, {
                   field: t.scopeField[field],
-                  previous: scopeValue(field, props.previous[field], t, language),
-                  current: scopeValue(field, props.current[field], t, language),
+                  previous: scopeValue(field, props.previous[field], t, props.language),
+                  current: scopeValue(field, props.current[field], t, props.language),
                 })}
               </li>
             ))}
