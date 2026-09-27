@@ -13,6 +13,7 @@ import { COMPARISON_SAMPLE_LIMIT, scanComparisonSchema } from '@fluxradar/contra
 
 import { createApp } from '../../index.ts';
 import { PURCHASE_STATUSES } from '../../billing/constants.ts';
+import { pruneCoverageProofs } from '../../orchestrator/run-coverage.ts';
 import { silentLogger } from '../../http/logger.ts';
 import {
   COMPARISON_NOW,
@@ -669,6 +670,78 @@ describe('comparing a report with the previous scan', () => {
     expect(parsed.comparable).toEqual({ ok: false, reason: 'previous-not-readable' });
     expect(parsed.previous?.id).toBe(latest);
     expect(parsed.previous?.readable).toBe(false);
+  });
+
+  it('keeps the proof of the scan the comparison reads, not of the two newest ones', async () => {
+    // The retention window and "the previous scan" have to be the same order, and
+    // the case that separates them is the one the §14 rule exists for: a Partial
+    // run retried later. A is bought first and finishes last, so D compares with
+    // A — while a window ordered by creation keeps {D, C} and deletes exactly the
+    // proof D was about to read. The pages then answer page-evidence-missing
+    // about the scan the report says it compared with.
+    const app = makeApp();
+    const owner = await signUp(app, 'prune-window@example.com');
+    const site = 'https://prune-window.example.com';
+    const censusOf = (targets: readonly string[]) => ({
+      SEO: [pageRuleCoverage(targets), canonicalRuleCoverage(targets)],
+    });
+    const at = (day: string) => new Date(`2026-09-${day}T12:00:00.000Z`);
+
+    const a = await buy(owner.profileId);
+    await finishScan(db.prisma, a, {
+      createdAt: at('02'),
+      status: 'Partial',
+      statusReason: 'ExternalModuleFailure',
+      completedAt: at('02'),
+    });
+    const b = await buy(owner.profileId);
+    await finishScan(db.prisma, b, {
+      createdAt: at('03'),
+      completedAt: at('05'),
+      proofs: censusOf([`${site}/`]),
+    });
+    const c = await buy(owner.profileId);
+    await finishScan(db.prisma, c, {
+      createdAt: at('04'),
+      completedAt: at('06'),
+      proofs: censusOf([`${site}/`]),
+    });
+    // The retry: A reaches Completed after C finished, which is what makes it D's
+    // baseline and not B's or C's.
+    await finishScan(db.prisma, a, {
+      createdAt: at('02'),
+      completedAt: at('10'),
+      proofs: censusOf([`${site}/`, `${site}/retired`]),
+    });
+    const d = await buy(owner.profileId);
+    await finishScan(db.prisma, d, {
+      createdAt: at('11'),
+      completedAt: at('11'),
+      proofs: censusOf([`${site}/`, `${site}/fresh`]),
+    });
+
+    const removed = await pruneCoverageProofs(
+      db.prisma,
+      await db.prisma.scan.findUniqueOrThrow({ where: { id: d } }),
+    );
+
+    // B and C expire; A survives because it is the scan D is compared with.
+    expect(removed).toBe(2);
+    const proofCount = (scanId: string) => db.prisma.ruleCoverageProof.count({ where: { scanId } });
+    expect(await proofCount(a)).toBe(1);
+    expect(await proofCount(d)).toBe(1);
+    expect(await proofCount(b)).toBe(0);
+    expect(await proofCount(c)).toBe(0);
+
+    const parsed = scanComparisonSchema.parse((await comparison(owner, d)).body.data);
+
+    expect(parsed.previous?.id).toBe(a);
+    expect(parsed.comparable).toEqual({ ok: true });
+    // The census the surviving proof makes possible: one page gone, one appeared.
+    expect(parsed.pages.comparable).toEqual({ ok: true });
+    expect(parsed.pages).toMatchObject({ added: 1, removed: 1, kept: 1 });
+    expect(parsed.pages.addedSample).toEqual([`${site}/fresh`]);
+    expect(parsed.pages.removedSample).toEqual([`${site}/retired`]);
   });
 
   it('does not hand one account another account’s comparison', async () => {

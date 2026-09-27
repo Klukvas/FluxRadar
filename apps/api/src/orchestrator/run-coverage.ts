@@ -51,6 +51,7 @@ import { planSupports } from '@fluxradar/contracts';
 import type { Prisma, PrismaClient, Scan } from '@prisma/client';
 import { z } from 'zod';
 
+import { PREVIOUS_SCAN_ORDER } from '../scans/previous-scan.ts';
 import { UNKNOWN_RUN_CONTEXT, type RunRequestContext } from './run-context.ts';
 
 /** Что прочитало одно правило: цели в той же нормализации, что normalizedUrl его findings. */
@@ -525,6 +526,14 @@ export const COVERAGE_PROOF_HISTORY = 2;
  * ним. Окно только по Complete вытеснило бы доказательство предыдущего
  * Website Audit сразу после следующей уборки, и следующее сравнение того же
  * плана осталось бы без покрытия, которое ему нужно прочитать.
+ *
+ * ПОРЯДОК — ТОТ ЖЕ, ЧТО У ВЫБОРА ПРЕДЫДУЩЕГО СКАНА (PREVIOUS_SCAN_ORDER: по
+ * времени ЗАВЕРШЕНИЯ, затем по id). Окно по времени создания расходится с
+ * выбором ровно там, где Partial-скан дожили повтором: A создан раньше B и C, но
+ * завершён позже их — для скана D предыдущий именно A, а окно по createdAt
+ * оставило бы {D, C} и удалило доказательство A. Сравнение D тогда отвечает
+ * page-evidence-missing на страницы и «неизвестно» на покрытие правил — причём о
+ * скане, с которым его только что сравнили.
  */
 export async function pruneCoverageProofs(
   prisma: PrismaClient,
@@ -533,7 +542,7 @@ export async function pruneCoverageProofs(
 ): Promise<number> {
   const recent = await prisma.scan.findMany({
     where: { siteProfileId: scan.siteProfileId, plan: scan.plan, status: 'Completed' },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [...PREVIOUS_SCAN_ORDER],
     take: keep,
     select: { id: true },
   });

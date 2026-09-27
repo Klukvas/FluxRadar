@@ -56,6 +56,15 @@ export interface FinishScanParams {
   readonly status?: string;
   readonly statusReason?: string | null;
   readonly completedAt?: Date;
+  /**
+   * When the scan was bought, when a test needs it to differ from its order.
+   *
+   * A Partial run retried later completes AFTER scans created after it, and
+   * every read of "the previous scan" orders by completion for exactly that case
+   * (scans/previous-scan.ts). A fixture that leaves creation to the insertion
+   * order cannot tell the two orders apart.
+   */
+  readonly createdAt?: Date;
   /** Null writes no crawl summary at all — a scan older than the column. */
   readonly summary?: CrawlSummary | null;
   readonly modules?: readonly SeedModule[];
@@ -110,6 +119,7 @@ export async function finishScan(
     data: {
       status: params.status ?? 'Completed',
       statusReason: params.statusReason ?? null,
+      ...(params.createdAt === undefined ? {} : { createdAt: params.createdAt }),
       startedAt: COMPARISON_NOW,
       completedAt: params.completedAt ?? COMPARISON_NOW,
       crawlSummaryJson: summary === null ? null : JSON.stringify(summary),
