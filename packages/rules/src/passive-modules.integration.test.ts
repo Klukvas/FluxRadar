@@ -194,7 +194,7 @@ describe('passive-модули на fixture-сайте краулера', () => 
   it('coverage: снимков без fetchError 18 → все checks каждого модуля завершены', () => {
     expect(crawlResult.pages).toHaveLength(18);
     const expectedChecks: Readonly<Record<string, number>> = {
-      // Existing 36 checks + ASVS-001×17 + ASVS-002×17 + ASVS-003×18.
+      // Existing 35 checks + ASVS-001×17 + ASVS-002×17 + ASVS-003×18.
       Security: 87,
       // REL-URL-001/003/009×18; api-правила без ctx.apiChecks — 0.
       Reliability: 54,
