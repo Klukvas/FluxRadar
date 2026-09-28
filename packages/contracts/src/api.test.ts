@@ -232,6 +232,22 @@ describe('competitors (T7)', () => {
         competitorsListProblem(['HTTPS://EXAMPLE.COM'], 'My Site', 'https://example.com'),
       ).not.toBeNull();
     });
+
+    // T7-fix F2: the stored domain is already an https origin
+    // (`httpsOriginSchema`), but a competitor entry is free text — every form
+    // of the same host must be recognised as the profile's own domain.
+    describe('own-domain escapes (T7-fix F2)', () => {
+      const domain = 'https://www.acmedental.test';
+      it.each([
+        'acmedental.test',
+        'www.acmedental.test',
+        'https://acmedental.test',
+        'http://www.acmedental.test',
+        'https://www.acmedental.test/',
+      ])('flags "%s" against domain %s', (competitor) => {
+        expect(competitorsListProblem([competitor], 'My Site', domain)).not.toBeNull();
+      });
+    });
   });
 });
 

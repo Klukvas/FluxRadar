@@ -264,6 +264,120 @@ describe('SiteProfile competitors (T7)', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  // T7-fix F3: `assertCompetitorsAllowed` used to run only when the request
+  // touched `competitors` itself, so a rename or a domain change never
+  // re-checked the stored list against the value being renamed to.
+  it('rejects a PATCH that renames the profile to equal a stored competitor', async () => {
+    const profile = {
+      id: 'profile-1',
+      accountId: 'owner',
+      name: 'Smile Clinic',
+      domain: 'https://smile.example',
+      industry: null,
+      region: null,
+      language: null,
+      businessDescription: null,
+      offerings: null,
+      targetLanguages: null,
+      targetAudience: null,
+      competitorsJson: JSON.stringify(['Acme Dental']),
+      scanConfigVersion: 1,
+      scanConfigJson: JSON.stringify(defaultProfileScanConfig),
+      createdAt: new Date(),
+    };
+    const update = vi.fn();
+    const app = appWith({
+      siteProfile: {
+        findUnique: vi.fn().mockResolvedValue(profile),
+        update,
+      } as unknown as PrismaClient['siteProfile'],
+      session: { findUnique: sessionMock() } as unknown as PrismaClient['session'],
+    });
+
+    const response = await request(app)
+      .patch('/profiles/profile-1')
+      .set('Cookie', SESSION_COOKIE)
+      .send({ name: 'Acme Dental' });
+
+    expect(response.status).toBe(400);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a PATCH that changes the domain to equal a stored competitor', async () => {
+    const profile = {
+      id: 'profile-1',
+      accountId: 'owner',
+      name: 'Smile Clinic',
+      domain: 'https://smile.example',
+      industry: null,
+      region: null,
+      language: null,
+      businessDescription: null,
+      offerings: null,
+      targetLanguages: null,
+      targetAudience: null,
+      competitorsJson: JSON.stringify(['acme.example']),
+      scanConfigVersion: 1,
+      scanConfigJson: JSON.stringify(defaultProfileScanConfig),
+      createdAt: new Date(),
+    };
+    const update = vi.fn();
+    const app = appWith({
+      siteProfile: {
+        findUnique: vi.fn().mockResolvedValue(profile),
+        update,
+      } as unknown as PrismaClient['siteProfile'],
+      checkoutSession: {
+        count: vi.fn().mockResolvedValue(0),
+      } as unknown as PrismaClient['checkoutSession'],
+      session: { findUnique: sessionMock() } as unknown as PrismaClient['session'],
+    });
+
+    const response = await request(app)
+      .patch('/profiles/profile-1')
+      .set('Cookie', SESSION_COOKIE)
+      .send({ domain: 'https://acme.example' });
+
+    expect(response.status).toBe(400);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('allows a PATCH rename that does not collide with any stored competitor', async () => {
+    const profile = {
+      id: 'profile-1',
+      accountId: 'owner',
+      name: 'Smile Clinic',
+      domain: 'https://smile.example',
+      industry: null,
+      region: null,
+      language: null,
+      businessDescription: null,
+      offerings: null,
+      targetLanguages: null,
+      targetAudience: null,
+      competitorsJson: JSON.stringify(['Acme Dental']),
+      scanConfigVersion: 1,
+      scanConfigJson: JSON.stringify(defaultProfileScanConfig),
+      createdAt: new Date(),
+    };
+    const update = vi.fn().mockImplementation(({ data }) => ({ ...profile, ...data }));
+    const app = appWith({
+      siteProfile: {
+        findUnique: vi.fn().mockResolvedValue(profile),
+        update,
+      } as unknown as PrismaClient['siteProfile'],
+      session: { findUnique: sessionMock() } as unknown as PrismaClient['session'],
+    });
+
+    const response = await request(app)
+      .patch('/profiles/profile-1')
+      .set('Cookie', SESSION_COOKIE)
+      .send({ name: 'Bright Smile Clinic' });
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalled();
+  });
+
   it('reads a stored competitors list back from GET', async () => {
     const profile = {
       id: 'profile-1',

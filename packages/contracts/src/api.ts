@@ -101,6 +101,38 @@ export const siteProfileInputSchema = z.object({
 export type SiteProfileInput = z.infer<typeof siteProfileInputSchema>;
 
 /**
+ * A competitor name folded for comparison against the profile's own name:
+ * trimmed, NFC-normalised, lower-cased. Deliberately not URL-aware — a name
+ * is compared as a name.
+ */
+function normalizeCompetitorName(value: string): string {
+  return value.trim().normalize('NFC').toLowerCase();
+}
+
+/**
+ * A competitor entry or a profile domain, folded to the bare hostname it
+ * would name if read as an address — so "acmedental.test",
+ * "www.acmedental.test", "https://acmedental.test" and
+ * "https://www.acmedental.test/" (the stored, `httpsOriginSchema`-normalised
+ * form) all fold to the same value (T7-fix F2).
+ *
+ * A value that is not URL-parseable even with a scheme prefixed (a plain
+ * competitor name with no dot, say) falls back to a best-effort strip of a
+ * leading "www." and trailing slashes — it will not equal a real domain's
+ * folded form either way, so the fallback only has to avoid throwing.
+ */
+function normalizeDomainForComparison(value: string): string {
+  const trimmed = value.trim().normalize('NFC').toLowerCase();
+  if (trimmed === '') return '';
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    return new URL(withScheme).hostname.replace(/^www\./, '');
+  } catch {
+    return trimmed.replace(/^www\./, '').replace(/\/+$/, '');
+  }
+}
+
+/**
  * Why a competitors list is invalid, or null when it is fine.
  *
  * Checked here rather than folded into `siteProfileInputSchema` as a
@@ -112,7 +144,11 @@ export type SiteProfileInput = z.infer<typeof siteProfileInputSchema>;
  * already stored) rather than this function guessing at a merge.
  *
  * Case-insensitive throughout, matching how brand-mention matching itself is
- * case-insensitive (`questionNames` in `@fluxradar/ai`).
+ * case-insensitive (`questionNames` in `@fluxradar/ai`). The domain check
+ * additionally folds scheme, "www." and a trailing slash away on both sides
+ * (T7-fix F2): the stored `domain` is already an https origin
+ * (`httpsOriginSchema`), and a competitor entry typed as a bare hostname, with
+ * "www.", or as a full URL must all be recognised as the same site.
  */
 export function competitorsListProblem(
   competitors: readonly string[] | null | undefined,
@@ -120,12 +156,15 @@ export function competitorsListProblem(
   domain: string,
 ): string | null {
   if (competitors == null || competitors.length === 0) return null;
-  const normalizedBrand = brand.trim().toLowerCase();
-  const normalizedDomain = domain.trim().toLowerCase();
+  const normalizedBrand = normalizeCompetitorName(brand);
+  const normalizedDomain = normalizeDomainForComparison(domain);
   const seen = new Set<string>();
   for (const raw of competitors) {
-    const normalized = raw.trim().toLowerCase();
-    if (normalized === normalizedBrand || normalized === normalizedDomain) {
+    const normalized = normalizeCompetitorName(raw);
+    if (
+      normalized === normalizedBrand ||
+      (normalizedDomain !== '' && normalizeDomainForComparison(raw) === normalizedDomain)
+    ) {
       return `competitors must not repeat the profile's own name or domain: "${raw}"`;
     }
     if (seen.has(normalized)) {
@@ -348,10 +387,20 @@ export const siteProfilePatchInputSchema = siteProfileInputSchema.partial().exte
 });
 export type SiteProfilePatchInput = z.infer<typeof siteProfilePatchInputSchema>;
 
-// `competitors` is deliberately omitted: this is the shape captured into
-// executionConfigJson at launch and later handed to the AI provider as prompt
-// context (captureExecutionConfig / GeoProfileContext in apps/api). Competitor
-// names are matched locally against stored answers and must never travel here.
+// `competitors` is omitted from `profile`: that nested object is the shape
+// captured into executionConfigJson at launch and later handed to the AI
+// provider as prompt context (captureExecutionConfig / GeoProfileContext in
+// apps/api). Competitor names are matched locally against stored answers and
+// must never travel there.
+//
+// They are still captured, at the top level, as `competitors` below (T7-fix
+// F8): share of voice is computed from a scan's own stored answers, so it must
+// reflect the competitor list as it stood when the scan launched, not
+// whatever the profile holds when the report is later read — an already-run
+// scan's share of voice must not change because someone edited the profile's
+// competitor list afterwards. Absent on a config captured before this field
+// existed, or on a legacy-checkout config: either way there is nothing to
+// compute a share of voice from for that scan.
 export const executionConfigSchema = z.object({
   schemaVersion: z.literal(1),
   source: z.enum(['launch', 'legacy-checkout']),
@@ -359,6 +408,7 @@ export const executionConfigSchema = z.object({
   profile: siteProfileInputSchema.omit({ scanConfig: true, competitors: true }),
   plan: z.enum(PLANS),
   scope: scanScopeSchema,
+  competitors: siteProfileInputSchema.shape.competitors,
 });
 export type ExecutionConfig = z.infer<typeof executionConfigSchema>;
 

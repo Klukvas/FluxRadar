@@ -231,13 +231,18 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
     if (input.domain !== undefined && input.domain !== profile.domain) {
       await assertDomainChangeAllowed(prisma, profile.id, deps.now());
     }
-    if (input.competitors !== undefined) {
-      assertCompetitorsAllowed(
-        input.competitors,
-        input.name ?? profile.name,
-        input.domain ?? profile.domain,
-      );
-    }
+    // Re-checked unconditionally, not only when `competitors` itself is part
+    // of this request (T7-fix F3): a PATCH that only renames the profile or
+    // changes its domain can otherwise leave a stored competitor equal to the
+    // row's own new name or domain, since the invariant this call protects
+    // was never re-verified against the value being renamed to.
+    assertCompetitorsAllowed(
+      input.competitors === undefined
+        ? competitorsFromJson(profile.competitorsJson)
+        : input.competitors,
+      input.name ?? profile.name,
+      input.domain ?? profile.domain,
+    );
     const nextScanConfig =
       input.scanConfig === undefined ? undefined : profileScanConfigSchema.parse(input.scanConfig);
     if (nextScanConfig !== undefined) {

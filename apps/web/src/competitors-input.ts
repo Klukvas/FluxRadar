@@ -24,6 +24,32 @@ export type CompetitorsInputError =
   | { readonly kind: 'own-brand'; readonly name: string };
 
 /**
+ * A competitor name folded for comparison against the profile's own name:
+ * trimmed, NFC-normalised, lower-cased.
+ */
+function normalizeCompetitorName(value: string): string {
+  return value.trim().normalize('NFC').toLowerCase();
+}
+
+/**
+ * A competitor entry or the address field, folded to the bare hostname it
+ * would name if read as an address — mirrors `normalizeDomainForComparison`
+ * in `@fluxradar/contracts`' `competitorsListProblem` exactly, so this field
+ * never disagrees with the server about which competitor collides with the
+ * site's own domain (T7-fix F2).
+ */
+function normalizeDomainForComparison(value: string): string {
+  const trimmed = value.trim().normalize('NFC').toLowerCase();
+  if (trimmed === '') return '';
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    return new URL(withScheme).hostname.replace(/^www\./, '');
+  } catch {
+    return trimmed.replace(/^www\./, '').replace(/\/+$/, '');
+  }
+}
+
+/**
  * The first problem with the parsed list, or null. Checked in the same order
  * a reader fixing the field would hit each one: count, then each name's
  * length, then repeats.
@@ -38,12 +64,15 @@ export function competitorsError(
     if (name.length < COMPETITOR_NAME_MIN_LENGTH) return { kind: 'too-short', name };
     if (name.length > COMPETITOR_NAME_MAX_LENGTH) return { kind: 'too-long', name };
   }
-  const normalizedBrand = brand.trim().toLowerCase();
-  const normalizedDomain = domain.trim().toLowerCase();
+  const normalizedBrand = normalizeCompetitorName(brand);
+  const normalizedDomain = normalizeDomainForComparison(domain);
   const seen = new Set<string>();
   for (const name of competitors) {
-    const normalized = name.toLowerCase();
-    if (normalized === normalizedBrand || normalized === normalizedDomain) {
+    const normalized = normalizeCompetitorName(name);
+    if (
+      normalized === normalizedBrand ||
+      (normalizedDomain !== '' && normalizeDomainForComparison(name) === normalizedDomain)
+    ) {
       return { kind: 'own-brand', name };
     }
     if (seen.has(normalized)) return { kind: 'duplicate', name };

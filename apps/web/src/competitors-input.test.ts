@@ -62,4 +62,23 @@ describe('competitorsError', () => {
       name: 'HTTPS://SMILE.EXAMPLE',
     });
   });
+
+  // T7-fix F2: every spelling of the same host must be recognised as the
+  // profile's own domain — matching the server's `competitorsListProblem`
+  // (packages/contracts) exactly, whichever form the owner types.
+  describe('own-domain escapes (T7-fix F2)', () => {
+    const wwwDomain = 'https://www.acmedental.test';
+    it.each([
+      'acmedental.test',
+      'www.acmedental.test',
+      'https://acmedental.test',
+      'http://www.acmedental.test',
+      'https://www.acmedental.test/',
+    ])('flags "%s" against domain %s', (competitor) => {
+      expect(competitorsError([competitor], BRAND, wwwDomain)).toEqual({
+        kind: 'own-brand',
+        name: competitor,
+      });
+    });
+  });
 });
