@@ -473,4 +473,89 @@ describe('Share of voice', () => {
     expect(await screen.findByText('Частка голосу')).toBeInTheDocument();
     expect(screen.getByText('Ваш бренд: 50% згадок')).toBeInTheDocument();
   });
+
+  // T7-fix3 L2: brandMentionedCount (above, from the brand-mention signal)
+  // counts "Bolt" inside "Bolt Food" as a mention; brandMentionsInScope
+  // (here) deliberately does not, per N1's decided rule — so the card can
+  // show "brand mentioned in 2/2 answers" right above "your brand: 0% of
+  // mentions" with nothing explaining why. The note below the row closes
+  // that gap only when the two numbers actually disagree.
+  it('explains the gap when the brand is only ever named inside a competitor’s name', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            brandMeasuredCount: 2,
+            brandMentionedCount: 2,
+            brandMentionedShare: 1,
+            shareOfVoice: {
+              denominator: 2,
+              brandMentionsInScope: 0,
+              brandShare: 0,
+              competitors: [{ name: 'Bolt Food', mentionedCount: 2, share: 1 }],
+            },
+          }),
+        ]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText('Your brand: 0% of mentions')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Share of voice counts your brand only where it is named on its own, not inside a competitor's name (2 answer(s) named it only as part of a competitor's name).",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing extra when the brand-mention and share-of-voice counts already agree', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            shareOfVoice: {
+              denominator: 4,
+              brandMentionsInScope: 2,
+              brandShare: 0.5,
+              competitors: [{ name: 'Acme Audit', mentionedCount: 1, share: 0.25 }],
+            },
+          }),
+        ]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.queryByText(/only where it is named on its own/)).toBeNull();
+  });
+
+  it('explains the gap in Ukrainian for the same Bolt / Bolt Food case', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            brandMeasuredCount: 2,
+            brandMentionedCount: 2,
+            brandMentionedShare: 1,
+            shareOfVoice: {
+              denominator: 2,
+              brandMentionsInScope: 0,
+              brandShare: 0,
+              competitors: [{ name: 'Bolt Food', mentionedCount: 2, share: 1 }],
+            },
+          }),
+        ]),
+      }),
+      'uk',
+    );
+
+    expect(await screen.findByText('Частка голосу')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Частка голосу враховує ваш бренд лише там, де його названо окремо, а не всередині назви конкурента (у 2 відповіді(ях) його названо лише як частину назви конкурента).',
+      ),
+    ).toBeInTheDocument();
+  });
 });

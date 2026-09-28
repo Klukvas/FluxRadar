@@ -60,8 +60,23 @@ function GeoCitedInstead(props: {
  * the field is treated the same as "no competitors configured": either way
  * there is nothing to show but the invitation to configure them.
  */
+/**
+ * How many answers named the brand only as part of a competitor's name
+ * (T7-fix3 L2): the brand-mention signal counts "Bolt" inside "Bolt Food" as
+ * a mention, `shareOfVoice.brandMentionsInScope` deliberately does not, so
+ * the difference is exactly the count the two disagree on. Never negative —
+ * `brandMentionsInScope` counts a subset of what `brandMentionedCount` does.
+ */
+export function ownNameOnlyCount(
+  shareOfVoice: NonNullable<GeoProviderVisibility['shareOfVoice']>,
+  brandMentionedCount: number,
+): number {
+  return Math.max(0, brandMentionedCount - shareOfVoice.brandMentionsInScope);
+}
+
 function GeoShareOfVoice(props: {
   shareOfVoice: GeoProviderVisibility['shareOfVoice'];
+  brandMentionedCount: number;
   language: Language;
 }) {
   const t = copy[props.language].report;
@@ -77,6 +92,7 @@ function GeoShareOfVoice(props: {
       </div>
     );
   }
+  const ownNameOnly = ownNameOnlyCount(shareOfVoice, props.brandMentionedCount);
   return (
     <div className="geo-visibility-card__share-of-voice">
       <strong>{t.geoShareOfVoiceHeading}</strong>
@@ -97,6 +113,11 @@ function GeoShareOfVoice(props: {
           </li>
         ))}
       </ul>
+      {ownNameOnly > 0 ? (
+        <p className="muted">
+          {fillCopy(t.geoShareOfVoiceOwnNameOnlyNote, { count: ownNameOnly })}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -191,7 +212,11 @@ function GeoVisibilityCard(props: {
         notMeasurable={t.geoVisibilityDomainNotMeasurable}
       />
       <GeoCitedInstead citedInstead={provider.citedInstead} language={props.language} />
-      <GeoShareOfVoice shareOfVoice={provider.shareOfVoice} language={props.language} />
+      <GeoShareOfVoice
+        shareOfVoice={provider.shareOfVoice}
+        brandMentionedCount={provider.brandMentionedCount}
+        language={props.language}
+      />
     </article>
   );
 }

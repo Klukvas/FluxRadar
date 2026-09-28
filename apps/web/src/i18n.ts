@@ -969,6 +969,15 @@ export const copy = {
       geoShareOfVoiceBrandNotMeasured: 'Your brand: not measurable in this run',
       geoShareOfVoiceCompetitorRow: '{name}: {percent}%',
       geoShareOfVoiceCompetitorNotMeasured: '{name}: not measurable in this run',
+      /**
+       * T7-fix3 L2: reconciles this row's brandShare with the brand-mention
+       * signal shown above it in the card, which counts a brand named only
+       * inside a competitor's name (e.g. "Bolt" inside "Bolt Food") as a
+       * mention. Share of voice does not, so the two numbers can diverge —
+       * shown only when they actually do.
+       */
+      geoShareOfVoiceOwnNameOnlyNote:
+        "Share of voice counts your brand only where it is named on its own, not inside a competitor's name ({count} answer(s) named it only as part of a competitor's name).",
       geoVisibilityUnavailable:
         'This summary is available for scans run after September 28, 2026; this scan predates it.',
       geoMentionContextLabel: 'Where your brand came up',
@@ -2730,6 +2739,8 @@ export const copy = {
       geoShareOfVoiceBrandNotMeasured: 'Ваш бренд: у цьому прогоні неможливо зміряти',
       geoShareOfVoiceCompetitorRow: '{name}: {percent}%',
       geoShareOfVoiceCompetitorNotMeasured: '{name}: у цьому прогоні неможливо зміряти',
+      geoShareOfVoiceOwnNameOnlyNote:
+        'Частка голосу враховує ваш бренд лише там, де його названо окремо, а не всередині назви конкурента (у {count} відповіді(ях) його названо лише як частину назви конкурента).',
       geoVisibilityUnavailable:
         'Цей підсумок доступний для сканувань, виконаних після 28 вересня 2026 року; це сканування було раніше.',
       geoMentionContextLabel: 'Де згадано ваш бренд',

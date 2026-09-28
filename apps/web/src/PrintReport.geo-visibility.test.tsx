@@ -270,6 +270,84 @@ describe('the printable report and GEO visibility', () => {
     expect(screen.queryByText('Visibility by engine')).toBeNull();
   });
 
+  // T7-fix3 L2: the print cell only ever shows the brandShare percentage
+  // (`printShareOfVoiceCell`), so a reader comparing it against the brand
+  // share cell two columns over sees the same "100% mentioned, 0% of
+  // voice" gap the card does — the caption is where the print version of
+  // the disclosure lives, once for the whole table.
+  it('explains the gap in the table caption for the Bolt / Bolt Food case', async () => {
+    stubFetch(
+      dashboardOf({
+        geoObservations: [observation()],
+        geoVisibilitySummary: {
+          minMeasuredForScore: 2,
+          weightBrand: 0.6,
+          weightDomain: 0.4,
+          providers: [
+            providerVisibility({
+              brandMeasuredCount: 2,
+              brandMentionedCount: 2,
+              brandMentionedShare: 1,
+              shareOfVoice: {
+                denominator: 2,
+                brandMentionsInScope: 0,
+                brandShare: 0,
+                competitors: [{ name: 'Bolt Food', mentionedCount: 2, share: 1 }],
+              },
+            }),
+          ],
+        },
+      }),
+    );
+    render(
+      <PrintReport scanId="scan-print-geo" language="en" onBack={() => {}} onError={() => {}} />,
+    );
+
+    expect(await screen.findByText('Visibility by engine')).toBeInTheDocument();
+    expect(screen.getByText('0%')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Share of voice counts your brand only where it is named on its own, not inside a competitor's name (2 answer(s) named it only as part of a competitor's name).",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('explains the gap in Ukrainian for the same case', async () => {
+    stubFetch(
+      dashboardOf({
+        geoObservations: [observation()],
+        geoVisibilitySummary: {
+          minMeasuredForScore: 2,
+          weightBrand: 0.6,
+          weightDomain: 0.4,
+          providers: [
+            providerVisibility({
+              brandMeasuredCount: 2,
+              brandMentionedCount: 2,
+              brandMentionedShare: 1,
+              shareOfVoice: {
+                denominator: 2,
+                brandMentionsInScope: 0,
+                brandShare: 0,
+                competitors: [{ name: 'Bolt Food', mentionedCount: 2, share: 1 }],
+              },
+            }),
+          ],
+        },
+      }),
+    );
+    render(
+      <PrintReport scanId="scan-print-geo" language="uk" onBack={() => {}} onError={() => {}} />,
+    );
+
+    expect(await screen.findByText('Видимість за системами')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Частка голосу враховує ваш бренд лише там, де його названо окремо, а не всередині назви конкурента (у 2 відповіді(ях) його названо лише як частину назви конкурента).',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('prints the block in Ukrainian', async () => {
     stubFetch(
       dashboardOf({
