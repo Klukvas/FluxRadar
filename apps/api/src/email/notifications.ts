@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 
+import { CREEM_PROVIDER } from '../billing/creem/config.ts';
 import { FASTSPRING_PROVIDER } from '../billing/fastspring/config.ts';
 import { emailText, type Mailer } from './mailer.ts';
 
@@ -36,8 +37,11 @@ function scanPageUrl(frontendOrigin: string, scanId: string): string {
  * happened. Only an explicit test-mode checkout is silenced, so a live, Free or
  * legacy scan — or a purchase whose checkout row is gone — is still mailed.
  */
-function isFastSpringTestModePurchase(purchase: NotifiedPurchase | null): boolean {
-  return purchase?.provider === FASTSPRING_PROVIDER && purchase.checkout?.liveMode === false;
+function isProviderTestModePurchase(purchase: NotifiedPurchase | null): boolean {
+  return (
+    (purchase?.provider === FASTSPRING_PROVIDER || purchase?.provider === CREEM_PROVIDER) &&
+    purchase.checkout?.liveMode === false
+  );
 }
 
 /** Sends one idempotent scan notification on a best-effort basis. */
@@ -59,7 +63,7 @@ export async function notifyScanEvent(
       purchase: { select: { provider: true, checkout: { select: { liveMode: true } } } },
     },
   });
-  if (scan === null || isFastSpringTestModePurchase(scan.purchase)) return;
+  if (scan === null || isProviderTestModePurchase(scan.purchase)) return;
   const eventKey = `${kind}:${scanId}`;
   try {
     await prisma.emailNotification.create({ data: { accountId: scan.accountId, eventKey, kind } });

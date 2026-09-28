@@ -55,6 +55,18 @@ const WORKSPACE_SCREENS: readonly Screen[] = [
 /** The account screen's URL. Not a menu tab: it is reached from the header's address. */
 const ACCOUNT_PATH = '/account';
 
+/**
+ * Where the Creem checkout sends the buyer back to. Not a screen of its own:
+ * it is the workspace with the checkout's reference attached, so the
+ * confirming window can pick the payment up — and, being a workspace address,
+ * a signed-out buyer is asked to sign in and then lands on it.
+ */
+const CHECKOUT_RETURN_PATH = '/checkout/return';
+/** The query parameter Creem echoes the checkout's `request_id` back in. */
+const CHECKOUT_RETURN_REFERENCE_PARAM = 'request_id';
+/** A checkout reference as the server issues it: `frcs_` and a UUID. */
+const CHECKOUT_REFERENCE_PATTERN = /^frcs_[0-9a-f-]{36}$/;
+
 export function isWorkspaceScreen(screen: Screen): boolean {
   return WORKSPACE_SCREENS.includes(screen);
 }
@@ -118,6 +130,11 @@ export interface InitialRoute {
   readonly emailAction: { readonly kind: 'verify' | 'reset'; readonly token: string } | null;
   /** Home section to scroll to on entry, used by legacy links such as /plans. */
   readonly scrollTo: 'pricing' | null;
+  /**
+   * The checkout a Creem return address names, or null on any other address.
+   * Nothing in it grants anything: it only says which payment to poll for.
+   */
+  readonly checkoutReturn: { readonly reference: string } | null;
 }
 
 /**
@@ -133,7 +150,20 @@ const SCREEN_BY_WORKSPACE_PATH: Readonly<Record<string, Screen>> = Object.fromEn
 
 /** A screen reached by its path alone, with nothing else to carry. */
 function plainRoute(screen: Screen): InitialRoute {
-  return { screen, scanId: null, emailAction: null, scrollTo: null };
+  return { screen, scanId: null, emailAction: null, scrollTo: null, checkoutReturn: null };
+}
+
+/**
+ * The return from a Creem checkout. The reference is untrusted — anyone can
+ * type an address — and is accepted only in the exact shape the server issues,
+ * so a crafted value never reaches the status endpoint. A return with no usable
+ * reference is just the workspace.
+ */
+function checkoutReturnRoute(search: string): InitialRoute {
+  const reference = new URLSearchParams(search).get(CHECKOUT_RETURN_REFERENCE_PARAM);
+  const checkoutReturn =
+    reference !== null && CHECKOUT_REFERENCE_PATTERN.test(reference) ? { reference } : null;
+  return { ...plainRoute('desktop'), checkoutReturn };
 }
 
 /** The link in a verification or password-reset email, when the address carries one. */
@@ -163,6 +193,7 @@ function fallbackRoute(emailAction: InitialRoute['emailAction'], hash: string): 
     scanId: null,
     emailAction,
     scrollTo: null,
+    checkoutReturn: null,
   };
 }
 
@@ -181,6 +212,7 @@ export function readInitialRoute(): InitialRoute {
   // The standalone plans screen was folded into the home pricing section. Old
   // /plans links keep working by landing there instead of on an unknown route.
   if (path === '/plans') return { ...plainRoute('home'), scrollTo: 'pricing' };
+  if (path === CHECKOUT_RETURN_PATH) return checkoutReturnRoute(window.location.search);
   const workspaceScreen = SCREEN_BY_WORKSPACE_PATH[path];
   if (workspaceScreen !== undefined) return plainRoute(workspaceScreen);
   return readScanRoute(path) ?? fallbackRoute(emailAction, window.location.hash);
@@ -198,6 +230,7 @@ function readScanRoute(path: string): InitialRoute | null {
       scanId,
       emailAction: null,
       scrollTo: null,
+      checkoutReturn: null,
     };
   } catch {
     // Treat a malformed deep link like any other unknown public route.

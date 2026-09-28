@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button, Panel, Terminal, Window } from './components';
 import {
+  ApiRequestError,
   apiRequest,
   type CheckoutConfig,
   type CheckoutReasonCode,
@@ -18,12 +19,14 @@ import { copy, type Language } from './i18n';
 // The default flow is FastSpring's popup checkout: the server creates the
 // checkout session, and the Store Builder Library opens it in a FastSpring iframe
 // over this page (see fastspring-sbl.ts). A deployment configured for the older
-// hosted storefront instead opens the provider page in a tab.
+// hosted storefront instead opens the provider page in a tab. A Creem deployment
+// sends this very tab to the hosted checkout page, and Creem sends it back to
+// `/checkout/return` (see pending-checkout.ts).
 //
-// Either way the browser never reports a payment. It asks the API whether one has
-// been confirmed, and the scan appears only because the signed provider webhook
-// created it — a closed popup, a blocked tab or a hand-crafted request cannot
-// produce a paid scan.
+// Whichever way, the browser never reports a payment. It asks the API whether
+// one has been confirmed, and the scan appears only because the signed provider
+// webhook created it — a closed popup, a blocked tab, a return address or a
+// hand-crafted request cannot produce a paid scan.
 
 const POLL_INTERVAL_MS = 4000;
 const POLL_TIMEOUT_MS = 15 * 60 * 1000;
@@ -117,6 +120,8 @@ export function openCheckoutWindow(checkoutUrl: string): boolean {
 type PopupState =
   /** No popup checkout for this deployment — the hosted tab was opened instead. */
   | { readonly kind: 'hosted' }
+  /** No popup either: this tab itself went to the provider's page and came back. */
+  | { readonly kind: 'redirect' }
   /** A restored checkout: the buyer decides whether to reopen it. */
   | { readonly kind: 'paused' }
   | { readonly kind: 'opening' }
@@ -130,16 +135,24 @@ export interface CheckoutPendingProps {
   readonly onConfirmed: (scan: Scan) => void;
   readonly onCancel: () => void;
   readonly onError: (message: string) => void;
+  /**
+   * The server has no such checkout for this account. A return address can
+   * name any well-formed reference, so the record behind this window may never
+   * have been a checkout at all; the parent drops it rather than keep polling
+   * for a payment that cannot arrive.
+   */
+  readonly onNotFound: () => void;
 }
 
 /**
  * "Confirming payment" state: it opens the FastSpring popup for the session the
- * server created, then polls the server-side checkout status. The scan appears
- * only after the provider webhook created it.
+ * server created — or, on the redirect flow, tells the buyer where the tab is
+ * going or that it is back — then polls the server-side checkout status. The
+ * scan appears only after the provider webhook created it.
  */
 export function CheckoutPending(props: CheckoutPendingProps) {
   const t = copy[props.language].checkout;
-  const { checkout, onConfirmed, onError } = props;
+  const { checkout, onConfirmed, onError, onNotFound } = props;
   const [status, setStatus] = useState<CheckoutStatus | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const [popup, setPopup] = useState<PopupState>(() => initialPopupState(checkout));
@@ -153,9 +166,9 @@ export function CheckoutPending(props: CheckoutPendingProps) {
   // callbacks each time. Reading them through a ref keeps the polling effect
   // below keyed on the checkout itself, so a parent render can neither restart
   // the timer nor fire an extra status request while the buyer is paying.
-  const handlers = useRef({ onConfirmed, onError, pollFailed: t.pollFailed });
+  const handlers = useRef({ onConfirmed, onError, onNotFound, pollFailed: t.pollFailed });
   useEffect(() => {
-    handlers.current = { onConfirmed, onError, pollFailed: t.pollFailed };
+    handlers.current = { onConfirmed, onError, onNotFound, pollFailed: t.pollFailed };
   });
 
   // Prices and the store's test/live mode, for the purchase report below.
@@ -221,6 +234,14 @@ export function CheckoutPending(props: CheckoutPendingProps) {
         consecutiveErrors.current = 0;
       } catch (caught) {
         if (!active) return;
+        // Not a dropped request: the server looked and has no such checkout for
+        // this account. Nothing will ever confirm it, so the watch ends at once
+        // and the parent drops the record — without the "could not read the
+        // status" sentence, which would describe a payment that never existed.
+        if (isCheckoutNotFound(caught)) {
+          handlers.current.onNotFound();
+          return;
+        }
         // A dropped request must not end the watch: the payment is already in
         // flight and only the server can say whether it landed. Give up only
         // after the failure repeats.
@@ -249,33 +270,33 @@ export function CheckoutPending(props: CheckoutPendingProps) {
 
   const rejected = status?.status === 'rejected';
   const rejectionDetail = rejected ? rejectionCopy(t, status?.reasonCode ?? null) : null;
+  const progress = popup.kind === 'redirect' ? redirectCopy(t, checkout) : progressCopy(t, popup);
   return (
     <Window title={t.windowTitle} className="window--dialog" onClose={props.onCancel}>
       <div className="stack">
         <Panel title={t.panelTitle}>
-          <p>{rejected ? t.rejected : timedOut ? t.stillWaiting : progressCopy(t, popup)}</p>
+          <p>{rejected ? t.rejected : timedOut ? t.stillWaiting : progress}</p>
           {rejectionDetail === null ? null : <p className="muted">{rejectionDetail}</p>}
           <p className="muted">{t.noScanUntilConfirmed}</p>
           {popup.kind === 'failed' ? (
             <>
               <p>{popupFailureCopy(t, popup.reason)}</p>
               <p className="muted">{t.popupFallbackHint}</p>
-              <p>
-                <a href={checkout.checkoutUrl} target="_blank" rel="noreferrer noopener">
-                  {t.openCheckoutLink}
-                </a>
-              </p>
+              <HostedCheckoutLink href={checkout.checkoutUrl} label={t.openCheckoutLink} />
             </>
           ) : null}
-          {checkout.storefront === null && checkout.popupBlocked ? (
+          {popup.kind === 'hosted' && checkout.popupBlocked ? (
             <>
               <p>{t.popupBlocked}</p>
-              <p>
-                <a href={checkout.checkoutUrl} target="_blank" rel="noreferrer noopener">
-                  {t.openCheckoutLink}
-                </a>
-              </p>
+              <HostedCheckoutLink href={checkout.checkoutUrl} label={t.openCheckoutLink} />
             </>
+          ) : null}
+          {popup.kind === 'redirect' && checkout.checkoutUrl !== null && !rejected ? (
+            // Same tab, as the checkout was opened: the buyer comes back the way
+            // they came, through the return address.
+            <p>
+              <a href={checkout.checkoutUrl}>{t.popupReopen}</a>
+            </p>
           ) : null}
         </Panel>
         <Terminal
@@ -296,9 +317,12 @@ export function CheckoutPending(props: CheckoutPendingProps) {
           <Button
             variant={canReopen(popup) ? undefined : 'primary'}
             onClick={() => {
-              void load().catch((caught: unknown) =>
-                props.onError(caught instanceof Error ? caught.message : t.pollFailed),
-              );
+              void load().catch((caught: unknown) => {
+                // The same verdict as the watch above: a checkout the server
+                // does not know is over, not broken.
+                if (isCheckoutNotFound(caught)) props.onNotFound();
+                else props.onError(caught instanceof Error ? caught.message : t.pollFailed);
+              });
             }}
           >
             {t.checkAgain}
@@ -311,14 +335,56 @@ export function CheckoutPending(props: CheckoutPendingProps) {
 }
 
 /**
+ * The hosted page as a link in a new tab, for a buyer who has to get back to
+ * it themselves. Nothing to render when the checkout has no page to offer.
+ */
+function HostedCheckoutLink({
+  href,
+  label,
+}: {
+  readonly href: string | null;
+  readonly label: string;
+}) {
+  if (href === null) return null;
+  return (
+    <p>
+      <a href={href} target="_blank" rel="noreferrer noopener">
+        {label}
+      </a>
+    </p>
+  );
+}
+
+/**
  * A checkout that was just started opens its popup at once. One restored from
  * storage does not: the buyer reloaded, may already have paid, and a payment
  * window that reopens by itself over a page they did not ask it on is worse than
- * a button that says it can be reopened.
+ * a button that says it can be reopened. The redirect flow has no popup at all,
+ * and never opens one — the tab itself is what went to the provider.
  */
 function initialPopupState(checkout: PendingCheckout): PopupState {
+  if (checkout.flow === 'redirect') return { kind: 'redirect' };
   if (checkout.storefront === null) return { kind: 'hosted' };
   return checkout.restored ? { kind: 'paused' } : { kind: 'opening' };
+}
+
+/**
+ * The sentence for the redirect flow: the tab is on its way to the provider,
+ * or it has just come back, or the workspace was reopened with the payment
+ * still unconfirmed — the same pause a popup checkout shows.
+ */
+function redirectCopy(t: (typeof copy)[Language]['checkout'], checkout: PendingCheckout): string {
+  if (checkout.returned === true) return t.redirectReturned;
+  return checkout.restored ? t.popupPaused : t.redirectOpening;
+}
+
+/**
+ * Whether a failed status read means "no such checkout for this account".
+ * Only the status endpoint's own 404 says so; a network drop, a 5xx or an
+ * expired session are all reasons to keep asking.
+ */
+function isCheckoutNotFound(caught: unknown): boolean {
+  return caught instanceof ApiRequestError && caught.status === 404;
 }
 
 /** The popup can be opened again whenever it is not currently on screen. */

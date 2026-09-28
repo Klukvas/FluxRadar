@@ -21,7 +21,19 @@ import { dispatchPendingRefunds } from './billing/refunds/dispatcher.ts';
 import { fastSpringReturnsAdapter } from './billing/refunds/fastspring-returns.ts';
 import type { RefundProviderAdapter } from './billing/refunds/provider.ts';
 import { internalCheckoutRouter } from './billing-http/internal-checkout-routes.ts';
+import { creemRouter, creemWebhookHandler } from './billing-http/creem-routes.ts';
 import { fastSpringRouter, fastSpringWebhookHandler } from './billing-http/fastspring-routes.ts';
+import {
+  CHECKOUT_PROVIDER_ENV,
+  resolveCheckoutProvider,
+  type CheckoutProviderSelection,
+} from './billing/checkout-provider.ts';
+import {
+  CREEM_PROVIDER,
+  readCreemConfig,
+  sweepCreemPendingRefunds,
+} from './billing/creem/index.ts';
+import type { CreemConfigResult } from './billing/creem/index.ts';
 import {
   FASTSPRING_PROVIDER,
   PENDING_REFUND_SWEEP_INTERVAL_MS,
@@ -139,6 +151,10 @@ export interface CreateAppOptions {
   readonly optInAiProviders?: readonly AiProviderName[];
   /** Test seam for the FastSpring Sessions API call. */
   readonly fastSpringFetch?: FetchLike;
+  /** Test seam; production reads the CREEM_* environment. */
+  readonly creem?: CreemConfigResult;
+  /** Test seam for the Creem Checkout API call. */
+  readonly creemFetch?: FetchLike;
   /**
    * Test seam; production reads TELEGRAM_*. An explicit null is a deployment
    * with no support channel, which is not the same as leaving it out.
@@ -180,6 +196,9 @@ export function createApp(options: CreateAppOptions): Express {
   const requestRateLimiter = options.requestRateLimiter ?? new RequestRateLimiter();
   const mailer = options.mailer ?? createMailer();
   const fastSpring = options.fastSpring ?? readFastSpringConfig();
+  const creem = options.creem ?? readCreemConfig();
+  // Which of the two opens new checkouts; both webhooks stay mounted regardless.
+  const checkoutProvider = resolveCheckoutProvider(fastSpring, creem);
   const optInAiProviders = options.optInAiProviders ?? availableOptInAiProviders();
   const supportChannel =
     options.supportChannel !== undefined ? options.supportChannel : createSupportChannel(logger);
@@ -188,7 +207,7 @@ export function createApp(options: CreateAppOptions): Express {
   // caller that wants no storage at all, and must stay null.
   const objectStore = options.objectStore;
   const egress = options.egress ?? createConfiguredEgressMonitor(logger, now);
-  logFastSpringState(logger, fastSpring);
+  logCheckoutState(logger, fastSpring, creem, checkoutProvider);
   // Names and statuses only; see integrations/diagnostics.ts.
   logIntegrationStatuses(logger);
   logPerformanceAuditMode(logger);
@@ -265,6 +284,22 @@ export function createApp(options: CreateAppOptions): Express {
       requestRateLimiter,
     }),
   );
+  // Creem signs the raw bytes too (creem-signature, HMAC-SHA256 hex), so its
+  // webhook takes the same raw body and precedes express.json for the same
+  // reason. Mounted whenever the process runs: an unconfigured provider answers
+  // 503 and stores nothing, exactly like FastSpring's.
+  app.post(
+    '/webhooks/creem',
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    creemWebhookHandler({
+      prisma: options.prisma,
+      creem,
+      now,
+      enqueueScan,
+      mailer,
+      requestRateLimiter,
+    }),
+  );
   app.use(express.json({ limit: '1mb' }));
 
   app.use(
@@ -332,17 +367,41 @@ export function createApp(options: CreateAppOptions): Express {
   app.use(integrationsRouter({ prisma: options.prisma, now }));
   app.use(googleIntegrationRouter({ prisma: options.prisma, now, logger }));
   app.use(bingIntegrationRouter({ prisma: options.prisma, now, logger }));
-  app.use(
-    fastSpringRouter({
-      prisma: options.prisma,
-      fastSpring,
-      now,
-      requestRateLimiter,
-      optInAiProviders,
-      egress,
-      ...(options.fastSpringFetch !== undefined ? { fetchImpl: options.fastSpringFetch } : {}),
-    }),
-  );
+  // One checkout surface (/billing/checkout-config, /billing/checkout-session),
+  // served by exactly one provider's router: Express takes the first router
+  // that claims a path, so the choice is made once here rather than by
+  // mounting order (billing/checkout-provider.ts).
+  if (checkoutProvider.state === 'selected' && checkoutProvider.provider === CREEM_PROVIDER) {
+    app.use(
+      creemRouter({
+        prisma: options.prisma,
+        creem,
+        now,
+        requestRateLimiter,
+        optInAiProviders,
+        egress,
+        ...(options.creemFetch !== undefined ? { fetchImpl: options.creemFetch } : {}),
+      }),
+    );
+  } else {
+    app.use(
+      fastSpringRouter({
+        prisma: options.prisma,
+        // A selection that could not be made — two providers and no
+        // FLUXRADAR_CHECKOUT_PROVIDER, or one naming a provider that is not
+        // configured — is served as "misconfigured", with the reason in the
+        // log, rather than as whichever provider happened to be read first.
+        // So is a half-configured Creem with no FastSpring at all: the buyer
+        // is told the checkout is broken, not that it was never switched on.
+        fastSpring: checkoutSurfaceConfig(checkoutProvider, fastSpring, creem),
+        now,
+        requestRateLimiter,
+        optInAiProviders,
+        egress,
+        ...(options.fastSpringFetch !== undefined ? { fetchImpl: options.fastSpringFetch } : {}),
+      }),
+    );
+  }
   app.use(
     internalCheckoutRouter({
       prisma: options.prisma,
@@ -485,7 +544,11 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
     if (pendingRefundSweepRunning) return;
     pendingRefundSweepRunning = true;
     try {
+      // Both providers: a refund stranded for a Creem order is exactly as
+      // stranded as one for a FastSpring order, and an unconfigured provider
+      // has no rows to sweep.
       await sweepPendingRefunds(prisma, new Date(), logger);
+      await sweepCreemPendingRefunds(prisma, new Date(), logger);
     } finally {
       pendingRefundSweepRunning = false;
     }
@@ -618,34 +681,90 @@ function resolveFreeCheckAllowedOrigins(logger: ApiLogger): ReadonlySet<string> 
 }
 
 /**
- * States, once, whether this deployment sells scans.
+ * What the FastSpring router is told when it is the fallback checkout surface.
+ *
+ * It serves the checkout paths whenever Creem was not selected, and its own
+ * config result is what it reports to the browser. Two cases have to say
+ * "misconfigured" rather than what that result alone would say: a selection
+ * that failed (both providers configured and nothing choosing), and a Creem
+ * that is half-configured while FastSpring is absent — without this the
+ * browser would read "paid checkout was never switched on here" for a
+ * deployment whose operator set CREEM_* and got one name wrong.
+ */
+function checkoutSurfaceConfig(
+  selection: CheckoutProviderSelection,
+  fastSpring: FastSpringConfigResult,
+  creem: CreemConfigResult,
+): FastSpringConfigResult {
+  if (selection.state === 'invalid') {
+    return { state: 'invalid', missing: [CHECKOUT_PROVIDER_ENV], reason: selection.reason };
+  }
+  if (selection.state === 'none' && creem.state === 'invalid') {
+    return { state: 'invalid', missing: creem.missing, reason: creem.reason };
+  }
+  return fastSpring;
+}
+
+/**
+ * States, once, whether this deployment sells scans, and through which provider.
  *
  * The HTTP surface answers a browser with a closed code and no operational
- * detail (see billing-http/fastspring-routes.ts), so this line is where an
- * operator finds out that paid checkout is off — and, for a half-configured
- * provider that refuses to boot, exactly which variables are absent. Names
- * only: no value of any FASTSPRING_* variable is ever read here.
+ * detail (see billing-http/*-routes.ts), so these lines are where an operator
+ * finds out that paid checkout is off — and, for a half-configured provider
+ * that refuses to boot, exactly which variables are absent. Names only: no
+ * value of any FASTSPRING_* or CREEM_* variable is ever read here.
+ *
+ * The message texts are the ones this log has always carried, per provider: a
+ * half-configured provider is an error line naming what is missing, whichever
+ * provider it is, and "not configured" is only said as "paid checkout disabled"
+ * when nothing sells at all.
  */
-function logFastSpringState(logger: ApiLogger, result: FastSpringConfigResult): void {
-  if (result.state === 'configured') {
+function logCheckoutState(
+  logger: ApiLogger,
+  fastSpring: FastSpringConfigResult,
+  creem: CreemConfigResult,
+  selection: CheckoutProviderSelection,
+): void {
+  const providers = [
+    { provider: FASTSPRING_PROVIDER, result: fastSpring },
+    { provider: CREEM_PROVIDER, result: creem },
+  ] as const;
+  for (const { provider, result } of providers) {
+    if (result.state === 'invalid') {
+      logger.error('paid checkout disabled: provider is only partially configured', {
+        provider,
+        missing: result.missing,
+      });
+    }
+  }
+  if (selection.state === 'selected') {
+    const config = selection.provider === CREEM_PROVIDER ? creem : fastSpring;
     logger.info('paid checkout enabled', {
-      provider: FASTSPRING_PROVIDER,
-      mode: result.config.mode,
-      sessionApi: result.config.sessionApi,
-      currencyPolicy: result.config.currencyPolicy,
+      provider: selection.provider,
+      ...(config.state === 'configured' ? { mode: config.config.mode } : {}),
+      ...(config.state === 'configured' && 'sessionApi' in config.config
+        ? { sessionApi: config.config.sessionApi, currencyPolicy: config.config.currencyPolicy }
+        : {}),
+    });
+    for (const { provider, result } of providers) {
+      if (result.state === 'not_configured') {
+        logger.info('payment provider not configured', { provider });
+      }
+    }
+    return;
+  }
+  if (selection.state === 'invalid') {
+    logger.error('paid checkout disabled: no single provider opens new checkouts', {
+      variable: CHECKOUT_PROVIDER_ENV,
+      reason: selection.reason,
     });
     return;
   }
-  if (result.state === 'invalid') {
-    logger.error('paid checkout disabled: provider is only partially configured', {
-      provider: FASTSPRING_PROVIDER,
-      missing: result.missing,
-    });
-    return;
+  for (const { provider, result } of providers) {
+    if (result.state === 'not_configured') {
+      logger.info('paid checkout disabled: provider is not configured', { provider });
+    }
   }
-  logger.info('paid checkout disabled: provider is not configured', {
-    provider: FASTSPRING_PROVIDER,
-  });
 }
 
 function corsMiddleware(origin: string) {

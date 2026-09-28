@@ -21,6 +21,11 @@ describe('public legal documents', () => {
     expect(terms).toHaveTextContent(/Не зареєстрований платником ПДВ/);
     expect(terms).toHaveTextContent(/Володимира Великого, буд\. 8, кв\. 64/);
     expect(terms).toHaveTextContent(/\+380 93 360 20 73/);
+    expect(terms).toHaveTextContent(
+      /Creem \(Armitage Labs OÜ, Таллінн, Естонія\) є окремим merchant of record/,
+    );
+    expect(document.body).not.toHaveTextContent(/FastSpring/i);
+    expect(terms).toHaveTextContent(/Чинна з 28 вересня 2026 року/);
     expect(screen.getByText(/юридично пріоритетна українська версія/i)).toBeInTheDocument();
   });
 
@@ -51,6 +56,16 @@ describe('public legal documents', () => {
     expect(terms).toHaveTextContent(/private and account-scoped.*download, share and publish/is);
     expect(terms).toHaveTextContent(/limited to the amount paid for the specific affected audit/i);
     expect(terms).toHaveTextContent(/Ukrainian law/i);
+    expect(terms).toHaveTextContent(
+      /Creem \(Armitage Labs OÜ, Tallinn, Estonia\) is a separate merchant of record/,
+    );
+    expect(terms).toHaveTextContent(/support@creem\.io/);
+    expect(screen.getByRole('link', { name: 'Creem buyer terms' })).toHaveAttribute(
+      'href',
+      'https://creem.io/buyer-terms',
+    );
+    expect(document.body).not.toHaveTextContent(/FastSpring/i);
+    expect(terms).toHaveTextContent(/Effective 28 September 2026/);
     expect(terms).not.toHaveTextContent(/all sales are final|no refunds/i);
   });
 
@@ -95,7 +110,24 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 25 September 2026/);
+    expect(policy).toHaveTextContent(/Effective 28 September 2026/);
+    // The merchant of record is Creem, and the policy says what FluxRadar sends
+    // it before the buyer ever sees Creem's page — the account email, product
+    // and checkout reference — as well as what comes back by webhook.
+    expect(policy).toHaveTextContent(
+      /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Estonia\) is the merchant of record and checkout provider/,
+    );
+    expect(policy).toHaveTextContent(
+      /FluxRadar sends Creem your account email.*the product you chose and our checkout reference/is,
+    );
+    expect(screen.getByRole('link', { name: 'Creem Privacy Notice' })).toHaveAttribute(
+      'href',
+      'https://creem.io/privacy',
+    );
+    expect(policy).toHaveTextContent(
+      /Purchases:.*Creem checkout, order and customer identifiers.*discount.*Card entry happens on the Creem checkout page/is,
+    );
+    expect(document.body).not.toHaveTextContent(/FastSpring/i);
     expect(policy).toHaveTextContent(/PageSpeed Insights and CrUX.*public URL or origin/is);
     expect(policy).toHaveTextContent(
       /Free and Basic reports.*30 days.*Website Audit and Complete reports.*365 days/is,
@@ -200,11 +232,21 @@ describe('public legal documents', () => {
     expect(policy).toHaveTextContent(
       /Google Signals, ads personalization and remarketing are disabled.*2 months/is,
     );
-    expect(policy).toHaveTextContent(/FastSpring is the separate merchant of record/i);
-    expect(policy).toHaveTextContent(/Effective 21 September 2026/);
+    expect(policy).toHaveTextContent(/Creem is the separate merchant of record/i);
+    expect(policy).toHaveTextContent(/loads no script and sets no cookies on FluxRadar/i);
+    expect(policy).toHaveTextContent(
+      /redirects you there only when you intentionally begin a paid purchase/i,
+    );
+    expect(screen.getByRole('link', { name: 'privacy notice' })).toHaveAttribute(
+      'href',
+      'https://creem.io/privacy',
+    );
+    expect(document.body).not.toHaveTextContent(/FastSpring/i);
+    expect(policy).toHaveTextContent(/Effective 28 September 2026/);
     const sections = screen.getByRole('navigation', { name: 'Document sections' });
     expect(sections).toHaveTextContent('Storage inventory');
     expect(sections).toHaveTextContent('Google Analytics');
+    expect(sections).toHaveTextContent('Creem checkout');
     // Once every cookie is allowed the floating launcher is hidden, so the
     // policy page itself has to offer the way to withdraw.
     expect(screen.getByRole('button', { name: 'Cookie settings' })).toBeInTheDocument();
@@ -224,12 +266,28 @@ describe('public legal documents', () => {
     expect(cookies).toHaveTextContent(/Google Analytics 4 не завантажується, доки ви не дозволите/);
     expect(cookies).toHaveTextContent(/_ga_0N0B548CGE/);
     expect(cookies).toHaveTextContent(/user та event data зберігаються 2 місяці/);
+    expect(cookies).toHaveTextContent(/Creem є окремим merchant of record/);
+    expect(cookies).toHaveTextContent(
+      /На сторінках FluxRadar Creem не завантажує скриптів і не встановлює cookies/,
+    );
+    expect(cookies).toHaveTextContent(/Чинна з 28 вересня 2026 року/);
+    expect(screen.getByRole('navigation', { name: 'Розділи документа' })).toHaveTextContent(
+      'Checkout Creem',
+    );
+    expect(document.body).not.toHaveTextContent(/FastSpring/i);
 
     cleanup();
     render(<LegalDocumentScreen kind="privacy" language="uk" onLanguageChange={() => {}} />);
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 25 вересня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 28 вересня 2026 року/);
+    expect(privacy).toHaveTextContent(
+      /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія\) — merchant of record і checkout provider/,
+    );
+    expect(privacy).toHaveTextContent(
+      /FluxRadar передає Creem email вашого акаунта.*обраний товар і наш checkout reference/s,
+    );
+    expect(document.body).not.toHaveTextContent(/FastSpring/i);
   });
 });

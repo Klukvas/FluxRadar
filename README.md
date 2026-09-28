@@ -65,3 +65,18 @@ Such a scan writes no `Purchase` or `Entitlement` (the response says
 `billing: "internal-free"`), so refunds, receipts and the reachability gate in front of a sale are
 not exercised this way — the tests cover those (`apps/api/src/billing/fastspring`). Any account
 not on the list gets `402` from that route.
+
+Creem is different: its test mode does work from localhost for the checkout page itself. With the
+`CREEM_*` test-environment values in `.env` (see `.env.example`), the API creates a checkout, the
+browser is sent to Creem's hosted page, and after the test card (4111 1111 1111 1111) Creem
+redirects back to `FRONTEND_ORIGIN/checkout/return`. What Creem cannot do is POST the
+`checkout.completed` webhook to localhost, and the scan exists only once that signed webhook has
+been handled — so either forward it with the Creem CLI, which listens in test mode by default:
+
+```
+creem listen --forward-to http://localhost:3310/webhooks/creem
+```
+
+(adjust the port to `PORT` in `.env`; the CLI prints the webhook secret it signs with, which goes
+in `CREEM_WEBHOOK_SECRET`), or use the internal allowlist above as before. The Creem tests
+(`apps/api/src/billing/creem`) cover the webhook, refunds and disputes without an account.

@@ -146,6 +146,11 @@ export function fastSpringRouter(deps: FastSpringRouterDeps): Router {
     const popupStorefront = config?.popupStorefront ?? null;
     sendOk(res, {
       provider: FASTSPRING_PROVIDER,
+      // How the browser gets the buyer to the checkout: the popup over our page
+      // when a storefront is configured, otherwise the hosted page in a tab.
+      // Creem's router answers `redirect` here; the field is what lets one
+      // bundle serve either provider without guessing from `popup`.
+      checkoutFlow: popupStorefront === null ? 'tab' : 'popup',
       available,
       mode: config?.mode ?? null,
       unavailableReason: available ? null : unavailableReason(deps.fastSpring),
