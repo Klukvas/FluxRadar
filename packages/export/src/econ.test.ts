@@ -49,11 +49,12 @@ describe('validateEconForecast', () => {
     expect(result.report.operationalFloorScans).toBe(ECON_OPERATIONAL_FLOOR_SCANS);
   });
 
-  it('операционный stress-case плана §18 (45 прогонов) проходит под комиссией Creem', () => {
-    // §18 inputs, unchanged: fixed 1000 + reserve 500, margin $35.91 при mix 80/20
-    // и потолочных costs → ceil(1500/35.91) = ceil(41.77) = 42 break-even. 45
-    // прогонов — operational floor, а не break-even — так что план проходит с
-    // запасом в 3 прогона над break-even, а не «ровно на границе».
+  it('операционный stress-case плана §18 (45 прогонов) сходится ровно на floor под потолком Creem', () => {
+    // §18 inputs at the Creem p95 cost ceiling, not VALID's fixture numbers:
+    // Basic 55 − 2.55 − 24.95 = 27.50, Complete 120 − 5.08 − 54.92 = 60.00,
+    // margin 0.8×27.50 + 0.2×60.00 = 34. fixed 1000 + reserve 500 → break-even
+    // ceil(1500/34) = ceil(44.12) = 45 — the plan converges exactly at the
+    // operational floor of 45 scans, not with headroom above break-even.
     const stress = {
       ...VALID,
       fixed_costs: 1000,
@@ -62,11 +63,14 @@ describe('validateEconForecast', () => {
       expected_refund_loss: 0,
       expected_chargeback_loss: 0,
       fx_buffer: 0,
+      variable_cost_basic_p95: VARIABLE_COST_CEILING_USD.basic,
+      variable_cost_complete_p95: VARIABLE_COST_CEILING_USD.complete,
+      weighted_average_contribution_margin: 34,
     };
     const result = validateEconForecast(stress);
     expect(result.pass).toBe(true);
     if (!result.pass) return;
-    expect(result.report.breakEvenScans).toBe(42);
+    expect(result.report.breakEvenScans).toBe(45);
     expect(result.report.operationalFloorScans).toBe(ECON_OPERATIONAL_FLOOR_SCANS);
   });
 
