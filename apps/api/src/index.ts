@@ -500,9 +500,10 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   pendingRefundTimer.unref();
   void sweepPending();
   // The outbound half of the same story: refunds this API decided on and has not
-  // sent. The pass reports the queue on every deployment and submits on none of
-  // them unless FLUXRADAR_REFUND_DISPATCH=auto was set together with its
-  // acknowledgement (billing/refunds/config.ts).
+  // sent. The pass reports the queue on every deployment; it never submits
+  // because no provider has an outbound adapter (Creem refunds are issued by
+  // hand from its dashboard), and production boot refuses
+  // FLUXRADAR_REFUND_DISPATCH=auto outright (integrations/config.ts).
   let refundDispatchRunning = false;
   const sweepRefundDispatch = async (): Promise<void> => {
     if (refundDispatchRunning) return;

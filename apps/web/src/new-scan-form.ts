@@ -211,7 +211,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
    *
    * Only the paid path reads it — a Free check is not a purchase, and gating it
    * would turn the one thing a stranger can try into a two-step form. The
-   * server refuses the sale regardless (`createCheckoutSession`); this is what
+   * server refuses the sale regardless (`createCreemCheckoutSession`); this is what
    * keeps a buyer from meeting that refusal at the pay button.
    */
   const [siteReachable, setSiteReachable] = useState(false);

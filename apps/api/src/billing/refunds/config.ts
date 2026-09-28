@@ -12,8 +12,11 @@
 //   manual  — the default. Same as `off` for the money; the difference is that
 //             the sweep still runs and reports the queue, so an operator can see
 //             what is waiting.
-//   auto    — the dispatcher submits. Requires FLUXRADAR_REFUND_DISPATCH_ACK to
-//             name the provider, and a completely configured provider client.
+//   auto    — would have the dispatcher submit, and requires
+//             FLUXRADAR_REFUND_DISPATCH_ACK to name the provider. No provider
+//             has an outbound adapter today (Creem refunds are issued by hand
+//             from its dashboard), so this mode never actually submits: it is
+//             also refused outright at production boot (integrations/config.ts).
 //
 // A misspelt value is not "on": it is refused at boot by validateRuntimeConfig,
 // the same way a half-configured payment provider is.

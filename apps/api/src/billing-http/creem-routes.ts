@@ -133,8 +133,9 @@ export function creemRouter(deps: CreemRouterDeps): Router {
   const optInAiProviders = deps.optInAiProviders ?? availableOptInAiProviders();
 
   // Lets the UI show a real setup state instead of guessing from a build flag.
-  // Every checkout is a redirect to Creem's hosted page — there is no popup or
-  // tab flow — so nothing here names a flow at all. Nothing secret travels here.
+  // Every checkout is a redirect to Creem's hosted page. The checkoutFlow/popup
+  // fields below exist only for a tab still running the previous web bundle —
+  // see the comment there. Nothing secret travels here.
   //
   // `optInAiProviders` is the same kind of fact for the optional AI recipients:
   // the names this deployment can actually send to, so the form offers no
