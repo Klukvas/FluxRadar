@@ -83,6 +83,7 @@ function providerVisibility(overrides: Partial<GeoProviderVisibility> = {}): Geo
       },
     },
     citedInstead: [],
+    shareOfVoice: null,
     ...overrides,
   };
 }

@@ -334,6 +334,18 @@ function printShareCell(
   return `${mentioned}/${measured} (${percentOf(share)}%)`;
 }
 
+/** The share-of-voice cell (T7): the brand's percentage, or the "add competitors" note. */
+function printShareOfVoiceCell(provider: GeoProviderVisibility, language: Language): string {
+  const t = copy[language].report;
+  const { shareOfVoice } = provider;
+  if (shareOfVoice === null || shareOfVoice.competitors.length === 0) {
+    return t.geoShareOfVoiceNone;
+  }
+  return shareOfVoice.brandShare === null
+    ? t.geoShareOfVoiceBrandNotMeasured
+    : `${percentOf(shareOfVoice.brandShare)}%`;
+}
+
 /** Why this engine has no score — the minimum comes from the summary, not the answer count. */
 function printNoScore(
   provider: GeoProviderVisibility,
@@ -404,6 +416,7 @@ function PrintGeoVisibilityRow(props: {
           t.geoVisibilityNotMeasurableShort,
         )}
       </td>
+      <td>{printShareOfVoiceCell(props.provider, props.language)}</td>
     </tr>
   );
 }
@@ -435,6 +448,7 @@ function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language })
                 <th>{t.geoVisibilityScoreLabel}</th>
                 <th>{t.geoVisibilityBrandShareHeader}</th>
                 <th>{t.geoVisibilityDomainShareHeader}</th>
+                <th>{t.geoShareOfVoiceHeader}</th>
               </tr>
             </thead>
             <tbody>

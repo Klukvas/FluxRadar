@@ -48,8 +48,10 @@ function UkrainianPrivacy(): JSX.Element {
           </li>
           <li>
             <strong>Профілі й аудити:</strong> домен, назва, галузь, опис, товари чи послуги,
-            регіон, мови, аудиторія, конфігурація crawl, завантажені публічні сторінки й технічні
-            сигнали, знахідки, оцінки, докази, AI‑запити та відповіді й експорт звіту.
+            регіон, мови, аудиторія, назви конкурентів, конфігурація crawl, завантажені публічні
+            сторінки й технічні сигнали, знахідки, оцінки, докази, AI‑запити та відповіді й експорт
+            звіту. Назви конкурентів звіряються з AI-відповідями цього акаунта лише на наших
+            серверах; вони ніколи не надсилаються AI-провайдеру.
           </li>
           <li>
             <strong>Інтеграції:</strong> зашифровані Google або Bing access/refresh tokens, дозволи,
@@ -378,8 +380,10 @@ function EnglishPrivacy(): JSX.Element {
           </li>
           <li>
             <strong>Profiles and audits:</strong> domain, name, industry, description, products or
-            services, region, languages, audience, crawl configuration, fetched public pages and
-            technical signals, findings, scores, evidence, AI inputs and responses and exports.
+            services, region, languages, audience, competitor names, crawl configuration, fetched
+            public pages and technical signals, findings, scores, evidence, AI inputs and responses
+            and exports. Competitor names are matched against this account's own AI answers on our
+            servers only; they are never sent to an AI provider.
           </li>
           <li>
             <strong>Integrations:</strong> encrypted Google or Bing access and refresh tokens,

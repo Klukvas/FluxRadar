@@ -191,6 +191,8 @@ export interface SiteProfile {
   readonly offerings?: string | null;
   readonly targetLanguages?: string | null;
   readonly targetAudience?: string | null;
+  /** Up to 5 competitor brand names (T7); matched locally, never sent to an AI provider. */
+  readonly competitors?: readonly string[] | null;
   readonly scanConfig?: ProfileScanConfig | null;
   readonly scanConfigVersion?: number;
 }
@@ -592,6 +594,28 @@ export interface GeoCitedInsteadEntry {
   readonly answerCount: number;
 }
 
+/** One competitor's row in a provider's share of voice (T7). */
+export interface GeoCompetitorVisibility {
+  readonly name: string;
+  readonly mentionedCount: number;
+  /** null exactly when `GeoShareOfVoice.brandShare` is — they share a denominator. */
+  readonly share: number | null;
+}
+
+/**
+ * Share of voice for one provider (T7): the brand's mentions against each
+ * configured competitor's, over the answers where the brand signal was
+ * itself measurable. Absent from `GeoProviderVisibility` on a scan that
+ * predates this field or had no competitors configured — never an empty list.
+ */
+export interface GeoShareOfVoice {
+  readonly denominator: number;
+  readonly brandMentionsInScope: number;
+  readonly brandShare: number | null;
+  /** Share desc, then name asc. */
+  readonly competitors: readonly GeoCompetitorVisibility[];
+}
+
 /** One engine's visibility summary (T6) — counts, shares, and a score, or none. */
 export interface GeoProviderVisibility {
   readonly provider: string;
@@ -616,6 +640,8 @@ export interface GeoProviderVisibility {
   readonly scoreBasis: GeoScoreBasis | null;
   readonly byPurpose: Readonly<Record<GeoVisibilityPurpose, GeoPurposeVisibilityCounts>>;
   readonly citedInstead: readonly GeoCitedInsteadEntry[];
+  /** null on a scan that predates T7 or has no competitors configured. */
+  readonly shareOfVoice: GeoShareOfVoice | null;
 }
 
 /**

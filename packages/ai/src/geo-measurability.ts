@@ -94,6 +94,24 @@ export function brandSignal(input: {
 }
 
 /**
+ * The competitor signal for one answer (T7).
+ *
+ * Same rule as `brandSignal`'s question/answer check, minus the hostname
+ * special case: a competitor is never "the same as the site" the way a brand
+ * can be, so there is nothing to mirror `brandIsHostname` for. Built on the
+ * exact same `questionNames` used for the brand and domain signals, so a
+ * competitor mention can never disagree with what "mentioned" means for those.
+ */
+export function competitorSignal(input: {
+  readonly question: string;
+  readonly answer: string;
+  readonly competitor: string;
+}): MentionSignal {
+  if (questionNames(input.question, input.competitor)) return 'named-in-question';
+  return questionNames(input.answer, input.competitor) ? 'mentioned' : 'not-mentioned';
+}
+
+/**
  * The domain signal for one answer.
  *
  * `mentionsDomain` is passed in rather than reimplemented: the domain rule

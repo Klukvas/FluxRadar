@@ -89,6 +89,7 @@ function providerVisibility(overrides: Partial<GeoProviderVisibility> = {}): Geo
       },
     },
     citedInstead: [{ hostname: 'rival-dental.example', answerCount: 2 }],
+    shareOfVoice: null,
     ...overrides,
   };
 }
@@ -364,5 +365,105 @@ describe('Visibility by engine', () => {
 
     await screen.findByText('Visibility by engine');
     expect(screen.queryByText('Where your brand came up:')).toBeNull();
+  });
+});
+
+// T7: share of voice — the brand's mentions against configured competitors.
+describe('Share of voice', () => {
+  it('renders the brand and competitor rows in share order', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            shareOfVoice: {
+              denominator: 4,
+              brandMentionsInScope: 2,
+              brandShare: 0.5,
+              competitors: [
+                { name: 'Acme Audit', mentionedCount: 1, share: 0.25 },
+                { name: 'Globex', mentionedCount: 1, share: 0.25 },
+              ],
+            },
+          }),
+        ]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText('Your brand: 50% of mentions')).toBeInTheDocument();
+    expect(screen.getByText('Acme Audit: 25%')).toBeInTheDocument();
+    expect(screen.getByText('Globex: 25%')).toBeInTheDocument();
+  });
+
+  it('says "not measurable" rather than 0% for a null competitor share', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            shareOfVoice: {
+              denominator: 0,
+              brandMentionsInScope: 0,
+              brandShare: null,
+              competitors: [{ name: 'Acme Audit', mentionedCount: 0, share: null }],
+            },
+          }),
+        ]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText('Your brand: not measurable in this run')).toBeInTheDocument();
+    expect(screen.getByText('Acme Audit: not measurable in this run')).toBeInTheDocument();
+  });
+
+  it('shows a note with a link to the profile form when no competitors are configured', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([providerVisibility({ shareOfVoice: null })]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'Add competitors' });
+    expect(link).toBeInTheDocument();
+  });
+
+  it('shows the same note when the provider predates this field (old metadata)', async () => {
+    const provider = providerVisibility() as unknown as Record<string, unknown>;
+    delete provider.shareOfVoice;
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([provider as unknown as GeoProviderVisibility]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add competitors' })).toBeInTheDocument();
+  });
+
+  it('renders share of voice in Ukrainian', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            shareOfVoice: {
+              denominator: 4,
+              brandMentionsInScope: 2,
+              brandShare: 0.5,
+              competitors: [{ name: 'Acme Audit', mentionedCount: 1, share: 0.5 }],
+            },
+          }),
+        ]),
+      }),
+      'uk',
+    );
+
+    expect(await screen.findByText('Частка голосу')).toBeInTheDocument();
+    expect(screen.getByText('Ваш бренд: 50% згадок')).toBeInTheDocument();
   });
 });

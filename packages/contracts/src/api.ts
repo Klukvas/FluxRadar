@@ -70,6 +70,21 @@ export const httpsOriginSchema = z
   })
   .transform((value) => new URL(value).origin);
 
+// T7: up to 5 competitor brand names, matched locally against this scan's own
+// stored answers (packages/ai's geo-visibility-summary.ts) — never sent to any
+// AI provider. Kept out of `GeoProfileContext` (apps/api/src/orchestrator/geo.ts)
+// and out of CONTEXT_FIELDS (apps/api/src/profiles/execution-config.ts) for
+// exactly that reason.
+export const COMPETITORS_MAX = 5;
+export const COMPETITOR_NAME_MIN_LENGTH = 2;
+export const COMPETITOR_NAME_MAX_LENGTH = 64;
+
+const competitorNameSchema = z
+  .string()
+  .trim()
+  .min(COMPETITOR_NAME_MIN_LENGTH)
+  .max(COMPETITOR_NAME_MAX_LENGTH);
+
 export const siteProfileInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   domain: httpsOriginSchema,
@@ -80,9 +95,46 @@ export const siteProfileInputSchema = z.object({
   offerings: z.string().trim().min(1).max(1200).optional(),
   targetLanguages: z.string().trim().min(1).max(200).optional(),
   targetAudience: z.string().trim().min(1).max(500).optional(),
+  competitors: z.array(competitorNameSchema).max(COMPETITORS_MAX).optional(),
   scanConfig: z.lazy(() => profileScanConfigSchema).optional(),
 });
 export type SiteProfileInput = z.infer<typeof siteProfileInputSchema>;
+
+/**
+ * Why a competitors list is invalid, or null when it is fine.
+ *
+ * Checked here rather than folded into `siteProfileInputSchema` as a
+ * `superRefine`, because a `superRefine`'d object loses `.partial()`
+ * (`siteProfilePatchInputSchema` needs it) — and because self-exclusion needs
+ * the profile's own name and domain, which a PATCH that only touches
+ * `competitors` never carries in the same request body; the caller passes the
+ * name/domain the row will actually have (the patched value, or the value
+ * already stored) rather than this function guessing at a merge.
+ *
+ * Case-insensitive throughout, matching how brand-mention matching itself is
+ * case-insensitive (`questionNames` in `@fluxradar/ai`).
+ */
+export function competitorsListProblem(
+  competitors: readonly string[] | null | undefined,
+  brand: string,
+  domain: string,
+): string | null {
+  if (competitors == null || competitors.length === 0) return null;
+  const normalizedBrand = brand.trim().toLowerCase();
+  const normalizedDomain = domain.trim().toLowerCase();
+  const seen = new Set<string>();
+  for (const raw of competitors) {
+    const normalized = raw.trim().toLowerCase();
+    if (normalized === normalizedBrand || normalized === normalizedDomain) {
+      return `competitors must not repeat the profile's own name or domain: "${raw}"`;
+    }
+    if (seen.has(normalized)) {
+      return `competitors must not repeat a name: "${raw}"`;
+    }
+    seen.add(normalized);
+  }
+  return null;
+}
 
 /**
  * The egress location a crawl leaves from: an ISO 3166-1 country code in lower
@@ -291,15 +343,20 @@ export const siteProfilePatchInputSchema = siteProfileInputSchema.partial().exte
   offerings: siteProfileInputSchema.shape.offerings.unwrap().nullable().optional(),
   targetLanguages: siteProfileInputSchema.shape.targetLanguages.unwrap().nullable().optional(),
   targetAudience: siteProfileInputSchema.shape.targetAudience.unwrap().nullable().optional(),
+  competitors: siteProfileInputSchema.shape.competitors.unwrap().nullable().optional(),
   expectedProfileConfigVersion: expectedProfileConfigVersionSchema.optional(),
 });
 export type SiteProfilePatchInput = z.infer<typeof siteProfilePatchInputSchema>;
 
+// `competitors` is deliberately omitted: this is the shape captured into
+// executionConfigJson at launch and later handed to the AI provider as prompt
+// context (captureExecutionConfig / GeoProfileContext in apps/api). Competitor
+// names are matched locally against stored answers and must never travel here.
 export const executionConfigSchema = z.object({
   schemaVersion: z.literal(1),
   source: z.enum(['launch', 'legacy-checkout']),
   profileConfigVersion: expectedProfileConfigVersionSchema.nullable(),
-  profile: siteProfileInputSchema.omit({ scanConfig: true }),
+  profile: siteProfileInputSchema.omit({ scanConfig: true, competitors: true }),
   plan: z.enum(PLANS),
   scope: scanScopeSchema,
 });

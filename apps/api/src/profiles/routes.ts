@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import type { PrismaClient, SiteProfile } from '@prisma/client';
 import {
+  competitorsListProblem,
   defaultProfileScanConfig,
   httpsOriginSchema,
   profileScanConfigSchema,
@@ -30,6 +31,7 @@ import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import type { PrivateObjectStore } from '../integrations/s3.ts';
 import { scopeTargetMessage, scopeTargetProblems } from '../scans/scope-targets.ts';
+import { competitorsFromJson } from './competitors.ts';
 import { deleteSiteProfileData, type ProfileDeletionBlocker } from './profile-deletion.ts';
 import { resolveOwnProfile } from './resolve.ts';
 
@@ -67,6 +69,7 @@ function toProfileDto(profile: SiteProfile): Record<string, unknown> {
     offerings: profile.offerings,
     targetLanguages: profile.targetLanguages,
     targetAudience: profile.targetAudience,
+    competitors: competitorsFromJson(profile.competitorsJson),
     scanConfig: profileScanConfigFromJson(profile.scanConfigJson),
     scanConfigVersion: profile.scanConfigVersion,
     createdAt: profile.createdAt.toISOString(),
@@ -80,6 +83,21 @@ function profileScanConfigFromJson(value: string): unknown {
   } catch {
     return defaultProfileScanConfig;
   }
+}
+
+/**
+ * Rejects a competitors list that repeats the profile's own name/domain or
+ * itself (T7). `brand`/`domain` are the values the row will actually have
+ * once this request is applied — the patched value when the request touches
+ * it, the stored one otherwise — never a guess at a merge.
+ */
+function assertCompetitorsAllowed(
+  competitors: readonly string[] | null | undefined,
+  brand: string,
+  domain: string,
+): void {
+  const problem = competitorsListProblem(competitors, brand, domain);
+  if (problem !== null) throw validationError(problem);
 }
 
 export async function findOwnProfile(
@@ -126,6 +144,7 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
 
   router.post('/profiles', auth, async (req, res) => {
     const input = parseInput(siteProfileInputSchema, req.body);
+    assertCompetitorsAllowed(input.competitors, input.name, input.domain);
     const accountId = accountIdFrom(res);
     try {
       const profile = await prisma.siteProfile.create({
@@ -140,6 +159,10 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
           offerings: input.offerings ?? null,
           targetLanguages: input.targetLanguages ?? null,
           targetAudience: input.targetAudience ?? null,
+          competitorsJson:
+            input.competitors === undefined || input.competitors.length === 0
+              ? null
+              : JSON.stringify(input.competitors),
           scanConfigJson: JSON.stringify(input.scanConfig ?? defaultProfileScanConfig),
           scanConfigVersion: 1,
         },
@@ -208,6 +231,13 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
     if (input.domain !== undefined && input.domain !== profile.domain) {
       await assertDomainChangeAllowed(prisma, profile.id, deps.now());
     }
+    if (input.competitors !== undefined) {
+      assertCompetitorsAllowed(
+        input.competitors,
+        input.name ?? profile.name,
+        input.domain ?? profile.domain,
+      );
+    }
     const nextScanConfig =
       input.scanConfig === undefined ? undefined : profileScanConfigSchema.parse(input.scanConfig);
     if (nextScanConfig !== undefined) {
@@ -223,19 +253,27 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
       nextScanConfig !== undefined &&
       JSON.stringify(nextScanConfig) !==
         JSON.stringify(profileScanConfigFromJson(profile.scanConfigJson));
-    const identityChanged = (
-      [
-        'name',
-        'domain',
-        'industry',
-        'region',
-        'language',
-        'businessDescription',
-        'offerings',
-        'targetLanguages',
-        'targetAudience',
-      ] as const
-    ).some((key) => input[key] !== undefined && input[key] !== profile[key]);
+    const nextCompetitorsJson =
+      input.competitors === undefined
+        ? undefined
+        : input.competitors === null || input.competitors.length === 0
+          ? null
+          : JSON.stringify(input.competitors);
+    const identityChanged =
+      (
+        [
+          'name',
+          'domain',
+          'industry',
+          'region',
+          'language',
+          'businessDescription',
+          'offerings',
+          'targetLanguages',
+          'targetAudience',
+        ] as const
+      ).some((key) => input[key] !== undefined && input[key] !== profile[key]) ||
+      (nextCompetitorsJson !== undefined && nextCompetitorsJson !== profile.competitorsJson);
     const data = {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.domain !== undefined ? { domain: input.domain } : {}),
@@ -248,6 +286,7 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
       ...(input.offerings !== undefined ? { offerings: input.offerings } : {}),
       ...(input.targetLanguages !== undefined ? { targetLanguages: input.targetLanguages } : {}),
       ...(input.targetAudience !== undefined ? { targetAudience: input.targetAudience } : {}),
+      ...(nextCompetitorsJson !== undefined ? { competitorsJson: nextCompetitorsJson } : {}),
       ...(scanConfigChanged
         ? {
             scanConfigJson: JSON.stringify(nextScanConfig),

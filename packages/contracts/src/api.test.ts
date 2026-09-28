@@ -6,6 +6,7 @@ import {
   issueStatusUpdateInputSchema,
   loginInputSchema,
   registerInputSchema,
+  competitorsListProblem,
   defaultProfileScanConfig,
   profileScanConfigSchema,
   scanRequestInputSchema,
@@ -161,6 +162,76 @@ describe('siteProfileInputSchema', () => {
     ['not a URL', 'example.com'],
   ])('rejects a domain with %s', (_label, domain) => {
     expect(siteProfileInputSchema.safeParse({ ...base, domain }).success).toBe(false);
+  });
+});
+
+describe('competitors (T7)', () => {
+  const withCompetitors = (competitors: readonly string[]) =>
+    siteProfileInputSchema.safeParse({
+      name: 'My Site',
+      domain: 'https://example.com',
+      competitors,
+    });
+
+  it('accepts up to 5 valid names', () => {
+    const result = withCompetitors(['Acme', 'Beta Co', 'Gamma', 'Delta', 'Epsilon']);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.competitors).toEqual(['Acme', 'Beta Co', 'Gamma', 'Delta', 'Epsilon']);
+    }
+  });
+
+  it('accepts an absent or empty list', () => {
+    expect(
+      siteProfileInputSchema.safeParse({ name: 'My Site', domain: 'https://example.com' }).success,
+    ).toBe(true);
+    expect(withCompetitors([]).success).toBe(true);
+  });
+
+  it('rejects more than 5 names', () => {
+    expect(withCompetitors(['A1', 'B1', 'C1', 'D1', 'E1', 'F1']).success).toBe(false);
+  });
+
+  it('rejects a name shorter than 2 characters', () => {
+    expect(withCompetitors(['A']).success).toBe(false);
+  });
+
+  it('rejects a name longer than 64 characters', () => {
+    expect(withCompetitors(['x'.repeat(65)]).success).toBe(false);
+  });
+
+  it('trims each name', () => {
+    const result = withCompetitors(['  Acme  ']);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.competitors).toEqual(['Acme']);
+  });
+
+  describe('competitorsListProblem', () => {
+    it('is null for a list with no conflict', () => {
+      expect(competitorsListProblem(['Acme', 'Beta'], 'My Site', 'https://example.com')).toBeNull();
+    });
+
+    it('is null when no competitors are configured', () => {
+      expect(competitorsListProblem(undefined, 'My Site', 'https://example.com')).toBeNull();
+      expect(competitorsListProblem(null, 'My Site', 'https://example.com')).toBeNull();
+      expect(competitorsListProblem([], 'My Site', 'https://example.com')).toBeNull();
+    });
+
+    it('flags a case-insensitive duplicate', () => {
+      expect(
+        competitorsListProblem(['Acme', 'acme'], 'My Site', 'https://example.com'),
+      ).not.toBeNull();
+    });
+
+    it('flags a competitor equal to the profile brand, case-insensitively', () => {
+      expect(competitorsListProblem(['my site'], 'My Site', 'https://example.com')).not.toBeNull();
+    });
+
+    it('flags a competitor equal to the profile domain, case-insensitively', () => {
+      expect(
+        competitorsListProblem(['HTTPS://EXAMPLE.COM'], 'My Site', 'https://example.com'),
+      ).not.toBeNull();
+    });
   });
 });
 

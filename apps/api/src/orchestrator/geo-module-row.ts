@@ -307,12 +307,14 @@ function visibilitySummaryRecord(
   geo: GeoModuleResult,
   siteDomain: string,
   brand: string,
+  competitors: readonly string[],
 ): Record<string, unknown> {
   const summaries = computeGeoVisibilitySummaries({
     outcomes: geo.outcomes,
     mentions: geo.mentions,
     siteDomain,
     brand,
+    competitors,
   });
   return {
     minMeasuredForScore: GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL,
@@ -341,6 +343,8 @@ export function geoModuleRow(
    */
   siteDomain: string,
   brand: string,
+  /** Up to 5 competitor names (T7); matched locally, never sent to a provider. */
+  competitors: readonly string[] = [],
 ): ModuleRowData {
   const reasonParts = statusReasonParts(geo, generation);
   // Each answer's evaluation is a check of its own: a judge that could not run
@@ -394,7 +398,7 @@ export function geoModuleRow(
         queryGeneration: queryGenerationMetadata(generation),
         // T6: per-engine score, shares and "who got cited instead" — computed
         // once here from the same outcomes/mentions above, never re-derived.
-        visibilitySummary: visibilitySummaryRecord(geo, siteDomain, brand),
+        visibilitySummary: visibilitySummaryRecord(geo, siteDomain, brand, competitors),
         requests: geo.outcomes.map((outcome) => ({
           purpose: geoVisibilityPurposeOf(outcome.request.promptVersion),
           promptVersion: outcome.request.promptVersion,

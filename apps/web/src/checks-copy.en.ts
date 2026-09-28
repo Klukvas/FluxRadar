@@ -150,6 +150,10 @@ export const checksCopyEn: ChecksCopy = {
           term: 'Visibility score per engine (paid, informational only)',
           body: 'each engine that answered gets a score out of 100 built from up to two signals: how often it mentioned your brand (**60%**) and how often it cited your domain (**40%**). The denominator for each is not the number of answers — it is the number of answers in which that signal could be **measured** at all. A question that already named your brand, or a profile whose brand is just its domain, proves nothing either way and is counted neither as a mention nor as a miss. A signal needs at least **2** measured answers before it counts toward the score; with only one signal there, the score is built from it alone; with neither there, the report shows the counts and says so instead of printing a number. This score is informational only: it is a snapshot of one run, it is never part of your overall audit score, and it is not a ranking.',
         },
+        {
+          term: 'Share of voice (paid, informational only, optional)',
+          body: "if you list up to 5 competitor names on your site profile, each engine's card also shows share of voice: your brand's mentions against each competitor's, over the same measurable answers the visibility score above already uses. Competitor names are matched against this scan's own stored answers on FluxRadar's servers only, and are never sent to an AI provider. With no competitors configured, the report shows a note instead of a share.",
+        },
       ],
       outro: [],
     },

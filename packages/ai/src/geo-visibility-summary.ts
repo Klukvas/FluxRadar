@@ -13,7 +13,7 @@
 // never feeds the overall score — this module computes observations, nothing
 // that penalizes.
 
-import { isMeasured } from './geo-measurability.js';
+import { competitorSignal, isMeasured } from './geo-measurability.js';
 import type { GeoMentionSignals } from './geo-rules.js';
 import { redact } from './redaction.js';
 import type { RedactionOptions } from './redaction.js';
@@ -86,6 +86,40 @@ export type GeoScoreUnavailableReason = (typeof GEO_SCORE_UNAVAILABLE_REASONS)[n
 export const GEO_SCORE_BASES = ['brand-and-domain', 'brand-only', 'domain-only'] as const;
 export type GeoScoreBasis = (typeof GEO_SCORE_BASES)[number];
 
+/**
+ * One competitor's share of the same "who got the mention" pie as the brand
+ * (T7). `share` is null exactly when `GeoShareOfVoice.brandShare` is —
+ * they divide by the same denominator, so one cannot be a number while the
+ * other is not.
+ */
+export interface GeoCompetitorVisibility {
+  readonly name: string;
+  readonly mentionedCount: number;
+  readonly share: number | null;
+}
+
+/**
+ * Share of voice (T7): among the answers where the brand signal was itself
+ * measurable (the same scope `brandMentionedShare` uses — no closed-book
+ * answers, nothing the question already named), how the brand's mentions
+ * compare to each configured competitor's.
+ *
+ * `denominator` is brand mentions plus every competitor's mentions in that
+ * same scope — never the number of answers. It is purely additive to the
+ * report: nothing here feeds `visibilityScore` (GEO-METHOD-005) and a
+ * competitor's own measurability (whether the question already named *it*)
+ * plays no part — only whether the brand's own signal was measurable decides
+ * which answers are in scope, so the same set of answers back every row.
+ */
+export interface GeoShareOfVoice {
+  readonly denominator: number;
+  readonly brandMentionsInScope: number;
+  /** null when `denominator` is 0 — no brand or competitor mention in scope. */
+  readonly brandShare: number | null;
+  /** Share desc, then name asc — the same order on every read of one scan. */
+  readonly competitors: readonly GeoCompetitorVisibility[];
+}
+
 export interface GeoProviderVisibilitySummary {
   readonly provider: AiProviderName;
   readonly questionsAsked: number;
@@ -109,6 +143,8 @@ export interface GeoProviderVisibilitySummary {
   readonly scoreBasis: GeoScoreBasis | null;
   readonly byPurpose: Readonly<Record<GeoVisibilityPurpose, GeoPurposeVisibilityCounts>>;
   readonly citedInstead: readonly GeoCitedInsteadEntry[];
+  /** null when this profile has no competitors configured — never an empty list. */
+  readonly shareOfVoice: GeoShareOfVoice | null;
 }
 
 export interface GeoVisibilitySummaryInput {
@@ -118,6 +154,8 @@ export interface GeoVisibilitySummaryInput {
   readonly siteDomain: string;
   /** The profile's brand name — required for the same reason siteDomain is. */
   readonly brand: string;
+  /** Up to 5 competitor names (T7); empty or absent means share of voice is not computed. */
+  readonly competitors?: readonly string[];
 }
 
 /** Same rule geo-module-row.ts uses to label a question, kept here so the two never disagree. */
@@ -347,11 +385,70 @@ function addOutcomeToCounts(
   };
 }
 
+/**
+ * Share of voice for one provider's answers (T7), or null with no competitors.
+ *
+ * Scope mirrors `addOutcomeToCounts`'s brand-share denominator exactly: a
+ * closed-book answer is skipped (its badges never show), and only an answer
+ * whose brand signal actually measured something counts. A competitor's own
+ * `named-in-question` state is not checked — the scope is set once, by the
+ * brand, so the same set of answers backs the brand row and every competitor
+ * row; letting each competitor narrow its own scope would make the rows
+ * incomparable (D-171-style: one signal's rule must not silently vary row to
+ * row).
+ */
+function shareOfVoiceFor(
+  responses: readonly AiResponseOutcome[],
+  mentions: ReadonlyMap<string, GeoMentionSignals>,
+  competitors: readonly string[],
+): GeoShareOfVoice | null {
+  if (competitors.length === 0) return null;
+  let brandMentions = 0;
+  const competitorMentions = new Map<string, number>(competitors.map((name) => [name, 0]));
+  for (const response of responses) {
+    if (geoVisibilityPurposeOf(response.request.promptVersion) === 'closed-book') continue;
+    const signal = mentions.get(response.aiRequestKey);
+    if (signal === undefined || !isMeasured(signal.brand)) continue;
+    if (signal.brand === 'mentioned') brandMentions += 1;
+    for (const competitor of competitors) {
+      const mentioned =
+        competitorSignal({
+          question: response.request.question,
+          answer: response.response.rawText,
+          competitor,
+        }) === 'mentioned';
+      if (mentioned) {
+        competitorMentions.set(competitor, (competitorMentions.get(competitor) ?? 0) + 1);
+      }
+    }
+  }
+  const denominator =
+    brandMentions + [...competitorMentions.values()].reduce((sum, count) => sum + count, 0);
+  const shareFor = (count: number): number | null =>
+    denominator === 0 ? null : round(count / denominator);
+  const competitorRows = competitors
+    .map((name) => {
+      const mentionedCount = competitorMentions.get(name) ?? 0;
+      return { name, mentionedCount, share: shareFor(mentionedCount) };
+    })
+    .sort(
+      (left, right) =>
+        (right.share ?? -1) - (left.share ?? -1) || left.name.localeCompare(right.name),
+    );
+  return {
+    denominator,
+    brandMentionsInScope: brandMentions,
+    brandShare: shareFor(brandMentions),
+    competitors: competitorRows,
+  };
+}
+
 function summaryForProvider(
   provider: AiProviderName,
   outcomes: readonly AiRequestOutcome[],
   mentions: ReadonlyMap<string, GeoMentionSignals>,
   siteDomain: string,
+  competitors: readonly string[],
 ): GeoProviderVisibilitySummary {
   const counts = outcomes.reduce<ProviderCounts>(
     (totals, outcome) => addOutcomeToCounts(totals, outcome, mentions),
@@ -386,6 +483,7 @@ function summaryForProvider(
     scoreBasis: basis,
     byPurpose: counts.byPurpose,
     citedInstead: citedInsteadFor(counts.responses, mentions, siteDomain),
+    shareOfVoice: shareOfVoiceFor(counts.responses, mentions, competitors),
   };
 }
 
@@ -470,11 +568,12 @@ export function computeGeoVisibilitySummaries(
     byProvider.set(provider, list);
   }
   const siteDomain = input.siteDomain.trim().toLowerCase();
+  const competitors = input.competitors ?? [];
   return [...byProvider.entries()]
     .filter(([, outcomes]) => outcomes.some((outcome) => outcome.kind === 'response'))
     .sort(([left], [right]) => providerOrder(left) - providerOrder(right))
     .map(([provider, outcomes]) =>
-      summaryForProvider(provider, outcomes, input.mentions, siteDomain),
+      summaryForProvider(provider, outcomes, input.mentions, siteDomain, competitors),
     );
 }
 

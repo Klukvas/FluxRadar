@@ -47,9 +47,15 @@ function answer(input: {
   });
 }
 
-function summarize(outcomes: readonly AiRequestOutcome[]) {
+function summarize(outcomes: readonly AiRequestOutcome[], competitors?: readonly string[]) {
   const mentions = geoMentionSignals(ruleInput(outcomes));
-  return computeGeoVisibilitySummaries({ outcomes, mentions, siteDomain: DOMAIN, brand: BRAND });
+  return computeGeoVisibilitySummaries({
+    outcomes,
+    mentions,
+    siteDomain: DOMAIN,
+    brand: BRAND,
+    ...(competitors === undefined ? {} : { competitors }),
+  });
 }
 
 /** One answered closed-book question — its badges are never shown to the reader. */
@@ -833,5 +839,119 @@ describe('computeGeoMentionContexts', () => {
     });
     const quote = contexts([outcome]).get(outcome.aiRequestKey) ?? '';
     expect(quote).not.toMatch(/johndoe|examplecorp|@exa/);
+  });
+});
+
+// T7: share of voice — the brand's mentions against each configured
+// competitor's, over the same brand-measurable-answer scope the brand's own
+// share already uses.
+describe('share of voice (T7)', () => {
+  it('is null when no competitors are configured', () => {
+    const [summary] = summarize([discoveryMentioned, discoveryNotMentioned]);
+    expect(summary?.shareOfVoice).toBeNull();
+  });
+
+  it('is null when no competitors are configured, even with an empty array', () => {
+    const [summary] = summarize([discoveryMentioned], []);
+    expect(summary?.shareOfVoice).toBeNull();
+  });
+
+  it('divides brand and competitor mentions by their combined total', () => {
+    const brandOnly = answer({
+      sequence: 1,
+      question: 'Which providers match this audience?',
+      rawText: `${BRAND} could be relevant.`,
+    });
+    const competitorOnly = answer({
+      sequence: 2,
+      question: 'What tools handle audits?',
+      rawText: 'Acme Audit is a common pick.',
+    });
+    const neither = answer({
+      sequence: 3,
+      question: 'What tools handle audits?',
+      rawText: 'Globex Scanner is a common pick.',
+    });
+    const [summary] = summarize([brandOnly, competitorOnly, neither], ['Acme Audit']);
+    expect(summary?.shareOfVoice).toEqual({
+      denominator: 2,
+      brandMentionsInScope: 1,
+      brandShare: 0.5,
+      competitors: [{ name: 'Acme Audit', mentionedCount: 1, share: 0.5 }],
+    });
+  });
+
+  it('reports null shares (not zero) when nothing in scope was mentioned', () => {
+    const neither = answer({
+      sequence: 1,
+      question: 'What tools handle audits?',
+      rawText: 'Globex Scanner is a common pick.',
+    });
+    const [summary] = summarize([neither], ['Acme Audit']);
+    expect(summary?.shareOfVoice).toEqual({
+      denominator: 0,
+      brandMentionsInScope: 0,
+      brandShare: null,
+      competitors: [{ name: 'Acme Audit', mentionedCount: 0, share: null }],
+    });
+  });
+
+  it('excludes closed-book answers from the share-of-voice scope', () => {
+    const closedBookBrand = closedBook(
+      'What do you know about this business?',
+      1,
+      `${BRAND} is a solid option.`,
+    );
+    const [summary] = summarize([closedBookBrand], ['Acme Audit']);
+    expect(summary?.shareOfVoice).toEqual({
+      denominator: 0,
+      brandMentionsInScope: 0,
+      brandShare: null,
+      competitors: [{ name: 'Acme Audit', mentionedCount: 0, share: null }],
+    });
+  });
+
+  it('does not count a competitor the question itself already named', () => {
+    const namedInQuestion = answer({
+      sequence: 1,
+      question: 'How does this compare to Acme Audit?',
+      rawText: `${BRAND} is a solid option, better than the alternative.`,
+    });
+    const [summary] = summarize([namedInQuestion], ['Acme Audit']);
+    // The brand was mentioned and measurable, so it is the sole entry in scope.
+    expect(summary?.shareOfVoice).toEqual({
+      denominator: 1,
+      brandMentionsInScope: 1,
+      brandShare: 1,
+      competitors: [{ name: 'Acme Audit', mentionedCount: 0, share: 0 }],
+    });
+  });
+
+  it('orders competitor rows by share desc, then name asc on a tie', () => {
+    const mentionsAll = answer({
+      sequence: 1,
+      question: 'Which providers match this audience?',
+      rawText: `${BRAND}, Beta Tools, and Acme Audit are all worth a look.`,
+    });
+    const [summary] = summarize([mentionsAll], ['Zeta Suite', 'Beta Tools', 'Acme Audit']);
+    expect(summary?.shareOfVoice?.competitors.map((row) => row.name)).toEqual([
+      'Acme Audit',
+      'Beta Tools',
+      'Zeta Suite',
+    ]);
+  });
+
+  it('never influences visibilityScore', () => {
+    const outcomes = [
+      closedBookMentioned,
+      closedBookNotMentioned,
+      discoveryMentioned,
+      discoveryNotMentioned,
+    ];
+    const withoutCompetitors = summarize(outcomes)[0];
+    const withCompetitors = summarize(outcomes, ['Acme Audit', 'Globex'])[0];
+    expect(withCompetitors?.visibilityScore).toBe(withoutCompetitors?.visibilityScore);
+    expect(withCompetitors?.scoreBasis).toBe(withoutCompetitors?.scoreBasis);
+    expect(withCompetitors?.brandMentionedShare).toBe(withoutCompetitors?.brandMentionedShare);
   });
 });

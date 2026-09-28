@@ -247,6 +247,16 @@ export const copy = {
       targetAudience: 'Who is it for?',
       targetAudiencePlaceholder: 'Adults and families looking for a dentist in Kyiv',
       targetAudienceHint: 'Describe the people or organizations you want to reach.',
+      competitors: 'Competitors',
+      competitorsPlaceholder: 'Acme Dental, Bright Smile Clinic',
+      competitorsHint:
+        'Up to 5 names, separated by commas. Matched against stored AI answers on this account’s servers only — never sent to an AI provider.',
+      competitorsErrorTooMany: 'List up to 5 competitors.',
+      competitorsErrorTooShort: 'Each name needs at least 2 characters.',
+      competitorsErrorTooLong: 'Each name can be at most 64 characters.',
+      competitorsErrorDuplicate: 'Remove the repeated name: "{name}".',
+      competitorsErrorOwnBrand:
+        'A competitor cannot repeat this site’s own name or domain: "{name}".',
       saveProfile: 'Save profile',
       updateProfile: 'Update profile',
       editProfile: 'Edit profile',
@@ -946,6 +956,15 @@ export const copy = {
       geoVisibilityCitedInsteadNone:
         'No other site was cited in an answer that did not cite yours.',
       geoVisibilityCitedInsteadEntry: '{hostname} — {count} answer(s)',
+      geoShareOfVoiceHeading: 'Share of voice',
+      geoShareOfVoiceHeader: 'Share of voice',
+      geoShareOfVoiceNone:
+        'Add competitor names to your site profile to see how often this engine mentions your brand next to theirs — matched locally, on this account, and never sent to any AI provider.',
+      geoShareOfVoiceNoneLink: 'Add competitors',
+      geoShareOfVoiceBrandRow: 'Your brand: {percent}% of mentions',
+      geoShareOfVoiceBrandNotMeasured: 'Your brand: not measurable in this run',
+      geoShareOfVoiceCompetitorRow: '{name}: {percent}%',
+      geoShareOfVoiceCompetitorNotMeasured: '{name}: not measurable in this run',
       geoVisibilityUnavailable:
         'This summary is available for scans run after September 28, 2026; this scan predates it.',
       geoMentionContextLabel: 'Where your brand came up',
@@ -2005,6 +2024,16 @@ export const copy = {
       targetAudience: 'Для кого цей сайт?',
       targetAudiencePlaceholder: 'Дорослі та сім’ї, які шукають стоматолога в Києві',
       targetAudienceHint: 'Опишіть людей або організації, яких ви хочете залучити.',
+      competitors: 'Конкуренти',
+      competitorsPlaceholder: 'Acme Dental, Bright Smile Clinic',
+      competitorsHint:
+        'До 5 назв через кому. Звіряються зі збереженими відповідями AI лише на серверах цього акаунта — і ніколи не надсилаються AI-провайдеру.',
+      competitorsErrorTooMany: 'Вкажіть не більше 5 конкурентів.',
+      competitorsErrorTooShort: 'Кожна назва має містити щонайменше 2 символи.',
+      competitorsErrorTooLong: 'Кожна назва може містити щонайбільше 64 символи.',
+      competitorsErrorDuplicate: 'Приберіть повторювану назву: «{name}».',
+      competitorsErrorOwnBrand:
+        'Конкурент не може повторювати назву чи домен цього сайту: «{name}».',
       saveProfile: 'Зберегти профіль',
       updateProfile: 'Оновити профіль',
       editProfile: 'Редагувати профіль',
@@ -2685,6 +2714,15 @@ export const copy = {
       geoVisibilityCitedInsteadNone:
         'У відповідях, де не було посилання на ваш сайт, не цитувався жоден інший сайт.',
       geoVisibilityCitedInsteadEntry: '{hostname} — {count} відп.',
+      geoShareOfVoiceHeading: 'Частка голосу',
+      geoShareOfVoiceHeader: 'Частка голосу',
+      geoShareOfVoiceNone:
+        'Додайте назви конкурентів до профілю сайту, щоб бачити, як часто ця система згадує ваш бренд поряд із ними — звірка відбувається локально, на вашому акаунті, і ніколи не надсилається жодному AI-провайдеру.',
+      geoShareOfVoiceNoneLink: 'Додати конкурентів',
+      geoShareOfVoiceBrandRow: 'Ваш бренд: {percent}% згадок',
+      geoShareOfVoiceBrandNotMeasured: 'Ваш бренд: у цьому прогоні неможливо зміряти',
+      geoShareOfVoiceCompetitorRow: '{name}: {percent}%',
+      geoShareOfVoiceCompetitorNotMeasured: '{name}: у цьому прогоні неможливо зміряти',
       geoVisibilityUnavailable:
         'Цей підсумок доступний для сканувань, виконаних після 28 вересня 2026 року; це сканування було раніше.',
       geoMentionContextLabel: 'Де згадано ваш бренд',

@@ -15,6 +15,7 @@
 //   - The score is informational only and sits outside the overall audit
 //     score; a provider without one carries the reason it has none.
 
+import { pathForScreen } from './app-routes';
 import type { GeoProviderVisibility, GeoVisibilitySummary } from './api';
 import { copy, fillCopy, type Language } from './i18n';
 
@@ -48,6 +49,54 @@ function GeoCitedInstead(props: {
           <p className="muted">{t.geoVisibilityCitedInsteadNote}</p>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * The "Share of voice" row (T7): the brand's share of mentions against its
+ * configured competitors, or — with none configured — a note linking to the
+ * profile form where they are added. Absent (`null`) on a scan that predates
+ * the field is treated the same as "no competitors configured": either way
+ * there is nothing to show but the invitation to configure them.
+ */
+function GeoShareOfVoice(props: {
+  shareOfVoice: GeoProviderVisibility['shareOfVoice'];
+  language: Language;
+}) {
+  const t = copy[props.language].report;
+  const { shareOfVoice } = props;
+  if (shareOfVoice === null || shareOfVoice.competitors.length === 0) {
+    return (
+      <div className="geo-visibility-card__share-of-voice">
+        <strong>{t.geoShareOfVoiceHeading}</strong>
+        <p className="muted">
+          {t.geoShareOfVoiceNone}{' '}
+          <a href={pathForScreen('desktop', null)}>{t.geoShareOfVoiceNoneLink}</a>
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="geo-visibility-card__share-of-voice">
+      <strong>{t.geoShareOfVoiceHeading}</strong>
+      <ul>
+        <li>
+          {shareOfVoice.brandShare === null
+            ? t.geoShareOfVoiceBrandNotMeasured
+            : fillCopy(t.geoShareOfVoiceBrandRow, { percent: percentOf(shareOfVoice.brandShare) })}
+        </li>
+        {shareOfVoice.competitors.map((competitor) => (
+          <li key={competitor.name}>
+            {competitor.share === null
+              ? fillCopy(t.geoShareOfVoiceCompetitorNotMeasured, { name: competitor.name })
+              : fillCopy(t.geoShareOfVoiceCompetitorRow, {
+                  name: competitor.name,
+                  percent: percentOf(competitor.share),
+                })}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -142,6 +191,7 @@ function GeoVisibilityCard(props: {
         notMeasurable={t.geoVisibilityDomainNotMeasurable}
       />
       <GeoCitedInstead citedInstead={provider.citedInstead} language={props.language} />
+      <GeoShareOfVoice shareOfVoice={provider.shareOfVoice} language={props.language} />
     </article>
   );
 }

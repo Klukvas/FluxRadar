@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   brandIsHostname,
   brandSignal,
+  competitorSignal,
   domainSignal,
   isMeasured,
   questionNames,
@@ -130,6 +131,49 @@ describe('domainSignal', () => {
         mentionsDomain: false,
       }),
     ).toBe('not-mentioned');
+  });
+});
+
+describe('competitorSignal (T7)', () => {
+  it('does not count a competitor the question already named', () => {
+    const signal = competitorSignal({
+      question: 'How does Smile Clinic compare to Acme Dental?',
+      answer: 'Smile Clinic offers similar services to Acme Dental.',
+      competitor: 'Acme Dental',
+    });
+
+    expect(signal).toBe('named-in-question');
+    expect(isMeasured(signal)).toBe(false);
+  });
+
+  it('counts a competitor a neutral question did not name', () => {
+    expect(
+      competitorSignal({
+        question: 'Which dental clinics in Kyiv offer implants?',
+        answer: 'Both Smile Clinic and Acme Dental do.',
+        competitor: 'Acme Dental',
+      }),
+    ).toBe('mentioned');
+  });
+
+  it('reports a neutral question the competitor is missing from', () => {
+    expect(
+      competitorSignal({
+        question: 'Which dental clinics in Kyiv offer implants?',
+        answer: 'Smile Clinic does.',
+        competitor: 'Acme Dental',
+      }),
+    ).toBe('not-mentioned');
+  });
+
+  it('finds the competitor case-insensitively, the same as the brand', () => {
+    expect(
+      competitorSignal({
+        question: 'Which dental clinics in Kyiv offer implants?',
+        answer: 'acme dental does.',
+        competitor: 'Acme Dental',
+      }),
+    ).toBe('mentioned');
   });
 });
 
