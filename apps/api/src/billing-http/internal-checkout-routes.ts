@@ -3,8 +3,8 @@
 // It runs a paid plan without a payment, and only for a named internal account
 // — the FLUXRADAR_INTERNAL_FREE_EMAILS allowlist, which fails closed when unset
 // (billing/internal-access.ts). Everyone else answers 402 and buys through the
-// provider (billing-http/fastspring-routes.ts). There is no simulated payment
-// here: nothing but a signed FastSpring order grants a purchase (D-229).
+// provider (billing-http/creem-routes.ts). There is no simulated payment
+// here: nothing but a signed Creem order grants a purchase (D-229).
 
 import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';

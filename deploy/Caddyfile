@@ -10,15 +10,14 @@ fluxradar.net {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
-        # FastSpring popup checkout: the Store Builder Library is served from
-        # sbl.onfastspring.com, renders the checkout in an iframe on the
-        # storefront host, and talks to that host from this page.
-        # Google Analytics 4: gtag.js from exactly
+        # Creem checkout is a full-page redirect to Creem's own hosted page,
+        # never framed or scripted on this page, so it needs no CSP source of
+        # its own. Google Analytics 4: gtag.js from exactly
         # www.googletagmanager.com, and hits to Google's
         # regional collection hosts — only once a visitor allows analytics.
-        # No wildcard script source, no inline script, and
-        # `frame-ancestors 'none'` still forbids framing FluxRadar.
-        Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://sbl.onfastspring.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://sbl.onfastspring.com; img-src 'self' data: https://*.google-analytics.com https://*.googletagmanager.com; font-src 'self' data:; connect-src 'self' https://*.onfastspring.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; frame-src https://*.onfastspring.com"
+        # No wildcard script source, no inline script, no frame source at all,
+        # and `frame-ancestors 'none'` still forbids framing FluxRadar.
+        Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.google-analytics.com https://*.googletagmanager.com; font-src 'self' data:; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; frame-src 'none'"
         Permissions-Policy "camera=(), microphone=(), geolocation=()"
         -Server
     }

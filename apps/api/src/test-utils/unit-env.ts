@@ -3,8 +3,8 @@
 // Every outbound client in this package takes an injectable fetcher and falls
 // back to the global one. That fallback is correct in production and dangerous
 // in a unit test: a forgotten injection reaches PageSpeed (billable), Anthropic
-// (billable), Resend (a real message to a real address) or FastSpring's
-// `POST /returns` (a real refund) — and the test still passes, because a live
+// (billable), Resend (a real message to a real address) or Creem's checkout
+// API (a real charge) — and the test still passes, because a live
 // answer looks like a good answer.
 //
 // So the unit suite has no `fetch`. A test that means to exercise a client

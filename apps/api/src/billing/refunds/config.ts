@@ -16,7 +16,7 @@
 //             name the provider, and a completely configured provider client.
 //
 // A misspelt value is not "on": it is refused at boot by validateRuntimeConfig,
-// the same way a half-configured FastSpring is.
+// the same way a half-configured payment provider is.
 
 export const REFUND_DISPATCH_ENV = 'FLUXRADAR_REFUND_DISPATCH';
 export const REFUND_DISPATCH_ACK_ENV = 'FLUXRADAR_REFUND_DISPATCH_ACK';
