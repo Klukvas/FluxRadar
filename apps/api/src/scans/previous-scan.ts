@@ -126,21 +126,27 @@ export async function findPreviousScan(
   });
 }
 
-/** The previous scan, and whether its own report is still the owner's to read. */
-export interface PreviousScanRead {
-  readonly scan: Scan;
-  /**
-   * False when the purchase behind it was reversed, suspended or expired.
-   *
-   * It does NOT change which scan was selected — the comparison has to be drawn
-   * against the same run the Resolved statuses were written against, or the two
-   * halves of the report disagree. What it changes is what may be said about it:
-   * false means the comparison names that scan and states no number derived from
-   * its rows, because a count derived from them is still a read of them (D-216).
-   * The endpoint answers `previous-not-readable` and an identity-only `previous`.
-   */
-  readonly readable: boolean;
-}
+/** Which scan it was — the only thing a caller may say about an unreadable one. */
+export type PreviousScanIdentity = Pick<Scan, 'id' | 'plan' | 'completedAt'>;
+
+/**
+ * The previous scan, and whether its own report is still the owner's to read.
+ *
+ * A union rather than a flag beside the row, because the flag decides what may
+ * be READ. Readability does not change which scan was selected — the comparison
+ * has to be drawn against the same run the Resolved statuses were written
+ * against, or the two halves of the report disagree — but it does decide what
+ * may be said about it: a purchase that was reversed, suspended or expired means
+ * the caller may name that scan and state no number derived from its rows,
+ * because a count derived from them is still a read of them (D-216).
+ *
+ * So the unreadable side carries the identity alone and no `Scan` row at all: a
+ * caller cannot hand it to a loader, a scope reader or a score by mistake,
+ * because there is nothing there to hand over.
+ */
+export type PreviousScanRead =
+  | { readonly readable: true; readonly scan: Scan }
+  | { readonly readable: false; readonly identity: PreviousScanIdentity };
 
 /**
  * The same selection as {@link findPreviousScan}, with its readability read.
@@ -158,7 +164,10 @@ export async function findPreviousScanRead(
     orderBy: [...PREVIOUS_SCAN_ORDER],
     include: { ...PAID_ACCESS_INCLUDE },
   })) as (Scan & PaidAccessScan) | null;
-  return previous === null ? null : { scan: previous, readable: isPaidAccessActive(previous) };
+  if (previous === null) return null;
+  if (isPaidAccessActive(previous)) return { readable: true, scan: previous };
+  const { id, plan, completedAt } = previous;
+  return { readable: false, identity: { id, plan, completedAt } };
 }
 
 /**

@@ -98,7 +98,10 @@ export interface VerdictInput {
  * The comparison verdict for the whole read.
  *
  * Fails closed: every branch that cannot prove comparability returns a reason,
- * and `{ ok: true }` is reached only after all of them have been asked.
+ * and `{ ok: true }` is reached only once every question this function asks has
+ * been answered. `previous-not-readable` is not among them — the caller settles
+ * that one before this runs, because it is the reason the other reading is never
+ * taken at all (see the note at the top of this file).
  */
 export function comparisonVerdict(
   input: VerdictInput,

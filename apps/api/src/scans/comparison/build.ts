@@ -38,7 +38,11 @@ import {
 import type { PrismaClient, Scan } from '@prisma/client';
 
 import type { ApiLogger } from '../../http/logger.ts';
-import { findPreviousScanRead, hasEarlierScanOfAnotherPlan } from '../previous-scan.ts';
+import {
+  findPreviousScanRead,
+  hasEarlierScanOfAnotherPlan,
+  type PreviousScanIdentity,
+} from '../previous-scan.ts';
 import { readCoverageEvidence } from './coverage-evidence.ts';
 import { compareIssues, NO_ISSUE_COMPARISON } from './issue-diff.ts';
 import { diffPages, pageSetsFor, type PageCensus } from './page-census.ts';
@@ -87,16 +91,17 @@ function identityOf(side: ComparisonSide): ReadableComparedScan {
  * The previous scan of a report this account may no longer read: which scan it
  * was, and nothing that scan found.
  *
- * Built from the `Scan` row alone — no module rows, no crawl summary, no scope —
- * because there is no field here for any of them to reach. That is the whole
- * guarantee: `UnreadableComparedScan` has three fields and the flag, so a future
- * edit that tries to keep "just the page count" does not compile.
+ * Built from three columns — no `Scan` row, no module rows, no crawl summary, no
+ * scope — because the selection hands the unreadable side its identity and
+ * nothing else (`PreviousScanRead`). That is the guarantee stated twice: there
+ * is no row here to read a page count out of, and `UnreadableComparedScan` has
+ * no field to put one in.
  */
-function unreadableIdentityOf(scan: Scan): UnreadableComparedScan {
+function unreadableIdentityOf(identity: PreviousScanIdentity): UnreadableComparedScan {
   return {
-    id: scan.id,
-    plan: parsePlan(scan.plan),
-    completedAt: scan.completedAt?.toISOString() ?? null,
+    id: identity.id,
+    plan: parsePlan(identity.plan),
+    completedAt: identity.completedAt?.toISOString() ?? null,
     readable: false,
   };
 }
@@ -225,14 +230,14 @@ export async function buildScanComparison(
   // the comparison against a different one would make the two halves of the
   // report disagree.
   const previousRead = await findPreviousScanRead(prisma, scan);
-  if (previousRead !== null && !previousRead.readable) {
+  if (previousRead?.readable === false) {
     // Not a branch of comparisonVerdict, and deliberately: that function answers
     // "are these two readings the same thing" FROM the two readings, and this
     // reason exists precisely so the other one is never read. Nothing past this
     // return loads a module row, a crawl summary, a proof or a finding of it.
     return noComparison(
       currentIdentity,
-      unreadableIdentityOf(previousRead.scan),
+      unreadableIdentityOf(previousRead.identity),
       { ok: false, reason: 'previous-not-readable' },
       { previousScore: null, currentScore },
     );

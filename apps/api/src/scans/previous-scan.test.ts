@@ -194,9 +194,15 @@ describeDb('the previous scan of a scan', () => {
 
     // Its purchase was reversed, so the report behind it is no longer the
     // owner's to open — and it is still the scan the selection returns, because
-    // it is the one the Resolved statuses were written against.
-    expect(read?.scan.id).toBe(previous.id);
-    expect(read?.readable).toBe(false);
+    // it is the one the Resolved statuses were written against. What the caller
+    // is handed is its identity and no row: there is nothing there to read a
+    // page count out of by mistake.
+    if (read?.readable !== false) throw new Error('the previous report should not be readable');
+    expect(read.identity).toEqual({
+      id: previous.id,
+      plan: previous.plan,
+      completedAt: previous.completedAt,
+    });
   });
 
   it('sees an earlier scan of another plan without letting it become the previous one', async () => {
