@@ -49,12 +49,14 @@ describe('validateEconForecast', () => {
     expect(result.report.operationalFloorScans).toBe(ECON_OPERATIONAL_FLOOR_SCANS);
   });
 
-  it('операционный stress-case плана §18 сходится ровно в floor 45', () => {
-    // fixed 1100 + reserve 500, margin $35.91 при mix 80/20 и потолочных costs →
-    // ceil(1600/35.91) = ceil(44.56) = 45 = planning floor.
+  it('операционный stress-case плана §18 (45 прогонов) проходит под комиссией Creem', () => {
+    // §18 inputs, unchanged: fixed 1000 + reserve 500, margin $35.91 при mix 80/20
+    // и потолочных costs → ceil(1500/35.91) = ceil(41.77) = 42 break-even. 45
+    // прогонов — operational floor, а не break-even — так что план проходит с
+    // запасом в 3 прогона над break-even, а не «ровно на границе».
     const stress = {
       ...VALID,
-      fixed_costs: 1100,
+      fixed_costs: 1000,
       forecast_scans: 45,
       forecast_gross_revenue: 45 * (0.8 * 55 + 0.2 * 120),
       expected_refund_loss: 0,
@@ -64,7 +66,8 @@ describe('validateEconForecast', () => {
     const result = validateEconForecast(stress);
     expect(result.pass).toBe(true);
     if (!result.pass) return;
-    expect(result.report.breakEvenScans).toBe(45);
+    expect(result.report.breakEvenScans).toBe(42);
+    expect(result.report.operationalFloorScans).toBe(ECON_OPERATIONAL_FLOOR_SCANS);
   });
 
   it('reserve ниже floor max($500, 10% gross) отклоняется (fx-фикстура)', () => {

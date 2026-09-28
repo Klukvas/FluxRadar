@@ -53,4 +53,25 @@ describe('readPendingCheckout', () => {
     storePendingCheckout({ ...stored, restored: false, returned: true });
     expect(readPendingCheckout('account-1')).toEqual({ ...stored, restored: true });
   });
+
+  // Regression: a record written by a previous release still sits in some
+  // buyers' local storage. Its extra fields must be tolerated, not required —
+  // readPendingCheckout reads only accountId, reference and checkoutUrl.
+  it.each([
+    [
+      'the popup-flow fields (sessionId, storefront, flow, popupBlocked)',
+      {
+        ...stored,
+        sessionId: 'sess_abc',
+        storefront: 'https://fluxradar.test.onfastspring.com',
+        flow: 'popup',
+        popupBlocked: true,
+      },
+    ],
+    ['the tab-flow field', { ...stored, sessionId: 'sess_abc', flow: 'tab' }],
+    ['no flow name at all, from before flows existed', { ...stored }],
+  ])('reads a legacy record carrying %s', (_case, legacy) => {
+    write(legacy);
+    expect(readPendingCheckout('account-1')).toEqual({ ...stored, restored: true });
+  });
 });

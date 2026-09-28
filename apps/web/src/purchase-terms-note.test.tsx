@@ -42,9 +42,8 @@ function stubApi(provider: string): void {
             available: true,
             mode: 'test',
             unavailableReason: null,
-            popup: null,
-            checkoutFlow: provider === 'creem' ? 'redirect' : 'tab',
             plans: [{ plan: 'Complete', priceUsd: 120, currency: 'USD', available: true }],
+            optInAiProviders: [],
           }),
         );
       }
