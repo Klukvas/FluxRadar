@@ -911,15 +911,15 @@ export interface ActionPlanState {
   readonly plan: ActionPlanContent | null;
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+export function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null;
 }
 
-function isStringArray(value: unknown): value is readonly string[] {
+export function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
 
-function isNullableString(value: unknown): value is string | null {
+export function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
 }
 

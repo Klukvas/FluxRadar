@@ -67,6 +67,7 @@ import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { domainVerificationRouter } from './profiles/domain-verification-routes.ts';
 import { reachabilityRouter } from './profiles/reachability-routes.ts';
 import { profilesRouter } from './profiles/routes.ts';
+import { scanComparisonRouter } from './scans/comparison-routes.ts';
 import { scansRouter } from './scans/routes.ts';
 import { supportRouter } from './support/routes.ts';
 import { createSupportChannel, type SupportChannel } from './support/support-channel.ts';
@@ -365,6 +366,7 @@ export function createApp(options: CreateAppOptions): Express {
     }),
   );
   app.use(issuesRouter({ prisma: options.prisma, now }));
+  app.use(scanComparisonRouter({ prisma: options.prisma, now, logger, requestRateLimiter }));
   app.use(
     actionPlanRouter({
       prisma: options.prisma,

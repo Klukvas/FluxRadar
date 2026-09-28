@@ -20,11 +20,13 @@ import {
   type IssueRuleGroup,
   type IssueSummary,
 } from './api';
+import { fetchScanComparison, type ScanComparison } from './comparison-api';
 import { Button, LoadingState, StatusChip } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
-import { planName } from './plan-modules';
+import { planIncludesIssueHistory, planName } from './plan-modules';
+import { ComparisonPrintBlock } from './ScanComparisonPrint';
 import { moduleLabel, ruleTitle } from './rule-titles';
 import { displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import './styles/print-report.css';
@@ -42,6 +44,13 @@ interface PrintData {
   readonly totalIssues: number;
   /** The Action Plan in the requested language, when one has been written. */
   readonly actionPlan: ActionPlanContent | null;
+  /**
+   * The comparison with the previous scan; null when this plan carries no
+   * finding history — in which case it is never asked for — or when the read did
+   * not come back. The document is worth printing either way, so it is never the
+   * reason the page fails to load.
+   */
+  readonly comparison: ScanComparison | null;
 }
 
 async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: number }> {
@@ -59,8 +68,19 @@ async function loadAllIssues(scanId: string): Promise<{ issues: Issue[]; total: 
 }
 
 async function loadPrintData(scanId: string, planLanguage: string | null): Promise<PrintData> {
-  const [dashboard, summary, findings, actionPlan] = await Promise.all([
-    apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`),
+  const dashboardRead = apiRequest<Dashboard>(`/scans/${encodeURIComponent(scanId)}/dashboard`);
+  // Asked only where the plan buys it. The endpoint would answer 403 on Free and
+  // Basic and `fetchScanComparison` would swallow it — but a refusal is still a
+  // request, and it counts against the comparison rate limit every time such a
+  // report is printed. The plan is known one round trip in, so the read waits
+  // for that instead of being fired blind; everything else still runs alongside.
+  const comparisonRead = dashboardRead
+    .then((dashboard) =>
+      planIncludesIssueHistory(dashboard.scan.plan) ? fetchScanComparison(scanId) : null,
+    )
+    .catch(() => null);
+  const [dashboard, summary, findings, actionPlan, comparison] = await Promise.all([
+    dashboardRead,
     apiRequest<IssueSummary>(`/scans/${encodeURIComponent(scanId)}/issues/summary`).catch(
       () => null,
     ),
@@ -74,6 +94,7 @@ async function loadPrintData(scanId: string, planLanguage: string | null): Promi
         )
           .then((value) => (isActionPlanState(value) ? value.plan : null))
           .catch(() => null),
+    comparisonRead,
   ]);
   return {
     dashboard,
@@ -81,6 +102,7 @@ async function loadPrintData(scanId: string, planLanguage: string | null): Promi
     issues: findings.issues,
     totalIssues: findings.total,
     actionPlan,
+    comparison,
   };
 }
 
@@ -336,6 +358,9 @@ function PrintDocument(props: { data: PrintData; language: Language }) {
       <PrintSummary data={props.data} language={props.language} />
       {actionPlan === null ? null : <PrintActionPlan plan={actionPlan} language={props.language} />}
       <PrintSections modules={dashboard.modules} language={props.language} />
+      {props.data.comparison === null || !planIncludesIssueHistory(dashboard.scan.plan) ? null : (
+        <ComparisonPrintBlock comparison={props.data.comparison} language={props.language} />
+      )}
       <PrintProblems data={props.data} language={props.language} />
       <footer className="print-footer muted">{f.print.footer}</footer>
     </article>

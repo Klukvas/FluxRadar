@@ -14,6 +14,7 @@ import { egressLocationLabel } from './egress-location';
 import { findingsCopy, type FindingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
+import { planIncludesIssueHistory } from './plan-modules';
 import { ANALYTICS_MODULE, ruleTitle } from './rule-titles';
 import { displayDomain } from './scan-status';
 import './styles/findings.css';
@@ -312,10 +313,30 @@ export function FreeUpsell(props: { scan: Scan; language: Language; onUpgrade: (
 }
 
 /**
+ * Whether this report draws its own "since last scan" numbers here.
+ *
+ * Only one block on a report may: the plans that carry finding history now get
+ * the comparison panel above the section cards (ScanComparison.tsx), which
+ * answers the same question from the §14 proof — it will not call a finding
+ * fixed unless the run re-checked it — while this block diffs fingerprints in
+ * process and calls every absence a fix. Two blocks, two different numbers, one
+ * report. The panel wins where it renders; Basic, which buys no finding history
+ * and gets no panel, keeps this one.
+ *
+ * The D-228 egress note goes with it: the crawl location is part of the crawl
+ * scope fingerprint, so two runs from two countries reach the panel as
+ * `scope-changed` and it names the location that moved, which is the same
+ * warning stated more precisely.
+ */
+function drawsOwnChanges(scan: Scan): boolean {
+  return scan.plan !== 'Free' && !planIncludesIssueHistory(scan.plan);
+}
+
+/**
  * The report's next-step blocks, in order: what to fix first — the AI Action
  * Plan when one is ready in the chosen language, "Fix these first" otherwise —
- * then either what changed since the last scan (a paid report) or what the
- * free check left unread (a Free one).
+ * then either what changed since the last scan (a paid report without the
+ * comparison panel) or what the free check left unread (a Free one).
  */
 export function ReportNextSteps(props: {
   scan: Scan;
@@ -359,9 +380,10 @@ export function ReportNextSteps(props: {
       )}
       {props.scan.plan === 'Free' ? (
         <FreeUpsell scan={props.scan} language={props.language} onUpgrade={props.onUpgrade} />
-      ) : (
+      ) : null}
+      {drawsOwnChanges(props.scan) ? (
         <ScanChangesBlock scanId={props.scan.id} language={props.language} />
-      )}
+      ) : null}
     </>
   );
 }

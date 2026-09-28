@@ -79,7 +79,7 @@ export function ScanRoute({ app }: { readonly app: AppModel }) {
 
 /** A finished scan's report. */
 export function ResultsRoute({ app }: { readonly app: AppModel }) {
-  const { language, navigate, profiles, retryScan, selectedScan, setError } = app;
+  const { language, navigate, openScanById, profiles, retryScan, selectedScan, setError } = app;
   const { setIssueRuleFilter, setNewScanPlan, setSelectedProfile, updateSelectedScan } = app;
   return (
     <ResultsScreen
@@ -102,6 +102,7 @@ export function ResultsRoute({ app }: { readonly app: AppModel }) {
         navigate('new-scan');
       }}
       onPrint={(scan) => navigate('print', scan.id)}
+      onOpenScan={(scanId) => void openScanById(scanId)}
       targetLanguages={
         profiles.find((profile) => profile.id === selectedScan?.profileId)?.targetLanguages
       }

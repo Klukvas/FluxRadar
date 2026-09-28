@@ -34,6 +34,7 @@ import { moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan, planIncludesExport, planName } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { ReportNextSteps } from './ReportNextSteps';
+import { ScanComparisonPanel } from './ScanComparison';
 import { SiteCoveragePanel } from './SiteCoverage';
 import { statusKind } from './status-kind';
 
@@ -50,6 +51,9 @@ export function ResultsScreen(props: {
   onUpgrade?: (scan: Scan) => void;
   /** Opens the printable client report. */
   onPrint?: (scan: Scan) => void;
+  /** Opens another report of the same site — the previous scan's, from the
+      comparison panel. Absent leaves that report named but unlinked. */
+  onOpenScan?: (scanId: string) => void;
   /** Retries the one unfinished section of a Partial scan. */
   onRetry?: (scan: Scan) => Promise<void>;
   onReports: () => void;
@@ -244,6 +248,15 @@ export function ResultsScreen(props: {
         {/* Before the section cards, because every coverage figure on them is
             module coverage and means something narrower than a reader assumes. */}
         <SiteCoveragePanel summary={scan.crawlSummary} language={props.language} />
+        {/* Directly after the coverage panel, and before the section cards: a
+            reader who has just been told how much of the site was read is in
+            exactly the right place to be told what changed since last time, and
+            both facts qualify every score below them. */}
+        <ScanComparisonPanel
+          scan={scan}
+          language={props.language}
+          {...(props.onOpenScan === undefined ? {} : { onOpenScan: props.onOpenScan })}
+        />
         <div className="module-grid">
           {dashboard.modules.map((module) => {
             const expandable = hasModuleChecks(module, geoObservations);
