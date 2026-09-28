@@ -147,3 +147,67 @@ describe('compareWithPrevious — template representative changed', () => {
     expect(result.regressions).toHaveLength(1);
   });
 });
+
+describe('compareWithPrevious — template lost its seat (L3)', () => {
+  it('reports a template that was audited previously but has no seat this scan', () => {
+    const previous = fakePerformanceAudit({
+      urls: [
+        urlAudit(`${ORIGIN}blog/a`, '/blog/{slug}', 2, 2_000),
+        urlAudit(`${ORIGIN}about`, '/about', 1, 1_000),
+      ],
+    });
+    const current = fakePerformanceAudit({
+      // /about's seat went to a new, larger template this scan; /blog is
+      // still audited under the same URL.
+      urls: [
+        urlAudit(`${ORIGIN}blog/a`, '/blog/{slug}', 2, 5_000),
+        urlAudit(`${ORIGIN}careers`, '/careers', 1, 1_500),
+      ],
+    });
+    const result = compareWithPrevious(current, {
+      scanId: 'previous-scan',
+      observedAt: '2026-09-01T00:00:00.000Z',
+      audit: previous,
+    });
+    expect(result.comparison?.templatesNotComparable).toEqual([]);
+    expect(result.comparison?.templatesDropped).toEqual([
+      { templateKey: '/about', previousUrl: `${ORIGIN}about` },
+    ]);
+    // /blog is still comparable by URL and reports its own regression.
+    expect(result.regressions).toHaveLength(1);
+    expect(result.regressions[0]).toMatchObject({ url: `${ORIGIN}blog/a` });
+  });
+
+  it('reports no templatesDropped when every previous template still has a seat', () => {
+    const previous = fakePerformanceAudit({
+      urls: [urlAudit(`${ORIGIN}about`, '/about', 1, 1_000)],
+    });
+    const current = fakePerformanceAudit({
+      urls: [urlAudit(`${ORIGIN}about`, '/about', 1, 1_050)],
+    });
+    const result = compareWithPrevious(current, {
+      scanId: 'previous-scan',
+      observedAt: '2026-09-01T00:00:00.000Z',
+      audit: previous,
+    });
+    expect(result.comparison?.templatesDropped).toEqual([]);
+  });
+
+  it('leaves templatesDropped empty when the audits are incomparable at the top level', () => {
+    const previous = fakePerformanceAudit({
+      urls: [urlAudit(`${ORIGIN}about`, '/about', 1, 1_000)],
+      providers: [{ name: 'pagespeed', version: '11.5.0', requests: 1, failures: 0 }],
+    });
+    const current = fakePerformanceAudit({
+      urls: [urlAudit(`${ORIGIN}careers`, '/careers', 1, 1_500)],
+      providers: [{ name: 'pagespeed', version: '13.0.0', requests: 1, failures: 0 }],
+    });
+    const result = compareWithPrevious(current, {
+      scanId: 'previous-scan',
+      observedAt: '2026-09-01T00:00:00.000Z',
+      audit: previous,
+    });
+    expect(result.comparison?.incomparable?.code).toBe('LighthouseMajorChanged');
+    expect(result.comparison?.templatesDropped).toEqual([]);
+  });
+});

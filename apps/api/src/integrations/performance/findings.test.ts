@@ -337,6 +337,7 @@ describe('compareWithPrevious', () => {
       incomparableReason: null,
       incomparable: null,
       templatesNotComparable: [],
+      templatesDropped: [],
     });
   });
 

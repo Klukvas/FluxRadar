@@ -37,6 +37,7 @@ import type {
   PerformanceAudit,
   PerformanceComparison,
   PerformanceRegression,
+  TemplateDropped,
   TemplateNotComparable,
   UrlAudit,
 } from './types.ts';
@@ -173,6 +174,32 @@ function templatesWithChangedRepresentative(
   return changed;
 }
 
+/**
+ * Every template the previous audit sampled that has no representative in the
+ * current one at all — as distinct from `templatesWithChangedRepresentative`,
+ * where the template is still present under a different URL. The five audited
+ * seats reshuffle scan to scan as template sizes drift (a template that grew
+ * shrinks another one out of its seat), so this is expected, not an error; it
+ * is still reported by name rather than silently.
+ */
+function templatesThatLostTheirSeat(
+  current: readonly UrlAudit[],
+  previous: readonly UrlAudit[],
+): readonly TemplateDropped[] {
+  const currentTemplateKeys = new Set(
+    current.flatMap((entry) => (entry.templateKey === undefined ? [] : [entry.templateKey])),
+  );
+  const dropped: TemplateDropped[] = [];
+  const seen = new Set<string>();
+  for (const entry of previous) {
+    if (entry.templateKey === undefined) continue;
+    if (currentTemplateKeys.has(entry.templateKey) || seen.has(entry.templateKey)) continue;
+    seen.add(entry.templateKey);
+    dropped.push({ templateKey: entry.templateKey, previousUrl: entry.url });
+  }
+  return dropped;
+}
+
 /** The Lighthouse major version an audit's samples were taken with, when stated. */
 function lighthouseMajor(audit: PerformanceAudit): string | null {
   const version = audit.providers.find((provider) => provider.name === 'pagespeed')?.version;
@@ -269,6 +296,7 @@ export function compareWithPrevious(
         incomparableReason: incomparableSentence(detail),
         incomparable: detail,
         templatesNotComparable: [],
+        templatesDropped: [],
       },
     };
   }
@@ -283,6 +311,7 @@ export function compareWithPrevious(
       incomparableReason: null,
       incomparable: null,
       templatesNotComparable: changedTemplates,
+      templatesDropped: templatesThatLostTheirSeat(current.urls, previous.audit.urls),
     },
   };
 }
