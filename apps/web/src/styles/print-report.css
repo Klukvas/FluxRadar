@@ -100,6 +100,11 @@
   font: 11px var(--mono-font);
   text-transform: uppercase;
 }
+.print-table caption {
+  padding: 4px 6px;
+  text-align: left;
+  caption-side: top;
+}
 .print-note {
   padding: var(--sp-2);
   border: 1px solid #8a5b00;
