@@ -10,7 +10,6 @@ import { emailText, type Mailer } from './mailer.ts';
 export type ScanNotificationKind = 'purchase_confirmed' | 'refund_created';
 
 interface NotifiedPurchase {
-  readonly provider: string;
   readonly checkout: { readonly liveMode: boolean } | null;
 }
 
@@ -58,7 +57,7 @@ export async function notifyScanEvent(
       accountId: true,
       domain: true,
       account: { select: { email: true } },
-      purchase: { select: { provider: true, checkout: { select: { liveMode: true } } } },
+      purchase: { select: { checkout: { select: { liveMode: true } } } },
     },
   });
   if (scan === null || isProviderTestModePurchase(scan.purchase)) return;
