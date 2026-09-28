@@ -4,7 +4,7 @@
 // символов (порог CONTENT-003 — страница короче него уже получает finding о
 // пустоте, а не о сложности), от MIN_PROSE_SENTENCES предложений и от
 // MIN_PROSE_WORDS слов прозы, чей `<html lang>` называет английский или
-// украинский, а преобладающий алфавит видимого текста этому языку
+// украинский, а преобладающий алфавит текста прозы этому языку
 // соответствует (readability.ts, SCRIPT_DOMINANCE_THRESHOLD) — даёт finding, когда её счёт
 // по шкале языка ниже READABILITY_SCORE_MIN. Страница, для которой это не
 // выполняется по любой из причин, applicable-целью не считается вовсе — не
@@ -55,10 +55,10 @@ const descriptor = requireDescriptor('CONTENT-005');
 /** Below this score (both language scales, clamped 0..100, higher = easier) → finding. */
 export const READABILITY_SCORE_MIN = 30;
 
-/** Below this many sentences of visible text, a page is not prose this check can measure. */
+/** Below this many sentences of prose text, a page is not prose this check can measure. */
 export const MIN_PROSE_SENTENCES = 5;
 
-/** Below this many words of visible text, a page is not prose this check can measure. */
+/** Below this many words of prose text, a page is not prose this check can measure. */
 export const MIN_PROSE_WORDS = 100;
 
 type Applicability =
