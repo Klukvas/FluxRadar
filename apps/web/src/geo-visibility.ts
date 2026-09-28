@@ -6,18 +6,29 @@
 // that keeps a malformed or unexpected payload from throwing mid-render.
 
 import {
+  GEO_SCORE_UNAVAILABLE_REASONS,
   GEO_VISIBILITY_PURPOSES,
   type GeoCitedInsteadEntry,
   type GeoProviderVisibility,
   type GeoPurposeVisibilityCounts,
+  type GeoScoreUnavailableReason,
   type GeoVisibilityPurpose,
   type GeoVisibilitySummary,
 } from './api';
 import { asRecord, numberValue } from './module-metadata';
 
-function shareValue(value: unknown): number | null {
+/** null is a valid share (nothing was measurable); undefined marks a failed check. */
+function shareValue(value: unknown): number | null | undefined {
+  if (value === null) return null;
   const number = numberValue(value);
-  return number !== null && number >= 0 && number <= 1 ? number : null;
+  return number !== null && number >= 0 && number <= 1 ? number : undefined;
+}
+
+/** null is a valid reason (the provider has a score); undefined marks a failed check. */
+function scoreReasonValue(value: unknown): GeoScoreUnavailableReason | null | undefined {
+  if (value === null) return null;
+  const known = GEO_SCORE_UNAVAILABLE_REASONS.find((reason) => reason === value);
+  return known ?? undefined;
 }
 
 /** null is a valid score (none earned); undefined marks a value that failed the check. */
@@ -31,12 +42,21 @@ function purposeCountsOf(value: unknown): GeoPurposeVisibilityCounts | null {
   const record = asRecord(value);
   const asked = numberValue(record?.asked);
   const answered = numberValue(record?.answered);
+  const brandMeasured = numberValue(record?.brandMeasured);
+  const domainMeasured = numberValue(record?.domainMeasured);
   const brandMentioned = numberValue(record?.brandMentioned);
   const domainMentioned = numberValue(record?.domainMentioned);
-  if (asked === null || answered === null || brandMentioned === null || domainMentioned === null) {
+  if (
+    asked === null ||
+    answered === null ||
+    brandMeasured === null ||
+    domainMeasured === null ||
+    brandMentioned === null ||
+    domainMentioned === null
+  ) {
     return null;
   }
-  return { asked, answered, brandMentioned, domainMentioned };
+  return { asked, answered, brandMeasured, domainMeasured, brandMentioned, domainMentioned };
 }
 
 function byPurposeOf(
@@ -75,22 +95,28 @@ function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
   const questionsAsked = numberValue(record.questionsAsked);
   const questionsAnswered = numberValue(record.questionsAnswered);
   const questionsUnavailable = numberValue(record.questionsUnavailable);
+  const brandMeasuredCount = numberValue(record.brandMeasuredCount);
   const brandMentionedCount = numberValue(record.brandMentionedCount);
   const brandMentionedShare = shareValue(record.brandMentionedShare);
+  const domainMeasuredCount = numberValue(record.domainMeasuredCount);
   const domainCitedCount = numberValue(record.domainCitedCount);
   const domainCitedShare = shareValue(record.domainCitedShare);
   const visibilityScore = scoreValue(record.visibilityScore);
+  const scoreUnavailableReason = scoreReasonValue(record.scoreUnavailableReason);
   const byPurpose = byPurposeOf(record.byPurpose);
   const citedInstead = citedInsteadOf(record.citedInstead);
   if (
     questionsAsked === null ||
     questionsAnswered === null ||
     questionsUnavailable === null ||
+    brandMeasuredCount === null ||
     brandMentionedCount === null ||
-    brandMentionedShare === null ||
+    brandMentionedShare === undefined ||
+    domainMeasuredCount === null ||
     domainCitedCount === null ||
-    domainCitedShare === null ||
+    domainCitedShare === undefined ||
     visibilityScore === undefined ||
+    scoreUnavailableReason === undefined ||
     byPurpose === null ||
     citedInstead === null
   ) {
@@ -102,11 +128,14 @@ function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
     questionsAsked,
     questionsAnswered,
     questionsUnavailable,
+    brandMeasuredCount,
     brandMentionedCount,
     brandMentionedShare,
+    domainMeasuredCount,
     domainCitedCount,
     domainCitedShare,
     visibilityScore,
+    scoreUnavailableReason,
     byPurpose,
     citedInstead,
   };
@@ -124,11 +153,11 @@ function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
 export function geoVisibilitySummaryOf(value: unknown): GeoVisibilitySummary | null {
   const record = asRecord(value);
   if (record === null) return null;
-  const minAnsweredForScore = numberValue(record.minAnsweredForScore);
+  const minMeasuredForScore = numberValue(record.minMeasuredForScore);
   const weightBrand = numberValue(record.weightBrand);
   const weightDomain = numberValue(record.weightDomain);
   if (
-    minAnsweredForScore === null ||
+    minMeasuredForScore === null ||
     weightBrand === null ||
     weightDomain === null ||
     !Array.isArray(record.providers)
@@ -141,5 +170,5 @@ export function geoVisibilitySummaryOf(value: unknown): GeoVisibilitySummary | n
     if (provider === null) return null;
     providers.push(provider);
   }
-  return { minAnsweredForScore, weightBrand, weightDomain, providers };
+  return { minMeasuredForScore, weightBrand, weightDomain, providers };
 }

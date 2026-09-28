@@ -22,8 +22,29 @@ import {
 } from './testing/harness.js';
 import type { AiRequestOutcome } from './run-request.js';
 
-function ruleInput(outcomes: readonly AiRequestOutcome[]): GeoRuleInput {
-  return { domain: DOMAIN, siteUrl: ORIGIN, brand: BRAND, outcomes };
+function ruleInput(
+  outcomes: readonly AiRequestOutcome[],
+  overrides: Partial<GeoRuleInput> = {},
+): GeoRuleInput {
+  return { domain: DOMAIN, siteUrl: ORIGIN, brand: BRAND, outcomes, ...overrides };
+}
+
+/** One answered discovery-style question, spelled out where the wording matters. */
+function answer(input: {
+  sequence: number;
+  question: string;
+  rawText: string;
+  citations?: readonly string[];
+}): AiRequestOutcome {
+  return makeResponseOutcome({
+    request: makeRequest({
+      provider: 'openai',
+      sequence: input.sequence,
+      promptVersion: 'geo-questions-v5-discovery',
+      question: input.question,
+    }),
+    response: makeResponse({ rawText: input.rawText, citations: [...(input.citations ?? [])] }),
+  });
 }
 
 function summarize(outcomes: readonly AiRequestOutcome[]) {
@@ -82,27 +103,37 @@ describe('computeGeoVisibilitySummaries', () => {
     expect(summary?.domainCitedCount).toBe(2);
     expect(summary?.brandMentionedShare).toBeCloseTo(2 / 3);
     expect(summary?.domainCitedShare).toBeCloseTo(2 / 3);
-    // fewer than GEO_VISIBILITY_MIN_ANSWERED_FOR_SCORE (3) answered → still scored at exactly 3.
+    // Exactly GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE (3) measured answers per
+    // signal → the lowest input that earns a score at all.
+    expect(summary?.brandMeasuredCount).toBe(3);
+    expect(summary?.domainMeasuredCount).toBe(3);
+    expect(summary?.scoreUnavailableReason).toBeNull();
     expect(summary?.visibilityScore).toBe(Math.round(100 * (0.6 * (2 / 3) + 0.4 * (2 / 3))));
     expect(summary?.byPurpose['closed-book']).toEqual({
       asked: 2,
       answered: 2,
+      brandMeasured: 2,
+      domainMeasured: 2,
       brandMentioned: 1,
       domainMentioned: 1,
     });
     expect(summary?.byPurpose.discovery).toEqual({
       asked: 1,
       answered: 1,
+      brandMeasured: 1,
+      domainMeasured: 1,
       brandMentioned: 1,
       domainMentioned: 1,
     });
   });
 
-  it('gives no score with fewer than 3 answered questions, but keeps the counts', () => {
+  it('gives no score with fewer than 3 measured answers, but keeps the counts', () => {
     const [summary] = summarize([closedBookMentioned]);
     expect(summary?.questionsAnswered).toBe(1);
     expect(summary?.visibilityScore).toBeNull();
+    expect(summary?.scoreUnavailableReason).toBe('not-enough-measured');
     expect(summary?.brandMentionedCount).toBe(1);
+    expect(summary?.brandMeasuredCount).toBe(1);
   });
 
   it('excludes a provider that never answered', () => {
@@ -229,6 +260,117 @@ describe('computeGeoVisibilitySummaries', () => {
     const outcomes = [closedBookMentioned, closedBookNotMentioned, discoveryMentioned];
     expect(summarize(outcomes)).toEqual(summarize(outcomes));
   });
+
+  it('refuses to summarise at all without a site domain', () => {
+    const mentions = geoMentionSignals(ruleInput([closedBookMentioned]));
+    expect(
+      computeGeoVisibilitySummaries({
+        outcomes: [closedBookMentioned],
+        mentions,
+        siteDomain: '   ',
+      }),
+    ).toEqual([]);
+  });
+
+  // The measurability contract: a signal the badges call "not measured" may
+  // never land in a share's denominator as a miss (geo-measurability.ts).
+  describe('measured answers, not answered questions, are the denominator', () => {
+    function askedThreeWays(brand: string) {
+      const outcomes = [
+        answer({
+          sequence: 1,
+          question: `What do you know about ${brand}?`,
+          rawText: `${brand} is a website audit platform.`,
+        }),
+        answer({
+          sequence: 2,
+          question: `What can you report about ${brand}?`,
+          rawText: `${brand} publishes its methodology.`,
+        }),
+        answer({
+          sequence: 3,
+          question: 'Which audit tool would you suggest?',
+          rawText: `${brand} is one option.`,
+        }),
+      ];
+      const mentions = geoMentionSignals(ruleInput(outcomes, { brand }));
+      return computeGeoVisibilitySummaries({ outcomes, mentions, siteDomain: DOMAIN })[0];
+    }
+
+    it('does not deflate the brand share with answers whose question named the brand', () => {
+      const summary = askedThreeWays(BRAND);
+      // Three mentions, two of them in questions that said the brand first: one
+      // measured answer, and it mentioned the brand. Dividing by three answers
+      // reported 33/100 for perfect brand presence.
+      expect(summary?.brandMeasuredCount).toBe(1);
+      expect(summary?.brandMentionedCount).toBe(1);
+      expect(summary?.brandMentionedShare).toBe(1);
+      expect(summary?.visibilityScore).toBeNull();
+      expect(summary?.scoreUnavailableReason).toBe('not-enough-measured');
+    });
+
+    it('reports "not measurable" rather than a 0% share for an auto-named profile', () => {
+      // `siteProfileNameFor` names a profile after its hostname, so brand and
+      // domain are the same question asked twice and brand is never measured.
+      const summary = askedThreeWays(DOMAIN);
+      expect(summary?.brandMeasuredCount).toBe(0);
+      expect(summary?.brandMentionedCount).toBe(0);
+      expect(summary?.brandMentionedShare).toBeNull();
+      expect(summary?.visibilityScore).toBeNull();
+      expect(summary?.scoreUnavailableReason).toBe('not-measurable');
+    });
+  });
+
+  it('computes the score from the exact shares, rounding only at the end', () => {
+    // 1 brand mention in 7 measured answers: 60% × 1/7 = 8.57 → 9. Scoring off
+    // the 2-decimal share (0.14) gave 8, contradicting the published formula.
+    const outcomes = Array.from({ length: 7 }, (_, index) =>
+      answer({
+        sequence: index + 1,
+        question: `Which audit tool would you suggest, option ${index}?`,
+        rawText: index === 0 ? `${BRAND} is one option.` : 'Acme Audit is one option.',
+      }),
+    );
+    const mentions = geoMentionSignals(ruleInput(outcomes));
+    const [summary] = computeGeoVisibilitySummaries({ outcomes, mentions, siteDomain: DOMAIN });
+    expect(summary?.brandMeasuredCount).toBe(7);
+    expect(summary?.brandMentionedShare).toBe(0.14);
+    expect(summary?.visibilityScore).toBe(Math.round(100 * 0.6 * (1 / 7)));
+    expect(summary?.visibilityScore).toBe(9);
+  });
+
+  describe('citation hostnames', () => {
+    function citedFor(citations: readonly string[]) {
+      const outcome = answer({
+        sequence: 1,
+        question: 'Which audit tool would you suggest?',
+        rawText: 'Acme Audit is one option.',
+        citations,
+      });
+      const mentions = geoMentionSignals(ruleInput([outcome]));
+      return computeGeoVisibilitySummaries({
+        outcomes: [outcome],
+        mentions,
+        siteDomain: DOMAIN,
+      })[0]?.citedInstead;
+    }
+
+    it('reads a trailing-dot hostname as the same entity as the dotless form', () => {
+      expect(citedFor(['https://beta.example./a', 'https://beta.example/b'])).toEqual([
+        { hostname: 'beta.example', answerCount: 1 },
+      ]);
+    });
+
+    it('parses a scheme-less citation instead of dropping it', () => {
+      expect(citedFor(['acme.example/pricing'])).toEqual([
+        { hostname: 'acme.example', answerCount: 1 },
+      ]);
+    });
+
+    it('still drops a citation that names no host at all', () => {
+      expect(citedFor(['', '   '])).toEqual([]);
+    });
+  });
 });
 
 describe('computeGeoMentionContexts', () => {
@@ -273,6 +415,48 @@ describe('computeGeoMentionContexts', () => {
     expect([...(result.get(outcome.aiRequestKey) ?? '')].length).toBeLessThanOrEqual(
       GEO_MENTION_CONTEXT_MAX_CHARS,
     );
+  });
+
+  // Model answers are list-heavy, so a newline is a sentence boundary far more
+  // often than a full stop — and it has to be one at both ends of the quote.
+  describe('sentence boundaries', () => {
+    function quoteOf(rawText: string): string | undefined {
+      const outcome = makeResponseOutcome({
+        request: makeRequest({ sequence: 1 }),
+        response: makeResponse({ rawText, citations: [] }),
+      });
+      return contexts([outcome]).get(outcome.aiRequestKey);
+    }
+
+    it('keeps the first character of a sentence that follows a newline', () => {
+      expect(quoteOf(`Here are some options:\n${BRAND} is a solid option for small teams.`)).toBe(
+        `${BRAND} is a solid option for small teams.`,
+      );
+    });
+
+    it('stops the quote at the newline that ends a bullet', () => {
+      expect(quoteOf(`Options:\n- Acme Audit\n- ${BRAND}, a pay-per-scan platform\n- Globex`)).toBe(
+        `${BRAND}, a pay-per-scan platform`,
+      );
+    });
+
+    it('does not start a sentence inside an abbreviation', () => {
+      expect(quoteOf(`The clinic run by Dr. Smith recommends ${BRAND} for audits.`)).toBe(
+        `The clinic run by Dr. Smith recommends ${BRAND} for audits.`,
+      );
+    });
+
+    it('does not end a sentence inside an abbreviation either', () => {
+      expect(quoteOf(`${BRAND} runs e.g. duplicate-content checks. Then more text.`)).toBe(
+        `${BRAND} runs e.g. duplicate-content checks.`,
+      );
+    });
+
+    it('keeps a closing quote that follows the full stop', () => {
+      expect(quoteOf(`One reviewer wrote "${BRAND} is the best." Another disagreed.`)).toBe(
+        `One reviewer wrote "${BRAND} is the best."`,
+      );
+    });
   });
 
   it('redacts the quote the same way evidence is redacted', () => {

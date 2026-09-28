@@ -699,10 +699,17 @@ export type GeoVisibilityPurpose = (typeof GEO_VISIBILITY_PURPOSES)[number];
 export const geoPurposeVisibilityCountsSchema = z.object({
   asked: z.number().int().min(0),
   answered: z.number().int().min(0),
+  /** Answers in which the signal was measurable at all — the share's denominator. */
+  brandMeasured: z.number().int().min(0),
+  domainMeasured: z.number().int().min(0),
   brandMentioned: z.number().int().min(0),
   domainMentioned: z.number().int().min(0),
 });
 export type GeoPurposeVisibilityCounts = z.infer<typeof geoPurposeVisibilityCountsSchema>;
+
+/** Why a provider carries no score — never "it scored zero". */
+export const GEO_SCORE_UNAVAILABLE_REASONS = ['not-measurable', 'not-enough-measured'] as const;
+export type GeoScoreUnavailableReason = (typeof GEO_SCORE_UNAVAILABLE_REASONS)[number];
 
 export const geoCitedInsteadEntrySchema = z.object({
   hostname: z.string().min(1),
@@ -717,12 +724,19 @@ export const geoProviderVisibilitySchema = z.object({
   questionsAsked: z.number().int().min(0),
   questionsAnswered: z.number().int().min(0),
   questionsUnavailable: z.number().int().min(0),
+  /** Answers in which the brand signal was measurable; the share divides by this. */
+  brandMeasuredCount: z.number().int().min(0),
   brandMentionedCount: z.number().int().min(0),
-  brandMentionedShare: z.number().min(0).max(1),
+  /** null when nothing about the brand was measurable in any answer. */
+  brandMentionedShare: z.number().min(0).max(1).nullable(),
+  domainMeasuredCount: z.number().int().min(0),
   domainCitedCount: z.number().int().min(0),
-  domainCitedShare: z.number().min(0).max(1),
-  /** null when fewer than `minAnsweredForScore` questions were answered. */
+  /** null when nothing about the domain was measurable in any answer. */
+  domainCitedShare: z.number().min(0).max(1).nullable(),
+  /** null unless both signals reached `minMeasuredForScore` measured answers. */
   visibilityScore: z.number().min(0).max(100).nullable(),
+  /** Why there is no score; null exactly when `visibilityScore` is a number. */
+  scoreUnavailableReason: z.enum(GEO_SCORE_UNAVAILABLE_REASONS).nullable(),
   byPurpose: z.record(z.enum(GEO_VISIBILITY_PURPOSES), geoPurposeVisibilityCountsSchema),
   /** At most 10, ranked by distinct answers citing them, our own domain excluded. */
   citedInstead: z.array(geoCitedInsteadEntrySchema).max(10),
@@ -730,8 +744,8 @@ export const geoProviderVisibilitySchema = z.object({
 export type GeoProviderVisibility = z.infer<typeof geoProviderVisibilitySchema>;
 
 export const geoVisibilitySummarySchema = z.object({
-  /** A provider under this many answered questions gets counts, never a score. */
-  minAnsweredForScore: z.number().int().min(1),
+  /** A provider under this many *measured* answers per signal gets counts, never a score. */
+  minMeasuredForScore: z.number().int().min(1),
   /** Score formula weights — 60% brand share + 40% domain share by default. */
   weightBrand: z.number().min(0).max(1),
   weightDomain: z.number().min(0).max(1),

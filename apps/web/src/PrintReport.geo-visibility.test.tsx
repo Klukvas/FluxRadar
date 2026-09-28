@@ -40,24 +40,49 @@ function observation(): GeoObservation {
   };
 }
 
-function providerVisibility(): GeoProviderVisibility {
+function providerVisibility(overrides: Partial<GeoProviderVisibility> = {}): GeoProviderVisibility {
   return {
     provider: 'anthropic',
     label: 'Claude · Anthropic',
     questionsAsked: 3,
     questionsAnswered: 3,
     questionsUnavailable: 0,
+    brandMeasuredCount: 3,
     brandMentionedCount: 2,
     brandMentionedShare: 2 / 3,
+    domainMeasuredCount: 3,
     domainCitedCount: 1,
     domainCitedShare: 1 / 3,
     visibilityScore: 53,
+    scoreUnavailableReason: null,
     byPurpose: {
-      'closed-book': { asked: 2, answered: 2, brandMentioned: 1, domainMentioned: 1 },
-      awareness: { asked: 0, answered: 0, brandMentioned: 0, domainMentioned: 0 },
-      discovery: { asked: 1, answered: 1, brandMentioned: 1, domainMentioned: 0 },
+      'closed-book': {
+        asked: 2,
+        answered: 2,
+        brandMeasured: 2,
+        domainMeasured: 2,
+        brandMentioned: 1,
+        domainMentioned: 1,
+      },
+      awareness: {
+        asked: 0,
+        answered: 0,
+        brandMeasured: 0,
+        domainMeasured: 0,
+        brandMentioned: 0,
+        domainMentioned: 0,
+      },
+      discovery: {
+        asked: 1,
+        answered: 1,
+        brandMeasured: 1,
+        domainMeasured: 1,
+        brandMentioned: 1,
+        domainMentioned: 0,
+      },
     },
     citedInstead: [],
+    ...overrides,
   };
 }
 
@@ -123,7 +148,7 @@ describe('the printable report and GEO visibility', () => {
       dashboardOf({
         geoObservations: [observation()],
         geoVisibilitySummary: {
-          minAnsweredForScore: 3,
+          minMeasuredForScore: 3,
           weightBrand: 0.6,
           weightDomain: 0.4,
           providers: [providerVisibility()],
@@ -137,6 +162,74 @@ describe('the printable report and GEO visibility', () => {
     expect(await screen.findByText('Visibility by engine')).toBeInTheDocument();
     expect(screen.getByText('Claude · Anthropic')).toBeInTheDocument();
     expect(screen.getByText('53/100')).toBeInTheDocument();
+    // Denominators are the measurable answers, not the raw answer count.
+    expect(screen.getByText('2/3 (67%)')).toBeInTheDocument();
+    expect(screen.getByText('1/3 (33%)')).toBeInTheDocument();
+  });
+
+  // The cell used to print the provider's own answer count as the minimum,
+  // which produced "needs at least 1 answered questions" for a single answer.
+  it('prints the summary\u2019s minimum, not the provider\u2019s answer count', async () => {
+    stubFetch(
+      dashboardOf({
+        geoObservations: [observation()],
+        geoVisibilitySummary: {
+          minMeasuredForScore: 3,
+          weightBrand: 0.6,
+          weightDomain: 0.4,
+          providers: [
+            providerVisibility({
+              questionsAnswered: 1,
+              brandMeasuredCount: 1,
+              brandMentionedCount: 1,
+              brandMentionedShare: 1,
+              domainMeasuredCount: 1,
+              domainCitedCount: 0,
+              domainCitedShare: 0,
+              visibilityScore: null,
+              scoreUnavailableReason: 'not-enough-measured',
+            }),
+          ],
+        },
+      }),
+    );
+    render(
+      <PrintReport scanId="scan-print-geo" language="en" onBack={() => {}} onError={() => {}} />,
+    );
+
+    expect(
+      await screen.findByText(
+        'No score yet \u2014 needs at least 3 answers in which both signals could be measured.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('prints "not measurable" rather than a 0% share for a signal never measured', async () => {
+    stubFetch(
+      dashboardOf({
+        geoObservations: [observation()],
+        geoVisibilitySummary: {
+          minMeasuredForScore: 3,
+          weightBrand: 0.6,
+          weightDomain: 0.4,
+          providers: [
+            providerVisibility({
+              brandMeasuredCount: 0,
+              brandMentionedCount: 0,
+              brandMentionedShare: null,
+              visibilityScore: null,
+              scoreUnavailableReason: 'not-measurable',
+            }),
+          ],
+        },
+      }),
+    );
+    render(
+      <PrintReport scanId="scan-print-geo" language="en" onBack={() => {}} onError={() => {}} />,
+    );
+
+    expect(await screen.findByText('Not measurable')).toBeInTheDocument();
+    expect(screen.queryByText('0/0 (0%)')).toBeNull();
   });
 
   it('prints the pre-release sentence for a scan with answers but no stored summary', async () => {
@@ -165,7 +258,7 @@ describe('the printable report and GEO visibility', () => {
       dashboardOf({
         geoObservations: [observation()],
         geoVisibilitySummary: {
-          minAnsweredForScore: 3,
+          minMeasuredForScore: 3,
           weightBrand: 0.6,
           weightDomain: 0.4,
           providers: [providerVisibility()],

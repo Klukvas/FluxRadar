@@ -13,15 +13,39 @@ function validProvider(overrides: Record<string, unknown> = {}) {
     questionsAsked: 3,
     questionsAnswered: 3,
     questionsUnavailable: 0,
+    brandMeasuredCount: 3,
     brandMentionedCount: 2,
     brandMentionedShare: 2 / 3,
+    domainMeasuredCount: 3,
     domainCitedCount: 1,
     domainCitedShare: 1 / 3,
     visibilityScore: 53,
+    scoreUnavailableReason: null,
     byPurpose: {
-      'closed-book': { asked: 2, answered: 2, brandMentioned: 1, domainMentioned: 1 },
-      awareness: { asked: 0, answered: 0, brandMentioned: 0, domainMentioned: 0 },
-      discovery: { asked: 1, answered: 1, brandMentioned: 1, domainMentioned: 0 },
+      'closed-book': {
+        asked: 2,
+        answered: 2,
+        brandMeasured: 2,
+        domainMeasured: 2,
+        brandMentioned: 1,
+        domainMentioned: 1,
+      },
+      awareness: {
+        asked: 0,
+        answered: 0,
+        brandMeasured: 0,
+        domainMeasured: 0,
+        brandMentioned: 0,
+        domainMentioned: 0,
+      },
+      discovery: {
+        asked: 1,
+        answered: 1,
+        brandMeasured: 1,
+        domainMeasured: 1,
+        brandMentioned: 1,
+        domainMentioned: 0,
+      },
     },
     citedInstead: [{ hostname: 'rival.example', answerCount: 2 }],
     ...overrides,
@@ -29,7 +53,7 @@ function validProvider(overrides: Record<string, unknown> = {}) {
 }
 
 function validSummary(providers: readonly unknown[] = [validProvider()]) {
-  return { minAnsweredForScore: 3, weightBrand: 0.6, weightDomain: 0.4, providers };
+  return { minMeasuredForScore: 3, weightBrand: 0.6, weightDomain: 0.4, providers };
 }
 
 describe('geoVisibilitySummaryOf', () => {
@@ -52,10 +76,44 @@ describe('geoVisibilitySummaryOf', () => {
     expect(geoVisibilitySummaryOf(42)).toBeNull();
   });
 
-  it('rejects a summary missing minAnsweredForScore/weightBrand/weightDomain', () => {
+  it('rejects a summary missing minMeasuredForScore/weightBrand/weightDomain', () => {
     const rest = validSummary() as Record<string, unknown>;
-    delete rest.minAnsweredForScore;
+    delete rest.minMeasuredForScore;
     expect(geoVisibilitySummaryOf(rest)).toBeNull();
+  });
+
+  // A signal measurable in no answer has no share at all; null is data, not a
+  // failed check, and must survive the read as null rather than reject the row.
+  it('accepts a null share and the reason that goes with it', () => {
+    const result = geoVisibilitySummaryOf(
+      validSummary([
+        validProvider({
+          brandMeasuredCount: 0,
+          brandMentionedShare: null,
+          visibilityScore: null,
+          scoreUnavailableReason: 'not-measurable',
+        }),
+      ]),
+    );
+    expect(result?.providers[0]?.brandMentionedShare).toBeNull();
+    expect(result?.providers[0]?.scoreUnavailableReason).toBe('not-measurable');
+  });
+
+  it('rejects a provider with an unknown scoreUnavailableReason', () => {
+    const bad = validSummary([validProvider({ scoreUnavailableReason: 'because' })]);
+    expect(geoVisibilitySummaryOf(bad)).toBeNull();
+  });
+
+  it('rejects a provider missing the measured counts', () => {
+    const rest = validProvider() as Record<string, unknown>;
+    delete rest.brandMeasuredCount;
+    expect(geoVisibilitySummaryOf(validSummary([rest]))).toBeNull();
+  });
+
+  it('rejects byPurpose counts missing the measured fields', () => {
+    const counts = validProvider().byPurpose as Record<string, Record<string, unknown>>;
+    delete counts.discovery?.brandMeasured;
+    expect(geoVisibilitySummaryOf(validSummary([validProvider({ byPurpose: counts })]))).toBeNull();
   });
 
   it('rejects a summary whose providers is not an array', () => {

@@ -16,6 +16,7 @@ import {
   isActionPlanState,
   type ActionPlanContent,
   type Dashboard,
+  type GeoProviderVisibility,
   type Issue,
   type IssueRuleGroup,
   type IssueSummary,
@@ -24,6 +25,7 @@ import { fetchScanComparison, type ScanComparison } from './comparison-api';
 import { Button, LoadingState, StatusChip } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
+import { percentOf } from './GeoVisibility';
 import { geoVisibilitySummaryOf } from './geo-visibility';
 import { copy, fillCopy, type Language } from './i18n';
 import { planIncludesIssueHistory, planName } from './plan-modules';
@@ -315,9 +317,33 @@ function PrintSections(props: { modules: Dashboard['modules']; language: Languag
   );
 }
 
-/** A percentage rounded for display; the stored share stays a 0..1 fraction. */
-function percentOf(share: number): number {
-  return Math.round(share * 100);
+/**
+ * One signal's cell: mentions out of the answers in which it was measurable.
+ *
+ * "Not measurable" rather than 0%: a question that already named the brand or
+ * the domain proves nothing either way, and printing 0% would read as a fail
+ * the scan never observed.
+ */
+function printShareCell(
+  measured: number,
+  mentioned: number,
+  share: number | null,
+  notMeasurable: string,
+): string {
+  if (share === null) return notMeasurable;
+  return `${mentioned}/${measured} (${percentOf(share)}%)`;
+}
+
+/** Why this engine has no score — the minimum comes from the summary, not the answer count. */
+function printNoScore(
+  provider: GeoProviderVisibility,
+  minMeasuredForScore: number,
+  language: Language,
+): string {
+  const t = copy[language].report;
+  return provider.scoreUnavailableReason === 'not-measurable'
+    ? t.geoVisibilityNotMeasurable
+    : fillCopy(t.geoVisibilityNotEnoughAnswers, { min: minMeasuredForScore });
 }
 
 /** Compact mirror of the report's "Visibility by engine" block: score and shares per engine. */
@@ -347,16 +373,24 @@ function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language })
                 <td>{provider.label}</td>
                 <td>
                   {provider.visibilityScore === null
-                    ? fillCopy(t.geoVisibilityNotEnoughAnswers, { min: provider.questionsAnswered })
+                    ? printNoScore(provider, summary.minMeasuredForScore, props.language)
                     : `${provider.visibilityScore}/100`}
                 </td>
                 <td>
-                  {provider.brandMentionedCount}/{provider.questionsAnswered} (
-                  {percentOf(provider.brandMentionedShare)}%)
+                  {printShareCell(
+                    provider.brandMeasuredCount,
+                    provider.brandMentionedCount,
+                    provider.brandMentionedShare,
+                    t.geoVisibilityNotMeasurableShort,
+                  )}
                 </td>
                 <td>
-                  {provider.domainCitedCount}/{provider.questionsAnswered} (
-                  {percentOf(provider.domainCitedShare)}%)
+                  {printShareCell(
+                    provider.domainMeasuredCount,
+                    provider.domainCitedCount,
+                    provider.domainCitedShare,
+                    t.geoVisibilityNotMeasurableShort,
+                  )}
                 </td>
               </tr>
             ))}

@@ -919,15 +919,26 @@ export const copy = {
         'These are each model’s answers to this scan’s exact prompts. Each card shows the question as it was put, the answer as it came back, and — where an evaluation ran — how that answer checked out against what this scan read from your site; a discovery answer’s citations are the sources the model searched. They show what happened in this run; they do not prove what a model has memorized or will answer later.',
       geoVisibilityHeading: 'Visibility by engine',
       geoVisibilityLead:
-        'A score out of 100 for each AI engine that answered at least {min} questions: {brandWeight}% how often it mentioned your brand plus {domainWeight}% how often it cited your domain, both as a share of the questions that engine actually answered. This score is informational only — a snapshot of this run, never part of your overall score.',
+        'One card per AI engine that answered at least one question. Where an engine measured both signals in at least {min} answers it also gets a score out of 100: {brandWeight}% how often it mentioned your brand plus {domainWeight}% how often it cited your domain, each as a share of the answers in which that signal could be measured at all — a question that already named your brand or your domain proves nothing, so it counts neither way. This score is informational only — a snapshot of this run, never part of your overall score.',
       geoVisibilityScoreLabel: 'Visibility score',
       geoVisibilityNotEnoughAnswers:
-        'Not enough answers yet — needs at least {min} answered questions.',
-      geoVisibilityBrandShare: 'Brand mentioned in {count} of {total} answers ({percent}%)',
-      geoVisibilityDomainShare: 'Domain cited in {count} of {total} answers ({percent}%)',
+        'No score yet — needs at least {min} answers in which both signals could be measured.',
+      geoVisibilityNotMeasurable:
+        'No score — nothing measurable here: this run’s questions already named what the answers would have been checked for.',
+      geoVisibilityBrandShare:
+        'Brand mentioned in {count} of {total} measurable answers ({percent}%)',
+      geoVisibilityDomainShare:
+        'Domain cited in {count} of {total} measurable answers ({percent}%)',
+      geoVisibilityBrandNotMeasurable:
+        'Brand mentions: not measurable in this run — every question named your brand, or your profile has no brand name beyond its domain.',
+      geoVisibilityDomainNotMeasurable:
+        'Domain citations: not measurable in this run — every question already spelled out your domain.',
       geoVisibilityBrandShareHeader: 'Brand mentioned',
       geoVisibilityDomainShareHeader: 'Domain cited',
+      geoVisibilityNotMeasurableShort: 'Not measurable',
       geoVisibilityCitedInsteadHeading: 'Who got cited instead',
+      geoVisibilityCitedInsteadNote:
+        'Only your own hostname and its subdomains are left out of this list. Another domain you own — a CDN, a docs site, a landing page on a separate name — is still listed here, because from the answer alone it is another site.',
       geoVisibilityCitedInsteadNone:
         'No other site was cited in an answer that did not cite yours.',
       geoVisibilityCitedInsteadEntry: '{hostname} — {count} answer(s)',
@@ -2644,15 +2655,26 @@ export const copy = {
         'Це відповіді кожної моделі на конкретні запити цієї перевірки. Кожна картка показує поставлене питання, отриману відповідь і — якщо оцінювання виконувалося — як цю відповідь звірили з тим, що ця перевірка прочитала на вашому сайті; посилання під пошуковим питанням — це джерела, якими модель скористалася. Вони показують, що сталося саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
       geoVisibilityHeading: 'Видимість за системами',
       geoVisibilityLead:
-        'Оцінка від 0 до 100 для кожної AI-системи, яка відповіла щонайменше на {min} питань: {brandWeight}% — як часто вона згадувала ваш бренд, плюс {domainWeight}% — як часто вона посилалася на ваш домен, обидва як частка питань, на які ця система реально відповіла. Ця оцінка лише інформаційна — знімок цього прогону, вона ніколи не входить у загальну оцінку.',
+        'Одна картка на кожну AI-систему, яка відповіла хоча б на одне питання. Якщо система зміряла обидва сигнали щонайменше у {min} відповідях, вона отримує ще й оцінку від 0 до 100: {brandWeight}% — як часто вона згадувала ваш бренд, плюс {domainWeight}% — як часто вона посилалася на ваш домен, кожен як частка тих відповідей, де цей сигнал взагалі можна було зміряти: питання, яке само назвало ваш бренд або домен, нічого не доводить, тому воно не рахується ні в плюс, ні в мінус. Ця оцінка лише інформаційна — знімок цього прогону, вона ніколи не входить у загальну оцінку.',
       geoVisibilityScoreLabel: 'Оцінка видимості',
       geoVisibilityNotEnoughAnswers:
-        'Поки що замало відповідей — потрібно щонайменше {min} відповідей.',
-      geoVisibilityBrandShare: 'Бренд згадано у {count} з {total} відповідей ({percent}%)',
-      geoVisibilityDomainShare: 'Домен процитовано у {count} з {total} відповідей ({percent}%)',
+        'Оцінки ще немає — потрібно щонайменше {min} відповідей, де можна зміряти обидва сигнали.',
+      geoVisibilityNotMeasurable:
+        'Оцінки немає — міряти нічого: питання цього прогону вже називали те, що перевірялося б у відповідях.',
+      geoVisibilityBrandShare:
+        'Бренд згадано у {count} з {total} вимірюваних відповідей ({percent}%)',
+      geoVisibilityDomainShare:
+        'Домен процитовано у {count} з {total} вимірюваних відповідей ({percent}%)',
+      geoVisibilityBrandNotMeasurable:
+        'Згадки бренду: у цьому прогоні не вимірювані — кожне питання називало ваш бренд, або у профілі немає назви бренду, окрім домену.',
+      geoVisibilityDomainNotMeasurable:
+        'Посилання на домен: у цьому прогоні не вимірювані — кожне питання вже містило ваш домен.',
       geoVisibilityBrandShareHeader: 'Згадано бренд',
       geoVisibilityDomainShareHeader: 'Процитовано домен',
+      geoVisibilityNotMeasurableShort: 'Не вимірювано',
       geoVisibilityCitedInsteadHeading: 'Кого зацитували замість вас',
+      geoVisibilityCitedInsteadNote:
+        'З цього списку виключено лише ваш власний хост і його піддомени. Інший домен, що теж належить вам — CDN, сайт документації, лендінг на окремому імені — залишається у списку, бо з самої відповіді це інший сайт.',
       geoVisibilityCitedInsteadNone:
         'У відповідях, де не було посилання на ваш сайт, не цитувався жоден інший сайт.',
       geoVisibilityCitedInsteadEntry: '{hostname} — {count} відп.',

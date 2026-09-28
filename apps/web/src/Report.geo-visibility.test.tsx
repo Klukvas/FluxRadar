@@ -53,15 +53,39 @@ function providerVisibility(overrides: Partial<GeoProviderVisibility> = {}): Geo
     questionsAsked: 3,
     questionsAnswered: 3,
     questionsUnavailable: 0,
+    brandMeasuredCount: 3,
     brandMentionedCount: 2,
     brandMentionedShare: 2 / 3,
+    domainMeasuredCount: 3,
     domainCitedCount: 1,
     domainCitedShare: 1 / 3,
     visibilityScore: 53,
+    scoreUnavailableReason: null,
     byPurpose: {
-      'closed-book': { asked: 2, answered: 2, brandMentioned: 1, domainMentioned: 1 },
-      awareness: { asked: 0, answered: 0, brandMentioned: 0, domainMentioned: 0 },
-      discovery: { asked: 1, answered: 1, brandMentioned: 1, domainMentioned: 0 },
+      'closed-book': {
+        asked: 2,
+        answered: 2,
+        brandMeasured: 2,
+        domainMeasured: 2,
+        brandMentioned: 1,
+        domainMentioned: 1,
+      },
+      awareness: {
+        asked: 0,
+        answered: 0,
+        brandMeasured: 0,
+        domainMeasured: 0,
+        brandMentioned: 0,
+        domainMentioned: 0,
+      },
+      discovery: {
+        asked: 1,
+        answered: 1,
+        brandMeasured: 1,
+        domainMeasured: 1,
+        brandMentioned: 1,
+        domainMentioned: 0,
+      },
     },
     citedInstead: [{ hostname: 'rival-dental.example', answerCount: 2 }],
     ...overrides,
@@ -69,7 +93,7 @@ function providerVisibility(overrides: Partial<GeoProviderVisibility> = {}): Geo
 }
 
 function visibilitySummary(providers: readonly GeoProviderVisibility[]): GeoVisibilitySummary {
-  return { minAnsweredForScore: 3, weightBrand: 0.6, weightDomain: 0.4, providers };
+  return { minMeasuredForScore: 3, weightBrand: 0.6, weightDomain: 0.4, providers };
 }
 
 function geoModule(): ScanModule {
@@ -149,8 +173,10 @@ describe('Visibility by engine', () => {
 
     expect(await screen.findByText('Visibility by engine')).toBeInTheDocument();
     expect(screen.getByText('53/100')).toBeInTheDocument();
-    expect(screen.getByText('Brand mentioned in 2 of 3 answers (67%)')).toBeInTheDocument();
-    expect(screen.getByText('Domain cited in 1 of 3 answers (33%)')).toBeInTheDocument();
+    expect(
+      screen.getByText('Brand mentioned in 2 of 3 measurable answers (67%)'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Domain cited in 1 of 3 measurable answers (33%)')).toBeInTheDocument();
     expect(screen.getByText(/rival-dental\.example — 2 answer/)).toBeInTheDocument();
   });
 
@@ -164,21 +190,106 @@ describe('Visibility by engine', () => {
     );
 
     expect(await screen.findByText('Видимість за системами')).toBeInTheDocument();
-    expect(screen.getByText(/Бренд згадано у 2 з 3 відповідей/)).toBeInTheDocument();
+    expect(screen.getByText(/Бренд згадано у 2 з 3 вимірюваних відповідей/)).toBeInTheDocument();
   });
 
-  it('shows "not enough answers" instead of a score when fewer than the minimum answered', async () => {
+  // The minimum is the summary's own `minMeasuredForScore`, never the number of
+  // answers this provider happened to return: printing the latter produced
+  // "needs at least 1 answered questions" for a provider that had answered one.
+  it('names the summary\u2019s minimum, not the provider\u2019s answer count, when there is no score', async () => {
     await openGeoCard(
       dashboardOf({
         geoObservations: [observation({})],
         geoVisibilitySummary: visibilitySummary([
-          providerVisibility({ questionsAnswered: 1, visibilityScore: null }),
+          providerVisibility({
+            questionsAnswered: 1,
+            brandMeasuredCount: 1,
+            brandMentionedCount: 1,
+            brandMentionedShare: 1,
+            domainMeasuredCount: 1,
+            domainCitedCount: 0,
+            domainCitedShare: 0,
+            visibilityScore: null,
+            scoreUnavailableReason: 'not-enough-measured',
+          }),
         ]),
       }),
     );
 
     expect(
-      await screen.findByText('Not enough answers yet — needs at least 1 answered questions.'),
+      await screen.findByText(
+        'No score yet \u2014 needs at least 3 answers in which both signals could be measured.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('names the minimum in Ukrainian too', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            questionsAnswered: 1,
+            visibilityScore: null,
+            scoreUnavailableReason: 'not-enough-measured',
+          }),
+        ]),
+      }),
+      'uk',
+    );
+
+    expect(await screen.findByText(/потрібно щонайменше 3 відповідей/)).toBeInTheDocument();
+  });
+
+  // An auto-created profile whose brand is its hostname can never measure brand
+  // visibility; the card says so rather than showing 0% and a score built on it.
+  it('says "not measurable" instead of a 0% share when a signal was never measurable', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            brandMeasuredCount: 0,
+            brandMentionedCount: 0,
+            brandMentionedShare: null,
+            visibilityScore: null,
+            scoreUnavailableReason: 'not-measurable',
+          }),
+        ]),
+      }),
+    );
+
+    expect(
+      await screen.findByText(/Brand mentions: not measurable in this run/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Brand mentioned in 0 of/)).toBeNull();
+    expect(screen.getByText(/No score \u2014 nothing measurable here/)).toBeInTheDocument();
+    expect(screen.queryByText('0/100')).toBeNull();
+  });
+
+  it('keeps the score label readable beside the number, not as an aria-label over it', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([providerVisibility()]),
+      }),
+    );
+
+    const score = await screen.findByText('Visibility score');
+    // Both the label and the number are in the accessibility tree.
+    expect(score.parentElement?.textContent).toContain('53/100');
+  });
+
+  it('explains that only our own hostname is excluded from "cited instead"', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([providerVisibility()]),
+      }),
+    );
+
+    expect(
+      await screen.findByText(/Only your own hostname and its subdomains are left out/),
     ).toBeInTheDocument();
   });
 

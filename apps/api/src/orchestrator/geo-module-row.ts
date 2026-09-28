@@ -26,13 +26,15 @@ import type {
   GeoEvidenceSnapshot,
   GeoMentionSignals,
   GeoModuleResult,
+  GeoVisibilityPurpose,
 } from '@fluxradar/ai';
 import {
   computeGeoMentionContexts,
   computeGeoVisibilitySummaries,
   GEO_VISIBILITY_BRAND_WEIGHT,
   GEO_VISIBILITY_DOMAIN_WEIGHT,
-  GEO_VISIBILITY_MIN_ANSWERED_FOR_SCORE,
+  GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE,
+  geoVisibilityPurposeOf,
   isMeasured,
 } from '@fluxradar/ai';
 import { computeCoverage } from '@fluxradar/scoring';
@@ -58,8 +60,13 @@ export const GEO_SCORING_REASON = 'InformationalOnly';
  * questions named the brand and spelled out the domain with web search on, and
  * calling them closed-book now would relabel history into a check that never
  * ran.
+ *
+ * The label and the rule that derives it come from `@fluxradar/ai`, which the
+ * visibility summary also reads: two copies of "what kind of question is this"
+ * could drift apart and put one answer in two different buckets of the same
+ * report.
  */
-type QuestionPurpose = 'closed-book' | 'awareness' | 'discovery';
+type QuestionPurpose = GeoVisibilityPurpose;
 
 /** Наблюдения одного типа вопросов; все поля — счётчики реальных исходов. */
 interface PurposeObservations {
@@ -86,11 +93,6 @@ const EMPTY_OBSERVATIONS: PurposeObservations = {
   brandMentioned: 0,
   domainMentioned: 0,
 };
-
-function purposeOf(promptVersion: string): QuestionPurpose {
-  if (promptVersion.endsWith('-discovery')) return 'discovery';
-  return promptVersion.endsWith('-closed-book') ? 'closed-book' : 'awareness';
-}
 
 /**
  * Упоминания бренда/домена в одном ответе.
@@ -135,7 +137,7 @@ export function geoObservations(
 ): Readonly<Record<QuestionPurpose, PurposeObservations>> {
   return geo.outcomes.reduce<Record<QuestionPurpose, PurposeObservations>>(
     (totals, outcome) => {
-      const purpose = purposeOf(outcome.request.promptVersion);
+      const purpose = geoVisibilityPurposeOf(outcome.request.promptVersion);
       const answered = outcome.kind === 'response';
       const signals = answered ? mentionSignals(geo, outcome.aiRequestKey) : null;
       return { ...totals, [purpose]: addOutcome(totals[purpose], signals, answered) };
@@ -311,7 +313,7 @@ function visibilitySummaryRecord(
     siteDomain,
   });
   return {
-    minAnsweredForScore: GEO_VISIBILITY_MIN_ANSWERED_FOR_SCORE,
+    minMeasuredForScore: GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE,
     weightBrand: GEO_VISIBILITY_BRAND_WEIGHT,
     weightDomain: GEO_VISIBILITY_DOMAIN_WEIGHT,
     providers: summaries.map((summary) => ({
@@ -326,10 +328,17 @@ export function geoModuleRow(
   geo: GeoModuleResult,
   generation: GeoQuestionGenerationResult,
   aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
-  evidence: GeoEvidenceSnapshot | null = null,
-  /** Site domain and brand — needed only for the visibility summary and its quotes. */
-  siteDomain = '',
-  brand = '',
+  evidence: GeoEvidenceSnapshot | null,
+  /**
+   * The site's hostname and the profile's brand name, both required.
+   *
+   * They were optional once, and the empty default quietly disabled the
+   * own-domain exclusion in "cited instead" — our own subdomains could rank as
+   * competitors — with no call site to reveal it. The single real caller
+   * (`run-attempt.ts`) always has both, so the builder now demands them.
+   */
+  siteDomain: string,
+  brand: string,
 ): ModuleRowData {
   const reasonParts = statusReasonParts(geo, generation);
   // Each answer's evaluation is a check of its own: a judge that could not run
@@ -385,7 +394,7 @@ export function geoModuleRow(
         // once here from the same outcomes/mentions above, never re-derived.
         visibilitySummary: visibilitySummaryRecord(geo, siteDomain),
         requests: geo.outcomes.map((outcome) => ({
-          purpose: purposeOf(outcome.request.promptVersion),
+          purpose: geoVisibilityPurposeOf(outcome.request.promptVersion),
           promptVersion: outcome.request.promptVersion,
           // On the ledger entry as well as on the response row, so an
           // unavailable observation can still say which provider was asked.

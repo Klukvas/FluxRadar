@@ -182,6 +182,28 @@ const EVIDENCE: GeoEvidenceSnapshot = {
   sufficiency: 'profile-only',
 };
 
+/** The fixture site every case here is a scan of. */
+const SITE_DOMAIN = 'acme-clinic.example';
+const SITE_BRAND = 'Acme Clinic';
+
+/**
+ * The builder under test, with this fixture's site identity filled in.
+ *
+ * `geoModuleRow` requires the domain and the brand — an empty default there
+ * once disabled the own-domain exclusion with no call site to reveal it — so
+ * the defaults live here, in the fixture, where they are visibly this site's.
+ */
+function buildRow(
+  geo: Parameters<typeof geoModuleRow>[0],
+  generation: Parameters<typeof geoModuleRow>[1],
+  readiness: Parameters<typeof geoModuleRow>[2],
+  evidence: Parameters<typeof geoModuleRow>[3] = null,
+  siteDomain: string = SITE_DOMAIN,
+  brand: string = SITE_BRAND,
+): ReturnType<typeof geoModuleRow> {
+  return geoModuleRow(geo, generation, readiness, evidence, siteDomain, brand);
+}
+
 function verdict(
   parentAiRequestKey: string,
   status: 'Completed' | 'Unavailable',
@@ -215,7 +237,7 @@ function verdicts(
 
 describe('AI SEO / GEO module row', () => {
   it('не выставляет score, даже когда все запросы ответили', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({ outcomes: [answered(1, 'awareness'), answered(2, 'discovery')] }),
       generationResult(),
       AI_CRAWLER_READINESS,
@@ -230,7 +252,7 @@ describe('AI SEO / GEO module row', () => {
   });
 
   it('ответы без бренда и домена не завышают наблюдения', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes: [answered(1, 'awareness'), answered(2, 'discovery')],
         mentions: mentions({
@@ -271,7 +293,7 @@ describe('AI SEO / GEO module row', () => {
   it('названное в вопросе не считается упоминанием', () => {
     // Раньше вопрос, назвавший бренд и домен, findings не порождал — и обе
     // «зелёные» метки отчёт писал себе сам. Такой ответ теперь не измерен.
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes: [answered(1, 'awareness')],
         mentions: mentions({ 'key-1': ['named-in-question', 'named-in-question'] }),
@@ -305,7 +327,7 @@ describe('AI SEO / GEO module row', () => {
   });
 
   it('смешанный исход считает упоминания раздельно по типу вопроса', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes: [answered(1, 'awareness'), answered(2, 'discovery'), answered(3, 'discovery')],
         mentions: mentions({
@@ -343,7 +365,7 @@ describe('AI SEO / GEO module row', () => {
   });
 
   it('недоступный провайдер: Unavailable без score и без usable output', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         status: 'Unavailable',
         statusReason: 'ProviderUnavailable',
@@ -372,7 +394,7 @@ describe('AI SEO / GEO module row', () => {
   });
 
   it('частичное покрытие остаётся Partial и по-прежнему без score', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         status: 'Partial',
         statusReason: '1 of 2 AI requests unavailable (QuotaExceeded)',
@@ -391,7 +413,7 @@ describe('AI SEO / GEO module row', () => {
     // §575: незавершённые проверки баллов не получают, а завершённая часть
     // сохраняется. Знаменатель — вся библиотека вопросов, иначе «2 из 5» в
     // отчёте выглядели бы полным покрытием.
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         status: 'Partial',
         statusReason: 'ScanCancelled: 2 of 5 questions answered',
@@ -413,7 +435,7 @@ describe('AI SEO / GEO module row', () => {
   });
 
   it('отмена до первого ответа: Unavailable, но генерация вопросов зачтена', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         status: 'Unavailable',
         statusReason: 'ScanCancelled',
@@ -433,7 +455,7 @@ describe('AI SEO / GEO module row', () => {
   });
 
   it('без контекста профиля discovery-вопросы не генерируются, score всё равно null', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes: [answered(1, 'awareness')],
         mentions: mentions({ 'key-1': ['named-in-question', 'mentioned'] }),
@@ -470,7 +492,7 @@ describe('AI SEO / GEO module row', () => {
   // no evidence of the site is ever sent for judging them. A row that describes
   // the evaluation anyway sells a check that never ran for that customer.
   it('says no answer was evaluated when the scan sent no evidence', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({ outcomes: [answered(1, 'awareness'), answered(2, 'discovery')] }),
       generationResult(),
       AI_CRAWLER_READINESS,
@@ -484,7 +506,7 @@ describe('AI SEO / GEO module row', () => {
   });
 
   it('counts the answers actually evaluated when evidence was sent', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes: [answered(1, 'awareness'), answered(2, 'discovery')],
         answerEvaluations: verdicts({ 'key-1': 'Completed', 'key-2': 'Unavailable' }),
@@ -506,7 +528,7 @@ describe('AI SEO / GEO module row', () => {
   // Cancellation leaves the snapshot built and every verdict missing: the row
   // must not read as if all of them completed.
   it('does not claim completed evaluations when every judge was cancelled', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         status: 'Partial',
         statusReason: 'ScanCancelled',
@@ -528,7 +550,7 @@ describe('AI SEO / GEO module row', () => {
   // Evidence was built, the scan stopped before the first judge request: there
   // is nothing to report as evaluated, and nothing to report as failed either.
   it('says no answer reached evaluation when the judge never ran', () => {
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({ outcomes: [answered(1, 'awareness')], interrupted: true }),
       generationResult(),
       AI_CRAWLER_READINESS,
@@ -585,7 +607,7 @@ describe('T6 — visibility summary in metadata', () => {
   }
 
   function visibilitySummaryOf(row: ReturnType<typeof geoModuleRow>): {
-    readonly minAnsweredForScore: number;
+    readonly minMeasuredForScore: number;
     readonly weightBrand: number;
     readonly weightDomain: number;
     readonly providers: readonly Record<string, unknown>[];
@@ -610,7 +632,7 @@ describe('T6 — visibility summary in metadata', () => {
       rawText: 'Acme Clinic is a solid option — see https://acme-clinic.example/ for details.',
       citations: ['https://acme-clinic.example/'],
     });
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes: [outcome],
         mentions: mentions({ 'key-1': ['mentioned', 'mentioned'] }),
@@ -622,7 +644,7 @@ describe('T6 — visibility summary in metadata', () => {
       'Acme Clinic',
     );
     const summary = visibilitySummaryOf(row);
-    expect(summary.minAnsweredForScore).toBe(3);
+    expect(summary.minMeasuredForScore).toBe(3);
     expect(summary.weightBrand).toBe(0.6);
     expect(summary.weightDomain).toBe(0.4);
     expect(summary.providers).toEqual([
@@ -632,8 +654,11 @@ describe('T6 — visibility summary in metadata', () => {
         questionsAnswered: 1,
         brandMentionedCount: 1,
         domainCitedCount: 1,
-        // Fewer than 3 answered questions → counted, but no score.
+        // Fewer than 3 *measured* answers → counted, but no score.
+        brandMeasuredCount: 1,
+        domainMeasuredCount: 1,
         visibilityScore: null,
+        scoreUnavailableReason: 'not-enough-measured',
       }),
     ]);
   });
@@ -658,7 +683,7 @@ describe('T6 — visibility summary in metadata', () => {
         citations: ['https://acme-clinic.example/'],
       }),
     ];
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes,
         mentions: mentions({
@@ -684,7 +709,7 @@ describe('T6 — visibility summary in metadata', () => {
       rawText: 'Popular vendors include Rival Dental.',
       citations: ['https://rival-dental.example/'],
     });
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes: [outcome],
         mentions: mentions({ 'key-1': ['not-mentioned', 'not-mentioned'] }),
@@ -699,18 +724,54 @@ describe('T6 — visibility summary in metadata', () => {
     expect(provider?.citedInstead).toEqual([{ hostname: 'rival-dental.example', answerCount: 1 }]);
   });
 
-  it('still builds a summary when the caller omits siteDomain/brand (older call sites)', () => {
-    const row = geoModuleRow(
-      geoResult({ outcomes: [answered(1, 'awareness')] }),
+  // The builder used to default siteDomain and brand to '', which silently
+  // disabled the own-domain exclusion: our own subdomains could be listed as
+  // competitors in "cited instead". Both are required now, and an empty domain
+  // yields no summary rather than one that cannot exclude anything.
+  it('summarises nothing when the site domain is empty', () => {
+    const row = buildRow(
+      geoResult({
+        outcomes: [
+          answeredWith({
+            sequence: 1,
+            promptVersion: 'geo-questions-v5-discovery',
+            rawText: 'Try these instead.',
+            citations: ['https://docs.acme-clinic.example/', 'https://rival-dental.example/'],
+          }),
+        ],
+        mentions: mentions({ 'key-1': ['not-mentioned', 'not-mentioned'] }),
+      }),
       generationResult(),
       AI_CRAWLER_READINESS,
+      null,
+      '',
+      '',
     );
-    // No brand means computeGeoMentionContexts finds nothing to quote, and no
-    // citation can ever match an empty siteDomain — but the shape still parses.
-    const [provider] = visibilitySummaryOf(row).providers;
-    expect(provider?.brandMentionedCount).toBe(0);
-    expect(provider?.citedInstead).toEqual([]);
+    expect(visibilitySummaryOf(row).providers).toEqual([]);
     expect(requestsOf(row)[0]).not.toHaveProperty('mentionContext');
+  });
+
+  it('excludes our own subdomain from "cited instead" once the domain is known', () => {
+    const row = buildRow(
+      geoResult({
+        outcomes: [
+          answeredWith({
+            sequence: 1,
+            promptVersion: 'geo-questions-v5-discovery',
+            rawText: 'Try these instead.',
+            citations: ['https://docs.acme-clinic.example/', 'https://rival-dental.example/'],
+          }),
+        ],
+        mentions: mentions({ 'key-1': ['not-mentioned', 'not-mentioned'] }),
+      }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+      null,
+      'acme-clinic.example',
+      'Acme Clinic',
+    );
+    const [provider] = visibilitySummaryOf(row).providers;
+    expect(provider?.citedInstead).toEqual([{ hostname: 'rival-dental.example', answerCount: 1 }]);
   });
 
   it('attaches the mention-context sentence to the answer that mentioned the brand', () => {
@@ -719,7 +780,7 @@ describe('T6 — visibility summary in metadata', () => {
       promptVersion: 'geo-questions-v5-closed-book',
       rawText: 'First a preamble. Acme Clinic is a solid choice for families. Then more text.',
     });
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes: [outcome],
         mentions: mentions({ 'key-1': ['mentioned', 'not-mentioned'] }),
@@ -740,7 +801,7 @@ describe('T6 — visibility summary in metadata', () => {
       promptVersion: 'geo-questions-v5-closed-book',
       rawText: 'No relevant option found.',
     });
-    const row = geoModuleRow(
+    const row = buildRow(
       geoResult({
         outcomes: [outcome],
         mentions: mentions({ 'key-1': ['not-mentioned', 'not-mentioned'] }),

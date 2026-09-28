@@ -572,9 +572,16 @@ export type GeoVisibilityPurpose = (typeof GEO_VISIBILITY_PURPOSES)[number];
 export interface GeoPurposeVisibilityCounts {
   readonly asked: number;
   readonly answered: number;
+  /** Answers in which the signal was measurable at all — the share's denominator. */
+  readonly brandMeasured: number;
+  readonly domainMeasured: number;
   readonly brandMentioned: number;
   readonly domainMentioned: number;
 }
+
+/** Mirrors `GeoScoreUnavailableReason` in @fluxradar/contracts. */
+export const GEO_SCORE_UNAVAILABLE_REASONS = ['not-measurable', 'not-enough-measured'] as const;
+export type GeoScoreUnavailableReason = (typeof GEO_SCORE_UNAVAILABLE_REASONS)[number];
 
 export interface GeoCitedInsteadEntry {
   readonly hostname: string;
@@ -588,12 +595,19 @@ export interface GeoProviderVisibility {
   readonly questionsAsked: number;
   readonly questionsAnswered: number;
   readonly questionsUnavailable: number;
+  /** Answers in which the brand signal was measurable; the share divides by this. */
+  readonly brandMeasuredCount: number;
   readonly brandMentionedCount: number;
-  readonly brandMentionedShare: number;
+  /** null when nothing about the brand was measurable in any answer. */
+  readonly brandMentionedShare: number | null;
+  readonly domainMeasuredCount: number;
   readonly domainCitedCount: number;
-  readonly domainCitedShare: number;
-  /** null when fewer than `minAnsweredForScore` questions were answered. */
+  /** null when nothing about the domain was measurable in any answer. */
+  readonly domainCitedShare: number | null;
+  /** null unless both signals reached `minMeasuredForScore` measured answers. */
   readonly visibilityScore: number | null;
+  /** Why there is no score; null exactly when `visibilityScore` is a number. */
+  readonly scoreUnavailableReason: GeoScoreUnavailableReason | null;
   readonly byPurpose: Readonly<Record<GeoVisibilityPurpose, GeoPurposeVisibilityCounts>>;
   readonly citedInstead: readonly GeoCitedInsteadEntry[];
 }
@@ -606,7 +620,7 @@ export interface GeoProviderVisibility {
  * either way and never recomputes it from the raw answers.
  */
 export interface GeoVisibilitySummary {
-  readonly minAnsweredForScore: number;
+  readonly minMeasuredForScore: number;
   readonly weightBrand: number;
   readonly weightDomain: number;
   readonly providers: readonly GeoProviderVisibility[];
