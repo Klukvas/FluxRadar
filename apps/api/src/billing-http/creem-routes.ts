@@ -147,6 +147,15 @@ export function creemRouter(deps: CreemRouterDeps): Router {
       available,
       mode: config?.mode ?? null,
       unavailableReason: available ? null : unavailableReason(deps.creem),
+      // `checkoutFlow`/`popup` exist only so a tab still running the previous
+      // (FastSpring-era) web bundle reads them during and shortly after this
+      // deploy: that bundle's `checkoutFlowOf` takes 'redirect' at its word,
+      // and otherwise reads a missing `popup` as truthy (`undefined !== null`)
+      // and opens a popup tab that `window.open` often blocks. The branch's
+      // own web client ignores both fields. Safe to remove in a later release
+      // once no old tab can still be open.
+      checkoutFlow: 'redirect',
+      popup: null,
       // `available` per plan, because a product can exist at the provider for
       // one plan and not another. A plan without one is still listed with its
       // price and marked unavailable, so the UI can say it cannot be bought here

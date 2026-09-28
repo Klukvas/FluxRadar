@@ -5,6 +5,12 @@ import type { AiProviderName } from '@fluxradar/ai';
 
 import { createApp } from '../../index.ts';
 import { silentLogger, type ApiLogger } from '../../http/logger.ts';
+import type { ConfiguredEgressLocation } from '../../integrations/crawl-egress-config.ts';
+import { egressLocation } from '../../integrations/crawl-egress-locations.ts';
+import {
+  createEgressLocationMonitor,
+  type EgressLocationMonitor,
+} from '../../integrations/crawl-egress-monitor.ts';
 import { createTestDb, seedReachableSite, type TestDb } from '../../test-utils/test-db.ts';
 import { CHECKOUT_STATUS_REASONS } from '../checkout-lifecycle.ts';
 import { CHECKOUT_REASON_CODES } from '../checkout-status-reason.ts';
@@ -105,6 +111,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
       fetchImpl?: FetchLike;
       logger?: ApiLogger;
       optInAiProviders?: readonly AiProviderName[];
+      egress?: EgressLocationMonitor;
     } = {},
   ) {
     return createApp({
@@ -116,6 +123,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
       // the owner sets one. Tests that want the choice offered say so.
       optInAiProviders: options.optInAiProviders ?? [],
       ...(options.fetchImpl !== undefined ? { creemFetch: options.fetchImpl } : {}),
+      ...(options.egress !== undefined ? { egress: options.egress } : {}),
     });
   }
 
@@ -133,7 +141,11 @@ describe('CREEM-004 checkout HTTP surface', () => {
     };
   }
 
-  async function signIn(app: ReturnType<typeof buildApp>, email: string) {
+  async function signIn(
+    app: ReturnType<typeof buildApp>,
+    email: string,
+    options: { reachable?: boolean } = {},
+  ) {
     const agent = request.agent(app);
     const registered = await agent
       .post('/auth/register')
@@ -147,13 +159,21 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(profile.status).toBe(201);
     // The checkout refuses a site whose last reachability probe is missing or
     // negative. These tests are about the checkout, so they state that
-    // precondition instead of running a probe.
-    await seedReachableSite(
-      db.prisma,
-      registered.body.data.accountId as string,
-      profile.body.data.id as string,
-    );
-    return { agent, cookie, profileId: profile.body.data.id as string };
+    // precondition instead of running a probe. A test about the precondition
+    // itself opts out with `reachable: false` and seeds its own probe.
+    if (options.reachable ?? true) {
+      await seedReachableSite(
+        db.prisma,
+        registered.body.data.accountId as string,
+        profile.body.data.id as string,
+      );
+    }
+    return {
+      agent,
+      cookie,
+      accountId: registered.body.data.accountId as string,
+      profileId: profile.body.data.id as string,
+    };
   }
 
   function postWebhook(app: ReturnType<typeof buildApp>, rawBody: string, signature: string) {
@@ -191,6 +211,11 @@ describe('CREEM-004 checkout HTTP surface', () => {
       { plan: 'WebsiteAudit', priceUsd: 79, currency: 'USD', available: false },
       { plan: 'Complete', priceUsd: 120, currency: 'USD', available: true },
     ]);
+    // Kept for one release so a tab still running the previous (FastSpring-era)
+    // bundle reads a 'redirect' flow and a null popup, not a blocked popup tab
+    // (see the comment on the route).
+    expect(config.body.data.checkoutFlow).toBe('redirect');
+    expect(config.body.data.popup).toBeNull();
     // Nothing about how the deployment is wired reaches the browser.
     expect(JSON.stringify(config.body)).not.toContain('creem-api-key-value');
     expect(JSON.stringify(config.body)).not.toContain('CREEM_');
@@ -675,6 +700,111 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(refused.body.error.code).toBe('VALIDATION');
     expect(refused.body.error.message).toContain('google');
     expect(calls).toHaveLength(0);
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+  });
+
+  // The reachability gate itself is covered function-by-function in
+  // CREEM-008; these three pin that the same refusals reach the browser
+  // through the actual HTTP route, not just the function CREEM-008 calls
+  // directly.
+  it('refuses a site that has never been checked, over HTTP, and opens no session', async () => {
+    const app = buildApp();
+    const { agent, cookie, profileId } = await signIn(app, 'unchecked@example.com', {
+      reachable: false,
+    });
+
+    const response = await agent
+      .post('/billing/checkout-session')
+      .set('Cookie', cookie)
+      .send({ siteProfileId: profileId, plan: 'Complete', scope: SCOPE });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('SITE_NOT_READY');
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+  });
+
+  it('does not take the browser’s word for it', async () => {
+    const app = buildApp();
+    const { agent, cookie, accountId, profileId } = await signIn(app, 'liar@example.com', {
+      reachable: false,
+    });
+    await db.prisma.siteReachabilityProbe.create({
+      data: {
+        accountId,
+        siteProfileId: profileId,
+        origin: `https://${'liar'}.example.com`,
+        egressLocation: null,
+        state: 'access-denied',
+        checkedAt: new Date(),
+      },
+    });
+
+    // A manipulated client claiming the check passed changes nothing: the
+    // server reads its own row and never looks at the request for this.
+    const response = await agent
+      .post('/billing/checkout-session')
+      .set('Cookie', cookie)
+      .send({
+        siteProfileId: profileId,
+        plan: 'Complete',
+        scope: SCOPE,
+        reachability: { state: 'reachable' },
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('SITE_NOT_READY');
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+  });
+
+  it('opens no checkout for a country whose egress network is down', async () => {
+    const frankfurt: ConfiguredEgressLocation = {
+      location: egressLocation({
+        id: 'de',
+        countryCode: 'DE',
+        city: 'Frankfurt',
+        label: { en: 'Germany, Frankfurt', uk: 'Німеччина, Франкфурт' },
+      }),
+      proxy: { host: '198.51.100.20', port: 3128, credentials: null },
+      expectedIp: null,
+    };
+    const frankfurtDown = createEgressLocationMonitor({
+      locations: [frankfurt],
+      logger: silentLogger,
+      probe: async () => ({
+        state: 'unreachable',
+        observedIp: null,
+        expectedIp: null,
+        latencyMs: 10,
+        detail: null,
+        checkedAt: new Date(),
+      }),
+    });
+    const app = buildApp({ egress: frankfurtDown });
+    const { agent, cookie, accountId, profileId } = await signIn(app, 'downstream@example.com', {
+      reachable: false,
+    });
+    await db.prisma.siteReachabilityProbe.create({
+      data: {
+        accountId,
+        siteProfileId: profileId,
+        origin: `https://${'downstream'}.example.com`,
+        egressLocation: 'de',
+        state: 'reachable',
+        checkedAt: new Date(),
+      },
+    });
+
+    const response = await agent
+      .post('/billing/checkout-session')
+      .set('Cookie', cookie)
+      .send({
+        siteProfileId: profileId,
+        plan: 'Complete',
+        scope: { ...SCOPE, egressLocation: 'de' },
+      });
+
+    expect(response.status).toBe(503);
+    expect(response.body.error.code).toBe('EGRESS_LOCATION_UNAVAILABLE');
     expect(await db.prisma.checkoutSession.count()).toBe(0);
   });
 });
