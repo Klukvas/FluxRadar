@@ -16,8 +16,7 @@ import { CREEM_ENV_VARS, OPTIONAL_CREEM_ENV_VARS } from '../billing/creem/config
 //
 // Nothing here can check what the values are (they live in GitHub secrets and
 // variables, which is the point). What it can check is that no NAME the config
-// reader knows about was left unwired, and that the one name choosing between
-// the two providers is reachable from the deploy at all.
+// reader knows about was left unwired.
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');

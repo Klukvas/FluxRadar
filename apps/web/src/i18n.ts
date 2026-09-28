@@ -1769,8 +1769,6 @@ export const copy = {
     checkout: {
       windowTitle: 'Payment — confirming',
       panelTitle: 'FluxRadar / checkout',
-      confirming:
-        'Finish the payment in the checkout tab. FluxRadar is waiting for the payment provider to confirm it.',
       stillWaiting:
         'The payment has not been confirmed yet. It can take a few minutes; this page updates as soon as the provider confirms.',
       rejected:
@@ -3364,8 +3362,6 @@ export const copy = {
     checkout: {
       windowTitle: 'Оплата — підтвердження',
       panelTitle: 'FluxRadar / оплата',
-      confirming:
-        'Завершіть оплату у вкладці checkout. FluxRadar очікує підтвердження від платіжного провайдера.',
       stillWaiting:
         'Оплату ще не підтверджено. Це може зайняти кілька хвилин; сторінка оновиться, щойно провайдер підтвердить платіж.',
       rejected:
