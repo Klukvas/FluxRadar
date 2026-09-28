@@ -39,6 +39,7 @@ import type {
   PerformanceRegression,
   TemplateDropped,
   TemplateNotComparable,
+  UnmeasuredUrl,
   UrlAudit,
 } from './types.ts';
 
@@ -181,14 +182,21 @@ function templatesWithChangedRepresentative(
  * seats reshuffle scan to scan as template sizes drift (a template that grew
  * shrinks another one out of its seat), so this is expected, not an error; it
  * is still reported by name rather than silently.
+ *
+ * A template that kept its seat but produced no usable sample belongs to
+ * `unmeasuredUrls`, not here: it did not lose the seat, the measurement of it
+ * failed. `currentUnmeasured` is folded in so that case is excluded rather
+ * than double-reported as both "not measured this scan" and "lost its seat".
  */
 function templatesThatLostTheirSeat(
   current: readonly UrlAudit[],
+  currentUnmeasured: readonly UnmeasuredUrl[],
   previous: readonly UrlAudit[],
 ): readonly TemplateDropped[] {
-  const currentTemplateKeys = new Set(
-    current.flatMap((entry) => (entry.templateKey === undefined ? [] : [entry.templateKey])),
-  );
+  const currentTemplateKeys = new Set([
+    ...current.flatMap((entry) => (entry.templateKey === undefined ? [] : [entry.templateKey])),
+    ...currentUnmeasured.map((entry) => entry.templateKey),
+  ]);
   const dropped: TemplateDropped[] = [];
   const seen = new Set<string>();
   for (const entry of previous) {
@@ -311,7 +319,11 @@ export function compareWithPrevious(
       incomparableReason: null,
       incomparable: null,
       templatesNotComparable: changedTemplates,
-      templatesDropped: templatesThatLostTheirSeat(current.urls, previous.audit.urls),
+      templatesDropped: templatesThatLostTheirSeat(
+        current.urls,
+        current.unmeasuredUrls ?? [],
+        previous.audit.urls,
+      ),
     },
   };
 }

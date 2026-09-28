@@ -1000,6 +1000,69 @@ describe('the Performance card — page templates (T5)', () => {
       within(region).getByText(/none of the PageSpeed runs for this page produced a usable result/),
     ).toBeTruthy();
   });
+
+  // N2: a deployment-wide PageSpeed outage leaves `urls` empty while every
+  // selection still shows up in `unmeasuredUrls`. That must still render the
+  // audit body and its "not measured this scan" rows, not fall back to
+  // LegacyBody, which has no way to show them at all.
+  function outageModule() {
+    return moduleOf({
+      module: 'Performance',
+      score: null,
+      metadata: {
+        audit: {
+          urls: [],
+          field: { state: 'available', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 8, used: 8, capped: false },
+          templatesFound: 2,
+          templatesAudited: 0,
+          comparison: null,
+          regressions: [],
+          unmeasuredUrls: [
+            {
+              url: 'https://smile.example/',
+              templateKey: '/',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+            {
+              url: 'https://smile.example/about',
+              templateKey: '/about',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it('names every unmeasured URL instead of falling back to the legacy body during a PageSpeed outage (N2)', async () => {
+    await openReport(dashboardOf([outageModule()]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(within(region).getByText('https://smile.example/')).toBeTruthy();
+    expect(within(region).getByText('https://smile.example/about')).toBeTruthy();
+    expect(
+      within(region).getAllByText(
+        /none of the PageSpeed runs for this page produced a usable result/,
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('names every unmeasured URL during a PageSpeed outage in Ukrainian (N2)', async () => {
+    await openReport(dashboardOf([outageModule()]), 'uk');
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(within(region).getByText('https://smile.example/')).toBeTruthy();
+    expect(within(region).getByText('https://smile.example/about')).toBeTruthy();
+    expect(
+      within(region).getAllByText(
+        /жоден із запусків PageSpeed для цієї сторінки не дав придатного результату/,
+      ),
+    ).toHaveLength(2);
+  });
 });
 
 describe('the UX/Conversion card', () => {

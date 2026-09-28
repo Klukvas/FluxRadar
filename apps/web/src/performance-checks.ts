@@ -498,7 +498,18 @@ export function performanceAuditOf(metadata: Metadata): PerformanceAuditReading 
     const reading = urlReading(entry);
     return reading === null ? [] : [reading];
   });
-  if (urls.length === 0) return null;
+  const unmeasuredUrls = Array.isArray(audit.unmeasuredUrls)
+    ? audit.unmeasuredUrls.flatMap((entry) => {
+        const reading = unmeasuredUrlReading(entry);
+        return reading === null ? [] : [reading];
+      })
+    : [];
+  // A deployment-wide PageSpeed outage can leave `urls` empty while every
+  // selection still shows up in `unmeasuredUrls` — that is a T5 audit with
+  // nothing measurable, not a pre-T5 row with no audit at all. Falling back
+  // to LegacyBody here would silently drop the "not measured this scan" rows
+  // this shape exists to render.
+  if (urls.length === 0 && unmeasuredUrls.length === 0) return null;
   const budget = asRecord(audit.requestBudget);
   const comparison = asRecord(audit.comparison);
   const providers = Array.isArray(audit.providers) ? audit.providers : [];
@@ -541,11 +552,6 @@ export function performanceAuditOf(metadata: Metadata): PerformanceAuditReading 
           return reading === null ? [] : [reading];
         })
       : [],
-    unmeasuredUrls: Array.isArray(audit.unmeasuredUrls)
-      ? audit.unmeasuredUrls.flatMap((entry) => {
-          const reading = unmeasuredUrlReading(entry);
-          return reading === null ? [] : [reading];
-        })
-      : [],
+    unmeasuredUrls,
   };
 }

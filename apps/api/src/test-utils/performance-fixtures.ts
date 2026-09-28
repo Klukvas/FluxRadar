@@ -19,6 +19,7 @@ import {
   type PerformanceComparison,
   type PerformanceRunner,
   type ProviderInfo,
+  type UnmeasuredUrl,
   type UrlAudit,
 } from '../integrations/performance/index.ts';
 
@@ -72,6 +73,7 @@ export interface AuditFixtureOptions {
   readonly comparison?: PerformanceComparison | null;
   /** Overrides the provider list, e.g. to state a different Lighthouse version. */
   readonly providers?: readonly ProviderInfo[];
+  readonly unmeasuredUrls?: readonly UnmeasuredUrl[];
 }
 
 /** A complete, valid audit with one measured page on both devices. */
@@ -119,6 +121,7 @@ export function fakePerformanceAudit(options: AuditFixtureOptions = {}): Perform
       implementedRuleIds: [],
     },
     score: options.score === undefined ? 79 : options.score,
+    unmeasuredUrls: options.unmeasuredUrls ?? [],
   };
 }
 

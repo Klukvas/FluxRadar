@@ -210,4 +210,35 @@ describe('compareWithPrevious — template lost its seat (L3)', () => {
     expect(result.comparison?.incomparable?.code).toBe('LighthouseMajorChanged');
     expect(result.comparison?.templatesDropped).toEqual([]);
   });
+
+  // N1: a template that kept its seat this scan but produced no usable sample
+  // (a PageSpeed failure for its one selected URL) must not also be reported
+  // as having lost the seat — it did not lose it, the measurement failed.
+  it('does not report a template as having lost its seat when it was selected but produced no usable sample', () => {
+    const previous = fakePerformanceAudit({
+      urls: [
+        urlAudit(`${ORIGIN}blog/a`, '/blog/{slug}', 2, 2_000),
+        urlAudit(`${ORIGIN}pricing`, '/pricing', 1, 1_000),
+      ],
+    });
+    const current = fakePerformanceAudit({
+      // /pricing was re-selected this scan, but PageSpeed answered 500 for
+      // it, so it has no entry in `urls` — only in `unmeasuredUrls`.
+      urls: [urlAudit(`${ORIGIN}blog/a`, '/blog/{slug}', 2, 2_050)],
+      unmeasuredUrls: [
+        {
+          url: `${ORIGIN}pricing`,
+          templateKey: '/pricing',
+          representedPages: 1,
+          reason: 'NoUsablePageSpeedSamples',
+        },
+      ],
+    });
+    const result = compareWithPrevious(current, {
+      scanId: 'previous-scan',
+      observedAt: '2026-09-01T00:00:00.000Z',
+      audit: previous,
+    });
+    expect(result.comparison?.templatesDropped).toEqual([]);
+  });
 });
