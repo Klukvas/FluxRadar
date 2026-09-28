@@ -146,6 +146,10 @@ export const checksCopyEn: ChecksCopy = {
           term: 'Provider visibility (paid, disclosed before purchase)',
           body: "on a paid audit the AI SEO module puts the same questions to Claude (Anthropic) and ChatGPT (OpenAI), each answering with its own web search enabled, and checks whether the answers mention your brand or cite your site; the report lists the sources each model used. Gemini (Google) and Perplexity are an opt-in extra chosen before purchase and receive nothing otherwise. This never runs in the free homepage check. Provider API calls are subject to the providers' own terms.",
         },
+        {
+          term: 'Visibility score per engine (paid, informational only)',
+          body: 'each engine that answered gets a score out of 100 built from up to two signals: how often it mentioned your brand (**60%**) and how often it cited your domain (**40%**). The denominator for each is not the number of answers — it is the number of answers in which that signal could be **measured** at all. A question that already named your brand, or a profile whose brand is just its domain, proves nothing either way and is counted neither as a mention nor as a miss. A signal needs at least **2** measured answers before it counts toward the score; with only one signal there, the score is built from it alone; with neither there, the report shows the counts and says so instead of printing a number. This score is informational only: it is a snapshot of one run, it is never part of your overall audit score, and it is not a ranking.',
+        },
       ],
       outro: [],
     },

@@ -110,6 +110,9 @@ describe('a paid scan asked of two providers', () => {
           aiRequestKey?: string;
           evaluation?: { status: string; aiRequestKey: string | null } | null;
         }[];
+        visibilitySummary: {
+          providers: readonly { provider: string; questionsAnswered: number }[];
+        };
       };
     };
     return { module, visibility: metadata.providerVisibility };
@@ -140,6 +143,14 @@ describe('a paid scan asked of two providers', () => {
       shownRows.filter((response) => response.provider === provider).length;
     expect(askedOf('openai')).toBeGreaterThan(0);
     expect(askedOf('anthropic')).toBe(askedOf('openai'));
+    // T6: both providers actually answered, so both get a visibility summary row.
+    const summaryProviders = new Set(
+      visibility.visibilitySummary.providers.map((entry) => entry.provider),
+    );
+    expect(summaryProviders).toEqual(new Set(['anthropic', 'openai']));
+    for (const entry of visibility.visibilitySummary.providers) {
+      expect(entry.questionsAnswered).toBe(askedOf(entry.provider));
+    }
     // The generator's request and the evaluators' are billed and auditable, so
     // they are in the ledger — and deliberately not among the questions the
     // report shows.
@@ -222,6 +233,13 @@ describe('a paid scan asked of two providers', () => {
     const unavailable = observations.filter((observation) => observation.status === 'unavailable');
     expect(unavailable.length).toBeGreaterThan(0);
     expect(unavailable.every((observation) => observation.provider === 'openai')).toBe(true);
+
+    // T6: a provider that never answered a question gets no visibility
+    // summary row at all — not a green card, not an empty one.
+    const geoVisibilitySummary = dashboard.body.data.geoVisibilitySummary as {
+      providers: readonly { provider: string }[];
+    } | null;
+    expect(geoVisibilitySummary?.providers.map((entry) => entry.provider)).toEqual(['anthropic']);
   });
 
   it('deletes every stored answer of both providers with the account', async () => {

@@ -37,6 +37,19 @@ summary:focus-visible {
   color: #fff;
 }
 
+/* Visually hidden but present for assistive tech — the standard clip-rect technique. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .app-shell {
   min-height: 100vh;
 }
@@ -1471,6 +1484,48 @@ code,
 .geo-evaluation__scope {
   margin: 0;
   font-size: 12px;
+}
+/* The sentence quoting where the brand came up, kept with the answer it quotes. */
+.geo-observation__mention-context {
+  margin: 0;
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--plat-300);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+/* One card per engine, at the top of the GEO section, before the answer cards. */
+.geo-visibility__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.geo-visibility-card {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: #fff;
+}
+.geo-visibility-card__header {
+  align-items: start;
+  gap: var(--sp-2);
+}
+.geo-visibility-card__score {
+  font-weight: 600;
+}
+.geo-visibility-card__score--none {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--plat-600);
+}
+.geo-visibility-card__cited-instead ul {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding-left: 18px;
 }
 .module-card__meta {
   display: block;

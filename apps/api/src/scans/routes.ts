@@ -8,11 +8,13 @@ import { RULESET_VERSION, scanRequestInputSchema, scanScopeSchema } from '@fluxr
 import {
   PLANS,
   TARIFFS,
+  geoVisibilitySummarySchema,
   isModuleName,
   parseCrawlSummary,
   parsePlan,
   planSupports,
 } from '@fluxradar/contracts';
+import type { GeoVisibilitySummary } from '@fluxradar/contracts';
 import {
   GEO_CLAIM_VERDICTS,
   GEO_EVALUATION_VERDICTS,
@@ -276,6 +278,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       modules: scan.modules.map(toModuleDto),
       geoObservations: geoObservationsFrom(geoModule?.metadataJson, geoResponses, geoEvidence),
       geoEvidence,
+      geoVisibilitySummary: geoVisibilitySummaryFrom(geoModule?.metadataJson),
     });
   });
 
@@ -720,6 +723,8 @@ interface GeoObservation {
   readonly citations: readonly string[];
   readonly mentions: GeoMentions | null;
   readonly evaluation: GeoEvaluationDto | null;
+  /** The sentence around the first brand mention; null when there was none. */
+  readonly mentionContext: string | null;
 }
 
 /** One piece of what the scan observed about the site, as the report cites it. */
@@ -800,6 +805,7 @@ function geoObservationsFrom(
         citations: stringArrayFromJson(response.citationsJson),
         mentions: mentionsFrom(request.mentions),
         evaluation: evaluationFrom(request.evaluation, response.rawText, evidence),
+        mentionContext: typeof request.mentionContext === 'string' ? request.mentionContext : null,
       },
     ];
   });
@@ -822,6 +828,7 @@ function unavailableGeoObservation(
     citations: [],
     mentions: null,
     evaluation: null,
+    mentionContext: null,
   };
 }
 
@@ -979,6 +986,24 @@ function geoEvidenceFrom(metadataJson: string | undefined): GeoEvidenceDto | nul
   };
 }
 
+/**
+ * The stored per-engine visibility summary (T6), or null.
+ *
+ * Null both for a scan run before this release (no `visibilitySummary` key at
+ * all) and for a stored record that no longer parses — the report shows the
+ * same honest "not available for this scan" sentence either way, and this is
+ * never recomputed from the raw answers at read time: the schema is the only
+ * judge of whether the stored shape is still good.
+ */
+function geoVisibilitySummaryFrom(metadataJson: string | undefined): GeoVisibilitySummary | null {
+  if (metadataJson === undefined) return null;
+  const visibility = recordValue(recordValue(parseMetadata(metadataJson))?.providerVisibility);
+  const summary = visibility?.visibilitySummary;
+  if (summary === undefined) return null;
+  const parsed = geoVisibilitySummarySchema.safeParse(summary);
+  return parsed.success ? parsed.data : null;
+}
+
 function evidenceSourceFrom(value: unknown): GeoEvidenceSourceDto[] {
   const record = recordValue(value);
   if (
@@ -1056,9 +1081,7 @@ interface ScanHistoryPage {
 }
 
 /** The plans whose purchase unlocks the full historical list. */
-const HISTORY_PLANS: readonly string[] = PLANS.filter((plan) =>
-  planSupports(plan, 'scanHistory'),
-);
+const HISTORY_PLANS: readonly string[] = PLANS.filter((plan) => planSupports(plan, 'scanHistory'));
 
 /** Paid plans that do not: owning one of these shows the current result only. */
 const PAID_PLANS_WITHOUT_HISTORY: readonly string[] = PLANS.filter(
@@ -1096,10 +1119,7 @@ async function listScanHistory(
   ]);
   if (unlocking === null && gated !== null) {
     if (historyRequested) {
-      throw forbidden(
-        'HISTORY_REQUIRES_COMPLETE',
-        'scan history is not included in this plan',
-      );
+      throw forbidden('HISTORY_REQUIRES_COMPLETE', 'scan history is not included in this plan');
     }
     // Exactly one row is visible, so only the first page can carry it.
     const current =

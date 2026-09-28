@@ -511,4 +511,13 @@ describe('journey layout decisions', () => {
       /\.alert--floating,\s*\.notice \{[^}]*position: fixed;/,
     );
   });
+
+  // The score label ("Visibility score") is read by assistive tech but was
+  // never meant to appear beside the bold number on screen; without this rule
+  // the card header read "Visibility score 53/100" instead of just "53/100".
+  // The hiding declarations live once on the shared .sr-only utility rather
+  // than being repeated per selector.
+  it('hides the GEO visibility score label visually without removing it from the tree', () => {
+    expect(BASE_CSS).toMatch(/\.sr-only \{[^}]*clip: rect\(0, 0, 0, 0\);/);
+  });
 });

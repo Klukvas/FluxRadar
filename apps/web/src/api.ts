@@ -557,6 +557,79 @@ export interface GeoObservation {
   } | null;
   /** Absent on responses created by older API versions; null when none ran. */
   readonly evaluation?: GeoEvaluation | null;
+  /**
+   * The sentence around the first brand mention in this answer — a quote, not
+   * a classification. Absent on an answer that never mentioned the brand, and
+   * on every response recorded before this field existed.
+   */
+  readonly mentionContext?: string | null;
+}
+
+/** Mirrors `GeoVisibilityPurpose` in @fluxradar/contracts. */
+export const GEO_VISIBILITY_PURPOSES = ['closed-book', 'awareness', 'discovery'] as const;
+export type GeoVisibilityPurpose = (typeof GEO_VISIBILITY_PURPOSES)[number];
+
+export interface GeoPurposeVisibilityCounts {
+  readonly asked: number;
+  readonly answered: number;
+  /** Answers in which the signal was measurable at all — the share's denominator. */
+  readonly brandMeasured: number;
+  readonly domainMeasured: number;
+  readonly brandMentioned: number;
+  readonly domainMentioned: number;
+}
+
+/** Mirrors `GeoScoreUnavailableReason` in @fluxradar/contracts. */
+export const GEO_SCORE_UNAVAILABLE_REASONS = ['not-measurable', 'not-enough-measured'] as const;
+export type GeoScoreUnavailableReason = (typeof GEO_SCORE_UNAVAILABLE_REASONS)[number];
+
+/** Mirrors `GeoScoreBasis` in @fluxradar/contracts. */
+export const GEO_SCORE_BASES = ['brand-and-domain', 'brand-only', 'domain-only'] as const;
+export type GeoScoreBasis = (typeof GEO_SCORE_BASES)[number];
+
+export interface GeoCitedInsteadEntry {
+  readonly hostname: string;
+  readonly answerCount: number;
+}
+
+/** One engine's visibility summary (T6) — counts, shares, and a score, or none. */
+export interface GeoProviderVisibility {
+  readonly provider: string;
+  readonly label: string;
+  readonly questionsAsked: number;
+  readonly questionsAnswered: number;
+  readonly questionsUnavailable: number;
+  /** Answers in which the brand signal was measurable; the share divides by this. */
+  readonly brandMeasuredCount: number;
+  readonly brandMentionedCount: number;
+  /** null when nothing about the brand was measurable in any answer. */
+  readonly brandMentionedShare: number | null;
+  readonly domainMeasuredCount: number;
+  readonly domainCitedCount: number;
+  /** null when nothing about the domain was measurable in any answer. */
+  readonly domainCitedShare: number | null;
+  /** null unless at least one signal reached `minMeasuredForScore` measured answers. */
+  readonly visibilityScore: number | null;
+  /** Why there is no score; null exactly when `visibilityScore` is a number. */
+  readonly scoreUnavailableReason: GeoScoreUnavailableReason | null;
+  /** Which signal(s) the score counts; null exactly when `visibilityScore` is null. */
+  readonly scoreBasis: GeoScoreBasis | null;
+  readonly byPurpose: Readonly<Record<GeoVisibilityPurpose, GeoPurposeVisibilityCounts>>;
+  readonly citedInstead: readonly GeoCitedInsteadEntry[];
+}
+
+/**
+ * Per-engine visibility summary of a scan, or null.
+ *
+ * Null both when the scan predates this field and when the stored record no
+ * longer parses; the report shows the same honest "not available" sentence
+ * either way and never recomputes it from the raw answers.
+ */
+export interface GeoVisibilitySummary {
+  readonly minMeasuredForScore: number;
+  readonly weightBrand: number;
+  readonly weightDomain: number;
+  readonly providers: readonly GeoProviderVisibility[];
 }
 
 export interface Dashboard {
@@ -576,6 +649,8 @@ export interface Dashboard {
   readonly geoObservations?: readonly GeoObservation[];
   /** What the answers were judged against; absent when the scan recorded none. */
   readonly geoEvidence?: GeoEvidence | null;
+  /** Absent on responses created by older API versions; null when the scan has none. */
+  readonly geoVisibilitySummary?: GeoVisibilitySummary | null;
 }
 
 export interface ExportPayload {
