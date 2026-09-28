@@ -954,4 +954,37 @@ describe('share of voice (T7)', () => {
     expect(withCompetitors?.scoreBasis).toBe(withoutCompetitors?.scoreBasis);
     expect(withCompetitors?.brandMentionedShare).toBe(withoutCompetitors?.brandMentionedShare);
   });
+
+  // T7-fix F1: a competitor name that is a substring of the brand ("Acme"
+  // inside "Acme Dental") used to be counted as a competitor mention on every
+  // answer that named the brand, halving the brand's own reported share.
+  it('does not count a competitor name that is only a substring of the brand', () => {
+    const brand = 'Acme Dental';
+    const outcomes = [
+      answer({
+        sequence: 1,
+        question: 'Which clinics offer implants in this city?',
+        rawText: 'Acme Dental is well reviewed.',
+      }),
+      answer({
+        sequence: 2,
+        question: 'Which clinics offer implants in this city?',
+        rawText: 'Acme Dental has good hygienists.',
+      }),
+    ];
+    const mentions = geoMentionSignals({ domain: DOMAIN, siteUrl: ORIGIN, brand, outcomes });
+    const [summary] = computeGeoVisibilitySummaries({
+      outcomes,
+      mentions,
+      siteDomain: DOMAIN,
+      brand,
+      competitors: ['Acme'],
+    });
+    expect(summary?.shareOfVoice).toEqual({
+      denominator: 2,
+      brandMentionsInScope: 2,
+      brandShare: 1,
+      competitors: [{ name: 'Acme', mentionedCount: 0, share: 0 }],
+    });
+  });
 });

@@ -140,6 +140,7 @@ describe('competitorSignal (T7)', () => {
       question: 'How does Smile Clinic compare to Acme Dental?',
       answer: 'Smile Clinic offers similar services to Acme Dental.',
       competitor: 'Acme Dental',
+      brand: 'Smile Clinic',
     });
 
     expect(signal).toBe('named-in-question');
@@ -152,6 +153,7 @@ describe('competitorSignal (T7)', () => {
         question: 'Which dental clinics in Kyiv offer implants?',
         answer: 'Both Smile Clinic and Acme Dental do.',
         competitor: 'Acme Dental',
+        brand: 'Smile Clinic',
       }),
     ).toBe('mentioned');
   });
@@ -162,6 +164,7 @@ describe('competitorSignal (T7)', () => {
         question: 'Which dental clinics in Kyiv offer implants?',
         answer: 'Smile Clinic does.',
         competitor: 'Acme Dental',
+        brand: 'Smile Clinic',
       }),
     ).toBe('not-mentioned');
   });
@@ -172,6 +175,88 @@ describe('competitorSignal (T7)', () => {
         question: 'Which dental clinics in Kyiv offer implants?',
         answer: 'acme dental does.',
         competitor: 'Acme Dental',
+        brand: 'Smile Clinic',
+      }),
+    ).toBe('mentioned');
+  });
+
+  // T7-fix F1: `questionNames`'s bare `includes` false-matched a competitor
+  // name inside ordinary words and inside the brand's own name, which then
+  // fabricated part of the brand's own share (the two are mentions in the
+  // same denominator). These pin the reviewer's probes.
+  it('does not count a competitor name that is only a substring of the brand', () => {
+    expect(
+      competitorSignal({
+        question: 'Which clinics offer implants in this city?',
+        answer: 'Acme Dental is well reviewed.',
+        competitor: 'Acme',
+        brand: 'Acme Dental',
+      }),
+    ).toBe('not-mentioned');
+  });
+
+  it('does not count a two-letter competitor name inside an ordinary word', () => {
+    expect(
+      competitorSignal({
+        question: 'Which clinics offer implants in this city?',
+        answer: 'A large practice.',
+        competitor: 'GE',
+        brand: 'Acme Dental',
+      }),
+    ).toBe('not-mentioned');
+  });
+
+  it('does not count a competitor name inside an unrelated word', () => {
+    expect(
+      competitorSignal({
+        question: 'Which clinics offer implants in this city?',
+        answer: 'The dentist said so.',
+        competitor: 'AI',
+        brand: 'Acme Dental',
+      }),
+    ).toBe('not-mentioned');
+  });
+
+  it('still counts a short competitor name on its own word boundary', () => {
+    expect(
+      competitorSignal({
+        question: 'Which manufacturers were mentioned?',
+        answer: 'GE also makes similar equipment.',
+        competitor: 'GE',
+        brand: 'Acme Dental',
+      }),
+    ).toBe('mentioned');
+  });
+
+  it('matches an NFC competitor name against an NFD answer', () => {
+    expect(
+      competitorSignal({
+        question: 'Which clinics offer implants in this city?',
+        answer: 'Visit Café Dental today.'.normalize('NFD'),
+        competitor: 'Café Dental'.normalize('NFC'),
+        brand: 'Acme Dental',
+      }),
+    ).toBe('mentioned');
+  });
+
+  it('matches a Turkish dotted capital İ against a plain lowercase i', () => {
+    expect(
+      competitorSignal({
+        question: 'Which clinics offer implants in this city?',
+        answer: 'implant klinik iyi.',
+        competitor: 'İmplant Klinik',
+        brand: 'Acme Dental',
+      }),
+    ).toBe('mentioned');
+  });
+
+  it('matches Cyrillic names case-insensitively', () => {
+    expect(
+      competitorSignal({
+        question: 'Які клініки пропонують імплантацію?',
+        answer: 'СТОМАТОЛОГІЯ ЛЮКС лікує добре.',
+        competitor: 'Стоматологія Люкс',
+        brand: 'Acme Dental',
       }),
     ).toBe('mentioned');
   });

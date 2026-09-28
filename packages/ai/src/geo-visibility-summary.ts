@@ -400,6 +400,7 @@ function addOutcomeToCounts(
 function shareOfVoiceFor(
   responses: readonly AiResponseOutcome[],
   mentions: ReadonlyMap<string, GeoMentionSignals>,
+  brand: string,
   competitors: readonly string[],
 ): GeoShareOfVoice | null {
   if (competitors.length === 0) return null;
@@ -416,6 +417,7 @@ function shareOfVoiceFor(
           question: response.request.question,
           answer: response.response.rawText,
           competitor,
+          brand,
         }) === 'mentioned';
       if (mentioned) {
         competitorMentions.set(competitor, (competitorMentions.get(competitor) ?? 0) + 1);
@@ -448,6 +450,7 @@ function summaryForProvider(
   outcomes: readonly AiRequestOutcome[],
   mentions: ReadonlyMap<string, GeoMentionSignals>,
   siteDomain: string,
+  brand: string,
   competitors: readonly string[],
 ): GeoProviderVisibilitySummary {
   const counts = outcomes.reduce<ProviderCounts>(
@@ -483,7 +486,7 @@ function summaryForProvider(
     scoreBasis: basis,
     byPurpose: counts.byPurpose,
     citedInstead: citedInsteadFor(counts.responses, mentions, siteDomain),
-    shareOfVoice: shareOfVoiceFor(counts.responses, mentions, competitors),
+    shareOfVoice: shareOfVoiceFor(counts.responses, mentions, brand, competitors),
   };
 }
 
@@ -573,7 +576,7 @@ export function computeGeoVisibilitySummaries(
     .filter(([, outcomes]) => outcomes.some((outcome) => outcome.kind === 'response'))
     .sort(([left], [right]) => providerOrder(left) - providerOrder(right))
     .map(([provider, outcomes]) =>
-      summaryForProvider(provider, outcomes, input.mentions, siteDomain, competitors),
+      summaryForProvider(provider, outcomes, input.mentions, siteDomain, input.brand, competitors),
     );
 }
 
