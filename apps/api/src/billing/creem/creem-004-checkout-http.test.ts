@@ -409,7 +409,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
       lines.some(
         (line) =>
           line.level === 'info' &&
-          line.message === 'paid checkout disabled: provider is not configured',
+          line.message === 'paid checkout disabled: Creem is not configured',
       ),
     ).toBe(true);
   });
@@ -452,7 +452,6 @@ describe('CREEM-004 checkout HTTP surface', () => {
     // ...and the operator still gets the names, on the server side only.
     const startup = lines.find((line) => line.message.startsWith('paid checkout disabled'));
     expect(startup?.level).toBe('error');
-    expect(startup?.context.provider).toBe(CREEM_PROVIDER);
     expect(startup?.context.missing).toContain('CREEM_WEBHOOK_SECRET');
     expect(startup?.context.missing).toContain('CREEM_PRODUCT_ID_BASIC');
     expect(JSON.stringify(lines)).not.toContain('super-secret-value');

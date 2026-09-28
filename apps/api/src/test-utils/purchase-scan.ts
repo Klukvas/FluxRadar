@@ -24,7 +24,11 @@ import type { PrismaClient, SiteProfile } from '@prisma/client';
 import type { AiConsentInput } from '../billing/checkout-metadata.ts';
 import { createCreemCheckoutSession } from '../billing/creem/checkout-session.ts';
 import { readCreemConfig, type CreemConfig } from '../billing/creem/config.ts';
-import { TEST_CREEM_SECRET, checkoutCompletedObject, signedCreemDelivery } from '../billing/creem/test-payloads.ts';
+import {
+  TEST_CREEM_SECRET,
+  checkoutCompletedObject,
+  signedCreemDelivery,
+} from '../billing/creem/test-payloads.ts';
 import { CREEM_EVENT_TYPES } from '../billing/creem/events.ts';
 import { handleCreemWebhook } from '../billing/creem/webhook-handler.ts';
 import type { FetchLike } from '../billing/fetch-like.ts';
@@ -215,7 +219,11 @@ function checkoutPricedAt(plan: PaidPlan): FetchLike {
     checkout_url: 'https://test-checkout.creem.io/session/stub',
     status: 'pending',
     mode: 'test',
-    product: { id: productIdFor(plan), price: Math.round(planPriceUsd(plan) * 100), currency: 'USD' },
+    product: {
+      id: productIdFor(plan),
+      price: Math.round(planPriceUsd(plan) * 100),
+      currency: 'USD',
+    },
   });
   return () =>
     Promise.resolve(

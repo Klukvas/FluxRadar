@@ -349,10 +349,7 @@ function reserveFloorCents(input: EconForecastInput): number {
 
 /** Комиссия Creem с одной транзакции по цене тарифа, в центах. */
 function paymentFeeCents(priceCents: number): number {
-  return (
-    Math.round((priceCents * CREEM_FEE_BASIS_POINTS) / 10_000) +
-    toCents(CREEM_FEE_FLAT_USD)
-  );
+  return Math.round((priceCents * CREEM_FEE_BASIS_POINTS) / 10_000) + toCents(CREEM_FEE_FLAT_USD);
 }
 
 /** Потолок p95 для тарифа: цена − комиссия Creem − целевая маржа. */
