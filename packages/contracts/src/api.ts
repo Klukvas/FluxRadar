@@ -100,13 +100,35 @@ export const siteProfileInputSchema = z.object({
 });
 export type SiteProfileInput = z.infer<typeof siteProfileInputSchema>;
 
+// Only the dot `toLowerCase` appends directly after an "i" — the İ (U+0130)
+// case — is stripped, matching the fold `@fluxradar/ai`'s matcher applies
+// (T7-fix3 L1): without it, "İmplant Clinic" and "Implant Clinic" pass
+// validation as two distinct competitors, and the matcher then folds them to
+// the same mention, double-counting the one real mention and skewing every
+// share it feeds.
+const COMBINING_DOT_AFTER_I = /(?<=i)\u0307/g;
+
 /**
  * A competitor name folded for comparison against the profile's own name:
- * trimmed, NFC-normalised, lower-cased. Deliberately not URL-aware — a name
- * is compared as a name.
+ * trimmed, NFC-normalised, lower-cased, Turkish-İ-folded. Deliberately not
+ * URL-aware — a name is compared as a name.
  */
 function normalizeCompetitorName(value: string): string {
-  return value.trim().normalize('NFC').toLowerCase();
+  return value.trim().normalize('NFC').toLowerCase().replace(COMBINING_DOT_AFTER_I, '');
+}
+
+/**
+ * Whether `value` is shaped like a hostname rather than a plain name, once
+ * any URL scheme and a single trailing slash are set aside: what remains
+ * contains a dot and none of the characters that would make it a path,
+ * query or fragment rather than a bare host. Gates the domain fold below
+ * (T7-fix3 N-2) — without it, two unrelated names that happen to contain a
+ * "/" ("Acme/US", "Acme/EU") both parse as a URL whose path is discarded,
+ * so they fold to the same empty-path host and get rejected as duplicates.
+ */
+function looksLikeHostname(value: string): boolean {
+  const withoutScheme = value.replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/\/$/, '');
+  return withoutScheme.includes('.') && !/[\s/?#]/.test(withoutScheme);
 }
 
 /**
@@ -116,14 +138,16 @@ function normalizeCompetitorName(value: string): string {
  * "https://www.acmedental.test/" (the stored, `httpsOriginSchema`-normalised
  * form) all fold to the same value (T7-fix F2).
  *
- * A value that is not URL-parseable even with a scheme prefixed (a plain
- * competitor name with no dot, say) falls back to a best-effort strip of a
- * leading "www." and trailing slashes — it will not equal a real domain's
- * folded form either way, so the fallback only has to avoid throwing.
+ * A value that does not look like a hostname (`looksLikeHostname`) folds to
+ * "" instead of being parsed — a plain name with URL punctuation in it
+ * ("Acme/US") is not a domain, and running it through `URL` anyway would
+ * discard everything from the first "/", "?" or "#" and fold it down to
+ * whatever came before, mislabelling it a duplicate of an unrelated name
+ * that happens to share that prefix (T7-fix3 N-2).
  */
 function normalizeDomainForComparison(value: string): string {
   const trimmed = value.trim().normalize('NFC').toLowerCase();
-  if (trimmed === '') return '';
+  if (trimmed === '' || !looksLikeHostname(trimmed)) return '';
   const withScheme = /^[a-z][a-z0-9+.-]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
   try {
     return new URL(withScheme).hostname.replace(/^www\./, '');

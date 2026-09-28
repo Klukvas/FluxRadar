@@ -267,6 +267,47 @@ describe('competitors (T7)', () => {
         competitorsListProblem(['Acme', 'Acme Corp'], 'My Site', 'https://example.com'),
       ).toBeNull();
     });
+
+    // T7-fix3 L1: `foldForMatching` in @fluxradar/ai's matcher strips the
+    // combining dot Turkish İ (U+0130) leaves behind after `toLowerCase`, so
+    // the matcher treats "İmplant Clinic" and "Implant Clinic" as one name —
+    // if validation did not fold the same way, both would be accepted as
+    // distinct competitors and the matcher would then double-count their one
+    // real mention, corrupting the shared share-of-voice denominator.
+    it('flags a duplicate that only matches once the Turkish İ is folded', () => {
+      expect(
+        competitorsListProblem(
+          ['İmplant Clinic', 'Implant Clinic'],
+          'My Site',
+          'https://example.com',
+        ),
+      ).not.toBeNull();
+    });
+
+    it('flags a competitor equal to the profile brand once the Turkish İ is folded', () => {
+      expect(
+        competitorsListProblem(['Implant Clinic'], 'İmplant Clinic', 'https://example.com'),
+      ).not.toBeNull();
+    });
+
+    // T7-fix3 N-2: the domain fold only applies to entries shaped like a
+    // hostname (a dot, no whitespace, no "/", "?" or "#" before the host
+    // part) — otherwise two unrelated names that happen to contain a "/"
+    // both parse as a URL whose path is discarded, folding them to the same
+    // host and mislabelling them a duplicate.
+    it.each([
+      ['Acme/US', 'Acme/EU'],
+      ['Acme?x', 'Acme?y'],
+      ['Acme #1', 'Acme #2'],
+    ])('still accepts "%s" and "%s" as distinct names', (first, second) => {
+      expect(competitorsListProblem([first, second], 'My Site', 'https://example.com')).toBeNull();
+    });
+
+    it('still flags "rival.test" and "www.rival.test" as the same host after the N-2 gate', () => {
+      expect(
+        competitorsListProblem(['rival.test', 'www.rival.test'], 'My Site', 'https://example.com'),
+      ).not.toBeNull();
+    });
   });
 });
 
