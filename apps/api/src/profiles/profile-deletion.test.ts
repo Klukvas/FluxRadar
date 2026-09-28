@@ -242,6 +242,26 @@ describe('site profile deletion', () => {
     },
   );
 
+  // No code left can ever move a FastSpring refund past 'requested' — that
+  // machinery was removed with the provider — so a leftover record from it
+  // must not block deletion the way a live Creem refund does.
+  it('deletes a site whose only open refund is a retired-provider (fastspring) record', async () => {
+    const { agent, accountId } = await signIn('retired-refund@example.com');
+    const profile = await createProfile(agent, accountId, 'https://retired-refund.example.com');
+    const history = await seedPaidHistory(profile, 'retired-refund');
+    await db.prisma.purchase.update({
+      where: { id: history.purchaseId },
+      data: { provider: 'fastspring' },
+    });
+    await db.prisma.refundRecord.update({
+      where: { purchaseId: history.purchaseId },
+      data: { status: REFUND_STATUSES.requested },
+    });
+
+    expect((await agent.delete(`/profiles/${profile.siteProfileId}`)).status).toBe(200);
+    expect(await db.prisma.purchase.count({ where: { id: history.purchaseId } })).toBe(0);
+  });
+
   // Nothing moves a purchase out of Disputed, so blocking on it would make the
   // profile undeletable forever.
   it('deletes a site whose purchase is disputed', async () => {

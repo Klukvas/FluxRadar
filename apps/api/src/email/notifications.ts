@@ -1,6 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
 
-import { CREEM_PROVIDER } from '../billing/creem/config.ts';
 import { emailText, type Mailer } from './mailer.ts';
 
 /**
@@ -31,13 +30,16 @@ function scanPageUrl(frontendOrigin: string, scanId: string): string {
 }
 
 /**
- * Creem test-mode orders are production E2E runs, not customers: mailing them
- * would deliver a real purchase or refund email for a payment that never
- * happened. Only an explicit test-mode checkout is silenced, so a live, Free or
- * legacy scan — or a purchase whose checkout row is gone — is still mailed.
+ * A test-mode checkout is a test-mode checkout whoever ran it: today's Creem
+ * E2E runs and historical FastSpring ones (production still holds Purchase
+ * rows from that provider) are both production test traffic, not customers,
+ * so mailing them would deliver a purchase or refund email for a payment
+ * that never happened. Only an explicit test-mode checkout is silenced, so a
+ * live, Free or legacy scan — or a purchase whose checkout row is gone — is
+ * still mailed.
  */
 function isProviderTestModePurchase(purchase: NotifiedPurchase | null): boolean {
-  return purchase?.provider === CREEM_PROVIDER && purchase.checkout?.liveMode === false;
+  return purchase?.checkout?.liveMode === false;
 }
 
 /** Sends one idempotent scan notification on a best-effort basis. */
