@@ -418,7 +418,11 @@ describe('Share of voice', () => {
     expect(screen.getByText('Acme Audit: not measurable in this run')).toBeInTheDocument();
   });
 
-  it('shows a note with a link to the profile form when no competitors are configured', async () => {
+  // T7-fix F5: the report is a fixed snapshot of the scan that produced it —
+  // since T7-fix F8 the competitor list is captured at launch, so editing the
+  // profile's competitors after this scan finished can never populate this
+  // row. The note must say so, not invite an edit that would change nothing.
+  it('shows a note about future scans, not an invitation to change this report, when no competitors are configured', async () => {
     await openGeoCard(
       dashboardOf({
         geoObservations: [observation({})],
@@ -427,6 +431,8 @@ describe('Share of voice', () => {
     );
 
     expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText(/include them in your next scan/)).toBeInTheDocument();
+    expect(screen.getByText(/not to this report/)).toBeInTheDocument();
     const link = screen.getByRole('link', { name: 'Add competitors' });
     expect(link).toBeInTheDocument();
   });
@@ -442,6 +448,7 @@ describe('Share of voice', () => {
     );
 
     expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText(/include them in your next scan/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Add competitors' })).toBeInTheDocument();
   });
 

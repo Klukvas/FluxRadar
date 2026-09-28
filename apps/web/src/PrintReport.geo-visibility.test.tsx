@@ -2,7 +2,7 @@
 // a small table, one row per engine — no answer cards, matching how the print
 // document already summarizes every other module.
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Dashboard, GeoObservation, GeoProviderVisibility, Scan } from './api';
@@ -167,6 +167,14 @@ describe('the printable report and GEO visibility', () => {
     // Denominators are the measurable answers, not the raw answer count.
     expect(screen.getByText('2/3 (67%)')).toBeInTheDocument();
     expect(screen.getByText('1/3 (33%)')).toBeInTheDocument();
+    // T7-fix F4: no competitors configured — the cell is a short dash, not
+    // the 176-character sentence, and the header row still has 5 columns.
+    const geoTable = screen.getByText('Claude · Anthropic').closest('table');
+    expect(geoTable).not.toBeNull();
+    const geoTableScope = within(geoTable as HTMLTableElement);
+    expect(geoTableScope.getByRole('cell', { name: '—' })).toBeInTheDocument();
+    expect(screen.queryByText(/Add competitor names to your site profile/)).not.toBeInTheDocument();
+    expect(geoTableScope.getAllByRole('columnheader')).toHaveLength(5);
   });
 
   // The cell used to print the provider's own answer count as the minimum,

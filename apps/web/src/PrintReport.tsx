@@ -334,12 +334,18 @@ function printShareCell(
   return `${mentioned}/${measured} (${percentOf(share)}%)`;
 }
 
-/** The share-of-voice cell (T7): the brand's percentage, or the "add competitors" note. */
+/**
+ * The share-of-voice cell (T7-fix F4): a short dash when no competitors were
+ * configured at launch, never the full explanatory sentence — that sentence
+ * is 176 characters (205 in Ukrainian) and this cell sits in a table row of
+ * otherwise ~9-character cells. The explanation itself appears once, in the
+ * table's caption.
+ */
 function printShareOfVoiceCell(provider: GeoProviderVisibility, language: Language): string {
   const t = copy[language].report;
   const { shareOfVoice } = provider;
   if (shareOfVoice === null || shareOfVoice.competitors.length === 0) {
-    return t.geoShareOfVoiceNone;
+    return t.geoShareOfVoiceNoneShort;
   }
   return shareOfVoice.brandShare === null
     ? t.geoShareOfVoiceBrandNotMeasured
@@ -442,6 +448,12 @@ function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language })
             })}
           </p>
           <table className="print-table">
+            {summary.providers.some(
+              (provider) =>
+                provider.shareOfVoice === null || provider.shareOfVoice.competitors.length === 0,
+            ) ? (
+              <caption className="muted">{t.geoShareOfVoicePrintCaption}</caption>
+            ) : null}
             <thead>
               <tr>
                 <th>{t.geoProvider}</th>

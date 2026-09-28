@@ -959,8 +959,12 @@ export const copy = {
       geoShareOfVoiceHeading: 'Share of voice',
       geoShareOfVoiceHeader: 'Share of voice',
       geoShareOfVoiceNone:
-        'Add competitor names to your site profile to see how often this engine mentions your brand next to theirs — matched locally, on this account, and never sent to any AI provider.',
+        'Add competitor names to your site profile to include them in your next scan — matched locally, on this account, and never sent to any AI provider. A competitor list applies to scans launched after it is saved, not to this report.',
       geoShareOfVoiceNoneLink: 'Add competitors',
+      /** T7-fix F4: the print table's short cell for the same "not configured" state. */
+      geoShareOfVoiceNoneShort: '—',
+      geoShareOfVoicePrintCaption:
+        '"—" means no competitors were configured when this scan launched; add them on the site profile for your next scan.',
       geoShareOfVoiceBrandRow: 'Your brand: {percent}% of mentions',
       geoShareOfVoiceBrandNotMeasured: 'Your brand: not measurable in this run',
       geoShareOfVoiceCompetitorRow: '{name}: {percent}%',
@@ -2717,8 +2721,11 @@ export const copy = {
       geoShareOfVoiceHeading: 'Частка голосу',
       geoShareOfVoiceHeader: 'Частка голосу',
       geoShareOfVoiceNone:
-        'Додайте назви конкурентів до профілю сайту, щоб бачити, як часто ця система згадує ваш бренд поряд із ними — звірка відбувається локально, на вашому акаунті, і ніколи не надсилається жодному AI-провайдеру.',
+        'Додайте назви конкурентів до профілю сайту, щоб врахувати їх у наступному скануванні — звірка відбувається локально, на вашому акаунті, і ніколи не надсилається жодному AI-провайдеру. Список конкурентів застосовується до сканувань, запущених після збереження, а не до цього звіту.',
       geoShareOfVoiceNoneLink: 'Додати конкурентів',
+      geoShareOfVoiceNoneShort: '—',
+      geoShareOfVoicePrintCaption:
+        '«—» означає, що на момент запуску цього сканування конкурентів не було налаштовано; додайте їх у профілі сайту для наступного сканування.',
       geoShareOfVoiceBrandRow: 'Ваш бренд: {percent}% згадок',
       geoShareOfVoiceBrandNotMeasured: 'Ваш бренд: у цьому прогоні неможливо зміряти',
       geoShareOfVoiceCompetitorRow: '{name}: {percent}%',
