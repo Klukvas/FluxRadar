@@ -248,6 +248,25 @@ describe('competitors (T7)', () => {
         expect(competitorsListProblem([competitor], 'My Site', domain)).not.toBeNull();
       });
     });
+
+    // T7-fix2 N3: the own-domain check folds "rival.test" and
+    // "www.rival.test" to the same host; the duplicate check must fold the
+    // same way, not just the plain-name fold, or the same site can be
+    // listed twice under two spellings.
+    it('flags a duplicate competitor that only matches once folded as a domain', () => {
+      expect(
+        competitorsListProblem(['rival.test', 'www.rival.test'], 'My Site', 'https://example.com'),
+      ).not.toBeNull();
+    });
+
+    // T7-fix2 N2: overlapping names (one a substring of the other) stay
+    // accepted by validation — only the counting in shareOfVoiceFor resolves
+    // the overlap, per the architect's decision.
+    it('still accepts an overlapping pair of competitor names', () => {
+      expect(
+        competitorsListProblem(['Acme', 'Acme Corp'], 'My Site', 'https://example.com'),
+      ).toBeNull();
+    });
   });
 });
 

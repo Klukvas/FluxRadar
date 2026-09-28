@@ -149,6 +149,12 @@ function normalizeDomainForComparison(value: string): string {
  * (T7-fix F2): the stored `domain` is already an https origin
  * (`httpsOriginSchema`), and a competitor entry typed as a bare hostname, with
  * "www.", or as a full URL must all be recognised as the same site.
+ *
+ * The duplicate check (as opposed to the own-name/own-domain check just
+ * above it) folds both ways too (T7-fix2 N3): two entries can share a name
+ * fold, a domain fold, or both, and any one of those is the same competitor
+ * listed twice — "rival.test" and "www.rival.test" are one host even though
+ * their name folds differ.
  */
 export function competitorsListProblem(
   competitors: readonly string[] | null | undefined,
@@ -158,19 +164,22 @@ export function competitorsListProblem(
   if (competitors == null || competitors.length === 0) return null;
   const normalizedBrand = normalizeCompetitorName(brand);
   const normalizedDomain = normalizeDomainForComparison(domain);
-  const seen = new Set<string>();
+  const seenNames = new Set<string>();
+  const seenDomains = new Set<string>();
   for (const raw of competitors) {
     const normalized = normalizeCompetitorName(raw);
+    const domainFold = normalizeDomainForComparison(raw);
     if (
       normalized === normalizedBrand ||
-      (normalizedDomain !== '' && normalizeDomainForComparison(raw) === normalizedDomain)
+      (normalizedDomain !== '' && domainFold === normalizedDomain)
     ) {
       return `competitors must not repeat the profile's own name or domain: "${raw}"`;
     }
-    if (seen.has(normalized)) {
+    if (seenNames.has(normalized) || (domainFold !== '' && seenDomains.has(domainFold))) {
       return `competitors must not repeat a name: "${raw}"`;
     }
-    seen.add(normalized);
+    seenNames.add(normalized);
+    if (domainFold !== '') seenDomains.add(domainFold);
   }
   return null;
 }
