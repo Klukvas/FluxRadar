@@ -4,8 +4,8 @@
 // символов (порог CONTENT-003 — страница короче него уже получает finding о
 // пустоте, а не о сложности), от MIN_PROSE_SENTENCES предложений и от
 // MIN_PROSE_WORDS слов прозы, чей `<html lang>` называет английский или
-// українську, а переважний алфавіт видимого тексту цій мові відповідає
-// (readability.ts, SCRIPT_DOMINANCE_THRESHOLD) — даёт finding, когда её счёт
+// украинский, а преобладающий алфавит видимого текста этому языку
+// соответствует (readability.ts, SCRIPT_DOMINANCE_THRESHOLD) — даёт finding, когда её счёт
 // по шкале языка ниже READABILITY_SCORE_MIN. Страница, для которой это не
 // выполняется по любой из причин, applicable-целью не считается вовсе — не
 // «прочитано, проблем нет», а «эта проверка её не измеряет», и репорт (§M1,
@@ -45,7 +45,7 @@ import {
   resolveReadabilityLanguage,
   type ReadabilityMeasurement,
 } from './readability.js';
-import { visibleText } from './visible-text.js';
+import { proseText, visibleText } from './visible-text.js';
 
 const descriptor = requireDescriptor('CONTENT-005');
 
@@ -68,10 +68,16 @@ function evaluateApplicability(page: PageSnapshot): Applicability {
   if (!isSuccessfulHtmlPage(page)) {
     return { applicable: false, reason: 'no-candidates' };
   }
-  const text = visibleText(page);
-  if (codePointLength(text) < VISIBLE_TEXT_MIN_CHARS) {
+  if (codePointLength(visibleText(page)) < VISIBLE_TEXT_MIN_CHARS) {
     return { applicable: false, reason: 'no-candidates' };
   }
+  // proseText, not visibleText: a `</p><p>` or `</li><li>` seam with no
+  // source whitespace must still read as a sentence end (readability.ts
+  // countSentences), which visibleText's plain concatenation would not give
+  // it. The 200-character gate above stays on visibleText — proseText's
+  // inserted ". " per block would let a nav/list page cross that threshold
+  // on punctuation the page never had.
+  const text = proseText(page);
   const language = resolveReadabilityLanguage(declaredLanguage(page), text);
   if (!language.usable) {
     return { applicable: false, reason: language.reason };
@@ -110,9 +116,10 @@ const EVIDENCE_CODE_BY_LANGUAGE = {
 /**
  * Why every page of the crawl fell outside this check, when none did — the
  * most common reason among the crawl's successful HTML pages, since each can
- * fail for a different one (no `lang`, an unsupported `lang`, a `lang` the
- * text disagrees with, or too little prose to measure). Ties keep the order
- * the crawl read the pages in, so the result is deterministic.
+ * fail for a different one (no `lang`, an unsupported `lang`, a `lang` whose
+ * script the text mostly disagrees with in one of three ways, or too little
+ * prose to measure). Ties keep the order the crawl read the pages in, so the
+ * result is deterministic.
  */
 function aggregateNotApplicableReason(ctx: SiteContext): NotApplicableReason | undefined {
   const successfulPages = ctx.crawl.pages.filter(isSuccessfulHtmlPage);

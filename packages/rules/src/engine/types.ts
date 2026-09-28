@@ -29,11 +29,15 @@ export type NotApplicableReason =
   | 'no-candidates'
   /** CONTENT-005: страница не объявила `<html lang>` вовсе. */
   | 'no-declared-language'
-  /** CONTENT-005: `<html lang>` объявлен, но это не английский и не українська. */
+  /** CONTENT-005: `<html lang>` объявлен, но это не английский и не украинский. */
   | 'unsupported-language'
-  /** CONTENT-005: объявлена мова, но переважний алфавіт видимого тексту їй не відповідає. */
+  /** CONTENT-005: объявлен язык, но большинство букв видимого текста — из другого поддерживаемого языка. */
   | 'script-mismatch'
-  /** CONTENT-005: тексту вистачає на CONTENT-003, але замало речень і слів для виміру. */
+  /** CONTENT-005: объявлен язык, но большинство букв видимого текста — ни латиница, ни кириллица. */
+  | 'unsupported-script'
+  /** CONTENT-005: буквы объявленного языка преобладают, но не дотягивают до SCRIPT_DOMINANCE_THRESHOLD. */
+  | 'mixed-script'
+  /** CONTENT-005: текста хватает на CONTENT-003, но недостаточно предложений и слов для измерения. */
   | 'too-little-prose';
 
 /** Метод API-проверки: allowlist §9 (Reliability contract v1). */

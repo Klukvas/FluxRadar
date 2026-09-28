@@ -213,14 +213,16 @@ describe('passive-модули на fixture-сайте краулера', () => 
       Reliability: 60,
       // A11Y-001..010 ×19 HTML pages + A11Y-011 site report contract ×1.
       Accessibility: 191,
-      // CONTENT-001/003/004×19 + CONTENT-005×2. Only hard-prose.html and
+      // CONTENT-001/003/004×19 + CONTENT-005×3. hard-prose.html and
       // easy-prose.html clear MIN_PROSE_SENTENCES (5) and MIN_PROSE_WORDS (100)
-      // — every other fixture page is either too short for CONTENT-003's own
-      // 200-character floor, or (like /, /form.html, /wrong-canonical.html) a
-      // heading plus one short paragraph or a link list: enough characters,
-      // not enough prose for Flesch to have ever been calibrated on (T9 review
-      // H4). 19+19+19+2 = 59.
-      'Content Quality': 59,
+      // on their own paragraphs; / joins them once L7 (T9 second review) counts
+      // each nav <li> as a sentence boundary — its heading, intro paragraph and
+      // 18-item nav list add up to enough prose together, even though no single
+      // block on the page does. form.html and wrong-canonical.html stay
+      // too-little-prose: a heading plus one short paragraph, still under
+      // MIN_PROSE_WORDS however its sentences are counted (T9 review H4).
+      // 19+19+19+3 = 60.
+      'Content Quality': 60,
       // PRIVACY-001×20 + PRIVACY-002×19 + PRIVACY-003×19 + PRIVACY-004×1.
       Privacy: 59,
     };

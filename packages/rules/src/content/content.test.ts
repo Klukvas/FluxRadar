@@ -7,7 +7,11 @@ import { describe, expect, it } from 'vitest';
 
 import type { IssueCandidate } from '../engine/run-module.js';
 import { runModuleRules } from '../engine/run-module.js';
-import { RENDER_ONLY_MESSAGE_CODES, renderFindingMessage } from '../messages/index.js';
+import {
+  findingMessage,
+  RENDER_ONLY_MESSAGE_CODES,
+  renderFindingMessage,
+} from '../messages/index.js';
 import {
   htmlContext,
   loadFixtureContext,
@@ -374,11 +378,13 @@ describe('CONTENT-005 низька читабельність', () => {
   });
 
   it('надто мало речень і слів (>= 200 символів, але не проза) → too-little-prose', () => {
-    // 24 short list labels: well over 200 characters, but no sentence
-    // terminators at all (countSentences falls back to one) and under 100
-    // words — the H4 case from the T9 review (a nav/list page, not prose).
+    // 16 short list labels: well over 200 characters (VISIBLE_TEXT_MIN_CHARS),
+    // and now over MIN_PROSE_SENTENCES too — L7 (T9 second review) counts each
+    // <li> boundary as a sentence end — but still under MIN_PROSE_WORDS at
+    // 5 words each. The H4 case from the T9 review (a nav/list page, not
+    // prose) stays too-little-prose on the word count, not the sentence count.
     const listItems = Array.from(
-      { length: 24 },
+      { length: 16 },
       (_, index) => `<li><a href="/p${index}">Product update ${index} for teams</a></li>`,
     ).join('');
     const ctx = htmlContext(
@@ -477,5 +483,80 @@ describe('CONTENT-005 низька читабельність', () => {
     const finding = single(runRule('Content Quality', 'CONTENT-005', ctx));
     expect(finding.messages?.evidence.params.score).toBe(0);
     expect(renderFindingMessage(finding.messages!.evidence, 'en')).toContain('score is 0 ');
+  });
+
+  // L8 (T9 second review): only content-005.evidence.en-scale was pinned — no
+  // test anywhere produced a uk-scale finding or rendered its honest scale name.
+  it('складний український текст → finding на uk-scale, з чесною назвою шкали в обох мовах', () => {
+    const clause =
+      'вищезгадані багатогранні інституційні міркування, міждисциплінарна методологія ' +
+      'впровадження, всебічна організаційна співпраця, різнорідні операційні передумови, ' +
+      'надзвичайно заплутані процедурні наслідки, лабіринтоподібна адміністративна ' +
+      'інфраструктура, безпрецедентне переоцінювання, суттєво розбіжні юрисдикційні обставини';
+    const sentence = `${clause}, ${clause}, ${clause}.`;
+    const hardUkrainian = Array.from({ length: 5 }, () => sentence).join(' ');
+    const ctx = htmlContext(
+      '<!doctype html><html lang="uk"><head><title>Складна сторінка</title></head>' +
+        `<body><p>${hardUkrainian}</p></body></html>`,
+    );
+    const finding = single(runRule('Content Quality', 'CONTENT-005', ctx));
+    expect(finding.messages?.evidence.code).toBe('content-005.evidence.uk-scale');
+    const message = finding.messages!.evidence;
+    expect(renderFindingMessage(message, 'uk')).toContain('читабельність за Оборнєвою');
+    expect(renderFindingMessage(message, 'en')).toContain('Oborneva readability');
+  });
+
+  it('uk-scale message renders the honest human scale name directly from the catalog (L8)', () => {
+    const message = findingMessage('content-005.evidence.uk-scale', {
+      score: 12,
+      minimum: 30,
+      sentences: 8,
+      words: 122,
+    });
+    expect(renderFindingMessage(message, 'uk')).toContain(
+      'читабельність за Оборнєвою — адаптація формули Флеша, відкалібрована на російських текстах',
+    );
+    expect(renderFindingMessage(message, 'en')).toContain(
+      'Oborneva readability, a Flesch adaptation calibrated on Russian',
+    );
+  });
+});
+
+// M4 (T9 second review): aggregateNotApplicableReason names the *most common*
+// reason among the crawl's pages, not a reason every page shares — the two
+// probe cases from the review, pinned so the plurality tie-break stays honest.
+describe('aggregateNotApplicableReason (M4)', () => {
+  const filler = 'word '.repeat(50);
+  const pageWithLang = (path: string, lang: string | null) => ({
+    path,
+    html:
+      `<!doctype html><html${lang === null ? '' : ` lang="${lang}"`}>` +
+      `<head><title>${path}</title></head><body><p>${filler}</p></body></html>`,
+  });
+
+  it('unsupported-language wins 2 of 3 (fr, de, no lang)', () => {
+    const ctx = siteContext({
+      pages: [
+        pageWithLang('/a.html', 'fr'),
+        pageWithLang('/b.html', 'de'),
+        pageWithLang('/c.html', null),
+      ],
+    });
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.notApplicableReason).toBe('unsupported-language');
+  });
+
+  it('no-declared-language wins 2 of 3 (no lang, no lang, fr)', () => {
+    const ctx = siteContext({
+      pages: [
+        pageWithLang('/a.html', null),
+        pageWithLang('/b.html', null),
+        pageWithLang('/c.html', 'fr'),
+      ],
+    });
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.notApplicableReason).toBe('no-declared-language');
   });
 });

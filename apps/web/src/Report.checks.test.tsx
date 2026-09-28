@@ -348,6 +348,68 @@ describe('a section card that recorded its checks', () => {
     expect(row).not.toHaveTextContent('На прочитаних сторінках немає нічого');
   });
 
+  /** One recorded Content Quality check row. */
+  async function contentQualityRows(
+    checks: readonly Record<string, unknown>[],
+    language: Language = 'en',
+  ): Promise<HTMLElement[]> {
+    await openReport(
+      dashboardOf([moduleOf({ module: 'Content Quality', metadata: { ruleChecks: checks } })]),
+      language,
+    );
+    fireEvent.click(card('Content Quality'));
+    const region = screen.getByRole('region', {
+      name:
+        language === 'uk'
+          ? 'Content Quality · виконані перевірки'
+          : 'Content Quality · checks performed',
+    });
+    return within(region).getAllByRole('listitem');
+  }
+
+  // M1 (T9 first review) + L8 (T9 second review): every CONTENT-005 reason
+  // must render, and M4 (T9 second review) means none of them may claim
+  // "every" or "no" page — the check reports the crawl's most common reason,
+  // not one every failing page shares.
+  it('renders every CONTENT-005 reason with plurality-true wording, never "every" or "no" page', async () => {
+    const reasons = [
+      'no-declared-language',
+      'unsupported-language',
+      'script-mismatch',
+      'unsupported-script',
+      'mixed-script',
+      'too-little-prose',
+    ] as const;
+    const rows = await contentQualityRows(
+      reasons.map((reason) => seoCheck('CONTENT-005', reason, reason)),
+    );
+    expect(rows).toHaveLength(reasons.length);
+    for (const row of rows) {
+      expect(row).toHaveTextContent('Most crawled pages with enough text');
+      expect(row).not.toHaveTextContent('Every crawled page');
+      expect(row).not.toHaveTextContent(/^No crawled page/);
+    }
+    expect(rows[0]).toHaveTextContent('did not declare a language');
+    expect(rows[1]).toHaveTextContent('a language other than English or Ukrainian');
+    expect(rows[2]).toHaveTextContent('written mostly in the other supported language’s script');
+    expect(rows[3]).toHaveTextContent('written mostly in neither script');
+    expect(rows[4]).toHaveTextContent('not by enough to trust the label');
+    expect(rows[5]).toHaveTextContent('did not have enough sentences and words');
+  });
+
+  it('renders the CONTENT-005 reasons in Ukrainian too, with the same plurality wording', async () => {
+    const rows = await contentQualityRows(
+      [
+        seoCheck('CONTENT-005', 'unsupported-script', 'unsupported-script'),
+        seoCheck('CONTENT-005', 'mixed-script', 'mixed-script'),
+      ],
+      'uk',
+    );
+    expect(rows[0]).toHaveTextContent('Більшість прочитаних сторінок');
+    expect(rows[0]).toHaveTextContent('не тим і не іншим алфавітом');
+    expect(rows[1]).toHaveTextContent('суміш алфавітів була занадто рівною');
+  });
+
   it('falls back to the rule sentence for a reason it does not know', async () => {
     const rows = await seoRows([
       seoCheck('SEO-TECH-011', 'weakly linked pages', 'from-the-future'),

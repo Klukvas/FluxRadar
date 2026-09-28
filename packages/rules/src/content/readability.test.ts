@@ -1,13 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
+import { htmlContext } from '../testing/fixture-harness.js';
 import {
   countSentences,
   countWords,
+  declaredLanguage,
   estimateCyrillicSyllables,
   estimateEnglishSyllables,
   measureReadability,
   resolveReadabilityLanguage,
 } from './readability.js';
+import { proseText } from './visible-text.js';
+
+/** The single page of a one-page `htmlContext`, as a `PageSnapshot`. */
+function firstPage(ctx: ReturnType<typeof htmlContext>) {
+  const page = ctx.crawl.pages[0];
+  if (page === undefined) {
+    throw new Error('ожидалась ровно одна страница');
+  }
+  return page;
+}
 
 describe('countWords', () => {
   it('splits on whitespace', () => {
@@ -97,6 +109,29 @@ describe('estimateCyrillicSyllables', () => {
   });
 });
 
+describe('declaredLanguage', () => {
+  it('normalizes a hyphenated regional subtag', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en-GB"><head><title>T</title></head><body><p>Hi</p></body></html>',
+    );
+    expect(declaredLanguage(firstPage(ctx))).toBe('en');
+  });
+
+  it('normalizes an underscored locale (en_US), not just the BCP 47 hyphen', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en_US"><head><title>T</title></head><body><p>Hi</p></body></html>',
+    );
+    expect(declaredLanguage(firstPage(ctx))).toBe('en');
+  });
+
+  it('no lang attribute → null', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html><head><title>T</title></head><body><p>Hi</p></body></html>',
+    );
+    expect(declaredLanguage(firstPage(ctx))).toBeNull();
+  });
+});
+
 describe('resolveReadabilityLanguage', () => {
   const englishText = 'The cat sat on the mat and the dog ran to the park.';
   const ukrainianText = 'Кіт спить, а пес біжить у парк дуже швидко сьогодні.';
@@ -130,7 +165,7 @@ describe('resolveReadabilityLanguage', () => {
     });
   });
 
-  it('a declared language the text is not written in is a script mismatch, not a score (H2)', () => {
+  it('the other supported script being the actual majority is a script mismatch, not a score (H2)', () => {
     expect(resolveReadabilityLanguage('en', ukrainianText)).toEqual({
       usable: false,
       reason: 'script-mismatch',
@@ -138,6 +173,41 @@ describe('resolveReadabilityLanguage', () => {
     expect(resolveReadabilityLanguage('uk', englishText)).toEqual({
       usable: false,
       reason: 'script-mismatch',
+    });
+  });
+
+  // L6 (T9 second review): the old single `script-mismatch` branch covered
+  // three different situations with one copy sentence that only described
+  // one of them. Each now names distinct.
+  it('text mostly in neither Latin nor Cyrillic is an unsupported script, not a mismatch with the other supported language', () => {
+    const chinese =
+      '这是一段用于测试的中文文本，它包含了两百多个字符，足够超过可见文本的最小长度要求。'.repeat(
+        3,
+      );
+    expect(resolveReadabilityLanguage('en', chinese)).toEqual({
+      usable: false,
+      reason: 'unsupported-script',
+    });
+  });
+
+  it('no letters at all is an unsupported script', () => {
+    expect(resolveReadabilityLanguage('en', '')).toEqual({
+      usable: false,
+      reason: 'unsupported-script',
+    });
+    expect(resolveReadabilityLanguage('en', '123 456 789')).toEqual({
+      usable: false,
+      reason: 'unsupported-script',
+    });
+  });
+
+  it('the declared script is the largest share but short of the 70% dominance threshold is a mixed script, not a mismatch', () => {
+    // 60% Latin letters, 40% Cyrillic: Latin is the majority of the two
+    // supported scripts, but not the required 70% of all letters.
+    const mixed = 'aaaaaa'.repeat(10) + 'бббб'.repeat(10);
+    expect(resolveReadabilityLanguage('en', mixed)).toEqual({
+      usable: false,
+      reason: 'mixed-script',
     });
   });
 });
@@ -213,5 +283,44 @@ describe('measureReadability', () => {
   it('numbers and abbreviations count as words without throwing', () => {
     const result = measureReadability('U.S. GDP grew 3.5% in Q1 2026.', 'en');
     expect(result.measurable).toBe(true);
+  });
+});
+
+// L7 (T9 second review): the block-boundary half of L2 — visibleText's plain
+// concatenation has no separator at all between blocks, so minified markup
+// (`</p><p>`, no whitespace) glued the last word of one block to the first
+// word of the next, and countSentences never saw a boundary that had no
+// punctuation of its own. proseText is what content-005.ts measures with.
+describe('proseText', () => {
+  it('a paragraph boundary with no source whitespace or punctuation still ends a sentence', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Minified</title></head>' +
+        '<body><p>We keep our plans</p><p>We keep our pricing simple</p></body></html>',
+    );
+    const text = proseText(firstPage(ctx));
+    expect(text).toBe('We keep our plans. We keep our pricing simple.');
+    expect(countSentences(text)).toBe(2);
+  });
+
+  it('a block that already ends with its own terminator is not double-counted', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Terminated</title></head>' +
+        '<body><p>We keep our plans.</p><p>We keep our pricing simple.</p></body></html>',
+    );
+    expect(countSentences(proseText(firstPage(ctx)))).toBe(2);
+  });
+
+  it('list items and table cells are boundaries too, not only paragraphs and headings', () => {
+    const listCtx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>List</title></head>' +
+        '<body><ul><li>First item here</li><li>Second item here</li></ul></body></html>',
+    );
+    expect(countSentences(proseText(firstPage(listCtx)))).toBe(2);
+
+    const tableCtx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Table</title></head>' +
+        '<body><table><tr><td>First cell here</td><td>Second cell here</td></tr></table></body></html>',
+    );
+    expect(countSentences(proseText(firstPage(tableCtx)))).toBe(2);
   });
 });

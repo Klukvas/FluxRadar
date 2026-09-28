@@ -1306,20 +1306,29 @@ export const copy = {
           'CONTENT-001:no-candidates':
             'The crawl read only one page, so there was no second page to compare its text with',
           // Readability needs a declared language its text actually matches,
-          // and enough prose to measure — four distinct reasons a page can
+          // and enough prose to measure — six distinct reasons a page can
           // fall outside it, from the crawl's most common one among its pages.
+          // That "most common" is the whole reason these sentences say "most
+          // crawled pages", never "every" or "no" page: aggregateNotApplicableReason
+          // (content-005.ts) picks a plurality among pages that can each fail
+          // for a different one of the six, so a multilingual site can reach
+          // any of them with zero pages actually unanimous about it.
           'CONTENT-005':
             'No crawled page had a declared language, a matching script, and enough prose for this check to measure',
           'CONTENT-005:no-candidates':
             'No crawled page had enough visible text to measure — the same 200-character minimum the empty-page check uses',
           'CONTENT-005:no-declared-language':
-            'No crawled page with enough text declared a language in its <html lang> attribute',
+            'Most crawled pages with enough text did not declare a language in their <html lang> attribute',
           'CONTENT-005:unsupported-language':
-            'Every crawled page with enough text declared a language other than English or Ukrainian in its <html lang> attribute',
+            'Most crawled pages with enough text declared a language other than English or Ukrainian in their <html lang> attribute',
           'CONTENT-005:script-mismatch':
-            'Every crawled page with enough text declared English or Ukrainian, but its visible text was written mostly in the other script — the declared language and the text disagree',
+            'Most crawled pages with enough text declared English or Ukrainian, but their visible text was written mostly in the other supported language’s script — the declared language and the text disagree',
+          'CONTENT-005:unsupported-script':
+            'Most crawled pages with enough text declared English or Ukrainian, but their visible text was written mostly in neither script — the declared language does not match what the page shows',
+          'CONTENT-005:mixed-script':
+            'Most crawled pages with enough text declared English or Ukrainian, and that script was their largest, but not by enough to trust the label — the mix of scripts was too even',
           'CONTENT-005:too-little-prose':
-            'No crawled page had enough sentences and words of running prose to measure, even though its visible text passed the length check',
+            'Most crawled pages with enough text did not have enough sentences and words of running prose to measure, even though their visible text passed the length check',
           'ANALYTICS-SC-001': 'Too little search traffic in the previous 28 days to call a trend',
           'ANALYTICS-SC-002': 'No page had enough first-page impressions to judge its clicks',
           'ANALYTICS-SC-004':
@@ -3012,13 +3021,17 @@ export const copy = {
           'CONTENT-005:no-candidates':
             'Жодна прочитана сторінка не мала достатньо видимого тексту для виміру — той самий мінімум у 200 символів, що й у перевірки на порожні сторінки',
           'CONTENT-005:no-declared-language':
-            'Жодна прочитана сторінка з достатньою кількістю тексту не оголосила мову в атрибуті <html lang>',
+            'Більшість прочитаних сторінок з достатньою кількістю тексту не оголосили мову в атрибуті <html lang>',
           'CONTENT-005:unsupported-language':
-            'Усі прочитані сторінки з достатньою кількістю тексту оголосили в <html lang> мову, відмінну від англійської чи української',
+            'Більшість прочитаних сторінок з достатньою кількістю тексту оголосили в <html lang> мову, відмінну від англійської чи української',
           'CONTENT-005:script-mismatch':
-            'Усі прочитані сторінки з достатньою кількістю тексту оголосили англійську чи українську, але їхній видимий текст написано переважно іншим алфавітом — оголошена мова не відповідає тексту',
+            'Більшість прочитаних сторінок з достатньою кількістю тексту оголосили англійську чи українську, але їхній видимий текст написано переважно алфавітом іншої підтримуваної мови — оголошена мова не відповідає тексту',
+          'CONTENT-005:unsupported-script':
+            'Більшість прочитаних сторінок з достатньою кількістю тексту оголосили англійську чи українську, але їхній видимий текст написано переважно не тим і не іншим алфавітом — оголошена мова не відповідає тому, що показує сторінка',
+          'CONTENT-005:mixed-script':
+            'Більшість прочитаних сторінок з достатньою кількістю тексту оголосили англійську чи українську, і цей алфавіт переважав, але недостатньо, щоб довіряти позначці — суміш алфавітів була занадто рівною',
           'CONTENT-005:too-little-prose':
-            'Жодна прочитана сторінка не мала достатньо речень і слів суцільної прози для виміру, хоча за довжиною видимого тексту пройшла',
+            'Більшість прочитаних сторінок з достатньою кількістю тексту не мали достатньо речень і слів суцільної прози для виміру, хоча за довжиною видимого тексту пройшли',
           'ANALYTICS-SC-001':
             'За попередні 28 днів пошукового трафіку замало, щоб говорити про динаміку',
           'ANALYTICS-SC-002':

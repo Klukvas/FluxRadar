@@ -63,7 +63,11 @@ export type ReadabilityResult = ReadabilityMeasurement | ReadabilityNotMeasurabl
 
 /** Why a page's declared language and visible text cannot be matched to a scale. */
 export type ReadabilityLanguageReason =
-  'no-declared-language' | 'unsupported-language' | 'script-mismatch';
+  | 'no-declared-language'
+  | 'unsupported-language'
+  | 'script-mismatch'
+  | 'unsupported-script'
+  | 'mixed-script';
 
 export type ReadabilityLanguageResult =
   | { readonly usable: true; readonly language: SupportedReadabilityLanguage }
@@ -79,12 +83,13 @@ const SILENT_TRAILING_E = /[^aeiouy]e$/i;
 const CYRILLIC_VOWEL_GROUP = /[аеєиіїоуюя]+/gi;
 const LATIN_LETTER = /[a-z]/gi;
 const CYRILLIC_LETTER = /[а-яіїєґ]/gi;
+const ANY_LETTER = /\p{L}/gu;
 
 /**
- * A declared language's script must make up at least this share of the
- * page's letters for its scale to apply. Below it, the `lang` attribute and
- * the text disagree about what language this is, and neither scale's
- * coefficients were fit for that.
+ * A declared language's script must make up at least this share of *all* the
+ * page's letters (Latin, Cyrillic, or otherwise) for its scale to apply.
+ * Below it, the `lang` attribute and the text disagree about what language
+ * this is, and neither scale's coefficients were fit for that.
  */
 export const SCRIPT_DOMINANCE_THRESHOLD = 0.7;
 
@@ -150,8 +155,17 @@ function isSupportedLanguage(language: string | null): language is SupportedRead
 /**
  * Whether `text` can be matched to `language`'s scale: `language` must be
  * one this estimate supports, and its script must be the dominant one in
- * `text` (`SCRIPT_DOMINANCE_THRESHOLD`). A page with no letters of either
- * script is a mismatch, same as a page whose letters point the other way.
+ * `text` (`SCRIPT_DOMINANCE_THRESHOLD`). Three distinct ways this can fail,
+ * each naming a different mismatch to the reader:
+ *  - `unsupported-script`: the text's letters are mostly neither Latin nor
+ *    Cyrillic (or there are none at all) — the declared language names a
+ *    script the page barely uses.
+ *  - `script-mismatch`: the *other* supported script is the page's actual
+ *    majority — a `lang="en"` page whose text is mostly Cyrillic, or the
+ *    reverse.
+ *  - `mixed-script`: the declared language's script is the largest of the
+ *    three, but still short of `SCRIPT_DOMINANCE_THRESHOLD` — too even a mix
+ *    to trust the label.
  */
 export function resolveReadabilityLanguage(
   declaredLanguage: string | null,
@@ -166,17 +180,28 @@ export function resolveReadabilityLanguage(
   }
   const latin = text.match(LATIN_LETTER)?.length ?? 0;
   const cyrillic = text.match(CYRILLIC_LETTER)?.length ?? 0;
-  const totalLetters = latin + cyrillic;
+  const allLetters = text.match(ANY_LETTER)?.length ?? 0;
+  const otherLetters = allLetters - latin - cyrillic;
   const matching = primary === 'en' ? latin : cyrillic;
-  if (totalLetters === 0 || matching / totalLetters < SCRIPT_DOMINANCE_THRESHOLD) {
+  const otherSupported = primary === 'en' ? cyrillic : latin;
+  if (allLetters === 0 || (otherLetters >= matching && otherLetters >= otherSupported)) {
+    return { usable: false, reason: 'unsupported-script' };
+  }
+  if (otherSupported > matching) {
     return { usable: false, reason: 'script-mismatch' };
+  }
+  if (matching / allLetters < SCRIPT_DOMINANCE_THRESHOLD) {
+    return { usable: false, reason: 'mixed-script' };
   }
   return { usable: true, language: primary };
 }
 
 /**
  * The page's declared `<html lang>`, normalized to a primary subtag ('en',
- * 'fr', 'uk-UA' → 'uk', ...), or null when the attribute is absent or empty.
+ * 'fr', 'uk-UA' → 'uk', 'en_US' → 'en', ...), or null when the attribute is
+ * absent or empty. Both `-` and `_` split off the region: browsers only
+ * recognize the BCP 47 hyphen, but hand-written HTML uses the POSIX-locale
+ * underscore often enough that treating it as "unsupported" would be wrong.
  * This is the raw declaration only — whether it is one this rule can score,
  * and whether the visible text's script agrees with it, is
  * `resolveReadabilityLanguage`'s question, not this one.
@@ -186,7 +211,7 @@ export function declaredLanguage(page: PageSnapshot): string | null {
   if (declared === undefined || declared === '') {
     return null;
   }
-  return declared.split('-')[0]?.toLowerCase() ?? null;
+  return declared.split(/[-_]/)[0]?.toLowerCase() ?? null;
 }
 
 /** Readability of `text`, scored on `language`'s scale (already resolved as supported). */
