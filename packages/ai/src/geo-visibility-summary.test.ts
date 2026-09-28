@@ -49,7 +49,20 @@ function answer(input: {
 
 function summarize(outcomes: readonly AiRequestOutcome[]) {
   const mentions = geoMentionSignals(ruleInput(outcomes));
-  return computeGeoVisibilitySummaries({ outcomes, mentions, siteDomain: DOMAIN });
+  return computeGeoVisibilitySummaries({ outcomes, mentions, siteDomain: DOMAIN, brand: BRAND });
+}
+
+/** One answered closed-book question — its badges are never shown to the reader. */
+function closedBook(question: string, sequence: number, rawText: string): AiRequestOutcome {
+  return makeResponseOutcome({
+    request: makeRequest({
+      provider: 'openai',
+      sequence,
+      promptVersion: 'geo-questions-v5-closed-book',
+      question,
+    }),
+    response: makeResponse({ rawText, citations: [] }),
+  });
 }
 
 const closedBookMentioned = makeResponseOutcome({
@@ -91,24 +104,47 @@ const discoveryMentioned = makeResponseOutcome({
   }),
 });
 
+const discoveryNotMentioned = makeResponseOutcome({
+  request: makeRequest({
+    provider: 'openai',
+    sequence: 4,
+    promptVersion: 'geo-questions-v5-discovery',
+    question: 'What tools handle audits?',
+  }),
+  response: makeResponse({
+    rawText: 'Acme Audit and Globex are common picks.',
+    citations: ['https://acme.example/'],
+  }),
+});
+
 describe('computeGeoVisibilitySummaries', () => {
   it('splits counts and shares by purpose, and scores a provider with enough answers', () => {
-    const outcomes = [closedBookMentioned, closedBookNotMentioned, discoveryMentioned];
+    const outcomes = [
+      closedBookMentioned,
+      closedBookNotMentioned,
+      discoveryMentioned,
+      discoveryNotMentioned,
+    ];
     const [summary] = summarize(outcomes);
     expect(summary?.provider).toBe('openai');
-    expect(summary?.questionsAsked).toBe(3);
-    expect(summary?.questionsAnswered).toBe(3);
+    expect(summary?.questionsAsked).toBe(4);
+    expect(summary?.questionsAnswered).toBe(4);
     expect(summary?.questionsUnavailable).toBe(0);
-    expect(summary?.brandMentionedCount).toBe(2);
-    expect(summary?.domainCitedCount).toBe(2);
-    expect(summary?.brandMentionedShare).toBeCloseTo(2 / 3);
-    expect(summary?.domainCitedShare).toBeCloseTo(2 / 3);
-    // Exactly GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE (3) measured answers per
-    // signal → the lowest input that earns a score at all.
-    expect(summary?.brandMeasuredCount).toBe(3);
-    expect(summary?.domainMeasuredCount).toBe(3);
+    // Closed-book answers are excluded from the top-level counts: their badge
+    // pair is never shown (GeoObservationCard hides it for that purpose), so
+    // they cannot be part of a denominator the reader is shown alongside.
+    expect(summary?.brandMentionedCount).toBe(1);
+    expect(summary?.domainCitedCount).toBe(1);
+    expect(summary?.brandMentionedShare).toBeCloseTo(0.5);
+    expect(summary?.domainCitedShare).toBeCloseTo(0.5);
+    // Exactly GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL (2) measured answers per
+    // signal — the query generator's own discovery floor, and the lowest
+    // input that earns a score at all.
+    expect(summary?.brandMeasuredCount).toBe(2);
+    expect(summary?.domainMeasuredCount).toBe(2);
     expect(summary?.scoreUnavailableReason).toBeNull();
-    expect(summary?.visibilityScore).toBe(Math.round(100 * (0.6 * (2 / 3) + 0.4 * (2 / 3))));
+    expect(summary?.scoreBasis).toBe('brand-and-domain');
+    expect(summary?.visibilityScore).toBe(Math.round(100 * (0.6 * 0.5 + 0.4 * 0.5)));
     expect(summary?.byPurpose['closed-book']).toEqual({
       asked: 2,
       answered: 2,
@@ -118,6 +154,27 @@ describe('computeGeoVisibilitySummaries', () => {
       domainMentioned: 1,
     });
     expect(summary?.byPurpose.discovery).toEqual({
+      asked: 2,
+      answered: 2,
+      brandMeasured: 2,
+      domainMeasured: 2,
+      brandMentioned: 1,
+      domainMentioned: 1,
+    });
+  });
+
+  it('excludes closed-book answers from the top-level counts entirely', () => {
+    // byPurpose still records what happened on the closed-book question (for
+    // the observation cards' own bookkeeping); the summary's own counts, the
+    // ones a share divides by, do not, so there is nothing left to score.
+    const [summary] = summarize([closedBookMentioned]);
+    expect(summary?.questionsAnswered).toBe(1);
+    expect(summary?.brandMeasuredCount).toBe(0);
+    expect(summary?.domainMeasuredCount).toBe(0);
+    expect(summary?.visibilityScore).toBeNull();
+    expect(summary?.scoreBasis).toBeNull();
+    expect(summary?.scoreUnavailableReason).toBe('not-measurable');
+    expect(summary?.byPurpose['closed-book']).toEqual({
       asked: 1,
       answered: 1,
       brandMeasured: 1,
@@ -127,10 +184,11 @@ describe('computeGeoVisibilitySummaries', () => {
     });
   });
 
-  it('gives no score with fewer than 3 measured answers, but keeps the counts', () => {
-    const [summary] = summarize([closedBookMentioned]);
+  it('gives no score with fewer than 2 measured answers, but keeps the counts', () => {
+    const [summary] = summarize([discoveryMentioned]);
     expect(summary?.questionsAnswered).toBe(1);
     expect(summary?.visibilityScore).toBeNull();
+    expect(summary?.scoreBasis).toBeNull();
     expect(summary?.scoreUnavailableReason).toBe('not-enough-measured');
     expect(summary?.brandMentionedCount).toBe(1);
     expect(summary?.brandMeasuredCount).toBe(1);
@@ -268,6 +326,22 @@ describe('computeGeoVisibilitySummaries', () => {
         outcomes: [closedBookMentioned],
         mentions,
         siteDomain: '   ',
+        brand: BRAND,
+      }),
+    ).toEqual([]);
+  });
+
+  it('refuses to summarise at all without a brand', () => {
+    // Symmetric with the siteDomain guard: with no brand, "mentioned" and
+    // "not mentioned" cannot be told apart from "there was nothing to name",
+    // and every answer would score as a miss for a brand that does not exist.
+    const mentions = geoMentionSignals(ruleInput([closedBookMentioned]));
+    expect(
+      computeGeoVisibilitySummaries({
+        outcomes: [closedBookMentioned],
+        mentions,
+        siteDomain: DOMAIN,
+        brand: '   ',
       }),
     ).toEqual([]);
   });
@@ -294,7 +368,7 @@ describe('computeGeoVisibilitySummaries', () => {
         }),
       ];
       const mentions = geoMentionSignals(ruleInput(outcomes, { brand }));
-      return computeGeoVisibilitySummaries({ outcomes, mentions, siteDomain: DOMAIN })[0];
+      return computeGeoVisibilitySummaries({ outcomes, mentions, siteDomain: DOMAIN, brand })[0];
     }
 
     it('does not deflate the brand share with answers whose question named the brand', () => {
@@ -305,17 +379,50 @@ describe('computeGeoVisibilitySummaries', () => {
       expect(summary?.brandMeasuredCount).toBe(1);
       expect(summary?.brandMentionedCount).toBe(1);
       expect(summary?.brandMentionedShare).toBe(1);
-      expect(summary?.visibilityScore).toBeNull();
-      expect(summary?.scoreUnavailableReason).toBe('not-enough-measured');
+      // None of the three questions name the domain, so all three measure it
+      // (and never mention it) — enough on its own to earn a domain-only
+      // score, which is the correct read: the domain genuinely went unfound
+      // in every measurable answer.
+      expect(summary?.domainMeasuredCount).toBe(3);
+      expect(summary?.domainCitedShare).toBe(0);
+      expect(summary?.scoreBasis).toBe('domain-only');
+      expect(summary?.visibilityScore).toBe(0);
+      expect(summary?.scoreUnavailableReason).toBeNull();
     });
 
-    it('reports "not measurable" rather than a 0% share for an auto-named profile', () => {
+    it('gives no score for an auto-named profile whose only other signal falls short too', () => {
       // `siteProfileNameFor` names a profile after its hostname, so brand and
-      // domain are the same question asked twice and brand is never measured.
+      // domain are the same question asked twice and brand is never measured;
+      // the domain fares only slightly better (measured once, in the one
+      // question that never restated it), still short of the floor.
       const summary = askedThreeWays(DOMAIN);
       expect(summary?.brandMeasuredCount).toBe(0);
       expect(summary?.brandMentionedCount).toBe(0);
       expect(summary?.brandMentionedShare).toBeNull();
+      expect(summary?.domainMeasuredCount).toBe(1);
+      expect(summary?.scoreBasis).toBeNull();
+      expect(summary?.visibilityScore).toBeNull();
+      expect(summary?.scoreUnavailableReason).toBe('not-enough-measured');
+    });
+
+    it('reports "not measurable" only when neither signal was measured anywhere', () => {
+      const outcomes = [
+        answer({
+          sequence: 1,
+          question: `What do you know about ${DOMAIN}?`,
+          rawText: `${DOMAIN} is a website audit platform.`,
+        }),
+      ];
+      const mentions = geoMentionSignals(ruleInput(outcomes, { brand: DOMAIN }));
+      const [summary] = computeGeoVisibilitySummaries({
+        outcomes,
+        mentions,
+        siteDomain: DOMAIN,
+        brand: DOMAIN,
+      });
+      expect(summary?.brandMeasuredCount).toBe(0);
+      expect(summary?.domainMeasuredCount).toBe(0);
+      expect(summary?.scoreBasis).toBeNull();
       expect(summary?.visibilityScore).toBeNull();
       expect(summary?.scoreUnavailableReason).toBe('not-measurable');
     });
@@ -332,7 +439,12 @@ describe('computeGeoVisibilitySummaries', () => {
       }),
     );
     const mentions = geoMentionSignals(ruleInput(outcomes));
-    const [summary] = computeGeoVisibilitySummaries({ outcomes, mentions, siteDomain: DOMAIN });
+    const [summary] = computeGeoVisibilitySummaries({
+      outcomes,
+      mentions,
+      siteDomain: DOMAIN,
+      brand: BRAND,
+    });
     expect(summary?.brandMeasuredCount).toBe(7);
     expect(summary?.brandMentionedShare).toBe(0.14);
     expect(summary?.visibilityScore).toBe(Math.round(100 * 0.6 * (1 / 7)));
@@ -352,6 +464,7 @@ describe('computeGeoVisibilitySummaries', () => {
         outcomes: [outcome],
         mentions,
         siteDomain: DOMAIN,
+        brand: BRAND,
       })[0]?.citedInstead;
     }
 
@@ -369,6 +482,188 @@ describe('computeGeoVisibilitySummaries', () => {
 
     it('still drops a citation that names no host at all', () => {
       expect(citedFor(['', '   '])).toEqual([]);
+    });
+
+    // Models sometimes write free text instead of a source, or a link scheme
+    // that is not a bare host; the scheme-less fallback that recovers
+    // `acme.example/pricing` must not also invent a fake single-label
+    // hostname out of `"unknown"` or extract an email's domain from `mailto:`.
+    it('drops free-text citations that are not real hostnames', () => {
+      expect(
+        citedFor([
+          'N/A',
+          'unknown',
+          'localhost',
+          'see above',
+          'no source',
+          'internal knowledge',
+          '[1]',
+          'Wikipedia',
+        ]),
+      ).toEqual([]);
+    });
+
+    it('drops mailto/tel/data citations rather than extracting an email domain', () => {
+      expect(
+        citedFor(['mailto:someone@example.com', 'tel:+380441234567', 'data:text/plain,hi']),
+      ).toEqual([]);
+    });
+
+    it('drops path-only or fragment-only citations', () => {
+      expect(citedFor(['/pricing', './docs', '#ref'])).toEqual([]);
+    });
+  });
+
+  describe('the per-signal scoring rule', () => {
+    it('a realistic scan (2 closed-book + 2 discovery answers) earns a score from the discovery floor alone', () => {
+      const outcomes = [
+        closedBook(
+          `What do you know about ${BRAND}?`,
+          1,
+          `${BRAND} is an audit tool. Its site is https://${DOMAIN}/.`,
+        ),
+        closedBook(
+          `What independently verifiable facts can you report about ${BRAND}?`,
+          2,
+          `${BRAND} is an audit tool. Its site is https://${DOMAIN}/.`,
+        ),
+        answer({
+          sequence: 3,
+          question: 'Which audit tool is affordable for a small shop?',
+          rawText: `${BRAND} and Acme are options.`,
+        }),
+        answer({
+          sequence: 4,
+          question: 'What tool finds duplicate content?',
+          rawText: 'Acme and Globex are options.',
+          citations: ['https://globex.example/'],
+        }),
+      ];
+      const mentions = geoMentionSignals(ruleInput(outcomes));
+      const [summary] = computeGeoVisibilitySummaries({
+        outcomes,
+        mentions,
+        siteDomain: DOMAIN,
+        brand: BRAND,
+      });
+      expect(summary?.brandMeasuredCount).toBe(2);
+      expect(summary?.domainMeasuredCount).toBe(2);
+      expect(summary?.brandMentionedShare).toBe(0.5);
+      expect(summary?.domainCitedShare).toBe(0);
+      expect(summary?.scoreBasis).toBe('brand-and-domain');
+      expect(summary?.visibilityScore).toBe(Math.round(100 * (0.6 * 0.5 + 0.4 * 0)));
+      expect(summary?.scoreUnavailableReason).toBeNull();
+    });
+
+    it('a third discovery answer keeps the same basis and updates the share', () => {
+      const outcomes = [
+        closedBook(`What do you know about ${BRAND}?`, 1, `${BRAND} is an audit tool.`),
+        answer({
+          sequence: 2,
+          question: 'discovery question number 2',
+          rawText: `${BRAND} and Acme are options.`,
+          citations: ['https://acme.example/'],
+        }),
+        answer({
+          sequence: 3,
+          question: 'discovery question number 3',
+          rawText: 'Acme and Globex are options.',
+          citations: ['https://acme.example/'],
+        }),
+        answer({
+          sequence: 4,
+          question: 'discovery question number 4',
+          rawText: 'Acme and Globex are options.',
+          citations: ['https://acme.example/'],
+        }),
+      ];
+      const mentions = geoMentionSignals(ruleInput(outcomes));
+      const [summary] = computeGeoVisibilitySummaries({
+        outcomes,
+        mentions,
+        siteDomain: DOMAIN,
+        brand: BRAND,
+      });
+      expect(summary?.brandMeasuredCount).toBe(3);
+      expect(summary?.domainMeasuredCount).toBe(3);
+      expect(summary?.scoreBasis).toBe('brand-and-domain');
+      expect(summary?.scoreUnavailableReason).toBeNull();
+    });
+
+    // A brand distinct from the domain, with neither name a substring of the
+    // other (unlike BRAND/DOMAIN's "FluxRadar" / "fluxradar.test") — needed so
+    // a question naming the domain does not incidentally also name the brand.
+    const DISJOINT_BRAND = 'Acme';
+    const DISJOINT_DOMAIN = 'other.test';
+
+    function disjointMentions(outcomes: readonly AiRequestOutcome[]) {
+      return geoMentionSignals({
+        domain: DISJOINT_DOMAIN,
+        siteUrl: `https://${DISJOINT_DOMAIN}`,
+        brand: DISJOINT_BRAND,
+        outcomes,
+      });
+    }
+
+    it('renormalises to a single signal when only one reaches the minimum', () => {
+      const outcomes = [
+        ...[1, 2].map((sequence) =>
+          answer({
+            sequence,
+            question: `Is ${DISJOINT_DOMAIN} any good, take ${sequence}?`,
+            rawText: `${DISJOINT_BRAND} is fine.`,
+          }),
+        ),
+        answer({
+          sequence: 3,
+          question: `What about ${DISJOINT_BRAND}?`,
+          rawText: `It cites https://${DISJOINT_DOMAIN}/`,
+          citations: [`https://${DISJOINT_DOMAIN}/`],
+        }),
+      ];
+      const [summary] = computeGeoVisibilitySummaries({
+        outcomes,
+        mentions: disjointMentions(outcomes),
+        siteDomain: DISJOINT_DOMAIN,
+        brand: DISJOINT_BRAND,
+      });
+      // Brand measured twice (both questions named the domain, not the brand)
+      // and mentioned both times; domain measured only once (its one question
+      // named the brand instead) — below the floor, so the score is brand
+      // alone, not brand blended with a domain signal that was barely asked.
+      expect(summary?.brandMeasuredCount).toBe(2);
+      expect(summary?.brandMentionedShare).toBe(1);
+      expect(summary?.domainMeasuredCount).toBe(1);
+      expect(summary?.scoreBasis).toBe('brand-only');
+      expect(summary?.visibilityScore).toBe(100);
+      expect(summary?.scoreUnavailableReason).toBeNull();
+    });
+
+    it('gives no score when neither signal reaches the minimum, and keeps both counts', () => {
+      const outcomes = [
+        answer({
+          sequence: 1,
+          question: `Is ${DISJOINT_DOMAIN} any good?`,
+          rawText: `${DISJOINT_BRAND} is fine.`,
+        }),
+        answer({
+          sequence: 2,
+          question: `What about ${DISJOINT_BRAND}?`,
+          rawText: `It cites https://${DISJOINT_DOMAIN}/`,
+          citations: [`https://${DISJOINT_DOMAIN}/`],
+        }),
+      ];
+      const [summary] = computeGeoVisibilitySummaries({
+        outcomes,
+        mentions: disjointMentions(outcomes),
+        siteDomain: DISJOINT_DOMAIN,
+        brand: DISJOINT_BRAND,
+      });
+      expect(summary?.brandMeasuredCount).toBe(1);
+      expect(summary?.domainMeasuredCount).toBe(1);
+      expect(summary?.scoreBasis).toBeNull();
+      expect(summary?.visibilityScore).toBeNull();
+      expect(summary?.scoreUnavailableReason).toBe('not-enough-measured');
     });
   });
 });
@@ -457,6 +752,15 @@ describe('computeGeoMentionContexts', () => {
         `One reviewer wrote "${BRAND} is the best."`,
       );
     });
+
+    // 'no' was dropped from the abbreviation list: a genuine sentence ending
+    // in that word ("Some say no.") is common, and treating its full stop as
+    // an abbreviation swallowed the entire sentence before it into the quote.
+    it('does not treat a sentence ending in "no" as an abbreviation', () => {
+      expect(quoteOf(`Some say no. ${BRAND} is cheap and fast. Others disagree.`)).toBe(
+        `${BRAND} is cheap and fast.`,
+      );
+    });
   });
 
   it('redacts the quote the same way evidence is redacted', () => {
@@ -470,5 +774,19 @@ describe('computeGeoMentionContexts', () => {
     const result = contexts([outcome]);
     expect(result.get(outcome.aiRequestKey)).toContain('[REDACTED:email]');
     expect(result.get(outcome.aiRequestKey)).not.toContain('owner@example.com');
+  });
+
+  // Bounding before redacting could cut an email in half, leaving a fragment
+  // no redaction pattern recognises; redacting first replaces the whole
+  // address with its placeholder before the 240-char cut ever applies.
+  it('redacts before bounding, so a cut can never leave half of a placeholder', () => {
+    const pad = 'word '.repeat(40).slice(0, GEO_MENTION_CONTEXT_MAX_CHARS - 20 - BRAND.length);
+    const rawText = `${BRAND} ${pad} reach me at johndoe@examplecorp.example please now and later on.`;
+    const outcome = makeResponseOutcome({
+      request: makeRequest({ sequence: 1 }),
+      response: makeResponse({ rawText, citations: [] }),
+    });
+    const quote = contexts([outcome]).get(outcome.aiRequestKey) ?? '';
+    expect(quote).not.toMatch(/johndoe|examplecorp|@exa/);
   });
 });

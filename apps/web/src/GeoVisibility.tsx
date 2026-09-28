@@ -57,7 +57,23 @@ function noScoreText(provider: GeoProviderVisibility, language: Language, min: n
   const t = copy[language].report;
   return provider.scoreUnavailableReason === 'not-measurable'
     ? t.geoVisibilityNotMeasurable
-    : fillCopy(t.geoVisibilityNotEnoughAnswers, { min });
+    : fillCopy(t.geoVisibilityNotEnoughAnswers, {
+        min,
+        brand: provider.brandMeasuredCount,
+        domain: provider.domainMeasuredCount,
+      });
+}
+
+/** What a partial score counts, when it was built from only one signal. */
+function scoreBasisText(provider: GeoProviderVisibility, language: Language): string | null {
+  const t = copy[language].report;
+  if (provider.scoreBasis === 'brand-only') {
+    return fillCopy(t.geoVisibilityScoreBasisBrandOnly, { domain: provider.domainMeasuredCount });
+  }
+  if (provider.scoreBasis === 'domain-only') {
+    return fillCopy(t.geoVisibilityScoreBasisDomainOnly, { brand: provider.brandMeasuredCount });
+  }
+  return null;
 }
 
 /** One signal's line: a share of measurable answers, or the honest "not measurable". */
@@ -89,6 +105,7 @@ function GeoVisibilityCard(props: {
 }) {
   const t = copy[props.language].report;
   const { provider } = props;
+  const basisText = scoreBasisText(provider, props.language);
   return (
     <article className="geo-visibility-card">
       <div className="split geo-visibility-card__header">
@@ -107,6 +124,9 @@ function GeoVisibilityCard(props: {
           </span>
         )}
       </div>
+      {basisText === null ? null : (
+        <p className="muted geo-visibility-card__score-basis">{basisText}</p>
+      )}
       <GeoVisibilitySignal
         measured={provider.brandMeasuredCount}
         mentioned={provider.brandMentionedCount}

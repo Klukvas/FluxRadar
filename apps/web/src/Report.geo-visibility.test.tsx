@@ -61,6 +61,7 @@ function providerVisibility(overrides: Partial<GeoProviderVisibility> = {}): Geo
     domainCitedShare: 1 / 3,
     visibilityScore: 53,
     scoreUnavailableReason: null,
+    scoreBasis: 'brand-and-domain',
     byPurpose: {
       'closed-book': {
         asked: 2,
@@ -93,7 +94,7 @@ function providerVisibility(overrides: Partial<GeoProviderVisibility> = {}): Geo
 }
 
 function visibilitySummary(providers: readonly GeoProviderVisibility[]): GeoVisibilitySummary {
-  return { minMeasuredForScore: 3, weightBrand: 0.6, weightDomain: 0.4, providers };
+  return { minMeasuredForScore: 2, weightBrand: 0.6, weightDomain: 0.4, providers };
 }
 
 function geoModule(): ScanModule {
@@ -190,13 +191,13 @@ describe('Visibility by engine', () => {
     );
 
     expect(await screen.findByText('Видимість за системами')).toBeInTheDocument();
-    expect(screen.getByText(/Бренд згадано у 2 з 3 вимірюваних відповідей/)).toBeInTheDocument();
+    expect(screen.getByText(/Бренд згадано у 2 з 3 зміряних відповідей/)).toBeInTheDocument();
   });
 
   // The minimum is the summary's own `minMeasuredForScore`, never the number of
   // answers this provider happened to return: printing the latter produced
   // "needs at least 1 answered questions" for a provider that had answered one.
-  it('names the summary\u2019s minimum, not the provider\u2019s answer count, when there is no score', async () => {
+  it('names the summary\u2019s measured counts, not the provider\u2019s answer count, when there is no score', async () => {
     await openGeoCard(
       dashboardOf({
         geoObservations: [observation({})],
@@ -211,14 +212,17 @@ describe('Visibility by engine', () => {
             domainCitedShare: 0,
             visibilityScore: null,
             scoreUnavailableReason: 'not-enough-measured',
+            scoreBasis: null,
           }),
         ]),
       }),
     );
 
+    // Final for this scan -- no "yet" -- and it names the two counts that
+    // fell short rather than restating a rule the code no longer checks jointly.
     expect(
       await screen.findByText(
-        'No score yet \u2014 needs at least 3 answers in which both signals could be measured.',
+        'No score for this scan: the brand was measurable in 1 answer(s) and the domain in 1; at least 2 of each are needed.',
       ),
     ).toBeInTheDocument();
   });
@@ -230,15 +234,18 @@ describe('Visibility by engine', () => {
         geoVisibilitySummary: visibilitySummary([
           providerVisibility({
             questionsAnswered: 1,
+            brandMeasuredCount: 1,
+            domainMeasuredCount: 1,
             visibilityScore: null,
             scoreUnavailableReason: 'not-enough-measured',
+            scoreBasis: null,
           }),
         ]),
       }),
       'uk',
     );
 
-    expect(await screen.findByText(/потрібно щонайменше 3 відповідей/)).toBeInTheDocument();
+    expect(await screen.findByText(/потрібно щонайменше 2 для кожного/)).toBeInTheDocument();
   });
 
   // An auto-created profile whose brand is its hostname can never measure brand
@@ -254,6 +261,7 @@ describe('Visibility by engine', () => {
             brandMentionedShare: null,
             visibilityScore: null,
             scoreUnavailableReason: 'not-measurable',
+            scoreBasis: null,
           }),
         ]),
       }),

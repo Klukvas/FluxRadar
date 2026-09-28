@@ -6,11 +6,13 @@
 // that keeps a malformed or unexpected payload from throwing mid-render.
 
 import {
+  GEO_SCORE_BASES,
   GEO_SCORE_UNAVAILABLE_REASONS,
   GEO_VISIBILITY_PURPOSES,
   type GeoCitedInsteadEntry,
   type GeoProviderVisibility,
   type GeoPurposeVisibilityCounts,
+  type GeoScoreBasis,
   type GeoScoreUnavailableReason,
   type GeoVisibilityPurpose,
   type GeoVisibilitySummary,
@@ -28,6 +30,13 @@ function shareValue(value: unknown): number | null | undefined {
 function scoreReasonValue(value: unknown): GeoScoreUnavailableReason | null | undefined {
   if (value === null) return null;
   const known = GEO_SCORE_UNAVAILABLE_REASONS.find((reason) => reason === value);
+  return known ?? undefined;
+}
+
+/** null is a valid basis (the provider has no score); undefined marks a failed check. */
+function scoreBasisValue(value: unknown): GeoScoreBasis | null | undefined {
+  if (value === null) return null;
+  const known = GEO_SCORE_BASES.find((basis) => basis === value);
   return known ?? undefined;
 }
 
@@ -103,6 +112,7 @@ function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
   const domainCitedShare = shareValue(record.domainCitedShare);
   const visibilityScore = scoreValue(record.visibilityScore);
   const scoreUnavailableReason = scoreReasonValue(record.scoreUnavailableReason);
+  const scoreBasis = scoreBasisValue(record.scoreBasis);
   const byPurpose = byPurposeOf(record.byPurpose);
   const citedInstead = citedInsteadOf(record.citedInstead);
   if (
@@ -117,6 +127,12 @@ function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
     domainCitedShare === undefined ||
     visibilityScore === undefined ||
     scoreUnavailableReason === undefined ||
+    scoreBasis === undefined ||
+    // A score and its "why not" are mutually exclusive, and a basis exists
+    // exactly when a score does — a record that disagrees with itself is
+    // treated as malformed rather than rendered half-right.
+    (visibilityScore === null) !== (scoreUnavailableReason !== null) ||
+    (visibilityScore === null) !== (scoreBasis === null) ||
     byPurpose === null ||
     citedInstead === null
   ) {
@@ -136,6 +152,7 @@ function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
     domainCitedShare,
     visibilityScore,
     scoreUnavailableReason,
+    scoreBasis,
     byPurpose,
     citedInstead,
   };

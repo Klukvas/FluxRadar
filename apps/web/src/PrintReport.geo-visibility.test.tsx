@@ -55,6 +55,7 @@ function providerVisibility(overrides: Partial<GeoProviderVisibility> = {}): Geo
     domainCitedShare: 1 / 3,
     visibilityScore: 53,
     scoreUnavailableReason: null,
+    scoreBasis: 'brand-and-domain',
     byPurpose: {
       'closed-book': {
         asked: 2,
@@ -148,7 +149,7 @@ describe('the printable report and GEO visibility', () => {
       dashboardOf({
         geoObservations: [observation()],
         geoVisibilitySummary: {
-          minMeasuredForScore: 3,
+          minMeasuredForScore: 2,
           weightBrand: 0.6,
           weightDomain: 0.4,
           providers: [providerVisibility()],
@@ -169,12 +170,12 @@ describe('the printable report and GEO visibility', () => {
 
   // The cell used to print the provider's own answer count as the minimum,
   // which produced "needs at least 1 answered questions" for a single answer.
-  it('prints the summary\u2019s minimum, not the provider\u2019s answer count', async () => {
+  it('prints the summary\u2019s measured counts, not the provider\u2019s answer count', async () => {
     stubFetch(
       dashboardOf({
         geoObservations: [observation()],
         geoVisibilitySummary: {
-          minMeasuredForScore: 3,
+          minMeasuredForScore: 2,
           weightBrand: 0.6,
           weightDomain: 0.4,
           providers: [
@@ -188,6 +189,7 @@ describe('the printable report and GEO visibility', () => {
               domainCitedShare: 0,
               visibilityScore: null,
               scoreUnavailableReason: 'not-enough-measured',
+              scoreBasis: null,
             }),
           ],
         },
@@ -199,7 +201,7 @@ describe('the printable report and GEO visibility', () => {
 
     expect(
       await screen.findByText(
-        'No score yet \u2014 needs at least 3 answers in which both signals could be measured.',
+        'No score for this scan: the brand was measurable in 1 answer(s) and the domain in 1; at least 2 of each are needed.',
       ),
     ).toBeInTheDocument();
   });
@@ -209,7 +211,7 @@ describe('the printable report and GEO visibility', () => {
       dashboardOf({
         geoObservations: [observation()],
         geoVisibilitySummary: {
-          minMeasuredForScore: 3,
+          minMeasuredForScore: 2,
           weightBrand: 0.6,
           weightDomain: 0.4,
           providers: [
@@ -217,8 +219,12 @@ describe('the printable report and GEO visibility', () => {
               brandMeasuredCount: 0,
               brandMentionedCount: 0,
               brandMentionedShare: null,
+              domainMeasuredCount: 0,
+              domainCitedCount: 0,
+              domainCitedShare: null,
               visibilityScore: null,
               scoreUnavailableReason: 'not-measurable',
+              scoreBasis: null,
             }),
           ],
         },
@@ -228,7 +234,9 @@ describe('the printable report and GEO visibility', () => {
       <PrintReport scanId="scan-print-geo" language="en" onBack={() => {}} onError={() => {}} />,
     );
 
-    expect(await screen.findByText('Not measurable')).toBeInTheDocument();
+    // Both signals are unmeasured here (the only way the reason is
+    // "not-measurable" under the per-signal rule), so both cells say so.
+    expect(await screen.findAllByText('Not measurable')).toHaveLength(2);
     expect(screen.queryByText('0/0 (0%)')).toBeNull();
   });
 
@@ -258,7 +266,7 @@ describe('the printable report and GEO visibility', () => {
       dashboardOf({
         geoObservations: [observation()],
         geoVisibilitySummary: {
-          minMeasuredForScore: 3,
+          minMeasuredForScore: 2,
           weightBrand: 0.6,
           weightDomain: 0.4,
           providers: [providerVisibility()],

@@ -22,16 +22,21 @@ import { AI_PROVIDER_NAMES } from './types.js';
 import type { AiProviderName } from './types.js';
 
 /**
- * A provider needs at least this many *measured* answers per signal to earn a
- * score.
+ * A signal needs at least this many *measured* answers to count toward a
+ * score — brand and domain judged independently, never as a pair.
  *
  * Measured, not answered: an answer whose question already named the brand —
  * or whose profile has no brand but its hostname — says nothing about
  * visibility (geo-measurability.ts), and the report's own badge for it reads
  * "not measured". Counting such an answer in the denominator would turn a
  * non-measurement into a miss, which is exactly what the badges refuse to do.
+ *
+ * Set to the query generator's own floor of discovery questions
+ * (`parseGeneratedQuestions` in geo.ts accepts 2 to 4): a threshold this scan
+ * can never reach would make every real scan score-less, which is a report
+ * defect, not a caution.
  */
-export const GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE = 3;
+export const GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL = 2;
 /** Score formula (documented in the report copy too — keep both in sync). */
 export const GEO_VISIBILITY_BRAND_WEIGHT = 0.6;
 export const GEO_VISIBILITY_DOMAIN_WEIGHT = 0.4;
@@ -71,6 +76,16 @@ export interface GeoCitedInsteadEntry {
 export const GEO_SCORE_UNAVAILABLE_REASONS = ['not-measurable', 'not-enough-measured'] as const;
 export type GeoScoreUnavailableReason = (typeof GEO_SCORE_UNAVAILABLE_REASONS)[number];
 
+/**
+ * Which signal(s) a score is built from.
+ *
+ * A score never requires both: a provider whose questions happened to name
+ * the domain every time but never the brand can still earn `brand-only`. The
+ * report names the basis so a partial score is never read as the full formula.
+ */
+export const GEO_SCORE_BASES = ['brand-and-domain', 'brand-only', 'domain-only'] as const;
+export type GeoScoreBasis = (typeof GEO_SCORE_BASES)[number];
+
 export interface GeoProviderVisibilitySummary {
   readonly provider: AiProviderName;
   readonly questionsAsked: number;
@@ -86,10 +101,12 @@ export interface GeoProviderVisibilitySummary {
   readonly domainCitedCount: number;
   /** Share of *measured* answers, 0..1; null when nothing was measurable. */
   readonly domainCitedShare: number | null;
-  /** 0..100; null unless both signals reached GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE. */
+  /** 0..100; null unless at least one signal reached GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL. */
   readonly visibilityScore: number | null;
   /** Set exactly when `visibilityScore` is null, so the report can say which it is. */
   readonly scoreUnavailableReason: GeoScoreUnavailableReason | null;
+  /** Set exactly when `visibilityScore` is a number, so the report can say what it counts. */
+  readonly scoreBasis: GeoScoreBasis | null;
   readonly byPurpose: Readonly<Record<GeoVisibilityPurpose, GeoPurposeVisibilityCounts>>;
   readonly citedInstead: readonly GeoCitedInsteadEntry[];
 }
@@ -99,6 +116,8 @@ export interface GeoVisibilitySummaryInput {
   readonly mentions: ReadonlyMap<string, GeoMentionSignals>;
   /** Normalized site domain (lowercase), to exclude our own hostname from "cited instead". */
   readonly siteDomain: string;
+  /** The profile's brand name — required for the same reason siteDomain is. */
+  readonly brand: string;
 }
 
 /** Same rule geo-module-row.ts uses to label a question, kept here so the two never disagree. */
@@ -123,19 +142,36 @@ function normalizeHostname(hostname: string): string {
 }
 
 /**
+ * Whether a parsed hostname is plausibly a real host rather than an artifact
+ * of forcing a bare word through `new URL('https://' + word)`.
+ *
+ * `new URL('https://unknown').hostname` is `"unknown"` — a single label with
+ * no dot is never an internet hostname, and `localhost` is a real hostname
+ * that is never a citation.
+ */
+function isPlausibleHostname(hostname: string): boolean {
+  return hostname !== '' && hostname !== 'localhost' && hostname.includes('.');
+}
+
+/**
  * The host a citation points at, or null when it names none.
  *
  * Models cite scheme-less addresses (`acme.example/pricing`) often enough that
  * dropping them silently understated who got cited instead; such a string is
- * re-parsed against a default scheme rather than discarded.
+ * re-parsed against a default scheme rather than discarded. But the same
+ * fallback turns free text models write instead of a source — `"unknown"`,
+ * `"see above"`, `"Wikipedia"` — into fake single-label hostnames, and turns
+ * `mailto:someone@example.com` into `example.com`; a citation containing `@`
+ * is never treated as a bare host, and only a parsed host that looks like a
+ * real domain is accepted.
  */
 function citationHostname(citation: string): string | null {
   const trimmed = citation.trim();
-  if (trimmed === '') return null;
+  if (trimmed === '' || trimmed.includes('@')) return null;
   for (const candidate of [trimmed, `https://${trimmed}`]) {
     try {
       const hostname = normalizeHostname(new URL(candidate).hostname);
-      if (hostname !== '') return hostname;
+      if (isPlausibleHostname(hostname)) return hostname;
     } catch {
       // Not a URL under this scheme — fall through to the next candidate.
     }
@@ -252,6 +288,11 @@ function summaryForProvider(
     answered += 1;
     responses.push(outcome);
     if (signal === undefined) continue;
+    // A closed-book answer's badge pair is never shown (GeoObservationCard
+    // hides it for that purpose, replaced there by the claim evaluation) —
+    // counting it here would make a denominator the reader cannot reconcile
+    // with the cards below it.
+    if (purpose === 'closed-book') continue;
     if (isMeasured(signal.brand)) brandMeasuredCount += 1;
     if (isMeasured(signal.domain)) domainMeasuredCount += 1;
     if (signal.brand === 'mentioned') brandMentionedCount += 1;
@@ -265,6 +306,7 @@ function summaryForProvider(
     brandMeasuredCount === 0 ? null : brandMentionedCount / brandMeasuredCount;
   const exactDomainShare =
     domainMeasuredCount === 0 ? null : domainCitedCount / domainMeasuredCount;
+  const basis = scoreBasisFor(brandMeasuredCount, domainMeasuredCount);
 
   return {
     provider,
@@ -277,48 +319,66 @@ function summaryForProvider(
     domainMeasuredCount,
     domainCitedCount,
     domainCitedShare: exactDomainShare === null ? null : round(exactDomainShare),
-    visibilityScore: scoreFor(brandMeasuredCount, domainMeasuredCount, {
-      brand: exactBrandShare,
-      domain: exactDomainShare,
-    }),
-    scoreUnavailableReason: scoreUnavailableReasonFor(brandMeasuredCount, domainMeasuredCount),
+    visibilityScore: scoreFor(basis, { brand: exactBrandShare, domain: exactDomainShare }),
+    scoreUnavailableReason:
+      basis === null ? scoreUnavailableReasonFor(brandMeasuredCount, domainMeasuredCount) : null,
+    scoreBasis: basis,
     byPurpose,
     citedInstead: citedInsteadFor(responses, mentions, siteDomain),
   };
 }
 
+function reachedMinimum(measuredCount: number): boolean {
+  return measuredCount >= GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL;
+}
+
 /**
- * Why this provider earns no score, or null when it does.
+ * Which signal(s) a score can be built from, or null when neither reached the
+ * minimum.
  *
- * Both signals have to be measurable, and measurable often enough: a score
- * built on one measured answer out of ten would read as a fact about the
- * engine when it is a fact about the questions.
+ * A signal is scored on its own merits: a provider whose questions always
+ * named the brand but never the domain can still earn `domain-only`, with its
+ * weight renormalised to the whole score rather than losing the signal it did
+ * measure to a partner that was never askable.
  */
-function scoreUnavailableReasonFor(
+function scoreBasisFor(
   brandMeasuredCount: number,
   domainMeasuredCount: number,
-): GeoScoreUnavailableReason | null {
-  if (brandMeasuredCount === 0 || domainMeasuredCount === 0) return 'not-measurable';
-  if (
-    brandMeasuredCount < GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE ||
-    domainMeasuredCount < GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE
-  ) {
-    return 'not-enough-measured';
-  }
+): GeoScoreBasis | null {
+  const brandReady = reachedMinimum(brandMeasuredCount);
+  const domainReady = reachedMinimum(domainMeasuredCount);
+  if (brandReady && domainReady) return 'brand-and-domain';
+  if (brandReady) return 'brand-only';
+  if (domainReady) return 'domain-only';
   return null;
 }
 
-function scoreFor(
+/** Why this provider earns no score — only reached when neither signal has a basis. */
+function scoreUnavailableReasonFor(
   brandMeasuredCount: number,
   domainMeasuredCount: number,
+): GeoScoreUnavailableReason {
+  return brandMeasuredCount === 0 && domainMeasuredCount === 0
+    ? 'not-measurable'
+    : 'not-enough-measured';
+}
+
+function scoreFor(
+  basis: GeoScoreBasis | null,
   shares: { readonly brand: number | null; readonly domain: number | null },
 ): number | null {
-  if (scoreUnavailableReasonFor(brandMeasuredCount, domainMeasuredCount) !== null) return null;
-  if (shares.brand === null || shares.domain === null) return null;
-  return Math.round(
-    100 *
-      (GEO_VISIBILITY_BRAND_WEIGHT * shares.brand + GEO_VISIBILITY_DOMAIN_WEIGHT * shares.domain),
-  );
+  if (basis === 'brand-and-domain') {
+    if (shares.brand === null || shares.domain === null) return null;
+    return Math.round(
+      100 *
+        (GEO_VISIBILITY_BRAND_WEIGHT * shares.brand + GEO_VISIBILITY_DOMAIN_WEIGHT * shares.domain),
+    );
+  }
+  if (basis === 'brand-only') return shares.brand === null ? null : Math.round(100 * shares.brand);
+  if (basis === 'domain-only') {
+    return shares.domain === null ? null : Math.round(100 * shares.domain);
+  }
+  return null;
 }
 
 /**
@@ -332,12 +392,15 @@ function scoreFor(
  *
  * With no site domain there is nothing to summarise: our own hostname could
  * not be excluded from "cited instead", so our own pages would be listed as
- * competitors. Refusing is honest; a half-right summary is not.
+ * competitors. With no brand name, the brand signal cannot tell "not
+ * mentioned" from "there was nothing to mention" — every answer would measure
+ * as a miss and score a real profile 0/100 for a brand that does not exist.
+ * Refusing either way is honest; a half-right summary is not.
  */
 export function computeGeoVisibilitySummaries(
   input: GeoVisibilitySummaryInput,
 ): readonly GeoProviderVisibilitySummary[] {
-  if (input.siteDomain.trim() === '') return [];
+  if (input.siteDomain.trim() === '' || input.brand.trim() === '') return [];
   const byProvider = new Map<AiProviderName, AiRequestOutcome[]>();
   for (const outcome of input.outcomes) {
     const provider = outcome.request.provider;
@@ -377,18 +440,7 @@ const SENTENCE_BREAK = String.raw`([.!?]["'”’»)\]]*)(\s+|$)|(\n+)`;
  * purpose: a longer one starts guessing, and a wrong guess here only ever
  * shows a customer a quote that begins mid-clause.
  */
-const ABBREVIATIONS: readonly string[] = [
-  'dr',
-  'mr',
-  'mrs',
-  'ms',
-  'st',
-  'no',
-  'vs',
-  'e.g',
-  'i.e',
-  'etc',
-];
+const ABBREVIATIONS: readonly string[] = ['dr', 'mr', 'mrs', 'ms', 'st', 'vs', 'e.g', 'i.e', 'etc'];
 
 /** Whether the text ending at a candidate break ends with one of those words. */
 function endsWithAbbreviation(textThroughBreak: string): boolean {
@@ -447,6 +499,12 @@ function sentenceAround(text: string, index: number): string {
  * one — a quote, not a classification. Redacted through the same pipeline
  * `geo-evidence.ts` uses, so a mention context can never leak what an evidence
  * excerpt is not allowed to either.
+ *
+ * Redaction runs before the char bound, not after: bounding first can cut a
+ * placeholder's source in half — `johndoe@examplec…` — leaving a fragment no
+ * redaction pattern recognises. Redacting the full sentence first replaces
+ * the whole address with its placeholder, so the bound only ever cuts inside
+ * ordinary text.
  */
 export function computeGeoMentionContexts(input: {
   readonly outcomes: readonly AiRequestOutcome[];
@@ -466,8 +524,8 @@ export function computeGeoMentionContexts(input: {
     if (index === -1) continue;
     const sentence = sentenceAround(rawText, index);
     if (sentence === '') continue;
-    const bounded = boundedExcerpt(sentence, GEO_MENTION_CONTEXT_MAX_CHARS);
-    contexts.set(outcome.aiRequestKey, redact(bounded, input.redaction).text);
+    const redacted = redact(sentence, input.redaction).text;
+    contexts.set(outcome.aiRequestKey, boundedExcerpt(redacted, GEO_MENTION_CONTEXT_MAX_CHARS));
   }
   return contexts;
 }

@@ -583,6 +583,10 @@ export interface GeoPurposeVisibilityCounts {
 export const GEO_SCORE_UNAVAILABLE_REASONS = ['not-measurable', 'not-enough-measured'] as const;
 export type GeoScoreUnavailableReason = (typeof GEO_SCORE_UNAVAILABLE_REASONS)[number];
 
+/** Mirrors `GeoScoreBasis` in @fluxradar/contracts. */
+export const GEO_SCORE_BASES = ['brand-and-domain', 'brand-only', 'domain-only'] as const;
+export type GeoScoreBasis = (typeof GEO_SCORE_BASES)[number];
+
 export interface GeoCitedInsteadEntry {
   readonly hostname: string;
   readonly answerCount: number;
@@ -604,10 +608,12 @@ export interface GeoProviderVisibility {
   readonly domainCitedCount: number;
   /** null when nothing about the domain was measurable in any answer. */
   readonly domainCitedShare: number | null;
-  /** null unless both signals reached `minMeasuredForScore` measured answers. */
+  /** null unless at least one signal reached `minMeasuredForScore` measured answers. */
   readonly visibilityScore: number | null;
   /** Why there is no score; null exactly when `visibilityScore` is a number. */
   readonly scoreUnavailableReason: GeoScoreUnavailableReason | null;
+  /** Which signal(s) the score counts; null exactly when `visibilityScore` is null. */
+  readonly scoreBasis: GeoScoreBasis | null;
   readonly byPurpose: Readonly<Record<GeoVisibilityPurpose, GeoPurposeVisibilityCounts>>;
   readonly citedInstead: readonly GeoCitedInsteadEntry[];
 }

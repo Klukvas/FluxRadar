@@ -42,7 +42,7 @@ describe('the AI SEO / GEO section of the coverage page', () => {
     const body = scoreBullet(copy)?.body ?? '';
     expect(body).toContain('**60%**');
     expect(body).toContain('**40%**');
-    expect(body).toContain('**3**');
+    expect(body).toContain('**2**');
   });
 
   it('says the denominator is measured answers, not the answer count (en)', () => {

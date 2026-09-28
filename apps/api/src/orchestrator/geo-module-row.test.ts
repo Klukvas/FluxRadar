@@ -644,7 +644,7 @@ describe('T6 — visibility summary in metadata', () => {
       'Acme Clinic',
     );
     const summary = visibilitySummaryOf(row);
-    expect(summary.minMeasuredForScore).toBe(3);
+    expect(summary.minMeasuredForScore).toBe(2);
     expect(summary.weightBrand).toBe(0.6);
     expect(summary.weightDomain).toBe(0.4);
     expect(summary.providers).toEqual([
@@ -652,28 +652,29 @@ describe('T6 — visibility summary in metadata', () => {
         provider: 'anthropic',
         label: expect.any(String),
         questionsAnswered: 1,
-        brandMentionedCount: 1,
-        domainCitedCount: 1,
-        // Fewer than 3 *measured* answers → counted, but no score.
-        brandMeasuredCount: 1,
-        domainMeasuredCount: 1,
+        // A closed-book answer's badges are never shown on the report — it
+        // counts toward nothing, so there is nothing measured or mentioned.
+        brandMentionedCount: 0,
+        domainCitedCount: 0,
+        brandMeasuredCount: 0,
+        domainMeasuredCount: 0,
         visibilityScore: null,
-        scoreUnavailableReason: 'not-enough-measured',
+        scoreUnavailableReason: 'not-measurable',
       }),
     ]);
   });
 
-  it('gives a real score once a provider has at least 3 answered questions', () => {
+  it('gives a real score once a provider has at least 2 discovery answers', () => {
     const outcomes = [
       answeredWith({
         sequence: 1,
-        promptVersion: 'geo-questions-v5-closed-book',
+        promptVersion: 'geo-questions-v5-discovery',
         rawText: 'Acme Clinic offers dental care — https://acme-clinic.example/.',
         citations: ['https://acme-clinic.example/'],
       }),
       answeredWith({
         sequence: 2,
-        promptVersion: 'geo-questions-v5-closed-book',
+        promptVersion: 'geo-questions-v5-discovery',
         rawText: 'I have no information about this business.',
       }),
       answeredWith({

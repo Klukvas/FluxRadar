@@ -343,7 +343,23 @@ function printNoScore(
   const t = copy[language].report;
   return provider.scoreUnavailableReason === 'not-measurable'
     ? t.geoVisibilityNotMeasurable
-    : fillCopy(t.geoVisibilityNotEnoughAnswers, { min: minMeasuredForScore });
+    : fillCopy(t.geoVisibilityNotEnoughAnswers, {
+        min: minMeasuredForScore,
+        brand: provider.brandMeasuredCount,
+        domain: provider.domainMeasuredCount,
+      });
+}
+
+/** What a partial score counts, appended after the number when only one signal reached it. */
+function printScoreBasis(provider: GeoProviderVisibility, language: Language): string | null {
+  const t = copy[language].report;
+  if (provider.scoreBasis === 'brand-only') {
+    return fillCopy(t.geoVisibilityScoreBasisBrandOnly, { domain: provider.domainMeasuredCount });
+  }
+  if (provider.scoreBasis === 'domain-only') {
+    return fillCopy(t.geoVisibilityScoreBasisDomainOnly, { brand: provider.brandMeasuredCount });
+  }
+  return null;
 }
 
 /** Compact mirror of the report's "Visibility by engine" block: score and shares per engine. */
@@ -358,44 +374,58 @@ function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language })
       {summary === null ? (
         <p className="muted">{t.geoVisibilityUnavailable}</p>
       ) : (
-        <table className="print-table">
-          <thead>
-            <tr>
-              <th>{t.geoProvider}</th>
-              <th>{t.geoVisibilityScoreLabel}</th>
-              <th>{t.geoVisibilityBrandShareHeader}</th>
-              <th>{t.geoVisibilityDomainShareHeader}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summary.providers.map((provider) => (
-              <tr key={provider.provider}>
-                <td>{provider.label}</td>
-                <td>
-                  {provider.visibilityScore === null
-                    ? printNoScore(provider, summary.minMeasuredForScore, props.language)
-                    : `${provider.visibilityScore}/100`}
-                </td>
-                <td>
-                  {printShareCell(
-                    provider.brandMeasuredCount,
-                    provider.brandMentionedCount,
-                    provider.brandMentionedShare,
-                    t.geoVisibilityNotMeasurableShort,
-                  )}
-                </td>
-                <td>
-                  {printShareCell(
-                    provider.domainMeasuredCount,
-                    provider.domainCitedCount,
-                    provider.domainCitedShare,
-                    t.geoVisibilityNotMeasurableShort,
-                  )}
-                </td>
+        <>
+          <p className="muted">
+            {fillCopy(t.geoVisibilityLead, {
+              min: summary.minMeasuredForScore,
+              brandWeight: percentOf(summary.weightBrand),
+              domainWeight: percentOf(summary.weightDomain),
+            })}
+          </p>
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th>{t.geoProvider}</th>
+                <th>{t.geoVisibilityScoreLabel}</th>
+                <th>{t.geoVisibilityBrandShareHeader}</th>
+                <th>{t.geoVisibilityDomainShareHeader}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {summary.providers.map((provider) => {
+                const basisNote = printScoreBasis(provider, props.language);
+                return (
+                  <tr key={provider.provider}>
+                    <td>{provider.label}</td>
+                    <td>
+                      {provider.visibilityScore === null
+                        ? printNoScore(provider, summary.minMeasuredForScore, props.language)
+                        : basisNote === null
+                          ? `${provider.visibilityScore}/100`
+                          : `${provider.visibilityScore}/100 — ${basisNote}`}
+                    </td>
+                    <td>
+                      {printShareCell(
+                        provider.brandMeasuredCount,
+                        provider.brandMentionedCount,
+                        provider.brandMentionedShare,
+                        t.geoVisibilityNotMeasurableShort,
+                      )}
+                    </td>
+                    <td>
+                      {printShareCell(
+                        provider.domainMeasuredCount,
+                        provider.domainCitedCount,
+                        provider.domainCitedShare,
+                        t.geoVisibilityNotMeasurableShort,
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
       )}
     </section>
   );

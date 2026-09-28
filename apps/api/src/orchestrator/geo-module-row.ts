@@ -33,7 +33,7 @@ import {
   computeGeoVisibilitySummaries,
   GEO_VISIBILITY_BRAND_WEIGHT,
   GEO_VISIBILITY_DOMAIN_WEIGHT,
-  GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE,
+  GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL,
   geoVisibilityPurposeOf,
   isMeasured,
 } from '@fluxradar/ai';
@@ -306,14 +306,16 @@ function queryGenerationMetadata(
 function visibilitySummaryRecord(
   geo: GeoModuleResult,
   siteDomain: string,
+  brand: string,
 ): Record<string, unknown> {
   const summaries = computeGeoVisibilitySummaries({
     outcomes: geo.outcomes,
     mentions: geo.mentions,
     siteDomain,
+    brand,
   });
   return {
-    minMeasuredForScore: GEO_VISIBILITY_MIN_MEASURED_FOR_SCORE,
+    minMeasuredForScore: GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL,
     weightBrand: GEO_VISIBILITY_BRAND_WEIGHT,
     weightDomain: GEO_VISIBILITY_DOMAIN_WEIGHT,
     providers: summaries.map((summary) => ({
@@ -392,7 +394,7 @@ export function geoModuleRow(
         queryGeneration: queryGenerationMetadata(generation),
         // T6: per-engine score, shares and "who got cited instead" — computed
         // once here from the same outcomes/mentions above, never re-derived.
-        visibilitySummary: visibilitySummaryRecord(geo, siteDomain),
+        visibilitySummary: visibilitySummaryRecord(geo, siteDomain, brand),
         requests: geo.outcomes.map((outcome) => ({
           purpose: geoVisibilityPurposeOf(outcome.request.promptVersion),
           promptVersion: outcome.request.promptVersion,

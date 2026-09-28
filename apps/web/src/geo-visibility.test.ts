@@ -21,6 +21,7 @@ function validProvider(overrides: Record<string, unknown> = {}) {
     domainCitedShare: 1 / 3,
     visibilityScore: 53,
     scoreUnavailableReason: null,
+    scoreBasis: 'brand-and-domain',
     byPurpose: {
       'closed-book': {
         asked: 2,
@@ -65,7 +66,15 @@ describe('geoVisibilitySummaryOf', () => {
   });
 
   it('accepts a null visibilityScore (not enough answers)', () => {
-    const result = geoVisibilitySummaryOf(validSummary([validProvider({ visibilityScore: null })]));
+    const result = geoVisibilitySummaryOf(
+      validSummary([
+        validProvider({
+          visibilityScore: null,
+          scoreUnavailableReason: 'not-enough-measured',
+          scoreBasis: null,
+        }),
+      ]),
+    );
     expect(result?.providers[0]?.visibilityScore).toBeNull();
   });
 
@@ -89,9 +98,12 @@ describe('geoVisibilitySummaryOf', () => {
       validSummary([
         validProvider({
           brandMeasuredCount: 0,
+          domainMeasuredCount: 0,
           brandMentionedShare: null,
+          domainCitedShare: null,
           visibilityScore: null,
           scoreUnavailableReason: 'not-measurable',
+          scoreBasis: null,
         }),
       ]),
     );
@@ -101,6 +113,38 @@ describe('geoVisibilitySummaryOf', () => {
 
   it('rejects a provider with an unknown scoreUnavailableReason', () => {
     const bad = validSummary([validProvider({ scoreUnavailableReason: 'because' })]);
+    expect(geoVisibilitySummaryOf(bad)).toBeNull();
+  });
+
+  it('rejects a provider with an unknown scoreBasis', () => {
+    const bad = validSummary([validProvider({ scoreBasis: 'because' })]);
+    expect(geoVisibilitySummaryOf(bad)).toBeNull();
+  });
+
+  // The comment on GeoProviderVisibility says visibilityScore is null exactly
+  // when scoreUnavailableReason is set, and non-null exactly when scoreBasis
+  // is set — a record that disagrees with itself is malformed, not a valid
+  // "score but also no score" state to render.
+  it('rejects a provider whose score and its reason are both present', () => {
+    const bad = validSummary([
+      validProvider({ visibilityScore: 53, scoreUnavailableReason: 'not-measurable' }),
+    ]);
+    expect(geoVisibilitySummaryOf(bad)).toBeNull();
+  });
+
+  it('rejects a provider with a score but no basis', () => {
+    const bad = validSummary([validProvider({ visibilityScore: 53, scoreBasis: null })]);
+    expect(geoVisibilitySummaryOf(bad)).toBeNull();
+  });
+
+  it('rejects a provider with a basis but no score', () => {
+    const bad = validSummary([
+      validProvider({
+        visibilityScore: null,
+        scoreUnavailableReason: 'not-enough-measured',
+        scoreBasis: 'brand-and-domain',
+      }),
+    ]);
     expect(geoVisibilitySummaryOf(bad)).toBeNull();
   });
 
