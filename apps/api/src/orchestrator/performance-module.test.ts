@@ -17,7 +17,7 @@ import {
   fakePerformanceAudit,
   fakePerformanceRunner,
 } from '../test-utils/performance-fixtures.ts';
-import type { PerformanceRunner } from '../integrations/performance/index.ts';
+import { runPerformanceAudit, type PerformanceRunner } from '../integrations/performance/index.ts';
 import type { ApiLogger } from '../http/logger.ts';
 import type { WorkerDeps } from './deps.ts';
 import {
@@ -216,6 +216,71 @@ describe('the Performance module row', () => {
         representedPages: 5,
       }),
     ]);
+  });
+
+  // B1/B2: the billing-visible contract this whole review exists to protect —
+  // a real audit over production defaults, with no per-test overrides, must
+  // terminalize as Completed. Runs the real `runPerformanceAudit`, not the
+  // `fakePerformanceAudit` fixture, so this exercises the actual request
+  // budget rather than a hand-built row that assumes it closed.
+  it('terminalizes as Completed for a real audit over several templates at production defaults', async () => {
+    let labCalls = 0;
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      if (String(input).includes('chromeuxreport')) {
+        return new Response(JSON.stringify({}), { status: 404 });
+      }
+      labCalls += 1;
+      return new Response(
+        JSON.stringify({
+          lighthouseResult: {
+            lighthouseVersion: '12.0.0',
+            analysisUTCTimestamp: '2026-09-22T11:59:00.000Z',
+            categories: { performance: { score: 0.8 } },
+            audits: {
+              'server-response-time': { numericValue: 200 },
+              'first-contentful-paint': { numericValue: 1_100 },
+              'largest-contentful-paint': { numericValue: 2_000 },
+              'cumulative-layout-shift': { numericValue: 0.02 },
+              'total-blocking-time': { numericValue: 120 },
+              'speed-index': { numericValue: 1_800 },
+              'total-byte-weight': { numericValue: 900_000 },
+              'resource-summary': {
+                details: { items: [{ resourceType: 'total', requestCount: 40 }] },
+              },
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    const runner: PerformanceRunner = (request) => runPerformanceAudit(request, { fetcher });
+
+    const { rows, prisma } = recordingPrisma();
+    const deps: WorkerDeps = {
+      prisma,
+      logger: SILENT_LOGGER,
+      createAiProvider: () => {
+        throw new Error('the Performance module must not build an AI provider');
+      },
+      createPerformanceRunner: () => runner,
+    };
+    await runPerformanceModule(deps, {
+      scan: SCAN,
+      origin: 'https://example.com/',
+      candidateUrls: [
+        'https://example.com/about',
+        'https://example.com/pricing',
+        'https://example.com/contact',
+        'https://example.com/blog/hello',
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    expect(row?.runtimeStatus).toBe('Completed');
+    expect(row?.statusReason).toBeNull();
+    expect(row?.applicableChecks).toBe(row?.completedApplicableChecks);
+    expect(labCalls).toBe(20);
   });
 
   // The device order is the whole of the scope's influence on this section, and a

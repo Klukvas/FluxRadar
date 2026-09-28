@@ -818,9 +818,9 @@ describe('the Performance card — page templates (T5)', () => {
 
     const region = screen.getByRole('region', { name: 'Performance · checks performed' });
     expect(
-      within(region).getByText('This site sorted into 3 page templates; 2 were measured below.'),
+      within(region).getByText('Page templates found on this site: 3 · measured below: 2'),
     ).toBeTruthy();
-    expect(within(region).getByText(/represents 5 crawled pages like it/)).toBeTruthy();
+    expect(within(region).getByText(/crawled pages like it: 5/)).toBeTruthy();
   });
 
   it('reports a template as not comparable when its representative URL changed', async () => {
@@ -848,11 +848,156 @@ describe('the Performance card — page templates (T5)', () => {
 
     const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
     expect(
-      within(region).getByText('Цей сайт розподілився на 3 шаблонів сторінок; нижче виміряно 2.'),
+      within(region).getByText('Знайдено шаблонів сторінок на цьому сайті: 3 · виміряно нижче: 2'),
     ).toBeTruthy();
-    expect(within(region).getByText(/представляє 5 сканованих сторінок такого типу/)).toBeTruthy();
+    expect(within(region).getByText(/сканованих сторінок такого типу: 5/)).toBeTruthy();
     expect(
       within(region).getByText(/Не порівняно: представницьку сторінку цього шаблону змінено/),
+    ).toBeTruthy();
+  });
+
+  // M3: templatesFound/templatesAudited and representedPages are most often
+  // exactly 1 (a small site, or the "/" template), and the label-first phrasing
+  // has to render that count without a plural mismatch in either language.
+  it('renders singular counts without a plural mismatch (M3)', async () => {
+    const singular = moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 2, capped: false },
+          templatesFound: 1,
+          templatesAudited: 1,
+          comparison: null,
+          regressions: [],
+        },
+      },
+    });
+
+    await openReport(dashboardOf([singular]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText('Page templates found on this site: 1 · measured below: 1'),
+    ).toBeTruthy();
+    expect(within(region).getByText(/crawled pages like it: 1/)).toBeTruthy();
+  });
+
+  // L4: "nothing got materially worse" must not be shown unqualified when a
+  // template was skipped from the comparison — that reads as a claim about a
+  // page that was never actually compared this scan.
+  it('qualifies "nothing got worse" when a template was skipped from the comparison (L4)', async () => {
+    const module = templatedPerformanceModule();
+    await openReport(dashboardOf([module]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        'Nothing that could be compared got materially worse since the previous scan.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).queryByText(
+        'Nothing measured here got materially worse since the previous scan.',
+      ),
+    ).toBeNull();
+  });
+
+  it('names a template that lost its seat entirely since the previous scan (L3)', async () => {
+    const module = moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 2, capped: false },
+          templatesFound: 3,
+          templatesAudited: 1,
+          comparison: {
+            previousScanId: 'previous-scan',
+            previousObservedAt: '2026-09-01T00:00:00.000Z',
+            incomparableReason: null,
+            incomparable: null,
+            templatesNotComparable: [],
+            templatesDropped: [
+              { templateKey: '/about', previousUrl: 'https://smile.example/about' },
+            ],
+          },
+          regressions: [],
+        },
+      },
+    });
+
+    await openReport(dashboardOf([module]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(within(region).getByText('/about')).toBeTruthy();
+    expect(
+      within(region).getByText(/this page template was audited in the previous scan/),
+    ).toBeTruthy();
+  });
+
+  it('names a URL the audit selected but never measured, with a typed reason (B1)', async () => {
+    const module = moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 4, capped: false },
+          templatesFound: 2,
+          templatesAudited: 1,
+          comparison: null,
+          regressions: [],
+          unmeasuredUrls: [
+            {
+              url: 'https://smile.example/about',
+              templateKey: '/about',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+          ],
+        },
+      },
+    });
+
+    await openReport(dashboardOf([module]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(within(region).getByText('https://smile.example/about')).toBeTruthy();
+    expect(
+      within(region).getByText(/none of the PageSpeed runs for this page produced a usable result/),
     ).toBeTruthy();
   });
 });

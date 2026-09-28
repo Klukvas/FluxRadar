@@ -202,6 +202,23 @@ export interface TemplateNotComparableReading {
   readonly currentUrl: string;
 }
 
+/** A template the previous scan audited that has no seat in this one at all. */
+export interface TemplateDroppedReading {
+  readonly templateKey: string;
+  readonly previousUrl: string;
+}
+
+/** Why a selected template's representative produced no usable sample this scan. */
+export type UnmeasuredUrlReason = 'NoUsablePageSpeedSamples' | 'unknown';
+
+/** A template the audit selected a representative for, but never measured. */
+export interface UnmeasuredUrlReading {
+  readonly url: string;
+  readonly templateKey: string;
+  readonly representedPages: number;
+  readonly reason: UnmeasuredUrlReason;
+}
+
 export interface RegressionReading {
   readonly url: string;
   readonly strategy: DeviceStrategy;
@@ -257,6 +274,10 @@ export interface PerformanceAuditReading {
   readonly templatesAudited: number | null;
   /** Templates skipped from the regression comparison because their representative URL changed. */
   readonly templatesNotComparable: readonly TemplateNotComparableReading[];
+  /** Templates the previous scan audited that have no seat in this one at all. */
+  readonly templatesDropped: readonly TemplateDroppedReading[];
+  /** Templates this audit selected a representative for, but never measured. */
+  readonly unmeasuredUrls: readonly UnmeasuredUrlReading[];
 }
 
 /** One lab metric of one device, read out of the audit's median series. */
@@ -351,6 +372,30 @@ function templateNotComparableReading(value: unknown): TemplateNotComparableRead
   return templateKey === null || previousUrl === null || currentUrl === null
     ? null
     : { templateKey, previousUrl, currentUrl };
+}
+
+function templateDroppedReading(value: unknown): TemplateDroppedReading | null {
+  const record = asRecord(value);
+  const templateKey = stringValue(record?.templateKey);
+  const previousUrl = stringValue(record?.previousUrl);
+  return templateKey === null || previousUrl === null ? null : { templateKey, previousUrl };
+}
+
+const UNMEASURED_URL_REASONS: readonly UnmeasuredUrlReason[] = ['NoUsablePageSpeedSamples'];
+
+function unmeasuredUrlReading(value: unknown): UnmeasuredUrlReading | null {
+  const record = asRecord(value);
+  const url = stringValue(record?.url);
+  const templateKey = stringValue(record?.templateKey);
+  if (url === null || templateKey === null) return null;
+  const reasonValue = record?.reason;
+  const reason = UNMEASURED_URL_REASONS.find((candidate) => candidate === reasonValue) ?? 'unknown';
+  return {
+    url,
+    templateKey,
+    representedPages: numberValue(record?.representedPages) ?? 1,
+    reason,
+  };
 }
 
 function fieldReading(value: unknown): FieldReading {
@@ -487,6 +532,18 @@ export function performanceAuditOf(metadata: Metadata): PerformanceAuditReading 
     templatesNotComparable: Array.isArray(comparison?.templatesNotComparable)
       ? comparison.templatesNotComparable.flatMap((entry) => {
           const reading = templateNotComparableReading(entry);
+          return reading === null ? [] : [reading];
+        })
+      : [],
+    templatesDropped: Array.isArray(comparison?.templatesDropped)
+      ? comparison.templatesDropped.flatMap((entry) => {
+          const reading = templateDroppedReading(entry);
+          return reading === null ? [] : [reading];
+        })
+      : [],
+    unmeasuredUrls: Array.isArray(audit.unmeasuredUrls)
+      ? audit.unmeasuredUrls.flatMap((entry) => {
+          const reading = unmeasuredUrlReading(entry);
           return reading === null ? [] : [reading];
         })
       : [],

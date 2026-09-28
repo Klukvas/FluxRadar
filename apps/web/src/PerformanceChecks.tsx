@@ -95,9 +95,38 @@ function AuditBody(props: { audit: PerformanceAuditReading; language: Language }
       {audit.urls.map((entry) => (
         <UrlGroup key={entry.url} entry={entry} language={props.language} />
       ))}
+      <UnmeasuredGroup audit={audit} language={props.language} />
       <FieldGroup field={audit.field} language={props.language} />
       <ComparisonGroup audit={audit} language={props.language} />
     </>
+  );
+}
+
+/**
+ * Templates the audit picked a representative for but never got a usable
+ * sample from — named rather than silently missing from the measured list
+ * above, with a reason a reader can act on.
+ */
+function UnmeasuredGroup(props: { audit: PerformanceAuditReading; language: Language }) {
+  const t = copy[props.language].report.checks;
+  const { unmeasuredUrls } = props.audit;
+  if (unmeasuredUrls.length === 0) return null;
+  const reasonCopy: Readonly<Record<string, string>> = {
+    NoUsablePageSpeedSamples: t.perfUnmeasuredReasonNoUsableSamples,
+    unknown: t.perfUnmeasuredReasonUnknown,
+  };
+  return (
+    <ul className="module-checks__list">
+      {unmeasuredUrls.map((entry) => (
+        <CheckRow
+          key={entry.url}
+          resultClass="skipped"
+          resultLabel={t.perfUnmeasuredLabel}
+          title={entry.url}
+          detail={reasonCopy[entry.reason] ?? t.perfUnmeasuredReasonUnknown}
+        />
+      ))}
+    </ul>
   );
 }
 
@@ -275,7 +304,11 @@ function ComparisonGroup(props: { audit: PerformanceAuditReading; language: Lang
           {fillCopy(t.perfNotCompared, { reason: incomparable })}
         </p>
       ) : audit.regressions.length === 0 ? (
-        <p className="muted">{t.perfNoRegressions}</p>
+        <p className="muted">
+          {audit.templatesNotComparable.length > 0 || audit.templatesDropped.length > 0
+            ? t.perfNoRegressionsQualified
+            : t.perfNoRegressions}
+        </p>
       ) : (
         <ul className="module-checks__list">
           {audit.regressions.map((regression) => (
@@ -303,6 +336,19 @@ function ComparisonGroup(props: { audit: PerformanceAuditReading; language: Lang
                 previous: entry.previousUrl,
                 current: entry.currentUrl,
               })}
+            />
+          ))}
+        </ul>
+      )}
+      {incomparable !== null || audit.templatesDropped.length === 0 ? null : (
+        <ul className="module-checks__list">
+          {audit.templatesDropped.map((entry) => (
+            <CheckRow
+              key={entry.templateKey}
+              resultClass="skipped"
+              resultLabel={t.perfTemplateDroppedLabel}
+              title={entry.templateKey}
+              detail={fillCopy(t.perfTemplateDropped, { previous: entry.previousUrl })}
             />
           ))}
         </ul>
