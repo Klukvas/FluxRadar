@@ -98,18 +98,11 @@ function citedInsteadOf(value: unknown): readonly GeoCitedInsteadEntry[] | null 
   return entries;
 }
 
-/** null is a valid competitor share (nothing measurable); undefined marks a failed check. */
-function competitorShareValue(value: unknown): number | null | undefined {
-  if (value === null) return null;
-  const number = numberValue(value);
-  return number !== null && number >= 0 && number <= 1 ? number : undefined;
-}
-
 function competitorVisibilityOf(value: unknown): GeoCompetitorVisibility | null {
   const record = asRecord(value);
   if (record === null || typeof record.name !== 'string') return null;
   const mentionedCount = numberValue(record.mentionedCount);
-  const share = competitorShareValue(record.share);
+  const share = shareValue(record.share);
   if (mentionedCount === null || share === undefined) return null;
   return { name: record.name, mentionedCount, share };
 }
@@ -128,7 +121,7 @@ function shareOfVoiceOf(value: unknown): GeoShareOfVoice | null | undefined {
   if (record === null) return undefined;
   const denominator = numberValue(record.denominator);
   const brandMentionsInScope = numberValue(record.brandMentionsInScope);
-  const brandShare = competitorShareValue(record.brandShare);
+  const brandShare = shareValue(record.brandShare);
   if (
     denominator === null ||
     brandMentionsInScope === null ||
