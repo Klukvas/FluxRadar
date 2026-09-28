@@ -1,7 +1,7 @@
 // ECON-001 (план §18): чистый валидатор 30-дневного launch forecast.
 // Пересчитывает gross revenue из цен тарифов и mix, проверяет support-reserve
 // floor max($500, 10% gross), потолки p95 variable cost (VARIABLE_COST_CEILING_USD),
-// положительную weighted contribution margin (после комиссии FastSpring, p95
+// положительную weighted contribution margin (после комиссии Creem, p95
 // cost и non-pass-through tax), risk-adjusted break-even и operational floor 45.
 // Потолки p95 выводятся из цены, целевой маржи и комиссии, а не задаются
 // числами: сменилась комиссия — сдвинулись и потолки (D-229).
@@ -16,20 +16,19 @@ export const ECON_OPERATIONAL_FLOOR_SCANS = 45;
 export const SUPPORT_RESERVE_MIN_USD = 500;
 export const SUPPORT_RESERVE_GROSS_SHARE = 0.1;
 /**
- * Комиссия FastSpring за транзакцию: 5.9% + $0.95 (D-229).
- *
- * FastSpring не публикует ставку — она договорная. Это самая часто
- * цитируемая базовая ставка, а не цифра из договора: когда договор скажет
- * иное, меняются только эти два числа. Процент хранится в базисных пунктах,
- * чтобы 5.9% от $55 считалось в центах точно, без ошибки float.
+ * Комиссия Creem за транзакцию: 3.9% + $0.40, без ежемесячной платы.
+ * Источник: https://www.creem.io/pricing (дата чтения 2026-09-28) — стандартный
+ * тариф мерчанта, замена ставки FastSpring (5.9% + $0.95, D-229) после отказа
+ * от провайдера. Процент хранится в базисных пунктах, чтобы 3.9% от $55
+ * считалось в центах точно, без ошибки float.
  */
-export const FASTSPRING_FEE_BASIS_POINTS = 590;
-export const FASTSPRING_FEE_FLAT_USD = 0.95;
+export const CREEM_FEE_BASIS_POINTS = 390;
+export const CREEM_FEE_FLAT_USD = 0.4;
 /** Целевая contribution margin до постоянных расходов: 50% цены (§18). */
 export const TARGET_CONTRIBUTION_MARGIN_SHARE = 0.5;
 /**
  * Hard ceiling всей переменной себестоимости одного прогона: то, что остаётся
- * от цены после комиссии FastSpring и целевой маржи. Числа здесь не пишутся —
+ * от цены после комиссии Creem и целевой маржи. Числа здесь не пишутся —
  * их считает `variableCostCeilingUsd`, а текущие значения закреплены в econ.test.ts.
  */
 export const VARIABLE_COST_CEILING_USD = {
@@ -55,12 +54,12 @@ export interface EconForecastInput {
   readonly expected_refund_loss: number;
   readonly expected_chargeback_loss: number;
   readonly fx_buffer: number;
-  /** Налог по receipt FastSpring: pass-through не входит в margin, expense — входит. */
+  /** Налог по receipt провайдера: pass-through не входит в margin, expense — входит. */
   readonly tax_treatment: 'pass-through' | 'expense';
   readonly tax_expense_per_scan?: number;
   readonly variable_cost_basic_p95: number;
   readonly variable_cost_complete_p95: number;
-  /** Если задан — сверяется с пересчётом (после комиссии FastSpring и p95 cost). */
+  /** Если задан — сверяется с пересчётом (после комиссии Creem и p95 cost). */
   readonly weighted_average_contribution_margin?: number;
   /** Без счетов всех provider ECON-001 автоматически не проходит (§18). */
   readonly provider_invoices_confirmed: boolean;
@@ -280,7 +279,7 @@ function marginFailures(input: EconForecastInput): readonly EconFailure[] {
       code: 'margin',
       message:
         `заявленная weighted_average_contribution_margin $${declared} не совпадает с пересчётом ` +
-        `$${fromCents(weightedMarginCents(input))} (после комиссии FastSpring и p95 variable cost)`,
+        `$${fromCents(weightedMarginCents(input))} (после комиссии Creem и p95 variable cost)`,
     });
   }
   return found;
@@ -348,22 +347,22 @@ function reserveFloorCents(input: EconForecastInput): number {
   );
 }
 
-/** Комиссия FastSpring с одной транзакции по цене тарифа, в центах. */
+/** Комиссия Creem с одной транзакции по цене тарифа, в центах. */
 function paymentFeeCents(priceCents: number): number {
   return (
-    Math.round((priceCents * FASTSPRING_FEE_BASIS_POINTS) / 10_000) +
-    toCents(FASTSPRING_FEE_FLAT_USD)
+    Math.round((priceCents * CREEM_FEE_BASIS_POINTS) / 10_000) +
+    toCents(CREEM_FEE_FLAT_USD)
   );
 }
 
-/** Потолок p95 для тарифа: цена − комиссия FastSpring − целевая маржа. */
+/** Потолок p95 для тарифа: цена − комиссия Creem − целевая маржа. */
 function variableCostCeilingUsd(priceUsd: number): number {
   const priceCents = toCents(priceUsd);
   const targetMarginCents = Math.round(priceCents * TARGET_CONTRIBUTION_MARGIN_SHARE);
   return fromCents(priceCents - paymentFeeCents(priceCents) - targetMarginCents);
 }
 
-/** Margin плана: цена − комиссия FastSpring − p95 cost − non-pass-through tax. */
+/** Margin плана: цена − комиссия Creem − p95 cost − non-pass-through tax. */
 function planMarginCents(priceUsd: number, variableCostUsd: number, taxCents: number): number {
   const priceCents = toCents(priceUsd);
   return priceCents - paymentFeeCents(priceCents) - toCents(variableCostUsd) - taxCents;

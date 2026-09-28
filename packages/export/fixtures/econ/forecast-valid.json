@@ -13,6 +13,6 @@
   "tax_treatment": "pass-through",
   "variable_cost_basic_p95": 23.3,
   "variable_cost_complete_p95": 51.97,
-  "weighted_average_contribution_margin": 34,
+  "weighted_average_contribution_margin": 35.91,
   "provider_invoices_confirmed": true
 }

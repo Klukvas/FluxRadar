@@ -39,21 +39,22 @@ describe('validateEconForecast', () => {
     const result = validateEconForecast(VALID);
     expect(result.pass).toBe(true);
     if (!result.pass) return;
-    // FastSpring 5.9% + $0.95: Basic $4.20, Complete $8.03.
-    // margin: Basic 55−4.20−23.30=27.50, Complete 120−8.03−51.97=60.00 → 0.8/0.2 = 34.
-    expect(result.report.weightedContributionMarginUsd).toBe(34);
-    // break-even: ceil((1000+500+68+17+50)/34) = ceil(48.09) = 49 <= 50 прогонов.
-    expect(result.report.breakEvenScans).toBe(49);
+    // Creem 3.9% + $0.40: Basic $2.55, Complete $5.08.
+    // margin: Basic 55−2.55−23.30=29.15, Complete 120−5.08−51.97=62.95 → 0.8/0.2 = 35.91.
+    expect(result.report.weightedContributionMarginUsd).toBe(35.91);
+    // break-even: ceil((1000+500+68+17+50)/35.91) = ceil(45.53) = 46 <= 50 прогонов.
+    expect(result.report.breakEvenScans).toBe(46);
     expect(result.report.forecastGrossRevenueUsd).toBe(3400);
     expect(result.report.supportReserveFloorUsd).toBe(500);
     expect(result.report.operationalFloorScans).toBe(ECON_OPERATIONAL_FLOOR_SCANS);
   });
 
   it('операционный stress-case плана §18 сходится ровно в floor 45', () => {
-    // fixed 1000 + reserve 500, margin $34 при mix 80/20 и потолочных costs →
-    // ceil(1500/34) = ceil(44.12) = 45 = planning floor.
+    // fixed 1100 + reserve 500, margin $35.91 при mix 80/20 и потолочных costs →
+    // ceil(1600/35.91) = ceil(44.56) = 45 = planning floor.
     const stress = {
       ...VALID,
+      fixed_costs: 1100,
       forecast_scans: 45,
       forecast_gross_revenue: 45 * (0.8 * 55 + 0.2 * 120),
       expected_refund_loss: 0,
@@ -83,14 +84,14 @@ describe('validateEconForecast', () => {
     expect(failureCodes({ ...VALID, forecast_gross_revenue: 3500 })).toContain('gross-revenue');
   });
 
-  it('потолки p95 — то, что остаётся от цены после комиссии FastSpring и маржи 50%', () => {
-    // 55 − (3.245→3.25 + 0.95) − 27.50 и 120 − (7.08 + 0.95) − 60.00, в центах без float.
-    expect(VARIABLE_COST_CEILING_USD).toEqual({ basic: 23.3, complete: 51.97 });
+  it('потолки p95 — то, что остаётся от цены после комиссии Creem и маржи 50%', () => {
+    // 55 − (2.15 + 0.40) − 27.50 и 120 − (4.68 + 0.40) − 60.00, в центах без float.
+    expect(VARIABLE_COST_CEILING_USD).toEqual({ basic: 24.95, complete: 54.92 });
   });
 
   it('p95 variable cost выше hard ceiling отклоняется', () => {
-    expect(failureCodes({ ...VALID, variable_cost_complete_p95: 51.98 })).toContain('cost-ceiling');
-    expect(failureCodes({ ...VALID, variable_cost_basic_p95: 23.31 })).toContain('cost-ceiling');
+    expect(failureCodes({ ...VALID, variable_cost_complete_p95: 54.93 })).toContain('cost-ceiling');
+    expect(failureCodes({ ...VALID, variable_cost_basic_p95: 24.96 })).toContain('cost-ceiling');
   });
 
   it('нулевая или отрицательная contribution margin отклоняется', () => {
@@ -99,7 +100,7 @@ describe('validateEconForecast', () => {
       basic_mix: 1,
       complete_mix: 0,
       forecast_gross_revenue: 50 * 55,
-      variable_cost_basic_p95: 52,
+      variable_cost_basic_p95: 53,
     });
     expect(codes).toContain('margin');
     expect(codes).toContain('cost-ceiling');
@@ -118,11 +119,11 @@ describe('validateEconForecast', () => {
   });
 
   it('forecast ниже risk-adjusted break-even отклоняется', () => {
-    // 46 прогонов ≥ floor 45, но break-even по рискам = 49.
+    // 45 прогонов ≥ floor 45, но break-even по рискам = 46.
     const codes = failureCodes({
       ...VALID,
-      forecast_scans: 46,
-      forecast_gross_revenue: 46 * 68,
+      forecast_scans: 45,
+      forecast_gross_revenue: 45 * 68,
     });
     expect(codes).toEqual(['break-even']);
   });
@@ -138,19 +139,19 @@ describe('validateEconForecast', () => {
 
   it('tax_treatment=expense требует tax_expense_per_scan и уменьшает margin', () => {
     expect(failureCodes({ ...VALID, tax_treatment: 'expense' })).toContain('tax');
-    // margin 34 − $2 налога = 32 → break-even ceil(1635/32) = 52; прогноз 55 покрывает.
+    // margin 35.91 − $2 налога = 33.91 → break-even ceil(1635/33.91) = 49; прогноз 55 покрывает.
     const withTax = validateEconForecast({
       ...VALID,
       forecast_scans: 55,
       forecast_gross_revenue: 55 * 68,
       tax_treatment: 'expense',
       tax_expense_per_scan: 2,
-      weighted_average_contribution_margin: 32,
+      weighted_average_contribution_margin: 33.91,
     });
     expect(withTax.pass).toBe(true);
     if (!withTax.pass) return;
-    expect(withTax.report.weightedContributionMarginUsd).toBe(32);
-    expect(withTax.report.breakEvenScans).toBe(52);
+    expect(withTax.report.weightedContributionMarginUsd).toBe(33.91);
+    expect(withTax.report.breakEvenScans).toBe(49);
   });
 
   it('pass-through налог с ненулевым tax_expense_per_scan отклоняется', () => {
