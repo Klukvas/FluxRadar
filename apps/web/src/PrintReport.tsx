@@ -16,6 +16,7 @@ import {
   isActionPlanState,
   type ActionPlanContent,
   type Dashboard,
+  type GeoProviderVisibility,
   type Issue,
   type IssueRuleGroup,
   type IssueSummary,
@@ -24,7 +25,9 @@ import { fetchScanComparison, type ScanComparison } from './comparison-api';
 import { Button, LoadingState, StatusChip } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
-import type { Language } from './i18n';
+import { percentOf } from './GeoVisibility';
+import { geoVisibilitySummaryOf } from './geo-visibility';
+import { copy, fillCopy, type Language } from './i18n';
 import { planIncludesIssueHistory, planName } from './plan-modules';
 import { ComparisonPrintBlock } from './ScanComparisonPrint';
 import { moduleLabel, ruleTitle } from './rule-titles';
@@ -314,6 +317,143 @@ function PrintSections(props: { modules: Dashboard['modules']; language: Languag
   );
 }
 
+/**
+ * One signal's cell: mentions out of the answers in which it was measurable.
+ *
+ * "Not measurable" rather than 0%: a question that already named the brand or
+ * the domain proves nothing either way, and printing 0% would read as a fail
+ * the scan never observed.
+ */
+function printShareCell(
+  measured: number,
+  mentioned: number,
+  share: number | null,
+  notMeasurable: string,
+): string {
+  if (share === null) return notMeasurable;
+  return `${mentioned}/${measured} (${percentOf(share)}%)`;
+}
+
+/** Why this engine has no score — the minimum comes from the summary, not the answer count. */
+function printNoScore(
+  provider: GeoProviderVisibility,
+  minMeasuredForScore: number,
+  language: Language,
+): string {
+  const t = copy[language].report;
+  return provider.scoreUnavailableReason === 'not-measurable'
+    ? t.geoVisibilityNotMeasurable
+    : fillCopy(t.geoVisibilityNotEnoughAnswers, {
+        min: minMeasuredForScore,
+        brand: provider.brandMeasuredCount,
+        domain: provider.domainMeasuredCount,
+      });
+}
+
+/** What a partial score counts, appended after the number when only one signal reached it. */
+function printScoreBasis(provider: GeoProviderVisibility, language: Language): string | null {
+  const t = copy[language].report;
+  if (provider.scoreBasis === 'brand-only') {
+    return fillCopy(t.geoVisibilityScoreBasisBrandOnly, { domain: provider.domainMeasuredCount });
+  }
+  if (provider.scoreBasis === 'domain-only') {
+    return fillCopy(t.geoVisibilityScoreBasisDomainOnly, { brand: provider.brandMeasuredCount });
+  }
+  return null;
+}
+
+/** The score cell's text: the number (plus a basis note), or why there is none. */
+function printScoreCell(
+  provider: GeoProviderVisibility,
+  minMeasuredForScore: number,
+  language: Language,
+): string {
+  if (provider.visibilityScore === null) {
+    return printNoScore(provider, minMeasuredForScore, language);
+  }
+  const basisNote = printScoreBasis(provider, language);
+  return basisNote === null
+    ? `${provider.visibilityScore}/100`
+    : `${provider.visibilityScore}/100 — ${basisNote}`;
+}
+
+/** One engine's row in the print visibility table. */
+function PrintGeoVisibilityRow(props: {
+  provider: GeoProviderVisibility;
+  minMeasuredForScore: number;
+  language: Language;
+}) {
+  const t = copy[props.language].report;
+  return (
+    <tr>
+      <td>{props.provider.label}</td>
+      <td>{printScoreCell(props.provider, props.minMeasuredForScore, props.language)}</td>
+      <td>
+        {printShareCell(
+          props.provider.brandMeasuredCount,
+          props.provider.brandMentionedCount,
+          props.provider.brandMentionedShare,
+          t.geoVisibilityNotMeasurableShort,
+        )}
+      </td>
+      <td>
+        {printShareCell(
+          props.provider.domainMeasuredCount,
+          props.provider.domainCitedCount,
+          props.provider.domainCitedShare,
+          t.geoVisibilityNotMeasurableShort,
+        )}
+      </td>
+    </tr>
+  );
+}
+
+/** Compact mirror of the report's "Visibility by engine" block: score and shares per engine. */
+function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language }) {
+  const t = copy[props.language].report;
+  const hasGeoAnswers = (props.dashboard.geoObservations ?? []).length > 0;
+  if (!hasGeoAnswers) return null;
+  const summary = geoVisibilitySummaryOf(props.dashboard.geoVisibilitySummary);
+  return (
+    <section className="print-section">
+      <h2>{t.geoVisibilityHeading}</h2>
+      {summary === null ? (
+        <p className="muted">{t.geoVisibilityUnavailable}</p>
+      ) : (
+        <>
+          <p className="muted">
+            {fillCopy(t.geoVisibilityLead, {
+              min: summary.minMeasuredForScore,
+              brandWeight: percentOf(summary.weightBrand),
+              domainWeight: percentOf(summary.weightDomain),
+            })}
+          </p>
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th>{t.geoProvider}</th>
+                <th>{t.geoVisibilityScoreLabel}</th>
+                <th>{t.geoVisibilityBrandShareHeader}</th>
+                <th>{t.geoVisibilityDomainShareHeader}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.providers.map((provider) => (
+                <PrintGeoVisibilityRow
+                  key={provider.provider}
+                  provider={provider}
+                  minMeasuredForScore={summary.minMeasuredForScore}
+                  language={props.language}
+                />
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
+  );
+}
+
 /** Every problem in summary order, with the findings that belong to it. */
 function PrintProblems(props: { data: PrintData; language: Language }) {
   const f = findingsCopy[props.language];
@@ -358,6 +498,7 @@ function PrintDocument(props: { data: PrintData; language: Language }) {
       <PrintSummary data={props.data} language={props.language} />
       {actionPlan === null ? null : <PrintActionPlan plan={actionPlan} language={props.language} />}
       <PrintSections modules={dashboard.modules} language={props.language} />
+      <PrintGeoVisibility dashboard={dashboard} language={props.language} />
       {props.data.comparison === null || !planIncludesIssueHistory(dashboard.scan.plan) ? null : (
         <ComparisonPrintBlock comparison={props.data.comparison} language={props.language} />
       )}

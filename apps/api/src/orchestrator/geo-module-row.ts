@@ -26,12 +26,22 @@ import type {
   GeoEvidenceSnapshot,
   GeoMentionSignals,
   GeoModuleResult,
+  GeoVisibilityPurpose,
 } from '@fluxradar/ai';
-import { isMeasured } from '@fluxradar/ai';
+import {
+  computeGeoMentionContexts,
+  computeGeoVisibilitySummaries,
+  GEO_VISIBILITY_BRAND_WEIGHT,
+  GEO_VISIBILITY_DOMAIN_WEIGHT,
+  GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL,
+  geoVisibilityPurposeOf,
+  isMeasured,
+} from '@fluxradar/ai';
 import { computeCoverage } from '@fluxradar/scoring';
 import type { assessAiCrawlerReadiness } from '@fluxradar/rules';
 
 import { redactEvidence } from './ai-evidence.ts';
+import { GEO_PROVIDER_DISPLAY_NAMES } from './geo.ts';
 import type { GeoQuestionGenerationResult } from './geo.ts';
 import type { ModuleRowData } from './module-row.ts';
 
@@ -50,8 +60,13 @@ export const GEO_SCORING_REASON = 'InformationalOnly';
  * questions named the brand and spelled out the domain with web search on, and
  * calling them closed-book now would relabel history into a check that never
  * ran.
+ *
+ * The label and the rule that derives it come from `@fluxradar/ai`, which the
+ * visibility summary also reads: two copies of "what kind of question is this"
+ * could drift apart and put one answer in two different buckets of the same
+ * report.
  */
-type QuestionPurpose = 'closed-book' | 'awareness' | 'discovery';
+type QuestionPurpose = GeoVisibilityPurpose;
 
 /** Наблюдения одного типа вопросов; все поля — счётчики реальных исходов. */
 interface PurposeObservations {
@@ -78,11 +93,6 @@ const EMPTY_OBSERVATIONS: PurposeObservations = {
   brandMentioned: 0,
   domainMentioned: 0,
 };
-
-function purposeOf(promptVersion: string): QuestionPurpose {
-  if (promptVersion.endsWith('-discovery')) return 'discovery';
-  return promptVersion.endsWith('-closed-book') ? 'closed-book' : 'awareness';
-}
 
 /**
  * Упоминания бренда/домена в одном ответе.
@@ -127,7 +137,7 @@ export function geoObservations(
 ): Readonly<Record<QuestionPurpose, PurposeObservations>> {
   return geo.outcomes.reduce<Record<QuestionPurpose, PurposeObservations>>(
     (totals, outcome) => {
-      const purpose = purposeOf(outcome.request.promptVersion);
+      const purpose = geoVisibilityPurposeOf(outcome.request.promptVersion);
       const answered = outcome.kind === 'response';
       const signals = answered ? mentionSignals(geo, outcome.aiRequestKey) : null;
       return { ...totals, [purpose]: addOutcome(totals[purpose], signals, answered) };
@@ -285,12 +295,52 @@ function queryGenerationMetadata(
   };
 }
 
+/**
+ * The per-engine visibility summary (T6), keyed for `metadataJson`.
+ *
+ * Computed once here, at scan time, from the same outcomes and mention
+ * signals the rules and the observations above already read — never
+ * recomputed later. The provider label comes from `GEO_PROVIDER_DISPLAY_NAMES`
+ * (geo.ts) so the report never carries two names for the same assistant.
+ */
+function visibilitySummaryRecord(
+  geo: GeoModuleResult,
+  siteDomain: string,
+  brand: string,
+): Record<string, unknown> {
+  const summaries = computeGeoVisibilitySummaries({
+    outcomes: geo.outcomes,
+    mentions: geo.mentions,
+    siteDomain,
+    brand,
+  });
+  return {
+    minMeasuredForScore: GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL,
+    weightBrand: GEO_VISIBILITY_BRAND_WEIGHT,
+    weightDomain: GEO_VISIBILITY_DOMAIN_WEIGHT,
+    providers: summaries.map((summary) => ({
+      ...summary,
+      label: GEO_PROVIDER_DISPLAY_NAMES[summary.provider],
+    })),
+  };
+}
+
 /** Строка ScanModule для GEO; побочных эффектов нет — запись делает вызывающий. */
 export function geoModuleRow(
   geo: GeoModuleResult,
   generation: GeoQuestionGenerationResult,
   aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
-  evidence: GeoEvidenceSnapshot | null = null,
+  evidence: GeoEvidenceSnapshot | null,
+  /**
+   * The site's hostname and the profile's brand name, both required.
+   *
+   * They were optional once, and the empty default quietly disabled the
+   * own-domain exclusion in "cited instead" — our own subdomains could rank as
+   * competitors — with no call site to reveal it. The single real caller
+   * (`run-attempt.ts`) always has both, so the builder now demands them.
+   */
+  siteDomain: string,
+  brand: string,
 ): ModuleRowData {
   const reasonParts = statusReasonParts(geo, generation);
   // Each answer's evaluation is a check of its own: a judge that could not run
@@ -304,6 +354,11 @@ export function geoModuleRow(
     completedApplicableChecks:
       geo.responses.length + generation.completedApplicableChecks + tally.completed,
     ...(reasonParts.length > 0 ? { statusReason: reasonParts.join('; ') } : {}),
+  });
+  const mentionContexts = computeGeoMentionContexts({
+    outcomes: geo.outcomes,
+    mentions: geo.mentions,
+    brand,
   });
   return {
     runtimeStatus: coverage.status,
@@ -337,8 +392,11 @@ export function geoModuleRow(
         observations: geoObservations(geo),
         evidence: evidenceRecord(evidence),
         queryGeneration: queryGenerationMetadata(generation),
+        // T6: per-engine score, shares and "who got cited instead" — computed
+        // once here from the same outcomes/mentions above, never re-derived.
+        visibilitySummary: visibilitySummaryRecord(geo, siteDomain, brand),
         requests: geo.outcomes.map((outcome) => ({
-          purpose: purposeOf(outcome.request.promptVersion),
+          purpose: geoVisibilityPurposeOf(outcome.request.promptVersion),
           promptVersion: outcome.request.promptVersion,
           // On the ledger entry as well as on the response row, so an
           // unavailable observation can still say which provider was asked.
@@ -352,6 +410,15 @@ export function geoModuleRow(
                 usage: outcome.response.usage,
                 mentions: mentionSignals(geo, outcome.aiRequestKey),
                 evaluation: evaluationRecord(geo.answerEvaluations.get(outcome.aiRequestKey)),
+                // The sentence around the first brand mention, a quote only —
+                // absent when the brand was not mentioned (computeGeoMentionContexts).
+                ...(mentionContexts.has(outcome.aiRequestKey)
+                  ? {
+                      mentionContext: redactEvidence(
+                        mentionContexts.get(outcome.aiRequestKey) ?? '',
+                      ),
+                    }
+                  : {}),
               }
             : { reason: outcome.reason }),
         })),
