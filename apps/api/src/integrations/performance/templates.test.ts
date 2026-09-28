@@ -88,12 +88,14 @@ describe('templateKeyFor', () => {
       expected: '/product/{id}',
     },
     {
-      name: 'four-digit numeric segment reads as a year, not an id',
+      name: 'four-digit numeric segment with no date context reads as an id',
       url: `${ORIGIN}/product/1234`,
-      // Deliberate, documented ambiguity: a bare four-digit segment matches
-      // the year pattern before the generic numeric-id rule runs, since a
-      // path date is the more common four-digit case in real sites.
-      expected: '/product/{date}',
+      // A bare four-digit segment needs date CONTEXT (a neighbouring
+      // month/day segment, or an already-collapsed {date} beside it) to read
+      // as a year — otherwise `/product/995` and `/product/1000` would split
+      // into two templates for what is the same page type either side of
+      // 1000. See `bareYearHasDateContext` in templates.ts.
+      expected: '/product/{id}',
     },
     {
       name: 'uuid segment',
@@ -101,9 +103,17 @@ describe('templateKeyFor', () => {
       expected: '/orders/{uuid}',
     },
     {
-      name: 'bare-year date segment',
+      name: 'bare year with no date context reads as an id, not a date',
       url: `${ORIGIN}/blog/2024/hello`,
-      expected: '/blog/{date}/{slug}',
+      // "2024" has no neighbouring month/day segment, so it has no date
+      // context and reads as an id — the slug rule still fires afterwards
+      // because a numeric ancestor collapsed (`afterDateOrId`).
+      expected: '/blog/{id}/{slug}',
+    },
+    {
+      name: 'dated permalink: year/month/day all collapse, and the slug rule reaches past them',
+      url: `${ORIGIN}/2024/03/15/hello-world`,
+      expected: '/{date}/{id}/{id}/{slug}',
     },
     {
       name: 'full-date segment',
@@ -156,6 +166,48 @@ describe('templateKeyFor', () => {
   it('falls back to the literal string for an unparseable URL', () => {
     expect(templateKeyFor('not a url')).toBe('not a url');
   });
+
+  it('groups dated permalinks (year/month/day, no listing prefix) into one template (H1)', () => {
+    const a = templateKeyFor(`${ORIGIN}/2024/03/15/hello-world`);
+    const b = templateKeyFor(`${ORIGIN}/2024/03/16/second-post`);
+    expect(a).toBe(b);
+    expect(a).toBe('/{date}/{id}/{id}/{slug}');
+  });
+
+  it('groups a 300-post dated blog into one template, not one per post (H1)', () => {
+    const posts = Array.from(
+      { length: 300 },
+      (_, index) =>
+        `${ORIGIN}/2024/${String((index % 12) + 1).padStart(2, '0')}/${String((index % 28) + 1).padStart(2, '0')}/post-${index}`,
+    );
+    const keys = new Set(posts.map((url) => templateKeyFor(url)));
+    expect(keys.size).toBe(1);
+  });
+
+  it('groups ids straddling 1000 into one template instead of splitting on the year/id ambiguity (M1)', () => {
+    const below = templateKeyFor(`${ORIGIN}/product/995`);
+    const above = templateKeyFor(`${ORIGIN}/product/1000`);
+    const wide = templateKeyFor(`${ORIGIN}/product/12345`);
+    expect(below).toBe(above);
+    expect(below).toBe(wide);
+    expect(below).toBe('/product/{id}');
+  });
+
+  it('still reads a full date next to plausible siblings as a date (M1, unambiguous cases unaffected)', () => {
+    expect(templateKeyFor(`${ORIGIN}/events/2024-05-01`)).toBe('/events/{date}');
+    expect(templateKeyFor(`${ORIGIN}/events/2024-05`)).toBe('/events/{date}');
+  });
+
+  it('collapses a locale-routing prefix so /en/about and /uk/about share one template (L1)', () => {
+    const en = templateKeyFor(`${ORIGIN}/en/about`);
+    const uk = templateKeyFor(`${ORIGIN}/uk/about`);
+    expect(en).toBe(uk);
+    expect(en).toBe('/{locale}/about');
+  });
+
+  it('does not treat a locale-shaped segment as a locale unless it opens the path (L1)', () => {
+    expect(templateKeyFor(`${ORIGIN}/team/en`)).toBe('/team/en');
+  });
 });
 
 describe('groupUrlsByTemplate', () => {
@@ -168,11 +220,7 @@ describe('groupUrlsByTemplate', () => {
       `${ORIGIN}/blog/2026/again`,
     ];
     const groups = groupUrlsByTemplate(urls);
-    expect(groups.map((group) => group.templateKey)).toEqual([
-      '/',
-      '/blog/{date}/{slug}',
-      '/about',
-    ]);
+    expect(groups.map((group) => group.templateKey)).toEqual(['/', '/blog/{id}/{slug}', '/about']);
     expect(groups[1]?.urls).toHaveLength(3);
   });
 

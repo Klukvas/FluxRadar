@@ -41,13 +41,49 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const FULL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const YEAR_MONTH_PATTERN = /^\d{4}-\d{2}$/;
 const YEAR_PATTERN = /^\d{4}$/;
+const PLAUSIBLE_YEAR_MIN = 1970;
+const PLAUSIBLE_YEAR_MAX = 2099;
+
+/** A one- or two-digit segment shaped like a calendar month or day (1-31). */
+const MONTH_OR_DAY_PATTERN = /^\d{1,2}$/;
 
 const NUMERIC_ID_PATTERN = /^\d+$/;
+
+/**
+ * Locale-prefixed routing (`/en/about`, `/uk/about`) always collapses the first
+ * path segment: this is the fixed set of two-letter locale codes a site's router
+ * plausibly uses, not a general "two lowercase letters" guess that would also
+ * eat a real page called `/hi` or `/it`.
+ */
+const LOCALE_PREFIXES = new Set([
+  'en',
+  'uk',
+  'de',
+  'fr',
+  'es',
+  'it',
+  'pt',
+  'nl',
+  'pl',
+  'ru',
+  'ja',
+  'zh',
+  'ko',
+  'cs',
+  'sv',
+  'da',
+  'no',
+  'fi',
+  'tr',
+  'ar',
+  'he',
+]);
 
 export const NUMERIC_PLACEHOLDER = '{id}';
 export const UUID_PLACEHOLDER = '{uuid}';
 export const DATE_PLACEHOLDER = '{date}';
 export const SLUG_PLACEHOLDER = '{slug}';
+export const LOCALE_PLACEHOLDER = '{locale}';
 
 /** A UUID segment, collapsed — or null when this segment is not one. */
 export function collapseUuidSegment(segment: string): string | null {
@@ -86,16 +122,60 @@ export function collapseNumericSegment(segment: string): string | null {
 }
 
 /**
+ * A locale-routing segment (`/en/...`, `/uk/...`), collapsed — or null when the
+ * segment is not a known locale code, or it is not the URL's first segment. A
+ * locale can only ever open a path, so a matching code deeper in the path (a
+ * page literally named `/blog/en`) is left alone.
+ */
+export function collapseLocaleSegment(segment: string, isFirstSegment: boolean): string | null {
+  if (!isFirstSegment) return null;
+  return LOCALE_PREFIXES.has(segment.toLowerCase()) ? LOCALE_PLACEHOLDER : null;
+}
+
+/**
  * A slug that follows a known listing prefix (`/blog/<slug>`, `/product/<slug>`),
  * collapsed — or null when the previous segment is not a recognised prefix, or
  * there is no previous segment.
+ *
+ * `afterDateOrId` widens the rule for a dated or id-bearing permalink that has
+ * no listing prefix at all (`/2024/03/15/hello-world`): once any ancestor
+ * segment in this path collapsed into a `{date}` or `{id}` placeholder, the
+ * final literal segment reads as that permalink's slug too, so the whole path
+ * collapses to one template instead of one template per post.
  */
 export function collapseSlugSegment(
   segment: string,
   previousSegment: string | null,
+  afterDateOrId = false,
 ): string | null {
+  if (afterDateOrId) return SLUG_PLACEHOLDER;
   if (previousSegment === null) return null;
   return SLUG_PREFIXES.has(previousSegment.toLowerCase()) ? SLUG_PLACEHOLDER : null;
+}
+
+/**
+ * Whether a bare four-digit segment reads as a year rather than a numeric id —
+ * true only with date CONTEXT: a neighbouring month/day-shaped segment, or an
+ * immediately preceding segment that already collapsed to `{date}`. Without
+ * that context a bare four-digit segment is indistinguishable from an id that
+ * happens to straddle 1000 (`/product/995` next to `/product/1000`), and
+ * guessing "year" split one page template into two.
+ */
+function bareYearHasDateContext(
+  segment: string,
+  nextSegment: string | undefined,
+  previousWasDate: boolean,
+): boolean {
+  if (!YEAR_PATTERN.test(segment)) return false;
+  const year = Number(segment);
+  if (year < PLAUSIBLE_YEAR_MIN || year > PLAUSIBLE_YEAR_MAX) return false;
+  return previousWasDate || (nextSegment !== undefined && looksLikeMonthOrDay(nextSegment));
+}
+
+function looksLikeMonthOrDay(segment: string): boolean {
+  if (!MONTH_OR_DAY_PATTERN.test(segment)) return false;
+  const value = Number(segment);
+  return value >= 1 && value <= 31;
 }
 
 /** The path only, with the query string stripped and no trailing slash. */
@@ -116,9 +196,12 @@ function pathOnly(url: string): string | null {
  * with itself deterministically rather than being dropped.
  *
  * The slug rule looks at the nearest ANCESTOR segment that stayed literal —
- * not just the immediate previous one — so `/blog/2024/hello-world` still
- * reads `hello-world` as a slug of `blog` even though a collapsed `{date}`
- * segment sits between them.
+ * not just the immediate previous one — so `/blog/my-great-post` still reads
+ * `my-great-post` as a slug of `blog` regardless of what sits between them.
+ * A dated permalink with no listing prefix at all (`/2024/03/15/hello-world`)
+ * is handled separately: once any ancestor collapsed to `{date}` or `{id}`,
+ * the trailing literal segment collapses too (`collapseSlugSegment`'s
+ * `afterDateOrId`), so the whole path is one template rather than one per post.
  */
 export function templateKeyFor(url: string): string {
   const path = pathOnly(url);
@@ -127,18 +210,33 @@ export function templateKeyFor(url: string): string {
   const rawSegments = path.split('/').filter((segment) => segment !== '');
   const classified: string[] = [];
   let lastLiteralSegment: string | null = null;
-  for (const segment of rawSegments) {
-    const collapsed =
+  let afterDateOrId = false;
+  let previousWasDate = false;
+  for (const [index, segment] of rawSegments.entries()) {
+    const nextSegment = rawSegments[index + 1];
+    const dateCollapsed: string | null =
+      FULL_DATE_PATTERN.test(segment) || YEAR_MONTH_PATTERN.test(segment)
+        ? DATE_PLACEHOLDER
+        : bareYearHasDateContext(segment, nextSegment, previousWasDate)
+          ? DATE_PLACEHOLDER
+          : null;
+    const collapsed: string | null =
       collapseUuidSegment(segment) ??
-      collapseDateSegment(segment) ??
+      dateCollapsed ??
       collapseNumericSegment(segment) ??
-      collapseSlugSegment(segment, lastLiteralSegment);
+      collapseLocaleSegment(segment, index === 0) ??
+      collapseSlugSegment(segment, lastLiteralSegment, afterDateOrId);
     if (collapsed === null) {
       const literal = segment.toLowerCase();
       classified.push(literal);
       lastLiteralSegment = literal;
+      previousWasDate = false;
     } else {
       classified.push(collapsed);
+      previousWasDate = collapsed === DATE_PLACEHOLDER;
+      if (collapsed === DATE_PLACEHOLDER || collapsed === NUMERIC_PLACEHOLDER) {
+        afterDateOrId = true;
+      }
     }
   }
   return `/${classified.join('/')}`;

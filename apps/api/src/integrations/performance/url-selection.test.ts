@@ -24,15 +24,17 @@ describe('selectAuditUrlsByTemplate', () => {
     ];
     const selections = selectAuditUrlsByTemplate(ORIGIN, candidates);
     expect(selections[0]).toEqual({ url: ORIGIN, templateKey: '/', representedPages: 1 });
-    // Blog (3 pages) outranks product (2 pages) outranks the single static page.
+    // Blog (3 pages) outranks product (2 pages) outranks the single static
+    // page. The bare year in `/blog/2024/...` has no date context (no
+    // neighbouring month/day segment), so it reads as an id — see templates.ts.
     expect(selections.map((entry) => entry.templateKey)).toEqual([
       '/',
-      '/blog/{date}/{slug}',
+      '/blog/{id}/{slug}',
       '/product/{id}',
       '/about',
     ]);
     expect(selections[1]).toMatchObject({
-      templateKey: '/blog/{date}/{slug}',
+      templateKey: '/blog/{id}/{slug}',
       representedPages: 3,
     });
   });
@@ -125,10 +127,29 @@ describe('selectAuditUrlsByTemplate over a large crawl', () => {
     const elapsedMs = Date.now() - started;
     expect(selections.length).toBeLessThanOrEqual(MAX_AUDITED_URLS_BY_TEMPLATE);
     expect(elapsedMs).toBeLessThan(5_000);
-    // 50 section prefixes; a 4-digit index also collapses to {date} rather than
-    // {id} (the documented year/id ambiguity in templates.ts), so each section
-    // sorts into at most two templates plus the root path.
-    expect(templatesFound).toBeGreaterThan(50);
-    expect(templatesFound).toBeLessThanOrEqual(101);
+    // 50 section prefixes plus the root path. A bare-year index (e.g. 1234)
+    // now needs date CONTEXT to read as {date} (see templates.ts M1 fix), and
+    // none of these indices has a neighbouring month/day segment, so every
+    // index — 4 digits or not — reads uniformly as {id} and each section
+    // sorts into exactly one template.
+    expect(templatesFound).toBe(51);
+  });
+
+  it('stays fast and bounded with one dominant template (49,990 of 50,000 URLs)', () => {
+    const candidates: string[] = [];
+    for (let index = 0; index < 49_990; index += 1) {
+      candidates.push(`${ORIGIN}product/${index}`);
+    }
+    for (let index = 0; index < 10; index += 1) {
+      candidates.push(`${ORIGIN}about-${index}`);
+    }
+    const started = Date.now();
+    const selections = selectAuditUrlsByTemplate(ORIGIN, candidates);
+    const templatesFound = countAuditTemplates(ORIGIN, candidates);
+    const elapsedMs = Date.now() - started;
+    expect(elapsedMs).toBeLessThan(5_000);
+    expect(templatesFound).toBe(12); // root, /product/{id}, 10 distinct /about-N pages
+    const product = selections.find((entry) => entry.templateKey === '/product/{id}');
+    expect(product?.representedPages).toBe(49_990);
   });
 });
