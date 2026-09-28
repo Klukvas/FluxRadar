@@ -146,8 +146,8 @@ describe('CREEM-004 checkout HTTP surface', () => {
       .send({ name: 'Fixture Site', domain: `https://${email.split('@')[0]}.example.com` });
     expect(profile.status).toBe(201);
     // The checkout refuses a site whose last reachability probe is missing or
-    // negative (FASTSPRING-009). These tests are about the checkout, so they
-    // state that precondition instead of running a probe.
+    // negative. These tests are about the checkout, so they state that
+    // precondition instead of running a probe.
     await seedReachableSite(
       db.prisma,
       registered.body.data.accountId as string,

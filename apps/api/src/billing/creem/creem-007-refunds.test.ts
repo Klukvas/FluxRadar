@@ -135,7 +135,7 @@ describe('CREEM-007 refunds and disputes', () => {
    * The row a lost race leaves behind: the refund's own signed payload, stored
    * as `unlinked` against an order that already has a purchase. Writing it
    * directly is the only way to reproduce an interleaving two transactions
-   * cannot be forced into from the outside (see FASTSPRING-015).
+   * cannot be forced into from the outside.
    */
   async function storePendingRefund(eventId: string, orderId: string): Promise<void> {
     const { rawBody, signature } = signedCreemDelivery({

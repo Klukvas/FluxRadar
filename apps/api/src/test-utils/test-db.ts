@@ -184,8 +184,8 @@ export async function seedScanModule(
 /**
  * Records that this site let the crawler in, so a checkout may open.
  *
- * `createCheckoutSession` refuses to sell an audit of a site whose last
- * reachability probe is missing, stale, or negative (FASTSPRING-009). Tests
+ * `createCreemCheckoutSession` refuses to sell an audit of a site whose last
+ * reachability probe is missing, stale, or negative (CREEM-004). Tests
  * about the checkout itself state the precondition here rather than running a
  * probe, so a failure names the thing they are actually testing.
  */

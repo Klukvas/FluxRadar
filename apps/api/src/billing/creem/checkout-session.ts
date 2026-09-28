@@ -41,13 +41,13 @@ import { CREEM_CHECKOUT_REFERENCE_KEY } from './events.ts';
  * How long a Creem checkout row is treated as payable.
  *
  * Creem documents no lifetime for a hosted checkout and accepts none on the
- * request, so unlike FastSpring's link the page a buyer left open in a tab
- * does not die when our row's deadline passes. The deadline is what decides
- * whether the row still blocks deleting the profile or changing its domain
+ * request, so the page a buyer left open in a tab does not die on its own when
+ * our row's deadline passes. The deadline is what decides whether the row
+ * still blocks deleting the profile or changing its domain
  * (openCheckoutSessionWhere): past it, a profile can be deleted and the row
  * with it, and a payment that lands afterwards is recorded as an order this
- * environment cannot bind. A week — the most FastSpring allows — keeps that
- * window to buyers who return to a tab left open for over a week, at the cost
+ * environment cannot bind. A week keeps that window to buyers who return to a
+ * tab left open for over a week, at the cost
  * of a profile that cannot be deleted for a week after an abandoned checkout.
  * A payment that lands after the deadline but before the profile is gone is
  * still honoured (claimableCheckoutSessionWhere).

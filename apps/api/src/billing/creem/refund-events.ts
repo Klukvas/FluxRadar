@@ -22,7 +22,7 @@ import { resolveCreemRefundLine } from './refund-line.ts';
 
 // What a Creem refund or dispute does to a purchase we already granted.
 //
-// The same rules as FastSpring's return/chargeback handling, on Creem's events:
+// The rules a refund or a chargeback follows, on Creem's events:
 //
 // Both are monotonic: they only ever move a purchase forward (paid -> Refunded /
 // Disputed) so a redelivery or an out-of-order event cannot restore access. A
