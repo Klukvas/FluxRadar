@@ -378,6 +378,48 @@ describe('SiteProfile competitors (T7)', () => {
     expect(update).toHaveBeenCalled();
   });
 
+  // T7-fix2 N7: re-checked only when name, domain, or competitors are part of
+  // the request — a scanConfig-only PATCH must not be blocked by a stored
+  // list that predates a later rule tightening, since this request neither
+  // reads nor changes it.
+  it('allows a scanConfig-only PATCH even when the stored list would fail today', async () => {
+    const profile = {
+      id: 'profile-1',
+      accountId: 'owner',
+      name: 'Smile Clinic',
+      domain: 'https://smile.example',
+      industry: null,
+      region: null,
+      language: null,
+      businessDescription: null,
+      offerings: null,
+      targetLanguages: null,
+      targetAudience: null,
+      // A stored list that would be rejected today (repeats the brand), left
+      // in place from before that rule existed.
+      competitorsJson: JSON.stringify(['Smile Clinic']),
+      scanConfigVersion: 1,
+      scanConfigJson: JSON.stringify(defaultProfileScanConfig),
+      createdAt: new Date(),
+    };
+    const update = vi.fn().mockImplementation(({ data }) => ({ ...profile, ...data }));
+    const app = appWith({
+      siteProfile: {
+        findUnique: vi.fn().mockResolvedValue(profile),
+        update,
+      } as unknown as PrismaClient['siteProfile'],
+      session: { findUnique: sessionMock() } as unknown as PrismaClient['session'],
+    });
+
+    const response = await request(app)
+      .patch('/profiles/profile-1')
+      .set('Cookie', SESSION_COOKIE)
+      .send({ scanConfig: { plan: 'Complete', scope: { includeSubdomains: true } } });
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalled();
+  });
+
   it('reads a stored competitors list back from GET', async () => {
     const profile = {
       id: 'profile-1',

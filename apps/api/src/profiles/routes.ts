@@ -231,18 +231,25 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
     if (input.domain !== undefined && input.domain !== profile.domain) {
       await assertDomainChangeAllowed(prisma, profile.id, deps.now());
     }
-    // Re-checked unconditionally, not only when `competitors` itself is part
-    // of this request (T7-fix F3): a PATCH that only renames the profile or
-    // changes its domain can otherwise leave a stored competitor equal to the
-    // row's own new name or domain, since the invariant this call protects
-    // was never re-verified against the value being renamed to.
-    assertCompetitorsAllowed(
-      input.competitors === undefined
-        ? competitorsFromJson(profile.competitorsJson)
-        : input.competitors,
-      input.name ?? profile.name,
-      input.domain ?? profile.domain,
-    );
+    // Re-checked whenever the name, domain, or competitors themselves are part
+    // of this request (T7-fix F3, narrowed by T7-fix2 N7): a PATCH that only
+    // renames the profile or changes its domain can otherwise leave a stored
+    // competitor equal to the row's own new name or domain, since the
+    // invariant this call protects was never re-verified against the value
+    // being renamed to. A PATCH that touches none of the three (a
+    // `scanConfig`-only edit, say) has nothing new to re-check, so it must not
+    // become blocked by a stored list a later rule tightening would now
+    // reject — that list was valid when it was saved, and this request isn't
+    // the one changing it.
+    if (input.name !== undefined || input.domain !== undefined || input.competitors !== undefined) {
+      assertCompetitorsAllowed(
+        input.competitors === undefined
+          ? competitorsFromJson(profile.competitorsJson)
+          : input.competitors,
+        input.name ?? profile.name,
+        input.domain ?? profile.domain,
+      );
+    }
     const nextScanConfig =
       input.scanConfig === undefined ? undefined : profileScanConfigSchema.parse(input.scanConfig);
     if (nextScanConfig !== undefined) {
