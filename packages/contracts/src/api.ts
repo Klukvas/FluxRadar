@@ -685,3 +685,56 @@ export const scanComparisonSchema = z.object({
   issues: issueComparisonSchema,
 });
 export type ScanComparison = z.infer<typeof scanComparisonSchema>;
+
+/**
+ * Per-engine GEO visibility summary (T6): a deterministic read of one scan's
+ * GEO answers, computed once at scan time (`@fluxradar/ai`'s
+ * `computeGeoVisibilitySummaries`) and stored in the GEO module row's
+ * metadata. Never recomputed at read time, and never part of the overall
+ * score — GEO stays informational-only (GEO_SCORING_REASON).
+ */
+export const GEO_VISIBILITY_PURPOSES = ['closed-book', 'awareness', 'discovery'] as const;
+export type GeoVisibilityPurpose = (typeof GEO_VISIBILITY_PURPOSES)[number];
+
+export const geoPurposeVisibilityCountsSchema = z.object({
+  asked: z.number().int().min(0),
+  answered: z.number().int().min(0),
+  brandMentioned: z.number().int().min(0),
+  domainMentioned: z.number().int().min(0),
+});
+export type GeoPurposeVisibilityCounts = z.infer<typeof geoPurposeVisibilityCountsSchema>;
+
+export const geoCitedInsteadEntrySchema = z.object({
+  hostname: z.string().min(1),
+  answerCount: z.number().int().min(1),
+});
+export type GeoCitedInsteadEntry = z.infer<typeof geoCitedInsteadEntrySchema>;
+
+export const geoProviderVisibilitySchema = z.object({
+  provider: z.string().min(1),
+  /** The report's own name for the provider (GEO_PROVIDER_DISPLAY_NAMES) — not re-derived here. */
+  label: z.string().min(1),
+  questionsAsked: z.number().int().min(0),
+  questionsAnswered: z.number().int().min(0),
+  questionsUnavailable: z.number().int().min(0),
+  brandMentionedCount: z.number().int().min(0),
+  brandMentionedShare: z.number().min(0).max(1),
+  domainCitedCount: z.number().int().min(0),
+  domainCitedShare: z.number().min(0).max(1),
+  /** null when fewer than `minAnsweredForScore` questions were answered. */
+  visibilityScore: z.number().min(0).max(100).nullable(),
+  byPurpose: z.record(z.enum(GEO_VISIBILITY_PURPOSES), geoPurposeVisibilityCountsSchema),
+  /** At most 10, ranked by distinct answers citing them, our own domain excluded. */
+  citedInstead: z.array(geoCitedInsteadEntrySchema).max(10),
+});
+export type GeoProviderVisibility = z.infer<typeof geoProviderVisibilitySchema>;
+
+export const geoVisibilitySummarySchema = z.object({
+  /** A provider under this many answered questions gets counts, never a score. */
+  minAnsweredForScore: z.number().int().min(1),
+  /** Score formula weights — 60% brand share + 40% domain share by default. */
+  weightBrand: z.number().min(0).max(1),
+  weightDomain: z.number().min(0).max(1),
+  providers: z.array(geoProviderVisibilitySchema),
+});
+export type GeoVisibilitySummary = z.infer<typeof geoVisibilitySummarySchema>;

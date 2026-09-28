@@ -14,7 +14,14 @@
 // plan: a scan run before a field existed shows less, not something assumed.
 
 import { AnalyticsDetails } from './AnalyticsChecks';
-import type { GeoEvidence, GeoObservation, MentionSignal, ScanModule } from './api';
+import type {
+  GeoEvidence,
+  GeoObservation,
+  GeoProviderVisibility,
+  GeoVisibilitySummary,
+  MentionSignal,
+  ScanModule,
+} from './api';
 import { BingDataPanel, bingSectionIn } from './BingDataPanel';
 import { CheckRow } from './CheckRow';
 import { GeoEvaluationBlock, geoEvaluationSummary, safeHttpUrl } from './GeoEvaluation';
@@ -109,6 +116,8 @@ export function ModuleChecksPanel(props: {
   observations: readonly GeoObservation[];
   /** What the AI answers were judged against; null when the scan recorded none. */
   evidence?: GeoEvidence | null;
+  /** The per-engine visibility summary (T6); null when the scan has none. */
+  visibilitySummary?: GeoVisibilitySummary | null;
   language: Language;
 }) {
   const t = copy[props.language].report.checks;
@@ -122,6 +131,7 @@ export function ModuleChecksPanel(props: {
         module={props.module}
         observations={props.observations}
         evidence={props.evidence ?? null}
+        visibilitySummary={props.visibilitySummary ?? null}
         language={props.language}
       />
     </section>
@@ -132,6 +142,7 @@ function ModuleChecksBody(props: {
   module: ScanModule;
   observations: readonly GeoObservation[];
   evidence: GeoEvidence | null;
+  visibilitySummary: GeoVisibilitySummary | null;
   language: Language;
 }) {
   const { metadata } = props.module;
@@ -142,6 +153,7 @@ function ModuleChecksBody(props: {
           checks={geoChecksOf(metadata)}
           observations={props.observations}
           evidence={props.evidence}
+          visibilitySummary={props.visibilitySummary}
           language={props.language}
         />
       );
@@ -442,6 +454,7 @@ function GeoChecksBody(props: {
   checks: GeoChecks | null;
   observations: readonly GeoObservation[];
   evidence: GeoEvidence | null;
+  visibilitySummary: GeoVisibilitySummary | null;
   language: Language;
 }) {
   const report = copy[props.language].report;
@@ -461,6 +474,11 @@ function GeoChecksBody(props: {
       {props.checks?.pages ? (
         <PageReadinessList pages={props.checks.pages} language={props.language} />
       ) : null}
+      {/* Before the answer cards: a reader deciding whether to read every
+          answer benefits from the per-engine summary first. */}
+      {props.observations.length === 0 ? null : (
+        <GeoVisibilityByEngine summary={props.visibilitySummary} language={props.language} />
+      )}
       <div className="module-checks__group">
         <h4 className="module-checks__subheading">{report.checks.geoQuestionsHeading}</h4>
         {generation === null ? null : (
@@ -484,6 +502,113 @@ function GeoChecksBody(props: {
         )}
       </div>
     </>
+  );
+}
+
+/** A percentage rounded for display; the stored share stays a 0..1 fraction. */
+function percentOf(share: number): number {
+  return Math.round(share * 100);
+}
+
+function GeoCitedInstead(props: {
+  citedInstead: GeoProviderVisibility['citedInstead'];
+  language: Language;
+}) {
+  const t = copy[props.language].report;
+  return (
+    <div className="geo-visibility-card__cited-instead">
+      <strong>{t.geoVisibilityCitedInsteadHeading}</strong>
+      {props.citedInstead.length === 0 ? (
+        <p className="muted">{t.geoVisibilityCitedInsteadNone}</p>
+      ) : (
+        <ul>
+          {props.citedInstead.map((entry) => (
+            <li key={entry.hostname} className="technical">
+              {fillCopy(t.geoVisibilityCitedInsteadEntry, {
+                hostname: entry.hostname,
+                count: entry.answerCount,
+              })}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function GeoVisibilityCard(props: { provider: GeoProviderVisibility; language: Language }) {
+  const t = copy[props.language].report;
+  const { provider } = props;
+  return (
+    <article className="geo-visibility-card">
+      <div className="split geo-visibility-card__header">
+        <strong>{provider.label}</strong>
+        {provider.visibilityScore === null ? (
+          <span className="geo-visibility-card__score geo-visibility-card__score--none">
+            {fillCopy(t.geoVisibilityNotEnoughAnswers, { min: provider.questionsAnswered })}
+          </span>
+        ) : (
+          <span className="geo-visibility-card__score" aria-label={t.geoVisibilityScoreLabel}>
+            {provider.visibilityScore}/100
+          </span>
+        )}
+      </div>
+      <p className="muted">
+        {fillCopy(t.geoVisibilityBrandShare, {
+          count: provider.brandMentionedCount,
+          total: provider.questionsAnswered,
+          percent: percentOf(provider.brandMentionedShare),
+        })}
+      </p>
+      <p className="muted">
+        {fillCopy(t.geoVisibilityDomainShare, {
+          count: provider.domainCitedCount,
+          total: provider.questionsAnswered,
+          percent: percentOf(provider.domainCitedShare),
+        })}
+      </p>
+      <GeoCitedInstead citedInstead={provider.citedInstead} language={props.language} />
+    </article>
+  );
+}
+
+/** The "Visibility by engine" block: one card per provider, before the answer cards. */
+function GeoVisibilityByEngine(props: {
+  summary: GeoVisibilitySummary | null;
+  language: Language;
+}) {
+  const t = copy[props.language].report;
+  if (props.summary === null) {
+    // Either this scan predates the summary, or the stored record no longer
+    // parses — the reader is told the same honest thing either way, and it is
+    // never recomputed here from the raw answers.
+    return (
+      <div className="module-checks__group">
+        <h4 className="module-checks__subheading">{t.geoVisibilityHeading}</h4>
+        <p className="muted">{t.geoVisibilityUnavailable}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="module-checks__group">
+      <h4 className="module-checks__subheading">{t.geoVisibilityHeading}</h4>
+      <p className="muted">
+        {fillCopy(t.geoVisibilityLead, {
+          min: props.summary.minAnsweredForScore,
+          brandWeight: percentOf(props.summary.weightBrand),
+          domainWeight: percentOf(props.summary.weightDomain),
+        })}
+      </p>
+      <div className="geo-visibility__grid">
+        {props.summary.providers.map((provider) => (
+          <GeoVisibilityCard
+            key={provider.provider}
+            provider={provider}
+            language={props.language}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -816,6 +941,11 @@ function GeoObservationCard(props: {
               purpose={observation.purpose}
               language={props.language}
             />
+          )}
+          {!observation.mentionContext ? null : (
+            <p className="geo-observation__mention-context">
+              <strong>{t.geoMentionContextLabel}:</strong> “{observation.mentionContext}”
+            </p>
           )}
           {citations.length === 0 ? null : (
             <div className="geo-observation__citations">

@@ -917,6 +917,23 @@ export const copy = {
       siteCoverageNoAddresses: 'The crawl found no addresses to read.',
       geoObservationsLead:
         'These are each model’s answers to this scan’s exact prompts. Each card shows the question as it was put, the answer as it came back, and — where an evaluation ran — how that answer checked out against what this scan read from your site; a discovery answer’s citations are the sources the model searched. They show what happened in this run; they do not prove what a model has memorized or will answer later.',
+      geoVisibilityHeading: 'Visibility by engine',
+      geoVisibilityLead:
+        'A score out of 100 for each AI engine that answered at least {min} questions: {brandWeight}% how often it mentioned your brand plus {domainWeight}% how often it cited your domain, both as a share of the questions that engine actually answered. This score is informational only — a snapshot of this run, never part of your overall score.',
+      geoVisibilityScoreLabel: 'Visibility score',
+      geoVisibilityNotEnoughAnswers:
+        'Not enough answers yet — needs at least {min} answered questions.',
+      geoVisibilityBrandShare: 'Brand mentioned in {count} of {total} answers ({percent}%)',
+      geoVisibilityDomainShare: 'Domain cited in {count} of {total} answers ({percent}%)',
+      geoVisibilityBrandShareHeader: 'Brand mentioned',
+      geoVisibilityDomainShareHeader: 'Domain cited',
+      geoVisibilityCitedInsteadHeading: 'Who got cited instead',
+      geoVisibilityCitedInsteadNone:
+        'No other site was cited in an answer that did not cite yours.',
+      geoVisibilityCitedInsteadEntry: '{hostname} — {count} answer(s)',
+      geoVisibilityUnavailable:
+        'This summary is available for scans run after September 28, 2026; this scan predates it.',
+      geoMentionContextLabel: 'Where your brand came up',
       geoAwarenessQuestion: 'Direct awareness question',
       geoClosedBookQuestion: 'Direct question, asked closed-book',
       geoDiscoveryQuestion: 'Domain discovery question',
@@ -2625,6 +2642,23 @@ export const copy = {
       siteCoverageNoAddresses: 'Обхід не знайшов жодної адреси для читання.',
       geoObservationsLead:
         'Це відповіді кожної моделі на конкретні запити цієї перевірки. Кожна картка показує поставлене питання, отриману відповідь і — якщо оцінювання виконувалося — як цю відповідь звірили з тим, що ця перевірка прочитала на вашому сайті; посилання під пошуковим питанням — це джерела, якими модель скористалася. Вони показують, що сталося саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
+      geoVisibilityHeading: 'Видимість за системами',
+      geoVisibilityLead:
+        'Оцінка від 0 до 100 для кожної AI-системи, яка відповіла щонайменше на {min} питань: {brandWeight}% — як часто вона згадувала ваш бренд, плюс {domainWeight}% — як часто вона посилалася на ваш домен, обидва як частка питань, на які ця система реально відповіла. Ця оцінка лише інформаційна — знімок цього прогону, вона ніколи не входить у загальну оцінку.',
+      geoVisibilityScoreLabel: 'Оцінка видимості',
+      geoVisibilityNotEnoughAnswers:
+        'Поки що замало відповідей — потрібно щонайменше {min} відповідей.',
+      geoVisibilityBrandShare: 'Бренд згадано у {count} з {total} відповідей ({percent}%)',
+      geoVisibilityDomainShare: 'Домен процитовано у {count} з {total} відповідей ({percent}%)',
+      geoVisibilityBrandShareHeader: 'Згадано бренд',
+      geoVisibilityDomainShareHeader: 'Процитовано домен',
+      geoVisibilityCitedInsteadHeading: 'Кого зацитували замість вас',
+      geoVisibilityCitedInsteadNone:
+        'У відповідях, де не було посилання на ваш сайт, не цитувався жоден інший сайт.',
+      geoVisibilityCitedInsteadEntry: '{hostname} — {count} відп.',
+      geoVisibilityUnavailable:
+        'Цей підсумок доступний для сканувань, виконаних після 28 вересня 2026 року; це сканування було раніше.',
+      geoMentionContextLabel: 'Де згадано ваш бренд',
       geoAwarenessQuestion: 'Пряме питання про впізнаваність',
       geoClosedBookQuestion: 'Пряме питання «із закритою книгою»',
       geoDiscoveryQuestion: 'Пошукове питання про послугу',

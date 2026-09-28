@@ -24,7 +24,8 @@ import { fetchScanComparison, type ScanComparison } from './comparison-api';
 import { Button, LoadingState, StatusChip } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
-import type { Language } from './i18n';
+import { geoVisibilitySummaryOf } from './geo-visibility';
+import { copy, fillCopy, type Language } from './i18n';
 import { planIncludesIssueHistory, planName } from './plan-modules';
 import { ComparisonPrintBlock } from './ScanComparisonPrint';
 import { moduleLabel, ruleTitle } from './rule-titles';
@@ -314,6 +315,58 @@ function PrintSections(props: { modules: Dashboard['modules']; language: Languag
   );
 }
 
+/** A percentage rounded for display; the stored share stays a 0..1 fraction. */
+function percentOf(share: number): number {
+  return Math.round(share * 100);
+}
+
+/** Compact mirror of the report's "Visibility by engine" block: score and shares per engine. */
+function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language }) {
+  const t = copy[props.language].report;
+  const hasGeoAnswers = (props.dashboard.geoObservations ?? []).length > 0;
+  if (!hasGeoAnswers) return null;
+  const summary = geoVisibilitySummaryOf(props.dashboard.geoVisibilitySummary);
+  return (
+    <section className="print-section">
+      <h2>{t.geoVisibilityHeading}</h2>
+      {summary === null ? (
+        <p className="muted">{t.geoVisibilityUnavailable}</p>
+      ) : (
+        <table className="print-table">
+          <thead>
+            <tr>
+              <th>{t.geoProvider}</th>
+              <th>{t.geoVisibilityScoreLabel}</th>
+              <th>{t.geoVisibilityBrandShareHeader}</th>
+              <th>{t.geoVisibilityDomainShareHeader}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summary.providers.map((provider) => (
+              <tr key={provider.provider}>
+                <td>{provider.label}</td>
+                <td>
+                  {provider.visibilityScore === null
+                    ? fillCopy(t.geoVisibilityNotEnoughAnswers, { min: provider.questionsAnswered })
+                    : `${provider.visibilityScore}/100`}
+                </td>
+                <td>
+                  {provider.brandMentionedCount}/{provider.questionsAnswered} (
+                  {percentOf(provider.brandMentionedShare)}%)
+                </td>
+                <td>
+                  {provider.domainCitedCount}/{provider.questionsAnswered} (
+                  {percentOf(provider.domainCitedShare)}%)
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
 /** Every problem in summary order, with the findings that belong to it. */
 function PrintProblems(props: { data: PrintData; language: Language }) {
   const f = findingsCopy[props.language];
@@ -358,6 +411,7 @@ function PrintDocument(props: { data: PrintData; language: Language }) {
       <PrintSummary data={props.data} language={props.language} />
       {actionPlan === null ? null : <PrintActionPlan plan={actionPlan} language={props.language} />}
       <PrintSections modules={dashboard.modules} language={props.language} />
+      <PrintGeoVisibility dashboard={dashboard} language={props.language} />
       {props.data.comparison === null || !planIncludesIssueHistory(dashboard.scan.plan) ? null : (
         <ComparisonPrintBlock comparison={props.data.comparison} language={props.language} />
       )}

@@ -27,11 +27,19 @@ import type {
   GeoMentionSignals,
   GeoModuleResult,
 } from '@fluxradar/ai';
-import { isMeasured } from '@fluxradar/ai';
+import {
+  computeGeoMentionContexts,
+  computeGeoVisibilitySummaries,
+  GEO_VISIBILITY_BRAND_WEIGHT,
+  GEO_VISIBILITY_DOMAIN_WEIGHT,
+  GEO_VISIBILITY_MIN_ANSWERED_FOR_SCORE,
+  isMeasured,
+} from '@fluxradar/ai';
 import { computeCoverage } from '@fluxradar/scoring';
 import type { assessAiCrawlerReadiness } from '@fluxradar/rules';
 
 import { redactEvidence } from './ai-evidence.ts';
+import { GEO_PROVIDER_DISPLAY_NAMES } from './geo.ts';
 import type { GeoQuestionGenerationResult } from './geo.ts';
 import type { ModuleRowData } from './module-row.ts';
 
@@ -285,12 +293,43 @@ function queryGenerationMetadata(
   };
 }
 
+/**
+ * The per-engine visibility summary (T6), keyed for `metadataJson`.
+ *
+ * Computed once here, at scan time, from the same outcomes and mention
+ * signals the rules and the observations above already read — never
+ * recomputed later. The provider label comes from `GEO_PROVIDER_DISPLAY_NAMES`
+ * (geo.ts) so the report never carries two names for the same assistant.
+ */
+function visibilitySummaryRecord(
+  geo: GeoModuleResult,
+  siteDomain: string,
+): Record<string, unknown> {
+  const summaries = computeGeoVisibilitySummaries({
+    outcomes: geo.outcomes,
+    mentions: geo.mentions,
+    siteDomain,
+  });
+  return {
+    minAnsweredForScore: GEO_VISIBILITY_MIN_ANSWERED_FOR_SCORE,
+    weightBrand: GEO_VISIBILITY_BRAND_WEIGHT,
+    weightDomain: GEO_VISIBILITY_DOMAIN_WEIGHT,
+    providers: summaries.map((summary) => ({
+      ...summary,
+      label: GEO_PROVIDER_DISPLAY_NAMES[summary.provider],
+    })),
+  };
+}
+
 /** Строка ScanModule для GEO; побочных эффектов нет — запись делает вызывающий. */
 export function geoModuleRow(
   geo: GeoModuleResult,
   generation: GeoQuestionGenerationResult,
   aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
   evidence: GeoEvidenceSnapshot | null = null,
+  /** Site domain and brand — needed only for the visibility summary and its quotes. */
+  siteDomain = '',
+  brand = '',
 ): ModuleRowData {
   const reasonParts = statusReasonParts(geo, generation);
   // Each answer's evaluation is a check of its own: a judge that could not run
@@ -304,6 +343,11 @@ export function geoModuleRow(
     completedApplicableChecks:
       geo.responses.length + generation.completedApplicableChecks + tally.completed,
     ...(reasonParts.length > 0 ? { statusReason: reasonParts.join('; ') } : {}),
+  });
+  const mentionContexts = computeGeoMentionContexts({
+    outcomes: geo.outcomes,
+    mentions: geo.mentions,
+    brand,
   });
   return {
     runtimeStatus: coverage.status,
@@ -337,6 +381,9 @@ export function geoModuleRow(
         observations: geoObservations(geo),
         evidence: evidenceRecord(evidence),
         queryGeneration: queryGenerationMetadata(generation),
+        // T6: per-engine score, shares and "who got cited instead" — computed
+        // once here from the same outcomes/mentions above, never re-derived.
+        visibilitySummary: visibilitySummaryRecord(geo, siteDomain),
         requests: geo.outcomes.map((outcome) => ({
           purpose: purposeOf(outcome.request.promptVersion),
           promptVersion: outcome.request.promptVersion,
@@ -352,6 +399,15 @@ export function geoModuleRow(
                 usage: outcome.response.usage,
                 mentions: mentionSignals(geo, outcome.aiRequestKey),
                 evaluation: evaluationRecord(geo.answerEvaluations.get(outcome.aiRequestKey)),
+                // The sentence around the first brand mention, a quote only —
+                // absent when the brand was not mentioned (computeGeoMentionContexts).
+                ...(mentionContexts.has(outcome.aiRequestKey)
+                  ? {
+                      mentionContext: redactEvidence(
+                        mentionContexts.get(outcome.aiRequestKey) ?? '',
+                      ),
+                    }
+                  : {}),
               }
             : { reason: outcome.reason }),
         })),

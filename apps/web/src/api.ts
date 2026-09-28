@@ -557,6 +557,59 @@ export interface GeoObservation {
   } | null;
   /** Absent on responses created by older API versions; null when none ran. */
   readonly evaluation?: GeoEvaluation | null;
+  /**
+   * The sentence around the first brand mention in this answer — a quote, not
+   * a classification. Absent on an answer that never mentioned the brand, and
+   * on every response recorded before this field existed.
+   */
+  readonly mentionContext?: string | null;
+}
+
+/** Mirrors `GeoVisibilityPurpose` in @fluxradar/contracts. */
+export const GEO_VISIBILITY_PURPOSES = ['closed-book', 'awareness', 'discovery'] as const;
+export type GeoVisibilityPurpose = (typeof GEO_VISIBILITY_PURPOSES)[number];
+
+export interface GeoPurposeVisibilityCounts {
+  readonly asked: number;
+  readonly answered: number;
+  readonly brandMentioned: number;
+  readonly domainMentioned: number;
+}
+
+export interface GeoCitedInsteadEntry {
+  readonly hostname: string;
+  readonly answerCount: number;
+}
+
+/** One engine's visibility summary (T6) — counts, shares, and a score, or none. */
+export interface GeoProviderVisibility {
+  readonly provider: string;
+  readonly label: string;
+  readonly questionsAsked: number;
+  readonly questionsAnswered: number;
+  readonly questionsUnavailable: number;
+  readonly brandMentionedCount: number;
+  readonly brandMentionedShare: number;
+  readonly domainCitedCount: number;
+  readonly domainCitedShare: number;
+  /** null when fewer than `minAnsweredForScore` questions were answered. */
+  readonly visibilityScore: number | null;
+  readonly byPurpose: Readonly<Record<GeoVisibilityPurpose, GeoPurposeVisibilityCounts>>;
+  readonly citedInstead: readonly GeoCitedInsteadEntry[];
+}
+
+/**
+ * Per-engine visibility summary of a scan, or null.
+ *
+ * Null both when the scan predates this field and when the stored record no
+ * longer parses; the report shows the same honest "not available" sentence
+ * either way and never recomputes it from the raw answers.
+ */
+export interface GeoVisibilitySummary {
+  readonly minAnsweredForScore: number;
+  readonly weightBrand: number;
+  readonly weightDomain: number;
+  readonly providers: readonly GeoProviderVisibility[];
 }
 
 export interface Dashboard {
@@ -576,6 +629,8 @@ export interface Dashboard {
   readonly geoObservations?: readonly GeoObservation[];
   /** What the answers were judged against; absent when the scan recorded none. */
   readonly geoEvidence?: GeoEvidence | null;
+  /** Absent on responses created by older API versions; null when the scan has none. */
+  readonly geoVisibilitySummary?: GeoVisibilitySummary | null;
 }
 
 export interface ExportPayload {

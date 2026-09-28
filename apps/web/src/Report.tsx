@@ -27,6 +27,7 @@ import {
 } from './components';
 import { egressLocationLabel } from './egress-location';
 import { findingsCopy } from './findings-copy';
+import { geoVisibilitySummaryOf } from './geo-visibility';
 import { copy, fillCopy, type Language } from './i18n';
 import { asRecord, numberValue } from './module-metadata';
 import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
@@ -150,6 +151,7 @@ export function ResultsScreen(props: {
   const checksLine = checksSummary(dashboard.modules, props.language);
   const geoObservations = dashboard.geoObservations ?? [];
   const geoEvidence = dashboard.geoEvidence ?? null;
+  const geoVisibilitySummary = geoVisibilitySummaryOf(dashboard.geoVisibilitySummary);
   return (
     <div className="stack">
       <Window title={`${t.windowTitle} · ${displayDomain(scan.domain)}`}>
@@ -328,6 +330,7 @@ export function ResultsScreen(props: {
                     module={module}
                     observations={geoObservations}
                     evidence={geoEvidence}
+                    visibilitySummary={geoVisibilitySummary}
                     language={props.language}
                   />
                 ) : null}

@@ -23,5 +23,6 @@ export * from './geo-evidence.js';
 export * from './geo-evaluation.js';
 export * from './geo-rules.js';
 export * from './geo-module.js';
+export * from './geo-visibility-summary.js';
 export * from './ux-module.js';
 export * from './action-plan-module.js';
