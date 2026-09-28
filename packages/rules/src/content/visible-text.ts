@@ -74,13 +74,45 @@ function collectText(node: Node): string {
 // of short labels or a pricing table can easily clear 200 visible characters
 // without containing a single sentence; scoring it as prose would either
 // flag it falsely or praise it falsely (see the rationale in content-005.ts).
+//
+// Tag identity alone is not enough (T9 review H6): a `<p>` inside a `<td>`
+// is still a table cell's fragment, not a sentence, whether or not the CMS
+// wrapped that cell's text in a `<p>` — Gutenberg's table block and most
+// Markdown renderers' loose lists do exactly that. So a prose tag is only
+// prose when nothing between it and `<body>` is itself a non-prose
+// structural container: a list item, a table (and everything inside one),
+// a list, or a `<dt>` label. `<dl>` itself stays a pass-through rather than
+// an excluded container, so `<dd>` — a PROSE_TAGS member — still counts;
+// only its sibling `<dt>` is pruned, which is "outside dd" for a `<dl>`.
 const PROSE_TAGS = new Set(['p', 'blockquote', 'dd']);
 
 // Chrome the reader does not read as the page's message: navigation, page
-// header/footer, sidebars, and forms. A `<p>` inside a `<nav>` (a footer
-// sitemap blurb, say) is still chrome, not prose — skip the whole subtree
-// rather than only the container's own text.
-const EXCLUDED_CONTAINERS = new Set(['nav', 'header', 'footer', 'aside', 'form']);
+// header/footer, sidebars, forms, and the structural containers above. A
+// `<p>` inside a `<nav>` (a footer sitemap blurb, say) is still chrome, not
+// prose — skip the whole subtree rather than only the container's own text.
+const EXCLUDED_CONTAINERS = new Set([
+  'nav',
+  'header',
+  'footer',
+  'aside',
+  'form',
+  'li',
+  'td',
+  'th',
+  'table',
+  'ul',
+  'ol',
+  'dt',
+]);
+
+// The ARIA landmark roles that mark the same chrome as EXCLUDED_CONTAINERS,
+// for markup that uses a `<div role="navigation">` instead of a `<nav>`.
+const EXCLUDED_ROLES = new Set(['navigation', 'banner', 'contentinfo', 'complementary']);
+
+function hasExcludedRole(node: HTMLElement): boolean {
+  const role = node.getAttribute('role');
+  return role !== undefined && EXCLUDED_ROLES.has(role.trim().toLowerCase());
+}
 
 const proseTextCache = new WeakMap<PageSnapshot, string>();
 
@@ -111,12 +143,45 @@ function collectProseText(node: Node): string {
     return '';
   }
   const tag = node.rawTagName?.toLowerCase() ?? '';
-  if (INVISIBLE_TAGS.has(tag) || EXCLUDED_CONTAINERS.has(tag)) {
+  if (INVISIBLE_TAGS.has(tag) || EXCLUDED_CONTAINERS.has(tag) || hasExcludedRole(node)) {
     return '';
   }
   if (PROSE_TAGS.has(tag)) {
-    const inner = collectText(node);
-    return inner.trim() === '' ? '' : `${inner}. `;
+    // Trimmed, not raw: a nested prose block (L12) already ends its own
+    // text in ". " (its own recursive call below), and interpolating the
+    // untrimmed string would leave a space between that period and this
+    // one — two adjacent-but-for-a-space terminators that countSentences
+    // (readability.ts) reads as two boundaries instead of one. Trimming
+    // first makes the two periods adjacent, which its regex merges into
+    // a single terminator, same as a source sentence that already ends
+    // in its own punctuation.
+    const inner = node.childNodes.map(collectProseBlockText).join('').trim();
+    return inner === '' ? '' : `${inner}. `;
   }
   return node.childNodes.map(collectProseText).join('');
+}
+
+// Text directly inside a prose block (a `<p>`, `<blockquote>` or `<dd>`):
+// plain text and inline elements (`<strong>`, `<a>`, …) concatenate as one
+// sentence, same as collectText, but a nested prose tag — a `<p>` inside a
+// `<blockquote>` or a `<dd>`, which Markdown and CMS output both produce —
+// recurses through collectProseText instead, so it gets its own `". "`
+// boundary rather than gluing onto its neighbor (T9 review L12). A nested
+// excluded container (a `<form>` or `<nav>` a browser would actually hoist
+// out of a `<p>`) is pruned the same as anywhere else in the tree.
+function collectProseBlockText(node: Node): string {
+  if (node instanceof TextNode) {
+    return node.text;
+  }
+  if (!(node instanceof HTMLElement)) {
+    return '';
+  }
+  const tag = node.rawTagName?.toLowerCase() ?? '';
+  if (INVISIBLE_TAGS.has(tag) || EXCLUDED_CONTAINERS.has(tag) || hasExcludedRole(node)) {
+    return '';
+  }
+  if (PROSE_TAGS.has(tag)) {
+    return collectProseText(node);
+  }
+  return node.childNodes.map(collectProseBlockText).join('');
 }

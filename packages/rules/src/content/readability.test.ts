@@ -360,4 +360,83 @@ describe('proseText', () => {
     expect(text).not.toContain('simpleWe');
     expect(countSentences(text)).toBe(3);
   });
+
+  // T9 review H6: a `<p>` in a list item or table cell is still that item's
+  // or cell's fragment, not a sentence — whether or not the markup wraps it
+  // in a `<p>`. A pricing table built from Gutenberg's table block and a
+  // Markdown loose list (`<li><p>…</p></li>`) both wrap every cell/item text
+  // in a `<p>`; neither should count toward prose.
+  it('a <p> inside a table cell is still a table cell, not prose (H6)', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Wrapped table</title></head>' +
+        '<body><table><tr>' +
+        '<td><p>First cell here</p></td><td><p>Second cell here</p></td>' +
+        '</tr></table></body></html>',
+    );
+    expect(proseText(firstPage(ctx))).toBe('');
+  });
+
+  it('a <p> inside a list item is still a list item, not prose (H6)', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Loose list</title></head>' +
+        '<body><ul><li><p>First item here</p></li><li><p>Second item here</p></li></ul></body></html>',
+    );
+    expect(proseText(firstPage(ctx))).toBe('');
+  });
+
+  it('<dd> still reads as prose when its <dl> also has a <dt> label (H6)', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Definition list</title></head>' +
+        '<body><dl><dt>Term label here</dt><dd>We keep our pricing honest</dd></dl></body></html>',
+    );
+    expect(proseText(firstPage(ctx))).toBe('We keep our pricing honest.');
+  });
+
+  it("a <p> in an article's own <div> wrapper stays prose (H6)", () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Article wrapper</title></head>' +
+        '<body><article><div><p>Real article body copy</p></div></article></body></html>',
+    );
+    expect(proseText(firstPage(ctx))).toBe('Real article body copy.');
+  });
+
+  it('a role="navigation" container is excluded even without a <nav> tag (H6)', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Role nav</title></head>' +
+        '<body><div role="navigation"><p>Skip to content now</p></div>' +
+        '<p>Real article body copy</p></body></html>',
+    );
+    expect(proseText(firstPage(ctx))).toBe('Real article body copy.');
+  });
+
+  // T9 review L12: a nested prose tag — a <p> inside a <blockquote> or a
+  // <dd>, which Markdown and CMS output both produce — must still get its
+  // own boundary, one level deeper than the L11 sibling-<p> case.
+  it('minified <p>s nested inside a <blockquote> do not glue across paragraphs (L12)', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Nested blockquote</title></head>' +
+        '<body><blockquote><p>We keep our plans</p><p>We keep our pricing simple</p></blockquote></body></html>',
+    );
+    const text = proseText(firstPage(ctx));
+    expect(text).not.toContain('plansWe');
+    expect(countSentences(text)).toBe(2);
+  });
+
+  it('minified <p>s nested inside a <dd> do not glue across paragraphs (L12)', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Nested dd</title></head>' +
+        '<body><dl><dd><p>We keep our plans</p><p>We keep our pricing simple</p></dd></dl></body></html>',
+    );
+    const text = proseText(firstPage(ctx));
+    expect(text).not.toContain('plansWe');
+    expect(countSentences(text)).toBe(2);
+  });
+
+  it('an excluded container nested inside a <p> is skipped (nit)', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Nested chrome</title></head>' +
+        '<body><p>alpha <form>Newsletter signup blurb</form><nav>Skip to content now</nav> omega</p></body></html>',
+    );
+    expect(proseText(firstPage(ctx))).toBe('alpha omega.');
+  });
 });
