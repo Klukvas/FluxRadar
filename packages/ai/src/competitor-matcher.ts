@@ -10,7 +10,11 @@
 // brand's own share — so a false match here does not just mislabel one cell,
 // it fabricates part of the brand's own reported share.
 
-const COMBINING_DOT_ABOVE = /\u0307/g;
+// Only the dot `toLowerCase` appends directly after an "i" — the İ (U+0130)
+// case below — is stripped. An unrelated combining dot above some other
+// letter (Ṫ, Q̇, …) is real diacritical information and must survive the
+// fold (T7-fix2 N6): the lookbehind is what tells the two apart.
+const COMBINING_DOT_AFTER_I = /(?<=i)\u0307/g;
 
 /**
  * Unicode-aware case fold: NFC first (so a precomposed and a decomposed
@@ -21,7 +25,7 @@ const COMBINING_DOT_ABOVE = /\u0307/g;
  * strings instead of the same one.
  */
 export function foldForMatching(value: string): string {
-  return value.normalize('NFC').toLowerCase().replace(COMBINING_DOT_ABOVE, '');
+  return value.normalize('NFC').toLowerCase().replace(COMBINING_DOT_AFTER_I, '');
 }
 
 function escapeRegExp(value: string): string {
@@ -52,12 +56,15 @@ function matchSpans(haystack: string, needle: string): readonly (readonly [numbe
   return spans;
 }
 
-function isWithinAnySpan(
-  span: readonly [number, number],
-  spans: readonly (readonly [number, number])[],
-): boolean {
+type Span = readonly [number, number];
+
+function isWithinAnySpan(span: Span, spans: readonly Span[]): boolean {
   const [start, end] = span;
   return spans.some(([spanStart, spanEnd]) => start >= spanStart && end <= spanEnd);
+}
+
+function spanLength(span: Span): number {
+  return span[1] - span[0];
 }
 
 /**
@@ -72,6 +79,30 @@ export function textNames(haystack: string, needle: string): boolean {
 }
 
 /**
+ * `competitor`'s spans in `answer`, on a Unicode word boundary, minus any
+ * span that falls entirely inside a span where `brand` itself matched — so a
+ * competitor name that is a substring of the brand ("Acme" in "Acme Dental")
+ * is not counted as a competitor mention just because the brand was named.
+ * Shared by `competitorMentioned` (single-name check) and
+ * `shareOfVoiceMentions` (T7-fix2 N1/N2, which needs every competitor's spans
+ * together to resolve overlaps between them).
+ */
+function competitorSpansExcludingBrand(input: {
+  readonly answer: string;
+  readonly competitor: string;
+  readonly brand: string;
+}): readonly Span[] {
+  const foldedCompetitor = foldForMatching(input.competitor.trim());
+  if (foldedCompetitor === '') return [];
+  const foldedAnswer = foldForMatching(input.answer);
+  const competitorSpans = matchSpans(foldedAnswer, foldedCompetitor);
+  if (competitorSpans.length === 0) return [];
+  const foldedBrand = foldForMatching(input.brand.trim());
+  const brandSpans = foldedBrand === '' ? [] : matchSpans(foldedAnswer, foldedBrand);
+  return competitorSpans.filter((span) => !isWithinAnySpan(span, brandSpans));
+}
+
+/**
  * Whether `answer` mentions `competitor` on a Unicode word boundary, other
  * than an occurrence that falls entirely inside a span where `brand` itself
  * matched — so a competitor name that is a substring of the brand ("Acme" in
@@ -83,12 +114,81 @@ export function competitorMentioned(input: {
   readonly competitor: string;
   readonly brand: string;
 }): boolean {
-  const foldedCompetitor = foldForMatching(input.competitor.trim());
-  if (foldedCompetitor === '') return false;
+  return competitorSpansExcludingBrand(input).length > 0;
+}
+
+export interface ShareOfVoiceMentions {
+  /**
+   * Whether the brand itself was mentioned at a span not entirely covered by
+   * a competitor's (longest-match-resolved) span in the same answer.
+   */
+  readonly brandMentioned: boolean;
+  /** Which of the input `competitors` were mentioned, overlaps resolved. */
+  readonly competitorsMentioned: ReadonlySet<string>;
+}
+
+/**
+ * Share-of-voice mention resolution for one answer, across the brand and
+ * every competitor together (T7-fix2 N1/N2). `competitorMentioned`/
+ * `textNames` decide one name in isolation; a fair share-of-voice count needs
+ * two more rules that only make sense with every name in view at once:
+ *
+ *  - N1: a brand "mention" that exists only because it is a substring of a
+ *    matched competitor name ("Bolt" inside "Bolt Food") must not inflate the
+ *    brand's own share — the mirror, in the other direction, of the
+ *    brand-inside-competitor exclusion `competitorSpansExcludingBrand`
+ *    already applies.
+ *  - N2: when two competitor names overlap in the same answer ("Acme" inside
+ *    "Acme Corp"), only the longest match counts — otherwise one real mention
+ *    is double-counted as two competitors' mentions, which also corrupts the
+ *    shared denominator.
+ *
+ * `competitors` is expected to already exclude any name the question itself
+ * named — measurability is the caller's concern, not this function's.
+ */
+export function shareOfVoiceMentions(input: {
+  readonly answer: string;
+  readonly brand: string;
+  readonly competitors: readonly string[];
+}): ShareOfVoiceMentions {
   const foldedAnswer = foldForMatching(input.answer);
-  const competitorSpans = matchSpans(foldedAnswer, foldedCompetitor);
-  if (competitorSpans.length === 0) return false;
   const foldedBrand = foldForMatching(input.brand.trim());
   const brandSpans = foldedBrand === '' ? [] : matchSpans(foldedAnswer, foldedBrand);
-  return competitorSpans.some((span) => !isWithinAnySpan(span, brandSpans));
+
+  const perCompetitorSpans = input.competitors.map((name) => ({
+    name,
+    spans: competitorSpansExcludingBrand({
+      answer: input.answer,
+      competitor: name,
+      brand: input.brand,
+    }),
+  }));
+  const allSpans = perCompetitorSpans.flatMap(({ name, spans }) =>
+    spans.map((span) => ({ name, span })),
+  );
+  // N2: drop a span that sits entirely inside a strictly longer span from a
+  // *different* competitor — the longer match is the real mention.
+  const survivingSpans = allSpans.filter(
+    (candidate) =>
+      !allSpans.some(
+        (other) =>
+          other.name !== candidate.name &&
+          spanLength(other.span) > spanLength(candidate.span) &&
+          isWithinAnySpan(candidate.span, [other.span]),
+      ),
+  );
+
+  const competitorsMentioned = new Set(
+    perCompetitorSpans
+      .filter(({ name }) => survivingSpans.some((entry) => entry.name === name))
+      .map(({ name }) => name),
+  );
+  // N1: the brand only counts where it is not covered by a surviving
+  // competitor span — "Bolt" inside "Bolt Food" is not a mention of "Bolt".
+  const survivingCompetitorSpans = survivingSpans.map((entry) => entry.span);
+  const brandMentioned = brandSpans.some(
+    (span) => !isWithinAnySpan(span, survivingCompetitorSpans),
+  );
+
+  return { brandMentioned, competitorsMentioned };
 }

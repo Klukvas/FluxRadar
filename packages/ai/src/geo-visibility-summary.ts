@@ -13,7 +13,8 @@
 // never feeds the overall score — this module computes observations, nothing
 // that penalizes.
 
-import { competitorSignal, isMeasured } from './geo-measurability.js';
+import { shareOfVoiceMentions, textNames } from './competitor-matcher.js';
+import { isMeasured } from './geo-measurability.js';
 import type { GeoMentionSignals } from './geo-rules.js';
 import { redact } from './redaction.js';
 import type { RedactionOptions } from './redaction.js';
@@ -391,11 +392,21 @@ function addOutcomeToCounts(
  * Scope mirrors `addOutcomeToCounts`'s brand-share denominator exactly: a
  * closed-book answer is skipped (its badges never show), and only an answer
  * whose brand signal actually measured something counts. A competitor's own
- * `named-in-question` state is not checked — the scope is set once, by the
- * brand, so the same set of answers backs the brand row and every competitor
- * row; letting each competitor narrow its own scope would make the rows
- * incomparable (D-171-style: one signal's rule must not silently vary row to
- * row).
+ * `named-in-question` state is not checked for scope — the scope is set once,
+ * by the brand, so the same set of answers backs the brand row and every
+ * competitor row; letting each competitor narrow its own scope would make the
+ * rows incomparable (D-171-style: one signal's rule must not silently vary
+ * row to row). A competitor named in the question is still excluded from
+ * being counted *mentioned* in that answer (below), just not from the scope.
+ *
+ * Unlike the brand/domain signals, "mentioned" here is not `signal.brand`
+ * (that is bare-`includes` matching, deliberately left alone for the badges
+ * it feeds) but `shareOfVoiceMentions`'s own word-boundary read of the same
+ * answer, so the brand and every competitor are judged by the one matcher
+ * that also resolves the overlaps between them (T7-fix2 N1/N2): a brand
+ * mention wholly inside a competitor's match does not inflate the brand's
+ * share, and two overlapping competitor matches count once, for the longer
+ * name.
  */
 function shareOfVoiceFor(
   responses: readonly AiResponseOutcome[],
@@ -410,16 +421,17 @@ function shareOfVoiceFor(
     if (geoVisibilityPurposeOf(response.request.promptVersion) === 'closed-book') continue;
     const signal = mentions.get(response.aiRequestKey);
     if (signal === undefined || !isMeasured(signal.brand)) continue;
-    if (signal.brand === 'mentioned') brandMentions += 1;
-    for (const competitor of competitors) {
-      const mentioned =
-        competitorSignal({
-          question: response.request.question,
-          answer: response.response.rawText,
-          competitor,
-          brand,
-        }) === 'mentioned';
-      if (mentioned) {
+    const eligibleCompetitors = competitors.filter(
+      (competitor) => !textNames(response.request.question, competitor),
+    );
+    const { brandMentioned, competitorsMentioned } = shareOfVoiceMentions({
+      answer: response.response.rawText,
+      brand,
+      competitors: eligibleCompetitors,
+    });
+    if (brandMentioned) brandMentions += 1;
+    for (const competitor of eligibleCompetitors) {
+      if (competitorsMentioned.has(competitor)) {
         competitorMentions.set(competitor, (competitorMentions.get(competitor) ?? 0) + 1);
       }
     }

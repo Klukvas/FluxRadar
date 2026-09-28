@@ -987,4 +987,105 @@ describe('share of voice (T7)', () => {
       competitors: [{ name: 'Acme', mentionedCount: 0, share: 0 }],
     });
   });
+
+  function shareOfVoiceFor(
+    brand: string,
+    competitors: readonly string[],
+    outcomes: AiRequestOutcome[],
+  ) {
+    const mentions = geoMentionSignals({ domain: DOMAIN, siteUrl: ORIGIN, brand, outcomes });
+    const [summary] = computeGeoVisibilitySummaries({
+      outcomes,
+      mentions,
+      siteDomain: DOMAIN,
+      brand,
+      competitors,
+    });
+    return summary?.shareOfVoice;
+  }
+
+  // T7-fix2 N1: the mirror of F1 — a brand name that is a substring of a
+  // matched competitor name ("Bolt" inside "Bolt Food") must not be counted
+  // as a brand mention just because the competitor was named.
+  it('does not count the brand when it only appears as a substring of a matched competitor (Bolt/Bolt Food)', () => {
+    const outcomes = [
+      answer({
+        sequence: 1,
+        question: 'Which delivery apps operate here?',
+        rawText: 'Bolt Food delivers across the city.',
+      }),
+      answer({
+        sequence: 2,
+        question: 'Which delivery apps operate here?',
+        rawText: 'Glovo and Bolt Food are the options.',
+      }),
+    ];
+    expect(shareOfVoiceFor('Bolt', ['Bolt Food'], outcomes)).toEqual({
+      denominator: 2,
+      brandMentionsInScope: 0,
+      brandShare: 0,
+      competitors: [{ name: 'Bolt Food', mentionedCount: 2, share: 1 }],
+    });
+  });
+
+  // T7-fix2 N1: the same rule still lets the brand count when it appears on
+  // its own, outside any competitor span (Uber/Uber Eats).
+  it('still counts the brand when it appears outside the competitor span (Uber/Uber Eats)', () => {
+    const outcomes = [
+      answer({
+        sequence: 1,
+        question: 'Which platforms deliver food?',
+        rawText: 'Uber Eats delivers quickly.',
+      }),
+      answer({
+        sequence: 2,
+        question: 'Which platforms deliver food?',
+        rawText: 'Uber is also a rideshare option.',
+      }),
+    ];
+    expect(shareOfVoiceFor('Uber', ['Uber Eats'], outcomes)).toEqual({
+      denominator: 2,
+      brandMentionsInScope: 1,
+      brandShare: 0.5,
+      competitors: [{ name: 'Uber Eats', mentionedCount: 1, share: 0.5 }],
+    });
+  });
+
+  // T7-fix2 N1: a third pin of the same rule (Acme/Acme Corp).
+  it('does not count the brand when it only appears as a substring of a matched competitor (Acme/Acme Corp)', () => {
+    const outcomes = [
+      answer({
+        sequence: 1,
+        question: 'Which vendors are common here?',
+        rawText: 'Acme Corp is a major player.',
+      }),
+    ];
+    expect(shareOfVoiceFor('Acme', ['Acme Corp'], outcomes)).toEqual({
+      denominator: 1,
+      brandMentionsInScope: 0,
+      brandShare: 0,
+      competitors: [{ name: 'Acme Corp', mentionedCount: 1, share: 1 }],
+    });
+  });
+
+  // T7-fix2 N2: overlapping competitor names — the longer match wins, so
+  // "Acme" inside "Acme Corp" is not double-counted as a second mention.
+  it('counts an overlapping pair of competitor names once, for the longer name (Acme/Acme Corp)', () => {
+    const outcomes = [
+      answer({
+        sequence: 1,
+        question: 'How do these compare?',
+        rawText: 'Acme Corp is great; Smile Clinic is too.',
+      }),
+    ];
+    expect(shareOfVoiceFor('Smile Clinic', ['Acme', 'Acme Corp'], outcomes)).toEqual({
+      denominator: 2,
+      brandMentionsInScope: 1,
+      brandShare: 0.5,
+      competitors: [
+        { name: 'Acme Corp', mentionedCount: 1, share: 0.5 },
+        { name: 'Acme', mentionedCount: 0, share: 0 },
+      ],
+    });
+  });
 });

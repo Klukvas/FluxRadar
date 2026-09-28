@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { competitorMentioned, foldForMatching, textNames } from './competitor-matcher.js';
+import {
+  competitorMentioned,
+  foldForMatching,
+  shareOfVoiceMentions,
+  textNames,
+} from './competitor-matcher.js';
 
 describe('foldForMatching', () => {
   it('folds an NFD string to the same value as its NFC spelling', () => {
@@ -15,6 +20,14 @@ describe('foldForMatching', () => {
 
   it('folds Cyrillic case the same way as Latin', () => {
     expect(foldForMatching('СТОМАТОЛОГІЯ ЛЮКС')).toBe('стоматологія люкс');
+  });
+
+  // T7-fix2 N6: only the dot İ's lowercase leaves right after an "i" is
+  // stripped — a combining dot above some other letter is real diacritical
+  // information and must survive the fold.
+  it('keeps a combining dot above that is not the one İ leaves after "i"', () => {
+    expect(foldForMatching('Q̇uux')).toBe('q̇uux');
+    expect(foldForMatching('Q̇uux')).not.toBe(foldForMatching('Quux'));
   });
 });
 
@@ -118,5 +131,49 @@ describe('competitorMentioned', () => {
     expect(
       competitorMentioned({ answer: 'Anything at all.', competitor: '  ', brand: 'Acme Dental' }),
     ).toBe(false);
+  });
+
+  // T7-fix2 N6: the combining-dot fold no longer strips a dot that isn't
+  // İ's, so a rival spelled with one is no longer mistaken for a plain name.
+  it('does not match a rival spelled with an unrelated combining dot against the plain name', () => {
+    expect(
+      competitorMentioned({
+        answer: 'Quux Dental is a rival.',
+        competitor: 'Q̇uux',
+        brand: 'Zzz',
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('shareOfVoiceMentions', () => {
+  it('does not count the brand when it is only a substring of a matched competitor (N1)', () => {
+    expect(
+      shareOfVoiceMentions({
+        answer: 'Bolt Food delivers across the city.',
+        brand: 'Bolt',
+        competitors: ['Bolt Food'],
+      }),
+    ).toEqual({ brandMentioned: false, competitorsMentioned: new Set(['Bolt Food']) });
+  });
+
+  it('still counts the brand outside the competitor span', () => {
+    expect(
+      shareOfVoiceMentions({
+        answer: 'Uber is also a rideshare option.',
+        brand: 'Uber',
+        competitors: ['Uber Eats'],
+      }),
+    ).toEqual({ brandMentioned: true, competitorsMentioned: new Set() });
+  });
+
+  it('counts only the longer of two overlapping competitor names (N2)', () => {
+    expect(
+      shareOfVoiceMentions({
+        answer: 'Acme Corp is great; Smile Clinic is too.',
+        brand: 'Smile Clinic',
+        competitors: ['Acme', 'Acme Corp'],
+      }),
+    ).toEqual({ brandMentioned: true, competitorsMentioned: new Set(['Acme Corp']) });
   });
 });
