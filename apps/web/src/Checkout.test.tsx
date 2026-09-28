@@ -1,27 +1,25 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
 import { App } from './App';
-import { CheckoutPending, openCheckoutWindow, type PendingCheckout } from './Checkout';
+import { CheckoutPending, type PendingCheckout } from './Checkout';
 
 // Paid checkout in the UI.
 //
 // The invariant under test: the browser never creates a paid scan. It asks the
-// server to open a provider checkout, then polls a server-side status that only
-// turns into a scan once the signed provider webhook has been processed.
+// server to open a Creem checkout, sends the tab to the hosted page, then polls
+// a server-side status that only turns into a scan once the signed Creem
+// webhook has been processed.
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
 const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
 
 const checkoutConfig = {
-  provider: 'fastspring',
+  provider: 'creem',
   available: true,
   mode: 'test' as const,
   unavailableReason: null,
-  // No popup checkout configured: this file covers the provider-hosted tab
-  // fallback. The popup flow has its own file, Checkout.popup.test.tsx.
-  popup: null,
   plans: [
     { plan: 'Basic', priceUsd: 55, currency: 'USD' },
     { plan: 'Complete', priceUsd: 120, currency: 'USD' },
@@ -31,7 +29,7 @@ const checkoutConfig = {
 const session = {
   reference: 'frcs_abc',
   sessionId: 'sess_abc',
-  checkoutUrl: 'https://fluxradar.test.onfastspring.com/session/sess_abc',
+  checkoutUrl: 'https://www.creem.io/test/checkout/sess_abc',
   plan: 'Complete',
   amount: 120,
   currency: 'USD',
@@ -55,17 +53,13 @@ const paidScan = {
   modules: [],
 };
 
-/** A pending checkout on the provider-hosted path — no popup storefront. */
-function hostedCheckout(reference: string): PendingCheckout {
+/** A pending checkout on the redirect path, as `new-scan-request.ts` stores it. */
+function pendingCheckout(reference: string): PendingCheckout {
   return {
     accountId: account.accountId,
     reference,
-    sessionId: session.sessionId,
     checkoutUrl: session.checkoutUrl,
-    storefront: null,
-    flow: 'tab',
     restored: false,
-    popupBlocked: false,
   };
 }
 
@@ -80,7 +74,7 @@ function envelope<T>(data: T, status = 200): Response {
  * The pay button is disabled until the API says this site lets the crawler in,
  * so every paid-checkout stub has to answer the reachability read. Answered
  * here rather than in each handler: these tests are about the checkout, and a
- * site that cannot be read is FASTSPRING-009's subject, not theirs.
+ * site that cannot be read is a different concern.
  */
 function reachabilityEnvelope(): Response {
   return envelope({
@@ -111,8 +105,8 @@ function selectPlan(plan: string): void {
  * Waits for the pay button to become usable.
  *
  * A paid scan is not offered until the API answers that this site lets the
- * crawler in (FASTSPRING-009), so pressing the button in the same tick as
- * selecting the plan would press a disabled one.
+ * crawler in, so pressing the button in the same tick as selecting the plan
+ * would press a disabled one.
  */
 async function awaitPayable(): Promise<void> {
   await waitFor(() =>
@@ -135,17 +129,25 @@ async function openNewScan(handler: (path: string, init?: RequestInit) => Respon
   return fetchMock;
 }
 
+// The redirect flow navigates this very tab to Creem's hosted page. jsdom does
+// not implement real navigation, so every test that reaches it stubs the call
+// rather than let it throw.
+let locationAssignSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  locationAssignSpy = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+});
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   window.localStorage.clear();
   window.history.replaceState(null, '', '/');
 });
 
 describe('paid checkout flow', () => {
-  it('opens the provider checkout and waits, creating no scan in the browser', async () => {
-    const open = vi.fn(() => ({}) as Window);
-    vi.stubGlobal('open', open);
+  it('sends the browser to the Creem checkout and waits, creating no scan itself', async () => {
     let statusCalls = 0;
     const fetchMock = await openNewScan((path) => {
       if (path === '/auth/me') return envelope(account);
@@ -200,14 +202,8 @@ describe('paid checkout flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
 
     expect(await screen.findByText('Payment — confirming')).toBeInTheDocument();
-    // No `noopener` in the features string: it would make window.open return null
-    // on success too, and every buyer would be told their checkout was blocked.
-    expect(open).toHaveBeenCalledWith(session.checkoutUrl, '_blank');
-    expect(
-      screen.queryByText('Your browser blocked the checkout tab. Use the link below to continue.'),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Open the checkout page' })).not.toBeInTheDocument();
-    // A buyer pays through FastSpring; the internal allowlist's route is not on this path.
+    await waitFor(() => expect(locationAssignSpy).toHaveBeenCalledWith(session.checkoutUrl));
+    // A buyer pays through Creem; the internal allowlist's route is not on this path.
     expect(called(fetchMock, '/billing/internal-checkout')).toBe(false);
     expect(called(fetchMock, `/profiles/${profile.id}/free-check`)).toBe(false);
 
@@ -233,48 +229,7 @@ describe('paid checkout flow', () => {
     await waitFor(() => expect(called(fetchMock, `/scans/${paidScan.id}`)).toBe(true));
   });
 
-  it('offers the checkout link when the browser blocks the new tab', async () => {
-    vi.stubGlobal(
-      'open',
-      vi.fn(() => null),
-    );
-    await openNewScan((path) => {
-      if (path === '/auth/me') return envelope(account);
-      if (path === '/profiles') return envelope([profile]);
-      if (path === '/scans/active') return envelope(null);
-      if (path === '/billing/checkout-config') return envelope(checkoutConfig);
-      if (path === '/billing/checkout-session') return envelope(session, 201);
-      if (path === `/billing/checkout-session/${session.reference}`) {
-        return envelope({
-          reference: session.reference,
-          plan: 'Complete',
-          status: 'created',
-          reasonCode: null,
-          scanId: null,
-          purchaseId: null,
-          expiresAt: null,
-        });
-      }
-      return envelope(null);
-    });
-
-    await screen.findByText('Complete · $120');
-    selectPlan('Complete');
-    await awaitPayable();
-    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
-
-    const link = await screen.findByRole('link', { name: 'Open the checkout page' });
-    expect(link).toHaveAttribute('href', session.checkoutUrl);
-    expect(
-      screen.getByText('Your browser blocked the checkout tab. Use the link below to continue.'),
-    ).toBeInTheDocument();
-  });
-
   it('explains a rejected checkout instead of showing a scan', async () => {
-    vi.stubGlobal(
-      'open',
-      vi.fn(() => ({}) as Window),
-    );
     await openNewScan((path) => {
       if (path === '/auth/me') return envelope(account);
       if (path === '/profiles') return envelope([profile]);
@@ -304,7 +259,7 @@ describe('paid checkout flow', () => {
       await screen.findByText(/The payment provider reported a problem with this checkout/),
     ).toBeInTheDocument();
     // The buyer gets a sentence they can act on; the internal reason (amounts,
-    // product paths, validation vocabulary) never leaves the server.
+    // product ids, validation vocabulary) never leaves the server.
     expect(screen.getByText(/A payment could not be matched to this checkout/)).toBeInTheDocument();
     expect(screen.queryByText(/does not match the quoted/)).not.toBeInTheDocument();
   });
@@ -401,14 +356,10 @@ describe('paid checkout flow', () => {
     expect(called(fetchMock, '/billing/checkout-config')).toBe(false);
   });
 
-  // The buyer pays in a second tab, so the tab that started the checkout is very
-  // likely to be reloaded before the provider webhook lands. Losing the reference
+  // The buyer pays on Creem's page, so this tab is reloaded (or comes back from
+  // the return address) before the provider webhook lands. Losing the reference
   // would leave them with a real charge and no screen that can confirm it.
   it('keeps confirming the payment after the page is reloaded', async () => {
-    vi.stubGlobal(
-      'open',
-      vi.fn(() => ({}) as Window),
-    );
     const handler = (path: string): Response => {
       if (path === '/auth/me') return envelope(account);
       if (path === '/profiles') return envelope([profile]);
@@ -474,7 +425,7 @@ describe('paid checkout flow', () => {
         <span>tick {tick}</span>
         <CheckoutPending
           language="en"
-          checkout={hostedCheckout(session.reference)}
+          checkout={pendingCheckout(session.reference)}
           onConfirmed={() => undefined}
           onCancel={() => undefined}
           onError={() => undefined}
@@ -519,7 +470,7 @@ describe('paid checkout flow', () => {
     render(
       <CheckoutPending
         language="en"
-        checkout={hostedCheckout('../../scans/someone-elses-scan')}
+        checkout={pendingCheckout('../../scans/someone-elses-scan')}
         onConfirmed={() => undefined}
         onCancel={() => undefined}
         onError={() => undefined}
@@ -565,7 +516,7 @@ describe('paid checkout flow', () => {
     render(
       <CheckoutPending
         language="en"
-        checkout={hostedCheckout('frcs_unknown')}
+        checkout={pendingCheckout('frcs_unknown')}
         onConfirmed={() => undefined}
         onCancel={() => undefined}
         onError={onError}
@@ -587,49 +538,6 @@ describe('paid checkout flow', () => {
     expect(polls()).toHaveLength(2);
   });
 
-  // The contract every caller depends on: "false" must mean the browser refused
-  // to open the tab, and nothing else.
-  describe('openCheckoutWindow', () => {
-    it('reports success and severs the opener when the tab opens', () => {
-      const opened = { opener: {} as unknown } as Window;
-      const open = vi.fn(() => opened);
-      vi.stubGlobal('open', open);
-
-      expect(openCheckoutWindow(session.checkoutUrl)).toBe(true);
-      expect(open).toHaveBeenCalledWith(session.checkoutUrl, '_blank');
-      // Reverse tabnabbing: the checkout page must not reach back into this one.
-      expect(opened.opener).toBeNull();
-    });
-
-    it('reports a blocked popup only when the browser returned no window', () => {
-      vi.stubGlobal(
-        'open',
-        vi.fn(() => null),
-      );
-      expect(openCheckoutWindow(session.checkoutUrl)).toBe(false);
-
-      vi.stubGlobal(
-        'open',
-        vi.fn(() => undefined),
-      );
-      expect(openCheckoutWindow(session.checkoutUrl)).toBe(false);
-    });
-
-    it('still reports success when the opener cannot be cleared', () => {
-      const opened = {
-        set opener(_value: unknown) {
-          throw new Error('cross-origin WindowProxy');
-        },
-      } as unknown as Window;
-      vi.stubGlobal(
-        'open',
-        vi.fn(() => opened),
-      );
-
-      expect(openCheckoutWindow(session.checkoutUrl)).toBe(true);
-    });
-  });
-
   // Local storage is shared with everything else on this origin and survives
   // across sessions. A `javascript:` entry in that slot would turn "continue
   // your payment" into a script the buyer clicks themselves, so a restored URL
@@ -640,9 +548,7 @@ describe('paid checkout flow', () => {
       JSON.stringify({
         accountId: account.accountId,
         reference: session.reference,
-        sessionId: session.sessionId,
         checkoutUrl: 'javascript:alert(document.cookie)',
-        popupBlocked: true,
       }),
     );
     stubApi((path) => {
@@ -664,9 +570,7 @@ describe('paid checkout flow', () => {
       JSON.stringify({
         accountId: 'someone-else',
         reference: session.reference,
-        sessionId: session.sessionId,
         checkoutUrl: session.checkoutUrl,
-        popupBlocked: false,
       }),
     );
     stubApi((path) => {
@@ -690,10 +594,6 @@ describe('optional AI recipients at checkout', () => {
   const OPT_IN_LABEL = 'Also ask Google (Gemini)';
 
   async function openPaidForm(optInAiProviders?: readonly string[]) {
-    vi.stubGlobal(
-      'open',
-      vi.fn(() => ({}) as Window),
-    );
     const fetchMock = await openNewScan((path) => {
       if (path === '/auth/me') return envelope(account);
       if (path === '/profiles') return envelope([profile]);

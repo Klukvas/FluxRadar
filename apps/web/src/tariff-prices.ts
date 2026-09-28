@@ -14,11 +14,9 @@ export const WEBSITE_AUDIT_PRICE = `$${TARIFF_PRICES_USD.WebsiteAudit}`;
 export const COMPLETE_PRICE = `$${TARIFF_PRICES_USD.Complete}`;
 
 // The same prices with the currency spelled out, for the places a buyer decides
-// on: the tariff cards and the comparison row. The catalogue is priced in USD,
-// but the checkout localises — a buyer outside the US is quoted their own
-// currency — so a bare "$" on the marketing page is a figure the checkout may
-// not repeat. It also satisfies FastSpring's activation check that the prices
-// on the website match the catalogue.
+// on: the tariff cards and the comparison row. The catalogue is priced and
+// charged in USD, so this is also what a payment provider's activation check
+// verifies: the prices on the website match the catalogue.
 export const BASIC_PRICE_USD = `${BASIC_PRICE} USD`;
 export const WEBSITE_AUDIT_PRICE_USD = `${WEBSITE_AUDIT_PRICE} USD`;
 export const COMPLETE_PRICE_USD = `${COMPLETE_PRICE} USD`;

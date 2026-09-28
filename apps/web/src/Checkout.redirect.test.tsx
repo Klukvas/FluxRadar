@@ -20,11 +20,9 @@ const REFERENCE = 'frcs_0f8fad5b-d9cb-469f-a165-70867728950e';
 
 const checkoutConfig = {
   provider: 'creem',
-  checkoutFlow: 'redirect' as const,
   available: true,
   mode: 'test' as const,
   unavailableReason: null,
-  popup: null,
   plans: [
     { plan: 'Basic', priceUsd: 55, currency: 'USD' },
     { plan: 'Complete', priceUsd: 120, currency: 'USD' },
@@ -61,7 +59,7 @@ const paidScan = {
 const RETURN_PATH = `/checkout/return?request_id=${REFERENCE}&checkout_id=ch_1&order_id=ord_1`;
 const RETURNED_COPY =
   'Thanks — if you completed the payment, FluxRadar is waiting for Creem to confirm it. This usually takes a few seconds.';
-const PAUSED_COPY = /This payment is still open\. Reopen the checkout to finish it/;
+const PAUSED_COPY = /This payment is still open\. Continue the checkout to finish it/;
 const LEAVING_COPY = 'Taking you to the secure Creem checkout…';
 
 /** A reference the server never issued: well-formed, which is all a crafted link needs to be. */
@@ -148,12 +146,8 @@ function storeStartedCheckout(): void {
     JSON.stringify({
       accountId: account.accountId,
       reference: REFERENCE,
-      sessionId: session.sessionId,
       checkoutUrl: session.checkoutUrl,
-      storefront: null,
-      flow: 'redirect',
       restored: false,
-      popupBlocked: false,
     }),
   );
 }
@@ -216,16 +210,13 @@ describe('paying through the Creem hosted checkout', () => {
       expect.objectContaining({
         accountId: account.accountId,
         reference: REFERENCE,
-        sessionId: session.sessionId,
         checkoutUrl: session.checkoutUrl,
-        flow: 'redirect',
-        storefront: null,
       }),
     );
     // No tab, no popup: the navigation is the checkout.
     expect(open).not.toHaveBeenCalled();
     expect(await screen.findByText(LEAVING_COPY)).toBeInTheDocument();
-    expect(screen.getByText(/popup\s+redirect/)).toBeInTheDocument();
+    expect(screen.getByText(`checkout ${REFERENCE}`)).toBeInTheDocument();
     expect(called(fetchMock, '/billing/internal-checkout')).toBe(false);
     expect(called(fetchMock, `/profiles/${profile.id}/free-check`)).toBe(false);
   });
@@ -255,7 +246,7 @@ describe('paying through the Creem hosted checkout', () => {
     expect(await screen.findByText(PAUSED_COPY)).toBeInTheDocument();
     expect(screen.queryByText(LEAVING_COPY)).not.toBeInTheDocument();
     // The page it can go back to, in this tab, as the checkout was opened.
-    const link = screen.getByRole('link', { name: 'Reopen the checkout' });
+    const link = screen.getByRole('link', { name: 'Open the checkout page' });
     expect(link).toHaveAttribute('href', session.checkoutUrl);
     expect(link).not.toHaveAttribute('target');
   });
@@ -285,7 +276,7 @@ describe('coming back from the Creem hosted checkout', () => {
     expect(window.location.pathname).toBe('/profiles');
     expect(window.location.search).toBe('');
     // Nothing to reopen: the return address carries no checkout page.
-    expect(screen.queryByRole('link', { name: 'Reopen the checkout' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open the checkout page' })).not.toBeInTheDocument();
     // The same poll as every other flow; the address confirmed nothing by itself.
     await waitFor(() =>
       expect(called(fetchMock, `/billing/checkout-session/${REFERENCE}`)).toBe(true),
@@ -309,11 +300,13 @@ describe('coming back from the Creem hosted checkout', () => {
     render(<App />);
 
     expect(await screen.findByText(RETURNED_COPY)).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: 'Reopen the checkout' });
+    const link = screen.getByRole('link', { name: 'Open the checkout page' });
     expect(link).toHaveAttribute('href', session.checkoutUrl);
     // Same tab, as the checkout was opened: Creem brings the buyer back here.
     expect(link).not.toHaveAttribute('target');
-    expect(screen.queryByRole('button', { name: 'Reopen the checkout' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Open the checkout page' }),
+    ).not.toBeInTheDocument();
     expect(window.location.pathname).toBe('/profiles');
   });
 
@@ -367,7 +360,7 @@ describe('coming back from the Creem hosted checkout', () => {
     // Not a return from this checkout: the window pauses and offers its page.
     expect(screen.getByText(PAUSED_COPY)).toBeInTheDocument();
     expect(screen.queryByText(RETURNED_COPY)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Reopen the checkout' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open the checkout page' })).toHaveAttribute(
       'href',
       session.checkoutUrl,
     );
@@ -437,12 +430,8 @@ describe('a Creem checkout reopened without a return', () => {
       JSON.stringify({
         accountId: account.accountId,
         reference: REFERENCE,
-        sessionId: session.sessionId,
         checkoutUrl: session.checkoutUrl,
-        storefront: null,
-        flow: 'redirect',
         restored: false,
-        popupBlocked: false,
       }),
     );
     stubApi((path) =>
@@ -453,10 +442,10 @@ describe('a Creem checkout reopened without a return', () => {
 
     expect(await screen.findByText('Payment — confirming')).toBeInTheDocument();
     expect(
-      screen.getByText(/This payment is still open. Reopen the checkout to finish it/),
+      screen.getByText(/This payment is still open. Continue the checkout to finish it/),
     ).toBeInTheDocument();
     expect(screen.queryByText(RETURNED_COPY)).not.toBeInTheDocument();
-    const link = screen.getByRole('link', { name: 'Reopen the checkout' });
+    const link = screen.getByRole('link', { name: 'Open the checkout page' });
     expect(link).toHaveAttribute('href', session.checkoutUrl);
     expect(link).not.toHaveAttribute('target');
     expect(assign).not.toHaveBeenCalled();

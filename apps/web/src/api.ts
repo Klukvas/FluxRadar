@@ -800,32 +800,12 @@ export interface BingSection {
  */
 export type CheckoutUnavailableReason = 'not_configured' | 'misconfigured';
 
-/**
- * How the browser opens a FastSpring popup checkout, when this deployment has
- * one. `storefront` is the public `data-storefront` value the Store Builder
- * Library is initialised with; it is server-issued and server-validated so the
- * same bundle can serve a test and a live deployment. No credential is involved.
- */
-export interface CheckoutPopupConfig {
-  readonly storefront: string;
-}
-
 /** Whether paid checkout is switched on for this deployment, from the server. */
 export interface CheckoutConfig {
   readonly provider: string;
   readonly available: boolean;
   readonly mode: 'test' | 'live' | null;
   readonly unavailableReason: CheckoutUnavailableReason | null;
-  /** null when the deployment checks out on the provider-hosted page instead. */
-  readonly popup: CheckoutPopupConfig | null;
-  /**
-   * How the browser reaches the checkout: FastSpring's popup over this page, the
-   * provider page in a new tab, or — Creem — a hosted page this tab navigates
-   * to and is sent back from. Absent on a server that predates the field, which
-   * only ever sold through FastSpring: read as popup when one is configured,
-   * else tab (`checkout-flow.ts`).
-   */
-  readonly checkoutFlow?: 'popup' | 'tab' | 'redirect';
   readonly plans: readonly {
     readonly plan: string;
     readonly priceUsd: number;

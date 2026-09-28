@@ -704,10 +704,7 @@ export const copy = {
       purchaseTermsLabel: 'Purchase terms',
       purchaseTermsPrefix: 'By selecting “Pay and run scan”, you agree to the',
       purchaseTermsJoin: 'and acknowledge the',
-      purchaseTermsMerchantByProvider: {
-        fastspring: 'FastSpring handles payment as merchant of record.',
-        creem: 'Creem handles payment as merchant of record.',
-      },
+      purchaseTermsMerchant: 'Creem handles payment as merchant of record.',
       saveConfiguration: 'Save configuration',
       savingConfiguration: 'Saving configuration…',
       configurationTitle: 'Profile configuration',
@@ -1787,23 +1784,8 @@ export const copy = {
       noScanUntilConfirmed:
         'The scan starts only after the provider confirms the payment on our server — closing this window does not cancel it.',
       openCheckoutLink: 'Open the checkout page',
-      popupBlocked: 'Your browser blocked the checkout tab. Use the link below to continue.',
-      popupOpening: 'Opening the secure FastSpring checkout…',
-      popupOpen:
-        'Complete the payment in the checkout window. FluxRadar is waiting for FastSpring to confirm it.',
-      popupClosed:
-        'The checkout window is closed. If the payment went through, confirmation appears here in a moment — reopen the checkout if you have not paid yet.',
-      popupPaused:
-        'This payment is still open. Reopen the checkout to finish it, or wait here if you have already paid.',
-      popupReopen: 'Reopen the checkout',
-      popupFailedSdk:
-        'The FastSpring checkout could not be loaded — an ad blocker, a privacy extension or the network may be blocking it. Nothing has been charged.',
-      popupFailedLaunch:
-        'The FastSpring checkout could not be opened for this payment. Nothing has been charged.',
-      popupFailedStorefront:
-        'Paid checkout is misconfigured for this environment, so the checkout could not open. Nothing has been charged.',
-      popupFallbackHint:
-        'You can finish the same payment on the FastSpring checkout page instead — it is the same order, opened in a new tab:',
+      checkoutPaused:
+        'This payment is still open. Continue the checkout to finish it, or wait here if you have already paid.',
       redirectOpening: 'Taking you to the secure Creem checkout…',
       redirectReturned:
         'Thanks — if you completed the payment, FluxRadar is waiting for Creem to confirm it. This usually takes a few seconds.',
@@ -2426,10 +2408,7 @@ export const copy = {
       purchaseTermsLabel: 'Умови придбання',
       purchaseTermsPrefix: 'Натискаючи «Оплатити та запустити», ви погоджуєтеся з',
       purchaseTermsJoin: 'і підтверджуєте, що ознайомилися з',
-      purchaseTermsMerchantByProvider: {
-        fastspring: 'FastSpring обробляє оплату як merchant of record.',
-        creem: 'Creem обробляє оплату як merchant of record.',
-      },
+      purchaseTermsMerchant: 'Creem обробляє оплату як merchant of record.',
       saveConfiguration: 'Зберегти конфігурацію',
       savingConfiguration: 'Зберігаємо конфігурацію…',
       configurationTitle: 'Конфігурація профілю',
@@ -3400,23 +3379,8 @@ export const copy = {
       noScanUntilConfirmed:
         'Перевірка стартує лише після підтвердження оплати на нашому сервері — закриття цього вікна її не скасовує.',
       openCheckoutLink: 'Відкрити сторінку оплати',
-      popupBlocked: 'Браузер заблокував вкладку оплати. Скористайтеся посиланням нижче.',
-      popupOpening: 'Відкриваємо захищений checkout FastSpring…',
-      popupOpen:
-        'Завершіть оплату у вікні checkout. FluxRadar очікує підтвердження від FastSpring.',
-      popupClosed:
-        'Вікно checkout закрито. Якщо оплата пройшла, підтвердження зʼявиться тут за мить — якщо ще ні, відкрийте checkout знову.',
-      popupPaused:
-        'Ця оплата ще активна. Відкрийте checkout, щоб завершити її, або зачекайте тут, якщо вже оплатили.',
-      popupReopen: 'Відкрити checkout знову',
-      popupFailedSdk:
-        'Не вдалося завантажити checkout FastSpring — можливо, його блокує розширення браузера або мережа. Кошти не списано.',
-      popupFailedLaunch:
-        'Не вдалося відкрити checkout FastSpring для цієї оплати. Кошти не списано.',
-      popupFailedStorefront:
-        'Платний checkout налаштовано некоректно для цього середовища, тому вікно не відкрилося. Кошти не списано.',
-      popupFallbackHint:
-        'Ту саму оплату можна завершити на сторінці checkout FastSpring — це те саме замовлення, відкриється в новій вкладці:',
+      checkoutPaused:
+        'Ця оплата ще активна. Продовжіть checkout, щоб завершити її, або зачекайте тут, якщо вже оплатили.',
       redirectOpening: 'Переходимо до захищеного checkout Creem…',
       redirectReturned:
         'Дякуємо — якщо ви завершили оплату, FluxRadar очікує її підтвердження від Creem. Зазвичай це займає кілька секунд.',

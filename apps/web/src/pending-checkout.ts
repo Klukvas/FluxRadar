@@ -70,9 +70,7 @@ export function usePendingCheckout({
     const onPageShow = (event: PageTransitionEvent): void => {
       if (!event.persisted) return;
       setPendingCheckout((current) =>
-        current !== null && current.flow === 'redirect' && !current.restored
-          ? { ...current, restored: true }
-          : current,
+        current !== null && !current.restored ? { ...current, restored: true } : current,
       );
     };
     window.addEventListener('pageshow', onPageShow);
@@ -116,19 +114,13 @@ function returnedCheckout(
   stored: PendingCheckout | null,
 ): PendingCheckout {
   if (stored !== null) {
-    return stored.reference === checkoutReturn.reference
-      ? { ...stored, flow: 'redirect', returned: true }
-      : stored;
+    return stored.reference === checkoutReturn.reference ? { ...stored, returned: true } : stored;
   }
   return {
     accountId,
     reference: checkoutReturn.reference,
-    sessionId: '',
     checkoutUrl: null,
-    storefront: null,
-    flow: 'redirect',
     restored: true,
-    popupBlocked: false,
     returned: true,
   };
 }
