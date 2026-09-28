@@ -926,7 +926,7 @@ export const copy = {
       geoVisibilityScoreBasisDomainOnly:
         'Based on domain citations only; the brand was measurable in {brand} answer(s).',
       geoVisibilityNotEnoughAnswers:
-        'No score for this scan: the brand was measurable in {brand} answer(s) and the domain in {domain}; at least {min} of each are needed.',
+        'No score for this scan: the brand was measurable in {brand} answer(s) and the domain in {domain}; at least {min} in one of them is needed.',
       geoVisibilityNotMeasurable:
         'No score — nothing measurable here: this run’s questions already named what the answers would have been checked for.',
       geoVisibilityBrandShare:
@@ -2662,11 +2662,11 @@ export const copy = {
         'Одна картка на кожну AI-систему, яка відповіла хоча б на одне питання. Щойно якийсь сигнал — як часто система згадувала ваш бренд або як часто вона посилалася на ваш домен — вдалося зміряти щонайменше у {min} відповідях, він зараховується в оцінку від 0 до 100: якщо зміряні достатньо обидва сигнали — це {brandWeight}% бренд плюс {domainWeight}% домен, а якщо достатньо зміряний лише один — оцінка складається лише з нього. Кожна частка ділиться на відповіді, де цей сигнал взагалі можна було зміряти: питання, яке само назвало ваш бренд або домен, нічого не доводить, тому воно не рахується ні в плюс, ні в мінус. Ця оцінка лише інформаційна — знімок цього прогону, вона ніколи не входить у загальну оцінку.',
       geoVisibilityScoreLabel: 'Оцінка видимості',
       geoVisibilityScoreBasisBrandOnly:
-        'На основі лише згадок бренду; домен можна було зміряти у {domain} відповід(ях).',
+        'На основі лише згадок бренду; зміряних відповідей для домену: {domain}.',
       geoVisibilityScoreBasisDomainOnly:
-        'На основі лише цитувань домену; бренд можна було зміряти у {brand} відповід(ях).',
+        'На основі лише цитувань домену; зміряних відповідей для бренду: {brand}.',
       geoVisibilityNotEnoughAnswers:
-        'Оцінки для цього сканування немає: бренд можна було зміряти у {brand} відповід(ях), а домен — у {domain}; потрібно щонайменше {min} для кожного.',
+        'Оцінки для цього сканування немає: зміряних відповідей для бренду — {brand}, для домену — {domain}; потрібно щонайменше {min} хоча б для одного з них.',
       geoVisibilityNotMeasurable:
         'Оцінки немає — міряти нічого: питання цього прогону вже називали те, що перевірялося б у відповідях.',
       geoVisibilityBrandShare: 'Бренд згадано у {count} з {total} зміряних відповідей ({percent}%)',

@@ -362,6 +362,52 @@ function printScoreBasis(provider: GeoProviderVisibility, language: Language): s
   return null;
 }
 
+/** The score cell's text: the number (plus a basis note), or why there is none. */
+function printScoreCell(
+  provider: GeoProviderVisibility,
+  minMeasuredForScore: number,
+  language: Language,
+): string {
+  if (provider.visibilityScore === null) {
+    return printNoScore(provider, minMeasuredForScore, language);
+  }
+  const basisNote = printScoreBasis(provider, language);
+  return basisNote === null
+    ? `${provider.visibilityScore}/100`
+    : `${provider.visibilityScore}/100 — ${basisNote}`;
+}
+
+/** One engine's row in the print visibility table. */
+function PrintGeoVisibilityRow(props: {
+  provider: GeoProviderVisibility;
+  minMeasuredForScore: number;
+  language: Language;
+}) {
+  const t = copy[props.language].report;
+  return (
+    <tr>
+      <td>{props.provider.label}</td>
+      <td>{printScoreCell(props.provider, props.minMeasuredForScore, props.language)}</td>
+      <td>
+        {printShareCell(
+          props.provider.brandMeasuredCount,
+          props.provider.brandMentionedCount,
+          props.provider.brandMentionedShare,
+          t.geoVisibilityNotMeasurableShort,
+        )}
+      </td>
+      <td>
+        {printShareCell(
+          props.provider.domainMeasuredCount,
+          props.provider.domainCitedCount,
+          props.provider.domainCitedShare,
+          t.geoVisibilityNotMeasurableShort,
+        )}
+      </td>
+    </tr>
+  );
+}
+
 /** Compact mirror of the report's "Visibility by engine" block: score and shares per engine. */
 function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language }) {
   const t = copy[props.language].report;
@@ -392,37 +438,14 @@ function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language })
               </tr>
             </thead>
             <tbody>
-              {summary.providers.map((provider) => {
-                const basisNote = printScoreBasis(provider, props.language);
-                return (
-                  <tr key={provider.provider}>
-                    <td>{provider.label}</td>
-                    <td>
-                      {provider.visibilityScore === null
-                        ? printNoScore(provider, summary.minMeasuredForScore, props.language)
-                        : basisNote === null
-                          ? `${provider.visibilityScore}/100`
-                          : `${provider.visibilityScore}/100 — ${basisNote}`}
-                    </td>
-                    <td>
-                      {printShareCell(
-                        provider.brandMeasuredCount,
-                        provider.brandMentionedCount,
-                        provider.brandMentionedShare,
-                        t.geoVisibilityNotMeasurableShort,
-                      )}
-                    </td>
-                    <td>
-                      {printShareCell(
-                        provider.domainMeasuredCount,
-                        provider.domainCitedCount,
-                        provider.domainCitedShare,
-                        t.geoVisibilityNotMeasurableShort,
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {summary.providers.map((provider) => (
+                <PrintGeoVisibilityRow
+                  key={provider.provider}
+                  provider={provider}
+                  minMeasuredForScore={summary.minMeasuredForScore}
+                  language={props.language}
+                />
+              ))}
             </tbody>
           </table>
         </>

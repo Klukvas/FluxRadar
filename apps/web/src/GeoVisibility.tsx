@@ -119,8 +119,8 @@ function GeoVisibilityCard(props: {
           // number: where an aria-label is exposed it *replaces* the text, so
           // assistive tech heard "Visibility score" and never the score.
           <span className="geo-visibility-card__score">
-            <span className="geo-visibility-card__score-label">{t.geoVisibilityScoreLabel}</span>{' '}
-            {provider.visibilityScore}/100
+            <span className="sr-only">{t.geoVisibilityScoreLabel}</span> {provider.visibilityScore}
+            /100
           </span>
         )}
       </div>

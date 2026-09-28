@@ -222,7 +222,7 @@ describe('Visibility by engine', () => {
     // fell short rather than restating a rule the code no longer checks jointly.
     expect(
       await screen.findByText(
-        'No score for this scan: the brand was measurable in 1 answer(s) and the domain in 1; at least 2 of each are needed.',
+        'No score for this scan: the brand was measurable in 1 answer(s) and the domain in 1; at least 2 in one of them is needed.',
       ),
     ).toBeInTheDocument();
   });
@@ -245,7 +245,9 @@ describe('Visibility by engine', () => {
       'uk',
     );
 
-    expect(await screen.findByText(/потрібно щонайменше 2 для кожного/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/потрібно щонайменше 2 хоча б для одного з них/),
+    ).toBeInTheDocument();
   });
 
   // An auto-created profile whose brand is its hostname can never measure brand

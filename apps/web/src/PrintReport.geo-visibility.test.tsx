@@ -201,7 +201,7 @@ describe('the printable report and GEO visibility', () => {
 
     expect(
       await screen.findByText(
-        'No score for this scan: the brand was measurable in 1 answer(s) and the domain in 1; at least 2 of each are needed.',
+        'No score for this scan: the brand was measurable in 1 answer(s) and the domain in 1; at least 2 in one of them is needed.',
       ),
     ).toBeInTheDocument();
   });

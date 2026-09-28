@@ -141,16 +141,38 @@ function normalizeHostname(hostname: string): string {
     .replace(/\.+$/, '');
 }
 
+const IPV4_OCTETS = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+/** Loopback, private, and link-local IPv4 ranges — never a citable public source. */
+function isNonPublicIpv4(hostname: string): boolean {
+  const match = IPV4_OCTETS.exec(hostname);
+  if (!match) return false;
+  const a = Number(match[1]);
+  const b = Number(match[2]);
+  return (
+    a === 127 ||
+    a === 10 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254)
+  );
+}
+
 /**
- * Whether a parsed hostname is plausibly a real host rather than an artifact
- * of forcing a bare word through `new URL('https://' + word)`.
+ * Whether a parsed hostname is plausibly a real, public citation host rather
+ * than an artifact of forcing a bare word through `new URL('https://' + word)`
+ * or an address that can never be a customer-facing source.
  *
  * `new URL('https://unknown').hostname` is `"unknown"` — a single label with
- * no dot is never an internet hostname, and `localhost` is a real hostname
- * that is never a citation.
+ * no dot is never an internet hostname, which also rules out every IPv6
+ * literal (`new URL` renders those bracketed and dotless, e.g. `[::1]`).
+ * `localhost` is a real hostname that is never a citation; loopback and
+ * private/link-local IPv4 addresses are the same kind of non-citation, just
+ * spelled as a number instead of a name.
  */
 function isPlausibleHostname(hostname: string): boolean {
-  return hostname !== '' && hostname !== 'localhost' && hostname.includes('.');
+  if (hostname === '' || hostname === 'localhost' || !hostname.includes('.')) return false;
+  return !isNonPublicIpv4(hostname);
 }
 
 /**
@@ -160,21 +182,32 @@ function isPlausibleHostname(hostname: string): boolean {
  * dropping them silently understated who got cited instead; such a string is
  * re-parsed against a default scheme rather than discarded. But the same
  * fallback turns free text models write instead of a source — `"unknown"`,
- * `"see above"`, `"Wikipedia"` — into fake single-label hostnames, and turns
- * `mailto:someone@example.com` into `example.com`; a citation containing `@`
- * is never treated as a bare host, and only a parsed host that looks like a
- * real domain is accepted.
+ * `"see above"`, `"Wikipedia"` — into fake single-label hostnames. An `@` in
+ * a scheme-less candidate means it was never a bare host to begin with (an
+ * email address, a handle); that check does not apply once a citation has
+ * already parsed as an absolute URL, where `@` is ordinary userinfo syntax
+ * (`user:pass@host`) or part of the path (`medium.com/@author`). Only
+ * `http(s)` URLs are treated as citations — `ftp:`, `tel:`, `data:` and the
+ * like are not sources a reader can click through to.
  */
 function citationHostname(citation: string): string | null {
   const trimmed = citation.trim();
-  if (trimmed === '' || trimmed.includes('@')) return null;
-  for (const candidate of [trimmed, `https://${trimmed}`]) {
-    try {
-      const hostname = normalizeHostname(new URL(candidate).hostname);
+  if (trimmed === '') return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      const hostname = normalizeHostname(url.hostname);
       if (isPlausibleHostname(hostname)) return hostname;
-    } catch {
-      // Not a URL under this scheme — fall through to the next candidate.
     }
+  } catch {
+    // Not an absolute URL — fall through to the scheme-less candidate.
+  }
+  if (trimmed.includes('@')) return null;
+  try {
+    const hostname = normalizeHostname(new URL(`https://${trimmed}`).hostname);
+    if (isPlausibleHostname(hostname)) return hostname;
+  } catch {
+    // Not a URL under the default scheme either.
   }
   return null;
 }
@@ -257,74 +290,101 @@ function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+interface ProviderCounts {
+  readonly byPurpose: Readonly<Record<GeoVisibilityPurpose, GeoPurposeVisibilityCounts>>;
+  readonly answered: number;
+  readonly unavailable: number;
+  readonly brandMeasuredCount: number;
+  readonly brandMentionedCount: number;
+  readonly domainMeasuredCount: number;
+  readonly domainCitedCount: number;
+  readonly responses: readonly AiResponseOutcome[];
+}
+
+const EMPTY_PROVIDER_COUNTS: ProviderCounts = {
+  byPurpose: {
+    'closed-book': EMPTY_PURPOSE_COUNTS,
+    awareness: EMPTY_PURPOSE_COUNTS,
+    discovery: EMPTY_PURPOSE_COUNTS,
+  },
+  answered: 0,
+  unavailable: 0,
+  brandMeasuredCount: 0,
+  brandMentionedCount: 0,
+  domainMeasuredCount: 0,
+  domainCitedCount: 0,
+  responses: [],
+};
+
+/** Folds one outcome into a provider's running counts; see `summaryForProvider` for the rules. */
+function addOutcomeToCounts(
+  totals: ProviderCounts,
+  outcome: AiRequestOutcome,
+  mentions: ReadonlyMap<string, GeoMentionSignals>,
+): ProviderCounts {
+  const purpose = geoVisibilityPurposeOf(outcome.request.promptVersion);
+  const isResponse = outcome.kind === 'response';
+  const signal = isResponse ? mentions.get(outcome.aiRequestKey) : undefined;
+  const byPurpose = addToPurposeCounts(totals.byPurpose, purpose, isResponse, signal);
+  if (!isResponse) {
+    return { ...totals, byPurpose, unavailable: totals.unavailable + 1 };
+  }
+  const answered = { ...totals, byPurpose, answered: totals.answered + 1 };
+  const responses = [...totals.responses, outcome];
+  // A closed-book answer's badge pair is never shown (GeoObservationCard
+  // hides it for that purpose, replaced there by the claim evaluation) —
+  // counting it here would make a denominator the reader cannot reconcile
+  // with the cards below it.
+  if (signal === undefined || purpose === 'closed-book') return { ...answered, responses };
+  return {
+    ...answered,
+    responses,
+    brandMeasuredCount: answered.brandMeasuredCount + (isMeasured(signal.brand) ? 1 : 0),
+    domainMeasuredCount: answered.domainMeasuredCount + (isMeasured(signal.domain) ? 1 : 0),
+    brandMentionedCount: answered.brandMentionedCount + (signal.brand === 'mentioned' ? 1 : 0),
+    domainCitedCount: answered.domainCitedCount + (signal.domain === 'mentioned' ? 1 : 0),
+  };
+}
+
 function summaryForProvider(
   provider: AiProviderName,
   outcomes: readonly AiRequestOutcome[],
   mentions: ReadonlyMap<string, GeoMentionSignals>,
   siteDomain: string,
 ): GeoProviderVisibilitySummary {
-  let byPurpose: Readonly<Record<GeoVisibilityPurpose, GeoPurposeVisibilityCounts>> = {
-    'closed-book': EMPTY_PURPOSE_COUNTS,
-    awareness: EMPTY_PURPOSE_COUNTS,
-    discovery: EMPTY_PURPOSE_COUNTS,
-  };
-  let answered = 0;
-  let unavailable = 0;
-  let brandMeasuredCount = 0;
-  let brandMentionedCount = 0;
-  let domainMeasuredCount = 0;
-  let domainCitedCount = 0;
-  const responses: AiResponseOutcome[] = [];
-
-  for (const outcome of outcomes) {
-    const purpose = geoVisibilityPurposeOf(outcome.request.promptVersion);
-    const isResponse = outcome.kind === 'response';
-    const signal = isResponse ? mentions.get(outcome.aiRequestKey) : undefined;
-    byPurpose = addToPurposeCounts(byPurpose, purpose, isResponse, signal);
-    if (!isResponse) {
-      unavailable += 1;
-      continue;
-    }
-    answered += 1;
-    responses.push(outcome);
-    if (signal === undefined) continue;
-    // A closed-book answer's badge pair is never shown (GeoObservationCard
-    // hides it for that purpose, replaced there by the claim evaluation) —
-    // counting it here would make a denominator the reader cannot reconcile
-    // with the cards below it.
-    if (purpose === 'closed-book') continue;
-    if (isMeasured(signal.brand)) brandMeasuredCount += 1;
-    if (isMeasured(signal.domain)) domainMeasuredCount += 1;
-    if (signal.brand === 'mentioned') brandMentionedCount += 1;
-    if (signal.domain === 'mentioned') domainCitedCount += 1;
-  }
+  const counts = outcomes.reduce<ProviderCounts>(
+    (totals, outcome) => addOutcomeToCounts(totals, outcome, mentions),
+    EMPTY_PROVIDER_COUNTS,
+  );
 
   // Exact shares feed the score; the stored share is the same number rounded
   // for display. Scoring off the rounded value made the published formula
   // disagree with the published number (1 of 7 answers scored 8, not 9).
   const exactBrandShare =
-    brandMeasuredCount === 0 ? null : brandMentionedCount / brandMeasuredCount;
+    counts.brandMeasuredCount === 0 ? null : counts.brandMentionedCount / counts.brandMeasuredCount;
   const exactDomainShare =
-    domainMeasuredCount === 0 ? null : domainCitedCount / domainMeasuredCount;
-  const basis = scoreBasisFor(brandMeasuredCount, domainMeasuredCount);
+    counts.domainMeasuredCount === 0 ? null : counts.domainCitedCount / counts.domainMeasuredCount;
+  const basis = scoreBasisFor(counts.brandMeasuredCount, counts.domainMeasuredCount);
 
   return {
     provider,
     questionsAsked: outcomes.length,
-    questionsAnswered: answered,
-    questionsUnavailable: unavailable,
-    brandMeasuredCount,
-    brandMentionedCount,
+    questionsAnswered: counts.answered,
+    questionsUnavailable: counts.unavailable,
+    brandMeasuredCount: counts.brandMeasuredCount,
+    brandMentionedCount: counts.brandMentionedCount,
     brandMentionedShare: exactBrandShare === null ? null : round(exactBrandShare),
-    domainMeasuredCount,
-    domainCitedCount,
+    domainMeasuredCount: counts.domainMeasuredCount,
+    domainCitedCount: counts.domainCitedCount,
     domainCitedShare: exactDomainShare === null ? null : round(exactDomainShare),
     visibilityScore: scoreFor(basis, { brand: exactBrandShare, domain: exactDomainShare }),
     scoreUnavailableReason:
-      basis === null ? scoreUnavailableReasonFor(brandMeasuredCount, domainMeasuredCount) : null,
+      basis === null
+        ? scoreUnavailableReasonFor(counts.brandMeasuredCount, counts.domainMeasuredCount)
+        : null,
     scoreBasis: basis,
-    byPurpose,
-    citedInstead: citedInsteadFor(responses, mentions, siteDomain),
+    byPurpose: counts.byPurpose,
+    citedInstead: citedInsteadFor(counts.responses, mentions, siteDomain),
   };
 }
 
@@ -503,8 +563,10 @@ function sentenceAround(text: string, index: number): string {
  * Redaction runs before the char bound, not after: bounding first can cut a
  * placeholder's source in half — `johndoe@examplec…` — leaving a fragment no
  * redaction pattern recognises. Redacting the full sentence first replaces
- * the whole address with its placeholder, so the bound only ever cuts inside
- * ordinary text.
+ * the whole address with its placeholder before the bound is applied, so no
+ * PII fragment can survive the cut; the bound can still land inside the
+ * placeholder text itself (`[REDACTE…`), which is harmless since a
+ * placeholder carries no PII to begin with.
  */
 export function computeGeoMentionContexts(input: {
   readonly outcomes: readonly AiRequestOutcome[];
