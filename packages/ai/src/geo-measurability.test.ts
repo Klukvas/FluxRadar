@@ -1,13 +1,53 @@
 import { describe, expect, it } from 'vitest';
 
+import { competitorMentioned, textNames } from './competitor-matcher.js';
 import {
   brandIsHostname,
   brandSignal,
-  competitorSignal,
   domainSignal,
   isMeasured,
   questionNames,
+  type MentionSignal,
 } from './geo-measurability.js';
+
+/**
+ * The competitor signal for one answer (T7-fix F1).
+ *
+ * Same question/answer check as `brandSignal`, minus the hostname special
+ * case: a competitor is never "the same as the site" the way a brand can be,
+ * so there is nothing to mirror `brandIsHostname` for. Unlike the brand and
+ * domain signals, this is deliberately *not* built on `questionNames`: the
+ * brand only ever spends `includes`'s laxity on itself, but a competitor is a
+ * different string the profile owner picked, and bare substring matching
+ * false-hits it inside ordinary words ("GE" inside "managing") and inside the
+ * brand's own name ("Acme" inside "Acme Dental") — corrupting the brand's own
+ * reported share, since the two are mentions in the same denominator.
+ * `textNames`/`competitorMentioned` match on a Unicode word boundary instead,
+ * and the answer check also excludes any competitor match that falls inside a
+ * span where the brand itself matched.
+ *
+ * Kept here rather than in `geo-measurability.ts` (T7-fix3 N-1): production
+ * code now computes share of voice through `shareOfVoiceMentions`, which
+ * resolves the brand/competitor overlap for every name in an answer at once
+ * — this per-competitor, `questionNames`-shaped signal has no remaining
+ * caller. The cases below are still worth pinning as their own unit, so the
+ * function moved with them instead of being deleted.
+ */
+function competitorSignal(input: {
+  readonly question: string;
+  readonly answer: string;
+  readonly competitor: string;
+  readonly brand: string;
+}): MentionSignal {
+  if (textNames(input.question, input.competitor)) return 'named-in-question';
+  return competitorMentioned({
+    answer: input.answer,
+    competitor: input.competitor,
+    brand: input.brand,
+  })
+    ? 'mentioned'
+    : 'not-mentioned';
+}
 
 // The bug these exist for: the awareness question read
 //

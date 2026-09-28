@@ -15,8 +15,6 @@
 // already in the question. When it is, the honest answer is "not measured", and
 // nothing downstream may turn that into a pass.
 
-import { competitorMentioned, textNames } from './competitor-matcher.js';
-
 /** Every value a `MentionSignal` may take, for parsing a stored record. */
 export const MENTION_SIGNALS = [
   'mentioned',
@@ -93,38 +91,6 @@ export function brandSignal(input: {
   if (brandIsHostname(input.brand, input.hostname)) return 'brand-is-hostname';
   if (questionNames(input.question, input.brand)) return 'named-in-question';
   return questionNames(input.answer, input.brand) ? 'mentioned' : 'not-mentioned';
-}
-
-/**
- * The competitor signal for one answer (T7-fix F1).
- *
- * Same question/answer check as `brandSignal`, minus the hostname special
- * case: a competitor is never "the same as the site" the way a brand can be,
- * so there is nothing to mirror `brandIsHostname` for. Unlike the brand and
- * domain signals, this is deliberately *not* built on `questionNames`: the
- * brand only ever spends `includes`'s laxity on itself, but a competitor is a
- * different string the profile owner picked, and bare substring matching
- * false-hits it inside ordinary words ("GE" inside "managing") and inside the
- * brand's own name ("Acme" inside "Acme Dental") — corrupting the brand's own
- * reported share, since the two are mentions in the same denominator.
- * `textNames`/`competitorMentioned` match on a Unicode word boundary instead,
- * and the answer check also excludes any competitor match that falls inside a
- * span where the brand itself matched.
- */
-export function competitorSignal(input: {
-  readonly question: string;
-  readonly answer: string;
-  readonly competitor: string;
-  readonly brand: string;
-}): MentionSignal {
-  if (textNames(input.question, input.competitor)) return 'named-in-question';
-  return competitorMentioned({
-    answer: input.answer,
-    competitor: input.competitor,
-    brand: input.brand,
-  })
-    ? 'mentioned'
-    : 'not-mentioned';
 }
 
 /**
