@@ -13,13 +13,15 @@
 // «ничего подходящего».
 //
 // ПОЧЕМУ MIN_PROSE_SENTENCES И MIN_PROSE_WORDS ОТДЕЛЬНО ОТ VISIBLE_TEXT_MIN_CHARS.
-// 200 символов — это «страница не пустая» (порог CONTENT-003). Список из
-// коротких пунктов или таблица цен легко набирает 200+ символов, не будучи
-// прозой: делить длину предложения на число «предложений», которых там
-// фактически одно (countSentences без терминатора возвращает 1), даёт счёт
-// на весь текст целиком и либо ложно проваливает страницу, либо ложно её
-// хвалит. Пять предложений и сто слов — это минимум, на котором Flesch
-// вообще был откалиброван, а не порог, подобранный под фикстуры.
+// 200 символов — это «страница не пустая» (порог CONTENT-003), и он мерян по
+// всему видимому тексту (visibleText), а не только по прозе. Список из
+// коротких пунктов или таблица цен легко набирает 200+ видимых символов, не
+// будучи прозой вовсе: proseText (visible-text.ts) читает только `<p>`,
+// `<blockquote>` и `<dd>` — заголовки, пункты списка и ячейки таблицы в неё
+// не попадают ни единым словом, — так что такая страница даёт 0 предложений
+// и 0 слов прозы и остаётся too-little-prose независимо от того, сколько в
+// ней видимого текста. Пять предложений и сто слов — это минимум, на котором
+// Flesch вообще был откалиброван, а не порог, подобранный под фикстуры.
 //
 // ПОЧЕМУ READABILITY_SCORE_MIN ОДИН НА ОБЕ ШКАЛЫ. Обе формулы (readability.ts)
 // возвращают число в одной и той же логике, «выше — проще», и порог 30 — это
@@ -40,6 +42,7 @@ import { findingMessage } from '../messages/index.js';
 import { codePointLength } from '../seo/dom.js';
 import { VISIBLE_TEXT_MIN_CHARS } from './content-003.js';
 import {
+  countWords,
   declaredLanguage,
   measureReadability,
   resolveReadabilityLanguage,
@@ -71,13 +74,24 @@ function evaluateApplicability(page: PageSnapshot): Applicability {
   if (codePointLength(visibleText(page)) < VISIBLE_TEXT_MIN_CHARS) {
     return { applicable: false, reason: 'no-candidates' };
   }
-  // proseText, not visibleText: a `</p><p>` or `</li><li>` seam with no
-  // source whitespace must still read as a sentence end (readability.ts
-  // countSentences), which visibleText's plain concatenation would not give
-  // it. The 200-character gate above stays on visibleText — proseText's
-  // inserted ". " per block would let a nav/list page cross that threshold
-  // on punctuation the page never had.
+  // proseText, not visibleText, from here on: only `<p>`/`<blockquote>`/
+  // `<dd>` text counts toward the sentence and word floors, and a `</p><p>`
+  // seam with no source whitespace still reads as a sentence end
+  // (readability.ts countSentences). The 200-character gate above stays on
+  // visibleText — a page that is all headings, list items and table cells
+  // still clears it, but proseText is then empty for it.
   const text = proseText(page);
+  // A page with no prose at all (no `<p>`/`<blockquote>`/`<dd>` anywhere) has
+  // no letters for resolveReadabilityLanguage to look at, and it would call
+  // that 'unsupported-script' — a claim about the *wrong* script being used,
+  // when the honest problem is that there was no prose to find a script in.
+  // Checked ahead of language resolution for that reason alone; a page that
+  // does have some prose still goes through the language check first, same
+  // as before, so an unsupported/mismatched language is reported as such
+  // even when that prose falls short of the sentence/word floor too.
+  if (countWords(text) === 0) {
+    return { applicable: false, reason: 'too-little-prose' };
+  }
   const language = resolveReadabilityLanguage(declaredLanguage(page), text);
   if (!language.usable) {
     return { applicable: false, reason: language.reason };

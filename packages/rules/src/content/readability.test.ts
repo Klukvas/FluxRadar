@@ -286,11 +286,11 @@ describe('measureReadability', () => {
   });
 });
 
-// L7 (T9 second review): the block-boundary half of L2 — visibleText's plain
-// concatenation has no separator at all between blocks, so minified markup
-// (`</p><p>`, no whitespace) glued the last word of one block to the first
-// word of the next, and countSentences never saw a boundary that had no
-// punctuation of its own. proseText is what content-005.ts measures with.
+// H5 (T9 third review): proseText reads only `<p>`, `<blockquote>` and
+// `<dd>` text — a heading, a list item, and a table cell contribute nothing,
+// not even as a boundary, so a page built entirely of those (a nav list, a
+// pricing table) measures as 0 sentences and 0 words, not as prose the gate
+// can be satisfied by punctuation-free markup alone.
 describe('proseText', () => {
   it('a paragraph boundary with no source whitespace or punctuation still ends a sentence', () => {
     const ctx = htmlContext(
@@ -310,17 +310,54 @@ describe('proseText', () => {
     expect(countSentences(proseText(firstPage(ctx)))).toBe(2);
   });
 
-  it('list items and table cells are boundaries too, not only paragraphs and headings', () => {
+  it('blockquote and dd read as prose too, alongside p', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Mixed prose</title></head>' +
+        '<body><blockquote>We keep our plans simple</blockquote>' +
+        '<dl><dd>We keep our pricing honest</dd></dl></body></html>',
+    );
+    const text = proseText(firstPage(ctx));
+    expect(text).toBe('We keep our plans simple. We keep our pricing honest.');
+    expect(countSentences(text)).toBe(2);
+  });
+
+  it('headings, list items and table cells contribute nothing — not even a boundary (H5)', () => {
     const listCtx = htmlContext(
       '<!doctype html><html lang="en"><head><title>List</title></head>' +
-        '<body><ul><li>First item here</li><li>Second item here</li></ul></body></html>',
+        '<body><h1>Updates</h1><ul><li>First item here</li><li>Second item here</li></ul></body></html>',
     );
-    expect(countSentences(proseText(firstPage(listCtx)))).toBe(2);
+    expect(proseText(firstPage(listCtx))).toBe('');
 
     const tableCtx = htmlContext(
       '<!doctype html><html lang="en"><head><title>Table</title></head>' +
         '<body><table><tr><td>First cell here</td><td>Second cell here</td></tr></table></body></html>',
     );
-    expect(countSentences(proseText(firstPage(tableCtx)))).toBe(2);
+    expect(proseText(firstPage(tableCtx))).toBe('');
+  });
+
+  it('nav, header, footer, aside and form are excluded even when they wrap a <p>', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Chrome</title></head>' +
+        '<body>' +
+        '<nav><p>Skip to content now</p></nav>' +
+        '<header><p>Site header blurb here</p></header>' +
+        '<p>Real article body copy</p>' +
+        '<aside><p>Related links blurb</p></aside>' +
+        '<form><p>Newsletter signup blurb</p></form>' +
+        '<footer><p>Copyright footer blurb</p></footer>' +
+        '</body></html>',
+    );
+    expect(proseText(firstPage(ctx))).toBe('Real article body copy.');
+  });
+
+  it('minified <p> wrappers with no whitespace between them do not glue across paragraphs (L11)', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Minified wrapper</title></head>' +
+        '<body><p>We keep our plans</p><p>We keep our pricing simple</p><p>We keep support fast</p></body></html>',
+    );
+    const text = proseText(firstPage(ctx));
+    expect(text).not.toContain('plansWe');
+    expect(text).not.toContain('simpleWe');
+    expect(countSentences(text)).toBe(3);
   });
 });

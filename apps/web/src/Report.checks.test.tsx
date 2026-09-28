@@ -370,8 +370,10 @@ describe('a section card that recorded its checks', () => {
   // M1 (T9 first review) + L8 (T9 second review): every CONTENT-005 reason
   // must render, and M4 (T9 second review) means none of them may claim
   // "every" or "no" page — the check reports the crawl's most common reason,
-  // not one every failing page shares.
-  it('renders every CONTENT-005 reason with plurality-true wording, never "every" or "no" page', async () => {
+  // not one every failing page shares. L10 (T9 third review): "most crawled
+  // pages" is a majority claim the plurality winner need not satisfy, so the
+  // wording leads with "the most common reason" instead.
+  it('renders every CONTENT-005 reason with plurality-true wording, never "every"/"no"/"most" pages', async () => {
     const reasons = [
       'no-declared-language',
       'unsupported-language',
@@ -385,16 +387,17 @@ describe('a section card that recorded its checks', () => {
     );
     expect(rows).toHaveLength(reasons.length);
     for (const row of rows) {
-      expect(row).toHaveTextContent('Most crawled pages with enough text');
+      expect(row).toHaveTextContent('The most common reason across crawled pages with enough text');
       expect(row).not.toHaveTextContent('Every crawled page');
       expect(row).not.toHaveTextContent(/^No crawled page/);
+      expect(row).not.toHaveTextContent('Most crawled pages');
     }
-    expect(rows[0]).toHaveTextContent('did not declare a language');
-    expect(rows[1]).toHaveTextContent('a language other than English or Ukrainian');
+    expect(rows[0]).toHaveTextContent('no declared language');
+    expect(rows[1]).toHaveTextContent('a declared language other than English or Ukrainian');
     expect(rows[2]).toHaveTextContent('written mostly in the other supported language’s script');
     expect(rows[3]).toHaveTextContent('written mostly in neither script');
     expect(rows[4]).toHaveTextContent('not by enough to trust the label');
-    expect(rows[5]).toHaveTextContent('did not have enough sentences and words');
+    expect(rows[5]).toHaveTextContent('not enough sentences and words');
   });
 
   it('renders the CONTENT-005 reasons in Ukrainian too, with the same plurality wording', async () => {
@@ -405,7 +408,8 @@ describe('a section card that recorded its checks', () => {
       ],
       'uk',
     );
-    expect(rows[0]).toHaveTextContent('Більшість прочитаних сторінок');
+    expect(rows[0]).toHaveTextContent('Найпоширеніша причина');
+    expect(rows[0]).not.toHaveTextContent('Більшість прочитаних сторінок');
     expect(rows[0]).toHaveTextContent('не тим і не іншим алфавітом');
     expect(rows[1]).toHaveTextContent('суміш алфавітів була занадто рівною');
   });

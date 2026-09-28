@@ -172,7 +172,9 @@ describe('passive-модули на fixture-сайте краулера', () => 
       // тоже засчитывались находками — но там 1-3 предложения на всю страницу
       // (h1 плюс один абзац или список ссылок), то есть недостаточно прозы,
       // чтобы Flesch вообще был откалиброван; content-005.ts теперь считает
-      // такие страницы too-little-prose, не измеряя их вовсе (см. T9 review H4).
+      // такие страницы too-little-prose, не измеряя их вовсе (T9 review H4,
+      // и prose-only scope из H5 в третьем раунде — <nav> у / больше не
+      // засчитывается вовсе, даже границей).
       'CONTENT-005': ['/hard-prose.html'],
     });
     const media = moduleResult('Content Quality').findings.find(
@@ -213,16 +215,17 @@ describe('passive-модули на fixture-сайте краулера', () => 
       Reliability: 60,
       // A11Y-001..010 ×19 HTML pages + A11Y-011 site report contract ×1.
       Accessibility: 191,
-      // CONTENT-001/003/004×19 + CONTENT-005×3. hard-prose.html and
+      // CONTENT-001/003/004×19 + CONTENT-005×2. hard-prose.html and
       // easy-prose.html clear MIN_PROSE_SENTENCES (5) and MIN_PROSE_WORDS (100)
-      // on their own paragraphs; / joins them once L7 (T9 second review) counts
-      // each nav <li> as a sentence boundary — its heading, intro paragraph and
-      // 18-item nav list add up to enough prose together, even though no single
-      // block on the page does. form.html and wrong-canonical.html stay
-      // too-little-prose: a heading plus one short paragraph, still under
-      // MIN_PROSE_WORDS however its sentences are counted (T9 review H4).
-      // 19+19+19+3 = 60.
-      'Content Quality': 60,
+      // on their own single <p>. Every other page — including / — stays
+      // too-little-prose: proseText (H5, T9 third review) reads only
+      // <p>/<blockquote>/<dd> text, so /'s 18-item <nav> list contributes
+      // nothing at all (not even a boundary — <nav> is excluded outright),
+      // leaving its one intro paragraph at 3 sentences and ~54 words, under
+      // both floors. form.html and wrong-canonical.html are the same shape:
+      // a heading plus one short paragraph, still under MIN_PROSE_WORDS.
+      // 19+19+19+2 = 59.
+      'Content Quality': 59,
       // PRIVACY-001×20 + PRIVACY-002×19 + PRIVACY-003×19 + PRIVACY-004×1.
       Privacy: 59,
     };

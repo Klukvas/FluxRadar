@@ -67,22 +67,32 @@ function collectText(node: Node): string {
   return '';
 }
 
-// Block tags whose close reads as a sentence end to a human, whether or not
-// the block's own text ends in punctuation: a heading, a list item, or a
-// table cell is a distinct thought even without a trailing period, and two
-// adjacent blocks in minified markup (no whitespace between `</p><p>`) would
-// otherwise glue into one run-on word ("plansWe") with no separator at all.
-const PROSE_BOUNDARY_TAGS = new Set(['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'td', 'th']);
+// Prose, for CONTENT-005's purposes, is the text of `<p>`, `<blockquote>` and
+// `<dd>` elements only — the tags a reader experiences as running sentences,
+// not a heading, a list item, or a table cell, each of which is a label or a
+// fragment rather than something Flesch's formulas were fit to score. A list
+// of short labels or a pricing table can easily clear 200 visible characters
+// without containing a single sentence; scoring it as prose would either
+// flag it falsely or praise it falsely (see the rationale in content-005.ts).
+const PROSE_TAGS = new Set(['p', 'blockquote', 'dd']);
+
+// Chrome the reader does not read as the page's message: navigation, page
+// header/footer, sidebars, and forms. A `<p>` inside a `<nav>` (a footer
+// sitemap blurb, say) is still chrome, not prose — skip the whole subtree
+// rather than only the container's own text.
+const EXCLUDED_CONTAINERS = new Set(['nav', 'header', 'footer', 'aside', 'form']);
 
 const proseTextCache = new WeakMap<PageSnapshot, string>();
 
 /**
- * Like `visibleText`, but for CONTENT-005's sentence/word measurement only:
- * every `PROSE_BOUNDARY_TAGS` block ends with `". "` in the output, so
- * `countSentences` (readability.ts) sees a boundary there even when the
- * source HTML has no punctuation or whitespace at the seam. Not used for
+ * Like `visibleText`, but scoped to prose (see `PROSE_TAGS` above) and for
+ * CONTENT-005's sentence/word measurement only: each prose block ends with
+ * `". "` in the output, so `countSentences` (readability.ts) sees a boundary
+ * between two adjacent blocks even when the source HTML has no punctuation
+ * or whitespace at the seam (minified `</p><p>`). Not used for
  * CONTENT-001/003's exact-match and length checks — those must keep reading
- * the page's literal visible text, not a version with inserted punctuation.
+ * the page's literal visible text, not a version that both narrows scope and
+ * inserts punctuation.
  */
 export function proseText(page: PageSnapshot): string {
   const cached = proseTextCache.get(page);
@@ -97,16 +107,16 @@ export function proseText(page: PageSnapshot): string {
 }
 
 function collectProseText(node: Node): string {
-  if (node instanceof TextNode) {
-    return node.text;
+  if (!(node instanceof HTMLElement)) {
+    return '';
   }
-  if (node instanceof HTMLElement) {
-    const tag = node.rawTagName?.toLowerCase() ?? '';
-    if (INVISIBLE_TAGS.has(tag)) {
-      return '';
-    }
-    const inner = node.childNodes.map(collectProseText).join('');
-    return PROSE_BOUNDARY_TAGS.has(tag) ? `${inner}. ` : inner;
+  const tag = node.rawTagName?.toLowerCase() ?? '';
+  if (INVISIBLE_TAGS.has(tag) || EXCLUDED_CONTAINERS.has(tag)) {
+    return '';
   }
-  return '';
+  if (PROSE_TAGS.has(tag)) {
+    const inner = collectText(node);
+    return inner.trim() === '' ? '' : `${inner}. `;
+  }
+  return node.childNodes.map(collectProseText).join('');
 }

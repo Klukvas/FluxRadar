@@ -379,10 +379,10 @@ describe('CONTENT-005 низька читабельність', () => {
 
   it('надто мало речень і слів (>= 200 символів, але не проза) → too-little-prose', () => {
     // 16 short list labels: well over 200 characters (VISIBLE_TEXT_MIN_CHARS),
-    // and now over MIN_PROSE_SENTENCES too — L7 (T9 second review) counts each
-    // <li> boundary as a sentence end — but still under MIN_PROSE_WORDS at
-    // 5 words each. The H4 case from the T9 review (a nav/list page, not
-    // prose) stays too-little-prose on the word count, not the sentence count.
+    // but none of it is prose (H5, T9 third review) — proseText reads only
+    // <p>/<blockquote>/<dd>, so a page of nothing but a heading and a <ul>
+    // measures as 0 sentences and 0 words, not "enough sentences, too few
+    // words". Either floor alone would fail it; this exercises both.
     const listItems = Array.from(
       { length: 16 },
       (_, index) => `<li><a href="/p${index}">Product update ${index} for teams</a></li>`,
