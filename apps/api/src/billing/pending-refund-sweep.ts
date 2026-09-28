@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 import type { ApiLogger } from '../http/logger.ts';
-import { WEBHOOK_OUTCOMES } from './fastspring/outcomes.ts';
+import { WEBHOOK_OUTCOMES } from './webhook-outcomes.ts';
 
 // The safety net under every provider's pending-refund replay.
 //
@@ -37,7 +37,7 @@ import { WEBHOOK_OUTCOMES } from './fastspring/outcomes.ts';
 // act on. An orphan costs one index probe on Purchase's unique key and is skipped.
 //
 // Each provider wraps this with its own name and its own replay
-// (fastspring/pending-refund-reconciliation.ts, creem/pending-refund-reconciliation.ts).
+// (creem/pending-refund-reconciliation.ts).
 
 /**
  * How many *applicable* pending rows one pass takes.
@@ -72,7 +72,7 @@ export interface PendingRefundReplayOptions {
 
 /** The one provider-specific piece: which rows, and how a stored one is applied. */
 export interface PendingRefundSweepProvider {
-  /** The provider name on WebhookEvent and Purchase rows, e.g. `fastspring`. */
+  /** The provider name on WebhookEvent and Purchase rows, e.g. `creem`. */
   readonly provider: string;
   readonly applyPending: (
     tx: Prisma.TransactionClient,

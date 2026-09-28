@@ -1,20 +1,20 @@
 // A paid scan, bought the way production buys one.
 //
-// The only thing that grants paid access is a signed FastSpring
-// order.completed matched to a checkout session row (D-229). So the session is
-// opened by `createCheckoutSession` itself — plan limit, reachability gate,
-// profile lock and revision check, stored scope, execution config and deadline
-// are all production code — and the order goes through the real webhook
-// handler, which makes the purchase, the entitlement, the scan and its job.
+// The only thing that grants paid access is a signed Creem checkout.completed
+// matched to a checkout session row (D-229). So the session is opened by
+// `createCreemCheckoutSession` itself — plan limit, reachability gate, profile
+// lock and revision check, stored scope, execution config and deadline are all
+// production code — and the order goes through the real webhook handler,
+// which makes the purchase, the entitlement, the scan and its job.
 //
 // What stands in for the outside world, and nothing else:
-// - FastSpring's session API, answering with a session priced at the plan's
-//   USD list price;
+// - Creem's checkout API, answering with a checkout priced at the plan's USD
+//   list price;
 // - the reachability check, as the fresh 'reachable' probe of the profile's own
 //   domain that the launch screen leaves behind for a site the crawler can read;
 // - the egress location: a deployment that crawls directly, as tests do.
 // Only the HTTP layer of POST /billing/checkout-session (auth, rate limit, body
-// parsing) is skipped; FASTSPRING-004 covers that.
+// parsing) is skipped; CREEM-004 covers that.
 
 import { randomUUID } from 'node:crypto';
 
@@ -22,15 +22,12 @@ import { scanScopeSchema, type ScanScopeInput } from '@fluxradar/contracts';
 import type { PrismaClient, SiteProfile } from '@prisma/client';
 
 import type { AiConsentInput } from '../billing/checkout-metadata.ts';
-import { createCheckoutSession } from '../billing/fastspring/checkout-session.ts';
-import type { FetchLike } from '../billing/fastspring/client.ts';
-import { readFastSpringConfig, type FastSpringConfig } from '../billing/fastspring/config.ts';
-import {
-  TEST_FASTSPRING_SECRET,
-  orderCompletedData,
-  signedDelivery,
-} from '../billing/fastspring/test-payloads.ts';
-import { handleFastSpringWebhook } from '../billing/fastspring/webhook-handler.ts';
+import { createCreemCheckoutSession } from '../billing/creem/checkout-session.ts';
+import { readCreemConfig, type CreemConfig } from '../billing/creem/config.ts';
+import { TEST_CREEM_SECRET, checkoutCompletedObject, signedCreemDelivery } from '../billing/creem/test-payloads.ts';
+import { CREEM_EVENT_TYPES } from '../billing/creem/events.ts';
+import { handleCreemWebhook } from '../billing/creem/webhook-handler.ts';
+import type { FetchLike } from '../billing/fetch-like.ts';
 import { planPriceUsd, type PaidPlan } from '../billing/plans.ts';
 import { silentLogger } from '../http/logger.ts';
 import { createEgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
@@ -66,7 +63,7 @@ export async function purchaseScan(
 /** A checkout session opened by production code, left unpaid. */
 export interface OpenedCheckout {
   readonly reference: string;
-  readonly productPath: string;
+  readonly productId: string;
   readonly now: Date;
 }
 
@@ -86,8 +83,8 @@ export async function openCheckout(
   });
   const now = new Date();
   await recordReachableProbe(prisma, profile, now);
-  const checkout = await createCheckoutSession(
-    { prisma, config: CHECKOUT_CONFIG, now: () => now, fetchImpl: sessionPricedAt(params.plan) },
+  const checkout = await createCreemCheckoutSession(
+    { prisma, config: CHECKOUT_CONFIG, now: () => now, fetchImpl: checkoutPricedAt(params.plan) },
     {
       accountId: profile.accountId,
       siteProfileId: profile.id,
@@ -98,19 +95,20 @@ export async function openCheckout(
       expectedProfileConfigVersion: params.expectedProfileConfigVersion,
     },
   );
-  return { reference: checkout.reference, productPath: productPathFor(params.plan), now };
+  return { reference: checkout.reference, productId: productIdFor(params.plan), now };
 }
 
 export interface DeliveredOrderParams {
-  readonly reference: string;
-  readonly productPath: string;
-  readonly amount: number;
+  readonly reference: string | null;
+  readonly productId: string;
+  readonly amountCents: number;
   /** Reuse an id to replay a delivery the provider already sent. */
   readonly orderId?: string;
+  readonly checkoutId?: string;
   readonly eventId?: string;
 }
 
-/** Delivers one signed `order.completed` through the real webhook handler. */
+/** Delivers one signed `checkout.completed` through the real webhook handler. */
 export async function deliverOrder(
   prisma: PrismaClient,
   params: DeliveredOrderParams,
@@ -120,56 +118,61 @@ export async function deliverOrder(
   readonly eventId: string;
 }> {
   const orderId = params.orderId ?? `ord_${randomUUID()}`;
+  const checkoutId = params.checkoutId ?? `chk_${randomUUID()}`;
   const eventId = params.eventId ?? `evt_${randomUUID()}`;
-  const order = orderCompletedData({
-    orderId,
-    reference: params.reference,
-    productPath: params.productPath,
-    amount: params.amount,
-  });
-  const { rawBody, signature } = signedDelivery(
-    [{ id: eventId, type: 'order.completed', data: order }],
+  const { rawBody, signature } = signedCreemDelivery(
+    {
+      id: eventId,
+      eventType: CREEM_EVENT_TYPES.checkoutCompleted,
+      object: checkoutCompletedObject({
+        checkoutId,
+        orderId,
+        reference: params.reference,
+        productId: params.productId,
+        amountCents: params.amountCents,
+      }),
+    },
     CHECKOUT_CONFIG.webhookSecret,
   );
-  const delivered = await handleFastSpringWebhook(prisma, rawBody, signature, {
+  const delivered = await handleCreemWebhook(prisma, rawBody, signature, {
     secret: CHECKOUT_CONFIG.webhookSecret,
     expectLive: CHECKOUT_CONFIG.liveMode,
-    currencyPolicy: CHECKOUT_CONFIG.currencyPolicy,
     now: new Date(),
   });
   return { createdScanIds: delivered.createdScanIds, orderId, eventId };
 }
 
-/** The product path the test store maps a plan to; absent is a fixture bug. */
-export function productPathFor(plan: PaidPlan): string {
-  const productPath = CHECKOUT_CONFIG.productPaths[plan];
-  if (productPath === undefined) {
-    throw new Error(`purchaseScan: the test FastSpring config has no product for ${plan}`);
+/** The Creem product id the test store maps a plan to; absent is a fixture bug. */
+export function productIdFor(plan: PaidPlan): string {
+  const productId = CHECKOUT_CONFIG.productIds[plan];
+  if (productId === undefined) {
+    throw new Error(`purchaseScan: the test Creem config has no product for ${plan}`);
   }
-  return productPath;
+  return productId;
 }
 
-/** Delivers the signed order.completed for a session, as FastSpring would. */
+/** Delivers the signed checkout.completed for a session, as Creem would. */
 async function completeOrder(
   prisma: PrismaClient,
   reference: string,
   plan: PaidPlan,
   now: Date,
 ): Promise<PurchasedScan> {
-  const order = orderCompletedData({
-    orderId: `ord_${randomUUID()}`,
-    reference,
-    productPath: productPathFor(plan),
-    amount: planPriceUsd(plan),
-  });
-  const { rawBody, signature } = signedDelivery(
-    [{ id: `evt_${randomUUID()}`, type: 'order.completed', data: order }],
+  const productId = productIdFor(plan);
+  const amountCents = Math.round(planPriceUsd(plan) * 100);
+  const orderId = `ord_${randomUUID()}`;
+  const checkoutId = `chk_${randomUUID()}`;
+  const { rawBody, signature } = signedCreemDelivery(
+    {
+      id: `evt_${randomUUID()}`,
+      eventType: CREEM_EVENT_TYPES.checkoutCompleted,
+      object: checkoutCompletedObject({ checkoutId, orderId, reference, productId, amountCents }),
+    },
     CHECKOUT_CONFIG.webhookSecret,
   );
-  const delivered = await handleFastSpringWebhook(prisma, rawBody, signature, {
+  const delivered = await handleCreemWebhook(prisma, rawBody, signature, {
     secret: CHECKOUT_CONFIG.webhookSecret,
     expectLive: CHECKOUT_CONFIG.liveMode,
-    currencyPolicy: CHECKOUT_CONFIG.currencyPolicy,
     now,
   });
   const [scanId] = delivered.createdScanIds;
@@ -205,12 +208,14 @@ async function recordReachableProbe(
   });
 }
 
-/** FastSpring's Sessions v1 API, answering with a session at the list price. */
-function sessionPricedAt(plan: PaidPlan): FetchLike {
+/** Creem's Checkout API, answering with a checkout at the list price. */
+function checkoutPricedAt(plan: PaidPlan): FetchLike {
   const body = JSON.stringify({
-    id: `sess_${randomUUID()}`,
-    subtotal: planPriceUsd(plan),
-    currency: 'USD',
+    id: `chk_${randomUUID()}`,
+    checkout_url: 'https://test-checkout.creem.io/session/stub',
+    status: 'pending',
+    mode: 'test',
+    product: { id: productIdFor(plan), price: Math.round(planPriceUsd(plan) * 100), currency: 'USD' },
   });
   return () =>
     Promise.resolve(
@@ -218,19 +223,18 @@ function sessionPricedAt(plan: PaidPlan): FetchLike {
     );
 }
 
-function testCheckoutConfig(): FastSpringConfig {
-  const result = readFastSpringConfig({
-    FASTSPRING_MODE: 'test',
-    FASTSPRING_API_USERNAME: 'api-user',
-    FASTSPRING_API_PASSWORD: 'api-password-value',
-    FASTSPRING_WEBHOOK_SECRET: TEST_FASTSPRING_SECRET,
-    FASTSPRING_STOREFRONT_URL: 'https://fluxradar.test.onfastspring.com',
-    FASTSPRING_PRODUCT_PATH_BASIC: 'fluxradar-basic-scan',
-    FASTSPRING_PRODUCT_PATH_COMPLETE: 'fluxradar-complete-scan',
-    FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT: 'fluxradar-website-audit',
+function testCheckoutConfig(): CreemConfig {
+  const result = readCreemConfig({
+    CREEM_MODE: 'test',
+    CREEM_API_KEY: 'creem-api-key-value',
+    CREEM_WEBHOOK_SECRET: TEST_CREEM_SECRET,
+    FRONTEND_ORIGIN: 'https://fluxradar.test',
+    CREEM_PRODUCT_ID_BASIC: 'prod_basic',
+    CREEM_PRODUCT_ID_COMPLETE: 'prod_complete',
+    CREEM_PRODUCT_ID_WEBSITE_AUDIT: 'prod_website_audit',
   });
   if (result.state !== 'configured') {
-    throw new Error(`purchaseScan: the test FastSpring config is ${result.state}`);
+    throw new Error(`purchaseScan: the test Creem config is ${result.state}`);
   }
   return result.config;
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { BillingError } from '../errors.ts';
-import type { FetchLike } from '../fastspring/client.ts';
+import type { FetchLike } from '../fetch-like.ts';
 import type { CreemConfig } from './config.ts';
 
 // Server-to-server Creem Checkout API (docs.creem.io — Checkout API, "Create a

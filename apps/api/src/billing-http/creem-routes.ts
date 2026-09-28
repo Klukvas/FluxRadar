@@ -6,10 +6,9 @@
 // from the browser beyond an id the session owner must already own — the binding
 // is written server-side and re-read from our database when the payment lands.
 //
-// The three checkout routes are the same paths the FastSpring router serves,
-// deliberately: the browser talks to one checkout surface whichever provider is
-// behind it, and index.ts mounts exactly one of the two routers
-// (billing/checkout-provider.ts decides which).
+// The three checkout routes (/billing/checkout-config,
+// /billing/checkout-session, /webhooks/creem) are the browser's one checkout
+// surface; index.ts mounts this router unconditionally.
 
 import { Router } from 'express';
 import type { RequestHandler } from 'express';
@@ -41,8 +40,8 @@ import {
   type CreemConfigResult,
 } from '../billing/creem/index.ts';
 import { BillingUnavailableError } from '../billing/errors.ts';
-import type { FetchLike } from '../billing/fastspring/client.ts';
-import { WEBHOOK_OUTCOMES } from '../billing/fastspring/outcomes.ts';
+import type { FetchLike } from '../billing/fetch-like.ts';
+import { WEBHOOK_OUTCOMES } from '../billing/webhook-outcomes.ts';
 import { assertOptInProvidersAvailable } from '../billing/opt-in-consent.ts';
 import { PAID_PLANS, planPriceUsd, planUrlLimit } from '../billing/plans.ts';
 import type { Mailer } from '../email/mailer.ts';
@@ -56,13 +55,6 @@ import { availableOptInAiProviders } from '../integrations/opt-in-ai-config.ts';
 import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 
 export const CREEM_SIGNATURE_HEADER_NAME = CREEM_SIGNATURE_HEADER;
-
-/**
- * How the browser gets the buyer to the checkout. Creem hosts its page, so the
- * browser navigates there and is sent back afterwards; the FastSpring router
- * answers `popup` or `tab` for its two surfaces.
- */
-export const CREEM_CHECKOUT_FLOW = 'redirect' as const;
 
 // The page count is the one part of the scope whose ceiling is the plan being
 // bought, so it cannot be checked by `scanScopeSchema` alone — and a checkout
@@ -141,11 +133,8 @@ export function creemRouter(deps: CreemRouterDeps): Router {
   const optInAiProviders = deps.optInAiProviders ?? availableOptInAiProviders();
 
   // Lets the UI show a real setup state instead of guessing from a build flag.
-  //
-  // `checkoutFlow: 'redirect'` is what tells the browser to navigate to the
-  // hosted page rather than open a popup or a tab; `popup` is null because no
-  // provider script is ever loaded on our page for Creem. Nothing secret
-  // travels here.
+  // Every checkout is a redirect to Creem's hosted page — there is no popup or
+  // tab flow — so nothing here names a flow at all. Nothing secret travels here.
   //
   // `optInAiProviders` is the same kind of fact for the optional AI recipients:
   // the names this deployment can actually send to, so the form offers no
@@ -155,11 +144,9 @@ export function creemRouter(deps: CreemRouterDeps): Router {
     const available = config !== null;
     sendOk(res, {
       provider: CREEM_PROVIDER,
-      checkoutFlow: CREEM_CHECKOUT_FLOW,
       available,
       mode: config?.mode ?? null,
       unavailableReason: available ? null : unavailableReason(deps.creem),
-      popup: null,
       // `available` per plan, because a product can exist at the provider for
       // one plan and not another. A plan without one is still listed with its
       // price and marked unavailable, so the UI can say it cannot be bought here

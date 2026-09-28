@@ -113,18 +113,3 @@ export function executionProfile(
     targetAudience: stored?.targetAudience ?? null,
   };
 }
-
-export function legacyCheckoutConfig(
-  domain: string,
-  plan: Plan,
-  scopeJson: string,
-): ExecutionConfig {
-  return executionConfigSchema.parse({
-    schemaVersion: 1,
-    source: 'legacy-checkout',
-    profileConfigVersion: null,
-    profile: { name: new URL(domain).hostname, domain },
-    plan,
-    scope: scanScopeSchema.parse(JSON.parse(scopeJson)),
-  });
-}

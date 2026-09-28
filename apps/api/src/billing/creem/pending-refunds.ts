@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 
-import { WEBHOOK_OUTCOMES, type WebhookOutcome } from '../fastspring/outcomes.ts';
+import { WEBHOOK_OUTCOMES, type WebhookOutcome } from '../webhook-outcomes.ts';
 import type {
   PendingRefundReplayOptions,
   PendingRefundReplayResult,

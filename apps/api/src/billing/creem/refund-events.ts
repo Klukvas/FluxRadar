@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 import { PURCHASE_STATUSES, REFUND_STATUSES, refundIdempotencyKey } from '../constants.ts';
-import { NOTHING, WEBHOOK_OUTCOMES, type DispatchResult } from '../fastspring/outcomes.ts';
+import { NOTHING, WEBHOOK_OUTCOMES, type DispatchResult } from '../webhook-outcomes.ts';
 import {
   chargeBasisOf,
   cumulativeRefund,

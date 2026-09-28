@@ -3,7 +3,7 @@ import type { CheckoutSession, Prisma } from '@prisma/client';
 
 import { createTestDb, seedAccountWithProfile, type TestDb } from '../../test-utils/test-db.ts';
 import type { SeededAccount } from '../../test-utils/test-db.ts';
-import { WEBHOOK_OUTCOMES } from '../fastspring/outcomes.ts';
+import { WEBHOOK_OUTCOMES } from '../webhook-outcomes.ts';
 import { CREEM_PROVIDER } from './config.ts';
 import { CREEM_EVENT_TYPES } from './events.ts';
 import { reconcileCreemPendingRefunds } from './pending-refund-reconciliation.ts';

@@ -5,12 +5,7 @@ import { claimableCheckoutSessionWhere } from '../checkout-lifecycle.ts';
 import { aiConsentSchema, type AiConsentInput } from '../checkout-metadata.ts';
 import { CHECKOUT_SESSION_STATUSES } from '../constants.ts';
 import { InvalidSignatureError, WebhookValidationError } from '../errors.ts';
-import {
-  NOTHING,
-  WEBHOOK_OUTCOMES,
-  rejected,
-  type DispatchResult,
-} from '../fastspring/outcomes.ts';
+import { NOTHING, WEBHOOK_OUTCOMES, rejected, type DispatchResult } from '../webhook-outcomes.ts';
 import { createPaidScan, type PaidScanRecords } from '../paid-scan.ts';
 import { isPaidPlan } from '../plans.ts';
 import { isDuplicateEventId, isDuplicateTransactionId } from '../prisma-errors.ts';
@@ -30,8 +25,7 @@ import { applyPendingCreemRefundEvents } from './pending-refunds.ts';
 import { processCreemDispute, processCreemRefund } from './refund-events.ts';
 import { verifyCreemSignature } from './signature.ts';
 
-// Creem webhook processing (§18 idempotency contract), on the same shape as the
-// FastSpring handler so the two can be read side by side.
+// Creem webhook processing (§18 idempotency contract).
 //
 // One POST carries one event. It is processed in its own transaction that
 // starts by claiming the event id in the dedup table — a redelivery therefore

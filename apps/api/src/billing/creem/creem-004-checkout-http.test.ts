@@ -6,11 +6,9 @@ import type { AiProviderName } from '@fluxradar/ai';
 import { createApp } from '../../index.ts';
 import { silentLogger, type ApiLogger } from '../../http/logger.ts';
 import { createTestDb, seedReachableSite, type TestDb } from '../../test-utils/test-db.ts';
-import { CHECKOUT_PROVIDER_ENV } from '../checkout-provider.ts';
 import { CHECKOUT_STATUS_REASONS } from '../checkout-lifecycle.ts';
 import { CHECKOUT_REASON_CODES } from '../checkout-status-reason.ts';
-import type { FetchLike } from '../fastspring/client.ts';
-import { readFastSpringConfig, type FastSpringConfigResult } from '../fastspring/config.ts';
+import type { FetchLike } from '../fetch-like.ts';
 import { CREEM_PROVIDER, readCreemConfig, type CreemConfigResult } from './config.ts';
 import { CREEM_CHECKOUT_REFERENCE_KEY, CREEM_EVENT_TYPES } from './events.ts';
 import { CREEM_SIGNATURE_HEADER } from './signature.ts';
@@ -27,9 +25,9 @@ import {
 // credentials, no network and no real payment are involved. What it pins down:
 // the endpoints require a session, the browser learns only a hosted checkout
 // URL and a reference, the provider call carries the API key and the reference,
-// the surface fails closed when Creem is not configured or not the selected
-// provider, a provider failure is a gateway error that closes the session row,
-// and — most importantly — NO scan exists until a signed webhook arrives.
+// the surface fails closed when Creem is not configured, a provider failure is
+// a gateway error that closes the session row, and — most importantly — NO
+// scan exists until a signed webhook arrives.
 
 const CONFIG_ENV = {
   CREEM_MODE: 'test',
@@ -39,18 +37,6 @@ const CONFIG_ENV = {
   CREEM_PRODUCT_ID_COMPLETE: 'prod_complete',
   FRONTEND_ORIGIN: 'http://localhost:5174',
 } satisfies NodeJS.ProcessEnv;
-
-const FASTSPRING_ENV = {
-  FASTSPRING_MODE: 'test',
-  FASTSPRING_API_USERNAME: 'api-user',
-  FASTSPRING_API_PASSWORD: 'api-password-value',
-  FASTSPRING_WEBHOOK_SECRET: 'fastspring-webhook-secret-value',
-  FASTSPRING_STOREFRONT_URL: 'https://fluxradar.test.onfastspring.com',
-  FASTSPRING_PRODUCT_PATH_BASIC: 'fluxradar-basic-scan',
-  FASTSPRING_PRODUCT_PATH_COMPLETE: 'fluxradar-complete-scan',
-} satisfies NodeJS.ProcessEnv;
-
-const NOT_CONFIGURED: FastSpringConfigResult = { state: 'not_configured' };
 
 interface LoggedLine {
   readonly level: 'info' | 'warn' | 'error';
@@ -104,29 +90,18 @@ function pendingCheckout(id: string, requestId?: string): Record<string, unknown
 
 describe('CREEM-004 checkout HTTP surface', () => {
   let db: TestDb;
-  let previousProviderChoice: string | undefined;
 
   beforeEach(async () => {
     db = await createTestDb();
-    // createApp resolves the selling provider from process.env; a developer's
-    // shell must not decide which router these tests hit.
-    previousProviderChoice = process.env[CHECKOUT_PROVIDER_ENV];
-    delete process.env[CHECKOUT_PROVIDER_ENV];
   });
 
   afterEach(async () => {
-    if (previousProviderChoice === undefined) {
-      delete process.env[CHECKOUT_PROVIDER_ENV];
-    } else {
-      process.env[CHECKOUT_PROVIDER_ENV] = previousProviderChoice;
-    }
     await db.cleanup();
   });
 
   function buildApp(
     options: {
       creem?: CreemConfigResult;
-      fastSpring?: FastSpringConfigResult;
       fetchImpl?: FetchLike;
       logger?: ApiLogger;
       optInAiProviders?: readonly AiProviderName[];
@@ -137,7 +112,6 @@ describe('CREEM-004 checkout HTTP surface', () => {
       autoProcess: false,
       logger: options.logger ?? silentLogger,
       creem: options.creem ?? configured(),
-      fastSpring: options.fastSpring ?? NOT_CONFIGURED,
       // A deployment with no opt-in AI key, which is what production is until
       // the owner sets one. Tests that want the choice offered say so.
       optInAiProviders: options.optInAiProviders ?? [],
@@ -207,11 +181,9 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(config.status).toBe(200);
     expect(config.body.data).toMatchObject({
       provider: CREEM_PROVIDER,
-      checkoutFlow: 'redirect',
       available: true,
       mode: 'test',
       unavailableReason: null,
-      popup: null,
       optInAiProviders: [],
     });
     expect(config.body.data.plans).toEqual([
@@ -705,87 +677,5 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(refused.body.error.message).toContain('google');
     expect(calls).toHaveLength(0);
     expect(await db.prisma.checkoutSession.count()).toBe(0);
-  });
-
-  // Two configured providers and nothing saying which one sells: the checkout
-  // is misconfigured rather than served by whichever was read first. Both
-  // webhook routes stay mounted, so refunds for either provider's orders land.
-  describe('with FastSpring configured as well', () => {
-    const bothConfigured = () => ({
-      creem: configured(),
-      fastSpring: readFastSpringConfig(FASTSPRING_ENV),
-    });
-
-    it('reports the checkout as misconfigured until FLUXRADAR_CHECKOUT_PROVIDER names one', async () => {
-      const { logger, lines } = recordingLogger();
-      const app = buildApp({ ...bothConfigured(), logger });
-      const { agent, cookie, profileId } = await signIn(app, 'both@example.com');
-
-      const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
-      expect(config.status).toBe(200);
-      expect(config.body.data.available).toBe(false);
-      expect(config.body.data.unavailableReason).toBe('misconfigured');
-      expect(JSON.stringify(config.body)).not.toContain(CHECKOUT_PROVIDER_ENV);
-
-      const attempt = await agent
-        .post('/billing/checkout-session')
-        .set('Cookie', cookie)
-        .send({ siteProfileId: profileId, plan: 'Basic', scope: SCOPE });
-      expect(attempt.status).toBe(503);
-      expect(attempt.body.error.code).toBe('BILLING_UNAVAILABLE');
-      expect(await db.prisma.checkoutSession.count()).toBe(0);
-
-      const startup = lines.find(
-        (line) => line.message === 'paid checkout disabled: no single provider opens new checkouts',
-      );
-      expect(startup?.level).toBe('error');
-      expect(startup?.context.variable).toBe(CHECKOUT_PROVIDER_ENV);
-
-      // The Creem webhook still verifies and stores deliveries meanwhile.
-      const { rawBody, signature } = signedCreemDelivery({
-        id: 'evt_both_refund',
-        eventType: CREEM_EVENT_TYPES.refundCreated,
-        object: refundCreatedObject('ord_both', 5500),
-      });
-      expect((await postWebhook(app, rawBody, signature)).status).toBe(202);
-    });
-
-    it('sells through Creem once FLUXRADAR_CHECKOUT_PROVIDER says so', async () => {
-      process.env[CHECKOUT_PROVIDER_ENV] = 'creem';
-      const calls: StubCall[] = [];
-      const app = buildApp({
-        ...bothConfigured(),
-        fetchImpl: stubCreem({ body: pendingCheckout('ch_selected') }, calls),
-      });
-      const { agent, cookie, profileId } = await signIn(app, 'selected@example.com');
-
-      const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
-      expect(config.body.data).toMatchObject({
-        provider: CREEM_PROVIDER,
-        checkoutFlow: 'redirect',
-        available: true,
-        unavailableReason: null,
-      });
-      const created = await agent
-        .post('/billing/checkout-session')
-        .set('Cookie', cookie)
-        .send({ siteProfileId: profileId, plan: 'Basic', scope: SCOPE });
-      expect(created.status).toBe(201);
-      expect(created.body.data.sessionId).toBe('ch_selected');
-      expect(calls).toHaveLength(1);
-    });
-
-    it('keeps selling through FastSpring when the variable names it', async () => {
-      process.env[CHECKOUT_PROVIDER_ENV] = 'fastspring';
-      const app = buildApp(bothConfigured());
-      const { agent, cookie } = await signIn(app, 'fastspring@example.com');
-
-      const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
-      expect(config.body.data.provider).toBe('fastspring');
-      expect(config.body.data.available).toBe(true);
-      // The classic storefront: a new tab, no popup script on our page.
-      expect(config.body.data.checkoutFlow).toBe('tab');
-      expect(config.body.data.popup).toBeNull();
-    });
   });
 });

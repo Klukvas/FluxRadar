@@ -18,7 +18,7 @@ import {
   WebhookValidationError,
 } from '../errors.ts';
 import { planPriceUsd, type PaidPlan } from '../plans.ts';
-import type { FetchLike } from '../fastspring/client.ts';
+import type { FetchLike } from '../fetch-like.ts';
 import { createCreemCheckout, type CreatedCheckout } from './client.ts';
 import { CREEM_PROVIDER, type CreemConfig } from './config.ts';
 import { CREEM_CHECKOUT_REFERENCE_KEY } from './events.ts';
