@@ -411,6 +411,9 @@ describe('CREEM-009 checkout session lifecycle', () => {
       });
       expect(stored.status).toBe(CHECKOUT_SESSION_STATUSES.rejected);
       expect(stored.purchaseId).toBeNull();
+      // The claim's own writes went with the rolled-back transaction.
+      expect(stored.settledAmount).toBeNull();
+      expect(stored.settledCurrency).toBeNull();
     });
 
     // The rolled-back transaction takes the dedup row with it, so the delivery

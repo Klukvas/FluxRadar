@@ -31,8 +31,9 @@ import { readCreemConfig, type CreemConfig } from './config.ts';
 // is the refusal itself, and it lives on the server because a browser can be
 // told anything. Every test here therefore writes the probe row directly and
 // calls `createCreemCheckoutSession` — the same function the checkout route
-// calls — so what is under test is the gate, not the HTTP layer around it
-// (CREEM-004 covers that).
+// calls — so what is under test is the gate itself, function-by-function,
+// rather than the HTTP layer around it. CREEM-004 covers a representative
+// slice of these same refusals end to end through POST /billing/checkout-session.
 //
 // Ported from the deleted fastspring-009-reachability-gate.test.ts onto Creem.
 
