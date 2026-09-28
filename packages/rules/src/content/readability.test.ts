@@ -6,6 +6,7 @@ import {
   estimateCyrillicSyllables,
   estimateEnglishSyllables,
   measureReadability,
+  resolveReadabilityLanguage,
 } from './readability.js';
 
 describe('countWords', () => {
@@ -39,6 +40,11 @@ describe('countSentences', () => {
   it('a lone terminator-heavy fragment still counts what it finds', () => {
     expect(countSentences('Wait... really?!')).toBe(2);
   });
+
+  it('a closing quote or guillemet right after the terminator still ends the sentence', () => {
+    expect(countSentences('"Stop." he said. "Now."')).toBe(3);
+    expect(countSentences('Він запитав: «Досить?» Ми зупинились.')).toBe(2);
+  });
 });
 
 describe('estimateEnglishSyllables', () => {
@@ -60,6 +66,24 @@ describe('estimateEnglishSyllables', () => {
   it('trailing silent e is dropped', () => {
     expect(estimateEnglishSyllables('like')).toBe(1);
   });
+
+  // Known, documented bias (readability.ts header): vowel-group counting
+  // undercounts words where English spelling does not mark a diphthong split
+  // with an extra vowel group. Pinned so a future change to the estimator
+  // has to look at this table rather than silently shift the bias.
+  it('known bias: undercounts words with an unmarked diphthong split', () => {
+    const table: ReadonlyArray<readonly [string, number]> = [
+      ['people', 2],
+      ['simple', 2],
+      ['table', 2],
+      ['created', 3],
+      ['area', 3],
+      ['idea', 3],
+    ];
+    for (const [word, actual] of table) {
+      expect(estimateEnglishSyllables(word)).toBe(actual - 1);
+    }
+  });
 });
 
 describe('estimateCyrillicSyllables', () => {
@@ -70,6 +94,51 @@ describe('estimateCyrillicSyllables', () => {
 
   it('a token with no Cyrillic letters still counts as one syllable', () => {
     expect(estimateCyrillicSyllables('123')).toBe(1);
+  });
+});
+
+describe('resolveReadabilityLanguage', () => {
+  const englishText = 'The cat sat on the mat and the dog ran to the park.';
+  const ukrainianText = 'Кіт спить, а пес біжить у парк дуже швидко сьогодні.';
+
+  it('no declared language → not usable, never falls back to a script guess (H1)', () => {
+    expect(resolveReadabilityLanguage(null, englishText)).toEqual({
+      usable: false,
+      reason: 'no-declared-language',
+    });
+    expect(resolveReadabilityLanguage('', englishText)).toEqual({
+      usable: false,
+      reason: 'no-declared-language',
+    });
+  });
+
+  it('a declared language outside en/uk is not usable', () => {
+    expect(resolveReadabilityLanguage('fr', englishText)).toEqual({
+      usable: false,
+      reason: 'unsupported-language',
+    });
+  });
+
+  it('regional subtags resolve to their primary subtag', () => {
+    expect(resolveReadabilityLanguage('en-GB', englishText)).toEqual({
+      usable: true,
+      language: 'en',
+    });
+    expect(resolveReadabilityLanguage('uk-UA', ukrainianText)).toEqual({
+      usable: true,
+      language: 'uk',
+    });
+  });
+
+  it('a declared language the text is not written in is a script mismatch, not a score (H2)', () => {
+    expect(resolveReadabilityLanguage('en', ukrainianText)).toEqual({
+      usable: false,
+      reason: 'script-mismatch',
+    });
+    expect(resolveReadabilityLanguage('uk', englishText)).toEqual({
+      usable: false,
+      reason: 'script-mismatch',
+    });
   });
 });
 

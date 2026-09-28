@@ -77,9 +77,23 @@ export const CONTENT_MESSAGES = {
     uk: 'Замініть або видаліть биті посилання на медіафайли: зламане зображення псує сторінку помітніше, ніж будь-яка інша проблема з контентом.',
   },
 
-  'content-005.evidence': {
-    en: 'Readability score is {score} out of 100 on the {scale} scale, below the minimum of {minimum} for text that is easy to follow. Measured over {sentences} sentence(s) and {words} word(s) of visible text.',
-    uk: 'Оцінка читабельності — {score} зі 100 за шкалою {scale}, це нижче мінімуму {minimum} для тексту, який легко сприймається. Вимірено на {sentences} реченні(-ях) і {words} слові(-ах) видимого тексту.',
+  // Two variant codes rather than one template with a `{scale}` parameter:
+  // the human-readable scale name differs by language ("Flesch Reading Ease
+  // (English)" vs "Oborneva readability (Cyrillic adaptation)"), and a
+  // finding's params are the same values in every locale a report renders it
+  // in — a raw slug like `flesch-oborneva-uk` would be the only thing that
+  // could go in `{scale}` without one locale showing the other's words.
+  'content-005.evidence.en-scale': {
+    en: 'Readability score is {score} on a 0-100 scale (Flesch Reading Ease, English), below the minimum of {minimum} for text that is easy to follow. Measured over {sentences} sentence(s) and {words} word(s) of visible text.',
+    uk: 'Оцінка читабельності — {score} за шкалою 0–100 (Flesch Reading Ease, англійська), це нижче мінімуму {minimum} для тексту, який легко сприймається. Вимірено на {sentences} реченні(-ях) і {words} слові(-ах) видимого тексту.',
+  },
+  // Honest about what this scale is: Oborneva fit her coefficients on
+  // Russian, not Ukrainian, and this rule applies them to Ukrainian text as
+  // an approximation (readability.ts) — the copy says so rather than
+  // implying a scale built and validated for Ukrainian.
+  'content-005.evidence.uk-scale': {
+    en: 'Readability score is {score} on a 0-100 scale (Oborneva readability, a Flesch adaptation calibrated on Russian and applied to Ukrainian text as an approximation), below the minimum of {minimum} for text that is easy to follow. Measured over {sentences} sentence(s) and {words} word(s) of visible text.',
+    uk: 'Оцінка читабельності — {score} за шкалою 0–100 (читабельність за Оборнєвою — адаптація формули Флеша, відкалібрована на російських текстах і застосована тут до українського тексту як наближення), це нижче мінімуму {minimum} для тексту, який легко сприймається. Вимірено на {sentences} реченні(-ях) і {words} слові(-ах) видимого тексту.',
   },
   'content-005.recommendation': {
     en: 'Shorten sentences, prefer plain words over long or technical ones, and break up dense paragraphs. This scores the text mechanically (sentence and word length); it does not read for meaning.',

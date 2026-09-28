@@ -165,12 +165,15 @@ describe('passive-модули на fixture-сайте краулера', () => 
       // Ровно одна страница: та, чью media проба обхода застала битой. Ни одна
       // из остальных за непроверенный ресурс не штрафуется.
       'CONTENT-004': ['/broken-image.html'],
-      // hard-prose.html пишет намеренно тяжёлый для чтения текст; easy-prose.html
-      // (рядом в навигации, тоже >= 200 символов) — намеренно лёгкий, и находки
-      // не даёт. Остальные три — уже существующие фикстурные страницы, чей текст
-      // оказался ниже порога 30 по факту (наукообразные формулировки на / и
-      // /wrong-canonical.html, короткие технические подписи на /form.html).
-      'CONTENT-005': ['/', '/form.html', '/hard-prose.html', '/wrong-canonical.html'],
+      // hard-prose.html пишет намеренно тяжёлый для чтения текст, от
+      // MIN_PROSE_SENTENCES/MIN_PROSE_WORDS достаточно, и оценка ниже 30 —
+      // единственная находка. easy-prose.html (рядом в навигации) намеренно
+      // лёгкий и находки не даёт. /, /form.html и /wrong-canonical.html раньше
+      // тоже засчитывались находками — но там 1-3 предложения на всю страницу
+      // (h1 плюс один абзац или список ссылок), то есть недостаточно прозы,
+      // чтобы Flesch вообще был откалиброван; content-005.ts теперь считает
+      // такие страницы too-little-prose, не измеряя их вовсе (см. T9 review H4).
+      'CONTENT-005': ['/hard-prose.html'],
     });
     const media = moduleResult('Content Quality').findings.find(
       (finding) => finding.ruleId === 'CONTENT-004',
@@ -202,17 +205,22 @@ describe('passive-модули на fixture-сайте краулера', () => 
   it('coverage: снимков без fetchError 20 → все checks каждого модуля завершены', () => {
     expect(crawlResult.pages).toHaveLength(20);
     const expectedChecks: Readonly<Record<string, number>> = {
-      // Other Security page-rules scale with the 19/20 page counts too, same as
-      // ASVS-001×19 + ASVS-002×19 + ASVS-003×20.
+      // SEC-PASSIVE-002×19 + SEC-PASSIVE-005×20 + ASVS-001×19 + ASVS-002×19 +
+      // ASVS-003×20 + SEC-PASSIVE-003×0 (HSTS is Not applicable on loopback
+      // http, see the module header) = 19+20+19+19+20+0 = 97.
       Security: 97,
       // REL-URL-001/003/009×20; api-правила без ctx.apiChecks — 0.
       Reliability: 60,
       // A11Y-001..010 ×19 HTML pages + A11Y-011 site report contract ×1.
       Accessibility: 191,
-      // CONTENT-001/003/004×19 + CONTENT-005×15 (19 успешных страниц минус 4,
-      // которых CONTENT-003 уже пометил малосодержательными: их не хватает даже
-      // на измерение, поэтому CONTENT-005 их не считает applicable).
-      'Content Quality': 72,
+      // CONTENT-001/003/004×19 + CONTENT-005×2. Only hard-prose.html and
+      // easy-prose.html clear MIN_PROSE_SENTENCES (5) and MIN_PROSE_WORDS (100)
+      // — every other fixture page is either too short for CONTENT-003's own
+      // 200-character floor, or (like /, /form.html, /wrong-canonical.html) a
+      // heading plus one short paragraph or a link list: enough characters,
+      // not enough prose for Flesch to have ever been calibrated on (T9 review
+      // H4). 19+19+19+2 = 59.
+      'Content Quality': 59,
       // PRIVACY-001×20 + PRIVACY-002×19 + PRIVACY-003×19 + PRIVACY-004×1.
       Privacy: 59,
     };
