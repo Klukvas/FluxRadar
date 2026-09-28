@@ -140,7 +140,7 @@ export const checksCopyEn: ChecksCopy = {
         },
         {
           term: 'Content clarity signals',
-          body: 'whether a page carries at least 200 characters of visible text alongside a heading (`<h1>` or `<h2>`) and a content container (`<main>`, `<article>` or `<body>`) — the baseline an AI crawler needs to extract anything from the page. The readability score itself (Flesch Reading Ease for English, an equivalent scale for Ukrainian) is measured and reported by the Content Quality module\'s "Readability score" check.',
+          body: 'whether a page carries at least 200 characters of visible text alongside a heading (`<h1>` or `<h2>`) and a content container (`<main>`, `<article>` or `<body>`) — the baseline an AI crawler needs to extract anything from the page. The readability score itself (Flesch Reading Ease for English, the Oborneva adaptation for Ukrainian) is measured and reported by the Content Quality module\'s "Readability score" check.',
         },
         {
           term: 'Provider visibility (paid, disclosed before purchase)',
@@ -281,7 +281,7 @@ export const checksCopyEn: ChecksCopy = {
         },
         {
           term: 'Readability score',
-          body: 'a page with at least 200 characters of visible text gets a readability score out of 100 (higher is easier to read) — Flesch Reading Ease for English text, an equivalent heuristic scale for Ukrainian text. It is flagged below 30 on either scale ("very confusing"). This is a mechanical measure of sentence and word length, not a judgement of the writing itself, and a page in another language or with too little text to measure is not scored at all. The AI SEO / GEO section links here for the same score.',
+          body: 'a page whose `<html lang>` declares English or Ukrainian (regional subtags like `en-GB` count), whose visible text is written mostly in the matching script, and that carries at least 200 characters, 100 words and 5 sentences of it, gets a readability score on a 0–100 scale (higher is easier to read) — Flesch Reading Ease for English text; for Ukrainian text, the Oborneva adaptation of the same formula, calibrated on Russian and applied to Ukrainian as an approximation. It is flagged below 30 on either scale ("very confusing"). This is a mechanical measure of sentence and word length, not a judgement of the writing itself, and a page without a declared English or Ukrainian language, whose script does not match what it declares, or with too little running prose to measure is not scored at all. The AI SEO / GEO section links here for the same score.',
         },
       ],
       outro: [],
