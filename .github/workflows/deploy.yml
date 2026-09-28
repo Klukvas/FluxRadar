@@ -13,6 +13,8 @@ name: Deploy production
 #
 #   quality    the gates, from the same definition the merge gate uses
 #   preflight  reclaim this workflow's own stale staging dirs on the server
+#   reclaim    free disk: release images with no release directory, dangling
+#              layers, stale build cache — before the uploads' space gate runs
 #   image      ┐ both images (a matrix: api, web) and the release bundle, built
 #   package    ┘ and shipped in parallel. None of it touches anything that serves
 #                traffic, so a failure here leaves the previous release untouched.
@@ -143,9 +145,38 @@ jobs:
           df -P -h "$APP_DIR" || true
           REMOTE
 
+  reclaim:
+    name: Free server disk space
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure SSH
+        uses: ./.github/actions/configure-ssh
+        with:
+          private-key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+
+      # Runs before the uploads so the free-space gate in remote-upload sees the
+      # disk AFTER this cleanup. What it may remove, and what it never touches,
+      # is written at the top of the script.
+      - name: Remove unused release images and build cache
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" < deploy/reclaim-disk.sh
+
   image:
     name: Build and ship the ${{ matrix.service }} image
-    needs: preflight
+    needs: reclaim
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
@@ -204,7 +235,7 @@ jobs:
 
   package:
     name: Package and ship the release
-    needs: preflight
+    needs: reclaim
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
