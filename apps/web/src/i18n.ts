@@ -926,7 +926,7 @@ export const copy = {
       geoVisibilityScoreBasisDomainOnly:
         'Based on domain citations only; the brand was measurable in {brand} answer(s).',
       geoVisibilityNotEnoughAnswers:
-        'No score for this scan: the brand was measurable in {brand} answer(s) and the domain in {domain}; at least {min} in one of them is needed.',
+        'No score for this scan: measured answers for the brand — {brand}, for the domain — {domain}. Needs at least {min} measured answers in one of them.',
       geoVisibilityNotMeasurable:
         'No score — nothing measurable here: this run’s questions already named what the answers would have been checked for.',
       geoVisibilityBrandShare:

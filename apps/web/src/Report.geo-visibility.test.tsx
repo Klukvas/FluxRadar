@@ -207,7 +207,7 @@ describe('Visibility by engine', () => {
             brandMeasuredCount: 1,
             brandMentionedCount: 1,
             brandMentionedShare: 1,
-            domainMeasuredCount: 1,
+            domainMeasuredCount: 2,
             domainCitedCount: 0,
             domainCitedShare: 0,
             visibilityScore: null,
@@ -220,9 +220,11 @@ describe('Visibility by engine', () => {
 
     // Final for this scan -- no "yet" -- and it names the two counts that
     // fell short rather than restating a rule the code no longer checks jointly.
+    // Numeral-agnostic phrasing (third review round): the sentence must read
+    // correctly whether a count is 1 or 2, since it never inflects "answer(s)".
     expect(
       await screen.findByText(
-        'No score for this scan: the brand was measurable in 1 answer(s) and the domain in 1; at least 2 in one of them is needed.',
+        'No score for this scan: measured answers for the brand — 1, for the domain — 2. Needs at least 2 measured answers in one of them.',
       ),
     ).toBeInTheDocument();
   });

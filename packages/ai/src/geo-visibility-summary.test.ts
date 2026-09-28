@@ -512,6 +512,51 @@ describe('computeGeoVisibilitySummaries', () => {
     it('drops path-only or fragment-only citations', () => {
       expect(citedFor(['/pricing', './docs', '#ref'])).toEqual([]);
     });
+
+    // Third review round: the `@` guard must fire only on the scheme-less
+    // fallback candidate. An absolute http(s) URL keeps its hostname even
+    // when its path or userinfo contains `@` — that is not the "free text,
+    // not a host" case the guard exists for.
+    it('keeps an absolute URL whose path is a handle, even though it contains @', () => {
+      expect(
+        citedFor([
+          'https://medium.com/@author',
+          'https://threads.net/@x',
+          'https://mastodon.social/@user',
+        ]),
+      ).toEqual([
+        { hostname: 'mastodon.social', answerCount: 1 },
+        { hostname: 'medium.com', answerCount: 1 },
+        { hostname: 'threads.net', answerCount: 1 },
+      ]);
+    });
+
+    it('keeps an absolute URL with userinfo, reading the host past the @', () => {
+      expect(citedFor(['https://user:pass@acme.example/report'])).toEqual([
+        { hostname: 'acme.example', answerCount: 1 },
+      ]);
+    });
+
+    it('still drops a scheme-less mailto-shaped candidate as a bare host', () => {
+      expect(citedFor(['someone@example.com'])).toEqual([]);
+    });
+
+    it('drops loopback, private, and link-local IPv4 citations, keeping a public one', () => {
+      expect(
+        citedFor([
+          'http://127.0.0.1/x',
+          'http://192.168.0.1/x',
+          'http://169.254.1.1/x',
+          'http://10.0.0.1/x',
+          'ftp://acme.example/x',
+          'https://acme.example/x',
+        ]),
+      ).toEqual([{ hostname: 'acme.example', answerCount: 1 }]);
+    });
+
+    it('drops 0.0.0.0 and other addresses in the 0.0.0.0/8 range', () => {
+      expect(citedFor(['http://0.0.0.0/x', 'http://0.1.2.3/x'])).toEqual([]);
+    });
   });
 
   describe('the per-signal scoring rule', () => {

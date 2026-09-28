@@ -143,13 +143,14 @@ function normalizeHostname(hostname: string): string {
 
 const IPV4_OCTETS = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 
-/** Loopback, private, and link-local IPv4 ranges — never a citable public source. */
+/** "This host", loopback, private, and link-local IPv4 ranges — never a citable public source. */
 function isNonPublicIpv4(hostname: string): boolean {
   const match = IPV4_OCTETS.exec(hostname);
   if (!match) return false;
   const a = Number(match[1]);
   const b = Number(match[2]);
   return (
+    a === 0 ||
     a === 127 ||
     a === 10 ||
     (a === 172 && b >= 16 && b <= 31) ||
