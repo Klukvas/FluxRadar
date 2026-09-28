@@ -1,9 +1,11 @@
-// How a score movement is written, for the two surfaces that write one.
+// What the two comparison surfaces say, in the same words.
 //
-// Shared rather than copied because the direction is the claim: the panel and the
-// printed block must never disagree about whether 70 → 74.5 went up, or about how
-// many decimals a customer is being shown.
+// Shared rather than copied because each of these is the claim itself: the panel
+// and the printed block must never disagree about whether 70 → 74.5 went up, how
+// many decimals a customer is shown, or whether the reader was told the
+// difference may be the network rather than their site.
 
+import type { CrawlScopeFacts } from './comparison-api';
 import { copy, fillCopy, type Language } from './i18n';
 
 export type ComparisonCopy = (typeof copy)[Language]['report']['comparison'];
@@ -26,4 +28,27 @@ export function movement(delta: number | null, t: ComparisonCopy): string | null
   return delta > 0
     ? fillCopy(t.scoreUp, { delta: amount })
     : fillCopy(t.scoreDown, { delta: amount });
+}
+
+/**
+ * Whether where the two crawls left from can account for part of the difference.
+ *
+ * True when the locations differ, and true when either is unrecorded: "somewhere
+ * unknown" is not evidence of the same place twice, and the earliest scans of
+ * this product left from a server in another country with nothing recording it
+ * (D-228).
+ *
+ * Shared by the panel and the printed block for the same reason the score
+ * movement is: the two surfaces must not disagree about whether the reader was
+ * warned.
+ */
+export function egressMayExplainDifference(
+  current: CrawlScopeFacts,
+  previous: CrawlScopeFacts,
+): boolean {
+  return (
+    current.egressLocation === null ||
+    previous.egressLocation === null ||
+    current.egressLocation !== previous.egressLocation
+  );
 }

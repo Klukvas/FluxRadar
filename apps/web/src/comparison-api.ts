@@ -12,7 +12,7 @@
 // Its own file rather than a section of api.ts: the comparison is one screen's
 // contract, and api.ts is read by every screen.
 
-import { apiRequest, isNullableString, isRecord, isStringArray } from './api';
+import { apiRequest, isNullableString, isRecord, isStringArray, type EgressLocation } from './api';
 
 export const COMPARISON_INCOMPARABLE_REASONS = [
   'no-previous-scan',
@@ -52,6 +52,17 @@ export type PageIdentityKind = (typeof PAGE_IDENTITY_KINDS)[number];
 export type Comparability<Reason extends string> =
   { readonly ok: true } | { readonly ok: false; readonly reason: Reason };
 
+/**
+ * A crawl location as the API names it, under the name the contract gives it.
+ *
+ * The same shape the launch screen and the report header already read, and
+ * deliberately not a second declaration of it: which ids exist and what each is
+ * called is the server's registry, so the label travels with the scan — it is
+ * what lets a comparison row read "Ukraine, Kyiv" where the header of the same
+ * report already does (D-228).
+ */
+export type EgressLocationView = EgressLocation;
+
 export interface CrawlScopeFacts {
   readonly entryUrl: string;
   readonly maxPages: number | null;
@@ -65,6 +76,8 @@ export interface CrawlScopeFacts {
   readonly respectRobots: boolean;
   readonly userAgent: string;
   readonly egressLocation: string | null;
+  /** The same location as a place; null when the scan recorded none. */
+  readonly egressLocationView: EgressLocationView | null;
   readonly scopeKey: string;
 }
 
@@ -193,6 +206,18 @@ function isComparability(value: unknown, reasons: readonly string[]): boolean {
   return value.ok === false && typeof value.reason === 'string' && reasons.includes(value.reason);
 }
 
+function isEgressLocationView(value: unknown): value is EgressLocationView {
+  if (!isRecord(value)) return false;
+  const label = value.label;
+  return (
+    typeof value.id === 'string' &&
+    isNullableString(value.countryCode) &&
+    isNullableString(value.city) &&
+    (label === null ||
+      (isRecord(label) && typeof label.en === 'string' && typeof label.uk === 'string'))
+  );
+}
+
 function isCrawlScopeFacts(value: unknown): value is CrawlScopeFacts {
   if (!isRecord(value)) return false;
   return (
@@ -208,6 +233,7 @@ function isCrawlScopeFacts(value: unknown): value is CrawlScopeFacts {
     typeof value.respectRobots === 'boolean' &&
     typeof value.userAgent === 'string' &&
     isNullableString(value.egressLocation) &&
+    (value.egressLocationView === null || isEgressLocationView(value.egressLocationView)) &&
     typeof value.scopeKey === 'string'
   );
 }

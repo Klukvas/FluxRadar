@@ -104,6 +104,28 @@ export type EgressLocationId = z.infer<typeof egressLocationIdSchema>;
  */
 export const DEFAULT_EGRESS_LOCATION = 'ua' satisfies EgressLocationId;
 
+/** What a crawl location is called, in both languages the product speaks. */
+export const egressLocationLabelSchema = z.object({ en: z.string(), uk: z.string() });
+export type EgressLocationLabel = z.infer<typeof egressLocationLabelSchema>;
+
+/**
+ * A recorded crawl location as a reader is shown one: the id, and the place.
+ *
+ * Which ids exist, and what each of them is called, is the deployment's own
+ * registry (apps/api/src/integrations/crawl-egress-locations.ts) — never
+ * something the browser bundle knows. So every screen that names a location is
+ * naming one of these, and an id the registry no longer knows still travels,
+ * with the rest null: a scan did record it, and the reader is shown the bare
+ * code rather than an invented city (D-228).
+ */
+export const egressLocationViewSchema = z.object({
+  id: z.string(),
+  countryCode: z.string().nullable(),
+  city: z.string().nullable(),
+  label: egressLocationLabelSchema.nullable(),
+});
+export type EgressLocationView = z.infer<typeof egressLocationViewSchema>;
+
 /**
  * A public http(s) address a scan may be pointed at.
  *
@@ -458,6 +480,16 @@ export const crawlScopeFactsSchema = z.object({
   respectRobots: z.boolean(),
   userAgent: z.string(),
   egressLocation: z.string().nullable(),
+  /**
+   * The same location, named as the report header names it; null when none was
+   * recorded.
+   *
+   * A pure function of the id above, resolved through the server's registry and
+   * sent for both sides — because that registry is not in the browser's bundle.
+   * Without it the scope row printed the bare code ("UA") beside a header of the
+   * same report reading "Ukraine, Kyiv" (D-228).
+   */
+  egressLocationView: egressLocationViewSchema.nullable(),
   /** Fingerprint of the crawl filters (`crawlScopeKey`); equal means equal. */
   scopeKey: z.string(),
 });

@@ -217,6 +217,27 @@ describe('what counts as the same crawl scope', () => {
     expect(current.scopeKey).toBe(moved.scopeKey);
     expect(sameCrawlScope(current, moved)).toBe(false);
   });
+
+  it('carries the crawl location as a place as well as an id', () => {
+    // The id is what equality is asked over; the place is what the reader is
+    // shown. The registry that turns one into the other is the server's, so a
+    // scope that travelled with the id alone had the comparison row printing
+    // "UA" under a report header reading "Ukraine, Kyiv" (D-228).
+    expect(facts().egressLocationView).toEqual({
+      id: 'ua',
+      countryCode: 'UA',
+      city: 'Kyiv',
+      label: { en: 'Ukraine, Kyiv', uk: 'Україна, Київ' },
+    });
+  });
+
+  it('records no place for a scan that predates the choice', () => {
+    const unrecorded = crawlScopeFactsOf(
+      scanRow({ scopeJson: JSON.stringify({ includeSubdomains: false }) }),
+    );
+    expect(unrecorded.egressLocation).toBeNull();
+    expect(unrecorded.egressLocationView).toBeNull();
+  });
 });
 
 describe('per-module score deltas', () => {

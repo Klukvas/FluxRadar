@@ -10,7 +10,12 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Dashboard, Scan } from './api';
-import type { ReadableComparedScan, ScanComparison } from './comparison-api';
+import type {
+  CrawlScopeFacts,
+  EgressLocationView,
+  ReadableComparedScan,
+  ScanComparison,
+} from './comparison-api';
 import { PrintReport } from './PrintReport';
 
 function scanOf(plan: Scan['plan'] = 'Complete'): Scan {
@@ -40,7 +45,15 @@ function dashboardOf(plan: Scan['plan'] = 'Complete'): Dashboard {
   };
 }
 
-function scope(): ScanComparison['current']['scope'] {
+/** The location as the server labels it — the registry is not in this bundle. */
+const KYIV: EgressLocationView = {
+  id: 'ua',
+  countryCode: 'UA',
+  city: 'Kyiv',
+  label: { en: 'Ukraine, Kyiv', uk: 'Україна, Київ' },
+};
+
+function scope(): CrawlScopeFacts {
   return {
     entryUrl: 'https://smile.example',
     maxPages: 500,
@@ -53,9 +66,15 @@ function scope(): ScanComparison['current']['scope'] {
     renderJs: false,
     respectRobots: true,
     userAgent: 'desktop',
-    egressLocation: 'ua',
+    egressLocation: KYIV.id,
+    egressLocationView: KYIV,
     scopeKey: 'scope-v3:same',
   };
+}
+
+/** The same scope, left from a place nobody recorded — the earliest scans. */
+function unrecordedScope(): CrawlScopeFacts {
+  return { ...scope(), egressLocation: null, egressLocationView: null };
 }
 
 function comparisonOf(overrides: Partial<ScanComparison> = {}): ScanComparison {
@@ -259,6 +278,104 @@ describe('the printable report and the comparison', () => {
     expect(
       await screen.findByText(/Which checks ran in the previous scan is no longer recorded/i),
     ).toBeInTheDocument();
+  });
+
+  it.each([['en', /no longer available/i] as const, ['uk', /більше недоступний/] as const])(
+    'prints in %s that the previous report is no longer the account’s to read',
+    async (language, sentence) => {
+      // The one verdict the server answers without reading the other report at
+      // all: it names the scan and states nothing else. On a printed page the
+      // sentence is the whole block, so it must be there in both languages.
+      stubFetch({
+        dashboard: dashboardOf(),
+        comparison: comparisonOf({
+          previous: {
+            id: 'scan-earlier',
+            plan: 'Complete',
+            completedAt: '2026-09-08T00:01:00.000Z',
+            readable: false,
+          },
+          comparable: { ok: false, reason: 'previous-not-readable' },
+          overall: { previousScore: null, currentScore: 90, delta: null },
+          modules: [],
+        }),
+      });
+      render(
+        <PrintReport
+          scanId="scan-print"
+          language={language}
+          onBack={() => {}}
+          onError={() => {}}
+        />,
+      );
+
+      expect(await screen.findByText(sentence)).toBeInTheDocument();
+      // Not one number drawn from the report the account may no longer read.
+      expect(screen.queryByText(/Resolved: 7/)).toBeNull();
+      expect(screen.queryByText(/Виправлені: 7/)).toBeNull();
+    },
+  );
+
+  it('prints the coverage sentence in Ukrainian too', async () => {
+    stubFetch({
+      dashboard: dashboardOf(),
+      comparison: comparisonOf({
+        issues: {
+          ...comparisonOf().issues,
+          firstChecked: {
+            known: false,
+            count: 0,
+            byModule: [],
+            bySeverity: [],
+            ruleIds: [],
+            sample: [],
+          },
+        },
+      }),
+    });
+    render(<PrintReport scanId="scan-print" language="uk" onBack={() => {}} onError={() => {}} />);
+
+    expect(
+      await screen.findByText(/більше не зафіксовано, тож знахідки перевірок/i),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['en', /may come from where each check ran rather than from your site/i] as const,
+    ['uk', /звідки йшла кожна перевірка/] as const,
+  ])(
+    'prints in %s that the network may explain a comparison nobody can place',
+    async (language, sentence) => {
+      // Both scans compare and both spell their location the same way — neither
+      // recorded one. A client holding this page cannot expand anything to find
+      // that out (D-228).
+      const base = comparisonOf();
+      stubFetch({
+        dashboard: dashboardOf(),
+        comparison: comparisonOf({
+          current: { ...base.current, scope: unrecordedScope() },
+          previous: { ...(base.previous as ReadableComparedScan), scope: unrecordedScope() },
+        }),
+      });
+      render(
+        <PrintReport
+          scanId="scan-print"
+          language={language}
+          onBack={() => {}}
+          onError={() => {}}
+        />,
+      );
+
+      expect(await screen.findByText(sentence)).toBeInTheDocument();
+    },
+  );
+
+  it('prints no such note when both crawls left from the same recorded place', async () => {
+    stubFetch({ dashboard: dashboardOf(), comparison: comparisonOf() });
+    render(<PrintReport scanId="scan-print" language="en" onBack={() => {}} onError={() => {}} />);
+
+    expect(await screen.findByText(/Resolved: 7/)).toBeInTheDocument();
+    expect(screen.queryByText(/A site can answer visitors from different countries/i)).toBeNull();
   });
 
   it('prints the settled count and the first-checked findings beside the rest', async () => {

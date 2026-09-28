@@ -10,7 +10,12 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Dashboard, Scan, ScanChanges, ScanModule } from './api';
-import type { ReadableComparedScan, ScanComparison } from './comparison-api';
+import type {
+  CrawlScopeFacts,
+  EgressLocationView,
+  ReadableComparedScan,
+  ScanComparison,
+} from './comparison-api';
 import type { Language } from './i18n';
 import { ResultsScreen } from './Report';
 
@@ -60,7 +65,23 @@ function dashboardOf(plan: Scan['plan'] = 'Complete'): Dashboard {
   };
 }
 
-function scope(): ScanComparison['current']['scope'] {
+/** The location as the server labels it — the registry is not in this bundle. */
+const KYIV: EgressLocationView = {
+  id: 'ua',
+  countryCode: 'UA',
+  city: 'Kyiv',
+  label: { en: 'Ukraine, Kyiv', uk: 'Україна, Київ' },
+};
+
+/** An id the registry no longer knows: recorded, and shown as its bare code. */
+const RETIRED_FRANKFURT: EgressLocationView = {
+  id: 'de-fra',
+  countryCode: null,
+  city: null,
+  label: null,
+};
+
+function scope(): CrawlScopeFacts {
   return {
     entryUrl: 'https://shop.example',
     maxPages: 500,
@@ -73,8 +94,28 @@ function scope(): ScanComparison['current']['scope'] {
     renderJs: false,
     respectRobots: true,
     userAgent: 'desktop',
-    egressLocation: 'ua',
+    egressLocation: KYIV.id,
+    egressLocationView: KYIV,
     scopeKey: 'scope-v3:same',
+  };
+}
+
+/**
+ * The same scope, left from `location` — or from a place nobody recorded.
+ *
+ * The id and its label are set together because the server derives one from the
+ * other: a fixture that moved only one of them would be testing a payload the
+ * API cannot produce.
+ */
+function scopeFrom(
+  location: EgressLocationView | null,
+  overrides: Partial<CrawlScopeFacts> = {},
+): CrawlScopeFacts {
+  return {
+    ...scope(),
+    egressLocation: location?.id ?? null,
+    egressLocationView: location,
+    ...overrides,
   };
 }
 
@@ -444,12 +485,14 @@ describe('the comparison panel', () => {
       comparison: comparisonOf({
         comparable: { ok: false, reason: 'scope-changed' },
         modules: [],
-        previous: previousScan({ scope: { ...scope(), egressLocation: null, maxDepth: null } }),
+        previous: previousScan({ scope: scopeFrom(null, { maxDepth: null }) }),
       }),
     });
 
     const block = await panel(EN_HEADING);
-    expect(within(block).getByText('Crawl location: Not recorded → UA')).toBeInTheDocument();
+    expect(
+      within(block).getByText('Crawl location: Not recorded → Ukraine, Kyiv'),
+    ).toBeInTheDocument();
     expect(within(block).getByText('Click depth: no limit → 5')).toBeInTheDocument();
     expect(within(block).queryByText(/whole plan/)).not.toBeInTheDocument();
     expect(within(block).queryByText(/the default location/)).not.toBeInTheDocument();
@@ -466,12 +509,14 @@ describe('the comparison panel', () => {
       comparison: comparisonOf({
         comparable: { ok: false, reason: 'scope-changed' },
         modules: [],
-        previous: previousScan({ scope: { ...scope(), egressLocation: null, maxDepth: null } }),
+        previous: previousScan({ scope: scopeFrom(null, { maxDepth: null }) }),
       }),
     });
 
     const block = await panel(UK_HEADING);
-    expect(within(block).getByText('Локація обходу: Не зафіксовано → UA')).toBeInTheDocument();
+    expect(
+      within(block).getByText('Локація обходу: Не зафіксовано → Україна, Київ'),
+    ).toBeInTheDocument();
     expect(within(block).getByText('Глибина переходів: без обмеження → 5')).toBeInTheDocument();
     expect(within(block).getByText(/звідки йшла кожна перевірка/)).toBeInTheDocument();
   });
@@ -481,12 +526,12 @@ describe('the comparison panel', () => {
       comparison: comparisonOf({
         comparable: { ok: false, reason: 'scope-changed' },
         modules: [],
-        previous: previousScan({ scope: { ...scope(), egressLocation: 'de-fra' } }),
+        previous: previousScan({ scope: scopeFrom(RETIRED_FRANKFURT) }),
       }),
     });
 
     const block = await panel(EN_HEADING);
-    expect(within(block).getByText('Crawl location: DE-FRA → UA')).toBeInTheDocument();
+    expect(within(block).getByText('Crawl location: DE-FRA → Ukraine, Kyiv')).toBeInTheDocument();
     expect(
       within(block).getByText(/A site can answer visitors from different countries differently/i),
     ).toBeInTheDocument();
@@ -503,6 +548,43 @@ describe('the comparison panel', () => {
 
     const block = await panel(EN_HEADING);
     expect(within(block).getByText('Page limit: 50 → 500')).toBeInTheDocument();
+    expect(
+      within(block).queryByText(/A site can answer visitors from different countries/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['en', /may come from where each check ran rather than from your site/i] as const,
+    ['uk', /звідки йшла кожна перевірка/] as const,
+  ])(
+    'warns in %s that the network may explain a comparison nobody can place',
+    async (language, sentence) => {
+      // The two reports DO compare — same plan, same settings, same spelling of
+      // the location — and neither of them recorded where it left from. "Somewhere
+      // unknown" twice is not the same place twice, so the note belongs to the
+      // comparison itself rather than to a list of settings that changed.
+      const base = comparisonOf();
+      await openReport({
+        language,
+        comparison: comparisonOf({
+          current: { ...base.current, scope: scopeFrom(null) },
+          previous: previousScan({ scope: scopeFrom(null) }),
+        }),
+      });
+
+      const block = await panel(language === 'uk' ? UK_HEADING : EN_HEADING);
+      expect(within(block).getByText(sentence)).toBeInTheDocument();
+      // And the comparison is still drawn: the note qualifies the numbers, it does
+      // not replace them.
+      expect(block.querySelector('.comparison-grid')).not.toBeNull();
+    },
+  );
+
+  it('says nothing about the network when both crawls left from the same recorded place', async () => {
+    await openReport({ comparison: comparisonOf() });
+
+    const block = await panel(EN_HEADING);
+    expect(block.querySelector('.comparison-grid')).not.toBeNull();
     expect(
       within(block).queryByText(/A site can answer visitors from different countries/i),
     ).not.toBeInTheDocument();

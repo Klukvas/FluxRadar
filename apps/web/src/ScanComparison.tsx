@@ -18,6 +18,8 @@ import { useEffect, useState } from 'react';
 import type { Scan } from './api';
 import {
   fetchScanComparison,
+  type ComparedScan,
+  type ComparisonIncomparableReason,
   type CrawlScopeFacts,
   type FirstCheckedFindings,
   type IssueCounts,
@@ -30,7 +32,12 @@ import { Button, Panel } from './components';
 import { egressLocationLabel } from './egress-location';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
-import { movement, scoreText, type ComparisonCopy } from './comparison-format';
+import {
+  egressMayExplainDifference,
+  movement,
+  scoreText,
+  type ComparisonCopy,
+} from './comparison-format';
 import { copy, fillCopy, type Language } from './i18n';
 import { planIncludesIssueHistory, planName } from './plan-modules';
 import { moduleLabel, ruleTitle } from './rule-titles';
@@ -108,22 +115,7 @@ function ComparisonBody(props: {
   }
   return (
     <>
-      <p className="muted">
-        {fillCopy(t.since, {
-          plan: planName(previous.plan),
-          date: formatDate(previous.completedAt, props.language),
-        })}
-      </p>
-      {/* A previous report whose payment was reversed is still the scan this
-          report's Resolved statuses were written against, so it is still named —
-          but it is no longer the owner's to open, and offering the link would
-          send them into a 403. The server states nothing else about it: the
-          verdict below is `previous-not-readable` and every section is empty. */}
-      {props.onOpenScan === undefined || !previous.readable ? null : (
-        <div className="button-row">
-          <Button onClick={() => props.onOpenScan?.(previous.id)}>{t.openPrevious}</Button>
-        </div>
-      )}
+      <ComparedWith previous={previous} language={props.language} onOpenScan={props.onOpenScan} />
       {comparison.comparable.ok ? (
         <>
           <Scores comparison={comparison} language={props.language} />
@@ -132,79 +124,180 @@ function ComparisonBody(props: {
           <FirstChecked firstChecked={comparison.issues.firstChecked} language={props.language} />
         </>
       ) : (
-        <section aria-labelledby="comparison-reason">
-          <h4 id="comparison-reason">{t.notComparableHeading}</h4>
-          <p role="status">{t.reason[comparison.comparable.reason]}</p>
-          {/* `previous.readable` is what makes the previous scope readable at
-              all: an unreadable previous report has no scope in the payload, and
-              never reaches `scope-changed` — the verdict names the payment
-              first. */}
-          {comparison.comparable.reason === 'scope-changed' && previous.readable ? (
-            <ScopeChanges
-              current={comparison.current.scope}
-              previous={previous.scope}
-              language={props.language}
-            />
-          ) : null}
-        </section>
+        <NotComparable
+          reason={comparison.comparable.reason}
+          current={comparison.current.scope}
+          previous={previous.readable ? previous.scope : null}
+          language={props.language}
+        />
+      )}
+      {/* The note belongs to the comparison and not to the list of changed
+          settings: two crawls that left from places nobody recorded are a reason
+          to warn even when every setting matches and the two reports DO compare.
+          `previous.readable` is what makes the previous scope readable at all —
+          an unreadable previous report has no scope in the payload. */}
+      {previous.readable ? (
+        <EgressNote
+          current={comparison.current.scope}
+          previous={previous.scope}
+          language={props.language}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Which report this one is measured against, and the way back to it.
+ *
+ * A previous report whose payment was reversed is still the scan this report's
+ * Resolved statuses were written against, so it is still named — but it is no
+ * longer the owner's to open, and offering the link would send them into a 403.
+ * The server states nothing else about such a scan: the verdict is
+ * `previous-not-readable` and every section below is empty.
+ */
+function ComparedWith(props: {
+  readonly previous: ComparedScan;
+  readonly language: Language;
+  readonly onOpenScan?: (scanId: string) => void;
+}) {
+  const t = copy[props.language].report.comparison;
+  const { previous, onOpenScan } = props;
+  return (
+    <>
+      <p className="muted">
+        {fillCopy(t.since, {
+          plan: planName(previous.plan),
+          date: formatDate(previous.completedAt, props.language),
+        })}
+      </p>
+      {onOpenScan === undefined || !previous.readable ? null : (
+        <div className="button-row">
+          <Button onClick={() => onOpenScan(previous.id)}>{t.openPrevious}</Button>
+        </div>
       )}
     </>
+  );
+}
+
+/**
+ * The verdict in words, and — where the reader changed a setting — which one.
+ *
+ * `previous` is null for a previous report the account may no longer read: the
+ * payload carries no scope for one, and it never reaches `scope-changed` anyway,
+ * because the verdict names the payment first.
+ */
+function NotComparable(props: {
+  readonly reason: ComparisonIncomparableReason;
+  readonly current: CrawlScopeFacts;
+  readonly previous: CrawlScopeFacts | null;
+  readonly language: Language;
+}) {
+  const t = copy[props.language].report.comparison;
+  return (
+    <section aria-labelledby="comparison-reason">
+      <h4 id="comparison-reason">{t.notComparableHeading}</h4>
+      <p role="status">{t.reason[props.reason]}</p>
+      {props.reason === 'scope-changed' && props.previous !== null ? (
+        <ScopeChanges current={props.current} previous={props.previous} language={props.language} />
+      ) : null}
+    </section>
+  );
+}
+
+/** Said whenever the network could be part of the answer; silent otherwise. */
+function EgressNote(props: {
+  readonly current: CrawlScopeFacts;
+  readonly previous: CrawlScopeFacts;
+  readonly language: Language;
+}) {
+  if (!egressMayExplainDifference(props.current, props.previous)) return null;
+  return (
+    <p className="muted" role="note">
+      {copy[props.language].report.comparison.scopeEgressNote}
+    </p>
   );
 }
 
 type ScopeField = keyof ComparisonCopy['scopeField'];
 type UnsetScopeField = keyof ComparisonCopy['scopeUnset'];
 
+/** Every setting a reader can change, in the order the rows are listed. */
+const SCOPE_FIELDS: readonly ScopeField[] = [
+  'entryUrl',
+  'maxPages',
+  'maxDepth',
+  'includeSubdomains',
+  'urlPatterns',
+  'excludePatterns',
+  'seedUrls',
+  'queryPolicy',
+  'renderJs',
+  'respectRobots',
+  'userAgent',
+  'egressLocation',
+];
+
 /**
- * The three scope settings that can be blank, and mean something of their own.
+ * The two scope settings that can be blank, and mean something of their own.
  *
  * "Not set" is not one sentence: a missing page ceiling means the plan's own
- * limit applies, a missing depth means none does, and a missing crawl location
- * means the default one — which is how "Crawl location: whole plan → ua" got in
- * front of a reader.
+ * limit applies and a missing depth means none does, which is how "Page limit:
+ * not set" would have said the opposite of what it meant. The crawl location is
+ * blank in a third way again and is named below, by the helper that names it
+ * everywhere else.
  */
 function isUnsetScopeField(field: ScopeField): field is UnsetScopeField & ScopeField {
-  return field === 'maxPages' || field === 'maxDepth' || field === 'egressLocation';
+  return field === 'maxPages' || field === 'maxDepth';
 }
 
 /** A scope value as a reader would name it, never as the JSON spells it. */
 function scopeValue(
   field: ScopeField,
-  value: unknown,
+  scope: CrawlScopeFacts,
   t: ComparisonCopy,
   language: Language,
 ): string {
-  if (value === null || value === undefined) {
-    return isUnsetScopeField(field) ? t.scopeUnset[field] : t.scopeNotSet;
-  }
   // The crawl location is stored as an id, and no screen of this product shows a
-  // reader one: the same helper the report header and the launch screen use
-  // decides how a location reads (D-228). The comparison has no label catalogue
-  // for another scan's location, so that helper falls back to the bare code —
-  // "UA", never the raw "ua" this row used to print.
+  // reader one: the server sends the same view the report header is titled from,
+  // and the same helper turns it into a place (D-228). An id that registry no
+  // longer knows carries no label and reads as the bare code — "DE-FRA", never
+  // the raw "de-fra" this row used to print. Nothing recorded at all is the null
+  // the header already calls "Not recorded".
   if (field === 'egressLocation') {
-    return egressLocationLabel(
-      { id: String(value), countryCode: null, city: null, label: null },
-      language,
-    );
+    return scope.egressLocationView === null
+      ? t.scopeUnset.egressLocation
+      : egressLocationLabel(scope.egressLocationView, language);
+  }
+  const value = scope[field];
+  if (value === null) {
+    return isUnsetScopeField(field) ? t.scopeUnset[field] : t.scopeNotSet;
   }
   if (typeof value === 'boolean') return value ? t.scopeOn : t.scopeOff;
   if (Array.isArray(value)) return value.length === 0 ? t.scopeNone : value.join(', ');
   return String(value);
 }
 
-/**
- * Whether where the two crawls left from can account for part of the difference.
- *
- * True when the locations differ, and true when either is unrecorded: "somewhere
- * unknown" is not evidence of the same place twice, and the earliest scans of this
- * product left from a server in another country with nothing recording it.
- */
-function egressMayExplainDifference(current: CrawlScopeFacts, previous: CrawlScopeFacts): boolean {
+/** One line per setting that moved: what it was, and what it is now. */
+function ScopeRows(props: {
+  readonly fields: readonly ScopeField[];
+  readonly current: CrawlScopeFacts;
+  readonly previous: CrawlScopeFacts;
+  readonly language: Language;
+}) {
+  const t = copy[props.language].report.comparison;
   return (
-    current.egressLocation === null ||
-    previous.egressLocation === null ||
-    current.egressLocation !== previous.egressLocation
+    <ul className="comparison-scope">
+      {props.fields.map((field) => (
+        <li key={field}>
+          {fillCopy(t.scopeChangedRow, {
+            field: t.scopeField[field],
+            previous: scopeValue(field, props.previous, t, props.language),
+            current: scopeValue(field, props.current, t, props.language),
+          })}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -212,7 +305,9 @@ function egressMayExplainDifference(current: CrawlScopeFacts, previous: CrawlSco
  * Which settings differ, named one per line.
  *
  * The verdict says the scope changed; without this the reader has to diff two
- * scan screens by eye to find out what they changed and when.
+ * scan screens by eye to find out what they changed and when. Nothing here when
+ * the two scopes read the same: the verdict can be `scope-changed` over a
+ * setting this list does not name, and an empty heading is not an answer.
  */
 function ScopeChanges(props: {
   readonly current: CrawlScopeFacts;
@@ -220,53 +315,21 @@ function ScopeChanges(props: {
   readonly language: Language;
 }) {
   const t = copy[props.language].report.comparison;
-  const fields: readonly ScopeField[] = [
-    'entryUrl',
-    'maxPages',
-    'maxDepth',
-    'includeSubdomains',
-    'urlPatterns',
-    'excludePatterns',
-    'seedUrls',
-    'queryPolicy',
-    'renderJs',
-    'respectRobots',
-    'userAgent',
-    'egressLocation',
-  ];
-  const changed = fields.filter(
+  const changed = SCOPE_FIELDS.filter(
     (field) =>
-      scopeValue(field, props.current[field], t, props.language) !==
-      scopeValue(field, props.previous[field], t, props.language),
+      scopeValue(field, props.current, t, props.language) !==
+      scopeValue(field, props.previous, t, props.language),
   );
-  // The note is not tied to the list: two crawls can differ in a setting this
-  // list does not name (the API checks), and an egress nobody recorded on either
-  // side is a reason to warn even when the two spell it the same way.
-  const egressNote = egressMayExplainDifference(props.current, props.previous);
-  if (changed.length === 0 && !egressNote) return null;
+  if (changed.length === 0) return null;
   return (
     <>
-      {changed.length === 0 ? null : (
-        <>
-          <h5>{t.scopeChangedHeading}</h5>
-          <ul className="comparison-scope">
-            {changed.map((field) => (
-              <li key={field}>
-                {fillCopy(t.scopeChangedRow, {
-                  field: t.scopeField[field],
-                  previous: scopeValue(field, props.previous[field], t, props.language),
-                  current: scopeValue(field, props.current[field], t, props.language),
-                })}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {egressNote ? (
-        <p className="muted" role="note">
-          {t.scopeEgressNote}
-        </p>
-      ) : null}
+      <h5>{t.scopeChangedHeading}</h5>
+      <ScopeRows
+        fields={changed}
+        current={props.current}
+        previous={props.previous}
+        language={props.language}
+      />
     </>
   );
 }

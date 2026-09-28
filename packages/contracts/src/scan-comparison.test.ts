@@ -29,6 +29,12 @@ function scopeFacts(): ScanComparison['current']['scope'] {
     respectRobots: true,
     userAgent: 'desktop',
     egressLocation: 'ua',
+    egressLocationView: {
+      id: 'ua',
+      countryCode: 'UA',
+      city: 'Kyiv',
+      label: { en: 'Ukraine, Kyiv', uk: 'Україна, Київ' },
+    },
     scopeKey: 'scope-v3:abc',
   };
 }
@@ -299,6 +305,39 @@ describe('scanComparisonSchema', () => {
     const withoutFlag: Record<string, unknown> = { ...base.current };
     delete withoutFlag.readable;
     expect(scanComparisonSchema.safeParse({ ...base, current: withoutFlag }).success).toBe(false);
+  });
+
+  it('carries the crawl location as a place, and refuses a scope that states only the id', () => {
+    // Which ids exist and what each is called is the server's registry, so the
+    // label travels with the scan. Without it the comparison row printed "UA"
+    // under a report header reading "Ukraine, Kyiv" (D-228) — and a client has
+    // no catalogue to look the id up in.
+    const base = comparison();
+    const parsed = scanComparisonSchema.parse(JSON.parse(JSON.stringify(base)));
+    expect(parsed.current.scope.egressLocationView).toEqual({
+      id: 'ua',
+      countryCode: 'UA',
+      city: 'Kyiv',
+      label: { en: 'Ukraine, Kyiv', uk: 'Україна, Київ' },
+    });
+    const scope: Record<string, unknown> = { ...base.current.scope };
+    delete scope.egressLocationView;
+    const current = { ...base.current, scope };
+    expect(scanComparisonSchema.safeParse({ ...base, current }).success).toBe(false);
+  });
+
+  it('accepts a scan that recorded no crawl location, on both sides at once', () => {
+    // The earliest scans of this product left from a server in another country
+    // with nothing recording it: null is a fact the comparison has to be able to
+    // state, not a field a server forgot.
+    const base = comparison();
+    const unrecorded = { ...base.current.scope, egressLocation: null, egressLocationView: null };
+    const parsed = scanComparisonSchema.parse({
+      ...base,
+      current: { ...base.current, scope: unrecorded },
+      previous: { ...base.previous, scope: unrecorded },
+    });
+    expect(parsed.current.scope.egressLocationView).toBeNull();
   });
 
   it('refuses a first-checked block that does not say whether coverage is known', () => {

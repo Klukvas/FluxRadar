@@ -20,10 +20,10 @@
 // So the scope facts carry the fingerprint plus exactly those, and equality is
 // asked over all of them.
 
-import type { ScanScopeInput } from '@fluxradar/contracts';
-import type { CrawlScopeFacts } from '@fluxradar/contracts';
+import type { CrawlScopeFacts, ScanScopeInput } from '@fluxradar/contracts';
 import type { Scan } from '@prisma/client';
 
+import { egressLocationView } from '../../integrations/crawl-egress-locations.ts';
 import { crawlScopeKey, scanScopeOf } from '../../orchestrator/run-context.ts';
 
 /** The scan's effective scope, as stored on the scan itself. */
@@ -44,6 +44,11 @@ export function crawlScopeFactsOf(
     respectRobots: scope.respectRobots,
     userAgent: scope.userAgent,
     egressLocation: scope.egressLocation ?? null,
+    // The id is what equality is asked over; this is the same id as the reader
+    // is shown it. The registry lives here and not in the browser, so a scope
+    // row that carried only the id could print "UA" beside a report header
+    // reading "Ukraine, Kyiv" (D-228).
+    egressLocationView: egressLocationView(scope.egressLocation),
     scopeKey: crawlScopeKey(scope),
   };
 }

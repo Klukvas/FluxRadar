@@ -7,7 +7,7 @@
 // this feature must not put in front of a client.
 
 import type { ScanComparison } from './comparison-api';
-import { movement, scoreText } from './comparison-format';
+import { egressMayExplainDifference, movement, scoreText } from './comparison-format';
 import { formatDate } from './format-date';
 import { copy, fillCopy, type Language } from './i18n';
 import { planName } from './plan-modules';
@@ -73,6 +73,15 @@ export function ComparisonPrintBlock(props: {
           ) : (
             <p>{t.reason[comparison.comparable.reason]}</p>
           )}
+          {/* Printed on both paths, and whatever the verdict was: a client
+              holding this page cannot be told "3 resolved" — or "not compared" —
+              without being told that the two checks may have left from different
+              places, or from places nobody recorded (D-228). An unreadable
+              previous report carries no scope, and nothing is claimed about it. */}
+          {previous.readable &&
+          egressMayExplainDifference(comparison.current.scope, previous.scope) ? (
+            <p>{t.scopeEgressNote}</p>
+          ) : null}
         </>
       )}
     </section>

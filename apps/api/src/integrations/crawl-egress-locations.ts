@@ -14,13 +14,21 @@
 // id that is gone reads as a bare code. A location that is retired simply loses
 // its variable.
 
-import { DEFAULT_EGRESS_LOCATION, egressLocationIdSchema } from '@fluxradar/contracts';
+import {
+  DEFAULT_EGRESS_LOCATION,
+  egressLocationIdSchema,
+  type EgressLocationLabel,
+  type EgressLocationView,
+} from '@fluxradar/contracts';
 
-/** What a location is called, in both languages the product speaks. */
-export interface EgressLocationLabel {
-  readonly en: string;
-  readonly uk: string;
-}
+/**
+ * What a location is called, and how the API describes one to the browser.
+ *
+ * Both shapes belong to the contract, not to this registry: the launch config,
+ * the report header and the scan comparison all carry a location, and a second
+ * spelling of it here is the kind of copy that drifts (D-228).
+ */
+export type { EgressLocationLabel, EgressLocationView };
 
 export interface EgressLocationDefinition {
   /** The id a scan scope records, as `egressLocationIdSchema` reads it. */
@@ -94,15 +102,6 @@ export function findEgressLocation(
   registry: readonly EgressLocationDefinition[] = EGRESS_LOCATIONS,
 ): EgressLocationDefinition | null {
   return registry.find((location) => location.id === id) ?? null;
-}
-
-/** A location as the API describes it to the browser: no variables, no proxy. */
-export interface EgressLocationView {
-  readonly id: string;
-  /** Null for an id this registry no longer knows. */
-  readonly countryCode: string | null;
-  readonly city: string | null;
-  readonly label: EgressLocationLabel | null;
 }
 
 /**
