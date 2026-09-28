@@ -1398,6 +1398,12 @@ export const copy = {
         perfAuditDevicesBoth: 'on both emulated devices',
         perfAuditDevicesOne: 'on one emulated device ({device})',
         perfAuditDevicesUnstated: 'on the devices this audit recorded',
+        // Shown instead of perfAuditLeadSingle/Repeated when every selected page
+        // failed to produce a usable PageSpeed run: a deployment-wide outage, not
+        // a page-by-page gap. The devices/median language above would otherwise
+        // describe measurements that were never taken.
+        perfAuditOutageLead:
+          'PageSpeed Insights did not return a usable measurement for any of the {count} selected pages in this scan; field data from CrUX is shown where available.',
         perfProvider: 'Lab measurements by Lighthouse {version} via PageSpeed Insights',
         perfProviderUnknown: 'Lab measurements by PageSpeed Insights (version not reported)',
         perfBudget: '{used} of {cap} provider requests used',
@@ -1421,9 +1427,9 @@ export const copy = {
         perfRegressionsHeading: 'Compared with the previous scan',
         perfNoRegressions: 'Nothing measured here got materially worse since the previous scan.',
         // Shown instead of perfNoRegressions when a template was skipped from the
-        // comparison (a changed representative or a dropped seat): "nothing got
-        // worse" would otherwise read as a claim about pages that were never
-        // actually compared this scan.
+        // comparison (a changed representative, a dropped seat, or an unmeasured
+        // page this scan): "nothing got worse" would otherwise read as a claim
+        // about pages that were never actually compared this scan.
         perfNoRegressionsQualified:
           'Nothing that could be compared got materially worse since the previous scan.',
         perfNotCompared:
@@ -3104,6 +3110,8 @@ export const copy = {
         perfAuditDevicesBoth: 'на двох емульованих пристроях',
         perfAuditDevicesOne: 'на одному емульованому пристрої ({device})',
         perfAuditDevicesUnstated: 'на пристроях, які записав цей аудит',
+        perfAuditOutageLead:
+          'PageSpeed Insights не повернув придатного вимірювання для жодної з {count} обраних сторінок цього сканування; дані поля CrUX показано там, де вони є.',
         perfProvider: 'Лабораторні вимірювання: Lighthouse {version} через PageSpeed Insights',
         perfProviderUnknown: 'Лабораторні вимірювання: PageSpeed Insights (версію не повідомлено)',
         perfBudget: 'Використано {used} з {cap} запитів до постачальника',

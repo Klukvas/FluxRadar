@@ -914,6 +914,83 @@ describe('the Performance card — page templates (T5)', () => {
     ).toBeNull();
   });
 
+  // F2: an unmeasured template is also a gap in the comparison — it was never
+  // re-measured this scan, so "nothing got worse" needs the same qualifier as
+  // a dropped or not-comparable template, not the unqualified claim.
+  function moduleWithComparisonAndUnmeasured() {
+    return moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 3, capped: false },
+          templatesFound: 2,
+          templatesAudited: 1,
+          comparison: {
+            previousScanId: 'previous-scan',
+            previousObservedAt: '2026-09-01T00:00:00.000Z',
+            incomparableReason: null,
+            incomparable: null,
+            templatesNotComparable: [],
+            templatesDropped: [],
+          },
+          regressions: [],
+          unmeasuredUrls: [
+            {
+              url: 'https://smile.example/about',
+              templateKey: '/about',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it('qualifies "nothing got worse" when a template was only unmeasured this scan (F2)', async () => {
+    await openReport(dashboardOf([moduleWithComparisonAndUnmeasured()]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        'Nothing that could be compared got materially worse since the previous scan.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).queryByText(
+        'Nothing measured here got materially worse since the previous scan.',
+      ),
+    ).toBeNull();
+  });
+
+  it('qualifies "nothing got worse" for an unmeasured template in Ukrainian (F2)', async () => {
+    await openReport(dashboardOf([moduleWithComparisonAndUnmeasured()]), 'uk');
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(
+      within(region).getByText(
+        'Ніщо з того, що можна було порівняти, не стало суттєво гіршим із попереднього сканування.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).queryByText(
+        'Ніщо з виміряного не стало суттєво гіршим із попереднього сканування.',
+      ),
+    ).toBeNull();
+  });
+
   it('names a template that lost its seat entirely since the previous scan (L3)', async () => {
     const module = moduleOf({
       module: 'Performance',
@@ -1062,6 +1139,31 @@ describe('the Performance card — page templates (T5)', () => {
         /жоден із запусків PageSpeed для цієї сторінки не дав придатного результату/,
       ),
     ).toHaveLength(2);
+  });
+
+  // F1: the outage lead must not claim any page was measured, or state a
+  // sample count and median language that never happened.
+  it('opens a PageSpeed outage with a lead that admits nothing was measured (F1)', async () => {
+    await openReport(dashboardOf([outageModule()]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        'PageSpeed Insights did not return a usable measurement for any of the 2 selected pages in this scan; field data from CrUX is shown where available.',
+      ),
+    ).toBeTruthy();
+    expect(within(region).queryByText(/was measured/)).toBeNull();
+  });
+
+  it('opens a PageSpeed outage with a truthful lead in Ukrainian (F1)', async () => {
+    await openReport(dashboardOf([outageModule()]), 'uk');
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(
+      within(region).getByText(
+        'PageSpeed Insights не повернув придатного вимірювання для жодної з 2 обраних сторінок цього сканування; дані поля CrUX показано там, де вони є.',
+      ),
+    ).toBeTruthy();
   });
 });
 

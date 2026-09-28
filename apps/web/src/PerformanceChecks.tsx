@@ -70,6 +70,12 @@ export function PerformanceChecksBody(props: {
  */
 function auditLead(audit: PerformanceAuditReading, language: Language): string {
   const t = copy[language].report.checks;
+  // No page below was measured — a deployment-wide PageSpeed outage, not a
+  // page-by-page gap — so the devices/median language below does not apply:
+  // it would describe runs that were never taken.
+  if (audit.urls.length === 0) {
+    return fillCopy(t.perfAuditOutageLead, { count: String(audit.unmeasuredUrls.length) });
+  }
   const [device] = audit.sampling.devices;
   const devices =
     audit.sampling.devices.length > 1
@@ -305,7 +311,9 @@ function ComparisonGroup(props: { audit: PerformanceAuditReading; language: Lang
         </p>
       ) : audit.regressions.length === 0 ? (
         <p className="muted">
-          {audit.templatesNotComparable.length > 0 || audit.templatesDropped.length > 0
+          {audit.templatesNotComparable.length > 0 ||
+          audit.templatesDropped.length > 0 ||
+          audit.unmeasuredUrls.length > 0
             ? t.perfNoRegressionsQualified
             : t.perfNoRegressions}
         </p>
