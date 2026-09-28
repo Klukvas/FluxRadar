@@ -15,6 +15,18 @@ import {
   siteContext,
 } from '../testing/fixture-harness.js';
 
+const EASY_ENGLISH_PARAGRAPH =
+  'The cat sat on the mat. The dog ran to the park. Kids play in the sun. ' +
+  'Birds sing in the trees. The sky is blue and clear. We eat lunch at noon. ' +
+  'Mom reads a book. Dad cooks a meal. The day is warm and nice. We go for a walk.';
+
+const HARD_ENGLISH_PARAGRAPH =
+  'Notwithstanding the aforementioned multifaceted considerations, the interdisciplinary ' +
+  'implementation methodology necessitates comprehensive institutional collaboration among ' +
+  'heterogeneous organizational stakeholders possessing substantially divergent operational ' +
+  'prerequisites, thereby precipitating extraordinarily convoluted procedural ramifications ' +
+  'that further complicate the already labyrinthine administrative infrastructure.';
+
 function single(candidates: readonly IssueCandidate[]): IssueCandidate {
   expect(candidates).toHaveLength(1);
   const first = candidates[0];
@@ -192,7 +204,9 @@ describe('CONTENT-004 битые media', () => {
   it('здоровая страница без снимков media сохраняет score 100', () => {
     const ctx = htmlContext(
       '<!doctype html><html lang="en"><head><title>Healthy content page</title></head>' +
-        `<body><p>${'Real editorial content. '.repeat(20)}</p>` +
+        // Simple, varied sentences: real content that also reads easily, so this
+        // fixture keeps testing CONTENT-004 alone rather than tripping CONTENT-005.
+        `<body><p>${EASY_ENGLISH_PARAGRAPH}</p>` +
         '<img src="/healthy-logo.png" alt="Logo" /></body></html>',
     );
     const result = runModuleRules('Content Quality', ctx);
@@ -307,5 +321,78 @@ describe('CONTENT-004 битые media', () => {
     expect(finding?.evidenceExcerpt).toBe(
       'Media that returns an HTTP error (1): img[src="/img/gone.png"] (HTTP 500)',
     );
+  });
+});
+
+describe('CONTENT-005 низька читабельність', () => {
+  it('positive: складний англомовний текст → finding, Low severity', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Dense page</title></head>' +
+        `<body><p>${HARD_ENGLISH_PARAGRAPH}</p></body></html>`,
+    );
+    const finding = single(runRule('Content Quality', 'CONTENT-005', ctx));
+    expect(finding.severity).toBe('Low');
+    expect(finding.evidenceType).toBe('dom');
+    expect(finding.messages?.evidence.code).toBe('content-005.evidence');
+    expect(finding.messages?.evidence.params.scale).toBe('flesch-reading-ease-en');
+    expect(finding.messages?.evidence.params.minimum).toBe(30);
+    expect(finding.messages?.recommendation.code).toBe('content-005.recommendation');
+  });
+
+  it('negative: простий англомовний текст → пусто', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Easy page</title></head>' +
+        `<body><p>${EASY_ENGLISH_PARAGRAPH}</p></body></html>`,
+    );
+    expect(runRule('Content Quality', 'CONTENT-005', ctx)).toEqual([]);
+  });
+
+  it('надто короткий текст (< 200 символів) → правило не застосовне', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Short</title></head>' +
+        `<body><p>${HARD_ENGLISH_PARAGRAPH.slice(0, 100)}</p></body></html>`,
+    );
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.applicableTargets).toBe(0);
+    expect(evaluation?.notApplicableReason).toBe('no-candidates');
+    expect(result.findings.filter((finding) => finding.ruleId === 'CONTENT-005')).toEqual([]);
+  });
+
+  it('непідтримувана мова (наприклад, французька) → правило не застосовне, а не «проблем немає»', () => {
+    const french =
+      'Nonobstant les considérations susmentionnées, la méthodologie de mise en œuvre ' +
+      'interdisciplinaire nécessite une collaboration institutionnelle exhaustive entre ' +
+      'des parties prenantes organisationnelles hétérogènes.'.repeat(2);
+    const ctx = htmlContext(
+      '<!doctype html><html lang="fr"><head><title>Page française</title></head>' +
+        `<body><p>${french}</p></body></html>`,
+    );
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.applicableTargets).toBe(0);
+    expect(evaluation?.notApplicableReason).toBe('no-candidates');
+  });
+
+  it('українська мова вимірюється своєю шкалою (не англійською)', () => {
+    const easyUkrainian = (
+      'Кіт спить. Пес біжить. День теплий. Сонце світить. Діти грають. ' +
+      'Ми йдемо гуляти. Мама читає книгу. Тато варить обід. Небо синє. Пташки співають. '
+    ).repeat(3);
+    const ctx = htmlContext(
+      '<!doctype html><html lang="uk"><head><title>Проста сторінка</title></head>' +
+        `<body><p>${easyUkrainian}</p></body></html>`,
+    );
+    const findings = runRule('Content Quality', 'CONTENT-005', ctx);
+    expect(findings).toEqual([]);
+  });
+
+  it('відсутній атрибут lang — мова визначається за алфавітом переважної більшості символів', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html><head><title>No lang attribute</title></head>' +
+        `<body><p>${HARD_ENGLISH_PARAGRAPH}</p></body></html>`,
+    );
+    const finding = single(runRule('Content Quality', 'CONTENT-005', ctx));
+    expect(finding.messages?.evidence.params.scale).toBe('flesch-reading-ease-en');
   });
 });

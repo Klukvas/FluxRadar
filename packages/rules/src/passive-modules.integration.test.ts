@@ -85,8 +85,10 @@ const ALL_HTML_PAGES = [
   '/dup-a.html',
   '/dup-b.html',
   '/dup-c.html',
+  '/easy-prose.html',
   '/empty.html',
   '/form.html',
+  '/hard-prose.html',
   '/mixed-content.html',
   '/no-title.html',
   '/noindex.html',
@@ -120,9 +122,9 @@ describe('passive-модули на fixture-сайте краулера', () => 
     const byRule = new Map(
       moduleResult('Reliability').evaluations.map((entry) => [entry.ruleId, entry]),
     );
-    expect(byRule.get('REL-URL-001')?.applicableTargets).toBe(18);
-    expect(byRule.get('REL-URL-003')?.applicableTargets).toBe(18);
-    expect(byRule.get('REL-URL-009')?.applicableTargets).toBe(18);
+    expect(byRule.get('REL-URL-001')?.applicableTargets).toBe(20);
+    expect(byRule.get('REL-URL-003')?.applicableTargets).toBe(20);
+    expect(byRule.get('REL-URL-009')?.applicableTargets).toBe(20);
     expect(byRule.get('REL-API-003')?.applicableTargets).toBe(0);
     expect(byRule.get('REL-API-005')?.applicableTargets).toBe(0);
   });
@@ -161,8 +163,14 @@ describe('passive-модули на fixture-сайте краулера', () => 
       'CONTENT-001': ['/dup-b.html'],
       'CONTENT-003': ['/deep/level2/page.html', '/empty.html', '/orphan.html', '/trackers.html'],
       // Ровно одна страница: та, чью media проба обхода застала битой. Ни одна
-      // из остальных пятнадцати за непроверенный ресурс не штрафуется.
+      // из остальных за непроверенный ресурс не штрафуется.
       'CONTENT-004': ['/broken-image.html'],
+      // hard-prose.html пишет намеренно тяжёлый для чтения текст; easy-prose.html
+      // (рядом в навигации, тоже >= 200 символов) — намеренно лёгкий, и находки
+      // не даёт. Остальные три — уже существующие фикстурные страницы, чей текст
+      // оказался ниже порога 30 по факту (наукообразные формулировки на / и
+      // /wrong-canonical.html, короткие технические подписи на /form.html).
+      'CONTENT-005': ['/', '/form.html', '/hard-prose.html', '/wrong-canonical.html'],
     });
     const media = moduleResult('Content Quality').findings.find(
       (finding) => finding.ruleId === 'CONTENT-004',
@@ -191,19 +199,22 @@ describe('passive-модули на fixture-сайте краулера', () => 
     expect(thirdParty?.evidenceExcerpt).toContain('stats.example.com');
   });
 
-  it('coverage: снимков без fetchError 18 → все checks каждого модуля завершены', () => {
-    expect(crawlResult.pages).toHaveLength(18);
+  it('coverage: снимков без fetchError 20 → все checks каждого модуля завершены', () => {
+    expect(crawlResult.pages).toHaveLength(20);
     const expectedChecks: Readonly<Record<string, number>> = {
-      // Existing 35 checks + ASVS-001×17 + ASVS-002×17 + ASVS-003×18.
-      Security: 87,
-      // REL-URL-001/003/009×18; api-правила без ctx.apiChecks — 0.
-      Reliability: 54,
-      // A11Y-001..010 ×17 HTML pages + A11Y-011 site report contract ×1.
-      Accessibility: 171,
-      // CONTENT-001/003/004×17.
-      'Content Quality': 51,
-      // PRIVACY-001×18 + PRIVACY-002×17 + PRIVACY-003×17 + PRIVACY-004×1.
-      Privacy: 53,
+      // Other Security page-rules scale with the 19/20 page counts too, same as
+      // ASVS-001×19 + ASVS-002×19 + ASVS-003×20.
+      Security: 97,
+      // REL-URL-001/003/009×20; api-правила без ctx.apiChecks — 0.
+      Reliability: 60,
+      // A11Y-001..010 ×19 HTML pages + A11Y-011 site report contract ×1.
+      Accessibility: 191,
+      // CONTENT-001/003/004×19 + CONTENT-005×15 (19 успешных страниц минус 4,
+      // которых CONTENT-003 уже пометил малосодержательными: их не хватает даже
+      // на измерение, поэтому CONTENT-005 их не считает applicable).
+      'Content Quality': 72,
+      // PRIVACY-001×20 + PRIVACY-002×19 + PRIVACY-003×19 + PRIVACY-004×1.
+      Privacy: 59,
     };
     for (const module of PASSIVE_MODULES) {
       const result = moduleResult(module);

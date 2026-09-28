@@ -76,4 +76,13 @@ export const CONTENT_MESSAGES = {
     en: 'Replace or remove the broken media links: a broken image spoils a page more visibly than any other content problem.',
     uk: 'Замініть або видаліть биті посилання на медіафайли: зламане зображення псує сторінку помітніше, ніж будь-яка інша проблема з контентом.',
   },
+
+  'content-005.evidence': {
+    en: 'Readability score is {score} out of 100 on the {scale} scale, below the minimum of {minimum} for text that is easy to follow. Measured over {sentences} sentence(s) and {words} word(s) of visible text.',
+    uk: 'Оцінка читабельності — {score} зі 100 за шкалою {scale}, це нижче мінімуму {minimum} для тексту, який легко сприймається. Вимірено на {sentences} реченні(-ях) і {words} слові(-ах) видимого тексту.',
+  },
+  'content-005.recommendation': {
+    en: 'Shorten sentences, prefer plain words over long or technical ones, and break up dense paragraphs. This scores the text mechanically (sentence and word length); it does not read for meaning.',
+    uk: 'Скоротіть речення, віддавайте перевагу простим словам замість довгих чи технічних, розбийте щільні абзаци. Оцінка рахує текст механічно (довжину речень і слів) і не оцінює зміст.',
+  },
 } as const satisfies FindingMessageCatalog;

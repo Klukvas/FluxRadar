@@ -140,7 +140,7 @@ export const checksCopyEn: ChecksCopy = {
         },
         {
           term: 'Content clarity signals',
-          body: 'heading density, paragraph length distribution and readability score (Flesch-Kincaid) measured from the extracted main content.',
+          body: 'whether a page carries at least 200 characters of visible text alongside a heading (`<h1>` or `<h2>`) and a content container (`<main>`, `<article>` or `<body>`) — the baseline an AI crawler needs to extract anything from the page. The readability score itself (Flesch Reading Ease for English, an equivalent scale for Ukrainian) is measured and reported by the Content Quality module\'s "Readability score" check.',
         },
         {
           term: 'Provider visibility (paid, disclosed before purchase)',
@@ -278,6 +278,10 @@ export const checksCopyEn: ChecksCopy = {
         {
           term: 'Broken images and media',
           body: 'referenced images, video and audio the crawl actually probed and found unreachable, returning an HTTP error, or answering with an HTML page instead of a file. Media the crawl never reached is not counted against the page.',
+        },
+        {
+          term: 'Readability score',
+          body: 'a page with at least 200 characters of visible text gets a readability score out of 100 (higher is easier to read) — Flesch Reading Ease for English text, an equivalent heuristic scale for Ukrainian text. It is flagged below 30 on either scale ("very confusing"). This is a mechanical measure of sentence and word length, not a judgement of the writing itself, and a page in another language or with too little text to measure is not scored at all. The AI SEO / GEO section links here for the same score.',
         },
       ],
       outro: [],

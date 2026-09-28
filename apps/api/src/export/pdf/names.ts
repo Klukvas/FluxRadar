@@ -211,6 +211,10 @@ export const RULE_TITLES: Readonly<Record<string, LocalizedName>> = {
     en: 'Broken images or media',
     uk: 'Биті зображення або медіа',
   },
+  'CONTENT-005': {
+    en: 'Text is hard to read',
+    uk: 'Текст важко читати',
+  },
   'PRIVACY-001': {
     en: 'Page sets cookies that may need consent',
     uk: 'Сторінка встановлює cookies, які можуть потребувати згоди',
