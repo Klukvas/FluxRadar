@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { REFUND_DISPATCH_ACK_ENV, REFUND_DISPATCH_ENV } from '../billing/refunds/config.ts';
 import { REQUIRED_PRODUCTION_SECRETS, validateRuntimeConfig } from './config.ts';
 import { OAUTH_ENV_VARS } from './oauth-config.ts';
 import { OBJECT_STORAGE_ENV_VARS } from './object-storage-config.ts';
@@ -85,6 +86,38 @@ describe('runtime secret validation', () => {
         CREEM_API_KEY: undefined,
         FASTSPRING_MODE: undefined,
         FASTSPRING_API_USERNAME: undefined,
+      }),
+    ).not.toThrow();
+  });
+
+  // No provider has an outbound refund adapter: Creem refunds are issued by
+  // hand, from the Creem dashboard. `auto` would need a transport that does
+  // not exist, so it is refused at boot rather than left silently dispatching
+  // nowhere — with or without the operator naming a provider.
+  it('refuses to boot with FLUXRADAR_REFUND_DISPATCH=auto, even naming Creem', () => {
+    expect(() =>
+      validateRuntimeConfig({
+        ...completeProductionEnv,
+        [REFUND_DISPATCH_ENV]: 'auto',
+        [REFUND_DISPATCH_ACK_ENV]: 'creem',
+      }),
+    ).toThrow(/no outbound refund transport for Creem/);
+  });
+
+  it('refuses to boot with FLUXRADAR_REFUND_DISPATCH=auto and no acknowledged provider', () => {
+    expect(() =>
+      validateRuntimeConfig({
+        ...completeProductionEnv,
+        [REFUND_DISPATCH_ENV]: 'auto',
+      }),
+    ).toThrow();
+  });
+
+  it.each(['manual', 'off', undefined])('boots with FLUXRADAR_REFUND_DISPATCH=%s', (mode) => {
+    expect(() =>
+      validateRuntimeConfig({
+        ...completeProductionEnv,
+        [REFUND_DISPATCH_ENV]: mode,
       }),
     ).not.toThrow();
   });

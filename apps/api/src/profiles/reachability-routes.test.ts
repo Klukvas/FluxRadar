@@ -18,7 +18,7 @@ import { REACHABILITY_PROBE_TTL_MS } from './reachability-routes.ts';
 //
 // Without this a customer could buy a $120 audit of a site that refuses us,
 // wait for the scan, and get a refund instead of a report. The endpoint is the
-// answer; `creem-004-checkout-http.test.ts` is the refusal it feeds.
+// answer; `creem-008-reachability-gate.test.ts` is the refusal it feeds.
 
 const PROBE_PATH = (profileId: string) => `/profiles/${profileId}/reachability`;
 
