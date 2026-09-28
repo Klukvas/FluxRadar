@@ -1,7 +1,7 @@
 // The numbers behind the owner dashboard, read from this product's own tables.
 //
 // GA4 only sees visitors who accepted analytics cookies and never sees whether a
-// FastSpring payment went through; these tables see every account, scan and
+// Creem payment went through; these tables see every account, scan and
 // order. Everything is counted in the database (count / groupBy / aggregate and
 // one grouped raw query for the daily series): the answer is a few dozen rows
 // however many accounts exist, and no row about an individual account, scan or
@@ -12,8 +12,8 @@
 //
 // - MONEY IS NEVER ADDED ACROSS CURRENCIES. A purchase is summed on its charged
 //   basis — what the buyer actually paid, in the currency they paid in — which
-//   is the basis the refund lines are stated on (billing/fastspring/
-//   refund-amounts.ts), so gross, refunded and net line up per currency.
+//   is the basis the refund lines are stated on (billing/creem/refund-line.ts),
+//   so gross, refunded and net line up per currency.
 // - TEST-MODE ORDERS ARE NOT REVENUE. A purchase whose checkout was opened in
 //   the provider's test mode is counted apart (`testMode`) and left out of every
 //   money and conversion figure. A purchase with no checkout row at all — a

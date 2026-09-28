@@ -1,14 +1,12 @@
 // Startup configuration diagnostics.
 //
 // One line per integration, at boot, so "this integration is off" is never a
-// silent state an operator only discovers from a user report. It follows the
-// FastSpring log this repository already had (see logFastSpringState in
-// index.ts) and keeps its rule: integration names, statuses and, when something
-// is half-configured, the names of the variables that are missing. No value of
-// any variable is read into a log line, ever.
+// silent state an operator only discovers from a user report: integration
+// names, statuses and, when something is half-configured, the names of the
+// variables that are missing. No value of any variable is read into a log
+// line, ever.
 
 import { readCreemConfig } from '../billing/creem/config.ts';
-import { readFastSpringConfig } from '../billing/fastspring/config.ts';
 import { readResendConfig } from '../email/resend-config.ts';
 import type { ApiLogger } from '../http/logger.ts';
 import { readTelegramConfig } from '../support/telegram-config.ts';
@@ -74,7 +72,6 @@ export function readIntegrationStatuses(
     status('telegram', readTelegramConfig(env)),
     status('google', readOAuthConfig('google', env)),
     status('bing', readOAuthConfig('bing', env)),
-    status('fastspring', readFastSpringConfig(env)),
     status('creem', readCreemConfig(env)),
   ];
 }

@@ -2,9 +2,9 @@
 //
 // Every case here is a way a refund could go out twice, go out when it should
 // not, or be recorded as settled when nobody watched the money move. The
-// provider is always a fake adapter: a test that reached FastSpring's
-// `POST /returns` would refund a real order, and nothing in this repository is
-// allowed to do that.
+// provider is always a fake adapter: a test that reached a real refund API
+// would refund a real order, and nothing in this repository is allowed to do
+// that.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient, RefundRecord } from '@prisma/client';
@@ -19,14 +19,15 @@ import {
 } from '../../test-utils/test-db.ts';
 import { PURCHASE_STATUSES, REFUND_STATUSES, refundIdempotencyKey } from '../constants.ts';
 import { requestRefund } from '../refund.ts';
-import { FASTSPRING_PROVIDER } from '../fastspring/config.ts';
+import { CREEM_PROVIDER } from '../creem/config.ts';
+import { CREEM_EVENT_TYPES } from '../creem/events.ts';
 import {
-  TEST_FASTSPRING_SECRET,
-  orderCompletedData,
-  returnCreatedData,
-  signedDelivery,
-} from '../fastspring/test-payloads.ts';
-import { handleFastSpringWebhook } from '../fastspring/webhook-handler.ts';
+  TEST_CREEM_SECRET,
+  checkoutCompletedObject,
+  refundCreatedObject,
+  signedCreemDelivery,
+} from '../creem/test-payloads.ts';
+import { handleCreemWebhook } from '../creem/webhook-handler.ts';
 import { REFUND_DISPATCH_ACK_ENV, REFUND_DISPATCH_ENV } from './config.ts';
 import { dispatchPendingRefunds } from './dispatcher.ts';
 import {
@@ -38,15 +39,15 @@ import type { RefundProviderAdapter, RefundSubmissionOutcome } from './provider.
 import { REFUND_DISPATCH_STATES } from './states.ts';
 
 const NOW = new Date('2026-09-22T12:00:00.000Z');
-const BASIC_PRODUCT = 'fluxradar-basic-scan';
+const BASIC_PRODUCT = 'prod_basic';
 const BASIC_PRICE = 55;
 const ACTIVE_ENV = {
   [REFUND_DISPATCH_ENV]: 'auto',
-  [REFUND_DISPATCH_ACK_ENV]: 'fastspring',
+  [REFUND_DISPATCH_ACK_ENV]: 'creem',
 } as const;
 
 /** An adapter that records its calls and answers what the test told it to. */
-function fakeAdapter(outcome: RefundSubmissionOutcome, provider = 'fastspring') {
+function fakeAdapter(outcome: RefundSubmissionOutcome, provider = 'creem') {
   const submit = vi.fn<RefundProviderAdapter['submit']>().mockResolvedValue(outcome);
   return { adapter: { provider, submit } satisfies RefundProviderAdapter, submit };
 }
@@ -74,14 +75,14 @@ describe('the refund outbox', () => {
   });
 
   /**
-   * A Failed scan with a paid FastSpring purchase: the EXTERNAL_NO_USABLE_OUTPUT
+   * A Failed scan with a paid Creem purchase: the EXTERNAL_NO_USABLE_OUTPUT
    * branch of the refund policy.
    *
    * The provider is set explicitly because it is what the dispatcher matches its
    * adapter on — a purchase taken through one provider must never be refunded
    * through another's API.
    */
-  async function refundableScan(provider = 'fastspring'): Promise<{ purchaseId: string }> {
+  async function refundableScan(provider = 'creem'): Promise<{ purchaseId: string }> {
     const seeded = await seedScan(db.prisma, {
       account,
       status: 'Failed',
@@ -158,7 +159,7 @@ describe('the refund outbox', () => {
 
     it('queues it for the dispatcher only where sending is switched on', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
 
@@ -177,7 +178,7 @@ describe('the refund outbox', () => {
 
     it('does not reset a dispatch that has already gone out', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       const { adapter } = fakeAdapter(SUBMITTED);
@@ -193,7 +194,7 @@ describe('the refund outbox', () => {
   describe('the sweep', () => {
     it('sends nothing at all when outbound refunds are not switched on', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       const { adapter, submit } = fakeAdapter(SUBMITTED);
@@ -208,7 +209,7 @@ describe('the refund outbox', () => {
 
     it('sends nothing when the mode is on but no adapter is wired', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
 
@@ -219,7 +220,7 @@ describe('the refund outbox', () => {
 
     it('submits once, records the provider’s id, and has nothing left to do', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       const { adapter, submit } = fakeAdapter(SUBMITTED);
@@ -248,12 +249,12 @@ describe('the refund outbox', () => {
 
     it('never retries a submission whose answer never arrived', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       const { adapter, submit } = fakeAdapter({
         outcome: 'uncertain',
-        reason: 'FastSpring could not be reached, or did not answer in time',
+        reason: 'Creem could not be reached, or did not answer in time',
       });
 
       await sweep([adapter], { ...ACTIVE_ENV });
@@ -270,7 +271,7 @@ describe('the refund outbox', () => {
 
     it('records an outright refusal as failed, with the provider’s reason', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       const { adapter } = fakeAdapter({
@@ -287,7 +288,7 @@ describe('the refund outbox', () => {
 
     it('lets only one of two concurrent sweeps submit', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       const first = fakeAdapter(SUBMITTED);
@@ -309,15 +310,15 @@ describe('the refund outbox', () => {
 
     it('hands a purchase the provider already returned part of to an operator', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       await db.prisma.providerRefund.create({
         data: {
           purchaseId,
-          provider: 'fastspring',
+          provider: 'creem',
           providerRefundId: 'ret_earlier',
-          eventType: 'return.created',
+          eventType: 'refund.created',
           amountCharged: 27.5,
           amountUsd: 27.5,
           currency: 'USD',
@@ -338,7 +339,7 @@ describe('the refund outbox', () => {
 
     it('does not submit against a disputed purchase', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       await db.prisma.purchase.update({
@@ -355,7 +356,7 @@ describe('the refund outbox', () => {
 
     it('does not submit without a provider order id to address the return to', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       const stored = await record(purchaseId);
       await db.prisma.refundRecord.update({
@@ -376,7 +377,7 @@ describe('the refund outbox', () => {
 
     it('never submits a dispatch that belongs to another provider', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan('paddle');
       await record(purchaseId);
       const { adapter, submit } = fakeAdapter(SUBMITTED);
@@ -391,7 +392,7 @@ describe('the refund outbox', () => {
   describe('reconciliation with what the provider reported', () => {
     it('settles a submitted dispatch when the provider reports the full charge back', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       const { adapter } = fakeAdapter(SUBMITTED);
@@ -412,7 +413,7 @@ describe('the refund outbox', () => {
 
     it('settles a row another writer moved between the read and the write', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
 
@@ -482,7 +483,7 @@ describe('the refund outbox', () => {
 
     it('closes an uncertain dispatch that did reach the provider after all', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       await sweep([fakeAdapter({ outcome: 'uncertain', reason: 'timeout' }).adapter], {
@@ -504,7 +505,7 @@ describe('the refund outbox', () => {
 
     it('takes a queued dispatch off the queue when the refund was issued in the console', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
 
@@ -616,7 +617,7 @@ describe('the refund outbox', () => {
 
     it('adopts an orphaned decision on the next sweep, as a person’s job', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       // The shape a release without an outbox left behind: a decision, no row.
@@ -665,15 +666,15 @@ describe('the refund outbox', () => {
 
   describe('the inbound webhook', () => {
     /**
-     * The full FastSpring path: an order is paid, a refund is decided, and then
-     * the provider's own `return.created` arrives. This is the only writer of a
+     * The full Creem path: a checkout is paid, a refund is decided, and then
+     * the provider's own `refund.created` arrives. This is the only writer of a
      * settled dispatch, so it is worth proving through the webhook handler rather
      * than by calling the helper directly.
      */
     async function payForBasicScan(orderId: string): Promise<void> {
       const session = await db.prisma.checkoutSession.create({
         data: {
-          provider: FASTSPRING_PROVIDER,
+          provider: CREEM_PROVIDER,
           reference: `frcs_${Math.random().toString(36).slice(2)}`,
           accountId: account.accountId,
           siteProfileId: account.siteProfileId,
@@ -686,37 +687,38 @@ describe('the refund outbox', () => {
           scopeJson: JSON.stringify({ includeSubdomains: false }),
         },
       });
-      const paid = signedDelivery([
+      const paid = signedCreemDelivery(
         {
           id: `evt_order_${orderId}`,
-          type: 'order.completed',
-          data: orderCompletedData({
+          eventType: CREEM_EVENT_TYPES.checkoutCompleted,
+          object: checkoutCompletedObject({
+            checkoutId: `chk_${orderId}`,
             orderId,
             reference: session.reference,
-            productPath: BASIC_PRODUCT,
-            amount: BASIC_PRICE,
+            productId: BASIC_PRODUCT,
+            amountCents: Math.round(BASIC_PRICE * 100),
           }),
         },
-      ]);
-      await handleFastSpringWebhook(db.prisma, paid.rawBody, paid.signature, {
-        secret: TEST_FASTSPRING_SECRET,
+        TEST_CREEM_SECRET,
+      );
+      await handleCreemWebhook(db.prisma, paid.rawBody, paid.signature, {
+        secret: TEST_CREEM_SECRET,
         expectLive: false,
-        currencyPolicy: 'strict',
       });
     }
 
     function deliverReturn(orderId: string, amount: number, returnId: string) {
-      const delivery = signedDelivery([
+      const delivery = signedCreemDelivery(
         {
           id: `evt_return_${returnId}`,
-          type: 'return.created',
-          data: returnCreatedData(orderId, amount, 'USD', returnId),
+          eventType: CREEM_EVENT_TYPES.refundCreated,
+          object: refundCreatedObject(orderId, Math.round(amount * 100), 'USD', returnId),
         },
-      ]);
-      return handleFastSpringWebhook(db.prisma, delivery.rawBody, delivery.signature, {
-        secret: TEST_FASTSPRING_SECRET,
+        TEST_CREEM_SECRET,
+      );
+      return handleCreemWebhook(db.prisma, delivery.rawBody, delivery.signature, {
+        secret: TEST_CREEM_SECRET,
         expectLive: false,
-        currencyPolicy: 'strict',
       });
     }
 
@@ -724,7 +726,7 @@ describe('the refund outbox', () => {
       const purchase = await db.prisma.purchase.findUniqueOrThrow({
         where: {
           provider_providerTransactionId: {
-            provider: FASTSPRING_PROVIDER,
+            provider: CREEM_PROVIDER,
             providerTransactionId: orderId,
           },
         },
@@ -778,7 +780,7 @@ describe('the refund outbox', () => {
   describe('operator resolution', () => {
     it('records who settled an uncertain dispatch, and how', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       await sweep([fakeAdapter({ outcome: 'uncertain', reason: 'timeout' }).adapter], {
@@ -789,7 +791,7 @@ describe('the refund outbox', () => {
         purchaseId,
         resolution: 'settled',
         resolvedBy: 'operator@fluxradar.net',
-        note: 'found the return in the FastSpring console',
+        note: 'found the return in the Creem console',
         now: NOW,
       });
 
@@ -797,12 +799,12 @@ describe('the refund outbox', () => {
       const dispatch = await dispatchFor(purchaseId);
       expect(dispatch.state).toBe(REFUND_DISPATCH_STATES.settled);
       expect(dispatch.resolvedBy).toBe('operator@fluxradar.net');
-      expect(dispatch.stateReason).toContain('FastSpring console');
+      expect(dispatch.stateReason).toContain('Creem console');
     });
 
     it('can re-queue a refusal, because no money moved on one', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       await sweep([fakeAdapter({ outcome: 'refused', reason: 'bad product path' }).adapter], {
@@ -823,7 +825,7 @@ describe('the refund outbox', () => {
 
     it('refuses to move an uncertain dispatch back into the queue', async () => {
       vi.stubEnv(REFUND_DISPATCH_ENV, 'auto');
-      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'fastspring');
+      vi.stubEnv(REFUND_DISPATCH_ACK_ENV, 'creem');
       const { purchaseId } = await refundableScan();
       await record(purchaseId);
       await sweep([fakeAdapter({ outcome: 'uncertain', reason: 'timeout' }).adapter], {

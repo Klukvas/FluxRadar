@@ -138,7 +138,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   });
 
   // A single generic creation endpoint is kept for clients that only expose a
-  // plan picker. Paid plans must go through a checkout — a signed FastSpring
+  // plan picker. Paid plans must go through a checkout — a signed Creem
   // order, or the internal allowlist's /billing/internal-checkout — so a paid scan
   // can never be created by a bare scan request.
   router.post('/profiles/:profileId/scans', auth, async (req, res) => {
@@ -1056,9 +1056,7 @@ interface ScanHistoryPage {
 }
 
 /** The plans whose purchase unlocks the full historical list. */
-const HISTORY_PLANS: readonly string[] = PLANS.filter((plan) =>
-  planSupports(plan, 'scanHistory'),
-);
+const HISTORY_PLANS: readonly string[] = PLANS.filter((plan) => planSupports(plan, 'scanHistory'));
 
 /** Paid plans that do not: owning one of these shows the current result only. */
 const PAID_PLANS_WITHOUT_HISTORY: readonly string[] = PLANS.filter(
@@ -1096,10 +1094,7 @@ async function listScanHistory(
   ]);
   if (unlocking === null && gated !== null) {
     if (historyRequested) {
-      throw forbidden(
-        'HISTORY_REQUIRES_COMPLETE',
-        'scan history is not included in this plan',
-      );
+      throw forbidden('HISTORY_REQUIRES_COMPLETE', 'scan history is not included in this plan');
     }
     // Exactly one row is visible, so only the first page can carry it.
     const current =

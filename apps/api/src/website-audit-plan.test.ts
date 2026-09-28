@@ -19,8 +19,8 @@ import { errorHandler } from './http/error-handler.ts';
 import { silentLogger } from './http/logger.ts';
 import { modulePlanFor } from './orchestrator/module-plan.ts';
 import { planUrlLimit, planPriceUsd, isPaidPlan } from './billing/plans.ts';
-import { readFastSpringConfig } from './billing/fastspring/config.ts';
-import { createCheckoutSession } from './billing/fastspring/checkout-session.ts';
+import { readCreemConfig } from './billing/creem/config.ts';
+import { createCreemCheckoutSession } from './billing/creem/checkout-session.ts';
 import { PlanNotPurchasableError } from './billing/errors.ts';
 
 describe('Website Audit — what the plan runs', () => {
@@ -142,14 +142,13 @@ describe('Website Audit — what the buyer may ask for', () => {
   });
 
   it('refuses a checkout before any row is written when the product is unmapped', async () => {
-    const configured = readFastSpringConfig({
-      FASTSPRING_MODE: 'test',
-      FASTSPRING_API_USERNAME: 'api-user',
-      FASTSPRING_API_PASSWORD: 'api-password-value',
-      FASTSPRING_WEBHOOK_SECRET: 'webhook-secret-value',
-      FASTSPRING_STOREFRONT_URL: 'https://fluxradar.test.onfastspring.com',
-      FASTSPRING_PRODUCT_PATH_BASIC: 'fluxradar-basic-scan',
-      FASTSPRING_PRODUCT_PATH_COMPLETE: 'fluxradar-complete-scan',
+    const configured = readCreemConfig({
+      CREEM_MODE: 'test',
+      CREEM_API_KEY: 'creem-api-key-value',
+      CREEM_WEBHOOK_SECRET: 'webhook-secret-value',
+      FRONTEND_ORIGIN: 'https://fluxradar.test',
+      CREEM_PRODUCT_ID_BASIC: 'prod_basic',
+      CREEM_PRODUCT_ID_COMPLETE: 'prod_complete',
     });
     if (configured.state !== 'configured') throw new Error('expected a configured environment');
     const prisma = {
@@ -160,7 +159,7 @@ describe('Website Audit — what the buyer may ask for', () => {
     const fetchImpl = vi.fn();
 
     await expect(
-      createCheckoutSession(
+      createCreemCheckoutSession(
         { prisma, config: configured.config, now: () => new Date(), fetchImpl },
         {
           accountId: 'account_1',
@@ -168,7 +167,7 @@ describe('Website Audit — what the buyer may ask for', () => {
           plan: 'WebsiteAudit',
           scope: { includeSubdomains: false },
           egress: { location: null, monitored: false },
-        } as unknown as Parameters<typeof createCheckoutSession>[1],
+        } as unknown as Parameters<typeof createCreemCheckoutSession>[1],
       ),
     ).rejects.toBeInstanceOf(PlanNotPurchasableError);
 

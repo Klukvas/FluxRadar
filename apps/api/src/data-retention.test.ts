@@ -8,7 +8,7 @@ import {
   runRetentionSweep,
   sweepRetention,
 } from './data-retention.ts';
-import { WEBHOOK_OUTCOMES } from './billing/fastspring/outcomes.ts';
+import { WEBHOOK_OUTCOMES } from './billing/webhook-outcomes.ts';
 import {
   createTestDb,
   seedAccountWithProfile,

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { CHECKOUT_SESSION_STATUSES } from '../billing/constants.ts';
-import { FASTSPRING_PROVIDER } from '../billing/fastspring/index.ts';
+import { CREEM_PROVIDER } from '../billing/creem/config.ts';
 import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 
 // Domain ownership for paid scans.
@@ -60,7 +60,7 @@ describe('site profile domain guard', () => {
   ): Promise<void> {
     await db.prisma.checkoutSession.create({
       data: {
-        provider: FASTSPRING_PROVIDER,
+        provider: CREEM_PROVIDER,
         reference: `frcs_${siteProfileId}`,
         accountId,
         siteProfileId,

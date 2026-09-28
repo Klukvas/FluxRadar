@@ -14,9 +14,9 @@ import type { Purchase } from '@prisma/client';
 // of a localised order look partial.
 //
 // Provider-neutral by construction: nothing here reads a payload. Each provider
-// module (fastspring/refund-amounts.ts, creem/refund-line.ts) states what ONE of
-// its refunds is worth on this basis; this module only says what the purchase
-// was charged and what everything returned so far adds up to.
+// module (creem/refund-line.ts) states what ONE of its refunds is worth on this
+// basis; this module only says what the purchase was charged and what
+// everything returned so far adds up to.
 
 /**
  * A return covering at least this share of the charge is treated as full.
