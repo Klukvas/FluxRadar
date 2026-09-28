@@ -72,6 +72,22 @@ describe('runtime secret validation', () => {
   it('passes when every required secret is present in production', () => {
     expect(() => validateRuntimeConfig(completeProductionEnv)).not.toThrow();
   });
+
+  // FastSpring is gone; Creem is the only checkout provider, and neither
+  // provider's variables are required. A deployment that sets no CREEM_* (and,
+  // for a release still carrying an old env file, no leftover FASTSPRING_*)
+  // still boots — paid checkout is simply off (billing/creem/config.ts).
+  it('boots with no payment provider configured at all', () => {
+    expect(() =>
+      validateRuntimeConfig({
+        ...completeProductionEnv,
+        CREEM_MODE: undefined,
+        CREEM_API_KEY: undefined,
+        FASTSPRING_MODE: undefined,
+        FASTSPRING_API_USERNAME: undefined,
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe('production fail-closed integration checks', () => {
