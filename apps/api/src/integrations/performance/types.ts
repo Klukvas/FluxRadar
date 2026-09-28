@@ -88,6 +88,15 @@ export interface UrlAudit {
   /** True for the one URL the section's headline numbers are taken from. */
   readonly primary: boolean;
   readonly devices: readonly DeviceResult[];
+  /**
+   * The page template (packages-style URL shape, see `templates.ts`) this URL
+   * was chosen to represent, and how many crawled pages share it — including
+   * this URL. Optional so a snapshot stored before T5 still parses: an older
+   * row has neither field, and the report falls back to showing the URL alone
+   * rather than throwing on a missing key.
+   */
+  readonly templateKey?: string;
+  readonly representedPages?: number;
 }
 
 /** What the Chrome UX Report reported for real visitors. */
@@ -176,6 +185,18 @@ export interface IncomparableDetail {
  * and "these two runs cannot be compared" are different statements and the report
  * must not print the first when it means the second.
  */
+/**
+ * One template whose representative URL changed between the previous scan and
+ * this one — so the two scans' numbers for that template are not the same
+ * page's numbers twice, and comparing them anyway would report a URL swap as a
+ * performance change.
+ */
+export interface TemplateNotComparable {
+  readonly templateKey: string;
+  readonly previousUrl: string;
+  readonly currentUrl: string;
+}
+
 export interface PerformanceComparison {
   readonly previousScanId: string | null;
   readonly previousObservedAt: string | null;
@@ -188,6 +209,12 @@ export interface PerformanceComparison {
   readonly incomparableReason: string | null;
   /** The same fact as a code, for a reader who is not reading English. */
   readonly incomparable: IncomparableDetail | null;
+  /**
+   * Templates that were sampled by a different URL last time, so their
+   * regression comparison was skipped even though the audit as a whole was
+   * comparable. Optional so a snapshot stored before T5 still parses.
+   */
+  readonly templatesNotComparable?: readonly TemplateNotComparable[];
 }
 
 export interface ProviderInfo {
@@ -233,6 +260,15 @@ export interface PerformanceAudit {
   readonly coverage: PerformanceCoverage;
   /** Lighthouse's own performance score, as a median. Findings never change it. */
   readonly score: number | null;
+  /**
+   * How many distinct page templates the crawl's candidate URLs sorted into,
+   * and how many of them this audit actually measured (bounded by
+   * `MAX_AUDITED_URLS_BY_TEMPLATE`). Optional so a snapshot stored before T5
+   * still parses without throwing — a report reading an old row shows the URLs
+   * without a template summary instead of failing to render.
+   */
+  readonly templatesFound?: number;
+  readonly templatesAudited?: number;
 }
 
 export interface PerformanceAuditRequest {

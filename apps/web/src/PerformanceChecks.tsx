@@ -90,6 +90,7 @@ function AuditBody(props: { audit: PerformanceAuditReading; language: Language }
   return (
     <>
       <p className="muted">{auditLead(audit, props.language)}</p>
+      <TemplatesSummary audit={audit} language={props.language} />
       <SourceNote audit={audit} language={props.language} />
       {audit.urls.map((entry) => (
         <UrlGroup key={entry.url} entry={entry} language={props.language} />
@@ -97,6 +98,22 @@ function AuditBody(props: { audit: PerformanceAuditReading; language: Language }
       <FieldGroup field={audit.field} language={props.language} />
       <ComparisonGroup audit={audit} language={props.language} />
     </>
+  );
+}
+
+/**
+ * How many page templates the crawl found and how many this audit measured.
+ * Null for a snapshot stored before T5, so the section prints nothing extra
+ * rather than a sentence about zero templates.
+ */
+function TemplatesSummary(props: { audit: PerformanceAuditReading; language: Language }) {
+  const t = copy[props.language].report.checks;
+  const { templatesFound, templatesAudited } = props.audit;
+  if (templatesFound === null || templatesAudited === null) return null;
+  return (
+    <p className="muted">
+      {fillCopy(t.perfTemplatesSummary, { templatesFound, templatesAudited })}
+    </p>
   );
 }
 
@@ -120,13 +137,19 @@ function SourceNote(props: { audit: PerformanceAuditReading; language: Language 
 
 function UrlGroup(props: { entry: UrlReading; language: Language }) {
   const t = copy[props.language].report.checks;
+  const { entry } = props;
+  const represents =
+    entry.templateKey === null || entry.representedPages === null
+      ? ''
+      : ` · ${fillCopy(t.perfTemplateRepresents, { count: entry.representedPages })}`;
   return (
     <div className="module-checks__group">
       <h4 className="module-checks__subheading">
-        <span className="technical">{props.entry.url}</span>
-        {props.entry.primary ? ` · ${t.perfPrimaryPage}` : ''}
+        <span className="technical">{entry.url}</span>
+        {entry.primary ? ` · ${t.perfPrimaryPage}` : ''}
+        {represents}
       </h4>
-      {props.entry.devices.map((device) => (
+      {entry.devices.map((device) => (
         <DeviceGroup key={device.strategy} device={device} language={props.language} />
       ))}
     </div>
@@ -264,6 +287,22 @@ function ComparisonGroup(props: { audit: PerformanceAuditReading; language: Lang
                 regression.strategy === 'mobile' ? t.perfStrategyMobile : t.perfStrategyDesktop
               }`}
               detail={`${regression.url} · ${regression.previous} → ${regression.current}`}
+            />
+          ))}
+        </ul>
+      )}
+      {incomparable !== null || audit.templatesNotComparable.length === 0 ? null : (
+        <ul className="module-checks__list">
+          {audit.templatesNotComparable.map((entry) => (
+            <CheckRow
+              key={entry.templateKey}
+              resultClass="skipped"
+              resultLabel={t.perfTemplateNotComparableLabel}
+              title={entry.templateKey}
+              detail={fillCopy(t.perfTemplateNotComparable, {
+                previous: entry.previousUrl,
+                current: entry.currentUrl,
+              })}
             />
           ))}
         </ul>

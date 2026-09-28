@@ -26,8 +26,24 @@ export {
   type ComparisonResult,
   type PreviousPerformance,
 } from './comparison.ts';
-export { selectAuditUrls, MAX_AUDITED_URLS } from './url-selection.ts';
+export {
+  selectAuditUrls,
+  selectAuditUrlsByTemplate,
+  countAuditTemplates,
+  MAX_AUDITED_URLS,
+  MAX_AUDITED_URLS_BY_TEMPLATE,
+  type AuditUrlSelection,
+} from './url-selection.ts';
 export { median, instabilityOf, seriesByMetric } from './sampling.ts';
+export {
+  templateKeyFor,
+  groupUrlsByTemplate,
+  collapseNumericSegment,
+  collapseUuidSegment,
+  collapseDateSegment,
+  collapseSlugSegment,
+  type TemplateGroup,
+} from './templates.ts';
 export { runPageSpeed, PageSpeedError } from './pagespeed.ts';
 export { fetchFieldMetrics } from './crux.ts';
 

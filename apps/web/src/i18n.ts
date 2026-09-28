@@ -1407,10 +1407,21 @@ export const copy = {
         perfRuns: '{usable} of {requested} runs usable',
         perfDeviceUnmeasured:
           'None of the {requested} runs produced a measurement for this device, so nothing is shown for it.',
+        // ── Page templates (T5) ─────────────────────────────────────────────
+        //
+        // The audit samples one representative page per template rather than a
+        // fixed three URLs, so the lead states how many templates the crawl
+        // found and how many of them this audit actually measured.
+        perfTemplatesSummary:
+          'This site sorted into {templatesFound} page templates; {templatesAudited} were measured below.',
+        perfTemplateRepresents: 'represents {count} crawled pages like it',
         perfRegressionsHeading: 'Compared with the previous scan',
         perfNoRegressions: 'Nothing measured here got materially worse since the previous scan.',
         perfNotCompared:
           'Not compared with the previous scan: {reason}. A figure from a different measurement setup would look like a change in your site.',
+        perfTemplateNotComparableLabel: 'Not compared',
+        perfTemplateNotComparable:
+          'Not compared: the representative page for this template changed since the previous scan (was {previous}, now {current}).',
         // The reason itself, from the code the audit stored. The English sentence
         // stored beside it is the fallback for a report written before the code
         // existed, and for a code this build does not know.
@@ -3086,10 +3097,16 @@ export const copy = {
         perfRuns: 'придатних запусків: {usable} з {requested}',
         perfDeviceUnmeasured:
           'Жоден із {requested} запусків не дав вимірювання для цього пристрою, тому для нього нічого не показано.',
+        perfTemplatesSummary:
+          'Цей сайт розподілився на {templatesFound} шаблонів сторінок; нижче виміряно {templatesAudited}.',
+        perfTemplateRepresents: 'представляє {count} сканованих сторінок такого типу',
         perfRegressionsHeading: 'Порівняння з попереднім скануванням',
         perfNoRegressions: 'Ніщо з виміряного не стало суттєво гіршим із попереднього сканування.',
         perfNotCompared:
           'Порівняння з попереднім скануванням немає: {reason}. Значення з іншого середовища вимірювання виглядало б як зміна вашого сайту.',
+        perfTemplateNotComparableLabel: 'Не порівняно',
+        perfTemplateNotComparable:
+          'Не порівняно: представницьку сторінку цього шаблону змінено з часу попереднього сканування (була {previous}, стала {current}).',
         perfIncomparableAuditVersion:
           'попереднє сканування виміряно версією {previous}, а це — версією {current}',
         perfIncomparableVersionUnrecorded:

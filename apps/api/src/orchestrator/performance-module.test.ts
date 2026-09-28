@@ -170,6 +170,54 @@ describe('the Performance module row', () => {
     expect(parsed.audit).toBeDefined();
   });
 
+  // T5: the module row is what the report and export read back, so the
+  // template metadata the audit computed has to survive the JSON round trip
+  // intact — not just exist somewhere on the in-memory audit object.
+  it('stores each URL’s template key and represented-page count, plus the template totals', async () => {
+    const runner = fakePerformanceRunner({
+      urls: [
+        {
+          url: 'https://example.com/',
+          primary: true,
+          templateKey: '/',
+          representedPages: 1,
+          devices: [deviceResult('mobile', { performanceScore: 80, lcpMs: 2_000 })],
+        },
+        {
+          url: 'https://example.com/blog/2024/hello',
+          primary: false,
+          templateKey: '/blog/{date}/{slug}',
+          representedPages: 5,
+          devices: [deviceResult('mobile', { performanceScore: 75, lcpMs: 2_200 })],
+        },
+      ],
+    });
+
+    const row = await rowFrom(runner);
+    const metadata = JSON.parse(String(row.metadataJson)) as {
+      readonly audit?: {
+        readonly urls?: readonly {
+          readonly url: string;
+          readonly templateKey?: string;
+          readonly representedPages?: number;
+        }[];
+      };
+    };
+
+    expect(metadata.audit?.urls).toEqual([
+      expect.objectContaining({
+        url: 'https://example.com/',
+        templateKey: '/',
+        representedPages: 1,
+      }),
+      expect.objectContaining({
+        url: 'https://example.com/blog/2024/hello',
+        templateKey: '/blog/{date}/{slug}',
+        representedPages: 5,
+      }),
+    ]);
+  });
+
   // The device order is the whole of the scope's influence on this section, and a
   // keyless deployment measures the first device and nothing else — so the
   // profile's own choice has to lead rather than the audit's default.

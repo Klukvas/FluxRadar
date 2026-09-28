@@ -750,6 +750,113 @@ describe('the Performance card', () => {
   });
 });
 
+// T5: the audit samples one representative page per template instead of a
+// fixed three URLs. These cover the panel's new surface — the template
+// summary in the lead, the represented-page count beside each audited URL,
+// and the "representative changed" comparison state — in both languages.
+describe('the Performance card — page templates (T5)', () => {
+  function deviceOf(strategy: 'mobile' | 'desktop', lcpMs: number) {
+    return {
+      strategy,
+      requestedSamples: 1,
+      usableSamples: 1,
+      failures: [],
+      metrics: { lcpMs: { median: lcpMs, samples: [lcpMs], instability: 0 } },
+    };
+  }
+
+  function templatedPerformanceModule(): ScanModule {
+    return moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+            {
+              url: 'https://smile.example/blog/2024/hello',
+              primary: false,
+              templateKey: '/blog/{date}/{slug}',
+              representedPages: 5,
+              devices: [deviceOf('mobile', 2_100)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 8, used: 2, capped: false },
+          templatesFound: 3,
+          templatesAudited: 2,
+          comparison: {
+            previousScanId: 'previous-scan',
+            previousObservedAt: '2026-09-01T00:00:00.000Z',
+            incomparableReason: null,
+            incomparable: null,
+            templatesNotComparable: [
+              {
+                templateKey: '/blog/{date}/{slug}',
+                previousUrl: 'https://smile.example/blog/2023/old',
+                currentUrl: 'https://smile.example/blog/2024/hello',
+              },
+            ],
+          },
+          regressions: [],
+        },
+      },
+    });
+  }
+
+  it('states how many templates were found and audited, and the represented-page count per URL', async () => {
+    await openReport(dashboardOf([templatedPerformanceModule()]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText('This site sorted into 3 page templates; 2 were measured below.'),
+    ).toBeTruthy();
+    expect(within(region).getByText(/represents 5 crawled pages like it/)).toBeTruthy();
+  });
+
+  it('reports a template as not comparable when its representative URL changed', async () => {
+    await openReport(dashboardOf([templatedPerformanceModule()]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        /Not compared: the representative page for this template changed since the previous scan/,
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).getByText(
+        /was https:\/\/smile\.example\/blog\/2023\/old, now https:\/\/smile\.example\/blog\/2024\/hello/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('renders the same information in Ukrainian', async () => {
+    await openReport(dashboardOf([templatedPerformanceModule()]), 'uk');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(
+      within(region).getByText('Цей сайт розподілився на 3 шаблонів сторінок; нижче виміряно 2.'),
+    ).toBeTruthy();
+    expect(within(region).getByText(/представляє 5 сканованих сторінок такого типу/)).toBeTruthy();
+    expect(
+      within(region).getByText(/Не порівняно: представницьку сторінку цього шаблону змінено/),
+    ).toBeTruthy();
+  });
+});
+
 describe('the UX/Conversion card', () => {
   const signals = {
     pagesAnalyzed: 4,

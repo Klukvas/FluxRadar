@@ -177,6 +177,13 @@ export interface UrlReading {
   /** The page the section's headline figures came from. */
   readonly primary: boolean;
   readonly devices: readonly DeviceReading[];
+  /**
+   * The page template this URL represents, and how many crawled pages share
+   * it. Null for a snapshot stored before T5 — the panel shows the URL alone
+   * rather than a template it was never given.
+   */
+  readonly templateKey: string | null;
+  readonly representedPages: number | null;
 }
 
 export type FieldState = 'available' | 'not_configured' | 'no_data' | 'request_failed';
@@ -186,6 +193,13 @@ export interface FieldReading {
   readonly measurements: readonly PerformanceMeasurement[];
   readonly periodStart: string | null;
   readonly periodEnd: string | null;
+}
+
+/** A template whose representative URL changed since the previous scan. */
+export interface TemplateNotComparableReading {
+  readonly templateKey: string;
+  readonly previousUrl: string;
+  readonly currentUrl: string;
 }
 
 export interface RegressionReading {
@@ -235,6 +249,14 @@ export interface PerformanceAuditReading {
   readonly budget: { readonly cap: number; readonly used: number; readonly capped: boolean } | null;
   /** The provider versions the numbers were produced by, for the source note. */
   readonly providers: readonly { readonly name: string; readonly version: string | null }[];
+  /**
+   * How many page templates the crawl sorted into, and how many of them this
+   * audit measured. Null for a snapshot stored before T5.
+   */
+  readonly templatesFound: number | null;
+  readonly templatesAudited: number | null;
+  /** Templates skipped from the regression comparison because their representative URL changed. */
+  readonly templatesNotComparable: readonly TemplateNotComparableReading[];
 }
 
 /** One lab metric of one device, read out of the audit's median series. */
@@ -316,7 +338,19 @@ function urlReading(value: unknown): UrlReading | null {
       const reading = deviceReading(device);
       return reading === null ? [] : [reading];
     }),
+    templateKey: stringValue(record?.templateKey),
+    representedPages: numberValue(record?.representedPages),
   };
+}
+
+function templateNotComparableReading(value: unknown): TemplateNotComparableReading | null {
+  const record = asRecord(value);
+  const templateKey = stringValue(record?.templateKey);
+  const previousUrl = stringValue(record?.previousUrl);
+  const currentUrl = stringValue(record?.currentUrl);
+  return templateKey === null || previousUrl === null || currentUrl === null
+    ? null
+    : { templateKey, previousUrl, currentUrl };
 }
 
 function fieldReading(value: unknown): FieldReading {
@@ -448,5 +482,13 @@ export function performanceAuditOf(metadata: Metadata): PerformanceAuditReading 
       const name = stringValue(record?.name);
       return name === null ? [] : [{ name, version: stringValue(record?.version) }];
     }),
+    templatesFound: numberValue(audit.templatesFound),
+    templatesAudited: numberValue(audit.templatesAudited),
+    templatesNotComparable: Array.isArray(comparison?.templatesNotComparable)
+      ? comparison.templatesNotComparable.flatMap((entry) => {
+          const reading = templateNotComparableReading(entry);
+          return reading === null ? [] : [reading];
+        })
+      : [],
   };
 }

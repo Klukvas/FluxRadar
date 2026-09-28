@@ -147,6 +147,38 @@ describe('runPerformanceAudit', () => {
     expect(fetcher).toHaveBeenCalledTimes(9);
   });
 
+  it('samples one representative per page template, and records templatesFound/templatesAudited', async () => {
+    const { fetcher } = transport({});
+    const audit = await runPerformanceAudit(
+      {
+        origin: ORIGIN,
+        candidateUrls: [
+          'https://example.com/blog/2024/hello',
+          'https://example.com/blog/2025/world',
+          'https://example.com/about',
+        ],
+      },
+      { fetcher, samplesPerTarget: 1, maxUrls: 10, cruxApiKey: 'crux-key' },
+    );
+
+    // root ('/'), '/blog/{date}/{slug}', '/about' — three templates found.
+    expect(audit.templatesFound).toBe(3);
+    expect(audit.templatesAudited).toBe(3);
+    expect(audit.urls).toEqual([
+      expect.objectContaining({ url: ORIGIN, templateKey: '/', representedPages: 1 }),
+      expect.objectContaining({
+        url: 'https://example.com/blog/2024/hello',
+        templateKey: '/blog/{date}/{slug}',
+        representedPages: 2,
+      }),
+      expect.objectContaining({
+        url: 'https://example.com/about',
+        templateKey: '/about',
+        representedPages: 1,
+      }),
+    ]);
+  });
+
   it('reports a median and its instability, with the raw samples kept', async () => {
     const { fetcher } = transport({
       lab: (call) => json(lighthouseBody({ lcp: call === 1 ? 1_000 : 3_000 })),

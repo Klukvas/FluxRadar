@@ -15,7 +15,11 @@ import { fetchFieldMetrics, type CruxOptions } from './crux.ts';
 import { performanceFindings, IMPLEMENTED_PERF_RULE_IDS } from './findings.ts';
 import { PageSpeedError, runPageSpeed, type PageSpeedOptions } from './pagespeed.ts';
 import { median, seriesByMetric } from './sampling.ts';
-import { selectAuditUrls, MAX_AUDITED_URLS } from './url-selection.ts';
+import {
+  countAuditTemplates,
+  selectAuditUrlsByTemplate,
+  MAX_AUDITED_URLS_BY_TEMPLATE,
+} from './url-selection.ts';
 import {
   DEVICE_STRATEGIES,
   PERFORMANCE_AUDIT_VERSION,
@@ -205,11 +209,12 @@ export async function runPerformanceAudit(
   const fetchedAt = now().toISOString();
   const budget = new RequestBudgetCounter(options.maxRequests ?? MAX_PAGESPEED_REQUESTS);
   const strategies = request.strategies ?? DEVICE_STRATEGIES;
-  const targets = selectAuditUrls(
+  const selections = selectAuditUrlsByTemplate(
     request.origin,
     request.candidateUrls,
-    options.maxUrls ?? MAX_AUDITED_URLS,
+    options.maxUrls ?? MAX_AUDITED_URLS_BY_TEMPLATE,
   );
+  const templatesFound = countAuditTemplates(request.origin, request.candidateUrls);
   const pageSpeed: PageSpeedOptions = {
     apiKey: options.pageSpeedApiKey ?? null,
     ...(options.fetcher === undefined ? {} : { fetcher: options.fetcher }),
@@ -223,12 +228,12 @@ export async function runPerformanceAudit(
 
   const collected: LabSample[] = [];
   const urls: UrlAudit[] = [];
-  for (const [index, url] of targets.entries()) {
+  for (const [index, selection] of selections.entries()) {
     const devices: DeviceResult[] = [];
     for (const strategy of strategies) {
       devices.push(
         await sampleDevice(
-          url,
+          selection.url,
           strategy,
           options.samplesPerTarget ?? SAMPLES_PER_TARGET,
           budget,
@@ -237,7 +242,13 @@ export async function runPerformanceAudit(
         ),
       );
     }
-    urls.push({ url, primary: index === 0, devices });
+    urls.push({
+      url: selection.url,
+      primary: index === 0,
+      devices,
+      templateKey: selection.templateKey,
+      representedPages: selection.representedPages,
+    });
   }
 
   const field = await fetchFieldMetrics(request.origin, crux);
@@ -272,5 +283,7 @@ export async function runPerformanceAudit(
     comparison: null,
     coverage: coverageOf(urls),
     score: auditScore(urls),
+    templatesFound,
+    templatesAudited: urls.length,
   };
 }
