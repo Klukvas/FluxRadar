@@ -30,6 +30,7 @@ import {
   type PerformanceAudit,
   type PerformanceAuditRequest,
   type ProviderInfo,
+  type UnmeasuredUrl,
   type UrlAudit,
 } from './types.ts';
 
@@ -37,11 +38,26 @@ import {
 export const SAMPLES_PER_TARGET = 2;
 
 /**
- * The most PageSpeed calls one audit may make. Three URLs on two devices twice
- * is twelve; the headroom above it exists so the cap is a backstop rather than
- * something the default configuration sits exactly on.
+ * The most PageSpeed calls one audit may make, DERIVED from the same three
+ * numbers that decide how much work the audit asks for
+ * (`MAX_AUDITED_URLS_BY_TEMPLATE × devices × SAMPLES_PER_TARGET`) rather than
+ * hand-set beside them. The two used to be independent constants — raising the
+ * URL cap from 3 to 8 without raising this one left more than half of every
+ * real audit's selected pages starved of a single sample, which billing reads
+ * as an incomplete scan. Deriving the cap here means the default configuration
+ * always sits exactly on it, by construction, and the two numbers cannot drift
+ * apart again.
+ *
+ * At today's constants that is 5 URLs × 2 devices × 2 samples = 20 requests, up
+ * from 12 (3 × 2 × 2) before T5 — a 67% increase in PageSpeed/CrUX calls per
+ * scan. PageSpeed runs are sequential and each one may take up to
+ * `PAGESPEED_TIMEOUT_MS` (60 s): a scan that used the full budget was up to 12
+ * minutes of wall clock before T5, and is up to 20 minutes after it; a scan
+ * that hits no failures and no retries is typically well under half of that,
+ * since most Lighthouse runs finish in a few seconds.
  */
-export const MAX_PAGESPEED_REQUESTS = 14;
+export const MAX_PAGESPEED_REQUESTS =
+  MAX_AUDITED_URLS_BY_TEMPLATE * DEVICE_STRATEGIES.length * SAMPLES_PER_TARGET;
 
 export interface PerformanceAuditOptions {
   readonly pageSpeedApiKey?: string | null;
@@ -227,7 +243,7 @@ export async function runPerformanceAudit(
   };
 
   const collected: LabSample[] = [];
-  const urls: UrlAudit[] = [];
+  const attempted: UrlAudit[] = [];
   for (const [index, selection] of selections.entries()) {
     const devices: DeviceResult[] = [];
     for (const strategy of strategies) {
@@ -242,7 +258,7 @@ export async function runPerformanceAudit(
         ),
       );
     }
-    urls.push({
+    attempted.push({
       url: selection.url,
       primary: index === 0,
       devices,
@@ -251,8 +267,25 @@ export async function runPerformanceAudit(
     });
   }
 
+  // A selection with zero usable samples on every device was attempted — it
+  // still counts toward `coverage` below — but it is not "audited": listing it
+  // among the measured pages would show a template row with no measurement
+  // behind it. It is reported separately instead, by name, with a reason a
+  // reader can act on (see `types.ts` `UnmeasuredUrl`).
+  const urls = attempted.filter((entry) =>
+    entry.devices.some((device) => device.usableSamples > 0),
+  );
+  const unmeasuredUrls: UnmeasuredUrl[] = attempted
+    .filter((entry) => !entry.devices.some((device) => device.usableSamples > 0))
+    .map((entry) => ({
+      url: entry.url,
+      templateKey: entry.templateKey ?? '/',
+      representedPages: entry.representedPages ?? 1,
+      reason: 'NoUsablePageSpeedSamples',
+    }));
+
   const field = await fetchFieldMetrics(request.origin, crux);
-  const labFailures = urls.reduce(
+  const labFailures = attempted.reduce(
     (total, entry) =>
       total + entry.devices.reduce((sum, device) => sum + device.failures.length, 0),
     0,
@@ -281,9 +314,14 @@ export async function runPerformanceAudit(
     // and found unchanged.
     regressions: [],
     comparison: null,
-    coverage: coverageOf(urls),
+    // THE ATTEMPTED LIST, NOT THE MEASURED ONE. Coverage is "how much of the
+    // promised work ran", and a URL that was attempted and got nothing back is
+    // still a closed applicable check that produced zero usable ones — it must
+    // count against completion, not disappear from the denominator with it.
+    coverage: coverageOf(attempted),
     score: auditScore(urls),
     templatesFound,
     templatesAudited: urls.length,
+    unmeasuredUrls,
   };
 }

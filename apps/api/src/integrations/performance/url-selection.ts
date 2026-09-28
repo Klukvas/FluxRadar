@@ -17,23 +17,35 @@
 // `templates.ts`), so a site with a blog, a product catalogue and a handful of
 // static pages gets a measurement of each kind of page rather than three
 // entries from whichever template happens to be shallowest. `selectAuditUrls`
-// stays exactly as it was — it is still what a caller gets by default, and
-// existing tests and stored comparisons depend on its exact ordering — while
-// `selectAuditUrlsByTemplate` is the new entry point `audit.ts` calls.
+// stays exactly as it was — it is still what a plan without template sampling
+// gets by default, and existing tests and stored comparisons depend on its
+// exact ordering — while `selectAuditUrlsByTemplate` is the new entry point
+// `audit.ts` calls when template sampling is on.
 
 import { groupUrlsByTemplate, type TemplateGroup } from './templates.ts';
 
+/**
+ * The plain, non-template cap: the entry page plus two more. Kept exactly as it
+ * was before T5 for the plan tier that never turns template sampling on — see
+ * `selectAuditUrls` below.
+ */
 export const MAX_AUDITED_URLS = 3;
 
 /**
- * The template-aware cap: the entry page plus up to seven more representatives,
- * one per template, largest template first. Eight is deliberately larger than
- * the plain three-URL cap — a template sample needs enough seats to cover a
- * typical site's handful of page types (home, listing pages, detail pages, a
- * couple of static pages) without approaching the request budget in
- * audit.ts (`MAX_PAGESPEED_REQUESTS`), which stays the actual hard stop.
+ * The template-aware cap: the entry page plus up to four more representatives,
+ * one per template, largest template first.
+ *
+ * This is the number `audit.ts` derives `MAX_PAGESPEED_REQUESTS` from
+ * (`MAX_AUDITED_URLS_BY_TEMPLATE × devices × samplesPerTarget`) — the two
+ * constants used to be set independently, which let a raised URL cap outrun an
+ * unraised request budget and starve most of a real scan's Performance module.
+ * Raising this number now always raises the budget with it; it cannot drift out
+ * of sync again. Five is chosen so a typical site's handful of page types (home,
+ * a listing page, a detail page, a couple of static pages) fits in the request
+ * budget at both PageSpeed's per-run cost and its per-run wall clock — see
+ * `audit.ts` for the exact figures.
  */
-export const MAX_AUDITED_URLS_BY_TEMPLATE = 8;
+export const MAX_AUDITED_URLS_BY_TEMPLATE = 5;
 
 /** Pages that are not what a visitor lands on, and not worth a paid run. */
 const EXCLUDED_EXTENSIONS = ['.pdf', '.zip', '.xml', '.json', '.txt', '.rss', '.csv'];
@@ -70,6 +82,12 @@ function sameOrigin(candidate: string, origin: string): boolean {
  * sections are what its visitors reach, and a page five levels down is almost
  * never the one whose speed decides whether the site feels slow. The tie-break
  * is what makes the result stable across scans.
+ *
+ * DELIBERATE FALLBACK, NOT DEAD CODE. `audit.ts` calls
+ * `selectAuditUrlsByTemplate` exclusively today, so this function has no
+ * production caller of its own beyond the re-export in `index.ts`. It is kept,
+ * not deleted, as the plain non-template selection a future plan tier can wire
+ * back in without reintroducing a three-URL sampler from scratch.
  */
 export function selectAuditUrls(
   origin: string,
