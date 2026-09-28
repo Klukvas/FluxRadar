@@ -53,7 +53,9 @@ const NUMERIC_ID_PATTERN = /^\d+$/;
  * Locale-prefixed routing (`/en/about`, `/uk/about`) always collapses the first
  * path segment: this is the fixed set of two-letter locale codes a site's router
  * plausibly uses, not a general "two lowercase letters" guess that would also
- * eat a real page called `/hi` or `/it`.
+ * eat a real page called `/hi`. Some of these codes are also real words in
+ * English (`/it`, the IT department page, being the obvious one) — a false
+ * positive this set accepts rather than shrinking the locale list.
  */
 const LOCALE_PREFIXES = new Set([
   'en',
@@ -91,19 +93,19 @@ export function collapseUuidSegment(segment: string): string | null {
 }
 
 /**
- * A date-shaped segment, collapsed — or null when this segment is not one.
+ * An unambiguously date-shaped segment, collapsed — or null when this segment
+ * is not one.
  *
- * Checked before the numeric-id rule: a bare four-digit year (`/2024/`) would
- * otherwise be indistinguishable from a four-digit numeric id, and a URL that
- * carries a date in its path almost always means the date, not an id that
- * happens to be four digits.
+ * A bare four-digit segment (`/2024/`) is deliberately NOT collapsed here: on
+ * its own it is indistinguishable from a numeric id that happens to be four
+ * digits, and this function sees one segment at a time with no neighbours to
+ * disambiguate it against. `templateKeyFor` resolves that case itself, via
+ * `bareYearHasDateContext`, by looking at the segments around it — a full
+ * date or a year-month is unambiguous without that context, so those two
+ * still collapse here.
  */
 export function collapseDateSegment(segment: string): string | null {
-  if (
-    FULL_DATE_PATTERN.test(segment) ||
-    YEAR_MONTH_PATTERN.test(segment) ||
-    YEAR_PATTERN.test(segment)
-  ) {
+  if (FULL_DATE_PATTERN.test(segment) || YEAR_MONTH_PATTERN.test(segment)) {
     return DATE_PLACEHOLDER;
   }
   return null;
@@ -142,6 +144,15 @@ export function collapseLocaleSegment(segment: string, isFirstSegment: boolean):
  * segment in this path collapsed into a `{date}` or `{id}` placeholder, the
  * final literal segment reads as that permalink's slug too, so the whole path
  * collapses to one template instead of one template per post.
+ *
+ * Deliberate trade-off: this widening is not scoped to the LAST segment only
+ * — `templateKeyFor` sets `afterDateOrId` once and leaves it set for every
+ * segment after the first collapse, so distinct literal segments under the
+ * same numeric parent merge too (`/checkout/123/payment` and
+ * `/checkout/123/review` both become `/checkout/{id}/{slug}`). That is the
+ * cost of collapsing a whole dated permalink to one template instead of one
+ * per post (see H1) — undercounting a handful of merged page types is judged
+ * cheaper than overcounting one template per blog post again.
  */
 export function collapseSlugSegment(
   segment: string,

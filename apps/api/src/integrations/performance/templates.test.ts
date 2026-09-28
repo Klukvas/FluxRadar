@@ -44,8 +44,8 @@ describe('collapseDateSegment', () => {
     expect(collapseDateSegment('2024-05')).toBe('{date}');
   });
 
-  it('collapses a bare four-digit year', () => {
-    expect(collapseDateSegment('2024')).toBe('{date}');
+  it('leaves a bare four-digit year alone — it cannot tell a year from a four-digit id without neighbouring segments', () => {
+    expect(collapseDateSegment('2024')).toBeNull();
   });
 
   it('rejects a five-digit number', () => {
@@ -207,6 +207,17 @@ describe('templateKeyFor', () => {
 
   it('does not treat a locale-shaped segment as a locale unless it opens the path (L1)', () => {
     expect(templateKeyFor(`${ORIGIN}/team/en`)).toBe('/team/en');
+  });
+
+  // N5: `afterDateOrId` stays set for every segment after the first collapse,
+  // not just the last one — the documented price of collapsing a whole dated
+  // permalink to one template (H1). Two distinct page types under the same
+  // numeric parent merge into one template as a result.
+  it('merges distinct page types under the same numeric parent once a segment collapses (N5, documented trade-off)', () => {
+    const payment = templateKeyFor(`${ORIGIN}/checkout/123/payment`);
+    const review = templateKeyFor(`${ORIGIN}/checkout/123/review`);
+    expect(payment).toBe(review);
+    expect(payment).toBe('/checkout/{id}/{slug}');
   });
 });
 
