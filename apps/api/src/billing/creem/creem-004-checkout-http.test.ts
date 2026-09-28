@@ -6,7 +6,7 @@ import type { AiProviderName } from '@fluxradar/ai';
 import { createApp } from '../../index.ts';
 import { silentLogger, type ApiLogger } from '../../http/logger.ts';
 import type { ConfiguredEgressLocation } from '../../integrations/crawl-egress-config.ts';
-import { egressLocation } from '../../integrations/crawl-egress-locations.ts';
+import { EGRESS_LOCATIONS, egressLocation } from '../../integrations/crawl-egress-locations.ts';
 import {
   createEgressLocationMonitor,
   type EgressLocationMonitor,
@@ -756,7 +756,12 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(await db.prisma.checkoutSession.count()).toBe(0);
   });
 
-  it('opens no checkout for a country whose egress network is down', async () => {
+  describe('with a choice of egress locations (D-228)', () => {
+    const kyiv: ConfiguredEgressLocation = {
+      location: EGRESS_LOCATIONS[0]!,
+      proxy: { host: '203.0.113.10', port: 13128, credentials: null },
+      expectedIp: null,
+    };
     const frankfurt: ConfiguredEgressLocation = {
       location: egressLocation({
         id: 'de',
@@ -767,44 +772,90 @@ describe('CREEM-004 checkout HTTP surface', () => {
       proxy: { host: '198.51.100.20', port: 3128, credentials: null },
       expectedIp: null,
     };
-    const frankfurtDown = createEgressLocationMonitor({
-      locations: [frankfurt],
-      logger: silentLogger,
-      probe: async () => ({
-        state: 'unreachable',
-        observedIp: null,
-        expectedIp: null,
-        latencyMs: 10,
-        detail: null,
-        checkedAt: new Date(),
-      }),
-    });
-    const app = buildApp({ egress: frankfurtDown });
-    const { agent, cookie, accountId, profileId } = await signIn(app, 'downstream@example.com', {
-      reachable: false,
-    });
-    await db.prisma.siteReachabilityProbe.create({
-      data: {
-        accountId,
-        siteProfileId: profileId,
-        origin: `https://${'downstream'}.example.com`,
-        egressLocation: 'de',
-        state: 'reachable',
-        checkedAt: new Date(),
-      },
-    });
 
-    const response = await agent
-      .post('/billing/checkout-session')
-      .set('Cookie', cookie)
-      .send({
-        siteProfileId: profileId,
-        plan: 'Complete',
-        scope: { ...SCOPE, egressLocation: 'de' },
+    // A healthy default (kyiv) alongside frankfurt, keyed on the probed proxy's
+    // host: a monitor with only frankfurt would let a dropped `egressLocation`
+    // fall back to the monitor's default and still land on frankfurt, so the
+    // route silently forwarding no country would go unnoticed.
+    function twoCountries(frankfurtUp: boolean): EgressLocationMonitor {
+      return createEgressLocationMonitor({
+        locations: [kyiv, frankfurt],
+        logger: silentLogger,
+        probe: async (proxy) => ({
+          state: proxy?.host === frankfurt.proxy.host && !frankfurtUp ? 'unreachable' : 'healthy',
+          observedIp: null,
+          expectedIp: null,
+          latencyMs: 10,
+          detail: null,
+          checkedAt: new Date(),
+        }),
+      });
+    }
+
+    it('sells a scan from the country the site was checked from, and records it', async () => {
+      const app = buildApp({
+        egress: twoCountries(true),
+        fetchImpl: stubCreem({ body: pendingCheckout('ch_de') }, []),
+      });
+      const { agent, cookie, accountId, profileId } = await signIn(app, 'de-site@example.com', {
+        reachable: false,
+      });
+      await db.prisma.siteReachabilityProbe.create({
+        data: {
+          accountId,
+          siteProfileId: profileId,
+          origin: `https://${'de-site'}.example.com`,
+          egressLocation: 'de',
+          state: 'reachable',
+          checkedAt: new Date(),
+        },
       });
 
-    expect(response.status).toBe(503);
-    expect(response.body.error.code).toBe('EGRESS_LOCATION_UNAVAILABLE');
-    expect(await db.prisma.checkoutSession.count()).toBe(0);
+      const response = await agent
+        .post('/billing/checkout-session')
+        .set('Cookie', cookie)
+        .send({
+          siteProfileId: profileId,
+          plan: 'Complete',
+          scope: { ...SCOPE, egressLocation: 'de' },
+        });
+
+      expect(response.status).toBe(201);
+      const row = await db.prisma.checkoutSession.findFirstOrThrow();
+      expect(JSON.parse(row.scopeJson)).toMatchObject({ egressLocation: 'de' });
+      expect(JSON.parse(row.executionConfigJson ?? '{}')).toMatchObject({
+        scope: { egressLocation: 'de' },
+      });
+    });
+
+    it('opens no checkout for a country whose egress network is down', async () => {
+      const app = buildApp({ egress: twoCountries(false) });
+      const { agent, cookie, accountId, profileId } = await signIn(app, 'downstream@example.com', {
+        reachable: false,
+      });
+      await db.prisma.siteReachabilityProbe.create({
+        data: {
+          accountId,
+          siteProfileId: profileId,
+          origin: `https://${'downstream'}.example.com`,
+          egressLocation: 'de',
+          state: 'reachable',
+          checkedAt: new Date(),
+        },
+      });
+
+      const response = await agent
+        .post('/billing/checkout-session')
+        .set('Cookie', cookie)
+        .send({
+          siteProfileId: profileId,
+          plan: 'Complete',
+          scope: { ...SCOPE, egressLocation: 'de' },
+        });
+
+      expect(response.status).toBe(503);
+      expect(response.body.error.code).toBe('EGRESS_LOCATION_UNAVAILABLE');
+      expect(await db.prisma.checkoutSession.count()).toBe(0);
+    });
   });
 });
