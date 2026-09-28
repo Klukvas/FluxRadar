@@ -53,6 +53,28 @@ describe('collapseDateSegment', () => {
   });
 });
 
+// F3/F4: collapseDateSegment declines a bare four-digit segment on purpose —
+// it has no neighbours to tell a year from an id — and templateKeyFor now
+// calls it directly instead of re-testing the same date patterns inline, so
+// the two can no longer drift apart the way N3 found them doing.
+describe('collapseDateSegment and templateKeyFor agree on segment classification', () => {
+  const cases: ReadonlyArray<[string, string]> = [
+    ['/product/2024', '/product/{id}'],
+    ['/product/2024-05', '/product/{date}'],
+    ['/product/2024-05-01', '/product/{date}'],
+    ['/product/99999', '/product/{id}'],
+  ];
+
+  it.each(cases)('%s -> %s', (path, expected) => {
+    expect(templateKeyFor(`${ORIGIN}${path}`)).toBe(expected);
+  });
+
+  it('collapseDateSegment declines exactly the segment templateKeyFor treats as an id here', () => {
+    expect(collapseDateSegment('2024')).toBeNull();
+    expect(collapseNumericSegment('2024')).toBe('{id}');
+  });
+});
+
 describe('collapseSlugSegment', () => {
   it('collapses a segment after a known listing prefix', () => {
     expect(collapseSlugSegment('hello-world', 'blog')).toBe('{slug}');

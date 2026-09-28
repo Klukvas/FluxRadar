@@ -114,10 +114,11 @@ export function collapseDateSegment(segment: string): string | null {
 /**
  * A purely numeric segment (an id), collapsed — or null when it is not one.
  *
- * Checked after `collapseDateSegment`: a bare four-digit segment (`/1234/`)
- * is classified as a year, not an id, because a path date is the more common
- * real-world case. This is a deliberate, documented ambiguity — there is no
- * way to tell a product id `1234` from the year 1234 from the path alone.
+ * A bare four-digit segment (`/1234/`) collapses here, not in
+ * `collapseDateSegment`: on its own it is indistinguishable from a year, and
+ * `templateKeyFor` is the one place with enough context (`bareYearHasDateContext`)
+ * to tell them apart. This is a deliberate, documented ambiguity — there is no
+ * way to tell a product id `1234` from the year 1234 from the segment alone.
  */
 export function collapseNumericSegment(segment: string): string | null {
   return NUMERIC_ID_PATTERN.test(segment) ? NUMERIC_PLACEHOLDER : null;
@@ -226,11 +227,8 @@ export function templateKeyFor(url: string): string {
   for (const [index, segment] of rawSegments.entries()) {
     const nextSegment = rawSegments[index + 1];
     const dateCollapsed: string | null =
-      FULL_DATE_PATTERN.test(segment) || YEAR_MONTH_PATTERN.test(segment)
-        ? DATE_PLACEHOLDER
-        : bareYearHasDateContext(segment, nextSegment, previousWasDate)
-          ? DATE_PLACEHOLDER
-          : null;
+      collapseDateSegment(segment) ??
+      (bareYearHasDateContext(segment, nextSegment, previousWasDate) ? DATE_PLACEHOLDER : null);
     const collapsed: string | null =
       collapseUuidSegment(segment) ??
       dateCollapsed ??
