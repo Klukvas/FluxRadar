@@ -546,6 +546,17 @@ const CONTENT_RULES: readonly RuleDescriptor[] = [
     scoring: 'scored',
     oracle: 'referenced images/media respond non-2xx or with a non-media content type',
   },
+  {
+    ruleId: 'CONTENT-005',
+    module: 'Content Quality',
+    title: 'low readability',
+    category: 'quality',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle:
+      'a page with at least 200 characters of visible text in a supported language (English or Ukrainian) scores below the readability threshold for its language scale',
+  },
 ];
 
 const PRIVACY_RULES: readonly RuleDescriptor[] = [

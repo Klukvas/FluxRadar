@@ -7,13 +7,44 @@ import { describe, expect, it } from 'vitest';
 
 import type { IssueCandidate } from '../engine/run-module.js';
 import { runModuleRules } from '../engine/run-module.js';
-import { RENDER_ONLY_MESSAGE_CODES } from '../messages/index.js';
+import {
+  findingMessage,
+  RENDER_ONLY_MESSAGE_CODES,
+  renderFindingMessage,
+} from '../messages/index.js';
 import {
   htmlContext,
   loadFixtureContext,
   runRule,
   siteContext,
 } from '../testing/fixture-harness.js';
+
+// >= MIN_PROSE_SENTENCES (5) and >= MIN_PROSE_WORDS (100): short of either and
+// content-005.ts calls the page too-little-prose to measure rather than
+// scoring it (H4 in the T9 review — a one- or three-sentence page is not
+// enough text for Flesch's own calibration, regardless of its score).
+const EASY_ENGLISH_PARAGRAPH =
+  'The cat sat on the mat. The dog ran to the park. Kids play in the sun. ' +
+  'Birds sing in the trees. The sky is blue and clear. We eat lunch at noon. ' +
+  'Mom reads a book. Dad cooks a meal. The day is warm and nice. We go for a walk. ' +
+  'The park has a big pond. Ducks swim near the shore. A boy throws a ball. ' +
+  'His dog runs to get it. We sit on a bench. The wind feels cool and soft. ' +
+  'Soon the sun goes down. We walk back home. Dad turns on the lights. We eat a snack and rest.';
+
+const HARD_ENGLISH_PARAGRAPH =
+  'Notwithstanding the aforementioned multifaceted considerations, the interdisciplinary ' +
+  'implementation methodology necessitates comprehensive institutional collaboration among ' +
+  'heterogeneous organizational stakeholders possessing substantially divergent operational ' +
+  'prerequisites, thereby precipitating extraordinarily convoluted procedural ramifications ' +
+  "that further complicate the already labyrinthine administrative infrastructure characterizing this jurisdiction's " +
+  'entire regulatory environment. ' +
+  'Notwithstanding this jurisdictional regulatory environment, the aforementioned institutional ' +
+  'stakeholders necessitate an extraordinarily comprehensive reevaluation of their organizational ' +
+  'prerequisites. Furthermore, the interdisciplinary methodology underlying this administrative ' +
+  'infrastructure precipitates substantially divergent procedural ramifications across heterogeneous ' +
+  'operational jurisdictions. Consequently, the aforementioned convoluted collaboration necessitates ' +
+  'an unprecedented degree of institutional reevaluation and organizational restructuring. The labyrinthine ' +
+  'ramifications thereof further complicate an already multifaceted regulatory undertaking.';
 
 function single(candidates: readonly IssueCandidate[]): IssueCandidate {
   expect(candidates).toHaveLength(1);
@@ -192,7 +223,9 @@ describe('CONTENT-004 битые media', () => {
   it('здоровая страница без снимков media сохраняет score 100', () => {
     const ctx = htmlContext(
       '<!doctype html><html lang="en"><head><title>Healthy content page</title></head>' +
-        `<body><p>${'Real editorial content. '.repeat(20)}</p>` +
+        // Simple, varied sentences: real content that also reads easily, so this
+        // fixture keeps testing CONTENT-004 alone rather than tripping CONTENT-005.
+        `<body><p>${EASY_ENGLISH_PARAGRAPH}</p>` +
         '<img src="/healthy-logo.png" alt="Logo" /></body></html>',
     );
     const result = runModuleRules('Content Quality', ctx);
@@ -307,5 +340,223 @@ describe('CONTENT-004 битые media', () => {
     expect(finding?.evidenceExcerpt).toBe(
       'Media that returns an HTTP error (1): img[src="/img/gone.png"] (HTTP 500)',
     );
+  });
+});
+
+describe('CONTENT-005 низька читабельність', () => {
+  it('positive: складний англомовний текст → finding, Low severity', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Dense page</title></head>' +
+        `<body><p>${HARD_ENGLISH_PARAGRAPH}</p></body></html>`,
+    );
+    const finding = single(runRule('Content Quality', 'CONTENT-005', ctx));
+    expect(finding.severity).toBe('Low');
+    expect(finding.evidenceType).toBe('dom');
+    expect(finding.messages?.evidence.code).toBe('content-005.evidence.en-scale');
+    expect(finding.messages?.evidence.params.minimum).toBe(30);
+    expect(finding.messages?.recommendation.code).toBe('content-005.recommendation');
+  });
+
+  it('negative: простий англомовний текст → пусто', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Easy page</title></head>' +
+        `<body><p>${EASY_ENGLISH_PARAGRAPH}</p></body></html>`,
+    );
+    expect(runRule('Content Quality', 'CONTENT-005', ctx)).toEqual([]);
+  });
+
+  it('надто короткий текст (< 200 символів) → правило не застосовне', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Short</title></head>' +
+        `<body><p>${HARD_ENGLISH_PARAGRAPH.slice(0, 100)}</p></body></html>`,
+    );
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.applicableTargets).toBe(0);
+    expect(evaluation?.notApplicableReason).toBe('no-candidates');
+    expect(result.findings.filter((finding) => finding.ruleId === 'CONTENT-005')).toEqual([]);
+  });
+
+  it('надто мало речень і слів (>= 200 символів, але не проза) → too-little-prose', () => {
+    // 16 short list labels: well over 200 characters (VISIBLE_TEXT_MIN_CHARS),
+    // but none of it is prose (H5, T9 third review) — proseText reads only
+    // <p>/<blockquote>/<dd>, so a page of nothing but a heading and a <ul>
+    // measures as 0 sentences and 0 words, not "enough sentences, too few
+    // words". Either floor alone would fail it; this exercises both.
+    const listItems = Array.from(
+      { length: 16 },
+      (_, index) => `<li><a href="/p${index}">Product update ${index} for teams</a></li>`,
+    ).join('');
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Updates</title></head>' +
+        `<body><h1>Updates</h1><ul>${listItems}</ul></body></html>`,
+    );
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.applicableTargets).toBe(0);
+    expect(evaluation?.notApplicableReason).toBe('too-little-prose');
+    expect(result.findings.filter((finding) => finding.ruleId === 'CONTENT-005')).toEqual([]);
+  });
+
+  it('непідтримувана мова (наприклад, французька) → правило не застосовне, а не «проблем немає»', () => {
+    const french =
+      'Nonobstant les considérations susmentionnées, la méthodologie de mise en œuvre ' +
+      'interdisciplinaire nécessite une collaboration institutionnelle exhaustive entre ' +
+      'des parties prenantes organisationnelles hétérogènes.'.repeat(2);
+    const ctx = htmlContext(
+      '<!doctype html><html lang="fr"><head><title>Page française</title></head>' +
+        `<body><p>${french}</p></body></html>`,
+    );
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.applicableTargets).toBe(0);
+    expect(evaluation?.notApplicableReason).toBe('unsupported-language');
+  });
+
+  it('французька сторінка БЕЗ lang → not applicable, а не англійська шкала (H1)', () => {
+    const french =
+      'Nonobstant les considérations susmentionnées, la méthodologie de mise en œuvre ' +
+      'interdisciplinaire nécessite une collaboration institutionnelle exhaustive entre ' +
+      'des parties prenantes organisationnelles hétérogènes.'.repeat(2);
+    const ctx = htmlContext(
+      '<!doctype html><html><head><title>Page française</title></head>' +
+        `<body><p>${french}</p></body></html>`,
+    );
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.applicableTargets).toBe(0);
+    expect(evaluation?.notApplicableReason).toBe('no-declared-language');
+    expect(result.findings.filter((finding) => finding.ruleId === 'CONTENT-005')).toEqual([]);
+  });
+
+  it('lang="en" над українським текстом → script-mismatch, а не завищений бал (H2)', () => {
+    const ukrainianText = (
+      'Незважаючи на згадані вище багатогранні міркування, міждисциплінарна методологія ' +
+      'впровадження потребує всебічної інституційної співпраці між різнорідними ' +
+      'організаційними зацікавленими сторонами. '
+    ).repeat(3);
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Mislabeled</title></head>' +
+        `<body><p>${ukrainianText}</p></body></html>`,
+    );
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.applicableTargets).toBe(0);
+    expect(evaluation?.notApplicableReason).toBe('script-mismatch');
+  });
+
+  it('українська мова вимірюється своєю шкалою (не англійською)', () => {
+    const easyUkrainian = (
+      'Кіт спить. Пес біжить. День теплий. Сонце світить. Діти грають. ' +
+      'Ми йдемо гуляти. Мама читає книгу. Тато варить обід. Небо синє. Пташки співають. '
+    ).repeat(5);
+    const ctx = htmlContext(
+      '<!doctype html><html lang="uk"><head><title>Проста сторінка</title></head>' +
+        `<body><p>${easyUkrainian}</p></body></html>`,
+    );
+    const findings = runRule('Content Quality', 'CONTENT-005', ctx);
+    expect(findings).toEqual([]);
+  });
+
+  it('відсутній атрибут lang → правило не застосовне (ніколи не падає на англійську)', () => {
+    const ctx = htmlContext(
+      '<!doctype html><html><head><title>No lang attribute</title></head>' +
+        `<body><p>${HARD_ENGLISH_PARAGRAPH}</p></body></html>`,
+    );
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.applicableTargets).toBe(0);
+    expect(evaluation?.notApplicableReason).toBe('no-declared-language');
+    expect(result.findings.filter((finding) => finding.ruleId === 'CONTENT-005')).toEqual([]);
+  });
+
+  it('оцінка обмежена 0..100: дуже складний текст показує 0, а не від’ємне число (H3)', () => {
+    const veryHard =
+      HARD_ENGLISH_PARAGRAPH +
+      ' Notwithstanding the aforementioned extraordinarily multifaceted institutional ' +
+      'considerations, the interdisciplinary implementation methodology necessitates an ' +
+      'unprecedentedly comprehensive organizational reevaluation.'.repeat(4);
+    const ctx = htmlContext(
+      '<!doctype html><html lang="en"><head><title>Very dense</title></head>' +
+        `<body><p>${veryHard}</p></body></html>`,
+    );
+    const finding = single(runRule('Content Quality', 'CONTENT-005', ctx));
+    expect(finding.messages?.evidence.params.score).toBe(0);
+    expect(renderFindingMessage(finding.messages!.evidence, 'en')).toContain('score is 0 ');
+  });
+
+  // L8 (T9 second review): only content-005.evidence.en-scale was pinned — no
+  // test anywhere produced a uk-scale finding or rendered its honest scale name.
+  it('складний український текст → finding на uk-scale, з чесною назвою шкали в обох мовах', () => {
+    const clause =
+      'вищезгадані багатогранні інституційні міркування, міждисциплінарна методологія ' +
+      'впровадження, всебічна організаційна співпраця, різнорідні операційні передумови, ' +
+      'надзвичайно заплутані процедурні наслідки, лабіринтоподібна адміністративна ' +
+      'інфраструктура, безпрецедентне переоцінювання, суттєво розбіжні юрисдикційні обставини';
+    const sentence = `${clause}, ${clause}, ${clause}.`;
+    const hardUkrainian = Array.from({ length: 5 }, () => sentence).join(' ');
+    const ctx = htmlContext(
+      '<!doctype html><html lang="uk"><head><title>Складна сторінка</title></head>' +
+        `<body><p>${hardUkrainian}</p></body></html>`,
+    );
+    const finding = single(runRule('Content Quality', 'CONTENT-005', ctx));
+    expect(finding.messages?.evidence.code).toBe('content-005.evidence.uk-scale');
+    const message = finding.messages!.evidence;
+    expect(renderFindingMessage(message, 'uk')).toContain('читабельність за Оборнєвою');
+    expect(renderFindingMessage(message, 'en')).toContain('Oborneva readability');
+  });
+
+  it('uk-scale message renders the honest human scale name directly from the catalog (L8)', () => {
+    const message = findingMessage('content-005.evidence.uk-scale', {
+      score: 12,
+      minimum: 30,
+      sentences: 8,
+      words: 122,
+    });
+    expect(renderFindingMessage(message, 'uk')).toContain(
+      'читабельність за Оборнєвою — адаптація формули Флеша, відкалібрована на російських текстах',
+    );
+    expect(renderFindingMessage(message, 'en')).toContain(
+      'Oborneva readability, a Flesch adaptation calibrated on Russian',
+    );
+  });
+});
+
+// M4 (T9 second review): aggregateNotApplicableReason names the *most common*
+// reason among the crawl's pages, not a reason every page shares — the two
+// probe cases from the review, pinned so the plurality tie-break stays honest.
+describe('aggregateNotApplicableReason (M4)', () => {
+  const filler = 'word '.repeat(50);
+  const pageWithLang = (path: string, lang: string | null) => ({
+    path,
+    html:
+      `<!doctype html><html${lang === null ? '' : ` lang="${lang}"`}>` +
+      `<head><title>${path}</title></head><body><p>${filler}</p></body></html>`,
+  });
+
+  it('unsupported-language wins 2 of 3 (fr, de, no lang)', () => {
+    const ctx = siteContext({
+      pages: [
+        pageWithLang('/a.html', 'fr'),
+        pageWithLang('/b.html', 'de'),
+        pageWithLang('/c.html', null),
+      ],
+    });
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.notApplicableReason).toBe('unsupported-language');
+  });
+
+  it('no-declared-language wins 2 of 3 (no lang, no lang, fr)', () => {
+    const ctx = siteContext({
+      pages: [
+        pageWithLang('/a.html', null),
+        pageWithLang('/b.html', null),
+        pageWithLang('/c.html', 'fr'),
+      ],
+    });
+    const result = runModuleRules('Content Quality', ctx);
+    const evaluation = result.evaluations.find((entry) => entry.ruleId === 'CONTENT-005');
+    expect(evaluation?.notApplicableReason).toBe('no-declared-language');
   });
 });

@@ -40,8 +40,8 @@ describe('the Content Quality section of the coverage page', () => {
     expect(section.title.trim()).not.toBe('');
     expect(section.intro.length).toBeGreaterThan(0);
     // One bullet per rule the module runs: duplicate content, low-value pages,
-    // broken media.
-    expect(section.bullets).toHaveLength(3);
+    // broken media, readability.
+    expect(section.bullets).toHaveLength(4);
   });
 
   it.each(LOCALES)('names the duplicate-content check and its canonical rule in %s', (_l, copy) => {

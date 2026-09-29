@@ -4,9 +4,11 @@ import type { Rule } from '../engine/types.js';
 import { content001DuplicateContent } from './content-001.js';
 import { content003LowValuePages } from './content-003.js';
 import { content004BrokenMedia } from './content-004.js';
+import { content005LowReadability } from './content-005.js';
 
 export const CONTENT_RULES: readonly Rule[] = [
   content001DuplicateContent,
   content003LowValuePages,
   content004BrokenMedia,
+  content005LowReadability,
 ];

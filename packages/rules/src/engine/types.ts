@@ -26,7 +26,19 @@ export type NotApplicableReason =
   /** Sitemap не прочитан: правилу, судящему его страницы, не из чего брать кандидатов. */
   | 'no-sitemap'
   /** Обход не оставил ни одной цели, о которой это правило вправе судить. */
-  | 'no-candidates';
+  | 'no-candidates'
+  /** CONTENT-005: страница не объявила `<html lang>` вовсе. */
+  | 'no-declared-language'
+  /** CONTENT-005: `<html lang>` объявлен, но это не английский и не украинский. */
+  | 'unsupported-language'
+  /** CONTENT-005: объявлен язык, но большинство букв текста прозы — из другого поддерживаемого языка. */
+  | 'script-mismatch'
+  /** CONTENT-005: объявлен язык, но большинство букв текста прозы — ни латиница, ни кириллица. */
+  | 'unsupported-script'
+  /** CONTENT-005: буквы объявленного языка преобладают, но не дотягивают до SCRIPT_DOMINANCE_THRESHOLD. */
+  | 'mixed-script'
+  /** CONTENT-005: текста хватает на CONTENT-003, но недостаточно предложений и слов для измерения. */
+  | 'too-little-prose';
 
 /** Метод API-проверки: allowlist §9 (Reliability contract v1). */
 export const API_CHECK_METHODS = ['GET', 'HEAD', 'OPTIONS'] as const;

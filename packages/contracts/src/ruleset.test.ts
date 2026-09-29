@@ -29,7 +29,7 @@ describe('rules-mvp-0.1 registry', () => {
     expect(countByPrefix('SEC-ASVS-')).toBe(3);
     expect(countByPrefix('REL-')).toBe(5);
     expect(countByPrefix('A11Y-')).toBe(11);
-    expect(countByPrefix('CONTENT-')).toBe(3);
+    expect(countByPrefix('CONTENT-')).toBe(4);
     expect(countByPrefix('PRIVACY-')).toBe(4);
     expect(countByPrefix('UX-CONV-')).toBe(6);
     expect(countByPrefix('ANALYTICS-')).toBe(8);
@@ -45,10 +45,11 @@ describe('rules-mvp-0.1 registry', () => {
   // D-219 adds the eight Analytics rules, and the internal-linking pass adds the
   // three SEO-TECH rules that read the crawl graph (009/010/011). The
   // cross-page duplicate pass adds three more: SEO-ONPAGE-004/006 and CONTENT-001.
-  it('splits into 69 scanning+GEO+UX+Analytics rules and 10 platform contracts, 79 in total', () => {
-    expect(RULES_MVP_01).toHaveLength(69);
+  // CONTENT-005 (readability, T9) adds one more scanning rule.
+  it('splits into 70 scanning+GEO+UX+Analytics rules and 10 platform contracts, 80 in total', () => {
+    expect(RULES_MVP_01).toHaveLength(70);
     expect(PLATFORM_CONTRACTS).toHaveLength(10);
-    expect(RULESET_ALL).toHaveLength(79);
+    expect(RULESET_ALL).toHaveLength(80);
   });
 
   it('has a unique ruleId for every descriptor', () => {

@@ -1305,6 +1305,32 @@ export const copy = {
             'The crawl read fewer than two pages, so there was no second page to compare this text with',
           'CONTENT-001:no-candidates':
             'The crawl read only one page, so there was no second page to compare its text with',
+          // Readability needs a declared language its text actually matches,
+          // and enough prose to measure — seven distinct reasons a page can
+          // fall outside it, from the crawl's most common one among its pages.
+          // These sentences lead with "the most common reason", never "most
+          // crawled pages" (L10, T9 third review): aggregateNotApplicableReason
+          // (content-005.ts) picks a plurality among pages that can each fail
+          // for a different one of the seven, and with four or more candidate
+          // pages the winner need not be a majority — "most pages did X" can
+          // be false of a plurality winner in a way "the most common reason
+          // was X" cannot.
+          'CONTENT-005':
+            'No crawled page had a declared language, a matching script, and enough prose for this check to measure',
+          'CONTENT-005:no-candidates':
+            'No crawled page had enough visible text to measure — the same 200-character minimum the empty-page check uses',
+          'CONTENT-005:no-declared-language':
+            'The most common reason across crawled pages with enough text: no declared language in their <html lang> attribute',
+          'CONTENT-005:unsupported-language':
+            'The most common reason across crawled pages with enough text: a declared language other than English or Ukrainian in their <html lang> attribute',
+          'CONTENT-005:script-mismatch':
+            'The most common reason across crawled pages with enough text: English or Ukrainian declared, but visible text written mostly in the other supported language’s script — the declared language and the text disagree',
+          'CONTENT-005:unsupported-script':
+            'The most common reason across crawled pages with enough text: English or Ukrainian declared, but visible text written mostly in neither script — the declared language does not match what the page shows',
+          'CONTENT-005:mixed-script':
+            'The most common reason across crawled pages with enough text: English or Ukrainian declared, and that script the largest, but not by enough to trust the label — the mix of scripts was too even',
+          'CONTENT-005:too-little-prose':
+            'The most common reason across crawled pages with enough text: not enough sentences and words of running prose to measure, even though their visible text passed the length check',
           'ANALYTICS-SC-001': 'Too little search traffic in the previous 28 days to call a trend',
           'ANALYTICS-SC-002': 'No page had enough first-page impressions to judge its clicks',
           'ANALYTICS-SC-004':
@@ -3025,6 +3051,22 @@ export const copy = {
             'Обхід прочитав менше ніж дві сторінки, тому порівняти цей текст не було з чим',
           'CONTENT-001:no-candidates':
             'Обхід прочитав лише одну сторінку, тому порівняти її текст не було з чим',
+          'CONTENT-005':
+            'Жодна прочитана сторінка не мала оголошеної мови, відповідного їй алфавіту й достатньо прози, щоб ця перевірка могла її виміряти',
+          'CONTENT-005:no-candidates':
+            'Жодна прочитана сторінка не мала достатньо видимого тексту для виміру — той самий мінімум у 200 символів, що й у перевірки на порожні сторінки',
+          'CONTENT-005:no-declared-language':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: не оголосили мову в атрибуті <html lang>',
+          'CONTENT-005:unsupported-language':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: оголосили в <html lang> мову, відмінну від англійської чи української',
+          'CONTENT-005:script-mismatch':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: оголосили англійську чи українську, але їхній видимий текст написано переважно алфавітом іншої підтримуваної мови — оголошена мова не відповідає тексту',
+          'CONTENT-005:unsupported-script':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: оголосили англійську чи українську, але їхній видимий текст написано переважно не тим і не іншим алфавітом — оголошена мова не відповідає тому, що показує сторінка',
+          'CONTENT-005:mixed-script':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: оголосили англійську чи українську, і цей алфавіт переважав, але недостатньо, щоб довіряти позначці — суміш алфавітів була занадто рівною',
+          'CONTENT-005:too-little-prose':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: не мали достатньо речень і слів суцільної прози для виміру, хоча за довжиною видимого тексту пройшли',
           'ANALYTICS-SC-001':
             'За попередні 28 днів пошукового трафіку замало, щоб говорити про динаміку',
           'ANALYTICS-SC-002':
