@@ -23,8 +23,9 @@
 #     migrated. Every contract migration the new release carries must have its
 #     prerequisites shipped by every release that can be rolled back to once
 #     this deploy completes: the live release (`current`), the target it
-#     recorded in runtime/rollback.env, and the two newest other release
-#     directories — the ones the release script's pruning keeps.
+#     recorded in runtime/rollback.env, and the newest other release
+#     directory — the one the release script's pruning keeps beside those
+#     two.
 #
 #     When the recorded target is not on this server (D-230: pruned by a
 #     failed deploy's newer directories before its own recorded rollback
@@ -32,12 +33,12 @@
 #     release script's pruning now protects it (see deploy/release.sh), so a
 #     missing target on a current release only happens once, for a deploy
 #     stuck mid-migration before that fix. Refusing forever for a target that
-#     can never come back would brick every future deploy, and
-#     rollback-release.sh already refuses to roll back to a target that is
-#     not a release directory, so nothing could ever use it anyway. Instead
-#     this prints a WARNING naming it and treats the live release as the
-#     effective rollback target: the live release still has to resolve and
-#     still has to ship every prerequisite, same as any other candidate.
+#     can never come back would brick every future deploy, and the directory
+#     is simply gone, so nothing — not this gate, not rollback-release.sh —
+#     could ever restore it anyway. Instead this prints a WARNING naming it
+#     and treats the live release as the effective rollback target: the live
+#     release still has to resolve and still has to ship every prerequisite,
+#     same as any other candidate.
 #
 #   contract-phase-gate.sh rollback-target <app-dir> <target-release-dir>
 #     Run by hand before putting an arbitrary release back — one that is not
@@ -98,7 +99,9 @@ ships() {
   [ -d "$1/$MIGRATIONS_SUBPATH/$2" ]
 }
 
-# The release runtime/rollback.env names, or nothing.
+# The release runtime/rollback.env names, or nothing. Quotes stripped the
+# same way deploy/release.sh's prune_old_releases reads this file — keep
+# both in sync.
 recorded_rollback_target() {
   local file="$1/runtime/rollback.env"
   [ -f "$file" ] || return 0
@@ -160,21 +163,26 @@ before_migrate() {
     # D-230: pruned while still recorded. Not a `problems` entry — that would
     # refuse every deploy forever, since nothing can ever restore a deleted
     # directory. The live release below stands in as the effective target.
-    echo "WARNING: the recorded rollback target $target is not on this server, so it cannot be rolled back to (rollback-release.sh refuses a missing target). The live release is the effective rollback target for this deploy." >&2
+    echo "WARNING: the recorded rollback target $target is gone from this server, so it cannot be restored. The live release is the effective rollback target for this deploy." >&2
     target=""
   else
     target="$(resolve "$target")"
   fi
   [ -z "$live" ] || candidates+="$live"$'\n'
   [ -z "$target" ] || [ ! -d "$target" ] || candidates+="$target"$'\n'
-  # The two newest other directories are what pruning keeps beside this release.
+  # The newest directory that is neither this release, the live release, nor
+  # the target is what pruning keeps beside those two (deploy/release.sh's
+  # keep_extra=1) — skip live/target here too, or a live-equals-target
+  # redeploy would count the duplicate and never reach the real spare.
   while IFS= read -r dir; do
     dir="$(resolve "$dir")"
     [ -n "$dir" ] || continue
     [ "$dir" = "$(resolve "$release_dir")" ] && continue
+    [ "$dir" = "$live" ] && continue
+    [ -n "$target" ] && [ "$dir" = "$target" ] && continue
     candidates+="$dir"$'\n'
     count=$((count + 1))
-    [ "$count" -lt 2 ] || break
+    [ "$count" -lt 1 ] || break
   done < <(ls -1td "$app_dir"/releases/*/ 2>/dev/null)
 
   while IFS= read -r candidate; do

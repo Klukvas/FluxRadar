@@ -143,7 +143,9 @@ discard_new_containers() {
 # Keeps the active release, the release this deploy just shipped (the same
 # directory once `current` has been switched) and the recorded rollback
 # target off the chopping block, no matter their mtime — then prunes the
-# rest down to the newest two.
+# rest down to the newest one, so a normal deploy leaves exactly three
+# release directories on disk: live, the recorded rollback target, and one
+# older spare.
 #
 # D-230: a failed deploy still uploads its release directory, so a directory
 # from a LATER, failed attempt can have a newer mtime than the rollback
@@ -156,13 +158,16 @@ discard_new_containers() {
 # apps/api/src/deploy/deploy-021-release-pruning.test.ts — keep the
 # markers, the test extracts and runs exactly these lines)
 prune_old_releases() {
-  local app_dir="$1" keep_extra=2
-  local live="" target="" resolved candidate count=0
+  local app_dir="$1" keep_extra=1
+  local live="" target="" resolved candidate old_id count=0
   if [ -L "$app_dir/current" ] || [ -e "$app_dir/current" ]; then
     live="$(cd "$app_dir/current" 2>/dev/null && pwd -P || true)"
   fi
   if [ -f "$app_dir/runtime/rollback.env" ]; then
-    target="$(sed -n 's/^FLUXRADAR_ROLLBACK_RELEASE=//p' "$app_dir/runtime/rollback.env" | tail -n 1)"
+    # Quotes stripped the same way contract-phase-gate.sh's
+    # recorded_rollback_target reads this file — keep both in sync.
+    target="$(sed -n 's/^FLUXRADAR_ROLLBACK_RELEASE=//p' "$app_dir/runtime/rollback.env" \
+      | tail -n 1 | sed -e 's/^"//' -e 's/"$//')"
     if [ -n "$target" ]; then
       target="$(cd "$target" 2>/dev/null && pwd -P || true)"
     fi
@@ -181,7 +186,7 @@ prune_old_releases() {
       continue
     fi
     old_id="${resolved##*/}"
-    rm -rf -- "$resolved"
+    rm -rf -- "$resolved" || echo "WARNING: could not remove $resolved; left in place" >&2
     docker image rm "fluxradar-api:$old_id" "fluxradar-web:$old_id" >/dev/null 2>&1 || true
   done < <(ls -1td "$app_dir"/releases/*/ 2>/dev/null)
 }
@@ -580,6 +585,9 @@ fi
 # and the exit handler above honours this flag: from here a failure is
 # reported and NOTHING is rolled back.
 DEPLOY_COMPLETED=1
-# Keep the active release plus rollback candidates to bound disk use.
-prune_old_releases "$APP_DIR"
+# Keep the active release plus rollback candidates to bound disk use. A
+# directory that refuses to be removed must not fail this step — the release
+# is already live and recorded, and DEPLOY_COMPLETED means nothing below
+# rolls it back anyway.
+prune_old_releases "$APP_DIR" || echo "WARNING: release pruning did not finish" >&2
 # fluxradar:end-release-script
