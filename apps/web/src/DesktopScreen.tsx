@@ -97,6 +97,17 @@ export function DesktopScreen(props: DesktopScreenProps) {
   const [domain, setDomain] = useState('');
   const [domainError, setDomainError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggested, setSuggested] = useState(false);
+  const suggestionVersion = useRef(0);
+  const suggestionAbort = useRef<AbortController | null>(null);
+
+  const invalidateSuggestions = () => {
+    suggestionVersion.current += 1;
+    suggestionAbort.current?.abort();
+    suggestionAbort.current = null;
+    setSuggesting(false);
+  };
   const [formRequested, setFormRequested] = useState(false);
   const [latest, setLatest] = useState<Scan | null | undefined>(undefined);
   const formRef = useRef<HTMLDivElement>(null);
@@ -153,6 +164,62 @@ export function DesktopScreen(props: DesktopScreenProps) {
     setTargetAudience('');
     setCompetitorsInput('');
     setDomainError(null);
+    setSuggested(false);
+    setSuggesting(false);
+    invalidateSuggestions();
+  };
+
+  const suggestFromSite = async (): Promise<void> => {
+    const normalized = normalizeSiteAddress(domain);
+    if (!normalized.ok) {
+      setDomainError(t.workspace.siteAddressError);
+      return;
+    }
+    suggestionAbort.current?.abort();
+    const controller = new AbortController();
+    suggestionAbort.current = controller;
+    const version = suggestionVersion.current;
+    setSuggesting(true);
+    try {
+      const suggestions = await apiRequest<{
+        name?: string;
+        businessDescription?: string;
+        offerings?: string;
+        targetLanguages?: string;
+      }>('/profiles/suggestions', {
+        method: 'POST',
+        body: JSON.stringify({ domain: normalized.origin }),
+        signal: controller.signal,
+      });
+      // An address or form edit made while the request was in flight wins.
+      if (suggestionVersion.current !== version) return;
+      let applied = false;
+      if ((name.trim() === '' || name === suggestedName) && suggestions.name !== undefined) {
+        setName(suggestions.name);
+        setSuggestedName('');
+        applied = true;
+      }
+      if (businessDescription.trim() === '' && suggestions.businessDescription !== undefined) {
+        setBusinessDescription(suggestions.businessDescription);
+        applied = true;
+      }
+      if (offerings.trim() === '' && suggestions.offerings !== undefined) {
+        setOfferings(suggestions.offerings);
+        applied = true;
+      }
+      if (targetLanguages.trim() === '' && suggestions.targetLanguages !== undefined) {
+        setTargetLanguages(suggestions.targetLanguages);
+        applied = true;
+      }
+      setSuggested(applied);
+    } catch {
+      if (!controller.signal.aborted) props.onNotice(t.workspace.suggestProfileUnavailable);
+    } finally {
+      if (suggestionVersion.current === version) {
+        setSuggesting(false);
+        suggestionAbort.current = null;
+      }
+    }
   };
 
   const openForm = () => {
@@ -164,6 +231,8 @@ export function DesktopScreen(props: DesktopScreenProps) {
   };
 
   const editProfile = (profile: SiteProfile) => {
+    invalidateSuggestions();
+    setSuggested(false);
     setEditingProfile(profile);
     setName(profile.name);
     setSuggestedName('');
@@ -281,7 +350,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
             </div>
           )}
           {formOpen ? (
-            <div ref={formRef}>
+            <div className="profile-form" ref={formRef}>
               <Panel
                 title={editingProfile === null ? t.workspace.addSite : t.workspace.editProfile}
               >
@@ -294,6 +363,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                     technical
                     value={domain}
                     onChange={(value) => {
+                      invalidateSuggestions();
                       setDomain(value);
                       if (domainError !== null) setDomainError(null);
                       updateSuggestedName(value);
@@ -303,12 +373,27 @@ export function DesktopScreen(props: DesktopScreenProps) {
                     error={domainError ?? undefined}
                     data-tour-target="profile-domain"
                   />
+                  <div className="button-row">
+                    <Button
+                      type="button"
+                      onClick={() => void suggestFromSite()}
+                      disabled={suggesting || editingProfile !== null}
+                    >
+                      {suggesting ? t.workspace.suggestingProfile : t.workspace.suggestProfile}
+                    </Button>
+                  </div>
+                  {suggested ? (
+                    <p className="muted profile-suggestions">{t.workspace.suggestedProfile}</p>
+                  ) : null}
                   <Field
                     label={t.workspace.displayName}
                     name="profile-name"
                     autoComplete="off"
                     value={name}
-                    onChange={setName}
+                    onChange={(value) => {
+                      invalidateSuggestions();
+                      setName(value);
+                    }}
                     placeholder={t.workspace.displayNamePlaceholder}
                   />
                   {/* Open by default only when there is context to show: a new
@@ -331,7 +416,10 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         name="profile-description"
                         autoComplete="off"
                         value={businessDescription}
-                        onChange={setBusinessDescription}
+                        onChange={(value) => {
+                          invalidateSuggestions();
+                          setBusinessDescription(value);
+                        }}
                         placeholder={t.workspace.businessDescriptionPlaceholder}
                         hint={t.workspace.businessDescriptionHint}
                       />
@@ -340,7 +428,10 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         name="profile-offerings"
                         autoComplete="off"
                         value={offerings}
-                        onChange={setOfferings}
+                        onChange={(value) => {
+                          invalidateSuggestions();
+                          setOfferings(value);
+                        }}
                         placeholder={t.workspace.offeringsPlaceholder}
                         hint={t.workspace.offeringsHint}
                       />
@@ -356,7 +447,10 @@ export function DesktopScreen(props: DesktopScreenProps) {
                       <TargetLanguagesField
                         label={t.workspace.targetLanguages}
                         value={targetLanguages}
-                        onChange={setTargetLanguages}
+                        onChange={(value) => {
+                          invalidateSuggestions();
+                          setTargetLanguages(value);
+                        }}
                         placeholder={t.workspace.targetLanguagesPlaceholder}
                         hint={t.workspace.targetLanguagesHint}
                         language={props.language}

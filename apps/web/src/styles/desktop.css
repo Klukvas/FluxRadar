@@ -27,6 +27,13 @@
 .profile-add-toggle {
   justify-content: center;
 }
+.profile-form {
+  margin-top: var(--sp-4);
+}
+.profile-suggestions {
+  border-left: 3px solid var(--term-green);
+  padding-left: var(--sp-2);
+}
 
 /* The site-status rows share one pair of columns. Each `.field-row` sized its
    own at 180px + 1fr, so in this narrow column the value got ~120px and the

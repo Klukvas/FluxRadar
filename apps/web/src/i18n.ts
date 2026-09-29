@@ -225,6 +225,11 @@ export const copy = {
       siteAddressPlaceholder: 'mysite.com',
       siteAddressHint:
         'Enter your homepage domain, for example mysite.com. No CMS access or passwords needed.',
+      suggestProfile: 'Get details from site',
+      suggestingProfile: 'Reading public homepage…',
+      suggestedProfile: 'Suggested from the public homepage. Review and edit before saving.',
+      suggestProfileUnavailable:
+        'Could not read public details from this site. You can still save it manually.',
       siteAddressError:
         'That does not look like a site address. Enter your domain, like mysite.com.',
       businessType: 'Business or site type',
@@ -2056,6 +2061,12 @@ export const copy = {
       siteAddressPlaceholder: 'mysite.com',
       siteAddressHint:
         'Введіть домен головної сторінки, наприклад mysite.com. Доступ до CMS і паролі не потрібні.',
+      suggestProfile: 'Отримати дані з сайту',
+      suggestingProfile: 'Читаємо публічну головну сторінку…',
+      suggestedProfile:
+        'Запропоновано з публічної головної сторінки. Перевірте й відредагуйте перед збереженням.',
+      suggestProfileUnavailable:
+        'Не вдалося прочитати публічні дані цього сайту. Його все одно можна зберегти вручну.',
       siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysite.com.',
       businessType: 'Тип бізнесу або сайту',
       businessTypePlaceholder: 'Стоматологія, рекрутингова платформа, інтернет-магазин',

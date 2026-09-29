@@ -34,6 +34,7 @@ import { scopeTargetMessage, scopeTargetProblems } from '../scans/scope-targets.
 import { competitorsFromJson } from './competitors.ts';
 import { deleteSiteProfileData, type ProfileDeletionBlocker } from './profile-deletion.ts';
 import { resolveOwnProfile } from './resolve.ts';
+import { suggestProfileFromSite, type ProfileSuggestions } from './profile-suggestions.ts';
 
 export interface ProfilesRouterDeps {
   readonly prisma: PrismaClient;
@@ -42,6 +43,8 @@ export interface ProfilesRouterDeps {
   /** Where exported reports live; a deleted profile's reports are removed from it. */
   readonly objectStore?: PrivateObjectStore | null;
   readonly logger?: ApiLogger;
+  /** Test seam for the one bounded public homepage read used by profile autofill. */
+  readonly suggestProfile?: (domain: string) => Promise<ProfileSuggestions>;
 }
 
 const PROFILE_DELETION_BLOCKED_MESSAGES: Readonly<Record<ProfileDeletionBlocker, string>> = {
@@ -140,6 +143,24 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
       { profile: toProfileDto(resolved.profile), created: resolved.created },
       { status: resolved.created ? 201 : 200 },
     );
+  });
+
+  router.post('/profiles/suggestions', auth, async (req, res) => {
+    const input = parseInput(profileResolveInputSchema, req.body);
+    const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('profile-suggestions', accountId, req.ip ?? 'unknown'),
+    );
+    try {
+      const suggest = deps.suggestProfile ?? suggestProfileFromSite;
+      sendOk(res, await suggest(input.domain));
+    } catch {
+      // Network/SSRF/parser details are not useful to the owner and must not
+      // become an oracle. Saving their URL manually stays available.
+      throw validationError(
+        'Could not read public details from this site. You can still save it manually.',
+      );
+    }
   });
 
   router.post('/profiles', auth, async (req, res) => {
