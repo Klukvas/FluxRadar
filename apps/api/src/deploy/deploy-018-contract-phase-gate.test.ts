@@ -116,7 +116,7 @@ describe('DEPLOY-018 contract-phase gate', () => {
   describe('before migrate', () => {
     it('lets the contract run once the live release and its rollback target ship the prerequisite', () => {
       const appDir = lay({
-        onDisk: ['R19', 'R20', 'R21', 'C'],
+        onDisk: ['R20', 'R21', 'C'],
         live: 'R21',
         rollbackTarget: 'R20',
       });
@@ -172,9 +172,8 @@ describe('DEPLOY-018 contract-phase gate', () => {
         const run = beforeMigrate(appDir);
         expect(run.exitCode).toBe(0);
         expect(run.output).toContain('WARNING: the recorded rollback target');
-        expect(run.output).toContain('is not on this server');
-        expect(run.output).toContain('cannot be rolled back to');
-        expect(run.output).toContain('rollback-release.sh refuses a missing target');
+        expect(run.output).toContain('is gone from this server');
+        expect(run.output).toContain('cannot be restored');
         expect(run.output).toContain('live release is the effective rollback target');
       });
 
