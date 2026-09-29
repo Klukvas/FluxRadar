@@ -116,7 +116,7 @@ describe('DEPLOY-018 contract-phase gate', () => {
   describe('before migrate', () => {
     it('lets the contract run once the live release and its rollback target ship the prerequisite', () => {
       const appDir = lay({
-        onDisk: ['R19', 'R20', 'R21', 'C'],
+        onDisk: ['R20', 'R21', 'C'],
         live: 'R21',
         rollbackTarget: 'R20',
       });
@@ -157,11 +157,42 @@ describe('DEPLOY-018 contract-phase gate', () => {
       expect(run.output).toContain('names no rollback target');
     });
 
-    it('refuses when the recorded rollback target is gone from the server', () => {
-      const appDir = lay({ onDisk: ['R20', 'R21', 'C'], live: 'R21', rollbackTarget: 'missing' });
-      const run = beforeMigrate(appDir);
-      expect(run.exitCode).toBe(1);
-      expect(run.output).toContain('is not on this server');
+    // D-230: a deploy that pruned the recorded target must not refuse every
+    // deploy after it forever — nothing can ever restore a deleted directory,
+    // and rollback-release.sh already refuses a target that is not a release
+    // directory, so it could never be rolled back to anyway. The live release
+    // stands in as the effective target and still has to pass every check.
+    describe('when the recorded rollback target has been pruned', () => {
+      it('warns instead of refusing, once the live release ships the prerequisite', () => {
+        const appDir = lay({
+          onDisk: ['R19', 'R20', 'R21', 'C'],
+          live: 'R21',
+          rollbackTarget: 'missing',
+        });
+        const run = beforeMigrate(appDir);
+        expect(run.exitCode).toBe(0);
+        expect(run.output).toContain('WARNING: the recorded rollback target');
+        expect(run.output).toContain('is gone from this server');
+        expect(run.output).toContain('cannot be restored');
+        expect(run.output).toContain('live release is the effective rollback target');
+      });
+
+      it('still refuses when the live release itself does not ship the prerequisite', () => {
+        const appDir = lay({ onDisk: ['R19', 'C'], live: 'R19', rollbackTarget: 'missing' });
+        const run = beforeMigrate(appDir);
+        expect(run.exitCode).toBe(1);
+        expect(run.output).toContain('which R19 does not ship');
+      });
+
+      it('still refuses when `current` itself cannot be resolved', () => {
+        // A dangling `current` symlink, not an absent one — an absent
+        // `current` is the first-deploy case, which returns early above.
+        const appDir = lay({ onDisk: ['R19', 'C'], rollbackTarget: 'missing' });
+        symlinkSync(join(appDir, 'releases', 'gone-release'), join(appDir, 'current'));
+        const run = beforeMigrate(appDir);
+        expect(run.exitCode).toBe(1);
+        expect(run.output).toContain('cannot be resolved');
+      });
     });
 
     it('refuses a contract migration that names no prerequisite', () => {
