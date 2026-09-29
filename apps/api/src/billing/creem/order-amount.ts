@@ -16,8 +16,7 @@ import type { CreemCheckoutCompletedEvent } from './events.ts';
 // priced at $1 by mistake (or by someone with access to the dashboard) produces
 // a $1 charge that Creem reports faithfully. Access to a plan is therefore
 // granted against the USD tariff this repository owns, never against the number
-// the provider sent back. Same policy as FastSpring's order-amount.ts, on
-// Creem's own fields.
+// the provider sent back.
 //
 // THE FIGURES CREEM STATES, ALL IN CENTS (docs.creem.io — Webhooks, the order
 // object on checkout.completed / dispute.created):
@@ -49,8 +48,7 @@ import type { CreemCheckoutCompletedEvent } from './events.ts';
 // the payload states neither. Creem's own webhook example nests an order with
 // nothing but `amount`, and a buyer can type a coupon on the hosted page
 // without this side ever knowing, so "no post-discount figure" is exactly where
-// a real shortfall hides (the same rule FastSpring's order-amount.ts applies to
-// a discount it cannot express in USD). An order that only reaches the tariff
+// a real shortfall hides. An order that only reaches the tariff
 // once tax is counted is worth the plan ONLY if nothing was discounted off it:
 // in inclusive mode a discounted order's `charged` is already short, and in
 // exclusive mode a large enough tax would otherwise lift a heavily discounted

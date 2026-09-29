@@ -5,12 +5,16 @@ import type { AiProviderName } from '@fluxradar/ai';
 
 import { createApp } from '../../index.ts';
 import { silentLogger, type ApiLogger } from '../../http/logger.ts';
+import type { ConfiguredEgressLocation } from '../../integrations/crawl-egress-config.ts';
+import { EGRESS_LOCATIONS, egressLocation } from '../../integrations/crawl-egress-locations.ts';
+import {
+  createEgressLocationMonitor,
+  type EgressLocationMonitor,
+} from '../../integrations/crawl-egress-monitor.ts';
 import { createTestDb, seedReachableSite, type TestDb } from '../../test-utils/test-db.ts';
-import { CHECKOUT_PROVIDER_ENV } from '../checkout-provider.ts';
 import { CHECKOUT_STATUS_REASONS } from '../checkout-lifecycle.ts';
 import { CHECKOUT_REASON_CODES } from '../checkout-status-reason.ts';
-import type { FetchLike } from '../fastspring/client.ts';
-import { readFastSpringConfig, type FastSpringConfigResult } from '../fastspring/config.ts';
+import type { FetchLike } from '../fetch-like.ts';
 import { CREEM_PROVIDER, readCreemConfig, type CreemConfigResult } from './config.ts';
 import { CREEM_CHECKOUT_REFERENCE_KEY, CREEM_EVENT_TYPES } from './events.ts';
 import { CREEM_SIGNATURE_HEADER } from './signature.ts';
@@ -27,9 +31,9 @@ import {
 // credentials, no network and no real payment are involved. What it pins down:
 // the endpoints require a session, the browser learns only a hosted checkout
 // URL and a reference, the provider call carries the API key and the reference,
-// the surface fails closed when Creem is not configured or not the selected
-// provider, a provider failure is a gateway error that closes the session row,
-// and — most importantly — NO scan exists until a signed webhook arrives.
+// the surface fails closed when Creem is not configured, a provider failure is
+// a gateway error that closes the session row, and — most importantly — NO
+// scan exists until a signed webhook arrives.
 
 const CONFIG_ENV = {
   CREEM_MODE: 'test',
@@ -39,18 +43,6 @@ const CONFIG_ENV = {
   CREEM_PRODUCT_ID_COMPLETE: 'prod_complete',
   FRONTEND_ORIGIN: 'http://localhost:5174',
 } satisfies NodeJS.ProcessEnv;
-
-const FASTSPRING_ENV = {
-  FASTSPRING_MODE: 'test',
-  FASTSPRING_API_USERNAME: 'api-user',
-  FASTSPRING_API_PASSWORD: 'api-password-value',
-  FASTSPRING_WEBHOOK_SECRET: 'fastspring-webhook-secret-value',
-  FASTSPRING_STOREFRONT_URL: 'https://fluxradar.test.onfastspring.com',
-  FASTSPRING_PRODUCT_PATH_BASIC: 'fluxradar-basic-scan',
-  FASTSPRING_PRODUCT_PATH_COMPLETE: 'fluxradar-complete-scan',
-} satisfies NodeJS.ProcessEnv;
-
-const NOT_CONFIGURED: FastSpringConfigResult = { state: 'not_configured' };
 
 interface LoggedLine {
   readonly level: 'info' | 'warn' | 'error';
@@ -104,32 +96,22 @@ function pendingCheckout(id: string, requestId?: string): Record<string, unknown
 
 describe('CREEM-004 checkout HTTP surface', () => {
   let db: TestDb;
-  let previousProviderChoice: string | undefined;
 
   beforeEach(async () => {
     db = await createTestDb();
-    // createApp resolves the selling provider from process.env; a developer's
-    // shell must not decide which router these tests hit.
-    previousProviderChoice = process.env[CHECKOUT_PROVIDER_ENV];
-    delete process.env[CHECKOUT_PROVIDER_ENV];
   });
 
   afterEach(async () => {
-    if (previousProviderChoice === undefined) {
-      delete process.env[CHECKOUT_PROVIDER_ENV];
-    } else {
-      process.env[CHECKOUT_PROVIDER_ENV] = previousProviderChoice;
-    }
     await db.cleanup();
   });
 
   function buildApp(
     options: {
       creem?: CreemConfigResult;
-      fastSpring?: FastSpringConfigResult;
       fetchImpl?: FetchLike;
       logger?: ApiLogger;
       optInAiProviders?: readonly AiProviderName[];
+      egress?: EgressLocationMonitor;
     } = {},
   ) {
     return createApp({
@@ -137,11 +119,11 @@ describe('CREEM-004 checkout HTTP surface', () => {
       autoProcess: false,
       logger: options.logger ?? silentLogger,
       creem: options.creem ?? configured(),
-      fastSpring: options.fastSpring ?? NOT_CONFIGURED,
       // A deployment with no opt-in AI key, which is what production is until
       // the owner sets one. Tests that want the choice offered say so.
       optInAiProviders: options.optInAiProviders ?? [],
       ...(options.fetchImpl !== undefined ? { creemFetch: options.fetchImpl } : {}),
+      ...(options.egress !== undefined ? { egress: options.egress } : {}),
     });
   }
 
@@ -159,7 +141,11 @@ describe('CREEM-004 checkout HTTP surface', () => {
     };
   }
 
-  async function signIn(app: ReturnType<typeof buildApp>, email: string) {
+  async function signIn(
+    app: ReturnType<typeof buildApp>,
+    email: string,
+    options: { reachable?: boolean } = {},
+  ) {
     const agent = request.agent(app);
     const registered = await agent
       .post('/auth/register')
@@ -172,14 +158,22 @@ describe('CREEM-004 checkout HTTP surface', () => {
       .send({ name: 'Fixture Site', domain: `https://${email.split('@')[0]}.example.com` });
     expect(profile.status).toBe(201);
     // The checkout refuses a site whose last reachability probe is missing or
-    // negative (FASTSPRING-009). These tests are about the checkout, so they
-    // state that precondition instead of running a probe.
-    await seedReachableSite(
-      db.prisma,
-      registered.body.data.accountId as string,
-      profile.body.data.id as string,
-    );
-    return { agent, cookie, profileId: profile.body.data.id as string };
+    // negative. These tests are about the checkout, so they state that
+    // precondition instead of running a probe. A test about the precondition
+    // itself opts out with `reachable: false` and seeds its own probe.
+    if (options.reachable ?? true) {
+      await seedReachableSite(
+        db.prisma,
+        registered.body.data.accountId as string,
+        profile.body.data.id as string,
+      );
+    }
+    return {
+      agent,
+      cookie,
+      accountId: registered.body.data.accountId as string,
+      profileId: profile.body.data.id as string,
+    };
   }
 
   function postWebhook(app: ReturnType<typeof buildApp>, rawBody: string, signature: string) {
@@ -207,11 +201,9 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(config.status).toBe(200);
     expect(config.body.data).toMatchObject({
       provider: CREEM_PROVIDER,
-      checkoutFlow: 'redirect',
       available: true,
       mode: 'test',
       unavailableReason: null,
-      popup: null,
       optInAiProviders: [],
     });
     expect(config.body.data.plans).toEqual([
@@ -219,6 +211,11 @@ describe('CREEM-004 checkout HTTP surface', () => {
       { plan: 'WebsiteAudit', priceUsd: 79, currency: 'USD', available: false },
       { plan: 'Complete', priceUsd: 120, currency: 'USD', available: true },
     ]);
+    // Kept for one release so a tab still running the previous (FastSpring-era)
+    // bundle reads a 'redirect' flow and a null popup, not a blocked popup tab
+    // (see the comment on the route).
+    expect(config.body.data.checkoutFlow).toBe('redirect');
+    expect(config.body.data.popup).toBeNull();
     // Nothing about how the deployment is wired reaches the browser.
     expect(JSON.stringify(config.body)).not.toContain('creem-api-key-value');
     expect(JSON.stringify(config.body)).not.toContain('CREEM_');
@@ -437,7 +434,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
       lines.some(
         (line) =>
           line.level === 'info' &&
-          line.message === 'paid checkout disabled: provider is not configured',
+          line.message === 'paid checkout disabled: Creem is not configured',
       ),
     ).toBe(true);
   });
@@ -480,7 +477,6 @@ describe('CREEM-004 checkout HTTP surface', () => {
     // ...and the operator still gets the names, on the server side only.
     const startup = lines.find((line) => line.message.startsWith('paid checkout disabled'));
     expect(startup?.level).toBe('error');
-    expect(startup?.context.provider).toBe(CREEM_PROVIDER);
     expect(startup?.context.missing).toContain('CREEM_WEBHOOK_SECRET');
     expect(startup?.context.missing).toContain('CREEM_PRODUCT_ID_BASIC');
     expect(JSON.stringify(lines)).not.toContain('super-secret-value');
@@ -707,85 +703,159 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(await db.prisma.checkoutSession.count()).toBe(0);
   });
 
-  // Two configured providers and nothing saying which one sells: the checkout
-  // is misconfigured rather than served by whichever was read first. Both
-  // webhook routes stay mounted, so refunds for either provider's orders land.
-  describe('with FastSpring configured as well', () => {
-    const bothConfigured = () => ({
-      creem: configured(),
-      fastSpring: readFastSpringConfig(FASTSPRING_ENV),
+  // The reachability gate itself is covered function-by-function in
+  // CREEM-008; these three pin that the same refusals reach the browser
+  // through the actual HTTP route, not just the function CREEM-008 calls
+  // directly.
+  it('refuses a site that has never been checked, over HTTP, and opens no session', async () => {
+    const app = buildApp();
+    const { agent, cookie, profileId } = await signIn(app, 'unchecked@example.com', {
+      reachable: false,
     });
 
-    it('reports the checkout as misconfigured until FLUXRADAR_CHECKOUT_PROVIDER names one', async () => {
-      const { logger, lines } = recordingLogger();
-      const app = buildApp({ ...bothConfigured(), logger });
-      const { agent, cookie, profileId } = await signIn(app, 'both@example.com');
+    const response = await agent
+      .post('/billing/checkout-session')
+      .set('Cookie', cookie)
+      .send({ siteProfileId: profileId, plan: 'Complete', scope: SCOPE });
 
-      const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
-      expect(config.status).toBe(200);
-      expect(config.body.data.available).toBe(false);
-      expect(config.body.data.unavailableReason).toBe('misconfigured');
-      expect(JSON.stringify(config.body)).not.toContain(CHECKOUT_PROVIDER_ENV);
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('SITE_NOT_READY');
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+  });
 
-      const attempt = await agent
-        .post('/billing/checkout-session')
-        .set('Cookie', cookie)
-        .send({ siteProfileId: profileId, plan: 'Basic', scope: SCOPE });
-      expect(attempt.status).toBe(503);
-      expect(attempt.body.error.code).toBe('BILLING_UNAVAILABLE');
-      expect(await db.prisma.checkoutSession.count()).toBe(0);
+  it('does not take the browser’s word for it', async () => {
+    const app = buildApp();
+    const { agent, cookie, accountId, profileId } = await signIn(app, 'liar@example.com', {
+      reachable: false,
+    });
+    await db.prisma.siteReachabilityProbe.create({
+      data: {
+        accountId,
+        siteProfileId: profileId,
+        origin: `https://${'liar'}.example.com`,
+        egressLocation: null,
+        state: 'access-denied',
+        checkedAt: new Date(),
+      },
+    });
 
-      const startup = lines.find(
-        (line) => line.message === 'paid checkout disabled: no single provider opens new checkouts',
-      );
-      expect(startup?.level).toBe('error');
-      expect(startup?.context.variable).toBe(CHECKOUT_PROVIDER_ENV);
-
-      // The Creem webhook still verifies and stores deliveries meanwhile.
-      const { rawBody, signature } = signedCreemDelivery({
-        id: 'evt_both_refund',
-        eventType: CREEM_EVENT_TYPES.refundCreated,
-        object: refundCreatedObject('ord_both', 5500),
+    // A manipulated client claiming the check passed changes nothing: the
+    // server reads its own row and never looks at the request for this.
+    const response = await agent
+      .post('/billing/checkout-session')
+      .set('Cookie', cookie)
+      .send({
+        siteProfileId: profileId,
+        plan: 'Complete',
+        scope: SCOPE,
+        reachability: { state: 'reachable' },
       });
-      expect((await postWebhook(app, rawBody, signature)).status).toBe(202);
-    });
 
-    it('sells through Creem once FLUXRADAR_CHECKOUT_PROVIDER says so', async () => {
-      process.env[CHECKOUT_PROVIDER_ENV] = 'creem';
-      const calls: StubCall[] = [];
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('SITE_NOT_READY');
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+  });
+
+  describe('with a choice of egress locations (D-228)', () => {
+    const kyiv: ConfiguredEgressLocation = {
+      location: EGRESS_LOCATIONS[0]!,
+      proxy: { host: '203.0.113.10', port: 13128, credentials: null },
+      expectedIp: null,
+    };
+    const frankfurt: ConfiguredEgressLocation = {
+      location: egressLocation({
+        id: 'de',
+        countryCode: 'DE',
+        city: 'Frankfurt',
+        label: { en: 'Germany, Frankfurt', uk: 'Німеччина, Франкфурт' },
+      }),
+      proxy: { host: '198.51.100.20', port: 3128, credentials: null },
+      expectedIp: null,
+    };
+
+    // A healthy default (kyiv) alongside frankfurt, keyed on the probed proxy's
+    // host: a monitor with only frankfurt would let a dropped `egressLocation`
+    // fall back to the monitor's default and still land on frankfurt, so the
+    // route silently forwarding no country would go unnoticed.
+    function twoCountries(frankfurtUp: boolean): EgressLocationMonitor {
+      return createEgressLocationMonitor({
+        locations: [kyiv, frankfurt],
+        logger: silentLogger,
+        probe: async (proxy) => ({
+          state: proxy?.host === frankfurt.proxy.host && !frankfurtUp ? 'unreachable' : 'healthy',
+          observedIp: null,
+          expectedIp: null,
+          latencyMs: 10,
+          detail: null,
+          checkedAt: new Date(),
+        }),
+      });
+    }
+
+    it('sells a scan from the country the site was checked from, and records it', async () => {
       const app = buildApp({
-        ...bothConfigured(),
-        fetchImpl: stubCreem({ body: pendingCheckout('ch_selected') }, calls),
+        egress: twoCountries(true),
+        fetchImpl: stubCreem({ body: pendingCheckout('ch_de') }, []),
       });
-      const { agent, cookie, profileId } = await signIn(app, 'selected@example.com');
+      const { agent, cookie, accountId, profileId } = await signIn(app, 'de-site@example.com', {
+        reachable: false,
+      });
+      await db.prisma.siteReachabilityProbe.create({
+        data: {
+          accountId,
+          siteProfileId: profileId,
+          origin: `https://${'de-site'}.example.com`,
+          egressLocation: 'de',
+          state: 'reachable',
+          checkedAt: new Date(),
+        },
+      });
 
-      const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
-      expect(config.body.data).toMatchObject({
-        provider: CREEM_PROVIDER,
-        checkoutFlow: 'redirect',
-        available: true,
-        unavailableReason: null,
-      });
-      const created = await agent
+      const response = await agent
         .post('/billing/checkout-session')
         .set('Cookie', cookie)
-        .send({ siteProfileId: profileId, plan: 'Basic', scope: SCOPE });
-      expect(created.status).toBe(201);
-      expect(created.body.data.sessionId).toBe('ch_selected');
-      expect(calls).toHaveLength(1);
+        .send({
+          siteProfileId: profileId,
+          plan: 'Complete',
+          scope: { ...SCOPE, egressLocation: 'de' },
+        });
+
+      expect(response.status).toBe(201);
+      const row = await db.prisma.checkoutSession.findFirstOrThrow();
+      expect(JSON.parse(row.scopeJson)).toMatchObject({ egressLocation: 'de' });
+      expect(JSON.parse(row.executionConfigJson ?? '{}')).toMatchObject({
+        scope: { egressLocation: 'de' },
+      });
     });
 
-    it('keeps selling through FastSpring when the variable names it', async () => {
-      process.env[CHECKOUT_PROVIDER_ENV] = 'fastspring';
-      const app = buildApp(bothConfigured());
-      const { agent, cookie } = await signIn(app, 'fastspring@example.com');
+    it('opens no checkout for a country whose egress network is down', async () => {
+      const app = buildApp({ egress: twoCountries(false) });
+      const { agent, cookie, accountId, profileId } = await signIn(app, 'downstream@example.com', {
+        reachable: false,
+      });
+      await db.prisma.siteReachabilityProbe.create({
+        data: {
+          accountId,
+          siteProfileId: profileId,
+          origin: `https://${'downstream'}.example.com`,
+          egressLocation: 'de',
+          state: 'reachable',
+          checkedAt: new Date(),
+        },
+      });
 
-      const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
-      expect(config.body.data.provider).toBe('fastspring');
-      expect(config.body.data.available).toBe(true);
-      // The classic storefront: a new tab, no popup script on our page.
-      expect(config.body.data.checkoutFlow).toBe('tab');
-      expect(config.body.data.popup).toBeNull();
+      const response = await agent
+        .post('/billing/checkout-session')
+        .set('Cookie', cookie)
+        .send({
+          siteProfileId: profileId,
+          plan: 'Complete',
+          scope: { ...SCOPE, egressLocation: 'de' },
+        });
+
+      expect(response.status).toBe(503);
+      expect(response.body.error.code).toBe('EGRESS_LOCATION_UNAVAILABLE');
+      expect(await db.prisma.checkoutSession.count()).toBe(0);
     });
   });
 });

@@ -11,15 +11,14 @@ import { CHECKOUT_SESSION_STATUSES } from './constants.ts';
 // deleted profile's binding alive for a payment that can still land.
 //
 // "Still live" is decided by the deadline the row carries, never by its age
-// alone: `expiresAt` is the provider's own session expiry when FastSpring
-// reports one, and the deadline we opened the session with otherwise.
+// alone: `expiresAt` is the deadline we opened the checkout session with.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Deadline for a row that carries none — only pre-existing rows and rows whose
- * creation crashed between the INSERT and the provider response. A FastSpring
- * session can be configured to live at most this long, so nothing payable is
+ * creation crashed between the INSERT and the provider response. A checkout
+ * session is treated as live at most this long, so nothing payable is
  * ever declared dead by this fallback.
  */
 export const CHECKOUT_SESSION_FALLBACK_TTL_DAYS = 7;

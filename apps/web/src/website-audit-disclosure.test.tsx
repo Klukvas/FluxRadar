@@ -154,11 +154,10 @@ function stubApi(): ReturnType<typeof vi.fn> {
     if (pathname === '/billing/checkout-config') {
       return Promise.resolve(
         envelope({
-          provider: 'fastspring',
+          provider: 'creem',
           available: true,
           mode: 'test',
           unavailableReason: null,
-          popup: null,
           plans: ['Basic', 'WebsiteAudit', 'Complete'].map((plan) => ({
             plan,
             priceUsd: 49,

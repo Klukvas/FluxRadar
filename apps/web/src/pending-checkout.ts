@@ -11,18 +11,20 @@ import {
 import { WORKSPACE_PATHS } from './workspace-paths';
 
 /**
- * The purchase a buyer is paying for in another tab, or on the provider's page
- * this tab was sent to: restored for the account that started it, and put back
- * in front of them if a reload — or the trip to Creem and back — lost it.
+ * The purchase a buyer is paying for: this tab left for Creem's hosted
+ * checkout page and returns via `/checkout/return`. Restored for the account
+ * that started it, and put back in front of them if a reload — or the trip to
+ * Creem and back — lost it.
  */
 export function usePendingCheckout({
   account,
   entryRoute,
   setScreen,
 }: Pick<AppState, 'account' | 'entryRoute' | 'setScreen'>) {
-  // Held here, not inside the new-scan screen: the buyer pays in another tab and
-  // may reload or navigate away before the provider webhook lands, and the
-  // "confirming payment" window has to survive that from any screen.
+  // Held here, not inside the new-scan screen: this tab leaves for Creem's
+  // hosted page and returns via /checkout/return, and the buyer may also
+  // reload before the provider webhook lands, so the "confirming payment"
+  // window has to survive both from any screen.
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(null);
   // The return address is read once per page load. A second account signing in
   // on the same page must not be handed the first one's checkout to poll for.
@@ -70,9 +72,7 @@ export function usePendingCheckout({
     const onPageShow = (event: PageTransitionEvent): void => {
       if (!event.persisted) return;
       setPendingCheckout((current) =>
-        current !== null && current.flow === 'redirect' && !current.restored
-          ? { ...current, restored: true }
-          : current,
+        current !== null && !current.restored ? { ...current, restored: true } : current,
       );
     };
     window.addEventListener('pageshow', onPageShow);
@@ -116,19 +116,13 @@ function returnedCheckout(
   stored: PendingCheckout | null,
 ): PendingCheckout {
   if (stored !== null) {
-    return stored.reference === checkoutReturn.reference
-      ? { ...stored, flow: 'redirect', returned: true }
-      : stored;
+    return stored.reference === checkoutReturn.reference ? { ...stored, returned: true } : stored;
   }
   return {
     accountId,
     reference: checkoutReturn.reference,
-    sessionId: '',
     checkoutUrl: null,
-    storefront: null,
-    flow: 'redirect',
     restored: true,
-    popupBlocked: false,
     returned: true,
   };
 }

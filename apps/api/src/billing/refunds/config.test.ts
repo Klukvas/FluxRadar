@@ -34,9 +34,9 @@ describe('readRefundDispatchConfig', () => {
     expect(
       readRefundDispatchConfig({
         [REFUND_DISPATCH_ENV]: 'auto',
-        [REFUND_DISPATCH_ACK_ENV]: 'fastspring',
+        [REFUND_DISPATCH_ACK_ENV]: 'creem',
       }),
-    ).toEqual({ state: 'active', mode: 'auto', provider: 'fastspring' });
+    ).toEqual({ state: 'active', mode: 'auto', provider: 'creem' });
   });
 
   it.each(['Auto', 'on', 'true', '1', 'yes'])(
@@ -47,9 +47,9 @@ describe('readRefundDispatchConfig', () => {
   );
 
   it('only submits to the provider the acknowledgement names', () => {
-    const env = { [REFUND_DISPATCH_ENV]: 'auto', [REFUND_DISPATCH_ACK_ENV]: 'fastspring' };
-    expect(submitsRefundsTo('fastspring', env)).toBe(true);
+    const env = { [REFUND_DISPATCH_ENV]: 'auto', [REFUND_DISPATCH_ACK_ENV]: 'creem' };
+    expect(submitsRefundsTo('creem', env)).toBe(true);
     expect(submitsRefundsTo('paddle', env)).toBe(false);
-    expect(submitsRefundsTo('fastspring', {})).toBe(false);
+    expect(submitsRefundsTo('creem', {})).toBe(false);
   });
 });

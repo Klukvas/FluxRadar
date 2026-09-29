@@ -1,7 +1,7 @@
 // Every document FluxRadar serves has to survive its own Content-Security-Policy.
 //
-// deploy/Caddyfile ships `script-src 'self' https://sbl.onfastspring.com` with
-// no `'unsafe-inline'`, no nonce and no hash. That is the right policy, and it
+// deploy/Caddyfile ships `script-src 'self' https://www.googletagmanager.com`
+// with no `'unsafe-inline'`, no nonce and no hash. That is the right policy, and it
 // has one failure mode nobody notices: `vite dev`, `vite preview` and every test
 // in this repository serve these documents with NO policy at all, so an inline
 // `<script>` added to a blog article works perfectly everywhere except

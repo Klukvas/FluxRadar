@@ -7,7 +7,7 @@ import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 
 import { createPrismaClient } from '../db.ts';
 import { PURCHASE_STATUSES } from '../billing/constants.ts';
-import { FASTSPRING_PROVIDER } from '../billing/fastspring/config.ts';
+import { CREEM_PROVIDER } from '../billing/creem/config.ts';
 import { testDatabaseUrl } from './template-db.ts';
 import { isTestDatabaseReady, testDatabaseSkipReason } from './test-database-url.ts';
 import { TRUNCATED_TABLES } from './truncated-tables.ts';
@@ -124,7 +124,7 @@ export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Pr
             accountId: params.account.accountId,
             siteProfileId: params.account.siteProfileId,
             plan,
-            provider: FASTSPRING_PROVIDER,
+            provider: CREEM_PROVIDER,
             providerTransactionId: `ord_${randomUUID()}`,
             amountUsd: TARIFFS[plan].priceUsd,
             currency: 'USD',
@@ -184,8 +184,8 @@ export async function seedScanModule(
 /**
  * Records that this site let the crawler in, so a checkout may open.
  *
- * `createCheckoutSession` refuses to sell an audit of a site whose last
- * reachability probe is missing, stale, or negative (FASTSPRING-009). Tests
+ * `createCreemCheckoutSession` refuses to sell an audit of a site whose last
+ * reachability probe is missing, stale, or negative (CREEM-004). Tests
  * about the checkout itself state the precondition here rather than running a
  * probe, so a failure names the thing they are actually testing.
  */

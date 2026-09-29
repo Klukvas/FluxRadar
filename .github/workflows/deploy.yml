@@ -351,57 +351,24 @@ jobs:
           PRODUCTION_BACKUP_MAX_DELETE: ${{ vars.PRODUCTION_BACKUP_MAX_DELETE }}
           PRODUCTION_BACKUP_STALE_HOURS: ${{ vars.PRODUCTION_BACKUP_STALE_HOURS }}
           PRODUCTION_BACKUP_MAX_AGE_HOURS: ${{ vars.PRODUCTION_BACKUP_MAX_AGE_HOURS }}
-          # FastSpring paid checkout. Only the three credentials are secrets; the
-          # rest describe which store, checkout and products this deployment
-          # sells, so they are production environment VARIABLES and are visible
-          # in the FastSpring app to anyone who can open it. FASTSPRING_MODE
-          # decides whether real cards are charged, and readFastSpringConfig
-          # refuses "live" until FASTSPRING_STORE_VERIFIED says an operator
-          # checked the store (billing/fastspring/config.ts).
-          #
-          # The set is all-or-nothing: a half-configured provider is reported as
-          # "misconfigured" and sells nothing. deploy-003 asserts every name
-          # readFastSpringConfig requires is wired here.
-          PRODUCTION_FASTSPRING_API_USERNAME: ${{ secrets.PRODUCTION_FASTSPRING_API_USERNAME }}
-          PRODUCTION_FASTSPRING_API_PASSWORD: ${{ secrets.PRODUCTION_FASTSPRING_API_PASSWORD }}
-          PRODUCTION_FASTSPRING_WEBHOOK_SECRET: ${{ secrets.PRODUCTION_FASTSPRING_WEBHOOK_SECRET }}
-          PRODUCTION_FASTSPRING_MODE: ${{ vars.PRODUCTION_FASTSPRING_MODE }}
-          PRODUCTION_FASTSPRING_SESSION_API: ${{ vars.PRODUCTION_FASTSPRING_SESSION_API }}
-          PRODUCTION_FASTSPRING_CHECKOUT_PATH: ${{ vars.PRODUCTION_FASTSPRING_CHECKOUT_PATH }}
-          PRODUCTION_FASTSPRING_POPUP_STOREFRONT: ${{ vars.PRODUCTION_FASTSPRING_POPUP_STOREFRONT }}
-          PRODUCTION_FASTSPRING_STOREFRONT_URL: ${{ vars.PRODUCTION_FASTSPRING_STOREFRONT_URL }}
-          PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC: ${{ vars.PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC }}
-          # Website Audit is the one product path readFastSpringConfig treats as
-          # optional: absent, the deployment still boots and still sells Basic and
-          # Complete, and the plan simply cannot be bought. Forwarded anyway,
-          # because "optional to the API" is not "unsettable by the deployment" —
-          # without this line the only way to sell the plan is a hand-edited env
-          # file on the host. An unset variable is skipped by upsert_env, so this
-          # is a no-op until the product exists and the variable is set.
-          PRODUCTION_FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT: ${{ vars.PRODUCTION_FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT }}
-          PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE: ${{ vars.PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE }}
-          PRODUCTION_FASTSPRING_CURRENCY_POLICY: ${{ vars.PRODUCTION_FASTSPRING_CURRENCY_POLICY }}
-          PRODUCTION_FASTSPRING_STORE_VERIFIED: ${{ vars.PRODUCTION_FASTSPRING_STORE_VERIFIED }}
-          PRODUCTION_FASTSPRING_SESSION_EXPIRATION_DAYS: ${{ vars.PRODUCTION_FASTSPRING_SESSION_EXPIRATION_DAYS }}
-          # Creem paid checkout, the second provider beside FastSpring. Only the
-          # API key and the webhook secret are secrets; the rest — the mode, the
-          # product ids, the return page, the live-store attestation — describe
-          # what this deployment sells and are visible in the Creem dashboard to
-          # anyone who can open it, so they are production environment
-          # VARIABLES. CREEM_MODE decides whether real cards are charged, and
+          # Creem paid checkout, the only provider. Only the API key and the
+          # webhook secret are secrets; the rest — the mode, the product ids,
+          # the return page, the live-store attestation — describe what this
+          # deployment sells and are visible in the Creem dashboard to anyone
+          # who can open it, so they are production environment VARIABLES.
+          # CREEM_MODE decides whether real cards are charged, and
           # readCreemConfig refuses "live" until CREEM_STORE_VERIFIED says an
           # operator checked the live webhook and the live prices by hand
           # (billing/creem/config.ts).
           #
-          # The set is all-or-nothing, exactly like FastSpring's: one CREEM_*
-          # variable turns the provider from "not configured" into a set judged
-          # as a whole, and a half-configured provider is "misconfigured" and
-          # sells nothing. deploy-019 asserts every name readCreemConfig knows
-          # is wired here — every name but CREEM_API_BASE_URL, which exists so a
-          # test can point the client at a stub. A deployment that could retarget
-          # it from a variable is one where whoever edits a variable redirects
-          # checkout creation, API key included, to a host of their choosing;
-          # the same rule keeps FASTSPRING_API_BASE_URL out of this list.
+          # The set is all-or-nothing: one CREEM_* variable turns the provider
+          # from "not configured" into a set judged as a whole, and a
+          # half-configured provider is "misconfigured" and sells nothing.
+          # deploy-019 asserts every name readCreemConfig knows is wired here —
+          # every name but CREEM_API_BASE_URL, which exists so a test can point
+          # the client at a stub. A deployment that could retarget it from a
+          # variable is one where whoever edits a variable redirects checkout
+          # creation, API key included, to a host of their choosing.
           PRODUCTION_CREEM_API_KEY: ${{ secrets.PRODUCTION_CREEM_API_KEY }}
           PRODUCTION_CREEM_WEBHOOK_SECRET: ${{ secrets.PRODUCTION_CREEM_WEBHOOK_SECRET }}
           PRODUCTION_CREEM_MODE: ${{ vars.PRODUCTION_CREEM_MODE }}
@@ -413,20 +380,11 @@ jobs:
           # without a hand-edited env file on the host.
           PRODUCTION_CREEM_RETURN_URL: ${{ vars.PRODUCTION_CREEM_RETURN_URL }}
           PRODUCTION_CREEM_PRODUCT_ID_BASIC: ${{ vars.PRODUCTION_CREEM_PRODUCT_ID_BASIC }}
-          # Website Audit is optional here for the same reason as its FastSpring
-          # product path: absent, the deployment still boots and still sells
+          # Website Audit is optional here: absent, the deployment still boots and still sells
           # Basic and Complete, and the plan simply cannot be bought. Forwarded
           # anyway, and a no-op until the product exists and the variable is set.
           PRODUCTION_CREEM_PRODUCT_ID_WEBSITE_AUDIT: ${{ vars.PRODUCTION_CREEM_PRODUCT_ID_WEBSITE_AUDIT }}
           PRODUCTION_CREEM_PRODUCT_ID_COMPLETE: ${{ vars.PRODUCTION_CREEM_PRODUCT_ID_COMPLETE }}
-          # Which provider opens NEW checkouts: "fastspring" or "creem". Required
-          # only when BOTH providers are configured — with one, that one sells
-          # and this stays unset; with both and no answer here, the checkout is
-          # "invalid" and a production boot refuses (billing/checkout-provider.ts).
-          # Both webhook routes stay mounted whichever is named, so FastSpring
-          # refunds and chargebacks for orders already sold keep being applied
-          # while Creem sells. Not a secret: it names a provider, nothing more.
-          PRODUCTION_FLUXRADAR_CHECKOUT_PROVIDER: ${{ vars.PRODUCTION_FLUXRADAR_CHECKOUT_PROVIDER }}
         run: |
           tar \
             --exclude=.git \
@@ -496,20 +454,6 @@ jobs:
           upsert_env FLUXRADAR_BACKUP_MAX_DELETE PRODUCTION_BACKUP_MAX_DELETE
           upsert_env FLUXRADAR_BACKUP_STALE_HOURS PRODUCTION_BACKUP_STALE_HOURS
           upsert_env FLUXRADAR_BACKUP_MAX_AGE_HOURS PRODUCTION_BACKUP_MAX_AGE_HOURS
-          upsert_env FASTSPRING_API_USERNAME PRODUCTION_FASTSPRING_API_USERNAME
-          upsert_env FASTSPRING_API_PASSWORD PRODUCTION_FASTSPRING_API_PASSWORD
-          upsert_env FASTSPRING_WEBHOOK_SECRET PRODUCTION_FASTSPRING_WEBHOOK_SECRET
-          upsert_env FASTSPRING_MODE PRODUCTION_FASTSPRING_MODE
-          upsert_env FASTSPRING_SESSION_API PRODUCTION_FASTSPRING_SESSION_API
-          upsert_env FASTSPRING_CHECKOUT_PATH PRODUCTION_FASTSPRING_CHECKOUT_PATH
-          upsert_env FASTSPRING_POPUP_STOREFRONT PRODUCTION_FASTSPRING_POPUP_STOREFRONT
-          upsert_env FASTSPRING_STOREFRONT_URL PRODUCTION_FASTSPRING_STOREFRONT_URL
-          upsert_env FASTSPRING_PRODUCT_PATH_BASIC PRODUCTION_FASTSPRING_PRODUCT_PATH_BASIC
-          upsert_env FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT PRODUCTION_FASTSPRING_PRODUCT_PATH_WEBSITE_AUDIT
-          upsert_env FASTSPRING_PRODUCT_PATH_COMPLETE PRODUCTION_FASTSPRING_PRODUCT_PATH_COMPLETE
-          upsert_env FASTSPRING_CURRENCY_POLICY PRODUCTION_FASTSPRING_CURRENCY_POLICY
-          upsert_env FASTSPRING_STORE_VERIFIED PRODUCTION_FASTSPRING_STORE_VERIFIED
-          upsert_env FASTSPRING_SESSION_EXPIRATION_DAYS PRODUCTION_FASTSPRING_SESSION_EXPIRATION_DAYS
           upsert_env CREEM_API_KEY PRODUCTION_CREEM_API_KEY
           upsert_env CREEM_WEBHOOK_SECRET PRODUCTION_CREEM_WEBHOOK_SECRET
           upsert_env CREEM_MODE PRODUCTION_CREEM_MODE
@@ -518,7 +462,6 @@ jobs:
           upsert_env CREEM_PRODUCT_ID_BASIC PRODUCTION_CREEM_PRODUCT_ID_BASIC
           upsert_env CREEM_PRODUCT_ID_WEBSITE_AUDIT PRODUCTION_CREEM_PRODUCT_ID_WEBSITE_AUDIT
           upsert_env CREEM_PRODUCT_ID_COMPLETE PRODUCTION_CREEM_PRODUCT_ID_COMPLETE
-          upsert_env FLUXRADAR_CHECKOUT_PROVIDER PRODUCTION_FLUXRADAR_CHECKOUT_PROVIDER
 
           # Both env-file parsers used by this deploy must read the same values:
           # compose starts PostgreSQL and Caddy, `docker run` starts the API and

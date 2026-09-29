@@ -7,7 +7,7 @@
 // and print the wrong country on the report (the silent substitution D-220
 // forbids), or take the purchase and fail the scan on our own outage.
 //
-// Every scan path goes through here: the Free check, the FastSpring checkout
+// Every scan path goes through here: the Free check, the Creem checkout
 // and the internal free-access checkout. What it returns is written into the scope,
 // so the stored execution config records the location actually used.
 //

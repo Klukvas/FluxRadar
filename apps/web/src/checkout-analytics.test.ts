@@ -8,11 +8,10 @@ vi.mock('./analytics', () => ({ trackEvent }));
 
 function config(mode: 'test' | 'live'): CheckoutConfig {
   return {
-    provider: 'fastspring',
+    provider: 'creem',
     available: true,
     mode,
     unavailableReason: null,
-    popup: null,
     plans: [
       { plan: 'Basic', priceUsd: 55, currency: 'USD' },
       { plan: 'Complete', priceUsd: 120, currency: 'USD' },

@@ -1,6 +1,7 @@
-// The Creem provider module. Every name is Creem-prefixed on purpose: the
-// FastSpring module is re-exported wholesale from billing/index.ts, and two
-// `export *` sources naming the same export is a compile error there.
+// The Creem provider module, the only payment provider. Every name is
+// Creem-prefixed on purpose: it is re-exported wholesale from billing/index.ts
+// alongside other provider-neutral modules, and two `export *` sources naming
+// the same export would be a compile error there.
 export * from './config.ts';
 export * from './signature.ts';
 export * from './client.ts';

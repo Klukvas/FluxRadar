@@ -3,24 +3,20 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
-import { CHECKOUT_PROVIDER_ENV } from '../billing/checkout-provider.ts';
 import { CREEM_ENV_VARS, OPTIONAL_CREEM_ENV_VARS } from '../billing/creem/config.ts';
 
 // DEPLOY-019: the deploy workflow must carry the WHOLE Creem set.
 //
-// readCreemConfig is all-or-nothing on purpose, exactly like readFastSpringConfig:
-// the moment one CREEM_* variable reaches the container, the provider stops
-// being "not configured" and starts being judged as a complete set. A workflow
-// that forwards the two credentials but forgets a product id therefore does not
-// degrade to the previous behaviour — it turns paid checkout into
-// "misconfigured" and sells nothing, with the reason visible only in a
-// container log. DEPLOY-003 exists because that happened once with FastSpring;
-// this suite is the same guard for the second provider.
+// readCreemConfig is all-or-nothing on purpose: the moment one CREEM_* variable
+// reaches the container, the provider stops being "not configured" and starts
+// being judged as a complete set. A workflow that forwards the two credentials
+// but forgets a product id therefore does not degrade to the previous
+// behaviour — it turns paid checkout into "misconfigured" and sells nothing,
+// with the reason visible only in a container log.
 //
 // Nothing here can check what the values are (they live in GitHub secrets and
 // variables, which is the point). What it can check is that no NAME the config
-// reader knows about was left unwired, and that the one name choosing between
-// the two providers is reachable from the deploy at all.
+// reader knows about was left unwired.
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const WORKFLOW_PATH = join(REPO_ROOT, '.github', 'workflows', 'deploy.yml');
@@ -37,7 +33,7 @@ function sourceVarFor(key: string): string {
  * deployment that can retarget it is a deployment where whoever can edit a
  * repository variable can redirect checkout creation — the API key included —
  * to a host of their choosing. The mode decides the real base URL, and the
- * override stays a base-env-file concern, as FASTSPRING_API_BASE_URL does.
+ * override stays a base-env-file concern.
  */
 const TEST_ONLY_VARS: readonly string[] = [CREEM_ENV_VARS.apiBaseUrl];
 
@@ -136,39 +132,5 @@ describe('DEPLOY-019 Creem env wiring', () => {
 
   it.each(TEST_ONLY_VARS)('leaves %s unwired', (key) => {
     expect(workflow).not.toContain(`upsert_env ${key} `);
-  });
-});
-
-// With FastSpring and Creem both configured, which one opens new checkouts is
-// a decision, not a guess: resolveCheckoutProvider answers "invalid" until
-// FLUXRADAR_CHECKOUT_PROVIDER names one, and a production boot refuses on it
-// (billing/checkout-provider.ts). That is the right failure — but only if the
-// name can be set from the deploy at all. Unwired, the only way past it is a
-// hand-edited env file on the host, or dropping the FastSpring credentials and
-// with them the refunds of every order FastSpring already sold.
-describe('DEPLOY-019 checkout provider wiring', () => {
-  const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
-  const source = sourceVarFor(CHECKOUT_PROVIDER_ENV);
-
-  it('forwards the provider choice into the release env file', () => {
-    expect(workflow).toContain(`upsert_env ${CHECKOUT_PROVIDER_ENV} ${source}`);
-  });
-
-  it('binds its source on the step', () => {
-    expect(workflow).toMatch(new RegExp(`^\\s*${source}:\\s*\\$\\{\\{`, 'm'));
-  });
-
-  // A provider's name is not a credential, and a secret cannot be read back —
-  // which is the one thing an operator wants to do when a deployment sells
-  // through the wrong provider.
-  it('reads it as a production variable rather than a secret', () => {
-    expect(workflow).toContain(`${source}: \${{ vars.${source} }}`);
-    expect(workflow).not.toContain(`secrets.${source}`);
-  });
-
-  it('pins no provider of its own', () => {
-    expect(workflow).not.toMatch(
-      new RegExp(`^\\s*${CHECKOUT_PROVIDER_ENV}:\\s*(?!\\$\\{\\{)\\S`, 'm'),
-    );
   });
 });

@@ -1,6 +1,6 @@
 // OAuth provider configuration for the user-authorized analytics integrations.
 //
-// Three states, deliberately explicit, mirroring billing/fastspring/config.ts:
+// Three states, deliberately explicit, mirroring billing/creem/config.ts:
 //   not_configured — no variable of the provider is set. The integration stays
 //                    off and the HTTP layer answers INTEGRATION_NOT_CONFIGURED.
 //   invalid        — some variables are set but the set is incomplete or the

@@ -5,8 +5,7 @@ import type { CheckoutSession, Prisma } from '@prisma/client';
 import { createTestDb, seedAccountWithProfile, type TestDb } from '../../test-utils/test-db.ts';
 import type { SeededAccount } from '../../test-utils/test-db.ts';
 import { InvalidSignatureError, WebhookValidationError } from '../errors.ts';
-import { FASTSPRING_PROVIDER } from '../fastspring/config.ts';
-import { WEBHOOK_OUTCOMES } from '../fastspring/outcomes.ts';
+import { WEBHOOK_OUTCOMES } from '../webhook-outcomes.ts';
 import { CREEM_PROVIDER } from './config.ts';
 import { CREEM_EVENT_TYPES } from './events.ts';
 import { signCreemWebhook } from './signature.ts';
@@ -432,10 +431,10 @@ describe('CREEM-003 webhook', () => {
   });
 
   // A reference is only a reference together with its provider: a Creem order
-  // quoting a session FastSpring opened must not buy that session's scan.
-  it('rejects a Creem order that names a FastSpring checkout session', async () => {
+  // quoting a session another provider opened must not buy that session's scan.
+  it('rejects a Creem order that names another provider’s checkout session', async () => {
     const session = await seedCheckoutSession({
-      provider: FASTSPRING_PROVIDER,
+      provider: 'other-provider',
       productPath: 'fluxradar-basic-scan',
     });
     const { rawBody, signature } = paidOrder(session.reference, 'ord_cross', 'evt_cross', {
@@ -447,7 +446,7 @@ describe('CREEM-003 webhook', () => {
       'checkout reference does not belong to this environment',
     );
     const stored = await db.prisma.checkoutSession.findUniqueOrThrow({ where: { id: session.id } });
-    // Not ours to close: the FastSpring order for it may still arrive.
+    // Not ours to close: the other provider's order for it may still arrive.
     expect(stored.status).toBe('created');
     expect(await db.prisma.purchase.count()).toBe(0);
   });

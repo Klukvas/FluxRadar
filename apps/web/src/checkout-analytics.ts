@@ -1,7 +1,7 @@
 // Checkout milestones in GA4's ecommerce shape, so the property's own funnel and
 // monetisation reports work without custom definitions.
 //
-// Only live-mode checkouts are reported. While the FastSpring store runs in test
+// Only live-mode checkouts are reported. While the Creem store runs in test
 // mode every order is a test card, and a test purchase sent to GA becomes
 // revenue in the property that can never be taken out again.
 

@@ -5,18 +5,15 @@ import { readPendingCheckout, storePendingCheckout } from './checkout-storage';
 // The pending-checkout slot in local storage.
 //
 // Everything read back is untrusted: the slot is shared with the whole origin
-// and survives across sessions. A record written by an older bundle is read on
-// its old terms; a record that does not hold together is dropped, never repaired.
+// and survives across sessions. A record that does not hold together is
+// dropped, never repaired.
 
 const STORAGE_KEY = 'fluxradar.pendingCheckout';
-const STOREFRONT = 'fluxradar.test.onfastspring.com/popup-checkout';
 
 const stored = {
   accountId: 'account-1',
   reference: 'frcs_abc',
-  sessionId: 'sess_abc',
   checkoutUrl: 'https://checkout.example/session/sess_abc',
-  popupBlocked: false,
 };
 
 function write(record: Record<string, unknown>): void {
@@ -28,29 +25,14 @@ afterEach(() => {
 });
 
 describe('readPendingCheckout', () => {
-  it('reads a record written before flows had a name as the FastSpring flow it was', () => {
+  it('reads back a stored record, marked as restored', () => {
     write(stored);
-    expect(readPendingCheckout('account-1')).toMatchObject({ flow: 'tab', storefront: null });
-
-    write({ ...stored, storefront: STOREFRONT });
-    expect(readPendingCheckout('account-1')).toMatchObject({
-      flow: 'popup',
-      storefront: STOREFRONT,
-    });
-  });
-
-  it('keeps the flow a record names', () => {
-    write({ ...stored, flow: 'redirect', storefront: null });
-    expect(readPendingCheckout('account-1')).toMatchObject({
-      flow: 'redirect',
-      // Whatever was written: a restored checkout only offers to reopen.
-      restored: true,
-    });
+    expect(readPendingCheckout('account-1')).toEqual({ ...stored, restored: true });
   });
 
   it('accepts a checkout with no page to offer', () => {
-    write({ ...stored, checkoutUrl: null, flow: 'redirect', sessionId: '' });
-    expect(readPendingCheckout('account-1')).toMatchObject({ checkoutUrl: null, sessionId: '' });
+    write({ ...stored, checkoutUrl: null });
+    expect(readPendingCheckout('account-1')).toMatchObject({ checkoutUrl: null });
   });
 
   it('drops a record that belongs to a different account', () => {
@@ -59,10 +41,8 @@ describe('readPendingCheckout', () => {
   });
 
   it.each([
-    ['a flow it does not know', { flow: 'iframe' }],
     ['a checkout URL that is not http(s)', { checkoutUrl: 'javascript:alert(1)' }],
     ['a missing checkout URL', { checkoutUrl: undefined }],
-    ['a storefront that is not FastSpring', { storefront: 'https://evil.example/popup' }],
     ['a reference that is not a string', { reference: 42 }],
   ])('drops a record with %s', (_case, tampered) => {
     write({ ...stored, ...tampered });
@@ -70,18 +50,28 @@ describe('readPendingCheckout', () => {
   });
 
   it('reads back what was stored, marked as restored', () => {
-    storePendingCheckout({
-      ...stored,
-      storefront: null,
-      flow: 'redirect',
-      restored: false,
-      returned: true,
-    });
-    expect(readPendingCheckout('account-1')).toEqual({
-      ...stored,
-      storefront: null,
-      flow: 'redirect',
-      restored: true,
-    });
+    storePendingCheckout({ ...stored, restored: false, returned: true });
+    expect(readPendingCheckout('account-1')).toEqual({ ...stored, restored: true });
+  });
+
+  // Regression: a record written by a previous release still sits in some
+  // buyers' local storage. Its extra fields must be tolerated, not required —
+  // readPendingCheckout reads only accountId, reference and checkoutUrl.
+  it.each([
+    [
+      'the popup-flow fields (sessionId, storefront, flow, popupBlocked)',
+      {
+        ...stored,
+        sessionId: 'sess_abc',
+        storefront: 'https://fluxradar.test.onfastspring.com',
+        flow: 'popup',
+        popupBlocked: true,
+      },
+    ],
+    ['the tab-flow field', { ...stored, sessionId: 'sess_abc', flow: 'tab' }],
+    ['no flow name at all, from before flows existed', { ...stored }],
+  ])('reads a legacy record carrying %s', (_case, legacy) => {
+    write(legacy);
+    expect(readPendingCheckout('account-1')).toEqual({ ...stored, restored: true });
   });
 });

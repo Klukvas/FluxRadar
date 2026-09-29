@@ -7,7 +7,7 @@ import {
   abandonedCheckoutSessionWhere,
 } from './billing/checkout-lifecycle.ts';
 import { CHECKOUT_SESSION_STATUSES } from './billing/constants.ts';
-import { WEBHOOK_OUTCOMES } from './billing/fastspring/outcomes.ts';
+import { WEBHOOK_OUTCOMES } from './billing/webhook-outcomes.ts';
 import type { ApiLogger } from './http/logger.ts';
 import { sweepExpiredCheckpoints } from './orchestrator/checkpoint.ts';
 import { sweepExpiredCrawlEvidence } from './orchestrator/crawl-store.ts';
@@ -239,7 +239,7 @@ interface WebhookEventBinding {
 /**
  * An order id identifies a purchase only together with its provider: uniqueness
  * is on the pair (see `@@unique([provider, providerTransactionId])`), so a
- * FastSpring order id may equal another provider's transaction id and mean
+ * Creem order id may equal another provider's transaction id and mean
  * something entirely different. Matching on the id alone made a foreign
  * provider's purchase look like a binding and kept the buyer payload forever —
  * which is the one thing this purge exists to prevent.

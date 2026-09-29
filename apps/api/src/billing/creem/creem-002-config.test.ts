@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHECKOUT_PROVIDER_ENV } from '../checkout-provider.ts';
 import { validateRuntimeConfig } from '../../integrations/config.ts';
 import {
   CREEM_ENV_VARS,
@@ -235,16 +234,6 @@ describe('CREEM-002 configuration', () => {
       INTEGRATION_ENCRYPTION_KEY: 'dedicated-key',
     } satisfies NodeJS.ProcessEnv;
 
-    const FASTSPRING_ENV = {
-      FASTSPRING_MODE: 'test',
-      FASTSPRING_API_USERNAME: 'api-user',
-      FASTSPRING_API_PASSWORD: 'api-password-value',
-      FASTSPRING_WEBHOOK_SECRET: 'fastspring-webhook-secret-value',
-      FASTSPRING_STOREFRONT_URL: 'https://fluxradar.test.onfastspring.com/',
-      FASTSPRING_PRODUCT_PATH_BASIC: 'fluxradar-basic-scan',
-      FASTSPRING_PRODUCT_PATH_COMPLETE: 'fluxradar-complete-scan',
-    } satisfies NodeJS.ProcessEnv;
-
     it('boots without Creem, and with a complete Creem, but not with a partial one', () => {
       expect(() => validateRuntimeConfig(base)).not.toThrow();
       expect(() => validateRuntimeConfig({ ...base, ...COMPLETE_ENV })).not.toThrow();
@@ -259,31 +248,6 @@ describe('CREEM-002 configuration', () => {
       expect(() =>
         validateRuntimeConfig({ ...base, ...LIVE_ENV, CREEM_STORE_VERIFIED: '' }),
       ).toThrow(/CREEM_STORE_VERIFIED/);
-    });
-
-    // Two configured providers and nothing saying which one sells is not a guess
-    // this process may make: the wrong one sells a plan with the other's products.
-    it('refuses two configured providers until FLUXRADAR_CHECKOUT_PROVIDER names one', () => {
-      const both = { ...base, ...FASTSPRING_ENV, ...COMPLETE_ENV } satisfies NodeJS.ProcessEnv;
-      expect(() => validateRuntimeConfig(both)).toThrow(new RegExp(CHECKOUT_PROVIDER_ENV));
-      expect(() =>
-        validateRuntimeConfig({ ...both, [CHECKOUT_PROVIDER_ENV]: 'creem' }),
-      ).not.toThrow();
-      expect(() =>
-        validateRuntimeConfig({ ...both, [CHECKOUT_PROVIDER_ENV]: 'fastspring' }),
-      ).not.toThrow();
-    });
-
-    it('refuses a checkout provider that is not configured in this environment', () => {
-      expect(() =>
-        validateRuntimeConfig({ ...base, ...FASTSPRING_ENV, [CHECKOUT_PROVIDER_ENV]: 'creem' }),
-      ).toThrow(/FLUXRADAR_CHECKOUT_PROVIDER=creem names a payment provider that is not/);
-      expect(() =>
-        validateRuntimeConfig({ ...base, ...COMPLETE_ENV, [CHECKOUT_PROVIDER_ENV]: 'fastspring' }),
-      ).toThrow(/FLUXRADAR_CHECKOUT_PROVIDER=fastspring names a payment provider that is not/);
-      expect(() =>
-        validateRuntimeConfig({ ...base, ...COMPLETE_ENV, [CHECKOUT_PROVIDER_ENV]: 'paddle' }),
-      ).toThrow(/FLUXRADAR_CHECKOUT_PROVIDER must be one of fastspring, creem/);
     });
   });
 });

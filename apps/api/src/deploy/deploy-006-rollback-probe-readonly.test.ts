@@ -200,10 +200,10 @@ describe('DEPLOY-006 rollback probe is read-only', () => {
     });
 
     it('fails closed on a half-configured integration', async () => {
-      const result = await runProbe(testDatabaseUrl(), { FASTSPRING_MODE: 'test' });
+      const result = await runProbe(testDatabaseUrl(), { CREEM_MODE: 'test' });
       expect(result.ok).toBe(false);
       expect(result.output).toContain('boot-surface probe FAILED');
-      expect(result.output).toContain('FASTSPRING_API_USERNAME');
+      expect(result.output).toContain('CREEM_API_KEY');
     });
 
     it('fails closed when the database cannot be reached with this env file', async () => {

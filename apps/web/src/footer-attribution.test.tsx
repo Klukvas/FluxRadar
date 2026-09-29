@@ -255,8 +255,8 @@ describe('the site footer on a report', () => {
       ['FAQ', '/faq'],
       ['Privacy policy', '/privacy'],
       ['Terms of service', '/terms'],
-      // FastSpring's activation checklist asks for a clear link to the refund
-      // policy, which lives as a section of the terms rather than a page.
+      // Payment providers' activation checklists ask for a clear link to the
+      // refund policy, which lives as a section of the terms rather than a page.
       ['Refund policy', '/terms#terms-paid'],
       // The page the crawler's own user agent points at. Somebody whose site
       // refused FluxRadarBot has to be able to reach it from anywhere on the

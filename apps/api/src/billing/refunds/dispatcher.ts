@@ -10,8 +10,8 @@
 //   2. ONE SUBMISSION PER PURCHASE, EVER. The dispatch row is unique per purchase
 //      and is claimed with a compare-and-set before the request leaves. A second
 //      process sweeping at the same moment loses the CAS and does nothing.
-//   3. NOTHING IS RETRIED. There is no idempotency key on FastSpring's
-//      `POST /returns`, so a call whose answer never arrived cannot be repeated
+//   3. NOTHING IS RETRIED. A provider's outbound refund call generally carries no
+//      idempotency key, so a call whose answer never arrived cannot be repeated
 //      without risking a second refund. It ends as `uncertain` and waits for a
 //      person or for the provider's own webhook.
 //   4. A REFUND THE PROVIDER ALREADY TOUCHED IS NOT OURS TO SEND. A purchase with

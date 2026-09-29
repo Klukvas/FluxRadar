@@ -2,7 +2,7 @@
 // ids come from the environment only — nothing here is ever hardcoded, and no
 // value is echoed into an error message or a log line.
 //
-// Three states, deliberately explicit, and the same three FastSpring has:
+// Three states, deliberately explicit:
 //   not_configured — no CREEM_* variable is set. Paid checkout through Creem
 //                    stays off and the API reports a setup state instead of
 //                    pretending.
@@ -40,7 +40,7 @@ export interface CreemConfig {
   /**
    * The Creem product id of each paid plan that has one.
    *
-   * Partial on purpose, exactly like the FastSpring product paths: a plan whose
+   * Partial on purpose: a plan whose
    * product has not been created in the Creem dashboard yet is simply absent —
    * the deployment still boots, and the plans that do have a product still
    * sell. A plan added to the catalogue before its product exists must not take

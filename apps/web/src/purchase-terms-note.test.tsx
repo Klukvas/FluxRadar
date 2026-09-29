@@ -1,10 +1,8 @@
 // Who the purchase note says takes the payment.
 //
-// The sentence beside the pay button names the merchant of record, and it used
-// to name FastSpring whatever the server sold through — so a Creem deployment
-// told every buyer the wrong company would charge them. It now follows the
-// provider in the checkout config, and names no merchant at all when the config
-// carries one this bundle has no sentence for.
+// The sentence beside the pay button names the merchant of record: Creem,
+// the only provider this deployment sells through. It appears only once the
+// checkout config has arrived, and says nothing while it has not.
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -44,9 +42,8 @@ function stubApi(provider: string): void {
             available: true,
             mode: 'test',
             unavailableReason: null,
-            popup: null,
-            checkoutFlow: provider === 'creem' ? 'redirect' : 'tab',
             plans: [{ plan: 'Complete', priceUsd: 120, currency: 'USD', available: true }],
+            optInAiProviders: [],
           }),
         );
       }
@@ -96,24 +93,10 @@ async function purchaseNote(provider: string, language: Language): Promise<HTMLE
 }
 
 describe.each(['en', 'uk'] as const)('the purchase note in %s', (language) => {
-  const merchant = copy[language].newScan.purchaseTermsMerchantByProvider;
+  const merchant = copy[language].newScan.purchaseTermsMerchant;
 
-  it('names Creem, and not FastSpring, when Creem sells', async () => {
+  it('names Creem as the merchant of record once checkout is configured', async () => {
     const note = await purchaseNote('creem', language);
-    expect(note).toHaveTextContent(merchant.creem);
-    expect(note).not.toHaveTextContent(/FastSpring/);
-  });
-
-  it('names FastSpring, and not Creem, when FastSpring sells', async () => {
-    const note = await purchaseNote('fastspring', language);
-    expect(note).toHaveTextContent(merchant.fastspring);
-    expect(note).not.toHaveTextContent(/Creem/);
-  });
-
-  it('names no merchant for a provider it has no sentence for, and still closes the sentence', async () => {
-    const note = await purchaseNote('some-new-provider', language);
-    expect(note).not.toHaveTextContent(/merchant of record/);
-    // The policies end the sentence, as they always did before the merchant.
-    expect(note.textContent?.trim().endsWith(`${copy[language].legal.cookies.title}.`)).toBe(true);
+    expect(note).toHaveTextContent(merchant);
   });
 });

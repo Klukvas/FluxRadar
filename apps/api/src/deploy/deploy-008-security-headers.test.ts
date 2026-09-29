@@ -1,22 +1,20 @@
 // DEPLOY-008: the security headers the browser actually receives.
 //
-// Removing any of the three script origins the Content-Security-Policy allows
-// breaks paid checkout in a way that is visible to the buyer but not to the
-// server. That was a known gap, not a design — nothing in this
-// repository looked at the policy, so a widened `script-src`, a deleted
-// `frame-ancestors` or an SBL origin bumped in the TypeScript and forgotten in
-// the Caddyfile all shipped silently. Two of those three fail closed and stop
-// the money; the other one fails open and is worse.
+// Removing the script origin the Content-Security-Policy allows for Google
+// Analytics breaks it in a way that is visible to nobody but a browser
+// console. That was a known gap, not a design — nothing in this repository
+// looked at the policy, so a widened `script-src`, a deleted `frame-ancestors`
+// or a GA origin bumped in the TypeScript and forgotten in the Caddyfile all
+// shipped silently.
 //
 // So this suite pins three things:
 //
 //   1. deploy/Caddyfile — the real production path — sets the whole header set,
 //      and its CSP is restrictive in the ways that matter (no inline script, no
-//      eval, no wildcard source, framing still forbidden).
-//   2. The CSP's FastSpring exceptions are exactly the origins the code needs,
-//      cross-checked against the constants the browser and the server actually
-//      use. Bumping SBL_ORIGIN without the Caddyfile now fails here.
-//   3. deploy/nginx.conf carries the same policy byte for byte, and
+//      eval, no wildcard source, framing still forbidden). Creem's checkout is
+//      a full-page redirect to Creem's own hosted page — never framed or
+//      scripted on this one — so the policy grants it nothing at all.
+//   2. deploy/nginx.conf carries the same policy byte for byte, and
 //      deploy/public-smoke.sh asserts the header is present on the deployed
 //      site — a policy nobody checks after a deploy is a policy that can be
 //      dropped by a Caddyfile edit and never noticed.
@@ -39,17 +37,7 @@ const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const CADDYFILE_PATH = join(REPO_ROOT, 'deploy', 'Caddyfile');
 const NGINX_PATH = join(REPO_ROOT, 'deploy', 'nginx.conf');
 const SMOKE_PATH = join(REPO_ROOT, 'deploy', 'public-smoke.sh');
-const SBL_MODULE_PATH = join(REPO_ROOT, 'apps', 'web', 'src', 'fastspring-sbl.ts');
 const ANALYTICS_CONFIG_PATH = join(REPO_ROOT, 'apps', 'web', 'src', 'analytics-config.ts');
-const STOREFRONT_MODULE_PATH = join(
-  REPO_ROOT,
-  'apps',
-  'api',
-  'src',
-  'billing',
-  'fastspring',
-  'popup-storefront.ts',
-);
 
 const caddyfile = readFileSync(CADDYFILE_PATH, 'utf8');
 const nginxConf = readFileSync(NGINX_PATH, 'utf8');
@@ -166,53 +154,20 @@ describe('the Content-Security-Policy', () => {
     }
   });
 
-  // The cross-check that closes the gap above: the origin
-  // the bundle actually loads the Store Builder Library from has to be the one
-  // the policy allows, or the popup silently never opens.
-  it('allows exactly the script origins the bundle loads', () => {
-    const sblOrigin = constantFrom(SBL_MODULE_PATH, 'SBL_ORIGIN');
-    const gaOrigin = constantFrom(ANALYTICS_CONFIG_PATH, 'GA_SCRIPT_ORIGIN');
-
-    expect(policy.get('script-src')).toEqual(["'self'", sblOrigin, gaOrigin]);
-  });
-
-  // Allowing the script origin is not enough, and this is how that was found.
-  // The library also injects `<link rel="stylesheet">` for its own CSS, built
-  // from the script's own src as `…/sbl/<version>/fastspring.css`. That file is
-  // the only thing that gives `.fs-popup-background` — the container the
-  // checkout iframe lives in — its `position: fixed` and its size. Blocked, the
-  // container collapses and the iframe renders 0px tall at the foot of the
-  // document: the library loads, `builder.push` resolves, `#fsc-popup-frame` is
-  // in the DOM with a z-index of 2147483647, and the buyer sees nothing at all.
-  // It fails exactly like a blocked script, one directive further along.
-  it('also allows the SBL origin to serve the stylesheet the library injects', () => {
-    const sblOrigin = constantFrom(SBL_MODULE_PATH, 'SBL_ORIGIN');
-
-    expect(policy.get('style-src')).toEqual(["'self'", "'unsafe-inline'", sblOrigin]);
-  });
-
-  // The checkout renders in a FastSpring iframe over our page, and the library
-  // calls the storefront host from our page while it is open. Both are scoped to
-  // the one domain every FastSpring storefront lives under — the same suffix the
-  // server validates the configured storefront against.
-  it('allows the FastSpring storefront to frame and to be called, and nothing else', () => {
-    const suffix = constantFrom(STOREFRONT_MODULE_PATH, 'STOREFRONT_DOMAIN_SUFFIX');
-    const storefront = `https://*${suffix}`;
-
-    expect(policy.get('frame-src')).toEqual([storefront]);
-    expect(policy.get('connect-src')).toEqual(["'self'", storefront, ...GA_COLLECTION_SOURCES]);
-  });
-
-  // Four now, not three: `style-src` joined the list when the popup turned out
-  // to need the library's own stylesheet. The guard is the point — every new
-  // directive here widens what a compromised FastSpring could do to this page,
-  // so the list is enumerated rather than pattern-matched.
-  it('grants FastSpring nothing beyond those four directives', () => {
-    const withFastSpring = [...policy]
-      .filter(([, sources]) => sources.some((source) => source.includes('onfastspring.com')))
-      .map(([directive]) => directive);
-
-    expect(withFastSpring.sort()).toEqual(['connect-src', 'frame-src', 'script-src', 'style-src']);
+  // Creem hosts the checkout page itself: the browser is redirected there and
+  // comes back to our own return page afterwards. Nothing on this page ever
+  // frames, scripts or calls a Creem origin, so the policy grants Creem
+  // nothing — and no onfastspring.com survivor is left in any directive.
+  it('grants Creem no CSP source at all, and frames nothing', () => {
+    expect(policy.get('frame-src')).toEqual(["'none'"]);
+    expect(policy.get('style-src')).toEqual(["'self'", "'unsafe-inline'"]);
+    expect(policy.get('connect-src')).toEqual(["'self'", ...GA_COLLECTION_SOURCES]);
+    for (const [, sources] of policy) {
+      for (const source of sources) {
+        expect(source.toLowerCase()).not.toContain('onfastspring.com');
+        expect(source.toLowerCase()).not.toContain('creem.io');
+      }
+    }
   });
 
   // Google Analytics loads only after a visitor allows it (apps/web/src/analytics.ts),

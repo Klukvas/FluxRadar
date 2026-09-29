@@ -8,7 +8,7 @@ import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 // Who may run a paid plan without paying.
 //
 // Since D-229 `POST /billing/internal-checkout` is the only way to a Basic/Complete
-// scan that does not go through a signed FastSpring order, and the one thing in
+// scan that does not go through a signed Creem order, and the one thing in
 // front of it is the FLUXRADAR_INTERNAL_FREE_EMAILS allowlist. An account the
 // allowlist does not name must be refused and leave nothing behind — no scan,
 // no purchase, no entitlement — whatever NODE_ENV says: the rule it replaced was

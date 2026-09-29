@@ -1,6 +1,6 @@
-// What a single FastSpring event did, shared by the delivery handler and the
-// return/chargeback handlers. Every outcome is stored on the WebhookEvent row so
-// a delivery that granted nothing is still auditable.
+// What a single provider webhook event did, shared by every provider's
+// delivery and refund handlers. Every outcome is stored on the WebhookEvent
+// row so a delivery that granted nothing is still auditable.
 
 export const WEBHOOK_OUTCOMES = {
   /** The event moved state forward. */

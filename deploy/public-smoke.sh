@@ -21,8 +21,8 @@
 #   * requires https to the end, so a redirect to http is a failure;
 #   * asserts the HTTP status, the response body and, for the SPA document, the
 #     security headers the Caddyfile is supposed to be setting — including the
-#     Content-Security-Policy, which is what keeps the paid checkout working and
-#     inline script out, and which nothing else looks at after a deploy.
+#     Content-Security-Policy, which is what keeps inline script out, and which
+#     nothing else looks at after a deploy.
 #
 # Usage:
 #   public-smoke.sh [--host HOST] [--attempts N] [--delay SECONDS]
