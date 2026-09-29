@@ -48,9 +48,9 @@ afterEach(() => {
 
 describe('profile suggestions', () => {
   it('applies public suggestions without creating or updating a profile before Save', async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = new URL(String(input)).pathname;
-      if (path === '/profiles/suggestions') {
+      if (path === '/profiles/suggestions' && init?.method === 'POST') {
         return Promise.resolve(
           success({
             name: 'Public clinic',
