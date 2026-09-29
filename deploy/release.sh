@@ -16,7 +16,8 @@
 # was reviewed and tested for this commit.
 #
 # Everything between the markers below is extracted and RUN by DEPLOY-001,
-# DEPLOY-006 and DEPLOY-010 against a recorded `docker`; keep the markers.
+# DEPLOY-006, DEPLOY-010 and DEPLOY-021 against a recorded `docker`; keep
+# the markers.
 # fluxradar:release-script (regression-tested by
 # apps/api/src/deploy/deploy-010-post-switch-rollback.test.ts — keep the
 # markers, the test extracts these lines and RUNS them against a
@@ -138,6 +139,53 @@ discard_new_containers() {
   docker rm -f "$API_CONTAINER" "$WEB_CONTAINER" >/dev/null 2>&1 || true
   docker rm -f "$ROLLBACK_PROBE" >/dev/null 2>&1 || true
 }
+
+# Keeps the active release, the release this deploy just shipped (the same
+# directory once `current` has been switched) and the recorded rollback
+# target off the chopping block, no matter their mtime — then prunes the
+# rest down to the newest two.
+#
+# D-230: a failed deploy still uploads its release directory, so a directory
+# from a LATER, failed attempt can have a newer mtime than the rollback
+# target runtime/rollback.env names. Pruning by "newest N by mtime" alone
+# then deletes the recorded target while it is still recorded, and the
+# contract-phase gate refuses every deploy after that — it cannot verify a
+# target that is not on the server, and there is no way to un-record it
+# short of a successful deploy, which this refusal now blocks forever.
+# fluxradar:release-pruning (regression-tested by
+# apps/api/src/deploy/deploy-021-release-pruning.test.ts — keep the
+# markers, the test extracts and runs exactly these lines)
+prune_old_releases() {
+  local app_dir="$1" keep_extra=2
+  local live="" target="" resolved candidate count=0
+  if [ -L "$app_dir/current" ] || [ -e "$app_dir/current" ]; then
+    live="$(cd "$app_dir/current" 2>/dev/null && pwd -P || true)"
+  fi
+  if [ -f "$app_dir/runtime/rollback.env" ]; then
+    target="$(sed -n 's/^FLUXRADAR_ROLLBACK_RELEASE=//p' "$app_dir/runtime/rollback.env" | tail -n 1)"
+    if [ -n "$target" ]; then
+      target="$(cd "$target" 2>/dev/null && pwd -P || true)"
+    fi
+  fi
+  # Newest first, portable across GNU and BSD userland (macOS `find` has no
+  # `-printf`, which contract-phase-gate.sh's own directory listing avoids
+  # for the same reason).
+  while IFS= read -r candidate; do
+    resolved="$(cd "$candidate" 2>/dev/null && pwd -P || true)"
+    [ -n "$resolved" ] || continue
+    if [ "$resolved" = "$live" ] || { [ -n "$target" ] && [ "$resolved" = "$target" ]; }; then
+      continue
+    fi
+    if [ "$count" -lt "$keep_extra" ]; then
+      count=$((count + 1))
+      continue
+    fi
+    old_id="${resolved##*/}"
+    rm -rf -- "$resolved"
+    docker image rm "fluxradar-api:$old_id" "fluxradar-web:$old_id" >/dev/null 2>&1 || true
+  done < <(ls -1td "$app_dir"/releases/*/ 2>/dev/null)
+}
+# fluxradar:end-release-pruning
 
 # The rollback itself is deploy/rollback-release.sh, which ships with
 # the release; see that file for why it is not a function here (the
@@ -532,16 +580,6 @@ fi
 # and the exit handler above honours this flag: from here a failure is
 # reported and NOTHING is rolled back.
 DEPLOY_COMPLETED=1
-# Keep the active release plus two rollback candidates to bound disk use.
-find "$APP_DIR/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
-  | sort -nr | tail -n +4 | cut -d' ' -f2- \
-  | while IFS= read -r old_release; do
-      case "$old_release" in
-        "$APP_DIR/releases/"*) ;;
-        *) continue ;;
-      esac
-      old_id="${old_release##*/}"
-      rm -rf -- "$old_release"
-      docker image rm "fluxradar-api:$old_id" "fluxradar-web:$old_id" >/dev/null 2>&1 || true
-    done || true
+# Keep the active release plus rollback candidates to bound disk use.
+prune_old_releases "$APP_DIR"
 # fluxradar:end-release-script

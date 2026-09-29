@@ -26,6 +26,19 @@
 #     recorded in runtime/rollback.env, and the two newest other release
 #     directories — the ones the release script's pruning keeps.
 #
+#     When the recorded target is not on this server (D-230: pruned by a
+#     failed deploy's newer directories before its own recorded rollback
+#     could be superseded), it is no longer checked or refused on — the
+#     release script's pruning now protects it (see deploy/release.sh), so a
+#     missing target on a current release only happens once, for a deploy
+#     stuck mid-migration before that fix. Refusing forever for a target that
+#     can never come back would brick every future deploy, and
+#     rollback-release.sh already refuses to roll back to a target that is
+#     not a release directory, so nothing could ever use it anyway. Instead
+#     this prints a WARNING naming it and treats the live release as the
+#     effective rollback target: the live release still has to resolve and
+#     still has to ship every prerequisite, same as any other candidate.
+#
 #   contract-phase-gate.sh rollback-target <app-dir> <target-release-dir>
 #     Run by hand before putting an arbitrary release back — one that is not
 #     the target rollback-release.sh would pick. For every contract migration any release on the
@@ -144,7 +157,11 @@ before_migrate() {
   if [ -z "$target" ]; then
     problems+="runtime/rollback.env names no rollback target, so the release before the live one cannot be checked"$'\n'
   elif [ -z "$(resolve "$target")" ]; then
-    problems+="the recorded rollback target $target is not on this server"$'\n'
+    # D-230: pruned while still recorded. Not a `problems` entry — that would
+    # refuse every deploy forever, since nothing can ever restore a deleted
+    # directory. The live release below stands in as the effective target.
+    echo "WARNING: the recorded rollback target $target is not on this server, so it cannot be rolled back to (rollback-release.sh refuses a missing target). The live release is the effective rollback target for this deploy." >&2
+    target=""
   else
     target="$(resolve "$target")"
   fi
