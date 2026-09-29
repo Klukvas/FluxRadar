@@ -16,11 +16,11 @@ import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import {
   deliverOrder,
   openCheckout,
-  productPathFor,
+  productIdFor,
   purchaseScan,
 } from '../test-utils/purchase-scan.ts';
 
-const WEBSITE_AUDIT_PRODUCT = productPathFor('WebsiteAudit');
+const WEBSITE_AUDIT_PRODUCT = productIdFor('WebsiteAudit');
 
 describe('buying a Website Audit', () => {
   let db: TestDb;
@@ -81,16 +81,16 @@ describe('buying a Website Audit', () => {
 
     const first = await deliverOrder(db.prisma, {
       reference: opened.reference,
-      productPath: WEBSITE_AUDIT_PRODUCT,
-      amount: 79,
+      productId: WEBSITE_AUDIT_PRODUCT,
+      amountCents: 7900,
     });
     expect(first.createdScanIds).toHaveLength(1);
 
     // The same signed delivery again: a provider retry, not a second sale.
     const replayed = await deliverOrder(db.prisma, {
       reference: opened.reference,
-      productPath: WEBSITE_AUDIT_PRODUCT,
-      amount: 79,
+      productId: WEBSITE_AUDIT_PRODUCT,
+      amountCents: 7900,
       orderId: first.orderId,
       eventId: first.eventId,
     });
@@ -110,8 +110,8 @@ describe('buying a Website Audit', () => {
 
     const delivered = await deliverOrder(db.prisma, {
       reference: opened.reference,
-      productPath: 'fluxradar-complete-scan',
-      amount: 79,
+      productId: 'prod_complete',
+      amountCents: 7900,
     });
     expect(delivered.createdScanIds).toHaveLength(0);
     expect(await db.prisma.scan.count()).toBe(0);
@@ -129,10 +129,10 @@ describe('buying a Website Audit', () => {
 
     const delivered = await deliverOrder(db.prisma, {
       reference: opened.reference,
-      productPath: WEBSITE_AUDIT_PRODUCT,
+      productId: WEBSITE_AUDIT_PRODUCT,
       // The Basic price against the Website Audit product: the amount is real
       // money somebody paid, and it is not this plan's money.
-      amount: 55,
+      amountCents: 5500,
     });
     expect(delivered.createdScanIds).toHaveLength(0);
     expect(await db.prisma.scan.count()).toBe(0);

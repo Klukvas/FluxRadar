@@ -54,7 +54,7 @@ describe('startup integration diagnostics', () => {
       'telegram',
       'google',
       'bing',
-      'fastspring',
+      'creem',
     ]);
     expect(statusOf({}, 'pagespeed')).toBe('configured');
     expect(

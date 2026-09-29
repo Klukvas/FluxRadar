@@ -511,4 +511,22 @@ describe('journey layout decisions', () => {
       /\.alert--floating,\s*\.notice \{[^}]*position: fixed;/,
     );
   });
+
+  // The score label ("Visibility score") is read by assistive tech but was
+  // never meant to appear beside the bold number on screen; without this rule
+  // the card header read "Visibility score 53/100" instead of just "53/100".
+  // The hiding declarations live once on the shared .sr-only utility rather
+  // than being repeated per selector.
+  it('hides the GEO visibility score label visually without removing it from the tree', () => {
+    expect(BASE_CSS).toMatch(/\.sr-only \{[^}]*clip: rect\(0, 0, 0, 0\);/);
+  });
+
+  // The share-of-voice list (T7) had no rule of its own and rendered with UA
+  // defaults next to the cited-instead list one block above, which is pinned
+  // to a 4px gap and an 18px indent — the two now share one rule.
+  it('gives the share-of-voice list the same spacing as the cited-instead list', () => {
+    expect(BASE_CSS).toMatch(
+      /\.geo-visibility-card__cited-instead ul,\s*\.geo-visibility-card__share-of-voice ul \{[^}]*gap: 4px;[^}]*padding-left: 18px;/,
+    );
+  });
 });

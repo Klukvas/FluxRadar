@@ -83,6 +83,36 @@ const SEO_TECHNICAL_RULES: readonly RuleDescriptor[] = [
     oracle: 'meta robots or X-Robots-Tag marks an in-scope indexable page as noindex',
   },
   {
+    ruleId: 'SEO-TECH-009',
+    module: 'SEO',
+    title: 'orphan pages',
+    category: 'technical',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'the XML sitemap lists an in-scope URL that no crawled page links to',
+  },
+  {
+    ruleId: 'SEO-TECH-010',
+    module: 'SEO',
+    title: 'click depth',
+    category: 'technical',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle: 'crawled page sits four or more link hops away from the entry URL',
+  },
+  {
+    ruleId: 'SEO-TECH-011',
+    module: 'SEO',
+    title: 'weakly linked pages',
+    category: 'technical',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle: 'crawled HTML page has exactly one inbound internal link from another crawled page',
+  },
+  {
     ruleId: 'SEO-TECH-013',
     module: 'SEO',
     title: 'HTTPS/mixed content',
@@ -126,6 +156,17 @@ const SEO_ONPAGE_RULES: readonly RuleDescriptor[] = [
     oracle: 'H1 missing/duplicated or heading levels skip in the DOM outline',
   },
   {
+    ruleId: 'SEO-ONPAGE-004',
+    module: 'SEO',
+    title: 'duplicate title',
+    category: 'on-page',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle:
+      'crawled page shares its normalized <title> with another crawled page and no canonical ties them',
+  },
+  {
     ruleId: 'SEO-ONPAGE-005',
     module: 'SEO',
     title: 'image alt',
@@ -134,6 +175,17 @@ const SEO_ONPAGE_RULES: readonly RuleDescriptor[] = [
     severity: 'Low',
     scoring: 'scored',
     oracle: 'content <img> elements without an alt attribute',
+  },
+  {
+    ruleId: 'SEO-ONPAGE-006',
+    module: 'SEO',
+    title: 'duplicate meta description',
+    category: 'on-page',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle:
+      'crawled page shares its normalized meta description with another crawled page and no canonical ties them',
   },
 ];
 
@@ -464,6 +516,17 @@ const ACCESSIBILITY_RULES: readonly RuleDescriptor[] = [
 
 const CONTENT_RULES: readonly RuleDescriptor[] = [
   {
+    ruleId: 'CONTENT-001',
+    module: 'Content Quality',
+    title: 'duplicate page content',
+    category: 'quality',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle:
+      'crawled page has the same visible text as another crawled page and no canonical ties them',
+  },
+  {
     ruleId: 'CONTENT-003',
     module: 'Content Quality',
     title: 'empty/low-value content',
@@ -482,6 +545,17 @@ const CONTENT_RULES: readonly RuleDescriptor[] = [
     severity: 'Medium',
     scoring: 'scored',
     oracle: 'referenced images/media respond non-2xx or with a non-media content type',
+  },
+  {
+    ruleId: 'CONTENT-005',
+    module: 'Content Quality',
+    title: 'low readability',
+    category: 'quality',
+    targetKind: 'page',
+    severity: 'Low',
+    scoring: 'scored',
+    oracle:
+      'a page with at least 200 characters of visible text in a supported language (English or Ukrainian) scores below the readability threshold for its language scale',
   },
 ];
 

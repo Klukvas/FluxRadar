@@ -4,6 +4,7 @@ import { planLanguageFromSearch } from './plan-language';
 import type { AppModel } from './app-model';
 import { loadProfiles } from './app-session';
 import { CheckoutPending, type PendingCheckout } from './Checkout';
+import { copy } from './i18n';
 import { NewScanScreen } from './NewScanScreen';
 import { PrintReport } from './PrintReport';
 import { IssuesScreen } from './Issues';
@@ -18,7 +19,7 @@ export function CheckoutRoute({
   readonly app: AppModel;
   readonly pendingCheckout: PendingCheckout;
 }) {
-  const { dismissCheckout, endCheckout, language, onScanCreated, setError } = app;
+  const { dismissCheckout, endCheckout, language, onScanCreated, setError, setNotice } = app;
   return (
     <CheckoutPending
       language={language}
@@ -29,6 +30,12 @@ export function CheckoutRoute({
       }}
       onCancel={dismissCheckout}
       onError={setError}
+      onNotFound={() => {
+        // Dropped from storage as well as from the screen: a reload would
+        // otherwise put the same unknown checkout back in front of the buyer.
+        endCheckout();
+        setNotice(copy[language].checkout.notFound);
+      }}
     />
   );
 }
@@ -79,7 +86,7 @@ export function ScanRoute({ app }: { readonly app: AppModel }) {
 
 /** A finished scan's report. */
 export function ResultsRoute({ app }: { readonly app: AppModel }) {
-  const { language, navigate, profiles, retryScan, selectedScan, setError } = app;
+  const { language, navigate, openScanById, profiles, retryScan, selectedScan, setError } = app;
   const { setIssueRuleFilter, setNewScanPlan, setSelectedProfile, updateSelectedScan } = app;
   return (
     <ResultsScreen
@@ -102,6 +109,7 @@ export function ResultsRoute({ app }: { readonly app: AppModel }) {
         navigate('new-scan');
       }}
       onPrint={(scan) => navigate('print', scan.id)}
+      onOpenScan={(scanId) => void openScanById(scanId)}
       targetLanguages={
         profiles.find((profile) => profile.id === selectedScan?.profileId)?.targetLanguages
       }

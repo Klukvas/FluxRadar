@@ -81,8 +81,11 @@ describe('crawl: fixture-сайт', () => {
       `${origin}/deep/level2/page.html`,
       `${origin}/dup-a.html`,
       `${origin}/dup-b.html`,
+      `${origin}/dup-c.html`,
+      `${origin}/easy-prose.html`,
       `${origin}/empty.html`,
       `${origin}/form.html`,
+      `${origin}/hard-prose.html`,
       `${origin}/missing`,
       `${origin}/mixed-content.html`,
       `${origin}/no-title.html`,
@@ -166,6 +169,31 @@ describe('crawl: fixture-сайт', () => {
     expect(crawled).not.toContain(`${site.origin}/deep/level2/page.html`);
     // /missing линкуется со страницы глубины 1 → глубина 2 → отсечён.
     expect(crawled).not.toContain(`${site.origin}/missing`);
+  });
+
+  it('итог обхода несёт область, с которой он работал', async () => {
+    // Правилам графа ссылок (SEO-TECH-009/010/011) нужна не «область, которую
+    // просили», а та, по которой URL исчезал из обхода бесследно: под queryPolicy
+    // 'ignore' ссылка на /dup-a.html?sort=asc — это прочитанный /dup-a.html, а
+    // шаг глубже maxDepth обход отбрасывает молча.
+    const scope = fixtureScope({ maxDepth: 1, queryPolicy: 'ignore' });
+    const result = await crawl(scope, fastOptions());
+    expect(result.scope).toEqual(scope);
+  });
+
+  it('queryPolicy ignore склеивает адреса с query в один', async () => {
+    const result = await crawl(
+      fixtureScope({ queryPolicy: 'ignore', seedUrls: [`${site.origin}/query-links.html`] }),
+      fastOptions(),
+    );
+    const crawled = result.pages.map((page) => page.normalizedUrl);
+    expect(crawled).toContain(`${site.origin}/query-links.html`);
+    expect(crawled).toContain(`${site.origin}/dup-a.html`);
+    // Ссылка /dup-a.html?sort=asc — тот же адрес, а не вторая страница.
+    expect(crawled).not.toContain(`${site.origin}/dup-a.html?sort=asc`);
+    expect(result.urlVariants[`${site.origin}/dup-a.html`]).toContain(
+      `${site.origin}/dup-a.html?sort=asc`,
+    );
   });
 
   it('sitemap-URL попадают в seed: orphan-страница обойдена без входящих ссылок', async () => {

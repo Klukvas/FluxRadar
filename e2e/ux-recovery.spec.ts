@@ -65,6 +65,12 @@ async function baseApi(route: Route, reportReady = true): Promise<void> {
   return json(route, []);
 }
 
+async function dismissCookies(page: Page): Promise<void> {
+  const consent = page.getByRole('region', { name: 'Cookies & storage' });
+  if (await consent.isVisible())
+    await consent.getByRole('button', { name: 'Only necessary' }).click();
+}
+
 test('restored checkout can resume or explicitly stop tracking', async ({ page, baseURL }) => {
   await page.addInitScript(() =>
     localStorage.setItem(
@@ -80,6 +86,7 @@ test('restored checkout can resume or explicitly stop tracking', async ({ page, 
   );
   await isolate(page, new URL(baseURL!).origin, (route) => baseApi(route));
   await page.goto('/profiles');
+  await dismissCookies(page);
   const close = page.getByRole('button', { name: 'Close', exact: true });
   await expect(close).toBeVisible();
   if (await close.isVisible()) await close.click();
@@ -118,6 +125,7 @@ test('terminal scan keeps progress polling until report readiness', async ({ pag
     return baseApi(route, false);
   });
   await page.goto('/scans/scan-e2e');
+  await dismissCookies(page);
   await expect(page.getByText('Finalizing report…')).toBeVisible();
   await expect.poll(() => reads).toBeGreaterThan(1);
   ready = true;
@@ -138,6 +146,7 @@ test('dirty scan dialog traps keyboard focus, restores it on Escape, and has tou
   try {
     await isolate(page, new URL(baseURL!).origin, (route) => baseApi(route));
     await page.goto('/scan');
+    await dismissCookies(page);
     await page.getByRole('combobox', { name: 'Profile' }).selectOption('new-address');
     await page.getByRole('textbox', { name: 'Site address' }).fill('dirty.example.test');
     const close = page.getByRole('button', { name: 'Close window' });

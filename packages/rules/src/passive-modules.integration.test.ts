@@ -84,8 +84,11 @@ const ALL_HTML_PAGES = [
   '/deep/level2/page.html',
   '/dup-a.html',
   '/dup-b.html',
+  '/dup-c.html',
+  '/easy-prose.html',
   '/empty.html',
   '/form.html',
+  '/hard-prose.html',
   '/mixed-content.html',
   '/no-title.html',
   '/noindex.html',
@@ -119,9 +122,9 @@ describe('passive-модули на fixture-сайте краулера', () => 
     const byRule = new Map(
       moduleResult('Reliability').evaluations.map((entry) => [entry.ruleId, entry]),
     );
-    expect(byRule.get('REL-URL-001')?.applicableTargets).toBe(17);
-    expect(byRule.get('REL-URL-003')?.applicableTargets).toBe(17);
-    expect(byRule.get('REL-URL-009')?.applicableTargets).toBe(17);
+    expect(byRule.get('REL-URL-001')?.applicableTargets).toBe(20);
+    expect(byRule.get('REL-URL-003')?.applicableTargets).toBe(20);
+    expect(byRule.get('REL-URL-009')?.applicableTargets).toBe(20);
     expect(byRule.get('REL-API-003')?.applicableTargets).toBe(0);
     expect(byRule.get('REL-API-005')?.applicableTargets).toBe(0);
   });
@@ -153,10 +156,26 @@ describe('passive-модули на fixture-сайте краулера', () => 
 
   it('Content Quality: четыре страницы < 200 символов; media судится только по пробе', () => {
     expect(findingPathsByRule('Content Quality')).toEqual({
+      // Три страницы несут один и тот же текст, но /dup-c.html объявила
+      // canonical-ом /dup-a.html — и молчат обе: сайт сам сказал, какой адрес
+      // настоящий. Остаётся /dup-b.html, которая делит текст ни с кем не
+      // связавшись.
+      'CONTENT-001': ['/dup-b.html'],
       'CONTENT-003': ['/deep/level2/page.html', '/empty.html', '/orphan.html', '/trackers.html'],
       // Ровно одна страница: та, чью media проба обхода застала битой. Ни одна
-      // из остальных пятнадцати за непроверенный ресурс не штрафуется.
+      // из остальных за непроверенный ресурс не штрафуется.
       'CONTENT-004': ['/broken-image.html'],
+      // hard-prose.html пишет намеренно тяжёлый для чтения текст, от
+      // MIN_PROSE_SENTENCES/MIN_PROSE_WORDS достаточно, и оценка ниже 30 —
+      // единственная находка. easy-prose.html (рядом в навигации) намеренно
+      // лёгкий и находки не даёт. /, /form.html и /wrong-canonical.html раньше
+      // тоже засчитывались находками — но там 1-3 предложения на всю страницу
+      // (h1 плюс один абзац или список ссылок), то есть недостаточно прозы,
+      // чтобы Flesch вообще был откалиброван; content-005.ts теперь считает
+      // такие страницы too-little-prose, не измеряя их вовсе (T9 review H4,
+      // и prose-only scope из H5 в третьем раунде — <nav> у / больше не
+      // засчитывается вовсе, даже границей).
+      'CONTENT-005': ['/hard-prose.html'],
     });
     const media = moduleResult('Content Quality').findings.find(
       (finding) => finding.ruleId === 'CONTENT-004',
@@ -185,20 +204,30 @@ describe('passive-модули на fixture-сайте краулера', () => 
     expect(thirdParty?.evidenceExcerpt).toContain('stats.example.com');
   });
 
-  it('coverage: снимков без fetchError 17 → все checks каждого модуля завершены', () => {
-    expect(crawlResult.pages).toHaveLength(17);
+  it('coverage: снимков без fetchError 20 → все checks каждого модуля завершены', () => {
+    expect(crawlResult.pages).toHaveLength(20);
     const expectedChecks: Readonly<Record<string, number>> = {
-      // Existing 33 checks + ASVS-001×16 + ASVS-002×16 + ASVS-003×17.
-      Security: 82,
-      // REL-URL-001/003/009×17; api-правила без ctx.apiChecks — 0.
-      Reliability: 51,
-      // A11Y-002/004×16.
-      // A11Y-001..010 ×16 HTML pages + A11Y-011 site report contract ×1.
-      Accessibility: 161,
-      // CONTENT-003/004×16.
-      'Content Quality': 32,
-      // PRIVACY-001×17 + PRIVACY-002×16 + PRIVACY-003×16 + PRIVACY-004×1.
-      Privacy: 50,
+      // SEC-PASSIVE-002×19 + SEC-PASSIVE-005×20 + ASVS-001×19 + ASVS-002×19 +
+      // ASVS-003×20 + SEC-PASSIVE-003×0 (HSTS is Not applicable on loopback
+      // http, see the module header) = 19+20+19+19+20+0 = 97.
+      Security: 97,
+      // REL-URL-001/003/009×20; api-правила без ctx.apiChecks — 0.
+      Reliability: 60,
+      // A11Y-001..010 ×19 HTML pages + A11Y-011 site report contract ×1.
+      Accessibility: 191,
+      // CONTENT-001/003/004×19 + CONTENT-005×2. hard-prose.html and
+      // easy-prose.html clear MIN_PROSE_SENTENCES (5) and MIN_PROSE_WORDS (100)
+      // on their own single <p>. Every other page — including / — stays
+      // too-little-prose: proseText (H5, T9 third review) reads only
+      // <p>/<blockquote>/<dd> text, so /'s 18-item <nav> list contributes
+      // nothing at all (not even a boundary — <nav> is excluded outright),
+      // leaving its one intro paragraph at 3 sentences and ~54 words, under
+      // both floors. form.html and wrong-canonical.html are the same shape:
+      // a heading plus one short paragraph, still under MIN_PROSE_WORDS.
+      // 19+19+19+2 = 59.
+      'Content Quality': 59,
+      // PRIVACY-001×20 + PRIVACY-002×19 + PRIVACY-003×19 + PRIVACY-004×1.
+      Privacy: 59,
     };
     for (const module of PASSIVE_MODULES) {
       const result = moduleResult(module);
@@ -217,6 +246,7 @@ describe('passive-модули на fixture-сайте краулера', () => 
     expect(severityByRule.get('SEC-PASSIVE-002')).toBe('Medium');
     expect(severityByRule.get('SEC-PASSIVE-005')).toBe('Medium');
     expect(severityByRule.get('A11Y-002')).toBe('Medium');
+    expect(severityByRule.get('CONTENT-001')).toBe('Medium');
     expect(severityByRule.get('CONTENT-003')).toBe('Medium');
     expect(severityByRule.get('PRIVACY-001')).toBe('Low');
     expect(severityByRule.get('PRIVACY-003')).toBe('Low');

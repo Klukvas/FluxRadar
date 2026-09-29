@@ -1929,11 +1929,10 @@ describe('NewScanScreen — paid availability and i18n', () => {
       releaseConfig = () =>
         resolve(
           envelope({
-            provider: 'fastspring',
+            provider: 'creem',
             available: true,
             mode: 'test',
             unavailableReason: null,
-            popup: { storefront: 'fluxlab.test.onfastspring.com/popup-fluxlab' },
             plans: [],
           }),
         );

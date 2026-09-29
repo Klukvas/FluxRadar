@@ -32,6 +32,13 @@ const FixturePageSchema = z.object({
   html: z.string().nullable().default(null),
   headers: z.record(z.string(), z.string()).default({}),
   redirectChain: z.array(RedirectHopSchema).default([]),
+  /**
+   * Куда снимок уехал редиректом: путь того же сайта или абсолютный URL.
+   *
+   * Абсолютный нужен там, где редирект уводит за область обхода (чужой хост,
+   * свой поддомен при includeSubdomains = false): краулер такой ответ проходит и
+   * снимок сохраняет, а правила обязаны не считать его страницей сайта.
+   */
   finalPath: z.string().optional(),
   fetchError: z.string().optional(),
   timingMs: z.number().int().min(0).default(5),
@@ -68,8 +75,31 @@ const FixtureResourceSchema = z.object({
   referencedBy: z.string().default('/page.html'),
 });
 
+/**
+ * Область обхода, из которого пришла фикстура.
+ *
+ * Значения по умолчанию — производственные (профиль по умолчанию: queryPolicy
+ * 'ignore', без поддоменов), поэтому inline-кейсы проходят ровно ту
+ * нормализацию, что и настоящий скан. maxDepth по умолчанию нет: страницы
+ * фикстуры заданы явно, и «глубже maxDepth» здесь описывают тесты, которым это
+ * нужно.
+ */
+const FixtureScopeSchema = z
+  .object({
+    includeSubdomains: z.boolean().default(false),
+    queryPolicy: z.enum(['include', 'ignore']).default('ignore'),
+    maxDepth: z.number().int().min(0).optional(),
+    includePatterns: z.array(z.string()).optional(),
+    excludePatterns: z.array(z.string()).optional(),
+  })
+  .prefault({});
+
+/** Фикстура не про лимит тарифа: «не влезло в лимит» задаётся skippedOverLimit. */
+const FIXTURE_MAX_PAGES = 1000;
+
 const SiteFixtureSchema = z.object({
   origin: z.string().default(FIXTURE_ORIGIN),
+  scope: FixtureScopeSchema,
   robotsTxt: z.string().optional(),
   sitemapUrls: z.array(z.string()).default([]),
   urlVariants: z.record(z.string(), z.array(z.string())).default({}),
@@ -145,6 +175,11 @@ function siteContextFromFixture(fixture: z.output<typeof SiteFixtureSchema>): Si
     resources: fixture.resources.map((resource) => toResourceSnapshot(fixture.origin, resource)),
     pendingQueue: [],
     stoppedEarly: false,
+    scope: {
+      origin: fixture.origin,
+      maxPages: FIXTURE_MAX_PAGES,
+      ...fixture.scope,
+    },
   };
   return createSiteContext({
     origin: fixture.origin,
@@ -172,7 +207,7 @@ function toResourceSnapshot(origin: string, resource: FixtureResource): Resource
 
 function toSnapshot(origin: string, page: FixturePage): PageSnapshot {
   const requestedUrl = `${origin}${page.path}`;
-  const finalUrl = `${origin}${page.finalPath ?? page.path}`;
+  const finalUrl = new URL(page.finalPath ?? page.path, origin).href;
   const failed = page.fetchError !== undefined;
   return {
     requestedUrl,

@@ -1,7 +1,7 @@
 // Who may still read a paid report.
 //
 // A full refund or a chargeback suspends the entitlement, and the reason is
-// written where the suspension is written (fastspring/refund-events.ts): "a
+// written where the suspension is written (creem/refund-events.ts): "a
 // buyer whose money was returned must not keep the report the money paid for".
 // Until this module existed, only two places asked — the worker
 // (orchestrator/worker.ts) and the module retry — so a suspension stopped future

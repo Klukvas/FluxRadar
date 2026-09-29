@@ -77,8 +77,8 @@ export class SitePreconditionError extends BillingError {
 /**
  * The plan exists in the catalogue, but this deployment cannot sell it.
  *
- * A plan whose provider product has not been created yet has no product path
- * (`FASTSPRING_PRODUCT_PATH_*`), so no checkout can be opened for it. Refused
+ * A plan whose provider product has not been created yet has no product id
+ * (`CREEM_PRODUCT_ID_*`), so no checkout can be opened for it. Refused
  * here, before a CheckoutSession row exists and before the provider is called,
  * so a buyer never ends up with an open session that can never be paid. The
  * other plans keep selling; which one is unavailable is not a buyer's problem

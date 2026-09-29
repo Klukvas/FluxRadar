@@ -1,11 +1,11 @@
 // The provider-neutral shape of one outbound refund.
 //
 // FluxRadar's refund policy is its own (§18: four reason codes, one refund per
-// purchase, decided from the scan's outcome). What a provider calls it — a
-// "return" at FastSpring, a "refund" elsewhere — belongs to the adapter, and so
-// does every field name in its payload. Everything above this seam speaks only
-// the vocabulary below, which is what makes the stored state readable after a
-// provider change and what keeps the state machine free of FastSpring's spelling.
+// purchase, decided from the scan's outcome). What a provider calls it and
+// every field name in its payload belongs to the adapter. Everything above this
+// seam speaks only the vocabulary below, which is what makes the stored state
+// readable after a provider change and what keeps the state machine free of any
+// one provider's spelling.
 //
 // THE THREE OUTCOMES ARE NOT INTERCHANGEABLE, and the middle one is the reason
 // this type exists:
@@ -55,7 +55,7 @@ export type RefundSubmissionOutcome =
   | { readonly outcome: 'uncertain'; readonly reason: string };
 
 export interface RefundProviderAdapter {
-  /** The provider name stored on the dispatch row, e.g. `fastspring`. */
+  /** The provider name stored on the dispatch row, e.g. `creem`. */
   readonly provider: string;
   /**
    * Submits one refund. Must not throw: every failure is one of the outcomes

@@ -8,6 +8,7 @@ import {
 import { redact } from '@fluxradar/ai';
 import type { Prisma, Scan, SiteProfile } from '@prisma/client';
 import { conflict, notFound } from '../http/errors.ts';
+import { competitorsFromJson } from './competitors.ts';
 
 const CONTEXT_FIELDS = [
   'industry',
@@ -47,12 +48,18 @@ export function captureExecutionConfig(
   plan: Plan,
   scope: ScanScopeInput,
 ): ExecutionConfig {
+  const competitors = competitorsFromJson(profile.competitorsJson);
   return executionConfigSchema.parse({
     schemaVersion: 1,
     source: 'launch',
     profileConfigVersion: profile.scanConfigVersion,
     plan,
     scope,
+    // T7-fix F8: captured at launch, alongside the rest of this snapshot, so a
+    // scan's share of voice always reflects the competitor list as it stood at
+    // purchase time — never omitted here to reach the AI provider, only kept
+    // out of the nested `profile` object below, which is.
+    ...(competitors !== null ? { competitors } : {}),
     profile: {
       name: redact(profile.name).text,
       domain: profile.domain,
@@ -99,7 +106,8 @@ export function executionProfile(
   scan: Pick<Scan, 'domain' | 'executionConfigJson'>,
   profile: SiteProfile,
 ): SiteProfile {
-  const stored = storedExecutionConfig(scan.executionConfigJson)?.profile;
+  const config = storedExecutionConfig(scan.executionConfigJson);
+  const stored = config?.profile;
   return {
     ...profile,
     name: stored?.name ?? new URL(scan.domain).hostname,
@@ -111,20 +119,15 @@ export function executionProfile(
     offerings: stored?.offerings ?? null,
     targetLanguages: stored?.targetLanguages ?? null,
     targetAudience: stored?.targetAudience ?? null,
+    // T7-fix F8: read from the launch-time snapshot, never from the live
+    // profile row — a competitor list edited after this scan ran must not
+    // change what an already-run scan's share of voice is computed from. A
+    // config captured before this field existed carries no `competitors` key
+    // at all, which is indistinguishable here from "none configured at
+    // launch" — both correctly mean no share of voice for this scan.
+    competitorsJson:
+      config?.competitors === undefined || config.competitors.length === 0
+        ? null
+        : JSON.stringify(config.competitors),
   };
-}
-
-export function legacyCheckoutConfig(
-  domain: string,
-  plan: Plan,
-  scopeJson: string,
-): ExecutionConfig {
-  return executionConfigSchema.parse({
-    schemaVersion: 1,
-    source: 'legacy-checkout',
-    profileConfigVersion: null,
-    profile: { name: new URL(domain).hostname, domain },
-    plan,
-    scope: scanScopeSchema.parse(JSON.parse(scopeJson)),
-  });
 }

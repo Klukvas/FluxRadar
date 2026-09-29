@@ -64,15 +64,15 @@ const BOOT_VALIDATORS = [
     describes: 'required production secrets and half-configured integrations',
   },
   {
-    module: 'billing/fastspring/config.js',
-    exportName: 'readFastSpringConfig',
-    describes: 'the FastSpring variable set',
-    // readFastSpringConfig reports rather than throws; "invalid" is the state
-    // that makes the old release refuse to serve checkout.
+    module: 'billing/creem/config.js',
+    exportName: 'readCreemConfig',
+    describes: 'the Creem variable set',
+    // readCreemConfig reports rather than throws; "invalid" is the state that
+    // makes the old release refuse to serve checkout.
     check: (result) => {
       if (result?.state === 'invalid') {
         throw new Error(
-          `FastSpring configuration is incomplete for this release: missing ${
+          `Creem configuration is incomplete for this release: missing ${
             Array.isArray(result.missing) ? result.missing.join(', ') : 'unknown variables'
           }`,
         );

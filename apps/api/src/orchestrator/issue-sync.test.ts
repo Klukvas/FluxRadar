@@ -931,6 +931,87 @@ describe('the issue lifecycle is scoped to one plan', () => {
     expect(resolved.status).toBe('Resolved');
   });
 
+  it('measures a retried Partial scan against the scan that finished last before it', async () => {
+    // A ends Partial; the owner buys B, which completes; the owner then retries
+    // A's unfinished section and A completes. A's findings are current as of the
+    // moment A finished, so the run it proves things about is B — and the §14
+    // pass must close B's findings, not those of the run before A.
+    db = await createTestDb();
+    const account = await seedAccountWithProfile(db.prisma);
+    const before = await seedScan(db.prisma, {
+      account,
+      plan: 'Complete',
+      status: 'Completed',
+      withPurchase: false,
+      completedAt: new Date('2026-09-01T11:00:00.000Z'),
+    });
+    const bought = await seedScan(db.prisma, {
+      account,
+      plan: 'Complete',
+      status: 'Completed',
+      withPurchase: false,
+      completedAt: new Date('2026-09-05T12:00:00.000Z'),
+    });
+    const retried = await seedScan(db.prisma, {
+      account,
+      plan: 'Complete',
+      status: 'Completed',
+      withPurchase: false,
+      // Created before the scan that was bought later, finished after it.
+      completedAt: new Date('2026-09-10T18:00:00.000Z'),
+    });
+    await db.prisma.scan.update({
+      where: { id: retried.scan.id },
+      data: { createdAt: new Date('2026-09-02T10:00:00.000Z') },
+    });
+    const withFinding = await db.prisma.scan.findUniqueOrThrow({
+      where: { id: retried.scan.id },
+    });
+    for (const scanId of [before.scan.id, bought.scan.id]) {
+      await seedIssue(db.prisma, scanId);
+      await seedPageRuleCoverage(db.prisma, scanId);
+    }
+
+    expect(await markResolvedAgainstPrevious(db.prisma, withFinding, coverage())).toBe(1);
+
+    const closed = await db.prisma.issue.findFirstOrThrow({ where: { scanId: bought.scan.id } });
+    const untouched = await db.prisma.issue.findFirstOrThrow({
+      where: { scanId: before.scan.id },
+    });
+    expect(closed.status).toBe('Resolved');
+    expect(untouched.status).toBe('New');
+  });
+
+  it('breaks a same-millisecond tie by id when two scans of a plan finished together', async () => {
+    db = await createTestDb();
+    const account = await seedAccountWithProfile(db.prisma);
+    const sameMoment = new Date('2026-09-07T09:00:00.000Z');
+    const one = await seedScan(db.prisma, {
+      account,
+      plan: 'Complete',
+      status: 'Completed',
+      withPurchase: false,
+      completedAt: sameMoment,
+    });
+    const two = await seedScan(db.prisma, {
+      account,
+      plan: 'Complete',
+      status: 'Completed',
+      withPurchase: false,
+      completedAt: sameMoment,
+    });
+    const [lower, higher] = [one.scan, two.scan].toSorted((left, right) =>
+      left.id.localeCompare(right.id),
+    ) as [typeof one.scan, typeof one.scan];
+    await seedIssue(db.prisma, lower.id);
+    await seedPageRuleCoverage(db.prisma, lower.id);
+
+    // The higher id is the later of the two, so it closes the lower one's
+    // finding — and the lower one has nothing before it to close.
+    expect(await markResolvedAgainstPrevious(db.prisma, higher, coverage())).toBe(1);
+    expect(await markResolvedAgainstPrevious(db.prisma, lower, coverage())).toBe(0);
+  });
+
   it('gives a Basic scan no lifecycle at all, as before', async () => {
     db = await createTestDb();
     const account = await seedAccountWithProfile(db.prisma);

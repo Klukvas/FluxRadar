@@ -1,5 +1,5 @@
 import { apiRequest, type CheckoutSession, type Scan } from './api';
-import { openCheckoutWindow, type PendingCheckout } from './Checkout';
+import type { PendingCheckout } from './Checkout';
 import { AI_PROCESSING_NOTICE_VERSION, AI_PROCESSING_PROVIDERS } from './ai-processing-notice';
 import type { AiProcessingOptInProvider } from './ai-processing-notice';
 import type { Plan } from './plan-modules';
@@ -27,8 +27,6 @@ export interface ScanRequest {
    */
   readonly optInAiProviders: readonly AiProcessingOptInProvider[];
   readonly internalFreeAccess: boolean;
-  /** The FastSpring popup storefront, or null for the older hosted checkout. */
-  readonly storefront: string | null;
   readonly onCheckoutStarted: (pending: PendingCheckout) => void;
 }
 
@@ -66,19 +64,16 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
     method: 'POST',
     body: JSON.stringify({ ...purchase, ...aiConsent }),
   });
-  // With a popup checkout configured, the FastSpring iframe opens over this
-  // page from `CheckoutPending` and the hosted URL is never opened by us — it
-  // stays only as the link the buyer clicks if the popup could not load.
-  // Without one (the older hosted storefront), the provider page opens in a tab.
-  const { storefront } = request;
+  // Creem hosts the checkout page: this tab is sent there, and Creem sends the
+  // buyer back to `/checkout/return` when they are done. The record is stored
+  // before the page unloads: it is what the return page confirms the payment
+  // against.
   request.onCheckoutStarted({
     accountId: request.accountId,
     reference: session.reference,
-    sessionId: session.sessionId,
     checkoutUrl: session.checkoutUrl,
-    storefront,
     restored: false,
-    popupBlocked: storefront === null && !openCheckoutWindow(session.checkoutUrl),
   });
+  window.location.assign(session.checkoutUrl);
   return null;
 }

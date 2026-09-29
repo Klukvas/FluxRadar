@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { RULESET_VERSION } from '@fluxradar/contracts';
 
 import { PURCHASE_STATUSES } from '../billing/constants.ts';
-import { FASTSPRING_PROVIDER } from '../billing/fastspring/config.ts';
+import { CREEM_PROVIDER } from '../billing/creem/config.ts';
 import {
   createTestDb,
   seedAccountWithProfile,
@@ -19,9 +19,9 @@ import {
   type ScanNotificationKind,
 } from './notifications.ts';
 
-// Regression: a FastSpring test-mode production E2E run mailed real money
-// emails for an order nobody paid. Test-mode FastSpring purchases stay silent;
-// every other scan keeps its notifications.
+// Regression: a Creem test-mode production E2E run mailed real money emails
+// for an order nobody paid. Test-mode Creem purchases stay silent; every
+// other scan keeps its notifications.
 
 const PAID_FLOW_KINDS: readonly ScanNotificationKind[] = ['purchase_confirmed', 'refund_created'];
 const PAID_FLOW_SUBJECTS = ['FluxRadar: purchase confirmed', 'FluxRadar: refund created'];
@@ -43,14 +43,17 @@ describe('scan notifications by purchase mode', () => {
     await db.cleanup();
   });
 
-  /** A FastSpring-paid scan; `checkout: null` models a purchase whose session row is gone. */
-  async function seedFastSpringScan(checkout: { liveMode: boolean } | null): Promise<string> {
+  /** A Creem-paid scan; `checkout: null` models a purchase whose session row is gone. */
+  async function seedCreemScan(
+    checkout: { liveMode: boolean } | null,
+    provider: string = CREEM_PROVIDER,
+  ): Promise<string> {
     const purchase = await db.prisma.purchase.create({
       data: {
         accountId: account.accountId,
         siteProfileId: account.siteProfileId,
         plan: 'Basic',
-        provider: FASTSPRING_PROVIDER,
+        provider,
         providerTransactionId: `ord_${randomUUID()}`,
         amountUsd: BASIC_PRICE,
         currency: 'USD',
@@ -60,7 +63,7 @@ describe('scan notifications by purchase mode', () => {
     if (checkout !== null) {
       await db.prisma.checkoutSession.create({
         data: {
-          provider: FASTSPRING_PROVIDER,
+          provider,
           reference: `frcs_${randomUUID()}`,
           accountId: account.accountId,
           siteProfileId: account.siteProfileId,
@@ -95,8 +98,8 @@ describe('scan notifications by purchase mode', () => {
     }
   }
 
-  it('sends nothing and claims no event for a FastSpring test-mode purchase', async () => {
-    const scanId = await seedFastSpringScan({ liveMode: false });
+  it('sends nothing and claims no event for a Creem test-mode purchase', async () => {
+    const scanId = await seedCreemScan({ liveMode: false });
 
     await notifyPaidFlow(scanId);
 
@@ -104,8 +107,8 @@ describe('scan notifications by purchase mode', () => {
     expect(await db.prisma.emailNotification.count()).toBe(0);
   });
 
-  it('still mails every paid-flow event for a FastSpring live-mode purchase', async () => {
-    const scanId = await seedFastSpringScan({ liveMode: true });
+  it('still mails every paid-flow event for a Creem live-mode purchase', async () => {
+    const scanId = await seedCreemScan({ liveMode: true });
 
     await notifyPaidFlow(scanId);
 
@@ -113,8 +116,8 @@ describe('scan notifications by purchase mode', () => {
     expect(await db.prisma.emailNotification.count()).toBe(PAID_FLOW_KINDS.length);
   });
 
-  it('still mails a FastSpring purchase whose checkout session no longer exists', async () => {
-    const scanId = await seedFastSpringScan(null);
+  it('still mails a Creem purchase whose checkout session no longer exists', async () => {
+    const scanId = await seedCreemScan(null);
 
     await notifyPaidFlow(scanId);
 
@@ -138,11 +141,23 @@ describe('scan notifications by purchase mode', () => {
     expect(mailer.messages.map((message) => message.subject)).toEqual(PAID_FLOW_SUBJECTS);
   });
 
-  it('still mails a purchase from a provider no longer in use', async () => {
+  it('sends nothing and claims no event for a historical FastSpring test-mode purchase', async () => {
+    // Production still holds Purchase rows from FastSpring test-mode E2E runs;
+    // the silencer keys off the checkout's liveMode, not the provider, so a
+    // retired provider's test-mode order stays as silent as a Creem one.
+    const scanId = await seedCreemScan({ liveMode: false }, 'fastspring');
+
+    await notifyPaidFlow(scanId);
+
+    expect(mailer.messages).toEqual([]);
+    expect(await db.prisma.emailNotification.count()).toBe(0);
+  });
+
+  it('still mails a purchase from a provider no longer in use (e.g. a retired fastspring row)', async () => {
     const { scan, purchase } = await seedScan(db.prisma, { account, status: 'Pending' });
     await db.prisma.purchase.update({
       where: { id: purchase?.id ?? '' },
-      data: { provider: 'retired-provider' },
+      data: { provider: 'fastspring' },
     });
 
     await notifyPaidFlow(scan.id);

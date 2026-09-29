@@ -16,6 +16,7 @@ import type { PrismaClient, Scan } from '@prisma/client';
 import type { IssueStatus } from '@fluxradar/contracts';
 import { planSupports } from '@fluxradar/contracts';
 
+import { findPreviousScan, previousScanWhere } from '../scans/previous-scan.ts';
 import { previousRunCoverage, resolvableIssues } from './resolution-policy.ts';
 import type { RunCoverage } from './resolution-policy.ts';
 import { loadScanCoverage, type UnreadableCoverage } from './run-coverage.ts';
@@ -35,6 +36,14 @@ function inheritedStatus(previous: string): IssueStatus {
 /**
  * Начальные статусы новых issues скана. Ищется последнее вхождение каждого
  * fingerprint среди более ранних успешных сканов ТОГО ЖЕ плана в профиле.
+ *
+ * Набор кандидатов — тот же предикат §14, что выбирает предыдущий скан для
+ * разбора Resolved (scans/previous-scan.ts), и порядок тот же: по времени
+ * ЗАВЕРШЕНИЯ скана, а не по observedAt находки. Иначе две половины §14
+ * расходятся: одна унаследовала бы статус из скана, который для другой ещё не
+ * наступил. Пока этот скан не терминализован, времени завершения у него нет —
+ * и «раньше» означает «любой уже завершённый скан плана», что и есть верное
+ * прочтение на момент записи модуля.
  */
 export async function initialIssueStatuses(
   prisma: PrismaClient,
@@ -45,16 +54,8 @@ export async function initialIssueStatuses(
     return new Map();
   }
   const previous = await prisma.issue.findMany({
-    where: {
-      fingerprint: { in: [...fingerprints] },
-      scan: {
-        siteProfileId: scan.siteProfileId,
-        plan: scan.plan,
-        status: 'Completed',
-        id: { not: scan.id },
-      },
-    },
-    orderBy: { observedAt: 'desc' },
+    where: { fingerprint: { in: [...fingerprints] }, scan: previousScanWhere(scan) },
+    orderBy: [{ scan: { completedAt: 'desc' } }, { scanId: 'desc' }],
     select: { fingerprint: true, status: true },
   });
   const statuses = new Map<string, IssueStatus>();
@@ -115,6 +116,10 @@ export interface ResolveOptions {
  * в новом нет И повторную проверку которых этот прогон действительно доказал,
  * получают Resolved (§14 + политика resolution-policy.ts).
  *
+ * Предыдущий скан выбирает общее правило — scans/previous-scan.ts: то же самое
+ * определение читает «что изменилось» в отчёте и сравнение сканов, и второй его
+ * копии здесь больше нет.
+ *
  * Отсутствия fingerprint-а мало: суженный scope, недоступный модуль, лимит URL
  * и смена ruleset дают ровно то же отсутствие, не починив ничего. Поэтому сюда
  * передаётся покрытие самого прогона, а покрытие прошлого скана читается из его
@@ -130,15 +135,7 @@ export async function markResolvedAgainstPrevious(
   if (!planSupports(scan.plan, 'issueHistory')) {
     return 0;
   }
-  const previousScan = await prisma.scan.findFirst({
-    where: {
-      siteProfileId: scan.siteProfileId,
-      plan: scan.plan,
-      status: 'Completed',
-      id: { not: scan.id },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const previousScan = await findPreviousScan(prisma, scan);
   if (previousScan === null) {
     return 0;
   }

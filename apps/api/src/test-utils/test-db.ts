@@ -7,7 +7,7 @@ import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 
 import { createPrismaClient } from '../db.ts';
 import { PURCHASE_STATUSES } from '../billing/constants.ts';
-import { FASTSPRING_PROVIDER } from '../billing/fastspring/config.ts';
+import { CREEM_PROVIDER } from '../billing/creem/config.ts';
 import { testDatabaseUrl } from './template-db.ts';
 import { isTestDatabaseReady, testDatabaseSkipReason } from './test-database-url.ts';
 import { TRUNCATED_TABLES } from './truncated-tables.ts';
@@ -89,6 +89,8 @@ export interface SeedScanParams {
   readonly statusReason?: string;
   readonly moduleRetryCount?: number;
   readonly platformRetryCount?: number;
+  /** When this scan finished; defaults to now for a result state. */
+  readonly completedAt?: Date;
 }
 
 export interface SeededScan {
@@ -104,6 +106,14 @@ export interface SeededScan {
  * scan seeded here answers 403 `ENTITLEMENT_SUSPENDED` on the report endpoints;
  * create the entitlement in the test when it needs to read one.
  */
+/** Statuses a scan can only reach by finishing; the rest have no completion time. */
+const RESULT_STATUSES: ReadonlySet<string> = new Set([
+  'Completed',
+  'Partial',
+  'Failed',
+  'Cancelled',
+]);
+
 export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Promise<SeededScan> {
   const plan = params.plan ?? 'Basic';
   const purchase =
@@ -114,7 +124,7 @@ export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Pr
             accountId: params.account.accountId,
             siteProfileId: params.account.siteProfileId,
             plan,
-            provider: FASTSPRING_PROVIDER,
+            provider: CREEM_PROVIDER,
             providerTransactionId: `ord_${randomUUID()}`,
             amountUsd: TARIFFS[plan].priceUsd,
             currency: 'USD',
@@ -135,6 +145,12 @@ export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Pr
       moduleRetryCount: params.moduleRetryCount ?? 0,
       platformRetryCount: params.platformRetryCount ?? 0,
       startedAt: params.status === 'Running' ? new Date() : null,
+      // A result state carries a completion time in production — the state
+      // machine writes one on every transition into one — and "the previous
+      // scan of this plan" is ordered by it (scans/previous-scan.ts). A fixture
+      // that left it blank would be a scan no worker can produce, and one that
+      // no §14 read could place in the order.
+      completedAt: RESULT_STATUSES.has(params.status) ? (params.completedAt ?? new Date()) : null,
     },
   });
   return { scan, purchase };
@@ -168,8 +184,8 @@ export async function seedScanModule(
 /**
  * Records that this site let the crawler in, so a checkout may open.
  *
- * `createCheckoutSession` refuses to sell an audit of a site whose last
- * reachability probe is missing, stale, or negative (FASTSPRING-009). Tests
+ * `createCreemCheckoutSession` refuses to sell an audit of a site whose last
+ * reachability probe is missing, stale, or negative (CREEM-004). Tests
  * about the checkout itself state the precondition here rather than running a
  * probe, so a failure names the thing they are actually testing.
  */

@@ -51,6 +51,7 @@ import { planSupports } from '@fluxradar/contracts';
 import type { Prisma, PrismaClient, Scan } from '@prisma/client';
 import { z } from 'zod';
 
+import { PREVIOUS_SCAN_ORDER } from '../scans/previous-scan.ts';
 import { UNKNOWN_RUN_CONTEXT, type RunRequestContext } from './run-context.ts';
 
 /** Что прочитало одно правило: цели в той же нормализации, что normalizedUrl его findings. */
@@ -265,31 +266,110 @@ function unusable(problem: string): CoverageRead {
 }
 
 export function decodeCoverageProof(stored: Uint8Array): CoverageRead {
+  const decoded = decodeEncodedProof(stored);
+  return decoded.problem === null ? indexOf(decoded.encoded) : unusable(decoded.problem);
+}
+
+/** What one module's proof says, read in a single pass over it. */
+export interface ProofFacts {
+  /** Every rule the proof carries an entry for — the rules that ran. */
+  readonly ruleIds: readonly string[];
+  /** Per named group, the union of the checked targets of its rules. */
+  readonly targets: Readonly<Record<string, readonly string[]>>;
+  /** Why the proof could not be read at all; null when it was. */
+  readonly problem: string | null;
+}
+
+/**
+ * The targets named groups of rules judged, and which rules ran, without
+ * indexing the whole proof.
+ *
+ * The scan comparison asks a stored proof two questions — which pages the page
+ * rules read, under each of the two names a page can have, and which rules ran
+ * at all — and `decodeCoverageProof` would build a Set per rule to answer
+ * either. On a 50 000-page crawl the SEO module alone has a dozen page rules
+ * over the same addresses, so that is hundreds of thousands of Set entries for
+ * unions that fit in three. Both answers come out of ONE decode here, because
+ * the decode is a gunzip of up to 800 KB per module and asking twice is paying
+ * twice.
+ *
+ * An unusable proof yields no facts AND a reason, exactly as the policy read
+ * does: a comparison with no page evidence says so rather than reporting a site
+ * whose every page disappeared.
+ */
+export function readProofFacts(
+  stored: Uint8Array,
+  groups: Readonly<Record<string, ReadonlySet<string>>>,
+): ProofFacts {
+  const decoded = decodeEncodedProof(stored);
+  if (decoded.problem !== null) {
+    return { ruleIds: [], targets: {}, problem: decoded.problem };
+  }
+  const encoded = decoded.encoded;
+  const names = Object.keys(groups);
+  const collected = new Map<string, Set<string>>(names.map((name) => [name, new Set<string>()]));
+  const ruleIds: string[] = [];
+  for (const [ruleId, entry] of Object.entries(encoded.rules)) {
+    ruleIds.push(ruleId);
+    const wanted = names.filter((name) => groups[name]?.has(ruleId) === true);
+    if (wanted.length === 0) continue;
+    // Resolved once per rule, however many groups claim it.
+    const checked = targetsOf(encoded, entry.checked);
+    if (checked === null) {
+      return {
+        ruleIds: [],
+        targets: {},
+        problem: `coverage proof of ${ruleId} references an unknown target set or URL`,
+      };
+    }
+    for (const name of wanted) {
+      const into = collected.get(name);
+      for (const target of checked) {
+        into?.add(target);
+      }
+    }
+  }
+  return {
+    ruleIds,
+    targets: Object.fromEntries([...collected].map(([name, targets]) => [name, [...targets]])),
+    problem: null,
+  };
+}
+
+/** The stored proof as it was written, or the reason it cannot be read. */
+function decodeEncodedProof(
+  stored: Uint8Array,
+):
+  | { readonly encoded: EncodedRuleCoverage; readonly problem: null }
+  | { readonly encoded: null; readonly problem: string } {
   let json: string;
   try {
     json = gunzipSync(stored).toString('utf8');
   } catch (error) {
-    return unusable(
-      `coverage proof could not be decompressed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return {
+      encoded: null,
+      problem: `coverage proof could not be decompressed: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(json) as unknown;
   } catch {
-    return unusable('coverage proof is not valid JSON');
+    return { encoded: null, problem: 'coverage proof is not valid JSON' };
   }
   const validated = encodedCoverageSchema.safeParse(parsed);
   if (!validated.success) {
-    return unusable(`coverage proof is malformed: ${validated.error.message}`);
+    return { encoded: null, problem: `coverage proof is malformed: ${validated.error.message}` };
   }
   if (validated.data.truncated === true) {
-    return unusable(
-      `run exceeded the ${MAX_COVERAGE_PROOF_TARGETS}-target coverage proof limit; ` +
+    return {
+      encoded: null,
+      problem:
+        `run exceeded the ${MAX_COVERAGE_PROOF_TARGETS}-target coverage proof limit; ` +
         'findings of this module stay open',
-    );
+    };
   }
-  return indexOf(validated.data);
+  return { encoded: validated.data, problem: null };
 }
 
 function indexOf(encoded: EncodedRuleCoverage): CoverageRead {
@@ -446,6 +526,14 @@ export const COVERAGE_PROOF_HISTORY = 2;
  * ним. Окно только по Complete вытеснило бы доказательство предыдущего
  * Website Audit сразу после следующей уборки, и следующее сравнение того же
  * плана осталось бы без покрытия, которое ему нужно прочитать.
+ *
+ * ПОРЯДОК — ТОТ ЖЕ, ЧТО У ВЫБОРА ПРЕДЫДУЩЕГО СКАНА (PREVIOUS_SCAN_ORDER: по
+ * времени ЗАВЕРШЕНИЯ, затем по id). Окно по времени создания расходится с
+ * выбором ровно там, где Partial-скан дожили повтором: A создан раньше B и C, но
+ * завершён позже их — для скана D предыдущий именно A, а окно по createdAt
+ * оставило бы {D, C} и удалило доказательство A. Сравнение D тогда отвечает
+ * page-evidence-missing на страницы и «неизвестно» на покрытие правил — причём о
+ * скане, с которым его только что сравнили.
  */
 export async function pruneCoverageProofs(
   prisma: PrismaClient,
@@ -454,7 +542,7 @@ export async function pruneCoverageProofs(
 ): Promise<number> {
   const recent = await prisma.scan.findMany({
     where: { siteProfileId: scan.siteProfileId, plan: scan.plan, status: 'Completed' },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [...PREVIOUS_SCAN_ORDER],
     take: keep,
     select: { id: true },
   });

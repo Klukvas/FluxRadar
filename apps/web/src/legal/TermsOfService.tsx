@@ -1,7 +1,10 @@
 import { useEffect, type JSX } from 'react';
 
 import type { Language } from '../i18n';
-import { EffectiveNotice, OperatorDetails, SupportLink } from './SharedLegal';
+import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
+
+// Bumped when the merchant of record changed from FastSpring to Creem.
+const TERMS_EFFECTIVE: EffectiveDate = { uk: '28 вересня 2026 року', en: '28 September 2026' };
 
 export function TermsOfService({ language }: { readonly language: Language }): JSX.Element {
   // The footer's refund link points straight at the purchases section, and the
@@ -23,15 +26,18 @@ function UkrainianTerms(): JSX.Element {
       <EffectiveNotice
         language="uk"
         documentName="Умови користування сервісом FluxRadar, що надається під найменуванням FluxLab."
+        effectiveOn={TERMS_EFFECTIVE}
       />
       <section id="terms-operator" className="legal-section">
         <span className="legal-section__label">01 / ОПЕРАТОР</span>
         <h2>Хто надає сервіс</h2>
         <p>
           FluxRadar надає ФОП Павленко Андрій Володимирович під комерційним найменуванням FluxLab.
-          Цей підприємець є оператором сервісу та стороною цих Умов щодо надання аудиту. FastSpring
-          є окремим merchant of record: він оформлює продаж, приймає платіж, розраховує податки та
-          видає платіжні документи за власними умовами.
+          Цей підприємець є оператором сервісу та стороною цих Умов щодо надання аудиту. Creem
+          (Armitage Labs OÜ, Таллінн, Естонія) є окремим merchant of record і договірним реселером:
+          він здійснює продаж від власного імені, приймає платіж, розраховує податки та видає
+          платіжне підтвердження й інвойс за{' '}
+          <a href="https://creem.io/buyer-terms">умовами Creem для покупців</a>.
         </p>
         <OperatorDetails language="uk" />
       </section>
@@ -72,24 +78,22 @@ function UkrainianTerms(): JSX.Element {
           Basic, Website Audit і Complete — разові аудити без підписки й автоматичного продовження.
           Ціна, конфігурація, обсяг, вибір <code>robots.txt</code>, зовнішні провайдери та обмеження
           показуються до відкриття checkout. Аудит запускається лише після серверного підтвердження
-          платежу FastSpring і має бути наданий протягом 24 годин після такого підтвердження.
+          платежу Creem і має бути наданий протягом 24 годин після такого підтвердження.
         </p>
         <p>
           FluxRadar не надає добровільних повернень, крім випадку ненадання оплаченого аудиту або
           підтвердженого істотного технічного дефекту. У таких випадках зверніться до{' '}
           <SupportLink />; залежно від обставин ми можемо повторити виконання або організувати
-          повернення через FastSpring. Також діють усі засоби захисту, від яких не можна відмовитися
-          за застосовним законом. Ці Умови не скасовують обов’язкове право споживача на відмову,
+          повернення через Creem. Також діють усі засоби захисту, від яких не можна відмовитися за
+          застосовним законом. Ці Умови не скасовують обов’язкове право споживача на відмову,
           повторне виконання, зменшення ціни чи повернення коштів і не стверджують, що таке право
           автоматично втрачено через початок аудиту.
         </p>
         <p>
           Повернення, chargeback або недійсний платіж можуть припинити доступ до відповідного звіту.
-          З питань платежу також можна звернутися до{' '}
-          <a href="https://fastspring.com/consumer-support/">
-            служби підтримки покупців FastSpring
-          </a>
-          .
+          З питань платежу, інвойсу чи податку також можна звернутися до підтримки покупців Creem:{' '}
+          <a href="mailto:support@creem.io">support@creem.io</a> або{' '}
+          <a href="https://creem.io/contact">сторінка контактів Creem</a>.
         </p>
       </section>
       <section id="terms-use" className="legal-section">
@@ -191,6 +195,7 @@ function EnglishTerms(): JSX.Element {
       <EffectiveNotice
         language="en"
         documentName="Terms for the FluxRadar service provided under the FluxLab trade name."
+        effectiveOn={TERMS_EFFECTIVE}
       />
       <section id="terms-operator" className="legal-section">
         <span className="legal-section__label">01 / OPERATOR</span>
@@ -198,8 +203,10 @@ function EnglishTerms(): JSX.Element {
         <p>
           FluxRadar is provided by Pavlenko Andrii Volodymyrovich, a Ukrainian individual
           entrepreneur trading as FluxLab. He is the service operator and the party to these Terms
-          for delivery of the audit. FastSpring is a separate merchant of record that concludes the
-          sale, takes payment, calculates taxes and provides payment documents under its own terms.
+          for delivery of the audit. Creem (Armitage Labs OÜ, Tallinn, Estonia) is a separate
+          merchant of record and contractual reseller: it concludes the sale in its own name, takes
+          payment, calculates taxes and issues the payment confirmation and invoice under the{' '}
+          <a href="https://creem.io/buyer-terms">Creem buyer terms</a>.
         </p>
         <OperatorDetails language="en" />
       </section>
@@ -239,21 +246,22 @@ function EnglishTerms(): JSX.Element {
           Basic, Website Audit and Complete are one-time audits with no subscription or automatic
           renewal. The price, configuration, scope, <code>robots.txt</code> choice, external
           providers and known limitations are shown before checkout opens. An audit starts only
-          after FastSpring’s server confirmation of payment and will be delivered within 24 hours of
-          that confirmation.
+          after Creem’s server confirmation of payment and will be delivered within 24 hours of that
+          confirmation.
         </p>
         <p>
           FluxRadar offers no voluntary refunds except for non-delivery of a paid audit or a
           verified material technical defect. Contact <SupportLink />; depending on the facts, we
-          may repeat performance or arrange a refund through FastSpring. All remedies that cannot be
+          may repeat performance or arrange a refund through Creem. All remedies that cannot be
           waived under applicable law continue to apply. These Terms do not remove a mandatory
           consumer right of withdrawal, repeat performance, price reduction or refund, and do not
           claim that a withdrawal right is automatically lost when an audit starts.
         </p>
         <p>
           A refund, chargeback or invalid payment may end access to the corresponding report. For
-          payment questions, you may also contact{' '}
-          <a href="https://fastspring.com/consumer-support/">FastSpring buyer support</a>.
+          payment, invoice or tax questions, you may also contact Creem buyer support:{' '}
+          <a href="mailto:support@creem.io">support@creem.io</a> or the{' '}
+          <a href="https://creem.io/contact">Creem contact page</a>.
         </p>
       </section>
       <section id="terms-use" className="legal-section">

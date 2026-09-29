@@ -11,6 +11,35 @@ import type { FindingMessages } from '../messages/catalog.js';
 export const RULE_VARIANT_V1 = 'v1';
 export type RuleVariant = typeof RULE_VARIANT_V1;
 
+/**
+ * Почему у правила не нашлось ни одной цели.
+ *
+ * Код, а не готовая фраза: отчёт печатает её на языке читателя. Без кода отчёт
+ * вынужден угадывать причину по ruleId — и «обход не дочитал страницы» читается
+ * одинаково и на усечённом обходе, и на сайте из одной страницы, где обход
+ * дочитал всё. Правило причину знает; угадывать её в UI — значит писать
+ * читателю то, чего не было.
+ */
+export type NotApplicableReason =
+  /** Граф внутренних ссылок неполон: любой вердикт о входящих ссылках был бы ложным. */
+  | 'link-graph-gap'
+  /** Sitemap не прочитан: правилу, судящему его страницы, не из чего брать кандидатов. */
+  | 'no-sitemap'
+  /** Обход не оставил ни одной цели, о которой это правило вправе судить. */
+  | 'no-candidates'
+  /** CONTENT-005: страница не объявила `<html lang>` вовсе. */
+  | 'no-declared-language'
+  /** CONTENT-005: `<html lang>` объявлен, но это не английский и не украинский. */
+  | 'unsupported-language'
+  /** CONTENT-005: объявлен язык, но большинство букв текста прозы — из другого поддерживаемого языка. */
+  | 'script-mismatch'
+  /** CONTENT-005: объявлен язык, но большинство букв текста прозы — ни латиница, ни кириллица. */
+  | 'unsupported-script'
+  /** CONTENT-005: буквы объявленного языка преобладают, но не дотягивают до SCRIPT_DOMINANCE_THRESHOLD. */
+  | 'mixed-script'
+  /** CONTENT-005: текста хватает на CONTENT-003, но недостаточно предложений и слов для измерения. */
+  | 'too-little-prose';
+
 /** Метод API-проверки: allowlist §9 (Reliability contract v1). */
 export const API_CHECK_METHODS = ['GET', 'HEAD', 'OPTIONS'] as const;
 export type ApiCheckMethod = (typeof API_CHECK_METHODS)[number];
@@ -164,17 +193,26 @@ export interface RuleEvaluation {
    * спрашивают» доказать нечем и любой пропавший вход блокирует Resolved.
    */
   readonly requestedInputs: readonly string[] | undefined;
+  /**
+   * Почему целей не нашлось. Есть только при applicableTargets = 0 и только у
+   * правил, которые причину назвали (NotApplicableReason).
+   */
+  readonly notApplicableReason?: NotApplicableReason;
 }
 
 /**
  * Page-level правило. isApplicable определяет знаменатель агрегата
  * (по умолчанию — успешно загруженная HTML-страница); движок не вызывает
  * evaluatePage для страниц вне applicable-набора.
+ *
+ * Контекст обхода приходит и в isApplicable: у правила, чей вердикт выводится из
+ * графа ссылок (SEO-TECH-010), знаменатель зависит не только от снимка — на
+ * неполном графе оно обязано отчитаться «не применялось», а не «проблем нет».
  */
 export interface PageRule {
   readonly kind: 'page';
   readonly descriptor: RuleDescriptor;
-  isApplicable(page: PageSnapshot): boolean;
+  isApplicable(page: PageSnapshot, ctx: SiteContext): boolean;
   evaluatePage(page: PageSnapshot, ctx: SiteContext): readonly RuleFinding[];
   /**
    * Входы за пределами самой страницы (см. RuleEvaluation.inputTargets).
@@ -186,6 +224,24 @@ export interface PageRule {
    * Объявляется вместе с inputTargets и обязан быть его надмножеством.
    */
   requestedInputs?(ctx: SiteContext): readonly string[];
+  /**
+   * Почему у правила может не оказаться ни одной применимой страницы.
+   *
+   * Объявляют правила, чей знаменатель зависит не только от снимка
+   * (SEO-TECH-010 — от целости графа ссылок): движок запишет причину, только
+   * если applicable-набор действительно пуст.
+   */
+  notApplicableReason?(ctx: SiteContext): NotApplicableReason | undefined;
+  /**
+   * Адрес, которым правило называет эту страницу (по умолчанию — её
+   * normalizedUrl).
+   *
+   * Объявляет правило, чьи находки названы адресом ДОКУМЕНТА, а не снимка
+   * (SEO-TECH-010, pageFindingAt): checkedTargets обязаны называть цель тем же
+   * именем, что и находка, иначе политика Resolved не узнаёт в новом прогоне ту
+   * же проверку (§14, resolution-policy.ts).
+   */
+  judgedAddress?(page: PageSnapshot, ctx: SiteContext): string;
 }
 
 export interface SiteRuleResult {
@@ -227,9 +283,21 @@ export interface SiteRuleResult {
    * full coverage.
    */
   readonly completedTargets?: number;
+  /**
+   * Почему целей не нашлось (NotApplicableReason). Осмысленно только при
+   * applicableTargets = 0 — движок записывает причину лишь тогда.
+   */
+  readonly notApplicableReason?: NotApplicableReason;
 }
 
-/** Site-level правило: одна цель — сам сайт (applicable/affected ∈ {0,1}). */
+/**
+ * Site-level правило: цели считает само (SiteRuleResult), движок их не выводит.
+ *
+ * Обычно цель одна — сайт (applicable/affected ∈ {0,1}, как у TECH-007), но
+ * правило вправе судить набор страниц и отдавать page-level findings: у
+ * SEO-TECH-009/011 знаменатель — страницы sitemap и прочитанные HTML-страницы,
+ * и объявить его может только правило, видящее весь обход.
+ */
 export interface SiteRule {
   readonly kind: 'site';
   readonly descriptor: RuleDescriptor;
@@ -247,6 +315,24 @@ export interface ApiRule {
 }
 
 export type Rule = PageRule | SiteRule | ApiRule;
+
+/**
+ * Пустой результат site-правила: ни одного кандидата и ни одного доказательства.
+ *
+ * Читается в отчёте как «эта проверка к прогону не применялась» (ModuleChecks,
+ * notApplicableReasons), а не как «проблем нет», и это разные утверждения. А
+ * какое именно — говорит причина: она и отличает усечённый обход от сайта, на
+ * котором правилу просто нечего судить.
+ */
+export function notApplicable(reason: NotApplicableReason): SiteRuleResult {
+  return {
+    findings: [],
+    applicableTargets: 0,
+    affectedTargets: 0,
+    checkedTargets: [],
+    notApplicableReason: reason,
+  };
+}
 
 /** Applicable target по умолчанию: финальный 2xx и HTML-тело (T-08). */
 export function isSuccessfulHtmlPage(page: PageSnapshot): boolean {

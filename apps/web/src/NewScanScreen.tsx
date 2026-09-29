@@ -42,6 +42,20 @@ function paidUnavailableCopy(t: (typeof copy)[Language], config: CheckoutConfig 
 }
 
 /**
+ * Who takes the payment, for the note beside the pay button.
+ *
+ * Creem is the only provider this deployment sells through. With no config
+ * yet, the note closes on the policies instead of naming a merchant nothing
+ * has confirmed.
+ */
+function purchaseTermsMerchant(
+  t: (typeof copy)[Language],
+  config: CheckoutConfig | null,
+): string | null {
+  return config === null ? null : t.newScan.purchaseTermsMerchant;
+}
+
+/**
  * The new-scan screen: what is being checked, and what it costs.
  *
  * The state, the saved-configuration sync and the submission live in
@@ -597,6 +611,7 @@ function ScanLaunchColumn(props: {
   const {
     canLaunch,
     canSave,
+    checkoutConfig,
     egressBlocked,
     egressLocation,
     launchConfig,
@@ -615,6 +630,7 @@ function ScanLaunchColumn(props: {
     targetLabel,
     usingSavedProfile,
   } = props.form;
+  const merchant = purchaseTermsMerchant(t, checkoutConfig);
   return (
     // Not an `aside`: a complementary landmark is content beside the page, and
     // this column carries the form's own submit.
@@ -656,7 +672,8 @@ function ScanLaunchColumn(props: {
             <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
             {' · '}
             <a href={`/cookies?lang=${props.language}`}>{t.legal.cookies.title}</a>
-            {t.newScan.purchaseTermsSuffix}
+            {'.'}
+            {merchant === null ? null : ` ${merchant}`}
           </p>
         ) : null}
       </div>

@@ -1,5 +1,5 @@
-import { readFastSpringConfig } from '../billing/fastspring/config.ts';
-import { readRefundDispatchConfig } from '../billing/refunds/config.ts';
+import { readCreemConfig } from '../billing/creem/config.ts';
+import { REFUND_DISPATCH_ENV, readRefundDispatchConfig } from '../billing/refunds/config.ts';
 import { MOCK_EMAIL_ENV, isMockEmailOptIn } from '../email/mock-email.ts';
 import { DEFAULT_ANTHROPIC_MODEL, readAnthropicConfig } from './anthropic-config.ts';
 import { readCrawlEgressConfig } from './crawl-egress-config.ts';
@@ -115,7 +115,7 @@ export const REQUIRED_PRODUCTION_SECRETS = ['DATABASE_URL', 'INTEGRATION_ENCRYPT
 function partialIntegrationFailures(env: NodeJS.ProcessEnv): readonly string[] {
   const results = [
     readIntegrationEncryptionKey(env),
-    readFastSpringConfig(env),
+    readCreemConfig(env),
     readOAuthConfig('google', env),
     readOAuthConfig('bing', env),
     readObjectStorageConfig(env),
@@ -167,6 +167,15 @@ export function validateRuntimeConfig(env: NodeJS.ProcessEnv = process.env): voi
   const refundDispatch = readRefundDispatchConfig(env);
   if (refundDispatch.state === 'invalid') {
     throw new Error(`Invalid production configuration: ${refundDispatch.reason}`);
+  }
+  // No provider has an outbound refund adapter: Creem refunds are issued by
+  // hand, from the Creem dashboard. A deployment that asked for `auto` anyway
+  // is refused rather than left dispatching to a transport that does not exist.
+  if (refundDispatch.state === 'active') {
+    throw new Error(
+      `Invalid production configuration: ${REFUND_DISPATCH_ENV}=auto has no outbound refund ` +
+        'transport for Creem; refunds are issued by hand in the Creem dashboard. Use `manual` or `off`.',
+    );
   }
 }
 

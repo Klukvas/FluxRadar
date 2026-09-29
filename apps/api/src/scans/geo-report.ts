@@ -1,3 +1,6 @@
+import { geoVisibilitySummarySchema } from '@fluxradar/contracts';
+import type { GeoVisibilitySummary } from '@fluxradar/contracts';
+
 import {
   GEO_CLAIM_VERDICTS,
   GEO_EVALUATION_VERDICTS,
@@ -345,6 +348,21 @@ export function geoEvidenceFrom(metadataJson: string | undefined): GeoEvidenceDt
       : [],
     sources: Array.isArray(sources) ? sources.flatMap(evidenceSourceFrom) : [],
   };
+}
+
+/**
+ * The stored per-engine visibility summary (T6), or null for a historical or
+ * malformed record. It is deliberately never recomputed while reading a report.
+ */
+export function geoVisibilitySummaryFrom(
+  metadataJson: string | undefined,
+): GeoVisibilitySummary | null {
+  if (metadataJson === undefined) return null;
+  const visibility = recordValue(recordValue(parseMetadata(metadataJson))?.providerVisibility);
+  const summary = visibility?.visibilitySummary;
+  if (summary === undefined) return null;
+  const parsed = geoVisibilitySummarySchema.safeParse(summary);
+  return parsed.success ? parsed.data : null;
 }
 
 function evidenceSourceFrom(value: unknown): GeoEvidenceSourceDto[] {

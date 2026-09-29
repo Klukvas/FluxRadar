@@ -8,7 +8,7 @@ import {
   runRetentionSweep,
   sweepRetention,
 } from './data-retention.ts';
-import { WEBHOOK_OUTCOMES } from './billing/fastspring/outcomes.ts';
+import { WEBHOOK_OUTCOMES } from './billing/webhook-outcomes.ts';
 import {
   createTestDb,
   seedAccountWithProfile,
@@ -19,7 +19,7 @@ import {
 
 // Storage limitation for webhook payloads.
 //
-// A FastSpring delivery is stored with its raw body, which carries the buyer's
+// A Creem delivery is stored with its raw body, which carries the buyer's
 // name, email and billing address. A delivery that is rejected, ignored or
 // arrives unlinked is reachable by no account deletion, so it would be retained
 // forever; these rows are purged by age instead. What makes a row reachable is
@@ -189,7 +189,7 @@ describe('unbound webhook event retention', () => {
   });
 
   // Uniqueness is on the (provider, providerTransactionId) PAIR, so the same id
-  // can name a FastSpring order and an unrelated transaction of a provider no longer in use.
+  // can name a Creem order and an unrelated transaction of a provider no longer in use.
   // Matching the purge on the id alone let a foreign provider's purchase stand in
   // as a binding, and the buyer payload behind it was kept forever.
   it("purges a delivery whose order id only matches another provider's purchase", async () => {
@@ -337,7 +337,7 @@ describe('unbound webhook event retention', () => {
     expect(await db.prisma.account.count({ where: { id: account.accountId } })).toBe(0);
   });
 
-  // A ProviderRefund line names the amount and currency FastSpring returned to a
+  // A ProviderRefund line names the amount and currency the provider returned to a
   // named buyer, so it is that buyer's data and an erasure request has to take
   // it. It has no accountId of its own — it hangs off the purchase — so it is
   // deleted explicitly, before the purchase it points at. The foreign key is

@@ -65,7 +65,7 @@ export const PURCHASE_STATUSES = {
 /**
  * Why paid checkout is switched off, as a closed set the browser may see.
  *
- * The full explanation — which FASTSPRING_* variables are absent, what the
+ * The full explanation — which CREEM_* variables are absent, what the
  * provider objected to — names how this deployment is wired and stays in the
  * server log. A client gets one of these two codes and writes its own sentence:
  * enough to tell "payments were never switched on here" from "switched on and

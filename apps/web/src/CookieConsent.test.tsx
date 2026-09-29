@@ -2,7 +2,12 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CookieConsent, CookieSettingsButton } from './CookieConsent';
-import { analyticsAllowed, preferencesAllowed, saveCookieConsent } from './browser-consent';
+import {
+  COOKIE_CONSENT_TTL_MS,
+  analyticsAllowed,
+  preferencesAllowed,
+  saveCookieConsent,
+} from './browser-consent';
 
 beforeEach(() => {
   saveCookieConsent({ preferences: false, analytics: false });
@@ -119,13 +124,15 @@ describe('cookie choices', () => {
   // A v1 record predates the analytics category: the banner has to ask again,
   // and it opens on the language permission the visitor already gave.
   it('asks a returning v1 visitor about analytics without dropping their language', () => {
+    // One reading of the clock: the record is only valid when the lifetime is exact.
+    const updatedAt = Date.now() - 1000;
     window.localStorage.setItem(
       'fluxradar.cookieConsent',
       JSON.stringify({
         version: 'v1',
         preferences: true,
-        updatedAt: Date.now() - 1000,
-        expiresAt: Date.now() - 1000 + 15_552_000_000,
+        updatedAt,
+        expiresAt: updatedAt + COOKIE_CONSENT_TTL_MS,
       }),
     );
     render(<CookieConsent language="en" />);
@@ -190,6 +197,8 @@ describe('cookie choices', () => {
 
   it('synchronizes saved choices and storage deletion from another tab', () => {
     render(<CookieConsent language="en" />);
+    // One reading of the clock: the record is only valid when the lifetime is exact.
+    const updatedAt = Date.now();
     act(() => {
       window.localStorage.setItem(
         'fluxradar.cookieConsent',
@@ -197,8 +206,8 @@ describe('cookie choices', () => {
           version: 'v2',
           preferences: false,
           analytics: false,
-          updatedAt: Date.now(),
-          expiresAt: Date.now() + 15_552_000_000,
+          updatedAt,
+          expiresAt: updatedAt + COOKIE_CONSENT_TTL_MS,
         }),
       );
       window.dispatchEvent(new StorageEvent('storage', { key: 'fluxradar.cookieConsent' }));

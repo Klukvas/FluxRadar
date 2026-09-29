@@ -8,4 +8,4 @@ export * from './cancel-scan.ts';
 export * from './refund.ts';
 export * from './report-access.ts';
 export * from './resolve-outcome.ts';
-export * from './fastspring/index.ts';
+export * from './creem/index.ts';

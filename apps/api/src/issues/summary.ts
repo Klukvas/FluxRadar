@@ -12,20 +12,20 @@
 // handing back a second list to diff by eye — unless the two crawls left from
 // different countries, in which case the difference is not "fixed" or "new"
 // and the answer says so (D-228).
+//
+// Which scan that previous one is, is not decided here: the §14 rule lives in
+// scans/previous-scan.ts and is shared with the Resolved/Reopened pass and the
+// comparison endpoint.
 
 import { SEVERITIES, severityRank, type Severity } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
 
 import {
-  PAID_ACCESS_INCLUDE,
-  isPaidAccessActive,
-  type PaidAccessScan,
-} from '../billing/report-access.ts';
-import {
   egressLocationView,
   type EgressLocationView,
 } from '../integrations/crawl-egress-locations.ts';
 import { recordedEgressLocation } from '../profiles/execution-config.ts';
+import { findPreviousReadableScan } from '../scans/previous-scan.ts';
 
 /** Statuses that still ask the owner for work. The rest are settled. */
 export const OPEN_ISSUE_STATUSES = ['New', 'Acknowledged', 'Reopened'] as const;
@@ -241,42 +241,10 @@ function byRule(issues: readonly FingerprintedIssue[]): readonly ChangedRule[] {
   );
 }
 
-/**
- * How many earlier scans are looked through for one whose report is still
- * readable. A reversed payment can hide the latest one or two; a profile with
- * more returned reports than this in a row has no comparison worth drawing.
- */
-const PREVIOUS_SCAN_CANDIDATES = 5;
-
-/**
- * The scan this one is compared with: the latest earlier finished scan of the
- * same profile and plan. Same plan, because a Basic report never looked at
- * security — comparing Complete with Basic would call every security finding
- * "new". A previous report whose payment was reversed is skipped: its findings
- * are no longer the owner's to read, and a count derived from them is still a
- * read of them.
- */
-async function previousComparableScan(prisma: PrismaClient, scan: Scan): Promise<Scan | null> {
-  const candidates = (await prisma.scan.findMany({
-    where: {
-      siteProfileId: scan.siteProfileId,
-      accountId: scan.accountId,
-      plan: scan.plan,
-      status: 'Completed',
-      id: { not: scan.id },
-      createdAt: { lt: scan.createdAt },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: PREVIOUS_SCAN_CANDIDATES,
-    include: { ...PAID_ACCESS_INCLUDE },
-  })) as (Scan & PaidAccessScan)[];
-  return candidates.find((candidate) => isPaidAccessActive(candidate)) ?? null;
-}
-
 export async function scanChanges(prisma: PrismaClient, scan: Scan): Promise<ScanChanges> {
   if (scan.plan === 'Free') return NO_CHANGES;
   const currentLocation = recordedEgressLocation(scan);
-  const previous = await previousComparableScan(prisma, scan);
+  const previous = await findPreviousReadableScan(prisma, scan);
   if (previous === null) {
     return { ...NO_CHANGES, egressLocation: egressLocationView(currentLocation) };
   }

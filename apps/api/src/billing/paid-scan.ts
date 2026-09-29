@@ -4,11 +4,7 @@ import {
   scanScopeSchema,
   type ExecutionConfig,
 } from '@fluxradar/contracts';
-import {
-  captureExecutionConfig,
-  legacyCheckoutConfig,
-  lockOwnProfile,
-} from '../profiles/execution-config.ts';
+import { captureExecutionConfig, lockOwnProfile } from '../profiles/execution-config.ts';
 import type { Prisma } from '@prisma/client';
 
 import { JOB_STATUSES, JOB_TYPES, PURCHASE_STATUSES } from './constants.ts';
@@ -29,7 +25,7 @@ export interface PaidScanParams {
   /** What the buyer was actually charged, when the provider localised it. */
   readonly settledAmount?: number | undefined;
   readonly settledCurrency?: string | undefined;
-  /** Provider product identifier: the FastSpring product path. */
+  /** Provider product identifier: the Creem product id. */
   readonly priceId: string;
   readonly scopeJson: string;
   readonly profileConfigVersion?: number | undefined;
@@ -77,13 +73,11 @@ export async function createPaidScan(
 
   const execution =
     params.executionConfig ??
-    (params.provider === 'fastspring'
-      ? legacyCheckoutConfig(profile.domain, params.plan, params.scopeJson)
-      : captureExecutionConfig(
-          profile,
-          params.plan,
-          scanScopeSchema.parse(JSON.parse(params.scopeJson)),
-        ));
+    captureExecutionConfig(
+      profile,
+      params.plan,
+      scanScopeSchema.parse(JSON.parse(params.scopeJson)),
+    );
   const purchase = await tx.purchase.create({
     data: {
       accountId: params.accountId,

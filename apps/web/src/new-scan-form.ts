@@ -213,7 +213,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
    *
    * Only the paid path reads it — a Free check is not a purchase, and gating it
    * would turn the one thing a stranger can try into a two-step form. The
-   * server refuses the sale regardless (`createCheckoutSession`); this is what
+   * server refuses the sale regardless (`createCreemCheckoutSession`); this is what
    * keeps a buyer from meeting that refusal at the pay button.
    */
   const [siteReachable, setSiteReachable] = useState(false);
@@ -581,7 +581,6 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         // inaccuracy as the notice promising a transfer that does not happen.
         optInAiProviders: selectedOptInAiProviders,
         internalFreeAccess: props.internalFreeAccess,
-        storefront: checkoutConfig?.popup?.storefront ?? null,
         onCheckoutStarted: props.onCheckoutStarted,
       });
       // Null means a paid checkout took over and no scan exists yet.
@@ -661,8 +660,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const idle = !busy && !savingConfiguration;
   const formReady = idle && targetChosen && !robotsUnconfirmed;
   // A paid scan of a site the crawler cannot read is a refund waiting to
-  // happen, and the server refuses to sell it (FASTSPRING-009). Saving the
-  // settings is not a purchase, so it is not gated on either of these.
+  // happen, and the server refuses to sell it. Saving the settings is not a
+  // purchase, so it is not gated on either of these.
   const reachabilityChecked = plan === 'Free' || props.internalFreeAccess || siteReachable;
   const canLaunch = formReady && !egressBlocked && reachabilityChecked;
   const canSave =

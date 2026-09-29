@@ -220,6 +220,231 @@ describe('a section card that recorded its checks', () => {
     expect(rows[2]).toHaveTextContent('Not applicable');
   });
 
+  /** One recorded check row of the SEO section, with counts the caller chooses. */
+  function seoCheck(
+    ruleId: string,
+    title: string,
+    notApplicableReason?: string,
+  ): Record<string, unknown> {
+    return {
+      ruleId,
+      title,
+      targetKind: 'page',
+      scoring: 'scored',
+      applicableTargets: 0,
+      affectedTargets: 0,
+      ...(notApplicableReason === undefined ? {} : { notApplicableReason }),
+    };
+  }
+
+  async function seoRows(checks: readonly Record<string, unknown>[]): Promise<HTMLElement[]> {
+    await openReport(dashboardOf([moduleOf({ metadata: { ruleChecks: checks } })]));
+    fireEvent.click(card('SEO'));
+    const region = screen.getByRole('region', { name: 'SEO · checks performed' });
+    return within(region).getAllByRole('listitem');
+  }
+
+  it('names why an internal-linking check did not apply, instead of blaming the pages', async () => {
+    // All three need the crawl's whole link graph, so "nothing on the pages read
+    // matched this check" would name the wrong reason: the pages were fine, the
+    // crawl was cut short.
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          metadata: {
+            ruleChecks: [
+              seoCheck('SEO-TECH-009', 'orphan pages'),
+              seoCheck('SEO-TECH-010', 'click depth'),
+              seoCheck('SEO-TECH-011', 'weakly linked pages'),
+            ],
+          },
+        }),
+      ]),
+    );
+
+    fireEvent.click(card('SEO'));
+
+    const region = screen.getByRole('region', { name: 'SEO · checks performed' });
+    const rows = within(region).getAllByRole('listitem');
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).toHaveTextContent('Not applicable');
+      expect(row).not.toHaveTextContent('Nothing on the pages read');
+    }
+    expect(rows[0]).toHaveTextContent('No sitemap was read');
+    expect(rows[1]).toHaveTextContent('the number of link hops to a page cannot be counted');
+    expect(rows[2]).toHaveTextContent('the inbound links of a page cannot be counted');
+  });
+
+  it('says a one-page site had nothing to judge, not that the crawl was cut short', async () => {
+    // A Complete crawl of a single-page site finishes everything it set out to
+    // read. Telling its owner the crawl did not finish would be a claim about
+    // this scan that is simply untrue.
+    const rows = await seoRows([
+      seoCheck('SEO-TECH-009', 'orphan pages', 'no-sitemap'),
+      seoCheck('SEO-TECH-011', 'weakly linked pages', 'no-candidates'),
+    ]);
+
+    expect(rows[0]).toHaveTextContent('No XML sitemap was read');
+    expect(rows[0]).not.toHaveTextContent('did not finish');
+    expect(rows[1]).toHaveTextContent('no page besides the entry page');
+    expect(rows[1]).not.toHaveTextContent('did not finish');
+  });
+
+  it('still blames the crawl when the rule says the link graph was incomplete', async () => {
+    const rows = await seoRows([
+      seoCheck('SEO-TECH-009', 'orphan pages', 'link-graph-gap'),
+      seoCheck('SEO-TECH-010', 'click depth', 'link-graph-gap'),
+      seoCheck('SEO-TECH-011', 'weakly linked pages', 'link-graph-gap'),
+    ]);
+
+    for (const row of rows) {
+      expect(row).toHaveTextContent(
+        'The crawl did not finish reading the pages it set out to read',
+      );
+    }
+    expect(rows[0]).toHaveTextContent('a page it never opened could hold the missing link');
+    expect(rows[1]).toHaveTextContent('the number of link hops to a page cannot be counted');
+    expect(rows[2]).toHaveTextContent('the inbound links of a page cannot be counted');
+  });
+
+  it('names why a duplicate check did not apply: there was no second page', async () => {
+    // The three cross-page duplicate checks compare one page against the others
+    // the crawl read. On a one-page crawl "nothing on the pages read matched"
+    // would read as "your titles are unique" — a claim this scan never made.
+    const rows = await seoRows([
+      seoCheck('SEO-ONPAGE-004', 'duplicate title', 'no-candidates'),
+      seoCheck('SEO-ONPAGE-006', 'duplicate meta description', 'no-candidates'),
+    ]);
+
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).toHaveTextContent('Not applicable');
+      expect(row).not.toHaveTextContent('Nothing on the pages read');
+      expect(row).not.toHaveTextContent('did not finish');
+    }
+    expect(rows[0]).toHaveTextContent('no second title to compare it with');
+    expect(rows[1]).toHaveTextContent('no second description to compare it with');
+  });
+
+  it('names the duplicate-content reason in the reader’s language', async () => {
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          module: 'Content Quality',
+          metadata: {
+            ruleChecks: [seoCheck('CONTENT-001', 'дубль змісту сторінки', 'no-candidates')],
+          },
+        }),
+      ]),
+      'uk',
+    );
+
+    fireEvent.click(card('Content Quality'));
+
+    const region = screen.getByRole('region', { name: 'Content Quality · виконані перевірки' });
+    const [row] = within(region).getAllByRole('listitem');
+    expect(row).toHaveTextContent('Обхід прочитав лише одну сторінку');
+    expect(row).not.toHaveTextContent('На прочитаних сторінках немає нічого');
+  });
+
+  /** One recorded Content Quality check row. */
+  async function contentQualityRows(
+    checks: readonly Record<string, unknown>[],
+    language: Language = 'en',
+  ): Promise<HTMLElement[]> {
+    await openReport(
+      dashboardOf([moduleOf({ module: 'Content Quality', metadata: { ruleChecks: checks } })]),
+      language,
+    );
+    fireEvent.click(card('Content Quality'));
+    const region = screen.getByRole('region', {
+      name:
+        language === 'uk'
+          ? 'Content Quality · виконані перевірки'
+          : 'Content Quality · checks performed',
+    });
+    return within(region).getAllByRole('listitem');
+  }
+
+  // M1 (T9 first review) + L8 (T9 second review): every CONTENT-005 reason
+  // must render, and M4 (T9 second review) means none of them may claim
+  // "every" or "no" page — the check reports the crawl's most common reason,
+  // not one every failing page shares. L10 (T9 third review): "most crawled
+  // pages" is a majority claim the plurality winner need not satisfy, so the
+  // wording leads with "the most common reason" instead.
+  it('renders every CONTENT-005 reason with plurality-true wording, never "every"/"no"/"most" pages', async () => {
+    const reasons = [
+      'no-declared-language',
+      'unsupported-language',
+      'script-mismatch',
+      'unsupported-script',
+      'mixed-script',
+      'too-little-prose',
+    ] as const;
+    const rows = await contentQualityRows(
+      reasons.map((reason) => seoCheck('CONTENT-005', reason, reason)),
+    );
+    expect(rows).toHaveLength(reasons.length);
+    for (const row of rows) {
+      expect(row).toHaveTextContent('The most common reason across crawled pages with enough text');
+      expect(row).not.toHaveTextContent('Every crawled page');
+      expect(row).not.toHaveTextContent(/^No crawled page/);
+      expect(row).not.toHaveTextContent('Most crawled pages');
+    }
+    expect(rows[0]).toHaveTextContent('no declared language');
+    expect(rows[1]).toHaveTextContent('a declared language other than English or Ukrainian');
+    expect(rows[2]).toHaveTextContent('written mostly in the other supported language’s script');
+    expect(rows[3]).toHaveTextContent('written mostly in neither script');
+    expect(rows[4]).toHaveTextContent('not by enough to trust the label');
+    expect(rows[5]).toHaveTextContent('not enough sentences and words');
+  });
+
+  it('renders the CONTENT-005 reasons in Ukrainian too, with the same plurality wording', async () => {
+    const rows = await contentQualityRows(
+      [
+        seoCheck('CONTENT-005', 'unsupported-script', 'unsupported-script'),
+        seoCheck('CONTENT-005', 'mixed-script', 'mixed-script'),
+      ],
+      'uk',
+    );
+    expect(rows[0]).toHaveTextContent('Найпоширеніша причина');
+    expect(rows[0]).not.toHaveTextContent('Більшість прочитаних сторінок');
+    expect(rows[0]).toHaveTextContent('не тим і не іншим алфавітом');
+    expect(rows[1]).toHaveTextContent('суміш алфавітів була занадто рівною');
+  });
+
+  it('falls back to the rule sentence for a reason it does not know', async () => {
+    const rows = await seoRows([
+      seoCheck('SEO-TECH-011', 'weakly linked pages', 'from-the-future'),
+    ]);
+
+    expect(rows[0]).toHaveTextContent('the inbound links of a page cannot be counted');
+  });
+
+  it('names the reason in the reader’s language, not only the check', async () => {
+    // The reason is copy like any other row text: a Ukrainian reader must get
+    // the sentence the rule named, not the English one and not the generic
+    // fallback about the pages read.
+    await openReport(
+      dashboardOf([
+        moduleOf({
+          metadata: {
+            ruleChecks: [seoCheck('SEO-TECH-011', 'слабо пов’язані сторінки', 'no-candidates')],
+          },
+        }),
+      ]),
+      'uk',
+    );
+
+    fireEvent.click(card('SEO'));
+
+    const region = screen.getByRole('region', { name: 'SEO · виконані перевірки' });
+    const [row] = within(region).getAllByRole('listitem');
+    expect(row).toHaveTextContent('Окрім вхідної сторінки, обхід не прочитав жодної сторінки');
+    expect(row).not.toHaveTextContent('На прочитаних сторінках немає нічого');
+  });
+
   it('toggles from its own button too, and says whether the list is open', async () => {
     await openReport(dashboardOf([accessibilityModule()]));
 
@@ -588,6 +813,423 @@ describe('the Performance card', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Show checks' })).toBeNull();
+  });
+});
+
+// T5: the audit samples one representative page per template instead of a
+// fixed three URLs. These cover the panel's new surface — the template
+// summary in the lead, the represented-page count beside each audited URL,
+// and the "representative changed" comparison state — in both languages.
+describe('the Performance card — page templates (T5)', () => {
+  function deviceOf(strategy: 'mobile' | 'desktop', lcpMs: number) {
+    return {
+      strategy,
+      requestedSamples: 1,
+      usableSamples: 1,
+      failures: [],
+      metrics: { lcpMs: { median: lcpMs, samples: [lcpMs], instability: 0 } },
+    };
+  }
+
+  function templatedPerformanceModule(): ScanModule {
+    return moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+            {
+              url: 'https://smile.example/blog/2024/hello',
+              primary: false,
+              templateKey: '/blog/{date}/{slug}',
+              representedPages: 5,
+              devices: [deviceOf('mobile', 2_100)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 8, used: 2, capped: false },
+          templatesFound: 3,
+          templatesAudited: 2,
+          comparison: {
+            previousScanId: 'previous-scan',
+            previousObservedAt: '2026-09-01T00:00:00.000Z',
+            incomparableReason: null,
+            incomparable: null,
+            templatesNotComparable: [
+              {
+                templateKey: '/blog/{date}/{slug}',
+                previousUrl: 'https://smile.example/blog/2023/old',
+                currentUrl: 'https://smile.example/blog/2024/hello',
+              },
+            ],
+          },
+          regressions: [],
+        },
+      },
+    });
+  }
+
+  it('states how many templates were found and audited, and the represented-page count per URL', async () => {
+    await openReport(dashboardOf([templatedPerformanceModule()]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText('Page templates found on this site: 3 · measured below: 2'),
+    ).toBeTruthy();
+    expect(within(region).getByText(/crawled pages like it: 5/)).toBeTruthy();
+  });
+
+  it('reports a template as not comparable when its representative URL changed', async () => {
+    await openReport(dashboardOf([templatedPerformanceModule()]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        /Not compared: the representative page for this template changed since the previous scan/,
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).getByText(
+        /was https:\/\/smile\.example\/blog\/2023\/old, now https:\/\/smile\.example\/blog\/2024\/hello/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('renders the same information in Ukrainian', async () => {
+    await openReport(dashboardOf([templatedPerformanceModule()]), 'uk');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(
+      within(region).getByText('Знайдено шаблонів сторінок на цьому сайті: 3 · виміряно нижче: 2'),
+    ).toBeTruthy();
+    expect(within(region).getByText(/сканованих сторінок такого типу: 5/)).toBeTruthy();
+    expect(
+      within(region).getByText(/Не порівняно: представницьку сторінку цього шаблону змінено/),
+    ).toBeTruthy();
+  });
+
+  // M3: templatesFound/templatesAudited and representedPages are most often
+  // exactly 1 (a small site, or the "/" template), and the label-first phrasing
+  // has to render that count without a plural mismatch in either language.
+  it('renders singular counts without a plural mismatch (M3)', async () => {
+    const singular = moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 2, capped: false },
+          templatesFound: 1,
+          templatesAudited: 1,
+          comparison: null,
+          regressions: [],
+        },
+      },
+    });
+
+    await openReport(dashboardOf([singular]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText('Page templates found on this site: 1 · measured below: 1'),
+    ).toBeTruthy();
+    expect(within(region).getByText(/crawled pages like it: 1/)).toBeTruthy();
+  });
+
+  // L4: "nothing got materially worse" must not be shown unqualified when a
+  // template was skipped from the comparison — that reads as a claim about a
+  // page that was never actually compared this scan.
+  it('qualifies "nothing got worse" when a template was skipped from the comparison (L4)', async () => {
+    const module = templatedPerformanceModule();
+    await openReport(dashboardOf([module]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        'Nothing that could be compared got materially worse since the previous scan.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).queryByText(
+        'Nothing measured here got materially worse since the previous scan.',
+      ),
+    ).toBeNull();
+  });
+
+  // F2: an unmeasured template is also a gap in the comparison — it was never
+  // re-measured this scan, so "nothing got worse" needs the same qualifier as
+  // a dropped or not-comparable template, not the unqualified claim.
+  function moduleWithComparisonAndUnmeasured() {
+    return moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 3, capped: false },
+          templatesFound: 2,
+          templatesAudited: 1,
+          comparison: {
+            previousScanId: 'previous-scan',
+            previousObservedAt: '2026-09-01T00:00:00.000Z',
+            incomparableReason: null,
+            incomparable: null,
+            templatesNotComparable: [],
+            templatesDropped: [],
+          },
+          regressions: [],
+          unmeasuredUrls: [
+            {
+              url: 'https://smile.example/about',
+              templateKey: '/about',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it('qualifies "nothing got worse" when a template was only unmeasured this scan (F2)', async () => {
+    await openReport(dashboardOf([moduleWithComparisonAndUnmeasured()]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        'Nothing that could be compared got materially worse since the previous scan.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).queryByText(
+        'Nothing measured here got materially worse since the previous scan.',
+      ),
+    ).toBeNull();
+  });
+
+  it('qualifies "nothing got worse" for an unmeasured template in Ukrainian (F2)', async () => {
+    await openReport(dashboardOf([moduleWithComparisonAndUnmeasured()]), 'uk');
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(
+      within(region).getByText(
+        'Ніщо з того, що можна було порівняти, не стало суттєво гіршим із попереднього сканування.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).queryByText(
+        'Ніщо з виміряного не стало суттєво гіршим із попереднього сканування.',
+      ),
+    ).toBeNull();
+  });
+
+  it('names a template that lost its seat entirely since the previous scan (L3)', async () => {
+    const module = moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 2, capped: false },
+          templatesFound: 3,
+          templatesAudited: 1,
+          comparison: {
+            previousScanId: 'previous-scan',
+            previousObservedAt: '2026-09-01T00:00:00.000Z',
+            incomparableReason: null,
+            incomparable: null,
+            templatesNotComparable: [],
+            templatesDropped: [
+              { templateKey: '/about', previousUrl: 'https://smile.example/about' },
+            ],
+          },
+          regressions: [],
+        },
+      },
+    });
+
+    await openReport(dashboardOf([module]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(within(region).getByText('/about')).toBeTruthy();
+    expect(
+      within(region).getByText(/this page template was audited in the previous scan/),
+    ).toBeTruthy();
+  });
+
+  it('names a URL the audit selected but never measured, with a typed reason (B1)', async () => {
+    const module = moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 4, capped: false },
+          templatesFound: 2,
+          templatesAudited: 1,
+          comparison: null,
+          regressions: [],
+          unmeasuredUrls: [
+            {
+              url: 'https://smile.example/about',
+              templateKey: '/about',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+          ],
+        },
+      },
+    });
+
+    await openReport(dashboardOf([module]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(within(region).getByText('https://smile.example/about')).toBeTruthy();
+    expect(
+      within(region).getByText(/none of the PageSpeed runs for this page produced a usable result/),
+    ).toBeTruthy();
+  });
+
+  // N2: a deployment-wide PageSpeed outage leaves `urls` empty while every
+  // selection still shows up in `unmeasuredUrls`. That must still render the
+  // audit body and its "not measured this scan" rows, not fall back to
+  // LegacyBody, which has no way to show them at all.
+  function outageModule() {
+    return moduleOf({
+      module: 'Performance',
+      score: null,
+      metadata: {
+        audit: {
+          urls: [],
+          field: { state: 'available', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 8, used: 8, capped: false },
+          templatesFound: 2,
+          templatesAudited: 0,
+          comparison: null,
+          regressions: [],
+          unmeasuredUrls: [
+            {
+              url: 'https://smile.example/',
+              templateKey: '/',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+            {
+              url: 'https://smile.example/about',
+              templateKey: '/about',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it('names every unmeasured URL instead of falling back to the legacy body during a PageSpeed outage (N2)', async () => {
+    await openReport(dashboardOf([outageModule()]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(within(region).getByText('https://smile.example/')).toBeTruthy();
+    expect(within(region).getByText('https://smile.example/about')).toBeTruthy();
+    expect(
+      within(region).getAllByText(
+        /none of the PageSpeed runs for this page produced a usable result/,
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('names every unmeasured URL during a PageSpeed outage in Ukrainian (N2)', async () => {
+    await openReport(dashboardOf([outageModule()]), 'uk');
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(within(region).getByText('https://smile.example/')).toBeTruthy();
+    expect(within(region).getByText('https://smile.example/about')).toBeTruthy();
+    expect(
+      within(region).getAllByText(
+        /жоден із запусків PageSpeed для цієї сторінки не дав придатного результату/,
+      ),
+    ).toHaveLength(2);
+  });
+
+  // F1: the outage lead must not claim any page was measured, or state a
+  // sample count and median language that never happened.
+  it('opens a PageSpeed outage with a lead that admits nothing was measured (F1)', async () => {
+    await openReport(dashboardOf([outageModule()]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        'PageSpeed Insights did not return a usable measurement for any of the 2 selected pages in this scan; field data from CrUX is shown where available.',
+      ),
+    ).toBeTruthy();
+    expect(within(region).queryByText(/was measured/)).toBeNull();
+  });
+
+  it('opens a PageSpeed outage with a truthful lead in Ukrainian (F1)', async () => {
+    await openReport(dashboardOf([outageModule()]), 'uk');
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(
+      within(region).getByText(
+        'PageSpeed Insights не повернув придатного вимірювання для жодної з 2 обраних сторінок цього сканування; дані поля CrUX показано там, де вони є.',
+      ),
+    ).toBeTruthy();
   });
 });
 

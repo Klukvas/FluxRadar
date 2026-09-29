@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ANALYTICS_HOSTNAME, GA_MEASUREMENT_ID, GA_SCRIPT_ORIGIN } from './analytics-config';
 import { copy } from './i18n';
-import { saveCookieConsent } from './browser-consent';
+import { COOKIE_CONSENT_TTL_MS, saveCookieConsent } from './browser-consent';
 
 // The blog is static HTML served straight from `public/`, so it has no
 // component to render in a test. These tests read the shipped files instead:
@@ -635,13 +635,15 @@ describe('blog cookie choices', () => {
   });
 
   it('keeps the language a v1 visitor allowed while asking about analytics', () => {
+    // One reading of the clock: the record is only valid when the lifetime is exact.
+    const updatedAt = Date.now() - 1000;
     window.localStorage.setItem(
       'fluxradar.cookieConsent',
       JSON.stringify({
         version: 'v1',
         preferences: true,
-        updatedAt: Date.now() - 1000,
-        expiresAt: Date.now() - 1000 + 15_552_000_000,
+        updatedAt,
+        expiresAt: updatedAt + COOKIE_CONSENT_TTL_MS,
       }),
     );
     window.localStorage.setItem('fluxradar.language', 'uk');

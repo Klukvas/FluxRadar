@@ -35,11 +35,8 @@ import { freeScanScope } from './free-scan-scope.ts';
 import { assertReportSnapshotReady } from './report-readiness.ts';
 import { toModuleDto, toScanDto } from './scan-dto.ts';
 import { listScanHistory } from './scan-history.ts';
-import { geoEvidenceFrom, geoObservationsFrom } from './geo-report.ts';
-import {
-  captureExecutionConfig,
-  lockOwnProfile,
-} from '../profiles/execution-config.ts';
+import { geoEvidenceFrom, geoObservationsFrom, geoVisibilitySummaryFrom } from './geo-report.ts';
+import { captureExecutionConfig, lockOwnProfile } from '../profiles/execution-config.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import {
   egressLaunchConfig,
@@ -114,7 +111,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   });
 
   // A single generic creation endpoint is kept for clients that only expose a
-  // plan picker. Paid plans must go through a checkout — a signed FastSpring
+  // plan picker. Paid plans must go through a checkout — a signed Creem
   // order, or the internal allowlist's /billing/internal-checkout — so a paid scan
   // can never be created by a bare scan request.
   router.post('/profiles/:profileId/scans', auth, async (req, res) => {
@@ -253,6 +250,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       modules: scan.modules.map(toModuleDto),
       geoObservations: geoObservationsFrom(geoModule?.metadataJson, geoResponses, geoEvidence),
       geoEvidence,
+      geoVisibilitySummary: geoVisibilitySummaryFrom(geoModule?.metadataJson),
     });
   });
 

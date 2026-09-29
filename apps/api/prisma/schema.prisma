@@ -128,6 +128,11 @@ model SiteProfile {
   offerings           String?
   targetLanguages     String?
   targetAudience      String?
+  // T7: up to 5 competitor brand names, stored as a JSON array (nullable — no
+  // array default, since "no competitors configured" and "empty list" are the
+  // same state here). Never read into GeoProfileContext or CONTEXT_FIELDS
+  // (execution-config.ts) — matched locally against stored answers only.
+  competitorsJson     String?
   scanConfigJson      String    @default("{\"plan\":\"Complete\",\"scope\":{\"includeSubdomains\":false,\"maxPages\":15,\"maxDepth\":5,\"queryPolicy\":\"ignore\",\"respectRobots\":true,\"robotsOverrideConfirmed\":false,\"userAgent\":\"desktop\"}}")
   scanConfigVersion   Int       @default(1)
   createdAt DateTime @default(now())
@@ -155,9 +160,9 @@ model Purchase {
   siteProfileId         String
   plan                  String
   /**
-   * Payment provider that produced this purchase: 'fastspring', or the name of a
-   * retired provider on a historical row. Always set explicitly; there is no
-   * default to fall back on.
+   * Payment provider that produced this purchase: 'creem', or the name of a
+   * retired provider (e.g. 'fastspring') on a historical row. Always set
+   * explicitly; there is no default to fall back on.
    */
   provider              String
   /**

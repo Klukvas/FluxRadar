@@ -21,6 +21,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { openCheckoutSessionWhere } from '../billing/checkout-lifecycle.ts';
 import { REFUND_STATUSES } from '../billing/constants.ts';
+import { RETIRED_PAYMENT_PROVIDERS } from '../billing/provider-registry.ts';
 import {
   accountDeletionHash,
   deletePurchaseRows,
@@ -162,8 +163,14 @@ async function findDeletionBlocker(
   });
   if (openCheckouts > 0) return PROFILE_DELETION_BLOCKERS.openCheckout;
 
+  // A retired provider has no code left that can ever move its refund past
+  // 'requested' — that machinery was removed with the provider — so a refund
+  // record left over from it must never block a deletion forever.
   const openRefunds = await tx.refundRecord.count({
-    where: { status: { in: OPEN_REFUND_STATUSES }, purchase: { siteProfileId } },
+    where: {
+      status: { in: OPEN_REFUND_STATUSES },
+      purchase: { siteProfileId, provider: { notIn: [...RETIRED_PAYMENT_PROVIDERS] } },
+    },
   });
   return openRefunds > 0 ? PROFILE_DELETION_BLOCKERS.openRefund : null;
 }

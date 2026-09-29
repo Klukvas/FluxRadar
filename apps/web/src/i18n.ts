@@ -163,7 +163,7 @@ export const copy = {
           { id: 'cookies-categories', label: 'Categories' },
           { id: 'cookies-inventory', label: 'Storage inventory' },
           { id: 'cookies-analytics', label: 'Google Analytics' },
-          { id: 'cookies-providers', label: 'FastSpring checkout' },
+          { id: 'cookies-providers', label: 'Creem checkout' },
           { id: 'cookies-controls', label: 'Your controls' },
         ],
       },
@@ -247,6 +247,16 @@ export const copy = {
       targetAudience: 'Who is it for?',
       targetAudiencePlaceholder: 'Adults and families looking for a dentist in Kyiv',
       targetAudienceHint: 'Describe the people or organizations you want to reach.',
+      competitors: 'Competitors',
+      competitorsPlaceholder: 'Acme Dental, Bright Smile Clinic',
+      competitorsHint:
+        'Up to 5 names, separated by commas. Matched against stored AI answers on this account’s servers only — never sent to an AI provider.',
+      competitorsErrorTooMany: 'List up to 5 competitors.',
+      competitorsErrorTooShort: 'Each name needs at least 2 characters.',
+      competitorsErrorTooLong: 'Each name can be at most 64 characters.',
+      competitorsErrorDuplicate: 'Remove the repeated name: "{name}".',
+      competitorsErrorOwnBrand:
+        'A competitor cannot repeat this site’s own name or domain: "{name}".',
       saveProfile: 'Save profile',
       updateProfile: 'Update profile',
       editProfile: 'Edit profile',
@@ -358,7 +368,7 @@ export const copy = {
         findingsHint: 'evidence-backed findings',
         terminalLines: [
           'scope homepage + public links',
-          'seo       16 checks · complete',
+          'seo       21 checks · complete',
           'ai seo    public readiness · ready',
           'security  ASVS public profile · queued',
         ],
@@ -384,7 +394,7 @@ export const copy = {
           index: 'A / SEARCH',
           title: 'SEO visibility',
           body: 'Titles, descriptions, headings, canonicals, indexing and the technical details that help search engines understand your pages.',
-          foot: '16 deterministic checks · JSON-LD preview',
+          foot: '21 deterministic checks · JSON-LD preview',
         },
         ai: {
           index: 'B / AI SYSTEMS',
@@ -402,7 +412,7 @@ export const copy = {
       coverageEntry: {
         eyebrow: 'EXACTLY WHAT WE CHECK',
         title: 'Every check. Every standard. No surprises.',
-        body: '16 SEO checks, AI crawler readiness, OWASP ASVS public signals, WCAG 2.2 AA / EN 301 549 / Section 508 accessibility rules, performance signals and privacy / consent detection — all sourced from public HTTP responses, no credentials needed.',
+        body: '21 SEO checks, AI crawler readiness, OWASP ASVS public signals, WCAG 2.2 AA / EN 301 549 / Section 508 accessibility rules, performance signals and privacy / consent detection — all sourced from public HTTP responses, no credentials needed.',
       },
       workflow: {
         eyebrow: 'THE OPERATING LOOP',
@@ -488,7 +498,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'One report on how search engines and AI systems read your website.',
           included:
-            'The full SEO analysis — 16 checks covering titles, meta descriptions, headings, canonicals, robots.txt, sitemap, redirects, broken links, duplicate URLs, structured data and social previews — plus AI crawler readiness: which AI crawlers your robots.txt allows and whether your pages are machine-readable.',
+            'The full SEO analysis — 21 checks covering titles, meta descriptions, headings, canonicals, robots.txt, sitemap, redirects, broken links, duplicate URLs, duplicate titles and descriptions, internal linking, click depth, structured data and social previews — plus AI crawler readiness: which AI crawlers your robots.txt allows and whether your pages are machine-readable.',
           bestFor:
             'Owners and marketers whose question is “why am I not being found — in search or in AI answers?”',
           notIncluded:
@@ -540,7 +550,7 @@ export const copy = {
           },
           included: {
             label: 'What is included',
-            basic: 'The full SEO analysis — 16 checks — and AI crawler readiness.',
+            basic: 'The full SEO analysis — 21 checks — and AI crawler readiness.',
             websiteAudit:
               'Security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics, with scan history and JSON/CSV export.',
             complete:
@@ -704,7 +714,7 @@ export const copy = {
       purchaseTermsLabel: 'Purchase terms',
       purchaseTermsPrefix: 'By selecting “Pay and run scan”, you agree to the',
       purchaseTermsJoin: 'and acknowledge the',
-      purchaseTermsSuffix: '. FastSpring handles payment as merchant of record.',
+      purchaseTermsMerchant: 'Creem handles payment as merchant of record.',
       saveConfiguration: 'Save configuration',
       savingConfiguration: 'Saving configuration…',
       configurationTitle: 'Profile configuration',
@@ -914,6 +924,60 @@ export const copy = {
       siteCoverageNoAddresses: 'The crawl found no addresses to read.',
       geoObservationsLead:
         'These are each model’s answers to this scan’s exact prompts. Each card shows the question as it was put, the answer as it came back, and — where an evaluation ran — how that answer checked out against what this scan read from your site; a discovery answer’s citations are the sources the model searched. They show what happened in this run; they do not prove what a model has memorized or will answer later.',
+      geoVisibilityHeading: 'Visibility by engine',
+      geoVisibilityLead:
+        'One card per AI engine that answered at least one question. Once a signal — how often it mentioned your brand, or how often it cited your domain — was measured in at least {min} answers, it counts toward a score out of 100: with both signals measured enough, {brandWeight}% brand plus {domainWeight}% domain; with only one measured enough, the score is built from that signal alone. Each share divides by the answers in which that signal could be measured at all — a question that already named your brand or your domain proves nothing, so it counts neither way. This score is informational only — a snapshot of this run, never part of your overall score.',
+      geoVisibilityScoreLabel: 'Visibility score',
+      geoVisibilityScoreBasisBrandOnly:
+        'Based on brand mentions only; the domain was measurable in {domain} answer(s).',
+      geoVisibilityScoreBasisDomainOnly:
+        'Based on domain citations only; the brand was measurable in {brand} answer(s).',
+      geoVisibilityNotEnoughAnswers:
+        'No score for this scan: measured answers for the brand — {brand}, for the domain — {domain}. Needs at least {min} measured answers in one of them.',
+      geoVisibilityNotMeasurable:
+        'No score — nothing measurable here: this run’s questions already named what the answers would have been checked for.',
+      geoVisibilityBrandShare:
+        'Brand mentioned in {count} of {total} measurable answers ({percent}%)',
+      geoVisibilityDomainShare:
+        'Domain cited in {count} of {total} measurable answers ({percent}%)',
+      geoVisibilityBrandNotMeasurable:
+        'Brand mentions: not measurable in this run — every question named your brand, or your profile has no brand name beyond its domain.',
+      geoVisibilityDomainNotMeasurable:
+        'Domain citations: not measurable in this run — every question already spelled out your domain.',
+      geoVisibilityBrandShareHeader: 'Brand mentioned',
+      geoVisibilityDomainShareHeader: 'Domain cited',
+      geoVisibilityNotMeasurableShort: 'Not measurable',
+      geoVisibilityCitedInsteadHeading: 'Who got cited instead',
+      geoVisibilityCitedInsteadNote:
+        'Only your own hostname and its subdomains are left out of this list. Another domain you own — a CDN, a docs site, a landing page on a separate name — is still listed here, because from the answer alone it is another site.',
+      geoVisibilityCitedInsteadNone:
+        'No other site was cited in an answer that did not cite yours.',
+      geoVisibilityCitedInsteadEntry: '{hostname} — {count} answer(s)',
+      geoShareOfVoiceHeading: 'Share of voice',
+      geoShareOfVoiceHeader: 'Share of voice',
+      geoShareOfVoiceNone:
+        'Add competitor names to your site profile to include them in your next scan — matched locally, on this account, and never sent to any AI provider. A competitor list applies to scans launched after it is saved, not to this report.',
+      geoShareOfVoiceNoneLink: 'Add competitors',
+      /** T7-fix F4: the print table's short cell for the same "not configured" state. */
+      geoShareOfVoiceNoneShort: '—',
+      geoShareOfVoicePrintCaption:
+        '"—" means no competitors were configured when this scan launched; add them on the site profile for your next scan.',
+      geoShareOfVoiceBrandRow: 'Your brand: {percent}% of mentions',
+      geoShareOfVoiceBrandNotMeasured: 'Your brand: not measurable in this run',
+      geoShareOfVoiceCompetitorRow: '{name}: {percent}%',
+      geoShareOfVoiceCompetitorNotMeasured: '{name}: not measurable in this run',
+      /**
+       * T7-fix3 L2: reconciles this row's brandShare with the brand-mention
+       * signal shown above it in the card, which counts a brand named only
+       * inside a competitor's name (e.g. "Bolt" inside "Bolt Food") as a
+       * mention. Share of voice does not, so the two numbers can diverge —
+       * shown only when they actually do.
+       */
+      geoShareOfVoiceOwnNameOnlyNote:
+        "Share of voice counts your brand only where it is named on its own, not inside a competitor's name ({count} answer(s) named it only as part of a competitor's name).",
+      geoVisibilityUnavailable:
+        'This summary is available for scans run after September 28, 2026; this scan predates it.',
+      geoMentionContextLabel: 'Where your brand came up',
       geoAwarenessQuestion: 'Direct awareness question',
       geoClosedBookQuestion: 'Direct question, asked closed-book',
       geoDiscoveryQuestion: 'Domain discovery question',
@@ -1227,9 +1291,75 @@ export const copy = {
         detailIssues: 'An issue was found',
         detailNoted: 'An observation was recorded',
         detailNotApplicable: 'Nothing on the pages read matched this check',
-        // Checks that read Google data, not pages: "nothing on the pages read"
-        // would name the wrong reason for each of them.
+        // Checks whose "not applicable" has a reason of its own, because
+        // "nothing on the pages read" would name the wrong one: the three
+        // internal-linking checks each need the whole link graph of the crawl,
+        // the three duplicate checks need a second page to compare against, and
+        // the Analytics ones read Google data rather than pages.
         notApplicableReasons: {
+          // Keyed by rule id, and by `ruleId:reason` where the rule named why it
+          // had nothing to judge. The bare rule id stays as what a report
+          // recorded before rules said so, and names every possibility rather
+          // than picking one.
+          'SEO-TECH-009':
+            'No sitemap was read, the sitemap listed no page this check could judge, or the crawl did not finish reading the pages it set out to read',
+          'SEO-TECH-009:link-graph-gap':
+            'The crawl did not finish reading the pages it set out to read — a page it never opened could hold the missing link',
+          'SEO-TECH-009:no-sitemap':
+            'No XML sitemap was read, so there was no list of the pages the site itself calls its own',
+          'SEO-TECH-009:no-candidates':
+            'The sitemap listed no page this check could judge: only the entry page, pages that did not load, or addresses that redirect elsewhere',
+          'SEO-TECH-010':
+            'No page was read, or the crawl did not finish reading the pages it set out to read, so the number of link hops to a page cannot be counted',
+          'SEO-TECH-010:link-graph-gap':
+            'The crawl did not finish reading the pages it set out to read, so the number of link hops to a page cannot be counted',
+          'SEO-TECH-011':
+            'No page was left to judge, or the crawl did not finish reading the pages it set out to read, so the inbound links of a page cannot be counted',
+          'SEO-TECH-011:link-graph-gap':
+            'The crawl did not finish reading the pages it set out to read, so the inbound links of a page cannot be counted',
+          'SEO-TECH-011:no-candidates':
+            'The crawl read no page besides the entry page, so there were no inbound links to count',
+          // The three duplicate checks compare one page against the others the
+          // crawl read. With a single page there is nothing to compare it with,
+          // and "no duplicates found" would pass off missing data as a result.
+          'SEO-ONPAGE-004':
+            'The crawl read fewer than two pages, so there was no second title to compare this one with',
+          'SEO-ONPAGE-004:no-candidates':
+            'The crawl read only one page, so there was no second title to compare it with',
+          'SEO-ONPAGE-006':
+            'The crawl read fewer than two pages, so there was no second description to compare this one with',
+          'SEO-ONPAGE-006:no-candidates':
+            'The crawl read only one page, so there was no second description to compare it with',
+          'CONTENT-001':
+            'The crawl read fewer than two pages, so there was no second page to compare this text with',
+          'CONTENT-001:no-candidates':
+            'The crawl read only one page, so there was no second page to compare its text with',
+          // Readability needs a declared language its text actually matches,
+          // and enough prose to measure — seven distinct reasons a page can
+          // fall outside it, from the crawl's most common one among its pages.
+          // These sentences lead with "the most common reason", never "most
+          // crawled pages" (L10, T9 third review): aggregateNotApplicableReason
+          // (content-005.ts) picks a plurality among pages that can each fail
+          // for a different one of the seven, and with four or more candidate
+          // pages the winner need not be a majority — "most pages did X" can
+          // be false of a plurality winner in a way "the most common reason
+          // was X" cannot.
+          'CONTENT-005':
+            'No crawled page had a declared language, a matching script, and enough prose for this check to measure',
+          'CONTENT-005:no-candidates':
+            'No crawled page had enough visible text to measure — the same 200-character minimum the empty-page check uses',
+          'CONTENT-005:no-declared-language':
+            'The most common reason across crawled pages with enough text: no declared language in their <html lang> attribute',
+          'CONTENT-005:unsupported-language':
+            'The most common reason across crawled pages with enough text: a declared language other than English or Ukrainian in their <html lang> attribute',
+          'CONTENT-005:script-mismatch':
+            'The most common reason across crawled pages with enough text: English or Ukrainian declared, but visible text written mostly in the other supported language’s script — the declared language and the text disagree',
+          'CONTENT-005:unsupported-script':
+            'The most common reason across crawled pages with enough text: English or Ukrainian declared, but visible text written mostly in neither script — the declared language does not match what the page shows',
+          'CONTENT-005:mixed-script':
+            'The most common reason across crawled pages with enough text: English or Ukrainian declared, and that script the largest, but not by enough to trust the label — the mix of scripts was too even',
+          'CONTENT-005:too-little-prose':
+            'The most common reason across crawled pages with enough text: not enough sentences and words of running prose to measure, even though their visible text passed the length check',
           'ANALYTICS-SC-001': 'Too little search traffic in the previous 28 days to call a trend',
           'ANALYTICS-SC-002': 'No page had enough first-page impressions to judge its clicks',
           'ANALYTICS-SC-004':
@@ -1323,6 +1453,12 @@ export const copy = {
         perfAuditDevicesBoth: 'on both emulated devices',
         perfAuditDevicesOne: 'on one emulated device ({device})',
         perfAuditDevicesUnstated: 'on the devices this audit recorded',
+        // Shown instead of perfAuditLeadSingle/Repeated when every selected page
+        // failed to produce a usable PageSpeed run: a deployment-wide outage, not
+        // a page-by-page gap. The devices/median language above would otherwise
+        // describe measurements that were never taken.
+        perfAuditOutageLead:
+          'PageSpeed Insights did not return a usable measurement for any of the {count} selected pages in this scan; field data from CrUX is shown where available.',
         perfProvider: 'Lab measurements by Lighthouse {version} via PageSpeed Insights',
         perfProviderUnknown: 'Lab measurements by PageSpeed Insights (version not reported)',
         perfBudget: '{used} of {cap} provider requests used',
@@ -1332,10 +1468,37 @@ export const copy = {
         perfRuns: '{usable} of {requested} runs usable',
         perfDeviceUnmeasured:
           'None of the {requested} runs produced a measurement for this device, so nothing is shown for it.',
+        // ── Page templates (T5) ─────────────────────────────────────────────
+        //
+        // The audit samples one representative page per template rather than a
+        // fixed three URLs, so the lead states how many templates the crawl
+        // found and how many of them this audit actually measured.
+        // Both strings are phrased label-first, count-last — like perfRuns above
+        // — so neither has to grammatically agree with a count that is most
+        // often exactly 1 (the "/" template always represents one page).
+        perfTemplatesSummary:
+          'Page templates found on this site: {templatesFound} · measured below: {templatesAudited}',
+        perfTemplateRepresents: 'crawled pages like it: {count}',
         perfRegressionsHeading: 'Compared with the previous scan',
         perfNoRegressions: 'Nothing measured here got materially worse since the previous scan.',
+        // Shown instead of perfNoRegressions when a template was skipped from the
+        // comparison (a changed representative, a dropped seat, or an unmeasured
+        // page this scan): "nothing got worse" would otherwise read as a claim
+        // about pages that were never actually compared this scan.
+        perfNoRegressionsQualified:
+          'Nothing that could be compared got materially worse since the previous scan.',
         perfNotCompared:
           'Not compared with the previous scan: {reason}. A figure from a different measurement setup would look like a change in your site.',
+        perfTemplateNotComparableLabel: 'Not compared',
+        perfTemplateNotComparable:
+          'Not compared: the representative page for this template changed since the previous scan (was {previous}, now {current}).',
+        perfTemplateDroppedLabel: 'Not measured this scan',
+        perfTemplateDropped:
+          'Not measured this scan: this page template was audited in the previous scan (as {previous}), but did not get one of this scan’s seats.',
+        perfUnmeasuredLabel: 'Not measured this scan',
+        perfUnmeasuredReasonNoUsableSamples:
+          'Not measured this scan: none of the PageSpeed runs for this page produced a usable result.',
+        perfUnmeasuredReasonUnknown: 'Not measured this scan: no usable measurement was produced.',
         // The reason itself, from the code the audit stored. The English sentence
         // stored beside it is the fallback for a report written before the code
         // existed, and for a code this build does not know.
@@ -1398,6 +1561,165 @@ export const copy = {
           'The findings the rest of this report raised on each of them, with the checks that found them — search the Issue Center by a check’s id to open them. Fixing these first reaches the most visitors.',
         analyticsFindingsColumn: 'Findings',
         analyticsSeverityColumn: 'Most severe',
+      },
+      // ── Compared with the previous scan ───────────────────────────────────
+      //
+      // The report could say what one scan found; it could not say what changed
+      // since the last one, and a customer who has just spent a week on fixes is
+      // asking exactly that. Every sentence here is written so that "nothing is
+      // shown" is never mistaken for "nothing changed": a comparison the product
+      // cannot stand behind names the reason instead of printing a number.
+      comparison: {
+        heading: 'Compared with the previous scan',
+        since: 'Against the {plan} report of {date}.',
+        openPrevious: 'Open the previous report',
+        unavailable:
+          'The comparison with your previous scan could not be loaded. Everything above is this scan’s own result.',
+        firstReport:
+          'This is the first {plan} report for this site. Run the next one after your fixes, and this panel will show exactly what changed.',
+        notComparableHeading: 'Not compared, and why',
+        reason: {
+          'no-previous-scan':
+            'There is no earlier finished scan of this plan for this site, so there is nothing to compare with yet.',
+          'previous-plan-differs':
+            'This site has earlier reports, but none on this plan. Two plans check different sections, so a finding missing from the other plan’s report is not a fix — comparing them would call work "done" that was never checked.',
+          // Not "we chose a different baseline": the previous scan is still the
+          // one this report's Resolved statuses were written against. What the
+          // reversed payment takes away is the right to read it — and every
+          // number a comparison would show is read out of it.
+          'previous-not-readable':
+            'The previous report of this plan is no longer available — the payment behind it was reversed — so there is nothing in it left to compare this scan with.',
+          'previous-not-usable':
+            'The previous scan of this plan produced no usable result, so there is nothing in it to compare against.',
+          'scope-changed':
+            'The two scans were not asked for the same pages, so a difference between them is a difference in the question, not in your site.',
+          'current-crawl-truncated':
+            'This scan stopped at its page limit, so the pages it never reached would show up as pages you removed. Raise the limit — or keep it the same as last time — and the next report can compare.',
+          'previous-crawl-truncated':
+            'The previous scan stopped at its page limit, so part of your site was never read in it. What is missing there was not fixed; it was never checked.',
+          'current-stopped-early':
+            'This scan did not finish every section — it was paused, cancelled, or a section failed — so it is a partial reading of the site rather than a picture to compare.',
+          'previous-stopped-early':
+            'The previous scan did not finish every section, so it is a partial reading of the site and a difference against it would not mean what it looks like.',
+          'crawl-not-recorded':
+            'One of these two scans did not record what its crawl read, so there is no way to tell whether it covered the whole site. A comparison would be a guess.',
+        },
+        scopeChangedHeading: 'What changed in the settings',
+        scopeField: {
+          entryUrl: 'Starting address',
+          maxPages: 'Page limit',
+          maxDepth: 'Click depth',
+          includeSubdomains: 'Subdomains',
+          urlPatterns: 'Include patterns',
+          excludePatterns: 'Exclude patterns',
+          seedUrls: 'Extra starting pages',
+          queryPolicy: 'Query strings',
+          renderJs: 'JavaScript rendering',
+          respectRobots: 'robots.txt rules',
+          userAgent: 'Device',
+          egressLocation: 'Crawl location',
+        },
+        scopeChangedRow: '{field}: {previous} → {current}',
+        // D-228 again, and the same sentence the older "since last scan" block
+        // prints: the crawl location is part of the scope fingerprint, so two
+        // countries land here as a changed setting — and the difference the reader
+        // is looking at may be the network rather than their site.
+        scopeEgressNote:
+          'A site can answer visitors from different countries differently — language, redirects, consent banners, blocks — so part of the difference between these two reports may come from where each check ran rather than from your site.',
+        // A setting that was never given a value reads differently per field:
+        // "whole plan" is true of a missing page ceiling and nonsense for a
+        // missing crawl location, which is how "Crawl location: whole plan → ua"
+        // reached the screen.
+        //
+        // The crawl location is the same null the report header already names —
+        // `egressLocationUnrecorded` — and it is not "the default location": the
+        // earliest scans left from a server in Germany and nothing recorded which
+        // (D-228). Two screens of one report must not read that null two ways.
+        scopeUnset: {
+          maxPages: 'the plan’s own limit',
+          maxDepth: 'no limit',
+          egressLocation: 'Not recorded',
+        },
+        scopeNotSet: 'not set',
+        scopeNone: 'none',
+        scopeOn: 'on',
+        scopeOff: 'off',
+        scoresHeading: 'Scores',
+        overall: 'Overall score',
+        scoreMove: '{previous} → {current}',
+        scoreUp: 'up {delta}',
+        scoreDown: 'down {delta}',
+        scoreSame: 'unchanged',
+        scoreNone: 'no score',
+        moduleReason: {
+          'module-absent-previously': 'ran for the first time in this scan',
+          'module-absent-now': 'did not run in this scan',
+          'module-not-scored-previously': 'had no score in the previous scan',
+          'module-not-scored-now': 'has no score in this scan',
+        },
+        pagesHeading: 'Pages',
+        pagesAdded: 'Appeared',
+        pagesRemoved: 'Gone',
+        pagesKept: 'In both',
+        pagesTotals: '{current} pages read now, {previous} last time.',
+        pagesIdentity: {
+          'canonical-document':
+            'Pages are compared by the address your site says each document lives at, so two addresses of one page count once.',
+          'crawl-address':
+            'Pages are compared by the address each one was read under. This scan established no document identity, so a page that changed which of its two addresses is linked may appear on both lists.',
+        },
+        pagesReason: {
+          'page-evidence-missing':
+            'The list of addresses one of these scans read is no longer stored — it is kept for the two most recent reports of a plan — so the findings below are compared and the pages are not.',
+          'page-evidence-unreadable':
+            'The record of what one of these scans read could not be decoded, so no page list is claimed. The findings below are compared from the findings themselves.',
+          'page-evidence-empty':
+            'One of these scans recorded no page-level check at all, so there is no page list to compare.',
+          'page-identity-mismatch':
+            'Only one of these two scans could work out which address each document really lives at, so the two page lists are named differently. Comparing them would report your redirects as pages that came and went.',
+          'scans-not-comparable': 'The pages are not compared, for the reason given above.',
+        },
+        showPages: 'Show addresses',
+        hidePages: 'Hide addresses',
+        sampleNote: 'First {shown} of {total}, in alphabetical order.',
+        issuesHeading: 'Findings',
+        issuesNew: 'New',
+        issuesResolved: 'Resolved',
+        issuesReopened: 'Reopened',
+        issuesStillOpen: 'Still open',
+        issuesSettled: 'Settled by you',
+        issuesFirstChecked: 'Checked for the first time',
+        reopenedNote:
+          'Reopened findings are counted among the ones that were not in the previous report: each of them was closed by an earlier report of this plan and is back.',
+        resolvedNote:
+          'A finding counts as resolved only where this scan checked the same thing again and no longer found it. Anything this scan could not re-check stays open.',
+        // "Settled" is the whole of the contract's definition, not the common
+        // half of it: a finding present in both reports also lands here when a
+        // LATER scan has already closed it, and a sentence that named only the
+        // owner's two decisions left that count unexplained.
+        settledNote:
+          'Settled means you marked it ignored or a false positive, or a later scan has already closed it — either way it is held apart from the problems still waiting for you.',
+        firstCheckedNote:
+          'These were found by checks that ran for the first time in this scan, so they are not counted as new: they are not problems you introduced, they are problems nobody had looked for yet. {rules}',
+        firstCheckedRules: 'New checks: {list}.',
+        // Said out loud rather than left as a zero. The record of which checks
+        // ran is kept for the two most recent reports of a plan, so every older
+        // report is in this state — and "0 checked for the first time" reads as
+        // "no check was added since", which is the opposite claim.
+        coverageUnknownNote:
+          'Which checks ran in the previous scan is no longer recorded, so findings of checks added since may appear here as new.',
+        noLongerCheckedNote:
+          'Some checks did not run in this scan: {list}. Whatever they found last time is absent for that reason and is not counted as resolved.',
+        showFindings: 'Show findings',
+        hideFindings: 'Hide findings',
+        newList: 'New in this report',
+        firstCheckedList: 'Checked for the first time',
+        resolvedList: 'Resolved since the previous report',
+        bySeverityHeading: 'By severity',
+        byModuleHeading: 'By section',
+        columnSeverity: 'Severity',
+        columnModule: 'Section',
+        columnFindings: 'Findings',
       },
     },
     issues: {
@@ -1570,8 +1892,6 @@ export const copy = {
     checkout: {
       windowTitle: 'Payment — confirming',
       panelTitle: 'FluxRadar / checkout',
-      confirming:
-        'Finish the payment in the checkout tab. FluxRadar is waiting for the payment provider to confirm it.',
       stillWaiting:
         'The payment has not been confirmed yet. It can take a few minutes; this page updates as soon as the provider confirms.',
       rejected:
@@ -1585,26 +1905,16 @@ export const copy = {
       noScanUntilConfirmed:
         'The scan starts only after the provider confirms the payment on our server — closing this window does not cancel it.',
       openCheckoutLink: 'Open the checkout page',
-      popupBlocked: 'Your browser blocked the checkout tab. Use the link below to continue.',
-      popupOpening: 'Opening the secure FastSpring checkout…',
-      popupOpen:
-        'Complete the payment in the checkout window. FluxRadar is waiting for FastSpring to confirm it.',
-      popupClosed:
-        'The checkout window is closed. If the payment went through, confirmation appears here in a moment — reopen the checkout if you have not paid yet.',
-      popupPaused:
-        'This payment is still open. Reopen the checkout to finish it, or wait here if you have already paid.',
-      popupReopen: 'Reopen the checkout',
-      popupFailedSdk:
-        'The FastSpring checkout could not be loaded — an ad blocker, a privacy extension or the network may be blocking it. Nothing has been charged.',
-      popupFailedLaunch:
-        'The FastSpring checkout could not be opened for this payment. Nothing has been charged.',
-      popupFailedStorefront:
-        'Paid checkout is misconfigured for this environment, so the checkout could not open. Nothing has been charged.',
-      popupFallbackHint:
-        'You can finish the same payment on the FastSpring checkout page instead — it is the same order, opened in a new tab:',
+      checkoutPaused:
+        'This payment is still open. Continue the checkout to finish it, or wait here if you have already paid.',
+      redirectOpening: 'Taking you to the secure Creem checkout…',
+      redirectReturned:
+        'Thanks — if you completed the payment, FluxRadar is waiting for Creem to confirm it. This usually takes a few seconds.',
       checkAgain: 'Check payment status',
       close: 'Close',
       pollFailed: 'FluxRadar could not read the payment status. Try again in a moment.',
+      notFound:
+        'FluxRadar has no checkout with this reference for your account, so there is nothing to confirm here. If you did pay, contact support with the link you came back on.',
       testMode: 'Payment provider is in test mode — no real charge is made.',
       unavailable:
         'Paid checkout is not configured for this environment yet. The free homepage check is available now.',
@@ -1684,7 +1994,7 @@ export const copy = {
           { id: 'cookies-categories', label: 'Категорії' },
           { id: 'cookies-inventory', label: 'Реєстр storage' },
           { id: 'cookies-analytics', label: 'Google Analytics' },
-          { id: 'cookies-providers', label: 'Checkout FastSpring' },
+          { id: 'cookies-providers', label: 'Checkout Creem' },
           { id: 'cookies-controls', label: 'Ваші налаштування' },
         ],
       },
@@ -1766,6 +2076,16 @@ export const copy = {
       targetAudience: 'Для кого цей сайт?',
       targetAudiencePlaceholder: 'Дорослі та сім’ї, які шукають стоматолога в Києві',
       targetAudienceHint: 'Опишіть людей або організації, яких ви хочете залучити.',
+      competitors: 'Конкуренти',
+      competitorsPlaceholder: 'Acme Dental, Bright Smile Clinic',
+      competitorsHint:
+        'До 5 назв через кому. Звіряються зі збереженими відповідями AI лише на серверах цього акаунта — і ніколи не надсилаються AI-провайдеру.',
+      competitorsErrorTooMany: 'Вкажіть не більше 5 конкурентів.',
+      competitorsErrorTooShort: 'Кожна назва має містити щонайменше 2 символи.',
+      competitorsErrorTooLong: 'Кожна назва може містити щонайбільше 64 символи.',
+      competitorsErrorDuplicate: 'Приберіть повторювану назву: «{name}».',
+      competitorsErrorOwnBrand:
+        'Конкурент не може повторювати назву чи домен цього сайту: «{name}».',
       saveProfile: 'Зберегти профіль',
       updateProfile: 'Оновити профіль',
       editProfile: 'Редагувати профіль',
@@ -1878,7 +2198,7 @@ export const copy = {
         findingsHint: 'висновки з доказами',
         terminalLines: [
           'область: головна + публічні посилання',
-          'seo       16 перевірок · завершено',
+          'seo       21 перевірка · завершено',
           'ai seo    публічна готовність · готово',
           'security  публічний профіль ASVS · у черзі',
         ],
@@ -1904,7 +2224,7 @@ export const copy = {
           index: 'A / ПОШУК',
           title: 'SEO-видимість',
           body: 'Заголовки, описи, structure заголовків, канонічні посилання, індексація та технічні деталі, які допомагають пошуковим системам розуміти ваші сторінки.',
-          foot: '16 детермінованих перевірок · перегляд JSON-LD',
+          foot: '21 детермінована перевірка · перегляд JSON-LD',
         },
         ai: {
           index: 'B / AI-СИСТЕМИ',
@@ -1922,7 +2242,7 @@ export const copy = {
       coverageEntry: {
         eyebrow: 'ЩО САМЕ МИ ПЕРЕВІРЯЄМО',
         title: 'Кожна перевірка. Кожен стандарт. Без сюрпризів.',
-        body: '16 SEO-перевірок, готовність до AI-краулерів, публічні сигнали OWASP ASVS, правила доступності WCAG 2.2 AA / EN 301 549 / Section 508, сигнали продуктивності та виявлення приватності / згоди — усе з публічних HTTP-відповідей, облікові дані не потрібні.',
+        body: '21 SEO-перевірка, готовність до AI-краулерів, публічні сигнали OWASP ASVS, правила доступності WCAG 2.2 AA / EN 301 549 / Section 508, сигнали продуктивності та виявлення приватності / згоди — усе з публічних HTTP-відповідей, облікові дані не потрібні.',
       },
       workflow: {
         eyebrow: 'РОБОЧИЙ ЦИКЛ',
@@ -2008,7 +2328,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'Один звіт про те, як ваш сайт читають пошукові системи та AI-системи.',
           included:
-            'Повний SEO-аналіз — 16 перевірок: заголовки, meta description, структура заголовків, канонічні теги, robots.txt, мапа сайту, редиректи, биті посилання, дублікати адрес, структуровані дані та соціальні прев’ю — плюс готовність до AI-роботів: яким AI-роботам дозволяє ваш robots.txt і чи придатні ваші сторінки для машинного читання.',
+            'Повний SEO-аналіз — 21 перевірка: заголовки, meta description, структура заголовків, канонічні теги, robots.txt, мапа сайту, редиректи, биті посилання, дублікати адрес, дублікати заголовків і описів, внутрішня перелінковка, глибина кліків, структуровані дані та соціальні прев’ю — плюс готовність до AI-роботів: яким AI-роботам дозволяє ваш robots.txt і чи придатні ваші сторінки для машинного читання.',
           bestFor:
             'Власникам і маркетологам, чиє питання звучить так: «чому мене не знаходять — у пошуку чи у відповідях AI?»',
           notIncluded:
@@ -2058,7 +2378,7 @@ export const copy = {
           },
           included: {
             label: 'Що входить',
-            basic: 'Повний SEO-аналіз — 16 перевірок — і готовність до AI-роботів.',
+            basic: 'Повний SEO-аналіз — 21 перевірка — і готовність до AI-роботів.',
             websiteAudit:
               'Безпека, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсія та Аналітика — з історією перевірок та експортом JSON/CSV.',
             complete:
@@ -2219,7 +2539,7 @@ export const copy = {
       purchaseTermsLabel: 'Умови придбання',
       purchaseTermsPrefix: 'Натискаючи «Оплатити та запустити», ви погоджуєтеся з',
       purchaseTermsJoin: 'і підтверджуєте, що ознайомилися з',
-      purchaseTermsSuffix: '. FastSpring обробляє оплату як merchant of record.',
+      purchaseTermsMerchant: 'Creem обробляє оплату як merchant of record.',
       saveConfiguration: 'Зберегти конфігурацію',
       savingConfiguration: 'Зберігаємо конфігурацію…',
       configurationTitle: 'Конфігурація профілю',
@@ -2415,6 +2735,51 @@ export const copy = {
       siteCoverageNoAddresses: 'Обхід не знайшов жодної адреси для читання.',
       geoObservationsLead:
         'Це відповіді кожної моделі на конкретні запити цієї перевірки. Кожна картка показує поставлене питання, отриману відповідь і — якщо оцінювання виконувалося — як цю відповідь звірили з тим, що ця перевірка прочитала на вашому сайті; посилання під пошуковим питанням — це джерела, якими модель скористалася. Вони показують, що сталося саме цього разу; вони не доводять, що модель це запамʼятала або відповість так само пізніше.',
+      geoVisibilityHeading: 'Видимість за системами',
+      geoVisibilityLead:
+        'Одна картка на кожну AI-систему, яка відповіла хоча б на одне питання. Щойно якийсь сигнал — як часто система згадувала ваш бренд або як часто вона посилалася на ваш домен — вдалося зміряти щонайменше у {min} відповідях, він зараховується в оцінку від 0 до 100: якщо зміряні достатньо обидва сигнали — це {brandWeight}% бренд плюс {domainWeight}% домен, а якщо достатньо зміряний лише один — оцінка складається лише з нього. Кожна частка ділиться на відповіді, де цей сигнал взагалі можна було зміряти: питання, яке само назвало ваш бренд або домен, нічого не доводить, тому воно не рахується ні в плюс, ні в мінус. Ця оцінка лише інформаційна — знімок цього прогону, вона ніколи не входить у загальну оцінку.',
+      geoVisibilityScoreLabel: 'Оцінка видимості',
+      geoVisibilityScoreBasisBrandOnly:
+        'На основі лише згадок бренду; зміряних відповідей для домену: {domain}.',
+      geoVisibilityScoreBasisDomainOnly:
+        'На основі лише цитувань домену; зміряних відповідей для бренду: {brand}.',
+      geoVisibilityNotEnoughAnswers:
+        'Оцінки для цього сканування немає: зміряних відповідей для бренду — {brand}, для домену — {domain}; потрібно щонайменше {min} хоча б для одного з них.',
+      geoVisibilityNotMeasurable:
+        'Оцінки немає — міряти нічого: питання цього прогону вже називали те, що перевірялося б у відповідях.',
+      geoVisibilityBrandShare: 'Бренд згадано у {count} з {total} зміряних відповідей ({percent}%)',
+      geoVisibilityDomainShare:
+        'Домен процитовано у {count} з {total} зміряних відповідей ({percent}%)',
+      geoVisibilityBrandNotMeasurable:
+        'Згадки бренду: у цьому прогоні неможливо зміряти — кожне питання називало ваш бренд, або у профілі немає назви бренду, окрім домену.',
+      geoVisibilityDomainNotMeasurable:
+        'Посилання на домен: у цьому прогоні неможливо зміряти — кожне питання вже містило ваш домен.',
+      geoVisibilityBrandShareHeader: 'Згадано бренд',
+      geoVisibilityDomainShareHeader: 'Процитовано домен',
+      geoVisibilityNotMeasurableShort: 'Не зміряно',
+      geoVisibilityCitedInsteadHeading: 'Кого зацитували замість вас',
+      geoVisibilityCitedInsteadNote:
+        'З цього списку виключено лише ваш власний хост і його піддомени. Інший домен, що теж належить вам — CDN, сайт документації, лендінг на окремому імені — залишається у списку, бо з самої відповіді це інший сайт.',
+      geoVisibilityCitedInsteadNone:
+        'У відповідях, де не було посилання на ваш сайт, не цитувався жоден інший сайт.',
+      geoVisibilityCitedInsteadEntry: '{hostname} — {count} відп.',
+      geoShareOfVoiceHeading: 'Частка голосу',
+      geoShareOfVoiceHeader: 'Частка голосу',
+      geoShareOfVoiceNone:
+        'Додайте назви конкурентів до профілю сайту, щоб врахувати їх у наступному скануванні — звірка відбувається локально, на вашому акаунті, і ніколи не надсилається жодному AI-провайдеру. Список конкурентів застосовується до сканувань, запущених після збереження, а не до цього звіту.',
+      geoShareOfVoiceNoneLink: 'Додати конкурентів',
+      geoShareOfVoiceNoneShort: '—',
+      geoShareOfVoicePrintCaption:
+        '«—» означає, що на момент запуску цього сканування конкурентів не було налаштовано; додайте їх у профілі сайту для наступного сканування.',
+      geoShareOfVoiceBrandRow: 'Ваш бренд: {percent}% згадок',
+      geoShareOfVoiceBrandNotMeasured: 'Ваш бренд: у цьому прогоні неможливо зміряти',
+      geoShareOfVoiceCompetitorRow: '{name}: {percent}%',
+      geoShareOfVoiceCompetitorNotMeasured: '{name}: у цьому прогоні неможливо зміряти',
+      geoShareOfVoiceOwnNameOnlyNote:
+        'Частка голосу враховує ваш бренд лише там, де його названо окремо, а не всередині назви конкурента (у {count} відповіді(ях) його названо лише як частину назви конкурента).',
+      geoVisibilityUnavailable:
+        'Цей підсумок доступний для сканувань, виконаних після 28 вересня 2026 року; це сканування було раніше.',
+      geoMentionContextLabel: 'Де згадано ваш бренд',
       geoAwarenessQuestion: 'Пряме питання про впізнаваність',
       geoClosedBookQuestion: 'Пряме питання «із закритою книгою»',
       geoDiscoveryQuestion: 'Пошукове питання про послугу',
@@ -2689,6 +3054,52 @@ export const copy = {
         detailNoted: 'Спостереження зафіксовано',
         detailNotApplicable: 'На прочитаних сторінках немає нічого, що підпадає під цю перевірку',
         notApplicableReasons: {
+          'SEO-TECH-009':
+            'Sitemap не прочитано, у sitemap немає жодної сторінки, яку ця перевірка може судити, або обхід не дочитав сторінки, які збирався прочитати',
+          'SEO-TECH-009:link-graph-gap':
+            'Обхід не дочитав сторінки, які збирався прочитати, — потрібне посилання могло лежати на сторінці, якої він не відкрив',
+          'SEO-TECH-009:no-sitemap':
+            'XML-sitemap не прочитано, тож не було переліку сторінок, які сайт називає своїми',
+          'SEO-TECH-009:no-candidates':
+            'У sitemap немає жодної сторінки, яку ця перевірка може судити: лише вхідна сторінка, сторінки, що не завантажилися, або адреси, які ведуть редиректом',
+          'SEO-TECH-010':
+            'Жодної сторінки не прочитано, або обхід не дочитав сторінки, які збирався прочитати, тому кількість переходів до сторінки порахувати не можна',
+          'SEO-TECH-010:link-graph-gap':
+            'Обхід не дочитав сторінки, які збирався прочитати, тому кількість переходів до сторінки порахувати не можна',
+          'SEO-TECH-011':
+            'Не лишилося сторінки, яку можна судити, або обхід не дочитав сторінки, які збирався прочитати, тому вхідні посилання сторінки порахувати не можна',
+          'SEO-TECH-011:link-graph-gap':
+            'Обхід не дочитав сторінки, які збирався прочитати, тому вхідні посилання сторінки порахувати не можна',
+          'SEO-TECH-011:no-candidates':
+            'Окрім вхідної сторінки, обхід не прочитав жодної сторінки, тому вхідних посилань рахувати нема де',
+          'SEO-ONPAGE-004':
+            'Обхід прочитав менше ніж дві сторінки, тому порівняти цей заголовок не було з чим',
+          'SEO-ONPAGE-004:no-candidates':
+            'Обхід прочитав лише одну сторінку, тому порівняти її заголовок не було з чим',
+          'SEO-ONPAGE-006':
+            'Обхід прочитав менше ніж дві сторінки, тому порівняти цей опис не було з чим',
+          'SEO-ONPAGE-006:no-candidates':
+            'Обхід прочитав лише одну сторінку, тому порівняти її опис не було з чим',
+          'CONTENT-001':
+            'Обхід прочитав менше ніж дві сторінки, тому порівняти цей текст не було з чим',
+          'CONTENT-001:no-candidates':
+            'Обхід прочитав лише одну сторінку, тому порівняти її текст не було з чим',
+          'CONTENT-005':
+            'Жодна прочитана сторінка не мала оголошеної мови, відповідного їй алфавіту й достатньо прози, щоб ця перевірка могла її виміряти',
+          'CONTENT-005:no-candidates':
+            'Жодна прочитана сторінка не мала достатньо видимого тексту для виміру — той самий мінімум у 200 символів, що й у перевірки на порожні сторінки',
+          'CONTENT-005:no-declared-language':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: не оголосили мову в атрибуті <html lang>',
+          'CONTENT-005:unsupported-language':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: оголосили в <html lang> мову, відмінну від англійської чи української',
+          'CONTENT-005:script-mismatch':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: оголосили англійську чи українську, але їхній видимий текст написано переважно алфавітом іншої підтримуваної мови — оголошена мова не відповідає тексту',
+          'CONTENT-005:unsupported-script':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: оголосили англійську чи українську, але їхній видимий текст написано переважно не тим і не іншим алфавітом — оголошена мова не відповідає тому, що показує сторінка',
+          'CONTENT-005:mixed-script':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: оголосили англійську чи українську, і цей алфавіт переважав, але недостатньо, щоб довіряти позначці — суміш алфавітів була занадто рівною',
+          'CONTENT-005:too-little-prose':
+            'Найпоширеніша причина серед прочитаних сторінок з достатньою кількістю тексту: не мали достатньо речень і слів суцільної прози для виміру, хоча за довжиною видимого тексту пройшли',
           'ANALYTICS-SC-001':
             'За попередні 28 днів пошукового трафіку замало, щоб говорити про динаміку',
           'ANALYTICS-SC-002':
@@ -2774,6 +3185,8 @@ export const copy = {
         perfAuditDevicesBoth: 'на двох емульованих пристроях',
         perfAuditDevicesOne: 'на одному емульованому пристрої ({device})',
         perfAuditDevicesUnstated: 'на пристроях, які записав цей аудит',
+        perfAuditOutageLead:
+          'PageSpeed Insights не повернув придатного вимірювання для жодної з {count} обраних сторінок цього сканування; дані поля CrUX показано там, де вони є.',
         perfProvider: 'Лабораторні вимірювання: Lighthouse {version} через PageSpeed Insights',
         perfProviderUnknown: 'Лабораторні вимірювання: PageSpeed Insights (версію не повідомлено)',
         perfBudget: 'Використано {used} з {cap} запитів до постачальника',
@@ -2783,10 +3196,25 @@ export const copy = {
         perfRuns: 'придатних запусків: {usable} з {requested}',
         perfDeviceUnmeasured:
           'Жоден із {requested} запусків не дав вимірювання для цього пристрою, тому для нього нічого не показано.',
+        perfTemplatesSummary:
+          'Знайдено шаблонів сторінок на цьому сайті: {templatesFound} · виміряно нижче: {templatesAudited}',
+        perfTemplateRepresents: 'сканованих сторінок такого типу: {count}',
         perfRegressionsHeading: 'Порівняння з попереднім скануванням',
         perfNoRegressions: 'Ніщо з виміряного не стало суттєво гіршим із попереднього сканування.',
+        perfNoRegressionsQualified:
+          'Ніщо з того, що можна було порівняти, не стало суттєво гіршим із попереднього сканування.',
         perfNotCompared:
           'Порівняння з попереднім скануванням немає: {reason}. Значення з іншого середовища вимірювання виглядало б як зміна вашого сайту.',
+        perfTemplateNotComparableLabel: 'Не порівняно',
+        perfTemplateNotComparable:
+          'Не порівняно: представницьку сторінку цього шаблону змінено з часу попереднього сканування (була {previous}, стала {current}).',
+        perfTemplateDroppedLabel: 'Не виміряно цього разу',
+        perfTemplateDropped:
+          'Не виміряно цього разу: цей шаблон сторінки аудитувався в попередньому скануванні (як {previous}), але не отримав місця в цьому.',
+        perfUnmeasuredLabel: 'Не виміряно цього разу',
+        perfUnmeasuredReasonNoUsableSamples:
+          'Не виміряно цього разу: жоден із запусків PageSpeed для цієї сторінки не дав придатного результату.',
+        perfUnmeasuredReasonUnknown: 'Не виміряно цього разу: придатного вимірювання не отримано.',
         perfIncomparableAuditVersion:
           'попереднє сканування виміряно версією {previous}, а це — версією {current}',
         perfIncomparableVersionUnrecorded:
@@ -2848,6 +3276,133 @@ export const copy = {
           'Знахідки решти цього звіту на кожній із них і перевірки, що їх знайшли, — знайдіть перевірку в Центрі проблем за її id. Виправлення саме тут дістанеться найбільшій кількості відвідувачів.',
         analyticsFindingsColumn: 'Знахідки',
         analyticsSeverityColumn: 'Найсерйозніша',
+      },
+      comparison: {
+        heading: 'Порівняння з попередньою перевіркою',
+        since: 'Проти звіту {plan} від {date}.',
+        openPrevious: 'Відкрити попередній звіт',
+        unavailable:
+          'Порівняння з попередньою перевіркою не завантажилося. Усе вище — власний результат цієї перевірки.',
+        firstReport:
+          'Це перший звіт {plan} для цього сайту. Запустіть наступну перевірку після виправлень — і ця панель покаже, що саме змінилося.',
+        notComparableHeading: 'Не порівнюємо, і чому',
+        reason: {
+          'no-previous-scan':
+            'Для цього сайту немає жодної завершеної перевірки цього тарифу раніше, тож порівнювати поки що ні з чим.',
+          'previous-plan-differs':
+            'Для цього сайту є попередні звіти, але жодного на цьому тарифі. Різні тарифи перевіряють різні розділи, тож відсутність знахідки у звіті іншого тарифу — це не виправлення: таке порівняння назвало б зробленим те, що ніхто не перевіряв.',
+          'previous-not-readable':
+            'Попередній звіт цього тарифу більше недоступний — платіж за нього повернули, — тож порівнювати цю перевірку вже ні з чим.',
+          'previous-not-usable':
+            'Попередня перевірка цього тарифу не дала придатного результату, тож у ній немає з чим порівнювати.',
+          'scope-changed':
+            'Дві перевірки отримали різні завдання щодо сторінок, тож різниця між ними — це різниця в питанні, а не у вашому сайті.',
+          'current-crawl-truncated':
+            'Ця перевірка зупинилася на своєму лімiті сторінок, тож сторінки, до яких вона не дійшла, виглядали б як видалені вами. Підніміть ліміт — або залиште таким, як минулого разу, — і наступний звіт зможе порівняти.',
+          'previous-crawl-truncated':
+            'Попередня перевірка зупинилася на своєму лімiті сторінок, тож частину сайту в ній так і не прочитали. Те, чого там немає, не виправлено — його не перевіряли.',
+          'current-stopped-early':
+            'Ця перевірка завершила не всі розділи — її поставили на паузу, скасували або розділ не вдався, — тож це часткове прочитання сайту, а не картина для порівняння.',
+          'previous-stopped-early':
+            'Попередня перевірка завершила не всі розділи, тож це часткове прочитання сайту, і різниця проти неї означала б не те, на що схожа.',
+          'crawl-not-recorded':
+            'Одна з цих двох перевірок не записала, що саме прочитав обхід, тож неможливо сказати, чи охопив він весь сайт. Порівняння було б припущенням.',
+        },
+        scopeChangedHeading: 'Що змінилося в налаштуваннях',
+        scopeField: {
+          entryUrl: 'Початкова адреса',
+          maxPages: 'Ліміт сторінок',
+          maxDepth: 'Глибина переходів',
+          includeSubdomains: 'Субдомени',
+          urlPatterns: 'Шаблони включення',
+          excludePatterns: 'Шаблони виключення',
+          seedUrls: 'Додаткові початкові сторінки',
+          queryPolicy: 'Параметри в адресі',
+          renderJs: 'Виконання JavaScript',
+          respectRobots: 'Правила robots.txt',
+          userAgent: 'Пристрій',
+          egressLocation: 'Локація обходу',
+        },
+        scopeChangedRow: '{field}: {previous} → {current}',
+        scopeEgressNote:
+          'Сайт може по-різному відповідати відвідувачам з різних країн — мова, редиректи, банери згоди, блокування, — тож частина різниці між цими двома звітами може бути пов’язана з тим, звідки йшла кожна перевірка, а не з вашим сайтом.',
+        scopeUnset: {
+          maxPages: 'власний ліміт тарифу',
+          maxDepth: 'без обмеження',
+          egressLocation: 'Не зафіксовано',
+        },
+        scopeNotSet: 'не задано',
+        scopeNone: 'немає',
+        scopeOn: 'увімкнено',
+        scopeOff: 'вимкнено',
+        scoresHeading: 'Оцінки',
+        overall: 'Загальна оцінка',
+        scoreMove: '{previous} → {current}',
+        scoreUp: 'вище на {delta}',
+        scoreDown: 'нижче на {delta}',
+        scoreSame: 'без змін',
+        scoreNone: 'без оцінки',
+        moduleReason: {
+          'module-absent-previously': 'уперше виконано в цій перевірці',
+          'module-absent-now': 'у цій перевірці не виконувався',
+          'module-not-scored-previously': 'у попередній перевірці був без оцінки',
+          'module-not-scored-now': 'у цій перевірці без оцінки',
+        },
+        pagesHeading: 'Сторінки',
+        pagesAdded: 'З’явилися',
+        pagesRemoved: 'Зникли',
+        pagesKept: 'В обох',
+        pagesTotals: 'Зараз прочитано {current} сторінок, минулого разу — {previous}.',
+        pagesIdentity: {
+          'canonical-document':
+            'Сторінки порівнюються за адресою, на якій, за словами вашого сайту, живе документ, тож дві адреси однієї сторінки рахуються один раз.',
+          'crawl-address':
+            'Сторінки порівнюються за адресою, під якою кожну прочитали. Ця перевірка не встановила тожсамість документів, тож сторінка, у якої змінилася лише форма посилання, може потрапити в обидва списки.',
+        },
+        pagesReason: {
+          'page-evidence-missing':
+            'Список адрес, які прочитала одна з цих перевірок, більше не зберігається — його тримають для двох останніх звітів тарифу, — тож знахідки нижче порівняно, а сторінки ні.',
+          'page-evidence-unreadable':
+            'Запис про те, що прочитала одна з цих перевірок, не вдалося розібрати, тож жодного списку сторінок ми не стверджуємо. Знахідки нижче порівняно за самими знахідками.',
+          'page-evidence-empty':
+            'Одна з цих перевірок не записала жодної перевірки рівня сторінки, тож списку сторінок для порівняння немає.',
+          'page-identity-mismatch':
+            'Лише одна з цих двох перевірок змогла з’ясувати, за якою адресою насправді живе кожен документ, тож два списки сторінок названі по-різному. Порівняння показало б ваші перенаправлення як сторінки, що з’явилися та зникли.',
+          'scans-not-comparable': 'Сторінки не порівнюються — причина вище.',
+        },
+        showPages: 'Показати адреси',
+        hidePages: 'Сховати адреси',
+        sampleNote: 'Перші {shown} із {total}, за алфавітом.',
+        issuesHeading: 'Знахідки',
+        issuesNew: 'Нові',
+        issuesResolved: 'Виправлені',
+        issuesReopened: 'Повернулися',
+        issuesStillOpen: 'Досі відкриті',
+        issuesSettled: 'Закриті вами',
+        issuesFirstChecked: 'Перевірено вперше',
+        reopenedNote:
+          'Знахідки, що повернулися, враховані серед тих, яких не було в попередньому звіті: кожну з них закрив попередній звіт цього тарифу, і вона з’явилася знову.',
+        resolvedNote:
+          'Знахідка вважається виправленою лише там, де ця перевірка подивилася на те саме знову і більше цього не знайшла. Усе, що перевірити не вдалося, залишається відкритим.',
+        settledNote:
+          'Закриті — це позначені вами як проігноровані чи хибні спрацювання або вже закриті пізнішою перевіркою; так чи інак, вони відділені від проблем, які ще чекають на вас.',
+        firstCheckedNote:
+          'Їх знайшли перевірки, які виконалися вперше саме в цьому скані, тож вони не враховані як нові: це не проблеми, які ви створили, а проблеми, яких досі ніхто не шукав. {rules}',
+        firstCheckedRules: 'Нові перевірки: {list}.',
+        coverageUnknownNote:
+          'Які саме перевірки виконувалися в попередньому скані, більше не зафіксовано, тож знахідки перевірок, доданих відтоді, можуть тут виглядати як нові.',
+        noLongerCheckedNote:
+          'Деякі перевірки в цьому скані не виконувалися: {list}. Те, що вони знайшли минулого разу, відсутнє саме тому і не враховане як виправлене.',
+        showFindings: 'Показати знахідки',
+        hideFindings: 'Сховати знахідки',
+        newList: 'Нове в цьому звіті',
+        firstCheckedList: 'Перевірено вперше',
+        resolvedList: 'Виправлено з попереднього звіту',
+        bySeverityHeading: 'За критичністю',
+        byModuleHeading: 'За розділом',
+        columnSeverity: 'Критичність',
+        columnModule: 'Розділ',
+        columnFindings: 'Знахідки',
       },
     },
     issues: {
@@ -3018,8 +3573,6 @@ export const copy = {
     checkout: {
       windowTitle: 'Оплата — підтвердження',
       panelTitle: 'FluxRadar / оплата',
-      confirming:
-        'Завершіть оплату у вкладці checkout. FluxRadar очікує підтвердження від платіжного провайдера.',
       stillWaiting:
         'Оплату ще не підтверджено. Це може зайняти кілька хвилин; сторінка оновиться, щойно провайдер підтвердить платіж.',
       rejected:
@@ -3033,26 +3586,16 @@ export const copy = {
       noScanUntilConfirmed:
         'Перевірка стартує лише після підтвердження оплати на нашому сервері — закриття цього вікна її не скасовує.',
       openCheckoutLink: 'Відкрити сторінку оплати',
-      popupBlocked: 'Браузер заблокував вкладку оплати. Скористайтеся посиланням нижче.',
-      popupOpening: 'Відкриваємо захищений checkout FastSpring…',
-      popupOpen:
-        'Завершіть оплату у вікні checkout. FluxRadar очікує підтвердження від FastSpring.',
-      popupClosed:
-        'Вікно checkout закрито. Якщо оплата пройшла, підтвердження зʼявиться тут за мить — якщо ще ні, відкрийте checkout знову.',
-      popupPaused:
-        'Ця оплата ще активна. Відкрийте checkout, щоб завершити її, або зачекайте тут, якщо вже оплатили.',
-      popupReopen: 'Відкрити checkout знову',
-      popupFailedSdk:
-        'Не вдалося завантажити checkout FastSpring — можливо, його блокує розширення браузера або мережа. Кошти не списано.',
-      popupFailedLaunch:
-        'Не вдалося відкрити checkout FastSpring для цієї оплати. Кошти не списано.',
-      popupFailedStorefront:
-        'Платний checkout налаштовано некоректно для цього середовища, тому вікно не відкрилося. Кошти не списано.',
-      popupFallbackHint:
-        'Ту саму оплату можна завершити на сторінці checkout FastSpring — це те саме замовлення, відкриється в новій вкладці:',
+      checkoutPaused:
+        'Ця оплата ще активна. Продовжіть checkout, щоб завершити її, або зачекайте тут, якщо вже оплатили.',
+      redirectOpening: 'Переходимо до захищеного checkout Creem…',
+      redirectReturned:
+        'Дякуємо — якщо ви завершили оплату, FluxRadar очікує її підтвердження від Creem. Зазвичай це займає кілька секунд.',
       checkAgain: 'Перевірити статус оплати',
       close: 'Закрити',
       pollFailed: 'FluxRadar не зміг прочитати статус оплати. Спробуйте за мить.',
+      notFound:
+        'FluxRadar не має checkout з таким номером для вашого акаунта, тому підтверджувати тут нічого. Якщо ви оплатили, зверніться до підтримки та надішліть посилання, за яким повернулися.',
       testMode: 'Платіжний провайдер у тестовому режимі — реального списання немає.',
       unavailable:
         'Платний checkout ще не налаштовано для цього середовища. Безкоштовна перевірка головної сторінки доступна зараз.',

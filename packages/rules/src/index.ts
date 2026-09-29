@@ -9,6 +9,7 @@ export type {
   ApiCheckMethod,
   ApiCheckSnapshot,
   ApiRule,
+  NotApplicableReason,
   PageRule,
   Rule,
   RuleEvaluation,
@@ -69,3 +70,4 @@ export type {
   AiCrawlerReadinessReport,
   AiReadinessPageCheck,
 } from './ai-readiness.js';
+export { CANONICAL_PAGE_RULE_IDS, PAGE_RULE_IDS } from './page-census.js';

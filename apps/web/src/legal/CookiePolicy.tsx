@@ -5,8 +5,12 @@ import { CookieSettingsButton } from '../CookieConsent';
 import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
-/** Changed when the policy gained the analytics category and Google Analytics 4. */
-const COOKIES_EFFECTIVE: EffectiveDate = { uk: '21 вересня 2026 року', en: '21 September 2026' };
+/**
+ * Changed when the third-party checkout became Creem's hosted redirect page,
+ * which loads no provider script on fluxradar.net. The previous date,
+ * 21 September 2026, added the analytics category and Google Analytics 4.
+ */
+const COOKIES_EFFECTIVE: EffectiveDate = { uk: '28 вересня 2026 року', en: '28 September 2026' };
 
 /** The second cookie gtag sets is named after the stream, so the inventory names it exactly. */
 const GA_SESSION_COOKIE = `_ga_${GA_MEASUREMENT_ID.replace(/^G-/, '')}`;
@@ -77,7 +81,8 @@ function UkrainianCookiePolicy(): JSX.Element {
                 </td>
                 <td>
                   Необхідний localStorage: прив’язує поточний checkout до акаунта і дозволяє
-                  відновити підтвердження платежу після reload або повернення з FastSpring.
+                  відновити підтвердження платежу після reload або повернення зі сторінки checkout
+                  Creem.
                 </td>
                 <td>До підтвердження, скасування або очищення поточного checkout.</td>
               </tr>
@@ -145,13 +150,17 @@ function UkrainianCookiePolicy(): JSX.Element {
         </p>
       </section>
       <section id="cookies-providers" className="legal-section">
-        <span className="legal-section__label">05 / FASTSPRING</span>
+        <span className="legal-section__label">05 / CREEM</span>
         <h2>Checkout стороннього провайдера</h2>
         <p>
-          FastSpring є окремим merchant of record. Його checkout завантажується лише коли ви
-          навмисно починаєте платну покупку. FastSpring може встановлювати власні необхідні cookies
-          та storage для checkout, запобігання fraud, оплати й податкового розрахунку за своєю
-          політикою приватності. FluxRadar не керує строками зберігання FastSpring.
+          Creem є окремим merchant of record. Оплата відбувається на сторінці checkout, яку Creem
+          розміщує на власному домені: FluxRadar перенаправляє вас туди лише коли ви навмисно
+          починаєте платну покупку, а після оплати повертає на fluxradar.net. На сторінках FluxRadar
+          Creem не завантажує скриптів і не встановлює cookies. На власних сторінках Creem може
+          встановлювати необхідні cookies та storage для checkout, запобігання fraud, оплати й
+          податкового розрахунку за своєю{' '}
+          <a href="https://creem.io/privacy">політикою приватності</a>. FluxRadar не керує строками
+          зберігання Creem.
         </p>
       </section>
       <section id="cookies-controls" className="legal-section">
@@ -242,7 +251,8 @@ function EnglishCookiePolicy(): JSX.Element {
                 </td>
                 <td>
                   Essential localStorage: associates an in-progress checkout with the account and
-                  restores payment confirmation after a reload or return from FastSpring.
+                  restores payment confirmation after a reload or return from the Creem checkout
+                  page.
                 </td>
                 <td>Until the current checkout is confirmed, cancelled or cleared.</td>
               </tr>
@@ -313,13 +323,16 @@ function EnglishCookiePolicy(): JSX.Element {
         </p>
       </section>
       <section id="cookies-providers" className="legal-section">
-        <span className="legal-section__label">05 / FASTSPRING</span>
+        <span className="legal-section__label">05 / CREEM</span>
         <h2>Third-party checkout</h2>
         <p>
-          FastSpring is the separate merchant of record. Its checkout loads only when you
-          intentionally begin a paid purchase. FastSpring may set its own necessary cookies and
-          storage for checkout, fraud prevention, payment and tax calculation under its privacy
-          policy. FluxRadar does not control FastSpring’s retention periods.
+          Creem is the separate merchant of record. Payment happens on a checkout page that Creem
+          hosts on its own domain: FluxRadar redirects you there only when you intentionally begin a
+          paid purchase and brings you back to fluxradar.net afterwards. Creem loads no script and
+          sets no cookies on FluxRadar’s pages. On its own pages Creem may set the necessary cookies
+          and storage for checkout, fraud prevention, payment and tax calculation under its{' '}
+          <a href="https://creem.io/privacy">privacy notice</a>. FluxRadar does not control Creem’s
+          retention periods.
         </p>
       </section>
       <section id="cookies-controls" className="legal-section">

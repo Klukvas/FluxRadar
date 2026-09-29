@@ -111,6 +111,33 @@ export const SEO_MESSAGES = {
     uk: 'Усуньте суперечність сигналів індексації: або приберіть noindex, або виключіть сторінку із sitemap і приберіть внутрішні посилання на неї.',
   },
 
+  'seo-tech-009.evidence': {
+    en: 'The XML sitemap lists {url}, yet none of the {sources} crawled pages links to it',
+    uk: 'XML-sitemap містить {url}, але на нього не веде жодна з {sources} прочитаних сторінок',
+  },
+  'seo-tech-009.recommendation': {
+    en: 'Link the page from where it belongs — the navigation, a hub page or a related article: a page only the sitemap mentions is found late and has to earn its place on its own.',
+    uk: 'Додайте посилання на сторінку там, де їй місце, — у навігації, на сторінці-хабі або в суміжній статті: сторінку, про яку знає лише sitemap, знаходять пізно, і вона мусить пробиватися сама.',
+  },
+
+  'seo-tech-010.evidence': {
+    en: 'The page is {depth} link hops away from the entry URL {entryUrl} (threshold: {threshold})',
+    uk: 'Сторінка розташована за {depth} переходами за посиланнями від точки входу {entryUrl} (поріг: {threshold})',
+  },
+  'seo-tech-010.recommendation': {
+    en: 'Shorten the path to the page: a link from the main navigation or from a hub page closer to the entry URL brings it within reach of both visitors and crawlers.',
+    uk: 'Скоротіть шлях до сторінки: посилання з головної навігації або зі сторінки-хаба, ближчої до точки входу, робить її доступною і відвідувачам, і пошуковим роботам.',
+  },
+
+  'seo-tech-011.evidence': {
+    en: 'Only one crawled page links to this one: {source}',
+    uk: 'На цю сторінку веде лише одна прочитана сторінка: {source}',
+  },
+  'seo-tech-011.recommendation': {
+    en: 'Add links from other relevant pages: a page held by a single internal link loses its place in the site structure the moment that link changes.',
+    uk: 'Додайте посилання з інших доречних сторінок: сторінка, яку тримає єдине внутрішнє посилання, втрачає місце в структурі сайту щойно це посилання зміниться.',
+  },
+
   'seo-tech-013.evidence': {
     en: '{selector} is loaded over unencrypted http:// ({url})',
     uk: '{selector} завантажується через незашифрований http:// ({url})',
@@ -181,6 +208,49 @@ export const SEO_MESSAGES = {
   'seo-onpage-003.recommendation': {
     en: 'Use exactly one h1 and build the hierarchy without skipping levels (h1 → h2 → h3 …).',
     uk: 'Використовуйте рівно один h1 і будуйте ієрархію без пропуску рівнів (h1 → h2 → h3 …).',
+  },
+
+  // Дубли метаданных: сначала счёт и адреса (register content-004), потом само
+  // значение. Две оговорки в тексте не лишние. «Не більше трьох» / «at most
+  // three» — потому что счёт и список расходятся на большой группе, и читатель
+  // иначе решил бы, что список полон. «As crawled» — потому что вердикт стоит
+  // на том, что обход прочитал: canonical на адрес, снимка которого нет,
+  // связать страницу с членом группы не может, и утверждать больше правило не
+  // вправе.
+  //
+  // ПРИЧИНА НАХОДКИ — ЭТО ДВА РАЗНЫХ ПРЕДЛОЖЕНИЯ, и оба обязаны быть правдой
+  // (UnclaimedReason в shared/duplicate-groups.ts). `no-canonical`: страница не
+  // назвала каноничной ни одну из группы, и её саму никто не назвал.
+  // `unresolved-chain`: назвала — но цепочка заявлений уходит из группы или
+  // замыкается в петлю, и настоящей версии среди них не назвал никто. Одно
+  // предложение на оба случая утверждало бы о странице в петле, что canonical-а,
+  // указывающего на партнёра, у неё нет, — тогда как он там есть и назван прямо.
+  // Средняя фраза у всех трёх правил дублей одна и та же: причина общая, и
+  // читатель не должен разбирать её заново в каждом отчёте.
+  'seo-onpage-004.evidence.no-canonical': {
+    en: 'Other crawled pages with the same title: {count}; at most three are listed here: {pages}. No <link rel="canonical"> ties this page to any of them, as crawled. Title: "{title}"',
+    uk: 'Інших прочитаних сторінок із таким самим title: {count}; тут названо не більше трьох: {pages}. <link rel="canonical"> не пов’язує цю сторінку з жодною з них — за тим, як їх прочитав обхід. Title: «{title}»',
+  },
+  'seo-onpage-004.evidence.unresolved-chain': {
+    en: 'Other crawled pages with the same title: {count}; at most three are listed here: {pages}. This page has a <link rel="canonical">, but the chain it starts leaves these pages or loops back and names no final version among them, as crawled. Title: "{title}"',
+    uk: 'Інших прочитаних сторінок із таким самим title: {count}; тут названо не більше трьох: {pages}. У цієї сторінки є <link rel="canonical">, але ланцюжок, який вона починає, виходить за межі цих сторінок або замикається в петлю й не називає остаточної версії серед них — за тим, як їх прочитав обхід. Title: «{title}»',
+  },
+  'seo-onpage-004.recommendation': {
+    en: 'Give each page a title of its own that says what is on it. If the pages really are the same, leave one title and point the copies at the original with <link rel="canonical">.',
+    uk: 'Дайте кожній сторінці власний title, який описує саме її. Якщо сторінки справді однакові, залиште один заголовок, а копії вкажіть на оригінал через <link rel="canonical">.',
+  },
+
+  'seo-onpage-006.evidence.no-canonical': {
+    en: 'Other crawled pages with the same meta description: {count}; at most three are listed here: {pages}. No <link rel="canonical"> ties this page to any of them, as crawled. Description: "{description}"',
+    uk: 'Інших прочитаних сторінок із таким самим meta description: {count}; тут названо не більше трьох: {pages}. <link rel="canonical"> не пов’язує цю сторінку з жодною з них — за тим, як їх прочитав обхід. Description: «{description}»',
+  },
+  'seo-onpage-006.evidence.unresolved-chain': {
+    en: 'Other crawled pages with the same meta description: {count}; at most three are listed here: {pages}. This page has a <link rel="canonical">, but the chain it starts leaves these pages or loops back and names no final version among them, as crawled. Description: "{description}"',
+    uk: 'Інших прочитаних сторінок із таким самим meta description: {count}; тут названо не більше трьох: {pages}. У цієї сторінки є <link rel="canonical">, але ланцюжок, який вона починає, виходить за межі цих сторінок або замикається в петлю й не називає остаточної версії серед них — за тим, як їх прочитав обхід. Description: «{description}»',
+  },
+  'seo-onpage-006.recommendation': {
+    en: 'Write a description for each page from its own content: a description repeated across pages gives search engines nothing to tell them apart by.',
+    uk: 'Напишіть опис для кожної сторінки за її власним змістом: однаковий опис на кількох сторінках не дає пошуковим системам чим їх розрізнити.',
   },
 
   'seo-onpage-005.evidence': {

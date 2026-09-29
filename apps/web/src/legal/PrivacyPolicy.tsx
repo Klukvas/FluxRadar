@@ -4,14 +4,16 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
- * Changed when GEO's direct questions became closed-book and every visibility
- * answer, from whichever provider produced it, started being judged in a
- * further request to Anthropic that carries this audit's own evidence. The
- * previous date, 23 September 2026, was OpenAI becoming an active AI recipient
- * beside Anthropic, Google and Perplexity becoming opt-in recipients, the AI
- * Action Plan as an AI purpose, and consent-based Google Analytics 4.
+ * Changed when Creem (Armitage Labs OÜ, Estonia) replaced FastSpring as
+ * merchant of record and checkout provider, which also made the account email
+ * travel to the provider when a checkout starts. The previous date,
+ * 25 September 2026, was GEO's direct questions becoming closed-book and every
+ * visibility answer being judged in a further request to Anthropic; before
+ * that, 23 September 2026, was OpenAI becoming an active AI recipient beside
+ * Anthropic, Google and Perplexity becoming opt-in recipients, the AI Action
+ * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '25 вересня 2026 року', en: '25 September 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '28 вересня 2026 року', en: '28 September 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -46,8 +48,10 @@ function UkrainianPrivacy(): JSX.Element {
           </li>
           <li>
             <strong>Профілі й аудити:</strong> домен, назва, галузь, опис, товари чи послуги,
-            регіон, мови, аудиторія, конфігурація crawl, завантажені публічні сторінки й технічні
-            сигнали, знахідки, оцінки, докази, AI‑запити та відповіді й експорт звіту.
+            регіон, мови, аудиторія, назви конкурентів, конфігурація crawl, завантажені публічні
+            сторінки й технічні сигнали, знахідки, оцінки, докази, AI‑запити та відповіді й експорт
+            звіту. Назви конкурентів звіряються з AI-відповідями цього акаунта лише на наших
+            серверах; вони ніколи не надсилаються AI-провайдеру.
           </li>
           <li>
             <strong>Інтеграції:</strong> зашифровані Google або Bing access/refresh tokens, дозволи,
@@ -55,10 +59,10 @@ function UkrainianPrivacy(): JSX.Element {
             пошукові запити, clicks, impressions, CTR, positions і агреговані Analytics metrics.
           </li>
           <li>
-            <strong>Покупки:</strong> FastSpring order і checkout identifiers, товар, сума, валюта,
-            податок, статус платежу, повернення чи спору. Webhook може містити ім’я, email, billing
-            address та інші дані покупця. Номер платіжної картки вводиться у FastSpring і не
-            зберігається FluxRadar.
+            <strong>Покупки:</strong> Creem checkout, order і customer identifiers, товар, сума,
+            валюта, податок, знижка, статус платежу, повернення чи спору. Webhook може містити ім’я,
+            email, країну та інші дані покупця. Номер платіжної картки вводиться на сторінці
+            checkout Creem і не зберігається FluxRadar.
           </li>
           <li>
             <strong>Безпека й робота сервісу:</strong> IP‑адреса, request/error data та rate‑limit
@@ -258,8 +262,11 @@ function UkrainianPrivacy(): JSX.Element {
             .
           </li>
           <li>
-            <strong>FastSpring</strong> — merchant of record і checkout provider. Див.{' '}
-            <a href="https://fastspring.com/privacy/">FastSpring Privacy Statement</a>.
+            <strong>Creem</strong> (Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія) —
+            merchant of record і checkout provider. Коли ви починаєте платну покупку, FluxRadar
+            передає Creem email вашого акаунта (для попереднього заповнення checkout і квитанції),
+            обраний товар і наш checkout reference; решту даних, зокрема дані картки, ви вводите на
+            сайті Creem. Див. <a href="https://creem.io/privacy">Creem Privacy Notice</a>.
           </li>
           <li>
             <strong>Resend</strong> — коли transactional email увімкнено, отримує email і вміст
@@ -308,7 +315,7 @@ function UkrainianPrivacy(): JSX.Element {
           Після підтвердженого запиту на видалення акаунта ми видаляємо пов’язані профілі, токени,
           активні сесії, звіти та AI records протягом 30 днів, крім мінімальних записів, які
           необхідні за законом або для fraud/dispute defense. Backups у Hetzner перезаписуються або
-          видаляються протягом 30 днів. Дані в FastSpring, email‑провайдера чи іншого незалежного
+          видаляються протягом 30 днів. Дані в Creem, email‑провайдера чи іншого незалежного
           провайдера підпорядковуються його власним строкам і правовим обов’язкам.
         </p>
       </section>
@@ -373,8 +380,10 @@ function EnglishPrivacy(): JSX.Element {
           </li>
           <li>
             <strong>Profiles and audits:</strong> domain, name, industry, description, products or
-            services, region, languages, audience, crawl configuration, fetched public pages and
-            technical signals, findings, scores, evidence, AI inputs and responses and exports.
+            services, region, languages, audience, competitor names, crawl configuration, fetched
+            public pages and technical signals, findings, scores, evidence, AI inputs and responses
+            and exports. Competitor names are matched against this account's own AI answers on our
+            servers only; they are never sent to an AI provider.
           </li>
           <li>
             <strong>Integrations:</strong> encrypted Google or Bing access and refresh tokens,
@@ -383,10 +392,10 @@ function EnglishPrivacy(): JSX.Element {
             Analytics metrics.
           </li>
           <li>
-            <strong>Purchases:</strong> FastSpring order and checkout identifiers, product, amount,
-            currency, tax, payment, refund and dispute status. Webhooks can contain buyer name,
-            email, billing address and other buyer details. Card entry is handled by FastSpring;
-            FluxRadar does not store the full card number.
+            <strong>Purchases:</strong> Creem checkout, order and customer identifiers, product,
+            amount, currency, tax, discount, payment, refund and dispute status. Webhooks can
+            contain buyer name, email, country and other buyer details. Card entry happens on the
+            Creem checkout page; FluxRadar does not store the full card number.
           </li>
           <li>
             <strong>Security and operations:</strong> IP address, request/error data and rate-limit
@@ -581,8 +590,12 @@ function EnglishPrivacy(): JSX.Element {
             .
           </li>
           <li>
-            <strong>FastSpring</strong> is the merchant of record and checkout provider. See the{' '}
-            <a href="https://fastspring.com/privacy/">FastSpring Privacy Statement</a>.
+            <strong>Creem</strong> (Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Estonia) is the
+            merchant of record and checkout provider. When you start a paid purchase, FluxRadar
+            sends Creem your account email (to pre-fill the checkout and address the receipt), the
+            product you chose and our checkout reference; everything else, including card details,
+            you enter on Creem’s site. See the{' '}
+            <a href="https://creem.io/privacy">Creem Privacy Notice</a>.
           </li>
           <li>
             <strong>Resend</strong>, when transactional email is enabled, receives the recipient
@@ -630,8 +643,8 @@ function EnglishPrivacy(): JSX.Element {
           After a verified account-deletion request, we remove linked profiles, tokens, active
           sessions, reports and AI records within 30 days, except minimal records required by law or
           for fraud/dispute defense. Hetzner backups are overwritten or deleted within 30 days.
-          FastSpring, email-provider and other independent provider records follow their own
-          retention and legal obligations.
+          Creem, email-provider and other independent provider records follow their own retention
+          and legal obligations.
         </p>
       </section>
       <section id="privacy-cookies" className="legal-section">

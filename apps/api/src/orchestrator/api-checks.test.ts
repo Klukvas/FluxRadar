@@ -50,6 +50,7 @@ function contextFor(checks: Awaited<ReturnType<typeof runApiChecks>>['checks']) 
       resources: [],
       pendingQueue: [],
       stoppedEarly: false,
+      scope: { origin: site.origin, includeSubdomains: false, maxPages: 50 },
     },
   });
 }

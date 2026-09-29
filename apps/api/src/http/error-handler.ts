@@ -8,7 +8,7 @@ import {
   BillingError,
   BillingNotFoundError,
   BillingUnavailableError,
-  FastSpringApiError,
+  CreemApiError,
   InvalidSignatureError,
   InvalidTransitionError,
   PlanNotPurchasableError,
@@ -38,7 +38,7 @@ function billingErrorStatus(error: BillingError): number {
   if (error instanceof PlanNotPurchasableError) return 409;
   if (error instanceof BillingUnavailableError) return 503;
   // The provider refused or was unreachable: this side of the call is healthy.
-  if (error instanceof FastSpringApiError) return error.status === 429 ? 429 : 502;
+  if (error instanceof CreemApiError) return error.status === 429 ? 429 : 502;
   return 500;
 }
 

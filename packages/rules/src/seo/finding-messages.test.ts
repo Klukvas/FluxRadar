@@ -33,6 +33,23 @@ function headings(body: string): SiteContext {
   return page('', body);
 }
 
+/**
+ * Три страницы с одним значением, у третьей canonical на первую.
+ *
+ * Ровно одна из них — находка правил дублей: заявившая дубль и названная
+ * канонической молчат обе, и на прогон остаётся один finding, как ждёт эта
+ * таблица.
+ */
+function duplicateTrio(head: string): SiteContext {
+  const body = (path: string): string =>
+    `<!doctype html><html lang="en"><head><title>One title for three pages</title>${head}` +
+    `${path === '/c.html' ? '<link rel="canonical" href="https://fixture.test/a.html">' : ''}` +
+    '</head><body><h1>Shared</h1><p>The very same paragraph on every one of the three pages.</p></body></html>';
+  return siteContext({
+    pages: ['/a.html', '/b.html', '/c.html'].map((path) => ({ path, html: body(path) })),
+  });
+}
+
 function noindexLinkedFrom(hidden: {
   readonly head?: string;
   readonly headers?: Record<string, string>;
@@ -171,6 +188,75 @@ const CASES: readonly MessageCase[] = [
     recommendation: 'seo-tech-008.recommendation',
   },
   {
+    name: 'page only the sitemap knows',
+    ruleId: 'SEO-TECH-009',
+    ctx: () =>
+      siteContext({
+        sitemapUrls: ['https://fixture.test/orphan.html'],
+        pages: [
+          {
+            path: '/',
+            html:
+              '<!doctype html><html lang="en"><head><title>Home fixture page</title></head>' +
+              '<body><h1>Home</h1></body></html>',
+          },
+          {
+            path: '/orphan.html',
+            depth: 1,
+            html:
+              '<!doctype html><html lang="en"><head><title>Orphan fixture page</title></head>' +
+              '<body><h1>Orphan</h1></body></html>',
+          },
+        ],
+      }),
+    evidence: 'seo-tech-009.evidence',
+    recommendation: 'seo-tech-009.recommendation',
+  },
+  {
+    name: 'page four hops from the entry URL',
+    ruleId: 'SEO-TECH-010',
+    // Глубину считает правило по прочитанным ссылкам, поэтому фикстура — цепочка
+    // из четырёх переходов, а не страница с подставленной глубиной снимка.
+    ctx: () =>
+      siteContext({
+        pages: [0, 1, 2, 3, 4].map((step) => ({
+          path: step === 0 ? '/' : `/step-${step}.html`,
+          depth: step,
+          html:
+            `<!doctype html><html lang="en"><head><title>Step ${step} fixture page</title></head>` +
+            `<body><h1>Step ${step}</h1>` +
+            (step === 4 ? '' : `<a href="/step-${step + 1}.html">next</a>`) +
+            '</body></html>',
+        })),
+      }),
+    evidence: 'seo-tech-010.evidence',
+    recommendation: 'seo-tech-010.recommendation',
+  },
+  {
+    name: 'page held by a single internal link',
+    ruleId: 'SEO-TECH-011',
+    ctx: () =>
+      siteContext({
+        pages: [
+          {
+            path: '/',
+            html:
+              '<!doctype html><html lang="en"><head><title>Home fixture page</title></head>' +
+              '<body><h1>Home</h1><a href="/weak.html">weak</a></body></html>',
+          },
+          {
+            path: '/weak.html',
+            depth: 1,
+            html:
+              '<!doctype html><html lang="en"><head><title>Weak fixture page</title></head>' +
+              '<body><h1>Weak</h1></body></html>',
+          },
+        ],
+      }),
+    evidence: 'seo-tech-011.evidence',
+    recommendation: 'seo-tech-011.recommendation',
+  },
+  {
     name: 'mixed content',
     ruleId: 'SEO-TECH-013',
     ctx: () => loadFixtureContext('fx-SEO-TECH-013-positive.html'),
@@ -266,6 +352,21 @@ const CASES: readonly MessageCase[] = [
     ctx: () => loadFixtureContext('fx-SEO-ONPAGE-003-positive.html'),
     evidence: 'seo-onpage-003.evidence.level-skip',
     recommendation: 'seo-onpage-003.recommendation',
+  },
+  {
+    name: 'title shared with another page',
+    ruleId: 'SEO-ONPAGE-004',
+    ctx: () => duplicateTrio(''),
+    evidence: 'seo-onpage-004.evidence.no-canonical',
+    recommendation: 'seo-onpage-004.recommendation',
+  },
+  {
+    name: 'meta description shared with another page',
+    ruleId: 'SEO-ONPAGE-006',
+    ctx: () =>
+      duplicateTrio('<meta name="description" content="One description for three pages.">'),
+    evidence: 'seo-onpage-006.evidence.no-canonical',
+    recommendation: 'seo-onpage-006.recommendation',
   },
   {
     name: 'images without alt',

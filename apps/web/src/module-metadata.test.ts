@@ -14,6 +14,7 @@ function check(overrides: Partial<RuleCheck> = {}): RuleCheck {
     informational: false,
     applicableTargets: 3,
     affectedTargets: 0,
+    notApplicableReason: null,
     ...overrides,
   };
 }
@@ -54,6 +55,36 @@ describe('ruleChecksOf', () => {
         applicableTargets: 1,
       }),
     ]);
+  });
+
+  it('reads the reason a rule gave for having nothing to judge', () => {
+    const [judged, unjudged] = ruleChecksOf({
+      ruleChecks: [
+        {
+          ruleId: 'SEO-TECH-011',
+          title: 'weakly linked pages',
+          targetKind: 'page',
+          scoring: 'scored',
+          applicableTargets: 0,
+          affectedTargets: 0,
+          notApplicableReason: 'no-candidates',
+        },
+        // A row written before rules named their reason, and one whose reason is
+        // not a string: both read as "no reason recorded", never as a throw.
+        {
+          ruleId: 'SEO-TECH-009',
+          title: 'orphan pages',
+          targetKind: 'page',
+          scoring: 'scored',
+          applicableTargets: 0,
+          affectedTargets: 0,
+          notApplicableReason: 7,
+        },
+      ],
+    });
+
+    expect(judged?.notApplicableReason).toBe('no-candidates');
+    expect(unjudged?.notApplicableReason).toBeNull();
   });
 
   it('is empty for a row recorded before checks were stored', () => {

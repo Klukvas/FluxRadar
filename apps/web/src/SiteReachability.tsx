@@ -2,7 +2,7 @@
 //
 // A customer could buy a $120 audit of a site that refuses our crawler, wait
 // for the scan and get a refund instead of a report. The server now refuses
-// that sale (`createCheckoutSession`), and this panel is how the buyer finds
+// that sale (`createCreemCheckoutSession`), and this panel is how the buyer finds
 // out before they meet the refusal: it runs the same probe, shows what the site
 // answered, and says what to do about it.
 //

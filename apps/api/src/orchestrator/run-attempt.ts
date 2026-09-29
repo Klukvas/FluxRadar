@@ -35,6 +35,7 @@ import {
   readEgressProbeOptions,
 } from '../integrations/crawl-egress-health.ts';
 import { logEgressUsage, recordEgressUsage } from '../integrations/crawl-egress-usage.ts';
+import { competitorsFromJson } from '../profiles/competitors.ts';
 import { executionProfile } from '../profiles/execution-config.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
 import { runApiChecks } from './api-checks.ts';
@@ -202,12 +203,23 @@ async function persistGeoModule(
   // What the evaluators actually read: the same redacted snapshot, so the
   // stored evidence is the evidence a stored verdict was checked against.
   evidence: GeoEvidenceSnapshot | null,
+  siteDomain: string,
+  brand: string,
+  competitors: readonly string[],
 ): Promise<void> {
   // Строку модуля строит чистый билдер (geo-module-row.ts), а пишется она в
   // одной транзакции с ответами провайдера: строка — это то, что следующая
   // попытка читает как «эта платная стадия закончена», и строка без своих
   // ответов закрыла бы стадию, потеряв оплаченный материал (AI-001).
-  const moduleRow = geoModuleRow(geo, generation, aiCrawlerReadiness, evidence);
+  const moduleRow = geoModuleRow(
+    geo,
+    generation,
+    aiCrawlerReadiness,
+    evidence,
+    siteDomain,
+    brand,
+    competitors,
+  );
   await prisma.$transaction(async (tx) => {
     await setModule(tx, scanId, geo.module, moduleRow);
     if (generation.outcome?.kind === 'response') {
@@ -710,6 +722,9 @@ export async function runScanAttempt(
       generation,
       assessAiCrawlerReadiness(crawlResult),
       geo.evaluatedEvidence,
+      siteHostname,
+      profile.name,
+      competitorsFromJson(profile.competitorsJson) ?? [],
     );
     aiQuota = geo.quota;
     completedStages.add('AI SEO / GEO');
