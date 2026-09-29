@@ -28,17 +28,15 @@ describe('execution configuration HTTP contract', () => {
           .send({ email: 'revision@example.com', password: 'long-password-123' })
       ).status,
     ).toBe(201);
-    const created = await agent
-      .post('/profiles')
-      .send({
-        name: 'Dental Brand',
-        domain: 'https://revision.example',
-        offerings: 'Implants',
-        scanConfig: {
-          plan: 'Complete',
-          scope: { includeSubdomains: true, maxPages: 80, maxDepth: 9 },
-        },
-      });
+    const created = await agent.post('/profiles').send({
+      name: 'Dental Brand',
+      domain: 'https://revision.example',
+      offerings: 'Implants',
+      scanConfig: {
+        plan: 'Complete',
+        scope: { includeSubdomains: true, maxPages: 80, maxDepth: 9 },
+      },
+    });
     expect(created.status).toBe(201);
     const profileId = created.body.data.id as string;
     const saved = await agent
@@ -95,5 +93,44 @@ describe('execution configuration HTTP contract', () => {
       plan: 'Complete',
       scope: { maxPages: 80, maxDepth: 9 },
     });
+  });
+
+  // T7-fix F8: competitors are captured into executionConfigJson at launch,
+  // the same as the rest of the profile snapshot, so an edit to the profile's
+  // competitor list after a scan launches must not reach that scan.
+  it('captures the competitor list at launch, unaffected by a later profile edit', async () => {
+    const app = createApp({ prisma: db.prisma, autoProcess: false, logger: silentLogger });
+    const agent = request.agent(app);
+    expect(
+      (
+        await agent
+          .post('/auth/register')
+          .send({ email: 'competitors-capture@example.com', password: 'long-password-123' })
+      ).status,
+    ).toBe(201);
+    const created = await agent.post('/profiles').send({
+      name: 'Dental Brand',
+      domain: 'https://competitors-capture.example',
+      competitors: ['Acme Dental', 'Bright Smile'],
+    });
+    expect(created.status).toBe(201);
+    const profileId = created.body.data.id as string;
+    const paid = await purchaseScan(db.prisma, {
+      siteProfileId: profileId,
+      expectedProfileConfigVersion: 1,
+      plan: 'Complete',
+      scope: { includeSubdomains: true, maxPages: 80 },
+    });
+    const changed = await agent.patch(`/profiles/${profileId}`).send({
+      expectedProfileConfigVersion: 1,
+      competitors: ['Globex Clinic'],
+    });
+    expect(changed.status).toBe(200);
+    const scan = await agent.get(`/scans/${paid.scanId}`);
+    expect(scan.body.data.executionConfig).toMatchObject({
+      competitors: ['Acme Dental', 'Bright Smile'],
+    });
+    const profile = await agent.get(`/profiles/${profileId}`);
+    expect(profile.body.data.competitors).toEqual(['Globex Clinic']);
   });
 });

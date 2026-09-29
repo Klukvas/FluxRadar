@@ -119,6 +119,11 @@ model SiteProfile {
   offerings           String?
   targetLanguages     String?
   targetAudience      String?
+  // T7: up to 5 competitor brand names, stored as a JSON array (nullable — no
+  // array default, since "no competitors configured" and "empty list" are the
+  // same state here). Never read into GeoProfileContext or CONTEXT_FIELDS
+  // (execution-config.ts) — matched locally against stored answers only.
+  competitorsJson     String?
   scanConfigJson      String    @default("{\"plan\":\"Complete\",\"scope\":{\"includeSubdomains\":false,\"maxPages\":15,\"maxDepth\":5,\"queryPolicy\":\"ignore\",\"respectRobots\":true,\"robotsOverrideConfirmed\":false,\"userAgent\":\"desktop\"}}")
   scanConfigVersion   Int       @default(1)
   createdAt DateTime @default(now())

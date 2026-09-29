@@ -10,10 +10,12 @@ import {
   GEO_SCORE_UNAVAILABLE_REASONS,
   GEO_VISIBILITY_PURPOSES,
   type GeoCitedInsteadEntry,
+  type GeoCompetitorVisibility,
   type GeoProviderVisibility,
   type GeoPurposeVisibilityCounts,
   type GeoScoreBasis,
   type GeoScoreUnavailableReason,
+  type GeoShareOfVoice,
   type GeoVisibilityPurpose,
   type GeoVisibilitySummary,
 } from './api';
@@ -96,6 +98,47 @@ function citedInsteadOf(value: unknown): readonly GeoCitedInsteadEntry[] | null 
   return entries;
 }
 
+function competitorVisibilityOf(value: unknown): GeoCompetitorVisibility | null {
+  const record = asRecord(value);
+  if (record === null || typeof record.name !== 'string') return null;
+  const mentionedCount = numberValue(record.mentionedCount);
+  const share = shareValue(record.share);
+  if (mentionedCount === null || share === undefined) return null;
+  return { name: record.name, mentionedCount, share };
+}
+
+/**
+ * Share of voice (T7), or `null` — absent from an older stored record, absent
+ * because no competitors were configured for that scan, or malformed.
+ * `undefined` is never returned: a `shareOfVoice` field that is present but
+ * fails its own shape check fails the whole provider, the same as any other
+ * field here (`providerVisibilityOf` below), so a caller only ever sees the
+ * field present-and-valid or the provider not rendered at all.
+ */
+function shareOfVoiceOf(value: unknown): GeoShareOfVoice | null | undefined {
+  if (value === undefined || value === null) return null;
+  const record = asRecord(value);
+  if (record === null) return undefined;
+  const denominator = numberValue(record.denominator);
+  const brandMentionsInScope = numberValue(record.brandMentionsInScope);
+  const brandShare = shareValue(record.brandShare);
+  if (
+    denominator === null ||
+    brandMentionsInScope === null ||
+    brandShare === undefined ||
+    !Array.isArray(record.competitors)
+  ) {
+    return undefined;
+  }
+  const competitors: GeoCompetitorVisibility[] = [];
+  for (const entry of record.competitors) {
+    const competitor = competitorVisibilityOf(entry);
+    if (competitor === null) return undefined;
+    competitors.push(competitor);
+  }
+  return { denominator, brandMentionsInScope, brandShare, competitors };
+}
+
 function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
   const record = asRecord(value);
   if (record === null || typeof record.provider !== 'string' || typeof record.label !== 'string') {
@@ -115,6 +158,7 @@ function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
   const scoreBasis = scoreBasisValue(record.scoreBasis);
   const byPurpose = byPurposeOf(record.byPurpose);
   const citedInstead = citedInsteadOf(record.citedInstead);
+  const shareOfVoice = shareOfVoiceOf(record.shareOfVoice);
   if (
     questionsAsked === null ||
     questionsAnswered === null ||
@@ -134,7 +178,8 @@ function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
     (visibilityScore === null) !== (scoreUnavailableReason !== null) ||
     (visibilityScore === null) !== (scoreBasis === null) ||
     byPurpose === null ||
-    citedInstead === null
+    citedInstead === null ||
+    shareOfVoice === undefined
   ) {
     return null;
   }
@@ -155,6 +200,7 @@ function providerVisibilityOf(value: unknown): GeoProviderVisibility | null {
     scoreBasis,
     byPurpose,
     citedInstead,
+    shareOfVoice,
   };
 }
 

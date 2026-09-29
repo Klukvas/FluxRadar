@@ -200,8 +200,9 @@ function buildRow(
   evidence: Parameters<typeof geoModuleRow>[3] = null,
   siteDomain: string = SITE_DOMAIN,
   brand: string = SITE_BRAND,
+  competitors: Parameters<typeof geoModuleRow>[6] = [],
 ): ReturnType<typeof geoModuleRow> {
-  return geoModuleRow(geo, generation, readiness, evidence, siteDomain, brand);
+  return geoModuleRow(geo, generation, readiness, evidence, siteDomain, brand, competitors);
 }
 
 function verdict(
@@ -701,6 +702,57 @@ describe('T6 — visibility summary in metadata', () => {
     );
     const [provider] = visibilitySummaryOf(row).providers;
     expect(provider?.visibilityScore).toBe(Math.round(100 * (0.6 * (2 / 3) + 0.4 * (2 / 3))));
+  });
+
+  // T7: the profile's competitors flow from geoModuleRow's caller through to
+  // the stored share-of-voice row, and never influence the score above.
+  it('stores share of voice for each configured competitor (T7)', () => {
+    const outcome = answeredWith({
+      sequence: 1,
+      promptVersion: 'geo-questions-v5-discovery',
+      question: 'Which clinics in this area offer dental care?',
+      rawText: 'Acme Clinic and Rival Dental both offer dental care in this area.',
+    });
+    const row = buildRow(
+      geoResult({
+        outcomes: [outcome],
+        mentions: mentions({ 'key-1': ['mentioned', 'not-mentioned'] }),
+      }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+      null,
+      'acme-clinic.example',
+      'Acme Clinic',
+      ['Rival Dental'],
+    );
+    const [provider] = visibilitySummaryOf(row).providers;
+    expect(provider?.shareOfVoice).toEqual({
+      denominator: 2,
+      brandMentionsInScope: 1,
+      brandShare: 0.5,
+      competitors: [{ name: 'Rival Dental', mentionedCount: 1, share: 0.5 }],
+    });
+  });
+
+  it('stores a null share of voice when the profile has no competitors configured', () => {
+    const outcome = answeredWith({
+      sequence: 1,
+      promptVersion: 'geo-questions-v5-discovery',
+      rawText: 'Acme Clinic offers dental care.',
+    });
+    const row = buildRow(
+      geoResult({
+        outcomes: [outcome],
+        mentions: mentions({ 'key-1': ['mentioned', 'not-mentioned'] }),
+      }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+      null,
+      'acme-clinic.example',
+      'Acme Clinic',
+    );
+    const [provider] = visibilitySummaryOf(row).providers;
+    expect(provider?.shareOfVoice).toBeNull();
   });
 
   it('lists who got cited instead when our domain was not', () => {

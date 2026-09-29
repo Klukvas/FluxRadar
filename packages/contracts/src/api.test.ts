@@ -6,6 +6,7 @@ import {
   issueStatusUpdateInputSchema,
   loginInputSchema,
   registerInputSchema,
+  competitorsListProblem,
   defaultProfileScanConfig,
   profileScanConfigSchema,
   scanRequestInputSchema,
@@ -161,6 +162,152 @@ describe('siteProfileInputSchema', () => {
     ['not a URL', 'example.com'],
   ])('rejects a domain with %s', (_label, domain) => {
     expect(siteProfileInputSchema.safeParse({ ...base, domain }).success).toBe(false);
+  });
+});
+
+describe('competitors (T7)', () => {
+  const withCompetitors = (competitors: readonly string[]) =>
+    siteProfileInputSchema.safeParse({
+      name: 'My Site',
+      domain: 'https://example.com',
+      competitors,
+    });
+
+  it('accepts up to 5 valid names', () => {
+    const result = withCompetitors(['Acme', 'Beta Co', 'Gamma', 'Delta', 'Epsilon']);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.competitors).toEqual(['Acme', 'Beta Co', 'Gamma', 'Delta', 'Epsilon']);
+    }
+  });
+
+  it('accepts an absent or empty list', () => {
+    expect(
+      siteProfileInputSchema.safeParse({ name: 'My Site', domain: 'https://example.com' }).success,
+    ).toBe(true);
+    expect(withCompetitors([]).success).toBe(true);
+  });
+
+  it('rejects more than 5 names', () => {
+    expect(withCompetitors(['A1', 'B1', 'C1', 'D1', 'E1', 'F1']).success).toBe(false);
+  });
+
+  it('rejects a name shorter than 2 characters', () => {
+    expect(withCompetitors(['A']).success).toBe(false);
+  });
+
+  it('rejects a name longer than 64 characters', () => {
+    expect(withCompetitors(['x'.repeat(65)]).success).toBe(false);
+  });
+
+  it('trims each name', () => {
+    const result = withCompetitors(['  Acme  ']);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.competitors).toEqual(['Acme']);
+  });
+
+  describe('competitorsListProblem', () => {
+    it('is null for a list with no conflict', () => {
+      expect(competitorsListProblem(['Acme', 'Beta'], 'My Site', 'https://example.com')).toBeNull();
+    });
+
+    it('is null when no competitors are configured', () => {
+      expect(competitorsListProblem(undefined, 'My Site', 'https://example.com')).toBeNull();
+      expect(competitorsListProblem(null, 'My Site', 'https://example.com')).toBeNull();
+      expect(competitorsListProblem([], 'My Site', 'https://example.com')).toBeNull();
+    });
+
+    it('flags a case-insensitive duplicate', () => {
+      expect(
+        competitorsListProblem(['Acme', 'acme'], 'My Site', 'https://example.com'),
+      ).not.toBeNull();
+    });
+
+    it('flags a competitor equal to the profile brand, case-insensitively', () => {
+      expect(competitorsListProblem(['my site'], 'My Site', 'https://example.com')).not.toBeNull();
+    });
+
+    it('flags a competitor equal to the profile domain, case-insensitively', () => {
+      expect(
+        competitorsListProblem(['HTTPS://EXAMPLE.COM'], 'My Site', 'https://example.com'),
+      ).not.toBeNull();
+    });
+
+    // T7-fix F2: the stored domain is already an https origin
+    // (`httpsOriginSchema`), but a competitor entry is free text — every form
+    // of the same host must be recognised as the profile's own domain.
+    describe('own-domain escapes (T7-fix F2)', () => {
+      const domain = 'https://www.acmedental.test';
+      it.each([
+        'acmedental.test',
+        'www.acmedental.test',
+        'https://acmedental.test',
+        'http://www.acmedental.test',
+        'https://www.acmedental.test/',
+      ])('flags "%s" against domain %s', (competitor) => {
+        expect(competitorsListProblem([competitor], 'My Site', domain)).not.toBeNull();
+      });
+    });
+
+    // T7-fix2 N3: the own-domain check folds "rival.test" and
+    // "www.rival.test" to the same host; the duplicate check must fold the
+    // same way, not just the plain-name fold, or the same site can be
+    // listed twice under two spellings.
+    it('flags a duplicate competitor that only matches once folded as a domain', () => {
+      expect(
+        competitorsListProblem(['rival.test', 'www.rival.test'], 'My Site', 'https://example.com'),
+      ).not.toBeNull();
+    });
+
+    // T7-fix2 N2: overlapping names (one a substring of the other) stay
+    // accepted by validation — only the counting in shareOfVoiceFor resolves
+    // the overlap, per the architect's decision.
+    it('still accepts an overlapping pair of competitor names', () => {
+      expect(
+        competitorsListProblem(['Acme', 'Acme Corp'], 'My Site', 'https://example.com'),
+      ).toBeNull();
+    });
+
+    // T7-fix3 L1: `foldForMatching` in @fluxradar/ai's matcher strips the
+    // combining dot Turkish İ (U+0130) leaves behind after `toLowerCase`, so
+    // the matcher treats "İmplant Clinic" and "Implant Clinic" as one name —
+    // if validation did not fold the same way, both would be accepted as
+    // distinct competitors and the matcher would then double-count their one
+    // real mention, corrupting the shared share-of-voice denominator.
+    it('flags a duplicate that only matches once the Turkish İ is folded', () => {
+      expect(
+        competitorsListProblem(
+          ['İmplant Clinic', 'Implant Clinic'],
+          'My Site',
+          'https://example.com',
+        ),
+      ).not.toBeNull();
+    });
+
+    it('flags a competitor equal to the profile brand once the Turkish İ is folded', () => {
+      expect(
+        competitorsListProblem(['Implant Clinic'], 'İmplant Clinic', 'https://example.com'),
+      ).not.toBeNull();
+    });
+
+    // T7-fix3 N-2: the domain fold only applies to entries shaped like a
+    // hostname (a dot, no whitespace, no "/", "?" or "#" before the host
+    // part) — otherwise two unrelated names that happen to contain a "/"
+    // both parse as a URL whose path is discarded, folding them to the same
+    // host and mislabelling them a duplicate.
+    it.each([
+      ['Acme/US', 'Acme/EU'],
+      ['Acme?x', 'Acme?y'],
+      ['Acme #1', 'Acme #2'],
+    ])('still accepts "%s" and "%s" as distinct names', (first, second) => {
+      expect(competitorsListProblem([first, second], 'My Site', 'https://example.com')).toBeNull();
+    });
+
+    it('still flags "rival.test" and "www.rival.test" as the same host after the N-2 gate', () => {
+      expect(
+        competitorsListProblem(['rival.test', 'www.rival.test'], 'My Site', 'https://example.com'),
+      ).not.toBeNull();
+    });
   });
 });
 

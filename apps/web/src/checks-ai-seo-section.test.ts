@@ -25,8 +25,14 @@ function aiSeoSection(copy: ChecksCopy) {
   return section;
 }
 
-/** The last bullet of the section: the visibility score, added with the score itself. */
+/** The visibility-score bullet, by position: added with the score itself, before share of voice. */
 function scoreBullet(copy: ChecksCopy) {
+  const { bullets } = aiSeoSection(copy);
+  return bullets[bullets.length - 2];
+}
+
+/** The share-of-voice bullet (T7): the last bullet, added after the score. */
+function shareOfVoiceBullet(copy: ChecksCopy) {
   const { bullets } = aiSeoSection(copy);
   return bullets[bullets.length - 1];
 }
@@ -34,8 +40,8 @@ function scoreBullet(copy: ChecksCopy) {
 describe('the AI SEO / GEO section of the coverage page', () => {
   it.each(LOCALES)('carries one bullet per published check in %s', (_language, copy) => {
     // Crawler access, llms.txt, structured data, content clarity, provider
-    // visibility, and the visibility score.
-    expect(aiSeoSection(copy).bullets).toHaveLength(6);
+    // visibility, the visibility score, and share of voice.
+    expect(aiSeoSection(copy).bullets).toHaveLength(7);
   });
 
   it.each(LOCALES)('publishes the score formula and its weights in %s', (_language, copy) => {
@@ -67,5 +73,20 @@ describe('the AI SEO / GEO section of the coverage page', () => {
     const body = scoreBullet(checksCopyUk)?.body ?? '';
     expect(body).toContain('лише інформаційна');
     expect(body).toContain('не входить у загальну оцінку аудиту');
+  });
+
+  // T7: the share-of-voice bullet is where a buyer learns competitor names
+  // never leave FluxRadar's own servers — that claim is pinned here, in both
+  // languages, the same way the score formula above is.
+  it('says competitor names are matched locally and never sent to a provider (en)', () => {
+    const bullet = shareOfVoiceBullet(checksCopyEn);
+    expect(bullet?.term).toContain('Share of voice');
+    expect(bullet?.body ?? '').toContain('never sent to an AI provider');
+  });
+
+  it('says competitor names are matched locally and never sent to a provider (uk)', () => {
+    const bullet = shareOfVoiceBullet(checksCopyUk);
+    expect(bullet?.term).toContain('Частка голосу');
+    expect(bullet?.body ?? '').toContain('ніколи не надсилаються AI-провайдеру');
   });
 });

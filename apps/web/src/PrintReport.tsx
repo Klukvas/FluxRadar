@@ -25,7 +25,7 @@ import { fetchScanComparison, type ScanComparison } from './comparison-api';
 import { Button, LoadingState, StatusChip } from './components';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
-import { percentOf } from './GeoVisibility';
+import { ownNameOnlyCount, percentOf } from './GeoVisibility';
 import { geoVisibilitySummaryOf } from './geo-visibility';
 import { copy, fillCopy, type Language } from './i18n';
 import { planIncludesIssueHistory, planName } from './plan-modules';
@@ -334,6 +334,62 @@ function printShareCell(
   return `${mentioned}/${measured} (${percentOf(share)}%)`;
 }
 
+/**
+ * The share-of-voice cell (T7-fix F4): a short dash when no competitors were
+ * configured at launch, never the full explanatory sentence — that sentence
+ * is 176 characters (205 in Ukrainian) and this cell sits in a table row of
+ * otherwise ~9-character cells. The explanation itself appears once, in the
+ * table's caption.
+ */
+function printShareOfVoiceCell(provider: GeoProviderVisibility, language: Language): string {
+  const t = copy[language].report;
+  const { shareOfVoice } = provider;
+  if (shareOfVoice === null || shareOfVoice.competitors.length === 0) {
+    return t.geoShareOfVoiceNoneShort;
+  }
+  return shareOfVoice.brandShare === null
+    ? t.geoShareOfVoiceBrandNotMeasured
+    : `${percentOf(shareOfVoice.brandShare)}%`;
+}
+
+/**
+ * The share-of-voice table's caption lines (T7-fix F4, extended T7-fix3 L2):
+ * shown once for the whole table, never per row — the cells are too narrow
+ * for either explanation (`printShareOfVoiceCell`'s doc). Two independent
+ * reasons can each apply at once — some provider has no competitors
+ * configured, and/or the brand's share-of-voice count diverges from its
+ * brand-mention count for at least one provider — so both are checked
+ * independently rather than one crowding out the other. The divergence note
+ * sums the gap across every provider in the table rather than naming which
+ * one: the table already has one row per provider, and the row-level counts
+ * that sum makes up are right there.
+ */
+function printShareOfVoiceCaptionNotes(
+  providers: readonly GeoProviderVisibility[],
+  language: Language,
+): readonly string[] {
+  const t = copy[language].report;
+  const notes: string[] = [];
+  if (
+    providers.some(
+      (provider) =>
+        provider.shareOfVoice === null || provider.shareOfVoice.competitors.length === 0,
+    )
+  ) {
+    notes.push(t.geoShareOfVoicePrintCaption);
+  }
+  const ownNameOnlyTotal = providers.reduce((sum, provider) => {
+    const { shareOfVoice } = provider;
+    return shareOfVoice === null
+      ? sum
+      : sum + ownNameOnlyCount(shareOfVoice, provider.brandMentionedCount);
+  }, 0);
+  if (ownNameOnlyTotal > 0) {
+    notes.push(fillCopy(t.geoShareOfVoiceOwnNameOnlyNote, { count: ownNameOnlyTotal }));
+  }
+  return notes;
+}
+
 /** Why this engine has no score — the minimum comes from the summary, not the answer count. */
 function printNoScore(
   provider: GeoProviderVisibility,
@@ -404,6 +460,7 @@ function PrintGeoVisibilityRow(props: {
           t.geoVisibilityNotMeasurableShort,
         )}
       </td>
+      <td>{printShareOfVoiceCell(props.provider, props.language)}</td>
     </tr>
   );
 }
@@ -414,6 +471,8 @@ function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language })
   const hasGeoAnswers = (props.dashboard.geoObservations ?? []).length > 0;
   if (!hasGeoAnswers) return null;
   const summary = geoVisibilitySummaryOf(props.dashboard.geoVisibilitySummary);
+  const captionNotes =
+    summary === null ? [] : printShareOfVoiceCaptionNotes(summary.providers, props.language);
   return (
     <section className="print-section">
       <h2>{t.geoVisibilityHeading}</h2>
@@ -429,12 +488,20 @@ function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language })
             })}
           </p>
           <table className="print-table">
+            {captionNotes.length === 0 ? null : (
+              <caption className="muted">
+                {captionNotes.map((note) => (
+                  <p key={note}>{note}</p>
+                ))}
+              </caption>
+            )}
             <thead>
               <tr>
                 <th>{t.geoProvider}</th>
                 <th>{t.geoVisibilityScoreLabel}</th>
                 <th>{t.geoVisibilityBrandShareHeader}</th>
                 <th>{t.geoVisibilityDomainShareHeader}</th>
+                <th>{t.geoShareOfVoiceHeader}</th>
               </tr>
             </thead>
             <tbody>

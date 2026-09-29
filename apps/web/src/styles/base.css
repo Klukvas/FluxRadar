@@ -1521,7 +1521,8 @@ code,
   font-style: italic;
   color: var(--plat-600);
 }
-.geo-visibility-card__cited-instead ul {
+.geo-visibility-card__cited-instead ul,
+.geo-visibility-card__share-of-voice ul {
   display: grid;
   gap: 4px;
   margin: 4px 0 0;

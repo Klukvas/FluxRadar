@@ -70,6 +70,21 @@ export const httpsOriginSchema = z
   })
   .transform((value) => new URL(value).origin);
 
+// T7: up to 5 competitor brand names, matched locally against this scan's own
+// stored answers (packages/ai's geo-visibility-summary.ts) — never sent to any
+// AI provider. Kept out of `GeoProfileContext` (apps/api/src/orchestrator/geo.ts)
+// and out of CONTEXT_FIELDS (apps/api/src/profiles/execution-config.ts) for
+// exactly that reason.
+export const COMPETITORS_MAX = 5;
+export const COMPETITOR_NAME_MIN_LENGTH = 2;
+export const COMPETITOR_NAME_MAX_LENGTH = 64;
+
+const competitorNameSchema = z
+  .string()
+  .trim()
+  .min(COMPETITOR_NAME_MIN_LENGTH)
+  .max(COMPETITOR_NAME_MAX_LENGTH);
+
 export const siteProfileInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   domain: httpsOriginSchema,
@@ -80,9 +95,118 @@ export const siteProfileInputSchema = z.object({
   offerings: z.string().trim().min(1).max(1200).optional(),
   targetLanguages: z.string().trim().min(1).max(200).optional(),
   targetAudience: z.string().trim().min(1).max(500).optional(),
+  competitors: z.array(competitorNameSchema).max(COMPETITORS_MAX).optional(),
   scanConfig: z.lazy(() => profileScanConfigSchema).optional(),
 });
 export type SiteProfileInput = z.infer<typeof siteProfileInputSchema>;
+
+// Only the dot `toLowerCase` appends directly after an "i" — the İ (U+0130)
+// case — is stripped, matching the fold `@fluxradar/ai`'s matcher applies
+// (T7-fix3 L1): without it, "İmplant Clinic" and "Implant Clinic" pass
+// validation as two distinct competitors, and the matcher then folds them to
+// the same mention, double-counting the one real mention and skewing every
+// share it feeds.
+const COMBINING_DOT_AFTER_I = /(?<=i)\u0307/g;
+
+/**
+ * A competitor name folded for comparison against the profile's own name:
+ * trimmed, NFC-normalised, lower-cased, Turkish-İ-folded. Deliberately not
+ * URL-aware — a name is compared as a name.
+ */
+function normalizeCompetitorName(value: string): string {
+  return value.trim().normalize('NFC').toLowerCase().replace(COMBINING_DOT_AFTER_I, '');
+}
+
+/**
+ * Whether `value` is shaped like a hostname rather than a plain name, once
+ * any URL scheme and a single trailing slash are set aside: what remains
+ * contains a dot and none of the characters that would make it a path,
+ * query or fragment rather than a bare host. Gates the domain fold below
+ * (T7-fix3 N-2) — without it, two unrelated names that happen to contain a
+ * "/" ("Acme/US", "Acme/EU") both parse as a URL whose path is discarded,
+ * so they fold to the same empty-path host and get rejected as duplicates.
+ */
+function looksLikeHostname(value: string): boolean {
+  const withoutScheme = value.replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/\/$/, '');
+  return withoutScheme.includes('.') && !/[\s/?#]/.test(withoutScheme);
+}
+
+/**
+ * A competitor entry or a profile domain, folded to the bare hostname it
+ * would name if read as an address — so "acmedental.test",
+ * "www.acmedental.test", "https://acmedental.test" and
+ * "https://www.acmedental.test/" (the stored, `httpsOriginSchema`-normalised
+ * form) all fold to the same value (T7-fix F2).
+ *
+ * A value that does not look like a hostname (`looksLikeHostname`) folds to
+ * "" instead of being parsed — a plain name with URL punctuation in it
+ * ("Acme/US") is not a domain, and running it through `URL` anyway would
+ * discard everything from the first "/", "?" or "#" and fold it down to
+ * whatever came before, mislabelling it a duplicate of an unrelated name
+ * that happens to share that prefix (T7-fix3 N-2).
+ */
+function normalizeDomainForComparison(value: string): string {
+  const trimmed = value.trim().normalize('NFC').toLowerCase();
+  if (trimmed === '' || !looksLikeHostname(trimmed)) return '';
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    return new URL(withScheme).hostname.replace(/^www\./, '');
+  } catch {
+    return trimmed.replace(/^www\./, '').replace(/\/+$/, '');
+  }
+}
+
+/**
+ * Why a competitors list is invalid, or null when it is fine.
+ *
+ * Checked here rather than folded into `siteProfileInputSchema` as a
+ * `superRefine`, because a `superRefine`'d object loses `.partial()`
+ * (`siteProfilePatchInputSchema` needs it) — and because self-exclusion needs
+ * the profile's own name and domain, which a PATCH that only touches
+ * `competitors` never carries in the same request body; the caller passes the
+ * name/domain the row will actually have (the patched value, or the value
+ * already stored) rather than this function guessing at a merge.
+ *
+ * Case-insensitive throughout, matching how brand-mention matching itself is
+ * case-insensitive (`questionNames` in `@fluxradar/ai`). The domain check
+ * additionally folds scheme, "www." and a trailing slash away on both sides
+ * (T7-fix F2): the stored `domain` is already an https origin
+ * (`httpsOriginSchema`), and a competitor entry typed as a bare hostname, with
+ * "www.", or as a full URL must all be recognised as the same site.
+ *
+ * The duplicate check (as opposed to the own-name/own-domain check just
+ * above it) folds both ways too (T7-fix2 N3): two entries can share a name
+ * fold, a domain fold, or both, and any one of those is the same competitor
+ * listed twice — "rival.test" and "www.rival.test" are one host even though
+ * their name folds differ.
+ */
+export function competitorsListProblem(
+  competitors: readonly string[] | null | undefined,
+  brand: string,
+  domain: string,
+): string | null {
+  if (competitors == null || competitors.length === 0) return null;
+  const normalizedBrand = normalizeCompetitorName(brand);
+  const normalizedDomain = normalizeDomainForComparison(domain);
+  const seenNames = new Set<string>();
+  const seenDomains = new Set<string>();
+  for (const raw of competitors) {
+    const normalized = normalizeCompetitorName(raw);
+    const domainFold = normalizeDomainForComparison(raw);
+    if (
+      normalized === normalizedBrand ||
+      (normalizedDomain !== '' && domainFold === normalizedDomain)
+    ) {
+      return `competitors must not repeat the profile's own name or domain: "${raw}"`;
+    }
+    if (seenNames.has(normalized) || (domainFold !== '' && seenDomains.has(domainFold))) {
+      return `competitors must not repeat a name: "${raw}"`;
+    }
+    seenNames.add(normalized);
+    if (domainFold !== '') seenDomains.add(domainFold);
+  }
+  return null;
+}
 
 /**
  * The egress location a crawl leaves from: an ISO 3166-1 country code in lower
@@ -291,17 +415,33 @@ export const siteProfilePatchInputSchema = siteProfileInputSchema.partial().exte
   offerings: siteProfileInputSchema.shape.offerings.unwrap().nullable().optional(),
   targetLanguages: siteProfileInputSchema.shape.targetLanguages.unwrap().nullable().optional(),
   targetAudience: siteProfileInputSchema.shape.targetAudience.unwrap().nullable().optional(),
+  competitors: siteProfileInputSchema.shape.competitors.unwrap().nullable().optional(),
   expectedProfileConfigVersion: expectedProfileConfigVersionSchema.optional(),
 });
 export type SiteProfilePatchInput = z.infer<typeof siteProfilePatchInputSchema>;
 
+// `competitors` is omitted from `profile`: that nested object is the shape
+// captured into executionConfigJson at launch and later handed to the AI
+// provider as prompt context (captureExecutionConfig / GeoProfileContext in
+// apps/api). Competitor names are matched locally against stored answers and
+// must never travel there.
+//
+// They are still captured, at the top level, as `competitors` below (T7-fix
+// F8): share of voice is computed from a scan's own stored answers, so it must
+// reflect the competitor list as it stood when the scan launched, not
+// whatever the profile holds when the report is later read — an already-run
+// scan's share of voice must not change because someone edited the profile's
+// competitor list afterwards. Absent on a config captured before this field
+// existed, or on a legacy-checkout config: either way there is nothing to
+// compute a share of voice from for that scan.
 export const executionConfigSchema = z.object({
   schemaVersion: z.literal(1),
   source: z.enum(['launch', 'legacy-checkout']),
   profileConfigVersion: expectedProfileConfigVersionSchema.nullable(),
-  profile: siteProfileInputSchema.omit({ scanConfig: true }),
+  profile: siteProfileInputSchema.omit({ scanConfig: true, competitors: true }),
   plan: z.enum(PLANS),
   scope: scanScopeSchema,
+  competitors: siteProfileInputSchema.shape.competitors,
 });
 export type ExecutionConfig = z.infer<typeof executionConfigSchema>;
 

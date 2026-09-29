@@ -190,4 +190,65 @@ describe('geoVisibilitySummaryOf', () => {
     const bad = validSummary([validProvider(), { provider: 'openai' }]);
     expect(geoVisibilitySummaryOf(bad)).toBeNull();
   });
+
+  // T7: shareOfVoice is absent on every stored record before this field
+  // existed — old-metadata compatibility means "absent" reads the same as
+  // "no competitors configured", never a rejected provider.
+  it('accepts a provider with no shareOfVoice field at all (pre-T7 record)', () => {
+    const provider = validProvider() as Record<string, unknown>;
+    delete provider.shareOfVoice;
+    const result = geoVisibilitySummaryOf(validSummary([provider]));
+    expect(result?.providers[0]?.shareOfVoice).toBeNull();
+  });
+
+  it('accepts an explicit null shareOfVoice (no competitors configured)', () => {
+    const result = geoVisibilitySummaryOf(validSummary([validProvider({ shareOfVoice: null })]));
+    expect(result?.providers[0]?.shareOfVoice).toBeNull();
+  });
+
+  it('accepts a well-formed shareOfVoice, ordered as stored', () => {
+    const shareOfVoice = {
+      denominator: 4,
+      brandMentionsInScope: 2,
+      brandShare: 0.5,
+      competitors: [
+        { name: 'Acme Audit', mentionedCount: 1, share: 0.25 },
+        { name: 'Beta Tools', mentionedCount: 1, share: 0.25 },
+      ],
+    };
+    const result = geoVisibilitySummaryOf(validSummary([validProvider({ shareOfVoice })]));
+    expect(result?.providers[0]?.shareOfVoice).toEqual(shareOfVoice);
+  });
+
+  it('accepts a shareOfVoice with a null brandShare and null competitor shares', () => {
+    const shareOfVoice = {
+      denominator: 0,
+      brandMentionsInScope: 0,
+      brandShare: null,
+      competitors: [{ name: 'Acme Audit', mentionedCount: 0, share: null }],
+    };
+    const result = geoVisibilitySummaryOf(validSummary([validProvider({ shareOfVoice })]));
+    expect(result?.providers[0]?.shareOfVoice).toEqual(shareOfVoice);
+  });
+
+  it('rejects the whole provider when shareOfVoice is present but malformed', () => {
+    const bad = validSummary([
+      validProvider({ shareOfVoice: { denominator: 4, brandMentionsInScope: 2 } }),
+    ]);
+    expect(geoVisibilitySummaryOf(bad)).toBeNull();
+  });
+
+  it('rejects a shareOfVoice with an out-of-range competitor share', () => {
+    const bad = validSummary([
+      validProvider({
+        shareOfVoice: {
+          denominator: 4,
+          brandMentionsInScope: 2,
+          brandShare: 0.5,
+          competitors: [{ name: 'Acme Audit', mentionedCount: 1, share: 1.5 }],
+        },
+      }),
+    ]);
+    expect(geoVisibilitySummaryOf(bad)).toBeNull();
+  });
 });

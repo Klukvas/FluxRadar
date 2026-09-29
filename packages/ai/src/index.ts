@@ -17,6 +17,7 @@ export * from './openai-provider.js';
 export * from './gemini-provider.js';
 export * from './perplexity-provider.js';
 export * from './run-request.js';
+export * from './competitor-matcher.js';
 export * from './geo-findings.js';
 export * from './geo-measurability.js';
 export * from './geo-evidence.js';

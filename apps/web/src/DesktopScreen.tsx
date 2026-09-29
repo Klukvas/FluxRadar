@@ -14,9 +14,14 @@ import { useCallback, useRef, useState, type FormEvent } from 'react';
 
 import { ActionMenu } from './ActionMenu';
 import { apiRequest, canRetrySection, type Scan, type SiteProfile } from './api';
+import {
+  competitorsError,
+  parseCompetitorsInput,
+  type CompetitorsInputError,
+} from './competitors-input';
 import { Button, EmptyState, Field, Panel, TextAreaField, Window } from './components';
 import { desktopCopy, type NextStepKind } from './desktop-copy';
-import { copy, type Language } from './i18n';
+import { copy, fillCopy, type Language } from './i18n';
 import { ProfileDeletion } from './ProfileDeletion';
 import { displayDomain, isTerminalScanStatus } from './scan-status';
 import { normalizeSiteAddress, siteNameFromAddress } from './site-address-input';
@@ -43,6 +48,23 @@ export interface DesktopScreenProps {
   readonly language: Language;
 }
 
+/** The competitors field's live validation message, in the reader's words (T7). */
+function competitorsErrorMessage(error: CompetitorsInputError, language: Language): string {
+  const w = copy[language].workspace;
+  switch (error.kind) {
+    case 'too-many':
+      return w.competitorsErrorTooMany;
+    case 'too-short':
+      return w.competitorsErrorTooShort;
+    case 'too-long':
+      return w.competitorsErrorTooLong;
+    case 'duplicate':
+      return fillCopy(w.competitorsErrorDuplicate, { name: error.name });
+    case 'own-brand':
+      return fillCopy(w.competitorsErrorOwnBrand, { name: error.name });
+  }
+}
+
 /** What the owner should do next, from their sites and their latest scan. */
 export function nextStepFor(profiles: readonly SiteProfile[], latest: Scan | null): NextStepKind {
   if (profiles.length === 0) return 'noProfiles';
@@ -65,6 +87,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
   const [region, setRegion] = useState('');
   const [targetLanguages, setTargetLanguages] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
+  const [competitorsInput, setCompetitorsInput] = useState('');
   const [editingProfile, setEditingProfile] = useState<SiteProfile | null>(null);
   /** The one row whose delete confirmation is open; opening another closes it. */
   const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
@@ -95,7 +118,14 @@ export function DesktopScreen(props: DesktopScreenProps) {
     region,
     targetLanguages,
     targetAudience,
+    competitorsInput,
   ].some((value) => value.trim() !== '');
+  const parsedCompetitors = parseCompetitorsInput(competitorsInput);
+  const competitorsProblem = competitorsError(parsedCompetitors, name, domain);
+  const competitorsFieldError =
+    competitorsProblem === null
+      ? undefined
+      : competitorsErrorMessage(competitorsProblem, props.language);
 
   /**
    * Keep the display name in step with the address until the owner takes it
@@ -121,6 +151,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
     setRegion('');
     setTargetLanguages('');
     setTargetAudience('');
+    setCompetitorsInput('');
     setDomainError(null);
   };
 
@@ -143,6 +174,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
     setRegion(profile.region ?? '');
     setTargetLanguages(profile.targetLanguages ?? profile.language ?? '');
     setTargetAudience(profile.targetAudience ?? '');
+    setCompetitorsInput((profile.competitors ?? []).join(', '));
     setDomainError(null);
     window.requestAnimationFrame(() => formRef.current?.scrollIntoView({ block: 'start' }));
   };
@@ -159,6 +191,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
       setDomainError(t.workspace.siteAddressError);
       return;
     }
+    if (competitorsFieldError !== undefined) return;
     setDomainError(null);
     setBusy(true);
     const savedName = name.trim();
@@ -171,6 +204,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
         region: optionalText(region),
         targetLanguages: optionalText(targetLanguages),
         targetAudience: optionalText(targetAudience),
+        competitors: parsedCompetitors.length === 0 ? undefined : parsedCompetitors,
       };
       await apiRequest<SiteProfile>(
         editingProfile === null ? '/profiles' : `/profiles/${editingProfile.id}`,
@@ -336,13 +370,23 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         placeholder={t.workspace.targetAudiencePlaceholder}
                         hint={t.workspace.targetAudienceHint}
                       />
+                      <Field
+                        label={t.workspace.competitors}
+                        name="profile-competitors"
+                        autoComplete="off"
+                        value={competitorsInput}
+                        onChange={setCompetitorsInput}
+                        placeholder={t.workspace.competitorsPlaceholder}
+                        hint={t.workspace.competitorsHint}
+                        error={competitorsFieldError}
+                      />
                     </div>
                   </details>
                   <div className="button-row">
                     <Button
                       type="submit"
                       variant="primary"
-                      disabled={busy || name.trim() === ''}
+                      disabled={busy || name.trim() === '' || competitorsFieldError !== undefined}
                       data-tour-target="save-profile"
                     >
                       {busy

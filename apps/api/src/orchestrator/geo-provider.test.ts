@@ -668,4 +668,76 @@ describe('visibility requests', () => {
     );
     expect(answer.provider).toBe('openai');
   });
+
+  // T7: competitor names are matched locally against stored answers and must
+  // never reach a provider. `GeoProfileContext` structurally has no
+  // `competitors` field, and `buildGeoRequests` takes only a brand string and
+  // the pre-generated discovery questions — neither can carry one even if the
+  // caller (run-attempt.ts) hands the whole SiteProfile row, competitors and
+  // all, as the "context" argument.
+  it('never sends a competitor name to a provider, even when the caller holds one', async () => {
+    const provider = new MockAiProvider(
+      [
+        {
+          questionIncludes: 'Generate neutral discovery questions',
+          response: {
+            status: 'completed',
+            output_text: JSON.stringify({ questions }),
+          },
+        },
+      ],
+      {
+        config: {
+          provider: 'anthropic',
+          apiVersion: '2023-06-01',
+          modelId: 'claude-sonnet-5',
+          timeoutMs: 1000,
+          maxRetries: 1,
+        },
+      },
+    );
+    const send = vi.spyOn(provider, 'send');
+    // Shaped like the SiteProfile row run-attempt.ts actually passes as
+    // `context: profile` — competitors included, exactly as it is not typed
+    // to accept.
+    const profileLikeContext = {
+      industry: 'dental clinic',
+      offerings: 'implants',
+      region: 'Kyiv',
+      competitors: ['Acme Dental', 'Rival Clinic'],
+    };
+    const generation = await generateGeoDiscoveryQuestions({
+      scanId: 'scan-no-competitor-leak',
+      brand: 'Smile Clinic',
+      siteHostname: 'smile.example',
+      context: profileLikeContext,
+      consent: {
+        scanId: 'scan-no-competitor-leak',
+        providers: ['anthropic'],
+        noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+      },
+      provider,
+      quota: AiQuotaTracker.forPlan('Complete'),
+    });
+
+    for (const call of send.mock.calls) {
+      expect(call[0].question).not.toContain('Acme Dental');
+      expect(call[0].question).not.toContain('Rival Clinic');
+      expect(call[0].systemInstructions).not.toContain('Acme Dental');
+      expect(call[0].systemInstructions).not.toContain('Rival Clinic');
+    }
+    expect(JSON.stringify(generation)).not.toContain('Acme Dental');
+    expect(JSON.stringify(generation)).not.toContain('Rival Clinic');
+
+    const requests = buildGeoRequests(
+      'scan-no-competitor-leak',
+      'Smile Clinic',
+      'smile.example',
+      generation.questions,
+    );
+    for (const request of requests) {
+      expect(request.question).not.toContain('Acme Dental');
+      expect(request.question).not.toContain('Rival Clinic');
+    }
+  });
 });

@@ -89,6 +89,7 @@ function providerVisibility(overrides: Partial<GeoProviderVisibility> = {}): Geo
       },
     },
     citedInstead: [{ hostname: 'rival-dental.example', answerCount: 2 }],
+    shareOfVoice: null,
     ...overrides,
   };
 }
@@ -364,5 +365,197 @@ describe('Visibility by engine', () => {
 
     await screen.findByText('Visibility by engine');
     expect(screen.queryByText('Where your brand came up:')).toBeNull();
+  });
+});
+
+// T7: share of voice — the brand's mentions against configured competitors.
+describe('Share of voice', () => {
+  it('renders the brand and competitor rows in share order', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            shareOfVoice: {
+              denominator: 4,
+              brandMentionsInScope: 2,
+              brandShare: 0.5,
+              competitors: [
+                { name: 'Acme Audit', mentionedCount: 1, share: 0.25 },
+                { name: 'Globex', mentionedCount: 1, share: 0.25 },
+              ],
+            },
+          }),
+        ]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText('Your brand: 50% of mentions')).toBeInTheDocument();
+    expect(screen.getByText('Acme Audit: 25%')).toBeInTheDocument();
+    expect(screen.getByText('Globex: 25%')).toBeInTheDocument();
+  });
+
+  it('says "not measurable" rather than 0% for a null competitor share', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            shareOfVoice: {
+              denominator: 0,
+              brandMentionsInScope: 0,
+              brandShare: null,
+              competitors: [{ name: 'Acme Audit', mentionedCount: 0, share: null }],
+            },
+          }),
+        ]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText('Your brand: not measurable in this run')).toBeInTheDocument();
+    expect(screen.getByText('Acme Audit: not measurable in this run')).toBeInTheDocument();
+  });
+
+  // T7-fix F5: the report is a fixed snapshot of the scan that produced it —
+  // since T7-fix F8 the competitor list is captured at launch, so editing the
+  // profile's competitors after this scan finished can never populate this
+  // row. The note must say so, not invite an edit that would change nothing.
+  it('shows a note about future scans, not an invitation to change this report, when no competitors are configured', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([providerVisibility({ shareOfVoice: null })]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText(/include them in your next scan/)).toBeInTheDocument();
+    expect(screen.getByText(/not to this report/)).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'Add competitors' });
+    expect(link).toBeInTheDocument();
+  });
+
+  it('shows the same note when the provider predates this field (old metadata)', async () => {
+    const provider = providerVisibility() as unknown as Record<string, unknown>;
+    delete provider.shareOfVoice;
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([provider as unknown as GeoProviderVisibility]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText(/include them in your next scan/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add competitors' })).toBeInTheDocument();
+  });
+
+  it('renders share of voice in Ukrainian', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            shareOfVoice: {
+              denominator: 4,
+              brandMentionsInScope: 2,
+              brandShare: 0.5,
+              competitors: [{ name: 'Acme Audit', mentionedCount: 1, share: 0.5 }],
+            },
+          }),
+        ]),
+      }),
+      'uk',
+    );
+
+    expect(await screen.findByText('Частка голосу')).toBeInTheDocument();
+    expect(screen.getByText('Ваш бренд: 50% згадок')).toBeInTheDocument();
+  });
+
+  // T7-fix3 L2: brandMentionedCount (above, from the brand-mention signal)
+  // counts "Bolt" inside "Bolt Food" as a mention; brandMentionsInScope
+  // (here) deliberately does not, per N1's decided rule — so the card can
+  // show "brand mentioned in 2/2 answers" right above "your brand: 0% of
+  // mentions" with nothing explaining why. The note below the row closes
+  // that gap only when the two numbers actually disagree.
+  it('explains the gap when the brand is only ever named inside a competitor’s name', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            brandMeasuredCount: 2,
+            brandMentionedCount: 2,
+            brandMentionedShare: 1,
+            shareOfVoice: {
+              denominator: 2,
+              brandMentionsInScope: 0,
+              brandShare: 0,
+              competitors: [{ name: 'Bolt Food', mentionedCount: 2, share: 1 }],
+            },
+          }),
+        ]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.getByText('Your brand: 0% of mentions')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Share of voice counts your brand only where it is named on its own, not inside a competitor's name (2 answer(s) named it only as part of a competitor's name).",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing extra when the brand-mention and share-of-voice counts already agree', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            shareOfVoice: {
+              denominator: 4,
+              brandMentionsInScope: 2,
+              brandShare: 0.5,
+              competitors: [{ name: 'Acme Audit', mentionedCount: 1, share: 0.25 }],
+            },
+          }),
+        ]),
+      }),
+    );
+
+    expect(await screen.findByText('Share of voice')).toBeInTheDocument();
+    expect(screen.queryByText(/only where it is named on its own/)).toBeNull();
+  });
+
+  it('explains the gap in Ukrainian for the same Bolt / Bolt Food case', async () => {
+    await openGeoCard(
+      dashboardOf({
+        geoObservations: [observation({})],
+        geoVisibilitySummary: visibilitySummary([
+          providerVisibility({
+            brandMeasuredCount: 2,
+            brandMentionedCount: 2,
+            brandMentionedShare: 1,
+            shareOfVoice: {
+              denominator: 2,
+              brandMentionsInScope: 0,
+              brandShare: 0,
+              competitors: [{ name: 'Bolt Food', mentionedCount: 2, share: 1 }],
+            },
+          }),
+        ]),
+      }),
+      'uk',
+    );
+
+    expect(await screen.findByText('Частка голосу')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Частка голосу враховує ваш бренд лише там, де його названо окремо, а не всередині назви конкурента (у 2 відповіді(ях) його названо лише як частину назви конкурента).',
+      ),
+    ).toBeInTheDocument();
   });
 });
