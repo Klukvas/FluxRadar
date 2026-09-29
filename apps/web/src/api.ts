@@ -177,6 +177,8 @@ export interface Account {
   readonly email: string;
   readonly internalFreeAccess?: boolean;
   readonly emailVerified?: boolean;
+  /** Present only immediately after registration; later reads stay non-enumerating. */
+  readonly emailVerification?: { readonly status: 'sent' | 'not-configured' | 'provider-error' };
   readonly onboarding?: { readonly status: 'pending' | 'completed' | 'skipped' };
 }
 
@@ -301,6 +303,8 @@ export interface Scan {
   readonly plan: 'Free' | 'Basic' | 'WebsiteAudit' | 'Complete';
   readonly domain: string;
   readonly status: string;
+  /** False while post-scan report finalization is still running. */
+  readonly reportReady?: boolean;
   readonly statusReason: string | null;
   readonly scope: {
     readonly includeSubdomains: boolean;
@@ -349,6 +353,11 @@ export interface Scan {
   readonly completedAt: string | null;
   readonly createdAt: string;
   readonly modules: readonly ScanModule[];
+}
+
+/** Older API responses had no flag and their terminal reports remain readable. */
+export function isReportReady(scan: Pick<Scan, 'reportReady'>): boolean {
+  return scan.reportReady !== false;
 }
 
 /** The optional proof that this account controls a site, as the API reports it. */

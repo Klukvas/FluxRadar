@@ -20,16 +20,43 @@ export async function issueEmailToken(
   now: Date,
 ): Promise<string> {
   const token = randomBytes(32).toString('base64url');
-  await prisma.emailToken.deleteMany({ where: { accountId, kind } });
-  await prisma.emailToken.create({
-    data: {
-      accountId,
-      kind,
-      tokenHash: hashToken(token),
-      expiresAt: new Date(now.getTime() + EMAIL_TOKEN_TTL_MS[kind]),
-    },
+  await prisma.$transaction(async (tx) => {
+    // The account row is the shared lock for every token kind. Deleting a prior
+    // link and creating its replacement must be one serial operation: two
+    // concurrent resend requests otherwise both delete first and leave two
+    // valid reset links behind.
+    await tx.$queryRaw`SELECT "id" FROM "Account" WHERE "id" = ${accountId} FOR UPDATE`;
+    await tx.emailToken.deleteMany({ where: { accountId, kind } });
+    await tx.emailToken.create({
+      data: {
+        accountId,
+        kind,
+        tokenHash: hashToken(token),
+        expiresAt: new Date(now.getTime() + EMAIL_TOKEN_TTL_MS[kind]),
+      },
+    });
   });
   return token;
+}
+
+/**
+ * Revokes every unused reset link while holding the same account lock issuance
+ * uses. A reset that succeeded is a security boundary, so an older parallel
+ * reset request cannot remain usable afterwards.
+ */
+export async function resetPasswordAndRevokeTokens(
+  prisma: PrismaClient,
+  accountId: string,
+  passwordHash: string,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Account" WHERE "id" = ${accountId} FOR UPDATE`;
+    await tx.account.update({ where: { id: accountId }, data: { passwordHash } });
+    await tx.session.deleteMany({ where: { accountId } });
+    await tx.emailToken.deleteMany({
+      where: { accountId, kind: 'password_reset', usedAt: null },
+    });
+  });
 }
 
 export async function consumeEmailToken(

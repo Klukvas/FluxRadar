@@ -18,7 +18,7 @@ export function CheckoutRoute({
   readonly app: AppModel;
   readonly pendingCheckout: PendingCheckout;
 }) {
-  const { endCheckout, language, onScanCreated, setError } = app;
+  const { dismissCheckout, endCheckout, language, onScanCreated, setError } = app;
   return (
     <CheckoutPending
       language={language}
@@ -27,7 +27,7 @@ export function CheckoutRoute({
         endCheckout();
         onScanCreated(scan);
       }}
-      onCancel={endCheckout}
+      onCancel={dismissCheckout}
       onError={setError}
     />
   );

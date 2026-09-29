@@ -25,6 +25,8 @@ type SessionBoot = Pick<
   | 'entryRoute'
   | 'setAccount'
   | 'setBooting'
+  | 'setSessionError'
+  | 'sessionAttempt'
   | 'setProfiles'
   | 'setScreen'
   | 'setSelectedScan'
@@ -82,7 +84,7 @@ export function useConfirmEmailSignedIn(
  * sign in.
  */
 export function useSessionBoot(boot: SessionBoot): void {
-  const { entryRoute, setAccount, setBooting, setScreen } = boot;
+  const { entryRoute, setAccount, setBooting, setScreen, setSessionError, sessionAttempt } = boot;
   const { openScanById, confirmEmailSignedIn } = boot;
   useEffect(() => {
     if (isPublicDocument(entryRoute.screen)) {
@@ -102,11 +104,18 @@ export function useSessionBoot(boot: SessionBoot): void {
     }
     apiRequest<Account>('/auth/me')
       .then((value) => restoreSignedInSession(value, boot))
-      .catch(() => {
+      .catch((caught: unknown) => {
         // Authentication is required before any workspace screen is fetched. The
         // same home surface then presents the login modal without exposing
         // whether another account owns the requested scan.
-        if (entryRoute.scanId !== null || isWorkspaceScreen(entryRoute.screen)) setScreen('auth');
+        if (caught instanceof ApiRequestError && caught.status === 401) {
+          if (entryRoute.scanId !== null || isWorkspaceScreen(entryRoute.screen)) setScreen('auth');
+          return;
+        }
+        console.error('FluxRadar session unavailable', caught);
+        setSessionError(
+          caught instanceof Error ? caught.message : 'FluxRadar is temporarily unavailable.',
+        );
       })
       .finally(() => setBooting(false));
   }, [
@@ -115,6 +124,7 @@ export function useSessionBoot(boot: SessionBoot): void {
     entryRoute.emailAction,
     openScanById,
     confirmEmailSignedIn,
+    sessionAttempt,
   ]);
 }
 

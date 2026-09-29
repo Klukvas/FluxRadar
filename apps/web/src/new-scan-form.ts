@@ -184,6 +184,8 @@ export interface NewScanForm {
   readonly target: string;
   readonly targetLabel: string;
   readonly usingSavedProfile: boolean;
+  /** Setup changed locally and would be lost if the window closes. */
+  readonly hasUnsavedChanges: boolean;
   readonly chooseTarget: (target: string) => void;
   readonly choosePlan: (plan: Plan) => void;
   readonly editAddress: (value: string) => void;
@@ -272,7 +274,14 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const [optInAiProviders, setOptInAiProviders] = useState<readonly AiProcessingOptInProvider[]>(
     [],
   );
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // A profile switch loads a fresh persisted configuration. Its fields must not
+  // inherit a discard warning from the profile the owner just left.
+  useEffect(() => {
+    setHasUnsavedChanges(false);
+  }, [target]);
   const toggleOptInAiProvider = (provider: AiProcessingOptInProvider, selected: boolean): void => {
+    setHasUnsavedChanges(true);
     setOptInAiProviders((current) =>
       selected
         ? current.includes(provider)
@@ -340,6 +349,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     savedConfigFingerprint !== null &&
     profileScanConfigFingerprint(currentProfileConfig) !== savedConfigFingerprint;
   const updateScope = (change: Partial<ScanScopeForm>): void => {
+    setHasUnsavedChanges(true);
     setScope((current) => ({ ...current, ...change }));
     // Editing a field withdraws the complaint about it, as the address field
     // does: the message described the value that has just been replaced.
@@ -359,12 +369,14 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
    * that choosing a plan is three state changes.
    */
   const choosePlan = (chosen: Plan): void => {
+    setHasUnsavedChanges(true);
     setPlan(chosen);
     setScope((current) => clampScopeToPlan(current, chosen));
     setInvalidScope([]);
   };
 
   const editAddress = (value: string): void => {
+    setHasUnsavedChanges(true);
     setAddress(value);
     if (addressError !== null) setAddressError(null);
   };
@@ -489,6 +501,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         ? selected
         : await persistProfileConfiguration(profileId);
       rememberSavedConfiguration(updated ?? null);
+      setHasUnsavedChanges(false);
       setCarriedOver(true);
       await refreshProfiles();
     } catch (caught) {
@@ -572,7 +585,10 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         onCheckoutStarted: props.onCheckoutStarted,
       });
       // Null means a paid checkout took over and no scan exists yet.
-      if (scan !== null) props.onCreated(scan);
+      if (scan !== null) {
+        setHasUnsavedChanges(false);
+        props.onCreated(scan);
+      }
     } catch (caught) {
       props.onError(launchErrorMessage(caught, props.language, 'Scan could not be created'));
     } finally {
@@ -705,7 +721,11 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     target,
     targetLabel,
     usingSavedProfile,
-    chooseTarget: setTarget,
+    hasUnsavedChanges,
+    chooseTarget: (nextTarget) => {
+      setHasUnsavedChanges(true);
+      setTarget(nextTarget);
+    },
     choosePlan,
     editAddress,
     toggleAdvanced: setAdvancedChoice,

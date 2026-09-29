@@ -87,13 +87,21 @@ export function IntegrationsScreen(props: {
 
   if (loading)
     return (
-      <Window title={t.loadingTitle} onClose={props.onClose}>
+      <Window
+        title={t.loadingTitle}
+        onClose={props.onClose}
+        closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+      >
         <LoadingState />
       </Window>
     );
   return (
     <div className="stack">
-      <Window title={t.windowTitle} onClose={props.onClose}>
+      <Window
+        title={t.windowTitle}
+        onClose={props.onClose}
+        closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+      >
         <div className="split">
           <div>
             <h2 className="section-heading">{t.heading}</h2>

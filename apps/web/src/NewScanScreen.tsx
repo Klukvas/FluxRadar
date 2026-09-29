@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react';
+
 import {
   Button,
   Checkbox,
@@ -51,26 +53,109 @@ function paidUnavailableCopy(t: (typeof copy)[Language], config: CheckoutConfig 
 export function NewScanScreen(props: NewScanFormProps) {
   const t = copy[props.language];
   const form = useNewScanForm(props);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const keepEditing = useRef<HTMLButtonElement>(null);
+  const discardButton = useRef<HTMLButtonElement>(null);
+  const priorFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!confirmDiscard) return;
+    priorFocus.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    keepEditing.current?.focus();
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      event.preventDefault();
+      if (document.activeElement === keepEditing.current) discardButton.current?.focus();
+      else if (document.activeElement === discardButton.current) keepEditing.current?.focus();
+      else if (event.shiftKey) discardButton.current?.focus();
+      else keepEditing.current?.focus();
+    };
+    document.addEventListener('keydown', trapFocus);
+    return () => {
+      document.removeEventListener('keydown', trapFocus);
+      priorFocus.current?.focus();
+    };
+  }, [confirmDiscard]);
+  const requestClose = () => {
+    if (form.hasUnsavedChanges) setConfirmDiscard(true);
+    else props.onClose();
+  };
+  const discard =
+    props.language === 'uk'
+      ? {
+          title: 'Відкинути незбережені налаштування?',
+          body: 'Зміни до нового сканування буде втрачено.',
+          keep: 'Продовжити редагування',
+          discard: 'Відкинути зміни',
+        }
+      : {
+          title: 'Discard unsaved scan setup?',
+          body: 'Your changes to this new scan will be lost.',
+          keep: 'Keep editing',
+          discard: 'Discard changes',
+        };
   return (
-    <Window
-      title={t.newScan.windowTitle}
-      className="window--dialog window--launch"
-      onClose={props.onClose}
-    >
-      {/* Two columns from 1100px: the settings on the left, and on the right a
+    <>
+      <Window
+        title={t.newScan.windowTitle}
+        className="window--dialog window--launch"
+        onClose={requestClose}
+        closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+      >
+        {/* Two columns from 1100px: the settings on the left, and on the right a
           sticky launch column holding the summary, the purchase terms and the
           buttons. The screen was a 520px ribbon 2300px tall with the pay button
           under every word of it; below 1100px it collapses back to that single
           stack, which is the right shape for a phone. */}
-      <form className="launch-form" onSubmit={form.submit}>
-        <ScanSettingsColumn form={form} language={props.language} profiles={props.profiles} />
-        <ScanLaunchColumn
-          form={form}
-          language={props.language}
-          internalFreeAccess={props.internalFreeAccess}
-        />
-      </form>
-    </Window>
+        <form className="launch-form" onSubmit={form.submit}>
+          <ScanSettingsColumn form={form} language={props.language} profiles={props.profiles} />
+          <ScanLaunchColumn
+            form={form}
+            language={props.language}
+            internalFreeAccess={props.internalFreeAccess}
+          />
+        </form>
+      </Window>
+      {confirmDiscard ? (
+        <div className="modal-backdrop" onMouseDown={() => setConfirmDiscard(false)}>
+          <section
+            className="window window--dialog discard-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="discard-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setConfirmDiscard(false);
+            }}
+          >
+            <div className="window__content stack">
+              <h2 id="discard-title" className="section-heading">
+                {discard.title}
+              </h2>
+              <p>{discard.body}</p>
+              <div className="button-row">
+                <button
+                  ref={keepEditing}
+                  className="button"
+                  type="button"
+                  onClick={() => setConfirmDiscard(false)}
+                >
+                  {discard.keep}
+                </button>
+                <button
+                  ref={discardButton}
+                  className="button button--danger"
+                  type="button"
+                  onClick={props.onClose}
+                >
+                  {discard.discard}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </>
   );
 }
 

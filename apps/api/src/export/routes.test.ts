@@ -186,6 +186,16 @@ describe('export route – storage failure regression', () => {
     expect(res.body.error.code).toBe('EXPORT_NOT_READY');
   });
 
+  it('returns 409 while a terminal scan is still finalizing its Analytics snapshot', async () => {
+    const prisma = makePrisma(makeScan({ job: { status: 'Claimed' } }));
+    const app = makeApp(prisma, null);
+
+    const res = await authed(request(app).get('/scans/scan_abc123/export?format=json'));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('EXPORT_NOT_READY');
+  });
+
   it('rejects an AI response whose stored module is unknown instead of relabelling it as GEO', async () => {
     const prisma = makePrisma(
       makeScan({

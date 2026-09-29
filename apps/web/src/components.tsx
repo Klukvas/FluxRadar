@@ -20,6 +20,7 @@ export function Window(props: {
   terminal?: boolean;
   className?: string;
   onClose?: () => void;
+  closeLabel?: string;
 }) {
   return (
     <section
@@ -39,7 +40,7 @@ export function Window(props: {
         ) : (
           <button
             className="window__box"
-            aria-label="Close window"
+            aria-label={props.closeLabel ?? 'Close window'}
             type="button"
             onClick={props.onClose}
           >

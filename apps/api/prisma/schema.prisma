@@ -62,15 +62,24 @@ model EmailToken {
 }
 
 model EmailNotification {
-  id        String   @id @default(cuid())
-  accountId String
-  eventKey  String   @unique
-  kind      String
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  accountId     String
+  eventKey      String   @unique
+  kind          String
+  detail        String   @default("")
+  status        String   @default("sent")
+  attemptCount  Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  leaseUntil    DateTime?
+  sentAt        DateTime?
+  lastError     String?
+  createdAt     DateTime @default(now())
 
   account Account @relation(fields: [accountId], references: [id])
 
   @@index([accountId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseUntil])
 }
 
 // Global anti-abuse claim. It deliberately has no account relation so deleting

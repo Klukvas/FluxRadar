@@ -20,10 +20,12 @@ export function usePendingCheckout({
   // may reload or navigate away before the provider webhook lands, and the
   // "confirming payment" window has to survive that from any screen.
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(null);
+  const [checkoutVisible, setCheckoutVisible] = useState(false);
 
   useEffect(() => {
     const restored = account === null ? null : readPendingCheckout(account.accountId);
     setPendingCheckout(restored);
+    setCheckoutVisible(restored !== null);
     // A buyer who reloaded mid-payment lands on the marketing home screen, where
     // the confirming window is not rendered. Put them back in the workspace so
     // the payment they already made is visibly still being confirmed.
@@ -37,13 +39,28 @@ export function usePendingCheckout({
   const startCheckout = useCallback((pending: PendingCheckout): void => {
     storePendingCheckout(pending);
     setPendingCheckout(pending);
+    setCheckoutVisible(true);
+  }, []);
+  const dismissCheckout = useCallback((): void => {
+    setCheckoutVisible(false);
+  }, []);
+  const resumeCheckout = useCallback((): void => {
+    setCheckoutVisible(true);
   }, []);
   const endCheckout = useCallback((): void => {
     clearPendingCheckout();
     setPendingCheckout(null);
+    setCheckoutVisible(false);
   }, []);
 
-  return { pendingCheckout, startCheckout, endCheckout };
+  return {
+    pendingCheckout,
+    checkoutVisible,
+    startCheckout,
+    dismissCheckout,
+    resumeCheckout,
+    endCheckout,
+  };
 }
 
 export type PendingCheckoutState = ReturnType<typeof usePendingCheckout>;

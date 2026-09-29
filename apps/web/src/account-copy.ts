@@ -15,12 +15,15 @@ export type AccountCopy = {
     readonly verified: string;
     readonly unverified: string;
     readonly unverifiedBody: string;
+    readonly deliveryUnavailable: string;
+    readonly deliveryFailed: string;
     readonly resend: string;
     readonly resending: string;
     readonly resent: (email: string) => string;
   };
   readonly banner: {
     readonly body: (email: string) => string;
+    readonly pending: (email: string) => string;
     readonly resend: string;
     readonly dismiss: string;
   };
@@ -82,13 +85,19 @@ export const accountCopy: Record<Language, AccountCopy> = {
       verified: 'Confirmed',
       unverified: 'Not confirmed',
       unverifiedBody: 'Confirm your address so payment and password emails reach you.',
+      deliveryUnavailable:
+        'Email is not configured in this workspace yet, so no confirmation link was sent.',
+      deliveryFailed: 'The confirmation email could not be delivered. Try again later.',
       resend: 'Send the confirmation email again',
       resending: 'Sending…',
-      resent: (email) => `Sent to ${email}. The link is valid for 24 hours.`,
+      resent: (email) =>
+        `A confirmation request for ${email} was accepted. The link is valid for 24 hours if delivery is available.`,
     },
     banner: {
       body: (email) =>
         `Confirm your email: we sent a link to ${email}. Payment and password emails go there.`,
+      pending: (email) =>
+        `Confirm your email at ${email}. Check your inbox or request a new confirmation link.`,
       resend: 'Send again',
       dismiss: 'Hide',
     },
@@ -154,13 +163,19 @@ export const accountCopy: Record<Language, AccountCopy> = {
       verified: 'Підтверджено',
       unverified: 'Не підтверджено',
       unverifiedBody: 'Підтвердьте адресу, щоб до вас доходили листи про оплати та пароль.',
+      deliveryUnavailable:
+        'Email у цьому робочому середовищі ще не налаштований, тому посилання для підтвердження не надіслано.',
+      deliveryFailed: 'Не вдалося доставити лист для підтвердження. Спробуйте пізніше.',
       resend: 'Надіслати лист підтвердження ще раз',
       resending: 'Надсилаємо…',
-      resent: (email) => `Надіслано на ${email}. Посилання дійсне 24 години.`,
+      resent: (email) =>
+        `Запит на підтвердження для ${email} прийнято. Посилання дійсне 24 години, якщо доставка доступна.`,
     },
     banner: {
       body: (email) =>
         `Підтвердьте email: ми надіслали посилання на ${email}. Туди приходять листи про оплати та пароль.`,
+      pending: (email) =>
+        `Підтвердьте email ${email}. Перевірте пошту або надішліть новий запит на посилання.`,
       resend: 'Надіслати ще раз',
       dismiss: 'Сховати',
     },

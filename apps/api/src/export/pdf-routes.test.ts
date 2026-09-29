@@ -158,6 +158,17 @@ describe('GET /scans/:scanId/report.pdf', () => {
     expect(response.body.error.code).toBe('EXPORT_NOT_READY');
   });
 
+  it('refuses a terminal scan while Analytics is still being finalized', async () => {
+    const response = await authed(
+      request(makeApp(makePrisma(makeScan({ job: { status: 'Claimed' } })))).get(
+        '/scans/scan_abc123/report.pdf',
+      ),
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('EXPORT_NOT_READY');
+  });
+
   it('refuses, rather than truncating, a scan with more findings than one document holds', async () => {
     const prisma = makePrisma(makeScan(), PDF_FINDING_LIMIT + 1);
     const response = await authed(request(makeApp(prisma)).get('/scans/scan_abc123/report.pdf'));

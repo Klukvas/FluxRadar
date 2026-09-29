@@ -129,6 +129,20 @@ afterEach(() => {
 });
 
 describe('authentication UI', () => {
+  it('shows a recoverable availability state when session boot fails without a 401', async () => {
+    stubApi((path) =>
+      path === '/auth/me'
+        ? failure(503, 'FluxRadar is temporarily unavailable. Try again in a moment.')
+        : envelope(null),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('FluxRadar is unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
   it.each([
     { rememberMe: false, label: 'a browser-session cookie' },
     { rememberMe: true, label: 'an explicitly persistent cookie' },
@@ -172,6 +186,35 @@ describe('authentication UI', () => {
       email: account.email,
       rememberMe,
     });
+  });
+
+  it('shows a registration delivery failure instead of claiming that a link was sent', async () => {
+    const registered = {
+      ...account,
+      emailVerified: false,
+      emailVerification: { status: 'provider-error' as const },
+    };
+    await renderUnauthenticated((path) => {
+      if (path === '/auth/me') return failure(401, 'session required');
+      if (path === '/auth/register') return envelope(registered, 201);
+      if (path === '/profiles') return envelope([]);
+      return envelope([]);
+    });
+
+    openAuth();
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Email' }), {
+      target: { value: account.email },
+    });
+    fireEvent.change(within(dialog).getByLabelText('Password'), {
+      target: { value: 'valid-password' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create account' }));
+
+    expect(
+      await screen.findByText('The confirmation email could not be delivered. Try again later.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/we sent a link to operator@example\.com/i)).not.toBeInTheDocument();
   });
 
   it('completes a password reset from the emailed deep link', async () => {

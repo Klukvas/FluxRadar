@@ -451,6 +451,15 @@ code,
   color: var(--plat-400);
   cursor: default;
 }
+
+/* A mouse-sized control is hard to hit on hybrid tablets even at desktop widths. */
+@media (pointer: coarse) {
+  .button,
+  .window__box {
+    min-height: 40px;
+    min-width: 40px;
+  }
+}
 .button-row {
   display: flex;
   flex-wrap: wrap;

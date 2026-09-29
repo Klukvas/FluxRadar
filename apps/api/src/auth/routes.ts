@@ -29,7 +29,11 @@ import {
   RequestRateLimiter,
 } from './rate-limit.ts';
 import { SESSION_COOKIE_NAME, createSession, deleteSessionByToken } from './sessions.ts';
-import { consumeEmailToken, issueEmailToken } from './email-tokens.ts';
+import {
+  consumeEmailToken,
+  issueEmailToken,
+  resetPasswordAndRevokeTokens,
+} from './email-tokens.ts';
 import { createMailer, emailText, type Mailer } from '../email/mailer.ts';
 import type { PrivateObjectStore } from '../integrations/s3.ts';
 import type { ApiLogger } from '../http/logger.ts';
@@ -281,10 +285,7 @@ export function authRouter(deps: AuthRouterDeps): Router {
     if (consumed === null)
       throw conflict('PASSWORD_RESET_INVALID', 'password reset link is invalid or expired');
     const passwordHash = await hashPassword(input.password);
-    await prisma.$transaction([
-      prisma.account.update({ where: { id: consumed.accountId }, data: { passwordHash } }),
-      prisma.session.deleteMany({ where: { accountId: consumed.accountId } }),
-    ]);
+    await resetPasswordAndRevokeTokens(prisma, consumed.accountId, passwordHash);
     sendOk(res, { status: 'reset' });
   });
 

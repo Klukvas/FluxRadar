@@ -130,6 +130,7 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
         completedAt: NOW,
       },
     });
+    await prisma.job.updateMany({ where: { scanId }, data: { status: 'Done' } });
     return issue.id;
   }
 
@@ -145,7 +146,11 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
   async function paidScan(app: ReturnType<typeof makeApp>, email: string): Promise<PaidScan> {
     const agent = request.agent(app);
     const cookie = await register(agent, email);
-    const profileId = await createProfile(agent, cookie, `https://${email.split('@')[0]}.example.com`);
+    const profileId = await createProfile(
+      agent,
+      cookie,
+      `https://${email.split('@')[0]}.example.com`,
+    );
     const { scanId, purchaseId } = await purchaseScan(db.prisma, {
       siteProfileId: profileId,
       plan: 'Complete',
@@ -223,6 +228,31 @@ describe('BILLING-008 suspended entitlement and paid report access', () => {
       expect(detail.body.data).toBeNull();
     });
   }
+
+  it('keeps evidence behind readiness after access, and access ahead of readiness', async () => {
+    const app = makeApp();
+    const paid = await paidScan(app, 'evidence-readiness@example.com');
+    const evidencePath = `/scans/${paid.scanId}/issues/${paid.issueId}/evidence`;
+
+    const ready = await paid.agent.get(evidencePath).set('Cookie', paid.cookie);
+    expect(ready.status).toBe(200);
+
+    await db.prisma.job.update({
+      where: { scanId: paid.scanId },
+      data: { status: 'Claimed' },
+    });
+    const finalizing = await paid.agent.get(evidencePath).set('Cookie', paid.cookie);
+    expect(finalizing.status).toBe(409);
+    expect(finalizing.body.error.code).toBe('REPORT_NOT_READY');
+
+    await db.prisma.entitlement.update({
+      where: { purchaseId: paid.purchaseId },
+      data: { suspended: true },
+    });
+    const revoked = await paid.agent.get(evidencePath).set('Cookie', paid.cookie);
+    expect(revoked.status).toBe(403);
+    expect(revoked.body.error.code).toBe('ENTITLEMENT_SUSPENDED');
+  });
 
   it('does not let a triage write in through the issue PATCH either', async () => {
     const app = makeApp();

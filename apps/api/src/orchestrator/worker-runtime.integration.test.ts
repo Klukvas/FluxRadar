@@ -22,6 +22,9 @@ import { captureExecutionConfig } from '../profiles/execution-config.ts';
 import { fakePerformanceRunner } from '../test-utils/performance-fixtures.ts';
 import { defaultGeoFixtures, GEO_VISIBILITY_PROVIDERS } from './geo.ts';
 import { decodeCoverageProof, type CoverageRead } from './run-coverage.ts';
+import { isReportSnapshotReady } from '../scans/report-readiness.ts';
+import { connectionStateSnapshot } from '../integrations/google/snapshot.ts';
+import type { GoogleScanData } from '../integrations/google/types.ts';
 import { processScan } from './worker.ts';
 import type { WorkerDeps } from './deps.ts';
 import {
@@ -283,6 +286,26 @@ async function waitUntilAborted(signal: AbortSignal | undefined): Promise<void> 
 
 async function moduleRow(prisma: PrismaClient, scanId: string, module: string) {
   return prisma.scanModule.findUniqueOrThrow({ where: { scanId_module: { scanId, module } } });
+}
+
+function deferred<T>() {
+  const state: { resolve: (value: T) => void } = {
+    resolve: () => {
+      throw new Error('deferred resolver was called before initialization');
+    },
+  };
+  const promise = new Promise<T>((settle) => {
+    state.resolve = settle;
+  });
+  return { promise, resolve: (value: T) => state.resolve(value) };
+}
+
+async function waitFor(predicate: () => Promise<boolean>): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (!(await predicate())) {
+    if (Date.now() > deadline) throw new Error('worker did not reach the expected state');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 /** The repeat-check proof a module stored, read the way the policy reads it. */
@@ -591,6 +614,44 @@ describe('a finished Complete run', () => {
   afterEach(async () => {
     await db?.cleanup();
     db = undefined;
+  });
+
+  it('does not expose the terminal report before delayed Analytics has persisted', async () => {
+    db = await createTestDb();
+    const prisma = db.prisma;
+    const account = await seedAccountWithProfile(prisma);
+    const scan = await queueCompleteScan(prisma, account);
+    const google = deferred<GoogleScanData>();
+    const processing = processScan(
+      workerDeps(prisma, { policyLink: true, robotsTxt: true, pricing: true }, {
+        createGoogleDataRunner: () => () => google.promise,
+      }),
+      scan.id,
+    );
+
+    try {
+      await waitFor(async () => {
+        const current = await prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+        return current.status === 'Completed';
+      });
+      const job = await prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } });
+      const terminal = await prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+      expect(job.status).toBe('Claimed');
+      expect(isReportSnapshotReady(terminal, job)).toBe(false);
+      expect(
+        await prisma.scanModule.count({ where: { scanId: scan.id, module: 'Analytics' } }),
+      ).toBe(0);
+    } finally {
+      google.resolve({
+        snapshot: connectionStateSnapshot('not_connected', 'not connected', new Date()),
+        searchConsoleDetail: null,
+      });
+      await expect(processing).resolves.toMatchObject({ outcome: 'Completed' });
+    }
+    const finishedJob = await prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } });
+    const finishedScan = await prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    expect(finishedJob.status).toBe('Done');
+    expect(isReportSnapshotReady(finishedScan, finishedJob)).toBe(true);
   });
 
   it('stores the GEO section as observations without inventing a score', async () => {

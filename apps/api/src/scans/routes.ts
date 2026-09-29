@@ -5,24 +5,7 @@ import { Router } from 'express';
 import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
 import { computeOverallScore } from '@fluxradar/scoring';
 import { RULESET_VERSION, scanRequestInputSchema, scanScopeSchema } from '@fluxradar/contracts';
-import {
-  PLANS,
-  TARIFFS,
-  isModuleName,
-  parseCrawlSummary,
-  parsePlan,
-  planSupports,
-} from '@fluxradar/contracts';
-import {
-  GEO_CLAIM_VERDICTS,
-  GEO_EVALUATION_VERDICTS,
-  MENTION_SIGNALS,
-  deriveGeoVerdict,
-  quoteOccursIn,
-  type GeoClaimVerdict,
-  type GeoEvaluationVerdict,
-  type MentionSignal,
-} from '@fluxradar/ai';
+import { isModuleName, parsePlan } from '@fluxradar/contracts';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
 
@@ -38,31 +21,25 @@ import {
   type PaidAccessScan,
 } from '../billing/report-access.ts';
 import { transitionScan } from '../billing/state-machine.ts';
-import { conflict, forbidden, notFound, paymentRequired } from '../http/errors.ts';
+import { conflict, notFound, paymentRequired } from '../http/errors.ts';
 import { sendOk } from '../http/envelope.ts';
-import {
-  pageMetaFrom,
-  pageQuerySchema,
-  pageRequestFrom,
-  type PageMeta,
-  type PageRequest,
-} from '../http/pagination.ts';
+import { pageQuerySchema, pageRequestFrom } from '../http/pagination.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import { InvalidTransitionError } from '../billing/errors.ts';
 import { modulePlanFor } from '../orchestrator/module-plan.ts';
 import { requestScanPause, resumeScan } from '../orchestrator/pause.ts';
-import { LEGACY_COVERAGE_PROOF_KEY } from '../orchestrator/run-coverage.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 import { freeScanScope } from './free-scan-scope.ts';
+import { assertReportSnapshotReady } from './report-readiness.ts';
+import { toModuleDto, toScanDto } from './scan-dto.ts';
+import { listScanHistory } from './scan-history.ts';
+import { geoEvidenceFrom, geoObservationsFrom } from './geo-report.ts';
 import {
   captureExecutionConfig,
   lockOwnProfile,
-  recordedEgressLocation,
-  storedExecutionConfig,
 } from '../profiles/execution-config.ts';
-import { egressLocationView } from '../integrations/crawl-egress-locations.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import {
   egressLaunchConfig,
@@ -94,7 +71,6 @@ const scanListQuerySchema = pageQuerySchema.extend({
 });
 const profileScanListQuerySchema = pageQuerySchema;
 
-const TERMINAL_MODULE_STATUSES = new Set(['Completed', 'Partial', 'Unavailable', 'Not applicable']);
 // Paused belongs here: it is the account's in-flight scan, and the workspace
 // has to find it again after a refresh in order to offer Resume at all.
 const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running', 'Paused'] as const;
@@ -196,7 +172,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   router.get('/scans/active', auth, async (req, res) => {
     const scan = (await deps.prisma.scan.findFirst({
       where: { accountId: accountIdFrom(res), status: { in: [...ACTIVE_SCAN_STATUSES] } },
-      include: { modules: true, ...PAID_ACCESS_INCLUDE },
+      include: { modules: true, job: { select: { status: true } }, ...PAID_ACCESS_INCLUDE },
       orderBy: [...SCAN_HISTORY_ORDER],
     })) as OwnScan | null;
     sendOk(res, scan === null ? null : toScanDto(scan, readableModules(scan)));
@@ -232,6 +208,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   router.get('/scans/:scanId/dashboard', auth, async (req, res) => {
     const scanId = requiredParam(req.params.scanId, 'scanId');
     const scan = await findOwnReportScan(deps.prisma, accountIdFrom(res), scanId);
+    assertReportSnapshotReady(scan, scan.job);
     const geoModule = scan.modules.find((module) => module.module === 'AI SEO / GEO');
     const geoResponses =
       geoModule === undefined
@@ -520,7 +497,11 @@ export async function createFreeScan(
   });
 }
 
-export type OwnScan = Scan & PaidAccessScan & { readonly modules: readonly ScanModule[] };
+export type OwnScan = Scan &
+  PaidAccessScan & {
+    readonly modules: readonly ScanModule[];
+    readonly job: { readonly status: string } | null;
+  };
 
 /**
  * One scan of this account, or a 404 — the tenant boundary, unchanged.
@@ -536,7 +517,7 @@ export async function findOwnScan(
 ): Promise<OwnScan> {
   const scan = await prisma.scan.findFirst({
     where: { id: scanId, accountId },
-    include: { modules: true, ...PAID_ACCESS_INCLUDE },
+    include: { modules: true, job: { select: { status: true } }, ...PAID_ACCESS_INCLUDE },
   });
   if (scan === null) {
     throw notFound('scan not found');
@@ -563,570 +544,6 @@ export async function findOwnReportScan(
 /** Modules are report data, so a scan whose payment came back lists none. */
 export function readableModules(scan: OwnScan): readonly ScanModule[] {
   return isPaidAccessActive(scan) ? scan.modules : [];
-}
-
-function toScanDto(scan: Scan, modules: readonly ScanModule[]): Record<string, unknown> {
-  const terminal = modules.filter((module) =>
-    TERMINAL_MODULE_STATUSES.has(module.runtimeStatus),
-  ).length;
-  return {
-    id: scan.id,
-    profileId: scan.siteProfileId,
-    plan: scan.plan,
-    domain: scan.domain,
-    status: scan.status,
-    statusReason: scan.statusReason,
-    scope: parseScope(scan.scopeJson),
-    // How much of the site the crawl actually read, so the report can say
-    // "15 of 334 addresses" instead of a module coverage that counts checks.
-    // Null on scans that ran before the column existed — not recorded, which
-    // the report states rather than rendering as a measured zero.
-    crawlSummary: parseCrawlSummary(scan.crawlSummaryJson),
-    profileConfigVersion: scan.profileConfigVersion,
-    executionConfig: storedExecutionConfig(scan.executionConfigJson),
-    // Where the crawl left from, with its country and city; null when the
-    // scan predates the choice and nothing was recorded (D-228).
-    egressLocation: egressLocationView(recordedEgressLocation(scan)),
-    rulesetVersion: scan.rulesetVersion,
-    retry: { platform: scan.platformRetryCount, module: scan.moduleRetryCount },
-    // Sections answer "which parts of the audit are done"; the URL counts
-    // answer "how far through my site is it", which is the question an owner
-    // watching a 500-page crawl is actually asking.
-    progress: {
-      completedModules: terminal,
-      totalModules: modules.length,
-      scannedUrls: scan.scannedUrlCount,
-      discoveredUrls: scan.discoveredUrlCount,
-    },
-    pauseRequestedAt: scan.pauseRequestedAt?.toISOString() ?? null,
-    startedAt: scan.startedAt?.toISOString() ?? null,
-    completedAt: scan.completedAt?.toISOString() ?? null,
-    createdAt: scan.createdAt.toISOString(),
-    modules: modules.map(toModuleDto),
-  };
-}
-
-function toModuleDto(module: ScanModule): Record<string, unknown> {
-  return {
-    module: module.module,
-    status: module.runtimeStatus,
-    statusReason: module.statusReason,
-    coverage: module.coverage,
-    score: module.score,
-    applicableChecks: module.applicableChecks,
-    completedApplicableChecks: module.completedApplicableChecks,
-    usableOutput: module.usableOutput,
-    metadata: reportMetadata(module.metadataJson),
-  };
-}
-
-function parseMetadata(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Module metadata minus the resolution coverage proof.
- *
- * The proof — which target every rule read, for the next scan's Resolved policy
- * — now has its own table and never enters this row
- * (orchestrator/run-coverage.ts). Rows written before that move can still carry
- * the block, and it is an internal artifact either way: the reader's list of
- * checks is `ruleChecks`.
- */
-function reportMetadata(value: string): unknown {
-  const metadata = parseMetadata(value);
-  if (typeof metadata !== 'object' || metadata === null) {
-    return metadata;
-  }
-  return Object.fromEntries(
-    Object.entries(metadata as Record<string, unknown>).filter(
-      ([key]) => key !== LEGACY_COVERAGE_PROOF_KEY,
-    ),
-  );
-}
-
-interface GeoAiResponse {
-  readonly aiRequestKey: string;
-  readonly provider: string;
-  readonly modelId: string;
-  readonly rawText: string;
-  readonly citationsJson: string;
-}
-
-/**
- * What one answer showed about brand and domain visibility.
- *
- * Not booleans: a question that already named the brand or spelled out the
- * domain cannot be evidence that the model knows either, and reporting that as
- * a pass is how both badges came to be green on every scan.
- */
-interface GeoMentions {
-  readonly brand: MentionSignal;
-  readonly domain: MentionSignal;
-}
-
-/**
- * How the question was put.
- *
- * `awareness` exists only on scans that ran before the direct questions became
- * closed-book: those questions named the brand and the domain, and the report
- * must keep saying so rather than relabelling them.
- */
-type GeoObservationPurpose = 'closed-book' | 'awareness' | 'discovery';
-
-const GEO_OBSERVATION_PURPOSES: readonly GeoObservationPurpose[] = [
-  'closed-book',
-  'awareness',
-  'discovery',
-];
-
-/** One statement the answer made, and what the scan's evidence says about it. */
-interface GeoEvaluatedClaimDto {
-  readonly claim: string;
-  readonly verdict: GeoClaimVerdict;
-  readonly answerQuote: string;
-  readonly sourceId: string | null;
-  readonly sourceQuote: string | null;
-}
-
-/**
- * The verdict on one answer, or the reason there is none.
- *
- * Absent entirely on a scan that ran before this release: the report then says
- * the answer was not evaluated, which is true, instead of showing a pass.
- */
-interface GeoEvaluationDto {
-  readonly status: 'Completed' | 'Unavailable';
-  readonly reason: string | null;
-  readonly overall: GeoEvaluationVerdict | null;
-  readonly answerDescribesSubject: boolean | null;
-  readonly claims: readonly GeoEvaluatedClaimDto[];
-  readonly provider: string | null;
-  readonly modelId: string | null;
-}
-
-interface GeoObservation {
-  readonly purpose: GeoObservationPurpose;
-  readonly question: string;
-  readonly status: 'answered' | 'unavailable';
-  readonly reason: string | null;
-  readonly provider: string | null;
-  readonly modelId: string | null;
-  readonly answer: string | null;
-  readonly citations: readonly string[];
-  readonly mentions: GeoMentions | null;
-  readonly evaluation: GeoEvaluationDto | null;
-}
-
-/** One piece of what the scan observed about the site, as the report cites it. */
-interface GeoEvidenceSourceDto {
-  readonly id: string;
-  readonly kind: string;
-  readonly label: string;
-  readonly url: string | null;
-  readonly excerpt: string;
-  readonly provenance: string;
-}
-
-interface GeoEvidenceDto {
-  readonly sufficiency: string;
-  readonly limits: readonly string[];
-  readonly sources: readonly GeoEvidenceSourceDto[];
-}
-
-/**
- * Turns the GEO execution ledger into the evidence the report can display.
- *
- * The request list is authoritative: the generator response uses the same
- * module but is an implementation detail, so it never appears as a visibility
- * observation. A response row without a matching recorded request is ignored;
- * a recorded response whose evidence row is missing is shown as unavailable
- * instead of manufacturing an answer.
- */
-function geoObservationsFrom(
-  metadataJson: string | undefined,
-  responses: readonly GeoAiResponse[],
-  evidence: GeoEvidenceDto | null,
-): readonly GeoObservation[] {
-  if (metadataJson === undefined) return [];
-  const metadata = recordValue(parseMetadata(metadataJson));
-  const visibility = recordValue(metadata?.providerVisibility);
-  const requests = visibility?.requests;
-  if (!Array.isArray(requests)) return [];
-  const responsesByKey = new Map(responses.map((response) => [response.aiRequestKey, response]));
-
-  return requests.flatMap((entry): GeoObservation[] => {
-    const request = recordValue(entry);
-    const question = request?.question;
-    const purpose = request?.purpose;
-    if (
-      request === null ||
-      typeof purpose !== 'string' ||
-      !GEO_OBSERVATION_PURPOSES.includes(purpose as GeoObservationPurpose) ||
-      typeof question !== 'string' ||
-      question.trim() === ''
-    ) {
-      return [];
-    }
-    const observationPurpose = purpose as GeoObservationPurpose;
-    const reason = typeof request.reason === 'string' ? request.reason : null;
-    // Reports written before two providers answered have no provider on the
-    // request entry; they read as an answer from nobody in particular, which is
-    // what they were.
-    const provider =
-      typeof request.provider === 'string' && request.provider !== '' ? request.provider : null;
-    if (request.status !== 'response' || typeof request.aiRequestKey !== 'string') {
-      return [unavailableGeoObservation(observationPurpose, question, reason, provider)];
-    }
-    const response = responsesByKey.get(request.aiRequestKey);
-    if (response === undefined) {
-      return [
-        unavailableGeoObservation(observationPurpose, question, 'EvidenceUnavailable', provider),
-      ];
-    }
-    return [
-      {
-        purpose: observationPurpose,
-        question,
-        status: 'answered',
-        reason: null,
-        provider: response.provider,
-        modelId: response.modelId,
-        answer: response.rawText,
-        citations: stringArrayFromJson(response.citationsJson),
-        mentions: mentionsFrom(request.mentions),
-        evaluation: evaluationFrom(request.evaluation, response.rawText, evidence),
-      },
-    ];
-  });
-}
-
-function unavailableGeoObservation(
-  purpose: GeoObservationPurpose,
-  question: string,
-  reason: string | null,
-  provider: string | null,
-): GeoObservation {
-  return {
-    purpose,
-    question,
-    status: 'unavailable',
-    reason,
-    provider,
-    modelId: null,
-    answer: null,
-    citations: [],
-    mentions: null,
-    evaluation: null,
-  };
-}
-
-/** A stored record we will not read as a verdict, and why. */
-function unreadableEvaluation(reason: string): GeoEvaluationDto {
-  return {
-    status: 'Unavailable',
-    reason,
-    overall: null,
-    answerDescribesSubject: null,
-    claims: [],
-    provider: null,
-    modelId: null,
-  };
-}
-
-/**
- * The stored verdict, re-checked before it is shown.
- *
- * A record written before evaluations existed has no `evaluation` key and
- * yields null — "not evaluated in this scan". Anything present is read
- * fail-closed: a `Completed` record whose claims do not parse, or whose quotes
- * no longer sit in the answer and the evidence stored beside them, becomes
- * `Unavailable`. Dropping the bad claims and keeping the label would turn a
- * corrupt row into a green "supported by your site's evidence" with nothing
- * under it, and the stored verdict is the one thing a historical report cannot
- * re-derive.
- *
- * The verdict itself is derived here from the claims that survived, by the same
- * rule the evaluator used, so the stored `overall` cannot outrank them either.
- */
-function evaluationFrom(
-  value: unknown,
-  answer: string,
-  evidence: GeoEvidenceDto | null,
-): GeoEvaluationDto | null {
-  const record = recordValue(value);
-  if (record === null) return null;
-  const status = record.status;
-  if (status !== 'Completed' && status !== 'Unavailable') {
-    return unreadableEvaluation('StoredEvaluationInvalid');
-  }
-  const provider = typeof record.provider === 'string' ? record.provider : null;
-  const modelId = typeof record.modelId === 'string' ? record.modelId : null;
-  if (status === 'Unavailable') {
-    return {
-      status,
-      reason: typeof record.reason === 'string' ? record.reason : null,
-      overall: null,
-      answerDescribesSubject: null,
-      claims: [],
-      provider,
-      modelId,
-    };
-  }
-  if (
-    typeof record.answerDescribesSubject !== 'boolean' ||
-    typeof record.overall !== 'string' ||
-    !(GEO_EVALUATION_VERDICTS as readonly string[]).includes(record.overall) ||
-    !Array.isArray(record.claims)
-  ) {
-    return unreadableEvaluation('StoredEvaluationInvalid');
-  }
-  const claims: GeoEvaluatedClaimDto[] = [];
-  for (const entry of record.claims) {
-    const claim = claimFrom(entry, answer, evidence);
-    if (claim === null) return unreadableEvaluation('StoredEvaluationInvalid');
-    claims.push(claim);
-  }
-  if (!record.answerDescribesSubject && claims.length > 0) {
-    return unreadableEvaluation('StoredEvaluationInvalid');
-  }
-  return {
-    status,
-    reason: null,
-    overall: deriveGeoVerdict(record.answerDescribesSubject, claims),
-    answerDescribesSubject: record.answerDescribesSubject,
-    claims,
-    provider,
-    modelId,
-  };
-}
-
-/**
- * One stored claim, or null when it cannot be trusted.
- *
- * The quote checks are re-run against the answer and the evidence this report
- * actually shows: a claim whose quote is nowhere in the answer beside it is not
- * something a reader can verify, whatever produced it.
- */
-function claimFrom(
-  value: unknown,
-  answer: string,
-  evidence: GeoEvidenceDto | null,
-): GeoEvaluatedClaimDto | null {
-  const record = recordValue(value);
-  const verdict = record?.verdict;
-  if (
-    record === null ||
-    typeof record.claim !== 'string' ||
-    record.claim.trim() === '' ||
-    typeof record.answerQuote !== 'string' ||
-    typeof verdict !== 'string' ||
-    !(GEO_CLAIM_VERDICTS as readonly string[]).includes(verdict) ||
-    !quoteOccursIn(answer, record.answerQuote)
-  ) {
-    return null;
-  }
-  const claimVerdict = verdict as GeoClaimVerdict;
-  const sourceId = typeof record.sourceId === 'string' ? record.sourceId : null;
-  const sourceQuote = typeof record.sourceQuote === 'string' ? record.sourceQuote : null;
-  if (claimVerdict === 'unverified') {
-    return sourceId === null && sourceQuote === null
-      ? {
-          claim: record.claim,
-          verdict: claimVerdict,
-          answerQuote: record.answerQuote,
-          sourceId,
-          sourceQuote,
-        }
-      : null;
-  }
-  if (sourceId === null || sourceQuote === null) return null;
-  // A matched or contradicted claim rests entirely on the source it cites, so
-  // the citation is re-checked against the evidence this report actually shows.
-  // A record whose evidence snapshot is gone fails the same way a wrong quote
-  // does: the cited source cannot be produced, so the claim is not something a
-  // reader can verify, and "we no longer have the evidence" must not be shown
-  // as "supported by your site's evidence". A scan written before evaluations
-  // existed has no `evaluation` key at all and never reaches this function.
-  const source = evidence?.sources.find((entry) => entry.id === sourceId) ?? null;
-  if (source === null || !quoteOccursIn(source.excerpt, sourceQuote)) return null;
-  return {
-    claim: record.claim,
-    verdict: claimVerdict,
-    answerQuote: record.answerQuote,
-    sourceId,
-    sourceQuote,
-  };
-}
-
-/** What the answers were judged against; null for a scan that recorded none. */
-function geoEvidenceFrom(metadataJson: string | undefined): GeoEvidenceDto | null {
-  if (metadataJson === undefined) return null;
-  const visibility = recordValue(recordValue(parseMetadata(metadataJson))?.providerVisibility);
-  const evidence = recordValue(visibility?.evidence);
-  if (evidence === null || typeof evidence.sufficiency !== 'string') return null;
-  const sources = evidence.sources;
-  return {
-    sufficiency: evidence.sufficiency,
-    limits: Array.isArray(evidence.limits)
-      ? evidence.limits.filter((limit): limit is string => typeof limit === 'string')
-      : [],
-    sources: Array.isArray(sources) ? sources.flatMap(evidenceSourceFrom) : [],
-  };
-}
-
-function evidenceSourceFrom(value: unknown): GeoEvidenceSourceDto[] {
-  const record = recordValue(value);
-  if (
-    record === null ||
-    typeof record.id !== 'string' ||
-    typeof record.kind !== 'string' ||
-    typeof record.excerpt !== 'string'
-  ) {
-    return [];
-  }
-  return [
-    {
-      id: record.id,
-      kind: record.kind,
-      label: typeof record.label === 'string' ? record.label : record.id,
-      url: typeof record.url === 'string' ? record.url : null,
-      excerpt: record.excerpt,
-      provenance: typeof record.provenance === 'string' ? record.provenance : '',
-    },
-  ];
-}
-
-function recordValue(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function mentionsFrom(value: unknown): GeoMentions | null {
-  const mentions = recordValue(value);
-  const brand = mentionSignal(mentions?.brand);
-  const domain = mentionSignal(mentions?.domain);
-  return brand === null || domain === null ? null : { brand, domain };
-}
-
-/**
- * A stored signal, or null when the record predates the field.
- *
- * Reports written before this release stored `true`/`false`, which meant
- * "no finding for this answer" and not "the model knew this". They are read as
- * unmeasurable rather than rewritten into a verdict they never carried.
- */
-function mentionSignal(value: unknown): MentionSignal | null {
-  if (typeof value === 'string' && (MENTION_SIGNALS as readonly string[]).includes(value)) {
-    return value as MentionSignal;
-  }
-  return typeof value === 'boolean' ? 'named-in-question' : null;
-}
-
-function stringArrayFromJson(value: string): readonly string[] {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed)
-      ? parsed.filter((entry): entry is string => typeof entry === 'string')
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function parseScope(value: string): unknown {
-  try {
-    const parsed = scanScopeSchema.safeParse(JSON.parse(value));
-    return parsed.success ? parsed.data : scanScopeSchema.parse({ includeSubdomains: false });
-  } catch {
-    return scanScopeSchema.parse({ includeSubdomains: false });
-  }
-}
-
-type ScanWithModules = Scan & PaidAccessScan & { modules: ScanModule[] };
-
-interface ScanHistoryPage {
-  readonly scans: readonly ScanWithModules[];
-  readonly meta: PageMeta;
-}
-
-/** The plans whose purchase unlocks the full historical list. */
-const HISTORY_PLANS: readonly string[] = PLANS.filter((plan) =>
-  planSupports(plan, 'scanHistory'),
-);
-
-/** Paid plans that do not: owning one of these shows the current result only. */
-const PAID_PLANS_WITHOUT_HISTORY: readonly string[] = PLANS.filter(
-  (plan) => !planSupports(plan, 'scanHistory') && TARIFFS[plan].priceUsd > 0,
-);
-
-/**
- * One page of scan history, gated and counted by PostgreSQL.
- *
- * The gate is what it was, stated as an entitlement instead of a plan literal:
- * a purchase that includes scan history unlocks the full historical list, an
- * account that has bought only a paid plan without it sees only its current
- * result, and a Free/Basic result stays reachable by its own scan id in either
- * case — the gate hides the list, not the scan. What changed
- * is where the work happens — this used to load every scan the account had ever
- * run, decide the gate over the loaded array and slice the page in JavaScript,
- * which made the cost of listing grow with how long a customer had been paying
- * us. The gate is now two existence probes and the page is one indexed read.
- */
-async function listScanHistory(
-  prisma: PrismaClient,
-  where: { readonly accountId: string; readonly siteProfileId?: string },
-  page: PageRequest,
-  historyRequested: boolean,
-): Promise<ScanHistoryPage> {
-  const [unlocking, gated] = await Promise.all([
-    prisma.scan.findFirst({
-      where: { ...where, plan: { in: [...HISTORY_PLANS] } },
-      select: { id: true },
-    }),
-    prisma.scan.findFirst({
-      where: { ...where, plan: { in: [...PAID_PLANS_WITHOUT_HISTORY] } },
-      select: { id: true },
-    }),
-  ]);
-  if (unlocking === null && gated !== null) {
-    if (historyRequested) {
-      throw forbidden(
-        'HISTORY_REQUIRES_COMPLETE',
-        'scan history is not included in this plan',
-      );
-    }
-    // Exactly one row is visible, so only the first page can carry it.
-    const current =
-      page.offset === 0
-        ? ((await prisma.scan.findMany({
-            where,
-            include: { modules: true, ...PAID_ACCESS_INCLUDE },
-            orderBy: [...SCAN_HISTORY_ORDER],
-            take: 1,
-          })) as ScanWithModules[])
-        : [];
-    return {
-      scans: current,
-      meta: { total: 1, page: page.page, limit: page.limit, hasNext: false },
-    };
-  }
-  const [scans, total] = await Promise.all([
-    prisma.scan.findMany({
-      where,
-      include: { modules: true, ...PAID_ACCESS_INCLUDE },
-      orderBy: [...SCAN_HISTORY_ORDER],
-      skip: page.offset,
-      take: page.limit,
-    }) as Promise<ScanWithModules[]>,
-    prisma.scan.count({ where }),
-  ]);
-  return { scans, meta: pageMetaFrom(page, scans.length, total) };
 }
 
 function retryableModule(

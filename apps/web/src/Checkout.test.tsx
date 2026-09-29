@@ -142,6 +142,41 @@ afterEach(() => {
 });
 
 describe('paid checkout flow', () => {
+  it('keeps a pending checkout recoverable after the buyer dismisses its status window', async () => {
+    vi.stubGlobal(
+      'open',
+      vi.fn(() => ({}) as Window),
+    );
+    await openNewScan((path) => {
+      if (path === '/auth/me') return envelope(account);
+      if (path === '/profiles') return envelope([profile]);
+      if (path === '/scans/active') return envelope(null);
+      if (path === '/billing/checkout-config') return envelope(checkoutConfig);
+      if (path === '/billing/checkout-session') return envelope(session, 201);
+      if (path === `/billing/checkout-session/${session.reference}`)
+        return envelope({
+          reference: session.reference,
+          plan: 'Complete',
+          status: 'created',
+          reasonCode: null,
+          scanId: null,
+          purchaseId: null,
+          expiresAt: null,
+        });
+      return envelope(null);
+    });
+    await screen.findByText('Complete · $120');
+    selectPlan('Complete');
+    await awaitPayable();
+    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+    await screen.findByText('Payment — confirming');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
+
+    expect(screen.getByRole('button', { name: 'Resume payment confirmation' })).toBeInTheDocument();
+    expect(window.localStorage.getItem('fluxradar.pendingCheckout')).toContain(session.reference);
+  });
+
   it('opens the provider checkout and waits, creating no scan in the browser', async () => {
     const open = vi.fn(() => ({}) as Window);
     vi.stubGlobal('open', open);

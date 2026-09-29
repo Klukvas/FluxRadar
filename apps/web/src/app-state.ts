@@ -45,6 +45,13 @@ function useSessionState() {
   const [account, setAccount] = useState<Account | null>(null);
   const [profiles, setProfiles] = useState<SiteProfile[]>([]);
   const [booting, setBooting] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionAttempt, setSessionAttempt] = useState(0);
+  const retrySession = useCallback(() => {
+    setSessionError(null);
+    setBooting(true);
+    setSessionAttempt((attempt) => attempt + 1);
+  }, []);
   const [tourOpen, setTourOpen] = useState(false);
   const [verifyBannerHidden, setVerifyBannerHidden] = useState(false);
   return {
@@ -54,6 +61,10 @@ function useSessionState() {
     setProfiles,
     booting,
     setBooting,
+    sessionError,
+    setSessionError,
+    sessionAttempt,
+    retrySession,
     tourOpen,
     setTourOpen,
     verifyBannerHidden,

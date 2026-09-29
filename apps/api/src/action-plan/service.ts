@@ -23,6 +23,7 @@ import type { PaidAccessScan } from '../billing/report-access.ts';
 import { conflict, forbidden } from '../http/errors.ts';
 import { OPEN_ISSUE_STATUSES } from '../issues/summary.ts';
 import { lockScanRow } from '../scans/scan-row-lock.ts';
+import { isReportSnapshotReady } from '../scans/report-readiness.ts';
 import { ACTION_PLAN_EXCLUDED_MODULE } from '@fluxradar/ai';
 
 /** Scan runtime statuses whose snapshot is finished enough to plan from. */
@@ -124,6 +125,7 @@ function isPlannableSnapshot(
   return (
     planSupports(scan.plan, 'actionPlan') &&
     PLANNABLE_SCAN_STATUSES.has(scan.status) &&
+    isReportSnapshotReady(scan, job) &&
     job !== null &&
     job.status === 'Done'
   );

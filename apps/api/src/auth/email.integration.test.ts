@@ -1,10 +1,12 @@
 import request from 'supertest';
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../index.ts';
 import { MockMailer } from '../email/mailer.ts';
 import { silentLogger } from '../http/logger.ts';
 import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
+import { issueEmailToken } from './email-tokens.ts';
 
 describe('CR-02 email lifecycle', () => {
   let db: TestDb;
@@ -79,5 +81,61 @@ describe('CR-02 email lifecycle', () => {
       .post('/auth/login')
       .send({ email: 'reset@example.com', password: 'new-correct-1' });
     expect(login.status).toBe(200);
+  });
+
+  it('serializes concurrent password-reset issuance so only one link remains valid', async () => {
+    const account = await db.prisma.account.create({
+      data: { email: 'concurrent-reset@example.com', passwordHash: 'not-used-by-this-test' },
+    });
+
+    await Promise.all(
+      Array.from({ length: 8 }, () =>
+        issueEmailToken(db.prisma, account.id, 'password_reset', new Date()),
+      ),
+    );
+
+    expect(
+      await db.prisma.emailToken.count({
+        where: { accountId: account.id, kind: 'password_reset', usedAt: null },
+      }),
+    ).toBe(1);
+  });
+
+  it('revokes every other unused reset link after a password reset succeeds', async () => {
+    const app = createApp({
+      prisma: db.prisma,
+      autoProcess: false,
+      logger: silentLogger,
+      mailer: new MockMailer(),
+    });
+    const account = await db.prisma.account.create({
+      data: { email: 'revoke-reset@example.com', passwordHash: 'not-used-by-this-test' },
+    });
+    const first = 'password-reset-first-token-123456789';
+    const second = 'password-reset-second-token-12345678';
+    const tokenHash = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
+    await db.prisma.emailToken.createMany({
+      data: [first, second].map((token) => ({
+        accountId: account.id,
+        kind: 'password_reset',
+        tokenHash: tokenHash(token),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      })),
+    });
+
+    expect(
+      (
+        await request(app)
+          .post('/auth/password-reset/confirm')
+          .send({ token: first, password: 'new-correct-1' })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(app)
+          .post('/auth/password-reset/confirm')
+          .send({ token: second, password: 'another-correct-2' })
+      ).status,
+    ).toBe(409);
   });
 });

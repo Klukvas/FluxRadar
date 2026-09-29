@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
+import { RequestRateLimiter } from '../auth/rate-limit.ts';
 import { sendOk } from '../http/envelope.ts';
 import { conflict, notFound, validationError } from '../http/errors.ts';
 import { requiredParam } from '../http/params.ts';
@@ -14,14 +15,21 @@ import {
 } from './config.ts';
 import { encryptIntegrationSecret, hashOAuthState } from './crypto.ts';
 import { authorizationUrl, createOAuthState, exchangeOAuthCode } from './oauth.ts';
+import { claimOAuthState, purgeExpiredOAuthStates } from './oauth-state.ts';
 
 export interface IntegrationsRouterDeps {
   readonly prisma: PrismaClient;
   readonly now: () => Date;
   readonly frontendOrigin?: string;
+  readonly requestRateLimiter?: RequestRateLimiter;
+  /** Test seam for the provider’s one-time authorization code exchange. */
+  readonly exchangeOAuthCode?: typeof exchangeOAuthCode;
 }
 
 const STATE_TTL_MS = 10 * 60 * 1000;
+const OAUTH_START_ACCOUNT_LIMIT = 10;
+const OAUTH_START_IP_LIMIT = 30;
+const OAUTH_START_WINDOW_MS = 10 * 60 * 1000;
 
 interface IntegrationDto {
   readonly provider: string;
@@ -96,6 +104,8 @@ function safeCallbackMessage(error: unknown): string {
 export function integrationsRouter(deps: IntegrationsRouterDeps): Router {
   const router = Router();
   const auth = requireAuth(deps.prisma, deps.now);
+  const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
+  const exchangeCode = deps.exchangeOAuthCode ?? exchangeOAuthCode;
 
   router.get('/integrations', auth, async (req, res) => {
     const accountId = accountIdFrom(res);
@@ -122,10 +132,24 @@ export function integrationsRouter(deps: IntegrationsRouterDeps): Router {
         `${providerValue} OAuth is not configured on the server`,
       );
     }
+    const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowedAll([
+      {
+        key: `oauth-start:account:${accountId}`,
+        limit: OAUTH_START_ACCOUNT_LIMIT,
+        windowMs: OAUTH_START_WINDOW_MS,
+      },
+      {
+        key: `oauth-start:ip:${req.ip ?? 'unknown'}`,
+        limit: OAUTH_START_IP_LIMIT,
+        windowMs: OAUTH_START_WINDOW_MS,
+      },
+    ]);
+    await purgeExpiredOAuthStates(deps.prisma, deps.now());
     const state = createOAuthState();
     await deps.prisma.integrationOAuthState.create({
       data: {
-        accountId: accountIdFrom(res),
+        accountId,
         provider: providerValue,
         stateHash: hashOAuthState(state),
         expiresAt: new Date(deps.now().getTime() + STATE_TTL_MS),
@@ -153,31 +177,25 @@ export function integrationsRouter(deps: IntegrationsRouterDeps): Router {
       res.redirect(callbackUrl(config, providerValue, 'error', 'Authorization was cancelled'));
       return;
     }
-    const stateRecord = await deps.prisma.integrationOAuthState.findUnique({
-      where: { stateHash: hashOAuthState(state) },
-    });
-    if (
-      stateRecord === null ||
-      stateRecord.provider !== providerValue ||
-      stateRecord.usedAt !== null ||
-      stateRecord.expiresAt <= deps.now()
-    ) {
+    const stateRecord = await claimOAuthState(
+      deps.prisma,
+      hashOAuthState(state),
+      providerValue,
+      deps.now(),
+    );
+    if (stateRecord === null) {
       res.redirect(
         callbackUrl(config, providerValue, 'error', 'Authorization expired; start again'),
       );
       return;
     }
-    await deps.prisma.integrationOAuthState.update({
-      where: { id: stateRecord.id },
-      data: { usedAt: deps.now() },
-    });
     const providerConfig = oauthConfigFor(config, providerValue);
     if (providerConfig === null) {
       res.redirect(callbackUrl(config, providerValue, 'error', 'Provider is not configured'));
       return;
     }
     try {
-      const tokens = await exchangeOAuthCode(providerValue, providerConfig, code);
+      const tokens = await exchangeCode(providerValue, providerConfig, code);
       const existing = await deps.prisma.integrationConnection.findUnique({
         where: {
           accountId_provider: { accountId: stateRecord.accountId, provider: providerValue },

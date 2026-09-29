@@ -3,7 +3,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 // Several of these modules bring their own stylesheet, and stylesheets cascade in
 // the order they are first imported, all of them ahead of base.css below. Moving
 // an import can reorder the cascade.
-import { AlertDialog, Notice, LoadingState, Window } from './components';
+import { AlertDialog, Button, Notice, LoadingState, Window } from './components';
 import type { Account } from './api';
 import { AccountRoute, PasswordResetRoute } from './AccountRoutes';
 import { AdminStatsScreen } from './AdminStats';
@@ -24,6 +24,7 @@ import {
   ResultsRoute,
   ScanRoute,
 } from './ScanRoutes';
+import { CheckoutRecovery } from './Checkout';
 import { Styleguide } from './Styleguide';
 import { SupportWidget } from './SupportWidget';
 import { AppFrame, VerifyBanner, WorkspaceFooter, WorkspaceHeader } from './WorkspaceChrome';
@@ -82,12 +83,45 @@ function AppContent(props: AppModelProps) {
  * the print view or the workspace.
  */
 function SessionScreen({ app }: { readonly app: AppModel }) {
-  const { account, booting, clearNotice, entryRoute, language, notice, screen, selectedScan } = app;
+  const {
+    account,
+    booting,
+    clearNotice,
+    entryRoute,
+    language,
+    notice,
+    retrySession,
+    screen,
+    selectedScan,
+    sessionError,
+  } = app;
   if (booting) {
     return (
       <AppFrame app={app} className="app-shell" active="desktop" signedIn={false}>
         <Window title={copy[language].workspace.booting} terminal>
           <LoadingState />
+        </Window>
+      </AppFrame>
+    );
+  }
+  if (sessionError) {
+    const unavailable =
+      language === 'uk'
+        ? {
+            title: 'Не вдається підключитися до FluxRadar',
+            body: 'Перевірте з’єднання та спробуйте ще раз. Ви не вийшли з облікового запису.',
+            retry: 'Спробувати ще раз',
+          }
+        : {
+            title: 'FluxRadar is unavailable',
+            body: 'We could not check your session. Check your connection and try again.',
+            retry: 'Try again',
+          };
+    return (
+      <AppFrame app={app} className="app-shell" active="desktop" signedIn={false}>
+        <Window title={unavailable.title} terminal>
+          <p>{unavailable.body}</p>
+          <Button onClick={retrySession}>{unavailable.retry}</Button>
         </Window>
       </AppFrame>
     );
@@ -141,7 +175,17 @@ interface WorkspaceProps {
  * keeps its own slot, so switching screens unmounts one and mounts the other.
  */
 function Workspace({ app, account, noticeElement }: WorkspaceProps) {
-  const { emailAction, error, issueRuleFilter, language, pendingCheckout, screen, tourOpen } = app;
+  const {
+    checkoutVisible,
+    emailAction,
+    error,
+    issueRuleFilter,
+    language,
+    pendingCheckout,
+    resumeCheckout,
+    screen,
+    tourOpen,
+  } = app;
   const { finishOnboarding, selectedScan, setError, skipOnboarding, verifyBannerHidden } = app;
   return (
     <>
@@ -153,12 +197,19 @@ function Workspace({ app, account, noticeElement }: WorkspaceProps) {
         <AlertDialog message={error} language={language} floating onClose={() => setError(null)} />
       ) : null}
       {noticeElement}
+      {pendingCheckout !== null && !checkoutVisible ? (
+        <CheckoutRecovery
+          language={language}
+          onResume={resumeCheckout}
+          onStopTracking={app.endCheckout}
+        />
+      ) : null}
       {screen === 'auth' && emailAction?.kind === 'reset' ? <PasswordResetRoute app={app} /> : null}
       {screen === 'account' ? <AccountRoute app={app} account={account} /> : null}
       {screen === 'admin-stats' ? <AdminStatsScreen /> : null}
       {screen === 'desktop' ? <DesktopRoute app={app} /> : null}
       {screen === 'reports' ? <ReportsRoute app={app} /> : null}
-      {pendingCheckout !== null ? (
+      {pendingCheckout !== null && checkoutVisible ? (
         <CheckoutRoute app={app} pendingCheckout={pendingCheckout} />
       ) : null}
       {screen === 'new-scan' && pendingCheckout === null ? (

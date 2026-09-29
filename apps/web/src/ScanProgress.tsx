@@ -33,7 +33,11 @@ export function ScanScreen(props: {
   const [cancelBusy, setCancelBusy] = useState(false);
   const [pauseBusy, setPauseBusy] = useState(false);
   useEffect(() => {
-    if (props.scan === null || isTerminalScanStatus(props.scan.status)) return undefined;
+    if (
+      props.scan === null ||
+      (isTerminalScanStatus(props.scan.status) && props.scan.reportReady !== false)
+    )
+      return undefined;
     let cancelled = false;
     // Polls overlap when a request outlasts the interval, and two of them can
     // both see the scan finish.
@@ -44,7 +48,11 @@ export function ScanScreen(props: {
         const scan = await apiRequest<Scan>(`/scans/${scanId}`);
         if (cancelled) return;
         props.onUpdate(scan);
-        if (isTerminalScanStatus(scan.status) && timer !== undefined) {
+        if (
+          isTerminalScanStatus(scan.status) &&
+          scan.reportReady !== false &&
+          timer !== undefined
+        ) {
           window.clearInterval(timer);
           // Only a scan watched to the end is reported: this effect never polls
           // one that was already finished when the screen opened.
@@ -85,6 +93,7 @@ export function ScanScreen(props: {
       ? 0
       : (scan.progress.completedModules / scan.progress.totalModules) * 100;
   const terminal = isTerminalScanStatus(scan.status);
+  const reportFinalizing = terminal && scan.reportReady === false;
   const finishedAt = formatTimestamp(scan.completedAt, props.language);
   const paused = scan.status === 'Paused';
   const pausing = !paused && scan.pauseRequestedAt != null && !terminal;
@@ -137,7 +146,7 @@ export function ScanScreen(props: {
           label={t.progressLabel}
           variant={terminal ? 'result' : 'live'}
         />
-        {terminal ? (
+        {terminal && !reportFinalizing ? (
           <div className="scan-complete" role="status" aria-live="polite">
             <StatusChip status={scan.status} label={scanStateLabel(scan.status, props.language)} />
             <div>
@@ -149,6 +158,10 @@ export function ScanScreen(props: {
               </p>
             </div>
           </div>
+        ) : reportFinalizing ? (
+          <p role="status">
+            {props.language === 'uk' ? 'Фіналізуємо звіт…' : 'Finalizing report…'}
+          </p>
         ) : (
           <>
             <p className="muted">

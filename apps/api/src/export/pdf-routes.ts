@@ -44,6 +44,7 @@ import {
   type PrivateObjectStore,
 } from '../integrations/s3.ts';
 import { renderReportPdf, type ActionPlanLoader } from './pdf/render.ts';
+import { isReportSnapshotReady } from '../scans/report-readiness.ts';
 
 export interface PdfRouterDeps {
   readonly prisma: PrismaClient;
@@ -130,7 +131,7 @@ export function reportPdfRouter(deps: PdfRouterDeps): Router {
     );
     const scan = await deps.prisma.scan.findFirst({
       where: { id: scanId, accountId },
-      include: { modules: true, ...PAID_ACCESS_INCLUDE },
+      include: { modules: true, job: { select: { status: true } }, ...PAID_ACCESS_INCLUDE },
     });
     if (scan === null) throw notFound('scan not found');
     assertPaidReportAccess(scan);
@@ -145,6 +146,9 @@ export function reportPdfRouter(deps: PdfRouterDeps): Router {
         'EXPORT_NOT_READY',
         'the report is available after the scan reaches a terminal status',
       );
+    }
+    if (!isReportSnapshotReady(scan, scan.job)) {
+      throw conflict('EXPORT_NOT_READY', 'the report is available after it is finalized');
     }
 
     const findingCount = await deps.prisma.issue.count({ where: { scanId } });

@@ -30,6 +30,39 @@ const POLL_TIMEOUT_MS = 15 * 60 * 1000;
 /** A poll may fail this often in a row before the buyer is told something broke. */
 const POLL_ERROR_BUDGET = 3;
 
+const recoveryCopy = {
+  en: {
+    body: 'Payment confirmation is paused. Your checkout is still active.',
+    resume: 'Resume payment confirmation',
+    stop: 'Stop tracking this checkout',
+  },
+  uk: {
+    body: 'Підтвердження платежу призупинено. Ваше оформлення досі активне.',
+    resume: 'Продовжити підтвердження платежу',
+    stop: 'Не відстежувати це оформлення',
+  },
+} as const;
+
+/** A dismissed confirmation can be reopened without creating a second checkout. */
+export function CheckoutRecovery({
+  language,
+  onResume,
+  onStopTracking,
+}: {
+  readonly language: Language;
+  readonly onResume: () => void;
+  readonly onStopTracking: () => void;
+}) {
+  const t = recoveryCopy[language];
+  return (
+    <aside className="checkout-recovery" role="status">
+      <p>{t.body}</p>
+      <Button onClick={onResume}>{t.resume}</Button>
+      <Button onClick={onStopTracking}>{t.stop}</Button>
+    </aside>
+  );
+}
+
 export type { PendingCheckout };
 export {
   clearPendingCheckout,
@@ -250,7 +283,12 @@ export function CheckoutPending(props: CheckoutPendingProps) {
   const rejected = status?.status === 'rejected';
   const rejectionDetail = rejected ? rejectionCopy(t, status?.reasonCode ?? null) : null;
   return (
-    <Window title={t.windowTitle} className="window--dialog" onClose={props.onCancel}>
+    <Window
+      title={t.windowTitle}
+      className="window--dialog"
+      onClose={props.onCancel}
+      closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+    >
       <div className="stack">
         <Panel title={t.panelTitle}>
           <p>{rejected ? t.rejected : timedOut ? t.stillWaiting : progressCopy(t, popup)}</p>

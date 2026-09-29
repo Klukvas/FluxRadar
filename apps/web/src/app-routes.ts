@@ -6,7 +6,7 @@
 // spread through the component that renders the screens.
 
 import { ADMIN_STATS_PATH } from './admin-stats';
-import type { Scan } from './api';
+import { isReportReady, type Scan } from './api';
 import { isTerminalScanStatus } from './scan-status';
 import type { SeoPageId } from './seo';
 import { WORKSPACE_PATHS, type WorkspaceTabScreen } from './workspace-paths';
@@ -211,7 +211,7 @@ export function scanRoutePreference(screen: Screen): 'auto' | 'issues' | 'print'
 }
 
 export function isTerminalScan(scan: Scan): boolean {
-  return isTerminalScanStatus(scan.status);
+  return isTerminalScanStatus(scan.status) && isReportReady(scan);
 }
 
 /**

@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   apiRequestWithMeta,
   hasMorePages,
+  isReportReady,
   nextPageOffset,
   type PageMeta,
   type Scan,
@@ -212,7 +213,7 @@ function ReportsBody(props: {
 function ReportRow(props: { scan: Scan; language: Language; onOpen: () => void }) {
   const t = copy[props.language].reports;
   const { scan } = props;
-  const terminal = isTerminalScanStatus(scan.status);
+  const terminal = isTerminalScanStatus(scan.status) && isReportReady(scan);
   const finished = formatTimestamp(scan.completedAt, props.language);
   const started = formatTimestamp(scan.startedAt ?? scan.createdAt, props.language);
   const actionLabel = !terminal

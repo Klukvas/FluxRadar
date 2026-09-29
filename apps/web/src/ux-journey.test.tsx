@@ -250,7 +250,7 @@ describe('an email confirmation link opened in a signed-in browser', () => {
     expect(screen.queryByText(/Confirm your email: we sent a link/)).not.toBeInTheDocument();
   });
 
-  it('shows an unconfirmed owner the banner and resends the link from it', async () => {
+  it('shows an unconfirmed owner a neutral banner after reload and accepts a resend request', async () => {
     const fetchMock = stubApi((path) => {
       if (path === '/auth/me') return envelope({ ...account, emailVerified: false });
       if (path === '/profiles') return envelope([profile]);
@@ -261,12 +261,42 @@ describe('an email confirmation link opened in a signed-in browser', () => {
     window.history.replaceState(null, '', '/profiles');
     render(<App />);
 
-    const banner = (await screen.findByText(/Confirm your email: we sent a link/)).closest('div');
+    const banner = (
+      await screen.findByText(
+        'Confirm your email at owner@example.com. Check your inbox or request a new confirmation link.',
+      )
+    ).closest('div');
     if (banner === null) throw new Error('expected the banner');
     fireEvent.click(within(banner as HTMLElement).getByRole('button', { name: 'Send again' }));
 
-    expect(await screen.findByText(/Sent to owner@example.com/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'A confirmation request for owner@example.com was accepted. The link is valid for 24 hours if delivery is available.',
+      ),
+    ).toBeInTheDocument();
     expect(calls(fetchMock, '/auth/resend-verification', 'POST')[0]).toContain(account.email);
+  });
+
+  it('only says a confirmation link was sent when the signed-in registration response says so', async () => {
+    stubApi((path) => {
+      if (path === '/auth/me')
+        return envelope({
+          ...account,
+          emailVerified: false,
+          emailVerification: { status: 'sent' },
+        });
+      if (path === '/profiles') return envelope([profile]);
+      if (path === '/scans') return envelope([], 200, { total: 0, page: 1, limit: 1 });
+      return envelope(null);
+    });
+    window.history.replaceState(null, '', '/profiles');
+    render(<App />);
+
+    expect(
+      await screen.findByText(
+        'Confirm your email: we sent a link to owner@example.com. Payment and password emails go there.',
+      ),
+    ).toBeInTheDocument();
   });
 });
 

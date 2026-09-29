@@ -135,7 +135,12 @@ export function AuthScreen(props: {
   const passwordType = showPassword ? 'text' : 'password';
 
   return (
-    <Window title={title} className="window--dialog" onClose={props.onBack}>
+    <Window
+      title={title}
+      className="window--dialog"
+      onClose={props.onBack}
+      closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+    >
       <form className="stack" onSubmit={submit}>
         <div>
           <h1 id="auth-title" className="section-heading">

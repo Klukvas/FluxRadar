@@ -119,7 +119,13 @@ function EmailPanel(props: {
       />
       {verified ? null : (
         <>
-          <p className="muted">{t.unverifiedBody}</p>
+          <p className="muted">
+            {props.account.emailVerification?.status === 'not-configured'
+              ? t.deliveryUnavailable
+              : props.account.emailVerification?.status === 'provider-error'
+                ? t.deliveryFailed
+                : t.unverifiedBody}
+          </p>
           <div className="button-row">
             <Button onClick={() => void resend()} disabled={sending}>
               {sending ? t.resending : t.resend}

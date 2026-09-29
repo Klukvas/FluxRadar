@@ -13,7 +13,7 @@
 import { useCallback, useRef, useState, type FormEvent } from 'react';
 
 import { ActionMenu } from './ActionMenu';
-import { apiRequest, canRetrySection, type Scan, type SiteProfile } from './api';
+import { apiRequest, canRetrySection, isReportReady, type Scan, type SiteProfile } from './api';
 import { Button, EmptyState, Field, Panel, TextAreaField, Window } from './components';
 import { desktopCopy, type NextStepKind } from './desktop-copy';
 import { copy, type Language } from './i18n';
@@ -47,7 +47,7 @@ export interface DesktopScreenProps {
 export function nextStepFor(profiles: readonly SiteProfile[], latest: Scan | null): NextStepKind {
   if (profiles.length === 0) return 'noProfiles';
   if (latest === null) return 'noScans';
-  if (!isTerminalScanStatus(latest.status)) return 'running';
+  if (!isTerminalScanStatus(latest.status) || !isReportReady(latest)) return 'running';
   if (/failed|cancelled/i.test(latest.status)) return 'failed';
   // A Partial report reads, but a section came back incomplete and can be run
   // once more. Once that retry is spent, it is a finished report like any other.

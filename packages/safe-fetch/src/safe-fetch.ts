@@ -142,7 +142,13 @@ export async function safeFetch(
     let redirectChain: readonly RedirectHop[] = [];
 
     for (;;) {
-      const addresses = await resolveAndGuard(currentUrl, resolver, allowLoopback);
+      // DNS is part of the request's deadline too. `dns.lookup` has no abort
+      // signal, so racing its result is what prevents a stalled resolver from
+      // holding a scan worker past timeoutMs or opening a socket after cancel.
+      const addresses = await awaitUntilAborted(
+        () => resolveAndGuard(currentUrl, resolver, allowLoopback),
+        deadline.signal,
+      );
       const response = await performRequest(
         currentUrl,
         addresses,
@@ -187,6 +193,41 @@ export async function safeFetch(
     clearTimeout(timer);
     callerSignal?.removeEventListener('abort', onCallerAbort);
   }
+}
+
+/** Settles promptly on a caller abort even when the underlying DNS operation cannot be cancelled. */
+function awaitUntilAborted<T>(start: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(new Error('safe-fetch: request aborted before DNS completed'));
+  }
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const cleanup = (): void => signal.removeEventListener('abort', onAbort);
+    const settleResolve = (value: T): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const settleReject = (error: unknown): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const onAbort = (): void => {
+      settleReject(new Error('safe-fetch: request aborted before DNS completed'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    let work: Promise<T>;
+    try {
+      work = start();
+    } catch (error) {
+      settleReject(error);
+      return;
+    }
+    void work.then(settleResolve, settleReject);
+  });
 }
 
 /**

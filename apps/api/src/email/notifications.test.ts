@@ -11,8 +11,13 @@ import {
   type SeededAccount,
   type TestDb,
 } from '../test-utils/test-db.ts';
+import type { EmailMessage, Mailer } from './mailer.ts';
 import { MockMailer } from './mailer.ts';
-import { notifyScanEvent, type ScanNotificationKind } from './notifications.ts';
+import {
+  deliverDueScanNotifications,
+  notifyScanEvent,
+  type ScanNotificationKind,
+} from './notifications.ts';
 
 // Regression: a FastSpring test-mode production E2E run mailed real money
 // emails for an order nobody paid. Test-mode FastSpring purchases stay silent;
@@ -181,5 +186,134 @@ describe('the way back to the scan', () => {
     const url = `https://fluxradar.example/scans/${scan.id}`;
     expect(message?.html).toContain(`<a href="${url}">Follow the scan</a>`);
     expect(message?.text).toContain(`Follow the scan: ${url}`);
+  });
+});
+
+describe('notification delivery queue', () => {
+  let db: TestDb;
+  let account: SeededAccount;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    account = await seedAccountWithProfile(db.prisma);
+  });
+
+  afterEach(async () => {
+    await db.cleanup();
+  });
+
+  it('retries a transient delivery failure after its backoff instead of losing the event', async () => {
+    const { scan } = await seedScan(db.prisma, { account, status: 'Completed' });
+    const messages: EmailMessage[] = [];
+    let attempts = 0;
+    const mailer: Mailer = {
+      configured: true,
+      async send(message) {
+        attempts += 1;
+        if (attempts === 1) throw new Error('temporary provider outage');
+        messages.push(message);
+        return { status: 'sent', id: 'recovered' };
+      },
+    };
+    const now = new Date('2026-09-29T10:00:00.000Z');
+
+    await notifyScanEvent(
+      db.prisma,
+      mailer,
+      scan.id,
+      'purchase_confirmed',
+      'Paid.',
+      undefined,
+      now,
+    );
+
+    const queued = await db.prisma.emailNotification.findUniqueOrThrow({
+      where: { eventKey: `purchase_confirmed:${scan.id}` },
+    });
+    expect(queued.status).toBe('queued');
+    expect(queued.attemptCount).toBe(1);
+    expect(queued.nextAttemptAt.getTime()).toBeGreaterThan(now.getTime());
+
+    await deliverDueScanNotifications(db.prisma, mailer, new Date(queued.nextAttemptAt));
+
+    expect(messages).toHaveLength(1);
+    await expect(
+      db.prisma.emailNotification.findUniqueOrThrow({ where: { id: queued.id } }),
+    ).resolves.toMatchObject({ status: 'sent', attemptCount: 2, sentAt: expect.any(Date) });
+  });
+
+  it('does not reclaim an expired lease after the bounded final attempt', async () => {
+    const { scan } = await seedScan(db.prisma, { account, status: 'Completed' });
+    const now = new Date('2026-09-29T10:00:00.000Z');
+    const notification = await db.prisma.emailNotification.create({
+      data: {
+        accountId: account.accountId,
+        eventKey: `purchase_confirmed:${scan.id}`,
+        kind: 'purchase_confirmed',
+        detail: 'Paid.',
+        status: 'sending',
+        attemptCount: 5,
+        nextAttemptAt: now,
+        leaseUntil: new Date(now.getTime() - 1),
+      },
+    });
+    let sends = 0;
+    const mailer: Mailer = {
+      configured: true,
+      async send() {
+        sends += 1;
+        return { status: 'sent', id: 'should-not-send' };
+      },
+    };
+
+    await expect(deliverDueScanNotifications(db.prisma, mailer, now)).resolves.toBe(0);
+    expect(sends).toBe(0);
+    await expect(
+      db.prisma.emailNotification.findUniqueOrThrow({ where: { id: notification.id } }),
+    ).resolves.toMatchObject({ status: 'failed', attemptCount: 5 });
+  });
+
+  it('cannot settle a later worker claim after its own lease was replaced', async () => {
+    const { scan } = await seedScan(db.prisma, { account, status: 'Completed' });
+    const now = new Date('2026-09-29T10:00:00.000Z');
+    const notification = await db.prisma.emailNotification.create({
+      data: {
+        accountId: account.accountId,
+        eventKey: `purchase_confirmed:${scan.id}`,
+        kind: 'purchase_confirmed',
+        detail: 'Paid.',
+        status: 'queued',
+        nextAttemptAt: now,
+      },
+    });
+    let releaseSend: (() => void) | undefined;
+    let enteredSend: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => {
+      enteredSend = resolve;
+    });
+    const mailer: Mailer = {
+      configured: true,
+      async send() {
+        enteredSend?.();
+        await new Promise<void>((resolve) => {
+          releaseSend = resolve;
+        });
+        return { status: 'sent', id: 'first-worker' };
+      },
+    };
+
+    const firstWorker = deliverDueScanNotifications(db.prisma, mailer, now);
+    await entered;
+    const secondLease = new Date(now.getTime() + 20 * 60_000);
+    await db.prisma.emailNotification.update({
+      where: { id: notification.id },
+      data: { status: 'sending', attemptCount: 2, leaseUntil: secondLease },
+    });
+    releaseSend?.();
+
+    await expect(firstWorker).resolves.toBe(0);
+    await expect(
+      db.prisma.emailNotification.findUniqueOrThrow({ where: { id: notification.id } }),
+    ).resolves.toMatchObject({ status: 'sending', attemptCount: 2, leaseUntil: secondLease });
   });
 });

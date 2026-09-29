@@ -31,16 +31,28 @@ function appForAuth(): express.Express {
     onboardingCompletedAt: null,
     onboardingSkippedAt: null,
   };
+  const accountModel = {
+    findUnique: vi.fn().mockResolvedValue(account),
+    create: vi.fn().mockResolvedValue(account),
+  };
+  const sessionModel = { create: vi.fn().mockResolvedValue({}) };
+  const emailTokenModel = {
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    create: vi.fn().mockResolvedValue({}),
+  };
+  const transaction = {
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    account: accountModel,
+    session: sessionModel,
+    emailToken: emailTokenModel,
+  };
   const prisma = {
-    account: {
-      findUnique: vi.fn().mockResolvedValue(account),
-      create: vi.fn().mockResolvedValue(account),
-    },
-    session: { create: vi.fn().mockResolvedValue({}) },
-    emailToken: {
-      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
-      create: vi.fn().mockResolvedValue({}),
-    },
+    account: accountModel,
+    session: sessionModel,
+    emailToken: emailTokenModel,
+    $transaction: vi.fn(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+      callback(transaction),
+    ),
   } as unknown as PrismaClient;
   const app = express();
   app.use(express.json());

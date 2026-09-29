@@ -94,7 +94,15 @@ export function VerifyBanner({
   const ac = accountCopy[language];
   return (
     <div className="verify-banner" role="status">
-      <p>{ac.banner.body(account.email)}</p>
+      <p>
+        {account.emailVerification?.status === 'not-configured'
+          ? ac.email.deliveryUnavailable
+          : account.emailVerification?.status === 'provider-error'
+            ? ac.email.deliveryFailed
+            : account.emailVerification?.status === 'sent'
+              ? ac.banner.body(account.email)
+              : ac.banner.pending(account.email)}
+      </p>
       <div className="button-row">
         <Button onClick={() => void resendFromBanner()}>{ac.banner.resend}</Button>
         <Button onClick={() => setVerifyBannerHidden(true)}>{ac.banner.dismiss}</Button>

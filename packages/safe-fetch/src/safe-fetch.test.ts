@@ -32,9 +32,11 @@ const mockResolver = (map: Readonly<Record<string, readonly string[]>>): DnsReso
 
 let server: Server;
 let baseUrl: string;
+let requestCount = 0;
 
 beforeAll(async () => {
   server = createServer((req, res) => {
+    requestCount += 1;
     // Тестовый сервер: клиент обрывает соединения намеренно (cap/timeout) —
     // ошибки записи в закрытый сокет здесь ожидаемы и безопасны.
     res.on('error', () => undefined);
@@ -258,6 +260,48 @@ describe('safeFetch: запросы к локальному серверу', () 
     await expect(promise).rejects.toBeInstanceOf(TimeoutError);
   });
 
+  it('дедлайн охватывает зависший DNS-resolver', async () => {
+    const resolver: DnsResolver = {
+      resolveAll: () => new Promise<readonly string[]>(() => undefined),
+    };
+    await expect(
+      safeFetch('http://stalled-dns.example/', { resolver, timeoutMs: 20 }),
+    ).rejects.toBeInstanceOf(TimeoutError);
+  });
+
+  it('отмена во время DNS не открывает соединение после позднего resolve', async () => {
+    const controller = new AbortController();
+    const before = requestCount;
+    let releaseResolver: ((addresses: readonly string[]) => void) | undefined;
+    let markResolverStarted: (() => void) | undefined;
+    const resolverStarted = new Promise<void>((resolve) => {
+      markResolverStarted = resolve;
+    });
+    const resolver: DnsResolver = {
+      resolveAll: () => {
+        markResolverStarted?.();
+        return new Promise<readonly string[]>((resolve) => {
+          releaseResolver = resolve;
+        });
+      },
+    };
+    const promise = safeFetch(`${baseUrl}/ok`, {
+      dangerouslyAllowLoopback: true,
+      resolver,
+      timeoutMs: 10_000,
+      signal: controller.signal,
+    });
+
+    await resolverStarted;
+    controller.abort();
+    await expect(promise).rejects.toBeInstanceOf(RequestAbortedError);
+    expect(requestCount).toBe(before);
+
+    releaseResolver?.(['127.0.0.1']);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(requestCount).toBe(before);
+  });
+
   it('отмена вызывающего в полёте → RequestAbortedError, а не TimeoutError', async () => {
     // Отменённый скан обязан отпустить запрос сразу, не дожидаясь чужого
     // таймаута; и это не факт о сайте — из TimeoutError сделали бы вывод о нём.
@@ -289,6 +333,19 @@ describe('safeFetch: запросы к локальному серверу', () 
       }),
     ).rejects.toBeInstanceOf(RequestAbortedError);
     expect(requests).toBe(0);
+  });
+
+  it('отмена из resolver-а выигрывает у его позднего rejection', async () => {
+    const controller = new AbortController();
+    const resolver: DnsResolver = {
+      resolveAll: () => {
+        controller.abort();
+        return Promise.reject(new Error('late DNS failure'));
+      },
+    };
+    await expect(
+      safeFetch('http://cancelled-dns.example/', { resolver, signal: controller.signal }),
+    ).rejects.toBeInstanceOf(RequestAbortedError);
   });
 
   it('тело сверх maxBodyBytes обрывается с truncated=true', async () => {

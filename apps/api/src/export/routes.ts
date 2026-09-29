@@ -31,6 +31,7 @@ import {
   type ReportFormat,
 } from '../integrations/s3.ts';
 import { buildExportRecords, type ExportScan } from './build-records.ts';
+import { isReportSnapshotReady } from '../scans/report-readiness.ts';
 
 export interface ExportRouterDeps {
   readonly prisma: PrismaClient;
@@ -73,7 +74,13 @@ export function exportRouter(deps: ExportRouterDeps): Router {
     );
     const scan = await deps.prisma.scan.findFirst({
       where: { id: scanId, accountId },
-      include: { modules: true, issues: true, aiResponses: true, ...PAID_ACCESS_INCLUDE },
+      include: {
+        modules: true,
+        issues: true,
+        aiResponses: true,
+        job: { select: { status: true } },
+        ...PAID_ACCESS_INCLUDE,
+      },
     });
     if (scan === null) {
       throw notFound('scan not found');
@@ -95,6 +102,9 @@ export function exportRouter(deps: ExportRouterDeps): Router {
         'EXPORT_NOT_READY',
         'export is available after the scan reaches a terminal status',
       );
+    }
+    if (!isReportSnapshotReady(scan, scan.job)) {
+      throw conflict('EXPORT_NOT_READY', 'export is available after the report is finalized');
     }
     const records = buildExportRecords(scan as ExportScan);
     const validation = validateExportRecords(records);

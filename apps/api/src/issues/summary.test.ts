@@ -104,6 +104,7 @@ describe('issue order, rule summary and scan changes', () => {
       where: { id: scanId },
       data: { status: 'Completed', startedAt: NOW, completedAt: NOW },
     });
+    await prisma.job.updateMany({ where: { scanId }, data: { status: 'Done' } });
   }
 
   it('lists findings by urgency, not by the alphabetical order of the severity', async () => {
