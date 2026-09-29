@@ -6,9 +6,10 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runPerformanceAudit } from './audit.ts';
+import { MAX_PAGESPEED_REQUESTS, runPerformanceAudit, SAMPLES_PER_TARGET } from './audit.ts';
 import { createDefaultPerformanceRunner, legacySnapshotOf } from './index.ts';
-import { selectAuditUrls } from './url-selection.ts';
+import { DEVICE_STRATEGIES } from './types.ts';
+import { MAX_AUDITED_URLS_BY_TEMPLATE, selectAuditUrls } from './url-selection.ts';
 import { instabilityOf, median } from './sampling.ts';
 
 const ORIGIN = 'https://example.com/';
@@ -84,6 +85,18 @@ function transport(options: {
   return { fetcher, labCallCount: () => labCalls };
 }
 
+describe('MAX_PAGESPEED_REQUESTS', () => {
+  // B2: the request budget used to be hand-set beside the URL cap instead of
+  // derived from it, which is exactly how an 8-URL cap shipped against an
+  // unraised 14-request budget. This pins the derivation so the two constants
+  // cannot drift apart again without this test failing first.
+  it('is exactly MAX_AUDITED_URLS_BY_TEMPLATE × devices × SAMPLES_PER_TARGET', () => {
+    expect(MAX_PAGESPEED_REQUESTS).toBe(
+      MAX_AUDITED_URLS_BY_TEMPLATE * DEVICE_STRATEGIES.length * SAMPLES_PER_TARGET,
+    );
+  });
+});
+
 describe('selectAuditUrls', () => {
   it('always measures the entry page first, and bounds the rest', () => {
     const selected = selectAuditUrls(
@@ -147,6 +160,75 @@ describe('runPerformanceAudit', () => {
     expect(fetcher).toHaveBeenCalledTimes(9);
   });
 
+  it('samples one representative per page template, and records templatesFound/templatesAudited', async () => {
+    const { fetcher } = transport({});
+    const audit = await runPerformanceAudit(
+      {
+        origin: ORIGIN,
+        candidateUrls: [
+          'https://example.com/blog/2024/hello',
+          'https://example.com/blog/2025/world',
+          'https://example.com/about',
+        ],
+      },
+      { fetcher, samplesPerTarget: 1, maxUrls: 10, cruxApiKey: 'crux-key' },
+    );
+
+    // root ('/'), '/blog/{id}/{slug}', '/about' — three templates found. The
+    // bare year in `/blog/2024/hello` has no date context (no neighbouring
+    // month/day segment), so it reads as an id, not a date — see templates.ts.
+    expect(audit.templatesFound).toBe(3);
+    expect(audit.templatesAudited).toBe(3);
+    expect(audit.urls).toEqual([
+      expect.objectContaining({ url: ORIGIN, templateKey: '/', representedPages: 1 }),
+      expect.objectContaining({
+        url: 'https://example.com/blog/2024/hello',
+        templateKey: '/blog/{id}/{slug}',
+        representedPages: 2,
+      }),
+      expect.objectContaining({
+        url: 'https://example.com/about',
+        templateKey: '/about',
+        representedPages: 1,
+      }),
+    ]);
+  });
+
+  // B1: this is the test whose absence let the 8-URL cap ship against an
+  // unraised 14-request budget — every other audit test overrides
+  // `samplesPerTarget`/`maxUrls`/`maxRequests`, so none of them could catch a
+  // production-default audit running out of budget. No overrides here at all.
+  it('never caps the request budget at production defaults, over more templates than the old 3-URL cap', async () => {
+    const { fetcher, labCallCount } = transport({});
+    const candidateUrls = [
+      'https://example.com/about',
+      'https://example.com/pricing',
+      'https://example.com/contact',
+      'https://example.com/blog/hello',
+      'https://example.com/careers',
+      'https://example.com/support',
+    ];
+    const audit = await runPerformanceAudit(
+      { origin: ORIGIN, candidateUrls },
+      { fetcher, cruxApiKey: 'crux-key' },
+    );
+
+    // root + 6 distinct static/listing templates = 7 found, bounded to the
+    // 5-seat cap (entry page + 4 more representatives).
+    expect(audit.templatesFound).toBe(7);
+    expect(audit.templatesAudited).toBe(5);
+    // 5 urls x 2 devices x 2 samples = 20, exactly MAX_PAGESPEED_REQUESTS.
+    expect(labCallCount()).toBe(20);
+    expect(audit.requestBudget).toEqual({ cap: 20, used: 20, capped: false });
+    // Coverage counts URL/device pairs (5 urls × 2 devices), not raw requests.
+    expect(audit.coverage).toEqual({
+      applicableChecks: 10,
+      completedApplicableChecks: 10,
+      implementedRuleIds: audit.coverage.implementedRuleIds,
+    });
+    expect(audit.unmeasuredUrls).toEqual([]);
+  });
+
   it('reports a median and its instability, with the raw samples kept', async () => {
     const { fetcher } = transport({
       lab: (call) => json(lighthouseBody({ lcp: call === 1 ? 1_000 : 3_000 })),
@@ -199,16 +281,25 @@ describe('runPerformanceAudit', () => {
     expect(reasons).toContain('request budget reached before this sample was taken');
   });
 
-  it('records a provider failure as a device with no usable samples, not as a throw', async () => {
+  it('records a provider failure as an unmeasured URL, not as a throw', async () => {
     const { fetcher } = transport({ lab: () => json({}, 503) });
     const audit = await runPerformanceAudit(
       { origin: ORIGIN, candidateUrls: [], strategies: ['mobile'] },
       { fetcher, samplesPerTarget: 1 },
     );
 
-    expect(audit.urls[0]?.devices[0]?.usableSamples).toBe(0);
-    expect(audit.urls[0]?.devices[0]?.failures).toEqual(['PageSpeed Insights answered HTTP 503']);
+    // Every device on the entry page produced nothing usable, so it is not
+    // listed as audited — it is reported by name, with a typed reason, and
+    // does not appear in `urls` at all.
+    expect(audit.urls).toEqual([]);
+    expect(audit.unmeasuredUrls).toEqual([
+      { url: ORIGIN, templateKey: '/', representedPages: 1, reason: 'NoUsablePageSpeedSamples' },
+    ]);
+    expect(audit.templatesAudited).toBe(0);
     expect(audit.score).toBeNull();
+    // The attempt still counts toward coverage: it was attempted and closed,
+    // it simply completed with nothing usable.
+    expect(audit.coverage.applicableChecks).toBe(1);
     expect(audit.coverage.completedApplicableChecks).toBe(0);
   });
 

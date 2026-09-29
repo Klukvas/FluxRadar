@@ -1398,6 +1398,12 @@ export const copy = {
         perfAuditDevicesBoth: 'on both emulated devices',
         perfAuditDevicesOne: 'on one emulated device ({device})',
         perfAuditDevicesUnstated: 'on the devices this audit recorded',
+        // Shown instead of perfAuditLeadSingle/Repeated when every selected page
+        // failed to produce a usable PageSpeed run: a deployment-wide outage, not
+        // a page-by-page gap. The devices/median language above would otherwise
+        // describe measurements that were never taken.
+        perfAuditOutageLead:
+          'PageSpeed Insights did not return a usable measurement for any of the {count} selected pages in this scan; field data from CrUX is shown where available.',
         perfProvider: 'Lab measurements by Lighthouse {version} via PageSpeed Insights',
         perfProviderUnknown: 'Lab measurements by PageSpeed Insights (version not reported)',
         perfBudget: '{used} of {cap} provider requests used',
@@ -1407,10 +1413,37 @@ export const copy = {
         perfRuns: '{usable} of {requested} runs usable',
         perfDeviceUnmeasured:
           'None of the {requested} runs produced a measurement for this device, so nothing is shown for it.',
+        // ── Page templates (T5) ─────────────────────────────────────────────
+        //
+        // The audit samples one representative page per template rather than a
+        // fixed three URLs, so the lead states how many templates the crawl
+        // found and how many of them this audit actually measured.
+        // Both strings are phrased label-first, count-last — like perfRuns above
+        // — so neither has to grammatically agree with a count that is most
+        // often exactly 1 (the "/" template always represents one page).
+        perfTemplatesSummary:
+          'Page templates found on this site: {templatesFound} · measured below: {templatesAudited}',
+        perfTemplateRepresents: 'crawled pages like it: {count}',
         perfRegressionsHeading: 'Compared with the previous scan',
         perfNoRegressions: 'Nothing measured here got materially worse since the previous scan.',
+        // Shown instead of perfNoRegressions when a template was skipped from the
+        // comparison (a changed representative, a dropped seat, or an unmeasured
+        // page this scan): "nothing got worse" would otherwise read as a claim
+        // about pages that were never actually compared this scan.
+        perfNoRegressionsQualified:
+          'Nothing that could be compared got materially worse since the previous scan.',
         perfNotCompared:
           'Not compared with the previous scan: {reason}. A figure from a different measurement setup would look like a change in your site.',
+        perfTemplateNotComparableLabel: 'Not compared',
+        perfTemplateNotComparable:
+          'Not compared: the representative page for this template changed since the previous scan (was {previous}, now {current}).',
+        perfTemplateDroppedLabel: 'Not measured this scan',
+        perfTemplateDropped:
+          'Not measured this scan: this page template was audited in the previous scan (as {previous}), but did not get one of this scan’s seats.',
+        perfUnmeasuredLabel: 'Not measured this scan',
+        perfUnmeasuredReasonNoUsableSamples:
+          'Not measured this scan: none of the PageSpeed runs for this page produced a usable result.',
+        perfUnmeasuredReasonUnknown: 'Not measured this scan: no usable measurement was produced.',
         // The reason itself, from the code the audit stored. The English sentence
         // stored beside it is the fallback for a report written before the code
         // existed, and for a code this build does not know.
@@ -3077,6 +3110,8 @@ export const copy = {
         perfAuditDevicesBoth: 'на двох емульованих пристроях',
         perfAuditDevicesOne: 'на одному емульованому пристрої ({device})',
         perfAuditDevicesUnstated: 'на пристроях, які записав цей аудит',
+        perfAuditOutageLead:
+          'PageSpeed Insights не повернув придатного вимірювання для жодної з {count} обраних сторінок цього сканування; дані поля CrUX показано там, де вони є.',
         perfProvider: 'Лабораторні вимірювання: Lighthouse {version} через PageSpeed Insights',
         perfProviderUnknown: 'Лабораторні вимірювання: PageSpeed Insights (версію не повідомлено)',
         perfBudget: 'Використано {used} з {cap} запитів до постачальника',
@@ -3086,10 +3121,25 @@ export const copy = {
         perfRuns: 'придатних запусків: {usable} з {requested}',
         perfDeviceUnmeasured:
           'Жоден із {requested} запусків не дав вимірювання для цього пристрою, тому для нього нічого не показано.',
+        perfTemplatesSummary:
+          'Знайдено шаблонів сторінок на цьому сайті: {templatesFound} · виміряно нижче: {templatesAudited}',
+        perfTemplateRepresents: 'сканованих сторінок такого типу: {count}',
         perfRegressionsHeading: 'Порівняння з попереднім скануванням',
         perfNoRegressions: 'Ніщо з виміряного не стало суттєво гіршим із попереднього сканування.',
+        perfNoRegressionsQualified:
+          'Ніщо з того, що можна було порівняти, не стало суттєво гіршим із попереднього сканування.',
         perfNotCompared:
           'Порівняння з попереднім скануванням немає: {reason}. Значення з іншого середовища вимірювання виглядало б як зміна вашого сайту.',
+        perfTemplateNotComparableLabel: 'Не порівняно',
+        perfTemplateNotComparable:
+          'Не порівняно: представницьку сторінку цього шаблону змінено з часу попереднього сканування (була {previous}, стала {current}).',
+        perfTemplateDroppedLabel: 'Не виміряно цього разу',
+        perfTemplateDropped:
+          'Не виміряно цього разу: цей шаблон сторінки аудитувався в попередньому скануванні (як {previous}), але не отримав місця в цьому.',
+        perfUnmeasuredLabel: 'Не виміряно цього разу',
+        perfUnmeasuredReasonNoUsableSamples:
+          'Не виміряно цього разу: жоден із запусків PageSpeed для цієї сторінки не дав придатного результату.',
+        perfUnmeasuredReasonUnknown: 'Не виміряно цього разу: придатного вимірювання не отримано.',
         perfIncomparableAuditVersion:
           'попереднє сканування виміряно версією {previous}, а це — версією {current}',
         perfIncomparableVersionUnrecorded:

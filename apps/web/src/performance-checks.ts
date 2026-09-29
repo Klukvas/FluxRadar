@@ -177,6 +177,13 @@ export interface UrlReading {
   /** The page the section's headline figures came from. */
   readonly primary: boolean;
   readonly devices: readonly DeviceReading[];
+  /**
+   * The page template this URL represents, and how many crawled pages share
+   * it. Null for a snapshot stored before T5 — the panel shows the URL alone
+   * rather than a template it was never given.
+   */
+  readonly templateKey: string | null;
+  readonly representedPages: number | null;
 }
 
 export type FieldState = 'available' | 'not_configured' | 'no_data' | 'request_failed';
@@ -186,6 +193,30 @@ export interface FieldReading {
   readonly measurements: readonly PerformanceMeasurement[];
   readonly periodStart: string | null;
   readonly periodEnd: string | null;
+}
+
+/** A template whose representative URL changed since the previous scan. */
+export interface TemplateNotComparableReading {
+  readonly templateKey: string;
+  readonly previousUrl: string;
+  readonly currentUrl: string;
+}
+
+/** A template the previous scan audited that has no seat in this one at all. */
+export interface TemplateDroppedReading {
+  readonly templateKey: string;
+  readonly previousUrl: string;
+}
+
+/** Why a selected template's representative produced no usable sample this scan. */
+export type UnmeasuredUrlReason = 'NoUsablePageSpeedSamples' | 'unknown';
+
+/** A template the audit selected a representative for, but never measured. */
+export interface UnmeasuredUrlReading {
+  readonly url: string;
+  readonly templateKey: string;
+  readonly representedPages: number;
+  readonly reason: UnmeasuredUrlReason;
 }
 
 export interface RegressionReading {
@@ -235,6 +266,18 @@ export interface PerformanceAuditReading {
   readonly budget: { readonly cap: number; readonly used: number; readonly capped: boolean } | null;
   /** The provider versions the numbers were produced by, for the source note. */
   readonly providers: readonly { readonly name: string; readonly version: string | null }[];
+  /**
+   * How many page templates the crawl sorted into, and how many of them this
+   * audit measured. Null for a snapshot stored before T5.
+   */
+  readonly templatesFound: number | null;
+  readonly templatesAudited: number | null;
+  /** Templates skipped from the regression comparison because their representative URL changed. */
+  readonly templatesNotComparable: readonly TemplateNotComparableReading[];
+  /** Templates the previous scan audited that have no seat in this one at all. */
+  readonly templatesDropped: readonly TemplateDroppedReading[];
+  /** Templates this audit selected a representative for, but never measured. */
+  readonly unmeasuredUrls: readonly UnmeasuredUrlReading[];
 }
 
 /** One lab metric of one device, read out of the audit's median series. */
@@ -316,6 +359,42 @@ function urlReading(value: unknown): UrlReading | null {
       const reading = deviceReading(device);
       return reading === null ? [] : [reading];
     }),
+    templateKey: stringValue(record?.templateKey),
+    representedPages: numberValue(record?.representedPages),
+  };
+}
+
+function templateNotComparableReading(value: unknown): TemplateNotComparableReading | null {
+  const record = asRecord(value);
+  const templateKey = stringValue(record?.templateKey);
+  const previousUrl = stringValue(record?.previousUrl);
+  const currentUrl = stringValue(record?.currentUrl);
+  return templateKey === null || previousUrl === null || currentUrl === null
+    ? null
+    : { templateKey, previousUrl, currentUrl };
+}
+
+function templateDroppedReading(value: unknown): TemplateDroppedReading | null {
+  const record = asRecord(value);
+  const templateKey = stringValue(record?.templateKey);
+  const previousUrl = stringValue(record?.previousUrl);
+  return templateKey === null || previousUrl === null ? null : { templateKey, previousUrl };
+}
+
+const UNMEASURED_URL_REASONS: readonly UnmeasuredUrlReason[] = ['NoUsablePageSpeedSamples'];
+
+function unmeasuredUrlReading(value: unknown): UnmeasuredUrlReading | null {
+  const record = asRecord(value);
+  const url = stringValue(record?.url);
+  const templateKey = stringValue(record?.templateKey);
+  if (url === null || templateKey === null) return null;
+  const reasonValue = record?.reason;
+  const reason = UNMEASURED_URL_REASONS.find((candidate) => candidate === reasonValue) ?? 'unknown';
+  return {
+    url,
+    templateKey,
+    representedPages: numberValue(record?.representedPages) ?? 1,
+    reason,
   };
 }
 
@@ -419,7 +498,18 @@ export function performanceAuditOf(metadata: Metadata): PerformanceAuditReading 
     const reading = urlReading(entry);
     return reading === null ? [] : [reading];
   });
-  if (urls.length === 0) return null;
+  const unmeasuredUrls = Array.isArray(audit.unmeasuredUrls)
+    ? audit.unmeasuredUrls.flatMap((entry) => {
+        const reading = unmeasuredUrlReading(entry);
+        return reading === null ? [] : [reading];
+      })
+    : [];
+  // A deployment-wide PageSpeed outage can leave `urls` empty while every
+  // selection still shows up in `unmeasuredUrls` — that is a T5 audit with
+  // nothing measurable, not a pre-T5 row with no audit at all. Falling back
+  // to LegacyBody here would silently drop the "not measured this scan" rows
+  // this shape exists to render.
+  if (urls.length === 0 && unmeasuredUrls.length === 0) return null;
   const budget = asRecord(audit.requestBudget);
   const comparison = asRecord(audit.comparison);
   const providers = Array.isArray(audit.providers) ? audit.providers : [];
@@ -448,5 +538,20 @@ export function performanceAuditOf(metadata: Metadata): PerformanceAuditReading 
       const name = stringValue(record?.name);
       return name === null ? [] : [{ name, version: stringValue(record?.version) }];
     }),
+    templatesFound: numberValue(audit.templatesFound),
+    templatesAudited: numberValue(audit.templatesAudited),
+    templatesNotComparable: Array.isArray(comparison?.templatesNotComparable)
+      ? comparison.templatesNotComparable.flatMap((entry) => {
+          const reading = templateNotComparableReading(entry);
+          return reading === null ? [] : [reading];
+        })
+      : [],
+    templatesDropped: Array.isArray(comparison?.templatesDropped)
+      ? comparison.templatesDropped.flatMap((entry) => {
+          const reading = templateDroppedReading(entry);
+          return reading === null ? [] : [reading];
+        })
+      : [],
+    unmeasuredUrls,
   };
 }

@@ -750,6 +750,423 @@ describe('the Performance card', () => {
   });
 });
 
+// T5: the audit samples one representative page per template instead of a
+// fixed three URLs. These cover the panel's new surface — the template
+// summary in the lead, the represented-page count beside each audited URL,
+// and the "representative changed" comparison state — in both languages.
+describe('the Performance card — page templates (T5)', () => {
+  function deviceOf(strategy: 'mobile' | 'desktop', lcpMs: number) {
+    return {
+      strategy,
+      requestedSamples: 1,
+      usableSamples: 1,
+      failures: [],
+      metrics: { lcpMs: { median: lcpMs, samples: [lcpMs], instability: 0 } },
+    };
+  }
+
+  function templatedPerformanceModule(): ScanModule {
+    return moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+            {
+              url: 'https://smile.example/blog/2024/hello',
+              primary: false,
+              templateKey: '/blog/{date}/{slug}',
+              representedPages: 5,
+              devices: [deviceOf('mobile', 2_100)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 8, used: 2, capped: false },
+          templatesFound: 3,
+          templatesAudited: 2,
+          comparison: {
+            previousScanId: 'previous-scan',
+            previousObservedAt: '2026-09-01T00:00:00.000Z',
+            incomparableReason: null,
+            incomparable: null,
+            templatesNotComparable: [
+              {
+                templateKey: '/blog/{date}/{slug}',
+                previousUrl: 'https://smile.example/blog/2023/old',
+                currentUrl: 'https://smile.example/blog/2024/hello',
+              },
+            ],
+          },
+          regressions: [],
+        },
+      },
+    });
+  }
+
+  it('states how many templates were found and audited, and the represented-page count per URL', async () => {
+    await openReport(dashboardOf([templatedPerformanceModule()]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText('Page templates found on this site: 3 · measured below: 2'),
+    ).toBeTruthy();
+    expect(within(region).getByText(/crawled pages like it: 5/)).toBeTruthy();
+  });
+
+  it('reports a template as not comparable when its representative URL changed', async () => {
+    await openReport(dashboardOf([templatedPerformanceModule()]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        /Not compared: the representative page for this template changed since the previous scan/,
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).getByText(
+        /was https:\/\/smile\.example\/blog\/2023\/old, now https:\/\/smile\.example\/blog\/2024\/hello/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('renders the same information in Ukrainian', async () => {
+    await openReport(dashboardOf([templatedPerformanceModule()]), 'uk');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(
+      within(region).getByText('Знайдено шаблонів сторінок на цьому сайті: 3 · виміряно нижче: 2'),
+    ).toBeTruthy();
+    expect(within(region).getByText(/сканованих сторінок такого типу: 5/)).toBeTruthy();
+    expect(
+      within(region).getByText(/Не порівняно: представницьку сторінку цього шаблону змінено/),
+    ).toBeTruthy();
+  });
+
+  // M3: templatesFound/templatesAudited and representedPages are most often
+  // exactly 1 (a small site, or the "/" template), and the label-first phrasing
+  // has to render that count without a plural mismatch in either language.
+  it('renders singular counts without a plural mismatch (M3)', async () => {
+    const singular = moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 2, capped: false },
+          templatesFound: 1,
+          templatesAudited: 1,
+          comparison: null,
+          regressions: [],
+        },
+      },
+    });
+
+    await openReport(dashboardOf([singular]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText('Page templates found on this site: 1 · measured below: 1'),
+    ).toBeTruthy();
+    expect(within(region).getByText(/crawled pages like it: 1/)).toBeTruthy();
+  });
+
+  // L4: "nothing got materially worse" must not be shown unqualified when a
+  // template was skipped from the comparison — that reads as a claim about a
+  // page that was never actually compared this scan.
+  it('qualifies "nothing got worse" when a template was skipped from the comparison (L4)', async () => {
+    const module = templatedPerformanceModule();
+    await openReport(dashboardOf([module]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        'Nothing that could be compared got materially worse since the previous scan.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).queryByText(
+        'Nothing measured here got materially worse since the previous scan.',
+      ),
+    ).toBeNull();
+  });
+
+  // F2: an unmeasured template is also a gap in the comparison — it was never
+  // re-measured this scan, so "nothing got worse" needs the same qualifier as
+  // a dropped or not-comparable template, not the unqualified claim.
+  function moduleWithComparisonAndUnmeasured() {
+    return moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 3, capped: false },
+          templatesFound: 2,
+          templatesAudited: 1,
+          comparison: {
+            previousScanId: 'previous-scan',
+            previousObservedAt: '2026-09-01T00:00:00.000Z',
+            incomparableReason: null,
+            incomparable: null,
+            templatesNotComparable: [],
+            templatesDropped: [],
+          },
+          regressions: [],
+          unmeasuredUrls: [
+            {
+              url: 'https://smile.example/about',
+              templateKey: '/about',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it('qualifies "nothing got worse" when a template was only unmeasured this scan (F2)', async () => {
+    await openReport(dashboardOf([moduleWithComparisonAndUnmeasured()]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        'Nothing that could be compared got materially worse since the previous scan.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).queryByText(
+        'Nothing measured here got materially worse since the previous scan.',
+      ),
+    ).toBeNull();
+  });
+
+  it('qualifies "nothing got worse" for an unmeasured template in Ukrainian (F2)', async () => {
+    await openReport(dashboardOf([moduleWithComparisonAndUnmeasured()]), 'uk');
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(
+      within(region).getByText(
+        'Ніщо з того, що можна було порівняти, не стало суттєво гіршим із попереднього сканування.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(region).queryByText(
+        'Ніщо з виміряного не стало суттєво гіршим із попереднього сканування.',
+      ),
+    ).toBeNull();
+  });
+
+  it('names a template that lost its seat entirely since the previous scan (L3)', async () => {
+    const module = moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 2, capped: false },
+          templatesFound: 3,
+          templatesAudited: 1,
+          comparison: {
+            previousScanId: 'previous-scan',
+            previousObservedAt: '2026-09-01T00:00:00.000Z',
+            incomparableReason: null,
+            incomparable: null,
+            templatesNotComparable: [],
+            templatesDropped: [
+              { templateKey: '/about', previousUrl: 'https://smile.example/about' },
+            ],
+          },
+          regressions: [],
+        },
+      },
+    });
+
+    await openReport(dashboardOf([module]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(within(region).getByText('/about')).toBeTruthy();
+    expect(
+      within(region).getByText(/this page template was audited in the previous scan/),
+    ).toBeTruthy();
+  });
+
+  it('names a URL the audit selected but never measured, with a typed reason (B1)', async () => {
+    const module = moduleOf({
+      module: 'Performance',
+      score: 84,
+      metadata: {
+        audit: {
+          urls: [
+            {
+              url: 'https://smile.example/',
+              primary: true,
+              templateKey: '/',
+              representedPages: 1,
+              devices: [deviceOf('mobile', 2_000)],
+            },
+          ],
+          field: { state: 'not_configured', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 4, used: 4, capped: false },
+          templatesFound: 2,
+          templatesAudited: 1,
+          comparison: null,
+          regressions: [],
+          unmeasuredUrls: [
+            {
+              url: 'https://smile.example/about',
+              templateKey: '/about',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+          ],
+        },
+      },
+    });
+
+    await openReport(dashboardOf([module]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(within(region).getByText('https://smile.example/about')).toBeTruthy();
+    expect(
+      within(region).getByText(/none of the PageSpeed runs for this page produced a usable result/),
+    ).toBeTruthy();
+  });
+
+  // N2: a deployment-wide PageSpeed outage leaves `urls` empty while every
+  // selection still shows up in `unmeasuredUrls`. That must still render the
+  // audit body and its "not measured this scan" rows, not fall back to
+  // LegacyBody, which has no way to show them at all.
+  function outageModule() {
+    return moduleOf({
+      module: 'Performance',
+      score: null,
+      metadata: {
+        audit: {
+          urls: [],
+          field: { state: 'available', metrics: null },
+          providers: [{ name: 'pagespeed', version: '12.0.0' }],
+          requestBudget: { cap: 8, used: 8, capped: false },
+          templatesFound: 2,
+          templatesAudited: 0,
+          comparison: null,
+          regressions: [],
+          unmeasuredUrls: [
+            {
+              url: 'https://smile.example/',
+              templateKey: '/',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+            {
+              url: 'https://smile.example/about',
+              templateKey: '/about',
+              representedPages: 1,
+              reason: 'NoUsablePageSpeedSamples',
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it('names every unmeasured URL instead of falling back to the legacy body during a PageSpeed outage (N2)', async () => {
+    await openReport(dashboardOf([outageModule()]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(within(region).getByText('https://smile.example/')).toBeTruthy();
+    expect(within(region).getByText('https://smile.example/about')).toBeTruthy();
+    expect(
+      within(region).getAllByText(
+        /none of the PageSpeed runs for this page produced a usable result/,
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('names every unmeasured URL during a PageSpeed outage in Ukrainian (N2)', async () => {
+    await openReport(dashboardOf([outageModule()]), 'uk');
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(within(region).getByText('https://smile.example/')).toBeTruthy();
+    expect(within(region).getByText('https://smile.example/about')).toBeTruthy();
+    expect(
+      within(region).getAllByText(
+        /жоден із запусків PageSpeed для цієї сторінки не дав придатного результату/,
+      ),
+    ).toHaveLength(2);
+  });
+
+  // F1: the outage lead must not claim any page was measured, or state a
+  // sample count and median language that never happened.
+  it('opens a PageSpeed outage with a lead that admits nothing was measured (F1)', async () => {
+    await openReport(dashboardOf([outageModule()]));
+    fireEvent.click(screen.getByRole('button', { name: 'Show checks' }));
+    const region = screen.getByRole('region', { name: 'Performance · checks performed' });
+    expect(
+      within(region).getByText(
+        'PageSpeed Insights did not return a usable measurement for any of the 2 selected pages in this scan; field data from CrUX is shown where available.',
+      ),
+    ).toBeTruthy();
+    expect(within(region).queryByText(/was measured/)).toBeNull();
+  });
+
+  it('opens a PageSpeed outage with a truthful lead in Ukrainian (F1)', async () => {
+    await openReport(dashboardOf([outageModule()]), 'uk');
+    fireEvent.click(screen.getByRole('button', { name: 'Показати перевірки' }));
+    const region = screen.getByRole('region', { name: 'Performance · виконані перевірки' });
+    expect(
+      within(region).getByText(
+        'PageSpeed Insights не повернув придатного вимірювання для жодної з 2 обраних сторінок цього сканування; дані поля CrUX показано там, де вони є.',
+      ),
+    ).toBeTruthy();
+  });
+});
+
 describe('the UX/Conversion card', () => {
   const signals = {
     pagesAnalyzed: 4,

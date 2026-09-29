@@ -19,6 +19,16 @@
 //      the site got slower — subtracting again for the same slowdown would
 //      penalise one fact twice. Regressions are reported beside the score, as
 //      context for it, and the audit's `score` is computed without them.
+//   5. A template whose representative URL changed is not compared either. T5
+//      samples one representative per page template rather than a fixed three
+//      URLs, and the representative a template picks can change between scans
+//      (a new page joined the template and sorted first, an old one dropped out
+//      of the crawl). Comparing /blog/2024/a against /blog/2025/b as if they
+//      were the same measurement twice would violate rule 2 in spirit even
+//      though it does not violate it in the letter — they are two different
+//      URLs. So a template is skipped from the regression comparison whenever
+//      its representative moved, and that is reported by name rather than by
+//      silently producing no regressions for it.
 
 import { REGRESSION_MIN_ABSOLUTE, REGRESSION_RATIO } from './thresholds.ts';
 import type {
@@ -27,6 +37,9 @@ import type {
   PerformanceAudit,
   PerformanceComparison,
   PerformanceRegression,
+  TemplateDropped,
+  TemplateNotComparable,
+  UnmeasuredUrl,
   UrlAudit,
 } from './types.ts';
 
@@ -133,6 +146,68 @@ export function performanceRegressions(
   return regressions;
 }
 
+/**
+ * Every template both audits sampled, whose representative URL differs
+ * between them — the previous and current URL a reader would otherwise see
+ * silently compared against each other.
+ *
+ * URLs with no `templateKey` (a snapshot stored before T5) are excluded rather
+ * than treated as one unnamed template: there is nothing to name in the
+ * report for them, and they fall back to being compared the old way, by URL,
+ * in `performanceRegressions` itself.
+ */
+function templatesWithChangedRepresentative(
+  current: readonly UrlAudit[],
+  previous: readonly UrlAudit[],
+): readonly TemplateNotComparable[] {
+  const previousByTemplate = new Map<string, string>();
+  for (const entry of previous) {
+    if (entry.templateKey !== undefined) previousByTemplate.set(entry.templateKey, entry.url);
+  }
+  const changed: TemplateNotComparable[] = [];
+  for (const entry of current) {
+    if (entry.templateKey === undefined) continue;
+    const previousUrl = previousByTemplate.get(entry.templateKey);
+    if (previousUrl !== undefined && previousUrl !== entry.url) {
+      changed.push({ templateKey: entry.templateKey, previousUrl, currentUrl: entry.url });
+    }
+  }
+  return changed;
+}
+
+/**
+ * Every template the previous audit sampled that has no representative in the
+ * current one at all — as distinct from `templatesWithChangedRepresentative`,
+ * where the template is still present under a different URL. The five audited
+ * seats reshuffle scan to scan as template sizes drift (a template that grew
+ * shrinks another one out of its seat), so this is expected, not an error; it
+ * is still reported by name rather than silently.
+ *
+ * A template that kept its seat but produced no usable sample belongs to
+ * `unmeasuredUrls`, not here: it did not lose the seat, the measurement of it
+ * failed. `currentUnmeasured` is folded in so that case is excluded rather
+ * than double-reported as both "not measured this scan" and "lost its seat".
+ */
+function templatesThatLostTheirSeat(
+  current: readonly UrlAudit[],
+  currentUnmeasured: readonly UnmeasuredUrl[],
+  previous: readonly UrlAudit[],
+): readonly TemplateDropped[] {
+  const currentTemplateKeys = new Set([
+    ...current.flatMap((entry) => (entry.templateKey === undefined ? [] : [entry.templateKey])),
+    ...currentUnmeasured.map((entry) => entry.templateKey),
+  ]);
+  const dropped: TemplateDropped[] = [];
+  const seen = new Set<string>();
+  for (const entry of previous) {
+    if (entry.templateKey === undefined) continue;
+    if (currentTemplateKeys.has(entry.templateKey) || seen.has(entry.templateKey)) continue;
+    seen.add(entry.templateKey);
+    dropped.push({ templateKey: entry.templateKey, previousUrl: entry.url });
+  }
+  return dropped;
+}
+
 /** The Lighthouse major version an audit's samples were taken with, when stated. */
 function lighthouseMajor(audit: PerformanceAudit): string | null {
   const version = audit.providers.find((provider) => provider.name === 'pagespeed')?.version;
@@ -220,13 +295,35 @@ export function compareWithPrevious(
 ): ComparisonResult {
   if (previous === null) return { regressions: [], comparison: null };
   const detail = incomparableDetail(current, previous.audit);
+  if (detail !== null) {
+    return {
+      regressions: [],
+      comparison: {
+        previousScanId: previous.scanId,
+        previousObservedAt: previous.observedAt,
+        incomparableReason: incomparableSentence(detail),
+        incomparable: detail,
+        templatesNotComparable: [],
+        templatesDropped: [],
+      },
+    };
+  }
+  const changedTemplates = templatesWithChangedRepresentative(current.urls, previous.audit.urls);
+  const changedUrls = new Set(changedTemplates.map((entry) => entry.currentUrl));
+  const comparableUrls = current.urls.filter((entry) => !changedUrls.has(entry.url));
   return {
-    regressions: detail === null ? performanceRegressions(current.urls, previous) : [],
+    regressions: performanceRegressions(comparableUrls, previous),
     comparison: {
       previousScanId: previous.scanId,
       previousObservedAt: previous.observedAt,
-      incomparableReason: detail === null ? null : incomparableSentence(detail),
-      incomparable: detail,
+      incomparableReason: null,
+      incomparable: null,
+      templatesNotComparable: changedTemplates,
+      templatesDropped: templatesThatLostTheirSeat(
+        current.urls,
+        current.unmeasuredUrls ?? [],
+        previous.audit.urls,
+      ),
     },
   };
 }

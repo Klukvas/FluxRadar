@@ -70,6 +70,12 @@ export function PerformanceChecksBody(props: {
  */
 function auditLead(audit: PerformanceAuditReading, language: Language): string {
   const t = copy[language].report.checks;
+  // No page below was measured — a deployment-wide PageSpeed outage, not a
+  // page-by-page gap — so the devices/median language below does not apply:
+  // it would describe runs that were never taken.
+  if (audit.urls.length === 0) {
+    return fillCopy(t.perfAuditOutageLead, { count: String(audit.unmeasuredUrls.length) });
+  }
   const [device] = audit.sampling.devices;
   const devices =
     audit.sampling.devices.length > 1
@@ -90,13 +96,59 @@ function AuditBody(props: { audit: PerformanceAuditReading; language: Language }
   return (
     <>
       <p className="muted">{auditLead(audit, props.language)}</p>
+      <TemplatesSummary audit={audit} language={props.language} />
       <SourceNote audit={audit} language={props.language} />
       {audit.urls.map((entry) => (
         <UrlGroup key={entry.url} entry={entry} language={props.language} />
       ))}
+      <UnmeasuredGroup audit={audit} language={props.language} />
       <FieldGroup field={audit.field} language={props.language} />
       <ComparisonGroup audit={audit} language={props.language} />
     </>
+  );
+}
+
+/**
+ * Templates the audit picked a representative for but never got a usable
+ * sample from — named rather than silently missing from the measured list
+ * above, with a reason a reader can act on.
+ */
+function UnmeasuredGroup(props: { audit: PerformanceAuditReading; language: Language }) {
+  const t = copy[props.language].report.checks;
+  const { unmeasuredUrls } = props.audit;
+  if (unmeasuredUrls.length === 0) return null;
+  const reasonCopy: Readonly<Record<string, string>> = {
+    NoUsablePageSpeedSamples: t.perfUnmeasuredReasonNoUsableSamples,
+    unknown: t.perfUnmeasuredReasonUnknown,
+  };
+  return (
+    <ul className="module-checks__list">
+      {unmeasuredUrls.map((entry) => (
+        <CheckRow
+          key={entry.url}
+          resultClass="skipped"
+          resultLabel={t.perfUnmeasuredLabel}
+          title={entry.url}
+          detail={reasonCopy[entry.reason] ?? t.perfUnmeasuredReasonUnknown}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * How many page templates the crawl found and how many this audit measured.
+ * Null for a snapshot stored before T5, so the section prints nothing extra
+ * rather than a sentence about zero templates.
+ */
+function TemplatesSummary(props: { audit: PerformanceAuditReading; language: Language }) {
+  const t = copy[props.language].report.checks;
+  const { templatesFound, templatesAudited } = props.audit;
+  if (templatesFound === null || templatesAudited === null) return null;
+  return (
+    <p className="muted">
+      {fillCopy(t.perfTemplatesSummary, { templatesFound, templatesAudited })}
+    </p>
   );
 }
 
@@ -120,13 +172,19 @@ function SourceNote(props: { audit: PerformanceAuditReading; language: Language 
 
 function UrlGroup(props: { entry: UrlReading; language: Language }) {
   const t = copy[props.language].report.checks;
+  const { entry } = props;
+  const represents =
+    entry.templateKey === null || entry.representedPages === null
+      ? ''
+      : ` · ${fillCopy(t.perfTemplateRepresents, { count: entry.representedPages })}`;
   return (
     <div className="module-checks__group">
       <h4 className="module-checks__subheading">
-        <span className="technical">{props.entry.url}</span>
-        {props.entry.primary ? ` · ${t.perfPrimaryPage}` : ''}
+        <span className="technical">{entry.url}</span>
+        {entry.primary ? ` · ${t.perfPrimaryPage}` : ''}
+        {represents}
       </h4>
-      {props.entry.devices.map((device) => (
+      {entry.devices.map((device) => (
         <DeviceGroup key={device.strategy} device={device} language={props.language} />
       ))}
     </div>
@@ -252,7 +310,13 @@ function ComparisonGroup(props: { audit: PerformanceAuditReading; language: Lang
           {fillCopy(t.perfNotCompared, { reason: incomparable })}
         </p>
       ) : audit.regressions.length === 0 ? (
-        <p className="muted">{t.perfNoRegressions}</p>
+        <p className="muted">
+          {audit.templatesNotComparable.length > 0 ||
+          audit.templatesDropped.length > 0 ||
+          audit.unmeasuredUrls.length > 0
+            ? t.perfNoRegressionsQualified
+            : t.perfNoRegressions}
+        </p>
       ) : (
         <ul className="module-checks__list">
           {audit.regressions.map((regression) => (
@@ -264,6 +328,35 @@ function ComparisonGroup(props: { audit: PerformanceAuditReading; language: Lang
                 regression.strategy === 'mobile' ? t.perfStrategyMobile : t.perfStrategyDesktop
               }`}
               detail={`${regression.url} · ${regression.previous} → ${regression.current}`}
+            />
+          ))}
+        </ul>
+      )}
+      {incomparable !== null || audit.templatesNotComparable.length === 0 ? null : (
+        <ul className="module-checks__list">
+          {audit.templatesNotComparable.map((entry) => (
+            <CheckRow
+              key={entry.templateKey}
+              resultClass="skipped"
+              resultLabel={t.perfTemplateNotComparableLabel}
+              title={entry.templateKey}
+              detail={fillCopy(t.perfTemplateNotComparable, {
+                previous: entry.previousUrl,
+                current: entry.currentUrl,
+              })}
+            />
+          ))}
+        </ul>
+      )}
+      {incomparable !== null || audit.templatesDropped.length === 0 ? null : (
+        <ul className="module-checks__list">
+          {audit.templatesDropped.map((entry) => (
+            <CheckRow
+              key={entry.templateKey}
+              resultClass="skipped"
+              resultLabel={t.perfTemplateDroppedLabel}
+              title={entry.templateKey}
+              detail={fillCopy(t.perfTemplateDropped, { previous: entry.previousUrl })}
             />
           ))}
         </ul>

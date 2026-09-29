@@ -336,6 +336,8 @@ describe('compareWithPrevious', () => {
       previousObservedAt: '2026-09-01T00:00:00.000Z',
       incomparableReason: null,
       incomparable: null,
+      templatesNotComparable: [],
+      templatesDropped: [],
     });
   });
 
