@@ -136,6 +136,19 @@ describe('the Action Plan block', () => {
       screen.getByText(/sends this report’s rule names, severities, open counts/i),
     ).toBeTruthy();
     expect(screen.getByText(/never sends evidence excerpts/i)).toBeTruthy();
+    const button = screen.getByRole('button', { name: 'Write the Action Plan' });
+    expect(button.querySelector('.action-plan__button-icon')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
+  });
+
+  it('keeps an existing plan-language notice clear of the picker', async () => {
+    stubFetch({ state: stateOf({ languages: ['uk'] }) });
+    renderPlan();
+
+    const notice = await screen.findByText(/A plan already exists in Ukrainian/i);
+    expect(notice).toHaveClass('action-plan__other-language');
   });
 
   it('posts the chosen language and the notice on screen, and shows the run in flight', async () => {

@@ -16,6 +16,17 @@ import { ACTION_PLAN_NOTICE_VERSION } from '../apps/web/src/ai-processing-notice
 const API_URL = 'http://127.0.0.1:3310';
 const SCAN_ID = 'scan-action-plan';
 
+/**
+ * The moment every test reads the report at.
+ *
+ * The block refuses a generation once the three-day Plan Window has closed, and
+ * it judges that against the browser's clock — so a fixture with a fixed
+ * `windowEndsAt` silently becomes a "window closed" report the day it passes.
+ * The clock is pinned instead of the dates being pushed forward, because the
+ * state under test is "the window is open", not "the date is in the future".
+ */
+const NOW = new Date('2026-09-22T12:05:00.000Z');
+
 interface PlanAction {
   readonly title: string;
   readonly why: string;
@@ -69,6 +80,29 @@ const SCAN = {
   modules: [],
 } as const;
 
+/**
+ * The SEO section's per-rule check list, as the API records it in the module's
+ * metadata. A row with affected targets is the one the reader can press to see
+ * the findings behind it; the passing row is here so the press is a choice
+ * between rows rather than the only thing on screen.
+ */
+const SEO_RULE_CHECKS = [
+  {
+    ruleId: 'SEO-TECH-001',
+    title: 'robots.txt reachable',
+    targetKind: 'site',
+    applicableTargets: 1,
+    affectedTargets: 1,
+  },
+  {
+    ruleId: 'SEO-TECH-002',
+    title: 'sitemap reachable',
+    targetKind: 'site',
+    applicableTargets: 1,
+    affectedTargets: 0,
+  },
+] as const;
+
 const MODULES = [
   {
     module: 'SEO',
@@ -79,7 +113,7 @@ const MODULES = [
     applicableChecks: 12,
     completedApplicableChecks: 12,
     usableOutput: true,
-    metadata: {},
+    metadata: { ruleChecks: SEO_RULE_CHECKS },
   },
   {
     module: 'AI SEO / GEO',
@@ -94,6 +128,16 @@ const MODULES = [
   },
 ] as const;
 
+/**
+ * The GEO answers, with mention signals in the shape the API records them.
+ *
+ * Not booleans. A question that names the business proves nothing when the
+ * answer repeats it, so that signal is `named-in-question` and the report must
+ * read it as "not measured" — neither a mention nor a miss. The two discovery
+ * answers are the ones that can be counted: they leave the brand and the domain
+ * for the model to bring up, so one hit out of two is a real measurement and
+ * the group's counts have something to say.
+ */
 const GEO_OBSERVATIONS = [
   {
     purpose: 'awareness',
@@ -104,7 +148,7 @@ const GEO_OBSERVATIONS = [
     modelId: 'claude-sonnet-5',
     answer: 'Smile Clinic is a dental clinic in Kyiv.',
     citations: [],
-    mentions: { brand: true, domain: false },
+    mentions: { brand: 'named-in-question', domain: 'not-mentioned' },
   },
   {
     purpose: 'discovery',
@@ -115,7 +159,18 @@ const GEO_OBSERVATIONS = [
     modelId: 'gpt-5.6-luna',
     answer: 'Several clinics do, including Smile Clinic (smile.example).',
     citations: ['https://smile.example/implants'],
-    mentions: { brand: true, domain: true },
+    mentions: { brand: 'mentioned', domain: 'mentioned' },
+  },
+  {
+    purpose: 'discovery',
+    question: 'Where can I get same-day dental implants in Kyiv?',
+    status: 'answered',
+    reason: null,
+    provider: 'openai',
+    modelId: 'gpt-5.6-luna',
+    answer: 'A few Kyiv clinics advertise same-day implants; ask them directly.',
+    citations: [],
+    mentions: { brand: 'not-mentioned', domain: 'not-mentioned' },
   },
 ] as const;
 
@@ -143,6 +198,139 @@ const ISSUE_SUMMARY = {
     { ruleId: 'SEO-ONPAGE-001', module: 'SEO', severity: 'Major', issues: 4, openIssues: 3 },
     { ruleId: 'SEO-TECH-004', module: 'SEO', severity: 'Minor', issues: 3, openIssues: 2 },
   ],
+} as const;
+
+/** One finding of the rule the report's problem row points at. */
+const ROBOTS_ISSUE = {
+  id: 'issue-robots',
+  scanId: SCAN_ID,
+  ruleId: 'SEO-TECH-001',
+  module: 'SEO',
+  fingerprint: 'fp-robots',
+  severity: 'Critical',
+  category: 'Technical',
+  status: 'New',
+  targetUrl: 'https://smile.example/robots.txt',
+  evidenceType: 'http',
+  evidenceRef: 'https://smile.example/robots.txt',
+  evidenceExcerpt: '404 Not Found',
+  recommendation: 'Publish a robots.txt at the site root.',
+  confidence: 1,
+  affectedTargets: 1,
+  applicableTargets: 1,
+  rulePenalty: 8,
+  scoreDelta: -8,
+  observedAt: '2026-09-22T00:03:00.000Z',
+} as const;
+
+function crawlScopeFacts() {
+  return {
+    entryUrl: 'https://smile.example/',
+    maxPages: 50,
+    maxDepth: 3,
+    includeSubdomains: false,
+    queryPolicy: 'ignore',
+    urlPatterns: [],
+    excludePatterns: [],
+    seedUrls: [],
+    renderJs: false,
+    respectRobots: true,
+    userAgent: 'desktop',
+    egressLocation: 'ua-kyiv',
+    egressLocationView: {
+      id: 'ua-kyiv',
+      countryCode: 'UA',
+      city: 'Kyiv',
+      label: { en: 'Ukraine, Kyiv', uk: 'Україна, Київ' },
+    },
+    scopeKey: 'scope-1',
+  };
+}
+
+const EMPTY_ISSUE_COUNTS = { new: 0, resolved: 0, reopened: 0, stillOpen: 0, settled: 0 } as const;
+
+/**
+ * `GET /scans/:id/comparison`, in the shape `isScanComparison` accepts.
+ *
+ * The panel validates this answer field by field and prints one "could not be
+ * loaded" line for anything that fails — which is what an unmocked (aborted)
+ * request produces too. So the fixture is the whole contract, and the test
+ * below asserts that line is absent: a field dropped from the payload, or added
+ * to the checked shape, fails here instead of reaching a reader as a silent
+ * missing panel.
+ */
+const COMPARISON = {
+  current: {
+    id: SCAN_ID,
+    plan: 'Complete',
+    completedAt: SCAN.completedAt,
+    status: 'Completed',
+    pagesRead: 12,
+    urlsDiscovered: 14,
+    urlsOverLimit: 0,
+    scope: crawlScopeFacts(),
+    readable: true,
+  },
+  previous: {
+    id: 'scan-action-plan-previous',
+    plan: 'Complete',
+    completedAt: '2026-09-15T00:04:00.000Z',
+    status: 'Completed',
+    pagesRead: 12,
+    urlsDiscovered: 14,
+    urlsOverLimit: 0,
+    scope: crawlScopeFacts(),
+    readable: true,
+  },
+  comparable: { ok: true },
+  overall: { previousScore: 58, currentScore: 66, delta: 8 },
+  modules: [
+    {
+      module: 'SEO',
+      previousScore: 54,
+      currentScore: 62,
+      delta: 8,
+      comparable: { ok: true },
+    },
+  ],
+  pages: {
+    comparable: { ok: true },
+    identity: 'canonical-document',
+    added: 1,
+    removed: 0,
+    kept: 11,
+    currentTotal: 12,
+    previousTotal: 11,
+    addedSample: ['https://smile.example/implants'],
+    removedSample: [],
+  },
+  issues: {
+    ...EMPTY_ISSUE_COUNTS,
+    new: 2,
+    resolved: 3,
+    stillOpen: 6,
+    byModule: [{ module: 'SEO', ...EMPTY_ISSUE_COUNTS, new: 2, resolved: 3, stillOpen: 6 }],
+    bySeverity: [{ severity: 'Critical', ...EMPTY_ISSUE_COUNTS, new: 2, stillOpen: 2 }],
+    newSample: [
+      {
+        fingerprint: 'fp-robots',
+        ruleId: 'SEO-TECH-001',
+        module: 'SEO',
+        severity: 'Critical',
+        normalizedUrl: 'https://smile.example/robots.txt',
+      },
+    ],
+    resolvedSample: [],
+    firstChecked: {
+      known: true,
+      count: 0,
+      byModule: [],
+      bySeverity: [],
+      ruleIds: [],
+      sample: [],
+    },
+    noLongerChecked: [],
+  },
 } as const;
 
 const PLAN_EN: PlanContent = {
@@ -198,6 +386,8 @@ function idleState(overrides: Partial<PlanState> = {}): PlanState {
     running: null,
     lastFailure: null,
     remaining: { successes: 3, attempts: 6 },
+    // Three days after the scan finished, and two and a half days after NOW:
+    // the Plan Window is open in every test that does not say otherwise.
     windowEndsAt: '2026-09-25T00:04:00.000Z',
     plan: null,
     ...overrides,
@@ -275,6 +465,10 @@ async function installReportFixtures(
   plans: ReturnType<typeof planServer>,
   appOrigin: string,
 ): Promise<void> {
+  // Every date in these fixtures is read against this moment; timers keep
+  // running, so the block's polling and its window timer behave as they do in
+  // front of a customer.
+  await page.clock.setFixedTime(NOW);
   // Vite's HMR socket lives on the app's host under a ws:// scheme.
   await page.context().routeWebSocket('**/*', async (socket) => {
     if (new URL(socket.url()).host === new URL(appOrigin).host) {
@@ -330,11 +524,18 @@ async function installReportFixtures(
       return;
     }
     if (path === `/scans/${SCAN_ID}/issues`) {
-      await json(route, [], { total: 0 });
+      // Scoped exactly as the Issue Center asked: a list that ignored the rule
+      // filter would let a broken "open this problem" link still look right.
+      const scoped = url.searchParams.get('ruleId') === ROBOTS_ISSUE.ruleId ? [ROBOTS_ISSUE] : [];
+      await json(route, scoped, { total: scoped.length });
       return;
     }
     if (path === `/scans/${SCAN_ID}/changes`) {
       await json(route, { previous: null, fixed: 0, appeared: 0, fixedRules: [], newRules: [] });
+      return;
+    }
+    if (path === `/scans/${SCAN_ID}/comparison`) {
+      await json(route, COMPARISON);
       return;
     }
     if (path === `/scans/${SCAN_ID}/action-plan`) {
@@ -473,14 +674,98 @@ test.describe('AI Action Plan on a Complete report', () => {
 
     await page.locator('.module-grid .module-card', { hasText: 'AI SEO / GEO' }).first().click();
 
-    const groups = page.locator('.geo-observations__provider');
+    // A provider group is the block headed by the assistant and its model; the
+    // section around it and the visibility block are groups too, and only the
+    // per-provider ones carry that heading.
+    const groups = page.locator('.module-checks__group:has(> h5.module-checks__subheading)');
     await expect(groups).toHaveCount(2);
+    // The assistant customers ask about comes first (D-233).
     await expect(groups.first()).toContainText('ChatGPT · OpenAI');
     await expect(groups.first()).toContainText('gpt-5.6-luna');
+    // Both discovery answers could be measured, and one of them mentioned each.
     await expect(groups.first()).toContainText(
-      'Brand mentioned in 1 of 1 answers · official domain referenced in 1 of 1.',
+      'Brand mentioned in 1 of 2 answers · Official domain referenced in 1 of 2',
     );
     await expect(groups.nth(1)).toContainText('Claude · Anthropic');
     await expect(groups.nth(1)).toContainText('claude-sonnet-5');
+    // The direct question named the brand, so the brand signal was not measured
+    // — and an unmeasured signal is counted on neither side of the count, which
+    // is why this group has no brand sentence at all.
+    await expect(groups.nth(1)).not.toContainText('Brand mentioned in');
+    await expect(groups.nth(1)).toContainText('Official domain referenced in 0 of 1');
+    await expect(groups.nth(1).locator('.geo-observation__signal--unmeasured')).toHaveText(
+      'Brand awareness — not measured (named in the question)',
+    );
+  });
+
+  test('opens the Issue Center on the rule a problem row is about', async ({ page, baseURL }) => {
+    const plans = planServer({ en: idleState() });
+    await installReportFixtures(page, plans, new URL(baseURL ?? '').origin);
+    await openReport(page, '?lang=en');
+
+    // Exactly the SEO card: "AI SEO / GEO" contains the word too.
+    await page
+      .locator('.module-grid .module-card')
+      .filter({ has: page.getByText('SEO', { exact: true }) })
+      .click();
+    const checks = page.locator('#module-checks-seo');
+    // Only the row with findings behind it is pressable; the passing one is a
+    // plain list item, and offering it as a link would lead to an empty list.
+    await expect(checks.locator('li', { hasText: 'SEO-TECH-002' }).getByRole('button')).toHaveCount(
+      0,
+    );
+
+    const issuesRequest = page.waitForRequest(
+      (request) =>
+        request.url().startsWith(`${API_URL}/scans/${SCAN_ID}/issues?`) &&
+        new URL(request.url()).searchParams.get('ruleId') === 'SEO-TECH-001',
+    );
+    await checks.getByRole('button', { name: /SEO-TECH-001/ }).click();
+
+    await issuesRequest;
+    await expect(page).toHaveURL(new RegExp(`/scans/${SCAN_ID}/issues$`));
+    await expect(page.locator('.issue-rule-filter')).toContainText(
+      'Problem: robots.txt is missing or unreachable',
+    );
+    await expect(page.getByText('https://smile.example/robots.txt').first()).toBeVisible();
+  });
+
+  test('shows the comparison panel instead of its "could not be loaded" line', async ({
+    page,
+    baseURL,
+  }) => {
+    const plans = planServer({ en: idleState() });
+    await installReportFixtures(page, plans, new URL(baseURL ?? '').origin);
+    await openReport(page, '?lang=en');
+
+    const panel = page.locator('.panel', {
+      has: page.getByText('Compared with the previous scan', { exact: true }),
+    });
+    await expect(panel).toContainText('Against the Complete report of');
+    await expect(panel).not.toContainText('could not be loaded');
+  });
+
+  test('marks the AI button with an icon the screen reader does not read', async ({
+    page,
+    baseURL,
+  }) => {
+    const plans = planServer({ en: idleState() });
+    await installReportFixtures(page, plans, new URL(baseURL ?? '').origin);
+    await openReport(page, '?lang=en');
+
+    const block = page.locator('section.action-plan');
+    // The name is the label alone: the icon marks the button as the one that
+    // spends a generation, and reading "✦" out loud says nothing.
+    const button = block.getByRole('button', { name: 'Write the Action Plan', exact: true });
+    await expect(button).toBeVisible();
+
+    const icon = button.locator('.action-plan__button-icon');
+    await expect(icon).toBeVisible();
+    await expect(icon).toHaveAttribute('aria-hidden', 'true');
+    // Not a pixel value — only that the icon is not pressed against the label.
+    const gap = await icon.evaluate(
+      (node) => Number.parseFloat(getComputedStyle(node).marginRight) || 0,
+    );
+    expect(gap).toBeGreaterThan(0);
   });
 });

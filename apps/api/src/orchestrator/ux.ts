@@ -19,6 +19,7 @@ import {
   type AiConsent,
   type AiProvider,
   type AiQuotaTracker,
+  type UnsupportedUxClaim,
   type UxAiFinding,
   type UxAiProfileContext,
   type UxAiResponseResult,
@@ -30,6 +31,7 @@ import type { IssueRowData } from './module-result.ts';
 import { UX_AI_RULE_IDS, UX_STATIC_RULE_IDS, uxRuleCounts, uxRulePages } from './rule-checks.ts';
 import { scoreIssueRows, type ScoredIssueRows } from './rule-penalties.ts';
 import type { RuleCoverage } from './run-coverage.ts';
+import { uxAiReviewOutcome, type UxAiReviewOutcome } from './ux-ai-claims.ts';
 import { redact } from '@fluxradar/ai';
 
 /**
@@ -45,6 +47,8 @@ export interface UxAiCancelled {
   readonly statusReason: 'ScanCancelled';
   readonly outcome: null;
   readonly findings: readonly UxAiFinding[];
+  /** Always empty: an interrupted request produced no claim to judge. */
+  readonly unsupportedClaims: readonly UnsupportedUxClaim[];
 }
 
 export type UxAiPhase = UxAiResponseResult | UxAiCancelled;
@@ -54,6 +58,7 @@ const UX_AI_CANCELLED: UxAiCancelled = {
   statusReason: 'ScanCancelled',
   outcome: null,
   findings: [],
+  unsupportedClaims: [],
 };
 
 export interface UxConversionRun extends ScoredIssueRows {
@@ -206,11 +211,19 @@ export function scoredUxIssues(
  * The AI checks report nothing when the provider did not answer: a review that
  * never ran looked at no page, and claiming otherwise would let the next scan
  * close an AI finding the model never had a chance to repeat.
+ *
+ * A rule whose every claim was rejected for resting on evidence the crawl never
+ * had reports nothing for the same reason: it answered, but it produced no
+ * verdict this scan could be held to. When the whole review lost every claim, no
+ * AI rule reports anything at all.
+ *
+ * A rule that lost only *some* of its claims keeps its surviving findings and
+ * loses exactly the pages it lost a verdict on — `aiCheckedTargets`.
  */
 export function uxRuleCoverage(
   run: Pick<UxConversionRun, 'staticEvidence' | 'ai'>,
 ): readonly RuleCoverage[] {
-  const aiAnswered = run.ai.outcome?.kind === 'response';
+  const review = uxAiReviewOutcome(run.ai);
   return [
     ...UX_STATIC_RULE_IDS.map((ruleId) => ({
       ruleId,
@@ -218,9 +231,59 @@ export function uxRuleCoverage(
     })),
     ...UX_AI_RULE_IDS.map((ruleId) => ({
       ruleId,
-      checkedTargets: aiAnswered ? normalizedPageUrls(run, ruleId) : [],
+      checkedTargets: aiCheckedTargets(run, review, ruleId),
     })),
   ];
+}
+
+/**
+ * The pages one AI rule may be held to, page by page.
+ *
+ * A rejected claim voids the verdict on *its page*, not on the whole rule: the
+ * review did read the other pages, and dropping them all would freeze findings
+ * a later scan can legitimately close. But the page it does void must leave the
+ * proof — a rule with a good finding on the homepage and a dropped claim on
+ * /pricing certified /pricing as re-checked, and the next scan then read "the
+ * finding is gone" off a verdict that was thrown away.
+ *
+ * Fail closed when a dropped claim names a page this rule did not look at: there
+ * is then nothing to subtract, and a rule with an unaccounted verdict certifies
+ * nothing rather than certifying everything.
+ */
+function aiCheckedTargets(
+  run: Pick<UxConversionRun, 'staticEvidence'>,
+  review: UxAiReviewOutcome,
+  ruleId: string,
+): readonly string[] {
+  if (!review.verified || review.rejectedRuleIds.includes(ruleId)) {
+    return [];
+  }
+  const dropped = review.rejectedTargets
+    .filter((target) => target.ruleId === ruleId)
+    .map((target) => normalizedTargetUrl(target.targetUrl));
+  if (dropped.length === 0) {
+    return normalizedPageUrls(run, ruleId);
+  }
+  const pages = normalizedPageUrls(run, ruleId);
+  const unmatched = dropped.some((url) => url === null || !pages.includes(url));
+  return unmatched ? [] : pages.filter((url) => !dropped.includes(url));
+}
+
+/**
+ * The provider's page URL in the normalization of the proof, or null when it is
+ * not a URL at all.
+ *
+ * The adapter accepts only a supplied page URL as a target, so null is the
+ * unreachable case — and it is handled rather than thrown, because the answer it
+ * leads to (this rule certifies nothing) is the safe one, while an exception
+ * here would lose a finished module over one malformed string.
+ */
+function normalizedTargetUrl(targetUrl: string): string | null {
+  try {
+    return normalizeUrl(targetUrl);
+  } catch {
+    return null;
+  }
 }
 
 function normalizedPageUrls(

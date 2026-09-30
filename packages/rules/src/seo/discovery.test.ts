@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import { htmlContext, runRule } from '../testing/fixture-harness.js';
 
+/** A page whose only structured data is the given JSON-LD block. */
+function jsonLdPage(jsonLd: string) {
+  return htmlContext(
+    '<!doctype html><html lang="en"><head><title>Schema</title>' +
+      `<script type="application/ld+json">${jsonLd}</script></head>` +
+      '<body><main><h1>Schema</h1></main></body></html>',
+  );
+}
+
 describe('SEO structured data and social preview', () => {
   it('finds malformed JSON-LD without treating absent JSON-LD as an error', () => {
     const malformed = htmlContext(
@@ -20,6 +29,37 @@ describe('SEO structured data and social preview', () => {
         ),
       ),
     ).toEqual([]);
+  });
+
+  it('accepts the generator shape: one @context over a typed @graph', () => {
+    // What Yoast, Rank Math and most other generators emit: the context is
+    // declared once for the whole set, the type sits on each node.
+    expect(
+      runRule(
+        'SEO',
+        'SEO-STRUCT-002',
+        jsonLdPage(
+          '{"@context":"https://schema.org","@graph":[' +
+            '{"@type":"Organization","@id":"https://example.com/#org","name":"Example"},' +
+            '{"@type":"WebSite","@id":"https://example.com/#site","publisher":' +
+            '{"@id":"https://example.com/#org"}},' +
+            '{"@type":["WebPage","AboutPage"],"name":"About"}]}',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('still finds a @graph that declares nothing: empty, untyped or not a list', () => {
+    const incomplete = [
+      '{"@context":"https://schema.org","@graph":[]}',
+      '{"@context":"https://schema.org","@graph":[{"@type":"Organization"},{"name":"No type"}]}',
+      '{"@context":"https://schema.org","@graph":{"@type":"Organization"}}',
+      // No context above the graph: the nodes inherit nothing, so nothing is declared.
+      '{"@graph":[{"@type":"Organization"}]}',
+    ];
+    for (const jsonLd of incomplete) {
+      expect(runRule('SEO', 'SEO-STRUCT-002', jsonLdPage(jsonLd)), jsonLd).toHaveLength(1);
+    }
   });
 
   it('finds JSON-LD without @context/@type and accepts a complete object', () => {

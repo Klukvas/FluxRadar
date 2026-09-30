@@ -332,6 +332,7 @@ export function ResultsScreen(props: {
                     evidence={geoEvidence}
                     visibilitySummary={geoVisibilitySummary}
                     language={props.language}
+                    onOpenProblem={props.onOpenProblem}
                   />
                 ) : null}
               </Fragment>

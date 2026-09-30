@@ -1323,6 +1323,27 @@ code,
   padding: 6px var(--sp-2);
   border-top: 1px solid var(--plat-200);
 }
+.module-checks__item--problem {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--plat-200);
+  border-radius: 0;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.module-checks__item--problem:hover {
+  background: var(--plat-100);
+}
+.module-checks__item--problem:focus-visible {
+  outline: 2px solid var(--selection);
+  outline-offset: -2px;
+}
+.module-checks__list > li:first-child .module-checks__item--problem {
+  border-top: 0;
+}
 .module-checks__item:first-child {
   border-top: 0;
 }

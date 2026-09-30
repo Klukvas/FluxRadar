@@ -10,7 +10,7 @@
 // пустоту.
 
 import type { CrawlResult, CrawlScope, PageSnapshot } from '@fluxradar/crawler';
-import { applyQueryPolicy } from '@fluxradar/crawler';
+import { applyQueryPolicy, isCloudflareEmailObfuscationUrl } from '@fluxradar/crawler';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
 import type { SiteContext } from '../engine/types.js';
@@ -68,6 +68,22 @@ export function pageLinks(page: PageSnapshot, crawl: CrawlResult): readonly Page
 }
 
 function toPageLink(rawHref: string, baseUrl: string, scope: CrawlScope): PageLink | null {
+  let resolved: URL;
+  try {
+    resolved = new URL(rawHref, baseUrl);
+  } catch {
+    return null; // мусорный href — штатный веб, не ссылка сайта
+  }
+  // Cloudflare подменяет защищённый email ссылкой на свой endpoint и
+  // разворачивает её hex-хвост в mailto: уже в браузере
+  // (isCloudflareEmailObfuscationUrl): страницей сайта такой адрес не бывает, и
+  // ссылкой — тоже. Отброшен он ЗДЕСЬ, а не только в обходе, потому что снимок
+  // endpoint-а у прогона уже может быть — его ставил в очередь прежний краулер,
+  // его мог перечислить sitemap, — и тогда SEO-TECH-006 показывал бы чужой 404
+  // на каждой странице, которая прячет за ним адрес почты.
+  if (isCloudflareEmailObfuscationUrl(resolved)) {
+    return null;
+  }
   const normalizedTarget = resolveAndNormalize(rawHref, baseUrl);
   if (normalizedTarget === null) {
     return null;

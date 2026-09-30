@@ -117,6 +117,16 @@ export interface UxAiReview {
   readonly provider: string;
   readonly modelId: string;
   readonly findings: number;
+  /**
+   * How many of its points were discarded as unsupported by the collected
+   * evidence — a claim about visual appearance, or visitor confusion inferred
+   * from how many elements a page has.
+   *
+   * Zero on a review with nothing dropped, and on every row written before the
+   * orchestrator recorded the count. Only the count is stored — the discarded
+   * sentence is never shown, so there is nothing here to render from it.
+   */
+  readonly droppedFindings: number;
 }
 
 export interface UxChecks {
@@ -171,7 +181,13 @@ function uxAiReviewOf(value: unknown): UxAiReview | null {
   ) {
     return null;
   }
-  return { provider: record.provider, modelId: record.modelId, findings };
+  const dropped = numberValue(asRecord(record.unsupportedClaims)?.findings);
+  return {
+    provider: record.provider,
+    modelId: record.modelId,
+    findings,
+    droppedFindings: dropped ?? 0,
+  };
 }
 
 export type AiCrawlerStatus = 'allowed' | 'blocked' | 'unknown';

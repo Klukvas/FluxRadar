@@ -105,7 +105,11 @@ function dashboardOf(
   };
 }
 
-async function openReport(dashboard: Dashboard, language: Language = 'en'): Promise<void> {
+async function openReport(
+  dashboard: Dashboard,
+  language: Language = 'en',
+  onOpenProblem: (ruleId: string) => void = () => {},
+): Promise<void> {
   vi.stubGlobal(
     'fetch',
     vi.fn(() =>
@@ -123,6 +127,7 @@ async function openReport(dashboard: Dashboard, language: Language = 'en'): Prom
       language={language}
       onScan={() => {}}
       onIssues={() => {}}
+      onOpenProblem={onOpenProblem}
       onReports={() => {}}
       onError={() => {}}
     />,
@@ -139,6 +144,24 @@ function card(name: string): HTMLElement {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+describe('problem rows in section checks', () => {
+  it('opens only a failing rule in the Issue Center, leaving passed and non-findings static', async () => {
+    const opened: string[] = [];
+    await openReport(dashboardOf([accessibilityModule()]), 'en', (ruleId) => opened.push(ruleId));
+
+    fireEvent.click(card('Accessibility'));
+
+    const region = screen.getByRole('region', { name: 'Accessibility · checks performed' });
+    const problem = within(region).getByRole('button', { name: /alt text/i });
+    expect(problem).toHaveTextContent('Issues found');
+    expect(within(region).queryByRole('button', { name: /text contrast/i })).toBeNull();
+    expect(within(region).queryByRole('button', { name: /form labels/i })).toBeNull();
+
+    fireEvent.click(problem);
+    expect(opened).toEqual(['A11Y-002']);
+  });
 });
 
 /**

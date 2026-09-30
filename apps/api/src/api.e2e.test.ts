@@ -292,7 +292,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         expect.objectContaining({
           record_type: 'ai_response',
           module: 'UX/Conversion',
-          prompt_version: 'ux-conversion-v3',
+          prompt_version: 'ux-conversion-v4',
           usage: expect.objectContaining({
             input_tokens: 220,
             output_tokens: 90,

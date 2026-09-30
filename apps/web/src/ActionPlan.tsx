@@ -240,7 +240,7 @@ export function ActionPlan(props: ActionPlanProps) {
             <p className="muted action-plan__refusal">{refusal}</p>
           )}
           {otherLanguages.map((language) => (
-            <p className="muted" key={language}>
+            <p className="muted action-plan__other-language" key={language}>
               {t.otherLanguage(languageCodeLabel(language, props.language))}{' '}
               <Button onClick={() => setSelected(language)}>
                 {languageCodeLabel(language, props.language)}
@@ -271,12 +271,15 @@ export function ActionPlan(props: ActionPlanProps) {
 
       {state.running === null && refusal === null ? (
         <>
-          <div className="button-row">
+          <div className="button-row action-plan__generate">
             <Button
               variant="primary"
               disabled={starting || !canGenerate}
               onClick={() => void start()}
             >
+              <span className="action-plan__button-icon" aria-hidden="true">
+                ✦
+              </span>
               {buttonLabel(t, state)}
             </Button>
           </div>

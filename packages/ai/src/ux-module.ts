@@ -12,12 +12,136 @@ import { runAiRequest } from './run-request.js';
 import type { AiRequest, AiProvider } from './types.js';
 import type { AiRequestOutcome } from './run-request.js';
 
-export const UX_PROMPT_VERSION = 'ux-conversion-v3';
+export const UX_PROMPT_VERSION = 'ux-conversion-v4';
 export const UX_SYSTEM_INSTRUCTIONS =
   'You are a careful UX and conversion reviewer. Use only the supplied evidence. ' +
   'Do not claim that a site converts or fails to convert, and do not invent missing facts. ' +
+  'The evidence is static DOM text and metadata, without screenshots, computed styles, layout, ' +
+  'color, size, viewport, or interaction observations. Do not make visual hierarchy or styling ' +
+  'claims. Do not infer that two actions lack hierarchy or that multiple forms are confusing ' +
+  'unless their supplied text or purposes directly support that conclusion. ' +
   'Return JSON only with a findings array. Each finding must cite one supplied page URL and ' +
   'quote or paraphrase evidence visible in the supplied snapshot.';
+
+/**
+ * The classes of claim the supplied evidence can never back.
+ *
+ * The evidence package is static DOM text: titles, headings, action and link
+ * labels, form shapes, contact signals and the opening of the visible text.
+ * Nothing in it is rendered — there is no screenshot, no computed style, no
+ * geometry and no viewport — so a finding whose evidence rests on how the page
+ * *looks* rests on nothing. That is a different failure from a malformed
+ * response, and it is caught here rather than trusted to the prompt: the system
+ * instructions forbid these claims, but an instruction is a request, not a
+ * guarantee.
+ *
+ * The labels are stable machine values: they are what the orchestrator records
+ * about a dropped finding, so a report can say *which kind* of claim was
+ * dropped without storing the provider's sentence.
+ */
+export type UnsupportedClaimReason =
+  | 'visual-hierarchy'
+  | 'colour'
+  | 'typography'
+  | 'fold'
+  | 'viewport'
+  | 'screenshot'
+  | 'geometry'
+  | 'stylesheet'
+  | 'spacing'
+  | 'layout'
+  | 'confusion-from-count';
+
+/**
+ * Assertions about rendering, matched as phrases rather than as bare words.
+ *
+ * A bare-substring denylist was the first attempt and it was wrong: it rejected
+ * `The hero says "CSS training" but does not say whether classes are for
+ * beginners or professionals` — a grounded claim about the supplied heading text
+ * — because the page's own subject matter contains one of the words. What makes a
+ * finding unsupported is not a word appearing anywhere in it, it is the finding
+ * *asserting* something about how the page renders. So each entry here requires
+ * the surrounding phrase, and quoted source wording is removed before matching
+ * (`withoutQuotations`).
+ *
+ * This is pattern matching, not comprehension: it catches the categorical class
+ * in its usual phrasings and it will miss a paraphrase built to evade it.
+ * Nothing here promises a semantic guarantee — the prompt asks, this narrows,
+ * and the residue is visible to the reader as a rejected claim rather than
+ * silently shown as a fact.
+ */
+const UNSUPPORTED_CLAIM_PATTERNS: readonly {
+  readonly reason: UnsupportedClaimReason;
+  readonly pattern: RegExp;
+}[] = [
+  // `hierarchy` alone is deliberately absent: the headings ARE supplied, so a
+  // claim about their order is a claim about the evidence.
+  {
+    reason: 'visual-hierarchy',
+    pattern:
+      /\bvisual(?:ly)?[\s-]+(?:hierarch|prominen|distinct|emphasi|weight|similar|identical|styl|design|dominant)/i,
+  },
+  {
+    reason: 'colour',
+    pattern:
+      /\bcolou?r\s+(?:contrast|scheme|palette)\b|\bsame\s+colou?r\b|\bcontrast\s+ratio\b|\blow\s+contrast\b|\bblends?\s+in(?:to)?\s+the\s+background\b/i,
+  },
+  {
+    reason: 'typography',
+    pattern:
+      /\bfont[\s-]*(?:size|weight|family|face)\b|\b(?:small|smaller|tiny|large|larger|big|bold|italic)\s+(?:font|type|typeface|text)\b|\bin\s+a\s+\w+\s+font\b/i,
+  },
+  { reason: 'fold', pattern: /\b(?:above|below)\s+the\s+fold\b/i },
+  {
+    reason: 'viewport',
+    pattern:
+      /\bviewports?\b|\bscreen\s+(?:size|width|height)\b|\boff-?screen\b|\bon\s+(?:mobile|desktop|tablet)\s+(?:screens?|devices?|viewports?)\b/i,
+  },
+  { reason: 'screenshot', pattern: /\bscreenshots?\b|\brendered\s+page\b/i },
+  {
+    reason: 'geometry',
+    pattern:
+      /\b\d+\s*(?:px|pixels?)\b|\bpixels?\s+(?:wide|high|tall|of|perfect)\b|\b(?:button|tap\s+target)\s+(?:size|area)\b|\btoo\s+(?:small|large)\s+to\s+(?:tap|click|read)\b/i,
+  },
+  {
+    reason: 'stylesheet',
+    pattern: /\bstylesheets?\b|\binline\s+styles?\b|\bcss\s+(?:rule|class|file|style|hides|sets)/i,
+  },
+  {
+    reason: 'spacing',
+    pattern:
+      /\bwhite\s?space\b|\b(?:padding|margins?|spacing)\s+(?:is|are|around|between|of)\b|\b(?:tight|generous|excessive|no)\s+(?:padding|margins?|spacing)\b/i,
+  },
+  {
+    reason: 'layout',
+    pattern:
+      /\blayout\b[^.]{0,40}\b(?:hides?|buries?|pushes?|obscures?|breaks?|crowds?)\b|\b(?:cluttered|cramped|crowded|unbalanced)\b/i,
+  },
+];
+
+/**
+ * A claim that several of something confuse the visitor.
+ *
+ * The supplied form evidence is a shape — control count, submit-control count
+ * and the `action` target — and never a label or a purpose, so "two forms" is
+ * all the provider can see about two forms. `The two forms have different
+ * purposes but their presence creates confusion for visitors` was accepted by
+ * the first version of this module and it is exactly the claim the evidence
+ * cannot reach: it concedes the purposes differ and then asserts a visitor
+ * reaction to their number.
+ *
+ * Rejected only for that shape — a count plus a confusion claim. A finding that
+ * names something concrete the evidence does hold ("the only action is labelled
+ * Submit", "the form has no submit control") never matches these, and a count
+ * claim the page can actually ground survives (`groundsAmbiguity`).
+ */
+const CONFUSION_CLAIM =
+  /\b(?:confus\w+|overwhelm\w+|distract\w+)\b|\bcompet\w+\s+for\s+attention\b/i;
+const MULTIPLE_ELEMENTS =
+  /\b(?:two|three|four|both|multiple|several|many|\d+)\s+(?:\w+\s+){0,2}(?:forms?|actions?|buttons?|ctas?|calls?\s+to\s+action|links?|fields?|menus?)\b/i;
+/** The finding's own concession that the number is not the problem. */
+const DISTINCT_PURPOSES =
+  /\b(?:different|distinct|separate|unrelated|its\s+own|their\s+own)\s+(?:purposes?|goals?|intents?|jobs?|functions?|audiences?|roles?)\b/i;
 
 const UX_RULE_IDS = new Set(['UX-CONV-AI-001', 'UX-CONV-AI-002', 'UX-CONV-AI-003']);
 const SEVERITIES = new Set(['High', 'Medium', 'Low']);
@@ -109,12 +233,38 @@ export interface UxAiOptions {
   readonly signal?: AbortSignal;
 }
 
+/**
+ * A finding the contract accepted and the evidence cannot support.
+ *
+ * Kept out of `findings` and reported separately: the report may not show a
+ * claim about how a page looks when nothing about how it looks was ever read.
+ */
+export interface UnsupportedUxClaim {
+  readonly finding: UxAiFinding;
+  /** Which class of claim the supplied package cannot back. */
+  readonly reason: UnsupportedClaimReason;
+}
+
+/** Well-formed findings, split by whether the supplied evidence can back them. */
+export interface UxAiClaims {
+  readonly supported: readonly UxAiFinding[];
+  readonly unsupported: readonly UnsupportedUxClaim[];
+}
+
 export interface UxAiResponseResult {
   readonly status: 'Completed' | 'Unavailable';
   readonly statusReason: string | null;
   readonly outcome: AiRequestOutcome;
   readonly quota: AiQuotaTracker;
   readonly findings: readonly UxAiFinding[];
+  /**
+   * Findings dropped because the evidence package cannot support them.
+   *
+   * Empty on every path that produced no findings at all. It is reported rather
+   * than swallowed so the drop is visible to the caller; recording it alongside
+   * the run belongs to the orchestrator, not here.
+   */
+  readonly unsupportedClaims: readonly UnsupportedUxClaim[];
 }
 
 function clean(value: string | null | undefined): string {
@@ -232,10 +382,93 @@ function parseFinding(value: unknown, allowedUrls: ReadonlySet<string>): UxAiFin
   };
 }
 
-export function parseUxAiResponse(
-  rawText: string,
-  allowedUrls: readonly string[],
-): readonly UxAiFinding[] {
+/**
+ * The finding's own words, with quoted source wording removed.
+ *
+ * Wording the provider quotes from the page is evidence, not an assertion: a
+ * heading that says "CSS training" is a fact about the snapshot, and the finding
+ * that reports it must survive. Only double and guillemet quotes are treated as
+ * quotation — an apostrophe is indistinguishable from a single quote mark, and
+ * stripping between apostrophes would eat ordinary prose.
+ */
+function withoutQuotations(evidence: string): string {
+  return evidence.replace(/"[^"]*"|“[^”]*”|«[^»]*»/g, ' ');
+}
+
+/** The `action` targets the supplied form shapes name, ignoring the unset ones. */
+function formActionTargets(page: UxAiPageEvidence): readonly string[] {
+  return page.forms.flatMap((form) => {
+    const action = /action=(\S+)/.exec(form)?.[1] ?? '';
+    return action === '' ? [] : [action.toLowerCase()];
+  });
+}
+
+/**
+ * Whether the page itself holds the ambiguity a count claim asserts.
+ *
+ * Two forms posting to the same named endpoint, or two actions carrying the same
+ * label, are ambiguity the snapshot shows — a reader can check it. A missing
+ * `action` attribute is not counted: most pages have several such forms (search,
+ * newsletter) and treating them as one target would ground every count claim and
+ * undo the check.
+ *
+ * Each list is judged on its own. A link is also an action, so the same label
+ * appearing in both is the ordinary case and says nothing; the analyzer already
+ * de-duplicates within each list, which makes the label half a guard against a
+ * future evidence shape rather than a live signal.
+ */
+function groundsAmbiguity(page: UxAiPageEvidence | undefined): boolean {
+  if (page === undefined) return false;
+  return (
+    hasDuplicate(formActionTargets(page)) ||
+    hasDuplicate(page.actions.map(labelKey)) ||
+    hasDuplicate(page.links.map(labelKey))
+  );
+}
+
+/** A link is stored as `label → href`; the label is what a visitor reads. */
+function labelKey(label: string): string {
+  return (label.split('→')[0] ?? '').trim().toLowerCase();
+}
+
+function hasDuplicate(values: readonly string[]): boolean {
+  const named = values.filter((value) => value !== '');
+  return new Set(named).size !== named.length;
+}
+
+/** Why the supplied package cannot back this finding, or null when it can. */
+function unsupportedClaimReason(
+  finding: UxAiFinding,
+  pages: readonly UxAiPageEvidence[],
+): UnsupportedClaimReason | null {
+  const text = withoutQuotations(finding.evidence);
+  const rendering = UNSUPPORTED_CLAIM_PATTERNS.find((entry) => entry.pattern.test(text));
+  if (rendering !== undefined) return rendering.reason;
+  if (!CONFUSION_CLAIM.test(text) || !MULTIPLE_ELEMENTS.test(text)) return null;
+  // A finding that says the purposes differ has answered itself: what is left is
+  // the number, and the number is not a visitor reaction.
+  if (DISTINCT_PURPOSES.test(text)) return 'confusion-from-count';
+  return groundsAmbiguity(pages.find((page) => page.url === finding.targetUrl))
+    ? null
+    : 'confusion-from-count';
+}
+
+/**
+ * The response, parsed and then split by what the evidence can support.
+ *
+ * A MALFORMED FIELD AND AN UNSUPPORTED CLAIM ARE NOT THE SAME FAILURE, and they
+ * end differently. A bad rule ID, an unknown target URL or a broken severity
+ * means the parse itself cannot be trusted, so the whole response is rejected
+ * (parseFinding throws). A claim about how the page looks is a defect of that
+ * one finding: the other five are still well formed, still cite supplied pages
+ * and are still independently checkable. Throwing them away would turn one stray
+ * sentence into an unavailable review of a scan the reader paid for.
+ *
+ * Only the evidence is read. A recommendation that says "raise the contrast" is
+ * ordinary advice about a claim the evidence does support; it asserts nothing
+ * about what the crawl saw.
+ */
+export function parseUxAiClaims(rawText: string, pages: readonly UxAiPageEvidence[]): UxAiClaims {
   const payload = jsonPayload(rawText);
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
     throw new AiModuleError('ai: UX response must be an object');
@@ -244,7 +477,7 @@ export function parseUxAiResponse(
   if (!Array.isArray(findings) || findings.length > MAX_FINDINGS) {
     throw new AiModuleError('ai: UX response findings must be an array of at most 6 items');
   }
-  const allowed = new Set(allowedUrls);
+  const allowed = new Set(pages.map((page) => page.url));
   const parsed = findings.map((finding) => parseFinding(finding, allowed));
   const fingerprints = new Set(
     parsed.map((finding) => `${finding.ruleId}|${finding.targetUrl}|${finding.selector ?? ''}`),
@@ -252,7 +485,26 @@ export function parseUxAiResponse(
   if (fingerprints.size !== parsed.length) {
     throw new AiModuleError('ai: UX response contains duplicate findings');
   }
-  return parsed;
+  // Duplicates are judged over everything the provider sent: two identical
+  // findings stay a broken response even when one of them would be dropped.
+  const judged = parsed.map((finding) => ({
+    finding,
+    reason: unsupportedClaimReason(finding, pages),
+  }));
+  return {
+    supported: judged.filter((entry) => entry.reason === null).map((entry) => entry.finding),
+    unsupported: judged.flatMap((entry) =>
+      entry.reason === null ? [] : [{ finding: entry.finding, reason: entry.reason }],
+    ),
+  };
+}
+
+/** The findings a report may show: `parseUxAiClaims` without the rejected ones. */
+export function parseUxAiResponse(
+  rawText: string,
+  pages: readonly UxAiPageEvidence[],
+): readonly UxAiFinding[] {
+  return parseUxAiClaims(rawText, pages).supported;
 }
 
 export async function runUxAiAnalysis(
@@ -279,14 +531,12 @@ export async function runUxAiAnalysis(
       outcome: result.outcome,
       quota: result.quota,
       findings: [],
+      unsupportedClaims: [],
     };
   }
-  let findings: readonly UxAiFinding[];
+  let claims: UxAiClaims;
   try {
-    findings = parseUxAiResponse(
-      result.outcome.response.rawText,
-      input.pages.map((page) => page.url),
-    );
+    claims = parseUxAiClaims(result.outcome.response.rawText, input.pages);
   } catch (error) {
     return {
       status: 'Unavailable',
@@ -299,6 +549,7 @@ export async function runUxAiAnalysis(
       },
       quota: result.quota,
       findings: [],
+      unsupportedClaims: [],
     };
   }
   return {
@@ -306,6 +557,7 @@ export async function runUxAiAnalysis(
     statusReason: null,
     outcome: result.outcome,
     quota: result.quota,
-    findings,
+    findings: claims.supported,
+    unsupportedClaims: claims.unsupported,
   };
 }

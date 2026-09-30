@@ -623,9 +623,13 @@ describe('a finished Complete run', () => {
     const scan = await queueCompleteScan(prisma, account);
     const google = deferred<GoogleScanData>();
     const processing = processScan(
-      workerDeps(prisma, { policyLink: true, robotsTxt: true, pricing: true }, {
-        createGoogleDataRunner: () => () => google.promise,
-      }),
+      workerDeps(
+        prisma,
+        { policyLink: true, robotsTxt: true, pricing: true },
+        {
+          createGoogleDataRunner: () => () => google.promise,
+        },
+      ),
       scan.id,
     );
 
@@ -683,6 +687,234 @@ describe('a finished Complete run', () => {
         where: { scanId: scan.id, module: 'AI SEO / GEO' },
       }),
     ).toBe(0);
+  });
+});
+
+/**
+ * The UX review that answered and whose claims could not be backed.
+ *
+ * `packages/ai/src/ux-module.ts` drops a finding whose evidence rests on how the
+ * page looks — the crawl reads HTML, never a rendering — and returns those
+ * separately. What the report does with them is the point here: a review whose
+ * every claim was dropped used to reach the screen as a Completed section with an
+ * empty finding list, which reads as "the AI looked and found nothing wrong".
+ */
+describe('a UX review whose claims the evidence cannot back', () => {
+  let db: TestDb | undefined;
+
+  afterEach(async () => {
+    await db?.cleanup();
+    db = undefined;
+  });
+
+  const grounded = {
+    ruleId: 'UX-CONV-AI-001',
+    targetUrl: `${ORIGIN}/`,
+    severity: 'Medium',
+    evidence: 'The first heading names the company but not what it sells.',
+    recommendation: 'Name the offering and the audience in the first heading.',
+    confidence: 0.7,
+  };
+  const rendering = {
+    ruleId: 'UX-CONV-AI-002',
+    targetUrl: `${ORIGIN}/`,
+    severity: 'Medium',
+    evidence: 'The two calls to action compete with no clear visual hierarchy.',
+    recommendation: 'Make one action the primary one.',
+    confidence: 0.6,
+  };
+
+  /** A provider whose UX review answers with exactly these findings. */
+  function uxProvider(findings: readonly unknown[]): AiProvider {
+    return mockRoutingProvider(
+      [
+        ...defaultGeoFixtures(BRAND, 'example.com'),
+        {
+          questionIncludes: 'for UX/Conversion',
+          response: {
+            status: 'completed',
+            output_text: JSON.stringify({ findings }),
+            usage: { input_tokens: 220, output_tokens: 40 },
+          },
+        },
+      ],
+      GEO_VISIBILITY_PROVIDERS,
+    );
+  }
+
+  /** One Complete run of the seeded profile whose UX review answers `findings`. */
+  async function runUxScan(
+    prisma: PrismaClient,
+    account: SeededAccount,
+    findings: readonly unknown[],
+  ) {
+    const scan = await queueCompleteScan(prisma, account);
+    const provider = uxProvider(findings);
+    const result = await processScan(
+      workerDeps(
+        prisma,
+        { policyLink: true, robotsTxt: true, pricing: true },
+        { createAiProvider: () => provider },
+      ),
+      scan.id,
+    );
+    return { scan, result };
+  }
+
+  async function runWithUxFindings(findings: readonly unknown[]) {
+    db = await createTestDb();
+    const prisma = db.prisma;
+    const account = await seedAccountWithProfile(prisma);
+    const { scan, result } = await runUxScan(prisma, account, findings);
+    return { prisma, scan, result };
+  }
+
+  it('records a rejected-only review as Partial instead of a clean section', async () => {
+    const { prisma, scan } = await runWithUxFindings([
+      rendering,
+      { ...grounded, evidence: 'The hero copy is set in a small font.' },
+    ]);
+
+    const ux = await moduleRow(prisma, scan.id, 'UX/Conversion');
+    expect(ux.runtimeStatus).toBe('Partial');
+    expect(ux.statusReason).toBe('UxAiUnsupportedClaims');
+    // The AI review answered, so the provider was paid — but it completed no
+    // check, and the coverage says so.
+    expect(ux.completedApplicableChecks).toBe(3);
+    expect(ux.applicableChecks).toBe(4);
+    expect(
+      await prisma.aiResponseRecord.count({
+        where: { scanId: scan.id, module: 'UX/Conversion' },
+      }),
+    ).toBe(1);
+
+    const metadata = JSON.parse(ux.metadataJson) as {
+      ruleChecks: readonly { ruleId: string }[];
+      ai: {
+        findings: number;
+        statusReason: string | null;
+        unsupportedClaims?: {
+          findings: number;
+          reasons: readonly string[];
+          rules: readonly string[];
+        };
+      };
+    };
+    // Only the three static checks are listed: an AI rule that produced no
+    // surviving verdict is not a passed rule.
+    expect(metadata.ruleChecks.map((check) => check.ruleId)).toEqual([
+      'UX-CONV-STATIC-001',
+      'UX-CONV-STATIC-002',
+      'UX-CONV-STATIC-003',
+    ]);
+    expect(metadata.ai.findings).toBe(0);
+    expect(metadata.ai.statusReason).toBe('UxAiUnsupportedClaims');
+    expect(metadata.ai.unsupportedClaims).toEqual({
+      findings: 2,
+      reasons: ['visual-hierarchy', 'typography'],
+      rules: ['UX-CONV-AI-002', 'UX-CONV-AI-001'],
+    });
+    // Nothing from the dropped claims reached an issue row, and nothing of the
+    // provider's own wording reached the stored metadata.
+    expect(
+      await prisma.issue.count({
+        where: { scanId: scan.id, ruleId: { startsWith: 'UX-CONV-AI-' } },
+      }),
+    ).toBe(0);
+    expect(ux.metadataJson).not.toContain('visual hierarchy');
+    expect(ux.metadataJson).not.toContain('small font');
+
+    // §14: a rule with no surviving verdict re-checked nothing, so the next run
+    // cannot close one of its findings.
+    const coverage = await coverageOf(prisma, scan.id, 'UX/Conversion');
+    expect(coverage.coverage.get('UX-CONV-AI-002')?.checkedTargets.size ?? 0).toBe(0);
+    expect(coverage.coverage.get('UX-CONV-STATIC-001')?.checkedTargets.size ?? 0).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it('keeps the surviving findings of a mixed review and states the limitation', async () => {
+    const { prisma, scan, result } = await runWithUxFindings([grounded, rendering]);
+    expect(result.outcome).toBe('Completed');
+
+    const ux = await moduleRow(prisma, scan.id, 'UX/Conversion');
+    expect(ux.runtimeStatus).toBe('Completed');
+    expect(ux.statusReason).toBeNull();
+    expect(ux.completedApplicableChecks).toBe(4);
+
+    const metadata = JSON.parse(ux.metadataJson) as {
+      ruleChecks: readonly { ruleId: string }[];
+      ai: {
+        findings: number;
+        unsupportedClaims?: { findings: number; reasons: readonly string[] };
+      };
+    };
+    // The rule that answered survives, the rule that lost its only claim does
+    // not, and the untouched third AI rule is still a real pass.
+    expect(metadata.ruleChecks.map((check) => check.ruleId)).toEqual([
+      'UX-CONV-STATIC-001',
+      'UX-CONV-STATIC-002',
+      'UX-CONV-STATIC-003',
+      'UX-CONV-AI-001',
+      'UX-CONV-AI-003',
+    ]);
+    expect(metadata.ai.findings).toBe(1);
+    expect(metadata.ai.unsupportedClaims).toEqual({
+      findings: 1,
+      reasons: ['visual-hierarchy'],
+      rules: ['UX-CONV-AI-002'],
+    });
+
+    const issues = await prisma.issue.findMany({
+      where: { scanId: scan.id, ruleId: { startsWith: 'UX-CONV-AI-' } },
+    });
+    expect(issues.map((issue) => issue.ruleId)).toEqual(['UX-CONV-AI-001']);
+  });
+
+  it('leaves a previous finding open on the page whose new verdict was dropped', async () => {
+    // The same AI rule, two pages, one of them dropped. Its surviving finding
+    // keeps the rule out of the rejected list — correctly, the report shows it —
+    // and the §14 proof used to certify BOTH pages as re-checked, so the next
+    // scan closed the previous finding on /pricing off a verdict that was thrown
+    // away. Only the page that kept a verdict may be certified.
+    db = await createTestDb();
+    const prisma = db.prisma;
+    const account = await seedAccountWithProfile(prisma);
+
+    const first = await runUxScan(prisma, account, [
+      { ...grounded, targetUrl: `${ORIGIN}/pricing`, evidence: 'The page never names a price.' },
+    ]);
+    expect(first.result.outcome).toBe('Completed');
+    const previous = await prisma.issue.findFirstOrThrow({
+      where: { scanId: first.scan.id, ruleId: 'UX-CONV-AI-001' },
+    });
+    expect(previous.normalizedUrl).toBe(`${ORIGIN}/pricing`);
+
+    const second = await runUxScan(prisma, account, [
+      grounded,
+      { ...rendering, ruleId: 'UX-CONV-AI-001', targetUrl: `${ORIGIN}/pricing` },
+    ]);
+    expect(second.result.outcome).toBe('Completed');
+
+    const after = await prisma.issue.findUniqueOrThrow({ where: { id: previous.id } });
+    expect(after.status).toBe('New');
+
+    const entry = (await coverageOf(prisma, second.scan.id, 'UX/Conversion')).coverage.get(
+      'UX-CONV-AI-001',
+    );
+    expect(entry?.checkedTargets.has(`${ORIGIN}/`)).toBe(true);
+    expect(entry?.checkedTargets.has(`${ORIGIN}/pricing`)).toBe(false);
+    // The untouched AI rules still certify every page they reviewed.
+    const untouched = (await coverageOf(prisma, second.scan.id, 'UX/Conversion')).coverage.get(
+      'UX-CONV-AI-003',
+    );
+    expect(untouched?.checkedTargets.has(`${ORIGIN}/pricing`)).toBe(true);
+
+    // And the surviving finding of the second run is reported, on its own page.
+    const kept = await prisma.issue.findMany({
+      where: { scanId: second.scan.id, ruleId: 'UX-CONV-AI-001' },
+    });
+    expect(kept.map((issue) => issue.normalizedUrl)).toEqual([`${ORIGIN}/`]);
   });
 });
 

@@ -1160,6 +1160,8 @@ export const copy = {
           'The static UX checks ran, but the AI response did not meet FluxRadar’s strict evidence contract and was discarded.',
         uxAiScanCancelled:
           'The static UX checks ran and are reported in full; the AI-assisted UX review was stopped when you cancelled the audit.',
+        uxAiUnsupportedClaims:
+          'The static UX checks ran and are reported in full. The AI-assisted UX review answered, but none of the points it made were supported by the evidence FluxRadar collected — for example claims about visual appearance, or visitor confusion inferred from how many elements a page has. Those points were discarded rather than shown as facts, so this section carries no AI findings.',
         aiPartial:
           '{unavailable} of {total} AI questions could not be asked, so this section covers only the ones that were. Each cause is named below.',
         aiCancelled:
@@ -1574,6 +1576,8 @@ export const copy = {
           '{provider} · {model} reviewed the pages against the saved profile context. Findings: {findings}. They are in the Issue Center.',
         uxAiNotRan:
           'The AI review did not run in this scan, so only the static checks were made. The card explains why.',
+        uxAiDropped:
+          'Discarded: {dropped}. Points the review made that the evidence FluxRadar collected does not support — for example claims about visual appearance, or visitor confusion inferred from how many elements a page has — are not shown.',
         analyticsLead:
           'Checks run on the connected Search Console and Google Analytics 4 data, next to the pages FluxRadar read. They make up this section’s own score, which is not part of the overall score. The Issue Center has the evidence behind each finding.',
         analyticsNotRan:
@@ -2968,6 +2972,8 @@ export const copy = {
           'Статичні UX-перевірки виконано, але відповідь AI не відповіла суворому контракту доказів FluxRadar і була відхилена.',
         uxAiScanCancelled:
           'Статичні UX-перевірки виконано й показані повністю; AI-аналіз UX зупинено, коли ви скасували аудит.',
+        uxAiUnsupportedClaims:
+          'Статичні UX-перевірки виконано й показані повністю. AI-аналіз UX відповів, але жодне з його тверджень не підтверджується доказами, які зібрав FluxRadar, — наприклад, твердження про візуальний вигляд або про плутанину у відвідувача, виведену з кількості елементів на сторінці. Такі твердження відхилено, а не показано як факти, тому AI-знахідок у цьому розділі немає.',
         aiPartial:
           'Не вдалося поставити {unavailable} з {total} AI-питань, тому розділ охоплює лише ті, які було поставлено. Кожну причину названо нижче.',
         aiCancelled:
@@ -3315,6 +3321,8 @@ export const copy = {
           '{provider} · {model} розібрав сторінки з урахуванням контексту профілю. Знахідок: {findings}. Вони в Центрі проблем.',
         uxAiNotRan:
           'AI-розбір у цій перевірці не виконувався, тож зроблено лише статичні перевірки. Причину пояснено на картці.',
+        uxAiDropped:
+          'Відхилено: {dropped}. Твердження розбору, які не підтверджуються зібраними доказами, — наприклад, про візуальний вигляд або про плутанину у відвідувача, виведену з кількості елементів на сторінці, — не показуємо.',
         analyticsLead:
           'Перевірки на даних підключених Search Console і Google Analytics 4 поряд зі сторінками, які прочитав FluxRadar. З них складається власна оцінка цього розділу, яка не входить до загальної. Докази до кожної знахідки — у Центрі проблем.',
         analyticsNotRan:

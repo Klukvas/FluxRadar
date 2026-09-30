@@ -55,6 +55,8 @@ interface StatusCopy {
     readonly aiProviderContract: string;
     readonly aiEmptyQuestionLibrary: string;
     readonly aiProfileContextMissing: string;
+    /** The AI review answered, and the collected evidence backed none of its points. */
+    readonly aiUnsupportedClaims: string;
     // Analytics, written from the live Google connection state.
     readonly analyticsNotConnected: string;
     readonly analyticsPropertyNotSelected: string;
@@ -132,6 +134,8 @@ const EN: StatusCopy = {
     aiProviderContract: 'the AI answer failed FluxRadar’s evidence contract and was discarded',
     aiEmptyQuestionLibrary: 'no AI questions were prepared for this scan',
     aiProfileContextMissing: 'the profile carries no context to build the AI questions from',
+    aiUnsupportedClaims:
+      'no point the AI review made was supported by the evidence collected, so all were discarded',
     analyticsNotConnected: 'Google is not connected for this workspace',
     analyticsPropertyNotSelected: 'no Search Console or Analytics 4 property is linked yet',
     analyticsNeedsReconnect: 'Google access has expired or was revoked',
@@ -205,6 +209,8 @@ const UK: StatusCopy = {
     aiProviderContract: 'відповідь AI не пройшла контракт доказів FluxRadar і її відхилено',
     aiEmptyQuestionLibrary: 'для цієї перевірки не підготовлено жодного AI-питання',
     aiProfileContextMissing: 'у профілі немає контексту, з якого будувати AI-питання',
+    aiUnsupportedClaims:
+      'жодне твердження AI-розбору не підтверджується зібраними доказами, тож усі їх відхилено',
     analyticsNotConnected: 'Google не підключено для цього робочого простору',
     analyticsPropertyNotSelected: 'ще не вибрано ресурс Search Console або Analytics 4',
     analyticsNeedsReconnect: 'доступ до Google завершився або його відкликано',
@@ -253,6 +259,7 @@ const REASON_KEYS: Readonly<Record<string, ReasonKey | undefined>> = {
   ProviderContract: 'aiProviderContract',
   EmptyQuestionLibrary: 'aiEmptyQuestionLibrary',
   ProfileContextMissing: 'aiProfileContextMissing',
+  UnsupportedClaims: 'aiUnsupportedClaims',
   AnalyticsIntegrationNotConnected: 'analyticsNotConnected',
   AnalyticsPropertyNotSelected: 'analyticsPropertyNotSelected',
   AnalyticsIntegrationNeedsReconnect: 'analyticsNeedsReconnect',

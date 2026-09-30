@@ -73,6 +73,7 @@ import { devicePreferenceFor, runPerformanceModule } from './performance-module.
 import { uxRuleCheckSummaries } from './rule-checks.ts';
 import { crawlRequestContext, scanScopeOf, type RunRequestContext } from './run-context.ts';
 import type { ModuleCoverage } from './run-coverage.ts';
+import { uxAiReviewOutcome } from './ux-ai-claims.ts';
 import { runUxConversion, uxRuleCoverage } from './ux.ts';
 
 const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
@@ -249,19 +250,24 @@ async function persistUxModule(
   const scanId = scan.id;
   const deterministicChecks = 3;
   const aiOutcome = ux.ai.outcome?.kind === 'response' ? ux.ai.outcome : null;
-  const aiResponse = aiOutcome?.response ?? null;
   const aiRequestKey = aiOutcome?.aiRequestKey;
   // Coverage counts the three declared deterministic rules plus the one AI
   // review, not the number of pages. Page count made a 12-page scan look 92%
   // complete when its entire AI quarter had not run.
-  const completedApplicableChecks = deterministicChecks + (aiResponse === null ? 0 : 1);
+  //
+  // A review that answered and had every claim rejected is not a completed
+  // check either: it produced nothing the report may show, and counting it would
+  // make a section with no usable AI verdict read as a clean 100% pass (§575).
+  const review = uxAiReviewOutcome(ux.ai);
+  const completedApplicableChecks = deterministicChecks + (review.verified ? 1 : 0);
   const applicableChecks = deterministicChecks + 1;
   const uxReason = ux.ai.statusReason === null ? null : `UxAi${ux.ai.statusReason}`;
+  const uxPartialReason = review.rejectedOnly ? 'UxAiUnsupportedClaims' : uxReason;
   await persistModuleResult(prisma, scan, {
     module: 'UX/Conversion',
     row: {
-      runtimeStatus: aiResponse === null ? 'Partial' : 'Completed',
-      statusReason: aiResponse === null ? uxReason : null,
+      runtimeStatus: review.verified ? 'Completed' : 'Partial',
+      statusReason: review.verified ? null : uxPartialReason,
       coverage: completedApplicableChecks / applicableChecks,
       // A Partial run scores only the checks that ran (§15): without the AI review
       // that is the three static rules, and the coverage above says so.
@@ -280,8 +286,21 @@ async function persistUxModule(
         pages: redactEvidence(ux.staticEvidence.pages),
         ai: {
           status: ux.ai.status,
-          statusReason: uxReason,
+          statusReason: uxPartialReason,
           findings: ux.ai.findings.length,
+          // What the review returned and the evidence could not back. Bounded and
+          // label-only on purpose: the rejected sentence was written by the
+          // provider about a page nobody rendered, so it is counted and
+          // classified, never stored or shown.
+          ...(review.rejectedFindings === 0
+            ? {}
+            : {
+                unsupportedClaims: {
+                  findings: review.rejectedFindings,
+                  reasons: review.rejectedReasons,
+                  rules: review.rejectedRuleIds,
+                },
+              }),
           ...(aiOutcome === null
             ? {}
             : {

@@ -6,10 +6,12 @@
 // title comes from the registry, so the report names a check the same way the
 // rest of the product does.
 
-import type { AiRequestOutcome, UxAiFinding } from '@fluxradar/ai';
+import type { AiRequestOutcome, UnsupportedUxClaim, UxAiFinding } from '@fluxradar/ai';
 import { ruleById } from '@fluxradar/contracts';
 import type { RuleDescriptor } from '@fluxradar/contracts';
 import type { ModuleRunResult, NotApplicableReason, UxStaticEvidence } from '@fluxradar/rules';
+
+import { uxAiReviewOutcome } from './ux-ai-claims.ts';
 
 export interface RuleCounts {
   readonly ruleId: string;
@@ -69,14 +71,28 @@ export function ruleCheckSummaries(
  * only when the provider answered — a review that never ran (unavailable, or
  * interrupted by a cancellation, and then `outcome` is null) looked at nothing,
  * and "not applicable" would claim the pages gave it nothing to review.
+ *
+ * An AI rule whose every finding was rejected for resting on evidence the crawl
+ * never had is left out on the same ground: it answered, but it produced no
+ * verdict, and a row reading "0 of 12 pages affected" would report that as a
+ * pass (`ux-ai-claims.ts`). A review that lost *every* claim lists no AI rule at
+ * all — the module row counts that review as one incomplete check, and a rule of
+ * it shown as passed would contradict the row it sits under.
  */
 export function uxRuleCheckSummaries(
   evidence: UxStaticEvidence,
-  ai: { readonly outcome: AiRequestOutcome | null; readonly findings: readonly UxAiFinding[] },
+  ai: {
+    readonly outcome: AiRequestOutcome | null;
+    readonly findings: readonly UxAiFinding[];
+    readonly unsupportedClaims?: readonly UnsupportedUxClaim[];
+  },
 ): readonly RuleCheckSummary[] {
+  const review = uxAiReviewOutcome(ai);
   const ruleIds = [
     ...UX_STATIC_RULE_IDS,
-    ...(ai.outcome?.kind === 'response' ? UX_AI_RULE_IDS : []),
+    ...(review.verified
+      ? UX_AI_RULE_IDS.filter((ruleId) => !review.rejectedRuleIds.includes(ruleId))
+      : []),
   ];
   const findings = [...evidence.findings, ...ai.findings];
   return ruleIds.map((ruleId) => ruleCheckSummary(uxRuleCounts(evidence, findings, ruleId)));

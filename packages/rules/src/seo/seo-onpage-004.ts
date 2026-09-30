@@ -35,6 +35,15 @@
 // прямо на партнёра, и читатель, открыв исходник, поймал бы отчёт на слове
 // (UnclaimedReason).
 //
+// HREFLANG СНИМАЕТ НАХОДКУ ТАК ЖЕ, И ПО ТОЙ ЖЕ ПРИЧИНЕ. Две страницы, которые
+// сайт объявил языковыми версиями друг друга, за одну выдачу не конкурируют:
+// hreflang и есть тот механизм, которым владелец сказал поисковику, кому какую
+// версию показать. Английское название должности на украинской странице — не
+// дубль, а непереведённое название, и правило о нём молчит ровно тогда, когда
+// заявление ВЗАИМНО, разноязычно и покрывает всю остальную группу
+// (language-alternates.ts). Односторонняя ссылка, `en-us` против `en-gb` и
+// мусорный hreflang заявлением не считаются.
+//
 // ДУБЛЬ URL (SEO-TECH-007) ЗДЕСЬ НЕ ДУБЛИРУЕТСЯ. Группа 007 — это ОДИН
 // normalizedUrl, найденный в ≥2 raw-формах (`/p` и `/p?utm=x`); обход такой
 // адрес читает один раз, поэтому у всей группы 007 ровно один снимок и ровно
@@ -54,6 +63,7 @@ import {
   type UnclaimedReason,
 } from '../shared/duplicate-groups.js';
 import { duplicateCoverage } from '../shared/duplicate-rule.js';
+import { titleDuplicatesAnsweredByLanguageAlternates } from './language-alternates.js';
 import { canonicalAddress } from './site-index.js';
 
 const descriptor = requireDescriptor('SEO-ONPAGE-004');
@@ -72,6 +82,11 @@ export const seoOnpage004DuplicateTitle: PageRule = {
     const address = canonicalAddress(ctx.crawl, page.normalizedUrl);
     const duplicates = unclaimedDuplicatesOf(duplicateIndex(ctx, 'title'), address);
     if (duplicates === null) {
+      return [];
+    }
+    // Спрашивается только у страницы, у которой дубль вообще есть: сайт без
+    // дублей заголовков не платит за разбор hreflang ни одной страницей.
+    if (titleDuplicatesAnsweredByLanguageAlternates(ctx).has(address)) {
       return [];
     }
     return [
