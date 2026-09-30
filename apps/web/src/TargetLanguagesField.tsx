@@ -22,7 +22,7 @@ import {
 import { Checkbox } from './components';
 import { copy, fillCopy, type Language } from './i18n';
 import {
-  TARGET_LANGUAGE_NAMES,
+  PROFILE_TARGET_LANGUAGE_NAMES,
   formatTargetLanguages,
   parseTargetLanguages,
   targetLanguageLabel,
@@ -46,10 +46,10 @@ export function TargetLanguagesField(props: {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
   const selected = parseTargetLanguages(props.value);
-  // Entries an older free-text value named that the list does not: shown first
-  // and ticked, so the owner sees them and can untick them.
-  const unlisted = selected.filter((name) => !TARGET_LANGUAGE_NAMES.includes(name));
-  const options = [...unlisted, ...TARGET_LANGUAGE_NAMES];
+  // Older profiles can retain previously supported choices, but this picker
+  // only offers the three languages the product now supports for new choices.
+  const legacy = selected.filter((name) => !PROFILE_TARGET_LANGUAGE_NAMES.includes(name));
+  const options = PROFILE_TARGET_LANGUAGE_NAMES;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -86,6 +86,13 @@ export function TargetLanguagesField(props: {
       ),
     );
 
+  const removeLegacy = (): void =>
+    props.onChange(
+      formatTargetLanguages(
+        selected.filter((name) => PROFILE_TARGET_LANGUAGE_NAMES.includes(name)),
+      ),
+    );
+
   const onTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
@@ -100,15 +107,7 @@ export function TargetLanguagesField(props: {
   };
 
   const onOptionsKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      close();
-      return;
-    }
-    if (event.key === 'Tab') {
-      setOpen(false);
-      return;
-    }
+    if (event.key === 'Tab') return;
     const all = boxes();
     const index = all.indexOf(document.activeElement as HTMLInputElement);
     if (index === -1 || all.length === 0) return;
@@ -153,7 +152,19 @@ export function TargetLanguagesField(props: {
           </span>
         </button>
         {open ? (
-          <div id={popupId} className="language-picker__popup">
+          <div
+            id={popupId}
+            className="language-picker__popup"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                close();
+              }
+            }}
+            onBlur={(event) => {
+              if (!containerRef.current?.contains(event.relatedTarget)) setOpen(false);
+            }}
+          >
             <div
               className="language-picker__options"
               role="group"
@@ -171,6 +182,14 @@ export function TargetLanguagesField(props: {
                 />
               ))}
             </div>
+            {legacy.length === 0 ? null : (
+              <div className="language-picker__legacy">
+                <p>{fillCopy(t.targetLanguagesLegacy, { languages: legacy.join(', ') })}</p>
+                <button type="button" className="link-button" onClick={removeLegacy}>
+                  {t.targetLanguagesRemoveLegacy}
+                </button>
+              </div>
+            )}
           </div>
         ) : null}
       </div>

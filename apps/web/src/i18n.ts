@@ -229,11 +229,13 @@ export const copy = {
       suggestProfileHelp:
         'We use public homepage details only. Review and add to them before saving.',
       suggestingProfile: 'Reading public homepage…',
-      translateProfileContext: 'Translate context to English',
       translatingProfileContext: 'Translating context…',
       restoreProfileContextOriginal: 'Restore original text',
       translateProfileUnavailable:
         'Translation is temporarily unavailable. You can continue editing the original text.',
+      targetLanguagesLegacy:
+        'Previously saved languages: {languages}. They are kept until you remove them.',
+      targetLanguagesRemoveLegacy: 'Remove previously saved languages',
       suggestedProfile: 'Suggested from the public homepage. Review and edit before saving.',
       // Named rather than left blank: an owner who is not told which fields the
       // public metadata did not identify reads an incomplete form as a broken one.
@@ -2088,11 +2090,13 @@ export const copy = {
       suggestProfileHelp:
         'Використаємо лише публічні дані головної сторінки. Перевірте й доповніть їх перед збереженням.',
       suggestingProfile: 'Читаємо публічну головну сторінку…',
-      translateProfileContext: 'Перекласти контекст українською',
       translatingProfileContext: 'Перекладаємо контекст…',
       restoreProfileContextOriginal: 'Відновити оригінальний текст',
       translateProfileUnavailable:
         'Переклад тимчасово недоступний. Ви можете продовжити редагувати оригінальний текст.',
+      targetLanguagesLegacy:
+        'Раніше збережені мови: {languages}. Вони збережуться, доки ви не видалите їх.',
+      targetLanguagesRemoveLegacy: 'Видалити раніше збережені мови',
       suggestedProfile:
         'Запропоновано з публічної головної сторінки. Перевірте й відредагуйте перед збереженням.',
       suggestedProfileMissing:

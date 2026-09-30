@@ -133,9 +133,8 @@ test('the language dropdown floats over the form and takes several choices', asy
   const popup = page.locator('.language-picker__popup');
   await expect(popup).toBeVisible();
   expect(await pageTop(audience)).toBeCloseTo(before, 0);
-  expect(
-    await popup.evaluate((el) => el.getBoundingClientRect().bottom + window.scrollY),
-  ).toBeGreaterThan(before);
+  // The three supported choices can fit above the next field. Its location is
+  // the invariant: the popup is anchored and does not reflow the form.
 
   await page.getByRole('checkbox', { name: 'Ukrainian' }).click();
   await expect(popup).toBeVisible();
@@ -240,11 +239,14 @@ test('mobile surfaces a failed suggestion while retaining a saveable manual form
   }
 });
 
-test('translates profile context explicitly and restores the original without touching target languages', async ({
+test('fills and translates newly extracted profile context without touching target languages', async ({
   page,
   baseURL,
 }) => {
   await isolate(page, new URL(baseURL!).origin, async (route) => {
+    if (new URL(route.request().url()).pathname === '/profiles/suggestions') {
+      return json(route, { industry: 'Product studio' });
+    }
     if (new URL(route.request().url()).pathname === '/profiles/context-translation') {
       return json(route, { industry: 'Translated studio' });
     }
@@ -253,11 +255,12 @@ test('translates profile context explicitly and restores the original without to
   await page.goto('/profiles');
   await dismissCookies(page);
   await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('textbox', { name: /Site address/ }).fill('studio.example');
   await page.getByText(/Describe the site for AI visibility checks/).click();
   const industry = page.getByPlaceholder('Dental clinic, recruiting platform, online store');
-  await industry.fill('Product studio');
-  await page.getByRole('button', { name: 'Translate context to English' }).click();
+  await page.getByRole('button', { name: 'Fill from site' }).click();
   await expect(industry).toHaveValue('Translated studio');
+  await expect(page.getByRole('button', { name: /Translate context/ })).toHaveCount(0);
   await expect(page.locator('.language-picker__summary')).toHaveText('Choose languages');
   await page.getByRole('button', { name: 'Restore original text' }).click();
   await expect(industry).toHaveValue('Product studio');

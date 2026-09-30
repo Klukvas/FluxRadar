@@ -64,6 +64,12 @@ export const TARGET_LANGUAGE_NAMES: readonly string[] = LANGUAGE_CODES.map((code
   languageName(code, 'en'),
 );
 
+/** The three languages a profile can actively target from this picker. */
+export const PROFILE_TARGET_LANGUAGE_CODES = ['uk', 'en', 'ru'] as const;
+export const PROFILE_TARGET_LANGUAGE_NAMES: readonly string[] = PROFILE_TARGET_LANGUAGE_CODES.map(
+  (code) => languageName(code, 'en'),
+);
+
 const CODE_BY_NAME: ReadonlyMap<string, string> = new Map(
   LANGUAGE_CODES.map((code) => [languageName(code, 'en'), code]),
 );

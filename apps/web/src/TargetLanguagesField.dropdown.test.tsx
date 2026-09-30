@@ -56,20 +56,20 @@ describe('the target language dropdown', () => {
     expect(options()).toBeInTheDocument();
     fireEvent.click(screen.getByRole('checkbox', { name: 'English' }));
     expect(options()).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Polish' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Russian' }));
 
     expect(options()).toBeInTheDocument();
-    expect(screen.getByText('3 chosen: Ukrainian, English, Polish')).toBeInTheDocument();
+    expect(screen.getByText('3 chosen: Ukrainian, English, Russian')).toBeInTheDocument();
   });
 
   it('closes on a click outside it without dropping what was chosen', () => {
     render(<Picker />);
     fireEvent.click(trigger());
-    fireEvent.click(screen.getByRole('checkbox', { name: 'German' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Russian' }));
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Outside' }));
     expect(options()).not.toBeInTheDocument();
-    expect(screen.getByText('1 chosen: German')).toBeInTheDocument();
+    expect(screen.getByText('1 chosen: Russian')).toBeInTheDocument();
   });
 
   it('closes on Escape and gives focus back to the trigger', () => {
@@ -111,20 +111,39 @@ describe('the target language dropdown', () => {
     render(<Picker />);
     fireEvent.click(trigger());
     const first = screen.getAllByRole('checkbox')[0] as HTMLElement;
+    first.focus();
 
     fireEvent.keyDown(first, { key: 'Tab' });
+    const outside = screen.getByRole('button', { name: 'Outside' });
+    fireEvent.focusOut(first, { relatedTarget: outside });
+    outside.focus();
     expect(options()).not.toBeInTheDocument();
   });
 
-  it('lists a stored code the picker does not know first, ticked, and keeps it', () => {
+  it('shows a stored unsupported value separately and preserves it until removed', () => {
     render(<Picker initial="Klingon, uk" />);
     expect(screen.getByText('2 chosen: Klingon, Ukrainian')).toBeInTheDocument();
 
     fireEvent.click(trigger());
-    const boxes = screen.getAllByRole('checkbox');
-    expect(boxes[0]).toHaveAccessibleName('Klingon');
-    expect(boxes[0]).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: 'Klingon' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Previously saved languages: Klingon/)).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Ukrainian' })).toBeChecked();
+  });
+
+  it('keeps the legacy removal action reachable from the last checkbox by Tab', () => {
+    render(<Picker initial="Klingon, uk" />);
+    fireEvent.click(trigger());
+    const last = screen.getAllByRole('checkbox').at(-1) as HTMLElement;
+    const remove = screen.getByRole('button', { name: 'Remove previously saved languages' });
+    last.focus();
+
+    fireEvent.keyDown(last, { key: 'Tab' });
+    remove.focus();
+    expect(options()).toBeInTheDocument();
+    expect(remove).toHaveFocus();
+
+    fireEvent.click(remove);
+    expect(screen.getByText('1 chosen: Ukrainian')).toBeInTheDocument();
   });
 
   it('names the count in the reader’s language', () => {

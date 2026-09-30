@@ -73,23 +73,26 @@ describe('the target language picker', () => {
     fireEvent.click(trigger());
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Ukrainian' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Polish' }));
-    expect(values.at(-1)).toBe('Ukrainian, Polish');
-    expect(screen.getByText('2 chosen: Ukrainian, Polish')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Russian' }));
+    expect(values.at(-1)).toBe('Ukrainian, Russian');
+    expect(screen.getByText('2 chosen: Ukrainian, Russian')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Ukrainian' }));
-    expect(values.at(-1)).toBe('Polish');
+    expect(values.at(-1)).toBe('Russian');
   });
 
-  it('keeps an entry of an older profile that the list does not have, ticked', () => {
+  it('keeps a legacy entry without offering it as a new choice', () => {
     const values: string[] = [];
     render(<Picker initial="Українська, Klingon" values={values} />);
     fireEvent.click(trigger());
 
-    expect(screen.getByRole('checkbox', { name: 'Klingon' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Ukrainian' })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: 'Klingon' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Previously saved languages: Klingon/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'English' }));
     expect(values.at(-1)).toBe('Ukrainian, Klingon, English');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove previously saved languages' }));
+    expect(values.at(-1)).toBe('Ukrainian, English');
   });
 });

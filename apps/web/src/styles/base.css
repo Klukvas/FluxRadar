@@ -659,6 +659,15 @@ code,
   overflow-y: auto;
   padding: var(--sp-1) var(--sp-2);
 }
+.language-picker__legacy {
+  border-top: 1px solid var(--plat-300);
+  padding: var(--sp-2);
+  color: var(--plat-700);
+  font-size: 13px;
+}
+.language-picker__legacy p {
+  margin: 0 0 var(--sp-1);
+}
 
 .profile-row {
   display: grid;
