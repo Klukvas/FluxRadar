@@ -67,7 +67,8 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'clinic.example' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic'),
     );
@@ -78,7 +79,6 @@ describe('profile suggestions', () => {
     expect(
       fetchMock.mock.calls.find(([input]) => String(input).includes('/profiles/suggestions'))?.[0],
     ).toContain('/profiles/suggestions');
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
     expect(
       screen.getByPlaceholderText('A private dental clinic helping families in Kyiv…'),
     ).toHaveValue('Evidence-grounded care');
@@ -108,11 +108,11 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'clinic.example' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Product site')).toHaveValue('Bright Smile'),
     );
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toHaveValue('Dentist');
@@ -148,7 +148,8 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'flux-lab.example' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Product site')).toHaveValue('fluxLab.dev'),
     );
@@ -194,7 +195,8 @@ describe('profile suggestions', () => {
         target: { value: 'In-house engineers' },
       },
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
 
     await waitFor(() =>
       expect(
@@ -221,7 +223,8 @@ describe('profile suggestions', () => {
       target: { value: 'clinic.example' },
     });
     fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
-    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     fireEvent.change(screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine'), {
       target: { value: 'Berlin' },
     });
@@ -248,7 +251,8 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'first.example' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'second.example' },
     });
@@ -280,7 +284,8 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'new.example' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Saved profile' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit profile' }));
     pending.resolve(success({ name: 'Stale public title' }));
@@ -308,12 +313,102 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('Product site'), {
       target: { value: 'Manual profile' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
       expect(notice).toHaveBeenCalledWith(
         'Could not read public details from this site. You can still save it manually.',
       ),
     );
     expect(screen.getByRole('button', { name: 'Save profile' })).not.toBeDisabled();
+  });
+});
+
+describe('profile context translation', () => {
+  it('translates only human context and restores the original value', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = new URL(String(input)).pathname;
+      if (path === '/profiles/context-translation') {
+        return Promise.resolve(success({ industry: 'Продуктова студія' }));
+      }
+      return Promise.resolve(success([]));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderForm();
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    const field = screen.getByPlaceholderText('Dental clinic, recruiting platform, online store');
+    fireEvent.change(field, { target: { value: 'Product studio' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Translate context to English' }));
+    await waitFor(() => expect(field).toHaveValue('Продуктова студія'));
+    expect(screen.getByRole('button', { name: 'Restore original text' })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/profiles/context-translation'),
+      expect.objectContaining({
+        body: JSON.stringify({ targetLanguage: 'en', industry: 'Product studio' }),
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Restore original text' }));
+    expect(field).toHaveValue('Product studio');
+  });
+
+  it('keeps an edit made while a translation is pending', async () => {
+    const pending = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) =>
+        new URL(String(input)).pathname === '/profiles/context-translation'
+          ? pending.promise
+          : Promise.resolve(success([])),
+      ),
+    );
+    renderForm();
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    const field = screen.getByPlaceholderText('Dental clinic, recruiting platform, online store');
+    fireEvent.change(field, { target: { value: 'Product studio' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Translate context to English' }));
+    fireEvent.change(field, { target: { value: 'Owner wording' } });
+    pending.resolve(success({ industry: 'Translated wording' }));
+    await waitFor(() => expect(field).toHaveValue('Owner wording'));
+  });
+
+  it('does not restore over a later manual edit and reports an unavailable provider', async () => {
+    const notice = vi.fn();
+    let translationAttempt = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        if (new URL(String(input)).pathname !== '/profiles/context-translation') {
+          return Promise.resolve(success([]));
+        }
+        translationAttempt += 1;
+        return translationAttempt === 1
+          ? Promise.resolve(success({ industry: 'Translated wording' }))
+          : Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  success: false,
+                  data: null,
+                  error: { code: 'VALIDATION', message: 'Translation is temporarily unavailable.' },
+                }),
+                { status: 400, headers: { 'content-type': 'application/json' } },
+              ),
+            );
+      }),
+    );
+    renderForm({ onNotice: notice });
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    const field = screen.getByPlaceholderText('Dental clinic, recruiting platform, online store');
+    fireEvent.change(field, { target: { value: 'Product studio' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Translate context to English' }));
+    await waitFor(() => expect(field).toHaveValue('Translated wording'));
+    fireEvent.change(field, { target: { value: 'Owner wording' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Restore original text' }));
+    expect(field).toHaveValue('Owner wording');
+    fireEvent.click(screen.getByRole('button', { name: 'Translate context to English' }));
+    await waitFor(() =>
+      expect(notice).toHaveBeenCalledWith(
+        'Translation is temporarily unavailable. You can continue editing the original text.',
+      ),
+    );
   });
 });

@@ -70,12 +70,12 @@ test('desktop offers grounded details without saving and keeps a gap before the 
   await dismissCookies(page);
   await page.getByRole('button', { name: '+ Add a site' }).click();
   await page.getByRole('textbox', { name: /Site address/ }).fill('public.example');
-  await page.getByRole('button', { name: 'Get details from site' }).click();
+  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByRole('button', { name: 'Fill from site' }).click();
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
   await expect(
     page.getByText('Suggested from the public homepage. Review and edit before saving.'),
   ).toBeVisible();
-  await page.getByText(/Describe the site for AI visibility checks/).click();
   await expect(
     page.getByPlaceholder('A private dental clinic helping families in Kyiv…'),
   ).toHaveValue('Public description');
@@ -165,7 +165,8 @@ test('a late public proposal cannot replace a manual profile name', async ({ pag
   await dismissCookies(page);
   await page.getByRole('button', { name: '+ Add a site' }).click();
   await page.getByRole('textbox', { name: /Site address/ }).fill('manual.example');
-  await page.getByRole('button', { name: 'Get details from site' }).click();
+  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByRole('button', { name: 'Fill from site' }).click();
   await page.getByRole('textbox', { name: 'Display name' }).fill('Manual title');
   release();
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Manual title');
@@ -222,7 +223,8 @@ test('mobile surfaces a failed suggestion while retaining a saveable manual form
     await page.getByRole('button', { name: '+ Add a site' }).click();
     await page.getByRole('textbox', { name: /Site address/ }).fill('manual.example');
     await page.getByRole('textbox', { name: 'Display name' }).fill('Manual profile');
-    await page.getByRole('button', { name: 'Get details from site' }).click();
+    await page.getByText(/Describe the site for AI visibility checks/).click();
+    await page.getByRole('button', { name: 'Fill from site' }).click();
     await expect(
       page.getByText(
         'Could not read public details from this site. You can still save it manually.',
@@ -236,4 +238,27 @@ test('mobile surfaces a failed suggestion while retaining a saveable manual form
   } finally {
     await context.close();
   }
+});
+
+test('translates profile context explicitly and restores the original without touching target languages', async ({
+  page,
+  baseURL,
+}) => {
+  await isolate(page, new URL(baseURL!).origin, async (route) => {
+    if (new URL(route.request().url()).pathname === '/profiles/context-translation') {
+      return json(route, { industry: 'Translated studio' });
+    }
+    return baseApi(route);
+  });
+  await page.goto('/profiles');
+  await dismissCookies(page);
+  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByText(/Describe the site for AI visibility checks/).click();
+  const industry = page.getByPlaceholder('Dental clinic, recruiting platform, online store');
+  await industry.fill('Product studio');
+  await page.getByRole('button', { name: 'Translate context to English' }).click();
+  await expect(industry).toHaveValue('Translated studio');
+  await expect(page.locator('.language-picker__summary')).toHaveText('Choose languages');
+  await page.getByRole('button', { name: 'Restore original text' }).click();
+  await expect(industry).toHaveValue('Product studio');
 });

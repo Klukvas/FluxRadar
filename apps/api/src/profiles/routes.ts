@@ -35,6 +35,13 @@ import { competitorsFromJson } from './competitors.ts';
 import { deleteSiteProfileData, type ProfileDeletionBlocker } from './profile-deletion.ts';
 import { resolveOwnProfile } from './resolve.ts';
 import { suggestProfileFromSite, type ProfileSuggestions } from './profile-suggestions.ts';
+import {
+  createProfileContextTranslator,
+  profileContextTranslationSchema,
+  ProfileContextTranslationUnavailableError,
+  type ProfileContextTranslation,
+  type ProfileContextTranslationInput,
+} from './profile-context-translation.ts';
 
 export interface ProfilesRouterDeps {
   readonly prisma: PrismaClient;
@@ -45,6 +52,11 @@ export interface ProfilesRouterDeps {
   readonly logger?: ApiLogger;
   /** Test seam for the one bounded public homepage read used by profile autofill. */
   readonly suggestProfile?: (domain: string) => Promise<ProfileSuggestions>;
+  /** Test seam for translation of the owner-selected human context fields only. */
+  readonly translateProfileContext?: (
+    input: ProfileContextTranslationInput,
+    signal?: AbortSignal,
+  ) => Promise<ProfileContextTranslation>;
 }
 
 const PROFILE_DELETION_BLOCKED_MESSAGES: Readonly<Record<ProfileDeletionBlocker, string>> = {
@@ -143,6 +155,32 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
       { profile: toProfileDto(resolved.profile), created: resolved.created },
       { status: resolved.created ? 201 : 200 },
     );
+  });
+
+  router.post('/profiles/context-translation', auth, async (req, res) => {
+    const input = parseInput(profileContextTranslationSchema, req.body);
+    const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('profile-context-translation', accountId, req.ip ?? 'unknown'),
+    );
+    const aborted = new AbortController();
+    const cancelIfDisconnected = () => {
+      if (req.aborted || !res.writableEnded) aborted.abort();
+    };
+    req.once('aborted', cancelIfDisconnected);
+    res.once('close', cancelIfDisconnected);
+    try {
+      const translate = deps.translateProfileContext ?? createProfileContextTranslator();
+      sendOk(res, await translate(input, aborted.signal));
+    } catch (error) {
+      if (aborted.signal.aborted) return;
+      if (error instanceof ProfileContextTranslationUnavailableError) {
+        throw validationError(error.message);
+      }
+      throw validationError(
+        'Translation is temporarily unavailable. You can continue editing the original text.',
+      );
+    }
   });
 
   router.post('/profiles/suggestions', auth, async (req, res) => {

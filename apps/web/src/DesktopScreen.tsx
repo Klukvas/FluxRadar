@@ -62,6 +62,21 @@ type ProfileContextLabel =
   | 'targetLanguages'
   | 'targetAudience';
 
+type TranslatableProfileContext = Pick<
+  ProfileSuggestionsResponse,
+  'industry' | 'businessDescription' | 'offerings' | 'region' | 'targetAudience'
+>;
+
+interface ProfileSuggestionsResponse {
+  readonly name?: string;
+  readonly businessDescription?: string;
+  readonly offerings?: string;
+  readonly industry?: string;
+  readonly region?: string;
+  readonly targetAudience?: string;
+  readonly targetLanguages?: string;
+}
+
 interface ProfileContextField {
   readonly label: ProfileContextLabel;
   /** What the form holds now — a value the owner typed is never overwritten. */
@@ -124,8 +139,22 @@ export function DesktopScreen(props: DesktopScreenProps) {
   const [suggested, setSuggested] = useState(false);
   /** The context fields the last proposal found no evidence for, still empty. */
   const [suggestedMissing, setSuggestedMissing] = useState<readonly ProfileContextLabel[]>([]);
+  const [translatingContext, setTranslatingContext] = useState(false);
+  const [translatedContext, setTranslatedContext] = useState<{
+    readonly original: Partial<TranslatableProfileContext>;
+    readonly translated: Partial<TranslatableProfileContext>;
+  } | null>(null);
   const suggestionVersion = useRef(0);
   const suggestionAbort = useRef<AbortController | null>(null);
+  const contextTranslationVersion = useRef(0);
+  const contextTranslationAbort = useRef<AbortController | null>(null);
+
+  const invalidateContextTranslation = () => {
+    contextTranslationVersion.current += 1;
+    contextTranslationAbort.current?.abort();
+    contextTranslationAbort.current = null;
+    setTranslatingContext(false);
+  };
 
   const invalidateSuggestions = () => {
     suggestionVersion.current += 1;
@@ -196,7 +225,9 @@ export function DesktopScreen(props: DesktopScreenProps) {
     setDomainError(null);
     clearSuggestionNotices();
     setSuggesting(false);
+    setTranslatedContext(null);
     invalidateSuggestions();
+    invalidateContextTranslation();
   };
 
   const suggestFromSite = async (): Promise<void> => {
@@ -211,15 +242,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
     const version = suggestionVersion.current;
     setSuggesting(true);
     try {
-      const suggestions = await apiRequest<{
-        name?: string;
-        businessDescription?: string;
-        offerings?: string;
-        industry?: string;
-        region?: string;
-        targetAudience?: string;
-        targetLanguages?: string;
-      }>('/profiles/suggestions', {
+      const suggestions = await apiRequest<ProfileSuggestionsResponse>('/profiles/suggestions', {
         method: 'POST',
         body: JSON.stringify({ domain: normalized.origin }),
         signal: controller.signal,
@@ -284,6 +307,103 @@ export function DesktopScreen(props: DesktopScreenProps) {
     }
   };
 
+  const translateContext = async (): Promise<void> => {
+    const original: TranslatableProfileContext = {
+      ...(industry.trim() === '' ? {} : { industry }),
+      ...(businessDescription.trim() === '' ? {} : { businessDescription }),
+      ...(offerings.trim() === '' ? {} : { offerings }),
+      ...(region.trim() === '' ? {} : { region }),
+      ...(targetAudience.trim() === '' ? {} : { targetAudience }),
+    };
+    if (Object.keys(original).length === 0) return;
+    contextTranslationAbort.current?.abort();
+    const controller = new AbortController();
+    contextTranslationAbort.current = controller;
+    const version = contextTranslationVersion.current;
+    setTranslatingContext(true);
+    try {
+      const translated = await apiRequest<Partial<TranslatableProfileContext>>(
+        '/profiles/context-translation',
+        {
+          method: 'POST',
+          body: JSON.stringify({ targetLanguage: props.language, ...original }),
+          signal: controller.signal,
+        },
+      );
+      if (contextTranslationVersion.current !== version) return;
+      const applied: Partial<TranslatableProfileContext> = {};
+      const setIfUnchanged = <Key extends keyof TranslatableProfileContext>(
+        key: Key,
+        current: string,
+        set: (value: string) => void,
+      ) => {
+        const next = translated[key];
+        const before = original[key];
+        if (next !== undefined && before !== undefined && current === before) {
+          set(next);
+          applied[key] = next;
+        }
+      };
+      setIfUnchanged('industry', industry, setIndustry);
+      setIfUnchanged('businessDescription', businessDescription, setBusinessDescription);
+      setIfUnchanged('offerings', offerings, setOfferings);
+      setIfUnchanged('region', region, setRegion);
+      setIfUnchanged('targetAudience', targetAudience, setTargetAudience);
+      const appliedOriginal = Object.fromEntries(
+        Object.keys(applied).map((key) => [key, original[key as keyof TranslatableProfileContext]]),
+      ) as Partial<TranslatableProfileContext>;
+      setTranslatedContext(
+        Object.keys(applied).length === 0
+          ? null
+          : { original: appliedOriginal, translated: applied },
+      );
+    } catch {
+      if (!controller.signal.aborted) props.onNotice(t.workspace.translateProfileUnavailable);
+    } finally {
+      if (contextTranslationVersion.current === version) {
+        setTranslatingContext(false);
+        contextTranslationAbort.current = null;
+      }
+    }
+  };
+
+  const restoreOriginalContext = () => {
+    if (translatedContext === null) return;
+    // Restoring is guarded by the exact translated value: an owner who edited a
+    // field after the response keeps their newer wording.
+    if (
+      translatedContext.translated.industry !== undefined &&
+      industry === translatedContext.translated.industry
+    ) {
+      setIndustry(translatedContext.original.industry ?? industry);
+    }
+    if (
+      translatedContext.translated.businessDescription !== undefined &&
+      businessDescription === translatedContext.translated.businessDescription
+    ) {
+      setBusinessDescription(translatedContext.original.businessDescription ?? businessDescription);
+    }
+    if (
+      translatedContext.translated.offerings !== undefined &&
+      offerings === translatedContext.translated.offerings
+    ) {
+      setOfferings(translatedContext.original.offerings ?? offerings);
+    }
+    if (
+      translatedContext.translated.region !== undefined &&
+      region === translatedContext.translated.region
+    ) {
+      setRegion(translatedContext.original.region ?? region);
+    }
+    if (
+      translatedContext.translated.targetAudience !== undefined &&
+      targetAudience === translatedContext.translated.targetAudience
+    ) {
+      setTargetAudience(translatedContext.original.targetAudience ?? targetAudience);
+    }
+    setTranslatedContext(null);
+  };
+
   const openForm = () => {
     setFormRequested(true);
     window.requestAnimationFrame(() => {
@@ -295,6 +415,8 @@ export function DesktopScreen(props: DesktopScreenProps) {
   const editProfile = (profile: SiteProfile) => {
     invalidateSuggestions();
     clearSuggestionNotices();
+    setTranslatedContext(null);
+    invalidateContextTranslation();
     setEditingProfile(profile);
     setName(profile.name);
     setSuggestedName('');
@@ -435,32 +557,6 @@ export function DesktopScreen(props: DesktopScreenProps) {
                     error={domainError ?? undefined}
                     data-tour-target="profile-domain"
                   />
-                  <div className="button-row">
-                    <Button
-                      type="button"
-                      onClick={() => void suggestFromSite()}
-                      disabled={suggesting || editingProfile !== null}
-                    >
-                      {suggesting ? t.workspace.suggestingProfile : t.workspace.suggestProfile}
-                    </Button>
-                  </div>
-                  {suggested ? (
-                    <p className="muted profile-suggestions">{t.workspace.suggestedProfile}</p>
-                  ) : null}
-                  {suggestedMissing.length === 0 ? null : (
-                    <p className="muted profile-suggestions">
-                      {fillCopy(t.workspace.suggestedProfileMissing, {
-                        // "A, B and C" in the reader's language, rather than a
-                        // comma list that reads as a truncated one.
-                        fields: new Intl.ListFormat(props.language, {
-                          style: 'long',
-                          type: 'conjunction',
-                        }).format(
-                          suggestedMissing.map((label) => t.workspace.suggestionFieldNames[label]),
-                        ),
-                      })}
-                    </p>
-                  )}
                   <Field
                     label={t.workspace.displayName}
                     name="profile-name"
@@ -478,6 +574,64 @@ export function DesktopScreen(props: DesktopScreenProps) {
                     <summary>{d.contextSummary}</summary>
                     <div className="stack">
                       <p className="muted">{t.workspace.profileContextHelp}</p>
+                      <div className="stack profile-context-actions">
+                        <p className="muted profile-suggestions">
+                          {t.workspace.suggestProfileHelp}
+                        </p>
+                        <div className="button-row">
+                          <Button
+                            type="button"
+                            onClick={() => void suggestFromSite()}
+                            disabled={suggesting || editingProfile !== null}
+                          >
+                            {suggesting
+                              ? t.workspace.suggestingProfile
+                              : t.workspace.suggestProfile}
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={() => void translateContext()}
+                            disabled={
+                              translatingContext ||
+                              ![
+                                industry,
+                                businessDescription,
+                                offerings,
+                                region,
+                                targetAudience,
+                              ].some((value) => value.trim() !== '')
+                            }
+                          >
+                            {translatingContext
+                              ? t.workspace.translatingProfileContext
+                              : t.workspace.translateProfileContext}
+                          </Button>
+                          {translatedContext === null ? null : (
+                            <Button type="button" onClick={restoreOriginalContext}>
+                              {t.workspace.restoreProfileContextOriginal}
+                            </Button>
+                          )}
+                        </div>
+                        {suggested ? (
+                          <p className="muted profile-suggestions">
+                            {t.workspace.suggestedProfile}
+                          </p>
+                        ) : null}
+                        {suggestedMissing.length === 0 ? null : (
+                          <p className="muted profile-suggestions">
+                            {fillCopy(t.workspace.suggestedProfileMissing, {
+                              fields: new Intl.ListFormat(props.language, {
+                                style: 'long',
+                                type: 'conjunction',
+                              }).format(
+                                suggestedMissing.map(
+                                  (label) => t.workspace.suggestionFieldNames[label],
+                                ),
+                              ),
+                            })}
+                          </p>
+                        )}
+                      </div>
                       <Field
                         label={t.workspace.businessType}
                         name="profile-industry"
@@ -488,6 +642,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                           // has to retire a proposal already in flight — see
                           // `invalidateSuggestions`.
                           invalidateSuggestions();
+                          invalidateContextTranslation();
                           setIndustry(value);
                         }}
                         placeholder={t.workspace.businessTypePlaceholder}
@@ -500,6 +655,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         value={businessDescription}
                         onChange={(value) => {
                           invalidateSuggestions();
+                          invalidateContextTranslation();
                           setBusinessDescription(value);
                         }}
                         placeholder={t.workspace.businessDescriptionPlaceholder}
@@ -512,6 +668,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         value={offerings}
                         onChange={(value) => {
                           invalidateSuggestions();
+                          invalidateContextTranslation();
                           setOfferings(value);
                         }}
                         placeholder={t.workspace.offeringsPlaceholder}
@@ -524,6 +681,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         value={region}
                         onChange={(value) => {
                           invalidateSuggestions();
+                          invalidateContextTranslation();
                           setRegion(value);
                         }}
                         placeholder={t.workspace.operatingRegionPlaceholder}
@@ -547,6 +705,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         value={targetAudience}
                         onChange={(value) => {
                           invalidateSuggestions();
+                          invalidateContextTranslation();
                           setTargetAudience(value);
                         }}
                         placeholder={t.workspace.targetAudiencePlaceholder}

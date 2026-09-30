@@ -8,6 +8,10 @@ import { errorHandler } from '../http/error-handler.ts';
 import { silentLogger } from '../http/logger.ts';
 import { profilesRouter } from './routes.ts';
 import type { ProfileSuggestions } from './profile-suggestions.ts';
+import type {
+  ProfileContextTranslation,
+  ProfileContextTranslationInput,
+} from './profile-context-translation.ts';
 
 const SESSION_COOKIE = 'fluxradar_session=test-token-00000000000000000000000000000000';
 function appWith(options: {
@@ -15,6 +19,10 @@ function appWith(options: {
   readonly accountId?: string;
   readonly suggest?: (domain: string) => Promise<ProfileSuggestions>;
   readonly limiter?: RequestRateLimiter;
+  readonly translate?: (
+    input: ProfileContextTranslationInput,
+    signal?: AbortSignal,
+  ) => Promise<ProfileContextTranslation>;
 }) {
   const app = express();
   app.use(
@@ -34,11 +42,71 @@ function appWith(options: {
       now: () => new Date(),
       requestRateLimiter: options.limiter,
       suggestProfile: options.suggest,
+      translateProfileContext: options.translate,
     }),
     errorHandler(silentLogger),
   );
   return app;
 }
+
+describe('POST /profiles/context-translation', () => {
+  it('requires a session before sending context to a provider', async () => {
+    const translate = vi.fn();
+    const response = await request(appWith({ authenticated: false, translate }))
+      .post('/profiles/context-translation')
+      .send({ targetLanguage: 'uk', industry: 'Product studio' });
+    expect(response.status).toBe(401);
+    expect(translate).not.toHaveBeenCalled();
+  });
+
+  it('translates only the submitted human context fields', async () => {
+    const translate = vi.fn().mockResolvedValue({
+      industry: 'Продуктова студія',
+      offerings: 'Розробка програмного забезпечення',
+    });
+    const response = await request(appWith({ translate }))
+      .post('/profiles/context-translation')
+      .set('Cookie', SESSION_COOKIE)
+      .send({
+        targetLanguage: 'uk',
+        industry: 'Product studio',
+        offerings: 'Software development',
+      });
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      industry: 'Продуктова студія',
+      offerings: 'Розробка програмного забезпечення',
+    });
+    expect(translate).toHaveBeenCalledWith(
+      { targetLanguage: 'uk', industry: 'Product studio', offerings: 'Software development' },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('rejects target languages and identity fields rather than translating them', async () => {
+    const translate = vi.fn();
+    const response = await request(appWith({ translate }))
+      .post('/profiles/context-translation')
+      .set('Cookie', SESSION_COOKIE)
+      .send({ targetLanguage: 'uk', industry: 'Product studio', targetLanguages: 'en, uk' });
+    expect(response.status).toBe(400);
+    expect(translate).not.toHaveBeenCalled();
+  });
+
+  it('returns a plain unavailable message when the provider cannot answer', async () => {
+    const response = await request(
+      appWith({ translate: vi.fn().mockRejectedValue(new Error('provider internals')) }),
+    )
+      .post('/profiles/context-translation')
+      .set('Cookie', SESSION_COOKIE)
+      .send({ targetLanguage: 'uk', industry: 'Product studio' });
+    expect(response.status).toBe(400);
+    expect(response.body.error.message).toBe(
+      'Translation is temporarily unavailable. You can continue editing the original text.',
+    );
+    expect(JSON.stringify(response.body)).not.toContain('provider internals');
+  });
+});
 
 describe('POST /profiles/suggestions', () => {
   it('requires a session before reading a public page', async () => {
