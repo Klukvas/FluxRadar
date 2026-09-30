@@ -61,6 +61,51 @@ describe('POST /profiles/suggestions', () => {
     expect(response.body.data).toEqual({ name: 'Example', targetLanguages: 'en' });
   });
 
+  // The form decides which fields it may fill and which it has to say it could
+  // not; both depend on the endpoint passing the proposal through untouched,
+  // including leaving an unstated field out rather than sending it empty.
+  it('passes every stated field through and omits the ones the page did not state', async () => {
+    const suggest = vi.fn().mockResolvedValue({
+      name: 'fluxLab.dev',
+      businessDescription: 'Kyiv product studio behind SaaS apps.',
+      offerings: 'SaaS Development, Dedicated Development Teams',
+      region: 'United States, Ukraine',
+      targetLanguages: 'en, uk',
+    });
+    const response = await request(appWith({ suggest }))
+      .post('/profiles/suggestions')
+      .set('Cookie', SESSION_COOKIE)
+      .send({ domain: 'https://flux-lab.test' });
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      name: 'fluxLab.dev',
+      businessDescription: 'Kyiv product studio behind SaaS apps.',
+      offerings: 'SaaS Development, Dedicated Development Teams',
+      region: 'United States, Ukraine',
+      targetLanguages: 'en, uk',
+    });
+    expect(Object.keys(response.body.data)).not.toContain('industry');
+    expect(Object.keys(response.body.data)).not.toContain('targetAudience');
+  });
+
+  it('returns a stated business type and audience when the page has them', async () => {
+    const response = await request(
+      appWith({
+        suggest: vi
+          .fn()
+          .mockResolvedValue({ industry: 'Dentist', targetAudience: 'Families with children' }),
+      }),
+    )
+      .post('/profiles/suggestions')
+      .set('Cookie', SESSION_COOKIE)
+      .send({ domain: 'https://clinic.test' });
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      industry: 'Dentist',
+      targetAudience: 'Families with children',
+    });
+  });
+
   it('rejects non-origin input before calling the public fetcher', async () => {
     const suggest = vi.fn();
     const response = await request(appWith({ suggest }))

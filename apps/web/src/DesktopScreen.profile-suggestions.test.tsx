@@ -87,6 +87,154 @@ describe('profile suggestions', () => {
     ).toHaveValue('Implants, emergencies');
   });
 
+  it('fills the business type, served region and audience the page states', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          new URL(String(input)).pathname === '/profiles/suggestions'
+            ? success({
+                name: 'Bright Smile',
+                industry: 'Dentist',
+                region: 'Kyiv and Kyiv region',
+                targetAudience: 'Families with children',
+                targetLanguages: 'uk, en',
+              })
+            : success([]),
+        ),
+      ),
+    );
+    renderForm();
+    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+      target: { value: 'clinic.example' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Bright Smile'),
+    );
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    expect(
+      screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
+    ).toHaveValue('Dentist');
+    expect(screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine')).toHaveValue(
+      'Kyiv and Kyiv region',
+    );
+    expect(
+      screen.getByPlaceholderText('Adults and families looking for a dentist in Kyiv'),
+    ).toHaveValue('Families with children');
+    expect(screen.getByText(/2 chosen: Ukrainian, English/)).toBeInTheDocument();
+  });
+
+  // A page that states three of six fields must say which three it did not, or
+  // a half-filled form reads as a broken autofill.
+  it('names the fields the page stated nothing about instead of leaving them unexplained', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          new URL(String(input)).pathname === '/profiles/suggestions'
+            ? success({
+                name: 'fluxLab.dev',
+                businessDescription: 'Kyiv product studio behind SaaS apps.',
+                offerings: 'SaaS Development, Dedicated Development Teams',
+                region: 'United States, Ukraine',
+                targetLanguages: 'en, uk',
+              })
+            : success([]),
+        ),
+      ),
+    );
+    renderForm();
+    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+      target: { value: 'flux-lab.example' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Product site')).toHaveValue('fluxLab.dev'),
+    );
+    expect(
+      screen.getByText(
+        'We could not identify the business or site type and who it is for in the homepage’s public metadata, so those stay empty — fill them in yourself.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('never overwrites a business type, region or audience the owner wrote', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          new URL(String(input)).pathname === '/profiles/suggestions'
+            ? success({
+                industry: 'Dentist',
+                region: 'United States',
+                targetAudience: 'Families with children',
+              })
+            : success([]),
+        ),
+      ),
+    );
+    renderForm();
+    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+      target: { value: 'clinic.example' },
+    });
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.change(
+      screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
+      {
+        target: { value: 'Marketing agency' },
+      },
+    );
+    fireEvent.change(screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine'), {
+      target: { value: 'Berlin' },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText('Adults and families looking for a dentist in Kyiv'),
+      {
+        target: { value: 'In-house engineers' },
+      },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
+      ).toHaveValue('Marketing agency'),
+    );
+    expect(screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine')).toHaveValue('Berlin');
+    expect(
+      screen.getByPlaceholderText('Adults and families looking for a dentist in Kyiv'),
+    ).toHaveValue('In-house engineers');
+  });
+
+  it('drops a proposal for the new fields that arrives after the owner typed one', async () => {
+    const pending = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        if (new URL(String(input)).pathname === '/profiles/suggestions') return pending.promise;
+        return Promise.resolve(success([]));
+      }),
+    );
+    renderForm();
+    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+      target: { value: 'clinic.example' },
+    });
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Get details from site' }));
+    fireEvent.change(screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine'), {
+      target: { value: 'Berlin' },
+    });
+    pending.resolve(success({ region: 'United States', industry: 'Dentist' }));
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine')).toHaveValue('Berlin'),
+    );
+    expect(
+      screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
+    ).toHaveValue('');
+  });
+
   it('keeps a manual name when an older request returns after an address edit', async () => {
     const pending = deferred<Response>();
     vi.stubGlobal(

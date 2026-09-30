@@ -228,6 +228,20 @@ export const copy = {
       suggestProfile: 'Get details from site',
       suggestingProfile: 'Reading public homepage…',
       suggestedProfile: 'Suggested from the public homepage. Review and edit before saving.',
+      // Named rather than left blank: an owner who is not told which fields the
+      // public metadata did not identify reads an incomplete form as a broken one.
+      suggestedProfileMissing:
+        'We could not identify {fields} in the homepage’s public metadata, so those stay empty — fill them in yourself.',
+      // Short noun phrases, not the field labels: several labels are questions,
+      // and "nothing about who is it for?" does not read as a sentence.
+      suggestionFieldNames: {
+        businessType: 'the business or site type',
+        businessDescription: 'what the site is about',
+        offerings: 'its services or products',
+        operatingRegion: 'the region it serves',
+        targetLanguages: 'its target languages',
+        targetAudience: 'who it is for',
+      },
       suggestProfileUnavailable:
         'Could not read public details from this site. You can still save it manually.',
       siteAddressError:
@@ -249,6 +263,8 @@ export const copy = {
       targetLanguages: 'Target languages',
       targetLanguagesPlaceholder: 'Choose languages',
       targetLanguagesHint: 'Languages in which potential customers may search for this site.',
+      /** How many languages the closed dropdown says are chosen, before naming them. */
+      targetLanguagesChosen: '{count} chosen',
       targetAudience: 'Who is it for?',
       targetAudiencePlaceholder: 'Adults and families looking for a dentist in Kyiv',
       targetAudienceHint: 'Describe the people or organizations you want to reach.',
@@ -2065,6 +2081,16 @@ export const copy = {
       suggestingProfile: 'Читаємо публічну головну сторінку…',
       suggestedProfile:
         'Запропоновано з публічної головної сторінки. Перевірте й відредагуйте перед збереженням.',
+      suggestedProfileMissing:
+        'У публічних метаданих головної сторінки не вдалося визначити {fields}, тому ці поля залишаються порожніми — заповніть їх самі.',
+      suggestionFieldNames: {
+        businessType: 'тип бізнесу або сайту',
+        businessDescription: 'про що цей сайт',
+        offerings: 'послуги або товари',
+        operatingRegion: 'регіон, який він обслуговує',
+        targetLanguages: 'цільові мови',
+        targetAudience: 'для кого він',
+      },
       suggestProfileUnavailable:
         'Не вдалося прочитати публічні дані цього сайту. Його все одно можна зберегти вручну.',
       siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysite.com.',
@@ -2084,6 +2110,7 @@ export const copy = {
       targetLanguages: 'Цільові мови',
       targetLanguagesPlaceholder: 'Оберіть мови',
       targetLanguagesHint: 'Мови, якими потенційні клієнти можуть шукати цей сайт.',
+      targetLanguagesChosen: 'Обрано {count}',
       targetAudience: 'Для кого цей сайт?',
       targetAudiencePlaceholder: 'Дорослі та сім’ї, які шукають стоматолога в Києві',
       targetAudienceHint: 'Опишіть людей або організації, яких ви хочете залучити.',

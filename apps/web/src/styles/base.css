@@ -607,38 +607,57 @@ code,
 .checkbox input:checked + .checkbox__mark svg {
   display: block;
 }
-/* The target-language picker opens in the form's flow: floating over the fields
-   below, it would cover the one the owner fills in next. The list is capped and
-   scrolls, so thirty languages do not push the save button a screen away. */
+/* The target-language picker is an anchored dropdown: the pop-up hangs off the
+   trigger and takes no room in the form, so opening it no longer walks the eight
+   fields under it down the page. Anchoring lives on the pop-up; the list inside
+   keeps its own capped, scrolling box, so thirty languages never reach past the
+   pop-up's edge whether it is over a desktop column or a 360px screen. */
+.language-picker {
+  position: relative;
+}
 .language-picker__summary {
   display: flex;
   align-items: center;
   cursor: pointer;
   list-style: none;
-}
-.language-picker__summary::-webkit-details-marker {
-  display: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
 }
 .language-picker__summary::after {
   content: '▾';
   margin-left: auto;
   padding-left: var(--sp-2);
 }
-.language-picker[open] .language-picker__summary::after {
+.language-picker__summary[aria-expanded='true']::after {
   content: '▴';
+}
+.language-picker__summary > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .language-picker__placeholder {
   color: var(--plat-600);
 }
+.language-picker__popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  min-width: 0;
+  max-width: 100vw;
+  border: 1px solid var(--plat-900);
+  background: #fff;
+  box-shadow: 2px 2px 0 rgb(0 0 0 / 35%);
+}
 .language-picker__options {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   max-height: 240px;
   overflow-y: auto;
-  padding: 0 var(--sp-2);
-  border: 1px solid var(--plat-400);
-  border-top: 0;
-  background: #fff;
+  padding: var(--sp-1) var(--sp-2);
 }
 
 .profile-row {

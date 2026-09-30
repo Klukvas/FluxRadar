@@ -62,16 +62,20 @@ function Picker(props: { initial: string; values: string[] }) {
   );
 }
 
+/** The dropdown's trigger, which is also what says how many languages are chosen. */
+const trigger = () => screen.getByRole('button', { name: /Target languages/ });
+
 describe('the target language picker', () => {
   it('adds and removes a language by its checkbox and says what is chosen', () => {
     const values: string[] = [];
     render(<Picker initial="" values={values} />);
     expect(screen.getByText('Choose languages')).toBeInTheDocument();
+    fireEvent.click(trigger());
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Ukrainian' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Polish' }));
     expect(values.at(-1)).toBe('Ukrainian, Polish');
-    expect(screen.getByText('Ukrainian, Polish')).toBeInTheDocument();
+    expect(screen.getByText('2 chosen: Ukrainian, Polish')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Ukrainian' }));
     expect(values.at(-1)).toBe('Polish');
@@ -80,6 +84,7 @@ describe('the target language picker', () => {
   it('keeps an entry of an older profile that the list does not have, ticked', () => {
     const values: string[] = [];
     render(<Picker initial="Українська, Klingon" values={values} />);
+    fireEvent.click(trigger());
 
     expect(screen.getByRole('checkbox', { name: 'Klingon' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Ukrainian' })).toBeChecked();

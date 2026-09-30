@@ -1,14 +1,31 @@
 import { parse } from 'node-html-parser';
 import { safeFetch } from '@fluxradar/safe-fetch';
 
+import {
+  suggestedAudience,
+  suggestedDescription,
+  suggestedIndustry,
+  suggestedLanguages,
+  suggestedName,
+  suggestedOfferings,
+  suggestedRegion,
+} from './profile-suggestions-fields.ts';
+import { readJsonLdNodes } from './profile-suggestions-jsonld.ts';
+
+/**
+ * A proposal for the profile form. Every field is optional on purpose: the page
+ * decides how much of it can be filled, and a field with no evidence behind it
+ * is left out so the form can say which ones the owner still has to write.
+ */
 export interface ProfileSuggestions {
   readonly name?: string;
   readonly businessDescription?: string;
   readonly offerings?: string;
+  readonly industry?: string;
+  readonly region?: string;
+  readonly targetAudience?: string;
   readonly targetLanguages?: string;
 }
-
-const MAX_TEXT = 800;
 
 // Kept exportable so the bounded transport contract stays covered without
 // replacing the shared SSRF guard in a unit test.
@@ -34,29 +51,25 @@ export async function suggestProfileFromSite(domain: string): Promise<ProfileSug
 
 export function extractProfileSuggestions(html: string): ProfileSuggestions {
   const root = parse(html);
+  // The structured metadata is read first: it lives in `script` elements, which
+  // the text pass below removes so that no markup the browser never shows —
+  // inline scripts, styles, unrendered templates — reaches the owner as a
+  // proposal about their own business.
+  const nodes = readJsonLdNodes(root);
   root.querySelectorAll('script,style,noscript,template').forEach((node) => node.remove());
-  const text = (value: string | undefined): string | undefined => {
-    const normalized = value?.replace(/\s+/g, ' ').trim();
-    return normalized === undefined || normalized === ''
-      ? undefined
-      : normalized.slice(0, MAX_TEXT);
-  };
-  const title =
-    text(root.querySelector('meta[property="og:site_name"]')?.getAttribute('content')) ??
-    text(root.querySelector('title')?.text);
-  const description = text(root.querySelector('meta[name="description"]')?.getAttribute('content'));
-  const headings = root
-    .querySelectorAll('main h2, main h3, h2, h3')
-    .map((node) => text(node.text))
-    .filter((value): value is string => value !== undefined)
-    .slice(0, 8);
-  const language = root.querySelector('html')?.getAttribute('lang')?.split('-')[0]?.toLowerCase();
+  // A field with no evidence is absent, not empty: the form tells the two apart
+  // to decide what it still has to ask the owner for.
+  const stated = <Key extends keyof ProfileSuggestions>(
+    key: Key,
+    value: string | undefined,
+  ): Partial<ProfileSuggestions> => (value === undefined ? {} : { [key]: value });
   return {
-    ...(title === undefined ? {} : { name: title.slice(0, 120) }),
-    ...(description === undefined ? {} : { businessDescription: description }),
-    ...(headings.length === 0 ? {} : { offerings: headings.join(', ').slice(0, 1200) }),
-    ...(language === undefined || !/^[a-z]{2,3}$/.test(language)
-      ? {}
-      : { targetLanguages: language }),
+    ...stated('name', suggestedName(root, nodes)),
+    ...stated('businessDescription', suggestedDescription(root, nodes)),
+    ...stated('offerings', suggestedOfferings(root, nodes)),
+    ...stated('industry', suggestedIndustry(root, nodes)),
+    ...stated('region', suggestedRegion(nodes)),
+    ...stated('targetAudience', suggestedAudience(root, nodes)),
+    ...stated('targetLanguages', suggestedLanguages(root, nodes)),
   };
 }

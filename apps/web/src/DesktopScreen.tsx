@@ -48,6 +48,29 @@ export interface DesktopScreenProps {
   readonly language: Language;
 }
 
+/**
+ * The context fields a public homepage may propose, named by their own label.
+ *
+ * The form tells the owner which of these the page said nothing about, so a
+ * proposal that filled three fields of six does not read as a broken autofill.
+ */
+type ProfileContextLabel =
+  | 'businessType'
+  | 'businessDescription'
+  | 'offerings'
+  | 'operatingRegion'
+  | 'targetLanguages'
+  | 'targetAudience';
+
+interface ProfileContextField {
+  readonly label: ProfileContextLabel;
+  /** What the form holds now — a value the owner typed is never overwritten. */
+  readonly current: string;
+  /** What the page stated, or `undefined` when it stated nothing. */
+  readonly value?: string;
+  readonly set: (next: string) => void;
+}
+
 /** The competitors field's live validation message, in the reader's words (T7). */
 function competitorsErrorMessage(error: CompetitorsInputError, language: Language): string {
   const w = copy[language].workspace;
@@ -99,6 +122,8 @@ export function DesktopScreen(props: DesktopScreenProps) {
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState(false);
+  /** The context fields the last proposal found no evidence for, still empty. */
+  const [suggestedMissing, setSuggestedMissing] = useState<readonly ProfileContextLabel[]>([]);
   const suggestionVersion = useRef(0);
   const suggestionAbort = useRef<AbortController | null>(null);
 
@@ -150,6 +175,11 @@ export function DesktopScreen(props: DesktopScreenProps) {
     setName(next);
   };
 
+  const clearSuggestionNotices = () => {
+    setSuggested(false);
+    setSuggestedMissing([]);
+  };
+
   const resetForm = () => {
     setEditingProfile(null);
     setFormRequested(false);
@@ -164,7 +194,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
     setTargetAudience('');
     setCompetitorsInput('');
     setDomainError(null);
-    setSuggested(false);
+    clearSuggestionNotices();
     setSuggesting(false);
     invalidateSuggestions();
   };
@@ -185,6 +215,9 @@ export function DesktopScreen(props: DesktopScreenProps) {
         name?: string;
         businessDescription?: string;
         offerings?: string;
+        industry?: string;
+        region?: string;
+        targetAudience?: string;
         targetLanguages?: string;
       }>('/profiles/suggestions', {
         method: 'POST',
@@ -193,25 +226,54 @@ export function DesktopScreen(props: DesktopScreenProps) {
       });
       // An address or form edit made while the request was in flight wins.
       if (suggestionVersion.current !== version) return;
-      let applied = false;
-      if ((name.trim() === '' || name === suggestedName) && suggestions.name !== undefined) {
-        setName(suggestions.name);
+      const proposedName =
+        name.trim() === '' || name === suggestedName ? suggestions.name : undefined;
+      if (proposedName !== undefined) {
+        setName(proposedName);
         setSuggestedName('');
-        applied = true;
       }
-      if (businessDescription.trim() === '' && suggestions.businessDescription !== undefined) {
-        setBusinessDescription(suggestions.businessDescription);
-        applied = true;
-      }
-      if (offerings.trim() === '' && suggestions.offerings !== undefined) {
-        setOfferings(suggestions.offerings);
-        applied = true;
-      }
-      if (targetLanguages.trim() === '' && suggestions.targetLanguages !== undefined) {
-        setTargetLanguages(suggestions.targetLanguages);
-        applied = true;
-      }
-      setSuggested(applied);
+      const context: readonly ProfileContextField[] = [
+        {
+          label: 'businessType',
+          current: industry,
+          value: suggestions.industry,
+          set: setIndustry,
+        },
+        {
+          label: 'businessDescription',
+          current: businessDescription,
+          value: suggestions.businessDescription,
+          set: setBusinessDescription,
+        },
+        { label: 'offerings', current: offerings, value: suggestions.offerings, set: setOfferings },
+        { label: 'operatingRegion', current: region, value: suggestions.region, set: setRegion },
+        {
+          label: 'targetLanguages',
+          current: targetLanguages,
+          value: suggestions.targetLanguages,
+          set: setTargetLanguages,
+        },
+        {
+          label: 'targetAudience',
+          current: targetAudience,
+          value: suggestions.targetAudience,
+          set: setTargetAudience,
+        },
+      ];
+      // A field the owner already wrote in is left alone whether the page stated
+      // one or not, and is not reported as missing: they answered it themselves.
+      const fillable = context.flatMap((field) =>
+        field.value !== undefined && field.current.trim() === ''
+          ? [{ set: field.set, value: field.value }]
+          : [],
+      );
+      fillable.forEach((field) => field.set(field.value));
+      setSuggested(proposedName !== undefined || fillable.length > 0);
+      setSuggestedMissing(
+        context
+          .filter((field) => field.value === undefined && field.current.trim() === '')
+          .map((field) => field.label),
+      );
     } catch {
       if (!controller.signal.aborted) props.onNotice(t.workspace.suggestProfileUnavailable);
     } finally {
@@ -232,7 +294,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
 
   const editProfile = (profile: SiteProfile) => {
     invalidateSuggestions();
-    setSuggested(false);
+    clearSuggestionNotices();
     setEditingProfile(profile);
     setName(profile.name);
     setSuggestedName('');
@@ -385,6 +447,20 @@ export function DesktopScreen(props: DesktopScreenProps) {
                   {suggested ? (
                     <p className="muted profile-suggestions">{t.workspace.suggestedProfile}</p>
                   ) : null}
+                  {suggestedMissing.length === 0 ? null : (
+                    <p className="muted profile-suggestions">
+                      {fillCopy(t.workspace.suggestedProfileMissing, {
+                        // "A, B and C" in the reader's language, rather than a
+                        // comma list that reads as a truncated one.
+                        fields: new Intl.ListFormat(props.language, {
+                          style: 'long',
+                          type: 'conjunction',
+                        }).format(
+                          suggestedMissing.map((label) => t.workspace.suggestionFieldNames[label]),
+                        ),
+                      })}
+                    </p>
+                  )}
                   <Field
                     label={t.workspace.displayName}
                     name="profile-name"
@@ -407,7 +483,13 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         name="profile-industry"
                         autoComplete="off"
                         value={industry}
-                        onChange={setIndustry}
+                        onChange={(value) => {
+                          // Autofill may propose this field now, so typing in it
+                          // has to retire a proposal already in flight — see
+                          // `invalidateSuggestions`.
+                          invalidateSuggestions();
+                          setIndustry(value);
+                        }}
                         placeholder={t.workspace.businessTypePlaceholder}
                         hint={t.workspace.businessTypeHint}
                       />
@@ -440,7 +522,10 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         name="profile-region"
                         autoComplete="off"
                         value={region}
-                        onChange={setRegion}
+                        onChange={(value) => {
+                          invalidateSuggestions();
+                          setRegion(value);
+                        }}
                         placeholder={t.workspace.operatingRegionPlaceholder}
                         hint={t.workspace.operatingRegionHint}
                       />
@@ -460,7 +545,10 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         name="profile-audience"
                         autoComplete="off"
                         value={targetAudience}
-                        onChange={setTargetAudience}
+                        onChange={(value) => {
+                          invalidateSuggestions();
+                          setTargetAudience(value);
+                        }}
                         placeholder={t.workspace.targetAudiencePlaceholder}
                         hint={t.workspace.targetAudienceHint}
                       />

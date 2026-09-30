@@ -340,14 +340,15 @@ describe('base.css layout rules', () => {
     expect(reason).not.toMatch(/display: block;/);
   });
 
-  // Floating over the form, the open language list would cover the next field;
-  // uncapped, thirty languages would push the save button a screen away.
-  it('opens the target-language list in the form’s flow, capped to scroll', () => {
+  // The target-language list is an anchored dropdown, so it must not push the
+  // following form fields down; its own scrolling cap keeps long lists usable.
+  it('anchors the target-language popup over the form and caps its list', () => {
     const from = BASE_CSS.slice(BASE_CSS.indexOf('.language-picker__options {'));
     const options = from.slice(0, from.indexOf('}'));
     expect(options).toMatch(/max-height:/);
     expect(options).toMatch(/overflow-y: auto;/);
-    expect(options).not.toMatch(/position: absolute;/);
+    expect(BASE_CSS).toMatch(/\.language-picker \{[^}]*position: relative;/);
+    expect(BASE_CSS).toMatch(/\.language-picker__popup \{[^}]*position: absolute;/);
   });
 
   it('opens a check list across the grid, without reordering the cards', () => {
