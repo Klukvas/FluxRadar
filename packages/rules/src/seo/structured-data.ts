@@ -113,16 +113,49 @@ function isIncompleteJsonLd(value: unknown): boolean {
   return !isRecord(value) || !hasJsonLdIdentity(value);
 }
 
+/**
+ * Whether a JSON-LD object identifies itself: a context, and a type for what it
+ * describes.
+ *
+ * THE TYPE MAY LIVE IN `@graph`. Yoast, Rank Math and most other current
+ * generators emit a single block shaped `{"@context": …, "@graph": [ … ]}`: the
+ * context is declared once for the whole set, and `@type` sits on each node of
+ * the graph. Demanding `@type` on the wrapper called that markup incomplete
+ * while it was complete — the single largest source of false findings in this
+ * rule.
+ *
+ * A graph is accepted only when it is non-empty and typed all the way through.
+ * `"@graph": []` declares nothing, and a node without `@type` is a node no
+ * search engine can tell the meaning of: that markup really is incomplete, and
+ * waving it through would only trade one wrong verdict for another.
+ */
 function hasJsonLdIdentity(value: Record<string, unknown>): boolean {
+  return hasJsonLdContext(value) && (hasJsonLdType(value) || hasTypedJsonLdGraph(value));
+}
+
+function hasJsonLdContext(value: Record<string, unknown>): boolean {
   const context = value['@context'];
-  const type = value['@type'];
-  const hasContext =
+  return (
     (typeof context === 'string' && context.trim() !== '') ||
-    (isRecord(context) && Object.keys(context).length > 0);
-  const hasType =
+    (isRecord(context) && Object.keys(context).length > 0)
+  );
+}
+
+function hasJsonLdType(value: Record<string, unknown>): boolean {
+  const type = value['@type'];
+  return (
     (typeof type === 'string' && type.trim() !== '') ||
-    (Array.isArray(type) && type.some((item) => typeof item === 'string' && item.trim() !== ''));
-  return hasContext && hasType;
+    (Array.isArray(type) && type.some((item) => typeof item === 'string' && item.trim() !== ''))
+  );
+}
+
+function hasTypedJsonLdGraph(value: Record<string, unknown>): boolean {
+  const graph = value['@graph'];
+  return (
+    Array.isArray(graph) &&
+    graph.length > 0 &&
+    graph.every((entry) => isRecord(entry) && hasJsonLdType(entry))
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

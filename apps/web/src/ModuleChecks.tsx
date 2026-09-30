@@ -120,6 +120,8 @@ export function ModuleChecksPanel(props: {
   /** The per-engine visibility summary (T6); null when the scan has none. */
   visibilitySummary?: GeoVisibilitySummary | null;
   language: Language;
+  /** Opens the Issue Center scoped to a rule with recorded problems. */
+  onOpenProblem?: (ruleId: string) => void;
 }) {
   const t = copy[props.language].report.checks;
   const id = moduleChecksId(props.module.module);
@@ -134,6 +136,7 @@ export function ModuleChecksPanel(props: {
         evidence={props.evidence ?? null}
         visibilitySummary={props.visibilitySummary ?? null}
         language={props.language}
+        onOpenProblem={props.onOpenProblem}
       />
     </section>
   );
@@ -145,6 +148,7 @@ function ModuleChecksBody(props: {
   evidence: GeoEvidence | null;
   visibilitySummary: GeoVisibilitySummary | null;
   language: Language;
+  onOpenProblem?: (ruleId: string) => void;
 }) {
   const { metadata } = props.module;
   switch (props.module.module) {
@@ -166,17 +170,28 @@ function ModuleChecksBody(props: {
           checks={ruleChecksOf(metadata)}
           ux={uxChecksOf(metadata)}
           language={props.language}
+          onOpenProblem={props.onOpenProblem}
         />
       );
     case ANALYTICS_MODULE:
-      return <AnalyticsChecksBody module={props.module} language={props.language} />;
+      return (
+        <AnalyticsChecksBody
+          module={props.module}
+          language={props.language}
+          onOpenProblem={props.onOpenProblem}
+        />
+      );
     default:
       return (
         <>
           {/* Which DOM the rules read, before the rules themselves: every
               result below is a statement about that markup. */}
           <RenderingNote state={renderingStateOf(metadata)} language={props.language} />
-          <RuleChecksList checks={ruleChecksOf(metadata)} language={props.language} />
+          <RuleChecksList
+            checks={ruleChecksOf(metadata)}
+            language={props.language}
+            onOpenProblem={props.onOpenProblem}
+          />
           <ApiChecksList checks={apiCheckOutcomesOf(metadata)} language={props.language} />
         </>
       );
@@ -279,6 +294,7 @@ function RuleChecksList(props: {
   checks: readonly RuleCheck[];
   language: Language;
   lead?: string;
+  onOpenProblem?: (ruleId: string) => void;
 }) {
   const t = copy[props.language].report.checks;
   return (
@@ -294,6 +310,11 @@ function RuleChecksList(props: {
               resultLabel={resultLabel(result, props.language)}
               title={checkTitle(check, props.language)}
               detail={`${check.ruleId} · ${checkDetail(check, result, props.language)}`}
+              onOpenProblem={
+                result === 'issues' && props.onOpenProblem !== undefined
+                  ? () => props.onOpenProblem?.(check.ruleId)
+                  : undefined
+              }
             />
           );
         })}
@@ -312,12 +333,17 @@ function UxChecksBody(props: {
   checks: readonly RuleCheck[];
   ux: UxChecks | null;
   language: Language;
+  onOpenProblem?: (ruleId: string) => void;
 }) {
   const t = copy[props.language].report.checks;
   return (
     <>
       {props.checks.length === 0 ? null : (
-        <RuleChecksList checks={props.checks} language={props.language} />
+        <RuleChecksList
+          checks={props.checks}
+          language={props.language}
+          onOpenProblem={props.onOpenProblem}
+        />
       )}
       {props.ux === null ? null : (
         <>
@@ -333,6 +359,14 @@ function UxChecksBody(props: {
                     findings: props.ux.aiReview.findings,
                   })}
             </p>
+            {/* What the review said and the report would not repeat. A reader who
+                sees "Findings: 0" is owed the difference between a review that
+                found nothing and one whose points were all discarded. */}
+            {props.ux.aiReview !== null && props.ux.aiReview.droppedFindings > 0 ? (
+              <p className="muted">
+                {fillCopy(t.uxAiDropped, { dropped: props.ux.aiReview.droppedFindings })}
+              </p>
+            ) : null}
           </div>
         </>
       )}
@@ -346,7 +380,11 @@ function UxChecksBody(props: {
  * Only the checks that ran are listed; when a Google service gave no data the
  * rest did not run, and a sentence says so rather than a row per missing check.
  */
-function AnalyticsChecksBody(props: { module: ScanModule; language: Language }) {
+function AnalyticsChecksBody(props: {
+  module: ScanModule;
+  language: Language;
+  onOpenProblem?: (ruleId: string) => void;
+}) {
   const t = copy[props.language].report.checks;
   const checks = ruleChecksOf(props.module.metadata);
   const snapshot = googleSnapshotIn(props.module);
@@ -361,7 +399,12 @@ function AnalyticsChecksBody(props: { module: ScanModule; language: Language }) 
   return (
     <>
       {checks.length === 0 ? null : (
-        <RuleChecksList checks={checks} language={props.language} lead={t.analyticsLead} />
+        <RuleChecksList
+          checks={checks}
+          language={props.language}
+          lead={t.analyticsLead}
+          onOpenProblem={props.onOpenProblem}
+        />
       )}
       {someDidNotRun ? <p className="muted">{t.analyticsNotRan}</p> : null}
       <AnalyticsDetails module={props.module} language={props.language} />

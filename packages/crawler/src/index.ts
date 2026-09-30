@@ -8,7 +8,7 @@ export { CONSECUTIVE_5XX_HOST_STOP, crawl } from './crawler.js';
 export type { CrawlOptions } from './crawler.js';
 export { startFixtureSite } from './fixture-server.js';
 export type { FixtureSite } from './fixture-server.js';
-export { extractLinks, MEDIA_SELECTOR } from './link-extractor.js';
+export { extractLinks, isCloudflareEmailObfuscationUrl, MEDIA_SELECTOR } from './link-extractor.js';
 export { startPlaywrightRuntime } from './render/playwright-runtime.js';
 export type { PlaywrightRuntimeOptions } from './render/playwright-runtime.js';
 export {

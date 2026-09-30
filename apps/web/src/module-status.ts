@@ -52,6 +52,9 @@ const REASON_KEYS: Readonly<Record<string, ReasonKey>> = {
   UxAiProviderContract: 'uxAiProviderContract',
   // The static UX checks finished; only the AI review was interrupted (§575).
   UxAiScanCancelled: 'uxAiScanCancelled',
+  // The AI review answered and every claim it made was dropped for resting on
+  // rendering the crawl never read (`apps/api/src/orchestrator/ux-ai-claims.ts`).
+  UxAiUnsupportedClaims: 'uxAiUnsupportedClaims',
   // Analytics, written from the live Google connection state.
   AnalyticsIntegrationNotConnected: 'analyticsNotConnected',
   AnalyticsPropertyNotSelected: 'analyticsPropertyNotSelected',

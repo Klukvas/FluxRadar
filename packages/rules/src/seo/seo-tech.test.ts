@@ -169,6 +169,52 @@ describe('SEO-TECH-006 внутренние ссылки на 4xx/5xx', () => {
     expect(runSeoRule('SEO-TECH-006', loadFixtureContext('fx-SEO-TECH-006-negative.json'))) //
       .toEqual([]);
   });
+
+  it('игнорирует Cloudflare email-obfuscation href, даже если сохранённый снимок endpoint — 404', () => {
+    const ctx = siteContext({
+      pages: [
+        {
+          path: '/source.html',
+          html:
+            '<!doctype html><html><body>' +
+            '<a href="/cdn-cgi/l/email-protection#6a03040c056a1e030f">email</a>' +
+            '<a href="/missing.html">missing</a></body></html>',
+        },
+        {
+          path: '/cdn-cgi/l/email-protection',
+          status: 404,
+          html: '<html><body>not found</body></html>',
+        },
+        { path: '/missing.html', status: 404, html: '<html><body>not found</body></html>' },
+      ],
+    });
+
+    const findings = runSeoRule('SEO-TECH-006', ctx);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.normalizedSelector).toBe('/missing.html');
+  });
+
+  it('keeps invalid or nonmatching Cloudflare-looking hrefs eligible for broken-link findings', () => {
+    const ctx = siteContext({
+      pages: [
+        {
+          path: '/source.html',
+          html:
+            '<!doctype html><html><body>' +
+            '<a href="/cdn-cgi/l/email-protection#not-hex">invalid</a>' +
+            '<a href="/cdn-cgi/other#6a03040c">other</a></body></html>',
+        },
+        {
+          path: '/cdn-cgi/l/email-protection',
+          status: 404,
+          html: '<html><body>not found</body></html>',
+        },
+        { path: '/cdn-cgi/other', status: 404, html: '<html><body>not found</body></html>' },
+      ],
+    });
+
+    expect(runSeoRule('SEO-TECH-006', ctx)).toHaveLength(2);
+  });
 });
 
 describe('SEO-TECH-007 дубли URL', () => {

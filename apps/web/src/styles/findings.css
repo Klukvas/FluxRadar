@@ -243,7 +243,25 @@
 .action-plan__consent,
 .action-plan__running,
 .action-plan__refusal,
-.action-plan__failed {
+.action-plan__failed,
+.action-plan__other-language {
   margin: var(--sp-2) 0 0;
   font-size: 12px;
+}
+.report-block > .action-plan__other-language {
+  margin-top: var(--sp-3);
+}
+.report-block > .action-plan__consent {
+  margin-top: calc(var(--sp-2) + 1px);
+}
+.action-plan__generate {
+  margin: var(--sp-4) 0 var(--sp-2);
+}
+.action-plan__button-icon {
+  display: inline-block;
+  margin-right: 5px;
+  color: var(--selection);
+  font-size: 13px;
+  line-height: 1;
+  vertical-align: -1px;
 }
