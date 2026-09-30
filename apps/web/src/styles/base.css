@@ -2716,6 +2716,12 @@ code,
   font: 10px var(--mono-font);
   text-transform: uppercase;
 }
+.menubar__language-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  line-height: 1;
+}
 .menubar__language-button {
   display: inline-flex;
   align-items: center;

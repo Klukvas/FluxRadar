@@ -21,22 +21,25 @@ export function Window(props: {
   className?: string;
   onClose?: () => void;
   closeLabel?: string;
+  /** Persistent workspace panels reserve titlebar balance without a fake close control. */
+  showInertClose?: boolean;
 }) {
   return (
     <section
       className={`window ${props.terminal ? 'window--terminal' : ''} ${props.className ?? ''}`}
     >
       <div className="window__titlebar">
-        {/* The titlebar box is part of the desktop look, but only the windows
-            that can actually be closed offer it as a control: a focusable button
-            that does nothing is a promise the screen does not keep, and a
-            keyboard user meets it before anything else on the screen. */}
-        {props.onClose === undefined ? (
+        {/* Only closable windows make the titlebar box a control. Persistent
+            workspace panels omit even the decorative X but keep this grid cell
+            so their titles remain centered. */}
+        {props.onClose === undefined && props.showInertClose !== false ? (
           <span className="window__box window__box--inert" aria-hidden="true">
             <svg viewBox="0 0 12 12" aria-hidden="true">
               <path d="M2 2l8 8M10 2l-8 8" />
             </svg>
           </span>
+        ) : props.onClose === undefined ? (
+          <div className="window__box-spacer" aria-hidden="true" />
         ) : (
           <button
             className="window__box"
@@ -396,7 +399,9 @@ function LanguageSwitcher(props: {
 
   return (
     <div className="menubar__language" ref={containerRef}>
-      <span id="menubar-language-label">{props.label}</span>
+      <span id="menubar-language-label" className="menubar__language-label">
+        {props.label}
+      </span>
       <button
         type="button"
         role="combobox"

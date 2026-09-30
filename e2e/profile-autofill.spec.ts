@@ -239,17 +239,13 @@ test('mobile surfaces a failed suggestion while retaining a saveable manual form
   }
 });
 
-test('fills and translates newly extracted profile context without touching target languages', async ({
+test('fills localized context in one request without changing target languages', async ({
   page,
   baseURL,
 }) => {
   await isolate(page, new URL(baseURL!).origin, async (route) => {
-    if (new URL(route.request().url()).pathname === '/profiles/suggestions') {
-      return json(route, { industry: 'Product studio' });
-    }
-    if (new URL(route.request().url()).pathname === '/profiles/context-translation') {
-      return json(route, { industry: 'Translated studio' });
-    }
+    if (new URL(route.request().url()).pathname === '/profiles/suggestions')
+      return json(route, { industry: 'Localized studio' });
     return baseApi(route);
   });
   await page.goto('/profiles');
@@ -259,9 +255,8 @@ test('fills and translates newly extracted profile context without touching targ
   await page.getByText(/Describe the site for AI visibility checks/).click();
   const industry = page.getByPlaceholder('Dental clinic, recruiting platform, online store');
   await page.getByRole('button', { name: 'Fill from site' }).click();
-  await expect(industry).toHaveValue('Translated studio');
+  await expect(industry).toHaveValue('Localized studio');
   await expect(page.getByRole('button', { name: /Translate context/ })).toHaveCount(0);
   await expect(page.locator('.language-picker__summary')).toHaveText('Choose languages');
-  await page.getByRole('button', { name: 'Restore original text' }).click();
-  await expect(industry).toHaveValue('Product studio');
+  await expect(page.getByRole('button', { name: 'Restore original text' })).toHaveCount(0);
 });

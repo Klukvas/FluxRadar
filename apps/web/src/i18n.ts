@@ -229,10 +229,6 @@ export const copy = {
       suggestProfileHelp:
         'We use public homepage details only. Review and add to them before saving.',
       suggestingProfile: 'Reading public homepage…',
-      translatingProfileContext: 'Translating context…',
-      restoreProfileContextOriginal: 'Restore original text',
-      translateProfileUnavailable:
-        'Translation is temporarily unavailable. You can continue editing the original text.',
       targetLanguagesLegacy:
         'Previously saved languages: {languages}. They are kept until you remove them.',
       targetLanguagesRemoveLegacy: 'Remove previously saved languages',
@@ -253,6 +249,8 @@ export const copy = {
       },
       suggestProfileUnavailable:
         'Could not read public details from this site. You can still save it manually.',
+      suggestProfileSourceLanguage:
+        'AI context suggestions are unavailable, so source-language public details are shown. Review and edit them before saving.',
       siteAddressError:
         'That does not look like a site address. Enter your domain, like mysite.com.',
       businessType: 'Business or site type',
@@ -2090,10 +2088,6 @@ export const copy = {
       suggestProfileHelp:
         'Використаємо лише публічні дані головної сторінки. Перевірте й доповніть їх перед збереженням.',
       suggestingProfile: 'Читаємо публічну головну сторінку…',
-      translatingProfileContext: 'Перекладаємо контекст…',
-      restoreProfileContextOriginal: 'Відновити оригінальний текст',
-      translateProfileUnavailable:
-        'Переклад тимчасово недоступний. Ви можете продовжити редагувати оригінальний текст.',
       targetLanguagesLegacy:
         'Раніше збережені мови: {languages}. Вони збережуться, доки ви не видалите їх.',
       targetLanguagesRemoveLegacy: 'Видалити раніше збережені мови',
@@ -2111,6 +2105,8 @@ export const copy = {
       },
       suggestProfileUnavailable:
         'Не вдалося прочитати публічні дані цього сайту. Його все одно можна зберегти вручну.',
+      suggestProfileSourceLanguage:
+        'AI-підказки контексту недоступні, тому показано публічні дані мовою джерела. Перевірте й відредагуйте їх перед збереженням.',
       siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysite.com.',
       businessType: 'Тип бізнесу або сайту',
       businessTypePlaceholder: 'Стоматологія, рекрутингова платформа, інтернет-магазин',

@@ -7,12 +7,20 @@
 // states nowhere at all (business type, audience) stayed blank. The fixture below
 // keeps that page's real markup shape so a regression shows up as this test.
 
-import { describe, expect, it } from 'vitest';
+import { safeFetch } from '@fluxradar/safe-fetch';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   extractProfileSuggestions,
   PROFILE_SUGGESTIONS_FETCH_OPTIONS,
+  suggestProfileFromSite,
 } from './profile-suggestions.ts';
+import { ProfileSuggestionsAiUnavailableError } from './profile-suggestions-ai.ts';
+
+vi.mock('@fluxradar/safe-fetch', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@fluxradar/safe-fetch')>()),
+  safeFetch: vi.fn(),
+}));
 
 /** The reported homepage, trimmed to the elements the extraction reads. */
 const STUDIO_HOMEPAGE = `
@@ -54,6 +62,66 @@ const STUDIO_HOMEPAGE = `
 </main></body></html>`;
 
 describe('public profile suggestions', () => {
+  it('keeps deterministic identity fields but does not merge source-language human fields into AI context', async () => {
+    vi.mocked(safeFetch).mockResolvedValue({
+      finalUrl: 'https://studio.example',
+      status: 200,
+      headers: {},
+      body: STUDIO_HOMEPAGE,
+      redirectChain: [],
+      timingMs: 1,
+      truncated: false,
+    });
+
+    let evidence = '';
+    await expect(
+      suggestProfileFromSite('https://studio.example', 'uk', async (_language, nextEvidence) => {
+        evidence = nextEvidence;
+        return { industry: 'Продуктова студія' };
+      }),
+    ).resolves.toEqual({
+      name: 'fluxLab.dev',
+      targetLanguages: 'en, uk',
+      industry: 'Продуктова студія',
+      contextLanguage: 'target',
+    });
+    expect(safeFetch).toHaveBeenCalledWith(
+      'https://studio.example',
+      expect.objectContaining({ signal: undefined, ...PROFILE_SUGGESTIONS_FETCH_OPTIONS }),
+    );
+    const parsedEvidence = JSON.parse(evidence) as { readonly structured: unknown };
+    expect(parsedEvidence).toMatchObject({
+      metadata: expect.stringContaining('Kyiv product studio'),
+      visible: expect.stringContaining('Software development studio'),
+    });
+    expect(parsedEvidence.structured).toEqual(
+      expect.arrayContaining([expect.objectContaining({ '@type': 'Organization' })]),
+    );
+    expect(JSON.stringify(parsedEvidence.structured).length).toBeLessThanOrEqual(1_000);
+  });
+
+  it('returns deterministic source-language facts when the one AI extraction is unavailable', async () => {
+    vi.mocked(safeFetch).mockResolvedValue({
+      finalUrl: 'https://studio.example',
+      status: 200,
+      headers: {},
+      body: STUDIO_HOMEPAGE,
+      redirectChain: [],
+      timingMs: 1,
+      truncated: false,
+    });
+
+    await expect(
+      suggestProfileFromSite('https://studio.example', 'en', async () => {
+        throw new ProfileSuggestionsAiUnavailableError();
+      }),
+    ).resolves.toMatchObject({
+      businessDescription:
+        'Kyiv product studio behind SaaS apps used by 46K+ people. Hire our senior React, Next.js and Go team: dedicated teams from $8K/month.',
+      contextLanguage: 'source',
+    });
+  });
+
   it('proposes the served market and both published languages of the reported page', () => {
     expect(extractProfileSuggestions(STUDIO_HOMEPAGE)).toEqual({
       name: 'fluxLab.dev',

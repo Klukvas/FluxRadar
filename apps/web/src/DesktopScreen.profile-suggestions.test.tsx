@@ -80,15 +80,12 @@ describe('profile suggestions', () => {
     expect(
       screen.getByText('Suggested from the public homepage. Review and edit before saving.'),
     ).toBeInTheDocument();
-    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(2);
-    expect(
-      fetchMock.mock.calls.find(([input]) => String(input).includes('/profiles/suggestions'))?.[0],
-    ).toContain('/profiles/suggestions');
-    expect(
-      fetchMock.mock.calls.find(([input]) =>
-        String(input).includes('/profiles/context-translation'),
-      )?.[0],
-    ).toContain('/profiles/context-translation');
+    const posts = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.[0]).toContain('/profiles/suggestions');
+    expect(posts[0]?.[1]).toMatchObject({
+      body: JSON.stringify({ domain: 'https://clinic.example', targetLanguage: 'en' }),
+    });
     expect(
       screen.getByPlaceholderText('A private dental clinic helping families in Kyiv…'),
     ).toHaveValue('Evidence-grounded care');
@@ -311,6 +308,31 @@ describe('profile suggestions', () => {
     expect(screen.getByPlaceholderText('Product site')).toHaveValue('Second site');
   });
 
+  it('drops a localized proposal that settles after the UI locale changes', async () => {
+    const pending = deferred<Response>();
+    const form = renderForm();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) =>
+        new URL(String(input)).pathname === '/profiles/suggestions'
+          ? pending.promise
+          : Promise.resolve(success([])),
+      ),
+    );
+    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+      target: { value: 'studio.example' },
+    });
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
+    form.rerenderLanguage('uk');
+    pending.resolve(success({ industry: 'Product studio' }));
+    await waitFor(() =>
+      expect(
+        screen.getByPlaceholderText('Стоматологія, рекрутингова платформа, інтернет-магазин'),
+      ).toHaveValue(''),
+    );
+  });
+
   it('does not let a pending new-profile suggestion overwrite a saved profile opened for edit', async () => {
     const pending = deferred<Response>();
     vi.stubGlobal(
@@ -370,16 +392,12 @@ describe('profile suggestions', () => {
   });
 });
 
-describe('profile context translation', () => {
-  it('translates newly extracted human context to the interface language and restores it', async () => {
+describe('localized profile context', () => {
+  it('uses the one suggestion response as localized context and keeps the target picker unchanged', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const path = new URL(String(input)).pathname;
-      if (path === '/profiles/suggestions') {
+      if (path === '/profiles/suggestions')
         return Promise.resolve(success({ industry: 'Product studio', targetLanguages: 'en, ru' }));
-      }
-      if (path === '/profiles/context-translation') {
-        return Promise.resolve(success({ industry: 'Продуктова студія' }));
-      }
       return Promise.resolve(success([]));
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -390,99 +408,23 @@ describe('profile context translation', () => {
     fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
     const field = screen.getByPlaceholderText('Dental clinic, recruiting platform, online store');
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
-    await waitFor(() => expect(field).toHaveValue('Продуктова студія'));
-    expect(screen.getByRole('button', { name: 'Restore original text' })).toBeInTheDocument();
+    await waitFor(() => expect(field).toHaveValue('Product studio'));
+    expect(screen.queryByRole('button', { name: 'Restore original text' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Translate context/ })).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/profiles/context-translation'),
-      expect.objectContaining({
-        body: JSON.stringify({ targetLanguage: 'en', industry: 'Product studio' }),
-      }),
-    );
+    expect(
+      fetchMock.mock.calls.filter(([input]) => String(input).includes('/profiles/suggestions')),
+    ).toHaveLength(1);
     expect(screen.getByText(/2 chosen: English, Russian/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Restore original text' }));
-    expect(field).toHaveValue('Product studio');
   });
-
-  it('keeps manual text out of translation and preserves an edit made while it is pending', async () => {
-    const pending = deferred<Response>();
+  it('warns when the one response contains deterministic source-language fallback', async () => {
+    const notice = vi.fn();
     vi.stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
         const path = new URL(String(input)).pathname;
-        if (path === '/profiles/suggestions')
-          return Promise.resolve(success({ industry: 'Product studio' }));
-        return path === '/profiles/context-translation'
-          ? pending.promise
+        return path === '/profiles/suggestions'
+          ? Promise.resolve(success({ industry: 'Product studio', contextLanguage: 'source' }))
           : Promise.resolve(success([]));
-      }),
-    );
-    renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
-      target: { value: 'studio.example' },
-    });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
-    const field = screen.getByPlaceholderText('Dental clinic, recruiting platform, online store');
-    fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
-    await waitFor(() => expect(screen.getByText('Translating context…')).toBeInTheDocument());
-    fireEvent.change(field, { target: { value: 'Owner wording' } });
-    pending.resolve(success({ industry: 'Translated wording' }));
-    await waitFor(() => expect(field).toHaveValue('Owner wording'));
-  });
-
-  it('captures Ukrainian for a new Fill and drops its translation after a locale change', async () => {
-    const pending = deferred<Response>();
-    const notice = vi.fn();
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const path = new URL(String(input)).pathname;
-      if (path === '/profiles/suggestions')
-        return Promise.resolve(success({ industry: 'Product studio' }));
-      return path === '/profiles/context-translation'
-        ? pending.promise
-        : Promise.resolve(success([]));
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    const form = renderForm({ language: 'uk', onNotice: notice });
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
-      target: { value: 'studio.example' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Заповнити за сайтом' }));
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/profiles/context-translation'),
-        expect.objectContaining({
-          body: JSON.stringify({ targetLanguage: 'uk', industry: 'Product studio' }),
-        }),
-      ),
-    );
-    form.rerenderLanguage('en');
-    pending.resolve(success({ industry: 'Перекладена студія' }));
-    await waitFor(() =>
-      expect(
-        screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
-      ).toHaveValue('Product studio'),
-    );
-    expect(notice).not.toHaveBeenCalled();
-  });
-
-  it('keeps extracted source text when translation is unavailable', async () => {
-    const notice = vi.fn();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) => {
-        const path = new URL(String(input)).pathname;
-        if (path === '/profiles/suggestions')
-          return Promise.resolve(success({ industry: 'Product studio' }));
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              success: false,
-              data: null,
-              error: { code: 'VALIDATION', message: 'Translation is temporarily unavailable.' },
-            }),
-            { status: 400, headers: { 'content-type': 'application/json' } },
-          ),
-        );
       }),
     );
     renderForm({ onNotice: notice });
@@ -494,7 +436,7 @@ describe('profile context translation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
       expect(notice).toHaveBeenCalledWith(
-        'Translation is temporarily unavailable. You can continue editing the original text.',
+        'AI context suggestions are unavailable, so source-language public details are shown. Review and edit them before saving.',
       ),
     );
     expect(field).toHaveValue('Product studio');

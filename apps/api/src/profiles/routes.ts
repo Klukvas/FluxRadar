@@ -35,13 +35,6 @@ import { competitorsFromJson } from './competitors.ts';
 import { deleteSiteProfileData, type ProfileDeletionBlocker } from './profile-deletion.ts';
 import { resolveOwnProfile } from './resolve.ts';
 import { suggestProfileFromSite, type ProfileSuggestions } from './profile-suggestions.ts';
-import {
-  createProfileContextTranslator,
-  profileContextTranslationSchema,
-  ProfileContextTranslationUnavailableError,
-  type ProfileContextTranslation,
-  type ProfileContextTranslationInput,
-} from './profile-context-translation.ts';
 
 export interface ProfilesRouterDeps {
   readonly prisma: PrismaClient;
@@ -51,12 +44,11 @@ export interface ProfilesRouterDeps {
   readonly objectStore?: PrivateObjectStore | null;
   readonly logger?: ApiLogger;
   /** Test seam for the one bounded public homepage read used by profile autofill. */
-  readonly suggestProfile?: (domain: string) => Promise<ProfileSuggestions>;
-  /** Test seam for translation of the owner-selected human context fields only. */
-  readonly translateProfileContext?: (
-    input: ProfileContextTranslationInput,
+  readonly suggestProfile?: (
+    domain: string,
+    targetLanguage: 'en' | 'uk',
     signal?: AbortSignal,
-  ) => Promise<ProfileContextTranslation>;
+  ) => Promise<ProfileSuggestions>;
 }
 
 const PROFILE_DELETION_BLOCKED_MESSAGES: Readonly<Record<ProfileDeletionBlocker, string>> = {
@@ -71,6 +63,9 @@ const siteProfilePatchSchema = siteProfilePatchInputSchema;
 // scan started from a raw URL, where nobody typed one, and accepting one would
 // be a second way to overwrite the name on a profile that already exists.
 const profileResolveInputSchema = z.object({ domain: httpsOriginSchema });
+const profileSuggestionsInputSchema = profileResolveInputSchema.extend({
+  targetLanguage: z.enum(['en', 'uk']).default('en'),
+});
 
 function toProfileDto(profile: SiteProfile): Record<string, unknown> {
   return {
@@ -157,42 +152,32 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
     );
   });
 
-  router.post('/profiles/context-translation', auth, async (req, res) => {
-    const input = parseInput(profileContextTranslationSchema, req.body);
-    const accountId = accountIdFrom(res);
-    requestRateLimiter.assertAllowedAll(
-      scanActionRules('profile-context-translation', accountId, req.ip ?? 'unknown'),
-    );
-    const aborted = new AbortController();
-    const cancelIfDisconnected = () => {
-      if (req.aborted || !res.writableEnded) aborted.abort();
-    };
-    req.once('aborted', cancelIfDisconnected);
-    res.once('close', cancelIfDisconnected);
-    try {
-      const translate = deps.translateProfileContext ?? createProfileContextTranslator();
-      sendOk(res, await translate(input, aborted.signal));
-    } catch (error) {
-      if (aborted.signal.aborted) return;
-      if (error instanceof ProfileContextTranslationUnavailableError) {
-        throw validationError(error.message);
-      }
-      throw validationError(
-        'Translation is temporarily unavailable. You can continue editing the original text.',
-      );
-    }
-  });
-
   router.post('/profiles/suggestions', auth, async (req, res) => {
-    const input = parseInput(profileResolveInputSchema, req.body);
+    const input = parseInput(profileSuggestionsInputSchema, req.body);
     const accountId = accountIdFrom(res);
     requestRateLimiter.assertAllowedAll(
       scanActionRules('profile-suggestions', accountId, req.ip ?? 'unknown'),
     );
+    const aborted = new AbortController();
+    const cancelIfDisconnected = () => {
+      if (req.aborted || res.destroyed) aborted.abort();
+    };
+    req.once('aborted', cancelIfDisconnected);
+    res.once('close', cancelIfDisconnected);
     try {
-      const suggest = deps.suggestProfile ?? suggestProfileFromSite;
-      sendOk(res, await suggest(input.domain));
+      sendOk(
+        res,
+        deps.suggestProfile === undefined
+          ? await suggestProfileFromSite(
+              input.domain,
+              input.targetLanguage,
+              undefined,
+              aborted.signal,
+            )
+          : await deps.suggestProfile(input.domain, input.targetLanguage, aborted.signal),
+      );
     } catch {
+      if (aborted.signal.aborted) return;
       // Network/SSRF/parser details are not useful to the owner and must not
       // become an oracle. Saving their URL manually stays available.
       throw validationError(
