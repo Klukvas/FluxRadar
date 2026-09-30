@@ -100,19 +100,16 @@ afterEach(() => {
 });
 
 describe('the home page carries what the visitor asked for through sign-up', () => {
-  it('turns the typed site into a profile and starts its free check once the account exists', async () => {
+  it('hands a typed site to the profile form once the account exists', async () => {
     let registered = false;
-    const fetchMock = stubApi((path, init) => {
+    const fetchMock = stubApi((path) => {
       if (path === '/auth/me')
         return registered ? envelope(account) : failure(401, 'UNAUTHORIZED', 'no');
       if (path === '/auth/register') {
         registered = true;
         return envelope(account, 201);
       }
-      if (path === '/profiles/resolve') return envelope({ profile, created: true }, 201);
       if (path === '/profiles') return envelope(registered ? [profile] : []);
-      if (path === `/profiles/${profile.id}/free-check` && init?.method === 'POST')
-        return envelope({ ...freeScan, status: 'Running', completedAt: null }, 201);
       return envelope(null);
     });
     render(<App />);
@@ -124,8 +121,7 @@ describe('the home page carries what the visitor asked for through sign-up', () 
     fireEvent.click(screen.getByRole('button', { name: 'Run a free homepage check' }));
 
     const dialog = await screen.findByRole('dialog');
-    // The dialog says what will happen to the site the visitor typed.
-    expect(dialog).toHaveTextContent('checks the homepage of shop.example.com straight away');
+    expect(dialog).toHaveTextContent('shop.example.com');
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Email' }), {
       target: { value: account.email },
     });
@@ -134,52 +130,11 @@ describe('the home page carries what the visitor asked for through sign-up', () 
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create account' }));
 
-    await waitFor(() => expect(window.location.pathname).toBe(`/scans/${freeScan.id}`));
-    expect(calls(fetchMock, '/profiles/resolve', 'POST')[0]).toContain(
-      '"domain":"https://shop.example.com"',
-    );
-    expect(calls(fetchMock, `/profiles/${profile.id}/free-check`, 'POST')).toHaveLength(1);
-  });
-
-  it('opens the scan form with the reason when the typed site has had its free check', async () => {
-    let registered = false;
-    stubApi((path, init) => {
-      if (path === '/auth/me')
-        return registered ? envelope(account) : failure(401, 'UNAUTHORIZED', 'no');
-      if (path === '/auth/register') {
-        registered = true;
-        return envelope(account, 201);
-      }
-      if (path === '/profiles/resolve') return envelope({ profile, created: true }, 201);
-      if (path === '/profiles') return envelope(registered ? [profile] : []);
-      if (path === `/profiles/${profile.id}/free-check` && init?.method === 'POST')
-        return failure(
-          409,
-          'FREE_CHECK_DOMAIN_USED',
-          'this domain has already received a free check',
-        );
-      return envelope(null);
-    });
-    render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
-
-    fireEvent.change(screen.getByRole('textbox', { name: 'Your website' }), {
-      target: { value: 'shop.example.com' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Run a free homepage check' }));
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Email' }), {
-      target: { value: account.email },
-    });
-    fireEvent.change(within(dialog).getByLabelText('Password'), {
-      target: { value: 'valid-password' },
-    });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create account' }));
-
-    await waitFor(() => expect(window.location.pathname).toBe('/scan'));
-    expect(await screen.findByText(/This site has already had its free check/)).toBeInTheDocument();
-    expect(screen.getByText(/Yours is still unused/)).toBeInTheDocument();
-    expect(screen.queryByText(/already received a free check/)).not.toBeInTheDocument();
+    await waitFor(() => expect(window.location.pathname).toBe('/profiles'));
+    expect(new URLSearchParams(window.location.search).get('add')).toBe('https://shop.example.com');
+    expect(await screen.findByDisplayValue('https://shop.example.com')).toBeInTheDocument();
+    expect(calls(fetchMock, '/profiles/resolve', 'POST')).toHaveLength(0);
+    expect(calls(fetchMock, `/profiles/${profile.id}/free-check`, 'POST')).toHaveLength(0);
   });
 
   it('refuses an address that is not a website before asking for an account', async () => {

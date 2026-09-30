@@ -37,6 +37,8 @@ import './styles/desktop.css';
 
 export interface DesktopScreenProps {
   readonly profiles: readonly SiteProfile[];
+  /** A public-page address handed off after sign-in, awaiting owner confirmation. */
+  readonly initialDomain?: string | null;
   readonly onRefresh: () => Promise<void>;
   /** Called once a profile is gone, so screens still holding it can let it go. */
   readonly onProfileDeleted: (profile: SiteProfile) => void;
@@ -160,6 +162,17 @@ export function DesktopScreen(props: DesktopScreenProps) {
   }, [props.language]);
 
   const [formRequested, setFormRequested] = useState(false);
+  const appliedInitialDomain = useRef<string | null>(null);
+  useEffect(() => {
+    if (props.initialDomain === null || props.initialDomain === undefined) return;
+    if (appliedInitialDomain.current === props.initialDomain) return;
+    appliedInitialDomain.current = props.initialDomain;
+    setDomain(props.initialDomain);
+    const suggested = siteNameFromAddress(props.initialDomain) ?? '';
+    setSuggestedName(suggested);
+    setName(suggested);
+    setFormRequested(true);
+  }, [props.initialDomain]);
   const [latest, setLatest] = useState<Scan | null | undefined>(undefined);
   const formRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);

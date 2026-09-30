@@ -59,7 +59,9 @@ export const DEFAULT_SCOPE_FORM: ScanScopeForm = {
   includePatterns: '',
   excludePatterns: '',
   seedUrls: '',
-  renderJs: false,
+  // New configurations inspect the page users actually see. Explicit saved
+  // false values are still restored unchanged.
+  renderJs: true,
   apiChecks: '',
   queryPolicy: 'ignore',
   respectRobots: true,
@@ -123,7 +125,12 @@ export function invalidScopeFields(form: ScanScopeForm, plan: Plan): readonly Sc
     const trimmed = form[field].trim();
     if (trimmed === '') return false;
     const parsed = Number(trimmed);
-    return !Number.isInteger(parsed) || parsed < bounds(field, plan).minimum;
+    const fieldBounds = bounds(field, plan);
+    return (
+      !Number.isInteger(parsed) ||
+      parsed < fieldBounds.minimum ||
+      (field === 'maxDepth' && parsed > fieldBounds.maximum)
+    );
   });
 }
 
@@ -238,7 +245,9 @@ export function scopeFormFromScan(scan: Scan): ScanScopeForm {
     includePatterns: (scope?.urlPatterns ?? []).join(', '),
     excludePatterns: (scope?.excludePatterns ?? []).join(', '),
     seedUrls: (scope?.seedUrls ?? []).join('\n'),
-    renderJs: scope?.renderJs ?? DEFAULT_SCOPE_FORM.renderJs,
+    // Historical scans without a rendering field predate the new-profile
+    // default; do not rewrite their implicit static result into a preference.
+    renderJs: scope?.renderJs ?? false,
     apiChecks: apiCheckLines(scope?.apiChecks ?? []),
     queryPolicy: scope?.queryPolicy ?? DEFAULT_SCOPE_FORM.queryPolicy,
     respectRobots: scope?.respectRobots ?? DEFAULT_SCOPE_FORM.respectRobots,

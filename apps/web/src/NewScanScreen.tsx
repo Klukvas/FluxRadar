@@ -11,19 +11,20 @@ import {
   TextAreaField,
   Window,
 } from './components';
-import type { CheckoutConfig, SiteProfile } from './api';
+import {
+  apiRequest,
+  type CheckoutConfig,
+  type GoogleBinding,
+  type IntegrationStatus,
+  type SiteProfile,
+} from './api';
 import { EgressLocationField } from './EgressLocationField';
 import { SiteReachabilityPanel } from './SiteReachability';
 import { LaunchSummary } from './LaunchSummary';
 import { ScanCallout } from './ScanCallout';
 import { copy, type Language } from './i18n';
-import {
-  NEW_ADDRESS_TARGET,
-  useNewScanForm,
-  type NewScanForm,
-  type NewScanFormProps,
-} from './new-scan-form';
-import { PLAN_MODULES, type Plan } from './plan-modules';
+import { useNewScanForm, type NewScanForm, type NewScanFormProps } from './new-scan-form';
+import { PLAN_MODULES, PLAN_URL_LIMIT, type Plan } from './plan-modules';
 import type { ScanScopeForm } from './scan-scope';
 
 /**
@@ -208,13 +209,10 @@ function ScanTargetPanel(props: {
 }) {
   const t = copy[props.language];
   const {
-    address,
-    addressError,
     carriedOver,
     chooseTarget,
     configurationState,
     configurationStatusLabel,
-    editAddress,
     egressLocation,
     launchConfig,
     paidScopeControls,
@@ -228,40 +226,28 @@ function ScanTargetPanel(props: {
       {/* The field picks a saved profile, so it is named after what it picks.
             The public-site semantics the old "Public origin" label carried live
             in the hint, where they describe the scan rather than renaming the
-            thing being chosen. The last option is the way out of the list
-            entirely: an address nobody has saved yet. */}
+            saved profile being chosen. */}
       {props.profiles.length === 0 ? (
-        <p className="muted panel-help">{t.newScan.noProfilesLead}</p>
+        <>
+          <p className="muted panel-help">{t.newScan.noProfilesLead}</p>
+          <a className="button" href="/profiles">
+            {props.language === 'uk' ? 'Створити профіль' : 'Create profile'}
+          </a>
+        </>
       ) : (
         <SelectField
           label={t.newScan.labelProfile}
           name="scan-profile"
           autoComplete="off"
           // The hint describes a saved profile, so it goes away with the
-          // profile: the address field below states its own terms.
+          // profile: no separate address can be launched from this form.
           {...(usingSavedProfile ? { hint: t.newScan.hintProfile } : {})}
           value={target}
           onChange={chooseTarget}
-          options={[
-            ...props.profiles.map((profile) => ({
-              value: profile.id,
-              label: `${profile.name} · ${profile.domain}`,
-            })),
-            { value: NEW_ADDRESS_TARGET, label: t.newScan.optionNewAddress },
-          ]}
-        />
-      )}
-      {usingSavedProfile ? null : (
-        <Field
-          label={t.newScan.labelAddress}
-          name="scan-address"
-          autoComplete="url"
-          technical
-          value={address}
-          onChange={editAddress}
-          placeholder={t.newScan.addressPlaceholder}
-          hint={t.newScan.hintAddress}
-          error={addressError ?? undefined}
+          options={props.profiles.map((profile) => ({
+            value: profile.id,
+            label: `${profile.name} · ${profile.domain}`,
+          }))}
         />
       )}
       {carriedOver ? <p className="muted panel-help">{t.newScan.prefillNote}</p> : null}
@@ -386,6 +372,11 @@ function ScanDepthPanel(props: { form: NewScanForm; language: Language }) {
             type="number"
             error={invalidScope.includes('maxPages') ? t.newScan.maxPagesError : undefined}
           />
+          <p className="muted panel-help">
+            {scope.maxPages.trim() === ''
+              ? t.newScan.planPageLimit(PLAN_URL_LIMIT[plan])
+              : t.newScan.ownerPageLimit(scope.maxPages)}
+          </p>
           <Field
             label={t.newScan.labelMaxDepth}
             name="scan-max-depth"
@@ -396,6 +387,11 @@ function ScanDepthPanel(props: { form: NewScanForm; language: Language }) {
             type="number"
             error={invalidScope.includes('maxDepth') ? t.newScan.maxDepthError : undefined}
           />
+          <p className="muted panel-help">
+            {props.language === 'uk'
+              ? '0 — лише головна сторінка; порожнє поле — без обмеження глибини.'
+              : '0 = homepage only; leave blank for unlimited depth.'}
+          </p>
           {/* Path patterns and the query policy shape which URLs the crawler
                 takes, and most scans ship with the defaults. They stay behind a
                 disclosure so the plan and its two limits — the numbers being
@@ -660,6 +656,9 @@ function ScanLaunchColumn(props: {
             onResult={setSiteReachable}
           />
         )}
+        {usingSavedProfile && (plan === 'WebsiteAudit' || plan === 'Complete') ? (
+          <GoogleLaunchContext profileId={target} language={props.language} />
+        ) : null}
         {showsPurchaseTerms ? (
           <p
             className="muted checkout-legal-note"
@@ -706,5 +705,65 @@ function ScanLaunchColumn(props: {
         </Button>
       </div>
     </div>
+  );
+}
+
+/** A binding is optional, but the audit plans can use its real Google context. */
+function GoogleLaunchContext(props: { profileId: string; language: Language }) {
+  const [state, setState] = useState<'loading' | 'missing' | 'ready' | 'unavailable'>('loading');
+  useEffect(() => {
+    let active = true;
+    setState('loading');
+    void Promise.all([
+      apiRequest<GoogleBinding | null>(
+        `/profiles/${encodeURIComponent(props.profileId)}/google-binding`,
+      ),
+      apiRequest<readonly IntegrationStatus[]>('/integrations'),
+    ])
+      .then(([binding, integrations]) => {
+        if (!active) return;
+        const google = integrations.find((integration) => integration.provider === 'google');
+        setState(
+          google?.status === 'connected' &&
+            binding !== null &&
+            (binding.searchConsoleSiteUrl !== null || binding.ga4PropertyId !== null)
+            ? 'ready'
+            : 'missing',
+        );
+      })
+      .catch(() => {
+        if (active) setState('unavailable');
+      });
+    return () => {
+      active = false;
+    };
+  }, [props.profileId]);
+  return (
+    <Panel
+      title={props.language === 'uk' ? 'Дані Google (необов’язково)' : 'Google data (optional)'}
+    >
+      <p className="muted panel-help">
+        {state === 'loading'
+          ? props.language === 'uk'
+            ? 'Перевіряємо підключені властивості Google…'
+            : 'Checking connected Google properties…'
+          : state === 'ready'
+            ? props.language === 'uk'
+              ? 'Search Console або GA4 підключено для цього профілю. Цей контекст буде додано до аудиту; PageSpeed від підключення не залежить.'
+              : 'Search Console or GA4 is connected for this profile. That context will be included in the audit; PageSpeed is independent of this connection.'
+            : state === 'missing'
+              ? props.language === 'uk'
+                ? 'Підключіть Search Console або GA4, щоб додати контекст Google до цього аудиту. PageSpeed цього не потребує.'
+                : 'Connect Search Console or GA4 to add Google context to this audit. PageSpeed does not need a connection.'
+              : props.language === 'uk'
+                ? 'Не вдалося перевірити підключення Google. Аудит все одно може продовжитися.'
+                : 'Google connection status is unavailable. The audit can still continue.'}
+      </p>
+      {state === 'missing' || state === 'unavailable' ? (
+        <a className="button" href="/integrations">
+          {props.language === 'uk' ? 'Відкрити інтеграції' : 'Open integrations'}
+        </a>
+      ) : null}
+    </Panel>
   );
 }

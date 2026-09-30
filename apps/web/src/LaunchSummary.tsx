@@ -2,7 +2,7 @@ import type { EgressLocation } from './api';
 import { FieldRow, Panel } from './components';
 import { egressLocationLabel } from './egress-location';
 import { copy, type Language } from './i18n';
-import { PLAN_MODULES, type Plan } from './plan-modules';
+import { PLAN_MODULES, PLAN_URL_LIMIT, type Plan } from './plan-modules';
 import type { ScanScopeForm } from './scan-scope';
 
 /**
@@ -31,7 +31,7 @@ function aiValue(plan: Plan, t: NewScanCopy): string {
 
 export function LaunchSummary(props: {
   language: Language;
-  /** The address as the form resolved it — a profile domain or a typed site. */
+  /** The domain saved on the selected profile. */
   site: string;
   plan: Plan;
   /** The plan as the plan picker spells it, prices and all. */
@@ -62,7 +62,11 @@ export function LaunchSummary(props: {
         <FieldRow label={t.launchSummaryPlan} value={props.planLabel} />
         <FieldRow
           label={t.launchSummaryPages}
-          value={free ? t.launchSummaryHomepage : scope.maxPages.trim() || '—'}
+          value={
+            free
+              ? t.launchSummaryHomepage
+              : scope.maxPages.trim() || t.planPageLimit(PLAN_URL_LIMIT[props.plan])
+          }
         />
         <FieldRow label={t.launchSummaryDepth} value={free ? '—' : scope.maxDepth.trim() || '—'} />
         <FieldRow

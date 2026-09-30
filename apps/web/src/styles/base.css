@@ -1600,9 +1600,34 @@ code,
    rather than cards. It follows the status word inside the row's value cell:
    hung under the row as a block of its own, it read as a new, unlabelled row
    between two sections instead of as the answer to the status beside it. */
+.section-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.section-status--running::before,
+.section-status--done::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-500);
+  content: '';
+}
+.section-status--running::before {
+  animation: scan-section-pulse 1.4s ease-in-out infinite;
+}
+.section-status--done::before {
+  background: var(--positive-500, #2d8a59);
+}
+@keyframes scan-section-pulse {
+  50% { opacity: 0.35; transform: scale(0.72); }
+}
 .section-status__reason {
   color: var(--plat-600);
   font-weight: 400;
+}
+@media (prefers-reduced-motion: reduce) {
+  .section-status--running::before { animation: none; }
 }
 .report-meta {
   display: flex;

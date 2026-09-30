@@ -12,6 +12,7 @@ export function DesktopRoute({ app }: { readonly app: AppModel }) {
   return (
     <DesktopScreen
       profiles={profiles}
+      initialDomain={new URLSearchParams(window.location.search).get('add')}
       onOpenScan={(scanId) => void openScanById(scanId)}
       onRetryScan={retryScan}
       onNotice={setNotice}

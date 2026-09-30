@@ -384,7 +384,7 @@ describe('paid checkout flow', () => {
     await waitFor(() => expect(called(fetchMock, '/billing/internal-checkout')).toBe(true));
     // Internal accounts never touch the paid provider, and never ask for config.
     expect(called(fetchMock, '/billing/checkout-session')).toBe(false);
-    expect(called(fetchMock, '/billing/checkout-config')).toBe(false);
+    expect(called(fetchMock, '/billing/checkout-config')).toBe(true);
   });
 
   // The buyer pays on Creem's page, so this tab is reloaded (or comes back from

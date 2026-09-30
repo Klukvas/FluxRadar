@@ -6,7 +6,7 @@
 // were when they were declared inside the component, so none of them acts on
 // state older than the screen it was called from.
 
-import { apiRequest, type Account, type Scan, type SiteProfile } from './api';
+import { apiRequest, type Account, type Scan } from './api';
 import { resendVerification } from './AccountScreen';
 import { accountCopy } from './account-copy';
 import type { Navigate, OpenScanById } from './app-navigation';
@@ -14,7 +14,6 @@ import { isTerminalScan, isWorkspaceScreen, scanRoutePreference } from './app-ro
 import { loadProfiles } from './app-session';
 import type { AppState, VisitorIntent } from './app-state';
 import type { Language } from './i18n';
-import { launchErrorMessage } from './launch-errors';
 
 /** What the actions act on: the shell's state, its language, and the two ways it moves. */
 export type ActionContext = AppState & {
@@ -71,10 +70,7 @@ function scanActions({
  * made. A picked plan opens the scan form on that plan. Returns false when
  * there was nothing to carry out.
  */
-function followIntentFor(
-  { language, navigate, setError, setNewScanPlan, setProfiles, setSelectedProfile }: ActionContext,
-  onScanCreated: (scan: Scan) => void,
-) {
+function followIntentFor({ navigate, setNewScanPlan }: ActionContext) {
   return async (pending: VisitorIntent): Promise<boolean> => {
     if (pending.site === null) {
       if (pending.plan === null) return false;
@@ -82,39 +78,10 @@ function followIntentFor(
       navigate('new-scan');
       return true;
     }
-    let profile: SiteProfile;
-    try {
-      const resolved = await apiRequest<{ profile: SiteProfile; created: boolean }>(
-        '/profiles/resolve',
-        { method: 'POST', body: JSON.stringify({ domain: pending.site }) },
-      );
-      profile = resolved.profile;
-      await loadProfiles(setProfiles);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Profile creation failed');
-      navigate('desktop');
-      return true;
-    }
-    setSelectedProfile(profile);
-    if (pending.plan !== null) {
-      setNewScanPlan(pending.plan);
-      navigate('new-scan');
-      return true;
-    }
-    try {
-      const scan = await apiRequest<Scan>(`/profiles/${profile.id}/free-check`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      });
-      onScanCreated(scan);
-    } catch (caught) {
-      // The free check is once per account and once per site. When it is
-      // spent, the scan form for this site is the next useful place — with
-      // the reason on top of it.
-      setError(launchErrorMessage(caught, language, 'The free check could not start'));
-      setNewScanPlan(null);
-      navigate('new-scan');
-    }
+    // An address from the public page is intent, not permission to silently
+    // create a profile or start a scan. Keep the plan and open Profiles.
+    setNewScanPlan(pending.plan);
+    navigate('desktop', undefined, `?add=${encodeURIComponent(pending.site)}`);
     return true;
   };
 }
@@ -218,7 +185,7 @@ function onboardingActions({ navigate, setAccount, setError, setTourOpen }: Acti
 /** Every action the screens call, built from this render's state. */
 export function appActions(context: ActionContext) {
   const scans = scanActions(context);
-  const followIntent = followIntentFor(context, scans.onScanCreated);
+  const followIntent = followIntentFor(context);
   return {
     ...scans,
     followIntent,

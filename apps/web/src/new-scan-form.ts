@@ -28,7 +28,6 @@ import {
 } from './new-scan-configuration';
 import { requestScan } from './new-scan-request';
 import { PLAN_MODULES, type Plan } from './plan-modules';
-import { normalizeSiteAddress } from './site-address-input';
 import {
   DEFAULT_SCOPE_FORM,
   clampScopeToPlan,
@@ -55,15 +54,6 @@ import {
  * settings come from (`new-scan-configuration.ts`) and which request actually
  * creates a scan (`new-scan-request.ts`).
  */
-
-/**
- * The select value that means "a site this account has not saved yet".
- *
- * It is a sentinel rather than an empty string because an empty select value is
- * also what "nothing chosen" looks like, and the two have to be told apart: one
- * of them is a valid way to start a scan.
- */
-export const NEW_ADDRESS_TARGET = 'new-address';
 
 /** The form control each number field the scope validator can reject lives in. */
 const SCOPE_FIELD_NAMES: Readonly<Record<ScopeNumberField, string>> = {
@@ -101,7 +91,7 @@ export interface NewScanFormProps {
   internalFreeAccess: boolean;
   language: Language;
   onCreated: (scan: Scan) => void;
-  /** Called after an address became a profile, so the workspace lists it. */
+  /** Reloads saved profiles after their configuration changes. */
   onProfilesChanged: () => Promise<void>;
   onClose: () => void;
   onError: (value: string) => void;
@@ -126,8 +116,6 @@ interface PlanOption {
  * screen handed a bare `setPlan` would have to know that.
  */
 export interface NewScanForm {
-  readonly address: string;
-  readonly addressError: string | null;
   readonly advancedOpen: boolean;
   readonly busy: boolean;
   /** False while a submission would be refused, for whatever reason. */
@@ -149,9 +137,7 @@ export interface NewScanForm {
   readonly siteReachable: boolean;
   readonly setSiteReachable: (reachable: boolean) => void;
   /**
-   * Resolves the profile this launch is for, creating it from a typed address
-   * when there is none yet. The reachability panel probes the same profile the
-   * submit will buy a scan of.
+   * Returns the selected profile for the reachability probe and launch.
    */
   readonly resolveTargetProfileId: () => Promise<string | null>;
   readonly invalidScope: readonly ScopeNumberField[];
@@ -188,7 +174,6 @@ export interface NewScanForm {
   readonly hasUnsavedChanges: boolean;
   readonly chooseTarget: (target: string) => void;
   readonly choosePlan: (plan: Plan) => void;
-  readonly editAddress: (value: string) => void;
   readonly toggleAdvanced: (open: boolean) => void;
   readonly updateScope: (change: Partial<ScanScopeForm>) => void;
   readonly toggleOptInAiProvider: (provider: AiProcessingOptInProvider, selected: boolean) => void;
@@ -200,7 +185,9 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const t = copy[props.language];
   // Whether a real checkout exists is a server fact, not a build-time flag: an
   // unreachable or unconfigured provider must never look like a working one.
-  const checkout = useCheckoutConfig(!props.internalFreeAccess);
+  // Optional-provider availability is deployment state for every account.
+  // Internal access skips payment, not this truthful configuration read.
+  const checkout = useCheckoutConfig(true);
   const checkoutConfig = checkout.status === 'ready' ? checkout.config : null;
   const paidAvailable = props.internalFreeAccess || checkoutConfig?.available === true;
   // Where a launch may leave from (D-228). The same server answer decides what
@@ -220,16 +207,11 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // Until the server has answered, the screen says it is still asking rather
   // than announcing an absence it cannot yet know about.
   const checkoutPending = checkout.status === 'loading';
-  // An account with nothing saved starts on the address field: a scan no longer
-  // needs a profile to exist first, so this screen no longer refuses to open.
-  const [target, setTarget] = useState(
-    props.selectedProfile?.id ?? props.profiles[0]?.id ?? NEW_ADDRESS_TARGET,
-  );
-  const [address, setAddress] = useState('');
-  const [addressError, setAddressError] = useState<string | null>(null);
-  // A saved profile owns its preferred plan. New addresses keep the existing
-  // free-first flow; internal accounts start on Complete so they can exercise
-  // the full report without a payment.
+  // Launches are always attached to a saved profile. Profile creation belongs
+  // to the Profiles workflow, where its context is collected first.
+  const [target, setTarget] = useState(props.selectedProfile?.id ?? props.profiles[0]?.id ?? '');
+  // A saved profile owns its preferred plan; internal accounts start on
+  // Complete so they can exercise the full report without a payment.
   const [plan, setPlan] = useState<Plan>(
     props.selectedProfile?.scanConfig?.plan ?? (props.internalFreeAccess ? 'Complete' : 'Free'),
   );
@@ -263,11 +245,10 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // (it never checks out), so it is offered both and told by the server if one
   // is not configured. That path takes no payment, so there is nothing to
   // protect it from beyond an honest refusal.
-  const offeredOptInAiProviders: readonly AiProcessingOptInProvider[] = props.internalFreeAccess
-    ? AI_PROCESSING_OPT_IN_PROVIDERS
-    : AI_PROCESSING_OPT_IN_PROVIDERS.filter((provider) =>
-        (checkoutConfig?.optInAiProviders ?? []).includes(provider),
-      );
+  const offeredOptInAiProviders: readonly AiProcessingOptInProvider[] =
+    AI_PROCESSING_OPT_IN_PROVIDERS.filter((provider) =>
+      (checkoutConfig?.optInAiProviders ?? []).includes(provider),
+    );
   // Extra AI recipients, off until the owner turns one on. An unselected
   // provider is not sent — it is not in the list the scan stores, so the worker
   // never builds a request for it.
@@ -333,8 +314,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // that never stored a configuration has for good — so a brand-new profile
   // said "Configuration is loading…" forever.
   const [configLoading, setConfigLoading] = useState(false);
-  const usingSavedProfile = target !== NEW_ADDRESS_TARGET;
-  const resolvedProfileVersion = useRef<number | undefined>(undefined);
+  const usingSavedProfile = target !== '';
   const selected = props.profiles.find((profile) => profile.id === target);
   const currentProfileConfig = profileScanConfigFromForm(scope, plan);
   const unavailablePlanFallback =
@@ -351,8 +331,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const updateScope = (change: Partial<ScanScopeForm>): void => {
     setHasUnsavedChanges(true);
     setScope((current) => ({ ...current, ...change }));
-    // Editing a field withdraws the complaint about it, as the address field
-    // does: the message described the value that has just been replaced.
+    // Editing a field withdraws the complaint about it: the message described
+    // the value that has just been replaced.
     const edited = Object.keys(change);
     setInvalidScope((current) => current.filter((field) => !edited.includes(field)));
     if (edited.includes('seedUrls')) setInvalidSeedUrls([]);
@@ -375,12 +355,6 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     setInvalidScope([]);
   };
 
-  const editAddress = (value: string): void => {
-    setHasUnsavedChanges(true);
-    setAddress(value);
-    if (addressError !== null) setAddressError(null);
-  };
-
   /**
    * The workspace lists the account's sites, and a submission may have just
    * added one. Refreshing that list is a convenience and deliberately cannot
@@ -399,11 +373,6 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   /** Opens the form on the reusable settings stored with the selected profile. */
   useEffect(() => {
     if (!usingSavedProfile) {
-      setPlan(props.internalFreeAccess ? 'Complete' : 'Free');
-      setScope(DEFAULT_SCOPE_FORM);
-      setCarriedOver(false);
-      setSavedConfigFingerprint(null);
-      setSavedConfigVersion(null);
       setConfigLoading(false);
       return;
     }
@@ -446,29 +415,10 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     setScope((current) => clampScopeToPlan(current, initialPlan));
   }, [initialPlan, paidAvailable, target]);
 
-  /**
-   * The profile this scan runs against, creating one from a typed address.
-   *
-   * Returns null when the address is not a site address — the field says so and
-   * the submission stops there, without a request. The server normalizes and
-   * re-checks the origin as well; this step exists so the owner never meets
-   * backend validation prose.
-   */
+  /** Launching uses an existing profile. */
   const resolveTargetProfileId = async (): Promise<string | null> => {
     if (usingSavedProfile) return target;
-    const normalized = normalizeSiteAddress(address);
-    if (!normalized.ok) {
-      setAddressError(t.workspace.siteAddressError);
-      return null;
-    }
-    setAddressError(null);
-    const resolved = await apiRequest<{ profile: SiteProfile; created: boolean }>(
-      '/profiles/resolve',
-      { method: 'POST', body: JSON.stringify({ domain: normalized.origin }) },
-    );
-    void refreshProfiles();
-    resolvedProfileVersion.current = resolved.profile.scanConfigVersion;
-    return resolved.profile.id;
+    return null;
   };
 
   const persistProfileConfiguration = async (profileId: string): Promise<SiteProfile | null> => {
@@ -476,9 +426,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       method: 'PATCH',
       body: JSON.stringify({
         scanConfig: currentProfileConfig,
-        expectedProfileConfigVersion: usingSavedProfile
-          ? (savedConfigVersion ?? selected?.scanConfigVersion)
-          : resolvedProfileVersion.current,
+        expectedProfileConfigVersion: savedConfigVersion ?? selected?.scanConfigVersion,
       }),
     });
   };
@@ -635,13 +583,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // is sent (orchestrator/run-attempt.ts); this is the form telling the truth
   // about it instead of collecting settings that would be discarded.
   const paidScopeControls = plan !== 'Free';
-  // The status line names what is about to be checked. Asking for a profile
-  // when there is no profile picker on screen is the one thing it may not say.
-  const targetLabel = usingSavedProfile
-    ? (selected?.domain ?? t.newScan.noProfile)
-    : normalizeSiteAddress(address).ok
-      ? address.trim()
-      : t.newScan.noAddress;
+  const targetLabel = selected?.domain ?? t.newScan.noProfile;
   const configurationState = configurationStateOf({
     usingSavedProfile,
     loading: configLoading,
@@ -649,14 +591,14 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     dirty: configurationDirty,
   });
   const planLabel = planOptions.find((option) => option.value === plan)?.label ?? plan;
-  const launchSite = usingSavedProfile ? targetLabel : address.trim() || '—';
+  const launchSite = targetLabel;
   // The one thing standing between a filled-in form and the checkout, said
   // beside the button rather than only at the checkbox two columns away.
   const robotsUnconfirmed =
     paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed;
   // Both buttons refuse for the same reasons; saving refuses for two more,
   // because settings nobody can store are worse than a scan nobody can start.
-  const targetChosen = usingSavedProfile ? target !== '' : address.trim() !== '';
+  const targetChosen = target !== '';
   const idle = !busy && !savingConfiguration;
   const formReady = idle && targetChosen && !robotsUnconfirmed;
   // A paid scan of a site the crawler cannot read is a refund waiting to
@@ -680,8 +622,6 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       : t.newScan.runFree;
 
   return {
-    address,
-    addressError,
     advancedOpen,
     busy,
     canLaunch,
@@ -726,7 +666,6 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       setTarget(nextTarget);
     },
     choosePlan,
-    editAddress,
     toggleAdvanced: setAdvancedChoice,
     updateScope,
     toggleOptInAiProvider,

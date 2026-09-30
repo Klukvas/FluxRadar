@@ -1,9 +1,10 @@
 import { EVERYTHING_ALLOWED, saveCookieConsent } from './browser-consent';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { apiCheckLines, parseApiCheckLines } from './api-check-lines';
+import type { Plan } from './plan-modules';
 
 // The three settings this change adds to the paid scan form — start URLs, the
 // API endpoint list and JavaScript rendering — and the pause control on the
@@ -134,7 +135,6 @@ describe('the paid scan form', () => {
     fireEvent.change(screen.getByLabelText(/^API endpoints to check/), {
       target: { value: 'GET https://example.com/api/health 200,204' },
     });
-    fireEvent.click(screen.getByLabelText('Read pages after their JavaScript has run'));
     fireEvent.click(screen.getByRole('button', { name: 'Run internal scan' }));
 
     await waitFor(() => expect(devCheckoutBody(fetchMock)).not.toBeNull());
@@ -191,8 +191,13 @@ describe('the paid scan form', () => {
 });
 
 describe('the progress screen', () => {
-  function renderProgress(status: string, pauseRequestedAt: string | null = null) {
-    const current = { ...scan, status, pauseRequestedAt };
+  function renderProgress(
+    status: string,
+    pauseRequestedAt: string | null = null,
+    plan: Plan = scan.plan,
+    statusReason: string | null = null,
+  ) {
+    const current = { ...scan, status, pauseRequestedAt, plan, statusReason };
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathOf(input);
       if (path === '/auth/me') return Promise.resolve(envelope(account));
@@ -207,6 +212,11 @@ describe('the progress screen', () => {
     window.history.replaceState(null, '', `/scans/${scan.id}`);
     render(<App />);
     return fetchMock;
+  }
+
+  async function openCancelDialog(): Promise<void> {
+    fireEvent.click(await screen.findByText('More actions'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel scan' }));
   }
 
   it('shows how much of the site has been read', async () => {
@@ -260,5 +270,78 @@ describe('the progress screen', () => {
     expect(
       await screen.findByText(/Finishing the current section, then pausing/),
     ).toBeInTheDocument();
+  });
+
+  it('does not promise a refund for a free scan', async () => {
+    renderProgress('Pending', null, 'Free');
+    await openCancelDialog();
+    expect(await screen.findByText(/unpaid check, so nothing was charged/)).toBeInTheDocument();
+  });
+
+  it('recognizes a scan paused before queueing as eligible for the pre-queue policy', async () => {
+    renderProgress('Paused', null, 'Complete', 'UserPausedBeforeQueue');
+    await openCancelDialog();
+    expect(await screen.findByText(/has not entered the queue/)).toBeInTheDocument();
+  });
+
+  it('requires a second confirmation when Pending becomes Queued before cancellation', async () => {
+    let current = { ...scan, status: 'Pending', statusReason: null };
+    let cancelPosts = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathOf(input);
+      if (path === '/auth/me') return Promise.resolve(envelope(account));
+      if (path === '/profiles') return Promise.resolve(envelope([profile]));
+      if (path === '/scans/active' || path === `/scans/${scan.id}`)
+        return Promise.resolve(envelope(current));
+      if (path === `/scans/${scan.id}/cancel` && init?.method === 'POST') {
+        cancelPosts += 1;
+        current = { ...current, status: 'Cancelled' };
+        return Promise.resolve(
+          envelope({
+            scanId: scan.id,
+            status: 'Cancelled',
+            cancelledFrom: 'Queued',
+            refundId: null,
+          }),
+        );
+      }
+      return Promise.resolve(envelope(null));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    saveCookieConsent(EVERYTHING_ALLOWED);
+    window.history.replaceState(null, '', `/scans/${scan.id}`);
+    render(<App />);
+
+    await openCancelDialog();
+    expect(await screen.findByText(/has not entered the queue/)).toBeInTheDocument();
+
+    current = { ...current, status: 'Queued' };
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel scan' }),
+    );
+
+    await waitFor(() => expect(cancelPosts).toBe(0));
+    expect(await screen.findByText(/no automatic refund is available/)).toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel scan' }),
+    );
+    await waitFor(() => expect(cancelPosts).toBe(1));
+    expect(fetchMock.mock.calls.some(([input]) => pathOf(input) === `/scans/${scan.id}`)).toBe(
+      true,
+    );
+  });
+
+  it('keeps keyboard focus inside cancellation confirmation and returns it on Escape', async () => {
+    renderProgress('Pending');
+    await openCancelDialog();
+    const dialog = await screen.findByRole('dialog');
+    const [keep, cancel] = within(dialog).getAllByRole('button');
+    expect(keep).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(cancel).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Cancel scan' })).toHaveFocus();
   });
 });

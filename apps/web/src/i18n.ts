@@ -627,7 +627,7 @@ export const copy = {
       hintAddress:
         'FluxRadar saves this address as a profile, so every report for the site stays in one place.',
       noProfilesLead:
-        'No saved profiles yet — type the address you want checked and FluxRadar saves it as a profile for you.',
+        'No saved profiles yet — create a profile first, then choose it here to start a scan.',
       prefillNote: 'Settings carried over from your last check of this site.',
       freeScopeTitle: 'What the free check does',
       freeScopeNote:
@@ -674,7 +674,10 @@ export const copy = {
       labelMaxPages: 'Maximum pages',
       maxPagesError: 'Enter a whole number of pages, 1 or more, or leave it empty.',
       labelMaxDepth: 'Maximum crawl depth',
-      maxDepthError: 'Enter a whole crawl depth, 0 or more, or leave it empty.',
+      maxDepthError:
+        'Enter a whole crawl depth, 0 or more and no more than 100, or leave it empty.',
+      planPageLimit: (pages: number) => `Up to ${pages.toLocaleString()} pages — plan limit`,
+      ownerPageLimit: (pages: string) => `Up to ${pages} pages — your limit`,
       labelIncludePatterns: 'Include path patterns (comma separated)',
       labelExcludePatterns: 'Exclude path patterns (comma separated)',
       labelQueryPolicy: 'URL query parameters',
@@ -691,7 +694,7 @@ export const copy = {
         'Each line must be an optional GET or HEAD, a full https address, and optionally the expected statuses.',
       labelRenderJs: 'Read pages after their JavaScript has run',
       renderInfoTitle: 'JavaScript rendering',
-      renderInfoMode: 'Off by default',
+      renderInfoMode: 'On by default',
       renderInfoBody:
         'Off, FluxRadar reads the HTML the server sends. On, it opens each page in a headless browser and reads the DOM once the page’s own scripts have run — which is what a single-page app needs. All browser traffic goes through the same public-address guard as the crawl: GET and HEAD only, no cookies, no downloads and no sockets. If the deployment has no browser runtime the report says so; it never presents the static HTML as a rendered page.',
       advancedTitle: 'Advanced crawl rules',
@@ -2480,7 +2483,7 @@ export const copy = {
       hintAddress:
         'FluxRadar збереже цю адресу як профіль, щоб усі звіти для сайту були в одному місці.',
       noProfilesLead:
-        'Збережених профілів ще немає — введіть адресу, яку треба перевірити, і FluxRadar збереже її як профіль.',
+        'Збережених профілів ще немає — спершу створіть профіль, а потім оберіть його тут для запуску перевірки.',
       prefillNote: 'Налаштування перенесено з вашої попередньої перевірки цього сайту.',
       freeScopeTitle: 'Що робить безкоштовна перевірка',
       freeScopeNote:
@@ -2527,7 +2530,10 @@ export const copy = {
       labelMaxPages: 'Максимум сторінок',
       maxPagesError: 'Введіть ціле число сторінок — 1 або більше, або залиште поле порожнім.',
       labelMaxDepth: 'Максимальна глибина обходу',
-      maxDepthError: 'Введіть цілу глибину обходу — 0 або більше, або залиште поле порожнім.',
+      maxDepthError:
+        'Введіть цілу глибину обходу — 0 або більше, але не більше 100, або залиште поле порожнім.',
+      planPageLimit: (pages: number) => `До ${pages.toLocaleString()} сторінок — ліміт тарифу`,
+      ownerPageLimit: (pages: string) => `До ${pages} сторінок — ваш ліміт`,
       labelIncludePatterns: 'Шаблони шляхів для включення (через кому)',
       labelExcludePatterns: 'Шаблони шляхів для виключення (через кому)',
       labelQueryPolicy: 'Параметри URL-запиту',
@@ -2544,7 +2550,7 @@ export const copy = {
         'Кожен рядок — необов’язковий GET або HEAD, повна https-адреса і, за бажанням, очікувані статуси.',
       labelRenderJs: 'Читати сторінки після виконання JavaScript',
       renderInfoTitle: 'Рендеринг JavaScript',
-      renderInfoMode: 'Вимкнено за замовчуванням',
+      renderInfoMode: 'Увімкнено за замовчуванням',
       renderInfoBody:
         'Вимкнено — FluxRadar читає HTML, який віддає сервер. Увімкнено — відкриває кожну сторінку в headless-браузері й читає DOM після виконання її власних скриптів; саме це потрібно SPA. Увесь трафік браузера проходить через той самий захист публічних адрес, що й обхід: тільки GET і HEAD, без cookies, без завантажень і без сокетів. Якщо в цьому середовищі немає браузерного runtime, звіт про це скаже і не видасть статичний HTML за відрендерену сторінку.',
       advancedTitle: 'Додаткові правила обходу',

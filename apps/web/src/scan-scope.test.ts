@@ -241,9 +241,10 @@ describe('scopeFormFromScan', () => {
   });
 
   it('falls back to the defaults for anything the stored scope omits', () => {
-    expect(scopeFormFromScan(scanWith('Basic', { includeSubdomains: false }))).toEqual(
-      DEFAULT_SCOPE_FORM,
-    );
+    expect(scopeFormFromScan(scanWith('Basic', { includeSubdomains: false }))).toEqual({
+      ...DEFAULT_SCOPE_FORM,
+      renderJs: false,
+    });
   });
 });
 
@@ -260,6 +261,10 @@ describe('invalidScopeFields', () => {
 
   it.each([['abc'], ['1.5'], ['-1']])('reports maxDepth typed as %s', (value) => {
     expect(invalidScopeFields({ ...form, maxDepth: value }, 'Basic')).toEqual(['maxDepth']);
+  });
+
+  it('refuses a crawl depth above the visible maximum', () => {
+    expect(invalidScopeFields({ ...form, maxDepth: '101' }, 'Basic')).toEqual(['maxDepth']);
   });
 
   // Depth starts at the homepage, so zero is a real answer there and a typo in

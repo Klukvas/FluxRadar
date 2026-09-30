@@ -386,7 +386,7 @@ export const defaultProfileScanConfig = {
   scope: {
     includeSubdomains: false,
     maxDepth: 5,
-    renderJs: false,
+    renderJs: true,
     queryPolicy: 'ignore',
     respectRobots: true,
     robotsOverrideConfirmed: false,
