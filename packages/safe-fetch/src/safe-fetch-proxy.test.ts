@@ -79,9 +79,18 @@ let proxy: Server;
 let proxyEgress: EgressProxy;
 /** Цели каждого CONNECT, который получил прокси, по порядку. */
 let connectTargets: string[] = [];
+/** Host-заголовки, которые сайт увидел на проводе, по порядку. */
+let siteHosts: string[] = [];
+/**
+ * Фикстура не может слушать привилегированный порт, а запрос без явного порта —
+ * ровно тот случай, который проверяется. Прокси подменяет порт тоннеля на порт
+ * фикстуры: для клиента сайт живёт на 80/443, как в проде.
+ */
+let fixturePortForDefaultPort: Readonly<Record<string, number>> = {};
 
 beforeAll(async () => {
   site = createServer((req, res) => {
+    siteHosts.push(req.headers.host ?? '');
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     res.end(`<html><body>${req.headers['user-agent'] ?? 'no agent'}</body></html>`);
   });
@@ -113,7 +122,8 @@ beforeAll(async () => {
       clientSocket.end('HTTP/1.1 502 Bad Gateway\r\n\r\n');
       return;
     }
-    const upstream = netConnect(Number(port), host, () => {
+    const upstreamPort = fixturePortForDefaultPort[port ?? ''] ?? Number(port);
+    const upstream = netConnect(upstreamPort, host, () => {
       clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
       upstream.pipe(clientSocket);
       clientSocket.pipe(upstream);
@@ -127,10 +137,15 @@ beforeAll(async () => {
     port: (proxy.address() as AddressInfo).port,
     credentials: { ...CREDENTIALS },
   };
+  fixturePortForDefaultPort = {
+    '80': sitePort,
+    ...(tlsSite === null ? {} : { '443': tlsSitePort }),
+  };
 });
 
 beforeEach(() => {
   connectTargets = [];
+  siteHosts = [];
 });
 
 afterAll(async () => {
@@ -152,6 +167,37 @@ describe('safeFetch through an egress proxy', () => {
     expect(result.status).toBe(200);
     expect(result.body).toContain('FluxRadarBot/0.1');
     expect(connectTargets).toEqual([`127.0.0.1:${sitePort}`]);
+  });
+
+  /**
+   * Прокси-ветка не передаёт agent (иначе node игнорирует наш тоннель), а без
+   * agent node не знает порт по умолчанию и дописывает его в Host. Живой сайт
+   * на `Host: example.com:443` отвечает так, как ни один браузер не увидит, —
+   * у evagrace.com.ua это 410 на каждой странице и «сайт не отдал читаемую
+   * страницу» в отчёте.
+   */
+  it('sends the host without the default port when the url carries none', async () => {
+    const result = await safeFetch('http://site.test/', {
+      proxy: proxyEgress,
+      resolver: mockResolver({ 'site.test': ['127.0.0.1'] }),
+      dangerouslyAllowLoopback: true,
+    });
+
+    expect(siteHosts).toEqual(['site.test']);
+    expect(result.status).toBe(200);
+    expect(result.body).toContain('<html>');
+    expect(connectTargets).toEqual(['127.0.0.1:80']);
+  });
+
+  it('keeps an explicit non-default port in the host', async () => {
+    const result = await safeFetch(`http://site.test:${sitePort}/`, {
+      proxy: proxyEgress,
+      resolver: mockResolver({ 'site.test': ['127.0.0.1'] }),
+      dangerouslyAllowLoopback: true,
+    });
+
+    expect(siteHosts).toEqual([`site.test:${sitePort}`]);
+    expect(result.status).toBe(200);
   });
 
   it('falls back to the next verified address when the first one is dead', async () => {
@@ -213,5 +259,21 @@ describe('safeFetch through an egress proxy', () => {
       cause: { code: expect.stringMatching(/SELF_SIGNED_CERT|SELF_SIGNED/) as unknown as string },
     });
     expect(connectTargets).toEqual([`127.0.0.1:${tlsSitePort}`]);
+  });
+
+  it('tunnels https without a port to 443 and still verifies the certificate', async ({ skip }) => {
+    if (tlsSite === null) skip('openssl is unavailable, so no TLS fixture was generated');
+
+    const attempt = safeFetch('https://site.test/', {
+      proxy: proxyEgress,
+      resolver: mockResolver({ 'site.test': ['127.0.0.1'] }),
+      dangerouslyAllowLoopback: true,
+    });
+
+    await expect(attempt).rejects.toThrow(NetworkError);
+    await expect(attempt).rejects.toMatchObject({
+      cause: { code: expect.stringMatching(/SELF_SIGNED_CERT|SELF_SIGNED/) as unknown as string },
+    });
+    expect(connectTargets).toEqual(['127.0.0.1:443']);
   });
 });
