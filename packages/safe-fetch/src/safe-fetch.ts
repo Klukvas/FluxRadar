@@ -367,6 +367,12 @@ async function performRequest(
       {
         hostname,
         port,
+        // Node дописывает порт в Host, пока он не равен defaultPort, а узнаёт
+        // defaultPort только у agent — которого в прокси-ветке нет (ниже).
+        // Без этой строки запрос без явного порта уходит с `Host: host:443`:
+        // браузер такого не отправляет, и сайт вправе ответить чем угодно
+        // (evagrace.com.ua отвечает 410 — весь скан читает «нет страниц»).
+        defaultPort: isHttps ? 443 : 80,
         path: `${url.pathname}${url.search}`,
         method,
         // identity: лимит maxBodyBytes считается по байтам тела на проводе (D-125)
