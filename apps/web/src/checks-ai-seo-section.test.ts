@@ -39,8 +39,8 @@ function shareOfVoiceBullet(copy: ChecksCopy) {
 
 describe('the AI SEO / GEO section of the coverage page', () => {
   it.each(LOCALES)('carries one bullet per published check in %s', (_language, copy) => {
-    // Crawler access, llms.txt, structured data, content clarity, provider
-    // visibility, the visibility score, and share of voice.
+    // Crawler access, social preview tags, structured data, content clarity,
+    // provider visibility, the visibility score, and share of voice.
     expect(aiSeoSection(copy).bullets).toHaveLength(7);
   });
 

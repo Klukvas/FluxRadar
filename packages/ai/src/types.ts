@@ -1,6 +1,6 @@
 // Версионированный adapter-контракт AI-провайдеров (T-10, план §5, D-008).
-// В v0.1 существует только MockAiProvider; реальные HTTP-адаптеры появляются
-// отдельной версией registry после AI-001 sign-off.
+// Реализуют его реальные HTTP-адаптеры — Anthropic, OpenAI, Gemini, Perplexity
+// — и MockAiProvider, который держат для тестов и локальных прогонов.
 
 import type {
   AiFinishReason,

@@ -76,7 +76,7 @@ describe('the SEO check count the public pages promise', () => {
       /(\d+) SEO checks, AI crawler readiness/g,
       /The full SEO analysis — (\d+) checks/g,
       /(\d+) перевірк[а-яіїєґ']* · завершено/g,
-      /(\d+) детермінован[а-яіїєґ']+ перевірк[а-яіїєґ']+ · перегляд JSON-LD/g,
+      /(\d+) детермінован[а-яіїєґ']+ перевірк[а-яіїєґ']+ · перевірки JSON-LD/g,
       /(\d+) SEO-перевірк[а-яіїєґ']+, готовність до AI-краулерів/g,
       /Повний SEO-аналіз — (\d+) перевірк[а-яіїєґ']*/g,
     ]);

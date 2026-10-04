@@ -9,7 +9,7 @@ import { checksSections, type ChecksCopy } from './checks-copy-sections';
 
 export const checksCopyEn: ChecksCopy = {
   kicker: 'FLUXRADAR / PUBLIC WEB AUDIT STATION',
-  meta: ['Updated 2026-09-27', 'No login required to read this', 'Ruleset v0.1'],
+  meta: ['Updated 2026-10-02', 'No login required to read this', 'Ruleset v0.1'],
   title: 'Audit coverage',
   lede: 'Exactly what FluxRadar inspects, why, and what it cannot certify — with no customer credentials required for the core public audit.',
   back: '← Back to home',
@@ -47,57 +47,48 @@ export const checksCopyEn: ChecksCopy = {
       bullets: [
         {
           term: 'Title tag',
-          body: 'presence, character length (≤ 60 chars recommended), and uniqueness across crawled pages: a title another crawled page already uses is reported unless a `<link rel="canonical">` ties the two together.',
+          body: 'presence, length — reported below 10 or above 70 characters — and uniqueness across crawled pages: a title another crawled page already uses is reported unless a `<link rel="canonical">` ties the two together.',
         },
         {
           term: 'Meta description',
-          body: 'presence, recommended length window (120–158 chars), and uniqueness across crawled pages, judged the same way as the title.',
+          body: 'presence, length — reported below 50 or above 160 characters — and uniqueness across crawled pages, judged the same way as the title.',
         },
         {
           term: 'Heading hierarchy',
-          body: 'a single H1, logical H2/H3 nesting with no skipped levels.',
+          body: 'exactly one H1, and no level skipped on the way down (h1 → h3 with no h2 between them). Dropping back to a higher level is ordinary and is not reported.',
         },
         {
           term: 'Canonical URL',
-          body: '`<link rel="canonical">` present and self-referencing on canonical pages.',
+          body: '`<link rel="canonical">` present, not duplicated, and pointing at the page itself.',
         },
         {
           term: 'Indexing signals',
-          body: '`noindex` / `nofollow` in meta robots and `X-Robots-Tag` headers.',
+          body: 'a `noindex` in meta robots or in an `X-Robots-Tag` header, reported only where the site contradicts itself — the page is in the sitemap, or other pages link to it. A deliberate `noindex` that nothing points at is the owner’s decision, not a finding. `nofollow` is not checked.',
         },
         {
           term: 'robots.txt',
-          body: 'reachable, parseable, does not inadvertently block the origin.',
+          body: 'reachable at all. Only a missing or unreachable file is reported; the contents are not validated, because a crawler reads a robots.txt that does not answer 200 as “everything allowed”.',
         },
-        { term: 'XML sitemap', body: 'declared in robots.txt, reachable, well-formed.' },
+        {
+          term: 'XML sitemap',
+          body: 'a sitemap is found — through the robots.txt directives or at `/sitemap.xml` — and yields at least one URL. Unreachable, malformed and empty are one verdict at this level: the site offers no sitemap URLs.',
+        },
         {
           term: 'Structured data / JSON-LD',
-          body: 'syntax validity, schema type detected, required properties present per schema.org spec. A JSON-LD preview is included in the report.',
+          body: 'every `<script type="application/ld+json">` block parses as JSON, and at least one block carries both an `@context` and a `@type`. Individual schema.org types and their required properties are not validated.',
         },
         {
-          term: 'Open Graph tags',
-          body: '`og:title`, `og:description`, `og:image` present and non-empty. Image URL is reachable (HTTP 200).',
+          term: 'Social preview tags',
+          body: '`og:title`, `og:description`, `og:image`, `og:url` and `twitter:card` present and non-empty in the served HTML. The image URL itself is not fetched.',
         },
-        {
-          term: 'Twitter / X Card tags',
-          body: '`twitter:card`, `twitter:title`, `twitter:image` present.',
-        },
-        {
-          term: 'Hreflang',
-          body: 'valid language codes, reciprocal links present where declared.',
-        },
-        { term: 'Image alt text', body: 'non-decorative images missing `alt` attributes.' },
+        { term: 'Image alt text', body: 'meaningful images with no non-empty `alt` attribute.' },
         {
           term: 'Broken links',
-          body: 'internal anchor `href` values returning 4xx/5xx within scope.',
+          body: 'internal `href` values whose target the crawl actually fetched and found answering 4xx or 5xx. A link the crawl never followed — out of scope, past the page limit, closed by robots.txt — has no known status and is not judged.',
         },
         {
           term: 'Redirect chains',
-          body: '301/302 hops counted; chains longer than two hops flagged.',
-        },
-        {
-          term: 'Page speed signals',
-          body: 'server response time, uncompressed transfer size and HTTP/2 support as measurable proxies.',
+          body: 'two or more hops before the final response, or a redirect cycle. A single 301 is ordinary canonicalisation and is not reported.',
         },
         {
           term: 'Internal linking',
@@ -112,8 +103,8 @@ export const checksCopyEn: ChecksCopy = {
           body: 'only when the crawl finished reading the pages it set out to read. A crawl cut short by the page limit, a pause or a page that never answered cannot tell an unlinked page from an unread one, and each check then says so instead of guessing. A link the scan’s own scope excluded — another host, an excluded path, a hop past the depth limit — is not a gap: that page was never in scope to begin with.',
         },
         {
-          term: 'HTTPS enforcement',
-          body: 'HTTP-to-HTTPS redirect present, no mixed content in the HTML source.',
+          term: 'Mixed content',
+          body: 'an `http://` script, stylesheet, image, iframe or icon embedded in an HTTPS page. Whether the site redirects HTTP to HTTPS is not checked separately.',
         },
       ],
       outro: [],
@@ -128,15 +119,15 @@ export const checksCopyEn: ChecksCopy = {
       bullets: [
         {
           term: 'AI crawler access',
-          body: '`robots.txt` is parsed for known AI crawler user-agent strings (GPTBot, Claude-Web, PerplexityBot, GoogleOther, BingBot and others). The report shows which crawlers are allowed, disallowed or missing an explicit rule.',
+          body: '`robots.txt` is parsed for six AI crawler user-agent strings — GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended and Bytespider. Each is reported as allowed, blocked, or unknown when the site serves no `robots.txt` at all. What a crawler is permitted to do is the site’s policy, not evidence that it indexed or cited anything.',
         },
         {
-          term: 'LLMs.txt',
-          body: 'checks for the emerging `/llms.txt` convention, which signals AI-friendly content structure to language models.',
+          term: 'Social preview tags',
+          body: 'how many crawled pages carry the complete set of preview tags (`og:title`, `og:description`, `og:image`, `og:url`, `twitter:card`) an AI system or a messenger reads to summarise a link. The same tags are checked per page by the SEO module.',
         },
         {
           term: 'Structured data for AI comprehension',
-          body: 'JSON-LD types that help AI systems build entity graphs (Organization, Product, FAQPage, HowTo, Article, BreadcrumbList) are flagged when absent.',
+          body: 'how many crawled pages carry at least one JSON-LD block with both an `@context` and a `@type` — the minimum an AI system needs to read the page as an entity rather than as prose. Specific types (Organization, Product, FAQPage and so on) are not required or scored individually.',
         },
         {
           term: 'Content clarity signals',
@@ -144,7 +135,7 @@ export const checksCopyEn: ChecksCopy = {
         },
         {
           term: 'Provider visibility (paid, disclosed before purchase)',
-          body: "on a paid audit the AI SEO module puts the same questions to Claude (Anthropic) and ChatGPT (OpenAI), each answering with its own web search enabled, and checks whether the answers mention your brand or cite your site; the report lists the sources each model used. Gemini (Google) and Perplexity are an opt-in extra chosen before purchase and receive nothing otherwise. This never runs in the free homepage check. Provider API calls are subject to the providers' own terms.",
+          body: "on a paid audit the AI SEO module puts the same questions to Claude (Anthropic) and ChatGPT (OpenAI) and checks whether the answers mention your brand or cite your site; the report lists the sources each model used. Discovery questions — the ones about your market — are answered with the model’s own web search enabled. The fixed direct questions about your brand are asked closed-book, with no search and no tools, so the answer shows what the model already knows rather than what it just read on your site. Gemini (Google) and Perplexity are an opt-in extra chosen before purchase and receive nothing otherwise. This never runs in the free homepage check. Provider API calls are subject to the providers' own terms.",
         },
         {
           term: 'Visibility score per engine (paid, informational only)',
@@ -162,36 +153,38 @@ export const checksCopyEn: ChecksCopy = {
       label: '03 / SECURITY',
       title: 'Security — OWASP ASVS public profile',
       intro: [
-        'FluxRadar checks the subset of **OWASP Application Security Verification Standard (ASVS) v4** signals that are observable in public HTTP responses. It does not attempt to exploit vulnerabilities, probe authenticated surfaces or run active attack techniques.',
+        'FluxRadar reads the **OWASP Application Security Verification Standard (ASVS) public profile**: the subset of ASVS signals observable in a public HTTP response. It does not attempt to exploit vulnerabilities, probe authenticated surfaces or run active attack techniques.',
+        'These six checks are the whole Security module. A signal that is not on this list — the negotiated TLS version, DNS records, exposed files, directory listings, debug endpoints, secrets in client code, dependency versions — is not inspected, and the report says nothing about it either way.',
       ],
       bullets: [
         {
-          term: 'Transport security',
-          body: 'TLS version (TLS 1.2+ required), HSTS header present with `max-age ≥ 31536000` and `includeSubDomains` flag. Maps to ASVS 9.1.',
+          term: 'HSTS',
+          body: '`Strict-Transport-Security` present with a positive `max-age` on an HTTPS origin. A missing header, or `max-age=0`, is a finding; the rule does not require a particular `max-age` length or the `includeSubDomains` flag, and the TLS version itself is not inspected.',
         },
         {
-          term: 'Security headers',
-          body: '`Content-Security-Policy`, `X-Frame-Options` (or CSP `frame-ancestors`), `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`. Maps to ASVS 14.4.',
+          term: 'Baseline security headers',
+          body: '`X-Content-Type-Options: nosniff`, framing protection (`X-Frame-Options` or a CSP `frame-ancestors` directive — either one is enough), and a non-empty `Referrer-Policy`. One finding per page, listing which of the three are missing.',
         },
         {
-          term: 'Cookie flags',
-          body: 'cookies set on the homepage response are checked for `HttpOnly`, `Secure` and `SameSite` attributes. Maps to ASVS 3.4.',
+          term: 'Content-Security-Policy',
+          body: 'the response carries a non-empty `Content-Security-Policy` header. Whether the policy is actually safe for every runtime path is not decided from outside.',
         },
         {
-          term: 'Information disclosure',
-          body: 'server version strings in `Server` / `X-Powered-By` headers, verbose error messages in HTML, directory listing indicators. Maps to ASVS 14.3.',
+          term: 'Permissions-Policy',
+          body: 'the response carries a non-empty `Permissions-Policy` header.',
         },
         {
-          term: 'Mixed content',
-          body: 'HTTP resources (scripts, stylesheets, images) embedded in an HTTPS page. Maps to ASVS 9.1.',
+          term: 'Cookie attributes',
+          body: 'every cookie in a `Set-Cookie` header of a final response the crawl read — not just the homepage — is checked for `Secure`, `HttpOnly` and `SameSite`. The cookie’s value never appears in the evidence; it may be a secret.',
         },
         {
-          term: 'Subresource Integrity',
-          body: 'third-party `<script>` and `<link>` tags checked for `integrity` attribute presence. Maps to ASVS 14.2.',
+          term: 'Permissive CORS',
+          body: '`Access-Control-Allow-Origin: *` combined with `Access-Control-Allow-Credentials: true` — a contradiction browsers refuse and servers should not state.',
         },
       ],
       outro: [
         'Findings are classified as signal present or signal absent — not as confirmed vulnerabilities. A missing header is evidence that a defensive control is not deployed, not proof that the site is exploitable.',
+        'Mixed content is checked, but it is reported by the SEO module rather than here.',
       ],
     },
     accessibility: {
@@ -204,24 +197,28 @@ export const checksCopyEn: ChecksCopy = {
       bullets: [
         {
           term: 'Perceivable (WCAG 2.2 Principle 1)',
-          body: 'missing image alt text (1.1.1), colour-contrast ratio ≥ 4.5:1 for normal text and ≥ 3:1 for large text measured from computed CSS (1.4.3), absence of auto-playing media with audio (1.4.2).',
+          body: 'missing image alt text (1.1.1), and colour contrast below 4.5:1 for normal text or 3:1 for large text (1.4.3). Contrast is judged **only on a `color`/`background-color` pair written in an inline `style` attribute**: without a browser laying the page out, the effective colour from an external stylesheet cannot be computed, so those stay honest manual review rather than a false pass.',
         },
         {
           term: 'Operable (WCAG 2.2 Principle 2)',
-          body: 'interactive elements reachable by keyboard in source order (2.1.1), skip-navigation link present (2.4.1), page `<title>` descriptive (2.4.2), link purpose from text (2.4.4).',
+          body: 'a positive `tabindex` or a mouse-only inline handler that puts keyboard access at risk (2.1.1), a focus outline removed with no visible replacement (2.4.7), and a link, button, `summary` or submit-like input with no usable accessible name (2.4.4, 4.1.2).',
         },
         {
           term: 'Understandable (WCAG 2.2 Principle 3)',
-          body: '`<html lang>` attribute present and valid (3.1.1), form `<label>` elements properly associated (3.3.2), error identification markup (3.3.1).',
+          body: '`<html lang>` present, and a heading outline with exactly one h1 and no skipped level (3.1.1, 1.3.1); form `<label>` elements properly associated (3.3.2); a control marked `aria-invalid` with no error description tied to it (3.3.1).',
         },
         {
           term: 'Robust (WCAG 2.2 Principle 4)',
-          body: 'valid HTML (4.1.1), ARIA roles and properties correctly applied (4.1.2), status messages using appropriate live regions (4.1.3).',
+          body: 'an unknown ARIA role, an ARIA attribute referencing an ID that does not exist, or focusable content hidden behind `aria-hidden` (4.1.2). Whole-document HTML validity and live-region announcements are not checked.',
+        },
+        {
+          term: 'Assistive-technology landmarks',
+          body: 'a `main` landmark, a name on repeated navigation, a `title` on every `iframe`, and captions declared for media. This is static DOM evidence of what a screen reader would have to work with — **no screen reader is run, and nothing about announcement quality is measured**.',
         },
       ],
       outro: [
         'Each accessibility finding includes the WCAG criterion reference, the failing element selector and the specific rule that was violated, so you can reproduce the finding without re-running the scan.',
-        '**What automated checks cannot assess:** keyboard trap behaviour in dynamic widgets, screen-reader announcement quality, cognitive load, motion sensitivity in animations, or compliance with criteria that require understanding content meaning (e.g. 1.3.3 Sensory Characteristics).',
+        '**What automated checks cannot assess:** keyboard trap behaviour in dynamic widgets, screen-reader announcement quality, cognitive load, motion sensitivity in animations, auto-playing media, or compliance with criteria that require understanding content meaning (e.g. 1.3.3 Sensory Characteristics).',
       ],
     },
     reliability: {
@@ -229,39 +226,46 @@ export const checksCopyEn: ChecksCopy = {
       label: '05 / RELIABILITY & PERFORMANCE',
       title: 'Reliability and performance',
       intro: [
-        "Performance signals are measured from a single-origin, single-request perspective. They reflect what FluxRadar's scanner observed at the time of the scan, not a statistical average across geographies or time.",
+        'Two different measurements share this section. **Reliability** is what FluxRadar’s own crawler observed while reading your pages. **Performance** is not measured by FluxRadar at all: it comes from Google **PageSpeed Insights** (a Lighthouse run on Google’s infrastructure) for lab metrics and from the **Chrome UX Report (CrUX)** for field data from real Chrome users.',
+        'The lab sample is bounded on purpose: up to **5 URLs**, chosen to cover different page templates, on **2 emulated devices**, measured **twice** each. The median of the two runs is reported, and the spread between them is published beside it, so you can tell “this page takes 3.1 s” from “this page took 1.4 s and then 4.8 s”. A metric the provider did not measure produces no finding at all — not a passing one and not a failing one.',
       ],
       bullets: [
         {
+          term: 'Core Web Vitals',
+          body: 'LCP, CLS and Total Blocking Time from the lab run; INP and LCP from CrUX field data where your origin has enough traffic for Chrome to report it. INP cannot be measured in a lab run at all and is only ever field data.',
+        },
+        {
           term: 'Server response time (TTFB)',
-          body: 'time to first byte recorded for each scanned URL. Flagged if consistently above 600 ms.',
+          body: 'two separate readings. In the lab run, TTFB above 0.80 s needs improvement and above 1.80 s is poor. Independently, the crawler reports any page of your own site that took longer than 1.8 s to answer it.',
         },
         {
-          term: 'Transfer size',
-          body: 'uncompressed HTML size and total page weight (HTML + linked CSS/JS within scope). Flagged if HTML exceeds 100 KB.',
+          term: 'Page weight and requests',
+          body: 'total transfer size against a 2 MB budget and request count against a budget of 80, both from the Lighthouse run.',
         },
         {
-          term: 'Compression',
-          body: '`Content-Encoding: gzip` or `br` present on text responses.',
+          term: 'Resource opportunities',
+          body: 'unused JavaScript, missing text compression, and image savings Lighthouse can quantify, reported only above a floor worth acting on.',
         },
         {
-          term: 'HTTP/2 or HTTP/3',
-          body: 'protocol version recorded; HTTP/1.1-only sites flagged.',
+          term: 'Caching and render blocking',
+          body: 'static assets with a short or missing cache lifetime, and render-blocking resources that delay first paint by a measurable amount.',
         },
         {
-          term: 'Cache headers',
-          body: '`Cache-Control` and `ETag` / `Last-Modified` presence on static assets.',
+          term: 'Measurement stability',
+          body: 'when the two runs of one URL disagree by more than 40% of their median, the verdict is published as unstable rather than as a number to act on.',
         },
         {
           term: 'Uptime signal',
-          body: 'HTTP status recorded for every URL in scope. 5xx responses and connection timeouts are flagged as reliability issues.',
+          body: 'the HTTP status of every URL in scope. 5xx responses, connection failures and timeouts are reported as reliability findings.',
         },
         {
-          term: 'Redirect economy',
-          body: 'total redirect hops from the canonical entry URL; each hop adds latency for real users and crawlers.',
+          term: 'API endpoints you list',
+          body: 'public `GET` / `HEAD` / `OPTIONS` endpoints you add by hand are called once and judged against the status you said to expect — an expected 404 or 503 passes, an unexpected one does not. Credentials are refused: an endpoint whose configured headers carry an `Authorization`, `Cookie` or API key is not called at all, and the report says so.',
         },
       ],
-      outro: [],
+      outro: [
+        'Performance findings never change the Performance score. That score is Lighthouse’s own, which already accounts for these metrics; subtracting again for the same slow LCP would penalise it twice. The findings say what to do about the score, they do not restate it.',
+      ],
     },
     content: {
       nav: 'Content quality',
@@ -299,24 +303,20 @@ export const checksCopyEn: ChecksCopy = {
       ],
       bullets: [
         {
-          term: 'Cookie consent banner detection',
-          body: 'common consent-management platform (CMP) signatures detected in HTML and script sources (OneTrust, Cookiebot, CookieYes, Osano and others). Absence flagged when cookies are set on first load.',
+          term: 'Consent signal',
+          body: 'a recognisable tracker loaded in the served HTML (Google Analytics, Tag Manager, Meta, DoubleClick, Hotjar, Clarity, Segment, Plausible, Matomo) with no consent marker anywhere in that HTML — a consent-platform signature such as OneTrust, Cookiebot, Didomi, Usercentrics or TrustArc, or the words “cookie” / “consent”. This is a static signal only: a banner that appears after the page’s JavaScript runs, and whether consent is legally valid in your jurisdiction, both need a browser or a lawyer, not this check.',
         },
         {
-          term: 'Third-party script audit',
-          body: 'external script domains classified against a known-tracker list (analytics, advertising, fingerprinting). Count and domains listed in the report.',
+          term: 'Cookie inventory',
+          body: 'cookies the page sets, from the `Set-Cookie` headers of its final response and from `document.cookie` assignments in inline scripts. The report lists the cookie names and where each came from; values are never recorded, because a value may be a secret. Whether a cookie carries `Secure`, `HttpOnly` and `SameSite` is reported by the Security module.',
         },
         {
-          term: 'Privacy policy link',
-          body: 'a link whose text or destination suggests a privacy or cookie policy is present in the page or footer.',
+          term: 'Third-party scripts',
+          body: 'the external hostnames a page loads `<script src>` from, listed in full. A subdomain of your own site is not third-party. The domains are inventoried, not classified: FluxRadar does not label one as advertising and another as fingerprinting.',
         },
         {
-          term: 'Do Not Track / GPC signal support',
-          body: 'whether the site sets `Sec-GPC` acknowledgement headers or publishes a GPC support statement.',
-        },
-        {
-          term: 'Cookie first-load audit',
-          body: 'cookies set before any user interaction are recorded. Cookies with no `SameSite` attribute or marked as cross-site are highlighted.',
+          term: 'Privacy policy discoverability',
+          body: 'the homepage carries a same-site link whose text or destination identifies a privacy or cookie policy.',
         },
       ],
       outro: [],

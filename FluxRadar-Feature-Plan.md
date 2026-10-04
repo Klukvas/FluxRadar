@@ -2,14 +2,28 @@
 
 **Компания:** FluxLab  
 **Продукт:** FluxRadar  
-**Статус документа:** финализируемая спецификация текущего релиза  
+**Статус документа:** целевая спецификация продукта; это НЕ описание того, что работает сегодня<br>
 **Формат продукта:** pay-per-scan SaaS-платформа
 
 > FluxRadar — единая платформа для одноразовой комплексной проверки и улучшения состояния публичного сайта: SEO, безопасности, производительности, доступности, контента, AI-видимости и надёжности.
 
+## Как читать этот документ
+
+Это **целевая спецификация**. Она описывает, каким продукт должен стать, и хранит проработанные контракты — `fingerprint-v1`, формулы score и coverage, export schema, refund/scan state machine, — которые остаются авторитетными как проектные решения. Описанием фактического поведения кода она не является, и значительная часть разделов 3–13 и 25 не реализована.
+
+Авторитетный источник о текущем поведении — код и `README.md`:
+
+- тарифы, цены, лимиты, retention и capabilities — `packages/contracts/src/tariffs.ts`;
+- реестр правил аудита — `packages/contracts/src/ruleset-scanning.ts`, реализации — `packages/rules/src/` и `apps/api/src/integrations/performance/`;
+- публичное описание покрытия для покупателя — `apps/web/src/checks-copy.en.ts` и `apps/web/src/checks-copy.uk.ts`.
+
+Раздел «0.1 Что реализовано сегодня» перечисляет фактическое состояние и имеет приоритет над остальным документом в вопросе «что делает система сейчас». Разделы, помеченные `> **Статус:**`, сохранены как проектное намерение и не описывают поведение системы.
+
 **Коммерческая модель FluxLab:** один прогон — один платёж. Подписочная модель пока не используется.
 
 ## 0. Границы текущего релиза
+
+> **Статус:** частично реализовано. Пакет Website Audit ($79) появился после написания этого раздела и здесь не упомянут; активные Security-проверки не реализованы вовсе. Фактический состав — в разделе 0.1.
 
 ### Входит в текущий релиз
 
@@ -32,6 +46,61 @@
 - visual regression.
 
 Complete означает «все модули текущего релиза». Отложенные возможности не рекламируются как доступные в Complete до отдельного запуска и проверки их источников данных, стоимости и безопасности.
+
+---
+
+## 0.1 Что реализовано сегодня
+
+Состояние на 2026-10-02, проверено по коду этого репозитория. В вопросе «что делает система сейчас» этот раздел имеет приоритет над любым другим разделом документа.
+
+### Тарифы — `packages/contracts/src/tariffs.ts`
+
+| План | Цена | Модули | Лимиты одного прогона | Хранение | Capabilities |
+|---|---|---|---|---|---|
+| Free | $0 | SEO: четыре правила по главной странице (`SEO-ONPAGE-001`, `SEO-ONPAGE-003`, `SEO-ONPAGE-002`, `SEO-TECH-008`) | 1 URL, 0 AI-запросов | 30 дней | нет; score не рассчитывается |
+| Basic Scan | $55 | SEO, AI SEO / GEO | 5 000 URL, 50 AI-запросов | 30 дней | нет: ни истории, ни экспорта, ни Action Plan |
+| Website Audit Scan | $79 | восемь непоисковых модулей: Security, Performance, Accessibility, Reliability, Content Quality, Privacy, UX/Conversion, Analytics | 50 000 URL, 500 AI-запросов | 365 дней | история сканов, история проблем, экспорт, Action Plan |
+| Complete Scan | $120 | все десять модулей | 50 000 URL, 500 AI-запросов | 365 дней | история сканов, история проблем, экспорт, Action Plan |
+
+Basic и Website Audit — равноправные пакеты (ни один не входит в другой), Complete — оба вместе. Веса модулей Website Audit выводятся из весов Complete нормировкой (`normalizeScoreWeights`), а не задаются отдельной таблицей. Право на историю, экспорт и Action Plan — это `TariffCapabilities` тарифа, а не сравнение с литералом `'Complete'`.
+
+### Реализованные правила по модулям
+
+| Модуль | Реализованные ID | Где | ID закрытого inventory раздела 25, которых нет в реестре под этим номером |
+|---|---|---|---|
+| SEO | `SEO-TECH-001..011`, `SEO-TECH-013`, `SEO-ONPAGE-001..006`, `SEO-STRUCT-001/002`, `SEO-SOCIAL-001` — всего 21 | `packages/rules/src/seo/` | `SEO-TECH-012` (hreflang), `SEO-TECH-014`, `SEO-ONPAGE-007..009`, все `SEO-CONTENT-*`, все `SEO-ADV-*` |
+| AI SEO / GEO | `GEO-PROVIDER-001`, `GEO-VIS-003`, `GEO-VIS-004`, `GEO-METHOD-002`, `GEO-METHOD-005`; плюс отчёт AI crawler readiness вне реестра | `packages/ai/`, `packages/rules/src/ai-readiness.ts` | `GEO-READY-*`, `GEO-VIS-001/002/005..008`, `GEO-REC-*`, `GEO-PROVIDER-002/003`, `GEO-METHOD-001/003/004/006` |
+| Security | `SEC-PASSIVE-002/003/005`, `SEC-ASVS-001/002/003` — всего 6 | `packages/rules/src/security/` | `SEC-PASSIVE-001` (TLS), `004`, `006..014`, все `SEC-ACTIVE-*` |
+| Performance | `PERF-LAB-TTFB/LCP/CLS/TBT`, `PERF-FIELD-INP/LCP`, `PERF-RES-WEIGHT/REQUESTS/UNUSED-JS/COMPRESSION/IMAGES`, `PERF-CACHE-TTL`, `PERF-RENDER-BLOCKING`, `PERF-MEASUREMENT-UNSTABLE` — всего 14 | `apps/api/src/integrations/performance/findings.ts` | `PERF-RULE-001..015` и `PERF-ENV-001..006` не существуют: нумерация полностью другая (см. раздел 7) |
+| Accessibility | `A11Y-001..011` — всего 11 | `packages/rules/src/accessibility/` | — |
+| Reliability | `REL-URL-001/003/009`, `REL-API-003/005` — всего 5 | `packages/rules/src/reliability/` | `REL-URL-002`, `004..008`, `010`, `REL-API-001/002/004` |
+| Content Quality | `CONTENT-001/003/004/005` — всего 4 | `packages/rules/src/content/` | `CONTENT-002`, `006..010` |
+| Privacy | `PRIVACY-001..004` — всего 4 | `packages/rules/src/privacy/` | `PRIVACY-005..009` |
+| UX/Conversion | `UX-CONV-STATIC-001..003` и `UX-CONV-AI-001..003` | `packages/rules/src/ux/`, `packages/ai/src/ux-module.ts` | нумерации `UX-STATIC-001..007` не существует: реализованы три статические проверки под префиксом `UX-CONV-STATIC` и три AI-прочтения страницы под `UX-CONV-AI` |
+| Analytics | `ANALYTICS-SC-001..005`, `ANALYTICS-GA-001/002`, `ANALYTICS-LINK-001` | `apps/api/src/integrations/` | нумерации `ANALYTICS-001..009` не существует: проверки разделены по источнику данных (`SC`, `GA`, `LINK`) |
+| Платформа | `BILLING-001..006`, `EXPORT-001..003`, `ECON-001` | `packages/contracts/src/ruleset-platform.ts` | `BILLING-007/008`, `EXPORT-004..006`, все `DATA-*` |
+
+Последний столбец — про номера, а не про функциональность. Отсутствие ID раздела 25 в реестре означает ровно одно: правила с таким идентификатором нет. Сама проверка при этом может существовать под другим префиксом или входить в другое правило, а может не существовать вовсе — это видно только по реализации, не по номеру.
+
+Часть ID раздела 25 уехала под другой префикс, и это не опечатка реестра: Open Graph/social metadata живёт как `SEO-SOCIAL-001`, структурированные данные — как `SEO-STRUCT-001/002`, а освободившиеся номера `SEO-ONPAGE-004/006` заняли дубли title и meta description. `SEO-TECH-009/010/011` — это orphan pages, click depth и weakly linked pages, а не pagination/orphan/crawl depth из раздела 4. **Сопоставление ID из раздела 25 нельзя использовать как карту реализации**; источник истины — `packages/contracts/src/ruleset-scanning.ts`.
+
+### Чего в коде нет
+
+- активное тестирование безопасности (`SEC-ACTIVE-*`, раздел 6): ни одного правила, ни kill switch, ни audit-события — модуля не существует;
+- регулярный мониторинг, расписания и уведомления о мониторинге (email/Slack/webhooks). Транзакционная почта при этом есть: подтверждение оплаты и создание refund уходят письмом (`apps/api/src/email/notifications.ts`), плюс письма аккаунта — верификация email и сброс пароля (`apps/api/src/auth/routes.ts`). Нет именно уведомлений о состоянии сайта по расписанию;
+- командный режим: workspace, роли, назначение ответственных, комментарии, клиентский audit log;
+- административная часть (раздел 20) реализована как одна страница статистики (`apps/api/src/admin/routes.ts`), а не как управление пользователями, лимитами, feature flags и audit log;
+- собственный Performance-runner из раздела 7: измерения берутся из PageSpeed Insights и CrUX;
+- browser automation для AI-систем и RUM.
+
+### Остальные расхождения
+
+- **Платёжный провайдер — Creem**, а не Paddle (`apps/api/src/billing/creem/`). FastSpring интегрировали и удалили. Везде ниже, где написано «Paddle», читать «платёжный провайдер»; конкретные ставки комиссии в разделе 18 считались по модели Paddle и не являются текущими.
+- **Языки интерфейса и юридических документов — английский и украинский** (`apps/web/src/i18n.ts`), а не русский и английский, как записано в разделах 20 и 24.
+- **AI-провайдеры**: по умолчанию спрашиваются Anthropic (Claude) и OpenAI (ChatGPT); Google (Gemini) и Perplexity — opt-in до оплаты и без явного выбора не получают ничего (`packages/ai/src/types.ts`). Веб-поиск провайдера включён не у всех вопросов: его получают только generated discovery-вопросы, а фиксированные прямые вопросы задаются closed-book — без поиска и без tools, чтобы измерять знание модели, а не наш же сайт, прочитанный ей обратно (`apps/api/src/orchestrator/geo.ts`, `buildGeoRequests`). Фактические model defaults — в разделе 5.
+- **Экспорт** — JSON и CSV (`apps/api/src/export/routes.ts`) плюс PDF-отчёт (`apps/api/src/export/pdf-routes.ts`); он доступен Website Audit и Complete, а не только Complete.
+- **Action Plan** (D-232) в этом документе отсутствует как сущность: AI-генерация плана действий доступна тарифам с capability `actionPlan` (Website Audit и Complete) в окне 3 суток после последнего прогона, не более 3 успешных генераций и 6 попыток на скан (`packages/contracts/src/action-plan.ts`).
+- **Bing Webmaster Tools** — действующая интеграция (`apps/api/src/integrations/bing/`), которой нет в списке интеграций раздела 19.
 
 ---
 
@@ -139,9 +208,13 @@ Delta scan по истории изменений относится к буду
 
 Поддержка сканирования закрытых страниц и пользовательских сценариев отмечена как перспективное расширение. В текущий обязательный scope она не входит.
 
+> **Статус раздела 3:** в основном реализовано. Профили сайтов, подтверждение владения через DNS TXT/файл/meta, область сканирования (sitemap, список seed-URL, поддомены, include/exclude-шаблоны, лимит страниц, глубина, политика query-параметров, robots.txt с явным подтверждением override, desktop/mobile user agent, JS-рендеринг), пауза, остановка, возобновление и прогресс — всё это есть (`packages/contracts/src/api.ts`, `packages/crawler/src/`, `apps/api/src/scans/routes.ts`). Не реализовано: повтор отдельной неудавшейся проверки по требованию пользователя — есть один бесплатный повтор прогона модуля (`module_retry_count <= 1`), а не точечный retry; delta scan и авторизованные разделы.
+
 ---
 
 ## 4. SEO-аудит
+
+> **Статус:** реализован 21 детерминированной проверкой (`packages/rules/src/seo/`). Из списков ниже закрыты «Техническое SEO» (кроме hreflang, pagination и корректности URL) и «On-page SEO» (кроме внутренней перелинковки как рекомендации и релевантности заголовка содержанию). **«Контентное SEO» и «Расширенные SEO-направления» не реализованы вовсе**: ни дублированного контента и thin content в модуле SEO (частично это делает Content Quality), ни тематических пробелов, ни local/e-commerce/image/video SEO, ни анализа запросов Search Console внутри SEO-модуля — последнее живёт в Analytics.
 
 ### Техническое SEO
 
@@ -222,7 +295,9 @@ Delta scan по истории изменений относится к буду
 - позиция и контекст упоминания;
 - сравнение с предыдущими сохранёнными сканами в Complete.
 
-В обязательный scope текущего скана входят ответы через официальные API OpenAI, Google и Perplexity. Остальные AI-системы пока не входят в обязательный scope.
+План: в обязательный scope текущего скана входят ответы через официальные API OpenAI, Google и Perplexity. Остальные AI-системы пока не входят в обязательный scope.
+
+> **Статус:** реализовано иначе. Платный скан по умолчанию спрашивает Anthropic (Claude) и OpenAI (ChatGPT). Собственный веб-поиск провайдера включается только для generated discovery-вопросов; фиксированные прямые вопросы — closed-book, без поиска и без tools (`buildGeoRequests` в `apps/api/src/orchestrator/geo.ts`). Google (Gemini) и Perplexity реализованы как adapters, но ни один скан не выбирает их сам: они получают данные, только если скан явно их назвал И сохранённое уведомление их покрывает (`DEFAULT_VISIBILITY_PROVIDERS` и `OPT_IN_VISIBILITY_PROVIDERS` в `packages/ai/src/types.ts`, `packages/ai/src/consent.ts`). Anthropic в тексте ниже не упоминается вовсе — он появился после написания раздела.
 
 Browser automation для систем, где API недостаточно, остаётся будущим расширением и не используется как скрытая зависимость оплаченного скана.
 
@@ -237,6 +312,8 @@ Browser automation для систем, где API недостаточно, о�
 В adapter registry также фиксируются provider API version, допустимые model IDs, request schema, response parser, timeout и цена единицы usage. Если provider меняет endpoint или схему, сначала выпускается новая версия adapter, затем выполняется совместимость на fixtures; silent fallback на другой endpoint запрещён.
 
 Для registry v1 зафиксированы следующие production defaults: OpenAI `gpt-5-mini`, API `v1`; Google `gemini-3.6-flash`, API `v1beta`; Perplexity `sonar-pro`, API `v1`. Эти model IDs не являются пользовательской настройкой. Замена модели требует новой версии registry, повторного прогона fixtures и записи изменения в release record `AI-001`.
+
+> **Статус:** все три значения устарели, и состав провайдеров другой. Фактические defaults: Anthropic `claude-sonnet-5` (`apps/api/src/integrations/anthropic-config.ts`; Action Plan пишет `claude-opus-5`), OpenAI `gpt-5.6-luna` (`POST https://api.openai.com/v1/responses`), Google `gemini-3.8-flash` (API `v1beta`), Perplexity `sonar` (`POST https://api.perplexity.ai/v1/sonar`, допускается также `/chat/completions`). Модель переопределяется переменной окружения (`ANTHROPIC_MODEL`, `OPENAI_MODEL`, `GOOGLE_AI_MODEL`, `PERPLEXITY_MODEL`) — то есть это настройка оператора, а не неизменяемое значение registry; снятые с поддержки модели отвергаются на старте (`RETIRED_ANTHROPIC_MODELS`, `RETIRED_OPENAI_MODELS`).
 
 Нормализованный response contract содержит `provider`, `api_version`, `model_id`, `request_id`, `request_id_source`, `created_at`, `raw_text`, `citations[]`, `usage.input_tokens`, `usage.output_tokens`, `usage.total_tokens`, `usage_source`, `tokenizer_version` и `finish_reason`. В normalized contract `total_tokens` всегда равен `input_tokens + output_tokens`; provider-specific reasoning/search/citation units хранятся отдельными полями usage и в evidence. При отсутствии usage в ответе токены считаются соответствующим pinned tokenizer provider; значения, версия tokenizer и способ подсчёта сохраняются в evidence.
 
@@ -286,6 +363,8 @@ AI API оплачивает FluxRadar; стоимость этих запрос�
 
 ## 6. Security-аудит
 
+> **Статус:** из списка ниже реализованы шесть пассивных правил: security headers (`SEC-PASSIVE-002`), HSTS (`SEC-PASSIVE-003`), атрибуты cookie (`SEC-PASSIVE-005`), CSP (`SEC-ASVS-001`), Permissions-Policy (`SEC-ASVS-002`) и противоречивый permissive CORS (`SEC-ASVS-003`) — `packages/rules/src/security/`. HSTS проверяется по наличию `max-age > 0`, а не по порогу `31536000` и не по `includeSubDomains`. Версия TLS, DNS-записи, открытые файлы, directory listing, debug-endpoints, секреты в клиентском коде, устаревшие frontend-зависимости и небезопасные third-party scripts не проверяются ни одним правилом. Смешанный контент проверяется, но в модуле SEO (`SEO-TECH-013`), а не здесь.
+
 ### Пассивная проверка публичной поверхности
 
 - SSL/TLS;
@@ -308,6 +387,8 @@ AI API оплачивает FluxRadar; стоимость этих запрос�
 В Complete эти признаки сравниваются только с предыдущими сохранёнными сканами в пределах 12-месячной истории. Постоянный мониторинг и уведомления относятся к будущему релизу.
 
 ### Авторизованные проверки
+
+> **Статус: не реализовано.** Активного Security-модуля в коде нет: ни одного правила `SEC-ACTIVE-*`, ни rate limiter активного профиля, ни kill switch, ни audit-события запуска. Всё в этом подразделе — требования к будущей функции, а не описание существующего поведения; продуктовый UI активное тестирование не предлагает и не обещает. Требования к безопасности самого краулера (SSRF, private-IP blocklist, DNS rebinding) реализованы отдельно, в `packages/safe-fetch/`.
 
 Контролируемое активное тестирование публичной поверхности является Complete-only функцией и доступно только после прохождения security launch gate. До запуска каждого активного скана обязательны:
 
@@ -347,6 +428,18 @@ FluxRadar не позиционируется как инструмент для
 
 ### Performance contract v1
 
+> **Статус: не реализовано; модуль построен иначе.** Собственного pinned runner-образа нет, cold/warm-режимов нет, 12 измерений на URL нет, правил `PERF-RULE-001..015` и `PERF-ENV-001..006` не существует. Контракт ниже сохранён как проектное описание несостоявшегося собственного runner-а.
+>
+> Как Performance работает сейчас (`apps/api/src/integrations/performance/`):
+>
+> - лабораторные измерения берутся из **PageSpeed Insights** (Lighthouse), полевые — из **CrUX** по origin; собственный браузер для измерений не запускается;
+> - выборка: до **5 URL**, отобранных по шаблонам страниц (`MAX_AUDITED_URLS_BY_TEMPLATE`), × 2 эмулируемых устройства × **2 прогона** = жёсткий потолок 20 вызовов PageSpeed на скан; достигнутый потолок помечается `requestBudget.capped`;
+> - по двум прогонам берётся median, а разброс `(max − min) / median` публикуется рядом как instability; порог `INSTABILITY_WARNING_RATIO = 0.4` помечает вердикт неустойчивым (`PERF-MEASUREMENT-UNSTABLE`);
+> - пороги: LCP 2.5/4.0 s, INP 200/500 ms, CLS 0.10/0.25, **TTFB 0.80/1.80 s**, TBT 200/600 ms; бюджеты — 2 MB веса страницы и 80 запросов;
+> - score модуля — это собственный performance-score Lighthouse; **ни одна находка модуля не меняет score**, иначе один и тот же медленный LCP штрафовал бы дважды;
+> - фактические ID: `PERF-LAB-TTFB/LCP/CLS/TBT`, `PERF-FIELD-INP/LCP`, `PERF-RES-WEIGHT/REQUESTS/UNUSED-JS/COMPRESSION/IMAGES`, `PERF-CACHE-TTL`, `PERF-RENDER-BLOCKING`, `PERF-MEASUREMENT-UNSTABLE`;
+> - сравнение с предыдущим сканом есть (`comparison.ts`): регрессия требует ухудшения median минимум на 25% (`REGRESSION_RATIO`) плюс абсолютный минимум по метрике.
+
 - desktop runner: image `fluxradar/performance-runner:v1` pinned by digest, Chromium and Lighthouse versions recorded in `PERF-001`, viewport 1 350×940, 4 vCPU, 10 Mbps downlink, 1.5 Mbps uplink, 40 ms RTT;
 - mobile runner: the same pinned image with Moto G4 profile, viewport 360×640, 4× CPU slowdown, 1.6 Mbps downlink, 750 Kbps uplink, 150 ms RTT;
 - runner region — `eu-central-1`; timezone UTC, locale `en-US`, headless Chromium without extensions, service-worker state reset between cold runs, browser flags и OS image фиксируются в `PERF-001`;
@@ -369,6 +462,8 @@ Real user monitoring, включая сбор web-vitals через собств
 
 ## 8. Accessibility
 
+> **Статус:** реализовано одиннадцатью правилами `A11Y-001..011` (`packages/rules/src/accessibility/`) — по одному на каждый пункт списка ниже. Две оговорки, которые список скрывает. Контраст (`A11Y-001`) считается **только по паре `color`/`background-color` в inline-стиле**: без браузерного layout итоговый CSS внешних таблиц стилей вычислить нельзя, и они честно остаются зоной ручной проверки, а не ложного «пройдено». «Использование screen reader» (`A11Y-010`) — это статические признаки в DOM: landmark `main`, именованная повторяющаяся навигация, `title` у `iframe`, подписи к медиа; никакой экранный диктор не запускается и озвучивание не проверяется.
+
 - контрастность;
 - alt-тексты;
 - заголовки и структура документа;
@@ -386,6 +481,8 @@ Accessibility FluxRadar должен быть ориентирован на об
 ---
 
 ## 9. Reliability и техническое состояние
+
+> **Статус:** реализованы пять правил — `REL-URL-001` доступность URL, `REL-URL-003` вердикт по 4xx/5xx, `REL-URL-009` время ответа (порог строго больше 1800 мс), `REL-API-003` ожидаемый статус с приоритетом expected 3xx/404/5xx, `REL-API-005` запрет credentials в заголовках API-проверки. Отдельных правил для DNS, срока действия SSL и ошибок редиректов нет. Битые ссылки живут в SEO (`SEO-TECH-006`), битые изображения — в Content Quality (`CONTENT-004`), а не здесь.
 
 - одноразовая availability-проверка страниц и API;
 - доступность выбранных публичных URL;
@@ -415,6 +512,8 @@ Uptime по расписанию, login/form/checkout-сценарии, visual r
 
 ## 10. Content Quality
 
+> **Статус:** из десяти пунктов реализованы четыре — `CONTENT-001` дубли страниц (точное посимвольное совпадение видимого текста; `rel="canonical"` снимает находку), `CONTENT-003` пустые и малосодержательные страницы (меньше 200 символов видимого текста), `CONTENT-004` битые изображения и медиа, `CONTENT-005` читабельность (Flesch Reading Ease для английского, адаптация Оборнёвой для украинского, порог 30). Устаревший контент, неестественные повторения ключевых фраз, противоречия между страницами, отсутствие автора/даты, неработающие ссылки на источники и рекомендации по структуре — не реализованы.
+
 - дубли страниц;
 - устаревший контент;
 - пустые и малосодержательные страницы;
@@ -432,6 +531,8 @@ AI-рекомендации должны показываться как пре�
 
 ## 11. Privacy и compliance
 
+> **Статус:** из девяти пунктов реализованы четыре — `PRIVACY-001` инвентаризация cookies (`Set-Cookie` и присваивания `document.cookie` в inline-скриптах), `PRIVACY-002` сигнал согласия (известный трекер в статическом HTML без видимого consent-маркера), `PRIVACY-003` инвентаризация доменов сторонних скриптов (без классификации на аналитику/рекламу/фингерпринтинг), `PRIVACY-004` обнаружимость политики приватности. Формы со сбором персональных данных, сверка заявленных и фактических трекеров, потенциальные утечки персональных данных и отдельный технический экспорт для юриста — не реализованы.
+
 - обнаружение cookies;
 - обнаружение trackers;
 - third-party scripts;
@@ -448,6 +549,8 @@ FluxRadar не выдаёт юридическую сертификацию и �
 
 ## 12. UX/Conversion
 
+> **Статус:** реализовано тремя статическими правилами по HTML точки входа — `UX-CONV-STATIC-001` наличие h1, `UX-CONV-STATIC-002` наличие ссылки/кнопки, `UX-CONV-STATIC-003` явный submit-контрол у формы с полями — плюс три AI-прочтения страницы: `UX-CONV-AI-001` ясность ценностного предложения, `UX-CONV-AI-002` ясность основного действия, `UX-CONV-AI-003` трение конверсии и сигналы доверия (`packages/ai/src/ux-module.ts`). Мобильная удобность и визуальные проблемы как отдельные измеряемые проверки не реализованы. Модуль даёт боковую оценку и в общий score не входит.
+
 - мобильная удобность выбранных публичных страниц;
 - видимость и понятность CTA;
 - ошибки форм;
@@ -461,6 +564,8 @@ FluxRadar не выдаёт юридическую сертификацию и �
 ---
 
 ## 13. Analytics
+
+> **Статус:** реализовано на трёх источниках, а не на двух: Google Search Console (`ANALYTICS-SC-001..005`), Google Analytics (`ANALYTICS-GA-001/002`) и **Bing Webmaster Tools** (`apps/api/src/integrations/bing/`), которого в этом документе нет. Связка технической проблемы с бизнес-показателем — `ANALYTICS-LINK-001`. Проверки data layer и аномалий конверсий не реализованы. Нумерации `ANALYTICS-001..009` из раздела 25 не существует.
 
 Интеграции и проверки должны позволять:
 
@@ -598,6 +703,8 @@ Coverage/status contract v1: `coverage = completed_applicable_checks / applicabl
 ---
 
 ## 16. Отчёты
+
+> **Статус:** «только Complete» здесь и в «Export schema v1» ниже устарело. Право на историю, сравнение, экспорт и Action Plan — это capability тарифа (`TariffCapabilities`), и ею обладают **Website Audit и Complete**; Basic и Free — нет. Форматы: JSON и CSV (`apps/api/src/export/routes.ts`) плюс PDF-отчёт (`apps/api/src/export/pdf-routes.ts`). Схема `1.0` ниже не переписана и по-прежнему допускает только `plan: "Complete Scan"`; для Website Audit выпущена производная схема `1.1`, у которой отличается ровно одно: `plan` принимает `Complete Scan` или `Website Audit Scan` (`EXPORT_RECORD_SCHEMA_1_1` в `packages/export/src/schema.ts`). Executive summary — это Overview в Action Plan (D-232).
 
 - Complete: отчёт по одному сайту, выбранному модулю, текущему скану и сравнению с сохранённым предыдущим сканом;
 - Complete: PDF, CSV и ссылка на онлайн-отчёт;
@@ -1075,6 +1182,8 @@ Data dictionary v1:
 
 ## 18. Pay-per-scan и биллинг
 
+> **Статус:** провайдер платежей — **Creem**, а не Paddle (`apps/api/src/billing/creem/`). FastSpring интегрировали и удалили, его исторические строки учитывает `RETIRED_PAYMENT_PROVIDERS`. Весь текст ниже, где сказано «Paddle», читать как «платёжный провайдер»: правила жизненного цикла, идемпотентности, refund state machine и data lifecycle написаны провайдер-нейтрально и остаются в силе — меняются только имена полей (`paddle_transaction_id` → идентификатор заказа провайдера и т. п.). Конкретные **ставки комиссии и вся арифметика в «Цены и экономика» посчитаны по модели Paddle 5% + $0.50 и текущими не являются**. Пакетов четыре, а не три: Free, Basic $55, Website Audit $79, Complete $120 (раздел 0.1).
+
 ### Модель доступа
 
 - бесплатная одноразовая минимальная проверка только главной страницы по базовым SEO-параметрам: title, H1, meta description и индексация; полный функционал недоступен; для запуска требуется регистрация; результат сохраняется, повторное сканирование недоступно;
@@ -1144,6 +1253,8 @@ Basic открывает только SEO и AI SEO / GEO. Complete открыв
 
 Единая тарифная матрица v1:
 
+> **Статус: устарела.** Действующая матрица — таблица в разделе 0.1, а её единственный источник в коде — `packages/contracts/src/tariffs.ts`. Таблица ниже сохранена как исходная трёхтарифная модель: в ней нет Website Audit, а Complete-строка обещает active Security после launch gate, которого нет.
+
 | План | Доступные модули | Score weights | Лимит прогона |
 |---|---|---|---|
 | Free | фиксированная SEO-проверка homepage: title, H1, meta description, индексация | score не рассчитывается | 1 домен, 1 homepage check, 30 дней, повтор запрещён |
@@ -1171,6 +1282,8 @@ Basic открывает только SEO и AI SEO / GEO. Complete открыв
 - удаление аккаунта и возврат не отменяют уже подтверждённый платёжный факт в Paddle и обязательные финансовые записи.
 
 ### Цены и экономика
+
+> **Статус:** цены Basic и Complete верны; отсутствует Website Audit Scan — $79 за один прогон. Все расчёты ниже — комиссия, потолки переменной себестоимости $24.25/$53.50, вклад $27.50/$60, planning floor 45 прогонов — выведены из модели Paddle 5% + $0.50 и не пересчитывались под Creem и под четвёртый тариф. Считать их текущими нельзя; как метод расчёта (что входит в contribution margin, support reserve, risk-adjusted break-even) раздел остаётся в силе.
 
 - цены показываются в USD;
 - Basic Scan — $55 за один прогон;
@@ -1209,9 +1322,11 @@ Basic открывает только SEO и AI SEO / GEO. Complete открыв
 
 - Google Search Console;
 - Google Analytics;
+- **Bing Webmaster Tools** (OAuth-подключение владельца, `apps/api/src/integrations/bing/`);
 - email;
-- Paddle webhooks для подтверждения оплаты;
-- CSV/PDF export в Complete.
+- **Creem** webhooks для подтверждения оплаты (в исходной редакции здесь был Paddle);
+- JSON/CSV/PDF export в тарифах с capability `export` — Website Audit и Complete;
+- AI-провайдеры как платные зависимости скана: Anthropic и OpenAI по умолчанию, Google и Perplexity по явному выбору.
 
 Search Console и Google Analytics подключаются добровольно. Без них доступны технические проверки, а зависимые блоки получают `Unavailable` без штрафа в score. Email используется для транзакционных сообщений и поддержки, но не для уведомлений о мониторинге.
 
@@ -1233,6 +1348,8 @@ Search Console и Google Analytics подключаются добровольн
 ---
 
 ## 20. Административная часть FluxLab
+
+> **Статус: почти не реализовано.** Административная часть — это одна страница статистики за окно времени (`GET` в `apps/api/src/admin/routes.ts`, экран `apps/web/src/AdminStats.tsx`). Управления пользователями, лимитами, feature flags, перезапуска зависших задач, блокировки злоупотреблений, внутренних заметок поддержки и просмотра audit log в продукте нет. Юридические страницы — Terms, Privacy и Cookie Policy — опубликованы **на английском и украинском**, а не на русском и английском.
 
 Администратор платформы должен иметь возможность:
 
@@ -1320,12 +1437,12 @@ FluxRadar:
 - первичный launch-сегмент должен быть выбран до public launch из трёх вариантов: владельцы/маркетинговые команды небольших и средних сайтов, независимые SEO/digital-специалисты или агентства; поддержка всех сегментов одновременно без выбранного приоритета запрещена;
 - текущий режим сканирования: только публичные сайты;
 - Complete включает все модули текущего релиза, а не будущие возможности;
-- Basic включает только SEO и AI SEO / GEO;
-- активный Security — Complete-only и запускается только после security launch gate;
+- Basic включает только SEO и AI SEO / GEO; Website Audit — остальные восемь модулей, и ни один из этих двух пакетов не входит в другой;
+- активный Security — Complete-only и запускается только после security launch gate (**не реализован**, раздел 6);
 - AI/GEO в текущем релизе использует официальные API без browser automation;
 - автоматические изменения сайта, code snippets, pull requests и white-label не входят;
-- основной язык интерфейса и материалов — русский и английский;
-- текущая модель — pay-per-scan через Paddle: Basic $55, Complete $120;
+- основной язык интерфейса и материалов — **английский и украинский** (решение изменено; в исходной редакции здесь были русский и английский);
+- текущая модель — pay-per-scan через **Creem**: Basic $55, **Website Audit $79**, Complete $120 (решение изменено; в исходной редакции — Paddle и два платных тарифа);
 - один оплаченный прогон — один домен, без подписки, расписания и месячной квоты запусков;
 - команды, workspace, роли, мониторинг, уведомления, RUM, backlinks/reputation, GBP, checkout-flow и visual regression — будущие возможности.
 
@@ -1334,6 +1451,8 @@ FluxRadar:
 ---
 
 ## 25. Критерии приёмки
+
+> **Статус: целевые критерии, не отчёт о покрытии.** Раздел описывает, что должно быть принято перед public launch. Реализованный набор правил заметно у́же (раздел 0.1), и ни «Acceptance matrix v1», ни «Explicit ruleset mapping v1» ниже нельзя читать как карту того, что работает: часть перечисленных ID не реализована, часть реализована под другим префиксом, а нумерация Performance, UX и Analytics в коде совсем другая. Источник истины о rule ID — `packages/contracts/src/ruleset-scanning.ts`.
 
 ### Scan lifecycle
 
@@ -1402,6 +1521,8 @@ Golden Score vector: при 100 applicable URL отдельный High rule на
 
 ### Acceptance matrix v1
 
+> **Статус: плановый инвентарь, не текущий.** Таблица перечисляет ID, которые планировалось закрыть fixture-ами; соответствие реализации — в разделе 0.1. Не считайте строку этой таблицы доказательством того, что правило существует.
+
 Инвентарь ниже является закрытым для текущего релиза: каждый перечисленный rule ID обязан иметь ровно один positive fixture, один negative fixture, ожидаемую severity, ожидаемый evidence и владельца. Любой bullet из разделов 4–13, не сопоставленный с этим inventory, блокирует Quality gate.
 
 Нумерация внутри каждого диапазона идёт в порядке bullet-ов соответствующего подраздела разделов 4–13; состав диапазонов закрыт и не может молча расширяться. При добавлении или удалении проверки создаётся новая версия ruleset и обновляется acceptance matrix.
@@ -1421,6 +1542,15 @@ Golden Score vector: при 100 applicable URL отдельный High rule на
 | Billing/export/data | `BILLING-001..008`, `EXPORT-001..006`, `DATA-001..006`, `ECON-001` | `fx-platform-v1-*` | idempotent webhook с `paddle_event_id`, unique purchase→entitlement→scan, atomic worker claim, retry counters, unique refund idempotency key, lifecycle refund включая `NoUsableOutput` при отсутствии валидного usable output даже после завершившейся check, schema v1, deletion deadlines, protected evidence links и support reserve `>= max($500, 10% forecast gross revenue)`; owner Platform/Finance | `PLATFORM-001`, `FIXTURES-PLATFORM-v1` |
 
 ### Explicit ruleset mapping v1
+
+> **Статус: плановое сопоставление; реализация разошлась с ним.** Самые заметные расхождения, ради которых эту таблицу нельзя цитировать как текущую:
+>
+> - `SEO-ONPAGE-006` в коде — это **дубль meta description**, а не Open Graph/social metadata: social preview уехал под собственный префикс `SEO-SOCIAL-001`, structured data — под `SEO-STRUCT-001/002`, и освободившиеся номера `004`/`006` заняли дубли title и description;
+> - `SEO-TECH-009/010/011` в коде — orphan pages, click depth и weakly linked pages, а не pagination / orphan pages / crawl depth;
+> - `SEO-TECH-012` (hreflang) не реализован: `<link rel="alternate" hreflang>` читается только для того, чтобы снять находку о дубле title, и собственного правила у него нет;
+> - `SEC-PASSIVE-001` (SSL/TLS), `004`, `006..014` и все `SEC-ACTIVE-*` не реализованы; CSP, Permissions-Policy и CORS реализованы под `SEC-ASVS-001/002/003`;
+> - `PERF-RULE-*` и `PERF-ENV-*` не существуют ни в каком виде — см. фактические ID в разделе 7;
+> - `UX-STATIC-*` и `ANALYTICS-001..009` не существуют: действующие префиксы — `UX-CONV-STATIC`, `UX-CONV-AI`, `ANALYTICS-SC`, `ANALYTICS-GA`, `ANALYTICS-LINK`.
 
 Эта таблица является частью спецификации, а не только ссылкой на внешний artifact: каждый `rule_id` явно сопоставлен с одной проверкой и порядком bullet-а. Для каждой записи обязательны `positive`, `negative` и boundary fixture с именем `fx-<rule_id>-positive|negative|boundary`; `target_kind` по умолчанию `page`, если явно указано `site`, `api` или `environment`. Applicable criteria — публичная цель в scope, к которой применим смысл проверки; если criteria не выполнен, результат `not_applicable`, а не finding. Severity resolver, evidence type и score formula для каждого rule ID фиксируются в той же строке `RULES-<module>-v1` и проходят semantic validator.
 
@@ -1467,6 +1597,8 @@ Fixture contract: `expected_status` принимает только `pass`, `war
 - удаление данных, выгрузка и обработка credentials соответствуют Privacy Policy.
 
 ## 26. Launch gates
+
+> **Статус:** gate 1 (Security) относится к не реализованному активному модулю и в текущем виде блокирует функцию, которой нет, а не релиз. Числа в gate 3 унаследованы от модели комиссии Paddle и не пересчитаны под Creem и четвёртый тариф. Остальные gate остаются в силе как условия запуска.
 
 Публичный запуск блокируется до выполнения всех условий:
 
