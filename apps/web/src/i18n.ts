@@ -422,7 +422,7 @@ export const copy = {
           index: 'A / SEARCH',
           title: 'SEO visibility',
           body: 'Titles, descriptions, headings, canonicals, indexing and the technical details that help search engines understand your pages.',
-          foot: '21 deterministic checks · JSON-LD preview',
+          foot: '21 deterministic checks · JSON-LD checks',
         },
         ai: {
           index: 'B / AI SYSTEMS',
@@ -2283,7 +2283,7 @@ export const copy = {
           index: 'A / ПОШУК',
           title: 'SEO-видимість',
           body: 'Заголовки, описи, structure заголовків, канонічні посилання, індексація та технічні деталі, які допомагають пошуковим системам розуміти ваші сторінки.',
-          foot: '21 детермінована перевірка · перегляд JSON-LD',
+          foot: '21 детермінована перевірка · перевірки JSON-LD',
         },
         ai: {
           index: 'B / AI-СИСТЕМИ',
