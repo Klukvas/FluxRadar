@@ -309,8 +309,12 @@ export function HomeScreen(props: {
               {t.pricing.publicOnly}
             </span>
           </div>
-          <PricingCards language={props.language} onChoose={props.onChoosePlan} />
+          {/* The comparison comes before the cards: "which one is right for
+              you?" is the question a visitor arrives at the pricing block with,
+              and three cards cannot answer it — they can only be chosen from
+              once it is answered. */}
           <PricingExplainer language={props.language} />
+          <PricingCards language={props.language} onChoose={props.onChoosePlan} />
         </section>
 
         <section className="home__last-call" aria-labelledby="last-call-title">
