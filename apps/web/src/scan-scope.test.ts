@@ -11,6 +11,7 @@ import {
   invalidScopeFields,
   MAX_CRAWL_DEPTH,
   scanScopeFrom,
+  profileScanConfigFingerprint,
   profileScanConfigFromForm,
   scopeFormFromProfileConfig,
   scopeFormFromScan,
@@ -340,5 +341,50 @@ describe('the API limits this form mirrors', () => {
 
   it('starts the page count where scanScopeSchema does', () => {
     expect(contracts).toContain('maxPages: z.number().int().min(1).optional()');
+  });
+});
+
+// A stored robots.txt confirmation is one run's answer, not a default: the API
+// cannot store "ignore robots.txt" without it, and the form saves before every
+// launch, so restoring it pre-ticked the override on every later scan.
+describe('a saved robots.txt override', () => {
+  const overridden = {
+    plan: 'Complete' as const,
+    scope: {
+      includeSubdomains: false,
+      maxDepth: 31,
+      renderJs: true,
+      queryPolicy: 'ignore' as const,
+      respectRobots: false,
+      robotsOverrideConfirmed: true,
+      userAgent: 'desktop' as const,
+    },
+  };
+
+  it('restores the choice to ignore robots.txt but never its confirmation', () => {
+    const form = scopeFormFromProfileConfig(overridden);
+
+    expect(form.respectRobots).toBe(false);
+    expect(form.robotsOverrideConfirmed).toBe(false);
+    expect(form.maxDepth).toBe('31');
+  });
+
+  // Otherwise every such profile would open reading "Unsaved changes".
+  it('reads as unchanged after the round trip through the form', () => {
+    const roundTrip = profileScanConfigFromForm(scopeFormFromProfileConfig(overridden), 'Complete');
+
+    expect(roundTrip.scope.robotsOverrideConfirmed).toBe(false);
+    expect(profileScanConfigFingerprint(roundTrip)).toBe(profileScanConfigFingerprint(overridden));
+  });
+
+  it('still tells a real change apart', () => {
+    const roundTrip = profileScanConfigFromForm(
+      { ...scopeFormFromProfileConfig(overridden), respectRobots: true },
+      'Complete',
+    );
+
+    expect(profileScanConfigFingerprint(roundTrip)).not.toBe(
+      profileScanConfigFingerprint(overridden),
+    );
   });
 });

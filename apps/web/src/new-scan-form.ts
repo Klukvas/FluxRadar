@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { flushSync } from 'react-dom';
 
 import {
   apiRequest,
@@ -20,6 +21,7 @@ import {
 } from './egress-location';
 import { copy, type Language } from './i18n';
 import { launchErrorMessage } from './launch-errors';
+import { expertSettingsChanged, useFollowSelectedProfile } from './new-scan-form-rules';
 import {
   configurationStateOf,
   configurationStatusLabel,
@@ -117,6 +119,11 @@ interface PlanOption {
  */
 export interface NewScanForm {
   readonly advancedOpen: boolean;
+  /**
+   * Whether "For experienced users" is unfolded: the owner's own choice, else
+   * open whenever a setting inside it differs from the safe default.
+   */
+  readonly expertOpen: boolean;
   readonly busy: boolean;
   /** False while a submission would be refused, for whatever reason. */
   readonly canLaunch: boolean;
@@ -163,18 +170,28 @@ export interface NewScanForm {
   readonly planLabel: string;
   readonly planOptions: readonly PlanOption[];
   readonly robotsUnconfirmed: boolean;
+  /**
+   * True while the saved profile carries a robots.txt override that has not
+   * been confirmed again on this screen. The form never restores that
+   * confirmation (`scopeFormFromProfileConfig`); this is what lets the screen
+   * say why it is asking.
+   */
+  readonly robotsOverrideStale: boolean;
   readonly savingConfiguration: boolean;
   readonly scope: ScanScopeForm;
   /** True when this submission is a purchase, and says so beside the button. */
   readonly showsPurchaseTerms: boolean;
   readonly target: string;
   readonly targetLabel: string;
+  /** The selected profile's name, or null while no saved profile is selected. */
+  readonly targetName: string | null;
   readonly usingSavedProfile: boolean;
   /** Setup changed locally and would be lost if the window closes. */
   readonly hasUnsavedChanges: boolean;
   readonly chooseTarget: (target: string) => void;
   readonly choosePlan: (plan: Plan) => void;
   readonly toggleAdvanced: (open: boolean) => void;
+  readonly toggleExpert: (open: boolean) => void;
   readonly updateScope: (change: Partial<ScanScopeForm>) => void;
   readonly toggleOptInAiProvider: (provider: AiProcessingOptInProvider, selected: boolean) => void;
   readonly saveConfiguration: () => Promise<void>;
@@ -210,6 +227,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // Launches are always attached to a saved profile. Profile creation belongs
   // to the Profiles workflow, where its context is collected first.
   const [target, setTarget] = useState(props.selectedProfile?.id ?? props.profiles[0]?.id ?? '');
+  useFollowSelectedProfile(props, target, setTarget);
   // A saved profile owns its preferred plan; internal accounts start on
   // Complete so they can exercise the full report without a payment.
   const [plan, setPlan] = useState<Plan>(
@@ -289,7 +307,9 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const advancedConfigured =
     scope.includePatterns.trim() !== '' ||
     scope.excludePatterns.trim() !== '' ||
-    scope.queryPolicy !== 'ignore';
+    scope.queryPolicy !== 'ignore' ||
+    scope.seedUrls.trim() !== '' ||
+    scope.apiChecks.trim() !== '';
   // Null until the owner opens or closes the group themselves, and null again
   // whenever the target changes: their choice belongs to the profile they made
   // it on. An effect that only ever opened the group left a second configured
@@ -299,6 +319,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     setAdvancedChoice(null);
   }, [target]);
   const advancedOpen = advancedChoice ?? advancedConfigured;
+  // The same contract for the folded "For experienced users" block: nothing a
+  // saved configuration changed from the safe defaults may sit hidden behind
+  // it while the owner pays for that crawl.
+  const [expertChoice, setExpertChoice] = useState<boolean | null>(null);
+  useEffect(() => {
+    setExpertChoice(null);
+  }, [target]);
   const [busy, setBusy] = useState(false);
   const [savingConfiguration, setSavingConfiguration] = useState(false);
   const [savedConfigFingerprint, setSavedConfigFingerprint] = useState<string | null>(() =>
@@ -370,12 +397,40 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     }
   };
 
+  // Read by the effect below through a ref, so that a profile list re-read
+  // after a save (new objects, same settings) does not reload the form over
+  // edits the owner has not saved. The effect reruns when the site, its saved
+  // configuration version, or whether it has one at all changes.
+  const selectedRef = useRef(selected);
+  useEffect(() => {
+    selectedRef.current = selected;
+  });
+  const selectedKnown = selected !== undefined;
+  const selectedConfigVersion = selected?.scanConfigVersion ?? null;
+  const selectedHasConfig = selected?.scanConfig != null;
+  // The site the form last loaded settings for, and the configuration version
+  // the form itself last wrote. A Save (or the save before a launch) bumps the
+  // version, and the re-read that follows must not reload the form over what
+  // the owner has just saved — that withdrew a robots.txt confirmation given
+  // seconds earlier. Another site, or a version written elsewhere, still loads.
+  const lastLoadedTargetRef = useRef<string | null>(null);
+  const writtenVersionRef = useRef<number | null>(null);
+
   /** Opens the form on the reusable settings stored with the selected profile. */
   useEffect(() => {
+    const selected = selectedRef.current;
     if (!usingSavedProfile) {
       setConfigLoading(false);
+      lastLoadedTargetRef.current = null;
       return;
     }
+    const ownWrite =
+      target === lastLoadedTargetRef.current &&
+      selectedConfigVersion !== null &&
+      selectedConfigVersion === writtenVersionRef.current;
+    if (ownWrite) return;
+    lastLoadedTargetRef.current = target;
+    writtenVersionRef.current = null;
     if (selected?.scanConfig != null) {
       setConfigLoading(false);
       const restoredPlan = paidAvailable ? selected.scanConfig.plan : 'Free';
@@ -402,7 +457,15 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     return () => {
       cancelled = true;
     };
-  }, [paidAvailable, props.internalFreeAccess, selected, target, usingSavedProfile]);
+  }, [
+    paidAvailable,
+    props.internalFreeAccess,
+    selectedConfigVersion,
+    selectedHasConfig,
+    selectedKnown,
+    target,
+    usingSavedProfile,
+  ]);
 
   // After the profile's own settings above, so the owner's explicit choice wins.
   const initialPlanApplied = useRef(false);
@@ -437,6 +500,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       profileScanConfigFingerprint(updated?.scanConfig ?? currentProfileConfig),
     );
     setSavedConfigVersion(updated?.scanConfigVersion ?? (savedConfigVersion ?? 0) + 1);
+    writtenVersionRef.current = updated?.scanConfigVersion ?? null;
     return updated?.scanConfigVersion ?? savedConfigVersion ?? undefined;
   };
 
@@ -481,8 +545,11 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     if (firstInvalid !== undefined) {
       // The fields are in the settings column and the button that was just
       // pressed is in the launch column beside it, so the complaint can render
-      // off the screen the owner is looking at. Move them to it.
-      const field = event.currentTarget.elements.namedItem(SCOPE_FIELD_NAMES[firstInvalid]);
+      // off the screen the owner is looking at. Move them to it — unfolding
+      // the block they live in first, since a folded field cannot take focus.
+      const form = event.currentTarget;
+      flushSync(() => setExpertChoice(true));
+      const field = form.elements.namedItem(SCOPE_FIELD_NAMES[firstInvalid]);
       if (field instanceof HTMLElement) field.focus();
       return;
     }
@@ -495,10 +562,18 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     setApiCheckProblems(badApiChecks);
     if (badSeeds.length > 0 || badApiChecks.length > 0) {
       const badListField = badSeeds.length > 0 ? 'scan-seed-urls' : 'scan-api-checks';
-      const field = event.currentTarget.elements.namedItem(badListField);
+      // Both live in "Advanced crawl rules": unfold it before focusing.
+      const form = event.currentTarget;
+      flushSync(() => setAdvancedChoice(true));
+      const field = form.elements.namedItem(badListField);
       if (field instanceof HTMLElement) field.focus();
       return;
     }
+    // The button is disabled for these reasons too, but a disabled button is
+    // not a guarantee (Enter in a field submits the form): an unconfirmed
+    // robots.txt override, an unreachable site or no egress must not start a
+    // scan or open a checkout.
+    if (!canLaunch) return;
     setBusy(true);
     try {
       const profileId = await resolveTargetProfileId();
@@ -596,6 +671,14 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // beside the button rather than only at the checkbox two columns away.
   const robotsUnconfirmed =
     paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed;
+  const robotsOverrideStale =
+    robotsUnconfirmed && selected?.scanConfig?.scope.robotsOverrideConfirmed === true;
+  const expertConfigured = expertSettingsChanged(
+    scope,
+    paidScopeControls,
+    egressConfig?.defaultLocationId ?? null,
+  );
+  const expertOpen = expertChoice ?? expertConfigured;
   // Both buttons refuse for the same reasons; saving refuses for two more,
   // because settings nobody can store are worse than a scan nobody can start.
   const targetChosen = target !== '';
@@ -623,6 +706,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
 
   return {
     advancedOpen,
+    expertOpen,
     busy,
     canLaunch,
     canSave,
@@ -654,11 +738,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     planLabel,
     planOptions,
     robotsUnconfirmed,
+    robotsOverrideStale,
     savingConfiguration,
     scope,
     showsPurchaseTerms: purchasing,
     target,
     targetLabel,
+    targetName: selected?.name ?? null,
     usingSavedProfile,
     hasUnsavedChanges,
     chooseTarget: (nextTarget) => {
@@ -667,6 +753,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     },
     choosePlan,
     toggleAdvanced: setAdvancedChoice,
+    toggleExpert: setExpertChoice,
     updateScope,
     toggleOptInAiProvider,
     saveConfiguration,

@@ -48,12 +48,16 @@ export function DesktopRoute({ app }: { readonly app: AppModel }) {
 /** The reports list, for one site or for the whole account. */
 export function ReportsRoute({ app }: { readonly app: AppModel }) {
   const { language, navigate, openReport, reportsProfile, setNewScanPlan, setReportsProfile } = app;
+  const { setSelectedProfile } = app;
   return (
     <ReportsScreen
       language={language}
       profile={reportsProfile}
       onOpenScan={openReport}
       onNewScan={() => {
+        // A site's report list starts a scan of that site, not of whichever
+        // site was selected last.
+        if (reportsProfile !== null) setSelectedProfile(reportsProfile);
         setNewScanPlan(null);
         navigate('new-scan');
       }}

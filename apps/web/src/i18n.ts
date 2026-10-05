@@ -704,7 +704,6 @@ export const copy = {
       renderInfoBody:
         'Off, FluxRadar reads the HTML the server sends. On, it opens each page in a headless browser and reads the DOM once the page’s own scripts have run — which is what a single-page app needs. All browser traffic goes through the same public-address guard as the crawl: GET and HEAD only, no cookies, no downloads and no sockets. If the deployment has no browser runtime the report says so; it never presents the static HTML as a rendered page.',
       advancedTitle: 'Advanced crawl rules',
-      blockedByRobots: 'To start this scan, confirm the robots.txt override under Audit depth.',
       labelRespectRobots: 'Respect robots.txt',
       labelRobotsOverride: 'I confirm the robots.txt override',
       robotsInfoTitle: 'How robots.txt affects this scan',
@@ -2569,8 +2568,6 @@ export const copy = {
       renderInfoBody:
         'Вимкнено — FluxRadar читає HTML, який віддає сервер. Увімкнено — відкриває кожну сторінку в headless-браузері й читає DOM після виконання її власних скриптів; саме це потрібно SPA. Увесь трафік браузера проходить через той самий захист публічних адрес, що й обхід: тільки GET і HEAD, без cookies, без завантажень і без сокетів. Якщо в цьому середовищі немає браузерного runtime, звіт про це скаже і не видасть статичний HTML за відрендерену сторінку.',
       advancedTitle: 'Додаткові правила обходу',
-      blockedByRobots:
-        'Щоб запустити перевірку, підтвердіть заміну robots.txt у розділі «Глибина аудиту».',
       labelRespectRobots: 'Дотримуватись robots.txt',
       labelRobotsOverride: 'Підтверджую відхилення robots.txt',
       robotsInfoTitle: 'Як robots.txt впливає на перевірку',
