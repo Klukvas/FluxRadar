@@ -26,6 +26,12 @@ export type AccountCopy = {
     readonly pending: (email: string) => string;
     readonly resend: string;
     readonly dismiss: string;
+    /** The one-line version a phone shows; the full sentence stays for screen readers. */
+    readonly short: {
+      readonly confirm: string;
+      readonly deliveryUnavailable: string;
+      readonly deliveryFailed: string;
+    };
   };
   readonly password: {
     readonly heading: string;
@@ -100,6 +106,11 @@ export const accountCopy: Record<Language, AccountCopy> = {
         `Confirm your email at ${email}. Check your inbox or request a new confirmation link.`,
       resend: 'Send again',
       dismiss: 'Hide',
+      short: {
+        confirm: 'Confirm your email.',
+        deliveryUnavailable: 'No confirmation email was sent.',
+        deliveryFailed: 'The confirmation email failed.',
+      },
     },
     password: {
       heading: 'Password',
@@ -178,6 +189,11 @@ export const accountCopy: Record<Language, AccountCopy> = {
         `Підтвердьте email ${email}. Перевірте пошту або надішліть новий запит на посилання.`,
       resend: 'Надіслати ще раз',
       dismiss: 'Сховати',
+      short: {
+        confirm: 'Підтвердьте email.',
+        deliveryUnavailable: 'Лист не надіслано.',
+        deliveryFailed: 'Лист не доставлено.',
+      },
     },
     password: {
       heading: 'Пароль',

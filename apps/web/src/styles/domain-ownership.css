@@ -1,0 +1,21 @@
+/* The ownership panel folded to one line. The native disclosure triangle is
+   kept: it is the only thing that says the line opens. */
+.ownership-fold__summary {
+  cursor: pointer;
+}
+
+/* The reason sits under the line, inside the summary, so it is read and
+   clicked with it. */
+.ownership-fold__why {
+  display: block;
+  margin-top: var(--sp-1);
+}
+
+.ownership-fold__body {
+  margin-top: var(--sp-3);
+}
+
+/* The same air between stacked items the panel gave them before the fold. */
+.ownership-fold__body > * + * {
+  margin-top: var(--sp-3);
+}

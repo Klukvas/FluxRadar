@@ -1,0 +1,65 @@
+/* Phone-width adjustments that belong to no single screen's stylesheet.
+   Imported from App.tsx after base.css and account.css, so a rule here wins a
+   specificity tie with the rule it adjusts. */
+
+/* The banner's one-line form is for phones only; wider screens read the
+   full sentence. */
+.verify-banner__short {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  /* ─── "Confirm your email" ────────────────────────────────────────────── */
+
+  /* Was a sentence plus two buttons wrapping into about a quarter of a phone
+     screen on every workspace page. Now one row: a short line, then the
+     buttons. The full sentence stays in the DOM for screen readers. */
+  .verify-banner {
+    flex-wrap: nowrap;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-2);
+  }
+  .verify-banner p {
+    flex: 1 1 0;
+    min-width: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    line-height: 1.3;
+  }
+  .verify-banner__full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .verify-banner__short {
+    display: inline;
+  }
+  .verify-banner .button-row {
+    flex-wrap: nowrap;
+    flex: 0 0 auto;
+  }
+
+  /* ─── Touch targets ───────────────────────────────────────────────────── */
+
+  /* The desktop-sized 24px controls are too small to hit with a thumb. These
+     are the Issue Center's filter row, view switch and row actions, and the
+     row actions of every list drawn as a data table (the report lists). The
+     data-table scope deliberately also reaches the account, admin and
+     styleguide tables: a thumb needs the same target there. */
+  .verify-banner .button,
+  .issue-filters .control,
+  .segmented .segmented__option,
+  .issue-rule-filter .button,
+  .issues-more .button,
+  .issue-detail .button,
+  .data-table .button,
+  .data-table .control {
+    min-height: 40px;
+  }
+}

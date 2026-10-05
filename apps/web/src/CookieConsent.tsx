@@ -129,9 +129,15 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
   }
 
   const showsLauncher = !isOpen && !isEverythingAllowed;
+  // Alone, the launcher is only a way back to the settings; on a phone the
+  // stylesheet takes it out of the floating dock and puts it at the foot of the
+  // page, where it can no longer cover text or buttons.
+  const dockClassName = showsLauncher
+    ? 'cookie-consent-dock cookie-consent-dock--launcher-only'
+    : 'cookie-consent-dock';
 
   return (
-    <div className="cookie-consent-dock">
+    <div className={dockClassName}>
       {showsLauncher && (
         <div className="cookie-settings-launcher">
           <CookieSettingsButton language={language} />

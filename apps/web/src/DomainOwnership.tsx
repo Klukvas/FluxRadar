@@ -7,12 +7,14 @@
 // deeper paid checks are ever gated on ownership — a decision that is still
 // open.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { apiRequest, type DomainVerification, type SiteProfile } from './api';
 import { Button, FieldRow, Panel, SelectField, SkeletonRows, StatusChip } from './components';
+import { domainOwnershipCopy } from './domain-ownership-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { formatTimestamp } from './scan-status';
+import './styles/domain-ownership.css';
 
 export function DomainOwnershipPanel(props: {
   readonly language: Language;
@@ -24,6 +26,9 @@ export function DomainOwnershipPanel(props: {
   const [method, setMethod] = useState<DomainVerification['method']>('dns-txt');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Folded until the owner asks, unless a proof is already under way: then the
+  // record they started is what they came back for.
+  const [isOpen, setIsOpen] = useState(false);
   const profileId = props.profile.id;
   const { onError } = props;
 
@@ -34,7 +39,10 @@ export function DomainOwnershipPanel(props: {
         `/profiles/${encodeURIComponent(profileId)}/verification`,
       );
       setRecord(loaded);
-      if (loaded !== null) setMethod(loaded.method);
+      if (loaded !== null) {
+        setMethod(loaded.method);
+        setIsOpen(true);
+      }
     } catch (caught) {
       onError(caught instanceof Error ? caught.message : 'Ownership status unavailable');
     } finally {
@@ -62,15 +70,14 @@ export function DomainOwnershipPanel(props: {
     }
   };
 
-  if (loading) {
-    return (
-      <Panel title={t.title}>
-        <SkeletonRows rows={2} />
-      </Panel>
-    );
-  }
-  return (
-    <Panel title={t.title}>
+  const fold = (children: ReactNode) => (
+    <OwnershipFold language={props.language} isOpen={isOpen} onToggle={setIsOpen} title={t.title}>
+      {children}
+    </OwnershipFold>
+  );
+  if (loading) return fold(<SkeletonRows rows={2} />);
+  return fold(
+    <>
       <p className="muted panel-help">{t.optionalNote}</p>
       <FieldRow label={t.site} value={props.profile.domain} />
       {record === null ? (
@@ -148,6 +155,35 @@ export function DomainOwnershipPanel(props: {
           {record.tokenExpired ? <p className="muted">{t.tokenExpired}</p> : null}
         </>
       )}
+    </>,
+  );
+}
+
+/**
+ * The panel folded to one line and a reason it is safe to skip. Unfolded, it
+ * shows the panel exactly as it was, title and all. The content stays mounted
+ * while folded, so the status read on mount is unchanged.
+ */
+function OwnershipFold(props: {
+  readonly language: Language;
+  readonly isOpen: boolean;
+  readonly onToggle: (isOpen: boolean) => void;
+  readonly title: string;
+  readonly children: ReactNode;
+}) {
+  const fold = domainOwnershipCopy[props.language];
+  return (
+    <Panel className="ownership-fold">
+      <details open={props.isOpen} onToggle={(event) => props.onToggle(event.currentTarget.open)}>
+        <summary className="ownership-fold__summary">
+          <strong>{fold.summary}</strong>
+          <span className="muted ownership-fold__why">{fold.why}</span>
+        </summary>
+        <div className="ownership-fold__body">
+          <div className="panel__label">{props.title}</div>
+          {props.children}
+        </div>
+      </details>
     </Panel>
   );
 }

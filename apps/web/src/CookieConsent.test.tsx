@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -107,6 +110,28 @@ describe('cookie choices', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Only necessary' }));
 
     expect(screen.getAllByRole('button', { name: 'Cookie settings' })).toHaveLength(2);
+  });
+
+  // On a phone the lone launcher must not float over the page. Layout is not
+  // computed here, so what is pinned is the decision: the dock is marked when
+  // the launcher is all it holds, and the phone rule takes that dock out of the
+  // fixed layer while the open banner keeps floating.
+  it('marks the dock that holds only the launcher, so a phone can drop it into the page', () => {
+    const view = render(<CookieConsent language="en" />);
+    const dock = view.container.firstElementChild;
+    expect(dock).not.toHaveClass('cookie-consent-dock--launcher-only');
+    fireEvent.click(screen.getByRole('button', { name: 'Only necessary' }));
+    expect(dock).toHaveClass('cookie-consent-dock--launcher-only');
+    fireEvent.click(screen.getByRole('button', { name: 'Cookie settings' }));
+    expect(dock).not.toHaveClass('cookie-consent-dock--launcher-only');
+
+    const css = readFileSync(
+      join(resolve(process.cwd()), 'src', 'styles', 'cookie-consent.css'),
+      'utf8',
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 600px\) \{\s*\.cookie-consent-dock\.cookie-consent-dock--launcher-only \{\s*position: static;/,
+    );
   });
 
   it('saves only the categories that were ticked', () => {
