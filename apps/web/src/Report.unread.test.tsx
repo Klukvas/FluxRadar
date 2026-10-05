@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CrawlSummary, Dashboard, IssueSummary, Scan, ScanModule } from './api';
 import type { Language } from './i18n';
+import { newScanCopy } from './new-scan-copy';
 import { ResultsScreen } from './Report';
 
 const MODULE_NAMES = [
@@ -282,8 +283,11 @@ describe('a report whose site could not be read', () => {
     const steps = within(block).getAllByRole('listitem');
     expect(steps).toHaveLength(2);
     expect(steps[0]).toHaveTextContent(
-      'Allow FluxRadarBot in robots.txt — our crawler page has the two lines to paste. Or turn off “Respect robots.txt” under Audit depth and confirm the override',
+      'Allow FluxRadarBot in robots.txt — our crawler page has the two lines to paste. Or turn off “Respect robots.txt” under “For experienced users” and confirm the override',
     );
+    // The step names the new-scan screen's folded block by its own title, so a
+    // rename on either side fails here instead of sending the owner nowhere.
+    expect(steps[0]).toHaveTextContent(newScanCopy.en.expertTitle);
     expect(
       within(steps[0] as HTMLElement).getByRole('link', { name: 'crawler page' }),
     ).toHaveAttribute('href', '/bot');
@@ -307,8 +311,9 @@ describe('a report whose site could not be read', () => {
     const block = screen.getByRole('region', { name: 'Нам не вдалося відкрити ваш сайт' });
     expect(within(block).getByText(/Дозвольте FluxRadarBot у robots\.txt/)).toBeTruthy();
     expect(
-      within(block).getByText(/«Дотримуватись robots\.txt» у розділі «Глибина аудиту»/),
+      within(block).getByText(/«Дотримуватись robots\.txt» у блоці «Для досвідчених користувачів»/),
     ).toBeTruthy();
+    expect(block).toHaveTextContent(`«${newScanCopy.uk.expertTitle}»`);
     expect(within(block).getByRole('link', { name: 'Наш краулер' })).toHaveAttribute(
       'href',
       '/bot',

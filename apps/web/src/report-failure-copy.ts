@@ -13,6 +13,7 @@
 
 import type { CrawlSummary, Scan, ScanModule } from './api';
 import type { Language } from './i18n';
+import { newScanCopy } from './new-scan-copy';
 
 /** Why no page was read, as far as the scan recorded it. */
 export type SiteReadFailureKind =
@@ -150,7 +151,11 @@ export interface ReportFailureCopy {
   readonly allowCrawlerAfter: string;
   readonly allowInRobotsBefore: string;
   readonly allowInRobotsAfter: string;
-  /** The paid plans' alternative; the Free check has no robots.txt override. */
+  /**
+   * The paid plans' alternative; the Free check has no robots.txt override. It
+   * names the new-scan screen's folded block by that block's own title, so the
+   * two cannot drift apart.
+   */
   readonly robotsOverride: string;
   readonly runAgain: string;
   readonly runAgainAfterChange: string;
@@ -246,8 +251,7 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
     allowCrawlerAfter: 'lists what to allow.',
     allowInRobotsBefore: 'Allow FluxRadarBot in robots.txt — our',
     allowInRobotsAfter: 'has the two lines to paste.',
-    robotsOverride:
-      'Or turn off “Respect robots.txt” under Audit depth and confirm the override when you start the next scan.',
+    robotsOverride: `Or turn off “Respect robots.txt” under “${newScanCopy.en.expertTitle}” and confirm the override when you start the next scan.`,
     runAgain: 'Run the scan again once the site opens in a browser.',
     runAgainAfterChange: 'Run the scan again after the change.',
     sectionsNotChecked: (names) =>
@@ -321,8 +325,7 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
     allowCrawlerAfter: 'є все, що потрібно дозволити.',
     allowInRobotsBefore: 'Дозвольте FluxRadarBot у robots.txt — на сторінці',
     allowInRobotsAfter: 'є два рядки, які треба вставити.',
-    robotsOverride:
-      'Або вимкніть «Дотримуватись robots.txt» у розділі «Глибина аудиту» й підтвердьте відхилення, коли запускатимете наступну перевірку.',
+    robotsOverride: `Або вимкніть «Дотримуватись robots.txt» у блоці «${newScanCopy.uk.expertTitle}» й підтвердьте відхилення, коли запускатимете наступну перевірку.`,
     runAgain: 'Запустіть перевірку ще раз, коли сайт відкриватиметься в браузері.',
     runAgainAfterChange: 'Запустіть перевірку ще раз після змін.',
     sectionsNotChecked: (names) =>
