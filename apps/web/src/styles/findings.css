@@ -88,6 +88,71 @@
   margin: var(--sp-2) 0 0;
 }
 
+/* The plain-language disclosure: folded in the problem list, open in a finding's
+   detail. Prose, so it keeps the reading measure of a paragraph rather than the
+   width of the table cell it sits in. */
+.finding-explainer {
+  margin-top: var(--sp-2);
+  max-width: 68ch;
+}
+.finding-explainer__summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.finding-explainer__body {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 0;
+}
+.finding-explainer__body dt {
+  font-weight: 700;
+}
+.finding-explainer__body dd {
+  margin: 2px 0 0;
+}
+.finding-explainer__scope {
+  margin: var(--sp-2) 0 0;
+  font-size: 12px;
+}
+
+/* The raw evidence, recommendation, confidence and rule id of an explained
+   finding: present for whoever will do the work, folded for everyone else. */
+.finding-technical {
+  margin-top: var(--sp-2);
+}
+.finding-technical__summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.finding-technical__body {
+  margin-top: var(--sp-2);
+}
+
+/* What one problem's loaded findings add up to, above its list of pages. */
+.problem-breakdown {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: var(--plat-50);
+}
+.problem-breakdown p {
+  margin: 0;
+}
+.problem-breakdown__pages {
+  font-weight: 700;
+}
+.problem-breakdown__heading {
+  margin-top: var(--sp-2);
+  font-weight: 700;
+}
+.problem-breakdown__variants {
+  margin: var(--sp-1) 0 0;
+  padding-left: var(--sp-4);
+}
+.problem-breakdown__variants li {
+  overflow-wrap: anywhere;
+}
+
 /* ─── Report blocks ─────────────────────────────────────────────────────── */
 
 .report-block {

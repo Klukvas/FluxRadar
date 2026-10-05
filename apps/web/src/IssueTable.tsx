@@ -4,6 +4,9 @@ import { Fragment } from 'react';
 
 import type { Issue } from './api';
 import { Button, DataTable, FieldRow, StatusChip } from './components';
+import { hasFindingExplainer } from './finding-explainers';
+import { FindingExplainer } from './FindingExplainer';
+import { findingEvidence } from './finding-variants';
 import { findingsCopy } from './findings-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { moduleCoverageHref, moduleLabel, ruleTitle } from './rule-titles';
@@ -106,12 +109,43 @@ function IssueDetail(props: { issue: Issue; language: Language; onClose: () => v
   const { issue } = props;
   const t = copy[props.language].issues;
   const f = findingsCopy[props.language];
+  const explained = hasFindingExplainer(issue.ruleId);
+  const impact = (
+    <FieldRow
+      label={t.impact}
+      value={fillCopy(t.impactValue, {
+        affected: issue.affectedTargets,
+        applicable: issue.applicableTargets,
+        delta: issue.scoreDelta.toFixed(2),
+      })}
+    />
+  );
+  // The reader's language when the API rendered one; the stored text otherwise,
+  // which is what an older finding or an AI-written one only has.
+  const evidenceFields = (
+    <>
+      <FieldRow label={t.evidence} value={findingEvidence(issue, props.language) ?? t.noExcerpt} />
+      <FieldRow
+        label={t.recommendation}
+        value={issue.localized?.[props.language]?.recommendation ?? issue.recommendation}
+      />
+    </>
+  );
+  const provenanceFields = (
+    <>
+      <FieldRow label={t.confidence} value={`${(issue.confidence * 100).toFixed(0)}%`} />
+      <FieldRow label={t.columnRule} value={issue.ruleId} technical />
+    </>
+  );
   return (
     <div className="issue-detail">
       <div className="split">
         <strong>{ruleTitle(issue.ruleId, props.language)}</strong>
         <Button onClick={props.onClose}>{t.closeDetails}</Button>
       </div>
+      {/* Open here: the panel is where the owner came to understand the
+          finding. */}
+      <FindingExplainer ruleId={issue.ruleId} language={props.language} open />
       <FieldRow
         label={t.columnSeverity}
         value={<StatusChip status={issue.severity} label={f.severity[issue.severity]} />}
@@ -121,28 +155,27 @@ function IssueDetail(props: { issue: Issue; language: Language; onClose: () => v
         value={<StatusChip status={issue.status} label={f.status[issue.status]} />}
       />
       <FieldRow label={t.columnTarget} value={issue.targetUrl} technical />
-      {/* The reader's language when the API rendered one; the stored text
-          otherwise, which is what an older finding or an AI-written one only has. */}
-      <FieldRow
-        label={t.evidence}
-        value={
-          issue.localized?.[props.language]?.evidenceExcerpt ?? issue.evidenceExcerpt ?? t.noExcerpt
-        }
-      />
-      <FieldRow
-        label={t.recommendation}
-        value={issue.localized?.[props.language]?.recommendation ?? issue.recommendation}
-      />
-      <FieldRow
-        label={t.impact}
-        value={fillCopy(t.impactValue, {
-          affected: issue.affectedTargets,
-          applicable: issue.applicableTargets,
-          delta: issue.scoreDelta.toFixed(2),
-        })}
-      />
-      <FieldRow label={t.confidence} value={`${(issue.confidence * 100).toFixed(0)}%`} />
-      <FieldRow label={t.columnRule} value={issue.ruleId} technical />
+      {/* An explained rule reads top to bottom as plain language, so the header
+          names and the rule id go behind one fold for whoever will do the work;
+          a rule with no explanation keeps the fields it always had. */}
+      {explained ? (
+        <>
+          {impact}
+          <details className="finding-technical">
+            <summary className="finding-technical__summary">{f.issues.technicalTitle}</summary>
+            <div className="finding-technical__body">
+              {evidenceFields}
+              {provenanceFields}
+            </div>
+          </details>
+        </>
+      ) : (
+        <>
+          {evidenceFields}
+          {impact}
+          {provenanceFields}
+        </>
+      )}
       <p className="issue-detail__learn">
         <a href={moduleCoverageHref(issue.module)}>{f.issues.learnMore} →</a>
       </p>
