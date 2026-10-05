@@ -18,13 +18,13 @@ import {
   type Scan,
 } from './api';
 import { Button, EmptyState, Field, SelectField, SkeletonRows, Window } from './components';
-import { hasFindingExplainer, problemTitle } from './finding-explainers';
+import { problemTitle } from './finding-explainers';
 import { DeveloperTaskCopy, ProblemBreakdown } from './FindingExplainer';
 import { findingsCopy } from './findings-copy';
 import { copy, type Language } from './i18n';
 import { IssueProblems } from './IssueProblems';
 import { IssueTable, USER_STATUSES } from './IssueTable';
-import { moduleLabel, ruleTitle } from './rule-titles';
+import { moduleLabel } from './rule-titles';
 import { displayDomain } from './scan-status';
 import './styles/findings.css';
 
@@ -222,6 +222,18 @@ export function IssuesScreen(props: {
     settleSearch('');
     setView('problems');
   }, [summary, settleSearch]);
+  /**
+   * The tabs. "Every finding" has to mean every finding: pressed while one
+   * problem was open it used to leave the filter on and the "Showing one
+   * problem only" block above a list that was still one problem's — a tab
+   * claiming the opposite of what was on screen. Either tab now leaves the
+   * open problem behind, and the block is the way back to the problem list.
+   */
+  const showView = useCallback((next: 'problems' | 'all') => {
+    setSelectedIssue(null);
+    setFilters((current) => (current.ruleId === '' ? current : { ...current, ruleId: '' }));
+    setView(next);
+  }, []);
 
   const domain = props.scan?.domain ? displayDomain(props.scan.domain) : t.noScan;
   const modules = [...new Set((summary?.groups ?? []).map((group) => group.module))];
@@ -256,7 +268,7 @@ export function IssuesScreen(props: {
               type="button"
               className="segmented__option"
               aria-pressed={view === 'problems'}
-              onClick={() => setView('problems')}
+              onClick={() => showView('problems')}
             >
               {f.issues.viewProblems}
             </button>
@@ -264,15 +276,21 @@ export function IssuesScreen(props: {
               type="button"
               className="segmented__option"
               aria-pressed={view === 'all'}
-              onClick={() => setView('all')}
+              onClick={() => showView('all')}
             >
               {f.issues.viewAll}
             </button>
           </div>
         )}
       </div>
+      {/* The chips are the first thing read on every row, and "Low" and
+          "Medium" are relative words with nothing to be relative to. The four
+          meanings are listed once, in the order the chips rank. */}
       <p className="muted issue-severity-legend">
-        <strong>{t.severityLegendTerm}</strong> {t.severityLegendBody}
+        <strong>{t.severityLegendTerm}</strong> {t.severityLegendBody}{' '}
+        {SEVERITY_OPTIONS.map(
+          (level) => `${f.severity[level] ?? level} — ${f.severityMeaning[level] ?? ''}`,
+        ).join(' · ')}
       </p>
       {showProblems ? (
         <IssueProblems summary={summary} language={props.language} onOpen={openProblem} />
@@ -317,18 +335,20 @@ export function IssuesScreen(props: {
             />
           </div>
           {filters.ruleId === '' ? null : (
-            <div className="issue-rule-filter">
-              {/* The owner's name first; the technical one beside it is the name
-                  the report's "Fix these first" link used, so the owner still
-                  recognises what they clicked. */}
-              <strong>
-                {f.issues.problemFilter(problemTitle(filters.ruleId, props.language))}
-              </strong>
-              {hasFindingExplainer(filters.ruleId) ? (
-                <span className="muted">{ruleTitle(filters.ruleId, props.language)}</span>
-              ) : null}
-              <Button onClick={showAllProblems}>{f.issues.clearProblem}</Button>
-            </div>
+            <>
+              <div className="issue-rule-filter">
+                {/* What the list below is, and the way out of it. The problem's
+                    own name is not here but on the heading under it, and said
+                    twice one line apart it read as two problems. */}
+                <strong>{f.issues.problemFilter}</strong>
+                <Button onClick={showAllProblems}>{f.issues.clearProblem}</Button>
+              </div>
+              {/* The name of the problem that is open, said once for the whole
+                  screen. The table used to carry it, so a filter that left the
+                  list empty — and the skeleton before the list arrived — showed
+                  "Showing one problem only" with nothing naming the problem. */}
+              <h3 className="issue-group-title">{problemTitle(filters.ruleId, props.language)}</h3>
+            </>
           )}
           {loading ? (
             <SkeletonRows rows={3} />
@@ -365,6 +385,7 @@ export function IssuesScreen(props: {
               <IssueTable
                 issues={issues}
                 language={props.language}
+                soleRuleId={filters.ruleId === '' ? null : filters.ruleId}
                 selectedIssue={selectedIssue}
                 onSelect={setSelectedIssue}
                 onStatus={(issue, status) => void update(issue, status)}

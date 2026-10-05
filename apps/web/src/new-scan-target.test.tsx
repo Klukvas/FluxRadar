@@ -211,7 +211,7 @@ describe('new scan requires a saved profile', () => {
 // before every launch, so one run's confirmation became every later run's
 // default. The stored value is kept; the form never restores the confirmation.
 describe('a robots.txt override restored from saved settings', () => {
-  const overrideBox = { name: /I confirm the robots\.txt override/ };
+  const overrideBox = { name: /Yes, read the pages robots\.txt asks crawlers to skip/ };
   const overriddenScope = {
     includeSubdomains: false,
     maxDepth: 31,
@@ -259,21 +259,28 @@ describe('a robots.txt override restored from saved settings', () => {
     const confirmation = await screen.findByRole('checkbox', overrideBox);
     expect(confirmation).not.toBeChecked();
     const warning = screen.getByText(/This scan will ignore robots\.txt/);
-    expect(warning).toHaveTextContent(/confirm it again before launching/);
+    expect(warning).toHaveTextContent(/not from anything you chose just now/);
     expect(screen.getByRole('button', { name: 'Run internal scan' })).toBeDisabled();
     // The box is read with the warning and with the reason the button is held.
     const describedBy = confirmation.getAttribute('aria-describedby')?.split(' ') ?? [];
     expect(describedBy).toContain(warning.id);
     expect(describedBy).toContain('launch-blocked');
+    // Warning, tick and reason are all in the launch column beside the button,
+    // not inside the folded crawl settings the tick used to live in.
+    const actions = screen
+      .getByRole('button', { name: 'Run internal scan' })
+      .closest('.launch-form__actions');
+    expect(actions).toContainElement(confirmation);
+    expect(actions).toContainElement(warning);
     // The block holding the setting opens by itself, with the depth nobody chose in view.
     expect(screen.getByLabelText(/^Maximum crawl depth/)).toBeVisible();
     expect(screen.getByLabelText(/^Maximum crawl depth/)).toHaveValue(31);
 
     fireEvent.click(confirmation);
     expect(screen.getByText(/This scan will ignore robots\.txt/)).not.toHaveTextContent(
-      /confirm it again/,
+      /not from anything you chose just now/,
     );
-    expect(confirmation).toHaveAttribute('aria-describedby', 'robots-info-description');
+    expect(confirmation).toHaveAttribute('aria-describedby', 'robots-override-warning');
     const launch = screen.getByRole('button', { name: 'Run internal scan' });
     expect(launch).toBeEnabled();
     fireEvent.click(launch);
@@ -387,6 +394,68 @@ describe('a robots.txt override restored from saved settings', () => {
         ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH',
       ),
     ).toBe(false);
+  });
+});
+
+// The note over the carried-over crawl settings says two things: where the
+// values came from, and that the block is open because some of them differ
+// from the safe default. The second half is only true where one of them does —
+// a profile whose saved settings hold nothing but defaults carries them all the
+// same, and whoever unfolds the block there by hand would be read a reason that
+// never happened.
+describe('the note over carried-over crawl settings', () => {
+  const CARRIED = /came from this site’s saved settings/;
+  const defaultsProfile = {
+    ...profile,
+    scanConfigVersion: 2,
+    scanConfig: {
+      plan: 'Complete' as const,
+      scope: {
+        includeSubdomains: false,
+        maxDepth: 5,
+        renderJs: true,
+        queryPolicy: 'ignore' as const,
+        respectRobots: true,
+        robotsOverrideConfirmed: false,
+        userAgent: 'desktop' as const,
+      },
+    },
+  };
+  function internalWith(saved: object) {
+    return (path: string, init?: RequestInit): Response =>
+      path === '/auth/me'
+        ? envelope({ ...account, internalFreeAccess: true })
+        : workspace([saved])(path, init);
+  }
+
+  it('says where a value nobody chose on this screen came from', async () => {
+    renderNewScan(internalWith(configuredProfile));
+    await screen.findByText('New scan — scope and tariff');
+
+    // The saved mobile user agent and depth 6 open the block by themselves.
+    expect(await screen.findByText(CARRIED)).toBeVisible();
+    expect(screen.getByLabelText(/^User agent/)).toBeVisible();
+  });
+
+  it('says nothing when the saved settings hold the safe defaults', async () => {
+    renderNewScan(internalWith(defaultsProfile));
+    await screen.findByText('New scan — scope and tariff');
+    await waitFor(() => expect(screen.getByText('Saved · version 2')).toBeInTheDocument());
+
+    // Carried over all the same — the settings came from the profile — but
+    // none of them differs, so nothing opened the block.
+    expect(screen.getByLabelText(/^User agent/)).not.toBeVisible();
+    expect(screen.queryByText(CARRIED)).toBeNull();
+
+    // Opened by hand, the block still has no reason to explain: the owner's
+    // own click is why it is open.
+    const block = screen
+      .getByText('For experienced users')
+      .closest('details') as HTMLDetailsElement;
+    block.open = true;
+    fireEvent(block, new Event('toggle'));
+    expect(screen.getByLabelText(/^User agent/)).toBeVisible();
+    expect(screen.queryByText(CARRIED)).toBeNull();
   });
 });
 

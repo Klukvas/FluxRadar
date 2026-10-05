@@ -6,10 +6,16 @@
 // shared file is already far past the size anyone can review, and these screens
 // are read together.
 
-import type { Language } from './i18n';
+import { takesUkSingular, type Language } from './i18n';
 
 export type FindingsCopy = {
   readonly severity: Readonly<Record<string, string>>;
+  /**
+   * What each level means in terms of what to do about it. "Low" and "Medium"
+   * are relative words with nothing to be relative to, and the chips are the
+   * first thing read on every row.
+   */
+  readonly severityMeaning: Readonly<Record<string, string>>;
   readonly status: Readonly<Record<string, string>>;
   readonly issues: {
     readonly lead: string;
@@ -23,7 +29,12 @@ export type FindingsCopy = {
     readonly statusFilter: string;
     readonly any: string;
     readonly openOnly: string;
-    readonly problemFilter: (title: string) => string;
+    /**
+     * That the list below is one problem's, not the whole report's. The problem
+     * itself is named by the heading over the table (`IssueTable`) and nowhere
+     * else: said here too, it was the same sentence twice, one line apart.
+     */
+    readonly problemFilter: string;
     readonly clearProblem: string;
     readonly showing: (shown: number, total: number) => string;
     readonly loadMore: (count: number) => string;
@@ -55,8 +66,16 @@ export type FindingsCopy = {
     readonly breakdownPagesSoFar: (pages: number) => string;
     readonly breakdownVariants: string;
     readonly breakdownSame: string;
-    readonly variantFindings: (count: number) => string;
-    readonly variantsMore: (count: number) => string;
+    /**
+     * How many pages recorded one piece of evidence, said as a lead-in to the
+     * list of those pages. "<evidence> — 3 findings" was read as a statement
+     * about the address inside the evidence; the pages themselves are what the
+     * line is actually about, so they are named.
+     */
+    readonly variantPages: (count: number) => string;
+    /** Reveals the rest of a list rather than ending it with "…and 1 more". */
+    readonly showAll: (count: number) => string;
+    readonly showFewer: string;
     readonly summaryLine: (open: number, groups: number) => string;
     readonly summaryNone: string;
     readonly statusUpdated: string;
@@ -65,6 +84,16 @@ export type FindingsCopy = {
   readonly task: {
     readonly copy: string;
     readonly copyFor: (title: string) => string;
+    /** What the button copies and who it is meant for, beside the button. */
+    readonly explains: (problem: string, pages: number) => string;
+    /**
+     * The same where the page count is a lower bound — part of the list is
+     * loaded and no summary says how far the problem reaches, so the message
+     * itself hedges too (`whereAtLeast`).
+     */
+    readonly explainsAtLeast: (problem: string, pages: number) => string;
+    /** The same, for a rule whose findings are not one per page. */
+    readonly explainsCount: (problem: string, findings: number) => string;
     readonly copied: string;
     readonly failed: string;
     readonly textLabel: string;
@@ -176,16 +205,35 @@ export type FindingsCopy = {
 const enPages = (count: number): string => (count === 1 ? 'page' : 'pages');
 const enFindings = (count: number): string => (count === 1 ? 'finding' : 'findings');
 
-/** Ukrainian numerals end in 1 (but not 11) take the singular: «на 21 сторінці». */
-const takesUkSingular = (count: number): boolean => count % 10 === 1 && count % 100 !== 11;
 /** Locative, after «на»: «на 1 сторінці», «на 61 сторінці», «на 5 сторінках». */
 const ukPagesOn = (count: number): string => (takesUkSingular(count) ? 'сторінці' : 'сторінках');
 /** Genitive, after «з»: «з 21 сторінки», «з 59 сторінок». */
 const ukPagesOf = (count: number): string => (takesUkSingular(count) ? 'сторінки' : 'сторінок');
+/**
+ * Accusative, as the direct object of a verb: «копіює 1 сторінку», «2
+ * сторінки», «5 сторінок».
+ *
+ * Three forms, not two: 2–4 take «сторінки» where 5 and up take «сторінок»,
+ * and the teens are the exception to both — 11–14 are «сторінок» however they
+ * end, while 21 is «сторінку» again.
+ */
+export const ukPagesAccusative = (count: number): string => {
+  const teens = Math.abs(count) % 100;
+  if (teens >= 11 && teens <= 14) return 'сторінок';
+  const last = Math.abs(count) % 10;
+  if (last === 1) return 'сторінку';
+  return last >= 2 && last <= 4 ? 'сторінки' : 'сторінок';
+};
 
 export const findingsCopy: Record<Language, FindingsCopy> = {
   en: {
     severity: { Critical: 'Critical', High: 'High', Medium: 'Medium', Low: 'Low' },
+    severityMeaning: {
+      Critical: 'deal with it first',
+      High: 'fix it soon',
+      Medium: 'worth fixing',
+      Low: 'can wait',
+    },
     status: {
       New: 'New',
       Acknowledged: 'Acknowledged',
@@ -200,14 +248,14 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       viewProblems: 'Problems',
       viewAll: 'Every finding',
       searchLabel: 'Search',
-      searchPlaceholder: 'page URL, rule or evidence',
+      searchPlaceholder: 'part of a page address, or a word from the finding',
       severityFilter: 'Severity',
       moduleFilter: 'Section',
       statusFilter: 'Status',
       any: 'Any',
       openOnly: 'Open',
-      problemFilter: (title) => `Problem: ${title}`,
-      clearProblem: 'Show every problem',
+      problemFilter: 'Showing one problem only',
+      clearProblem: 'Back to all problems',
       showing: (shown, total) => `Showing ${shown} of ${total}`,
       loadMore: (count) => `Show ${count} more`,
       loadingMore: 'Loading…',
@@ -240,10 +288,12 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
         `These findings are on ${pages} ${pages === 1 ? 'page' : 'pages'}.`,
       breakdownPagesSoFar: (pages) =>
         `${pages} ${pages === 1 ? 'page' : 'pages'} in the findings loaded so far — load the rest to count every page.`,
-      breakdownVariants: 'What differs between pages',
+      breakdownVariants: 'What we found, and on which pages',
       breakdownSame: 'Every finding loaded here recorded the same evidence.',
-      variantFindings: (count) => `${count} ${count === 1 ? 'finding' : 'findings'}`,
-      variantsMore: (count) => `…and ${count} more`,
+      variantPages: (count) =>
+        count === 1 ? 'On this page:' : `On these ${count} ${enPages(count)}:`,
+      showAll: (count) => `Show all ${count}`,
+      showFewer: 'Show fewer',
       summaryLine: (open, groups) =>
         `${open} open ${open === 1 ? 'finding' : 'findings'} across ${groups} ${groups === 1 ? 'problem' : 'problems'}.`,
       summaryNone: 'Nothing is left open in this report.',
@@ -253,6 +303,15 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       copy: 'Copy task for developer',
       copyFor: (title) => `Copy task for developer: ${title}`,
       copied: 'Task copied. Paste it into a message to your developer.',
+      // What the button copies and who it is for. "Copy task for developer"
+      // said neither, so it was read as copying one row, or as a thing only a
+      // developer could press.
+      explains: (problem, pages) =>
+        `Copies this one problem — ${problem} — and the ${pages} ${enPages(pages)} it was found on, as a message you can paste. Send it to whoever builds or looks after your site.`,
+      explainsAtLeast: (problem, pages) =>
+        `Copies this one problem — ${problem} — and at least the ${pages} ${enPages(pages)} it has been found on so far, as a message you can paste. Send it to whoever builds or looks after your site.`,
+      explainsCount: (problem, findings) =>
+        `Copies this one problem — ${problem} — and its ${findings} open ${enFindings(findings)}, as a message you can paste. Send it to whoever builds or looks after your site.`,
       failed:
         'The task could not be copied automatically. Select the text below and copy it yourself.',
       textLabel: 'Task for your developer',
@@ -367,6 +426,12 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
   },
   uk: {
     severity: { Critical: 'Критична', High: 'Висока', Medium: 'Середня', Low: 'Низька' },
+    severityMeaning: {
+      Critical: 'беріться першою',
+      High: 'виправте найближчим часом',
+      Medium: 'варто виправити',
+      Low: 'може почекати',
+    },
     status: {
       New: 'Нова',
       Acknowledged: 'Прийнята',
@@ -381,14 +446,14 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       viewProblems: 'Проблеми',
       viewAll: 'Усі знахідки',
       searchLabel: 'Пошук',
-      searchPlaceholder: 'URL сторінки, правило чи доказ',
+      searchPlaceholder: 'частина адреси сторінки або слово зі знахідки',
       severityFilter: 'Критичність',
       moduleFilter: 'Розділ',
       statusFilter: 'Статус',
       any: 'Будь-яка',
       openOnly: 'Відкриті',
-      problemFilter: (title) => `Проблема: ${title}`,
-      clearProblem: 'Показати всі проблеми',
+      problemFilter: 'Показано лише одну проблему',
+      clearProblem: 'Назад до всіх проблем',
       showing: (shown, total) => `Показано ${shown} з ${total}`,
       loadMore: (count) => `Показати ще ${count}`,
       loadingMore: 'Завантаження…',
@@ -418,10 +483,19 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       breakdownPages: (pages) => `Сторінок із цими знахідками: ${pages}.`,
       breakdownPagesSoFar: (pages) =>
         `Сторінок серед завантажених знахідок: ${pages} — завантажте решту, щоб порахувати всі.`,
-      breakdownVariants: 'Чим відрізняються сторінки',
+      breakdownVariants: 'Що ми знайшли і на яких сторінках',
       breakdownSame: 'Усі завантажені тут знахідки мають однаковий записаний доказ.',
-      variantFindings: (count) => `знахідок: ${count}`,
-      variantsMore: (count) => `…і ще ${count}`,
+      // «цих» is plural, and a numeral ending in 1 takes the singular noun
+      // («на 21 сторінці»), so the demonstrative is dropped wherever the noun
+      // goes singular rather than agreeing with nothing.
+      variantPages: (count) =>
+        count === 1
+          ? 'На цій сторінці:'
+          : takesUkSingular(count)
+            ? `На ${count} ${ukPagesOn(count)}:`
+            : `На цих ${count} ${ukPagesOn(count)}:`,
+      showAll: (count) => `Показати всі (${count})`,
+      showFewer: 'Показати менше',
       summaryLine: (open, groups) => `Відкритих знахідок: ${open}, проблем: ${groups}.`,
       summaryNone: 'У цьому звіті нічого не лишилося відкритим.',
       statusUpdated: 'Статус збережено.',
@@ -430,6 +504,12 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       copy: 'Скопіювати завдання для розробника',
       copyFor: (title) => `Скопіювати завдання для розробника: ${title}`,
       copied: 'Завдання скопійовано. Вставте його в повідомлення розробнику.',
+      explains: (problem, pages) =>
+        `Копіює цю одну проблему — ${problem} — і ${pages} ${ukPagesAccusative(pages)}, де її знайдено, як повідомлення, яке можна вставити. Надішліть його тому, хто робить ваш сайт або доглядає за ним.`,
+      explainsAtLeast: (problem, pages) =>
+        `Копіює цю одну проблему — ${problem} — і щонайменше ${pages} ${ukPagesAccusative(pages)}, де її вже знайдено, як повідомлення, яке можна вставити. Надішліть його тому, хто робить ваш сайт або доглядає за ним.`,
+      explainsCount: (problem, findings) =>
+        `Копіює цю одну проблему — ${problem} — і її відкриті знахідки (${findings}) як повідомлення, яке можна вставити. Надішліть його тому, хто робить ваш сайт або доглядає за ним.`,
       failed:
         'Не вдалося скопіювати завдання автоматично. Виділіть текст нижче й скопіюйте його самостійно.',
       textLabel: 'Завдання для вашого розробника',

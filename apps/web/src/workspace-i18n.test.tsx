@@ -263,8 +263,8 @@ describe('the report score area in Ukrainian', () => {
     expect(screen.queryByText('score-v1')).not.toBeInTheDocument();
     // The word under the number is the one the report's own legend uses.
     expect(screen.getAllByText(copy.uk.report.helpScoreTerm).length).toBeGreaterThan(0);
-    expect(screen.getByText('покриття 100%')).toBeInTheDocument();
-    expect(screen.queryByText('coverage 100%')).not.toBeInTheDocument();
+    expect(screen.getByText('виконано 100% перевірок')).toBeInTheDocument();
+    expect(screen.queryByText('100% of the checks were done')).not.toBeInTheDocument();
   });
 
   it('gives the dial an accessible name in the reader’s language', async () => {

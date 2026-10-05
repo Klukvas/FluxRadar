@@ -218,7 +218,7 @@ describe('an email confirmation link opened in a signed-in browser', () => {
 
     const banner = (
       await screen.findByText(
-        'Confirm your email at owner@example.com. Check your inbox or request a new confirmation link.',
+        'Confirm your email at owner@example.com. Letters about your payments, and the link that resets a forgotten password, go only there. Check your inbox or ask for a new link.',
       )
     ).closest('div');
     if (banner === null) throw new Error('expected the banner');
@@ -249,7 +249,7 @@ describe('an email confirmation link opened in a signed-in browser', () => {
 
     expect(
       await screen.findByText(
-        'Confirm your email: we sent a link to owner@example.com. Payment and password emails go there.',
+        'Confirm your email: we sent a link to owner@example.com. Letters about your payments, and the link that resets a forgotten password, go only there — confirming is how we know the address works.',
       ),
     ).toBeInTheDocument();
   });
@@ -405,11 +405,11 @@ describe('a Free report', () => {
         ),
       ).toBe(true),
     );
-    expect(
-      await screen.findByText(
-        'Problem: Page summary for search results is missing or the wrong length',
-      ),
-    ).toBeInTheDocument();
+    // The Issue Center opened on that one problem. Its name is the heading over
+    // the addresses (`IssueTable`), so this line only says what the list is —
+    // said here too, the name stood twice on the screen, one line apart.
+    expect(await screen.findByText('Showing one problem only')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to all problems' })).toBeInTheDocument();
   });
 
   it('offers the paid scan of the same site on the plan that reads it all', async () => {

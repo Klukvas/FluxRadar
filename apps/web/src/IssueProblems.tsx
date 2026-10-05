@@ -8,8 +8,8 @@
 
 import type { IssueSummary } from './api';
 import { Button, DataTable, EmptyState, StatusChip } from './components';
-import { findingCountsPages, problemTechnicalName, problemTitle } from './finding-explainers';
-import { FindingExplainer } from './FindingExplainer';
+import { findingCountsPages, problemSupportCode, problemTitle } from './finding-explainers';
+import { FindingExplainer, FindingWhat } from './FindingExplainer';
 import { findingsCopy } from './findings-copy';
 import { copy, type Language } from './i18n';
 import { moduleLabel } from './rule-titles';
@@ -41,6 +41,7 @@ export function IssueProblems(props: {
           // Said in pages only where one finding is one page: a cookie or a
           // broken link counted as a page would overstate the reach.
           const countsPages = findingCountsPages(group.ruleId);
+          const supportCode = problemSupportCode(group.ruleId, props.language);
           return (
             <tr
               // One row per rule, per section — the same identity the API now
@@ -56,12 +57,35 @@ export function IssueProblems(props: {
               <td data-label={f.issues.columnProblem}>
                 <strong className="issue-title">{title}</strong>
                 <br />
-                <span className="muted technical">
-                  {problemTechnicalName(group.ruleId, props.language)} ·{' '}
+                {/* The section, plus the rule id for a rule with no plain
+                    name of its own. What used to be here as well was the
+                    rule's technical title — "Page held by a single internal
+                    link" under "Pages only one other page links to" — the same
+                    problem in the developer's words, read as a second problem.
+                    It lives in the finding's technical fold now; the bare id
+                    stays, because for an unexplained rule it restates nothing
+                    and is what support is asked about. */}
+                <span className="muted">
                   {moduleLabel(group.module, props.language)}
+                  {supportCode === null ? null : (
+                    <>
+                      {' · '}
+                      <span className="technical">{supportCode}</span>
+                    </>
+                  )}
                 </span>
-                {/* Folded: the row has to stay one row per problem. */}
-                <FindingExplainer ruleId={group.ruleId} language={props.language} />
+                {/* What the check found, said on the row: the fold below is
+                    the rest of the explanation, and a row whose only readable
+                    part was its name made understanding the list a click per
+                    problem. */}
+                <FindingWhat ruleId={group.ruleId} language={props.language} />
+                {/* Why it matters, what to do and what one finding counts stay
+                    folded: the row has to stay one row per problem. */}
+                <FindingExplainer
+                  ruleId={group.ruleId}
+                  language={props.language}
+                  withWhat={false}
+                />
               </td>
               <td data-label={f.issues.columnPages}>
                 {settled

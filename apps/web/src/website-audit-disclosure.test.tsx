@@ -101,6 +101,23 @@ describe('the AI processing notice, per plan', () => {
     // The two promises the GEO notice makes and this one must keep.
     expect(uxOnly).toMatch(/Google\/Bing/);
   });
+
+  // The plain summary over each notice has to count the same recipients the
+  // notice does. It used to say "an AI helper" on a plan whose disclosure names
+  // two providers, which is the one thing a summary of a consent notice may
+  // never do.
+  it.each(['en', 'uk'] as const)('counts the recipients the %s notice names', (language) => {
+    const t = copy[language].newScan;
+    expect(t.aiConsentSummary).toMatch(/Anthropic/);
+    expect(t.aiConsentSummary).toMatch(/OpenAI/);
+    expect(t.aiConsentBody).toMatch(/OpenAI/);
+
+    // The UX-only plans send to one provider and offer no optional recipient,
+    // so its summary names that one and nobody else.
+    expect(t.aiConsentSummaryUxOnly).toMatch(/Anthropic/);
+    expect(t.aiConsentSummaryUxOnly).not.toMatch(/OpenAI/);
+    expect(t.aiConsentBodyUxOnly).not.toMatch(/OpenAI/);
+  });
 });
 
 // The optional recipients, on the screen and in the request.

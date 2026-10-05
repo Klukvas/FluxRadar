@@ -1,6 +1,5 @@
 import { Checkbox, Field, SelectField, TextAreaField } from './components';
 import { EgressLocationField } from './EgressLocationField';
-import { ROBOTS_OVERRIDE_WARNING_ID } from './LaunchSummary';
 import { ScanCallout } from './ScanCallout';
 import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
@@ -22,7 +21,8 @@ import type { ScanScopeForm } from './scan-scope';
 export function ExpertSettings(props: { form: NewScanForm; language: Language }) {
   const t = copy[props.language];
   const c = newScanCopy[props.language];
-  const { expertOpen, launchConfig, paidScopeControls, scope } = props.form;
+  const { carriedOver, expertConfigured, expertOpen, launchConfig, paidScopeControls } = props.form;
+  const { scope } = props.form;
   const { egressLocation, toggleExpert, updateScope } = props.form;
   return (
     <details
@@ -33,6 +33,15 @@ export function ExpertSettings(props: { form: NewScanForm; language: Language })
       <summary className="scan-advanced__summary scan-expert__summary">{c.expertTitle}</summary>
       <div className="scan-advanced__fields">
         <p className="muted panel-help">{c.expertLead}</p>
+        {/* A box the owner never ticked, ticked: say where the value came from
+            rather than leaving them to assume they did it. Only where one of
+            the values actually differs from the default, because the sentence
+            says that is why the block is open — and whoever unfolded it
+            themselves over nothing but defaults would be read a reason that
+            is not true. */}
+        {carriedOver && expertConfigured ? (
+          <p className="muted panel-help">{c.expertCarriedOver}</p>
+        ) : null}
         {paidScopeControls ? (
           <div>
             <Checkbox
@@ -119,14 +128,7 @@ function CrawlLimits(props: { form: NewScanForm; language: Language }) {
 function RenderAndRobots(props: { form: NewScanForm; language: Language }) {
   const t = copy[props.language];
   const c = newScanCopy[props.language];
-  const { robotsOverrideStale, scope, updateScope } = props.form;
-  // While a saved override waits to be confirmed again, the box is also read
-  // with the summary's warning and with the reason the button is held — the
-  // two say why it is unticked. Otherwise it keeps the one description
-  // free-scan-controls.test.tsx pins.
-  const overrideDescribedBy = robotsOverrideStale
-    ? `robots-info-description ${ROBOTS_OVERRIDE_WARNING_ID} launch-blocked`
-    : 'robots-info-description';
+  const { scope, updateScope } = props.form;
   return (
     <>
       {/* Rendering is a real browser per scan, so it is a decision, not a
@@ -176,17 +178,9 @@ function RenderAndRobots(props: { form: NewScanForm; language: Language }) {
         />
         <p className="muted panel-help">{c.hints.robots}</p>
       </div>
-      {/* Ticked only by a confirmation given on this screen: a saved profile's
-          is never restored (scopeFormFromProfileConfig). */}
-      {scope.respectRobots ? null : (
-        <Checkbox
-          label={t.newScan.labelRobotsOverride}
-          name="scan-robots-override"
-          checked={scope.robotsOverrideConfirmed}
-          describedBy={overrideDescribedBy}
-          onChange={(checked) => updateScope({ robotsOverrideConfirmed: checked })}
-        />
-      )}
+      {/* The tick that lets one scan read the skipped pages is NOT here: it
+          sits beside the button it blocks (RobotsConfirmation), because this
+          block is folded by default and on a phone it is screens away. */}
     </>
   );
 }

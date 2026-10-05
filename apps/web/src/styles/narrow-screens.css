@@ -12,15 +12,32 @@
   /* ─── "Confirm your email" ────────────────────────────────────────────── */
 
   /* Was a sentence plus two buttons wrapping into about a quarter of a phone
-     screen on every workspace page. Now one row: a short line, then the
-     buttons. The full sentence stays in the DOM for screen readers. */
+     screen on every workspace page. Now a short line and the buttons beside it,
+     one row wherever they fit. The full sentence stays in the DOM for screen
+     readers.
+
+     Held on one row they did not always fit: in Ukrainian «Надіслати ще раз»
+     and «Сховати до наступного візиту» need 364px side by side, against the
+     357px inside a 375px screen, and `nowrap` turned that into 14px of
+     sideways scroll on every workspace page. The buttons drop under the line
+     instead — the line itself stays the compact one-liner. */
   .verify-banner {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: var(--sp-2);
     padding: var(--sp-1) var(--sp-2);
   }
+  /* The basis has to be a real width, not 0. Flex breaks a line on the items'
+     hypothetical sizes, so a 0-basis paragraph always fitted beside the button
+     row and was then handed whatever was left: 46px inside a 360px screen,
+     61px inside 375px, which `-webkit-line-clamp: 2` cut to "Confirm / your…".
+     At about twelve characters the paragraph no longer fits beside the row on a
+     phone, so the buttons drop under it — the way the longer Ukrainian labels
+     already made them — and the short line gets the whole width. Fourteen and
+     not twelve: the basis also has to fit the longest unbreakable two-word
+     start of these short lines, "The confirmation" at about 12.3ch, and 14ch
+     leaves margin for other phone fonts. */
   .verify-banner p {
-    flex: 1 1 0;
+    flex: 1 1 14ch;
     min-width: 0;
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -41,8 +58,11 @@
     display: inline;
   }
   .verify-banner .button-row {
-    flex-wrap: nowrap;
-    flex: 0 0 auto;
+    /* It may shrink, so its own wrap can put the second label on a line of its
+       own; it may not grow, or it would take the width the short line needs
+       beside it where both labels do fit. */
+    flex-wrap: wrap;
+    flex: 0 1 auto;
   }
 
   /* ─── Touch targets ───────────────────────────────────────────────────── */
@@ -57,7 +77,10 @@
   .segmented .segmented__option,
   .issue-rule-filter .button,
   .issues-more .button,
-  .issue-detail .button,
+  /* The open finding has no button of its own any more — one control closes it,
+     and it is the row's, covered by the data-table scope below. What is here
+     instead is the breakdown's "Show all", which reveals the rest of a list. */
+  .problem-breakdown .button,
   .data-table .button,
   .data-table .control {
     min-height: 40px;

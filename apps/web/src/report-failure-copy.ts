@@ -129,7 +129,42 @@ export function nothingWasChecked(
  * so it is drawn by the component rather than stored as one sentence.
  */
 export type SiteFailureStep =
-  'checkInBrowser' | 'allowCrawler' | 'allowInRobots' | 'runAgain' | 'runAgainAfterChange';
+  | 'checkInBrowser'
+  | 'opensInBrowser'
+  | 'allowCrawler'
+  | 'allowInRobots'
+  | 'runAgain'
+  | 'runAgainAfterChange';
+
+/**
+ * The classes of HTTP answer this block has a plain sentence for.
+ *
+ * Grouped by what the owner would do about it, not by the numeric range: 404
+ * and 410 are both "no such page" but 410 is the site saying it on purpose, and
+ * a 401 asking for a login is a different job from a 403 refusing outright.
+ */
+export type StatusClass =
+  | 'gone'
+  | 'notFound'
+  | 'needsLogin'
+  | 'refused'
+  | 'tooManyRequests'
+  | 'legal'
+  | 'serverError'
+  | 'answeredNotAPage';
+
+/** Which sentence one status gets, or null for a status with nothing to add. */
+export function statusClassOf(status: number): StatusClass | null {
+  if (status === 410) return 'gone';
+  if (status === 404) return 'notFound';
+  if (status === 401 || status === 407) return 'needsLogin';
+  if (status === 429) return 'tooManyRequests';
+  if (status === 451) return 'legal';
+  if (status === 403 || status === 406) return 'refused';
+  if (status >= 500) return 'serverError';
+  if (status >= 200 && status < 300) return 'answeredNotAPage';
+  return null;
+}
 
 /** The causes and steps that fit one kind of failure — never a list that contradicts it. */
 export interface SiteFailureGuidance {
@@ -141,26 +176,55 @@ export interface ReportFailureCopy {
   readonly heading: string;
   readonly lead: (domain: string) => string;
   /**
-   * What happens to the money, for a paid plan only. Worded exactly as the
-   * desktop's own unread-site line (desktop-copy.ts), so the two never promise
-   * different things: a refund is recorded, then issued by hand.
+   * What happens to the money, for a paid plan only: it is recorded on its own,
+   * then issued by hand. It ends on the same clause as the desktop's own
+   * unread-site line (desktop-copy.ts), so the two can never promise different
+   * things — Report.unread.test.tsx holds the clause and pins both sentences
+   * against it.
+   *
+   * The report does not say "you paid" instead of "if this check was paid
+   * for": nothing it can read proves money changed hands. A paid plan on an
+   * ordinary account is bought through the provider, and while the provider is
+   * in test mode the checkout itself says nothing is taken from the card.
    */
   readonly paidNotDelivered: string;
   readonly whatWeSaw: string;
   readonly kinds: Readonly<Record<SiteReadFailureKind, string>>;
+  /**
+   * What the status the start page answered with means, in words. The number
+   * itself stays in the technical-details line: "HTTP 410" is not a sentence an
+   * owner can act on, and it was the only thing on the block that named the
+   * actual answer.
+   */
+  readonly statusMeanings: Readonly<Record<StatusClass, string>>;
   readonly causesHeading: string;
   readonly guidance: Readonly<Record<SiteReadFailureKind, SiteFailureGuidance>>;
   readonly whatToDoHeading: string;
   readonly checkInBrowser: (domain: string) => string;
+  /**
+   * The case the previous step leaves open and the owner hits most: the site
+   * opens perfectly in their own browser, so they conclude the report is wrong.
+   * It is not — something in front of the site turns away automated visitors
+   * while letting people through — and the crawler page is what to hand to
+   * whoever can allow us.
+   */
+  readonly opensInBrowserBefore: string;
+  /**
+   * Its own link text, not the `crawlerLink` the step below uses: two links to
+   * the same page with the same name in one list read as a repeat rather than
+   * as two things to do.
+   */
+  readonly opensInBrowserLink: string;
+  readonly opensInBrowserAfter: string;
   readonly allowCrawlerBefore: string;
   readonly crawlerLink: string;
   readonly allowCrawlerAfter: string;
   readonly allowInRobotsBefore: string;
   readonly allowInRobotsAfter: string;
   /**
-   * The paid plans' alternative; the Free check has no robots.txt override. It
-   * names the new-scan screen's folded block by that block's own title, so the
-   * two cannot drift apart.
+   * The paid plans' alternative; the Free check cannot skip robots.txt at all.
+   * It names the new-scan screen's folded block by that block's own title, so
+   * the two cannot drift apart.
    */
   readonly robotsOverride: string;
   readonly runAgain: string;
@@ -177,7 +241,12 @@ export interface ReportFailureCopy {
 export const CRAWLER_PAGE_HREF = '/bot';
 
 /** Steps for a failure whose cause the scan could not pin down. */
-const GENERAL_STEPS: readonly SiteFailureStep[] = ['checkInBrowser', 'allowCrawler', 'runAgain'];
+const GENERAL_STEPS: readonly SiteFailureStep[] = [
+  'checkInBrowser',
+  'opensInBrowser',
+  'allowCrawler',
+  'runAgain',
+];
 
 const EN_GENERAL_CAUSES: readonly string[] = [
   'The site answers with an error (for example 404 or 500).',
@@ -213,6 +282,17 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
       'bad-response':
         'Your site answered, but not with a page we could read — for example an error page, or a file instead of a page.',
       unknown: 'We could not read any page of your site, and the scan did not record why.',
+    },
+    statusMeanings: {
+      gone: 'The site answered that this page no longer exists and is not coming back.',
+      notFound: 'The site answered that there is no such page at that address.',
+      needsLogin: 'The site asked for a login or a password before it would show the page.',
+      refused: 'The site refused to show the page to us.',
+      tooManyRequests: 'The site answered that we were asking for pages too often.',
+      legal: 'The site answered that the page is blocked for legal reasons.',
+      serverError: 'The site’s own server reported an error instead of sending the page.',
+      answeredNotAPage:
+        'The site answered normally, but what came back was not a web page we could read.',
     },
     causesHeading: 'Common reasons',
     guidance: {
@@ -253,13 +333,18 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
     whatToDoHeading: 'What to do',
     checkInBrowser: (domain) =>
       `Open ${domain} in a browser and check that the home page loads without a login.`,
+    opensInBrowserBefore:
+      'If it opens perfectly for you, that does not mean this report is wrong: something in front of your site — the hosting, a firewall or a bot-protection service — can let people through and turn automated visitors away. The page',
+    opensInBrowserLink: 'Our crawler',
+    opensInBrowserAfter:
+      'names us and the addresses we come from, so whoever looks after your site can let us in.',
     allowCrawlerBefore:
       'If the site sits behind protection or a firewall (for example Cloudflare), allow our crawler — our',
     crawlerLink: 'crawler page',
     allowCrawlerAfter: 'lists what to allow.',
     allowInRobotsBefore: 'Allow FluxRadarBot in robots.txt — our',
     allowInRobotsAfter: 'has the two lines to paste.',
-    robotsOverride: `Or turn off “Respect robots.txt” under “${newScanCopy.en.expertTitle}” and confirm the override when you start the next scan.`,
+    robotsOverride: `Or turn off “Respect robots.txt” under “${newScanCopy.en.expertTitle}” and, beside the Run button, tick that you want the skipped pages read.`,
     runAgain: 'Run the scan again once the site opens in a browser.',
     runAgainAfterChange: 'Run the scan again after the change.',
     sectionsNotChecked: (names) =>
@@ -291,6 +376,17 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
         'Ваш сайт відповів, але не сторінкою, яку ми могли прочитати, — наприклад, сторінкою помилки або файлом замість сторінки.',
       unknown:
         'Ми не змогли прочитати жодної сторінки вашого сайту, а перевірка не записала, чому.',
+    },
+    statusMeanings: {
+      gone: 'Сайт відповів, що цієї сторінки більше немає й вона не повернеться.',
+      notFound: 'Сайт відповів, що за цією адресою немає такої сторінки.',
+      needsLogin: 'Сайт попросив вхід або пароль, перш ніж показати сторінку.',
+      refused: 'Сайт відмовився показати нам сторінку.',
+      tooManyRequests: 'Сайт відповів, що ми запитуємо сторінки надто часто.',
+      legal: 'Сайт відповів, що сторінку заблоковано з юридичних причин.',
+      serverError: 'Сервер сайту повідомив про помилку замість того, щоб віддати сторінку.',
+      answeredNotAPage:
+        'Сайт відповів нормально, але те, що надійшло, не було вебсторінкою, яку ми могли прочитати.',
     },
     causesHeading: 'Найчастіші причини',
     guidance: {
@@ -329,13 +425,18 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
     whatToDoHeading: 'Що робити',
     checkInBrowser: (domain) =>
       `Відкрийте ${domain} у браузері й переконайтеся, що головна сторінка завантажується без входу.`,
+    opensInBrowserBefore:
+      'Якщо у вас сайт відкривається без проблем, це не означає, що звіт помиляється: те, що стоїть перед сайтом — хостинг, файрвол або сервіс захисту від ботів — може пускати людей і не пускати автоматичних відвідувачів. На сторінці',
+    opensInBrowserLink: 'Про наш краулер',
+    opensInBrowserAfter:
+      'названо нас і адреси, з яких ми приходимо, щоб той, хто доглядає за сайтом, міг нас пустити.',
     allowCrawlerBefore:
       'Якщо сайт стоїть за захистом або файрволом (наприклад, Cloudflare), дозвольте наш краулер. На сторінці',
     crawlerLink: 'Наш краулер',
     allowCrawlerAfter: 'є все, що потрібно дозволити.',
     allowInRobotsBefore: 'Дозвольте FluxRadarBot у robots.txt — на сторінці',
     allowInRobotsAfter: 'є два рядки, які треба вставити.',
-    robotsOverride: `Або вимкніть «Дотримуватись robots.txt» у блоці «${newScanCopy.uk.expertTitle}» й підтвердьте відхилення, коли запускатимете наступну перевірку.`,
+    robotsOverride: `Або вимкніть «Дотримуватись robots.txt» у блоці «${newScanCopy.uk.expertTitle}» і біля кнопки запуску поставте позначку, що хочете прочитати пропущені сторінки.`,
     runAgain: 'Запустіть перевірку ще раз, коли сайт відкриватиметься в браузері.',
     runAgainAfterChange: 'Запустіть перевірку ще раз після змін.',
     sectionsNotChecked: (names) =>

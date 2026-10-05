@@ -8,6 +8,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Issue, IssueSummary, Scan } from './api';
+import { copy } from './i18n';
 import { IssuesScreen } from './Issues';
 
 const SCAN = { id: 'scan-1', domain: 'https://shop.example.com' } as Scan;
@@ -91,17 +92,84 @@ describe('the Issue Center', () => {
 
     const rows = await screen.findAllByRole('row');
     const body = rows.slice(1);
-    // The owner's name first; the technical one the dashboard uses stays beside it.
+    // The owner's name, and only that: the rule's technical title said the same
+    // thing in the developer's words, so the row read as two problems. It lives
+    // in the finding's technical fold now.
     expect(body[0]).toHaveTextContent('Pages do not limit where they load content from');
-    expect(body[0]).toHaveTextContent('Content-Security-Policy is missing or weak');
+    expect(body[0]).not.toHaveTextContent('Content-Security-Policy is missing or weak');
     expect(body[0]).toHaveTextContent('On 1 page');
     expect(body[1]).toHaveTextContent(
       'Page summary for search results is missing or the wrong length',
     );
-    expect(body[1]).toHaveTextContent('Meta description is missing or the wrong length');
+    expect(body[1]).not.toHaveTextContent('Meta description is missing or the wrong length');
     // A count of pages, said as pages — not a bare "57 open of 59".
     expect(body[1]).toHaveTextContent('Open on 57 of 59 pages');
     expect(screen.getByText('58 open findings across 2 problems.')).toBeInTheDocument();
+  });
+
+  // Regression: the grouped layout was inferred from the loaded rows, so an
+  // unfiltered first page that happened to hold one rule lost its Problem
+  // column — and "Show 50 more" bringing a second rule in rebuilt the table
+  // under the reader mid-scroll. It follows the rule filter now, which is the
+  // only thing that makes a list one problem's.
+  it('keeps the Problem column on the unfiltered tab, whatever one page holds', async () => {
+    stubIssues();
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Every finding' }));
+    await screen.findByText('Showing 50 of 60');
+
+    const problem = 'Page summary for search results is missing or the wrong length';
+    // Every loaded row happens to be one rule's; the list is still every finding.
+    expect(screen.getByRole('columnheader', { name: 'Problem' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: problem })).toBeNull();
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    expect(rows[0]).toHaveTextContent(problem);
+  });
+
+  it('names the problem once above the table when the list is filtered to it', async () => {
+    stubIssues();
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
+    const problem = 'Page summary for search results is missing or the wrong length';
+    fireEvent.click(await screen.findByRole('button', { name: `Show findings: ${problem}` }));
+    await screen.findByText('Showing 50 of 60');
+
+    expect(screen.getByRole('heading', { name: problem })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Problem' })).toBeNull();
+  });
+
+  // Regression: the name lived in the table, and the table is drawn neither
+  // while the findings load nor when a filter leaves none — so "Showing one
+  // problem only" stood over a screen that never said which problem.
+  it('names the open problem while it loads and when a filter empties it', async () => {
+    const problem = 'Page summary for search results is missing or the wrong length';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/issues/summary')) return Promise.resolve(json(SUMMARY));
+        const matches = url.searchParams.has('search') ? [] : [issue(1)];
+        return Promise.resolve(json(matches, { total: matches.length, page: 1, limit: 50 }));
+      }),
+    );
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEO-ONPAGE-002" />,
+    );
+
+    // The skeleton stands where the table will be, and the name is already up.
+    expect(screen.getByLabelText('Loading results')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: problem })).toBeInTheDocument();
+
+    // Loaded: said once on the whole screen, as it always was.
+    expect(await screen.findByText('Showing 1 of 1')).toBeInTheDocument();
+    expect(screen.getAllByText(problem)).toHaveLength(1);
+
+    // A search word nothing matches empties the list; the name stays.
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search' }), {
+      target: { value: 'nothing-matches-this' },
+    });
+    expect(await screen.findByText('No issues match this filter')).toBeInTheDocument();
+    expect(screen.getByText('Showing one problem only')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: problem })).toBeInTheDocument();
   });
 
   it('opens one problem onto its findings, filtered by the API', async () => {
@@ -244,7 +312,8 @@ describe('the security problems an owner cannot read from a header name', () => 
     const rows = (await screen.findAllByRole('row')).slice(1);
     expect(rows).toHaveLength(4);
     const csp = nth(rows, 0, 'the CSP problem row');
-    expect(csp).toHaveTextContent('Content-Security-Policy is missing or weak');
+    expect(csp).toHaveTextContent('Pages do not limit where they load content from');
+    expect(csp).not.toHaveTextContent('Content-Security-Policy is missing or weak');
 
     const disclosure = within(csp)
       .getByText('What this means in plain language')
@@ -271,6 +340,51 @@ describe('the security problems an owner cannot read from a header name', () => 
     expect(
       within(csp).getByText(/pages outside this scan’s scope were not read/),
     ).toBeInTheDocument();
+  });
+
+  // The fold was the whole explanation, so a list of problems could only be
+  // read by opening one disclosure per row — which nobody does. The first
+  // sentence is on the row; the rest of the explanation stays folded, because
+  // one row per problem is what makes the list readable at all.
+  it('says what each problem is on the row, without a click', async () => {
+    stubSecurity([]);
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
+
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    const csp = nth(rows, 0, 'the CSP problem row');
+    const sentence = within(csp).getByText(
+      'These pages do not tell the browser which outside sources it may load content from.',
+    );
+    expect(sentence).toBeVisible();
+    expect(sentence.closest('details')).toBeNull();
+
+    // Said once: the fold under it no longer repeats the same sentence.
+    const disclosure = within(csp)
+      .getByText('What this means in plain language')
+      .closest('details');
+    if (disclosure === null) throw new Error('expected the plain-language disclosure');
+    expect(disclosure).not.toHaveAttribute('open');
+    expect(within(csp).queryByText('What the check found')).toBeNull();
+    // Why it matters, what to do and what one finding counts are still in it.
+    expect(within(disclosure).getByText('Why it matters')).toBeInTheDocument();
+    expect(within(disclosure).getByText('What to do')).toBeInTheDocument();
+    expect(within(disclosure).getByText('What one finding is')).toBeInTheDocument();
+    expect(within(disclosure).getByText(/extra safeguard/)).not.toBeVisible();
+  });
+
+  it('says it on the row in Ukrainian too', async () => {
+    stubSecurity([]);
+    render(<IssuesScreen scan={SCAN} language="uk" onError={() => {}} />);
+
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    const csp = nth(rows, 0, 'the CSP problem row');
+    const sentence = within(csp).getByText(
+      'Ці сторінки не повідомляють браузеру, з яких сторонніх джерел йому можна завантажувати вміст.',
+    );
+    expect(sentence).toBeVisible();
+    expect(sentence.closest('details')).toBeNull();
+    expect(within(csp).queryByText('Що знайшла перевірка')).toBeNull();
+    expect(within(csp).getByText('Чому це важливо')).toBeInTheDocument();
   });
 
   it('explains the cookie and header rules too, and leaves other rules alone', async () => {
@@ -334,7 +448,16 @@ describe('the security problems an owner cannot read from a header name', () => 
     );
     expect(await screen.findByText('Showing 1 of 1')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show every problem' }));
+    // The open problem is named once above its addresses, not on every row —
+    // and once on the screen: the filter line above the heading said the same
+    // sentence a second time, one line apart.
+    expect(
+      screen.getByRole('heading', { name: 'Some browser protection settings are off' }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Some browser protection settings are off')).toHaveLength(1);
+    expect(screen.getByText('Showing one problem only')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to all problems' }));
 
     expect(
       await screen.findByRole('button', {
@@ -348,6 +471,30 @@ describe('the security problems an owner cannot read from a header name', () => 
     expect(screen.queryByText('Showing 1 of 1')).not.toBeInTheDocument();
   });
 
+  // Regression: "Every finding" left the open problem's filter on, so the tab
+  // claimed every finding while the list below was still one problem's — with
+  // the "Showing one problem only" block stranded above it.
+  it('means every finding when the tab says so', async () => {
+    stubSecurity([header(1, 'Referrer-Policy')], 1);
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Show findings: Some browser protection settings are off',
+      }),
+    );
+    expect(await screen.findByText('Showing one problem only')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Every finding' }));
+
+    await waitFor(() =>
+      expect(screen.queryByText('Showing one problem only')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: 'Every finding' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
   it('says how many pages the open problem is on and where the pages differ', async () => {
     stubSecurity([
       header(1, 'Referrer-Policy'),
@@ -359,13 +506,20 @@ describe('the security problems an owner cannot read from a header name', () => 
     );
 
     expect(await screen.findByText('These findings are on 3 pages.')).toBeInTheDocument();
-    expect(screen.getByText('What differs between pages')).toBeInTheDocument();
-    const variants = screen.getByRole('list');
-    expect(variants).toHaveTextContent('Referrer-Policy — 2 findings');
-    expect(variants).toHaveTextContent('X-Frame-Options / CSP frame-ancestors — 1 finding');
+    expect(screen.getByText('What we found, and on which pages')).toBeInTheDocument();
+    // "<evidence> — 2 findings" was read as a statement about the address
+    // inside the evidence; the pages it was found on are what the line is
+    // about, so they are named under it.
+    const variants = nth(screen.getAllByRole('list'), 0, 'the evidence list');
+    expect(variants).toHaveTextContent('Referrer-Policy');
+    expect(variants).toHaveTextContent('On these 2 pages:');
+    expect(variants).toHaveTextContent('https://shop.example.com/page-1');
+    expect(variants).toHaveTextContent('https://shop.example.com/page-2');
+    expect(variants).toHaveTextContent('X-Frame-Options / CSP frame-ancestors');
+    expect(variants).toHaveTextContent('On this page:');
     // The drilldown is still per page: every finding keeps its own address,
     // its own status control and its own evidence behind Details.
-    expect(screen.getByText('https://shop.example.com/page-3')).toBeInTheDocument();
+    expect(screen.getAllByText('https://shop.example.com/page-3').length).toBeGreaterThan(0);
     expect(
       screen.getAllByRole('combobox', { name: 'Status: Some browser protection settings are off' }),
     ).toHaveLength(3);
@@ -396,8 +550,22 @@ describe('the security problems an owner cannot read from a header name', () => 
     ).toBeInTheDocument();
     expect(within(technical).getByText('SEC-PASSIVE-002')).toBeInTheDocument();
     expect(within(technical).getByText('Evidence')).toBeInTheDocument();
-    expect(within(technical).getByText('Confidence')).toBeInTheDocument();
-    expect(within(technical).getByText('Impact')).toBeInTheDocument();
+    // Every label here says what its number is: "Impact 61/61 targets · score
+    // -10.00" and "Confidence 100%" were three readings in two rows, in words
+    // an owner does not have. The rule's technical title is here too now.
+    expect(within(technical).getByText('How sure this finding is')).toBeInTheDocument();
+    expect(within(technical).getByText('Pages affected')).toBeInTheDocument();
+    expect(within(technical).getByText('1 of the 1 page checked for this')).toBeInTheDocument();
+    expect(within(technical).getByText('Effect on the score')).toBeInTheDocument();
+    // The fixture's delta is 0, and a finding that moves nothing says so
+    // rather than printing "score 0.00".
+    expect(within(technical).getByText('Does not change the score')).toBeInTheDocument();
+    // The rule's own title, moved off the row above where it restated the
+    // problem's plain name — labelled by what it is, not by the column
+    // header's "Rule", which reads as something the owner broke.
+    expect(within(technical).getByText('What the check is called')).toBeInTheDocument();
+    expect(within(technical).getByText('Security headers are missing')).toBeInTheDocument();
+    expect(within(technical).queryByText('Rule')).toBeNull();
     // The explanation comes before any scoring field.
     const explanation = within(detail).getByText('What the check found');
     expect(
@@ -431,8 +599,8 @@ describe('the security problems an owner cannot read from a header name', () => 
     const evidence = within(detail).getByText('img.hero has no alt text');
     expect(technical).not.toContainElement(evidence);
     expect(within(detail).getByText('Add alt text to meaningful images.')).toBeInTheDocument();
-    expect(within(technical).getByText('Impact')).toBeInTheDocument();
-    expect(within(technical).getByText('Confidence')).toBeInTheDocument();
+    expect(within(technical).getByText('Places affected')).toBeInTheDocument();
+    expect(within(technical).getByText('How sure this finding is')).toBeInTheDocument();
     expect(within(technical).getByText('A11Y-002')).toBeInTheDocument();
   });
 
@@ -687,6 +855,45 @@ describe('copying a task for the developer', () => {
     expect((fallback as HTMLTextAreaElement).value).toContain('Знайдено на 4 сторінках.');
   });
 
+  // Regression: for a rule that reports more than once per page the sentence
+  // counted every loaded row of any status — "its 3 open findings" beside a
+  // message about two — and with a lagging summary the two differed the other
+  // way round. Both numbers are the task's own now.
+  it('counts the findings the message counts, not the rows on screen', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    stubClipboard(writeText);
+    const cookies = [1, 2, 3].map((index) =>
+      issue(index, {
+        ruleId: 'SEC-PASSIVE-005',
+        module: 'Security',
+        status: index === 1 ? 'Ignored' : 'New',
+        targetUrl: 'https://shop.example.com/',
+        evidenceExcerpt: 'Set-Cookie without the Secure attribute',
+        recommendation: 'Send session cookies with Secure, HttpOnly and SameSite.',
+      }),
+    );
+    // No summary, so nothing but the loaded findings can say what is open.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/issues/summary')) {
+          return Promise.resolve(new Response('unavailable', { status: 503 }));
+        }
+        return Promise.resolve(json(cookies, { total: cookies.length, page: 1, limit: 50 }));
+      }),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-PASSIVE-005" />,
+    );
+
+    expect(await screen.findByText(/and its 2 open findings/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Copy task for developer/ }));
+    await screen.findByText('Task copied. Paste it into a message to your developer.');
+    expect(writeText.mock.calls[0]?.[0] ?? '').toContain('2 findings on 1 page.');
+  });
+
   it('is not offered for a slice of the problem narrowed by another filter', async () => {
     stubClipboard(() => Promise.resolve());
     await openProblem();
@@ -813,6 +1020,48 @@ describe('the reach of a developer task', () => {
       screen.queryByRole('button', { name: /^Скопіювати завдання для розробника/ }),
     ).not.toBeInTheDocument();
   });
+
+  // Regression: the sentence beside the button counted the addresses of every
+  // loaded row, settled ones included, over a message about the open ones only.
+  it('says the pages of the work still open, not of every loaded row', async () => {
+    stubProblem({ issues: 4, openIssues: 1 }, [
+      csp(1, 'Ignored'),
+      csp(2, 'False Positive'),
+      csp(3, 'Resolved'),
+      csp(4),
+    ]);
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-ASVS-001" />,
+    );
+
+    expect(await screen.findByText(/and the 1 page it was found on/)).toBeInTheDocument();
+    expect(screen.queryByText(/the 4 pages it was found on/)).not.toBeInTheDocument();
+  });
+
+  // Part of the list, and no summary to say how much more there is: the message
+  // hedges ("At least 1 open finding on 1 page"), so the sentence hedges too.
+  it('hedges the count while only part of the list is loaded', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/issues/summary')) {
+          return Promise.resolve(new Response('unavailable', { status: 503 }));
+        }
+        return Promise.resolve(
+          json([csp(1, 'Ignored'), csp(2)], { total: 61, page: 1, limit: 50 }),
+        );
+      }),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-ASVS-001" />,
+    );
+
+    expect(
+      await screen.findByText(/at least the 1 page it has been found on so far/),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('opening a problem while a search is typed', () => {
@@ -838,5 +1087,35 @@ describe('opening a problem while a search is typed', () => {
     );
     const withProblem = issueQueries(fetchMock).filter((query) => query.has('ruleId'));
     expect(withProblem.every((query) => !query.has('search'))).toBe(true);
+  });
+});
+
+// Inside "Technical details for your developer": how far a finding reaches, as
+// a sentence rather than "Impact 14/59 targets". A rule checked on one page read
+// "1 of the 1 pages checked for this", and the Ukrainian said «з 1 сторінок»,
+// which agrees with nothing.
+describe('how far a finding reaches, in words', () => {
+  it.each([
+    [1, '1 of the 1 page checked for this', '1 з 1 сторінки, перевіреної на це'],
+    [2, '1 of the 2 pages checked for this', '1 з 2 сторінок, перевірених на це'],
+    [5, '1 of the 5 pages checked for this', '1 з 5 сторінок, перевірених на це'],
+    // English pluralises on one alone; a Ukrainian numeral ending in 1 takes the
+    // singular noun again — but 11, a teen, does not.
+    [21, '1 of the 21 pages checked for this', '1 з 21 сторінки, перевіреної на це'],
+    [11, '1 of the 11 pages checked for this', '1 з 11 сторінок, перевірених на це'],
+  ])('counts %i pages', (applicable, en, uk) => {
+    expect(copy.en.issues.impactValue(1, applicable)).toBe(en);
+    expect(copy.uk.issues.impactValue(1, applicable)).toBe(uk);
+  });
+
+  it.each([
+    [1, '1 of the 1 place checked for this', '1 з 1 місця, перевіреного на це'],
+    [2, '1 of the 2 places checked for this', '1 з 2 місць, перевірених на це'],
+    [5, '1 of the 5 places checked for this', '1 з 5 місць, перевірених на це'],
+    [21, '1 of the 21 places checked for this', '1 з 21 місця, перевіреного на це'],
+    [11, '1 of the 11 places checked for this', '1 з 11 місць, перевірених на це'],
+  ])('counts %i places for a rule that is not one per page', (applicable, en, uk) => {
+    expect(copy.en.issues.impactTargetsValue(1, applicable)).toBe(en);
+    expect(copy.uk.issues.impactTargetsValue(1, applicable)).toBe(uk);
   });
 });

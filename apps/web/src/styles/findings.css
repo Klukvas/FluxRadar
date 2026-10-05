@@ -77,6 +77,13 @@
   display: inline-block;
   line-height: 1.35;
 }
+/* One problem's name, said once above its list of addresses. Fourteen rows of
+   the same two-line Problem cell were fourteen readings of one sentence, with
+   the addresses — the only thing that differed — in the narrowest column. */
+.issue-group-title {
+  margin: 0 0 var(--sp-2);
+  font-size: 15px;
+}
 /* A URL is one long word; without this it widens the table past the window. */
 .issue-target {
   overflow-wrap: anywhere;
@@ -88,12 +95,34 @@
   margin: var(--sp-2) 0 0;
 }
 
+/* What the check found, said on the problem row itself. Prose, so it keeps the
+   reading measure of a paragraph; no width of its own, so the cell decides how
+   wide it is, and a long word breaks rather than widening the table. */
+.finding-what {
+  max-width: 68ch;
+  margin: var(--sp-1) 0 0;
+  overflow-wrap: break-word;
+}
 /* The plain-language disclosure: folded in the problem list, open in a finding's
    detail. Prose, so it keeps the reading measure of a paragraph rather than the
    width of the table cell it sits in. */
 .finding-explainer {
   margin-top: var(--sp-2);
   max-width: 68ch;
+}
+/* A stacked row lays every cell out as a 110px label beside its value
+   (base.css). The sentence and the fold under the problem's name are neither,
+   and auto-placement would drop them into the label column: on a 375px screen
+   that is a paragraph two words wide. They take the whole cell.
+
+   The width is base.css's, not a narrower one of its own: between the two the
+   cells were already grids and these two were already in the label column
+   (control-layout.test.tsx pins the pair together). */
+@media (max-width: 699px) {
+  .finding-what,
+  .finding-explainer {
+    grid-column: 1 / -1;
+  }
 }
 .finding-explainer__summary {
   cursor: pointer;
@@ -152,6 +181,26 @@
 .problem-breakdown__variants li {
   overflow-wrap: anywhere;
 }
+.problem-breakdown__variants > li + li {
+  margin-top: var(--sp-2);
+}
+/* "On these 3 pages:" — the lead-in that makes the addresses under it the
+   subject of the line rather than a count hanging off the evidence. */
+.problem-breakdown__on {
+  margin: var(--sp-1) 0 0;
+  font-weight: 700;
+}
+.problem-breakdown__pages-list {
+  margin: 0;
+  padding-left: var(--sp-4);
+  list-style: none;
+}
+.problem-breakdown__pages-list li {
+  overflow-wrap: anywhere;
+}
+.problem-breakdown .button {
+  margin-top: var(--sp-2);
+}
 
 /* The "copy task for developer" button over one open problem, and the text to
    copy by hand when the browser refuses the clipboard. */
@@ -159,6 +208,12 @@
   margin: 0 0 var(--sp-3);
 }
 .developer-task__status {
+  margin: var(--sp-2) 0 0;
+}
+/* What the button copies and who to send it to. Prose, so it keeps a reading
+   measure instead of running the width of the window. */
+.developer-task__explains {
+  max-width: 68ch;
   margin: var(--sp-2) 0 0;
 }
 .developer-task__failed p {

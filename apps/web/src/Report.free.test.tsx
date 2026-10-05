@@ -109,7 +109,7 @@ describe('a report on a plan that is not scored', () => {
     expect(screen.queryByText('No score')).toBeNull();
     // The two sentences the owner read as a failed scan.
     expect(screen.queryByText('Insufficient data')).toBeNull();
-    expect(screen.queryByText(/coverage 0%/)).toBeNull();
+    expect(screen.queryByText(/0% of the checks were done/)).toBeNull();
     // What actually ran, counted rather than expressed as a 0% share of a score
     // this plan never computes. Two elements carry it — the dial and the
     // breadcrumb — so the two cannot drift into disagreeing about the run. The
@@ -301,7 +301,7 @@ describe('a paid report that genuinely could not be measured', () => {
     );
 
     expect((await screen.findAllByText('Insufficient data')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/coverage 20%/).length).toBe(2); // the dial and the breadcrumb
+    expect(screen.getAllByText(/20% of the checks were done/).length).toBe(2); // dial + breadcrumb
     expect(screen.queryByText('Not scored on this plan')).toBeNull();
     // A paid section with no readable result reports the absence and no reason
     // for it; the plan is not what deprived this one of a number.

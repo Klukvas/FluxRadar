@@ -90,6 +90,17 @@ export function fillCopy(
   );
 }
 
+/**
+ * Whether a Ukrainian numeral takes the singular form of the noun after it:
+ * counts ending in 1 do, except the teens — «21 сторінки», but «11 сторінок».
+ *
+ * Only the number; the case comes from the sentence the noun stands in, and
+ * `findings-copy.ts` keeps the locative, genitive and accusative forms it needs.
+ */
+export function takesUkSingular(count: number): boolean {
+  return Math.abs(count) % 10 === 1 && Math.abs(count) % 100 !== 11;
+}
+
 export const copy = {
   en: {
     nav: {
@@ -749,15 +760,26 @@ export const copy = {
         'Off, FluxRadar reads the HTML the server sends. On, it opens each page in a headless browser and reads the DOM once the page’s own scripts have run — which is what a single-page app needs. All browser traffic goes through the same public-address guard as the crawl: GET and HEAD only, no cookies, no downloads and no sockets. If the deployment has no browser runtime the report says so; it never presents the static HTML as a rendered page.',
       advancedTitle: 'Advanced crawl rules',
       labelRespectRobots: 'Respect robots.txt',
-      labelRobotsOverride: 'I confirm the robots.txt override',
       robotsInfoTitle: 'How robots.txt affects this scan',
       robotsInfoMode: 'Safe default',
       robotsInfoBody:
-        'Before crawling, FluxRadar reads the site’s public robots.txt. When “Respect robots.txt” is on, pages disallowed for crawlers are skipped. Turn it off only when you are authorized to inspect those paths; the confirmation below records that choice.',
+        'Before crawling, FluxRadar reads the site’s public robots.txt. When “Respect robots.txt” is on, pages disallowed for crawlers are skipped. Turn it off only when you are authorized to inspect those paths; the tick beside the Run button records that choice for one scan.',
       labelAiConsent:
         'Anthropic and OpenAI answer the included AI checks; only Anthropic also receives public-page evidence',
       aiConsentTitle: 'AI processing included in this audit',
       aiConsentOptional: 'Included',
+      // One sentence for the reader the paragraph below was never written for.
+      // It adds to the disclosure and replaces none of it — and it counts the
+      // recipients the way the paragraph does: this plan's notice names two
+      // providers, so a summary saying "an AI helper" would have the buyer
+      // agree to one.
+      aiConsentSummary:
+        'In short: this report includes two AI services — Anthropic and OpenAI. Both answer questions about how your site is found; only Anthropic also reads the public pages of your site and the details you saved about it. Your password, your card details and your Google or Bing access are never sent to either.',
+      // The UX-only plans run one AI check and send it to one provider
+      // (`aiConsentBodyUxOnly`), and no optional recipient is offered on them,
+      // so this variant names that provider rather than counting to two.
+      aiConsentSummaryUxOnly:
+        'In short: one part of this report — the review of how your pages read to a visitor — is written by one AI service, Anthropic. It reads the public pages of your site and the details you saved about it, and no other AI service is sent anything. Your password, your card details and your Google or Bing access are never sent to it.',
       aiConsentBody:
         'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain; both providers answer those discovery questions with their own web search enabled. Separate direct questions name the brand or domain, go to both providers and are asked closed-book, without browsing or tools. Each answer is then checked by Anthropic, in its own request, against a bounded snapshot of this audit’s evidence: the profile fields you saved and text from the public pages that were crawled. On Complete, UX review can include the same saved context and bounded public-page evidence and goes to Anthropic only. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
       // The same disclosure for a plan that runs UX/Conversion but no AI SEO /
@@ -832,7 +854,7 @@ export const copy = {
       launchSummaryIncluded: 'Included',
       launchSummaryIgnored: 'Ignored',
       launchSummaryRespected: 'Respected',
-      launchSummaryOverridden: 'Override confirmed',
+      launchSummaryOverridden: 'Ignored — you confirmed it',
     },
     reachability: {
       title: 'Can we read your site?',
@@ -974,8 +996,9 @@ export const copy = {
       helpScoreTerm: 'Score',
       helpScoreBody:
         'A 0–100 rating for each area and for the site overall. Higher is better; a dash (—) means there was not enough public data to score it.',
-      helpCoverageTerm: 'Coverage',
-      helpCoverageBody: 'How much of your site FluxRadar was able to check for that area.',
+      helpCoverageTerm: 'Checks done',
+      helpCoverageBody:
+        'How many of that area’s checks FluxRadar was able to complete. It is not a share of your site: how much of the site was read is its own figure, further down.',
       helpFindingsTerm: 'Findings',
       helpFindingsBody:
         'Specific issues we detected, each with the evidence behind it. Open the findings list below to review them and see recommended fixes.',
@@ -1155,7 +1178,11 @@ export const copy = {
       verdictNormal: 'Completed',
       verdictProvisional: 'Provisional',
       verdictUnavailable: 'Unavailable',
-      coverageValue: 'coverage {percent}%',
+      // Not "we checked 98% of the site": this is module coverage — checks
+      // completed over checks applicable — and reading it as a share of the
+      // site is the exact mistake the "How much of the site was read" panel
+      // below exists to stop. It says checks, because that is what it counts.
+      coverageValue: '{percent}% of the checks were done',
       moduleCoverageLabel: '{module} coverage',
       // ── Why a section says what it says ───────────────────────────────────
       //
@@ -1215,6 +1242,10 @@ export const copy = {
           '{unavailable} of {total} AI questions could not be asked, so this section covers only the ones that were. Each cause is named below.',
         aiCancelled:
           'You cancelled the audit while the AI questions were running: {answered} of {total} were answered, and those answers are reported here. The rest were never asked.',
+        // The owner used to read the raw clause this replaces —
+        // "AnswerEvaluationUnavailable: 1 of 12 (ProviderContract)".
+        aiEvaluationUnavailable:
+          'The AI assistants answered, but {unavailable} of {total} answers could not be checked against this audit’s own evidence, so those carry no verdict. Each cause is named below.',
         aiQueryGenerationUnavailable:
           'The neutral discovery questions for this scan could not be generated, so this section asked only its fixed brand questions. The cause is named below.',
         aiQueryGenerationInvalidResponse:
@@ -1814,8 +1845,10 @@ export const copy = {
       filterLabel: 'Filter',
       filterPlaceholder: 'rule, module, URL',
       severityLegendTerm: 'Severity',
-      severityLegendBody:
-        'shows how urgent a finding is: Critical and High need attention first, then Medium, then Low.',
+      // The four levels and their meanings are not written out here: the legend
+      // is built from `findingsCopy.severityMeaning`, the same words the open
+      // finding puts beside its own chip, so the two cannot drift apart.
+      severityLegendBody: 'on each finding says how soon it is worth dealing with.',
       emptyFiltered: 'No issues match this filter',
       emptyAll: 'No findings in this report',
       emptyAllBody: 'FluxRadar detected nothing worth reporting on the pages it could read.',
@@ -1826,13 +1859,35 @@ export const copy = {
       columnAction: 'Action',
       details: 'Details',
       hideDetails: 'Hide details',
-      closeDetails: 'Close details',
       evidence: 'Evidence',
       noExcerpt: 'No excerpt available',
       recommendation: 'Recommendation',
-      impact: 'Impact',
-      impactValue: '{affected}/{applicable} targets · score {delta}',
-      confidence: 'Confidence',
+      // ── Inside "Technical details for your developer" ─────────────────────
+      //
+      // "Impact 14/59 targets · score -0.24", "Confidence 100%" and "Rule
+      // SEO-TECH-011" were three labels an owner could not read: a "target" is
+      // not a word they have, the score is on a scale nothing names, and "Rule"
+      // sounded like something they had broken. Each now says what it is.
+      impact: 'Pages affected',
+      // The noun agrees with the count it follows: a rule checked on one page
+      // read "1 of the 1 pages checked for this".
+      impactValue: (affected: number, applicable: number) =>
+        `${affected} of the ${applicable} ${applicable === 1 ? 'page' : 'pages'} checked for this`,
+      /** The same for a rule that reports per cookie, per link or per remark. */
+      impactTargets: 'Places affected',
+      impactTargetsValue: (affected: number, applicable: number) =>
+        `${affected} of the ${applicable} ${applicable === 1 ? 'place' : 'places'} checked for this`,
+      scoreEffect: 'Effect on the score',
+      scoreEffectValue: 'Lowers this section’s score by {delta}',
+      scoreEffectNone: 'Does not change the score',
+      confidence: 'How sure this finding is',
+      ruleIdLabel: 'Check code, for support',
+      /**
+       * The rule's own title, inside the technical fold. Not `columnRule`
+       * ("Rule"): that word reads as something the owner broke, which is the
+       * reason the plain name replaced it on the row above.
+       */
+      ruleNameLabel: 'What the check is called',
     },
     integrations: {
       windowTitle: 'FluxRadar — Integrations',
@@ -1999,7 +2054,11 @@ export const copy = {
       pollFailed: 'FluxRadar could not read the payment status. Try again in a moment.',
       notFound:
         'FluxRadar has no checkout with this reference for your account, so there is nothing to confirm here. If you did pay, contact support with the link you came back on.',
-      testMode: 'Payment provider is in test mode — no real charge is made.',
+      // "Test mode" is the provider's word, not a word a salon owner has. Say
+      // what it means for the person reading: nothing leaves their card, and
+      // the check still runs.
+      testMode:
+        'Payments here are still being set up, so nothing is taken from your card and no money changes hands. The check itself runs normally.',
       unavailable:
         'Paid checkout is not configured for this environment yet. The free homepage check is available now.',
       unavailableTemporary:
@@ -2658,15 +2717,18 @@ export const copy = {
         'Вимкнено — FluxRadar читає HTML, який віддає сервер. Увімкнено — відкриває кожну сторінку в headless-браузері й читає DOM після виконання її власних скриптів; саме це потрібно SPA. Увесь трафік браузера проходить через той самий захист публічних адрес, що й обхід: тільки GET і HEAD, без cookies, без завантажень і без сокетів. Якщо в цьому середовищі немає браузерного runtime, звіт про це скаже і не видасть статичний HTML за відрендерену сторінку.',
       advancedTitle: 'Додаткові правила обходу',
       labelRespectRobots: 'Дотримуватись robots.txt',
-      labelRobotsOverride: 'Підтверджую відхилення robots.txt',
       robotsInfoTitle: 'Як robots.txt впливає на перевірку',
       robotsInfoMode: 'Безпечний режим',
       robotsInfoBody:
-        'Перед обходом FluxRadar читає публічний robots.txt сайту. Якщо «Дотримуватись robots.txt» увімкнено, сторінки, заборонені для сканерів, пропускаються. Вимикайте цю опцію лише якщо маєте право перевіряти такі шляхи: нижче потрібно буде окремо підтвердити відхилення правил.',
+        'Перед обходом FluxRadar читає публічний robots.txt сайту. Якщо «Дотримуватись robots.txt» увімкнено, сторінки, заборонені для сканерів, пропускаються. Вимикайте цю опцію лише якщо маєте право перевіряти такі шляхи: позначка біля кнопки запуску фіксує цей вибір для однієї перевірки.',
       labelAiConsent:
         'Anthropic і OpenAI відповідають на включені AI-перевірки; докази з публічних сторінок отримує лише Anthropic',
       aiConsentTitle: 'AI-обробка включена в цей аудит',
       aiConsentOptional: 'Включено',
+      aiConsentSummary:
+        'Коротко: у цей звіт входять два AI-сервіси — Anthropic і OpenAI. Обидва відповідають на запитання про те, як знаходять ваш сайт; і лише Anthropic додатково читає публічні сторінки вашого сайту й ті дані про нього, які ви зберегли. Ваш пароль, дані картки та доступ до Google чи Bing не надсилають жодному з них.',
+      aiConsentSummaryUxOnly:
+        'Коротко: одну частину цього звіту — огляд того, як ваші сторінки читаються відвідувачем, — пише один AI-сервіс, Anthropic. Він читає публічні сторінки вашого сайту й ті дані про нього, які ви зберегли, а іншим AI-сервісам не надсилають нічого. Ваш пароль, дані картки та доступ до Google чи Bing йому ніколи не надсилають.',
       aiConsentBody:
         'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) і OpenAI (ChatGPT) для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену; на ці discovery-запитання обидва провайдери відповідають із увімкненим власним вебпошуком. Окремі прямі запитання містять бренд або домен, ідуть до обох провайдерів і ставляться «із закритою книгою» — без пошуку в мережі та без інструментів. Потім кожну відповідь Anthropic окремим запитом звіряє з обмеженим набором доказів цього аудиту: полями профілю, які ви зберегли, і текстом публічних сторінок, які було обійдено. У Complete UX-аналіз може включати той самий збережений контекст та обмежені докази з публічних сторінок і йде лише до Anthropic. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
       aiConsentBodyUxOnly:
@@ -2735,7 +2797,7 @@ export const copy = {
       launchSummaryIncluded: 'Включено',
       launchSummaryIgnored: 'Ігноруються',
       launchSummaryRespected: 'Дотримуємось',
-      launchSummaryOverridden: 'Відхилення підтверджено',
+      launchSummaryOverridden: 'Ігнорується — ви підтвердили',
     },
     reachability: {
       title: 'Чи можемо ми прочитати ваш сайт?',
@@ -2869,8 +2931,9 @@ export const copy = {
       helpScoreTerm: 'Оцінка',
       helpScoreBody:
         'Оцінка від 0 до 100 для кожної області та для сайту загалом. Більше — краще; риска (—) означає, що публічних даних для оцінки забракло.',
-      helpCoverageTerm: 'Покриття',
-      helpCoverageBody: 'Яку частину вашого сайту FluxRadar зміг перевірити в цій області.',
+      helpCoverageTerm: 'Виконано перевірок',
+      helpCoverageBody:
+        'Скільки перевірок цього розділу FluxRadar зміг завершити. Це не частка вашого сайту: скільки сайту прочитано — окрема цифра, нижче.',
       helpFindingsTerm: 'Знахідки',
       helpFindingsBody:
         'Конкретні проблеми, які ми виявили, кожна з доказом. Відкрийте список знахідок нижче, щоб переглянути їх і побачити рекомендовані виправлення.',
@@ -3021,7 +3084,7 @@ export const copy = {
       verdictNormal: 'Завершено',
       verdictProvisional: 'Попередня',
       verdictUnavailable: 'Недоступно',
-      coverageValue: 'покриття {percent}%',
+      coverageValue: 'виконано {percent}% перевірок',
       moduleCoverageLabel: 'покриття розділу «{module}»',
       reasonLabel: 'Чому',
       moduleReason: {
@@ -3075,6 +3138,8 @@ export const copy = {
           'Не вдалося поставити {unavailable} з {total} AI-питань, тому розділ охоплює лише ті, які було поставлено. Кожну причину названо нижче.',
         aiCancelled:
           'Ви скасували аудит, поки виконувалися AI-питання: відповіді отримано на {answered} з {total}, і саме вони показані тут. Решту питань не ставили.',
+        aiEvaluationUnavailable:
+          'AI-асистенти відповіли, але {unavailable} з {total} відповідей не вдалося перевірити за доказами цього аудиту, тож для них немає висновку. Кожну причину названо нижче.',
         aiQueryGenerationUnavailable:
           'Нейтральні питання для пошуку згадок цієї перевірки не вдалося згенерувати, тому розділ поставив лише свої сталі питання про бренд. Причину названо нижче.',
         aiQueryGenerationInvalidResponse:
@@ -3576,8 +3641,7 @@ export const copy = {
       filterLabel: 'Фільтр',
       filterPlaceholder: 'правило, модуль, URL',
       severityLegendTerm: 'Критичність',
-      severityLegendBody:
-        'показує, наскільки терміновою є знахідка: спершу Critical і High, далі Medium, потім Low.',
+      severityLegendBody: 'біля кожної знахідки показує, наскільки швидко варто за неї взятися.',
       emptyFiltered: 'Жодна знахідка не відповідає фільтру',
       emptyAll: 'У цьому звіті немає знахідок',
       emptyAllBody: 'FluxRadar не виявив нічого вартого уваги на сторінках, які зміг прочитати.',
@@ -3588,13 +3652,27 @@ export const copy = {
       columnAction: 'Дія',
       details: 'Деталі',
       hideDetails: 'Сховати деталі',
-      closeDetails: 'Закрити деталі',
       evidence: 'Доказ',
       noExcerpt: 'Фрагмент недоступний',
       recommendation: 'Рекомендація',
-      impact: 'Вплив',
-      impactValue: '{affected}/{applicable} обʼєктів · оцінка {delta}',
-      confidence: 'Впевненість',
+      impact: 'Сторінок торкається',
+      // Both the noun and the participle after «з» follow the numeral: «з 1
+      // сторінки, перевіреної на це», «з 2 сторінок, перевірених на це».
+      impactValue: (affected: number, applicable: number) =>
+        takesUkSingular(applicable)
+          ? `${affected} з ${applicable} сторінки, перевіреної на це`
+          : `${affected} з ${applicable} сторінок, перевірених на це`,
+      impactTargets: 'Місць торкається',
+      impactTargetsValue: (affected: number, applicable: number) =>
+        takesUkSingular(applicable)
+          ? `${affected} з ${applicable} місця, перевіреного на це`
+          : `${affected} з ${applicable} місць, перевірених на це`,
+      scoreEffect: 'Вплив на оцінку',
+      scoreEffectValue: 'Знижує оцінку цього розділу на {delta}',
+      scoreEffectNone: 'Не змінює оцінку',
+      confidence: 'Наскільки ми впевнені в знахідці',
+      ruleIdLabel: 'Код перевірки, для підтримки',
+      ruleNameLabel: 'Як називається ця перевірка',
     },
     integrations: {
       windowTitle: 'FluxRadar — Інтеграції',
@@ -3759,7 +3837,8 @@ export const copy = {
       pollFailed: 'FluxRadar не зміг прочитати статус оплати. Спробуйте за мить.',
       notFound:
         'FluxRadar не має checkout з таким номером для вашого акаунта, тому підтверджувати тут нічого. Якщо ви оплатили, зверніться до підтримки та надішліть посилання, за яким повернулися.',
-      testMode: 'Платіжний провайдер у тестовому режимі — реального списання немає.',
+      testMode:
+        'Оплату тут ще налаштовують, тому з вашої картки нічого не спишуть і грошей ніхто не візьме. Сама перевірка працює як завжди.',
       unavailable:
         'Платний checkout ще не налаштовано для цього середовища. Безкоштовна перевірка головної сторінки доступна зараз.',
       unavailableTemporary:

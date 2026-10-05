@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { Issue } from './api';
-import { developerTaskText, nothingOpen } from './developer-task';
+import { developerTaskText, nothingOpen, taskPageCount } from './developer-task';
 import {
   EXPLAINED_RULE_IDS,
   findingCountsPages,
@@ -94,9 +94,30 @@ describe('the breakdown of one problem’s loaded findings', () => {
       'en',
     );
 
+    // Each variant carries the addresses that recorded it: the count alone was
+    // read as a statement about the address inside the evidence.
     expect(breakdown.variants).toEqual([
-      { evidence: 'missing: 3 headers', findings: 2 },
-      { evidence: 'missing: 1 header', findings: 1 },
+      {
+        evidence: 'missing: 3 headers',
+        findings: 2,
+        pages: ['https://b.example/', 'https://c.example/'],
+      },
+      { evidence: 'missing: 1 header', findings: 1, pages: ['https://a.example/'] },
+    ]);
+  });
+
+  // A page can hold two findings of the same evidence; it is one address.
+  it('names each page once however many findings it holds', () => {
+    const breakdown = problemBreakdown(
+      [
+        issue({ id: 'a', targetUrl: 'https://a.example/', evidenceExcerpt: 'same' }),
+        issue({ id: 'b', targetUrl: 'https://a.example/', evidenceExcerpt: 'same' }),
+      ],
+      'en',
+    );
+
+    expect(breakdown.variants).toEqual([
+      { evidence: 'same', findings: 2, pages: ['https://a.example/'] },
     ]);
   });
 
@@ -113,7 +134,7 @@ describe('the breakdown of one problem’s loaded findings', () => {
     ];
 
     expect(problemBreakdown(issues, 'uk').variants).toEqual([
-      { evidence: 'немає CSP', findings: 2 },
+      { evidence: 'немає CSP', findings: 2, pages: ['https://a.example/', 'https://b.example/'] },
     ]);
   });
 
@@ -619,5 +640,120 @@ describe('the task for a developer', () => {
         openFindings: 0,
       }),
     ).toBeNull();
+  });
+});
+
+// The sentence beside the button used to count the distinct addresses of every
+// loaded row, settled ones included, while the message counted only the work
+// still open: "…and the 3 pages it was found on" over a message about one.
+describe('the pages the button says it copies', () => {
+  function csp(index: number, status = 'New'): Issue {
+    return issue({
+      id: `issue-${index}`,
+      ruleId: 'SEC-ASVS-001',
+      severity: 'Critical',
+      status,
+      targetUrl: `https://shop.example.com/page-${index}`,
+      evidenceExcerpt: 'The HTML response has no Content-Security-Policy',
+      recommendation: 'Send a Content-Security-Policy header with HTML responses.',
+    });
+  }
+
+  it('leaves out a page whose only finding is settled', () => {
+    const count = taskPageCount({
+      ruleId: 'SEC-ASVS-001',
+      language: 'en',
+      issues: [csp(1, 'Ignored'), csp(2, 'False Positive'), csp(3, 'Resolved'), csp(4)],
+      allLoaded: true,
+      openFindings: 1,
+    });
+    expect(count).toEqual({ pages: 1, atLeast: false, findings: 1 });
+    expect(findingsCopy.en.task.explains('CSP', count.pages)).toContain(
+      'and the 1 page it was found on',
+    );
+  });
+
+  it('says at least when part of the list is loaded and no summary counts the rest', () => {
+    const count = taskPageCount({
+      ruleId: 'SEC-ASVS-001',
+      language: 'en',
+      issues: [csp(1, 'Ignored'), csp(2), csp(3)],
+      allLoaded: false,
+      openFindings: null,
+    });
+    expect(count).toEqual({ pages: 2, atLeast: true, findings: 2 });
+    expect(findingsCopy.en.task.explainsAtLeast('CSP', count.pages)).toContain(
+      'at least the 2 pages it has been found on so far',
+    );
+    expect(findingsCopy.uk.task.explainsAtLeast('CSP', count.pages)).toContain(
+      'щонайменше 2 сторінки, де її вже знайдено',
+    );
+  });
+
+  // For a rule that reports more than once per page the sentence says findings,
+  // not pages, and it used to say the summary's count or — with no summary —
+  // every loaded row of any status. Both disagreed with the message.
+  function cookie(index: number, page: number, status = 'New'): Issue {
+    return issue({
+      id: `issue-${index}`,
+      ruleId: 'SEC-PASSIVE-005',
+      status,
+      targetUrl: `https://shop.example.com/p${page}`,
+      evidenceExcerpt: 'Set-Cookie without the Secure attribute',
+      recommendation: 'Send session cookies with Secure, HttpOnly and SameSite.',
+    });
+  }
+
+  // Regression: no summary and three loaded rows, one of them ignored, read
+  // "its 3 open findings" beside a message about two.
+  it('counts only the open findings when no summary counts them', () => {
+    const input = {
+      ruleId: 'SEC-PASSIVE-005',
+      language: 'en' as const,
+      issues: [cookie(1, 1, 'Ignored'), cookie(2, 1), cookie(3, 1)],
+      allLoaded: true,
+      openFindings: null,
+    };
+    const count = taskPageCount(input);
+    expect(count.findings).toBe(2);
+    expect(findingsCopy.en.task.explainsCount('Cookies', count.findings)).toContain(
+      'its 2 open findings',
+    );
+    expect(developerTaskText(input)).toContain('2 findings on 1 page.');
+  });
+
+  // Regression: a summary fetched before a finding was reopened said 2, and the
+  // message's own floor said 3 — the sentence and the message disagreed by one.
+  it('follows the message past a summary that lags behind the page', () => {
+    const input = {
+      ruleId: 'SEC-PASSIVE-005',
+      language: 'en' as const,
+      issues: [cookie(1, 1), cookie(2, 1), cookie(3, 2)],
+      allLoaded: false,
+      openFindings: 2,
+    };
+    const count = taskPageCount(input);
+    expect(count.findings).toBe(3);
+    expect(findingsCopy.en.task.explainsCount('Cookies', count.findings)).toContain(
+      'its 3 open findings',
+    );
+    expect(developerTaskText(input)).toContain(
+      '3 open findings; the 3 open ones loaded so far are on 2 pages.',
+    );
+  });
+
+  // The two numbers are one number: whatever the message says the task reaches,
+  // the sentence beside the button says the same.
+  it('names the same pages the copied message names', () => {
+    const loaded = [csp(1, 'Ignored'), csp(2), csp(3)];
+    for (const input of [
+      { allLoaded: true, openFindings: 2 },
+      { allLoaded: false, openFindings: 57 },
+      { allLoaded: false, openFindings: null },
+    ]) {
+      const full = { ruleId: 'SEC-ASVS-001', language: 'en' as const, issues: loaded, ...input };
+      const count = taskPageCount(full);
+      expect(developerTaskText(full)).toContain(`${count.pages} pages`);
+    }
   });
 });

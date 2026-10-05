@@ -1,6 +1,7 @@
 /* The new-scan screen's plain-language layer: which site is being checked,
-   beside the button; the folded block of crawl settings; and the line a
-   robots.txt override earns. The form's layout itself lives in base.css. */
+   beside the button; the folded block of crawl settings; and the warning plus
+   the confirmation a skipped robots.txt earns. The form's layout itself lives
+   in base.css. */
 
 /* "Checking: <site>, <address>, plan <plan>" — the last thing read before
    paying, so it is the largest text in the launch column. Addresses are long
@@ -30,6 +31,21 @@
 .launch-warning::before {
   /* Alternative text '': the sign is decoration, the sentence says it. */
   content: '\26a0  ' / '';
+}
+
+/* Warning, the tick that answers it and the way out of it, directly above the
+   button they gate. One stack in reading order, so the decision and the control
+   are never a scroll apart — on a phone the crawl settings that used to hold
+   the tick are several screens up. The button is left-aligned at its own width:
+   stretched across the column it read as a second primary action. */
+.robots-gate {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+}
+.robots-gate .launch-warning {
+  margin: 0;
+  justify-self: stretch;
 }
 
 /* The block's title is read by owners who never open it, so it is set at body

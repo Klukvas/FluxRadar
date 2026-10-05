@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ScanModule } from './api';
-import { copy } from './i18n';
+import { copy, fillCopy } from './i18n';
 import { isNotApplicable, moduleStatusReasons } from './module-status';
 import {
   chipStatusFor,
@@ -407,6 +407,53 @@ describe('a section stopped by the owner', () => {
       ]);
       expect(sentences[0]).not.toContain('invalid_type');
     }
+  });
+
+  // The report showed "AnswerEvaluationUnavailable: 1 of 12 (ProviderContract)"
+  // verbatim: nothing matched the clause, so the whole thing fell to the
+  // raw-token fallback and was quoted at the owner.
+  it('says in words how many answers reached no verdict, and why', () => {
+    const row = moduleRow({
+      module: 'AI SEO / GEO',
+      status: 'Partial',
+      statusReason: 'AnswerEvaluationUnavailable: 1 of 12 (ProviderContract)',
+      score: 40,
+      usableOutput: true,
+    });
+    for (const language of ['en', 'uk'] as const) {
+      const t = copy[language].report.moduleReason;
+      const sentences = moduleStatusReasons(row, language);
+      expect(sentences).toEqual([
+        fillCopy(t.aiEvaluationUnavailable, { unavailable: '1', total: '12' }),
+        t.aiProviderContract,
+      ]);
+      for (const sentence of sentences) {
+        expect(sentence).not.toContain('AnswerEvaluationUnavailable');
+        expect(sentence).not.toContain('ProviderContract');
+      }
+    }
+  });
+
+  // It is the last of three clauses the API joins with "; ", and the one before
+  // it ends in free text — so it is taken off the end, not split out of it.
+  it('keeps the other clauses when an evaluation clause follows them', () => {
+    const row = moduleRow({
+      module: 'AI SEO / GEO',
+      status: 'Partial',
+      statusReason:
+        '1 of 2 AI requests unavailable (QuotaExceeded); ' +
+        'AnswerEvaluationUnavailable: 2 of 12 (ProviderContract, QuotaExceeded)',
+      score: 40,
+      usableOutput: true,
+    });
+    const t = copy.en.report.moduleReason;
+    expect(moduleStatusReasons(row, 'en')).toEqual([
+      fillCopy(t.aiPartial, { unavailable: '1', total: '2' }),
+      t.aiQuotaExceeded,
+      fillCopy(t.aiEvaluationUnavailable, { unavailable: '2', total: '12' }),
+      t.aiProviderContract,
+      t.aiQuotaExceeded,
+    ]);
   });
 
   it('an interrupted UX review says the static checks still ran', () => {

@@ -11,6 +11,7 @@ import {
 import { AdvancedCrawlRules, ExpertSettings } from './NewScanExpertSettings';
 import { SiteReachabilityPanel } from './SiteReachability';
 import { LaunchSummary } from './LaunchSummary';
+import { RobotsConfirmation } from './RobotsConfirmation';
 import { ScanCallout } from './ScanCallout';
 import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
@@ -320,6 +321,14 @@ function ScanDepthPanel(props: { form: NewScanForm; language: Language }) {
             title={t.newScan.aiConsentTitle}
             titleId="ai-consent-title"
             mode={t.newScan.aiConsentOptional}
+            // The plain sentence first, the full disclosure under it and still
+            // open: the paragraph is what the buyer agrees to by paying, so the
+            // summary is added above it and nothing is folded away.
+            lead={
+              PLAN_MODULES[plan].includes('AI SEO / GEO')
+                ? t.newScan.aiConsentSummary
+                : t.newScan.aiConsentSummaryUxOnly
+            }
             defaultOpen
           >
             {PLAN_MODULES[plan].includes('AI SEO / GEO')
@@ -403,6 +412,7 @@ function ScanLaunchColumn(props: {
     launchConfig,
     launchLabel,
     launchSite,
+    paidScopeControls,
     plan,
     planLabel,
     resolveTargetProfileId,
@@ -414,6 +424,7 @@ function ScanLaunchColumn(props: {
     setSiteReachable,
     showsPurchaseTerms,
     target,
+    updateScope,
     usingSavedProfile,
   } = props.form;
   const merchant = purchaseTermsMerchant(t, checkoutConfig);
@@ -431,7 +442,6 @@ function ScanLaunchColumn(props: {
           plan={plan}
           planLabel={planLabel}
           scope={scope}
-          robotsOverrideStale={robotsOverrideStale}
           egressLocation={egressLocation}
           egressDirect={launchConfig.status === 'ready' && launchConfig.egress.mode === 'direct'}
         />
@@ -473,6 +483,15 @@ function ScanLaunchColumn(props: {
           action spanning the full width under the primary one. */}
       <div className="launch-form__actions">
         <LaunchTarget form={props.form} language={props.language} />
+        {/* Warning, the two ways out, the reason the button is held, then the
+            button — one stack, in reading order. */}
+        <RobotsConfirmation
+          language={props.language}
+          ignoresRobots={paidScopeControls && !scope.respectRobots}
+          stale={robotsOverrideStale}
+          confirmed={scope.robotsOverrideConfirmed}
+          onChange={updateScope}
+        />
         {robotsUnconfirmed ? (
           <p className="muted launch-form__blocked" id="launch-blocked" role="note">
             {robotsOverrideStale ? c.blockedByRobotsStale : c.blockedByRobots}
