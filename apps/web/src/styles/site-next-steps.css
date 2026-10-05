@@ -1,0 +1,20 @@
+/* One block per saved site on the workspace desktop. The heading names the
+   site the block is about, so it reads as the block's title, not as a
+   document-level heading. */
+.site-next-step__heading {
+  margin: 0 0 var(--sp-2);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.site-next-step .site-status__rows {
+  margin-bottom: var(--sp-2);
+}
+
+.site-next-step__title {
+  margin: 0 0 var(--sp-1);
+}
+
+.site-next-steps__account {
+  margin-bottom: var(--sp-3);
+}
