@@ -21,13 +21,13 @@ const HERO_FORM_COPY: Record<
     label: 'Your website',
     placeholder: 'yoursite.com',
     invalid: 'Enter a public website address, like yoursite.com.',
-    hint: 'Free: title, description, headings and indexability of your homepage. No card.',
+    hint: 'Free: your homepage’s title, description, headings and whether Google may show it (indexability). No card.',
   },
   uk: {
     label: 'Ваш сайт',
     placeholder: 'yoursite.com',
     invalid: 'Введіть адресу публічного сайту, наприклад yoursite.com.',
-    hint: 'Безкоштовно: title, опис, заголовки та індексація головної сторінки. Без картки.',
+    hint: 'Безкоштовно: заголовок (title), опис, підзаголовки головної сторінки і чи може Google її показувати (індексація). Без картки.',
   },
 };
 

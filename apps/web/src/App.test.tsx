@@ -813,6 +813,38 @@ describe('public /checks — audit coverage page', () => {
       within(coverage).getByRole('link', { name: /Read the full audit coverage/i }),
     ).toHaveAttribute('href', '/checks');
   });
+
+  it('says what the product does in plain words before the brand title', async () => {
+    window.history.replaceState(null, '', '/');
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
+    render(<App />);
+    const title = await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    const promise = screen.getByText(
+      'We check your website and show what keeps customers from finding you.',
+    );
+    // The promise is read first: a visitor who does not know what "every
+    // signal" means has the answer before the brand line, not after it.
+    expect(promise.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows an example report after what FluxRadar reads and before the coverage entry', async () => {
+    window.history.replaceState(null, '', '/');
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    const capabilities = screen.getByRole('heading', { name: 'A website is more than a ranking.' });
+    const example = screen.getByRole('figure', { name: 'Example report for a made-up website' });
+    const coverage = screen.getByRole('heading', {
+      name: 'Every check. Every standard. No surprises.',
+    });
+    expect(
+      capabilities.compareDocumentPosition(example) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      example.compareDocumentPosition(coverage) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(example).getByText('Example, not your site')).toBeInTheDocument();
+  });
 });
 
 // ─── Regression: /blog routing — SPA must not intercept static pages ──────────
@@ -1097,7 +1129,9 @@ describe('home pricing and workspace onboarding', () => {
     // The middle card is the one that has to say what it does not run, because
     // that is the only thing separating it from the dearest package.
     expect(
-      within(websiteAudit).getByText(/The SEO analysis and AI SEO \/ GEO/i),
+      within(websiteAudit).getByText(
+        /The SEO analysis and visibility in AI answers \(AI SEO \/ GEO\)/i,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -1270,7 +1304,13 @@ describe('home pricing and workspace onboarding', () => {
       await screen.findByRole('heading', { name: 'Одна адреса. Усі сигнали.' }),
     ).toBeInTheDocument();
     expect(
+      screen.getByText('Перевіримо ваш сайт і покажемо, що заважає клієнтам вас знайти.'),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole('heading', { name: 'Сайт — це більше, ніж позиція в рейтингу.' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('figure', { name: 'Приклад звіту для вигаданого сайту' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: 'Кожна перевірка. Кожен стандарт. Без сюрпризів.' }),
