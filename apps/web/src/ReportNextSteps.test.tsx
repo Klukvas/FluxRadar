@@ -79,11 +79,11 @@ function stubFetch(summary: IssueSummary): void {
   );
 }
 
-function renderNextSteps() {
+function renderNextSteps(scan: Scan = SCAN, language: 'en' | 'uk' = 'en') {
   return render(
     <ReportNextSteps
-      scan={SCAN}
-      language="en"
+      scan={scan}
+      language={language}
       onOpenProblem={() => {}}
       onAllProblems={() => {}}
       onUpgrade={() => {}}
@@ -123,5 +123,39 @@ describe('ReportNextSteps → Action Plan', () => {
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Write the Action Plan' })).toBeNull();
     expect(screen.queryByLabelText('Plan language')).toBeNull();
+  });
+});
+
+describe('ReportNextSteps → Fix these first', () => {
+  it('keeps "No open problems" for a clean report that was checked', async () => {
+    stubFetch(summaryOf([groupOf({ openIssues: 0 })]));
+    renderNextSteps();
+
+    expect(
+      await screen.findByText('No open problems — nothing in this report is waiting for a fix.'),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Nothing was checked/)).toBeNull();
+  });
+
+  it('says nothing was checked when the scan produced no usable output', async () => {
+    stubFetch(summaryOf([]));
+    renderNextSteps({ ...SCAN, status: 'Failed', statusReason: 'NoUsableOutput' });
+
+    expect(
+      await screen.findByText(/^Nothing was checked — this scan produced no results/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/No open problems/)).toBeNull();
+    expect(screen.queryByText(/No open finding on this report/)).toBeNull();
+  });
+
+  it('says it in Ukrainian when the site could not be read', async () => {
+    stubFetch(summaryOf([]));
+    renderNextSteps(
+      { ...SCAN, status: 'Failed', statusReason: 'SiteReturnedNoReadablePage' },
+      'uk',
+    );
+
+    expect(await screen.findByText(/^Нічого не перевірено/)).toBeTruthy();
+    expect(screen.queryByText(/Відкритих проблем немає/)).toBeNull();
   });
 });

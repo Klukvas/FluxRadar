@@ -25,6 +25,7 @@ import { Button, SelectField, StatusChip } from './components';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
 import { planIncludesActionPlan } from './plan-modules';
+import { reportFailureCopy } from './report-failure-copy';
 import { moduleLabel, ruleTitle } from './rule-titles';
 import { LANGUAGE_CODES, languageCodeLabel, targetLanguageCodes } from './target-languages';
 import './styles/findings.css';
@@ -54,6 +55,12 @@ export interface ActionPlanProps {
    * issue summary is merely still loading would be a lie that then flips.
    */
   readonly hasOpenIssues: boolean | null;
+  /**
+   * True when the scan checked nothing — no page read, no section usable. The
+   * block then says so instead of "nothing to plan", which would read as a site
+   * with no problems.
+   */
+  readonly nothingChecked?: boolean;
   /**
    * Told whenever a ready plan appears or disappears for the selected language:
    * the report replaces its "fix these first" list with the plan, and must put
@@ -173,8 +180,9 @@ export function ActionPlan(props: ActionPlanProps) {
   }, [windowEndsAt, now]);
 
   if (props.scan.plan === 'Free') return null;
+  const nothingChecked = props.nothingChecked === true;
   if (!hasActionPlan) {
-    return props.hasOpenIssues === true ? (
+    return props.hasOpenIssues === true && !nothingChecked ? (
       <section className="report-block" aria-labelledby="action-plan-heading">
         <h3 id="action-plan-heading">{t.lockedTitle}</h3>
         <p>{t.lockedBody}</p>
@@ -196,7 +204,13 @@ export function ActionPlan(props: ActionPlanProps) {
   const windowClosed = isWindowClosed(state.windowEndsAt, now);
   const nothingToPlan = props.hasOpenIssues === false;
   const canGenerate = attemptsLeft > 0 && state.remaining.successes > 0;
-  const refusal = nothingToPlan ? t.nothingToPlan : windowClosed ? t.windowClosed : null;
+  const refusal = nothingChecked
+    ? reportFailureCopy[props.language].nothingToPlan
+    : nothingToPlan
+      ? t.nothingToPlan
+      : windowClosed
+        ? t.windowClosed
+        : null;
 
   const start = async (): Promise<void> => {
     setStarting(true);

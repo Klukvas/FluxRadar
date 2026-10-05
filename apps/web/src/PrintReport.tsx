@@ -29,6 +29,7 @@ import { ownNameOnlyCount, percentOf } from './GeoVisibility';
 import { geoVisibilitySummaryOf } from './geo-visibility';
 import { copy, fillCopy, type Language } from './i18n';
 import { planIncludesIssueHistory, planName } from './plan-modules';
+import { nothingWasChecked, reportFailureCopy, siteReadFailureOf } from './report-failure-copy';
 import { ComparisonPrintBlock } from './ScanComparisonPrint';
 import { moduleLabel, ruleTitle } from './rule-titles';
 import { displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
@@ -258,23 +259,49 @@ function PrintCover(props: { dashboard: Dashboard; language: Language }) {
   );
 }
 
+/** Whether this document's scan checked nothing — so an empty list is no verdict. */
+function checkedNothing(data: PrintData): boolean {
+  return nothingWasChecked(data.dashboard.scan, data.dashboard.modules);
+}
+
+/** The summary sentence: what is open, or that nothing was checked to be open. */
+function summarySentence(data: PrintData, language: Language): string {
+  const f = findingsCopy[language];
+  const { summary, totalIssues } = data;
+  const open = summary === null ? totalIssues : summary.open;
+  if (open === 0 && checkedNothing(data)) return reportFailureCopy[language].nothingChecked;
+  if (summary === null) return f.fixFirst.pages(totalIssues);
+  if (summary.open === 0) return f.issues.summaryNone;
+  return f.issues.summaryLine(
+    summary.open,
+    summary.groups.filter((group) => group.openIssues > 0).length,
+  );
+}
+
+/** The site could not be read: said before any number, in the words the dashboard uses. */
+function PrintSiteUnread(props: { dashboard: Dashboard; language: Language }) {
+  const failure = siteReadFailureOf(props.dashboard.scan, props.dashboard.modules);
+  if (failure === null) return null;
+  const t = reportFailureCopy[props.language];
+  return (
+    <p>
+      <strong>{t.heading}.</strong> {t.kinds[failure.kind]}
+      {/* The status only, for the developer this document is handed to; the
+          reason code is an internal word and stays off the page. */}
+      {failure.startStatus === null ? null : ` (${t.httpStatus(failure.startStatus)})`}
+    </p>
+  );
+}
+
 /** How much is open, and how severe. */
 function PrintSummary(props: { data: PrintData; language: Language }) {
   const f = findingsCopy[props.language];
-  const { summary, totalIssues } = props.data;
+  const { summary } = props.data;
   return (
     <section className="print-section">
       <h2>{f.print.summaryHeading}</h2>
-      <p>
-        {summary === null
-          ? f.fixFirst.pages(totalIssues)
-          : summary.open === 0
-            ? f.issues.summaryNone
-            : f.issues.summaryLine(
-                summary.open,
-                summary.groups.filter((group) => group.openIssues > 0).length,
-              )}
-      </p>
+      <PrintSiteUnread dashboard={props.data.dashboard} language={props.language} />
+      <p>{summarySentence(props.data, props.language)}</p>
       {summary === null ? null : (
         <ul className="print-severity">
           {(['Critical', 'High', 'Medium', 'Low'] as const).map((severity) => (
@@ -534,7 +561,11 @@ function PrintProblems(props: { data: PrintData; language: Language }) {
     <section className="print-section">
       <h2>{f.print.problemsHeading}</h2>
       {groups.length === 0 ? (
-        <p>{f.print.noFindings}</p>
+        <p>
+          {checkedNothing(props.data)
+            ? reportFailureCopy[props.language].printNoProblems
+            : f.print.noFindings}
+        </p>
       ) : (
         <>
           <p className="muted">{f.print.problemsLead}</p>

@@ -35,6 +35,8 @@ import { moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan, planIncludesExport, planName } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { ReportNextSteps } from './ReportNextSteps';
+import { nothingWasChecked, reportFailureCopy, siteReadFailureOf } from './report-failure-copy';
+import { moduleLabel } from './rule-titles';
 import { ScanComparisonPanel } from './ScanComparison';
 import { SiteCoveragePanel } from './SiteCoverage';
 import { statusKind } from './status-kind';
@@ -152,6 +154,9 @@ export function ResultsScreen(props: {
   const geoObservations = dashboard.geoObservations ?? [];
   const geoEvidence = dashboard.geoEvidence ?? null;
   const geoVisibilitySummary = geoVisibilitySummaryOf(dashboard.geoVisibilitySummary);
+  // No page of the site was read: one block explains it, and the section cards —
+  // each saying the same "Unavailable" — fold into a single line.
+  const siteFailure = siteReadFailureOf(scan, dashboard.modules);
   return (
     <div className="stack">
       <Window title={`${t.windowTitle} · ${displayDomain(scan.domain)}`}>
@@ -225,6 +230,8 @@ export function ResultsScreen(props: {
           onAllProblems={props.onIssues}
           onUpgrade={() => props.onUpgrade?.(scan)}
           onRetry={onRetry === undefined ? undefined : () => onRetry(scan)}
+          siteFailure={siteFailure}
+          nothingChecked={nothingWasChecked(scan, dashboard.modules)}
         />
         <section className="report-help" aria-label={t.helpHeading}>
           <h3 className="section-heading">{t.helpHeading}</h3>
@@ -249,7 +256,9 @@ export function ResultsScreen(props: {
         </section>
         {/* Before the section cards, because every coverage figure on them is
             module coverage and means something narrower than a reader assumes. */}
-        <SiteCoveragePanel summary={scan.crawlSummary} language={props.language} />
+        {siteFailure === null ? (
+          <SiteCoveragePanel summary={scan.crawlSummary} language={props.language} />
+        ) : null}
         {/* Directly after the coverage panel, and before the section cards: a
             reader who has just been told how much of the site was read is in
             exactly the right place to be told what changed since last time, and
@@ -259,86 +268,90 @@ export function ResultsScreen(props: {
           language={props.language}
           {...(props.onOpenScan === undefined ? {} : { onOpenScan: props.onOpenScan })}
         />
-        <div className="module-grid">
-          {dashboard.modules.map((module) => {
-            const expandable = hasModuleChecks(module, geoObservations);
-            const open =
-              expandable && openChecks?.scanId === scan.id && openChecks.module === module.module;
-            const toggle = (): void =>
-              setOpenChecks(open ? null : { scanId: scan.id, module: module.module });
-            // The card wears its own result: a section on a finished report is a
-            // terminal fact, and the accent edge says which kind before the chip
-            // beside it is read. Colour is never the only carrier — the chip
-            // carries the same fact in words.
-            return (
-              <Fragment key={module.module}>
-                <div
-                  className={moduleCardClass(module, expandable, open)}
-                  onClick={expandable ? (event) => toggleFromCard(event, toggle) : undefined}
-                >
-                  <div className="split">
-                    <strong>{module.module}</strong>
-                    <StatusChip
-                      status={chipStatusFor(module)}
-                      label={moduleResultLabel(module, props.language)}
-                    />
-                  </div>
+        {siteFailure !== null ? (
+          <UncheckedSections modules={dashboard.modules} language={props.language} />
+        ) : (
+          <div className="module-grid">
+            {dashboard.modules.map((module) => {
+              const expandable = hasModuleChecks(module, geoObservations);
+              const open =
+                expandable && openChecks?.scanId === scan.id && openChecks.module === module.module;
+              const toggle = (): void =>
+                setOpenChecks(open ? null : { scanId: scan.id, module: module.module });
+              // The card wears its own result: a section on a finished report is a
+              // terminal fact, and the accent edge says which kind before the chip
+              // beside it is read. Colour is never the only carrier — the chip
+              // carries the same fact in words.
+              return (
+                <Fragment key={module.module}>
                   <div
-                    className={
-                      module.score === null
-                        ? 'module-card__score module-card__score--null'
-                        : 'module-card__score'
-                    }
+                    className={moduleCardClass(module, expandable, open)}
+                    onClick={expandable ? (event) => toggleFromCard(event, toggle) : undefined}
                   >
-                    {moduleScoreLabel(module, props.language)}
-                  </div>
-                  <ModuleMetadata
-                    module={module}
-                    scored={!unscoredPlan}
-                    language={props.language}
-                  />
-                  {module.usableOutput && module.coverage !== null ? (
-                    // Named, and drawn as a measurement rather than as progress: an
-                    // unlabelled zebra bar at 100% beside a Completed chip was the
-                    // one thing on this card that still looked like a running scan.
-                    <ProgressBar
-                      variant="result"
-                      caption={t.helpCoverageTerm}
-                      value={module.coverage * 100}
-                      label={fillCopy(t.moduleCoverageLabel, { module: module.module })}
+                    <div className="split">
+                      <strong>{module.module}</strong>
+                      <StatusChip
+                        status={chipStatusFor(module)}
+                        label={moduleResultLabel(module, props.language)}
+                      />
+                    </div>
+                    <div
+                      className={
+                        module.score === null
+                          ? 'module-card__score module-card__score--null'
+                          : 'module-card__score'
+                      }
+                    >
+                      {moduleScoreLabel(module, props.language)}
+                    </div>
+                    <ModuleMetadata
+                      module={module}
+                      scored={!unscoredPlan}
+                      language={props.language}
                     />
-                  ) : (
-                    <div className="module-card__coverage-unavailable" role="status">
-                      {moduleResultLabel(module, props.language)} · {t.coverageUnavailable}
-                    </div>
-                  )}
-                  <ModuleReasons module={module} language={props.language} />
-                  {expandable ? (
-                    <div className="module-card__actions">
-                      <Button
-                        aria-expanded={open}
-                        aria-controls={moduleChecksId(module.module)}
-                        onClick={toggle}
-                      >
-                        {open ? t.checks.hide : t.checks.show}
-                      </Button>
-                    </div>
+                    {module.usableOutput && module.coverage !== null ? (
+                      // Named, and drawn as a measurement rather than as progress: an
+                      // unlabelled zebra bar at 100% beside a Completed chip was the
+                      // one thing on this card that still looked like a running scan.
+                      <ProgressBar
+                        variant="result"
+                        caption={t.helpCoverageTerm}
+                        value={module.coverage * 100}
+                        label={fillCopy(t.moduleCoverageLabel, { module: module.module })}
+                      />
+                    ) : (
+                      <div className="module-card__coverage-unavailable" role="status">
+                        {moduleResultLabel(module, props.language)} · {t.coverageUnavailable}
+                      </div>
+                    )}
+                    <ModuleReasons module={module} language={props.language} />
+                    {expandable ? (
+                      <div className="module-card__actions">
+                        <Button
+                          aria-expanded={open}
+                          aria-controls={moduleChecksId(module.module)}
+                          onClick={toggle}
+                        >
+                          {open ? t.checks.hide : t.checks.show}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                  {open ? (
+                    <ModuleChecksPanel
+                      module={module}
+                      observations={geoObservations}
+                      evidence={geoEvidence}
+                      visibilitySummary={geoVisibilitySummary}
+                      language={props.language}
+                      onOpenProblem={props.onOpenProblem}
+                    />
                   ) : null}
-                </div>
-                {open ? (
-                  <ModuleChecksPanel
-                    module={module}
-                    observations={geoObservations}
-                    evidence={geoEvidence}
-                    visibilitySummary={geoVisibilitySummary}
-                    language={props.language}
-                    onOpenProblem={props.onOpenProblem}
-                  />
-                ) : null}
-              </Fragment>
-            );
-          })}
-        </div>
+                </Fragment>
+              );
+            })}
+          </div>
+        )}
         <PlanScope modules={dashboard.modules} plan={scan.plan} language={props.language} />
         <p className="muted report-help__cta">{t.issuesCta}</p>
         <div className="button-row">
@@ -383,6 +396,17 @@ export function ResultsScreen(props: {
         </div>
       </Window>
     </div>
+  );
+}
+
+/** The section cards of a site that could not be read, as one line of names. */
+function UncheckedSections(props: { modules: readonly ScanModule[]; language: Language }) {
+  if (props.modules.length === 0) return null;
+  const names = props.modules.map((module) => moduleLabel(module.module, props.language));
+  return (
+    <p className="muted" role="status">
+      {reportFailureCopy[props.language].sectionsNotChecked(names.join(', '))}
+    </p>
   );
 }
 
