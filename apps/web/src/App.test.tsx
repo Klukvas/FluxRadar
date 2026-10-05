@@ -845,6 +845,26 @@ describe('public /checks — audit coverage page', () => {
     ).toBeTruthy();
     expect(within(example).getByText('Example, not your site')).toBeInTheDocument();
   });
+
+  // On a phone the lone cookie launcher drops out of the fixed layer into the
+  // page flow (cookie-consent.css); it lands under the footer only because the
+  // dock is rendered after the screen. Pinned here so a reorder in App.tsx
+  // cannot quietly put the launcher above the page's content.
+  it('renders the cookie launcher after the page footer', async () => {
+    window.history.replaceState(null, '', '/');
+    saveCookieConsent({ preferences: false, analytics: false });
+    stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
+    const view = render(<App />);
+    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    const footer = view.container.querySelector('footer');
+    const launcher = view.container.querySelector('.cookie-consent-dock--launcher-only');
+    expect(footer).not.toBeNull();
+    expect(launcher).not.toBeNull();
+    expect(
+      (footer as Element).compareDocumentPosition(launcher as Element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
 
 // ─── Regression: /blog routing — SPA must not intercept static pages ──────────
