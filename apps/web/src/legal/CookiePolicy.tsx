@@ -95,6 +95,16 @@ function UkrainianCookiePolicy(): JSX.Element {
               </tr>
               <tr>
                 <td>
+                  <code>fluxradar.verifyBannerHidden</code>
+                </td>
+                <td>
+                  Необхідний sessionStorage: запам’ятовує, що ви сховали повідомлення «підтвердьте
+                  email», і зберігає ідентифікатор акаунта, який його сховав.
+                </td>
+                <td>До закриття вкладки або сеансу браузера.</td>
+              </tr>
+              <tr>
+                <td>
                   <code>fluxradar.language</code>
                 </td>
                 <td>Необов’язковий localStorage: запам’ятовує мову інтерфейсу на пристрої.</td>
@@ -262,6 +272,16 @@ function EnglishCookiePolicy(): JSX.Element {
                 </td>
                 <td>Essential localStorage: records your preferences and analytics choice.</td>
                 <td>180 days, after which the choice is requested again.</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>fluxradar.verifyBannerHidden</code>
+                </td>
+                <td>
+                  Essential sessionStorage: remembers that you hid the “confirm your email” notice,
+                  holding the identifier of the account that hid it.
+                </td>
+                <td>Until the browser tab or session closes.</td>
               </tr>
               <tr>
                 <td>

@@ -223,6 +223,7 @@ describe('public legal documents', () => {
     expect(policy).toHaveTextContent(/fluxradar\.pendingCheckout/);
     expect(policy).toHaveTextContent(/fluxradar\.cookieConsent.*180 days/is);
     expect(policy).toHaveTextContent(/fluxradar\.language/);
+    expect(policy).toHaveTextContent(/fluxradar\.verifyBannerHidden.*tab or session closes/is);
     expect(policy).toHaveTextContent(/Google Analytics 4 does not load until you allow analytics/i);
     // Both cookies gtag sets, the second named after the stream it reports to.
     expect(policy).toHaveTextContent(
@@ -265,6 +266,7 @@ describe('public legal documents', () => {
     const cookies = screen.getByRole('article');
     expect(cookies).toHaveTextContent(/Google Analytics 4 не завантажується, доки ви не дозволите/);
     expect(cookies).toHaveTextContent(/_ga_0N0B548CGE/);
+    expect(cookies).toHaveTextContent(/fluxradar\.verifyBannerHidden/);
     expect(cookies).toHaveTextContent(/user та event data зберігаються 2 місяці/);
     expect(cookies).toHaveTextContent(/Creem є окремим merchant of record/);
     expect(cookies).toHaveTextContent(
