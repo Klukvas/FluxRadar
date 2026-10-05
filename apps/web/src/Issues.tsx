@@ -18,7 +18,8 @@ import {
   type Scan,
 } from './api';
 import { Button, EmptyState, Field, SelectField, SkeletonRows, Window } from './components';
-import { ProblemBreakdown } from './FindingExplainer';
+import { hasFindingExplainer, problemTitle } from './finding-explainers';
+import { DeveloperTaskCopy, ProblemBreakdown } from './FindingExplainer';
 import { findingsCopy } from './findings-copy';
 import { copy, type Language } from './i18n';
 import { IssueProblems } from './IssueProblems';
@@ -51,6 +52,17 @@ function issuesPath(scanId: string, filters: IssueFilters, offset: number): stri
     if (value !== '') query.set(key, value);
   }
   return `/scans/${encodeURIComponent(scanId)}/issues?${query.toString()}`;
+}
+
+/**
+ * How many findings of one problem still ask for work, from the summary — or
+ * null without one: an older API sends no summary, and the loaded findings
+ * alone cannot say how many are open past them.
+ */
+function openFindingsOf(summary: IssueSummary | null, ruleId: string): number | null {
+  const groups = summary?.groups.filter((group) => group.ruleId === ruleId) ?? [];
+  if (groups.length === 0) return null;
+  return groups.reduce((sum, group) => sum + group.openIssues, 0);
 }
 
 /** A summary the screen can use, or null — an older API, or a mocked one, may send anything. */
@@ -215,6 +227,11 @@ export function IssuesScreen(props: {
   const modules = [...new Set((summary?.groups ?? []).map((group) => group.module))];
   const total = meta?.total ?? issues.length;
   const showProblems = view === 'problems' && summary !== null;
+  // The task describes the whole problem, so it is offered only while nothing
+  // but the problem narrows the list: with a severity or a search on top, its
+  // page count and examples would be those of a slice.
+  const narrowedOnlyByProblem =
+    filters.severity === '' && filters.module === '' && filters.status === '' && search === '';
 
   return (
     <Window title={`${t.windowTitle} · ${domain}`}>
@@ -301,7 +318,15 @@ export function IssuesScreen(props: {
           </div>
           {filters.ruleId === '' ? null : (
             <div className="issue-rule-filter">
-              <strong>{f.issues.problemFilter(ruleTitle(filters.ruleId, props.language))}</strong>
+              {/* The owner's name first; the technical one beside it is the name
+                  the report's "Fix these first" link used, so the owner still
+                  recognises what they clicked. */}
+              <strong>
+                {f.issues.problemFilter(problemTitle(filters.ruleId, props.language))}
+              </strong>
+              {hasFindingExplainer(filters.ruleId) ? (
+                <span className="muted">{ruleTitle(filters.ruleId, props.language)}</span>
+              ) : null}
               <Button onClick={showAllProblems}>{f.issues.clearProblem}</Button>
             </div>
           )}
@@ -326,6 +351,15 @@ export function IssuesScreen(props: {
                   issues={issues}
                   language={props.language}
                   complete={issues.length >= total}
+                />
+              )}
+              {filters.ruleId === '' || !narrowedOnlyByProblem ? null : (
+                <DeveloperTaskCopy
+                  ruleId={filters.ruleId}
+                  issues={issues}
+                  allLoaded={issues.length >= total}
+                  openFindings={openFindingsOf(summary, filters.ruleId)}
+                  language={props.language}
                 />
               )}
               <IssueTable

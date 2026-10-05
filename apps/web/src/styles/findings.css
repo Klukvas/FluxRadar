@@ -153,6 +153,25 @@
   overflow-wrap: anywhere;
 }
 
+/* The "copy task for developer" button over one open problem, and the text to
+   copy by hand when the browser refuses the clipboard. */
+.developer-task {
+  margin: 0 0 var(--sp-3);
+}
+.developer-task__status {
+  margin: var(--sp-2) 0 0;
+}
+.developer-task__failed p {
+  margin: var(--sp-2) 0;
+}
+.developer-task__text {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 68ch;
+  font-family: inherit;
+  white-space: pre-wrap;
+}
+
 /* ─── Report blocks ─────────────────────────────────────────────────────── */
 
 .report-block {

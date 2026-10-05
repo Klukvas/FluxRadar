@@ -406,7 +406,9 @@ describe('a Free report', () => {
       ).toBe(true),
     );
     expect(
-      await screen.findByText('Problem: Meta description is missing or the wrong length'),
+      await screen.findByText(
+        'Problem: Page summary for search results is missing or the wrong length',
+      ),
     ).toBeInTheDocument();
   });
 
