@@ -1,16 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import {
-  Button,
-  Checkbox,
-  Field,
-  FieldRow,
-  Panel,
-  SelectField,
-  StatusChip,
-  TextAreaField,
-  Window,
-} from './components';
+import { Button, Checkbox, FieldRow, Panel, SelectField, StatusChip, Window } from './components';
 import {
   apiRequest,
   type CheckoutConfig,
@@ -18,14 +8,15 @@ import {
   type IntegrationStatus,
   type SiteProfile,
 } from './api';
-import { EgressLocationField } from './EgressLocationField';
+import { AdvancedCrawlRules, ExpertSettings } from './NewScanExpertSettings';
 import { SiteReachabilityPanel } from './SiteReachability';
 import { LaunchSummary } from './LaunchSummary';
 import { ScanCallout } from './ScanCallout';
 import { copy, type Language } from './i18n';
+import { newScanCopy } from './new-scan-copy';
 import { useNewScanForm, type NewScanForm, type NewScanFormProps } from './new-scan-form';
-import { PLAN_MODULES, PLAN_URL_LIMIT, type Plan } from './plan-modules';
-import type { ScanScopeForm } from './scan-scope';
+import { PLAN_MODULES, type Plan } from './plan-modules';
+import './styles/new-scan.css';
 
 /**
  * What to tell a buyer who cannot pay yet.
@@ -174,7 +165,7 @@ export function NewScanScreen(props: NewScanFormProps) {
   );
 }
 
-/** The left column: which site, on which plan, and how far the crawl goes. */
+/** The left column: which site, on which plan, and the folded crawl settings. */
 function ScanSettingsColumn(props: {
   form: NewScanForm;
   language: Language;
@@ -197,6 +188,12 @@ function ScanSettingsColumn(props: {
           <p className="muted panel-help">{t.newScan.freeScopeLocked}</p>
         </Panel>
       )}
+      {/* Everything below is optional crawl tuning, folded so the site, the
+          plan and the button are what the screen opens on. */}
+      <ExpertSettings form={props.form} language={props.language} />
+      {props.form.paidScopeControls ? (
+        <AdvancedCrawlRules form={props.form} language={props.language} />
+      ) : null}
     </div>
   );
 }
@@ -213,12 +210,7 @@ function ScanTargetPanel(props: {
     chooseTarget,
     configurationState,
     configurationStatusLabel,
-    egressLocation,
-    launchConfig,
-    paidScopeControls,
-    scope,
     target,
-    updateScope,
     usingSavedProfile,
   } = props.form;
   return (
@@ -274,74 +266,25 @@ function ScanTargetPanel(props: {
           <p>{t.newScan.configurationNewBody}</p>
         ) : null}
       </section>
-      {paidScopeControls ? (
-        <Checkbox
-          name="scan-include-subdomains"
-          label={t.newScan.labelSubdomains}
-          checked={scope.includeSubdomains}
-          onChange={(checked) => updateScope({ includeSubdomains: checked })}
-        />
-      ) : null}
-      <SelectField
-        label={t.newScan.labelUserAgent}
-        name="scan-user-agent"
-        autoComplete="off"
-        value={scope.userAgent}
-        onChange={(value) => updateScope({ userAgent: value as ScanScopeForm['userAgent'] })}
-        options={[
-          { value: 'desktop', label: t.newScan.userAgentDesktop },
-          { value: 'mobile', label: t.newScan.userAgentMobile },
-        ]}
-      />
-      {/* Free does not choose a country: it leaves from the default one, which
-          the launch summary names (D-228). */}
-      {paidScopeControls ? (
-        <EgressLocationField
-          language={props.language}
-          config={launchConfig}
-          selected={egressLocation}
-          onChange={(value) => updateScope({ egressLocation: value })}
-        />
-      ) : null}
     </Panel>
   );
 }
 
-/** The plan, the two limits it sells, and the disclosures that come with it. */
+/** The plan, and the disclosures that come with it. */
 function ScanDepthPanel(props: { form: NewScanForm; language: Language }) {
   const t = copy[props.language];
   const {
-    advancedOpen,
-    apiCheckProblems,
     checkoutConfig,
     checkoutPending,
     choosePlan,
-    invalidScope,
-    invalidSeedUrls,
     offeredOptInAiProviders,
     optInAiProviders,
     paidAvailable,
     paidScopeControls,
     plan,
     planOptions,
-    scope,
-    toggleAdvanced,
     toggleOptInAiProvider,
-    updateScope,
   } = props.form;
-  // Both lists name the offending lines rather than only saying "invalid": on a
-  // twenty-line paste, "which one" is the whole question.
-  const seedUrlsError =
-    invalidSeedUrls.length === 0
-      ? undefined
-      : `${t.newScan.seedUrlsError} (${invalidSeedUrls.slice(0, 3).join(', ')})`;
-  const apiChecksError =
-    apiCheckProblems.length === 0
-      ? undefined
-      : `${t.newScan.apiChecksError} (${apiCheckProblems
-          .slice(0, 3)
-          .map((problem) => `${problem.line}`)
-          .join(', ')})`;
   return (
     <Panel title={t.newScan.panelDepth}>
       <SelectField
@@ -362,164 +305,11 @@ function ScanDepthPanel(props: { form: NewScanForm; language: Language }) {
       ) : null}
       {paidScopeControls ? (
         <>
-          <Field
-            label={t.newScan.labelMaxPages}
-            name="scan-max-pages"
-            autoComplete="off"
-            technical
-            value={scope.maxPages}
-            onChange={(value) => updateScope({ maxPages: value })}
-            type="number"
-            error={invalidScope.includes('maxPages') ? t.newScan.maxPagesError : undefined}
-          />
-          <p className="muted panel-help">
-            {scope.maxPages.trim() === ''
-              ? t.newScan.planPageLimit(PLAN_URL_LIMIT[plan])
-              : t.newScan.ownerPageLimit(scope.maxPages)}
-          </p>
-          <Field
-            label={t.newScan.labelMaxDepth}
-            name="scan-max-depth"
-            autoComplete="off"
-            technical
-            value={scope.maxDepth}
-            onChange={(value) => updateScope({ maxDepth: value })}
-            type="number"
-            error={invalidScope.includes('maxDepth') ? t.newScan.maxDepthError : undefined}
-          />
-          <p className="muted panel-help">
-            {props.language === 'uk'
-              ? '0 — лише головна сторінка; порожнє поле — без обмеження глибини.'
-              : '0 = homepage only; leave blank for unlimited depth.'}
-          </p>
-          {/* Path patterns and the query policy shape which URLs the crawler
-                takes, and most scans ship with the defaults. They stay behind a
-                disclosure so the plan and its two limits — the numbers being
-                bought — are what the panel opens on. */}
-          <details
-            className="scan-advanced"
-            open={advancedOpen}
-            onToggle={(event) => toggleAdvanced(event.currentTarget.open)}
-          >
-            <summary className="scan-advanced__summary">{t.newScan.advancedTitle}</summary>
-            <div className="scan-advanced__fields">
-              <Field
-                label={t.newScan.labelIncludePatterns}
-                name="scan-include-patterns"
-                autoComplete="off"
-                technical
-                value={scope.includePatterns}
-                onChange={(value) => updateScope({ includePatterns: value })}
-                placeholder="/docs/*, /blog/*"
-              />
-              <Field
-                label={t.newScan.labelExcludePatterns}
-                name="scan-exclude-patterns"
-                autoComplete="off"
-                technical
-                value={scope.excludePatterns}
-                onChange={(value) => updateScope({ excludePatterns: value })}
-                placeholder="/admin/*, /private/*"
-              />
-              <SelectField
-                label={t.newScan.labelQueryPolicy}
-                name="scan-query-policy"
-                autoComplete="off"
-                value={scope.queryPolicy}
-                onChange={(value) =>
-                  updateScope({ queryPolicy: value as ScanScopeForm['queryPolicy'] })
-                }
-                options={[
-                  { value: 'ignore', label: t.newScan.queryIgnore },
-                  { value: 'include', label: t.newScan.queryInclude },
-                ]}
-              />
-              {/* Pages discovery would not reach: a page nothing links to, or
-                  the handful that actually matter on a large site. They are
-                  crawled under the same scope, robots and page limit as
-                  anything else. */}
-              <TextAreaField
-                label={t.newScan.labelSeedUrls}
-                name="scan-seed-urls"
-                autoComplete="off"
-                rows={3}
-                value={scope.seedUrls}
-                onChange={(value) => updateScope({ seedUrls: value })}
-                placeholder={`https://example.com/pricing\nhttps://example.com/docs/start`}
-                hint={t.newScan.seedUrlsHint}
-                error={seedUrlsError}
-              />
-              {/* Public endpoints, read with GET or HEAD and nothing else. The
-                  expected statuses are what tells an endpoint that is meant to
-                  answer 404 from one that has broken. */}
-              <TextAreaField
-                label={t.newScan.labelApiChecks}
-                name="scan-api-checks"
-                autoComplete="off"
-                rows={3}
-                value={scope.apiChecks}
-                onChange={(value) => updateScope({ apiChecks: value })}
-                placeholder={`GET https://example.com/api/health 200\nHEAD https://example.com/api/feed`}
-                hint={t.newScan.apiChecksHint}
-                error={apiChecksError}
-              />
-            </div>
-          </details>
-          {/* Rendering is a real browser per scan, so it is a decision, not a
-              default — and a deployment without the runtime says so in the
-              report rather than reading the static HTML as if the scripts had
-              run. */}
-          <ScanCallout
-            eyebrow="JAVASCRIPT"
-            title={t.newScan.renderInfoTitle}
-            titleId="render-info-title"
-            mode={t.newScan.renderInfoMode}
-            bodyId="render-info-description"
-          >
-            {t.newScan.renderInfoBody}
-          </ScanCallout>
-          <Checkbox
-            name="scan-render-js"
-            label={t.newScan.labelRenderJs}
-            checked={scope.renderJs}
-            describedBy="render-info-description"
-            onChange={(checked) => updateScope({ renderJs: checked })}
-          />
-          <ScanCallout
-            eyebrow="robots.txt"
-            title={t.newScan.robotsInfoTitle}
-            titleId="robots-info-title"
-            mode={t.newScan.robotsInfoMode}
-            bodyId="robots-info-description"
-          >
-            {t.newScan.robotsInfoBody}
-          </ScanCallout>
-          <Checkbox
-            name="scan-respect-robots"
-            label={t.newScan.labelRespectRobots}
-            checked={scope.respectRobots}
-            describedBy="robots-info-description"
-            onChange={(checked) =>
-              updateScope({
-                respectRobots: checked,
-                // Turning the rule back on withdraws the override with it.
-                ...(checked ? { robotsOverrideConfirmed: false } : {}),
-              })
-            }
-          />
-          {scope.respectRobots ? null : (
-            <Checkbox
-              label={t.newScan.labelRobotsOverride}
-              name="scan-robots-override"
-              checked={scope.robotsOverrideConfirmed}
-              describedBy="robots-info-description"
-              onChange={(checked) => updateScope({ robotsOverrideConfirmed: checked })}
-            />
-          )}
-          {/* Open, unlike the robots.txt explanation above it: this one and
-                the performance disclosure below say what leaves the site and who
-                processes it, and the buyer agrees to both by paying. Folding
-                them would trade a guarantee for height. */}
+          {/* Open, unlike the JavaScript and robots.txt explanations folded
+                under "For experienced users": this one and the performance
+                disclosure below say what leaves the site and who processes it,
+                and the buyer agrees to both by paying. Folding them would trade
+                a guarantee for height. */}
           {/* The disclosure names the AI work THIS plan does. A plan without
               AI SEO / GEO sends no brand or domain to a provider for discovery
               or awareness questions, so it must not be shown a notice that says
@@ -616,6 +406,7 @@ function ScanLaunchColumn(props: {
     plan,
     planLabel,
     resolveTargetProfileId,
+    robotsOverrideStale,
     robotsUnconfirmed,
     saveConfiguration,
     savingConfiguration,
@@ -623,10 +414,10 @@ function ScanLaunchColumn(props: {
     setSiteReachable,
     showsPurchaseTerms,
     target,
-    targetLabel,
     usingSavedProfile,
   } = props.form;
   const merchant = purchaseTermsMerchant(t, checkoutConfig);
+  const c = newScanCopy[props.language];
   return (
     // Not an `aside`: a complementary landmark is content beside the page, and
     // this column carries the form's own submit.
@@ -640,6 +431,7 @@ function ScanLaunchColumn(props: {
           plan={plan}
           planLabel={planLabel}
           scope={scope}
+          robotsOverrideStale={robotsOverrideStale}
           egressLocation={egressLocation}
           egressDirect={launchConfig.status === 'ready' && launchConfig.egress.mode === 'direct'}
         />
@@ -680,12 +472,10 @@ function ScanLaunchColumn(props: {
           anything. They used to sit the other way round, with the secondary
           action spanning the full width under the primary one. */}
       <div className="launch-form__actions">
-        <span className="muted">
-          {targetLabel} {t.newScan.publicSiteOnly}
-        </span>
+        <LaunchTarget form={props.form} language={props.language} />
         {robotsUnconfirmed ? (
           <p className="muted launch-form__blocked" id="launch-blocked" role="note">
-            {t.newScan.blockedByRobots}
+            {robotsOverrideStale ? c.blockedByRobotsStale : c.blockedByRobots}
           </p>
         ) : egressBlocked ? (
           <p className="muted launch-form__blocked" id="launch-blocked" role="note">
@@ -705,6 +495,28 @@ function ScanLaunchColumn(props: {
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * "Checking: Eva Grace, https://evagrace.example, plan Basic", directly above
+ * the button. The owner arrived from one site's row; this is the last thing
+ * they read before paying, so it names the site and the plan in words rather
+ * than leaving them to the dropdown and the summary further up.
+ */
+function LaunchTarget(props: { form: NewScanForm; language: Language }) {
+  const t = copy[props.language];
+  const c = newScanCopy[props.language];
+  const { plan, targetLabel, targetName } = props.form;
+  return (
+    <p className="launch-form__target" aria-live="polite">
+      <strong>
+        {targetName === null
+          ? c.noSiteChosen
+          : c.checking({ name: targetName, domain: targetLabel }, c.planNames[plan])}
+      </strong>{' '}
+      <span className="muted">{t.newScan.publicSiteOnly}</span>
+    </p>
   );
 }
 

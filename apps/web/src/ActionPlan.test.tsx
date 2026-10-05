@@ -368,3 +368,37 @@ describe('the Action Plan block', () => {
     await waitFor(() => expect(container.querySelector('.report-block')).toBeNull());
   });
 });
+
+// A site that could not be read never reaches this block — the report leads
+// with its own failure block instead (Report.unread.test.tsx). What is left is
+// a readable site whose sections all returned nothing usable (NoUsableOutput).
+describe('the Action Plan block on a report that checked nothing', () => {
+  it('says nothing was checked instead of "nothing to plan"', async () => {
+    stubFetch({ state: stateOf() });
+    renderPlan({ hasOpenIssues: false, nothingChecked: true });
+
+    expect(
+      await screen.findByText(
+        'Nothing on this report was checked, so there is nothing to plan yet. Run the scan again once your site can be read.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/No open finding on this report/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Write the Action Plan' })).toBeNull();
+  });
+
+  it('says it in Ukrainian too', async () => {
+    stubFetch({ state: stateOf() });
+    renderPlan({ language: 'uk', hasOpenIssues: false, nothingChecked: true });
+
+    expect(await screen.findByText(/У цьому звіті нічого не перевірено/)).toBeTruthy();
+    expect(screen.queryByText(/Жодна відкрита знахідка/)).toBeNull();
+  });
+
+  it('does not sell a Complete scan from a report that checked nothing', async () => {
+    stubFetch({ state: stateOf() });
+    renderPlan({ scan: { ...SCAN, plan: 'Basic' }, hasOpenIssues: true, nothingChecked: true });
+
+    await waitFor(() => expect(screen.queryByText('Run a Complete scan')).toBeNull());
+    expect(screen.queryByText('AI Action Plan')).toBeNull();
+  });
+});

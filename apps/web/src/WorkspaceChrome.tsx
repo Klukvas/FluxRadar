@@ -82,7 +82,44 @@ export function WorkspaceHeader({
   );
 }
 
-/** Asks the owner to confirm their address, until they do or dismiss it. */
+/**
+ * "Hide" lasts for the browser session. Keyed by account so a second sign-in in
+ * the same tab, as somebody else, still gets asked. Storage can be refused (a
+ * private window, blocked site data); the banner then simply hides until reload.
+ */
+const VERIFY_BANNER_HIDDEN_KEY = 'fluxradar.verifyBannerHidden';
+
+function isVerifyBannerHiddenThisSession(accountId: string): boolean {
+  try {
+    return window.sessionStorage.getItem(VERIFY_BANNER_HIDDEN_KEY) === accountId;
+  } catch {
+    return false;
+  }
+}
+
+function rememberVerifyBannerHidden(accountId: string): void {
+  try {
+    window.sessionStorage.setItem(VERIFY_BANNER_HIDDEN_KEY, accountId);
+  } catch {
+    // Nothing to keep it in: the in-memory flag still hides it for this page.
+  }
+}
+
+/** The banner text: one short line on a phone, the full sentence otherwise. */
+function verifyBannerText(account: Account, language: Language) {
+  const ac = accountCopy[language];
+  const status = account.emailVerification?.status;
+  if (status === 'not-configured') {
+    return { full: ac.email.deliveryUnavailable, short: ac.banner.short.deliveryUnavailable };
+  }
+  if (status === 'provider-error') {
+    return { full: ac.email.deliveryFailed, short: ac.banner.short.deliveryFailed };
+  }
+  const full = status === 'sent' ? ac.banner.body(account.email) : ac.banner.pending(account.email);
+  return { full, short: ac.banner.short.confirm };
+}
+
+/** Asks the owner to confirm their address, until they do or hide it for the session. */
 export function VerifyBanner({
   app,
   account,
@@ -91,21 +128,29 @@ export function VerifyBanner({
   readonly account: Account;
 }) {
   const { language, resendFromBanner, setVerifyBannerHidden } = app;
+  if (isVerifyBannerHiddenThisSession(account.accountId)) return null;
   const ac = accountCopy[language];
+  const text = verifyBannerText(account, language);
   return (
     <div className="verify-banner" role="status">
+      {/* The short line is decoration for sighted phone users; a screen reader
+          always gets the full sentence, which narrow screens only clip visually. */}
       <p>
-        {account.emailVerification?.status === 'not-configured'
-          ? ac.email.deliveryUnavailable
-          : account.emailVerification?.status === 'provider-error'
-            ? ac.email.deliveryFailed
-            : account.emailVerification?.status === 'sent'
-              ? ac.banner.body(account.email)
-              : ac.banner.pending(account.email)}
+        <span className="verify-banner__full">{text.full}</span>
+        <span className="verify-banner__short" aria-hidden="true">
+          {text.short}
+        </span>
       </p>
       <div className="button-row">
         <Button onClick={() => void resendFromBanner()}>{ac.banner.resend}</Button>
-        <Button onClick={() => setVerifyBannerHidden(true)}>{ac.banner.dismiss}</Button>
+        <Button
+          onClick={() => {
+            rememberVerifyBannerHidden(account.accountId);
+            setVerifyBannerHidden(true);
+          }}
+        >
+          {ac.banner.dismiss}
+        </Button>
       </div>
     </div>
   );

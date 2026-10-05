@@ -13,19 +13,20 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { ActionMenu } from './ActionMenu';
-import { apiRequest, canRetrySection, isReportReady, type Scan, type SiteProfile } from './api';
+import { apiRequest, type Scan, type SiteProfile } from './api';
 import {
   competitorsError,
   parseCompetitorsInput,
   type CompetitorsInputError,
 } from './competitors-input';
 import { Button, EmptyState, Field, Panel, TextAreaField, Window } from './components';
-import { desktopCopy, type NextStepKind } from './desktop-copy';
+import { desktopCopy } from './desktop-copy';
 import { copy, fillCopy, type Language } from './i18n';
+import { NextStep, nextStepFor } from './NextStep';
 import { ProfileDeletion } from './ProfileDeletion';
-import { displayDomain, isTerminalScanStatus } from './scan-status';
 import { normalizeSiteAddress, siteNameFromAddress } from './site-address-input';
 import { DomainOwnershipPanel } from './DomainOwnership';
+import { SiteNextSteps } from './SiteNextSteps';
 import { SiteStatusPanel } from './SiteStatus';
 import { TargetLanguagesField } from './TargetLanguagesField';
 import {
@@ -106,17 +107,8 @@ function competitorsErrorMessage(error: CompetitorsInputError, language: Languag
   }
 }
 
-/** What the owner should do next, from their sites and their latest scan. */
-export function nextStepFor(profiles: readonly SiteProfile[], latest: Scan | null): NextStepKind {
-  if (profiles.length === 0) return 'noProfiles';
-  if (latest === null) return 'noScans';
-  if (!isTerminalScanStatus(latest.status) || !isReportReady(latest)) return 'running';
-  if (/failed|cancelled/i.test(latest.status)) return 'failed';
-  // A Partial report reads, but a section came back incomplete and can be run
-  // once more. Once that retry is spent, it is a finished report like any other.
-  if (canRetrySection(latest)) return 'partial';
-  return latest.plan === 'Free' ? 'freeDone' : 'paidDone';
-}
+// Re-exported where it has always been imported from.
+export { nextStepFor } from './NextStep';
 
 export function DesktopScreen(props: DesktopScreenProps) {
   const t = copy[props.language];
@@ -652,23 +644,39 @@ export function DesktopScreen(props: DesktopScreenProps) {
           ) : null}
         </Window>
         <Window title={d.nextStep.heading} showInertClose={false}>
-          {latest === undefined ? null : (
-            <NextStep
+          {/* With two or more sites, one block per site: the account's newest
+              scan belongs to one of them and must not speak for the others. */}
+          {props.profiles.length > 1 ? (
+            <SiteNextSteps
               language={props.language}
-              kind={nextStepFor(props.profiles, latest)}
               profiles={props.profiles}
-              latest={latest}
               onAddSite={openForm}
               onNewScan={props.onNewScan}
               onOpenScan={props.onOpenScan}
               onRetryScan={props.onRetryScan}
+              onLatest={onLatest}
             />
+          ) : (
+            <>
+              {latest === undefined ? null : (
+                <NextStep
+                  language={props.language}
+                  kind={nextStepFor(props.profiles, latest)}
+                  profiles={props.profiles}
+                  latest={latest}
+                  onAddSite={openForm}
+                  onNewScan={props.onNewScan}
+                  onOpenScan={props.onOpenScan}
+                  onRetryScan={props.onRetryScan}
+                />
+              )}
+              <SiteStatusPanel
+                language={props.language}
+                profiles={props.profiles}
+                onLatest={onLatest}
+              />
+            </>
           )}
-          <SiteStatusPanel
-            language={props.language}
-            profiles={props.profiles}
-            onLatest={onLatest}
-          />
           {/* Optional, and last: it changes nothing about the audits above it.
               Shown for the site the workspace is already talking about, so the
               owner is never asked which one they mean. */}
@@ -743,60 +751,5 @@ function ProfileRow(props: {
         </div>
       ) : null}
     </div>
-  );
-}
-
-function NextStep(props: {
-  language: Language;
-  kind: NextStepKind;
-  profiles: readonly SiteProfile[];
-  latest: Scan | null;
-  onAddSite: () => void;
-  onNewScan: (profile: SiteProfile, plan?: 'Free' | 'WebsiteAudit' | 'Complete') => void;
-  onOpenScan: (scanId: string) => void;
-  onRetryScan: (scanId: string) => Promise<void>;
-}) {
-  const d = desktopCopy[props.language].nextStep;
-  const [retrying, setRetrying] = useState(false);
-  const { kind, latest } = props;
-  const profile =
-    props.profiles.find((candidate) => candidate.id === latest?.profileId) ?? props.profiles[0];
-  const domain =
-    latest !== null ? displayDomain(latest.domain) : profile ? displayDomain(profile.domain) : '';
-  const act = (): void => {
-    if (kind === 'noProfiles') {
-      props.onAddSite();
-      return;
-    }
-    if (kind === 'noScans' && profile) {
-      props.onNewScan(profile, 'Free');
-      return;
-    }
-    if (kind === 'freeDone' && profile) {
-      props.onNewScan(profile, 'Complete');
-      return;
-    }
-    if (kind === 'partial' && latest !== null) {
-      setRetrying(true);
-      void props.onRetryScan(latest.id).finally(() => setRetrying(false));
-      return;
-    }
-    if (latest !== null) props.onOpenScan(latest.id);
-  };
-  return (
-    <Panel title={d.titles[kind]} className="next-step">
-      <p>{d.bodies[kind](domain)}</p>
-      <div className="button-row">
-        <Button variant="primary" onClick={act} disabled={retrying}>
-          {d.actions[kind](domain)}
-        </Button>
-        {kind === 'freeDone' && latest !== null ? (
-          <Button onClick={() => props.onOpenScan(latest.id)}>{d.freeReport}</Button>
-        ) : null}
-        {kind === 'partial' && latest !== null ? (
-          <Button onClick={() => props.onOpenScan(latest.id)}>{d.openReport}</Button>
-        ) : null}
-      </div>
-    </Panel>
   );
 }

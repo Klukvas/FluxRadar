@@ -8,10 +8,11 @@
 
 import type { IssueSummary } from './api';
 import { Button, DataTable, EmptyState, StatusChip } from './components';
+import { findingCountsPages, problemTechnicalName, problemTitle } from './finding-explainers';
 import { FindingExplainer } from './FindingExplainer';
 import { findingsCopy } from './findings-copy';
 import { copy, type Language } from './i18n';
-import { moduleLabel, ruleTitle } from './rule-titles';
+import { moduleLabel } from './rule-titles';
 
 export function IssueProblems(props: {
   summary: IssueSummary;
@@ -35,8 +36,11 @@ export function IssueProblems(props: {
       </thead>
       <tbody>
         {props.summary.groups.map((group) => {
-          const title = ruleTitle(group.ruleId, props.language);
+          const title = problemTitle(group.ruleId, props.language);
           const settled = group.openIssues === 0;
+          // Said in pages only where one finding is one page: a cookie or a
+          // broken link counted as a page would overstate the reach.
+          const countsPages = findingCountsPages(group.ruleId);
           return (
             <tr
               // One row per rule, per section — the same identity the API now
@@ -53,15 +57,16 @@ export function IssueProblems(props: {
                 <strong className="issue-title">{title}</strong>
                 <br />
                 <span className="muted technical">
-                  {group.ruleId} · {moduleLabel(group.module, props.language)}
+                  {problemTechnicalName(group.ruleId, props.language)} ·{' '}
+                  {moduleLabel(group.module, props.language)}
                 </span>
                 {/* Folded: the row has to stay one row per problem. */}
                 <FindingExplainer ruleId={group.ruleId} language={props.language} />
               </td>
               <td data-label={f.issues.columnPages}>
                 {settled
-                  ? f.issues.groupSettled(group.issues)
-                  : f.issues.groupCount(group.openIssues, group.issues)}
+                  ? f.issues.groupSettled(group.issues, countsPages)
+                  : f.issues.groupCount(group.openIssues, group.issues, countsPages)}
               </td>
               <td data-label={t.columnAction}>
                 <Button

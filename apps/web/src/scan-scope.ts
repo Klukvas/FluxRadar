@@ -277,7 +277,12 @@ export function scopeFormFromProfileConfig(config: ProfileScanConfig): ScanScope
     apiChecks: apiCheckLines(scope.apiChecks ?? []),
     queryPolicy: scope.queryPolicy,
     respectRobots: scope.respectRobots,
-    robotsOverrideConfirmed: scope.robotsOverrideConfirmed,
+    // Never restored, exactly as `scopeFormFromScan` never restores it. The
+    // API cannot store "ignore robots.txt" without its confirmation, so every
+    // launch that used an override left `true` on the profile — and restoring
+    // it pre-ticked the override on every later scan of that site. The owner
+    // confirms it again for the scan in front of them.
+    robotsOverrideConfirmed: false,
     userAgent: scope.userAgent,
     egressLocation: scope.egressLocation ?? DEFAULT_SCOPE_FORM.egressLocation,
   };
@@ -300,10 +305,17 @@ export function profileScanConfigFromForm(form: ScanScopeForm, plan: Plan): Prof
  * because for seeds and API checks it is the owner's own ordering.
  */
 export function profileScanConfigFingerprint(config: ProfileScanConfig): string {
+  // The robots.txt confirmation is left out: the form never restores it (see
+  // `scopeFormFromProfileConfig`), so a stored `true` against the form's
+  // `false` is not an unsaved change the owner made.
   return JSON.stringify(
     canonicalValue({
       plan: config.plan,
-      scope: { ...config.scope, renderJs: config.scope.renderJs ?? false },
+      scope: {
+        ...config.scope,
+        renderJs: config.scope.renderJs ?? false,
+        robotsOverrideConfirmed: undefined,
+      },
     }),
   );
 }

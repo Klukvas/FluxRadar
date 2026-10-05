@@ -1,0 +1,40 @@
+/* The new-scan screen's plain-language layer: which site is being checked,
+   beside the button; the folded block of crawl settings; and the line a
+   robots.txt override earns. The form's layout itself lives in base.css. */
+
+/* "Checking: <site>, <address>, plan <plan>" — the last thing read before
+   paying, so it is the largest text in the launch column. Addresses are long
+   and unbroken, so they wrap rather than widen a phone-width column. */
+.launch-form__target {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.launch-form__target strong {
+  font-size: 16px;
+}
+
+/* A setting that reads pages the site asked crawlers to skip. Marked by a
+   coloured edge and text, not colour alone, so it reads in any contrast mode. */
+.launch-warning {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid #9b1c12;
+  border-left-width: 4px;
+  background: #fdecea;
+  color: #7a140c;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.launch-warning::before {
+  /* Alternative text '': the sign is decoration, the sentence says it. */
+  content: '\26a0  ' / '';
+}
+
+/* The block's title is read by owners who never open it, so it is set at body
+   size rather than the 12px of the crawl-rules disclosure under it. */
+.scan-expert__summary {
+  font-size: 13px;
+  font-weight: 700;
+}

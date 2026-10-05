@@ -30,6 +30,7 @@ import { SupportWidget } from './SupportWidget';
 import { AppFrame, VerifyBanner, WorkspaceFooter, WorkspaceHeader } from './WorkspaceChrome';
 import './styles/base.css';
 import './styles/account.css';
+import './styles/narrow-screens.css';
 
 export function App() {
   const [language, setLanguage] = useState<Language>(readInitialLanguage);

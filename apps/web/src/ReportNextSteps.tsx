@@ -15,6 +15,14 @@ import { findingsCopy, type FindingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
 import { planIncludesIssueHistory } from './plan-modules';
+import {
+  CRAWLER_PAGE_HREF,
+  nothingWasChecked,
+  reportFailureCopy,
+  technicalDetailsOf,
+  type SiteFailureStep,
+  type SiteReadFailure,
+} from './report-failure-copy';
 import { ANALYTICS_MODULE, ruleTitle } from './rule-titles';
 import { displayDomain } from './scan-status';
 import './styles/findings.css';
@@ -59,6 +67,8 @@ export function FixFirst(props: {
   language: Language;
   onOpenProblem: (ruleId: string) => void;
   onAll: () => void;
+  /** True when the scan checked nothing: an empty list is then no verdict at all. */
+  nothingChecked?: boolean;
 }) {
   const f = findingsCopy[props.language];
   const open = props.summary.groups.filter((group) => group.openIssues > 0);
@@ -67,7 +77,11 @@ export function FixFirst(props: {
     <section className="report-block" aria-labelledby="fix-first-heading">
       <h3 id="fix-first-heading">{f.fixFirst.heading}</h3>
       {top.length === 0 ? (
-        <p>{f.fixFirst.none}</p>
+        <p>
+          {props.nothingChecked === true
+            ? reportFailureCopy[props.language].nothingChecked
+            : f.fixFirst.none}
+        </p>
       ) : (
         <>
           <p className="muted">{f.fixFirst.lead}</p>
@@ -291,6 +305,96 @@ export function SectionRetry(props: { language: Language; onRetry: () => Promise
   );
 }
 
+/**
+ * The one block a report shows when no page of the site could be read.
+ *
+ * It replaces what the owner used to piece together from eight "Unavailable"
+ * cards and a raw reason code: what we saw, the usual causes, and what to do —
+ * with the crawler page one click away, because a protection layer refusing us
+ * is the cause the owner can fix themselves. The raw reason stays, small, for
+ * whoever the owner forwards this to.
+ */
+export function SiteUnreadBlock(props: {
+  failure: SiteReadFailure;
+  domain: string;
+  /**
+   * The Free check has no robots.txt override, so it is not offered there, and
+   * nothing was paid for it, so no refund line is shown.
+   */
+  plan: Scan['plan'];
+  language: Language;
+}) {
+  const t = reportFailureCopy[props.language];
+  const details = technicalDetailsOf(props.failure, props.language);
+  const guidance = t.guidance[props.failure.kind];
+  // A labelled region, not an alert: the block is on the page from the first
+  // paint, and an alert would be read out in full on every visit.
+  return (
+    <section className="report-block report-block--warning" aria-labelledby="site-unread-heading">
+      <h3 id="site-unread-heading">{t.heading}</h3>
+      <p>{t.lead(props.domain)}</p>
+      {props.plan === 'Free' ? null : <p>{t.paidNotDelivered}</p>}
+      <h4>{t.whatWeSaw}</h4>
+      <p>{t.kinds[props.failure.kind]}</p>
+      {guidance.causes.length === 0 ? null : (
+        <>
+          <h4>{t.causesHeading}</h4>
+          <ul>
+            {guidance.causes.map((cause) => (
+              <li key={cause}>{cause}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      <h4>{t.whatToDoHeading}</h4>
+      <ol>
+        {guidance.steps.map((step) => (
+          <li key={step}>
+            <SiteFailureStepText
+              step={step}
+              domain={props.domain}
+              canOverrideRobots={props.plan !== 'Free'}
+              language={props.language}
+            />
+          </li>
+        ))}
+      </ol>
+      {details === null ? null : <p className="muted technical">{details}</p>}
+    </section>
+  );
+}
+
+function SiteFailureStepText(props: {
+  step: SiteFailureStep;
+  domain: string;
+  canOverrideRobots: boolean;
+  language: Language;
+}) {
+  const t = reportFailureCopy[props.language];
+  const crawlerLink = <a href={CRAWLER_PAGE_HREF}>{t.crawlerLink}</a>;
+  switch (props.step) {
+    case 'checkInBrowser':
+      return <>{t.checkInBrowser(props.domain)}</>;
+    case 'allowCrawler':
+      return (
+        <>
+          {t.allowCrawlerBefore} {crawlerLink} {t.allowCrawlerAfter}
+        </>
+      );
+    case 'allowInRobots':
+      return (
+        <>
+          {t.allowInRobotsBefore} {crawlerLink} {t.allowInRobotsAfter}
+          {props.canOverrideRobots ? ` ${t.robotsOverride}` : null}
+        </>
+      );
+    case 'runAgain':
+      return <>{t.runAgain}</>;
+    case 'runAgainAfterChange':
+      return <>{t.runAgainAfterChange}</>;
+  }
+}
+
 export function FreeUpsell(props: { scan: Scan; language: Language; onUpgrade: () => void }) {
   const f = findingsCopy[props.language];
   return (
@@ -348,8 +452,15 @@ export function ReportNextSteps(props: {
   targetLanguages?: string | null;
   /** Absent where the screen offers no retry; the block is then not drawn. */
   onRetry?: () => Promise<void>;
+  /** Set when no page of the site could be read; leads the blocks below. */
+  siteFailure?: SiteReadFailure | null;
+  /** Whether the scan checked nothing; derived from the scan when absent. */
+  nothingChecked?: boolean;
 }) {
   const summary = useIssueSummary(props.scan.id);
+  const siteFailure = props.siteFailure ?? null;
+  const nothingChecked =
+    props.nothingChecked ?? (siteFailure !== null || nothingWasChecked(props.scan));
   // A ready plan in the selected language takes FixFirst's place: it says the
   // same thing in more useful words, and two "start here" lists would compete.
   const [planReady, setPlanReady] = useState(false);
@@ -358,27 +469,43 @@ export function ReportNextSteps(props: {
   const hasOpenIssues = summary === null ? null : hasPlannableOpenIssues(summary);
   return (
     <>
+      {siteFailure === null ? null : (
+        <SiteUnreadBlock
+          failure={siteFailure}
+          domain={displayDomain(props.scan.domain)}
+          plan={props.scan.plan}
+          language={props.language}
+        />
+      )}
       {props.onRetry !== undefined && canRetrySection(props.scan) ? (
         <SectionRetry language={props.language} onRetry={props.onRetry} />
       ) : null}
-      <ActionPlan
-        scan={props.scan}
-        language={props.language}
-        targetLanguages={props.targetLanguages}
-        onOpenProblem={props.onOpenProblem}
-        onUpgrade={props.onUpgrade}
-        hasOpenIssues={hasOpenIssues}
-        onPlanReadyChange={setPlanReady}
-      />
+      {/* The block above already says to run the scan again; a plan block
+          beside it would only repeat that nothing was checked. */}
+      {siteFailure !== null ? null : (
+        <ActionPlan
+          scan={props.scan}
+          language={props.language}
+          targetLanguages={props.targetLanguages}
+          onOpenProblem={props.onOpenProblem}
+          onUpgrade={props.onUpgrade}
+          hasOpenIssues={hasOpenIssues}
+          nothingChecked={nothingChecked}
+          onPlanReadyChange={setPlanReady}
+        />
+      )}
       {summary === null || planReady ? null : (
         <FixFirst
           summary={summary}
           language={props.language}
           onOpenProblem={props.onOpenProblem}
           onAll={props.onAllProblems}
+          nothingChecked={nothingChecked}
         />
       )}
-      {props.scan.plan === 'Free' ? (
+      {/* Selling a bigger scan of a site we could not read would sell a second
+          failure; the block above says what to fix first. */}
+      {props.scan.plan === 'Free' && siteFailure === null ? (
         <FreeUpsell scan={props.scan} language={props.language} onUpgrade={props.onUpgrade} />
       ) : null}
       {drawsOwnChanges(props.scan) ? (

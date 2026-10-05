@@ -4,12 +4,12 @@ import { Fragment } from 'react';
 
 import type { Issue } from './api';
 import { Button, DataTable, FieldRow, StatusChip } from './components';
-import { hasFindingExplainer } from './finding-explainers';
+import { hasFindingExplainer, problemTechnicalName, problemTitle } from './finding-explainers';
 import { FindingExplainer } from './FindingExplainer';
 import { findingEvidence } from './finding-variants';
 import { findingsCopy } from './findings-copy';
 import { copy, fillCopy, type Language } from './i18n';
-import { moduleCoverageHref, moduleLabel, ruleTitle } from './rule-titles';
+import { moduleCoverageHref, moduleLabel } from './rule-titles';
 
 /** The statuses an owner may set. Resolved and Reopened belong to the scanner. */
 export const USER_STATUSES = ['New', 'Acknowledged', 'Ignored', 'False Positive'] as const;
@@ -38,7 +38,7 @@ export function IssueTable(props: {
         {props.issues.map((issue) => {
           const isExpanded = props.selectedIssue?.id === issue.id;
           const detailId = `issue-detail-${issue.id}`;
-          const title = ruleTitle(issue.ruleId, props.language);
+          const title = problemTitle(issue.ruleId, props.language);
           return (
             <Fragment key={issue.id}>
               <tr>
@@ -49,7 +49,8 @@ export function IssueTable(props: {
                   <strong className="issue-title">{title}</strong>
                   <br />
                   <span className="muted technical">
-                    {issue.ruleId} · {moduleLabel(issue.module, props.language)}
+                    {problemTechnicalName(issue.ruleId, props.language)} ·{' '}
+                    {moduleLabel(issue.module, props.language)}
                   </span>
                 </td>
                 <td data-label={t.columnTarget} className="technical issue-target">
@@ -105,24 +106,15 @@ export function IssueTable(props: {
   );
 }
 
-function IssueDetail(props: { issue: Issue; language: Language; onClose: () => void }) {
-  const { issue } = props;
+/**
+ * The finding's evidence and recommendation in the reader's language when the
+ * API rendered one; the stored text otherwise, which is what an older finding
+ * or an AI-written one only has.
+ */
+function EvidenceFields(props: { issue: Issue; language: Language }) {
   const t = copy[props.language].issues;
-  const f = findingsCopy[props.language];
-  const explained = hasFindingExplainer(issue.ruleId);
-  const impact = (
-    <FieldRow
-      label={t.impact}
-      value={fillCopy(t.impactValue, {
-        affected: issue.affectedTargets,
-        applicable: issue.applicableTargets,
-        delta: issue.scoreDelta.toFixed(2),
-      })}
-    />
-  );
-  // The reader's language when the API rendered one; the stored text otherwise,
-  // which is what an older finding or an AI-written one only has.
-  const evidenceFields = (
+  const { issue } = props;
+  return (
     <>
       <FieldRow label={t.evidence} value={findingEvidence(issue, props.language) ?? t.noExcerpt} />
       <FieldRow
@@ -131,16 +123,56 @@ function IssueDetail(props: { issue: Issue; language: Language; onClose: () => v
       />
     </>
   );
-  const provenanceFields = (
-    <>
-      <FieldRow label={t.confidence} value={`${(issue.confidence * 100).toFixed(0)}%`} />
-      <FieldRow label={t.columnRule} value={issue.ruleId} technical />
-    </>
+}
+
+/**
+ * The fold for whoever will do the work: the scoring and provenance fields
+ * always, and the raw evidence too when a plain explanation stands in for it.
+ */
+function TechnicalDetails(props: { issue: Issue; language: Language; withEvidence: boolean }) {
+  const t = copy[props.language].issues;
+  const f = findingsCopy[props.language];
+  const { issue } = props;
+  return (
+    <details className="finding-technical">
+      <summary className="finding-technical__summary">{f.issues.technicalTitle}</summary>
+      <div className="finding-technical__body">
+        {props.withEvidence ? <EvidenceFields issue={issue} language={props.language} /> : null}
+        <FieldRow
+          label={t.impact}
+          value={fillCopy(t.impactValue, {
+            affected: issue.affectedTargets,
+            applicable: issue.applicableTargets,
+            delta: issue.scoreDelta.toFixed(2),
+          })}
+        />
+        <FieldRow label={t.confidence} value={`${(issue.confidence * 100).toFixed(0)}%`} />
+        <FieldRow label={t.columnRule} value={issue.ruleId} technical />
+      </div>
+    </details>
   );
+}
+
+/**
+ * One finding, read top to bottom as the owner needs it: what the problem is
+ * in plain words, where it is, and only then — one fold down, for whoever will
+ * do the work — the scoring and provenance fields. "Impact 61/61 targets ·
+ * score -10.00", "Confidence 100%" and a rule id used to come before anything
+ * an owner could act on.
+ *
+ * A rule with no plain-language explanation has nothing to replace its
+ * evidence and recommendation, so those stay in view; only the scoring and
+ * provenance fold away.
+ */
+function IssueDetail(props: { issue: Issue; language: Language; onClose: () => void }) {
+  const { issue } = props;
+  const t = copy[props.language].issues;
+  const f = findingsCopy[props.language];
+  const explained = hasFindingExplainer(issue.ruleId);
   return (
     <div className="issue-detail">
       <div className="split">
-        <strong>{ruleTitle(issue.ruleId, props.language)}</strong>
+        <strong>{problemTitle(issue.ruleId, props.language)}</strong>
         <Button onClick={props.onClose}>{t.closeDetails}</Button>
       </div>
       {/* Open here: the panel is where the owner came to understand the
@@ -155,27 +187,8 @@ function IssueDetail(props: { issue: Issue; language: Language; onClose: () => v
         value={<StatusChip status={issue.status} label={f.status[issue.status]} />}
       />
       <FieldRow label={t.columnTarget} value={issue.targetUrl} technical />
-      {/* An explained rule reads top to bottom as plain language, so the header
-          names and the rule id go behind one fold for whoever will do the work;
-          a rule with no explanation keeps the fields it always had. */}
-      {explained ? (
-        <>
-          {impact}
-          <details className="finding-technical">
-            <summary className="finding-technical__summary">{f.issues.technicalTitle}</summary>
-            <div className="finding-technical__body">
-              {evidenceFields}
-              {provenanceFields}
-            </div>
-          </details>
-        </>
-      ) : (
-        <>
-          {evidenceFields}
-          {impact}
-          {provenanceFields}
-        </>
-      )}
+      {explained ? null : <EvidenceFields issue={issue} language={props.language} />}
+      <TechnicalDetails issue={issue} language={props.language} withEvidence={explained} />
       <p className="issue-detail__learn">
         <a href={moduleCoverageHref(issue.module)}>{f.issues.learnMore} →</a>
       </p>

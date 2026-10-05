@@ -21,6 +21,8 @@ test.describe('cookie choices on public legal pages', () => {
     const preferencesBox = await preferences.boundingBox();
     expect(necessaryBox?.width).toBe(preferencesBox?.width);
 
+    // Desktop width only: at 600px and below the lone settings launcher joins
+    // the page flow under the footer, so the document grows by its height.
     const heightWithBanner = await page.evaluate(() => document.documentElement.scrollHeight);
     await necessary.click();
     await expect(banner).toBeHidden();

@@ -373,9 +373,10 @@ export const copy = {
       accountBar: 'FLUXRADAR / PUBLIC WEB AUDIT STATION',
       hero: {
         eyebrow: 'FLUXLAB / PUBLIC WEB AUDIT STATION',
+        promise: 'We check your website and show what keeps customers from finding you.',
         titleLine1: 'One URL.',
         titleEm: 'Every signal.',
-        lede: 'FluxRadar turns a public website into one clear operating picture: search visibility, AI discoverability, technical integrity and the issues worth fixing first.',
+        lede: 'FluxRadar reads your website the way Google, AI assistants and your visitors see it, and gives you one report: why people may not find you, what is broken, and what to fix first.',
         proofScan: 'homepage check',
         proofSignals: 'audit signals',
         proofTiers: 'paid report tiers',
@@ -398,17 +399,17 @@ export const copy = {
           'scope homepage + public links',
           'seo       21 checks · complete',
           'ai seo    public readiness · ready',
-          'security  ASVS public profile · queued',
+          'security  safety basics (ASVS) · queued',
         ],
         moduleSeo: 'SEO',
-        moduleAiSeo: 'AI SEO / GEO',
+        moduleAiSeo: 'Found by AI assistants (GEO)',
         moduleSecurity: 'Security',
         moduleMore: '03 more signals',
       },
       ticker: {
         ariaLabel: 'FluxRadar audit coverage',
         seo: 'SEO',
-        aiSeo: 'AI SEO / GEO',
+        aiSeo: 'FOUND BY AI ASSISTANTS (GEO)',
         security: 'SECURITY',
         accessibility: 'ACCESSIBILITY',
         reliability: 'RELIABILITY',
@@ -417,39 +418,82 @@ export const copy = {
       capabilities: {
         eyebrow: 'WHAT FLUXRADAR READS',
         title: 'A website is more than a ranking.',
-        lead: 'Get one report for the signals that shape how people, crawlers and AI systems experience your site.',
+        lead: 'One report on what shapes how people, Google and AI assistants see your site.',
         seo: {
           index: 'A / SEARCH',
-          title: 'SEO visibility',
-          body: 'Titles, descriptions, headings, canonicals, indexing and the technical details that help search engines understand your pages.',
+          title: 'Found on Google (SEO)',
+          body: 'The page titles and descriptions Google shows, headings, the one main address of each page (canonical), whether Google may list a page at all (indexing), and the business details Google can read from your pages (structured data, JSON-LD).',
+          // The count is matched verbatim by apps/api/src/export/check-count-parity.test.ts.
           foot: '21 deterministic checks · JSON-LD checks',
         },
         ai: {
-          index: 'B / AI SYSTEMS',
-          title: 'AI SEO / GEO',
-          body: 'See whether your brand and site are discoverable by AI systems, with public crawler readiness plus consent-aware provider checks.',
+          index: 'B / AI ASSISTANTS',
+          title: 'Found by AI assistants (GEO)',
+          body: 'Whether AI assistants are allowed to read your site, and — with your consent — whether the ones we ask mention your business in their answers.',
           foot: 'Public readiness · provider visibility optional',
         },
         integrity: {
           index: 'C / INTEGRITY',
           title: 'Site health',
-          body: 'OWASP ASVS public signals, WCAG mappings, reliability, content quality and privacy — scored with honest coverage states.',
+          body: 'Basic safety settings (public OWASP ASVS signals), whether people with disabilities can use the site (accessibility, WCAG), whether pages open reliably, text quality and privacy — and an honest note of what could not be checked.',
           foot: 'No false certainty',
         },
+      },
+      example: {
+        eyebrow: 'WHAT A REPORT LOOKS LIKE',
+        title: 'Findings in plain words, with what to do.',
+        lead: 'Every finding shows what is wrong and what to change. The site and the numbers below are made up.',
+        badge: 'Example, not your site',
+        windowLabel: 'Example report for a made-up website',
+        site: 'bloom-nails.example',
+        summary: '3 things to fix · 12 pages checked',
+        whereLabel: 'Where',
+        actionLabel: 'What to do',
+        findings: [
+          {
+            tone: 'high',
+            severity: 'Fix first',
+            where: '4 pages',
+            title:
+              '4 pages have no description, so Google shows a random piece of text under your link.',
+            action:
+              'Write one or two sentences for each page saying what you offer and where. Your site builder has a “Description” or “SEO” field for it.',
+          },
+          {
+            tone: 'high',
+            severity: 'Fix first',
+            where: '3 links',
+            title:
+              '3 links lead to a page that no longer exists, so visitors hit a dead end instead of your booking form.',
+            action:
+              'Point each link at the right page or remove it. The report lists every page and the broken link on it.',
+          },
+          {
+            tone: 'medium',
+            severity: 'Worth fixing',
+            where: '12 photos',
+            title:
+              '12 photos have no text description, so Google and people who use screen readers cannot tell what they show.',
+            action:
+              'Add a short description to each photo, such as “Pink gel manicure with gold tips”. Site builders usually call this field “alt text”.',
+          },
+        ],
       },
       coverageEntry: {
         eyebrow: 'EXACTLY WHAT WE CHECK',
         title: 'Every check. Every standard. No surprises.',
-        body: '21 SEO checks, AI crawler readiness, OWASP ASVS public signals, WCAG 2.2 AA / EN 301 549 / Section 508 accessibility rules, performance signals and privacy / consent detection — all sourced from public HTTP responses, no credentials needed.',
+        // The opening clause carries the SEO check count that
+        // apps/api/src/export/check-count-parity.test.ts matches; reword after it.
+        body: '21 SEO checks, AI crawler readiness (whether AI assistants may read your site), basic safety settings (public OWASP ASVS signals), accessibility for people with disabilities (WCAG 2.2 AA / EN 301 549 / Section 508), loading speed, and cookie and privacy consent — all read from what your site shows any visitor, no passwords needed.',
       },
       workflow: {
-        eyebrow: 'THE OPERATING LOOP',
+        eyebrow: 'HOW IT WORKS',
         title: 'From public URL to prioritized work.',
-        lead: 'No access to your CMS, analytics or source code required. Start with what anyone on the web can see.',
-        step1Title: 'Choose an origin',
-        step1Body: 'Enter one HTTPS website and define how deep the crawl should go.',
-        step2Title: 'Run the station',
-        step2Body: 'FluxRadar crawls public pages and records evidence behind every finding.',
+        lead: 'No access to your site builder, analytics or code required. We start with what anyone on the web can see.',
+        step1Title: 'Enter your website',
+        step1Body: 'Type your site address and choose how many pages to check.',
+        step2Title: 'We check it',
+        step2Body: 'FluxRadar opens your public pages and keeps the proof behind every finding.',
         step3Title: 'Fix what matters',
         step3Body: 'Open the Issue Center, assign a status and export the Complete report.',
       },
@@ -526,7 +570,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'One report on how search engines and AI systems read your website.',
           included:
-            'The full SEO analysis — 21 checks covering titles, meta descriptions, headings, canonicals, robots.txt, sitemap, redirects, broken links, duplicate URLs, duplicate titles and descriptions, internal linking, click depth, structured data and social previews — plus AI crawler readiness: which AI crawlers your robots.txt allows and whether your pages are machine-readable.',
+            'The full SEO analysis — 21 checks covering titles, meta descriptions, headings, the main address of each page (canonical), robots.txt, sitemap, redirects, broken links, duplicate URLs, duplicate titles and descriptions, internal linking, click depth, structured data and social previews — plus AI crawler readiness: which AI crawlers your robots.txt allows and whether your pages are machine-readable.',
           bestFor:
             'Owners and marketers whose question is “why am I not being found — in search or in AI answers?”',
           notIncluded:
@@ -543,7 +587,7 @@ export const copy = {
           bestFor:
             'Owners and developers whose question is “what is wrong with this website?” — before a launch, a handover or a redesign — and who are not buying a search answer today.',
           notIncluded:
-            'The SEO analysis and AI SEO / GEO — the two search modules. Basic sells those, Complete sells both halves together.',
+            'The SEO analysis and visibility in AI answers (AI SEO / GEO) — the two search modules. Basic sells those, Complete sells both halves together.',
           limits:
             'One scan of one website · up to 50,000 crawled pages · results kept for 365 days.',
         },
@@ -583,7 +627,7 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Reword the rest
             // of this answer freely; leave that opening clause alone.
             basic:
-              'The full SEO analysis — 21 checks — plus AI SEO / GEO: which AI crawlers your site lets in, and whether the AI providers we ask mention it in their answers.',
+              'The full SEO analysis — 21 checks — plus visibility in AI answers (AI SEO / GEO): which AI crawlers your site lets in, and whether the AI providers we ask mention it in their answers.',
             websiteAudit:
               'Eight modules about the site itself: security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics — with scan history, JSON/CSV export and the AI Action Plan.',
             complete:
@@ -594,7 +638,7 @@ export const copy = {
             basic:
               'Security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics — and the scan history, export and AI Action Plan that come with them.',
             websiteAudit:
-              'The two search modules: the SEO analysis and AI SEO / GEO. Those two are in Basic.',
+              'The two search modules: the SEO analysis and visibility in AI answers (AI SEO / GEO). Those two are in Basic.',
             complete: 'Nothing: every module is in this one. It still reads public pages only.',
           },
           chooseWhen: {
@@ -704,7 +748,6 @@ export const copy = {
       renderInfoBody:
         'Off, FluxRadar reads the HTML the server sends. On, it opens each page in a headless browser and reads the DOM once the page’s own scripts have run — which is what a single-page app needs. All browser traffic goes through the same public-address guard as the crawl: GET and HEAD only, no cookies, no downloads and no sockets. If the deployment has no browser runtime the report says so; it never presents the static HTML as a rendered page.',
       advancedTitle: 'Advanced crawl rules',
-      blockedByRobots: 'To start this scan, confirm the robots.txt override under Audit depth.',
       labelRespectRobots: 'Respect robots.txt',
       labelRobotsOverride: 'I confirm the robots.txt override',
       robotsInfoTitle: 'How robots.txt affects this scan',
@@ -2240,9 +2283,10 @@ export const copy = {
       accountBar: 'FLUXRADAR / СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ',
       hero: {
         eyebrow: 'FLUXLAB / СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ',
+        promise: 'Перевіримо ваш сайт і покажемо, що заважає клієнтам вас знайти.',
         titleLine1: 'Одна адреса.',
         titleEm: 'Усі сигнали.',
-        lede: 'FluxRadar перетворює публічний сайт на єдину чітку картину: пошукова видимість, доступність для AI, технічна цілісність і проблеми, які варто виправити першими.',
+        lede: 'FluxRadar читає ваш сайт так, як його бачать Google, AI-асистенти й відвідувачі, і дає один звіт: чому вас можуть не знаходити, що зламано і що виправити першим.',
         proofScan: 'перевірка головної',
         proofSignals: 'сигналів аудиту',
         proofTiers: 'тарифи платного звіту',
@@ -2265,17 +2309,17 @@ export const copy = {
           'область: головна + публічні посилання',
           'seo       21 перевірка · завершено',
           'ai seo    публічна готовність · готово',
-          'security  публічний профіль ASVS · у черзі',
+          'security  базова безпека (ASVS) · у черзі',
         ],
         moduleSeo: 'SEO',
-        moduleAiSeo: 'AI SEO / GEO',
+        moduleAiSeo: 'Видимість в AI-асистентах (GEO)',
         moduleSecurity: 'Безпека',
         moduleMore: '03 інших сигнали',
       },
       ticker: {
         ariaLabel: 'Охоплення аудиту FluxRadar',
         seo: 'SEO',
-        aiSeo: 'AI SEO / GEO',
+        aiSeo: 'ВИДИМІСТЬ В AI-АСИСТЕНТАХ (GEO)',
         security: 'БЕЗПЕКА',
         accessibility: 'ДОСТУПНІСТЬ',
         reliability: 'НАДІЙНІСТЬ',
@@ -2284,39 +2328,82 @@ export const copy = {
       capabilities: {
         eyebrow: 'ЩО ЧИТАЄ FLUXRADAR',
         title: 'Сайт — це більше, ніж позиція в рейтингу.',
-        lead: 'Отримайте один звіт про сигнали, які формують досвід людей, краулерів та AI-систем на вашому сайті.',
+        lead: 'Один звіт про те, як ваш сайт бачать люди, Google та AI-асистенти.',
         seo: {
           index: 'A / ПОШУК',
-          title: 'SEO-видимість',
-          body: 'Заголовки, описи, structure заголовків, канонічні посилання, індексація та технічні деталі, які допомагають пошуковим системам розуміти ваші сторінки.',
+          title: 'Видимість у Google (SEO)',
+          body: 'Заголовки й описи сторінок, які показує Google, підзаголовки, одна головна адреса кожної сторінки (canonical), чи дозволено Google показувати сторінку (індексація) і дані про ваш бізнес, які Google може прочитати зі сторінок (структуровані дані, JSON-LD).',
+          // The count is matched verbatim by apps/api/src/export/check-count-parity.test.ts.
           foot: '21 детермінована перевірка · перевірки JSON-LD',
         },
         ai: {
-          index: 'B / AI-СИСТЕМИ',
-          title: 'AI SEO / GEO',
-          body: 'Перевірте, чи можуть AI-системи виявити ваш бренд і сайт: публічна готовність до краулерів плюс перевірки провайдерів із урахуванням згоди.',
+          index: 'B / AI-АСИСТЕНТИ',
+          title: 'Видимість в AI-асистентах (GEO)',
+          body: 'Чи дозволено AI-асистентам читати ваш сайт і — з вашої згоди — чи згадують ваш бізнес у відповідях ті з них, яких ми запитуємо.',
           foot: 'Публічна готовність · видимість провайдера — опційно',
         },
         integrity: {
           index: 'C / ЦІЛІСНІСТЬ',
           title: 'Стан сайту',
-          body: 'Публічні сигнали OWASP ASVS, відповідність WCAG, надійність, якість контенту та приватність — з чесними станами покриття.',
+          body: 'Базові налаштування безпеки (публічні сигнали OWASP ASVS), чи зможуть користуватися сайтом люди з інвалідністю (доступність, WCAG), чи стабільно відкриваються сторінки, якість текстів і приватність — і чесна примітка про те, що перевірити не вдалося.',
           foot: 'Без фальшивої впевненості',
         },
+      },
+      example: {
+        eyebrow: 'ЯК ВИГЛЯДАЄ ЗВІТ',
+        title: 'Знахідки простими словами — і що з ними робити.',
+        lead: 'Кожна знахідка показує, що не так і що змінити. Сайт і цифри нижче вигадані.',
+        badge: 'Приклад, не ваш сайт',
+        windowLabel: 'Приклад звіту для вигаданого сайту',
+        site: 'bloom-nails.example',
+        summary: '3 речі, які варто виправити · перевірено 12 сторінок',
+        whereLabel: 'Де',
+        actionLabel: 'Що зробити',
+        findings: [
+          {
+            tone: 'high',
+            severity: 'Виправити першим',
+            where: '4 сторінки',
+            title:
+              'На 4 сторінках немає опису, тому Google показує під посиланням випадковий шматок тексту.',
+            action:
+              'Напишіть для кожної сторінки одне-два речення про те, що ви пропонуєте і де. У конструкторі сайту для цього є поле «Опис» або «SEO».',
+          },
+          {
+            tone: 'high',
+            severity: 'Виправити першим',
+            where: '3 посилання',
+            title:
+              '3 посилання ведуть на сторінку, якої вже немає, тож відвідувач опиняється в глухому куті замість форми запису.',
+            action:
+              'Спрямуйте кожне посилання на правильну сторінку або приберіть його. У звіті є список сторінок і битих посилань на них.',
+          },
+          {
+            tone: 'medium',
+            severity: 'Варто виправити',
+            where: '12 фото',
+            title:
+              '12 фото не мають текстового опису, тому ні Google, ні люди з програмами читання екрана не знають, що на них.',
+            action:
+              'Додайте до кожного фото короткий опис, наприклад «Рожевий гель-манікюр із золотими кінчиками». У конструкторах це поле зазвичай називається «alt-текст».',
+          },
+        ],
       },
       coverageEntry: {
         eyebrow: 'ЩО САМЕ МИ ПЕРЕВІРЯЄМО',
         title: 'Кожна перевірка. Кожен стандарт. Без сюрпризів.',
-        body: '21 SEO-перевірка, готовність до AI-краулерів, публічні сигнали OWASP ASVS, правила доступності WCAG 2.2 AA / EN 301 549 / Section 508, сигнали продуктивності та виявлення приватності / згоди — усе з публічних HTTP-відповідей, облікові дані не потрібні.',
+        // The opening clause carries the SEO check count that
+        // apps/api/src/export/check-count-parity.test.ts matches; reword after it.
+        body: '21 SEO-перевірка, готовність до AI-краулерів (чи можуть AI-асистенти читати ваш сайт), базові налаштування безпеки (публічні сигнали OWASP ASVS), доступність для людей з інвалідністю (WCAG 2.2 AA / EN 301 549 / Section 508), швидкість завантаження, згода на cookie і приватність — усе з того, що ваш сайт показує будь-якому відвідувачу, паролі не потрібні.',
       },
       workflow: {
-        eyebrow: 'РОБОЧИЙ ЦИКЛ',
+        eyebrow: 'ЯК ЦЕ ПРАЦЮЄ',
         title: 'Від публічної адреси до пріоритезованих завдань.',
-        lead: 'Доступ до вашої CMS, аналітики чи вихідного коду не потрібен. Почніть з того, що бачить будь-хто в інтернеті.',
-        step1Title: 'Оберіть джерело',
-        step1Body: 'Введіть одну HTTPS-адресу та визначте глибину обходу.',
-        step2Title: 'Запустіть станцію',
-        step2Body: 'FluxRadar обходить публічні сторінки та фіксує докази для кожного висновку.',
+        lead: 'Доступ до вашого конструктора сайту, аналітики чи коду не потрібен. Ми починаємо з того, що бачить будь-хто в інтернеті.',
+        step1Title: 'Введіть адресу сайту',
+        step1Body: 'Вкажіть адресу сайту і скільки сторінок перевірити.',
+        step2Title: 'Ми перевіряємо',
+        step2Body: 'FluxRadar відкриває публічні сторінки й зберігає докази для кожної знахідки.',
         step3Title: 'Виправте головне',
         step3Body: 'Відкрийте Issue Center, призначте статус і експортуйте звіт Complete.',
       },
@@ -2393,7 +2480,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'Один звіт про те, як ваш сайт читають пошукові системи та AI-системи.',
           included:
-            'Повний SEO-аналіз — 21 перевірка: заголовки, meta description, структура заголовків, канонічні теги, robots.txt, мапа сайту, редиректи, биті посилання, дублікати адрес, дублікати заголовків і описів, внутрішня перелінковка, глибина кліків, структуровані дані та соціальні прев’ю — плюс готовність до AI-роботів: яким AI-роботам дозволяє ваш robots.txt і чи придатні ваші сторінки для машинного читання.',
+            'Повний SEO-аналіз — 21 перевірка: заголовки, meta description, структура заголовків, головна адреса кожної сторінки (canonical), robots.txt, мапа сайту, редиректи, биті посилання, дублікати адрес, дублікати заголовків і описів, внутрішня перелінковка, глибина кліків, структуровані дані та соціальні прев’ю — плюс готовність до AI-роботів: яким AI-роботам дозволяє ваш robots.txt і чи придатні ваші сторінки для машинного читання.',
           bestFor:
             'Власникам і маркетологам, чиє питання звучить так: «чому мене не знаходять — у пошуку чи у відповідях AI?»',
           notIncluded:
@@ -2410,7 +2497,7 @@ export const copy = {
           bestFor:
             'Власникам і розробникам, чиє питання — «що не так із самим сайтом?» перед запуском, передачею або редизайном, і хто сьогодні не купує відповідь про пошук.',
           notIncluded:
-            'SEO-аналіз і AI SEO / GEO — два пошукові модулі. Їх продає Basic, а Complete продає обидві половини разом.',
+            'SEO-аналіз і видимість у відповідях AI (AI SEO / GEO) — два пошукові модулі. Їх продає Basic, а Complete продає обидві половини разом.',
           limits: 'Одна перевірка одного сайту · до 50 000 сторінок обходу · результати 365 днів.',
         },
         complete: {
@@ -2448,7 +2535,7 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Решту відповіді
             // можна переписувати; початок речення — ні.
             basic:
-              'Повний SEO-аналіз — 21 перевірка — плюс AI SEO / GEO: які AI-роботи мають доступ до вашого сайту і чи згадують його у своїх відповідях AI-провайдери, яких ми запитуємо.',
+              'Повний SEO-аналіз — 21 перевірка — плюс видимість у відповідях AI (AI SEO / GEO): які AI-роботи мають доступ до вашого сайту і чи згадують його у своїх відповідях AI-провайдери, яких ми запитуємо.',
             websiteAudit:
               'Вісім модулів про сам сайт: безпека, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсія та Аналітика — з історією перевірок, експортом JSON/CSV і AI-планом дій.',
             complete:
@@ -2458,7 +2545,8 @@ export const copy = {
             label: 'Що не входить',
             basic:
               'Безпека, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсія та Аналітика — а також історія перевірок, експорт і AI-план дій, які йдуть разом із ними.',
-            websiteAudit: 'Два пошукові модулі: SEO-аналіз і AI SEO / GEO. Вони входять до Basic.',
+            websiteAudit:
+              'Два пошукові модулі: SEO-аналіз і видимість у відповідях AI (AI SEO / GEO). Вони входять до Basic.',
             complete: 'Нічого: усі модулі вже тут. І він так само читає лише публічні сторінки.',
           },
           chooseWhen: {
@@ -2569,8 +2657,6 @@ export const copy = {
       renderInfoBody:
         'Вимкнено — FluxRadar читає HTML, який віддає сервер. Увімкнено — відкриває кожну сторінку в headless-браузері й читає DOM після виконання її власних скриптів; саме це потрібно SPA. Увесь трафік браузера проходить через той самий захист публічних адрес, що й обхід: тільки GET і HEAD, без cookies, без завантажень і без сокетів. Якщо в цьому середовищі немає браузерного runtime, звіт про це скаже і не видасть статичний HTML за відрендерену сторінку.',
       advancedTitle: 'Додаткові правила обходу',
-      blockedByRobots:
-        'Щоб запустити перевірку, підтвердіть заміну robots.txt у розділі «Глибина аудиту».',
       labelRespectRobots: 'Дотримуватись robots.txt',
       labelRobotsOverride: 'Підтверджую відхилення robots.txt',
       robotsInfoTitle: 'Як robots.txt впливає на перевірку',

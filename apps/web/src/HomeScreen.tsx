@@ -4,11 +4,13 @@ import { Button, CreatedByFluxLab, MenuBar, StatusChip, Terminal } from './compo
 import type { Account } from './api';
 import { AuthScreen } from './AuthScreen';
 import { CoverageTicker } from './CoverageTicker';
+import { ExampleReport } from './ExampleReport';
 import { HeroSiteForm } from './HeroSiteForm';
 import { HeroTitle } from './HeroTitle';
 import { copy, type Language } from './i18n';
 import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
 import { PAID_PLAN_ORDER } from './plan-modules';
+import './styles/home-plain-language.css';
 
 /**
  * The public landing page: the hero, the instrument preview, the pricing block
@@ -122,6 +124,9 @@ export function HomeScreen(props: {
             <div className="home__eyebrow">
               <span className="home__eyebrow-index">01</span> {t.home.hero.eyebrow}
             </div>
+            {/* The brand title says what the product is to someone who already
+                knows the words; this line says it to a salon owner who does not. */}
+            <p className="home__promise">{t.home.hero.promise}</p>
             {/* Keyed by language so a switch retypes the new title from the
                 start instead of leaving half of it already revealed. */}
             <HeroTitle
@@ -250,6 +255,8 @@ export function HomeScreen(props: {
             </article>
           </div>
         </section>
+
+        <ExampleReport language={props.language} />
 
         <section className="home__coverage-entry" aria-labelledby="coverage-entry-title">
           <div className="home__coverage-entry-inner">

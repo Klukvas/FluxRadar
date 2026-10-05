@@ -125,6 +125,20 @@
   }
 }
 
+/* On a phone a floating launcher sat over the bottom-right of every page,
+   covering text and buttons. Left with nothing else to show, the dock drops
+   into the page flow instead: the button lands at the very foot of the page,
+   under the footer, still one tab stop and one tap away. The open banner keeps
+   floating — it is the choice being asked for. The doubled class outranks the
+   plain-dock padding in the 380px block below. */
+@media (max-width: 600px) {
+  .cookie-consent-dock.cookie-consent-dock--launcher-only {
+    position: static;
+    justify-content: center;
+    padding: 0 var(--sp-3) max(var(--sp-3), env(safe-area-inset-bottom));
+  }
+}
+
 @media (max-width: 380px) {
   .cookie-consent-dock {
     padding: var(--sp-2);

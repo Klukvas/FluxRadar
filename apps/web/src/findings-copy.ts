@@ -30,8 +30,13 @@ export type FindingsCopy = {
     readonly loadingMore: string;
     readonly columnProblem: string;
     readonly columnPages: string;
-    readonly groupCount: (open: number, total: number) => string;
-    readonly groupSettled: (total: number) => string;
+    /**
+     * How far one problem reaches. `countsPages` is true when one finding of the
+     * rule is one page (`finding-explainers.ts`), and only then is the count
+     * said in pages — a cookie or a broken link is not a page.
+     */
+    readonly groupCount: (open: number, total: number, countsPages: boolean) => string;
+    readonly groupSettled: (total: number, countsPages: boolean) => string;
     readonly showFindings: string;
     readonly showFindingsFor: (title: string) => string;
     readonly learnMore: string;
@@ -55,6 +60,35 @@ export type FindingsCopy = {
     readonly summaryLine: (open: number, groups: number) => string;
     readonly summaryNone: string;
     readonly statusUpdated: string;
+  };
+  /** The "copy task for developer" button over one open problem (`developer-task.ts`). */
+  readonly task: {
+    readonly copy: string;
+    readonly copyFor: (title: string) => string;
+    readonly copied: string;
+    readonly failed: string;
+    readonly textLabel: string;
+    readonly heading: (title: string) => string;
+    readonly check: (technicalTitle: string, ruleId: string) => string;
+    /** Every finding is loaded: the page count is exact. */
+    readonly whereComplete: (findings: number, pages: number) => string;
+    /** Only part is loaded, but one finding is one page: the total is the page count. */
+    readonly wherePages: (pages: number) => string;
+    /** Only part is loaded and findings are not pages: say both, and which is partial. */
+    readonly wherePartial: (findings: number, loaded: number, pages: number) => string;
+    /** No summary and only part loaded: the loaded open findings are a lower bound. */
+    readonly whereAtLeast: (loaded: number, pages: number) => string;
+    /** Open findings exist, none of them loaded: only the count is known. */
+    readonly whereOpen: (findings: number) => string;
+    /** No summary, part loaded, and nothing loaded is open: there is nothing to copy yet. */
+    readonly notLoaded: string;
+    /** Every finding of the problem is settled: there is no task to copy. */
+    readonly nothingOpen: string;
+    readonly examples: string;
+    readonly found: string;
+    /** The plain-language advice, sent along when no localized recommendation exists. */
+    readonly advice: string;
+    readonly recommendation: string;
   };
   readonly fixFirst: {
     readonly heading: string;
@@ -139,6 +173,16 @@ export type FindingsCopy = {
   };
 };
 
+const enPages = (count: number): string => (count === 1 ? 'page' : 'pages');
+const enFindings = (count: number): string => (count === 1 ? 'finding' : 'findings');
+
+/** Ukrainian numerals end in 1 (but not 11) take the singular: «на 21 сторінці». */
+const takesUkSingular = (count: number): boolean => count % 10 === 1 && count % 100 !== 11;
+/** Locative, after «на»: «на 1 сторінці», «на 61 сторінці», «на 5 сторінках». */
+const ukPagesOn = (count: number): string => (takesUkSingular(count) ? 'сторінці' : 'сторінках');
+/** Genitive, after «з»: «з 21 сторінки», «з 59 сторінок». */
+const ukPagesOf = (count: number): string => (takesUkSingular(count) ? 'сторінки' : 'сторінок');
+
 export const findingsCopy: Record<Language, FindingsCopy> = {
   en: {
     severity: { Critical: 'Critical', High: 'High', Medium: 'Medium', Low: 'Low' },
@@ -168,9 +212,19 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       loadMore: (count) => `Show ${count} more`,
       loadingMore: 'Loading…',
       columnProblem: 'Problem',
-      columnPages: 'Findings',
-      groupCount: (open, total) => (open === total ? `${total} open` : `${open} open of ${total}`),
-      groupSettled: (total) => `${total} settled`,
+      columnPages: 'Where',
+      groupCount: (open, total, countsPages) =>
+        countsPages
+          ? open === total
+            ? `On ${total} ${enPages(total)}`
+            : `Open on ${open} of ${total} ${enPages(total)}`
+          : open === total
+            ? `${total} open ${enFindings(total)}`
+            : `${open} of ${total} ${enFindings(total)} open`,
+      groupSettled: (total, countsPages) =>
+        countsPages
+          ? `Settled on ${total} ${enPages(total)}`
+          : `All ${total} ${enFindings(total)} settled`,
       showFindings: 'Show findings',
       showFindingsFor: (title) => `Show findings: ${title}`,
       learnMore: 'How this is checked',
@@ -194,6 +248,32 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
         `${open} open ${open === 1 ? 'finding' : 'findings'} across ${groups} ${groups === 1 ? 'problem' : 'problems'}.`,
       summaryNone: 'Nothing is left open in this report.',
       statusUpdated: 'Status saved.',
+    },
+    task: {
+      copy: 'Copy task for developer',
+      copyFor: (title) => `Copy task for developer: ${title}`,
+      copied: 'Task copied. Paste it into a message to your developer.',
+      failed:
+        'The task could not be copied automatically. Select the text below and copy it yourself.',
+      textLabel: 'Task for your developer',
+      heading: (title) => `Task: ${title}`,
+      check: (technicalTitle, ruleId) => `FluxRadar check: ${technicalTitle} (${ruleId})`,
+      whereComplete: (findings, pages) =>
+        findings === pages
+          ? `Found on ${pages} ${enPages(pages)}.`
+          : `${findings} ${enFindings(findings)} on ${pages} ${enPages(pages)}.`,
+      wherePages: (pages) => `Found on ${pages} ${enPages(pages)}.`,
+      wherePartial: (findings, loaded, pages) =>
+        `${findings} open ${enFindings(findings)}; the ${loaded} open ${loaded === 1 ? 'one loaded so far is' : 'ones loaded so far are'} on ${pages} ${enPages(pages)}.`,
+      whereAtLeast: (loaded, pages) =>
+        `At least ${loaded} open ${enFindings(loaded)} on ${pages} ${enPages(pages)}; only part of the list is loaded.`,
+      whereOpen: (findings) => `${findings} open ${enFindings(findings)}.`,
+      notLoaded: 'No open finding is loaded yet. Show more findings to copy a task.',
+      nothingOpen: 'Nothing is open for this problem, so there is no task to copy.',
+      examples: 'Example pages:',
+      found: 'What was found:',
+      advice: 'What to do:',
+      recommendation: 'Recommendation:',
     },
     fixFirst: {
       heading: 'Fix these first',
@@ -313,10 +393,17 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       loadMore: (count) => `Показати ще ${count}`,
       loadingMore: 'Завантаження…',
       columnProblem: 'Проблема',
-      columnPages: 'Знахідки',
-      groupCount: (open, total) =>
-        open === total ? `${total} відкрито` : `${open} відкрито з ${total}`,
-      groupSettled: (total) => `${total} закрито`,
+      columnPages: 'Де знайдено',
+      groupCount: (open, total, countsPages) =>
+        countsPages
+          ? open === total
+            ? `На ${total} ${ukPagesOn(total)}`
+            : `Відкрито на ${open} з ${total} ${ukPagesOf(total)}`
+          : open === total
+            ? `Відкритих знахідок: ${total}`
+            : `Відкрито знахідок: ${open} з ${total}`,
+      groupSettled: (total, countsPages) =>
+        countsPages ? `Закрито на ${total} ${ukPagesOn(total)}` : `Усі знахідки закрито (${total})`,
       showFindings: 'Показати знахідки',
       showFindingsFor: (title) => `Показати знахідки: ${title}`,
       learnMore: 'Як це перевіряється',
@@ -338,6 +425,33 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       summaryLine: (open, groups) => `Відкритих знахідок: ${open}, проблем: ${groups}.`,
       summaryNone: 'У цьому звіті нічого не лишилося відкритим.',
       statusUpdated: 'Статус збережено.',
+    },
+    task: {
+      copy: 'Скопіювати завдання для розробника',
+      copyFor: (title) => `Скопіювати завдання для розробника: ${title}`,
+      copied: 'Завдання скопійовано. Вставте його в повідомлення розробнику.',
+      failed:
+        'Не вдалося скопіювати завдання автоматично. Виділіть текст нижче й скопіюйте його самостійно.',
+      textLabel: 'Завдання для вашого розробника',
+      heading: (title) => `Завдання: ${title}`,
+      check: (technicalTitle, ruleId) => `Перевірка FluxRadar: ${technicalTitle} (${ruleId})`,
+      whereComplete: (findings, pages) =>
+        findings === pages
+          ? `Знайдено на ${pages} ${ukPagesOn(pages)}.`
+          : `Знахідок: ${findings}, на ${pages} ${ukPagesOn(pages)}.`,
+      wherePages: (pages) => `Знайдено на ${pages} ${ukPagesOn(pages)}.`,
+      wherePartial: (findings, loaded, pages) =>
+        `Відкритих знахідок: ${findings}; серед завантажених відкрито ${loaded} — на ${pages} ${ukPagesOn(pages)}.`,
+      whereAtLeast: (loaded, pages) =>
+        `Відкритих знахідок: щонайменше ${loaded}, на ${pages} ${ukPagesOn(pages)}; завантажено лише частину списку.`,
+      whereOpen: (findings) => `Відкритих знахідок: ${findings}.`,
+      notLoaded:
+        'Відкритих знахідок ще не завантажено. Покажіть більше знахідок, щоб скопіювати завдання.',
+      nothingOpen: 'Для цієї проблеми нічого не відкрито, тож і завдання копіювати нічого.',
+      examples: 'Приклади сторінок:',
+      found: 'Що знайдено:',
+      advice: 'Що зробити:',
+      recommendation: 'Рекомендація:',
     },
     fixFirst: {
       heading: 'Виправте це першим',

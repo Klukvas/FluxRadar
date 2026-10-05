@@ -91,9 +91,16 @@ describe('the Issue Center', () => {
 
     const rows = await screen.findAllByRole('row');
     const body = rows.slice(1);
+    // The owner's name first; the technical one the dashboard uses stays beside it.
+    expect(body[0]).toHaveTextContent('Pages do not limit where they load content from');
     expect(body[0]).toHaveTextContent('Content-Security-Policy is missing or weak');
+    expect(body[0]).toHaveTextContent('On 1 page');
+    expect(body[1]).toHaveTextContent(
+      'Page summary for search results is missing or the wrong length',
+    );
     expect(body[1]).toHaveTextContent('Meta description is missing or the wrong length');
-    expect(body[1]).toHaveTextContent('57 open of 59');
+    // A count of pages, said as pages — not a bare "57 open of 59".
+    expect(body[1]).toHaveTextContent('Open on 57 of 59 pages');
     expect(screen.getByText('58 open findings across 2 problems.')).toBeInTheDocument();
   });
 
@@ -103,7 +110,7 @@ describe('the Issue Center', () => {
 
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'Show findings: Meta description is missing or the wrong length',
+        name: 'Show findings: Page summary for search results is missing or the wrong length',
       }),
     );
 
@@ -143,7 +150,9 @@ describe('the Issue Center', () => {
       <IssuesScreen scan={SCAN} language="uk" onError={() => {}} initialRuleId="SEO-ONPAGE-002" />,
     );
 
-    const title = await screen.findAllByText('Meta description відсутній або неправильної довжини');
+    const title = await screen.findAllByText(
+      'Опис сторінки для пошуку відсутній або неправильної довжини',
+    );
     expect(title.length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Деталі' }));
     const detail = screen.getByText('Як це перевіряється →').closest('a');
@@ -185,7 +194,13 @@ describe('the security problems an owner cannot read from a header name', () => 
         issues: 4,
         openIssues: 4,
       },
-      { ruleId: 'SEO-ONPAGE-002', module: 'SEO', severity: 'Medium', issues: 1, openIssues: 1 },
+      {
+        ruleId: 'A11Y-002',
+        module: 'Accessibility',
+        severity: 'Medium',
+        issues: 1,
+        openIssues: 1,
+      },
     ],
   };
 
@@ -265,7 +280,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     const rows = (await screen.findAllByRole('row')).slice(1);
     const headers = nth(rows, 1, 'the security-headers problem row');
     const cookies = nth(rows, 2, 'the cookie problem row');
-    const metaDescription = nth(rows, 3, 'the meta-description problem row');
+    const altText = nth(rows, 3, 'the image-alternative problem row');
     // Plain language all the way down: no header or attribute name in the row.
     expect(
       within(headers).getByText(/extra browser protection settings are not switched on/),
@@ -277,10 +292,17 @@ describe('the security problems an owner cannot read from a header name', () => 
     expect(
       within(cookies).getByText(/value is not shown in the finding evidence/),
     ).toBeInTheDocument();
-    // A rule with no explanation gets no empty disclosure.
+    // A rule with no explanation gets no empty disclosure, keeps its own title
+    // and id, and is counted in findings — it may not be one per page.
     expect(
-      within(metaDescription).queryByText('What this means in plain language'),
+      within(altText).queryByText('What this means in plain language'),
     ).not.toBeInTheDocument();
+    expect(within(altText).getByText('Images without a text alternative')).toBeInTheDocument();
+    expect(altText).toHaveTextContent('A11Y-002');
+    expect(altText).toHaveTextContent('1 open finding');
+    // Cookies are counted per cookie, so their count is never said in pages.
+    expect(cookies).toHaveTextContent('4 open findings');
+    expect(headers).toHaveTextContent('On 60 pages');
   });
 
   it('explains them in Ukrainian for a Ukrainian report', async () => {
@@ -307,7 +329,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'Show findings: Security headers are missing',
+        name: 'Show findings: Some browser protection settings are off',
       }),
     );
     expect(await screen.findByText('Showing 1 of 1')).toBeInTheDocument();
@@ -316,7 +338,7 @@ describe('the security problems an owner cannot read from a header name', () => 
 
     expect(
       await screen.findByRole('button', {
-        name: 'Show findings: Content-Security-Policy is missing or weak',
+        name: 'Show findings: Pages do not limit where they load content from',
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Problems' })).toHaveAttribute(
@@ -345,7 +367,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     // its own status control and its own evidence behind Details.
     expect(screen.getByText('https://shop.example.com/page-3')).toBeInTheDocument();
     expect(
-      screen.getAllByRole('combobox', { name: 'Status: Security headers are missing' }),
+      screen.getAllByRole('combobox', { name: 'Status: Some browser protection settings are off' }),
     ).toHaveLength(3);
     const thirdDetails = nth(
       screen.getAllByRole('button', { name: 'Details' }),
@@ -375,25 +397,43 @@ describe('the security problems an owner cannot read from a header name', () => 
     expect(within(technical).getByText('SEC-PASSIVE-002')).toBeInTheDocument();
     expect(within(technical).getByText('Evidence')).toBeInTheDocument();
     expect(within(technical).getByText('Confidence')).toBeInTheDocument();
+    expect(within(technical).getByText('Impact')).toBeInTheDocument();
+    // The explanation comes before any scoring field.
+    const explanation = within(detail).getByText('What the check found');
+    expect(
+      explanation.compareDocumentPosition(technical) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
-  // A rule with no plain-language explanation keeps the detail panel it always
-  // had: no fold, and the evidence where the reader last saw it.
-  it('leaves the detail of an unexplained rule unfolded', async () => {
-    stubSecurity([issue(1)]);
-    render(
-      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEO-ONPAGE-002" />,
-    );
+  // A rule with no plain-language explanation has nothing to replace its
+  // evidence and recommendation, so those stay where the reader last saw them;
+  // the scoring and provenance fields still fold away.
+  it('keeps an unexplained rule’s evidence in view and folds its scoring', async () => {
+    stubSecurity([
+      issue(1, {
+        ruleId: 'A11Y-002',
+        module: 'Accessibility',
+        evidenceExcerpt: 'img.hero has no alt text',
+        recommendation: 'Add alt text to meaningful images.',
+      }),
+    ]);
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="A11Y-002" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Details' }));
 
     const detail = document.getElementById('issue-detail-issue-1');
     if (detail === null) throw new Error('expected the finding’s detail panel');
-    expect(
-      within(detail).queryByText('Technical details for your developer'),
-    ).not.toBeInTheDocument();
-    expect(
-      within(detail).getByText('<meta name="description"> is missing or empty'),
-    ).toBeInTheDocument();
+    expect(within(detail).queryByText('What the check found')).not.toBeInTheDocument();
+    const technical = within(detail)
+      .getByText('Technical details for your developer')
+      .closest('details');
+    if (technical === null) throw new Error('expected the technical disclosure');
+    expect(technical).not.toHaveAttribute('open');
+    const evidence = within(detail).getByText('img.hero has no alt text');
+    expect(technical).not.toContainElement(evidence);
+    expect(within(detail).getByText('Add alt text to meaningful images.')).toBeInTheDocument();
+    expect(within(technical).getByText('Impact')).toBeInTheDocument();
+    expect(within(technical).getByText('Confidence')).toBeInTheDocument();
+    expect(within(technical).getByText('A11Y-002')).toBeInTheDocument();
   });
 
   it('says the page count is only of the findings loaded so far', async () => {
@@ -449,6 +489,332 @@ describe('the security problems an owner cannot read from a header name', () => 
   });
 });
 
+// The rest of the report reads in the owner's words too: accessibility, SEO,
+// privacy, content and the AI review — not only the three header rules.
+describe('the other problems of a Complete report', () => {
+  const REPORT_SUMMARY: IssueSummary = {
+    total: 75,
+    open: 75,
+    bySeverity: { Critical: 0, High: 9, Medium: 66, Low: 0 },
+    groups: [
+      { ruleId: 'SEO-TECH-006', module: 'SEO', severity: 'High', issues: 9, openIssues: 9 },
+      {
+        ruleId: 'A11Y-007',
+        module: 'Accessibility',
+        severity: 'Medium',
+        issues: 61,
+        openIssues: 61,
+      },
+      {
+        ruleId: 'UX-CONV-AI-001',
+        module: 'UX/Conversion',
+        severity: 'Medium',
+        issues: 5,
+        openIssues: 5,
+      },
+    ],
+  };
+
+  function stubReport(): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/issues/summary')) return Promise.resolve(json(REPORT_SUMMARY));
+        return Promise.resolve(json([], { total: 0, page: 1, limit: 50 }));
+      }),
+    );
+  }
+
+  it('names each problem plainly and counts pages only where a finding is a page', async () => {
+    stubReport();
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
+
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    const [links, hints, offer] = rows;
+    expect(links).toHaveTextContent('Links that lead to error pages');
+    // One finding per broken link, so nine findings are not nine pages.
+    expect(links).toHaveTextContent('9 open findings');
+    expect(hints).toHaveTextContent('Screen-reader hints on these pages are broken');
+    expect(hints).toHaveTextContent('On 61 pages');
+    expect(offer).toHaveTextContent('It may not be clear what you offer');
+    expect(offer).toHaveTextContent('5 open findings');
+    // The AI review says what it is, and that it never saw the page's look.
+    expect(within(offer as HTMLElement).getByText(/An AI review of the text/)).toBeInTheDocument();
+  });
+
+  it('reads in Ukrainian for a Ukrainian report, titles and advice included', async () => {
+    stubReport();
+    render(<IssuesScreen scan={SCAN} language="uk" onError={() => {}} />);
+
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    const [links, hints] = rows;
+    expect(links).toHaveTextContent('Посилання, що ведуть на сторінки з помилкою');
+    expect(links).toHaveTextContent('Відкритих знахідок: 9');
+    expect(hints).toHaveTextContent('Підказки для програм читання з екрана несправні');
+    expect(hints).toHaveTextContent('На 61 сторінці');
+    expect(
+      within(hints as HTMLElement).getByText(/Попросіть розробника виправити або прибрати/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Де знайдено' })).toBeInTheDocument();
+  });
+});
+
+// The owner hands one problem on as one message, not as a row per page — and a
+// browser that refuses the clipboard is told to the owner, not swallowed.
+describe('copying a task for the developer', () => {
+  const TASK_SUMMARY: IssueSummary = {
+    total: 4,
+    open: 4,
+    bySeverity: { Critical: 0, High: 0, Medium: 4, Low: 0 },
+    groups: [
+      {
+        ruleId: 'SEC-PASSIVE-002',
+        module: 'Security',
+        severity: 'Medium',
+        issues: 4,
+        openIssues: 4,
+      },
+    ],
+  };
+  const FINDINGS = [1, 2, 3, 4].map((index) =>
+    issue(index, {
+      ruleId: 'SEC-PASSIVE-002',
+      module: 'Security',
+      evidenceExcerpt: 'The HTML response is missing security headers: Referrer-Policy',
+      recommendation: 'Send the missing headers with HTML responses.',
+    }),
+  );
+
+  function stubTask(): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/issues/summary')) return Promise.resolve(json(TASK_SUMMARY));
+        return Promise.resolve(json(FINDINGS, { total: FINDINGS.length, page: 1, limit: 50 }));
+      }),
+    );
+  }
+
+  function stubClipboard(writeText: ((text: string) => Promise<void>) | undefined): void {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: writeText === undefined ? undefined : { writeText },
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'clipboard');
+    vi.restoreAllMocks();
+  });
+
+  async function openProblem(language: 'en' | 'uk' = 'en'): Promise<void> {
+    stubTask();
+    render(
+      <IssuesScreen
+        scan={SCAN}
+        language={language}
+        onError={() => {}}
+        initialRuleId="SEC-PASSIVE-002"
+      />,
+    );
+    await screen.findByText(language === 'en' ? 'Showing 4 of 4' : 'Показано 4 з 4');
+  }
+
+  it('copies the problem, its reach, three example pages and the recommendation', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    stubClipboard(writeText);
+    await openProblem();
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Copy task for developer: Some browser protection settings are off',
+      }),
+    );
+
+    expect(
+      await screen.findByText('Task copied. Paste it into a message to your developer.'),
+    ).toBeInTheDocument();
+    const text = writeText.mock.calls[0]?.[0] ?? '';
+    expect(text).toContain('Task: Some browser protection settings are off');
+    expect(text).toContain('FluxRadar check: Security headers are missing (SEC-PASSIVE-002)');
+    expect(text).toContain('Found on 4 pages.');
+    expect(text).toContain('- https://shop.example.com/page-3');
+    expect(text).not.toContain('page-4');
+    expect(text).toContain('Recommendation: Send the missing headers with HTML responses.');
+  });
+
+  it('shows the text to copy by hand when the browser refuses', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    stubClipboard(() => Promise.reject(new Error('NotAllowedError')));
+    await openProblem();
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Copy task for developer: Some browser protection settings are off',
+      }),
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'The task could not be copied automatically. Select the text below and copy it yourself.',
+    );
+    const fallback = within(alert).getByRole('textbox', { name: 'Task for your developer' });
+    expect((fallback as HTMLTextAreaElement).value).toContain(
+      'Task: Some browser protection settings are off',
+    );
+    expect(consoleError).toHaveBeenCalled();
+    expect(
+      screen.queryByText('Task copied. Paste it into a message to your developer.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('says so in Ukrainian when the browser has no clipboard at all', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    stubClipboard(undefined);
+    await openProblem('uk');
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Скопіювати завдання для розробника: Частину захисних налаштувань браузера вимкнено',
+      }),
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Не вдалося скопіювати завдання автоматично.');
+    const fallback = within(alert).getByRole('textbox', { name: 'Завдання для вашого розробника' });
+    expect((fallback as HTMLTextAreaElement).value).toContain('Знайдено на 4 сторінках.');
+  });
+
+  it('is not offered for a slice of the problem narrowed by another filter', async () => {
+    stubClipboard(() => Promise.resolve());
+    await openProblem();
+    expect(screen.getByRole('button', { name: /^Copy task for developer/ })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Severity' }), {
+      target: { value: 'Medium' },
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: /^Copy task for developer/ }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+});
+
+// The task's reach comes from the summary's open count, not from the page of
+// findings that happens to be loaded, and a problem with nothing open says so.
+describe('the reach of a developer task', () => {
+  function stubProblem(
+    group: { issues: number; openIssues: number },
+    findings: readonly Issue[],
+  ): void {
+    const summary: IssueSummary = {
+      total: group.issues,
+      open: group.openIssues,
+      bySeverity: { Critical: group.issues, High: 0, Medium: 0, Low: 0 },
+      groups: [{ ruleId: 'SEC-ASVS-001', module: 'Security', severity: 'Critical', ...group }],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/issues/summary')) return Promise.resolve(json(summary));
+        return Promise.resolve(json(findings, { total: group.issues, page: 1, limit: 50 }));
+      }),
+    );
+  }
+
+  function csp(index: number, status = 'New'): Issue {
+    return issue(index, {
+      ruleId: 'SEC-ASVS-001',
+      module: 'Security',
+      severity: 'Critical',
+      status,
+      evidenceExcerpt: 'The HTML response has no Content-Security-Policy',
+      recommendation: 'Send a Content-Security-Policy header with HTML responses.',
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'clipboard');
+    vi.restoreAllMocks();
+  });
+
+  // Regression guard: the first page holds 50 of 61 findings, 4 of them
+  // settled; the task must say 57, not 50 or 46.
+  it('counts the open findings of the whole problem from the summary', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const firstPage = Array.from({ length: 50 }, (_, index) =>
+      csp(index + 1, index < 4 ? 'Ignored' : 'New'),
+    );
+    stubProblem({ issues: 61, openIssues: 57 }, firstPage);
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-ASVS-001" />,
+    );
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Copy task for developer: Pages do not limit where they load content from',
+      }),
+    );
+
+    await screen.findByText('Task copied. Paste it into a message to your developer.');
+    const text = writeText.mock.calls[0]?.[0] ?? '';
+    expect(text).toContain('Found on 57 pages.');
+    expect(text.match(/^- https:\/\/shop\.example\.com\/page-\d+$/gm)).toHaveLength(3);
+    // The examples are open findings: the four ignored ones lead the page.
+    expect(text).toContain('- https://shop.example.com/page-5');
+    expect(text).not.toMatch(/page-[1-4]$/m);
+  });
+
+  // Without a summary, a first page of settled findings says nothing about the
+  // rest: the owner is told to load more rather than left with no button.
+  it('asks to load more when no summary exists and nothing loaded is open', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/issues/summary')) {
+          return Promise.resolve(new Response('unavailable', { status: 503 }));
+        }
+        return Promise.resolve(
+          json([csp(1, 'Ignored'), csp(2, 'Ignored')], { total: 61, page: 1, limit: 50 }),
+        );
+      }),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-ASVS-001" />,
+    );
+
+    expect(
+      await screen.findByText('No open finding is loaded yet. Show more findings to copy a task.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /^Copy task for developer/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('says there is no task when every finding is settled', async () => {
+    stubProblem({ issues: 2, openIssues: 0 }, [csp(1, 'Ignored'), csp(2, 'False Positive')]);
+    render(
+      <IssuesScreen scan={SCAN} language="uk" onError={() => {}} initialRuleId="SEC-ASVS-001" />,
+    );
+
+    expect(
+      await screen.findByText(
+        'Для цієї проблеми нічого не відкрито, тож і завдання копіювати нічого.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /^Скопіювати завдання для розробника/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe('opening a problem while a search is typed', () => {
   it('never sends the old search together with the new problem', async () => {
     const fetchMock = stubIssues();
@@ -463,7 +829,7 @@ describe('opening a problem while a search is typed', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Problems' }));
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'Show findings: Meta description is missing or the wrong length',
+        name: 'Show findings: Page summary for search results is missing or the wrong length',
       }),
     );
 

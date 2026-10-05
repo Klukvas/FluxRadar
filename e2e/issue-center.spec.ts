@@ -268,10 +268,13 @@ test.describe('the Issue Center on a report full of header findings', () => {
     await expect(page.getByRole('row')).toHaveCount(4);
     await expect(page.getByText(`${DOMAIN}/page-7`)).toHaveCount(0);
 
-    // By the full title, which is the only place the header is named now.
+    // Headlined in the owner's words; the technical title, the only place the
+    // header is named now, stays on the line under it.
     const csp = page
       .getByRole('row')
       .filter({ hasText: 'Content-Security-Policy is missing or weak' });
+    await expect(csp).toContainText('Pages do not limit where they load content from');
+    await expect(csp).toContainText(`On ${CSP_PAGES} pages`);
     const explanation = csp.getByText(/do not tell the browser which outside sources/);
     // Folded by default — a row that opens itself is a row per problem in name only.
     await expect(explanation).toBeHidden();
@@ -291,7 +294,9 @@ test.describe('the Issue Center on a report full of header findings', () => {
     await page.goto(`/scans/${SCAN_ID}/issues`);
     await dismissCookies(page);
 
-    await page.getByRole('button', { name: 'Show findings: Security headers are missing' }).click();
+    await page
+      .getByRole('button', { name: 'Show findings: Some browser protection settings are off' })
+      .click();
 
     await expect(page.getByText('These findings are on 30 pages.')).toBeVisible();
     await expect(page.getByText('What differs between pages')).toBeVisible();
@@ -304,8 +309,14 @@ test.describe('the Issue Center on a report full of header findings', () => {
     // Still per page underneath: every finding keeps its address and its status.
     await expect(page.getByText(`${DOMAIN}/page-7`)).toBeVisible();
     await expect(
-      page.getByRole('combobox', { name: 'Status: Security headers are missing' }),
+      page.getByRole('combobox', { name: 'Status: Some browser protection settings are off' }),
     ).toHaveCount(30);
+    // One message for the developer, for the whole problem.
+    await expect(
+      page.getByRole('button', {
+        name: 'Copy task for developer: Some browser protection settings are off',
+      }),
+    ).toBeVisible();
 
     await page.getByRole('button', { name: 'Show every problem' }).click();
 
@@ -325,7 +336,7 @@ test.describe('the Issue Center on a report full of header findings', () => {
     await dismissCookies(page);
 
     await page
-      .getByRole('button', { name: 'Show findings: Cookies without secure attributes' })
+      .getByRole('button', { name: 'Show findings: Cookies without all the usual safety limits' })
       .click();
 
     // Four findings, two pages: the breakdown counts the pages, and the
@@ -339,8 +350,11 @@ test.describe('the Issue Center on a report full of header findings', () => {
     const detail = page.locator('.issue-detail');
     const evidence = detail.getByText('Set-Cookie "sid" is missing attributes: HttpOnly, SameSite');
     await expect(evidence).toBeHidden();
+    // The scoring fields are folded with it, after the explanation.
+    await expect(detail.getByText('Impact')).toBeHidden();
     await detail.getByText('Technical details for your developer').click();
     await expect(evidence).toBeVisible();
+    await expect(detail.getByText('Impact')).toBeVisible();
     await expect(detail.getByText('SEC-PASSIVE-005')).toBeVisible();
   });
 });
