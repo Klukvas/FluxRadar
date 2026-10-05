@@ -8,6 +8,7 @@
 
 import type { IssueSummary } from './api';
 import { Button, DataTable, EmptyState, StatusChip } from './components';
+import { FindingExplainer } from './FindingExplainer';
 import { findingsCopy } from './findings-copy';
 import { copy, type Language } from './i18n';
 import { moduleLabel, ruleTitle } from './rule-titles';
@@ -54,6 +55,8 @@ export function IssueProblems(props: {
                 <span className="muted technical">
                   {group.ruleId} · {moduleLabel(group.module, props.language)}
                 </span>
+                {/* Folded: the row has to stay one row per problem. */}
+                <FindingExplainer ruleId={group.ruleId} language={props.language} />
               </td>
               <td data-label={f.issues.columnPages}>
                 {settled

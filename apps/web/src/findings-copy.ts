@@ -35,6 +35,23 @@ export type FindingsCopy = {
     readonly showFindings: string;
     readonly showFindingsFor: (title: string) => string;
     readonly learnMore: string;
+    /** The plain-language disclosure over a finding (`finding-explainers.ts`). */
+    readonly explainerTitle: string;
+    readonly explainerWhat: string;
+    readonly explainerWhy: string;
+    readonly explainerFix: string;
+    readonly explainerCount: string;
+    /** What the scanner read, and what it never claims to have done. */
+    readonly explainerScope: string;
+    /** The fold over the raw evidence, recommendation, confidence and rule id. */
+    readonly technicalTitle: string;
+    /** One problem's loaded findings: the pages they are on, and how they differ. */
+    readonly breakdownPages: (pages: number) => string;
+    readonly breakdownPagesSoFar: (pages: number) => string;
+    readonly breakdownVariants: string;
+    readonly breakdownSame: string;
+    readonly variantFindings: (count: number) => string;
+    readonly variantsMore: (count: number) => string;
     readonly summaryLine: (open: number, groups: number) => string;
     readonly summaryNone: string;
     readonly statusUpdated: string;
@@ -157,6 +174,22 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       showFindings: 'Show findings',
       showFindingsFor: (title) => `Show findings: ${title}`,
       learnMore: 'How this is checked',
+      explainerTitle: 'What this means in plain language',
+      explainerWhat: 'What the check found',
+      explainerWhy: 'Why it matters',
+      explainerFix: 'What to do',
+      explainerCount: 'What one finding is',
+      explainerScope:
+        'FluxRadar reads the public responses of the pages this scan crawled. These findings describe what those responses carried at the time; nothing was attacked, logged into or tested for whether it can be exploited, and pages outside this scan’s scope were not read.',
+      technicalTitle: 'Technical details for your developer',
+      breakdownPages: (pages) =>
+        `These findings are on ${pages} ${pages === 1 ? 'page' : 'pages'}.`,
+      breakdownPagesSoFar: (pages) =>
+        `${pages} ${pages === 1 ? 'page' : 'pages'} in the findings loaded so far — load the rest to count every page.`,
+      breakdownVariants: 'What differs between pages',
+      breakdownSame: 'Every finding loaded here recorded the same evidence.',
+      variantFindings: (count) => `${count} ${count === 1 ? 'finding' : 'findings'}`,
+      variantsMore: (count) => `…and ${count} more`,
       summaryLine: (open, groups) =>
         `${open} open ${open === 1 ? 'finding' : 'findings'} across ${groups} ${groups === 1 ? 'problem' : 'problems'}.`,
       summaryNone: 'Nothing is left open in this report.',
@@ -287,6 +320,21 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       showFindings: 'Показати знахідки',
       showFindingsFor: (title) => `Показати знахідки: ${title}`,
       learnMore: 'Як це перевіряється',
+      explainerTitle: 'Що це означає простою мовою',
+      explainerWhat: 'Що знайшла перевірка',
+      explainerWhy: 'Чому це важливо',
+      explainerFix: 'Що зробити',
+      explainerCount: 'Що означає одна знахідка',
+      explainerScope:
+        'FluxRadar читає публічні відповіді тих сторінок, які обійшла ця перевірка. Знахідки описують те, що було в цих відповідях на той момент; жодної атаки, входу в акаунт чи перевірки на можливість зламу не виконувалося, а сторінки поза областю цієї перевірки не читалися.',
+      technicalTitle: 'Технічні деталі для вашого розробника',
+      breakdownPages: (pages) => `Сторінок із цими знахідками: ${pages}.`,
+      breakdownPagesSoFar: (pages) =>
+        `Сторінок серед завантажених знахідок: ${pages} — завантажте решту, щоб порахувати всі.`,
+      breakdownVariants: 'Чим відрізняються сторінки',
+      breakdownSame: 'Усі завантажені тут знахідки мають однаковий записаний доказ.',
+      variantFindings: (count) => `знахідок: ${count}`,
+      variantsMore: (count) => `…і ще ${count}`,
       summaryLine: (open, groups) => `Відкритих знахідок: ${open}, проблем: ${groups}.`,
       summaryNone: 'У цьому звіті нічого не лишилося відкритим.',
       statusUpdated: 'Статус збережено.',

@@ -154,6 +154,301 @@ describe('the Issue Center', () => {
   });
 });
 
+// The three header rules are the ones that fill a report: a site that sends no
+// Content-Security-Policy sends none on every page, so the default view has to
+// stay one row per problem and that row has to say what the problem is in words
+// — without implying anybody has attacked the site.
+describe('the security problems an owner cannot read from a header name', () => {
+  const SECURITY_SUMMARY: IssueSummary = {
+    total: 124,
+    open: 124,
+    bySeverity: { Critical: 60, High: 0, Medium: 64, Low: 0 },
+    groups: [
+      {
+        ruleId: 'SEC-ASVS-001',
+        module: 'Security',
+        severity: 'Critical',
+        issues: 60,
+        openIssues: 60,
+      },
+      {
+        ruleId: 'SEC-PASSIVE-002',
+        module: 'Security',
+        severity: 'Medium',
+        issues: 60,
+        openIssues: 60,
+      },
+      {
+        ruleId: 'SEC-PASSIVE-005',
+        module: 'Security',
+        severity: 'Medium',
+        issues: 4,
+        openIssues: 4,
+      },
+      { ruleId: 'SEO-ONPAGE-002', module: 'SEO', severity: 'Medium', issues: 1, openIssues: 1 },
+    ],
+  };
+
+  /** Findings of one rule, as the API pages them, with per-page evidence. */
+  function stubSecurity(findings: readonly Issue[], total = findings.length): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/issues/summary'))
+          return Promise.resolve(json(SECURITY_SUMMARY));
+        const limit = Number(url.searchParams.get('limit') ?? '50');
+        return Promise.resolve(json(findings, { total, page: 1, limit }));
+      }),
+    );
+  }
+
+  /** The nth element of a queried list, or a failure naming what was missing. */
+  function nth(elements: readonly HTMLElement[], index: number, what: string): HTMLElement {
+    const element = elements[index];
+    if (element === undefined) throw new Error(`expected ${what} at index ${index}`);
+    return element;
+  }
+
+  function header(index: number, missing: string): Issue {
+    return issue(index, {
+      ruleId: 'SEC-PASSIVE-002',
+      module: 'Security',
+      severity: 'Medium',
+      evidenceType: 'http',
+      evidenceExcerpt: `The HTML response is missing security headers: ${missing}`,
+      recommendation: 'Send the missing headers with HTML responses.',
+    });
+  }
+
+  it('keeps one row per problem and explains it in plain language, folded', async () => {
+    stubSecurity([]);
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
+
+    // Four problems, 124 findings: the default view is still four rows.
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    expect(rows).toHaveLength(4);
+    const csp = nth(rows, 0, 'the CSP problem row');
+    expect(csp).toHaveTextContent('Content-Security-Policy is missing or weak');
+
+    const disclosure = within(csp)
+      .getByText('What this means in plain language')
+      .closest('details');
+    // Folded: a row that opened itself would be a row per problem in name only.
+    expect(disclosure).not.toHaveAttribute('open');
+    expect(
+      within(csp).getByText(/do not tell the browser which outside sources/),
+    ).toBeInTheDocument();
+    // The owner's action is to ask a developer — not a header to paste.
+    expect(
+      within(csp).getByText(/Ask your website developer to set this protection up/),
+    ).toBeInTheDocument();
+    // One finding per page for this rule, so the count can be read as pages.
+    expect(
+      within(csp).getByText('One finding for each page where it is not set.'),
+    ).toBeInTheDocument();
+    // Never "you have been attacked", and never "every page of your site".
+    expect(
+      within(csp).getByText(
+        /nothing was attacked, logged into or tested for whether it can be exploited/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(csp).getByText(/pages outside this scan’s scope were not read/),
+    ).toBeInTheDocument();
+  });
+
+  it('explains the cookie and header rules too, and leaves other rules alone', async () => {
+    stubSecurity([]);
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
+
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    const headers = nth(rows, 1, 'the security-headers problem row');
+    const cookies = nth(rows, 2, 'the cookie problem row');
+    const metaDescription = nth(rows, 3, 'the meta-description problem row');
+    // Plain language all the way down: no header or attribute name in the row.
+    expect(
+      within(headers).getByText(/extra browser protection settings are not switched on/),
+    ).toBeInTheDocument();
+    expect(within(headers).queryByText(/X-Content-Type-Options/)).not.toBeInTheDocument();
+    // The cookie rule counts cookies, not pages, and the row says so — "can be"
+    // higher, since four cookies may well sit on four pages.
+    expect(within(cookies).getByText(/there can be more findings than pages/)).toBeInTheDocument();
+    expect(
+      within(cookies).getByText(/value is not shown in the finding evidence/),
+    ).toBeInTheDocument();
+    // A rule with no explanation gets no empty disclosure.
+    expect(
+      within(metaDescription).queryByText('What this means in plain language'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('explains them in Ukrainian for a Ukrainian report', async () => {
+    stubSecurity([]);
+    render(<IssuesScreen scan={SCAN} language="uk" onError={() => {}} />);
+
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    const csp = nth(rows, 0, 'the CSP problem row');
+    expect(within(csp).getByText('Що це означає простою мовою')).toBeInTheDocument();
+    expect(within(csp).getByText(/Це додатковий запобіжник/)).toBeInTheDocument();
+    expect(
+      within(csp).getByText(/Попросіть розробника налаштувати цей захист на сервері/),
+    ).toBeInTheDocument();
+    expect(
+      within(csp).getByText(/жодної атаки, входу в акаунт чи перевірки на можливість зламу/),
+    ).toBeInTheDocument();
+  });
+
+  // Regression: this button dropped the rule filter and stayed in the flat
+  // list, so leaving a problem landed the reader in every finding of every
+  // rule — one row per page, which is what the problem view exists to replace.
+  it('returns from one problem to the problem list, not to every finding', async () => {
+    stubSecurity([header(1, 'Referrer-Policy')], 1);
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Show findings: Security headers are missing',
+      }),
+    );
+    expect(await screen.findByText('Showing 1 of 1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show every problem' }));
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Show findings: Content-Security-Policy is missing or weak',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Problems' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.queryByText('Showing 1 of 1')).not.toBeInTheDocument();
+  });
+
+  it('says how many pages the open problem is on and where the pages differ', async () => {
+    stubSecurity([
+      header(1, 'Referrer-Policy'),
+      header(2, 'Referrer-Policy'),
+      header(3, 'X-Frame-Options / CSP frame-ancestors'),
+    ]);
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-PASSIVE-002" />,
+    );
+
+    expect(await screen.findByText('These findings are on 3 pages.')).toBeInTheDocument();
+    expect(screen.getByText('What differs between pages')).toBeInTheDocument();
+    const variants = screen.getByRole('list');
+    expect(variants).toHaveTextContent('Referrer-Policy — 2 findings');
+    expect(variants).toHaveTextContent('X-Frame-Options / CSP frame-ancestors — 1 finding');
+    // The drilldown is still per page: every finding keeps its own address,
+    // its own status control and its own evidence behind Details.
+    expect(screen.getByText('https://shop.example.com/page-3')).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('combobox', { name: 'Status: Security headers are missing' }),
+    ).toHaveLength(3);
+    const thirdDetails = nth(
+      screen.getAllByRole('button', { name: 'Details' }),
+      2,
+      'a Details button',
+    );
+    fireEvent.click(thirdDetails);
+    const detail = document.getElementById('issue-detail-issue-3');
+    if (detail === null) throw new Error('expected the third finding’s detail panel');
+    // The plain language opens with the panel; the header names, the raw
+    // recommendation, the confidence and the rule id stay reachable one fold
+    // down, for whoever will do the work.
+    expect(within(detail).getByText('What the check found')).toBeInTheDocument();
+    const technical = within(detail)
+      .getByText('Technical details for your developer')
+      .closest('details');
+    if (technical === null) throw new Error('expected the technical disclosure');
+    expect(technical).not.toHaveAttribute('open');
+    expect(
+      within(technical).getByText(
+        'The HTML response is missing security headers: X-Frame-Options / CSP frame-ancestors',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(technical).getByText('Send the missing headers with HTML responses.'),
+    ).toBeInTheDocument();
+    expect(within(technical).getByText('SEC-PASSIVE-002')).toBeInTheDocument();
+    expect(within(technical).getByText('Evidence')).toBeInTheDocument();
+    expect(within(technical).getByText('Confidence')).toBeInTheDocument();
+  });
+
+  // A rule with no plain-language explanation keeps the detail panel it always
+  // had: no fold, and the evidence where the reader last saw it.
+  it('leaves the detail of an unexplained rule unfolded', async () => {
+    stubSecurity([issue(1)]);
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEO-ONPAGE-002" />,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Details' }));
+
+    const detail = document.getElementById('issue-detail-issue-1');
+    if (detail === null) throw new Error('expected the finding’s detail panel');
+    expect(
+      within(detail).queryByText('Technical details for your developer'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detail).getByText('<meta name="description"> is missing or empty'),
+    ).toBeInTheDocument();
+  });
+
+  it('says the page count is only of the findings loaded so far', async () => {
+    stubSecurity([header(1, 'Referrer-Policy'), header(2, 'Referrer-Policy')], 60);
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-PASSIVE-002" />,
+    );
+
+    expect(
+      await screen.findByText(
+        '2 pages in the findings loaded so far — load the rest to count every page.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('These findings are on 2 pages.')).not.toBeInTheDocument();
+  });
+
+  it('says so when every loaded finding recorded the same evidence', async () => {
+    stubSecurity([
+      issue(1, { ruleId: 'SEC-ASVS-001', module: 'Security', severity: 'Critical' }),
+      issue(2, { ruleId: 'SEC-ASVS-001', module: 'Security', severity: 'Critical' }),
+    ]);
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-ASVS-001" />,
+    );
+
+    expect(
+      await screen.findByText('Every finding loaded here recorded the same evidence.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('What differs between pages')).not.toBeInTheDocument();
+  });
+
+  // Regression: one variant was read as "all the same", but a finding that
+  // recorded no evidence is in no variant at all — so the sentence was speaking
+  // for findings it had never seen.
+  it('stays silent about sameness when a loaded finding carries no evidence', async () => {
+    stubSecurity([
+      issue(1, { ruleId: 'SEC-ASVS-001', module: 'Security', severity: 'Critical' }),
+      issue(2, {
+        ruleId: 'SEC-ASVS-001',
+        module: 'Security',
+        severity: 'Critical',
+        evidenceExcerpt: null,
+      }),
+    ]);
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-ASVS-001" />,
+    );
+
+    expect(await screen.findByText('These findings are on 2 pages.')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Every finding loaded here recorded the same evidence.'),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe('opening a problem while a search is typed', () => {
   it('never sends the old search together with the new problem', async () => {
     const fetchMock = stubIssues();

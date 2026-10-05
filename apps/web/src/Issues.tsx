@@ -18,6 +18,7 @@ import {
   type Scan,
 } from './api';
 import { Button, EmptyState, Field, SelectField, SkeletonRows, Window } from './components';
+import { ProblemBreakdown } from './FindingExplainer';
 import { findingsCopy } from './findings-copy';
 import { copy, type Language } from './i18n';
 import { IssueProblems } from './IssueProblems';
@@ -192,6 +193,23 @@ export function IssuesScreen(props: {
     setFilters((current) => ({ ...current, [key]: value }));
     setSelectedIssue(null);
   };
+  /**
+   * Leaving one problem goes back to the problems, not to every finding of
+   * every rule — the flat list is one row per page, which is the reading the
+   * problem view exists to replace. Without a summary there is no problem view
+   * to return to, so there the filter is all that clears.
+   */
+  const showAllProblems = useCallback(() => {
+    setSelectedIssue(null);
+    if (summary === null) {
+      setFilters((current) => ({ ...current, ruleId: '' }));
+      return;
+    }
+    setFilters(NO_FILTERS);
+    setSearchInput('');
+    settleSearch('');
+    setView('problems');
+  }, [summary, settleSearch]);
 
   const domain = props.scan?.domain ? displayDomain(props.scan.domain) : t.noScan;
   const modules = [...new Set((summary?.groups ?? []).map((group) => group.module))];
@@ -284,7 +302,7 @@ export function IssuesScreen(props: {
           {filters.ruleId === '' ? null : (
             <div className="issue-rule-filter">
               <strong>{f.issues.problemFilter(ruleTitle(filters.ruleId, props.language))}</strong>
-              <Button onClick={() => setFilter('ruleId', '')}>{f.issues.clearProblem}</Button>
+              <Button onClick={showAllProblems}>{f.issues.clearProblem}</Button>
             </div>
           )}
           {loading ? (
@@ -300,6 +318,16 @@ export function IssuesScreen(props: {
               <p className="muted issues-count" role="status">
                 {f.issues.showing(issues.length, total)}
               </p>
+              {/* One problem is open: say how many pages its findings are on and
+                  where they differ, so the list below is read as one fix or
+                  several rather than as one row per page. */}
+              {filters.ruleId === '' ? null : (
+                <ProblemBreakdown
+                  issues={issues}
+                  language={props.language}
+                  complete={issues.length >= total}
+                />
+              )}
               <IssueTable
                 issues={issues}
                 language={props.language}
