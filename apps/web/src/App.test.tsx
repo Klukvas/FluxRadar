@@ -1142,6 +1142,27 @@ describe('home pricing and workspace onboarding', () => {
     ).toBeInTheDocument();
   });
 
+  // "Which one is right for you?" is the question a visitor reaches the pricing
+  // block with, so it is answered before the three cards they would otherwise
+  // have to choose between first and understand afterwards.
+  it('puts the plain-language comparison above the three cards', async () => {
+    renderHome();
+    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+
+    const pricing = screen.getByRole('region', {
+      name: 'Three one-time reports. No subscription.',
+    });
+    const comparison = within(pricing).getByRole('table', {
+      name: /The three packages side by side/,
+    });
+    const card = within(pricing).getByRole('heading', { name: 'Basic' }).closest('article');
+    if (card === null) throw new Error('expected the Basic card');
+    const blocks = Array.from(pricing.children);
+    expect(blocks.findIndex((block) => block.contains(comparison))).toBeLessThan(
+      blocks.findIndex((block) => block.contains(card)),
+    );
+  });
+
   it('describes every product in Ukrainian after switching language', async () => {
     renderHome();
     await screen.findByRole('heading', { name: 'One URL. Every signal.' });

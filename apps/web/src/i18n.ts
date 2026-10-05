@@ -573,30 +573,36 @@ export const copy = {
           question: {
             label: 'The question it answers',
             basic: 'Why is my site not being found — in search, or in AI answers?',
-            websiteAudit: 'What is wrong with this website itself?',
-            complete: 'What is wrong with this website, across everything we can read?',
+            websiteAudit: 'What is wrong with the website itself?',
+            complete: 'Both of those questions, in one report.',
           },
           included: {
             label: 'What is included',
-            basic: 'The full SEO analysis — 21 checks — and AI crawler readiness.',
+            // The number of SEO checks is prose, and the sentence that carries
+            // it is matched verbatim against the rule registry by
+            // apps/api/src/export/check-count-parity.test.ts. Reword the rest
+            // of this answer freely; leave that opening clause alone.
+            basic:
+              'The full SEO analysis — 21 checks — plus AI SEO / GEO: which AI crawlers your site lets in, and whether the AI providers we ask mention it in their answers.',
             websiteAudit:
-              'Security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics, with scan history and JSON/CSV export.',
+              'Eight modules about the site itself: security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics — with scan history, JSON/CSV export and the AI Action Plan.',
             complete:
-              'Everything in Basic and everything in Website Audit — all ten modules — with scan history and JSON/CSV export.',
+              'Everything in Basic and everything in Website Audit — all ten modules — with scan history, JSON/CSV export and the AI Action Plan.',
           },
           notIncluded: {
             label: 'What is not included',
             basic:
-              'Security, accessibility, performance, reliability, privacy and content quality.',
-            websiteAudit: 'The SEO analysis and AI SEO / GEO. Those are what Basic sells.',
-            complete: 'Nothing FluxRadar can read is held back.',
+              'Security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics — and the scan history, export and AI Action Plan that come with them.',
+            websiteAudit:
+              'The two search modules: the SEO analysis and AI SEO / GEO. Those two are in Basic.',
+            complete: 'Nothing: every module is in this one. It still reads public pages only.',
           },
           chooseWhen: {
             label: 'Choose it when',
             basic: 'Being found is the question, and nothing else is urgent yet.',
             websiteAudit:
-              'The state of the site is the question — a launch, a handover, a redesign — and search is already handled or not your job.',
-            complete: 'You want both halves in one report and one comparable score.',
+              'The state of the site is the question — a launch, a handover, a redesign — and you do not need the search modules right now.',
+            complete: 'You want both halves in one report, under one score.',
           },
           price: {
             label: 'What you pay',
@@ -606,13 +612,13 @@ export const copy = {
           },
           difference: {
             label: 'The difference in one line',
-            basic: 'Depth on a single question: how your site is read.',
+            basic: 'Depth on one question: how your site is read.',
             websiteAudit: 'The site itself, without the search modules.',
             complete: 'Every module FluxRadar runs, in one report.',
           },
         },
         footnote:
-          'All three read public pages only, need no CMS password, and stay inside the crawl scope you set before the scan starts. Basic and Website Audit are separate packages — neither contains the other; Complete is both of them together.',
+          'All three read public pages only, need no password to your site, and stay inside the crawl scope you set before the scan starts. Basic and Website Audit are separate packages — neither contains the other, and Complete is the two of them together. Each card below states its page limit and how long the results are kept.',
       },
     },
     newScan: {
@@ -2433,29 +2439,34 @@ export const copy = {
             label: 'На яке питання відповідає',
             basic: 'Чому мій сайт не знаходять — у пошуку чи у відповідях AI?',
             websiteAudit: 'Що не так із самим сайтом?',
-            complete: 'Що не так із сайтом загалом — в усьому, що ми можемо прочитати?',
+            complete: 'Обидва ці питання — в одному звіті.',
           },
           included: {
             label: 'Що входить',
-            basic: 'Повний SEO-аналіз — 21 перевірка — і готовність до AI-роботів.',
+            // Кількість SEO-перевірок — це текст, і речення, яке її називає,
+            // дослівно зіставляє з реєстром правил
+            // apps/api/src/export/check-count-parity.test.ts. Решту відповіді
+            // можна переписувати; початок речення — ні.
+            basic:
+              'Повний SEO-аналіз — 21 перевірка — плюс AI SEO / GEO: які AI-роботи мають доступ до вашого сайту і чи згадують його у своїх відповідях AI-провайдери, яких ми запитуємо.',
             websiteAudit:
-              'Безпека, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсія та Аналітика — з історією перевірок та експортом JSON/CSV.',
+              'Вісім модулів про сам сайт: безпека, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсія та Аналітика — з історією перевірок, експортом JSON/CSV і AI-планом дій.',
             complete:
-              'Усе з Basic і все з Website Audit — усі десять модулів — з історією перевірок та експортом JSON/CSV.',
+              'Усе з Basic і все з Website Audit — усі десять модулів — з історією перевірок, експортом JSON/CSV і AI-планом дій.',
           },
           notIncluded: {
             label: 'Що не входить',
             basic:
-              'Безпека, доступність, продуктивність, надійність, приватність і якість контенту.',
-            websiteAudit: 'SEO-аналіз і AI SEO / GEO. Саме їх продає Basic.',
-            complete: 'Нічого з того, що FluxRadar уміє прочитати, не лишається поза звітом.',
+              'Безпека, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсія та Аналітика — а також історія перевірок, експорт і AI-план дій, які йдуть разом із ними.',
+            websiteAudit: 'Два пошукові модулі: SEO-аналіз і AI SEO / GEO. Вони входять до Basic.',
+            complete: 'Нічого: усі модулі вже тут. І він так само читає лише публічні сторінки.',
           },
           chooseWhen: {
             label: 'Коли обирати',
             basic: 'Питання саме у видимості, а решта поки не термінова.',
             websiteAudit:
-              'Питання — стан сайту: запуск, передача, редизайн, а пошук уже під контролем або не ваша зона.',
-            complete: 'Потрібні обидві половини в одному звіті й один порівнюваний бал.',
+              'Питання — стан сайту: запуск, передача, редизайн, а пошукові модулі вам зараз не потрібні.',
+            complete: 'Потрібні обидві половини в одному звіті й один бал на все.',
           },
           price: {
             label: 'Скільки коштує',
@@ -2471,7 +2482,7 @@ export const copy = {
           },
         },
         footnote:
-          'Усі три читають лише публічні сторінки, не потребують пароля до CMS і працюють у межах області обходу, яку ви задаєте перед стартом. Basic і Website Audit — окремі пакети, жоден не входить в інший; Complete — це вони обидва разом.',
+          'Усі три читають лише публічні сторінки, не потребують пароля до вашого сайту й працюють у межах області обходу, яку ви задаєте перед стартом. Basic і Website Audit — окремі пакети: жоден не входить в інший, а Complete — це вони обидва разом. На картках нижче вказано ліміт сторінок і скільки зберігаються результати.',
       },
     },
     newScan: {
