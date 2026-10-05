@@ -124,6 +124,13 @@ export interface NewScanForm {
    * open whenever a setting inside it differs from the safe default.
    */
   readonly expertOpen: boolean;
+  /**
+   * Whether a setting inside "For experienced users" differs from the safe
+   * default. `expertOpen` is not the same answer: the owner can unfold the
+   * block over nothing but defaults, and a note explaining that the block
+   * opened itself would then be explaining something that did not happen.
+   */
+  readonly expertConfigured: boolean;
   readonly busy: boolean;
   /** False while a submission would be refused, for whatever reason. */
   readonly canLaunch: boolean;
@@ -707,6 +714,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   return {
     advancedOpen,
     expertOpen,
+    expertConfigured,
     busy,
     canLaunch,
     canSave,

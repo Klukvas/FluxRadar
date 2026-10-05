@@ -59,6 +59,39 @@ export function nothingOpen(input: DeveloperTaskInput): boolean {
   return input.allLoaded && openOf(input.issues).length === 0;
 }
 
+/**
+ * The two numbers the copied task reports — the pages it reaches, and the open
+ * findings it is made of — plus whether the page count is only a lower bound.
+ *
+ * The sentence beside the button says what the task says, so the two can never
+ * disagree: a finding the owner ignored, marked false or the scanner resolved is
+ * in neither, and a partly loaded list hedges in both. Both numbers come from
+ * here because `whereLine` below, which writes them into the message, is the
+ * one place that decides them — these branches mirror its own.
+ */
+export function taskPageCount(input: DeveloperTaskInput): {
+  readonly pages: number;
+  readonly atLeast: boolean;
+  readonly findings: number;
+} {
+  const open = openOf(input.issues);
+  const loaded = distinctTargets(open).length;
+  const total = input.openFindings === null ? null : Math.max(input.openFindings, open.length);
+  // Nothing loaded is open: the summary's count is the only thing known.
+  if (open.length === 0) return { pages: total ?? 0, atLeast: false, findings: total ?? 0 };
+  // A complete list, and a list with no summary behind it, are both read off
+  // the loaded findings (`whereComplete`, `whereAtLeast`); a partly loaded list
+  // with a summary says the summary's count (`wherePartial`).
+  const findings = input.allLoaded || total === null ? open.length : total;
+  if (input.allLoaded) return { pages: loaded, atLeast: false, findings };
+  // One finding is one page for the rules this sentence is shown for, so a
+  // summary counts the pages of the whole problem, not of the loaded part.
+  if (total !== null && findingCountsPages(input.ruleId)) {
+    return { pages: total, atLeast: false, findings };
+  }
+  return { pages: loaded, atLeast: true, findings };
+}
+
 function whereLine(input: DeveloperTaskInput, open: readonly Issue[], pages: number): string {
   const t = findingsCopy[input.language].task;
   // A summary fetched before a finding was reopened can lag behind the page:

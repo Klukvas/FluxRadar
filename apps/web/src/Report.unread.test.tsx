@@ -15,6 +15,7 @@ import { desktopCopy } from './desktop-copy';
 import type { Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import { ResultsScreen } from './Report';
+import { reportFailureCopy } from './report-failure-copy';
 
 const MODULE_NAMES = [
   'SEO',
@@ -218,25 +219,41 @@ describe('a report whose site could not be read', () => {
     expect(screen.getByText(/^Ці розділи не перевірено/)).toBeTruthy();
   });
 
-  // Worded as the desktop's unread-site line: the refund is recorded on its
-  // own, then issued by hand, so the report must not promise instant money.
+  // Conditional wording, deliberately: nothing the report can read proves
+  // money changed hands — a paid plan is bought through the provider, and
+  // while the provider runs in test mode its own checkout says nothing is
+  // taken from the card. The money is recorded first and issued by hand, and
+  // the report and the desktop's per-site line end on the same clause, so the
+  // two can never promise different things.
   const PAID_EN =
     'If this check was paid for, it counts as not delivered: a refund is recorded for it automatically, without you asking, and is then issued by hand through Creem, so it is not instant.';
   const PAID_UK =
     'Якщо перевірка була платною, вона вважається не виконаною: повернення коштів для неї фіксується автоматично, просити не потрібно, а далі його вручну оформлюють через Creem, тож це не миттєво.';
+  // The clause both sentences end on. Nothing renders it on its own, so it is
+  // not a copy key: it lives here, as the pin that keeps the report's sentence
+  // and the desktop's per-site step from drifting apart.
+  const REFUND_RECORDED = {
+    en: 'a refund is recorded for it automatically, without you asking, and is then issued by hand through Creem, so it is not instant.',
+    uk: 'повернення коштів для неї фіксується автоматично, просити не потрібно, а далі його вручну оформлюють через Creem, тож це не миттєво.',
+  } as const;
 
-  it('tells a paid plan how the refund works, without promising it is instant', async () => {
+  it('tells a paid plan how the refund works, without claiming the money moved', async () => {
     await openReport(dashboardOf(SCAN), 'en');
 
     const block = screen.getByRole('region', { name: 'We could not open your site' });
     expect(within(block).getByText(PAID_EN)).toBeTruthy();
+    expect(block.textContent).not.toMatch(/You paid/);
     expect(document.body.textContent).not.toMatch(/money is returned|refunded in full/i);
   });
 
-  it.each(['en', 'uk'] as const)('words the refund as the desktop does (%s)', (language) => {
-    const desktopLine = desktopCopy[language].nextStep.bodies.unread('evagrace.example');
-    expect(desktopLine).toContain(language === 'en' ? PAID_EN : PAID_UK);
-  });
+  it.each(['en', 'uk'] as const)(
+    'words the money the same way the desktop does (%s)',
+    (language) => {
+      const clause = REFUND_RECORDED[language];
+      expect(reportFailureCopy[language].paidNotDelivered).toContain(clause);
+      expect(desktopCopy[language].nextStep.bodies.unread('evagrace.example')).toContain(clause);
+    },
+  );
 
   it('tells a paid plan how the refund works in Ukrainian', async () => {
     await openReport(dashboardOf(SCAN), 'uk');
@@ -252,6 +269,52 @@ describe('a report whose site could not be read', () => {
     expect(within(block).queryByText(PAID_EN)).toBeNull();
     expect(block.textContent).not.toMatch(/refund/i);
     expect(document.body.textContent).not.toMatch(/money is returned|refunded in full/i);
+  });
+
+  // "Technical details: SiteReturnedNoReadablePage · HTTP 410" was the only
+  // line on the block that named what the site actually answered, and it named
+  // it in two words no owner has. The sentence is added; the code and the
+  // status stay in the technical line and nowhere else.
+  it('says in words what the status the site answered with means', async () => {
+    const scan: Scan = { ...SCAN, crawlSummary: { ...UNREAD_CRAWL, startStatus: 410 } };
+    await openReport(dashboardOf(scan), 'en');
+
+    const block = screen.getByRole('region', { name: 'We could not open your site' });
+    expect(
+      within(block).getByText(
+        'The site answered that this page no longer exists and is not coming back.',
+      ),
+    ).toBeTruthy();
+    // Still the one place the number and the raw reason appear.
+    expect(within(block).getByText(`Technical details: ${REASON} · HTTP 410`)).toBeTruthy();
+    expect(occurrences('410')).toBe(2);
+  });
+
+  it('says it in Ukrainian, and says nothing for a status it has no sentence for', async () => {
+    const scan: Scan = { ...SCAN, crawlSummary: { ...UNREAD_CRAWL, startStatus: 410 } };
+    await openReport(dashboardOf(scan), 'uk');
+    expect(
+      screen.getByText('Сайт відповів, що цієї сторінки більше немає й вона не повернеться.'),
+    ).toBeTruthy();
+    cleanup();
+
+    // 304 is an HTTP status with nothing to tell an owner: no invented sentence.
+    const odd: Scan = { ...SCAN, crawlSummary: { ...UNREAD_CRAWL, startStatus: 304 } };
+    await openReport(dashboardOf(odd), 'en');
+    const block = screen.getByRole('region', { name: 'We could not open your site' });
+    expect(within(block).getByText(`Technical details: ${REASON} · HTTP 304`)).toBeTruthy();
+    expect(block.textContent).not.toMatch(/The site answered that/);
+  });
+
+  // The owner's first reaction is "but it opens fine for me", and they are not
+  // wrong: a protection layer can let people through and turn us away.
+  it('answers the owner whose site opens fine in their own browser', async () => {
+    await openReport(dashboardOf(SCAN), 'en');
+
+    const block = screen.getByRole('region', { name: 'We could not open your site' });
+    const step = within(block).getByText(/that does not mean this report is wrong/);
+    expect(step).toHaveTextContent(/let people through and turn automated visitors away/);
+    expect(within(step).getByRole('link', { name: 'Our crawler' })).toHaveAttribute('href', '/bot');
   });
 
   it('falls back to a generic sentence for a reason this build does not know', async () => {
@@ -320,7 +383,7 @@ describe('a report whose site could not be read', () => {
     const steps = within(block).getAllByRole('listitem');
     expect(steps).toHaveLength(2);
     expect(steps[0]).toHaveTextContent(
-      'Allow FluxRadarBot in robots.txt — our crawler page has the two lines to paste. Or turn off “Respect robots.txt” under “For experienced users” and confirm the override',
+      'Allow FluxRadarBot in robots.txt — our crawler page has the two lines to paste. Or turn off “Respect robots.txt” under “For experienced users” and, beside the Run button, tick that you want the skipped pages read.',
     );
     // The step names the new-scan screen's folded block by its own title, so a
     // rename on either side fails here instead of sending the owner nowhere.

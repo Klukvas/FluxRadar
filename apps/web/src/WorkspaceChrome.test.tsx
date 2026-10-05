@@ -62,7 +62,10 @@ describe('verify banner', () => {
   it('stays hidden for the rest of the session after Hide, for that account only', () => {
     const { app, setVerifyBannerHidden } = fakeApp();
     const first = render(<VerifyBanner app={app} account={OWNER} />);
-    fireEvent.click(screen.getByRole('button', { name: accountCopy.en.banner.dismiss }));
+    // The label promises what the storage does: a Hide that silently came back
+    // on the next visit read as a bug.
+    expect(accountCopy.en.banner.dismissSession).toMatch(/next visit/);
+    fireEvent.click(screen.getByRole('button', { name: accountCopy.en.banner.dismissSession }));
     expect(setVerifyBannerHidden).toHaveBeenCalledWith(true);
     expect(window.sessionStorage.getItem(HIDDEN_KEY)).toBe(OWNER.accountId);
     first.unmount();
@@ -87,7 +90,7 @@ describe('verify banner', () => {
     const { app, setVerifyBannerHidden } = fakeApp();
     render(<VerifyBanner app={app} account={OWNER} />);
     expect(screen.getByRole('status')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: accountCopy.en.banner.dismiss }));
+    fireEvent.click(screen.getByRole('button', { name: accountCopy.en.banner.dismissSession }));
     expect(setVerifyBannerHidden).toHaveBeenCalledWith(true);
   });
 });
@@ -97,6 +100,19 @@ describe('verify banner', () => {
 describe('narrow-screen stylesheet', () => {
   const src = join(resolve(process.cwd()), 'src');
   const css = readFileSync(join(src, 'styles', 'narrow-screens.css'), 'utf8');
+
+  /**
+   * One rule's declarations, from the phone section only — so that a pin on
+   * what the banner must not say cannot be satisfied by some other rule, and a
+   * renamed or deleted rule fails instead of passing vacuously.
+   */
+  function phoneRule(selector: string): string {
+    const [, phone] = css.split('@media (max-width: 600px)');
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const found = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(phone ?? '')?.[1];
+    if (found === undefined) throw new Error(`no ${selector} rule in the phone section`);
+    return found;
+  }
 
   it('is imported by the app shell', () => {
     expect(readFileSync(join(src, 'App.tsx'), 'utf8')).toContain(
@@ -113,10 +129,36 @@ describe('narrow-screen stylesheet', () => {
       '.segmented .segmented__option',
       '.data-table .button',
       '.data-table .control',
+      // The breakdown's "Show all", which replaced a dead-end "…and 1 more".
+      '.problem-breakdown .button',
     ]) {
       expect(phone).toContain(selector);
     }
     expect(phone).toMatch(/min-height:\s*40px/);
+  });
+
+  // At 375px in Ukrainian the two labels need 364px side by side inside a 357px
+  // box, so a row held on one line pushed every workspace page 14px sideways.
+  it('lets the banner’s buttons wrap instead of widening the page', () => {
+    const banner = phoneRule('.verify-banner');
+    const row = phoneRule('.verify-banner .button-row');
+    expect(banner).toMatch(/flex-wrap:\s*wrap;/);
+    expect(row).toMatch(/flex-wrap:\s*wrap;/);
+    // And the row may shrink, or its own wrap never gets the chance to run.
+    expect(row).toMatch(/flex:\s*0 1 auto;/);
+    // Read off the banner's own two rules: over the whole phone section this
+    // also matched the touch-target rules below, where `nowrap` never appears,
+    // so it would have passed with the banner itself held on one line.
+    expect(banner).not.toMatch(/flex-wrap:\s*nowrap/);
+    expect(row).not.toMatch(/flex-wrap:\s*nowrap/);
+  });
+
+  // Measured in a real browser: a 0 basis made the paragraph's hypothetical
+  // width 0, so it always shared the line with the 274px English button row
+  // and was left 46px at 360px and 61px at 375px — two clamped lines that cut
+  // "email." off "Confirm your email.".
+  it('gives the banner’s line a width of its own, so the buttons drop under it', () => {
+    expect(phoneRule('.verify-banner p')).toMatch(/flex:\s*1 1 \d+ch;/);
   });
 
   it('shows the short banner line only on phones', () => {

@@ -17,14 +17,34 @@ import { useEffect, useState } from 'react';
 
 import type { Issue } from './api';
 import { Button } from './components';
-import { developerTaskText, nothingOpen } from './developer-task';
-import { findingExplainer, problemTitle } from './finding-explainers';
-import { problemBreakdown } from './finding-variants';
+import { developerTaskText, nothingOpen, taskPageCount } from './developer-task';
+import { findingCountsPages, findingExplainer, problemTitle } from './finding-explainers';
+import { problemBreakdown, type EvidenceVariant } from './finding-variants';
 import { findingsCopy } from './findings-copy';
 import type { Language } from './i18n';
 
-/** How many distinct pieces of evidence the breakdown lists before summarising. */
+/** How many distinct pieces of evidence the breakdown lists before the rest
+ * has to be asked for. */
 export const VARIANT_LIMIT = 5;
+
+/** How many addresses one piece of evidence lists before the rest is asked for. */
+export const VARIANT_PAGE_LIMIT = 5;
+
+/**
+ * What the check found, in one plain sentence, for the rules that have an
+ * explanation — and nothing at all for the rest.
+ *
+ * It is on the row rather than behind the fold below it: a list of problems
+ * whose plain names are its only readable part is a list the owner has to open
+ * a disclosure per row to understand, and they do not. The rest of the
+ * explanation — why it matters, what to do, what one finding counts — stays in
+ * the fold, so the row is still one row.
+ */
+export function FindingWhat(props: { ruleId: string; language: Language }) {
+  const explainer = findingExplainer(props.ruleId, props.language);
+  if (explainer === null) return null;
+  return <p className="muted finding-what">{explainer.what}</p>;
+}
 
 /**
  * What this rule means, why it matters and what to do — for the rules that have
@@ -33,8 +53,16 @@ export const VARIANT_LIMIT = 5;
  *
  * `open` is for the finding detail. In a list it stays folded: one row per
  * problem is the whole reason the list reads.
+ *
+ * `withWhat` is for a caller that already says the first sentence itself
+ * (`FindingWhat`): saying it twice on one row would be worse than folding it.
  */
-export function FindingExplainer(props: { ruleId: string; language: Language; open?: boolean }) {
+export function FindingExplainer(props: {
+  ruleId: string;
+  language: Language;
+  open?: boolean;
+  withWhat?: boolean;
+}) {
   const f = findingsCopy[props.language].issues;
   const explainer = findingExplainer(props.ruleId, props.language);
   if (explainer === null) return null;
@@ -42,10 +70,12 @@ export function FindingExplainer(props: { ruleId: string; language: Language; op
     <details className="finding-explainer" {...(props.open ? { open: true } : {})}>
       <summary className="finding-explainer__summary">{f.explainerTitle}</summary>
       <dl className="finding-explainer__body">
-        <div>
-          <dt>{f.explainerWhat}</dt>
-          <dd>{explainer.what}</dd>
-        </div>
+        {props.withWhat === false ? null : (
+          <div>
+            <dt>{f.explainerWhat}</dt>
+            <dd>{explainer.what}</dd>
+          </div>
+        )}
         <div>
           <dt>{f.explainerWhy}</dt>
           <dd>{explainer.why}</dd>
@@ -77,9 +107,10 @@ export function ProblemBreakdown(props: {
   complete: boolean;
 }) {
   const f = findingsCopy[props.language].issues;
+  const [allVariants, setAllVariants] = useState(false);
   const breakdown = problemBreakdown(props.issues, props.language);
   if (breakdown.findings === 0) return null;
-  const listed = breakdown.variants.slice(0, VARIANT_LIMIT);
+  const listed = allVariants ? breakdown.variants : breakdown.variants.slice(0, VARIANT_LIMIT);
   const beyond = breakdown.variants.length - listed.length;
   // "The same evidence" only holds when the one variant accounts for every
   // loaded finding: a finding that recorded no evidence is in none of the
@@ -100,15 +131,51 @@ export function ProblemBreakdown(props: {
           <ul className="problem-breakdown__variants">
             {listed.map((variant) => (
               <li key={variant.evidence}>
-                <span className="technical">{variant.evidence}</span> —{' '}
-                {f.variantFindings(variant.findings)}
+                <span className="technical">{variant.evidence}</span>
+                <EvidencePages variant={variant} language={props.language} />
               </li>
             ))}
-            {beyond > 0 ? <li className="muted">{f.variantsMore(beyond)}</li> : null}
           </ul>
+          {/* Not "…and 1 more": a line that names a number and then refuses to
+              show it is a dead end. The rest is one press away. */}
+          {beyond > 0 || allVariants ? (
+            <Button onClick={() => setAllVariants(!allVariants)}>
+              {allVariants ? f.showFewer : f.showAll(breakdown.variants.length)}
+            </Button>
+          ) : null}
         </>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Which pages recorded one piece of evidence.
+ *
+ * The count alone was the whole line, and it was read backwards: "Only one
+ * crawled page links to this one: /en/careers — 3 findings" reads as careers
+ * having three problems, when it means three other pages each hang off a link
+ * from careers. The addresses are what the line is about.
+ */
+function EvidencePages(props: { variant: EvidenceVariant; language: Language }) {
+  const f = findingsCopy[props.language].issues;
+  const [all, setAll] = useState(false);
+  const { pages } = props.variant;
+  const listed = all ? pages : pages.slice(0, VARIANT_PAGE_LIMIT);
+  return (
+    <>
+      <p className="problem-breakdown__on">{f.variantPages(pages.length)}</p>
+      <ul className="problem-breakdown__pages-list">
+        {listed.map((page) => (
+          <li key={page} className="technical">
+            {page}
+          </li>
+        ))}
+      </ul>
+      {pages.length > VARIANT_PAGE_LIMIT ? (
+        <Button onClick={() => setAll(!all)}>{all ? f.showFewer : f.showAll(pages.length)}</Button>
+      ) : null}
+    </>
   );
 }
 
@@ -193,14 +260,24 @@ export function DeveloperTaskCopy(props: {
       <p className="muted developer-task">{nothingOpen(input) ? t.nothingOpen : t.notLoaded}</p>
     );
   }
+  // What the button copies, and who it is for. Without it the label read as
+  // "copy this row", and as something only a developer may press.
+  const problem = problemTitle(props.ruleId, props.language);
+  // The task's own counts, not the loaded rows': a page whose only finding the
+  // owner ignored is in neither the message nor this sentence, a finding the
+  // summary has not caught up with is in both, and a partly loaded list is
+  // hedged here the same way the message hedges it.
+  const reach = taskPageCount(input);
+  const namesPages = reach.atLeast ? t.explainsAtLeast : t.explains;
+  const explains = findingCountsPages(props.ruleId)
+    ? namesPages(problem, reach.pages)
+    : t.explainsCount(problem, reach.findings);
   return (
     <div className="developer-task">
-      <Button
-        onClick={() => void copy()}
-        aria-label={t.copyFor(problemTitle(props.ruleId, props.language))}
-      >
+      <Button onClick={() => void copy()} aria-label={t.copyFor(problem)}>
         {t.copy}
       </Button>
+      <p className="muted developer-task__explains">{explains}</p>
       {state === 'copied' ? (
         <p className="developer-task__status" role="status">
           {t.copied}

@@ -898,7 +898,8 @@ describe('public /checks — audit coverage page', () => {
 //   • Details are hidden by default.
 //   • Clicking "Details" expands the row inline (same tbody); detail content
 //     appears; button label changes to "Hide details".
-//   • Clicking "Hide details" (or "Close details") collapses the row.
+//   • Clicking "Hide details" collapses the row — and that row control is the
+//     only one: the open panel's second "Close details" is gone (see below).
 //   • Clicking "Details" on a second row collapses the first and expands the
 //     second — only one detail row is visible at a time.
 //   • The trigger button carries aria-expanded=true/false.
@@ -1022,18 +1023,18 @@ describe('Issue Center — inline detail row', () => {
     expect(screen.getAllByRole('button', { name: 'Details' })).toHaveLength(2);
   });
 
-  it('collapses the detail row when Close details is clicked', async () => {
+  // One open finding, one control that closes it. The open panel used to carry
+  // a "Close details" of its own beside the row's "Hide details": two names for
+  // one thing, and neither obviously the other's pair.
+  it('offers one close control per open finding, not two', async () => {
     stubIssues();
     await renderIssues();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Details' })[0] as HTMLElement);
     await screen.findByText('No <title> element found');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close details' }));
-
-    await waitFor(() =>
-      expect(screen.queryByText('No <title> element found')).not.toBeInTheDocument(),
-    );
+    expect(screen.queryByRole('button', { name: 'Close details' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Hide details' })).toHaveLength(1);
   });
 
   it('collapses the first row and expands the second when a different row is clicked', async () => {
@@ -1066,10 +1067,13 @@ describe('Issue Center — inline detail row', () => {
     expect(
       screen.getByText(/Findings are grouped by the problem behind them, most urgent first/i),
     ).toBeInTheDocument();
-    // Severity is explained rather than left as bare Critical/High/Medium/Low chips.
-    expect(
-      screen.getByText(/Critical and High need attention first, then Medium, then Low/i),
-    ).toBeInTheDocument();
+    // Each level says what to do about it, not just where it ranks: "Low" and
+    // "Medium" are relative words with nothing on the screen to be relative to.
+    const legend = screen.getByText(/says how soon it is worth dealing with/i);
+    expect(legend).toHaveTextContent('Critical — deal with it first');
+    expect(legend).toHaveTextContent('High — fix it soon');
+    expect(legend).toHaveTextContent('Medium — worth fixing');
+    expect(legend).toHaveTextContent('Low — can wait');
     // The implementation-only word "fingerprint" must not leak to the owner.
     expect(screen.queryByText(/fingerprint/i)).not.toBeInTheDocument();
   });
@@ -1727,9 +1731,9 @@ describe('self-explanatory workflow copy', () => {
     const help = await screen.findByRole('region', { name: 'How to read this report' });
     expect(within(help).getByText('Score')).toBeInTheDocument();
     expect(within(help).getByText(/0–100 rating/)).toBeInTheDocument();
-    expect(within(help).getByText('Coverage')).toBeInTheDocument();
+    expect(within(help).getByText('Checks done')).toBeInTheDocument();
     expect(
-      within(help).getByText(/How much of your site FluxRadar was able to check/i),
+      within(help).getByText(/How many of that area’s checks FluxRadar was able to complete/i),
     ).toBeInTheDocument();
     expect(within(help).getByText('Findings')).toBeInTheDocument();
   });

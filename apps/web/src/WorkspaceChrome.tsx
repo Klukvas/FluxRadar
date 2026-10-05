@@ -83,9 +83,11 @@ export function WorkspaceHeader({
 }
 
 /**
- * "Hide" lasts for the browser session. Keyed by account so a second sign-in in
- * the same tab, as somebody else, still gets asked. Storage can be refused (a
- * private window, blocked site data); the banner then simply hides until reload.
+ * "Hide" lasts for the browser session and the button says so, because a Hide
+ * that silently comes back reads as a bug. Keyed by account so a second sign-in
+ * in the same tab, as somebody else, still gets asked. Storage can be refused
+ * (a private window, blocked site data); the banner then simply hides until
+ * reload — which is no worse than what the label promises.
  */
 const VERIFY_BANNER_HIDDEN_KEY = 'fluxradar.verifyBannerHidden';
 
@@ -149,7 +151,7 @@ export function VerifyBanner({
             setVerifyBannerHidden(true);
           }}
         >
-          {ac.banner.dismiss}
+          {ac.banner.dismissSession}
         </Button>
       </div>
     </div>

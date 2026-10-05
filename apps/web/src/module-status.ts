@@ -102,6 +102,22 @@ export function isNotApplicable(status: string): boolean {
 const QUERY_GENERATION_CLAUSE = /(?:^|; )QueryGeneration(Unavailable|InvalidResponse): ([\s\S]+)$/;
 
 /**
+ * The clause a GEO row adds when some answers never reached a verdict.
+ *
+ * Assembled in `apps/api/src/orchestrator/geo-module-row.ts` as
+ * `AnswerEvaluationUnavailable: 1 of 12 (ProviderContract)`. Nothing here
+ * matched it, so the whole clause went to the raw-token fallback and an owner
+ * read `AnswerEvaluationUnavailable: 1 of 12 (ProviderContract)` on their
+ * report. Read for the numbers and for the causes in the brackets, exactly as
+ * the counted GEO reason above is: the causes have sentences of their own.
+ *
+ * Always the last of the three parts the producing side joins with `'; '`, so
+ * it is matched at the end and taken off before the rest is read — the
+ * question-generation clause ends in free text and would otherwise absorb it.
+ */
+const ANSWER_EVALUATION_CLAUSE = /(?:^|; )AnswerEvaluationUnavailable: (\d+) of (\d+) \(([^)]*)\)$/;
+
+/**
  * Every sentence this module row owes its reader, in order.
  *
  * Empty for a section that simply completed: a report that explains a success is
@@ -113,22 +129,46 @@ const QUERY_GENERATION_CLAUSE = /(?:^|; )QueryGeneration(Unavailable|InvalidResp
  * whole sentence to the raw-English fallback.
  */
 export function moduleStatusReasons(module: ScanModule, language: Language): readonly string[] {
-  const reason = module.statusReason?.trim() ?? '';
-  if (reason === '') return [];
+  const whole = module.statusReason?.trim() ?? '';
+  if (whole === '') return [];
+
+  // Taken off first and said last: it is the final clause, and the one before
+  // it ends in free text that would otherwise absorb it.
+  const evaluation = ANSWER_EVALUATION_CLAUSE.exec(whole);
+  const reason = evaluation === null ? whole : whole.slice(0, evaluation.index).trim();
+  const evaluated = evaluation === null ? [] : answerEvaluationSentences(evaluation, language);
+  if (reason === '') return evaluated;
 
   const generation = QUERY_GENERATION_CLAUSE.exec(reason);
   if (generation === null) {
-    return runSentences(reason, language);
+    return [...runSentences(reason, language), ...evaluated];
   }
   const [, kind = '', detail = ''] = generation;
   const run = reason.slice(0, generation.index).trim();
   return [
     ...(run === '' ? [] : runSentences(run, language)),
     ...queryGenerationSentences(kind, detail, language),
+    ...evaluated,
   ];
 }
 
-/** The sentences for the run's own reason: the two counted forms, or a token. */
+/**
+ * How many answers never reached a verdict, and why — never the raw token.
+ *
+ * The count first, then one sentence per distinct cause: the same shape the
+ * partial-run reason uses, because a count with no explanation is not a reason
+ * and folding the causes into one label is the defect this exists to fix.
+ */
+function answerEvaluationSentences(match: RegExpExecArray, language: Language): readonly string[] {
+  const t = copy[language].report.moduleReason;
+  const [, unavailable = '', total = '', causes = ''] = match;
+  return [
+    fillCopy(t.aiEvaluationUnavailable, { unavailable, total }),
+    ...distinctCauses(causes).map((cause) => sentenceFor(cause, language)),
+  ];
+}
+
+/** The sentences for the run's own reason: the counted forms, or a token. */
 function runSentences(reason: string, language: Language): readonly string[] {
   const t = copy[language].report.moduleReason;
 

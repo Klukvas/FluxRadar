@@ -1821,12 +1821,24 @@ code,
 .scan-option-callout__eyebrow::before {
   content: '\25b8  ';
 }
-.scan-option-callout[open] .scan-option-callout__eyebrow::before {
+.scan-option-callout__disclosure[open] .scan-option-callout__eyebrow::before {
   content: '\25be  ';
 }
 .scan-option-callout h3 {
   margin: var(--sp-2) 0 0;
   font-size: 14px;
+}
+/* The one plain sentence above a legally-worded disclosure. It opens the box,
+   outside the disclosure it introduces, so it is read first and no fold can
+   take it away — and it is set at the body size this app sets on `body` (13px),
+   a step above the 12px disclosure paragraph under it, because it is the half
+   most readers will act on. */
+.scan-option-callout__lead {
+  max-width: 68ch;
+  margin: 0 0 var(--sp-2);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
 }
 .scan-option-callout__body {
   margin: var(--sp-2) 0 0;

@@ -206,7 +206,9 @@ describe('paid checkout flow', () => {
     // Paid plans are offered because the server says checkout is configured.
     expect(await screen.findByText('Complete · $120')).toBeInTheDocument();
     expect(
-      screen.getByText('Payment provider is in test mode — no real charge is made.'),
+      screen.getByText(
+        'Payments here are still being set up, so nothing is taken from your card and no money changes hands. The check itself runs normally.',
+      ),
     ).toBeInTheDocument();
 
     // The paid default is never pre-selected: the plan stays Free until the

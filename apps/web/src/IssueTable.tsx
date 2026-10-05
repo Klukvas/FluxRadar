@@ -4,7 +4,13 @@ import { Fragment } from 'react';
 
 import type { Issue } from './api';
 import { Button, DataTable, FieldRow, StatusChip } from './components';
-import { hasFindingExplainer, problemTechnicalName, problemTitle } from './finding-explainers';
+import {
+  findingCountsPages,
+  hasFindingExplainer,
+  problemSupportCode,
+  problemTechnicalName,
+  problemTitle,
+} from './finding-explainers';
 import { FindingExplainer } from './FindingExplainer';
 import { findingEvidence } from './finding-variants';
 import { findingsCopy } from './findings-copy';
@@ -17,18 +23,35 @@ export const USER_STATUSES = ['New', 'Acknowledged', 'Ignored', 'False Positive'
 export function IssueTable(props: {
   issues: readonly Issue[];
   language: Language;
+  /**
+   * The one problem this list is filtered to, or null for every finding.
+   *
+   * One problem open is the normal case — "Pages only one other page links to"
+   * arrived as fourteen rows whose Problem cell held the same two lines
+   * fourteen times, and the addresses, the one thing that differed, were the
+   * narrowest column on the screen. Filtered to one problem, the screen names
+   * it once above this table and the rows are the addresses.
+   *
+   * It is the caller's filter, never a guess from the rows: on the unfiltered
+   * tab a first page that happens to hold one rule is not one problem, and
+   * laying it out as one would rebuild the table under the reader the moment
+   * "Show 50 more" brought a second rule in.
+   */
+  soleRuleId: string | null;
   selectedIssue: Issue | null;
   onSelect: (issue: Issue | null) => void;
   onStatus: (issue: Issue, status: string) => void;
 }) {
   const t = copy[props.language].issues;
   const f = findingsCopy[props.language];
+  const sole = props.soleRuleId;
+  const columns = sole === null ? 5 : 4;
   return (
     <DataTable>
       <thead>
         <tr>
           <th>{t.columnSeverity}</th>
-          <th>{f.issues.columnProblem}</th>
+          {sole === null ? <th>{f.issues.columnProblem}</th> : null}
           <th>{t.columnTarget}</th>
           <th>{t.columnStatus}</th>
           <th>{t.columnAction}</th>
@@ -39,20 +62,32 @@ export function IssueTable(props: {
           const isExpanded = props.selectedIssue?.id === issue.id;
           const detailId = `issue-detail-${issue.id}`;
           const title = problemTitle(issue.ruleId, props.language);
+          const supportCode = problemSupportCode(issue.ruleId, props.language);
           return (
             <Fragment key={issue.id}>
               <tr>
                 <td data-label={t.columnSeverity}>
                   <StatusChip status={issue.severity} label={f.severity[issue.severity]} />
                 </td>
-                <td data-label={f.issues.columnProblem}>
-                  <strong className="issue-title">{title}</strong>
-                  <br />
-                  <span className="muted technical">
-                    {problemTechnicalName(issue.ruleId, props.language)} ·{' '}
-                    {moduleLabel(issue.module, props.language)}
-                  </span>
-                </td>
+                {/* The problem's own name and its section. The rule's
+                      technical title said the same thing in the developer's
+                      words and now lives in the technical fold; the bare id of
+                      a rule with no plain name restates nothing, so it stays. */}
+                {sole === null ? (
+                  <td data-label={f.issues.columnProblem}>
+                    <strong className="issue-title">{title}</strong>
+                    <br />
+                    <span className="muted">
+                      {moduleLabel(issue.module, props.language)}
+                      {supportCode === null ? null : (
+                        <>
+                          {' · '}
+                          <span className="technical">{supportCode}</span>
+                        </>
+                      )}
+                    </span>
+                  </td>
+                ) : null}
                 <td data-label={t.columnTarget} className="technical issue-target">
                   {issue.targetUrl}
                 </td>
@@ -61,6 +96,10 @@ export function IssueTable(props: {
                 </td>
                 <td data-label={t.columnAction}>
                   <div className="button-row">
+                    {/* The one control that opens and closes this finding.
+                          The open panel used to carry a second "Close details"
+                          of its own, so one finding had two names for one
+                          thing and neither was obviously the other's pair. */}
                     <Button
                       onClick={() => props.onSelect(isExpanded ? null : issue)}
                       aria-expanded={isExpanded}
@@ -89,12 +128,8 @@ export function IssueTable(props: {
               </tr>
               {isExpanded ? (
                 <tr id={detailId} className="issue-detail-row">
-                  <td colSpan={5} className="issue-detail-cell">
-                    <IssueDetail
-                      issue={issue}
-                      language={props.language}
-                      onClose={() => props.onSelect(null)}
-                    />
+                  <td colSpan={columns} className="issue-detail-cell">
+                    <IssueDetail issue={issue} language={props.language} />
                   </td>
                 </tr>
               ) : null}
@@ -127,27 +162,52 @@ function EvidenceFields(props: { issue: Issue; language: Language }) {
 
 /**
  * The fold for whoever will do the work: the scoring and provenance fields
- * always, and the raw evidence too when a plain explanation stands in for it.
+ * always, the rule's own technical title, and the raw evidence too when a plain
+ * explanation stands in for it.
+ *
+ * Every label here says what the number is. "Impact 14/59 targets · score
+ * -0.24" packed three things an owner cannot read into one row: "targets" is
+ * not their word, and the delta is a number on a scale nothing on the screen
+ * names. They are two rows now, each in words, and the score says which way it
+ * moves. A penalty is stored negative, so its size is what is printed.
  */
 function TechnicalDetails(props: { issue: Issue; language: Language; withEvidence: boolean }) {
   const t = copy[props.language].issues;
   const f = findingsCopy[props.language];
   const { issue } = props;
+  const countsPages = findingCountsPages(issue.ruleId);
   return (
     <details className="finding-technical">
       <summary className="finding-technical__summary">{f.issues.technicalTitle}</summary>
       <div className="finding-technical__body">
         {props.withEvidence ? <EvidenceFields issue={issue} language={props.language} /> : null}
         <FieldRow
-          label={t.impact}
-          value={fillCopy(t.impactValue, {
-            affected: issue.affectedTargets,
-            applicable: issue.applicableTargets,
-            delta: issue.scoreDelta.toFixed(2),
-          })}
+          label={countsPages ? t.impact : t.impactTargets}
+          value={(countsPages ? t.impactValue : t.impactTargetsValue)(
+            issue.affectedTargets,
+            issue.applicableTargets,
+          )}
+        />
+        <FieldRow
+          label={t.scoreEffect}
+          value={
+            issue.scoreDelta === 0
+              ? t.scoreEffectNone
+              : fillCopy(t.scoreEffectValue, { delta: Math.abs(issue.scoreDelta).toFixed(2) })
+          }
         />
         <FieldRow label={t.confidence} value={`${(issue.confidence * 100).toFixed(0)}%`} />
-        <FieldRow label={t.columnRule} value={issue.ruleId} technical />
+        {/* The rule's title in the developer's own words, moved off the row
+            above where it restated the problem's plain name. Labelled by what
+            it is, not "Rule" — the column header's word, which reads as
+            something the owner broke. */}
+        {hasFindingExplainer(issue.ruleId) ? (
+          <FieldRow
+            label={t.ruleNameLabel}
+            value={problemTechnicalName(issue.ruleId, props.language)}
+          />
+        ) : null}
+        <FieldRow label={t.ruleIdLabel} value={issue.ruleId} technical />
       </div>
     </details>
   );
@@ -164,23 +224,28 @@ function TechnicalDetails(props: { issue: Issue; language: Language; withEvidenc
  * evidence and recommendation, so those stay in view; only the scoring and
  * provenance fold away.
  */
-function IssueDetail(props: { issue: Issue; language: Language; onClose: () => void }) {
+function IssueDetail(props: { issue: Issue; language: Language }) {
   const { issue } = props;
   const t = copy[props.language].issues;
   const f = findingsCopy[props.language];
   const explained = hasFindingExplainer(issue.ruleId);
+  const meaning = f.severityMeaning[issue.severity];
   return (
     <div className="issue-detail">
-      <div className="split">
-        <strong>{problemTitle(issue.ruleId, props.language)}</strong>
-        <Button onClick={props.onClose}>{t.closeDetails}</Button>
-      </div>
+      <strong>{problemTitle(issue.ruleId, props.language)}</strong>
       {/* Open here: the panel is where the owner came to understand the
           finding. */}
       <FindingExplainer ruleId={issue.ruleId} language={props.language} open />
+      {/* The chip, and — where there is room for it — what its word means in
+          terms of when to act. */}
       <FieldRow
         label={t.columnSeverity}
-        value={<StatusChip status={issue.severity} label={f.severity[issue.severity]} />}
+        value={
+          <>
+            <StatusChip status={issue.severity} label={f.severity[issue.severity]} />
+            {meaning === undefined ? null : <span className="muted"> — {meaning}</span>}
+          </>
+        }
       />
       <FieldRow
         label={t.columnStatus}

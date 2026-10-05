@@ -241,6 +241,37 @@ describe('paid plan controls', () => {
     expect(within(callout).queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
+  // The disclosure is one long legally-worded paragraph; a salon owner read
+  // nothing out of it. The plain sentence is added above it — the paragraph is
+  // what the buyer agrees to by paying, so it stays visible in full.
+  it('says the AI disclosure in one plain sentence first, without folding it', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+
+    const callout = screen.getByRole('group', {
+      name: 'AI processing included in this audit',
+    });
+    // Read without a click: it is a paragraph of the callout, not part of the
+    // disclosure, so no fold reaches it.
+    const lead = screen.getByText(/this report includes two AI services/);
+    expect(lead).toBeVisible();
+    // The disclosure under it names Anthropic and OpenAI, so the summary over
+    // it may not count to one: "an AI helper" had the buyer agree to half the
+    // recipients.
+    expect(lead).toHaveTextContent(/Anthropic and OpenAI/);
+    expect(lead).toHaveTextContent(/only Anthropic also reads the public pages/);
+    expect(lead).toHaveTextContent(/never sent to either/);
+    const full = within(callout).getByText(/instruct FluxRadar to use Anthropic/);
+    expect(full).toBeVisible();
+    // The plain sentence comes first and the disclosure follows it.
+    expect(lead.compareDocumentPosition(callout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // And it is outside the summary: a summary's whole content names the toggle,
+    // so in there the control announced sixty words of disclosure as its name.
+    expect(lead.closest('summary')).toBeNull();
+    expect(lead.closest('details')).toBeNull();
+    expect(callout.tagName).toBe('DETAILS');
+  });
+
   it('discloses the external performance provider before a Complete scan can start', async () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan — scope and tariff');
@@ -262,11 +293,13 @@ describe('paid plan controls', () => {
       'aria-describedby',
       'robots-info-description',
     );
+    // The tick that answers the warning lives beside the Run button, not in
+    // this folded block, so it is read with the warning and with the reason
+    // the button is held — never with an explanation two columns away.
     fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
-    expect(screen.getByLabelText(/I confirm the robots\.txt override/)).toHaveAttribute(
-      'aria-describedby',
-      'robots-info-description',
-    );
+    expect(
+      screen.getByLabelText(/Yes, read the pages robots\.txt asks crawlers to skip/),
+    ).toHaveAttribute('aria-describedby', 'robots-override-warning launch-blocked');
   });
 
   it('localizes the included AI processing disclosure', async () => {
@@ -495,9 +528,11 @@ describe('what a callout discloses before the purchase', () => {
   });
 });
 
-// The robots.txt override lives in the settings column and the button it blocks
-// is pinned in the launch column beside it, so a disabled button with no reason
-// beside it is a dead end two columns wide.
+// Turning robots.txt off lives in the settings column, but the tick that lets
+// one scan read the skipped pages, the warning and the reason the button is
+// held all sit in the launch column beside the button: a disabled button whose
+// only control is two columns (and, on a phone, several screens) away is a dead
+// end.
 describe('a submit the settings are blocking', () => {
   it('says which setting is holding the scan back', async () => {
     renderNewScan(internalAccount);
@@ -506,20 +541,42 @@ describe('a submit the settings are blocking', () => {
 
     const button = screen.getByRole('button', { name: 'Run internal scan' });
     expect(button).toBeDisabled();
-    const reason = screen.getByText(/To start this scan/);
+    const reason = screen.getByText(/The scan cannot start until you tick the box above/);
     expect(reason).toBeVisible();
     expect(button).toHaveAttribute('aria-describedby', reason.id);
   });
 
-  it('drops the reason once the override is confirmed', async () => {
+  it('offers the tick and the way back beside the button it blocks', async () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan — scope and tariff');
     fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
-    fireEvent.click(screen.getByLabelText(/I confirm the robots\.txt override/));
+
+    const actions = screen
+      .getByRole('button', { name: 'Run internal scan' })
+      .closest<HTMLElement>('.launch-form__actions');
+    if (actions === null) throw new Error('expected the launch column’s actions');
+    expect(
+      within(actions).getByLabelText(/Yes, read the pages robots\.txt asks crawlers to skip/),
+    ).toBeVisible();
+    expect(within(actions).getByText(/This scan will ignore robots\.txt/)).toBeVisible();
+
+    // The way out of the whole decision, next to the way through it.
+    fireEvent.click(within(actions).getByRole('button', { name: 'Switch robots.txt back on' }));
+    expect(screen.getByLabelText(/Respect robots\.txt/)).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Run internal scan' })).toBeEnabled();
+  });
+
+  it('drops the reason once the owner says yes', async () => {
+    renderNewScan(internalAccount);
+    await screen.findByText('New scan — scope and tariff');
+    fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
+    fireEvent.click(screen.getByLabelText(/Yes, read the pages robots\.txt asks crawlers to skip/));
 
     const button = screen.getByRole('button', { name: 'Run internal scan' });
     expect(button).toBeEnabled();
-    expect(screen.queryByText(/To start this scan/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/The scan cannot start until you tick the box above/),
+    ).not.toBeInTheDocument();
     expect(button).not.toHaveAttribute('aria-describedby');
   });
 

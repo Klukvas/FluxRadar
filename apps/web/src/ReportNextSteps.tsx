@@ -19,6 +19,7 @@ import {
   CRAWLER_PAGE_HREF,
   nothingWasChecked,
   reportFailureCopy,
+  statusClassOf,
   technicalDetailsOf,
   type SiteFailureStep,
   type SiteReadFailure,
@@ -318,8 +319,8 @@ export function SiteUnreadBlock(props: {
   failure: SiteReadFailure;
   domain: string;
   /**
-   * The Free check has no robots.txt override, so it is not offered there, and
-   * nothing was paid for it, so no refund line is shown.
+   * The Free check cannot skip robots.txt, so that alternative is not offered
+   * there, and nothing was paid for it, so no refund line is shown.
    */
   plan: Scan['plan'];
   language: Language;
@@ -327,15 +328,24 @@ export function SiteUnreadBlock(props: {
   const t = reportFailureCopy[props.language];
   const details = technicalDetailsOf(props.failure, props.language);
   const guidance = t.guidance[props.failure.kind];
+  // What the status the site answered with actually means. The number itself
+  // stays in the technical-details line below: "HTTP 410" is the only thing on
+  // this block that named the real answer, and it named it to nobody.
+  const statusClass =
+    props.failure.startStatus === null ? null : statusClassOf(props.failure.startStatus);
   // A labelled region, not an alert: the block is on the page from the first
   // paint, and an alert would be read out in full on every visit.
   return (
     <section className="report-block report-block--warning" aria-labelledby="site-unread-heading">
       <h3 id="site-unread-heading">{t.heading}</h3>
       <p>{t.lead(props.domain)}</p>
+      {/* Conditional, on every surface: a paid plan says a scan was bought,
+          not that money moved. The provider's own checkout says nothing is
+          taken from the card while it runs in test mode. */}
       {props.plan === 'Free' ? null : <p>{t.paidNotDelivered}</p>}
       <h4>{t.whatWeSaw}</h4>
       <p>{t.kinds[props.failure.kind]}</p>
+      {statusClass === null ? null : <p>{t.statusMeanings[statusClass]}</p>}
       {guidance.causes.length === 0 ? null : (
         <>
           <h4>{t.causesHeading}</h4>
@@ -375,6 +385,13 @@ function SiteFailureStepText(props: {
   switch (props.step) {
     case 'checkInBrowser':
       return <>{t.checkInBrowser(props.domain)}</>;
+    case 'opensInBrowser':
+      return (
+        <>
+          {t.opensInBrowserBefore} <a href={CRAWLER_PAGE_HREF}>{t.opensInBrowserLink}</a>{' '}
+          {t.opensInBrowserAfter}
+        </>
+      );
     case 'allowCrawler':
       return (
         <>

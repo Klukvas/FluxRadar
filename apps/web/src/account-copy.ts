@@ -26,6 +26,8 @@ export type AccountCopy = {
     readonly pending: (email: string) => string;
     readonly resend: string;
     readonly dismiss: string;
+    /** The banner's own Hide, which says how long hiding lasts. */
+    readonly dismissSession: string;
     /** The one-line version a phone shows; the full sentence stays for screen readers. */
     readonly short: {
       readonly confirm: string;
@@ -100,12 +102,17 @@ export const accountCopy: Record<Language, AccountCopy> = {
         `A confirmation request for ${email} was accepted. The link is valid for 24 hours if delivery is available.`,
     },
     banner: {
+      // The reason, not just the ask: letters about payments and the link that
+      // resets a forgotten password go to this address and nowhere else, so an
+      // address with a typo in it is one nothing can reach.
       body: (email) =>
-        `Confirm your email: we sent a link to ${email}. Payment and password emails go there.`,
+        `Confirm your email: we sent a link to ${email}. Letters about your payments, and the link that resets a forgotten password, go only there — confirming is how we know the address works.`,
       pending: (email) =>
-        `Confirm your email at ${email}. Check your inbox or request a new confirmation link.`,
+        `Confirm your email at ${email}. Letters about your payments, and the link that resets a forgotten password, go only there. Check your inbox or ask for a new link.`,
       resend: 'Send again',
       dismiss: 'Hide',
+      // Says what it does: sessionStorage, so it comes back on the next visit.
+      dismissSession: 'Hide until my next visit',
       short: {
         confirm: 'Confirm your email.',
         deliveryUnavailable: 'No confirmation email was sent.',
@@ -184,11 +191,12 @@ export const accountCopy: Record<Language, AccountCopy> = {
     },
     banner: {
       body: (email) =>
-        `Підтвердьте email: ми надіслали посилання на ${email}. Туди приходять листи про оплати та пароль.`,
+        `Підтвердьте email: ми надіслали посилання на ${email}. Листи про ваші оплати й посилання для відновлення забутого пароля приходять лише туди — підтвердження показує нам, що адреса працює.`,
       pending: (email) =>
-        `Підтвердьте email ${email}. Перевірте пошту або надішліть новий запит на посилання.`,
+        `Підтвердьте email ${email}. Листи про ваші оплати й посилання для відновлення забутого пароля приходять лише туди. Перевірте пошту або попросіть нове посилання.`,
       resend: 'Надіслати ще раз',
       dismiss: 'Сховати',
+      dismissSession: 'Сховати до наступного візиту',
       short: {
         confirm: 'Підтвердьте email.',
         deliveryUnavailable: 'Лист не надіслано.',

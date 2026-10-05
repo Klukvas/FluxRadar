@@ -17,6 +17,16 @@ import type { Language } from './i18n';
 export interface EvidenceVariant {
   readonly evidence: string;
   readonly findings: number;
+  /**
+   * The addresses that recorded it, in the order they were loaded.
+   *
+   * The count alone read as a property of the evidence: "Only one crawled page
+   * links to this one: /en/careers — 3 findings" was read as "/en/careers has
+   * 3 problems", when it means three other pages are each held by a link from
+   * /en/careers. Naming those three pages is the only way the line says what
+   * it means. A page with two findings of the same evidence is listed once.
+   */
+  readonly pages: readonly string[];
 }
 
 export interface ProblemBreakdown {
@@ -38,14 +48,18 @@ export function findingEvidence(issue: Issue, language: Language): string | null
 }
 
 export function problemBreakdown(issues: readonly Issue[], language: Language): ProblemBreakdown {
-  const byEvidence = new Map<string, number>();
+  const byEvidence = new Map<string, { findings: number; pages: string[] }>();
   for (const issue of issues) {
     const evidence = findingEvidence(issue, language)?.trim();
     if (evidence === undefined || evidence === '') continue;
-    byEvidence.set(evidence, (byEvidence.get(evidence) ?? 0) + 1);
+    const entry = byEvidence.get(evidence) ?? { findings: 0, pages: [] };
+    const pages = entry.pages.includes(issue.targetUrl)
+      ? entry.pages
+      : [...entry.pages, issue.targetUrl];
+    byEvidence.set(evidence, { findings: entry.findings + 1, pages });
   }
   const variants = [...byEvidence.entries()]
-    .map(([evidence, findings]): EvidenceVariant => ({ evidence, findings }))
+    .map(([evidence, entry]): EvidenceVariant => ({ evidence, ...entry }))
     .sort(
       (left, right) =>
         right.findings - left.findings || left.evidence.localeCompare(right.evidence),

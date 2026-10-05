@@ -531,3 +531,43 @@ describe('journey layout decisions', () => {
     );
   });
 });
+
+/**
+ * The widths of every `@media (max-width: …)` block of `css` whose body matches
+ * `rule`. A nested rule's closing brace is indented, so the first `\n}` after
+ * the opening is the media block's own — the same slice `mediaBlocks` takes.
+ */
+function mediaWidthsWith(css: string, rule: RegExp): readonly string[] {
+  const widths: string[] = [];
+  const opening = /@media \(max-width: (\d+px)\) \{/g;
+  for (let match = opening.exec(css); match !== null; match = opening.exec(css)) {
+    // The group cannot be missing when the match is; the default keeps the
+    // comparison honest rather than asserting it away.
+    const [, width = ''] = match;
+    const block = css.slice(match.index, css.indexOf('\n}', match.index));
+    if (rule.test(block)) widths.push(width);
+  }
+  return widths;
+}
+
+// A finding is a row of a data table, and on a narrow screen every cell of a
+// data table becomes a 110px label beside its value (base.css). Two of a
+// finding's own rows are prose rather than a label-and-value pair, and the rule
+// that gives them the whole cell lives in findings.css. The two stylesheets
+// have to name the same width: findings.css said 600px, so between 601 and
+// 699px the cells were already grids and the sentence and the plain-language
+// fold were auto-placed into the label column, a paragraph two words wide.
+describe('a finding’s own rows in a stacked table', () => {
+  it('frees them across the cell at the width the cells stack', () => {
+    const stacked = mediaWidthsWith(
+      BASE_CSS,
+      /\.data-table td \{[^}]*grid-template-columns: 110px 1fr;/,
+    );
+    expect(stacked).toHaveLength(1);
+    const freed = mediaWidthsWith(
+      stylesheet('findings.css'),
+      /\.finding-what,\s*\.finding-explainer \{\s*grid-column: 1 \/ -1;/,
+    );
+    expect(freed).toEqual(stacked);
+  });
+});

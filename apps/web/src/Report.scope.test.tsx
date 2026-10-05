@@ -245,11 +245,13 @@ describe('a section that has finished', () => {
     expect(within(dial).queryByText('Completed')).toBeNull();
   });
 
-  it('says the number is coverage instead of leaving a bare percentage', async () => {
+  it('says what the number counts instead of leaving a bare percentage', async () => {
     await openReport(dashboardOf('Free', [freeSeoModule()]));
 
     const meter = screen.getByRole('meter', { name: 'SEO coverage' });
-    expect(meter.textContent).toBe('Coverage100%');
+    // Checks, not a share of the site: that reading is the mistake the "How
+    // much of the site was read" panel exists to stop.
+    expect(meter.textContent).toBe('Checks done100%');
     // The zebra is the progress texture; a finished measurement is not progress.
     expect(meter).toHaveClass('progress--result');
   });

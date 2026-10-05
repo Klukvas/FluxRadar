@@ -446,10 +446,26 @@ export function problemTitle(ruleId: string, language: Language): string {
 }
 
 /**
- * The second line under a problem's name: the rule's technical title when the
- * headline is the plain one — the name the report's dashboard and the
- * developer use — and the bare rule id otherwise, as it always was.
+ * The rule's technical title when the headline is the plain one — the name the
+ * report's dashboard and the developer use — and the bare rule id otherwise,
+ * as it always was. It belongs in a finding's technical details: beside the
+ * plain name it restated the same problem in the developer's words, and the
+ * row read as two problems.
  */
 export function problemTechnicalName(ruleId: string, language: Language): string {
   return hasFindingExplainer(ruleId) ? ruleTitle(ruleId, language) : ruleId;
+}
+
+/**
+ * The rule id for a list row to carry beside the section, or null when it adds
+ * nothing there.
+ *
+ * It adds nothing twice over: under a plain-language name the id is a support
+ * code that belongs with the rest of the developer's half, and for a rule with
+ * no registered title at all `problemTitle` already falls back to the id, so
+ * printing it again says the same word twice on one row.
+ */
+export function problemSupportCode(ruleId: string, language: Language): string | null {
+  if (hasFindingExplainer(ruleId)) return null;
+  return problemTitle(ruleId, language) === ruleId ? null : ruleId;
 }

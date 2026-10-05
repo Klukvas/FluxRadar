@@ -2,7 +2,6 @@ import type { EgressLocation } from './api';
 import { FieldRow, Panel } from './components';
 import { egressLocationLabel } from './egress-location';
 import { copy, type Language } from './i18n';
-import { newScanCopy } from './new-scan-copy';
 import { PLAN_MODULES, PLAN_URL_LIMIT, type Plan } from './plan-modules';
 import type { ScanScopeForm } from './scan-scope';
 
@@ -22,9 +21,6 @@ import type { ScanScopeForm } from './scan-scope';
  */
 type NewScanCopy = (typeof copy)[Language]['newScan'];
 
-/** The summary's robots.txt warning, which the override checkbox points at. */
-export const ROBOTS_OVERRIDE_WARNING_ID = 'robots-override-warning';
-
 /** What the AI row says for one plan: which AI work it buys, if any. */
 function aiValue(plan: Plan, t: NewScanCopy): string {
   const modules = PLAN_MODULES[plan];
@@ -41,11 +37,6 @@ export function LaunchSummary(props: {
   /** The plan as the plan picker spells it, prices and all. */
   planLabel: string;
   scope: ScanScopeForm;
-  /**
-   * True while the saved profile carries a robots.txt override that has not
-   * been confirmed again on this screen (the form never restores it).
-   */
-  robotsOverrideStale?: boolean;
   /** Where this launch will leave from, or null while nothing is on offer. */
   egressLocation: EgressLocation | null;
   /** A deployment without egress locations: there is no country to name. */
@@ -59,13 +50,11 @@ export function LaunchSummary(props: {
   // the same thing whatever the request says).
   const free = props.plan === 'Free';
   const ignoresRobots = !free && !scope.respectRobots;
-  const robotsStale = ignoresRobots && props.robotsOverrideStale === true;
   const robots = !ignoresRobots
     ? t.launchSummaryRespected
     : scope.robotsOverrideConfirmed
       ? t.launchSummaryOverridden
       : t.launchSummaryDisabled;
-  const clarity = newScanCopy[props.language];
   return (
     <Panel title={t.launchSummaryTitle}>
       <div className="launch-summary">
@@ -84,15 +73,11 @@ export function LaunchSummary(props: {
           label={t.launchSummarySubdomains}
           value={scope.includeSubdomains ? t.launchSummaryEnabled : t.launchSummaryDisabled}
         />
-        <FieldRow label={t.launchSummaryRobots} value={robots} />
         {/* Ignoring robots.txt reads pages the site asked crawlers to skip, so
-            it is never just one more row in the list. */}
-        {ignoresRobots ? (
-          <p className="launch-warning" id={ROBOTS_OVERRIDE_WARNING_ID} role="note">
-            {clarity.robotsWarning}
-            {robotsStale ? ` ${clarity.robotsWarningStale}` : null}
-          </p>
-        ) : null}
+            it is never just one more row in the list — but its warning and the
+            tick that answers it live together beside the button
+            (RobotsConfirmation), not here, two screens above the control. */}
+        <FieldRow label={t.launchSummaryRobots} value={robots} />
         <FieldRow
           label={t.launchSummaryQueries}
           value={

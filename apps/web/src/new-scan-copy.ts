@@ -17,6 +17,14 @@ export type NewScanClarityCopy = {
   readonly planNames: Readonly<Record<Plan, string>>;
   readonly expertTitle: string;
   readonly expertLead: string;
+  /**
+   * Added when the values inside came from the site's saved settings rather
+   * than from anything chosen on this screen — which is also why the block is
+   * open: `expertSettingsChanged` opens it whenever one of them differs from
+   * the default, and a box ticked by a saved setting looks like a box the
+   * owner ticked.
+   */
+  readonly expertCarriedOver: string;
   readonly hints: {
     readonly subdomains: string;
     readonly userAgent: string;
@@ -26,12 +34,16 @@ export type NewScanClarityCopy = {
     readonly robots: string;
   };
   readonly blockedByRobots: string;
-  /** The same, when the override was restored from saved settings. */
+  /** The same, when the setting was restored from saved settings. */
   readonly blockedByRobotsStale: string;
-  /** The summary line for a crawl that will ignore robots.txt. */
+  /** The warning above the button for a crawl that will ignore robots.txt. */
   readonly robotsWarning: string;
-  /** Added when that override came from saved settings and is not yet re-confirmed. */
+  /** Added when that setting came from saved settings and is not yet re-confirmed. */
   readonly robotsWarningStale: string;
+  /** The tick that lets this one scan read the skipped pages. */
+  readonly robotsConfirmLabel: string;
+  /** The way out of the whole decision: put the rule back and launch. */
+  readonly robotsBackOn: string;
 };
 
 const PLAN_NAMES: Readonly<Record<Plan, string>> = {
@@ -49,6 +61,8 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
     expertTitle: 'For experienced users',
     expertLead:
       'Crawl settings with safe defaults. Most checks never need them; anything changed here is used by the scan even while this block is folded.',
+    expertCarriedOver:
+      'The values below came from this site’s saved settings, not from anything you chose just now — this block is open because some of them differ from the safe default. Change any of them and the scan uses the new value.',
     hints: {
       subdomains:
         'Also check blog.example.com, shop.example.com and other addresses under your site.',
@@ -62,13 +76,15 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
         'robots.txt is the site’s list of pages crawlers should skip. Keep it respected unless you own the site and need those pages checked.',
     },
     blockedByRobots:
-      'To start this scan, confirm the robots.txt override under For experienced users.',
+      'The scan cannot start until you tick the box above, or switch robots.txt back on.',
     blockedByRobotsStale:
-      'To start this scan, confirm the robots.txt override again under For experienced users, or turn robots.txt back on. A confirmation is not carried over from saved settings.',
+      'The scan cannot start until you tick the box above, or switch robots.txt back on. A tick from an earlier scan is never reused.',
     robotsWarning:
       'This scan will ignore robots.txt and read pages the site asks crawlers to skip.',
     robotsWarningStale:
-      'This setting came from the site’s saved settings — confirm it again before launching.',
+      'This setting came from the site’s saved settings, not from anything you chose just now — say again that you want it.',
+    robotsConfirmLabel: 'Yes, read the pages robots.txt asks crawlers to skip',
+    robotsBackOn: 'Switch robots.txt back on',
   },
   uk: {
     checking: (site, plan) => `Перевіряємо: ${site.name}, ${site.domain}, тариф ${plan}`,
@@ -77,6 +93,8 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
     expertTitle: 'Для досвідчених користувачів',
     expertLead:
       'Налаштування обходу з безпечними значеннями. Здебільшого їх не чіпають; усе, що змінено тут, перевірка використає, навіть коли блок згорнуто.',
+    expertCarriedOver:
+      'Значення нижче взято зі збережених налаштувань цього сайту, а не з того, що ви вибрали зараз, — блок відкритий тому, що деякі з них відрізняються від безпечних. Змініть будь-яке — і перевірка використає нове значення.',
     hints: {
       subdomains:
         'Також перевірити blog.example.com, shop.example.com та інші адреси вашого сайту.',
@@ -90,12 +108,14 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
         'robots.txt — це список сторінок, які сайт просить краулери пропускати. Вимикайте лише на власному сайті, коли треба перевірити саме ці сторінки.',
     },
     blockedByRobots:
-      'Щоб запустити перевірку, підтвердьте відхилення robots.txt у блоці «Для досвідчених користувачів».',
+      'Перевірка не почнеться, поки ви не поставите позначку вище або не увімкнете robots.txt знову.',
     blockedByRobotsStale:
-      'Щоб запустити перевірку, ще раз підтвердьте відхилення robots.txt у блоці «Для досвідчених користувачів» або знову увімкніть robots.txt. Підтвердження не переноситься зі збережених налаштувань.',
+      'Перевірка не почнеться, поки ви не поставите позначку вище або не увімкнете robots.txt знову. Позначка з попередньої перевірки ніколи не переноситься.',
     robotsWarning:
       'Ця перевірка ігноруватиме robots.txt і читатиме сторінки, які сайт просить краулери пропускати.',
     robotsWarningStale:
-      'Це налаштування взято зі збережених налаштувань сайту — підтвердьте його ще раз перед запуском.',
+      'Це налаштування взято зі збережених налаштувань сайту, а не з того, що ви вибрали зараз, — підтвердьте ще раз, що ви цього хочете.',
+    robotsConfirmLabel: 'Так, читати сторінки, які robots.txt просить пропускати',
+    robotsBackOn: 'Знову увімкнути robots.txt',
   },
 };
