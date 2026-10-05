@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { PricingExplainer } from './Pricing';
 import { copy, type Language } from './i18n';
+import { PLAN_CAPABILITIES, PLAN_MODULES } from './plan-modules';
 import { BASIC_PRICE, COMPLETE_PRICE, WEBSITE_AUDIT_PRICE } from './tariff-prices';
 
 const BASE_CSS = readFileSync(join(resolve(process.cwd()), 'src', 'styles', 'base.css'), 'utf8');
@@ -132,6 +133,42 @@ describe('the plain-language pricing comparison', () => {
       expect(screen.getByText(pricing.explainer.footnote)).toBeInTheDocument();
     },
   );
+
+  // The answers are read as a commitment, so they are checked against the
+  // tariff matrix the API charges from rather than proof-read by eye. Basic's
+  // "not included" used to list six of the eight modules it does not run,
+  // leaving out UX/Conversion and Analytics.
+  it('names every module Basic does not run in its "not included" answer', () => {
+    const beyondBasic = PLAN_MODULES.Complete.filter(
+      (module) => !PLAN_MODULES.Basic.includes(module),
+    );
+    const answer = copy.en.pricing.explainer.rows.notIncluded.basic.toLowerCase();
+
+    expect(beyondBasic).toHaveLength(8);
+    for (const module of beyondBasic) expect(answer).toContain(module.toLowerCase());
+    // The Ukrainian column names the same eight in its own words; these two are
+    // the ones the English row was missing.
+    const ukrainian = copy.uk.pricing.explainer.rows.notIncluded.basic;
+    expect(ukrainian).toContain('UX/Конверсія');
+    expect(ukrainian).toContain('Аналітика');
+  });
+
+  it('promises scan history, export and the Action Plan only where the tariff carries them', () => {
+    const rows = copy.en.pricing.explainer.rows;
+    expect(PLAN_CAPABILITIES.Basic).toEqual({
+      export: false,
+      actionPlan: false,
+      issueHistory: false,
+    });
+
+    for (const answer of [rows.included.websiteAudit, rows.included.complete]) {
+      expect(answer).toMatch(/scan history/i);
+      expect(answer).toMatch(/JSON\/CSV export/i);
+      expect(answer).toMatch(/AI Action Plan/i);
+    }
+    expect(rows.included.basic).not.toMatch(/scan history|export|Action Plan/i);
+    expect(rows.notIncluded.basic).toMatch(/scan history, export and AI Action Plan/i);
+  });
 
   it('keeps the links and the notes the section closed with', () => {
     render(<PricingExplainer language="en" />);
