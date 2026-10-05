@@ -317,7 +317,10 @@ export function SectionRetry(props: { language: Language; onRetry: () => Promise
 export function SiteUnreadBlock(props: {
   failure: SiteReadFailure;
   domain: string;
-  /** The Free check has no robots.txt override, so it is not offered there. */
+  /**
+   * The Free check has no robots.txt override, so it is not offered there, and
+   * nothing was paid for it, so no refund line is shown.
+   */
   plan: Scan['plan'];
   language: Language;
 }) {
@@ -330,6 +333,7 @@ export function SiteUnreadBlock(props: {
     <section className="report-block report-block--warning" aria-labelledby="site-unread-heading">
       <h3 id="site-unread-heading">{t.heading}</h3>
       <p>{t.lead(props.domain)}</p>
+      {props.plan === 'Free' ? null : <p>{t.paidNotDelivered}</p>}
       <h4>{t.whatWeSaw}</h4>
       <p>{t.kinds[props.failure.kind]}</p>
       {guidance.causes.length === 0 ? null : (

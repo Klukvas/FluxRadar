@@ -140,6 +140,12 @@ export interface SiteFailureGuidance {
 export interface ReportFailureCopy {
   readonly heading: string;
   readonly lead: (domain: string) => string;
+  /**
+   * What happens to the money, for a paid plan only. Worded exactly as the
+   * desktop's own unread-site line (desktop-copy.ts), so the two never promise
+   * different things: a refund is recorded, then issued by hand.
+   */
+  readonly paidNotDelivered: string;
   readonly whatWeSaw: string;
   readonly kinds: Readonly<Record<SiteReadFailureKind, string>>;
   readonly causesHeading: string;
@@ -194,6 +200,8 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
     heading: 'We could not open your site',
     lead: (domain) =>
       `We tried to read ${domain}, but could not open a single page of it. Nothing in this report describes your site yet — this is not a clean result, it is no result.`,
+    paidNotDelivered:
+      'If this check was paid for, it counts as not delivered: a refund is recorded for it automatically, without you asking, and is then issued by hand through Creem, so it is not instant.',
     whatWeSaw: 'What we saw',
     kinds: {
       'access-denied':
@@ -269,6 +277,8 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
     heading: 'Нам не вдалося відкрити ваш сайт',
     lead: (domain) =>
       `Ми намагалися прочитати ${domain}, але не змогли відкрити жодної сторінки. Нічого в цьому звіті поки не описує ваш сайт — це не «чистий» результат, а відсутність результату.`,
+    paidNotDelivered:
+      'Якщо перевірка була платною, вона вважається не виконаною: повернення коштів для неї фіксується автоматично, просити не потрібно, а далі його вручну оформлюють через Creem, тож це не миттєво.',
     whatWeSaw: 'Що ми побачили',
     kinds: {
       'access-denied':

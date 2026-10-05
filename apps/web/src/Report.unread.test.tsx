@@ -11,6 +11,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CrawlSummary, Dashboard, IssueSummary, Scan, ScanModule } from './api';
+import { desktopCopy } from './desktop-copy';
 import type { Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import { ResultsScreen } from './Report';
@@ -215,6 +216,42 @@ describe('a report whose site could not be read', () => {
     expect(document.body.textContent).not.toMatch(/We could not open your site/);
     expect(occurrences(REASON)).toBe(2);
     expect(screen.getByText(/^Ці розділи не перевірено/)).toBeTruthy();
+  });
+
+  // Worded as the desktop's unread-site line: the refund is recorded on its
+  // own, then issued by hand, so the report must not promise instant money.
+  const PAID_EN =
+    'If this check was paid for, it counts as not delivered: a refund is recorded for it automatically, without you asking, and is then issued by hand through Creem, so it is not instant.';
+  const PAID_UK =
+    'Якщо перевірка була платною, вона вважається не виконаною: повернення коштів для неї фіксується автоматично, просити не потрібно, а далі його вручну оформлюють через Creem, тож це не миттєво.';
+
+  it('tells a paid plan how the refund works, without promising it is instant', async () => {
+    await openReport(dashboardOf(SCAN), 'en');
+
+    const block = screen.getByRole('region', { name: 'We could not open your site' });
+    expect(within(block).getByText(PAID_EN)).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/money is returned|refunded in full/i);
+  });
+
+  it.each(['en', 'uk'] as const)('words the refund as the desktop does (%s)', (language) => {
+    const desktopLine = desktopCopy[language].nextStep.bodies.unread('evagrace.example');
+    expect(desktopLine).toContain(language === 'en' ? PAID_EN : PAID_UK);
+  });
+
+  it('tells a paid plan how the refund works in Ukrainian', async () => {
+    await openReport(dashboardOf(SCAN), 'uk');
+
+    const block = screen.getByRole('region', { name: 'Нам не вдалося відкрити ваш сайт' });
+    expect(within(block).getByText(PAID_UK)).toBeTruthy();
+  });
+
+  it('says nothing about a refund on the Free check, which nobody paid for', async () => {
+    await openReport(dashboardOf({ ...SCAN, plan: 'Free' }), 'en');
+
+    const block = screen.getByRole('region', { name: 'We could not open your site' });
+    expect(within(block).queryByText(PAID_EN)).toBeNull();
+    expect(block.textContent).not.toMatch(/refund/i);
+    expect(document.body.textContent).not.toMatch(/money is returned|refunded in full/i);
   });
 
   it('falls back to a generic sentence for a reason this build does not know', async () => {
