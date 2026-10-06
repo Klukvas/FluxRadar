@@ -36,6 +36,10 @@ interface Behaviour {
   healthBody: string;
   readyBody: string;
   documentBody: string;
+  /** The document served for any other path: a public page's generated head. */
+  pageDocument: (path: string) => string;
+  /** A path that answers 404, as if its generated file were missing from the build. */
+  missingPage: string | null;
   hstsHeader: boolean;
   cspHeader: boolean;
 }
@@ -44,7 +48,31 @@ interface TlsSite {
   readonly baseUrl: string;
   readonly caPath: string;
   readonly behaviour: Behaviour;
+  /** Every path the smoke test requested, in order. */
+  readonly requests: readonly string[];
   close: () => Promise<void>;
+}
+
+const HOME_DOCUMENT = '<!doctype html><html><head><title>FluxRadar — audits</title></head></html>';
+
+/** What the build writes into dist/<path>/index.html: the page's own title and canonical. */
+function generatedPageHead(path: string): string {
+  return [
+    '<!doctype html><html><head>',
+    `<title>${path.slice(1)} | FluxRadar</title>`,
+    `<link rel="canonical" href="https://fluxradar.net${path}" data-fluxradar-seo="canonical" />`,
+    '</head></html>',
+  ].join('\n');
+}
+
+/** The public page paths the script checks, read from its own marker region. */
+function scriptPublicPagePaths(script: string): readonly string[] {
+  const region = script.slice(
+    script.indexOf('# fluxradar:public-pages'),
+    script.indexOf('# fluxradar:end-public-pages'),
+  );
+  const list = /^PUBLIC_PAGE_PATHS=\(([^)]*)\)$/m.exec(region)?.[1] ?? '';
+  return list.trim().split(/\s+/).filter(Boolean);
 }
 
 let certificateDirectory: string;
@@ -84,23 +112,27 @@ afterEach(async () => {
   for (const site of sites.splice(0)) await site.close();
 });
 
-/** A TLS site that answers the three endpoints the smoke test checks. */
+/** A TLS site that answers every endpoint and public page the smoke test checks. */
 async function startSite(overrides: Partial<Behaviour> = {}): Promise<TlsSite> {
   const behaviour: Behaviour = {
     status: 200,
     healthBody: JSON.stringify({ ok: true, data: { service: 'api', status: 'ok' }, error: null }),
     readyBody: JSON.stringify({ ok: true, data: { status: 'ready' }, error: null }),
-    documentBody: '<!doctype html><html><head><title>FluxRadar — audits</title></head></html>',
+    documentBody: HOME_DOCUMENT,
+    pageDocument: generatedPageHead,
+    missingPage: null,
     hstsHeader: true,
     cspHeader: true,
     ...overrides,
   };
+  const requests: string[] = [];
   const server: Server = createServer(
     {
       key: readFileSync(join(certificateDirectory, 'key.pem')),
       cert: readFileSync(join(certificateDirectory, 'cert.pem')),
     },
     (request, response) => {
+      requests.push(request.url ?? '');
       const headers: Record<string, string> = { 'content-type': 'application/json' };
       let body: string;
       if (request.url === '/api/health') body = behaviour.healthBody;
@@ -114,6 +146,9 @@ async function startSite(overrides: Partial<Behaviour> = {}): Promise<TlsSite> {
         if (behaviour.cspHeader) {
           headers['content-security-policy'] = "default-src 'self'";
         }
+      } else if (request.url?.startsWith('/') && request.url !== behaviour.missingPage) {
+        body = behaviour.pageDocument(request.url);
+        headers['content-type'] = 'text/html';
       } else {
         response.writeHead(404).end('not found');
         return;
@@ -127,6 +162,7 @@ async function startSite(overrides: Partial<Behaviour> = {}): Promise<TlsSite> {
     baseUrl: `https://localhost:${port}`,
     caPath: join(certificateDirectory, 'cert.pem'),
     behaviour,
+    requests,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
   sites.push(site);
@@ -186,6 +222,60 @@ describe('DEPLOY-007 public smoke test', () => {
       const result = await runSmoke(fast(site));
       expect(result.output).toContain('public smoke passed');
       expect(result.ok).toBe(true);
+    });
+
+    // Each public page is served from its own generated file. The list lives in
+    // the script (apps/web/src/static-page-heads.test.ts pins it to seo.ts);
+    // this pins that the script actually requests every entry of it.
+    it('requests every public page it lists', async () => {
+      const pages = scriptPublicPagePaths(script);
+      expect(pages).toContain('/faq');
+      const site = await startSite();
+      await runSmoke(fast(site));
+      for (const page of pages) expect(site.requests).toContain(page);
+    });
+
+    // The regression this check exists for: a release whose public pages are
+    // all the shared index.html, so every page claims the home page's canonical.
+    it('fails when the public pages are served the shared home head', async () => {
+      const site = await startSite({
+        pageDocument: () =>
+          `${HOME_DOCUMENT}<link rel="canonical" href="https://fluxradar.net/" />`,
+      });
+      const result = await runSmoke(fast(site));
+      expect(result.ok).toBe(false);
+      expect(result.output).toContain('/faq: HTTP 200 but the body does not match');
+      expect(result.output).toContain('fluxradar\\.net/faq');
+    });
+
+    it("fails when a page has its own canonical but the home page's title", async () => {
+      const site = await startSite({
+        pageDocument: (path) =>
+          generatedPageHead(path).replace(
+            /<title>[^<]*<\/title>/,
+            '<title>FluxRadar — audits</title>',
+          ),
+      });
+      const result = await runSmoke(fast(site));
+      expect(result.ok).toBe(false);
+      expect(result.output).toContain('/checks: serves the home page <title>');
+    });
+
+    it('fails when a page points its canonical at a different page', async () => {
+      const site = await startSite({
+        pageDocument: (path) => generatedPageHead(path === '/terms' ? '/terms-old' : path),
+      });
+      const result = await runSmoke(fast(site));
+      expect(result.ok).toBe(false);
+      expect(result.output).toContain('/terms: HTTP 200 but the body does not match');
+      expect(result.output).not.toContain('/privacy:');
+    });
+
+    it('fails when a public page is missing from the release', async () => {
+      const site = await startSite({ missingPage: '/example-report' });
+      const result = await runSmoke(fast(site));
+      expect(result.ok).toBe(false);
+      expect(result.output).toContain('/example-report: HTTP 404 (expected 200)');
     });
 
     it('fails on a certificate it cannot verify', async () => {

@@ -187,13 +187,63 @@ check_endpoint() {
   return 0
 }
 
+# ---- Public page heads ----------------------------------------------------
+# The build writes dist/<path>/index.html for every public page, each with that
+# page's own <title> and canonical, because link previews and most AI crawlers
+# read the first response and never run the app's JavaScript. A release that
+# regresses to the shared index.html serves every page with the home page's
+# title and a canonical pointing at `/`; that must fail here and roll back.
+#
+# The canonical is always the production origin: it is compiled into the build
+# (SITE_ORIGIN in apps/web/src/seo.ts), whatever host is being checked.
+# The paths are PUBLIC_PAGE_PATHS in apps/web/src/seo.ts minus `/`; this script
+# cannot import TypeScript, so apps/web/src/static-page-heads.test.ts fails when
+# the two lists differ.
+# fluxradar:public-pages
+PUBLIC_PAGE_PATHS=(/faq /checks /bot /example-report /privacy /terms /cookies)
+CANONICAL_ORIGIN='https://fluxradar.net'
+# fluxradar:end-public-pages
+
+# The text of the first <title> in a downloaded document, or nothing.
+title_of() {
+  sed -n 's/.*<title>\([^<]*\)<\/title>.*/\1/p;/<title>[^<]*<\/title>/q' "$1"
+}
+
+# A literal string as an extended regular expression (a URL's dots, mostly).
+ere_escape() {
+  printf '%s' "$1" | sed 's/[][\.*^$()+?{}|]/\\&/g'
+}
+
+# Checks one public page: served, its own canonical, and a <title> that is not
+# the home page's. Same output contract as check_endpoint: the failure on
+# stdout, status 1.
+check_public_page() {
+  local path="$1" home_title="$2" canonical title
+  canonical="$CANONICAL_ORIGIN$path"
+  if ! check_endpoint "$path" 200 "<link rel=\"canonical\" href=\"$(ere_escape "$canonical")\""; then
+    return 1
+  fi
+  title="$(title_of "$BODY_FILE")"
+  if [ -z "$title" ]; then
+    printf '%s\n' "$path: the document has no <title>"
+    return 1
+  fi
+  if [ "$title" = "$home_title" ]; then
+    printf '%s\n' "$path: serves the home page <title> \"$title\"; its own head was not built"
+    return 1
+  fi
+  return 0
+}
+
 # What "the site is up" means, stated as checks rather than as a 200:
 #   /api/health        the API process answers through Caddy;
 #   /api/health/ready  it can reach PostgreSQL (the readiness contract, CR-04);
 #   /                  the SPA document is served, with the security headers
-#                      deploy/Caddyfile is responsible for.
+#                      deploy/Caddyfile is responsible for;
+#   each public page   its own canonical and a <title> that is not the home
+#                      page's (see "Public page heads" above).
 run_checks() {
-  local failures=() check path expected body headers result ok dns
+  local failures=() check path expected body headers result ok dns home_title=""
   # A hostname that does not resolve makes every endpoint check report the same
   # thing less clearly, so it is answered first and on its own.
   dns="$(dns_failure)"
@@ -209,6 +259,16 @@ run_checks() {
     IFS='|' read -r path expected body headers <<< "$check"
     set +e
     result="$(check_endpoint "$path" "$expected" "$body" "$headers")"
+    ok=$?
+    set -e
+    if [ "$ok" -ne 0 ]; then failures+=("$result"); fi
+    # The body file still holds this response; the pages below are compared
+    # against the home page's title.
+    if [ "$path" = "/" ] && [ "$ok" -eq 0 ]; then home_title="$(title_of "$BODY_FILE")"; fi
+  done
+  for path in "${PUBLIC_PAGE_PATHS[@]}"; do
+    set +e
+    result="$(check_public_page "$path" "$home_title")"
     ok=$?
     set -e
     if [ "$ok" -ne 0 ]; then failures+=("$result"); fi
