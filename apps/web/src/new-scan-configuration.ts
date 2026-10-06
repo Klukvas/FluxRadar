@@ -1,7 +1,14 @@
-import { apiRequest, type Scan } from './api';
+import { apiRequest, type Scan, type SiteProfile } from './api';
 import { copy, fillCopy, type Language } from './i18n';
 import type { Plan } from './plan-modules';
-import { clampScopeToPlan, scopeFormFromScan, type ScanScopeForm } from './scan-scope';
+import {
+  clampScopeToPlan,
+  profileScanConfigFingerprint,
+  profileScanConfigFromForm,
+  scopeFormFromProfileConfig,
+  scopeFormFromScan,
+  type ScanScopeForm,
+} from './scan-scope';
 
 /**
  * Where the new-scan form's starting settings come from, and what it calls them.
@@ -67,4 +74,52 @@ export function configurationStatusLabel(
   if (state === 'new') return t.configurationNew;
   if (state === 'loading') return t.configurationLoading;
   return fillCopy(t.configurationSaved, { version: savedVersion ?? 1 });
+}
+
+/** The form state a profile's own saved configuration opens on. */
+export interface RestoredProfileForm {
+  readonly plan: Plan;
+  readonly scope: ScanScopeForm;
+  /** The fingerprint of what the profile holds, which "Saved · version N" is read against. */
+  readonly fingerprint: string;
+  readonly version: number;
+  /**
+   * Whether the form already differs from the profile the moment it loads.
+   *
+   * The clamp can move a saved value: a page count saved when the plan's
+   * ceiling was higher comes back inside today's ceiling, so the form no longer
+   * holds what the profile holds. The panel said "Saved · version N" over it
+   * and the launch then PATCHed a new version without the screen ever saying it
+   * would. Compared on the saved plan, not the restored one, so the transient
+   * Free-instead-of-Basic fallback is not read as an edit (that one is
+   * suppressed by `unavailablePlanFallback` as well).
+   */
+  readonly hasUnsavedChanges: boolean;
+}
+
+/**
+ * What a saved profile puts in the form: its plan, its scope under today's
+ * ceiling, and whether the two already disagree.
+ *
+ * Derivation only — the effect below applies it. Called with a profile whose
+ * `scanConfig` is known to be there.
+ */
+export function restoredProfileForm(
+  profile: SiteProfile,
+  paidAvailable: boolean,
+): RestoredProfileForm {
+  const savedConfig = profile.scanConfig;
+  if (savedConfig == null) throw new Error('restoredProfileForm needs a saved configuration');
+  const scope = clampScopeToPlan(scopeFormFromProfileConfig(savedConfig), savedConfig.plan);
+  return {
+    plan: paidAvailable ? savedConfig.plan : 'Free',
+    scope,
+    fingerprint: profileScanConfigFingerprint(savedConfig),
+    version: profile.scanConfigVersion ?? 1,
+    // Assigned rather than only raised: loading a profile's settings is not an
+    // edit, so a clean load clears the flag.
+    hasUnsavedChanges:
+      profileScanConfigFingerprint(profileScanConfigFromForm(scope, savedConfig.plan)) !==
+      profileScanConfigFingerprint(savedConfig),
+  };
 }

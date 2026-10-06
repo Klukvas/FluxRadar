@@ -96,6 +96,18 @@
   line-height: 1.55;
 }
 
+/* The way out of the sample and into the whole report. Set in the terminal
+   green the section's other links use, under the window rather than inside it:
+   it is about the report, not one of its findings. */
+.home-example__more {
+  margin: 18px 0 0;
+}
+.home-example__more a {
+  color: var(--term-green);
+  font: 13px var(--mono-font);
+  letter-spacing: 0.04em;
+}
+
 @media (max-width: 699px) {
   .home__promise {
     font-size: 17px;

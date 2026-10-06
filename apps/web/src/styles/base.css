@@ -1617,6 +1617,13 @@ code,
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/* Whose problem it is, under the reason that says what happened. The one
+   sentence on the card an owner reads to decide whether to act, so it is set
+   in the card's own ink rather than in the muted grey of the reason above. */
+.module-card__responsibility {
+  color: var(--plat-900);
+  font-weight: 700;
+}
 /* The same reason on the progress window, where the rows are `.field-row`s
    rather than cards. It follows the status word inside the row's value cell:
    hung under the row as a block of its own, it read as a new, unlabelled row
@@ -1677,14 +1684,19 @@ code,
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+/* The line a report ends on: its id, the ruleset version and how much was
+   checked. Held on one line it was 395-421px of text scrolling inside 331px of
+   a phone, so the coverage sentence — the only part an owner reads — was never
+   on screen. It wraps instead: between the "·" separators where it can, and
+   inside the scan id, which is one unbroken token, where it must. */
 .breadcrumb {
   margin-top: var(--sp-4);
   padding: 3px 6px;
   border: 1px solid var(--plat-400);
   background: var(--plat-100);
   font: 11px var(--mono-font);
-  overflow-x: auto;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* Contextual help copy that sits inline in panels and empty states. */

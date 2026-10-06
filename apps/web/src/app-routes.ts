@@ -27,6 +27,7 @@ export type Screen =
   | 'cookies'
   | 'checks'
   | 'bot'
+  | 'example-report'
   | 'account'
   | 'admin-stats'
   | 'print'
@@ -56,6 +57,16 @@ const WORKSPACE_SCREENS: readonly Screen[] = [
 const ACCOUNT_PATH = '/account';
 
 /**
+ * The public example report.
+ *
+ * Named for what it is rather than for a section of the product: it is linked
+ * from the home page, the pricing block and the footers, and a stranger
+ * following one of those links has to be able to tell from the address that
+ * nothing on the page is their own site.
+ */
+export const EXAMPLE_REPORT_PATH = '/example-report';
+
+/**
  * Where the Creem checkout sends the buyer back to. Not a screen of its own:
  * it is the workspace with the checkout's reference attached, so the
  * confirming window can pick the payment up — and, being a workspace address,
@@ -72,7 +83,15 @@ export function isWorkspaceScreen(screen: Screen): boolean {
 }
 
 /** The pages anyone can read. They render at once and never wait on the API. */
-const PUBLIC_DOCUMENTS = ['privacy', 'terms', 'cookies', 'checks', 'faq', 'bot'] as const;
+const PUBLIC_DOCUMENTS = [
+  'privacy',
+  'terms',
+  'cookies',
+  'checks',
+  'faq',
+  'bot',
+  'example-report',
+] as const;
 
 export type PublicDocumentScreen = (typeof PUBLIC_DOCUMENTS)[number];
 
@@ -99,6 +118,8 @@ export function pathForScreen(screen: Screen, scanId: string | null): string {
       return '/checks';
     case 'bot':
       return '/bot';
+    case 'example-report':
+      return EXAMPLE_REPORT_PATH;
     case 'faq':
       return '/faq';
     case 'privacy':
@@ -124,9 +145,32 @@ export function pathForScreen(screen: Screen, scanId: string | null): string {
   }
 }
 
+/** The query parameter the new-scan screen keeps its chosen site in. */
+export const SCAN_PROFILE_PARAM = 'profile';
+
+/**
+ * The new-scan screen's address, with the site it is set up for.
+ *
+ * `/scan` carried no identifier, so a reload — the thing an owner does when a
+ * form looks stuck — dropped the chosen site and the form reopened on whichever
+ * profile happened to be first. The id is the owner's own saved profile and is
+ * read back only if it still names one of their profiles.
+ */
+export function newScanPath(profileId: string | null): string {
+  const base = WORKSPACE_PATHS['new-scan'];
+  if (profileId === null || profileId === '') return base;
+  return `${base}?${SCAN_PROFILE_PARAM}=${encodeURIComponent(profileId)}`;
+}
+
 export interface InitialRoute {
   readonly screen: Screen;
   readonly scanId: string | null;
+  /**
+   * The site the new-scan address names, or null on every other address and on
+   * a `/scan` with none. Untrusted — anyone can type an address — so it is
+   * matched against the account's own profiles before anything is selected.
+   */
+  readonly profileId: string | null;
   readonly emailAction: { readonly kind: 'verify' | 'reset'; readonly token: string } | null;
   /** Home section to scroll to on entry, used by legacy links such as /plans. */
   readonly scrollTo: 'pricing' | null;
@@ -150,7 +194,14 @@ const SCREEN_BY_WORKSPACE_PATH: Readonly<Record<string, Screen>> = Object.fromEn
 
 /** A screen reached by its path alone, with nothing else to carry. */
 function plainRoute(screen: Screen): InitialRoute {
-  return { screen, scanId: null, emailAction: null, scrollTo: null, checkoutReturn: null };
+  return {
+    screen,
+    scanId: null,
+    profileId: null,
+    emailAction: null,
+    scrollTo: null,
+    checkoutReturn: null,
+  };
 }
 
 /**
@@ -191,6 +242,7 @@ function fallbackRoute(emailAction: InitialRoute['emailAction'], hash: string): 
             ? 'integrations'
             : 'home',
     scanId: null,
+    profileId: null,
     emailAction,
     scrollTo: null,
     checkoutReturn: null,
@@ -205,6 +257,7 @@ export function readInitialRoute(): InitialRoute {
   if (path === '/cookies') return plainRoute('cookies');
   if (path === '/checks') return plainRoute('checks');
   if (path === '/bot') return plainRoute('bot');
+  if (path === EXAMPLE_REPORT_PATH) return plainRoute('example-report');
   if (path === '/faq') return plainRoute('faq');
   if (path === ACCOUNT_PATH) return plainRoute('account');
   // Owner-only and linked from no menu; the API decides who sees numbers.
@@ -214,6 +267,10 @@ export function readInitialRoute(): InitialRoute {
   if (path === '/plans') return { ...plainRoute('home'), scrollTo: 'pricing' };
   if (path === CHECKOUT_RETURN_PATH) return checkoutReturnRoute(window.location.search);
   const workspaceScreen = SCREEN_BY_WORKSPACE_PATH[path];
+  if (workspaceScreen === 'new-scan') {
+    const profileId = new URLSearchParams(window.location.search).get(SCAN_PROFILE_PARAM);
+    return { ...plainRoute(workspaceScreen), profileId: profileId === '' ? null : profileId };
+  }
   if (workspaceScreen !== undefined) return plainRoute(workspaceScreen);
   return readScanRoute(path) ?? fallbackRoute(emailAction, window.location.hash);
 }
@@ -228,6 +285,7 @@ function readScanRoute(path: string): InitialRoute | null {
     return {
       screen: match[2] === undefined ? 'scan' : match[2] === '/report' ? 'print' : 'issues',
       scanId,
+      profileId: null,
       emailAction: null,
       scrollTo: null,
       checkoutReturn: null,
@@ -266,6 +324,8 @@ export function seoPageForScreen(screen: Screen): SeoPageId {
       return 'checks';
     case 'bot':
       return 'bot';
+    case 'example-report':
+      return 'exampleReport';
     case 'privacy':
       return 'privacy';
     case 'terms':

@@ -570,4 +570,41 @@ describe('a finding’s own rows in a stacked table', () => {
     );
     expect(freed).toEqual(stacked);
   });
+
+  // The open detail panel had the same defect one level up: its cell carries no
+  // `data-label`, so the 110px label column held an empty box and the panel —
+  // "What the check found", "Why it matters", "What to do" — was auto-placed
+  // into the 1fr beside it, a 166-181px column starting at x=152 on a 360px
+  // screen with the left third of the card blank.
+  it('gives the open detail panel the whole cell, at that same width', () => {
+    const stacked = mediaWidthsWith(
+      BASE_CSS,
+      /\.data-table td \{[^}]*grid-template-columns: 110px 1fr;/,
+    );
+    const findings = stylesheet('findings.css');
+    expect(
+      mediaWidthsWith(findings, /\.issue-detail-cell > \.issue-detail \{\s*grid-column: 1 \/ -1;/),
+    ).toEqual(stacked);
+    // And the label box that reserved the first column goes with it: freeing
+    // the panel alone would only move it onto a second row under 110px of
+    // nothing.
+    expect(mediaWidthsWith(findings, /\.issue-detail-cell::before \{\s*display: none;/)).toEqual(
+      stacked,
+    );
+  });
+});
+
+// The report ends on `scan-id · 0.1.0 · 98% of the checks were done`. Held on one
+// line it scrolled inside itself on a phone — 331px of 395-421px visible — so
+// the sentence an owner actually reads was off screen with no scrollbar in view.
+describe('the line a report ends on', () => {
+  it('wraps rather than scrolling inside itself', () => {
+    const line = BASE_CSS.slice(BASE_CSS.indexOf('.breadcrumb {'));
+    const rule = line.slice(0, line.indexOf('}'));
+    expect(rule).not.toMatch(/white-space: nowrap/);
+    expect(rule).not.toMatch(/overflow-x:/);
+    // A scan id is one unbroken token and is wider than a 360px line on its
+    // own, so wrapping has to be allowed inside it too.
+    expect(rule).toMatch(/overflow-wrap: anywhere;/);
+  });
 });

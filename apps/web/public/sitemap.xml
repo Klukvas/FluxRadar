@@ -40,6 +40,21 @@
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/bot?lang=uk"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/bot"/>
   </url>
+  <!-- The public example report: a finished report for a made-up site, readable
+       with no account. Listed because it is the page a stranger weighing up the
+       product is most likely to want, and the only one that shows a report. -->
+  <url>
+    <loc>https://fluxradar.net/example-report</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/example-report"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/example-report?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/example-report"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/example-report?lang=uk</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/example-report"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/example-report?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/example-report"/>
+  </url>
   <url>
     <loc>https://fluxradar.net/checks</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/checks"/>

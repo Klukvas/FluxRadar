@@ -28,7 +28,17 @@ export type AccountCopy = {
     readonly dismiss: string;
     /** The banner's own Hide, which says how long hiding lasts. */
     readonly dismissSession: string;
-    /** The one-line version a phone shows; the full sentence stays for screen readers. */
+    /**
+     * The compact version a phone shows; the full sentence stays in the DOM for
+     * screen readers.
+     *
+     * It carries the reason, not only the ask. Clamped to one line it read
+     * "Confirm your email." and nothing else, so the one fact that makes the
+     * banner worth acting on — the password-reset link goes only there — was
+     * invisible on exactly the screen where the banner is most in the way. Two
+     * lines at 360px is the budget (narrow-screens.css clamps it), in English
+     * and in Ukrainian, so these stay short.
+     */
     readonly short: {
       readonly confirm: string;
       readonly deliveryUnavailable: string;
@@ -114,9 +124,9 @@ export const accountCopy: Record<Language, AccountCopy> = {
       // Says what it does: sessionStorage, so it comes back on the next visit.
       dismissSession: 'Hide until my next visit',
       short: {
-        confirm: 'Confirm your email.',
-        deliveryUnavailable: 'No confirmation email was sent.',
-        deliveryFailed: 'The confirmation email failed.',
+        confirm: 'Confirm your email — the link that resets a forgotten password goes only there.',
+        deliveryUnavailable: 'No confirmation email was sent: email is not set up here yet.',
+        deliveryFailed: 'The confirmation email did not arrive. Try sending it again.',
       },
     },
     password: {
@@ -198,9 +208,9 @@ export const accountCopy: Record<Language, AccountCopy> = {
       dismiss: 'Сховати',
       dismissSession: 'Сховати до наступного візиту',
       short: {
-        confirm: 'Підтвердьте email.',
-        deliveryUnavailable: 'Лист не надіслано.',
-        deliveryFailed: 'Лист не доставлено.',
+        confirm: 'Підтвердьте email — лист для відновлення пароля приходить лише туди.',
+        deliveryUnavailable: 'Лист не надіслано: email тут ще не налаштований.',
+        deliveryFailed: 'Лист не дійшов. Спробуйте надіслати ще раз.',
       },
     },
     password: {

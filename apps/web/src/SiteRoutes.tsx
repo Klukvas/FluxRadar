@@ -32,7 +32,12 @@ export function DesktopRoute({ app }: { readonly app: AppModel }) {
       }}
       onNewScan={(profile, plan) => {
         setSelectedProfile(profile);
-        setNewScanPlan(plan ?? null);
+        // A row that names a plan chooses it; a row that does not leaves the
+        // plan the owner has already chosen standing. Clearing it here was the
+        // last step that dropped a choice made on a pricing card: an account
+        // with no sites has to make one first, and the way back to the form is
+        // the new site's own "New scan".
+        if (plan !== undefined) setNewScanPlan(plan);
         navigate('new-scan');
       }}
       onError={setError}

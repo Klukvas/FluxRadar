@@ -135,6 +135,31 @@ export function invalidScopeFields(form: ScanScopeForm, plan: Plan): readonly Sc
 }
 
 /**
+ * The seed lines that are not a site address.
+ *
+ * The server refuses these too — and refuses one pointed at another site,
+ * which only it can judge — but a seed rejected after a checkout has opened is
+ * a page the owner paid to have checked and did not get.
+ *
+ * Beside `invalidScopeFields` because it answers the same question for the
+ * one scope field that is a list of addresses rather than a number.
+ */
+export function invalidSeedLines(value: string): readonly string[] {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .filter((line) => {
+      try {
+        const url = new URL(line);
+        return url.protocol !== 'http:' && url.protocol !== 'https:';
+      } catch {
+        return true;
+      }
+    });
+}
+
+/**
  * The form with its number fields brought inside the selected plan's limits.
  *
  * A site last checked on Complete opens the form on Complete-sized limits, so

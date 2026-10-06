@@ -123,6 +123,19 @@
   .finding-explainer {
     grid-column: 1 / -1;
   }
+  /* The open detail of a finding is a whole panel, not a value beside a label.
+     Its cell carries no `data-label`, so the label column still reserved 110px
+     of a 375px card for an empty box and auto-placement put the panel in the
+     1fr beside it: "What the check found", "Why it matters" and "What to do"
+     read in a 166px column starting a third of the way across the card, with
+     the left third blank. The empty label box goes, and the panel takes the
+     whole cell — the same rule, at the same width, as the two rows above. */
+  .issue-detail-cell::before {
+    display: none;
+  }
+  .issue-detail-cell > .issue-detail {
+    grid-column: 1 / -1;
+  }
 }
 .finding-explainer__summary {
   cursor: pointer;
@@ -403,4 +416,15 @@
   font-size: 13px;
   line-height: 1;
   vertical-align: -1px;
+}
+
+/* What the number beside each row counts, for a reader with no report of their
+   own: the public example passes it, a report does not. Set apart from the
+   block's own lead the way the example's other one-sentence explanations are. */
+.fix-first__unit {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 4px solid var(--selection);
+  background: var(--plat-50);
+  max-width: 68ch;
 }

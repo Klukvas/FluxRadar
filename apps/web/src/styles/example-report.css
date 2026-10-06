@@ -1,0 +1,420 @@
+/* The public example report (/example-report).
+   Only what the page adds to the shared public-document shell: the EXAMPLE
+   label, the "how to read this" strip, the plain callouts, the section list and
+   the finding entries. Everything else — the reading width, the sticky index,
+   the phone rules — is `legal-shell`'s, which /faq, /checks and the legal pages
+   already share. */
+
+/* ─── The page's own measure ──────────────────────────────────────────────── */
+
+/* The header, the EXAMPLE banner and the "how to read" strip are children of
+   `.legal-main`, not of the document below them. The shared shell caps that at
+   1180px, which is 1132px of content on a 1440px screen — against the 828px the
+   document itself is drawn at (`.example-layout`), so the three of them stood
+   152px proud of the article on each side and the page had two left edges.
+   Capped to the document's own measure plus the main's 24px of padding on each
+   side: `box-sizing: border-box` (base.css) makes 828 + 48 the figure, so every
+   block on this page starts and ends on one line. Scoped to this page's shell —
+   /faq, /checks, /bot and the legal pages keep the full 1180px, which their
+   210px index rail needs. The phone rules narrow the padding, by which point
+   no screen is wide enough for this cap to bind. */
+.example-report-shell .legal-main {
+  max-width: 876px;
+}
+
+/* ─── The EXAMPLE label ───────────────────────────────────────────────────── */
+
+/* Load-bearing rather than decorative: a page that looks like a finished report
+   must say that it is not one, and keep saying it on paper. Amber, the same
+   warning family `.report-block--warning` uses, so it reads as a caution on
+   first glance rather than as a heading. */
+.example-banner {
+  margin: var(--sp-4) 0 0;
+  padding: var(--sp-3);
+  border: 2px solid var(--warn-line);
+  background: var(--warn-fill);
+  color: var(--warn-text);
+}
+.example-banner__label {
+  display: block;
+  font: bold 14px/1.3 var(--mono-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.example-banner p {
+  margin: var(--sp-2) 0 0;
+  max-width: 68ch;
+}
+
+/* ─── One column ─────────────────────────────────────────────────────────── */
+
+/* A layout of this page's own, not the shared `.legal-layout`.
+   `.legal-layout` reserves a 210px rail for the sticky "On this page" index
+   that /faq, /checks, /bot and the legal pages have beside their document. This
+   page has none — its index is the "How to read this page" strip above, which
+   the rail only repeated.
+   It used to be `class="legal-layout example-layout"` with a single-track
+   override here, and that override lost: both are one-class selectors, so the
+   stylesheet that loads last wins, and base.css loads last (see the import
+   order comment in App.tsx). The page rendered as `210px 898px` with one child,
+   a 210px column of a report 19,000px tall on every screen above 900px. So the
+   shared class is gone from the markup instead of being out-argued: no
+   `.legal-layout` rule, in base.css or in any of its media variants, has
+   anything left to match. `example-report.test.tsx` pins that — it collects
+   every column decision base.css makes under that class and fails if one of
+   them can select an element on this page. */
+.example-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  /* A reading measure, centred, rather than the full 1132px of a 1440px
+     screen: the document's own prose caps itself at 760px (`.legal-section p`)
+     and 828px is that plus the section's 34px of padding on each side, so a
+     paragraph fills the card exactly and the card grids inside still get more
+     than one column. In pixels and not `ch` on purpose: `ch` is the width of a
+     "0" in the element's own font — about 7px in this 14px proportional face —
+     so a 72ch cap would be a 500px ribbon, narrower than the rail bug it
+     replaces. */
+  max-width: 828px;
+  margin: 32px auto 0;
+}
+
+/* ─── "How to read this page" ─────────────────────────────────────────────── */
+
+/* On the light card, not on the page's slate ground (`--desktop`, #66799b).
+   The heading is body colour (#111) and the "ON THIS PAGE" label `--plat-600`
+   (#555); on the slate those are 4.29:1 and 1.70:1, both under the 4.5:1 a
+   normal-size word needs, and no text colour can rescue them — pure white on
+   that slate is 4.40:1. On the platinum the same two are far above it, which is
+   why the fix is the surface rather than the ink. */
+.example-how {
+  margin-top: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--plat-900);
+  background: var(--plat-50);
+  color: var(--plat-900);
+}
+.example-how h2 {
+  margin-top: 0;
+}
+.example-how__steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-3);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.example-how__steps li {
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: var(--plat-50);
+}
+.example-how__steps p {
+  margin: var(--sp-2) 0 0;
+}
+/* The two jumps the removed index had that the steps above do not: the glossary
+   and the last section. One row, wrapping, so three narrow screens do not push
+   the page sideways. */
+.example-how__more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+  margin: var(--sp-3) 0 0;
+}
+.example-how__more-label {
+  color: var(--plat-600);
+  font: 10px var(--mono-font);
+  letter-spacing: 0.08em;
+}
+
+/* ─── One sentence about one number ──────────────────────────────────────── */
+
+/* What the figure beside it means, and whether the reader has to act. Set apart
+   from the report's own prose by a left rule, because it is the page talking
+   about the report rather than the report talking. */
+.example-callout {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 4px solid var(--selection);
+  background: var(--plat-50);
+  max-width: 68ch;
+}
+
+/* ─── The score, beside its explanation ──────────────────────────────────── */
+
+.example-score {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: start;
+  margin-top: var(--sp-3);
+}
+.example-score .example-callout {
+  margin-top: 0;
+}
+
+/* ─── The list of sections ───────────────────────────────────────────────── */
+
+.example-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-3);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.example-sections__item {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-900);
+  background: #fff;
+}
+.example-sections__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: space-between;
+}
+.example-sections__score {
+  font: bold 18px/1.1 var(--mono-font);
+}
+
+/* ─── One finding, in full ───────────────────────────────────────────────── */
+
+.example-findings {
+  display: grid;
+  gap: var(--sp-4);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.example-finding {
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  border-left-width: 4px;
+  background: var(--plat-50);
+}
+.example-finding h3 {
+  margin: 0;
+}
+/* The headline and how urgent it is, which is what a closed card has to show:
+   the six cards used to be open at once and repeated the same four
+   sub-headings, thirteen phone screens of them.
+   A disclosure control of its own rather than the browser's default row: the
+   native marker goes (`list-style`) and comes back as the arrow on the right,
+   so the whole 40px-tall row is the tap target on a phone as well as on a
+   desktop — a heading-sized line of text is not one. */
+.example-finding > summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: 40px;
+  padding: var(--sp-1) 0;
+  list-style: none;
+  cursor: pointer;
+}
+.example-finding > summary::-webkit-details-marker {
+  display: none;
+}
+.example-finding > summary::after {
+  margin-left: auto;
+  color: var(--plat-600);
+  content: '▾';
+}
+.example-finding[open] > summary::after {
+  content: '▴';
+}
+.example-finding__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  margin: var(--sp-2) 0 0;
+}
+/* Why it matters and what one finding of this check is: kept, because an owner
+   who wants them wants them — and folded, because the answer to "what did you
+   find and what do I do" is the part that has to be on screen. */
+.example-finding__more {
+  margin: var(--sp-3) 0 0;
+}
+.example-finding__more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.example-finding__body {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  max-width: 68ch;
+}
+.example-finding__body dt {
+  font-weight: 700;
+}
+.example-finding__body dd {
+  margin: 2px 0 0;
+}
+/* An address is one long word and would widen the card past a 360px screen. */
+.example-finding__where {
+  margin: var(--sp-3) 0 0;
+  overflow-wrap: anywhere;
+}
+
+/* ─── The message the owner would send ──────────────────────────────────── */
+
+/* Read-only text, not a control: nothing on this page acts. It scrolls inside
+   itself rather than widening the page, because the message quotes addresses. */
+.example-task {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-900);
+  background: #fff;
+  font: 12px/1.5 var(--mono-font);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+}
+
+/* ─── The glossary, the next steps and the way on ───────────────────────── */
+
+.example-glossary {
+  display: grid;
+  gap: var(--sp-3);
+  margin: var(--sp-3) 0 0;
+  max-width: 68ch;
+}
+.example-glossary dt {
+  font-weight: 700;
+}
+.example-glossary dd {
+  margin: 2px 0 0;
+}
+.example-next {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding-left: var(--sp-4);
+  max-width: 68ch;
+}
+.example-report__help {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  max-width: 68ch;
+}
+.example-report__help dt {
+  font-weight: 700;
+}
+.example-report__help dd {
+  margin: 2px 0 var(--sp-2);
+}
+.example-cta__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+  margin: var(--sp-3) 0 0;
+}
+
+/* ─── The one technical fold ─────────────────────────────────────────────── */
+
+/* 19px of text was the whole control. A 40px row on every screen, not only on
+   a phone: a target too small to hit on a phone is a target that was always
+   too small, and the height comes from the box rather than from a bigger word. */
+.example-technical summary {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.example-technical__list {
+  margin: var(--sp-2) 0 0;
+  padding-left: var(--sp-4);
+}
+
+/* ─── Phones ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 699px) {
+  /* The dial is 140px wide and the sentence beside it needs a reading measure;
+     at 360px the pair left the sentence four words wide. They stack. */
+  .example-score {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .example-banner,
+  .example-finding,
+  .example-sections__item,
+  .example-how,
+  .example-how__steps li {
+    padding: var(--sp-2);
+  }
+  /* The shared public-document shell sets this heading to 52px on a phone
+     (base.css). Four lines of it took the top third of a 375px screen before
+     the reader reached the word "example". Scoped to this page, which is the
+     only one whose title is a sentence rather than a label; the legal pages
+     keep theirs. Specificity, not order: two classes and a type beat the
+     shared rule's one class and a type whichever stylesheet loads last. */
+  .example-report-shell .legal-header h1 {
+    font-size: clamp(30px, 8.5vw, 44px);
+  }
+  /* Every link in the row is a tap target, and the buttons share the width. */
+  .example-cta__links .button {
+    flex: 1 1 auto;
+    min-height: 40px;
+  }
+  /* The two plain links beside them — "See every check we run" and "Read the
+     plain-language questions" — were 21px of text each. `:not(.button)` so the
+     buttons above keep their own `flex` rule rather than this one's display. */
+  .example-cta__links a:not(.button) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+  /* So is every jump on the page. A line of 15px text is not a tap target: the
+     steps, the two links beside them and the way back get the height from
+     padding, so the words stay the size they are read at. Scoped to this page
+     for `.legal-back`, which the legal pages share. */
+  .example-how__steps a,
+  .example-how__more a,
+  .example-report-shell .legal-back {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+  /* And the one inline link in the document's own header — "See what each
+     report includes" — which was 14px tall on a 375px screen, the smallest
+     target on the page. `.legal-document__notice` is the shared shell's, so
+     this is scoped to this page like `.legal-back` above. */
+  .example-report-shell .legal-document__notice a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: var(--sp-1) 0;
+  }
+}
+
+/* ─── Print ──────────────────────────────────────────────────────────────── */
+
+/* Printed, the page loses the amber and keeps the label: a sheet of paper that
+   looks like a report must still say it is an example, in black and white, on
+   the first page. */
+@media print {
+  .example-banner {
+    border: 2px solid #000;
+    background: #fff;
+    color: #000;
+  }
+  .example-technical[open] {
+    page-break-inside: avoid;
+  }
+}

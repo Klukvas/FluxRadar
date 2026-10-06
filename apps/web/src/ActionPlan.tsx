@@ -26,7 +26,8 @@ import { formatDate } from './format-date';
 import type { Language } from './i18n';
 import { planIncludesActionPlan } from './plan-modules';
 import { reportFailureCopy } from './report-failure-copy';
-import { moduleLabel, ruleTitle } from './rule-titles';
+import { problemTitle } from './finding-explainers';
+import { moduleLabel } from './rule-titles';
 import { LANGUAGE_CODES, languageCodeLabel, targetLanguageCodes } from './target-languages';
 import './styles/findings.css';
 
@@ -368,7 +369,7 @@ function PlanBody(props: {
               <span className="muted">{t.openIssues(action.openIssues, action.totalIssues)}</span>
               {action.ruleIds.map((ruleId) => (
                 <Button key={ruleId} onClick={() => props.onOpenProblem(ruleId)}>
-                  {ruleTitle(ruleId, props.language)}
+                  {problemTitle(ruleId, props.language)}
                 </Button>
               ))}
             </div>

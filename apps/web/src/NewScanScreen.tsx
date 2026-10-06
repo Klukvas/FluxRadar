@@ -57,8 +57,9 @@ function purchaseTermsMerchant(
  * it is one type with one owner, and threading its fields separately is how a
  * column ends up quietly deciding something the form already decided.
  */
-export function NewScanScreen(props: NewScanFormProps) {
+export function NewScanScreen(props: NewScanFormProps & { onCreateProfile: () => void }) {
   const t = copy[props.language];
+  const c = newScanCopy[props.language];
   const form = useNewScanForm(props);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const keepEditing = useRef<HTMLButtonElement>(null);
@@ -87,27 +88,14 @@ export function NewScanScreen(props: NewScanFormProps) {
     if (form.hasUnsavedChanges) setConfirmDiscard(true);
     else props.onClose();
   };
-  const discard =
-    props.language === 'uk'
-      ? {
-          title: 'Відкинути незбережені налаштування?',
-          body: 'Зміни до нового сканування буде втрачено.',
-          keep: 'Продовжити редагування',
-          discard: 'Відкинути зміни',
-        }
-      : {
-          title: 'Discard unsaved scan setup?',
-          body: 'Your changes to this new scan will be lost.',
-          keep: 'Keep editing',
-          discard: 'Discard changes',
-        };
+  const discard = c.discard;
   return (
     <>
       <Window
         title={t.newScan.windowTitle}
         className="window--dialog window--launch"
         onClose={requestClose}
-        closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+        closeLabel={c.closeWindow}
       >
         {/* Two columns from 1100px: the settings on the left, and on the right a
           sticky launch column holding the summary, the purchase terms and the
@@ -115,7 +103,12 @@ export function NewScanScreen(props: NewScanFormProps) {
           under every word of it; below 1100px it collapses back to that single
           stack, which is the right shape for a phone. */}
         <form className="launch-form" onSubmit={form.submit}>
-          <ScanSettingsColumn form={form} language={props.language} profiles={props.profiles} />
+          <ScanSettingsColumn
+            form={form}
+            language={props.language}
+            profiles={props.profiles}
+            onCreateProfile={props.onCreateProfile}
+          />
           <ScanLaunchColumn
             form={form}
             language={props.language}
@@ -171,11 +164,17 @@ function ScanSettingsColumn(props: {
   form: NewScanForm;
   language: Language;
   profiles: readonly SiteProfile[];
+  onCreateProfile: () => void;
 }) {
   const t = copy[props.language];
   return (
     <div className="launch-form__controls">
-      <ScanTargetPanel form={props.form} language={props.language} profiles={props.profiles} />
+      <ScanTargetPanel
+        form={props.form}
+        language={props.language}
+        profiles={props.profiles}
+        onCreateProfile={props.onCreateProfile}
+      />
       <ScanDepthPanel form={props.form} language={props.language} />
       {/* What Free actually is, in place of the controls it does not have. The
           two rows are the enforced settings, not suggestions: the crawler reads
@@ -204,13 +203,16 @@ function ScanTargetPanel(props: {
   form: NewScanForm;
   language: Language;
   profiles: readonly SiteProfile[];
+  onCreateProfile: () => void;
 }) {
   const t = copy[props.language];
+  const c = newScanCopy[props.language];
   const {
     carriedOver,
     chooseTarget,
     configurationState,
     configurationStatusLabel,
+    robotsOverrideStale,
     target,
     usingSavedProfile,
   } = props.form;
@@ -223,9 +225,12 @@ function ScanTargetPanel(props: {
       {props.profiles.length === 0 ? (
         <>
           <p className="muted panel-help">{t.newScan.noProfilesLead}</p>
-          <a className="button" href="/profiles">
-            {props.language === 'uk' ? 'Створити профіль' : 'Create profile'}
-          </a>
+          {/* A button, not an `<a href="/profiles">`: the link reloaded the whole
+              app, and the plan picked on a pricing card lives in memory, so
+              somebody who chose Basic, made their first site and came back
+              found the form on Free with nothing saying their choice had been
+              dropped. */}
+          <Button onClick={props.onCreateProfile}>{c.createProfile}</Button>
         </>
       ) : (
         <SelectField
@@ -266,6 +271,13 @@ function ScanTargetPanel(props: {
         ) : configurationState === 'new' ? (
           <p>{t.newScan.configurationNewBody}</p>
         ) : null}
+        {/* The one difference from the saved version that the owner did not
+            make: a saved permission to ignore robots.txt is deliberately never
+            reused, so say that rather than leave them hunting for what they
+            changed. Said whether or not they have also made a real edit — the
+            generic sentence above covers the edit, this one covers the part
+            that is not theirs. */}
+        {robotsOverrideStale ? <p>{t.newScan.configurationRobotsNotReused}</p> : null}
       </section>
     </Panel>
   );
@@ -569,30 +581,13 @@ function GoogleLaunchContext(props: { profileId: string; language: Language }) {
       active = false;
     };
   }, [props.profileId]);
+  const c = newScanCopy[props.language].googleContext;
   return (
-    <Panel
-      title={props.language === 'uk' ? 'Дані Google (необов’язково)' : 'Google data (optional)'}
-    >
-      <p className="muted panel-help">
-        {state === 'loading'
-          ? props.language === 'uk'
-            ? 'Перевіряємо підключені властивості Google…'
-            : 'Checking connected Google properties…'
-          : state === 'ready'
-            ? props.language === 'uk'
-              ? 'Search Console або GA4 підключено для цього профілю. Цей контекст буде додано до аудиту; PageSpeed від підключення не залежить.'
-              : 'Search Console or GA4 is connected for this profile. That context will be included in the audit; PageSpeed is independent of this connection.'
-            : state === 'missing'
-              ? props.language === 'uk'
-                ? 'Підключіть Search Console або GA4, щоб додати контекст Google до цього аудиту. PageSpeed цього не потребує.'
-                : 'Connect Search Console or GA4 to add Google context to this audit. PageSpeed does not need a connection.'
-              : props.language === 'uk'
-                ? 'Не вдалося перевірити підключення Google. Аудит все одно може продовжитися.'
-                : 'Google connection status is unavailable. The audit can still continue.'}
-      </p>
+    <Panel title={c.title}>
+      <p className="muted panel-help">{c[state]}</p>
       {state === 'missing' || state === 'unavailable' ? (
         <a className="button" href="/integrations">
-          {props.language === 'uk' ? 'Відкрити інтеграції' : 'Open integrations'}
+          {c.open}
         </a>
       ) : null}
     </Panel>

@@ -77,6 +77,7 @@ async function purchaseNote(provider: string, language: Language): Promise<HTMLE
       onProfilesChanged={() => Promise.resolve()}
       onClose={() => undefined}
       onError={() => undefined}
+      onCreateProfile={() => undefined}
     />,
   );
   const planSelect = (): HTMLSelectElement => {

@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { apiRequest, type Account } from './api';
 import { accountCopy } from './account-copy';
 import type { AppModel } from './app-model';
+import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { Button, CreatedByFluxLab, MenuBar } from './components';
 import { copy, type Language } from './i18n';
 
@@ -172,6 +173,7 @@ export function WorkspaceFooter({ language }: { readonly language: Language }) {
       <span>{copy[language].home.footer.brand}</span>
       <span className="desktop__footer-links">
         <a href="/checks">{copy[language].home.footer.coverageLink}</a>
+        <a href={EXAMPLE_REPORT_PATH}>{copy[language].home.footer.exampleLink}</a>
         <a href="/faq">{copy[language].nav.faq}</a>
         <a href="/privacy">{copy[language].home.footer.privacyLink}</a>
         <a href="/terms">{copy[language].home.footer.termsLink}</a>

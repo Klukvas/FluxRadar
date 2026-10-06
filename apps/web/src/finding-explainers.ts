@@ -292,6 +292,31 @@ const EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
       count: 'Одна знахідка на кожну сторінку, що охоплює всі проблеми із заголовками на ній.',
     },
   },
+  // "Photos" was the wrong word for what the rule does. `seo-onpage-005.ts`
+  // flags every <img> with no `alt` attribute at all — logos, icons and spacer
+  // images included — and treats an empty alt="" as correct, which is what the
+  // product's own recommendation asks for ("every decorative one an explicit
+  // empty alt"). So the advice said "add a short description to each photo" to
+  // a developer whose correct answer, for half of them, is an empty one.
+  'SEO-ONPAGE-005': {
+    countsPages: true,
+    en: {
+      title: 'Pictures with no written description',
+      what: 'These pages carry pictures — photographs, logos and icons alike — with no written description at all, not even an empty one.',
+      why: 'Visitors who cannot see the picture — and search engines, which cannot see it either — have nothing to go on, so a gallery that is the whole point of the page says nothing about it.',
+      fix: 'Add a short description to each picture that carries meaning, such as “Pink gel manicure with gold tips”. A picture that is only decoration can be marked as having nothing to describe (an empty description) — your developer will know the field. Most site builders have a field for it beside the picture, often called the alt text.',
+      count:
+        'One finding for each page that has such pictures, however many of them it has; the technical details count the pictures.',
+    },
+    uk: {
+      title: 'Зображення без текстового опису',
+      what: 'На цих сторінках є зображення — і фотографії, і логотипи, і значки, — у яких текстового опису немає взагалі, навіть порожнього.',
+      why: 'Відвідувачі, які не бачать зображення, — і пошукові системи, які їх теж не бачать, — не мають із чого зрозуміти, що на них, тож галерея, задля якої й існує сторінка, нічого про неї не каже.',
+      fix: 'Додайте короткий опис до кожного змістовного зображення, наприклад «Рожевий гель-манікюр із золотими кінчиками». Зображення, яке є лише оздобою, можна позначити як таке, що описувати нічого (порожній опис), — ваш розробник знає це поле. У більшості конструкторів сайтів для цього є поле біля зображення, часто воно зветься alt-текст.',
+      count:
+        'Одна знахідка на кожну сторінку з такими зображеннями, хоч би скільки їх на ній було; технічні деталі рахують зображення.',
+    },
+  },
   'SEO-ONPAGE-004': {
     countsPages: true,
     en: {

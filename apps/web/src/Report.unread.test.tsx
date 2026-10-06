@@ -133,6 +133,9 @@ async function openReport(dashboard: Dashboard, language: Language): Promise<voi
       onIssues={() => {}}
       onReports={() => {}}
       onError={() => {}}
+      // Passed so the printable page is on offer: a control the screen was
+      // never handed cannot be shown to be withheld.
+      onPrint={() => {}}
     />,
   );
   await screen.findByText(language === 'uk' ? 'Звіт аудиту сайту' : 'Site audit report');
@@ -290,20 +293,26 @@ describe('a report whose site could not be read', () => {
     expect(occurrences('410')).toBe(2);
   });
 
-  it('says it in Ukrainian, and says nothing for a status it has no sentence for', async () => {
+  it('says it in Ukrainian too', async () => {
     const scan: Scan = { ...SCAN, crawlSummary: { ...UNREAD_CRAWL, startStatus: 410 } };
     await openReport(dashboardOf(scan), 'uk');
     expect(
       screen.getByText('Сайт відповів, що цієї сторінки більше немає й вона не повернеться.'),
     ).toBeTruthy();
-    cleanup();
+  });
 
-    // 304 is an HTTP status with nothing to tell an owner: no invented sentence.
+  // Every class of answer has a sentence now, and a redirect was one of the
+  // ones that had none: the whole record of a 304 was "HTTP 304" in the small
+  // technical line. The classes themselves are pinned one by one, in both
+  // languages, in report-failure-status.test.ts.
+  it('explains a redirect the crawl could not follow to a page', async () => {
     const odd: Scan = { ...SCAN, crawlSummary: { ...UNREAD_CRAWL, startStatus: 304 } };
     await openReport(dashboardOf(odd), 'en');
     const block = screen.getByRole('region', { name: 'We could not open your site' });
     expect(within(block).getByText(`Technical details: ${REASON} · HTTP 304`)).toBeTruthy();
-    expect(block.textContent).not.toMatch(/The site answered that/);
+    expect(within(block).getByText(/pointed us to another address/)).toBeTruthy();
+    // And still only in the technical line is the number itself named.
+    expect(occurrences('304')).toBe(2);
   });
 
   // The owner's first reaction is "but it opens fine for me", and they are not
@@ -440,6 +449,91 @@ describe('a report whose site could not be read', () => {
     await openReport(dashboardOf(SCAN), 'en');
 
     expect(screen.queryByRole('alert', { name: 'We could not open your site' })).toBeNull();
+  });
+});
+
+// Five of the six controls a failed report ended with led nowhere: "Open Issue
+// Center" to an empty list, "Download full report (PDF)" and "Printable report"
+// to a document saying nothing was checked, and JSON and CSV to an empty file —
+// all of it under a block that had just said to run the check again.
+describe('the actions a report with nothing checked offers', () => {
+  const OPEN_ISSUES = 'Open Issue Center';
+  const PDF = /Download full report/;
+  const PRINT = 'Printable report';
+
+  it('offers no list, no download and no export, and says why (EN)', async () => {
+    await openReport(dashboardOf(SCAN), 'en');
+
+    expect(screen.queryByRole('button', { name: OPEN_ISSUES })).toBeNull();
+    expect(screen.queryByRole('button', { name: PDF })).toBeNull();
+    expect(screen.queryByRole('button', { name: PRINT })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'JSON' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CSV' })).toBeNull();
+    // Not silently: the row says why it is empty.
+    expect(
+      screen.getByText(/There is no list of problems to open and nothing to download/),
+    ).toBeTruthy();
+    // And the way back out stays, next to the block's own run-again guidance.
+    expect(screen.getByRole('button', { name: 'Reports' })).toBeTruthy();
+    expect(screen.getByText(/Run the scan again/)).toBeTruthy();
+  });
+
+  it('says the same in Ukrainian', async () => {
+    await openReport(dashboardOf(SCAN), 'uk');
+
+    expect(screen.queryByRole('button', { name: /Issue Center|Центр проблем/ })).toBeNull();
+    expect(screen.getByText(/^Списку проблем немає/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Звіти' })).toBeTruthy();
+  });
+
+  // Wider than "the site could not be read": a scan whose sections all ran on a
+  // readable site and returned nothing usable has nothing to export either.
+  it('applies to any report that checked nothing, not only an unread site', async () => {
+    const scan: Scan = {
+      ...SCAN,
+      status: 'Partial',
+      statusReason: 'NoUsableOutput',
+      crawlSummary: { ...UNREAD_CRAWL, reach: 'reachable', pagesRead: 2, urlsDiscovered: 2 },
+    };
+    await openReport(dashboardOf(scan, 'NoUsableOutput'), 'en');
+
+    expect(screen.queryByRole('button', { name: OPEN_ISSUES })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CSV' })).toBeNull();
+  });
+
+  // The other half of the rule: a report with results is untouched.
+  it('leaves every action in place on a report that does have results', async () => {
+    const scan: Scan = {
+      ...SCAN,
+      status: 'Completed',
+      statusReason: null,
+      crawlSummary: { ...UNREAD_CRAWL, reach: 'reachable', pagesRead: 3, urlsDiscovered: 3 },
+    };
+    const base = dashboardOf(scan);
+    const dashboard: Dashboard = {
+      ...base,
+      overall: { ...base.overall, verdict: 'normal', score: 90, weightedCoverage: 1 },
+      modules: [
+        {
+          ...unreadModule('SEO'),
+          status: 'Completed',
+          statusReason: null,
+          coverage: 1,
+          score: 90,
+          completedApplicableChecks: 1,
+          usableOutput: true,
+        },
+      ],
+    };
+    await openReport(dashboard, 'en');
+
+    expect(screen.getByRole('button', { name: OPEN_ISSUES })).toBeTruthy();
+    expect(screen.getByRole('button', { name: PDF })).toBeTruthy();
+    expect(screen.getByRole('button', { name: PRINT })).toBeTruthy();
+    // Complete carries the data export.
+    expect(screen.getByRole('button', { name: 'JSON' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'CSV' })).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/nothing to download/);
   });
 });
 

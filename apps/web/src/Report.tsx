@@ -31,7 +31,7 @@ import { geoVisibilitySummaryOf } from './geo-visibility';
 import { copy, fillCopy, type Language } from './i18n';
 import { asRecord, numberValue } from './module-metadata';
 import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
-import { moduleStatusReasons } from './module-status';
+import { moduleResponsibilities, moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan, planIncludesExport, planName } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { ReportNextSteps } from './ReportNextSteps';
@@ -157,6 +157,10 @@ export function ResultsScreen(props: {
   // No page of the site was read: one block explains it, and the section cards —
   // each saying the same "Unavailable" — fold into a single line.
   const siteFailure = siteReadFailureOf(scan, dashboard.modules);
+  // Read once: the next-step blocks and the action row below both turn on it,
+  // and a row offering an export of a report whose own blocks say nothing was
+  // checked is the contradiction this answers.
+  const checkedNothing = nothingWasChecked(scan, dashboard.modules);
   return (
     <div className="stack">
       <Window title={`${t.windowTitle} · ${displayDomain(scan.domain)}`}>
@@ -231,7 +235,7 @@ export function ResultsScreen(props: {
           onUpgrade={() => props.onUpgrade?.(scan)}
           onRetry={onRetry === undefined ? undefined : () => onRetry(scan)}
           siteFailure={siteFailure}
-          nothingChecked={nothingWasChecked(scan, dashboard.modules)}
+          nothingChecked={checkedNothing}
         />
         <section className="report-help" aria-label={t.helpHeading}>
           <h3 className="section-heading">{t.helpHeading}</h3>
@@ -353,38 +357,57 @@ export function ResultsScreen(props: {
           </div>
         )}
         <PlanScope modules={dashboard.modules} plan={scan.plan} language={props.language} />
-        <p className="muted report-help__cta">{t.issuesCta}</p>
-        <div className="button-row">
-          <Button onClick={props.onIssues} variant="primary">
-            {t.openIssues}
-          </Button>
-          {/* The server-rendered document and the printable page are both
-              offered, in that order: the download carries every finding, and the
-              page is the fallback that needs no server work when it cannot. */}
-          {scan.plan === 'Free' ? null : (
-            <PdfDownloadButton scan={scan} language={props.language} onError={props.onError} />
-          )}
-          {props.onPrint === undefined ? null : (
-            <Button onClick={() => props.onPrint?.(scan)} aria-describedby="print-hint">
-              {findingsCopy[props.language].print.open}
-            </Button>
-          )}
-          {planIncludesExport(scan.plan) ? (
-            <ExportButtons scan={scan} onError={props.onError} />
-          ) : (
-            <span className="muted">{t.exportComplete}</span>
-          )}
-          <Button onClick={props.onReports}>{copy[props.language].reports.windowTitle}</Button>
-        </div>
-        {scan.plan === 'Free' ? null : (
-          <p id="pdf-hint" className="muted report-print-hint">
-            {findingsCopy[props.language].download.pdfHint}
-          </p>
-        )}
-        {props.onPrint === undefined ? null : (
-          <p id="print-hint" className="muted report-print-hint">
-            {findingsCopy[props.language].print.openHint}
-          </p>
+        {/* A report that checked nothing has nothing to open, print or export:
+            an Issue Center with no findings, a PDF of "Nothing was checked" and
+            a JSON file of an empty list were four dead ends under a block that
+            had just said to run the scan again. The way back to the reports
+            list stays, and so does that block's own guidance. */}
+        {checkedNothing ? (
+          <>
+            <p className="muted report-help__cta">{reportFailureCopy[props.language].noExports}</p>
+            <div className="button-row">
+              <Button onClick={props.onReports} variant="primary">
+                {copy[props.language].reports.windowTitle}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="muted report-help__cta">{t.issuesCta}</p>
+            <div className="button-row">
+              <Button onClick={props.onIssues} variant="primary">
+                {t.openIssues}
+              </Button>
+              {/* The server-rendered document and the printable page are both
+                  offered, in that order: the download carries every finding, and
+                  the page is the fallback that needs no server work when it
+                  cannot. */}
+              {scan.plan === 'Free' ? null : (
+                <PdfDownloadButton scan={scan} language={props.language} onError={props.onError} />
+              )}
+              {props.onPrint === undefined ? null : (
+                <Button onClick={() => props.onPrint?.(scan)} aria-describedby="print-hint">
+                  {findingsCopy[props.language].print.open}
+                </Button>
+              )}
+              {planIncludesExport(scan.plan) ? (
+                <ExportButtons scan={scan} onError={props.onError} />
+              ) : (
+                <span className="muted">{t.exportComplete}</span>
+              )}
+              <Button onClick={props.onReports}>{copy[props.language].reports.windowTitle}</Button>
+            </div>
+            {scan.plan === 'Free' ? null : (
+              <p id="pdf-hint" className="muted report-print-hint">
+                {findingsCopy[props.language].download.pdfHint}
+              </p>
+            )}
+            {props.onPrint === undefined ? null : (
+              <p id="print-hint" className="muted report-print-hint">
+                {findingsCopy[props.language].print.openHint}
+              </p>
+            )}
+          </>
         )}
         <div className="breadcrumb">
           {scan.id} · {scan.rulesetVersion} ·{' '}
@@ -629,11 +652,22 @@ function SideScoreMeta({ line, language }: { line: string; language: Language })
 function ModuleReasons({ module, language }: { module: ScanModule; language: Language }) {
   const reasons = moduleStatusReasons(module, language);
   if (reasons.length === 0) return null;
+  // Whose problem it is, after the reason and in its own voice: the reason
+  // says what happened, and an owner reading "the AI service answered in a
+  // form FluxRadar does not accept" beside a "Checked with limits" chip still
+  // had no way to tell whether their site was at fault or whether they were
+  // meant to act on it.
+  const responsibilities = moduleResponsibilities(module, language);
   return (
     <div className="module-card__reason">
       <span className="module-card__reason-label">{copy[language].report.reasonLabel}</span>
       {reasons.map((reason) => (
         <p key={reason}>{reason}</p>
+      ))}
+      {responsibilities.map((responsibility) => (
+        <p key={responsibility} className="module-card__responsibility">
+          {responsibility}
+        </p>
       ))}
     </div>
   );

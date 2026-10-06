@@ -25,6 +25,7 @@ import { expertSettingsChanged, useFollowSelectedProfile } from './new-scan-form
 import {
   configurationStateOf,
   configurationStatusLabel,
+  restoredProfileForm,
   scopeFromLastScan,
   type ConfigurationState,
 } from './new-scan-configuration';
@@ -34,6 +35,7 @@ import {
   DEFAULT_SCOPE_FORM,
   clampScopeToPlan,
   invalidScopeFields,
+  invalidSeedLines,
   profileScanConfigFingerprint,
   profileScanConfigFromForm,
   scanScopeFrom,
@@ -63,28 +65,6 @@ const SCOPE_FIELD_NAMES: Readonly<Record<ScopeNumberField, string>> = {
   maxDepth: 'scan-max-depth',
 };
 
-/**
- * The seed lines that are not a site address.
- *
- * The server refuses these too — and refuses one pointed at another site,
- * which only it can judge — but a seed rejected after a checkout has opened is
- * a page the owner paid to have checked and did not get.
- */
-function invalidSeedLines(value: string): readonly string[] {
-  return value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '')
-    .filter((line) => {
-      try {
-        const url = new URL(line);
-        return url.protocol !== 'http:' && url.protocol !== 'https:';
-      } catch {
-        return true;
-      }
-    });
-}
-
 export interface NewScanFormProps {
   accountId: string;
   onCheckoutStarted: (pending: PendingCheckout) => void;
@@ -103,6 +83,15 @@ export interface NewScanFormProps {
    * only when that plan can actually be bought here.
    */
   initialPlan?: Plan | null;
+  /**
+   * The site this form is now set up for, whenever that changes — including the
+   * one it opens on.
+   *
+   * `/scan` carried no identifier, so refreshing the page dropped the chosen
+   * site and the form reopened on whichever profile came first. The screen does
+   * not own the address; it reports the site and the shell writes it there.
+   */
+  onTargetChange?: (profileId: string) => void;
 }
 
 interface PlanOption {
@@ -235,6 +224,21 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // to the Profiles workflow, where its context is collected first.
   const [target, setTarget] = useState(props.selectedProfile?.id ?? props.profiles[0]?.id ?? '');
   useFollowSelectedProfile(props, target, setTarget);
+  // Reported rather than written here: the form does not own the address bar,
+  // and the one place that does can then keep the site through a reload.
+  //
+  // Through a ref, and keyed on the site alone: the shell builds its actions
+  // again on every render, so an effect that also watched the callback would
+  // run on every render of the form — and the first thing the callback does is
+  // set state, which is a render loop.
+  const { onTargetChange } = props;
+  const reportTarget = useRef(onTargetChange);
+  useEffect(() => {
+    reportTarget.current = onTargetChange;
+  }, [onTargetChange]);
+  useEffect(() => {
+    if (target !== '') reportTarget.current?.(target);
+  }, [target]);
   // A saved profile owns its preferred plan; internal accounts start on
   // Complete so they can exercise the full report without a payment.
   const [plan, setPlan] = useState<Plan>(
@@ -357,8 +361,18 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     plan === 'Free' &&
     selected?.scanConfig != null &&
     selected.scanConfig.plan !== 'Free';
+  // "You changed the settings after the last save" is a statement about the
+  // owner, so it waits for the owner to change something. Without
+  // `hasUnsavedChanges` the panel claimed it while the form was still catching
+  // up with itself: the screen opens on Free, the checkout configuration
+  // arrives a moment later, and in the render between that and the saved plan
+  // being restored the form held Free against a saved Basic — "Unsaved changes"
+  // flashed up on a form nobody had touched. A real edit sets the flag
+  // (`updateScope`, `choosePlan`, `toggleOptInAiProvider`), so an edit that
+  // happens to restore the saved values reads as saved, which is what it is.
   const configurationDirty =
     usingSavedProfile &&
+    hasUnsavedChanges &&
     !unavailablePlanFallback &&
     savedConfigFingerprint !== null &&
     profileScanConfigFingerprint(currentProfileConfig) !== savedConfigFingerprint;
@@ -440,14 +454,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     writtenVersionRef.current = null;
     if (selected?.scanConfig != null) {
       setConfigLoading(false);
-      const restoredPlan = paidAvailable ? selected.scanConfig.plan : 'Free';
-      setPlan(restoredPlan);
-      setScope(
-        clampScopeToPlan(scopeFormFromProfileConfig(selected.scanConfig), selected.scanConfig.plan),
-      );
+      const restored = restoredProfileForm(selected, paidAvailable);
+      setPlan(restored.plan);
+      setScope(restored.scope);
       setCarriedOver(true);
-      setSavedConfigFingerprint(profileScanConfigFingerprint(selected.scanConfig));
-      setSavedConfigVersion(selected.scanConfigVersion ?? 1);
+      setSavedConfigFingerprint(restored.fingerprint);
+      setSavedConfigVersion(restored.version);
+      setHasUnsavedChanges(restored.hasUnsavedChanges);
       return;
     }
     let cancelled = false;
@@ -481,6 +494,23 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     if (initialPlanApplied.current || initialPlan == null) return;
     if (initialPlan !== 'Free' && !paidAvailable) return;
     initialPlanApplied.current = true;
+    // A plan chosen on a pricing card is a change to the saved configuration,
+    // and the launch saves it as a new version before the checkout opens. The
+    // panel has to say so first: a visitor who pressed "Choose Complete" on a
+    // site saved as Basic read "Saved · version 2" over a form holding
+    // Complete, and the save that followed was silent. Only a plan that really
+    // differs from the saved one counts — choosing the card for the plan the
+    // profile already holds changes nothing to report.
+    //
+    // And only where there is a saved configuration to differ from. On a site
+    // that has none, `undefined` differs from every plan, so the flag went up
+    // on a form nobody had touched and closing it asked "Discard unsaved scan
+    // setup? Your changes to this new scan will be lost" — about a plan the
+    // visitor chose on a card, not a change they made here, and one the same
+    // card gives back. Nothing is saved for the panel to contradict either:
+    // `configurationDirty` already requires a saved fingerprint.
+    const savedPlan = selectedRef.current?.scanConfig?.plan;
+    if (savedPlan != null && initialPlan !== savedPlan) setHasUnsavedChanges(true);
     setPlan(initialPlan);
     setScope((current) => clampScopeToPlan(current, initialPlan));
   }, [initialPlan, paidAvailable, target]);

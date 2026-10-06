@@ -40,7 +40,8 @@ import {
 } from './comparison-format';
 import { copy, fillCopy, type Language } from './i18n';
 import { planIncludesIssueHistory, planName } from './plan-modules';
-import { moduleLabel, ruleTitle } from './rule-titles';
+import { problemTitle } from './finding-explainers';
+import { moduleLabel } from './rule-titles';
 import './styles/comparison.css';
 import './styles/findings.css';
 
@@ -512,7 +513,7 @@ function FindingSample(props: {
             {props.items.map((issue) => (
               <li key={issue.fingerprint}>
                 {severityLabels[issue.severity] ?? issue.severity} ·{' '}
-                {ruleTitle(issue.ruleId, props.language)} ·{' '}
+                {problemTitle(issue.ruleId, props.language)} ·{' '}
                 {moduleLabel(issue.module, props.language)}
                 {issue.normalizedUrl === '' ? null : (
                   <>
@@ -602,7 +603,7 @@ function SimpleCountsTable(props: {
 
 /** Rule ids as the reader knows them, so a note never prints SEO-TECH-011. */
 function ruleList(ruleIds: readonly string[], language: Language): string {
-  return ruleIds.map((ruleId) => ruleTitle(ruleId, language)).join(', ');
+  return ruleIds.map((ruleId) => problemTitle(ruleId, language)).join(', ');
 }
 
 /**

@@ -138,7 +138,13 @@ function RenderAndRobots(props: { form: NewScanForm; language: Language }) {
         eyebrow="JAVASCRIPT"
         title={t.newScan.renderInfoTitle}
         titleId="render-info-title"
-        mode={t.newScan.renderInfoMode}
+        // The chip reports the setting in front of the reader, not the
+        // product's default: "On by default" sat beside an empty box whenever a
+        // saved configuration had turned rendering off, so the two halves of
+        // one control contradicted each other. Off, it still says what the
+        // default is — that is the part the reader needs to judge their own
+        // change by.
+        mode={scope.renderJs ? t.newScan.renderInfoMode : t.newScan.renderInfoModeOff}
         bodyId="render-info-description"
       >
         {t.newScan.renderInfoBody}
@@ -157,7 +163,7 @@ function RenderAndRobots(props: { form: NewScanForm; language: Language }) {
         eyebrow="robots.txt"
         title={t.newScan.robotsInfoTitle}
         titleId="robots-info-title"
-        mode={t.newScan.robotsInfoMode}
+        mode={scope.respectRobots ? t.newScan.robotsInfoMode : t.newScan.robotsInfoModeOff}
         bodyId="robots-info-description"
       >
         {t.newScan.robotsInfoBody}

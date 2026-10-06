@@ -4,6 +4,7 @@ import { Button, CreatedByFluxLab, MenuBar, StatusChip, Terminal } from './compo
 import type { Account } from './api';
 import { AuthScreen } from './AuthScreen';
 import { CoverageTicker } from './CoverageTicker';
+import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { ExampleReport } from './ExampleReport';
 import { HeroSiteForm } from './HeroSiteForm';
 import { HeroTitle } from './HeroTitle';
@@ -343,6 +344,7 @@ export function HomeScreen(props: {
           <span>{t.home.footer.brand}</span>
           <span className="home__footer-links">
             <a href="/checks">{t.home.footer.coverageLink}</a>
+            <a href={EXAMPLE_REPORT_PATH}>{t.home.footer.exampleLink}</a>
             <a href="/faq">{t.nav.faq}</a>
             <a href="/privacy">{t.home.footer.privacyLink}</a>
             <a href="/terms">{t.home.footer.termsLink}</a>
