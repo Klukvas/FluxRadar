@@ -58,6 +58,18 @@ export const PLAN_MODULES: Readonly<Record<Plan, readonly string[]>> = {
 };
 
 /**
+ * The sections whose 0–100 score is shown on its own and left out of the
+ * overall score (§15).
+ *
+ * Mirrors `SIDE_SCORE_MODULES` in `packages/contracts/src/tariffs.ts`, which
+ * `overall-score.ts` skips outright when it builds the overall number. A mirror
+ * for the same reason the module lists above are one — `apps/web` has no
+ * dependency on the contracts package — and `plan-modules.test.ts` reads the
+ * tariff table and fails if the two ever disagree.
+ */
+export const SIDE_SCORE_MODULES: readonly string[] = ['UX/Conversion', 'Analytics'];
+
+/**
  * `TARIFFS[plan].urlLimit` — the most pages a scan on that plan may ask for.
  *
  * A mirror for the same reason the module lists are (see above), and read for

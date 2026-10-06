@@ -49,7 +49,7 @@ export function NewScanRoute({
   readonly account: Account;
 }) {
   const { language, navigate, newScanPlan, onScanCreated, setError, startCheckout } = app;
-  const { profiles, selectedProfile, setProfiles } = app;
+  const { openProfileCreation, profiles, rememberScanProfile, selectedProfile, setProfiles } = app;
   return (
     <NewScanScreen
       profiles={profiles}
@@ -60,6 +60,11 @@ export function NewScanRoute({
       onCreated={onScanCreated}
       initialPlan={newScanPlan}
       onCheckoutStarted={startCheckout}
+      // The site goes in the address (`/scan?profile=…`), so a reload reopens
+      // the form on it; making the first site stays inside the app, so the plan
+      // picked on a pricing card is not lost to a page load.
+      onTargetChange={rememberScanProfile}
+      onCreateProfile={openProfileCreation}
       onProfilesChanged={async () => {
         await loadProfiles(setProfiles);
       }}

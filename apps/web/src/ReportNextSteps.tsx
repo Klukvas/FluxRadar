@@ -8,23 +8,31 @@
 import { useEffect, useState } from 'react';
 
 import { ActionPlan } from './ActionPlan';
-import { apiRequest, canRetrySection, type IssueSummary, type Scan, type ScanChanges } from './api';
+import {
+  apiRequest,
+  canRetrySection,
+  type IssueRuleGroup,
+  type IssueSummary,
+  type Scan,
+  type ScanChanges,
+} from './api';
 import { Button, StatusChip } from './components';
 import { egressLocationLabel } from './egress-location';
 import { findingsCopy, type FindingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
 import { planIncludesIssueHistory } from './plan-modules';
+import { problemTitle } from './finding-explainers';
 import {
   CRAWLER_PAGE_HREF,
   nothingWasChecked,
   reportFailureCopy,
-  statusClassOf,
+  statusMeaningClassOf,
   technicalDetailsOf,
   type SiteFailureStep,
   type SiteReadFailure,
 } from './report-failure-copy';
-import { ANALYTICS_MODULE, ruleTitle } from './rule-titles';
+import { ANALYTICS_MODULE } from './rule-titles';
 import { displayDomain } from './scan-status';
 import './styles/findings.css';
 
@@ -63,20 +71,174 @@ export function useIssueSummary(scanId: string): IssueSummary | null {
   return summary;
 }
 
-export function FixFirst(props: {
-  summary: IssueSummary;
-  language: Language;
-  onOpenProblem: (ruleId: string) => void;
-  onAll: () => void;
-  /** True when the scan checked nothing: an empty list is then no verdict at all. */
-  nothingChecked?: boolean;
+/**
+ * How each row of the block reaches the problem it names.
+ *
+ * On a report it is a button: pressing it opens that problem's findings, which
+ * is a screen the reader does not have yet. The public example has every
+ * problem on the page already, so there it is a link to the entry further down
+ * — a real link, with a real address, labelled as a move down the page. It used
+ * to be the report's own button, reading "Open" and only scrolling, on a page
+ * that told the reader nothing on it could be pressed.
+ */
+export interface FixFirstJumps {
+  /** The in-page address of one problem's own entry. */
+  readonly problemHref: (ruleId: string) => string;
+  /** The in-page address of the full list. */
+  readonly allHref: string;
+  /** What a row's control says, in place of "Open". */
+  readonly openLabel: string;
+  /**
+   * Told which problem a row leads to, when the row is pressed.
+   *
+   * The link still navigates; this is only how the example learns that the
+   * reader asked for one particular problem, so it can unfold that card rather
+   * than leave them looking at a folded headline.
+   */
+  readonly onProblemJump?: (ruleId: string) => void;
+}
+
+/**
+ * The accessible name of a jump row.
+ *
+ * WCAG 2.5.3 (label in name): the name has to contain the words the reader can
+ * see. The row says "Show below ↓" and was announced "Show findings: <title>",
+ * so somebody driving the page by voice could say neither — and the five rows
+ * were five identical visible labels. The visible words come first, then the
+ * problem the row leads to, which is what tells the rows apart.
+ */
+function jumpAccessibleName(openLabel: string, title: string): string {
+  return `${openLabel} — ${title}`;
+}
+
+/** An extra sentence under the heading, for a reader with no report of their own. */
+function FixFirstUnitNote({ note }: { note?: string }) {
+  if (note === undefined) return null;
+  return <p className="fix-first__unit">{note}</p>;
+}
+
+/**
+ * How one row reaches the problem it names.
+ *
+ * A report's own button opens that problem's findings. The public example has
+ * every problem on the page already, so there it is a real link to the entry
+ * further down, labelled as a move down the page.
+ */
+function FixFirstRowControl(props: {
+  ruleId: string;
+  /** The problem's plain name, for the accessible name of either control. */
+  title: string;
+  labels: FindingsCopy;
+  jumps?: FixFirstJumps;
+  onOpenProblem?: (ruleId: string) => void;
 }) {
+  const { jumps, labels, ruleId, title } = props;
+  if (jumps === undefined) {
+    return (
+      <Button
+        onClick={() => props.onOpenProblem?.(ruleId)}
+        aria-label={labels.issues.showFindingsFor(title)}
+      >
+        {labels.fixFirst.open}
+      </Button>
+    );
+  }
+  return (
+    <a
+      className="button fix-first__jump"
+      href={jumps.problemHref(ruleId)}
+      aria-label={jumpAccessibleName(jumps.openLabel, title)}
+      onClick={() => jumps.onProblemJump?.(ruleId)}
+    >
+      {jumps.openLabel}
+    </a>
+  );
+}
+
+/** One problem: how urgent, what it is called, how many findings, and the way in. */
+function FixFirstRow(props: {
+  group: IssueRuleGroup;
+  language: Language;
+  labels: FindingsCopy;
+  jumps?: FixFirstJumps;
+  onOpenProblem?: (ruleId: string) => void;
+}) {
+  const { group, labels } = props;
+  // The problem's plain name, the one the Issue Center shows. Two names for one
+  // rule — "Heading structure is broken (H1–H6)" here and "Headings do not form
+  // a clear outline" there — read as two different problems, and this block is
+  // the link to that one. The technical title stays in a finding's technical fold.
+  const title = problemTitle(group.ruleId, props.language);
+  return (
+    <li className="fix-first__item">
+      <StatusChip status={group.severity} label={labels.severity[group.severity]} />
+      <span className="fix-first__title">{title}</span>
+      <span className="muted fix-first__count">{labels.fixFirst.pages(group.openIssues)}</span>
+      <FixFirstRowControl
+        ruleId={group.ruleId}
+        title={title}
+        labels={labels}
+        jumps={props.jumps}
+        onOpenProblem={props.onOpenProblem}
+      />
+    </li>
+  );
+}
+
+/** The way to the problems this block had no room for. */
+function FixFirstMore(props: {
+  open: number;
+  labels: FindingsCopy;
+  jumps?: FixFirstJumps;
+  onAll?: () => void;
+}) {
+  const { jumps, labels } = props;
+  return (
+    <div className="button-row fix-first__more">
+      {jumps === undefined ? (
+        <Button onClick={() => props.onAll?.()}>{labels.fixFirst.all(props.open)}</Button>
+      ) : (
+        <a className="button" href={jumps.allHref}>
+          {labels.fixFirst.all(props.open)}
+        </a>
+      )}
+    </div>
+  );
+}
+
+export interface FixFirstProps {
+  readonly summary: IssueSummary;
+  readonly language: Language;
+  /** How a report opens one problem. Left out only when `jumps` is given. */
+  readonly onOpenProblem?: (ruleId: string) => void;
+  /** How a report opens the whole list. Left out only when `jumps` is given. */
+  readonly onAll?: () => void;
+  /** True when the scan checked nothing: an empty list is then no verdict at all. */
+  readonly nothingChecked?: boolean;
+  /**
+   * The level the surrounding document gives this block's heading. Three on the
+   * report, where it sits under the report's own section heading; two on a page
+   * whose other blocks are second-level, so the outline does not read as though
+   * "fix these first" were part of whatever came before it.
+   */
+  readonly headingLevel?: 2 | 3;
+  /**
+   * Set only by the public example, which has nothing to open: its rows become
+   * links down its own page. A report leaves it out and keeps its buttons.
+   */
+  readonly jumps?: FixFirstJumps;
+  /** An extra sentence under the heading, for a reader with no report of their own. */
+  readonly unitNote?: string;
+}
+
+export function FixFirst(props: FixFirstProps) {
   const f = findingsCopy[props.language];
   const open = props.summary.groups.filter((group) => group.openIssues > 0);
   const top = open.slice(0, FIX_FIRST_LIMIT);
+  const Heading = props.headingLevel === 2 ? 'h2' : 'h3';
   return (
     <section className="report-block" aria-labelledby="fix-first-heading">
-      <h3 id="fix-first-heading">{f.fixFirst.heading}</h3>
+      <Heading id="fix-first-heading">{f.fixFirst.heading}</Heading>
       {top.length === 0 ? (
         <p>
           {props.nothingChecked === true
@@ -86,30 +248,21 @@ export function FixFirst(props: {
       ) : (
         <>
           <p className="muted">{f.fixFirst.lead}</p>
+          <FixFirstUnitNote note={props.unitNote} />
           <ol className="fix-first">
-            {top.map((group) => {
-              const title = ruleTitle(group.ruleId, props.language);
-              return (
-                <li key={`${group.ruleId}:${group.module}`} className="fix-first__item">
-                  <StatusChip status={group.severity} label={f.severity[group.severity]} />
-                  <span className="fix-first__title">{title}</span>
-                  <span className="muted fix-first__count">
-                    {f.fixFirst.pages(group.openIssues)}
-                  </span>
-                  <Button
-                    onClick={() => props.onOpenProblem(group.ruleId)}
-                    aria-label={f.issues.showFindingsFor(title)}
-                  >
-                    {f.fixFirst.open}
-                  </Button>
-                </li>
-              );
-            })}
+            {top.map((group) => (
+              <FixFirstRow
+                key={`${group.ruleId}:${group.module}`}
+                group={group}
+                language={props.language}
+                labels={f}
+                jumps={props.jumps}
+                onOpenProblem={props.onOpenProblem}
+              />
+            ))}
           </ol>
           {open.length > top.length ? (
-            <div className="button-row fix-first__more">
-              <Button onClick={props.onAll}>{f.fixFirst.all(open.length)}</Button>
-            </div>
+            <FixFirstMore open={open.length} labels={f} jumps={props.jumps} onAll={props.onAll} />
           ) : null}
         </>
       )}
@@ -228,7 +381,7 @@ function ChangedRules(props: {
       <ul>
         {props.rules.slice(0, FIX_FIRST_LIMIT).map((rule) => (
           <li key={rule.ruleId}>
-            {ruleTitle(rule.ruleId, props.language)} — {rule.count}
+            {problemTitle(rule.ruleId, props.language)} — {rule.count}
           </li>
         ))}
       </ul>
@@ -328,11 +481,12 @@ export function SiteUnreadBlock(props: {
   const t = reportFailureCopy[props.language];
   const details = technicalDetailsOf(props.failure, props.language);
   const guidance = t.guidance[props.failure.kind];
-  // What the status the site answered with actually means. The number itself
-  // stays in the technical-details line below: "HTTP 410" is the only thing on
-  // this block that named the real answer, and it named it to nobody.
-  const statusClass =
-    props.failure.startStatus === null ? null : statusClassOf(props.failure.startStatus);
+  // What the answer the site gave actually means. The number itself stays in
+  // the technical-details line below: "HTTP 410" is the only thing on this
+  // block that named the real answer, and it named it to nobody. Every class
+  // of answer has a sentence now, including no answer at all — except where
+  // the failure's own sentence above has already said it.
+  const statusClass = statusMeaningClassOf(props.failure);
   // A labelled region, not an alert: the block is on the page from the first
   // paint, and an alert would be read out in full on every visit.
   return (

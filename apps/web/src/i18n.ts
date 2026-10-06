@@ -215,6 +215,11 @@ export const copy = {
         description:
           'What FluxRadarBot is, the address it crawls from, the user agent it sends, that it obeys robots.txt, and the Cloudflare rule to allow it through.',
       },
+      exampleReport: {
+        title: 'Example report — what you get, on a made-up salon site | FluxRadar',
+        description:
+          'A complete FluxRadar report for a made-up site, written for a business owner: the score, how much of the site was read, what to fix first, and six findings with what is wrong, why it matters and what to do. Nothing on it is a real site.',
+      },
       workspaceTitle: 'Workspace — FluxRadar',
     },
     workspace: {
@@ -450,43 +455,60 @@ export const copy = {
           foot: 'No false certainty',
         },
       },
+      // The numbers in these sentences are placeholders filled from the
+      // example report's own fixture (`example-home-preview.ts`), and the
+      // lines are in the order the full example lists them. Both halves used
+      // to state their own counts about one made-up salon and disagreed.
       example: {
         eyebrow: 'WHAT A REPORT LOOKS LIKE',
         title: 'Findings in plain words, with what to do.',
-        lead: 'Every finding shows what is wrong and what to change. The site and the numbers below are made up.',
+        lead: '{shown} of the {problems} problems in the full example report, shown the way the report shows them: what is wrong, and what to change. The site and the numbers below are made up.',
         badge: 'Example, not your site',
         windowLabel: 'Example report for a made-up website',
         site: 'bloom-nails.example',
-        summary: '3 things to fix · 12 pages checked',
+        // Count-neutral on purpose, in both languages. It read "{problems}
+        // things to fix", filled with six — which claimed the made-up site has
+        // six things to fix (it would have more: see `findingsLead` in
+        // `example-report-copy.ts`) — and its Ukrainian half read «{problems}
+        // речі», which is the form a numeral ending in 1 takes. «6 речі» agreed
+        // with nothing. Both counts are labelled rather than counted nouns now, so
+        // no number this line is filled with can disagree with the words in it.
+        // The label says whose six they are: "Problems shown: 6" sat over a
+        // list that draws three, under a lead that says "3 of the 6".
+        summary: 'Problems in the full example: {problems} · pages checked: {pages}',
         whereLabel: 'Where',
         actionLabel: 'What to do',
+        /** The two urgency words a three-line extract needs, by severity. */
+        severityFixFirst: 'Fix first',
+        severityWorthFixing: 'Worth fixing',
+        // The whole thing, for a visitor these three findings have interested
+        // rather than satisfied: a finished report they can read before paying.
+        fullLink: 'Open the full example report',
+        // The count lives on the "Where" line only; the titles carry none. A
+        // title with "{count}" in it agreed with today's fixture number and no
+        // other: Ukrainian «{count} посилання ведуть» is right for 3 and wrong
+        // for 5, «{count} зображень» right for 12 and wrong for 2 to 4.
         findings: [
           {
-            tone: 'high',
-            severity: 'Fix first',
-            where: '4 pages',
+            where: '{count} links',
             title:
-              '4 pages have no description, so Google shows a random piece of text under your link.',
-            action:
-              'Write one or two sentences for each page saying what you offer and where. Your site builder has a “Description” or “SEO” field for it.',
-          },
-          {
-            tone: 'high',
-            severity: 'Fix first',
-            where: '3 links',
-            title:
-              '3 links lead to a page that no longer exists, so visitors hit a dead end instead of your booking form.',
+              'Links on your site lead to a page that no longer exists, so visitors hit a dead end instead of your booking form.',
             action:
               'Point each link at the right page or remove it. The report lists every page and the broken link on it.',
           },
           {
-            tone: 'medium',
-            severity: 'Worth fixing',
-            where: '12 photos',
+            where: '{count} pages',
             title:
-              '12 photos have no text description, so Google and people who use screen readers cannot tell what they show.',
+              'Some pages have no description, so Google shows a random piece of text under your link.',
             action:
-              'Add a short description to each photo, such as “Pink gel manicure with gold tips”. Site builders usually call this field “alt text”.',
+              'Write one or two sentences for each page saying what you offer and where. Your site builder has a “Description” or “SEO” field for it.',
+          },
+          {
+            where: '{count} pictures',
+            title:
+              'Some pictures have no text description, so Google and people who use screen readers cannot tell what they show.',
+            action:
+              'Add a short description to each picture that carries meaning, such as “Pink gel manicure with gold tips”; one that is only decoration gets an empty description. Site builders usually call this field “alt text”.',
           },
         ],
       },
@@ -518,6 +540,7 @@ export const copy = {
       footer: {
         brand: 'FLUXRADAR / BY FLUXLAB',
         coverageLink: 'Audit coverage',
+        exampleLink: 'Example report',
         privacyLink: 'Privacy policy',
         termsLink: 'Terms of service',
         refundLink: 'Refund policy',
@@ -574,6 +597,10 @@ export const copy = {
         'There is also a free homepage check — title, meta description, headings and indexability of one page, once per account and once per site. It is a first look at the report format, not a product of its own.',
       coverageLink: 'Read the full audit coverage →',
       faqLink: 'Read the FAQ →',
+      // Beside the two links the pricing block already ends on: somebody
+      // choosing between three packages is choosing between three reports, and
+      // this is the one place they can read one before paying.
+      exampleLink: 'See a finished example report →',
       cards: {
         basic: {
           eyebrow: 'FLUXRADAR BASIC AUDIT / SEARCH + AI VISIBILITY',
@@ -756,12 +783,19 @@ export const copy = {
       labelRenderJs: 'Read pages after their JavaScript has run',
       renderInfoTitle: 'JavaScript rendering',
       renderInfoMode: 'On by default',
+      // The chip said "On by default" beside an empty box, and "Safe default"
+      // beside a robots.txt rule the saved settings had switched off: the box
+      // and the badge next to it said opposite things. The badge now reports
+      // the state in front of the reader and names the default in the same
+      // breath, so neither fact is lost.
+      renderInfoModeOff: 'Normally on — switched off here',
       renderInfoBody:
         'Off, FluxRadar reads the HTML the server sends. On, it opens each page in a headless browser and reads the DOM once the page’s own scripts have run — which is what a single-page app needs. All browser traffic goes through the same public-address guard as the crawl: GET and HEAD only, no cookies, no downloads and no sockets. If the deployment has no browser runtime the report says so; it never presents the static HTML as a rendered page.',
       advancedTitle: 'Advanced crawl rules',
       labelRespectRobots: 'Respect robots.txt',
       robotsInfoTitle: 'How robots.txt affects this scan',
       robotsInfoMode: 'Safe default',
+      robotsInfoModeOff: 'Safe default is on — switched off here',
       robotsInfoBody:
         'Before crawling, FluxRadar reads the site’s public robots.txt. When “Respect robots.txt” is on, pages disallowed for crawlers are skipped. Turn it off only when you are authorized to inspect those paths; the tick beside the Run button records that choice for one scan.',
       labelAiConsent:
@@ -824,6 +858,12 @@ export const copy = {
       configurationUnsaved: 'Unsaved changes',
       configurationUnsavedBody:
         'You changed the settings after the last save. Save them to reuse this configuration. Starting the check will save these settings as a new version and run exactly what is shown below.',
+      // Said when the saved settings include permission to ignore robots.txt:
+      // the form never reuses that permission (scan-scope.ts), so the form and
+      // the saved version differ in one place the owner did not touch. Without
+      // this they were told they had "changed" something they had not.
+      configurationRobotsNotReused:
+        'One saved setting is never reused: the permission to read pages robots.txt asks crawlers to skip. Confirm it again beside the Run button, or switch robots.txt back on — nothing else about these settings has changed.',
       configurationNew: 'New configuration',
       configurationNewBody: 'It will be saved to this profile before the check starts.',
       configurationLoading: 'Configuration is loading…',
@@ -938,6 +978,10 @@ export const copy = {
       ready: 'Your report is ready.',
       finishedAt: 'Finished {time}.',
       finishedUnknown: 'The scan has finished processing.',
+      // The gap between the last section finishing and the report being
+      // ready to open. Written inline in the component until now, so it was
+      // the one line on the progress window no copy test could see.
+      finalizing: 'Putting your report together…',
       running: 'Checking your site — {done} of {total} audit sections done.',
       runningPreparing: 'Checking your site — preparing the audit sections…',
       sectionsTitle: 'What we’re checking',
@@ -1215,13 +1259,13 @@ export const copy = {
         aiConsentMissing:
           'The AI visibility questions were not asked because this scan has no recorded AI-processing notice for the provider. New paid audits record it automatically after showing the disclosure before launch.',
         aiRedactionBlocked:
-          'The request was stopped inside FluxRadar because the step that removes secrets from it could not finish. Nothing was sent to the AI provider.',
+          'FluxRadar stopped the request itself: before anything goes to an AI service it strips out passwords, keys and other private values, and that step did not finish. Nothing was sent.',
         aiQuotaExceeded:
           'This plan’s allowance of AI questions was already used by this scan, so the remaining questions were not asked.',
         aiProviderUnavailable:
           'The AI provider is not configured for this deployment, or it did not answer, so no AI visibility questions were asked.',
         aiProviderContract:
-          'The AI provider answered in a shape FluxRadar refuses to store, so the answer was discarded instead of being reported as a result.',
+          'The AI service sent back an answer FluxRadar could not accept — it did not come in the form FluxRadar stores, so it was thrown away rather than shown to you as a result.',
         aiEmptyQuestionLibrary:
           'No AI visibility questions were prepared for this scan, so there was nothing to ask.',
         uxAiConsentMissing:
@@ -1233,7 +1277,7 @@ export const copy = {
         uxAiProviderUnavailable:
           'The static UX checks ran, but the AI-assisted UX provider is not configured or did not answer.',
         uxAiProviderContract:
-          'The static UX checks ran, but the AI response did not meet FluxRadar’s strict evidence contract and was discarded.',
+          'The checks FluxRadar makes itself ran. The AI review answered, but not in the form FluxRadar accepts, so that answer was thrown away rather than shown to you as a result.',
         uxAiScanCancelled:
           'The static UX checks ran and are reported in full; the AI-assisted UX review was stopped when you cancelled the audit.',
         uxAiUnsupportedClaims:
@@ -1249,7 +1293,7 @@ export const copy = {
         aiQueryGenerationUnavailable:
           'The neutral discovery questions for this scan could not be generated, so this section asked only its fixed brand questions. The cause is named below.',
         aiQueryGenerationInvalidResponse:
-          'The neutral discovery questions for this scan could not be generated: the provider answered in a shape FluxRadar refuses to use, so the section asked only its fixed brand questions.',
+          'The questions that do not name your brand could not be written for this check: the AI service answered in a form FluxRadar does not accept, so the section asked only its standard questions about your name.',
         analyticsNotConnected:
           'Google is not connected for this workspace, so no Search Console or Analytics data could be read. Connect Google on the Integrations screen.',
         analyticsPropertyNotSelected:
@@ -1267,14 +1311,48 @@ export const copy = {
         // the scan, and paraphrasing it would be guessing.
         unknown: 'The audit recorded this reason: {reason}',
       },
+      // ── Whose problem it is, and whether you must do anything ─────────────
+      //
+      // The reason above says what happened; it does not say whose it is. A
+      // "Checked with limits" chip beside a score of 100, explained by an AI
+      // service answering in the wrong form, left the owner unable to tell
+      // whether their site was broken or whether they were meant to act. One
+      // sentence per answer, chosen per reason code (`module-status.ts`).
+      moduleResponsibility: {
+        ours: 'This one is on our side, not your site — there is nothing for you to do about it.',
+        oursRetry:
+          'This one is on our side, or at a service we use — not your site. Nothing for you to fix: running the check again is what can change it.',
+        // Deliberately claims no side. A measurement can be missing because the
+        // service we use dropped it or because the page it tried to read did
+        // not answer, and saying "nothing for you to do" would be a promise we
+        // cannot keep for a page that is in fact unreachable.
+        eitherSide:
+          'We cannot say whose this is: a measurement goes missing either at the service we use or because the page it tried to read did not answer it. Running the check again is what tells the two apart.',
+        byPlan:
+          'This is the limit of the plan this check ran on, working as sold — not a fault on your site or ours.',
+        yours:
+          'This one is yours to act on: do what the line above says, then run the check again.',
+        yourChoice:
+          'This happened because you stopped the check, not because anything is wrong with your site.',
+        theSite:
+          'This is about what your site gave us when we read it, which is what this report is for.',
+        nothingToMeasure:
+          'Nothing is wrong here, on your side or ours: there was simply nothing for this part to measure.',
+        notYet:
+          'Nothing is wrong with your site: we do not measure this area yet, and we claim no score for it.',
+      },
       // Section metadata that was English prose rather than a standard's name.
-      metaAiReadiness: 'Public AI readiness',
-      metaAiStructured: '{structured}/{checked} pages with structured data',
+      metaAiReadiness: 'How ready these pages are for AI assistants',
+      metaAiStructured: '{structured} of {checked} pages carry extra details a machine can read',
       metaPrivacy: 'Public technical consent signals',
       metaAnalytics: 'Google Search Console · Analytics 4 · read-only',
       metaSideScore: 'Separate score, not part of the overall score',
-      metaSeo: 'JSON-LD · Open Graph · Twitter Cards',
-      metaUx: 'Static HTML signals · AI-assisted review',
+      // Was "JSON-LD · Open Graph · Twitter Cards": three file formats, under a
+      // section heading, to an owner who had never heard of any of them. The
+      // formats themselves belong to whoever does the work, and the finding
+      // that names one carries them in its technical details.
+      metaSeo: 'Hidden page details for search results and for link previews',
+      metaUx: 'Read from the page itself, plus a review written by AI',
       // ── The Google panel ──────────────────────────────────────────────────
       google: {
         panelTitle: 'Google data',
@@ -2173,6 +2251,11 @@ export const copy = {
         description:
           'Які cookies і browser storage використовує FluxRadar, навіщо вони потрібні, скільки зберігаються та як ними керувати.',
       },
+      exampleReport: {
+        title: 'Приклад звіту — що ви отримаєте, на вигаданому сайті салону | FluxRadar',
+        description:
+          'Повний звіт FluxRadar для вигаданого сайту, написаний для власника бізнесу: бал, яку частину сайту прочитано, що виправляти першим і шість знахідок із тим, що не так, чому це важливо й що робити. Жодного реального сайту тут немає.',
+      },
       bot: {
         title: 'FluxRadarBot — краулер FluxRadar | FluxRadar',
         description:
@@ -2411,40 +2494,40 @@ export const copy = {
       example: {
         eyebrow: 'ЯК ВИГЛЯДАЄ ЗВІТ',
         title: 'Знахідки простими словами — і що з ними робити.',
-        lead: 'Кожна знахідка показує, що не так і що змінити. Сайт і цифри нижче вигадані.',
+        lead: '{shown} з {problems} проблем із повного прикладу звіту, показані так, як їх показує звіт: що не так і що змінити. Сайт і цифри нижче вигадані.',
         badge: 'Приклад, не ваш сайт',
         windowLabel: 'Приклад звіту для вигаданого сайту',
         site: 'bloom-nails.example',
-        summary: '3 речі, які варто виправити · перевірено 12 сторінок',
+        summary: 'Проблем у повному прикладі: {problems} · перевірено сторінок: {pages}',
         whereLabel: 'Де',
         actionLabel: 'Що зробити',
+        severityFixFirst: 'Виправити першим',
+        severityWorthFixing: 'Варто виправити',
+        fullLink: 'Відкрити повний приклад звіту',
+        // "Where" is a noun in the nominative and the number after a dash: it
+        // stands behind «Де:», so a second colon read «Де: посилань: 3», and
+        // the nominative agrees with no numeral, so any count fits.
         findings: [
           {
-            tone: 'high',
-            severity: 'Виправити першим',
-            where: '4 сторінки',
+            where: 'посилання — {count}',
             title:
-              'На 4 сторінках немає опису, тому Google показує під посиланням випадковий шматок тексту.',
-            action:
-              'Напишіть для кожної сторінки одне-два речення про те, що ви пропонуєте і де. У конструкторі сайту для цього є поле «Опис» або «SEO».',
-          },
-          {
-            tone: 'high',
-            severity: 'Виправити першим',
-            where: '3 посилання',
-            title:
-              '3 посилання ведуть на сторінку, якої вже немає, тож відвідувач опиняється в глухому куті замість форми запису.',
+              'Посилання на сайті ведуть на сторінку, якої вже немає, тож відвідувач опиняється в глухому куті замість форми запису.',
             action:
               'Спрямуйте кожне посилання на правильну сторінку або приберіть його. У звіті є список сторінок і битих посилань на них.',
           },
           {
-            tone: 'medium',
-            severity: 'Варто виправити',
-            where: '12 фото',
+            where: 'сторінки — {count}',
             title:
-              '12 фото не мають текстового опису, тому ні Google, ні люди з програмами читання екрана не знають, що на них.',
+              'Деякі сторінки не мають опису, тому Google показує під посиланням випадковий шматок тексту.',
             action:
-              'Додайте до кожного фото короткий опис, наприклад «Рожевий гель-манікюр із золотими кінчиками». У конструкторах це поле зазвичай називається «alt-текст».',
+              'Напишіть для кожної сторінки одне-два речення про те, що ви пропонуєте і де. У конструкторі сайту для цього є поле «Опис» або «SEO».',
+          },
+          {
+            where: 'зображення — {count}',
+            title:
+              'Деякі зображення не мають текстового опису, тому ні Google, ні люди з програмами читання екрана не знають, що на них.',
+            action:
+              'Додайте короткий опис до кожного змістовного зображення, наприклад «Рожевий гель-манікюр із золотими кінчиками»; те, що є лише оздобою, отримує порожній опис. У конструкторах це поле зазвичай називається «alt-текст».',
           },
         ],
       },
@@ -2476,6 +2559,7 @@ export const copy = {
       footer: {
         brand: 'FLUXRADAR / ВІД FLUXLAB',
         coverageLink: 'Покриття аудиту',
+        exampleLink: 'Приклад звіту',
         privacyLink: 'Політика приватності',
         termsLink: 'Умови використання',
         refundLink: 'Політика повернень',
@@ -2532,6 +2616,7 @@ export const copy = {
         'Є також безкоштовна перевірка головної сторінки — заголовок, meta description, заголовки та індексація однієї сторінки, один раз на акаунт і один раз на сайт. Це перший погляд на формат звіту, а не окремий продукт.',
       coverageLink: 'Переглянути всі перевірки →',
       faqLink: 'Читати FAQ →',
+      exampleLink: 'Подивитися готовий приклад звіту →',
       cards: {
         basic: {
           eyebrow: 'FLUXRADAR BASIC AUDIT / ПОШУК + AI',
@@ -2713,12 +2798,14 @@ export const copy = {
       labelRenderJs: 'Читати сторінки після виконання JavaScript',
       renderInfoTitle: 'Рендеринг JavaScript',
       renderInfoMode: 'Увімкнено за замовчуванням',
+      renderInfoModeOff: 'Зазвичай увімкнено — тут вимкнено',
       renderInfoBody:
         'Вимкнено — FluxRadar читає HTML, який віддає сервер. Увімкнено — відкриває кожну сторінку в headless-браузері й читає DOM після виконання її власних скриптів; саме це потрібно SPA. Увесь трафік браузера проходить через той самий захист публічних адрес, що й обхід: тільки GET і HEAD, без cookies, без завантажень і без сокетів. Якщо в цьому середовищі немає браузерного runtime, звіт про це скаже і не видасть статичний HTML за відрендерену сторінку.',
       advancedTitle: 'Додаткові правила обходу',
       labelRespectRobots: 'Дотримуватись robots.txt',
       robotsInfoTitle: 'Як robots.txt впливає на перевірку',
       robotsInfoMode: 'Безпечний режим',
+      robotsInfoModeOff: 'Безпечний режим увімкнено за замовчуванням — тут вимкнено',
       robotsInfoBody:
         'Перед обходом FluxRadar читає публічний robots.txt сайту. Якщо «Дотримуватись robots.txt» увімкнено, сторінки, заборонені для сканерів, пропускаються. Вимикайте цю опцію лише якщо маєте право перевіряти такі шляхи: позначка біля кнопки запуску фіксує цей вибір для однієї перевірки.',
       labelAiConsent:
@@ -2768,6 +2855,8 @@ export const copy = {
       configurationUnsaved: 'Є незбережені зміни',
       configurationUnsavedBody:
         'Ви змінили налаштування після останнього збереження. Збережіть їх, щоб повторно використовувати цю конфігурацію. Запуск перевірки збереже ці налаштування як нову версію й виконає саме те, що показано нижче.',
+      configurationRobotsNotReused:
+        'Одне збережене налаштування ніколи не переноситься — дозвіл читати сторінки, які robots.txt просить пропускати. Підтвердьте його ще раз біля кнопки запуску або знову увімкніть robots.txt: більше в цих налаштуваннях нічого не змінилося.',
       configurationNew: 'Нова конфігурація',
       configurationNewBody: 'Її буде збережено в цьому профілі перед запуском перевірки.',
       configurationLoading: 'Завантажуємо конфігурацію…',
@@ -2882,6 +2971,7 @@ export const copy = {
       ready: 'Ваш звіт готовий.',
       finishedAt: 'Завершено: {time}.',
       finishedUnknown: 'Перевірку завершено.',
+      finalizing: 'Збираємо ваш звіт…',
       running: 'Перевіряємо ваш сайт — готово {done} з {total} розділів аудиту.',
       runningPreparing: 'Перевіряємо ваш сайт — готуємо розділи аудиту…',
       sectionsTitle: 'Що ми перевіряємо',
@@ -3111,13 +3201,13 @@ export const copy = {
         aiConsentMissing:
           'Питання про видимість в AI не ставилися, бо для цієї перевірки немає запису про повідомлення щодо AI-обробки цим провайдером. Нові платні аудити записують його автоматично після показу дисклеймера перед запуском.',
         aiRedactionBlocked:
-          'Запит зупинено всередині FluxRadar, бо крок, який вилучає з нього секрети, не встиг завершитися. Постачальнику AI нічого не надіслано.',
+          'FluxRadar сама зупинила запит: перед надсиланням до AI-сервісу вона вилучає паролі, ключі та інші приватні значення, і цей крок не завершився. Нічого не надіслано.',
         aiQuotaExceeded:
           'Ліміт AI-запитів цього тарифу вже вичерпано цією перевіркою, тому решту питань не поставлено.',
         aiProviderUnavailable:
           'Постачальника AI не налаштовано в цьому розгортанні або він не відповів, тому питань про видимість в AI не ставили.',
         aiProviderContract:
-          'Постачальник AI відповів у формі, яку FluxRadar відмовляється зберігати, тому відповідь відкинуто, а не подано як результат.',
+          'AI-сервіс надіслав відповідь, яку FluxRadar не змогла прийняти: вона надійшла не в тому вигляді, який FluxRadar зберігає, тому її відкинуто, а не показано вам як результат.',
         aiEmptyQuestionLibrary:
           'Для цієї перевірки не підготовлено жодного питання про видимість в AI, тому й ставити не було чого.',
         uxAiConsentMissing:
@@ -3129,7 +3219,7 @@ export const copy = {
         uxAiProviderUnavailable:
           'Статичні UX-перевірки виконано, але AI-провайдер UX не налаштовано або він не відповів.',
         uxAiProviderContract:
-          'Статичні UX-перевірки виконано, але відповідь AI не відповіла суворому контракту доказів FluxRadar і була відхилена.',
+          'Перевірки, які FluxRadar робить сама, виконано. AI-аналіз відповів, але не в тому вигляді, який FluxRadar приймає, тому ту відповідь відкинуто, а не показано вам як результат.',
         uxAiScanCancelled:
           'Статичні UX-перевірки виконано й показані повністю; AI-аналіз UX зупинено, коли ви скасували аудит.',
         uxAiUnsupportedClaims:
@@ -3143,7 +3233,7 @@ export const copy = {
         aiQueryGenerationUnavailable:
           'Нейтральні питання для пошуку згадок цієї перевірки не вдалося згенерувати, тому розділ поставив лише свої сталі питання про бренд. Причину названо нижче.',
         aiQueryGenerationInvalidResponse:
-          'Нейтральні питання для пошуку згадок цієї перевірки не вдалося згенерувати: провайдер відповів у формі, яку FluxRadar відмовляється використовувати, тому розділ поставив лише свої сталі питання про бренд.',
+          'Питання, які не називають ваш бренд, не вдалося скласти для цієї перевірки: AI-сервіс відповів у вигляді, який FluxRadar не приймає, тому розділ поставив лише свої звичні питання про вашу назву.',
         analyticsNotConnected:
           'Google не підключено для цього робочого простору, тому дані Search Console та Analytics прочитати не вдалося. Підключіть Google на екрані інтеграцій.',
         analyticsPropertyNotSelected:
@@ -3158,13 +3248,32 @@ export const copy = {
           'Google не відповів під час формування цього звіту. На решту звіту це не впливає — запустіть перевірку ще раз, щоб отримати дані Google.',
         unknown: 'Аудит записав таку причину: {reason}',
       },
-      metaAiReadiness: 'Готовність до публічних AI-роботів',
-      metaAiStructured: 'сторінок зі структурованими даними: {structured}/{checked}',
+      moduleResponsibility: {
+        ours: 'Це на нашому боці, а не з вашим сайтом — вам тут робити нічого не потрібно.',
+        oursRetry:
+          'Це на нашому боці або в сервісі, яким ми користуємося, — не з вашим сайтом. Вам нічого виправляти: змінити це може лише повторний запуск перевірки.',
+        eitherSide:
+          'Ми не можемо сказати, чиє це: вимірювання зникає або в сервісі, яким ми користуємося, або через те, що сторінка, яку він намагався прочитати, йому не відповіла. Відрізнити одне від іншого можна, лише запустивши перевірку ще раз.',
+        byPlan:
+          'Це обмеження тарифу, на якому виконувалася перевірка, і воно працює так, як продано, — це не помилка ні на вашому боці, ні на нашому.',
+        yours:
+          'Ось тут треба ваша дія: зробіть те, про що сказано в рядку вище, і запустіть перевірку ще раз.',
+        yourChoice:
+          'Так сталося тому, що ви зупинили перевірку, а не тому, що з вашим сайтом щось не так.',
+        theSite:
+          'Це про те, що ваш сайт віддав нам, коли ми його читали, — саме для цього й існує звіт.',
+        nothingToMeasure:
+          'Тут нічого не зламано — ні у вас, ні в нас: просто не було чого вимірювати в цій частині.',
+        notYet:
+          'З вашим сайтом усе гаразд: ми поки не вимірюємо цю область і не заявляємо для неї жодної оцінки.',
+      },
+      metaAiReadiness: 'Наскільки ці сторінки готові для AI-асистентів',
+      metaAiStructured: '{structured} з {checked} сторінок мають додаткові дані, які читає машина',
       metaPrivacy: 'Публічні технічні сигнали згоди',
       metaAnalytics: 'Google Search Console · Analytics 4 · лише читання',
       metaSideScore: 'Окрема оцінка, не входить до загальної',
-      metaSeo: 'JSON-LD · Open Graph · Twitter Cards',
-      metaUx: 'Статичні сигнали HTML · AI-аналіз',
+      metaSeo: 'Приховані дані сторінки для результатів пошуку й для перегляду посилань',
+      metaUx: 'Прочитано із самої сторінки, плюс аналіз, який написав AI',
       google: {
         panelTitle: 'Дані Google',
         sourceNote: 'Джерело: Google Search Console і Google Analytics 4 · лише читання · період',

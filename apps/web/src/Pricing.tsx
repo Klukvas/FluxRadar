@@ -1,3 +1,4 @@
+import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { Button } from './components';
 import { copy, type Language } from './i18n';
 
@@ -150,6 +151,10 @@ export function PricingExplainer(props: { language: Language }) {
       <p className="home__pricing-note">{t.startInWorkspace}</p>
       <p className="home__pricing-note">{t.freeNote}</p>
       <p className="home__pricing-links">
+        {/* First of the three: somebody choosing between packages is choosing
+            between reports, and this is the one place they can read one
+            without paying. */}
+        <a href={EXAMPLE_REPORT_PATH}>{t.exampleLink}</a>
         <a href="/checks">{t.coverageLink}</a>
         <a href="/faq">{t.faqLink}</a>
       </p>

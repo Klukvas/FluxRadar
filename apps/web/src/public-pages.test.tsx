@@ -86,9 +86,9 @@ describe('public page metadata', () => {
 
   it('gives each public page a distinct title and description in both languages', () => {
     for (const language of ['en', 'uk'] as const) {
-      const titles = (['home', 'faq', 'checks', 'bot', 'privacy', 'terms'] as const).map(
-        (page) => pageMetadata(page, language).title,
-      );
+      const titles = (
+        ['home', 'faq', 'checks', 'bot', 'exampleReport', 'privacy', 'terms'] as const
+      ).map((page) => pageMetadata(page, language).title);
       expect(new Set(titles).size).toBe(titles.length);
       for (const title of titles) expect(title.length).toBeGreaterThan(10);
     }
@@ -107,7 +107,16 @@ describe('public page metadata', () => {
     // a file rather than generated code, so nothing else would catch a page
     // added to the app and forgotten here.
     const sitemap = readFileSync(resolve(__dirname, '../public/sitemap.xml'), 'utf8');
-    for (const page of ['home', 'faq', 'checks', 'bot', 'privacy', 'terms', 'cookies'] as const) {
+    for (const page of [
+      'home',
+      'faq',
+      'checks',
+      'bot',
+      'exampleReport',
+      'privacy',
+      'terms',
+      'cookies',
+    ] as const) {
       for (const language of ['en', 'uk'] as const) {
         expect(sitemap).toContain(`<loc>${publicPageUrl(page, language)}</loc>`);
       }

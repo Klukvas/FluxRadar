@@ -23,6 +23,7 @@ import {
 } from './api';
 import { fetchScanComparison, type ScanComparison } from './comparison-api';
 import { Button, LoadingState, StatusChip } from './components';
+import { problemTitle } from './finding-explainers';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import { ownNameOnlyCount, percentOf } from './GeoVisibility';
@@ -31,7 +32,7 @@ import { copy, fillCopy, type Language } from './i18n';
 import { planIncludesIssueHistory, planName } from './plan-modules';
 import { nothingWasChecked, reportFailureCopy, siteReadFailureOf } from './report-failure-copy';
 import { ComparisonPrintBlock } from './ScanComparisonPrint';
-import { moduleLabel, ruleTitle } from './rule-titles';
+import { moduleLabel } from './rule-titles';
 import { displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import './styles/print-report.css';
 
@@ -209,7 +210,7 @@ function PrintActionPlan(props: { plan: ActionPlanContent; language: Language })
               {action.settled ? ` · ${t.settled}` : ''}
             </p>
             <p className="muted">
-              {action.ruleIds.map((ruleId) => ruleTitle(ruleId, props.language)).join(' · ')}
+              {action.ruleIds.map((ruleId) => problemTitle(ruleId, props.language)).join(' · ')}
             </p>
           </li>
         ))}
@@ -634,7 +635,7 @@ function PrintProblem(props: {
   return (
     <div className="print-problem">
       <h3>
-        {props.number}. {ruleTitle(props.group.ruleId, props.language)}
+        {props.number}. {problemTitle(props.group.ruleId, props.language)}
       </h3>
       <p className="print-problem__meta">
         <StatusChip status={props.group.severity} label={f.severity[props.group.severity]} />{' '}

@@ -218,6 +218,7 @@ function renderNewScan(language: Language) {
       onProfilesChanged={() => Promise.resolve()}
       onClose={() => undefined}
       onError={() => undefined}
+      onCreateProfile={() => undefined}
     />,
   );
   const planSelect = (): HTMLSelectElement => {

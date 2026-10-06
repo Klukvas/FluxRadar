@@ -19,6 +19,14 @@
      stood on a dark surface. Deep blue rather than plain black because the
      platinum face reads as a control, not as body copy; see `.button`. */
   --button-fg: #16327a;
+  /* The caution family: the amber a banner uses to say "read this before you
+     read anything else". Three values, because a warning surface needs its own
+     line, fill and text to stay legible — they were copied by hand into
+     `account.css`, `base.css` and `example-report.css`, so a theme change moved
+     some of them and not the others. */
+  --warn-line: #8a5b00;
+  --warn-fill: #ffe9c2;
+  --warn-text: #4d3300;
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;

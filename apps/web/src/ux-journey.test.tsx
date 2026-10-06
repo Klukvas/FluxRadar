@@ -387,13 +387,19 @@ describe('a Free report', () => {
     );
     if (block === null) throw new Error('expected the fix-first block');
     const items = within(block as HTMLElement).getAllByRole('listitem');
-    // Most urgent first, by name — not by rule id.
-    expect(items[0]).toHaveTextContent('Page title is missing or the wrong length');
-    expect(items[1]).toHaveTextContent('Meta description is missing or the wrong length');
+    // Most urgent first, by name — not by rule id, and by the plain name the
+    // Issue Center uses rather than the rule's technical title, so the block
+    // and the list it links to name one problem once (rule-naming.test.tsx).
+    expect(items[0]).toHaveTextContent(
+      'Page name for search results is missing, too short or too long',
+    );
+    expect(items[1]).toHaveTextContent(
+      'Page summary for search results is missing or the wrong length',
+    );
 
     fireEvent.click(
       within(block as HTMLElement).getByRole('button', {
-        name: 'Show findings: Meta description is missing or the wrong length',
+        name: 'Show findings: Page summary for search results is missing or the wrong length',
       }),
     );
 

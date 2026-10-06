@@ -29,6 +29,7 @@ type SessionBoot = Pick<
   | 'sessionAttempt'
   | 'setProfiles'
   | 'setScreen'
+  | 'setSelectedProfile'
   | 'setSelectedScan'
   | 'setTourOpen'
 > & {
@@ -131,10 +132,17 @@ export function useSessionBoot(boot: SessionBoot): void {
 /** Puts a signed-in owner on the screen their address asked for, or on their running scan. */
 async function restoreSignedInSession(value: Account, boot: SessionBoot): Promise<void> {
   const { entryRoute, confirmEmailSignedIn, openScanById, setProfiles } = boot;
-  const { setAccount, setScreen, setSelectedScan, setTourOpen } = boot;
+  const { setAccount, setScreen, setSelectedProfile, setSelectedScan, setTourOpen } = boot;
   setAccount(value);
   try {
-    await loadProfiles(setProfiles);
+    const profiles = await loadProfiles(setProfiles);
+    // The site a new-scan address names. Matched against the owner's own
+    // profiles, so an id that was edited, deleted or simply made up selects
+    // nothing and the form falls back to its first site as before.
+    if (entryRoute.profileId !== null) {
+      const named = profiles.find((profile) => profile.id === entryRoute.profileId);
+      if (named !== undefined) setSelectedProfile(named);
+    }
     // The confirmation link is usually opened in the browser the owner is
     // already signed in to. That session used to land on an empty
     // workspace — the sign-in dialog that confirms the link is only drawn

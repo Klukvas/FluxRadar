@@ -44,6 +44,34 @@ export type NewScanClarityCopy = {
   readonly robotsConfirmLabel: string;
   /** The way out of the whole decision: put the rule back and launch. */
   readonly robotsBackOn: string;
+  /**
+   * The screen's remaining words, which used to be written inline as
+   * `language === 'uk' ? … : …` ternaries in the markup. A string spelled in
+   * the component is a string no parity test can see, and three of them were
+   * the only Ukrainian on the screen nobody had checked.
+   */
+  readonly closeWindow: string;
+  /** The first site: the way on for an account that has none yet. */
+  readonly createProfile: string;
+  /** Leaving the form with settings that were never saved. */
+  readonly discard: {
+    readonly title: string;
+    readonly body: string;
+    readonly keep: string;
+    readonly discard: string;
+  };
+  /**
+   * The optional Google context an audit can use. One state per answer, so the
+   * panel never says "checking" after it has stopped checking.
+   */
+  readonly googleContext: {
+    readonly title: string;
+    readonly loading: string;
+    readonly ready: string;
+    readonly missing: string;
+    readonly unavailable: string;
+    readonly open: string;
+  };
 };
 
 const PLAN_NAMES: Readonly<Record<Plan, string>> = {
@@ -85,6 +113,24 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
       'This setting came from the site’s saved settings, not from anything you chose just now — say again that you want it.',
     robotsConfirmLabel: 'Yes, read the pages robots.txt asks crawlers to skip',
     robotsBackOn: 'Switch robots.txt back on',
+    closeWindow: 'Close window',
+    createProfile: 'Create profile',
+    discard: {
+      title: 'Discard unsaved scan setup?',
+      body: 'Your changes to this new scan will be lost.',
+      keep: 'Keep editing',
+      discard: 'Discard changes',
+    },
+    googleContext: {
+      title: 'Google data (optional)',
+      loading: 'Checking connected Google properties…',
+      ready:
+        'Search Console or GA4 is connected for this profile. That context will be included in the audit; PageSpeed is independent of this connection.',
+      missing:
+        'Connect Search Console or GA4 to add Google context to this audit. PageSpeed does not need a connection.',
+      unavailable: 'Google connection status is unavailable. The audit can still continue.',
+      open: 'Open integrations',
+    },
   },
   uk: {
     checking: (site, plan) => `Перевіряємо: ${site.name}, ${site.domain}, тариф ${plan}`,
@@ -117,5 +163,26 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
       'Це налаштування взято зі збережених налаштувань сайту, а не з того, що ви вибрали зараз, — підтвердьте ще раз, що ви цього хочете.',
     robotsConfirmLabel: 'Так, читати сторінки, які robots.txt просить пропускати',
     robotsBackOn: 'Знову увімкнути robots.txt',
+    closeWindow: 'Закрити вікно',
+    createProfile: 'Створити профіль',
+    discard: {
+      title: 'Відкинути незбережені налаштування?',
+      // «перевірка», not «сканування»: the Ukrainian interface has one word
+      // for this, and the string only slipped through because it used to be
+      // written inline in the markup where no test could read it.
+      body: 'Зміни до цієї нової перевірки буде втрачено.',
+      keep: 'Продовжити редагування',
+      discard: 'Відкинути зміни',
+    },
+    googleContext: {
+      title: 'Дані Google (необов’язково)',
+      loading: 'Перевіряємо підключені властивості Google…',
+      ready:
+        'Search Console або GA4 підключено для цього профілю. Цей контекст буде додано до аудиту; PageSpeed від підключення не залежить.',
+      missing:
+        'Підключіть Search Console або GA4, щоб додати контекст Google до цього аудиту. PageSpeed цього не потребує.',
+      unavailable: 'Не вдалося перевірити підключення Google. Аудит все одно може продовжитися.',
+      open: 'Відкрити інтеграції',
+    },
   },
 };

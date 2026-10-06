@@ -148,22 +148,75 @@ export type StatusClass =
   | 'notFound'
   | 'needsLogin'
   | 'refused'
+  | 'notAllowed'
+  | 'notUnderstood'
   | 'tooManyRequests'
+  | 'timedOut'
   | 'legal'
   | 'serverError'
-  | 'answeredNotAPage';
+  | 'pointedElsewhere'
+  | 'answeredNotAPage'
+  | 'startedButStopped'
+  | 'noAnswer';
 
-/** Which sentence one status gets, or null for a status with nothing to add. */
-export function statusClassOf(status: number): StatusClass | null {
+/**
+ * Which sentence one answer gets. Every answer gets one.
+ *
+ * It used to return null for most of them — 400, 405, 408 and every redirect
+ * fell through — so a report whose only record of what happened was "HTTP 405"
+ * in the technical line said nothing an owner could read. The ranges below are
+ * exhaustive, in the order a specific status has to be read before the range
+ * it belongs to.
+ *
+ * `null` means no answer arrived at all: the crawler records a fetch that
+ * threw (no such address, refused connection, timeout) as status 0, and "HTTP
+ * 0" is not an answer the site gave.
+ */
+export function statusClassOf(status: number | null): StatusClass {
+  if (status === null) return 'noAnswer';
   if (status === 410) return 'gone';
   if (status === 404) return 'notFound';
   if (status === 401 || status === 407) return 'needsLogin';
+  if (status === 408) return 'timedOut';
   if (status === 429) return 'tooManyRequests';
   if (status === 451) return 'legal';
   if (status === 403 || status === 406) return 'refused';
+  if (status === 405) return 'notAllowed';
+  if (status === 400) return 'notUnderstood';
   if (status >= 500) return 'serverError';
-  if (status >= 200 && status < 300) return 'answeredNotAPage';
-  return null;
+  // The rest of 4xx: the site turned the request away without saying which of
+  // the specific reasons above applied.
+  if (status >= 400) return 'refused';
+  if (status >= 300) return 'pointedElsewhere';
+  if (status >= 200) return 'answeredNotAPage';
+  // 1xx: the site acknowledged the request and never sent the page.
+  return 'startedButStopped';
+}
+
+/** The first status that is not the site answering with something readable. */
+const MIN_FAILING_STATUS = 400;
+
+/**
+ * The sentence about the answer that this block should print, or null when the
+ * failure's own sentence already said it.
+ *
+ * `blocked-by-robots` never fetched the start page, and `unreachable` already
+ * opens with "Your site did not answer"; a "no answer arrived" sentence under
+ * either would read as a second, different reason for the same failure.
+ *
+ * A robots refusal is silent about any 2xx or 3xx as well. "Your robots.txt
+ * tells our crawler not to read the site" is the whole reason; adding "the site
+ * answered normally, but what came back was not a web page we could read" under
+ * it names a second, contradicting cause for one failure. A 4xx or 5xx still
+ * speaks — that the site also refuses or is also broken is a fact about the
+ * site the owner has not been told anywhere else.
+ */
+export function statusMeaningClassOf(failure: SiteReadFailure): StatusClass | null {
+  if (failure.startStatus !== null) {
+    const silent = failure.kind === 'blocked-by-robots' && failure.startStatus < MIN_FAILING_STATUS;
+    return silent ? null : statusClassOf(failure.startStatus);
+  }
+  return failure.kind === 'unreachable' || failure.kind === 'blocked-by-robots' ? null : 'noAnswer';
 }
 
 /** The causes and steps that fit one kind of failure — never a list that contradicts it. */
@@ -233,6 +286,15 @@ export interface ReportFailureCopy {
   readonly technicalDetails: (details: string) => string;
   readonly httpStatus: (status: number) => string;
   readonly nothingChecked: string;
+  /**
+   * Why the report offers no Issue Center, no download and no export.
+   *
+   * It used to offer all of them: "Open Issue Center", "Download full
+   * report (PDF)", "Printable report", JSON and CSV sat under a block
+   * saying nothing was checked, so five of the six controls on a failed
+   * report led to an empty list or an empty file.
+   */
+  readonly noExports: string;
   readonly nothingToPlan: string;
   readonly printNoProblems: string;
 }
@@ -288,11 +350,18 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
       notFound: 'The site answered that there is no such page at that address.',
       needsLogin: 'The site asked for a login or a password before it would show the page.',
       refused: 'The site refused to show the page to us.',
+      notAllowed: 'The site answered that it does not accept this kind of request at that address.',
+      notUnderstood: 'The site answered that it could not make sense of our request.',
       tooManyRequests: 'The site answered that we were asking for pages too often.',
+      timedOut: 'The site stopped waiting for our request before it finished.',
       legal: 'The site answered that the page is blocked for legal reasons.',
-      serverError: 'The site’s own server reported an error instead of sending the page.',
+      serverError: 'Something went wrong on the site’s own side instead of the page being sent.',
+      pointedElsewhere:
+        'The site pointed us to another address, and following it did not lead to a page we could read.',
       answeredNotAPage:
         'The site answered normally, but what came back was not a web page we could read.',
+      startedButStopped: 'The site began to answer and then stopped, so no page ever arrived.',
+      noAnswer: 'No answer came back from the site at all — not even an error page.',
     },
     causesHeading: 'Common reasons',
     guidance: {
@@ -353,6 +422,8 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
     httpStatus: (status) => `HTTP ${status}`,
     nothingChecked:
       'Nothing was checked — this scan produced no results, so it cannot list problems. That does not mean there are none.',
+    noExports:
+      'There is no list of problems to open and nothing to download, because nothing was checked. Follow the steps above and run the check again.',
     nothingToPlan:
       'Nothing on this report was checked, so there is nothing to plan yet. Run the scan again once your site can be read.',
     printNoProblems:
@@ -382,11 +453,18 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
       notFound: 'Сайт відповів, що за цією адресою немає такої сторінки.',
       needsLogin: 'Сайт попросив вхід або пароль, перш ніж показати сторінку.',
       refused: 'Сайт відмовився показати нам сторінку.',
+      notAllowed: 'Сайт відповів, що не приймає таких запитів за цією адресою.',
+      notUnderstood: 'Сайт відповів, що не зрозумів нашого запиту.',
       tooManyRequests: 'Сайт відповів, що ми запитуємо сторінки надто часто.',
+      timedOut: 'Сайт перестав чекати на наш запит, перш ніж той завершився.',
       legal: 'Сайт відповів, що сторінку заблоковано з юридичних причин.',
-      serverError: 'Сервер сайту повідомив про помилку замість того, щоб віддати сторінку.',
+      serverError: 'Щось спрацювало не так на боці сайту замість того, щоб сторінка надійшла.',
+      pointedElsewhere:
+        'Сайт направив нас на іншу адресу, і за нею не виявилося сторінки, яку ми могли прочитати.',
       answeredNotAPage:
         'Сайт відповів нормально, але те, що надійшло, не було вебсторінкою, яку ми могли прочитати.',
+      startedButStopped: 'Сайт почав відповідати й зупинився, тож сторінка так і не надійшла.',
+      noAnswer: 'Від сайту взагалі не надійшло жодної відповіді — навіть сторінки помилки.',
     },
     causesHeading: 'Найчастіші причини',
     guidance: {
@@ -445,6 +523,8 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
     httpStatus: (status) => `HTTP ${status}`,
     nothingChecked:
       'Нічого не перевірено — ця перевірка не дала результатів, тож не може показати список проблем. Це не означає, що проблем немає.',
+    noExports:
+      'Списку проблем немає, і завантажувати нічого, бо нічого не перевірено. Виконайте кроки вище й запустіть перевірку ще раз.',
     nothingToPlan:
       'У цьому звіті нічого не перевірено, тож планувати поки нічого. Запустіть перевірку ще раз, коли сайт можна буде прочитати.',
     printNoProblems: 'Проблем у списку немає, бо нічого не перевірено, а не тому, що їх немає.',

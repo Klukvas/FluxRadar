@@ -26,18 +26,22 @@
     gap: var(--sp-2);
     padding: var(--sp-1) var(--sp-2);
   }
-  /* The basis has to be a real width, not 0. Flex breaks a line on the items'
-     hypothetical sizes, so a 0-basis paragraph always fitted beside the button
-     row and was then handed whatever was left: 46px inside a 360px screen,
-     61px inside 375px, which `-webkit-line-clamp: 2` cut to "Confirm / your…".
-     At about twelve characters the paragraph no longer fits beside the row on a
-     phone, so the buttons drop under it — the way the longer Ukrainian labels
-     already made them — and the short line gets the whole width. Fourteen and
-     not twelve: the basis also has to fit the longest unbreakable two-word
-     start of these short lines, "The confirmation" at about 12.3ch, and 14ch
-     leaves margin for other phone fonts. */
+  /* The line takes a whole row of its own, and the buttons wrap under it.
+     A 0 basis made the paragraph's hypothetical width 0, so it always shared
+     the line with the 274px English button row and was handed whatever was
+     left — 46px inside a 360px screen, 61px inside 375px — which the clamp
+     below cut to "Confirm / your…". A 14ch basis fixed that for a line that
+     was only "Confirm your email."; the line now carries the reason too (the
+     password-reset link goes only to that address), and a reason squeezed into
+     a 14ch column is the same defect in a narrower form. `100%` is the honest
+     basis for it: one full-width row, then the buttons.
+
+     The clamp stays as the guard it always was. At 360px the English and
+     Ukrainian lines fit in two rows at this width; a longer one would be cut
+     rather than allowed to push the buttons off the bottom of a banner that
+     sits on every workspace page. */
   .verify-banner p {
-    flex: 1 1 14ch;
+    flex: 1 1 100%;
     min-width: 0;
     display: -webkit-box;
     -webkit-box-orient: vertical;

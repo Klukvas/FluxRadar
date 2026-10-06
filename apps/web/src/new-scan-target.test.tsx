@@ -83,10 +83,11 @@ describe('new scan requires a saved profile', () => {
   it('shows the profile CTA without rendering a target address field or resolving a profile', async () => {
     const fetchMock = renderNewScan(workspace([]));
     await screen.findByText('New scan — scope and tariff');
-    expect(screen.getByRole('link', { name: 'Create profile' })).toHaveAttribute(
-      'href',
-      '/profiles',
-    );
+    // A button inside the app, not a link that reloads it: the plan picked on a
+    // pricing card lives in memory, and a page load dropped it (App.test.tsx
+    // holds the whole journey).
+    expect(screen.getByRole('button', { name: 'Create profile' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Create profile' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: /^Site address/ })).toBeNull();
     expect(fetchMock.mock.calls.some(([input]) => pathOf(input) === '/profiles/resolve')).toBe(
       false,
@@ -622,6 +623,7 @@ describe('the site the form is opened on', () => {
       onProfilesChanged: () => Promise.resolve(),
       onClose: () => undefined,
       onError: () => undefined,
+      onCreateProfile: () => undefined,
     };
     const { rerender } = render(<NewScanScreen {...props} profiles={[]} selectedProfile={null} />);
     rerender(<NewScanScreen {...props} profiles={[profile, salon]} selectedProfile={salon} />);

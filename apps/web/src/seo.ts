@@ -11,12 +11,14 @@
 // (see `readInitialLanguage`), so an `hreflang` alternate pointing at it renders
 // the language it promises.
 
+import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { copy, type Language } from './i18n';
 
 export const SITE_ORIGIN = 'https://fluxradar.net';
 
 /** Public pages that have their own URL, title and canonical. */
-export type PublicPageId = 'home' | 'faq' | 'checks' | 'bot' | 'privacy' | 'terms' | 'cookies';
+export type PublicPageId =
+  'home' | 'faq' | 'checks' | 'bot' | 'exampleReport' | 'privacy' | 'terms' | 'cookies';
 
 /** Everything else is behind sign-in and is deliberately not indexable. */
 export type SeoPageId = PublicPageId | 'workspace';
@@ -26,6 +28,7 @@ const PUBLIC_PAGE_PATHS: Readonly<Record<PublicPageId, string>> = {
   faq: '/faq',
   checks: '/checks',
   bot: '/bot',
+  exampleReport: EXAMPLE_REPORT_PATH,
   privacy: '/privacy',
   terms: '/terms',
   cookies: '/cookies',

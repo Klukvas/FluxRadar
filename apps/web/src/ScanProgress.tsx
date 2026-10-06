@@ -222,9 +222,7 @@ export function ScanScreen(props: {
             </div>
           </div>
         ) : reportFinalizing ? (
-          <p role="status">
-            {props.language === 'uk' ? 'Фіналізуємо звіт…' : 'Finalizing report…'}
-          </p>
+          <p role="status">{t.finalizing}</p>
         ) : (
           <>
             <p className="muted">

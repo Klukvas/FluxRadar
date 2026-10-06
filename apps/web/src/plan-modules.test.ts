@@ -19,6 +19,7 @@ import {
   PLAN_MODULES,
   PLAN_ORDER,
   PLAN_URL_LIMIT,
+  SIDE_SCORE_MODULES,
   modulesBeyondPlan,
   planIncludesActionPlan,
   planIncludesExport,
@@ -82,6 +83,23 @@ describe('the plan/module mirror', () => {
       expect(PLAN_MODULES[plan as keyof typeof PLAN_MODULES]).toEqual(declared);
     },
   );
+
+  // §15 keeps these two sections out of the overall score, and the mirror is
+  // what the report screens and the example fixture ask. A section added to the
+  // contract's list and not to the mirror would be averaged into an overall
+  // number the product does not produce.
+  it('matches the tariff table’s side-score sections', () => {
+    const declared = /SIDE_SCORE_MODULES: readonly ModuleName\[\] = \[([^\]]*)\]/.exec(TARIFFS);
+    if (declared === null) throw new Error('tariffs.ts declares no SIDE_SCORE_MODULES');
+    const modules = [...(declared[1] ?? '').matchAll(/'([^']+)'/g)].map((match) => match[1]);
+    expect(modules.length).toBeGreaterThan(0);
+    expect(SIDE_SCORE_MODULES).toEqual(modules);
+    // And each of them is a real section of the fullest plan, so the mirror
+    // cannot drift onto a name no report carries.
+    for (const module of SIDE_SCORE_MODULES) {
+      expect(PLAN_MODULES.Complete).toContain(module);
+    }
+  });
 
   it('reads the tariff table it is checked against', () => {
     // Guards the parser itself: a rename that made both regexes miss would leave

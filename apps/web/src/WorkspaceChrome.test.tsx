@@ -157,8 +157,38 @@ describe('narrow-screen stylesheet', () => {
   // width 0, so it always shared the line with the 274px English button row
   // and was left 46px at 360px and 61px at 375px — two clamped lines that cut
   // "email." off "Confirm your email.".
-  it('gives the banner’s line a width of its own, so the buttons drop under it', () => {
-    expect(phoneRule('.verify-banner p')).toMatch(/flex:\s*1 1 \d+ch;/);
+  //
+  // The line now carries the reason as well as the ask, so sharing the row at
+  // all is what has to be ruled out: it takes a full-width row of its own and
+  // the buttons wrap under it.
+  it('gives the banner’s line a row of its own, so the buttons drop under it', () => {
+    const line = phoneRule('.verify-banner p');
+    expect(line).toMatch(/flex:\s*1 1 100%;/);
+    // Not a column measured in characters any more — that was the width that
+    // squeezed the sentence.
+    expect(line).not.toMatch(/flex:[^;]*\dch/);
+    // And the clamp stays: a longer locale is cut rather than allowed to push
+    // the buttons out of a banner that sits on every workspace page.
+    expect(line).toMatch(/-webkit-line-clamp:\s*2;/);
+  });
+
+  // The reason was the half that got clipped: the short line said "Confirm
+  // your email." and stopped, so the one fact that makes the banner worth
+  // acting on never reached a phone. Length is pinned with it, because a
+  // sentence that needs three lines at 360px is clipped by the rule above.
+  it('says why on a phone too, in both languages, inside two lines', () => {
+    for (const language of ['en', 'uk'] as const) {
+      const short = accountCopy[language].banner.short;
+      for (const line of Object.values(short)) {
+        expect(line.length).toBeLessThanOrEqual(90);
+      }
+      // The reason, not only the ask: the password-reset link, or why no
+      // letter arrived.
+      expect(short.confirm).toMatch(language === 'en' ? /password/i : /парол/i);
+      expect(short.deliveryUnavailable.length).toBeGreaterThan(
+        'No confirmation email was sent.'.length,
+      );
+    }
   });
 
   it('shows the short banner line only on phones', () => {

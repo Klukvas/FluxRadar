@@ -1,6 +1,7 @@
 import type { PublicDocumentScreen } from './app-routes';
 import { BotScreen } from './Bot';
 import { AuditCoverageScreen } from './Checks';
+import { ExampleReportScreen } from './ExampleReportPage';
 import { FaqScreen } from './Faq';
 import type { Language } from './i18n';
 import { LegalDocumentScreen } from './LegalDocuments';
@@ -42,6 +43,15 @@ export function PublicDocument({
   if (screen === 'faq') {
     return (
       <FaqScreen language={language} onLanguageChange={onLanguageChange} signedIn={signedIn} />
+    );
+  }
+  if (screen === 'example-report') {
+    return (
+      <ExampleReportScreen
+        language={language}
+        onLanguageChange={onLanguageChange}
+        signedIn={signedIn}
+      />
     );
   }
   return <BotScreen language={language} onLanguageChange={onLanguageChange} signedIn={signedIn} />;

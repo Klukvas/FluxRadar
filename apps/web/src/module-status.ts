@@ -21,6 +21,47 @@ import { copy, fillCopy, type Language } from './i18n';
 
 type ReasonKey = keyof (typeof copy)['en']['report']['moduleReason'];
 
+/**
+ * Whose problem a reason is, and whether the owner has to do anything.
+ *
+ * The chip said "Checked with limits" beside a score of 100 and the reason
+ * underneath read "The AI provider answered in a shape FluxRadar refuses to
+ * store, so the answer was discarded instead of being reported as a result".
+ * An owner cannot tell from that whether their site is broken, whether they
+ * have been short-changed, or whether they are meant to act. One short
+ * sentence answers it, chosen per reason code rather than per section:
+ *
+ *  `ours`        something inside FluxRadar or a service it uses; nothing to do
+ *  `oursRetry`   the same, but running the check again can fix it
+ *  `eitherSide`  we cannot say whose it is; running it again is what tells them
+ *                apart. For a measurement that can be missing because the
+ *                service dropped it *or* because the page it read did not
+ *                answer — claiming "nothing to do" there would be a guess.
+ *  `byPlan`      the plan's own limit, working as sold
+ *  `yours`       the owner has to act, and the reason above says how
+ *  `yourChoice`  the owner's own cancel
+ *  `theSite`     about what the site gave us, which is what a check reports
+ *  `nothingToMeasure` neither side: there was nothing here to measure
+ *  `notYet`      FluxRadar does not measure this area yet
+ */
+type ReasonBlame =
+  | 'ours'
+  | 'oursRetry'
+  | 'eitherSide'
+  | 'byPlan'
+  | 'yours'
+  | 'yourChoice'
+  | 'theSite'
+  | 'nothingToMeasure'
+  | 'notYet';
+
+/** A sentence this row owes its reader, and the reason key it came from. */
+interface ReasonSentence {
+  /** Null for a counted or composite clause assembled from numbers. */
+  readonly key: ReasonKey | null;
+  readonly text: string;
+}
+
 /** Wire reason → the sentence key that explains it. */
 const REASON_KEYS: Readonly<Record<string, ReasonKey>> = {
   // Crawl coverage, shared by every rules module.
@@ -62,6 +103,73 @@ const REASON_KEYS: Readonly<Record<string, ReasonKey>> = {
   AnalyticsPropertyAccessDenied: 'analyticsAccessDenied',
   AnalyticsNoDataForPeriod: 'analyticsNoData',
   AnalyticsProviderUnavailable: 'analyticsProviderUnavailable',
+};
+
+/**
+ * Whose problem each reason is. Read off the producing side's own causes, not
+ * off the section: a Performance row whose provider was never configured and a
+ * Performance row whose provider timed out ask opposite things of the owner.
+ */
+const REASON_BLAME: Readonly<Record<ReasonKey, ReasonBlame | null>> = {
+  // Crawl coverage: what the site gave the crawler.
+  noApplicableTargets: 'nothingToMeasure',
+  targetsUnreachable: 'theSite',
+  targetsPartiallyUnreachable: 'theSite',
+  noDeterministicOracle: 'notYet',
+  platformFailure: 'oursRetry',
+  scanCancelled: 'yourChoice',
+  // Performance: measured by an external service. A deployment with no service
+  // configured is ours alone. The other three are not: a *sample* is lost
+  // whenever the measurement throws
+  // (`apps/api/src/integrations/performance/audit.ts`), and that includes
+  // Lighthouse failing to load the owner's own page — blocked, slow or
+  // erroring — as well as the run budget being spent; a missing overall score
+  // usually has the same cause. "Nothing for you to do about it" would be a
+  // false promise on a page that is in fact unreachable, so none of the three
+  // claims a side.
+  //
+  // `PerformanceProviderUnavailable` reads like the service being down, and it
+  // was answered as ours to retry. It is not: the API writes it whenever the
+  // performance row ends Unavailable — no usable sample and no field data
+  // (`apps/api/src/orchestrator/performance-module.ts`) — and every sample is
+  // lost through the same throw, which `pagespeed.ts` raises for any answer
+  // that is not OK. That is exactly what Google answers when it cannot load the
+  // owner's page, so the reason cannot promise the owner has nothing to fix.
+  performanceNotConfigured: 'ours',
+  performanceScoreUnavailable: 'eitherSide',
+  performanceSamplesIncomplete: 'eitherSide',
+  performanceProviderUnavailable: 'eitherSide',
+  // AI SEO / GEO. A notice this scan does not carry, a redaction step that did
+  // not finish and a provider answering outside its contract are all ours.
+  aiConsentMissing: 'ours',
+  aiRedactionBlocked: 'ours',
+  aiQuotaExceeded: 'byPlan',
+  aiProviderUnavailable: 'oursRetry',
+  aiProviderContract: 'ours',
+  aiEmptyQuestionLibrary: 'ours',
+  uxAiConsentMissing: 'ours',
+  uxAiRedactionBlocked: 'ours',
+  uxAiQuotaExceeded: 'byPlan',
+  uxAiProviderUnavailable: 'oursRetry',
+  uxAiProviderContract: 'ours',
+  uxAiScanCancelled: 'yourChoice',
+  uxAiUnsupportedClaims: 'ours',
+  // The counted and composite clauses name their own causes immediately after
+  // themselves, and those carry the sentence; one here would answer for them.
+  aiPartial: null,
+  aiCancelled: 'yourChoice',
+  aiEvaluationUnavailable: null,
+  aiQueryGenerationUnavailable: null,
+  aiQueryGenerationInvalidResponse: 'ours',
+  // Analytics: the only group where the owner is the one who can act.
+  analyticsNotConnected: 'yours',
+  analyticsPropertyNotSelected: 'yours',
+  analyticsNeedsReconnect: 'yours',
+  analyticsAccessDenied: 'yours',
+  analyticsNoData: 'nothingToMeasure',
+  analyticsProviderUnavailable: 'oursRetry',
+  // A reason this build has never seen: saying whose it is would be guessing.
+  unknown: null,
 };
 
 /**
@@ -129,6 +237,28 @@ const ANSWER_EVALUATION_CLAUSE = /(?:^|; )AnswerEvaluationUnavailable: (\d+) of 
  * whole sentence to the raw-English fallback.
  */
 export function moduleStatusReasons(module: ScanModule, language: Language): readonly string[] {
+  return reasonSentences(module, language).map((sentence) => sentence.text);
+}
+
+/**
+ * Whose problem this row's reasons are, and whether the owner must act — one
+ * short sentence per distinct answer, in the order the reasons are read.
+ *
+ * Distinct, because a partial AI run names several causes and most of them are
+ * ours: repeating "this is on our side" four times under one card says less
+ * than saying it once. Empty for a row whose reasons this build cannot place,
+ * which is the honest answer rather than a guess.
+ */
+export function moduleResponsibilities(module: ScanModule, language: Language): readonly string[] {
+  const t = copy[language].report.moduleResponsibility;
+  const blames = reasonSentences(module, language).flatMap((sentence) =>
+    sentence.key === null ? [] : (REASON_BLAME[sentence.key] ?? []),
+  );
+  return [...new Set(blames)].map((blame) => t[blame]);
+}
+
+/** Every sentence this row owes its reader, each with the reason it came from. */
+function reasonSentences(module: ScanModule, language: Language): readonly ReasonSentence[] {
   const whole = module.statusReason?.trim() ?? '';
   if (whole === '') return [];
 
@@ -159,31 +289,37 @@ export function moduleStatusReasons(module: ScanModule, language: Language): rea
  * partial-run reason uses, because a count with no explanation is not a reason
  * and folding the causes into one label is the defect this exists to fix.
  */
-function answerEvaluationSentences(match: RegExpExecArray, language: Language): readonly string[] {
+function answerEvaluationSentences(
+  match: RegExpExecArray,
+  language: Language,
+): readonly ReasonSentence[] {
   const t = copy[language].report.moduleReason;
   const [, unavailable = '', total = '', causes = ''] = match;
   return [
-    fillCopy(t.aiEvaluationUnavailable, { unavailable, total }),
+    {
+      key: 'aiEvaluationUnavailable',
+      text: fillCopy(t.aiEvaluationUnavailable, { unavailable, total }),
+    },
     ...distinctCauses(causes).map((cause) => sentenceFor(cause, language)),
   ];
 }
 
 /** The sentences for the run's own reason: the counted forms, or a token. */
-function runSentences(reason: string, language: Language): readonly string[] {
+function runSentences(reason: string, language: Language): readonly ReasonSentence[] {
   const t = copy[language].report.moduleReason;
 
   const counted = GEO_PARTIAL.exec(reason);
   if (counted !== null) {
     const [, unavailable = '', total = '', causes = ''] = counted;
     return [
-      fillCopy(t.aiPartial, { unavailable, total }),
+      { key: 'aiPartial', text: fillCopy(t.aiPartial, { unavailable, total }) },
       ...distinctCauses(causes).map((cause) => sentenceFor(cause, language)),
     ];
   }
   const cancelled = GEO_CANCELLED.exec(reason);
   if (cancelled !== null) {
     const [, answered = '', total = ''] = cancelled;
-    return [fillCopy(t.aiCancelled, { answered, total })];
+    return [{ key: 'aiCancelled', text: fillCopy(t.aiCancelled, { answered, total }) }];
   }
   return [sentenceFor(reason, language)];
 }
@@ -200,12 +336,20 @@ function queryGenerationSentences(
   kind: string,
   detail: string,
   language: Language,
-): readonly string[] {
+): readonly ReasonSentence[] {
   const t = copy[language].report.moduleReason;
   if (kind === 'InvalidResponse') {
-    return [t.aiQueryGenerationInvalidResponse];
+    return [
+      {
+        key: 'aiQueryGenerationInvalidResponse',
+        text: t.aiQueryGenerationInvalidResponse,
+      },
+    ];
   }
-  return [t.aiQueryGenerationUnavailable, sentenceFor(detail, language)];
+  return [
+    { key: 'aiQueryGenerationUnavailable', text: t.aiQueryGenerationUnavailable },
+    sentenceFor(detail, language),
+  ];
 }
 
 /** The causes inside a counted GEO reason, in the order they were first seen. */
@@ -217,10 +361,11 @@ function distinctCauses(causes: string): readonly string[] {
   return [...new Set(named)];
 }
 
-function sentenceFor(reason: string, language: Language): string {
+function sentenceFor(reason: string, language: Language): ReasonSentence {
   const t = copy[language].report.moduleReason;
   const key = REASON_KEYS[reason];
   // A reason this build has no sentence for is still a fact about the scan:
   // quoting it beats both silence and a paraphrase the reader cannot check.
-  return key === undefined ? fillCopy(t.unknown, { reason }) : t[key];
+  if (key === undefined) return { key: 'unknown', text: fillCopy(t.unknown, { reason }) };
+  return { key, text: t[key] };
 }
