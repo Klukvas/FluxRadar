@@ -10,7 +10,7 @@ import { copy, type Language } from './i18n';
 // marked as the page the reader is on. The public variant is what links out with
 // plain `href`s instead of an SPA callback this page does not have — it is not a
 // shorter menu. Its workspace tabs follow the reader's session, as they do on
-// every page the app renders; only the static blog header stays signed-out.
+// every page the app renders and in the static blog header.
 
 export function FaqScreen(props: {
   language: Language;

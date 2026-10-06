@@ -40,10 +40,8 @@
     'nav.navigate': { en: 'Navigate', uk: 'Навігація' },
     'nav.system': { en: 'System', uk: 'Система' },
     'nav.home': { en: 'Home', uk: 'Головна' },
-    // The workspace tabs the product header lists. They are disabled here for
-    // the same reason they are disabled on every other page served to a reader
-    // without a session — the blog is flat files and has no session at all —
-    // but the row itself has to be the row the rest of the site shows.
+    // The workspace tabs the product header lists: shipped disabled, as a visitor
+    // sees them everywhere, until readSession finds a signed-in reader.
     'nav.profiles': { en: 'Profiles', uk: 'Профілі' },
     'nav.scan': { en: 'Scan', uk: 'Перевірка' },
     'nav.reports': { en: 'Reports', uk: 'Звіти' },
@@ -296,6 +294,7 @@
   function applyLanguage(language, options) {
     currentLanguage = language;
     translateChrome(language);
+    syncWorkspaceTabs(language);
     if (!isIndex) {
       renderCookieControls(language);
       return;
@@ -623,6 +622,60 @@
     sendPageView();
   }
 
+  // ── Session ─────────────────────────────────────────────────────────────
+  // The blog's half of src/app-session.ts. Served outside the bundle, it keeps its
+  // own copies of the API base and the tab paths; blog-session.test.ts holds them
+  // to the VITE_API_URL default in Dockerfile.web and to src/workspace-paths.ts.
+  var API_BASE = '/api';
+  var WORKSPACE_TAB_PATHS = {
+    'nav.profiles': '/profiles',
+    'nav.scan': '/scan',
+    'nav.reports': '/reports',
+    'nav.integrations': '/integrations',
+  };
+
+  // The language rides along, as in MenuBar: it is stored only with consent.
+  function syncWorkspaceTabs(language) {
+    Object.keys(WORKSPACE_TAB_PATHS).forEach(function (key) {
+      var link = document.querySelector('a.menubar__item[data-t="' + key + '"]');
+      if (link !== null) link.setAttribute('href', WORKSPACE_TAB_PATHS[key] + '?lang=' + language);
+    });
+  }
+
+  /** Once the envelope names an account, swaps each visitor tab for the link MenuBar draws. */
+  function showSession(envelope) {
+    var account = envelope?.success === true ? envelope.data : null;
+    if (typeof account !== 'object' || account === null) throw new Error('No account');
+    Object.keys(WORKSPACE_TAB_PATHS).forEach(function (key) {
+      var button = document.querySelector('button.menubar__item[data-t="' + key + '"]');
+      if (button === null) return;
+      var link = document.createElement('a');
+      ['class', 'title', 'data-t', 'data-t-title'].forEach(function (name) {
+        if (button.hasAttribute(name)) link.setAttribute(name, button.getAttribute(name));
+      });
+      link.textContent = button.textContent;
+      button.replaceWith(link);
+    });
+    syncWorkspaceTabs(currentLanguage);
+  }
+
+  // A visitor's 401 is the ordinary answer. Any other answer, or a failed request,
+  // logs one line that never carries the body: a JSON parse error would quote it.
+  function readSession() {
+    window
+      .fetch(API_BASE + '/auth/me', { credentials: 'same-origin' })
+      .then(function (response) {
+        if (response.status === 401) return undefined;
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json().then(showSession, function () {
+          throw new Error('Not JSON');
+        });
+      })
+      .catch(function (caught) {
+        window.console.error('FluxRadar session unavailable', caught);
+      });
+  }
+
   // ── Burger sheet ────────────────────────────────────────────────────────
   var toggle = document.querySelector('[data-menu-toggle]');
   var sheet = document.getElementById('menubar-links');
@@ -740,4 +793,5 @@
     syncAnalytics();
     renderCookieControls(currentLanguage);
   });
+  readSession();
 })();

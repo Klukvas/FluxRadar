@@ -116,7 +116,8 @@ const WORKSPACE_TABS: readonly {
  * /terms, /cookies — and for the static blog pages that hand-write this same
  * markup, so it links out with plain `href`s. Its workspace tabs are disabled
  * for a visitor and become links into the workspace once the page learns the
- * reader has a session. The static blog never learns it and stays signed-out.
+ * reader has a session. The static blog learns it from the same `/auth/me`
+ * request, and `public/blog/blog.js` swaps in the same links.
  *
  * The full row needs about 900px in English and 980px in Ukrainian, so the
  * burger takes over below 1000px (`base.css` and `public/blog/blog.css`), not

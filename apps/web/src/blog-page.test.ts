@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ANALYTICS_HOSTNAME, GA_MEASUREMENT_ID, GA_SCRIPT_ORIGIN } from './analytics-config';
 import { copy } from './i18n';
@@ -37,6 +37,20 @@ const PAGES = [
 function readPage(name: string): string {
   return readFileSync(resolve(BLOG_ROOT, name), 'utf8');
 }
+
+// blog.js asks the API who is reading as soon as it runs. Every page here is a
+// visitor's, so the request gets a visitor's 401 instead of the network;
+// blog-session.test.ts covers a signed-in reader and the failures.
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(() => Promise.resolve(new Response(null, { status: 401 }))),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('blog pages share one header with the app', () => {
   it.each(PAGES)('%s loads the shared header stylesheet and script', (name) => {
@@ -239,8 +253,8 @@ describe('blog header renders the same way on every page variant', () => {
     expect(hrefs).toEqual(['/', '/faq', '/blog']);
   });
 
-  // Flat files have no session, so the tabs behind one render the way the
-  // product renders them for a reader who is not signed in.
+  // The pages ship the tabs the way the product renders them for a reader who
+  // is not signed in; blog.js turns them into links only once a session answers.
   it.each(PAGES)('%s shows the workspace tabs in the signed-out state', (name) => {
     const tabs = Array.from(
       readPage(name).matchAll(/<button class="menubar__item"[^>]*>/g),
@@ -267,8 +281,8 @@ describe('blog header renders the same way on every page variant', () => {
     expect(burgerBreakpoint(BLOG_CSS)).toBe(burgerBreakpoint(BASE_CSS));
   });
 
-  // The tabs are inert on flat files. Without the rule they would read as four
-  // live controls in full contrast, which is not how the product draws them.
+  // A visitor's tabs are inert. Without the rule they would read as four live
+  // controls in full contrast, which is not how the product draws them.
   it('greys the inert workspace tabs the way the React header greys them', () => {
     const declarations = (css: string) => {
       const start = css.indexOf('.menubar button:disabled {');

@@ -120,8 +120,8 @@ button:focus-visible,
   background: var(--selection);
   color: #fff;
 }
-/* The workspace tabs the header lists are inert on flat files, so they render
-   here the way the product renders them for a reader with no session. */
+/* A visitor's workspace tabs are inert until blog.js finds a session, so they
+   render here the way the product renders them for a reader with no session. */
 .menubar button:disabled {
   color: var(--plat-400);
   cursor: not-allowed;
