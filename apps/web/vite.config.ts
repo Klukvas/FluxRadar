@@ -1,6 +1,9 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+
 import react from '@vitejs/plugin-react';
-import type { Connect } from 'vite';
-import { defineConfig } from 'vite';
+import type { Connect, Plugin } from 'vite';
+import { defineConfig, runnerImport } from 'vite';
 
 // Keep the runtime-style `.js` suffix: TypeScript resolves it to the `.ts`
 // source, while Vite's native config loader gets an explicit ESM import.
@@ -64,6 +67,46 @@ function blogIndexRewritePlugin() {
   };
 }
 
+/**
+ * Writes `dist/<path>/index.html` for every public page except home, each with
+ * that page's own title, description, canonical, social cards and alternates
+ * (see `src/static-page-heads.ts` for why the first response needs them).
+ *
+ * It starts from the `index.html` this build just emitted, so the hashed script
+ * and stylesheet tags are the real ones. The generator is loaded through Vite's
+ * own module runner rather than imported here: it reaches `api.ts`, which reads
+ * `import.meta.env` at module load, and only a Vite transform defines that.
+ */
+function staticPageHeadsPlugin(): Plugin {
+  let root = process.cwd();
+  return {
+    name: 'static-page-heads',
+    apply: 'build',
+    configResolved(config) {
+      root = config.root;
+    },
+    async writeBundle(options, bundle) {
+      const entry = bundle['index.html'];
+      if (entry?.type !== 'asset' || options.dir === undefined) {
+        throw new Error(
+          'static-page-heads: the build wrote no index.html to derive page heads from',
+        );
+      }
+      const template =
+        typeof entry.source === 'string' ? entry.source : new TextDecoder().decode(entry.source);
+      const { module } = await runnerImport<typeof import('./src/static-page-heads')>(
+        './src/static-page-heads.ts',
+        { root, configFile: false },
+      );
+      for (const file of module.staticPageHeadFiles(template)) {
+        const target = join(options.dir, file.fileName);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, file.html);
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), blogIndexRewritePlugin()],
+  plugins: [react(), blogIndexRewritePlugin(), staticPageHeadsPlugin()],
 });

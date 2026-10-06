@@ -1,11 +1,17 @@
 // Per-page metadata for the public surfaces of the single-page app.
 //
-// `index.html` is served for every route, so without this every public page
-// would inherit the home page's title, description and — worst of all — the
-// home page's canonical URL, which tells a crawler that /faq, /checks, /privacy,
-// /terms and /cookies are all the same document and that only one deserves to be
-// indexed. Each page therefore states its own title, description, canonical and
-// social cards at runtime.
+// Each public page needs its own title, description, canonical and social
+// cards: a page that inherits the home page's canonical tells a crawler that
+// /faq, /checks, /privacy, /terms and /cookies are all the same document and
+// that only one deserves to be indexed.
+//
+// The first response already carries the English head of the page it was asked
+// for: the production build writes `dist/<path>/index.html` for every public
+// page from these same functions (see `static-page-heads.ts`), because link
+// previews and most AI crawlers read only that response and never run this
+// script. At runtime `applyPageMetadata` then keeps the head right for the
+// language and the screen actually shown, replacing the static tags in place
+// rather than adding second copies.
 //
 // The language variants are real URLs, not a guess: `?lang=uk` is read on entry
 // (see `readInitialLanguage`), so an `hreflang` alternate pointing at it renders
@@ -23,7 +29,7 @@ export type PublicPageId =
 /** Everything else is behind sign-in and is deliberately not indexable. */
 export type SeoPageId = PublicPageId | 'workspace';
 
-const PUBLIC_PAGE_PATHS: Readonly<Record<PublicPageId, string>> = {
+export const PUBLIC_PAGE_PATHS: Readonly<Record<PublicPageId, string>> = {
   home: '/',
   faq: '/faq',
   checks: '/checks',
@@ -34,10 +40,10 @@ const PUBLIC_PAGE_PATHS: Readonly<Record<PublicPageId, string>> = {
   cookies: '/cookies',
 };
 
-const OG_LOCALES: Readonly<Record<Language, string>> = { en: 'en_US', uk: 'uk_UA' };
+export const OG_LOCALES: Readonly<Record<Language, string>> = { en: 'en_US', uk: 'uk_UA' };
 
 /** Marks the tags this module owns, so a re-render replaces them instead of stacking. */
-const MANAGED_ATTRIBUTE = 'data-fluxradar-seo';
+export const MANAGED_ATTRIBUTE = 'data-fluxradar-seo';
 
 function isPublicPage(page: SeoPageId): page is PublicPageId {
   return page !== 'workspace';
@@ -206,7 +212,11 @@ function removeCanonical(): void {
   document.head.querySelector('link[rel="canonical"]')?.remove();
 }
 
-/** Removes only the tags this module added, never the ones shipped in `index.html`. */
+/**
+ * Removes only the marked tags: the ones this module added and the ones the
+ * build wrote into a page's static head, never the unmarked site-wide ones
+ * shipped in `index.html`.
+ */
 function removeManaged(selector: string): void {
   for (const element of document.head.querySelectorAll(`${selector}[${MANAGED_ATTRIBUTE}]`)) {
     element.remove();
