@@ -26,8 +26,6 @@ import { findOwnProfile } from '../profiles/routes.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
-import type { Mailer } from '../email/mailer.ts';
-import { notifyScanEvent } from '../email/notifications.ts';
 
 const internalCheckoutInputSchema = z
   .object({
@@ -54,7 +52,6 @@ export interface InternalCheckoutRouterDeps {
   readonly enqueueScan?: (scanId: string) => void;
   readonly internalFreeEmails: ReadonlySet<string>;
   readonly requestRateLimiter?: RequestRateLimiter;
-  readonly mailer?: Mailer;
   /** Checks the chosen egress location before a scan is created (D-228). */
   readonly egress: EgressLocationMonitor;
   /** Test seam; production reads GOOGLE_AI_API_KEY / PERPLEXITY_API_KEY. */
@@ -108,13 +105,6 @@ export function internalCheckoutRouter(deps: InternalCheckoutRouterDeps): Router
     // response names none; `billing` says why.
     sendOk(res, { scanId: scan.id, plan: input.plan, billing: 'internal-free' }, { status: 201 });
     deps.enqueueScan?.(scan.id);
-    void notifyScanEvent(
-      deps.prisma,
-      deps.mailer,
-      scan.id,
-      'purchase_confirmed',
-      'Your internal test audit is ready to run.',
-    ).catch(() => undefined);
   });
 
   return router;

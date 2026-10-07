@@ -218,7 +218,7 @@ describe('an email confirmation link opened in a signed-in browser', () => {
 
     const banner = (
       await screen.findByText(
-        'Confirm your email at owner@example.com. Letters about your payments, and the link that resets a forgotten password, go only there. Check your inbox or ask for a new link.',
+        'Confirm your email at owner@example.com. The link that resets a forgotten password goes only there. Check your inbox or ask for a new link.',
       )
     ).closest('div');
     if (banner === null) throw new Error('expected the banner');
@@ -249,7 +249,7 @@ describe('an email confirmation link opened in a signed-in browser', () => {
 
     expect(
       await screen.findByText(
-        'Confirm your email: we sent a link to owner@example.com. Letters about your payments, and the link that resets a forgotten password, go only there — confirming is how we know the address works.',
+        'Confirm your email: we sent a link to owner@example.com. The link that resets a forgotten password goes only there — confirming is how we know the address works.',
       ),
     ).toBeInTheDocument();
   });

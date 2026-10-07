@@ -44,7 +44,7 @@ function UkrainianPrivacy(): JSX.Element {
           <li>
             <strong>Акаунт і підтримка:</strong> email, hash пароля, записи верифікації та
             відновлення, сесії входу, доставка сервісних листів і ваші звернення. Ми надсилаємо лише
-            операційні повідомлення про акаунт, оплату, звіт і безпеку — без маркетингових розсилок.
+            операційні повідомлення про акаунт і безпеку — без маркетингових розсилок.
           </li>
           <li>
             <strong>Профілі й аудити:</strong> домен, назва, галузь, опис, товари чи послуги,
@@ -376,7 +376,7 @@ function EnglishPrivacy(): JSX.Element {
           <li>
             <strong>Account and support:</strong> email, password hash, verification and reset
             records, sign-in sessions, service-email delivery and support messages. We send only
-            operational account, payment, report and security messages, not marketing email.
+            operational account and security messages, not marketing email.
           </li>
           <li>
             <strong>Profiles and audits:</strong> domain, name, industry, description, products or

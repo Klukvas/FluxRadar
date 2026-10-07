@@ -44,8 +44,6 @@ import type { FetchLike } from '../billing/fetch-like.ts';
 import { WEBHOOK_OUTCOMES } from '../billing/webhook-outcomes.ts';
 import { assertOptInProvidersAvailable } from '../billing/opt-in-consent.ts';
 import { PAID_PLANS, planPriceUsd, planUrlLimit } from '../billing/plans.ts';
-import type { Mailer } from '../email/mailer.ts';
-import { notifyScanEvent } from '../email/notifications.ts';
 import { sendOk } from '../http/envelope.ts';
 import { validationError } from '../http/errors.ts';
 import { requiredParam } from '../http/params.ts';
@@ -100,7 +98,6 @@ export interface CreemWebhookDeps {
   readonly creem: CreemConfigResult;
   readonly now: () => Date;
   readonly enqueueScan?: (scanId: string) => void;
-  readonly mailer?: Mailer;
   readonly requestRateLimiter?: RequestRateLimiter;
 }
 
@@ -253,17 +250,12 @@ export function creemWebhookHandler(deps: CreemWebhookDeps): RequestHandler {
       },
       pending ? { status: 202 } : {},
     );
-    // Answer first: a slow queue or mailer must not turn a processed payment
-    // into a Creem retry.
+    // Answer first: a slow queue must not turn a processed payment into a Creem
+    // retry. Nothing is mailed from here — Creem sends the buyer their own
+    // payment receipt, and a second confirmation from us said the same thing
+    // twice.
     for (const scanId of result.createdScanIds) {
       deps.enqueueScan?.(scanId);
-      void notifyScanEvent(
-        deps.prisma,
-        deps.mailer,
-        scanId,
-        'purchase_confirmed',
-        'Your paid audit is ready to run.',
-      ).catch(() => undefined);
     }
   };
 }

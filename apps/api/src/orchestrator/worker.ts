@@ -35,7 +35,6 @@ import {
   requeueAndClaimJob,
 } from './claim.ts';
 import { runScanAttempt } from './run-attempt.ts';
-import { notifyScanEvent } from '../email/notifications.ts';
 
 // The current runtime has one in-process queue drain and HTTP enqueue path.
 // Keeping active scan IDs shared between both paths closes the retry window in
@@ -281,17 +280,9 @@ async function processClaimedJob(
           await pruneOldCoverageProofs(deps, completed);
         }
         await finishJob(prisma, activeJobId);
-        if (outcome.kind === 'Failed' && outcome.refund !== null) {
-          void notifyScanEvent(
-            prisma,
-            deps.mailer,
-            scanId,
-            'refund_created',
-            'A refund record was created for this audit.',
-          ).catch((error: unknown) =>
-            logger.warn('refund notification failed', { scanId, error: String(error) }),
-          );
-        }
+        // The refund record is the whole outcome here. Creem mails the buyer
+        // when the refund it was issued from actually moves money, so a second
+        // message from us only announced a payout we had not made yet.
         return {
           scanId,
           status: outcome.kind,
@@ -374,17 +365,6 @@ async function processClaimedJob(
             : (await requestRefund(prisma, failed.purchaseId, 'PLATFORM_FAILURE_AFTER_RETRY'))
                 .record;
         await finishJob(prisma, activeJobId);
-        if (refund !== null) {
-          void notifyScanEvent(
-            prisma,
-            deps.mailer,
-            scanId,
-            'refund_created',
-            'A refund record was created for this audit.',
-          ).catch((error: unknown) =>
-            logger.warn('refund notification failed', { scanId, error: String(error) }),
-          );
-        }
         return {
           scanId,
           status: 'Failed',

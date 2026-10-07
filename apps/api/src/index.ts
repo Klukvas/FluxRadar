@@ -55,10 +55,6 @@ import {
 } from './integrations/crawl-egress-monitor.ts';
 import { logEgressUsage, readEgressUsage } from './integrations/crawl-egress-usage.ts';
 import { createMailer, type Mailer } from './email/mailer.ts';
-import {
-  deliverDueScanNotifications,
-  waitForScanNotificationDeliveries,
-} from './email/notifications.ts';
 import { createDefaultPerformanceRunner } from './integrations/performance/index.ts';
 import { createDefaultAiProvider } from './orchestrator/geo.ts';
 import { createRenderRuntime } from './orchestrator/render-config.ts';
@@ -95,7 +91,6 @@ const EGRESS_HEALTH_INTERVAL_MS = 5 * 60 * 1000;
  * not explicitly enabled outbound refunds the pass only reports the queue.
  */
 const REFUND_DISPATCH_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
-const EMAIL_NOTIFICATION_SWEEP_INTERVAL_MS = 60 * 1000;
 
 export interface CreateAppOptions {
   readonly prisma: PrismaClient;
@@ -217,7 +212,6 @@ export function createApp(options: CreateAppOptions): Express {
     // The same locations the launch was checked against, so a scan cannot be
     // accepted for a location its worker does not know.
     egressLocations: egress.configured,
-    mailer,
   };
   void sweepRetention(options.prisma, now(), logger, objectStore);
   const scheduled = new Set<string>();
@@ -266,7 +260,6 @@ export function createApp(options: CreateAppOptions): Express {
       creem,
       now,
       enqueueScan,
-      mailer,
       requestRateLimiter,
     }),
   );
@@ -358,7 +351,6 @@ export function createApp(options: CreateAppOptions): Express {
       enqueueScan,
       internalFreeEmails,
       requestRateLimiter,
-      mailer,
       optInAiProviders,
       egress,
     }),
@@ -454,7 +446,6 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   const workerDeps: WorkerDeps = {
     prisma,
     logger,
-    mailer,
     createAiProvider: (scan, profile) =>
       createDefaultAiProvider(profile.name, new URL(scan.domain).hostname),
     createPerformanceRunner: () => createDefaultPerformanceRunner(),
@@ -535,29 +526,6 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   }, REFUND_DISPATCH_SWEEP_INTERVAL_MS);
   refundDispatchTimer.unref();
   void sweepRefundDispatch();
-  // Purchase/refund mail is an outbox, not a best-effort side effect. A send
-  // that failed or a process that stopped mid-send becomes due again here.
-  let emailSweep: Promise<void> | null = null;
-  const sweepEmailNotifications = async (): Promise<void> => {
-    if (emailSweep !== null) return emailSweep;
-    emailSweep = (async () => {
-      try {
-        await deliverDueScanNotifications(prisma, mailer);
-      } catch (error: unknown) {
-        logger.error('email notification sweep failed', {
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-        });
-      } finally {
-        emailSweep = null;
-      }
-    })();
-    return emailSweep;
-  };
-  const emailNotificationTimer = setInterval(() => {
-    void sweepEmailNotifications();
-  }, EMAIL_NOTIFICATION_SWEEP_INTERVAL_MS);
-  emailNotificationTimer.unref();
-  void sweepEmailNotifications();
   // Each egress location is one VPS, and every scan from it depends on it.
   // Checked at boot and then periodically, so an outage is a log line here
   // rather than a customer telling us their scans stopped working — and a
@@ -600,7 +568,6 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       clearInterval(retentionTimer);
       clearInterval(pendingRefundTimer);
       clearInterval(refundDispatchTimer);
-      clearInterval(emailNotificationTimer);
       clearInterval(queueRecoveryTimer);
       clearInterval(egressHealthTimer);
       await new Promise<void>((resolveClose, reject) => {
@@ -609,11 +576,6 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       // Before the client closes: a plan still talking to Anthropic is cancelled
       // and its attempt released, rather than left holding the scan's slot.
       await actionPlanRuns.stop();
-      // No request can enqueue another lifecycle email after server.close().
-      // Finish both the timer's pass and any fire-and-forget event send before
-      // disconnecting Prisma, so their fenced terminal update is not lost.
-      await emailSweep;
-      await waitForScanNotificationDeliveries(prisma);
       await prisma.$disconnect();
     },
   };

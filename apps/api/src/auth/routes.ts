@@ -34,7 +34,9 @@ import {
   issueEmailToken,
   resetPasswordAndRevokeTokens,
 } from './email-tokens.ts';
-import { createMailer, emailText, type Mailer } from '../email/mailer.ts';
+import { createMailer, type Mailer } from '../email/mailer.ts';
+import { renderVerificationEmail } from '../email/verification-email.ts';
+import { renderPasswordResetEmail } from '../email/password-reset-email.ts';
 import type { PrivateObjectStore } from '../integrations/s3.ts';
 import type { ApiLogger } from '../http/logger.ts';
 
@@ -99,12 +101,7 @@ async function deliverVerification(
   const token = await issueEmailToken(deps.prisma, account.id, 'verification', now);
   const link = `${originFor(deps)}/?verify_email=${encodeURIComponent(token)}`;
   try {
-    const result = await mailer.send({
-      to: account.email,
-      subject: 'Verify your FluxRadar email',
-      html: `<p>Confirm your FluxRadar email to keep your workspace secure.</p><p><a href="${emailText(link)}">Verify email</a></p>`,
-      text: `Confirm your FluxRadar email: ${link}`,
-    });
+    const result = await mailer.send({ to: account.email, ...renderVerificationEmail(link) });
     return result.status;
   } catch {
     return 'provider-error';
@@ -120,12 +117,7 @@ async function deliverPasswordReset(
   const token = await issueEmailToken(deps.prisma, account.id, 'password_reset', now);
   const link = `${originFor(deps)}/?reset_token=${encodeURIComponent(token)}`;
   try {
-    await mailer.send({
-      to: account.email,
-      subject: 'Reset your FluxRadar password',
-      html: `<p>Use this one-time link to reset your FluxRadar password.</p><p><a href="${emailText(link)}">Reset password</a></p><p>The link expires in one hour.</p>`,
-      text: `Reset your FluxRadar password: ${link}\nThe link expires in one hour.`,
-    });
+    await mailer.send({ to: account.email, ...renderPasswordResetEmail(link) });
   } catch {
     // The request remains deliberately indistinguishable from an unknown email.
   }

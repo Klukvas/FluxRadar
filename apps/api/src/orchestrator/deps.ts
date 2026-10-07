@@ -13,7 +13,6 @@ import type { PerformanceRunner } from '../integrations/performance/index.ts';
 import type { GoogleDataRunner } from '../integrations/google/runner.ts';
 
 import type { ApiLogger } from '../http/logger.ts';
-import type { Mailer } from '../email/mailer.ts';
 
 export interface WorkerCrawlOptions {
   /**
@@ -86,5 +85,4 @@ export interface WorkerDeps {
     options: EgressProbeOptions,
   ) => Promise<EgressHealth>;
   readonly now?: () => Date;
-  readonly mailer?: Mailer;
 }
