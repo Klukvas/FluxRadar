@@ -1,3 +1,4 @@
+import type { SafeFetchResult } from '@fluxradar/safe-fetch';
 import express from 'express';
 import type { PrismaClient } from '@prisma/client';
 import request from 'supertest';
@@ -10,6 +11,35 @@ import { profilesRouter } from './routes.ts';
 import type { ProfileSuggestions } from './profile-suggestions.ts';
 
 const SESSION_COOKIE = 'fluxradar_session=test-token-00000000000000000000000000000000';
+
+type Fetcher = (url: string) => Promise<SafeFetchResult>;
+
+function response(url: string, status: number, body: string, extraHeaders = {}): SafeFetchResult {
+  return {
+    finalUrl: url,
+    status,
+    headers: { 'content-type': 'text/html; charset=utf-8', ...extraHeaders },
+    body,
+    redirectChain: [],
+    timingMs: 4,
+    truncated: false,
+  };
+}
+
+/**
+ * A site that answers the preflight with a readable homepage and no robots.txt.
+ *
+ * The preflight asks every site two things — its robots.txt and its start page —
+ * so a test that does not care about reachability still has to answer both, and
+ * this is the shape that means "let us in".
+ */
+function reachableSite(): Fetcher {
+  return async (url) =>
+    url.endsWith('/robots.txt')
+      ? response(url, 404, 'not found')
+      : response(url, 200, '<html><body>hello</body></html>');
+}
+
 function appWith(options: {
   readonly authenticated?: boolean;
   readonly accountId?: string;
@@ -19,6 +49,8 @@ function appWith(options: {
     signal?: AbortSignal,
   ) => Promise<ProfileSuggestions>;
   readonly limiter?: RequestRateLimiter;
+  /** The site the reachability preflight talks to; reachable unless stated. */
+  readonly fetcher?: Fetcher;
 }) {
   const app = express();
   app.use(
@@ -38,6 +70,7 @@ function appWith(options: {
       now: () => new Date(),
       requestRateLimiter: options.limiter,
       suggestProfile: options.suggest,
+      probe: { fetcher: options.fetcher ?? reachableSite() },
     }),
     errorHandler(silentLogger),
   );
@@ -186,5 +219,192 @@ describe('POST /profiles/suggestions', () => {
       .set('Cookie', SESSION_COOKIE)
       .send({ domain: 'https://example.test' });
     expect(response.status).toBe(429);
+  });
+});
+
+// The form reads a site as soon as an address is typed, so these two are what
+// stand between a keystroke and an outbound request: the site's own answer about
+// whether it may be read, and a bound on how much of that may run at once.
+describe('reachability preflight before a public read', () => {
+  const PATH = '/profiles/suggestions';
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((next) => {
+      resolve = next;
+    });
+    return { promise, resolve };
+  }
+
+  it('asks the site whether we may read it before reading anything', async () => {
+    const order: string[] = [];
+    const app = appWith({
+      fetcher: async (url) => {
+        order.push(url.endsWith('/robots.txt') ? 'robots' : 'probe');
+        return url.endsWith('/robots.txt')
+          ? response(url, 404, 'not found')
+          : response(url, 200, '<html><body>hello</body></html>');
+      },
+      suggest: async () => {
+        order.push('extract');
+        return { name: 'Example' };
+      },
+    });
+
+    const result = await request(app).post(PATH).set('Cookie', SESSION_COOKIE).send({
+      domain: 'https://example.test',
+    });
+
+    expect(result.status).toBe(200);
+    expect(order).toEqual(['robots', 'probe', 'extract']);
+  });
+
+  it('honours a robots.txt that disallows our crawler and never reads the homepage', async () => {
+    const suggest = vi.fn();
+    const result = await request(
+      appWith({
+        suggest,
+        fetcher: async (url) =>
+          url.endsWith('/robots.txt')
+            ? response(url, 200, 'User-agent: *\nDisallow: /', { 'content-type': 'text/plain' })
+            : response(url, 200, '<html><body>secret</body></html>'),
+      }),
+    )
+      .post(PATH)
+      .set('Cookie', SESSION_COOKIE)
+      .send({ domain: 'https://private.test' });
+
+    expect(result.status).toBe(409);
+    expect(result.body.error.code).toBe('SITE_BLOCKED_BY_ROBOTS');
+    expect(suggest).not.toHaveBeenCalled();
+  });
+
+  it('names a site that refuses our crawler instead of blaming the reader', async () => {
+    const suggest = vi.fn();
+    const result = await request(
+      appWith({
+        suggest,
+        fetcher: async (url) =>
+          url.endsWith('/robots.txt')
+            ? response(url, 404, 'not found')
+            : response(url, 403, '<html>blocked</html>', { server: 'cloudflare' }),
+      }),
+    )
+      .post(PATH)
+      .set('Cookie', SESSION_COOKIE)
+      .send({ domain: 'https://walled.test' });
+
+    expect(result.status).toBe(409);
+    expect(result.body.error.code).toBe('SITE_ACCESS_DENIED');
+    expect(suggest).not.toHaveBeenCalled();
+  });
+
+  it('reports a site that does not answer at all', async () => {
+    const suggest = vi.fn();
+    const result = await request(
+      appWith({
+        suggest,
+        fetcher: async (url) => {
+          if (url.endsWith('/robots.txt')) return response(url, 404, 'not found');
+          throw new Error('getaddrinfo ENOTFOUND');
+        },
+      }),
+    )
+      .post(PATH)
+      .set('Cookie', SESSION_COOKIE)
+      .send({ domain: 'https://missing.test' });
+
+    expect(result.status).toBe(409);
+    expect(result.body.error.code).toBe('SITE_UNREACHABLE');
+    // The site's own failure text is evidence for the log, not for the response.
+    expect(JSON.stringify(result.body)).not.toContain('ENOTFOUND');
+    expect(suggest).not.toHaveBeenCalled();
+  });
+
+  it('reports a site that answers without a readable page', async () => {
+    const suggest = vi.fn();
+    const result = await request(
+      appWith({
+        suggest,
+        fetcher: async (url) =>
+          url.endsWith('/robots.txt')
+            ? response(url, 404, 'not found')
+            : response(url, 500, 'upstream error'),
+      }),
+    )
+      .post(PATH)
+      .set('Cookie', SESSION_COOKIE)
+      .send({ domain: 'https://broken.test' });
+
+    expect(result.status).toBe(409);
+    expect(result.body.error.code).toBe('SITE_BAD_RESPONSE');
+    expect(suggest).not.toHaveBeenCalled();
+  });
+
+  it('refuses a duplicate read of the same address while the first is running', async () => {
+    const reached = deferred<void>();
+    const held = deferred<ProfileSuggestions>();
+    const app = appWith({
+      suggest: () => {
+        reached.resolve();
+        return held.promise;
+      },
+    });
+    // `.then` is what makes supertest send: without it the request is still
+    // only described, and nothing would ever be in flight to collide with.
+    const first = request(app)
+      .post(PATH)
+      .set('Cookie', SESSION_COOKIE)
+      .send({ domain: 'https://example.test' })
+      .then((result) => result);
+    await reached.promise;
+
+    const duplicate = await request(app).post(PATH).set('Cookie', SESSION_COOKIE).send({
+      domain: 'https://example.test',
+    });
+
+    expect(duplicate.status).toBe(429);
+    expect(duplicate.headers['retry-after']).toBe('15');
+    held.resolve({ name: 'Example' });
+    expect((await first).status).toBe(200);
+  });
+
+  it('frees the address again once its read has finished', async () => {
+    const app = appWith({ suggest: vi.fn().mockResolvedValue({ name: 'Example' }) });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const result = await request(app).post(PATH).set('Cookie', SESSION_COOKIE).send({
+        domain: 'https://example.test',
+      });
+      expect(result.status).toBe(200);
+    }
+  });
+
+  it('lets two different addresses be read at the same time', async () => {
+    const held = deferred<ProfileSuggestions>();
+    const reached = deferred<void>();
+    const app = appWith({
+      suggest: (domain) => {
+        if (domain === 'https://first.test') {
+          reached.resolve();
+          return held.promise;
+        }
+        return Promise.resolve({ name: 'Second' });
+      },
+    });
+    const first = request(app)
+      .post(PATH)
+      .set('Cookie', SESSION_COOKIE)
+      .send({ domain: 'https://first.test' })
+      .then((result) => result);
+    await reached.promise;
+
+    const second = await request(app).post(PATH).set('Cookie', SESSION_COOKIE).send({
+      domain: 'https://second.test',
+    });
+
+    expect(second.status).toBe(200);
+    expect(second.body.data).toEqual({ name: 'Second' });
+    held.resolve({ name: 'First' });
+    expect((await first).status).toBe(200);
   });
 });

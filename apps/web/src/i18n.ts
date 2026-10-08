@@ -267,6 +267,18 @@ export const copy = {
         'Could not read public details from this site. You can still save it manually.',
       suggestProfileSourceLanguage:
         'AI context suggestions are unavailable, so source-language public details are shown. Review and edit them before saving.',
+      // The form reads the address it was given on its own, so it says so while
+      // it happens: an owner who did not press anything is owed an explanation
+      // for fields filling themselves, and a screen reader is owed the same.
+      autofillChecking: 'Checking whether we can read this site, then filling in what it states…',
+      autofillFilled:
+        'Filled in what this site’s homepage states. Review it in the section below before saving.',
+      autofillNothing:
+        'This site’s homepage states nothing we could reuse, so the details below are yours to fill in.',
+      // {reason} is the site's own verdict, in the same words the pre-purchase
+      // check uses: the refusal that stops this read would also stop the audit.
+      autofillBlocked:
+        'We could not read this site, so nothing was filled in. {reason} You can still save the profile and describe the site yourself.',
       siteAddressError:
         'That does not look like a site address. Enter your domain, like mysite.com.',
       businessType: 'Business or site type',
@@ -2305,6 +2317,14 @@ export const copy = {
         'Не вдалося прочитати публічні дані цього сайту. Його все одно можна зберегти вручну.',
       suggestProfileSourceLanguage:
         'AI-підказки контексту недоступні, тому показано публічні дані мовою джерела. Перевірте й відредагуйте їх перед збереженням.',
+      autofillChecking:
+        'Перевіряємо, чи можемо прочитати цей сайт, і заповнюємо те, що він вказує…',
+      autofillFilled:
+        'Заповнили те, що вказує головна сторінка цього сайту. Перевірте це в розділі нижче перед збереженням.',
+      autofillNothing:
+        'Головна сторінка цього сайту не вказує нічого, що можна було б використати, тому поля нижче заповніть самі.',
+      autofillBlocked:
+        'Ми не змогли прочитати цей сайт, тому нічого не заповнили. {reason} Профіль усе одно можна зберегти й описати сайт самостійно.',
       siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysite.com.',
       businessType: 'Тип бізнесу або сайту',
       businessTypePlaceholder: 'Стоматологія, рекрутингова платформа, інтернет-магазин',

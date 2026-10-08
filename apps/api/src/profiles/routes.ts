@@ -19,7 +19,7 @@ import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 import { openCheckoutSessionWhere } from '../billing/checkout-lifecycle.ts';
 import { isUniqueViolation } from '../billing/prisma-errors.ts';
 import { sendOk } from '../http/envelope.ts';
-import { conflict, notFound, validationError } from '../http/errors.ts';
+import { ApiError, conflict, notFound, rateLimited, validationError } from '../http/errors.ts';
 import type { ApiLogger } from '../http/logger.ts';
 import {
   MAX_PAGE_SIZE,
@@ -30,11 +30,18 @@ import {
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import type { PrivateObjectStore } from '../integrations/s3.ts';
+import type { SiteReachabilityOptions } from '../integrations/site-reachability.ts';
 import { scopeTargetMessage, scopeTargetProblems } from '../scans/scope-targets.ts';
 import { competitorsFromJson } from './competitors.ts';
 import { deleteSiteProfileData, type ProfileDeletionBlocker } from './profile-deletion.ts';
 import { resolveOwnProfile } from './resolve.ts';
 import { suggestProfileFromSite, type ProfileSuggestions } from './profile-suggestions.ts';
+import {
+  InFlightReads,
+  SUGGESTION_ALREADY_RUNNING_MESSAGE,
+  SUGGESTION_RETRY_AFTER_SECONDS,
+} from './suggestion-in-flight.ts';
+import { assertSiteReadable } from './suggestion-preflight.ts';
 
 export interface ProfilesRouterDeps {
   readonly prisma: PrismaClient;
@@ -49,6 +56,13 @@ export interface ProfilesRouterDeps {
     targetLanguage: 'en' | 'uk',
     signal?: AbortSignal,
   ) => Promise<ProfileSuggestions>;
+  /**
+   * Test seam for the reachability preflight that runs before that read — the
+   * same shape `ReachabilityRouterDeps.probe` uses, so a test cannot hand the
+   * preflight and the paid crawl two different sites. Production leaves it
+   * unset and the probe goes out over `safeFetch`.
+   */
+  readonly probe?: SiteReachabilityOptions;
 }
 
 const PROFILE_DELETION_BLOCKED_MESSAGES: Readonly<Record<ProfileDeletionBlocker, string>> = {
@@ -128,6 +142,7 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
   const { prisma } = deps;
   const auth = requireAuth(prisma, deps.now);
   const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
+  const suggestionReads = new InFlightReads();
 
   /**
    * The profile for a site address, created only if this account has none.
@@ -152,12 +167,33 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
     );
   });
 
+  /**
+   * What a public homepage states about its own site, for the add-profile form.
+   *
+   * The form now asks for this on its own, as soon as an address is typed, so
+   * the endpoint is what bounds the outbound work rather than a button:
+   *
+   *   1. the account+IP ceiling for scan-shaped actions, unchanged;
+   *   2. one read per account and address at a time (`suggestion-in-flight.ts`);
+   *   3. the reachability preflight, which decides whether the homepage may be
+   *      fetched at all — robots.txt included — before anything fetches it.
+   *
+   * Nothing here writes: no profile is created, no scan is started, and the
+   * proposal is handed back for the owner to review and save themselves.
+   */
   router.post('/profiles/suggestions', auth, async (req, res) => {
     const input = parseInput(profileSuggestionsInputSchema, req.body);
     const accountId = accountIdFrom(res);
     requestRateLimiter.assertAllowedAll(
       scanActionRules('profile-suggestions', accountId, req.ip ?? 'unknown'),
     );
+    // Per account as well as per address: one owner's duplicate tabs are the
+    // case this closes, and keying on the address alone would let one account
+    // block another's read of the same popular site.
+    const readKey = `${accountId}|${input.domain}`;
+    if (!suggestionReads.tryAcquire(readKey)) {
+      throw rateLimited(SUGGESTION_ALREADY_RUNNING_MESSAGE, SUGGESTION_RETRY_AFTER_SECONDS);
+    }
     const aborted = new AbortController();
     const cancelIfDisconnected = () => {
       if (req.aborted || res.destroyed) aborted.abort();
@@ -165,6 +201,14 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
     req.once('aborted', cancelIfDisconnected);
     res.once('close', cancelIfDisconnected);
     try {
+      const reach = await assertSiteReadable(input.domain, deps.probe ?? {});
+      deps.logger?.info('profile autofill preflight passed', {
+        state: reach.state,
+        startStatus: reach.startStatus,
+      });
+      // The owner closed the tab while we were asking their site. Reading the
+      // homepage now would be work nobody is waiting for.
+      if (aborted.signal.aborted) return;
       sendOk(
         res,
         deps.suggestProfile === undefined
@@ -176,13 +220,19 @@ export function profilesRouter(deps: ProfilesRouterDeps): Router {
             )
           : await deps.suggestProfile(input.domain, input.targetLanguage, aborted.signal),
       );
-    } catch {
+    } catch (error) {
       if (aborted.signal.aborted) return;
+      // A refusal this API decided — the preflight's verdict — keeps its code:
+      // "allow FluxRadarBot" is the one sentence that fixes both this form and
+      // the audit the owner is about to buy, and only the code carries it.
+      if (error instanceof ApiError) throw error;
       // Network/SSRF/parser details are not useful to the owner and must not
       // become an oracle. Saving their URL manually stays available.
       throw validationError(
         'Could not read public details from this site. You can still save it manually.',
       );
+    } finally {
+      suggestionReads.release(readKey);
     }
   });
 

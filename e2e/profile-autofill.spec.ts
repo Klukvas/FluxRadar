@@ -17,6 +17,15 @@ function json(route: Route, data: unknown, status = 200): Promise<void> {
   });
 }
 
+/** The envelope the API answers with when the site itself refused to be read. */
+function refusal(route: Route, code: string, message: string, status = 409): Promise<void> {
+  return route.fulfill({
+    status,
+    contentType: 'application/json',
+    body: JSON.stringify({ success: false, data: null, error: { code, message } }),
+  });
+}
+
 async function isolate(
   page: Page,
   appOrigin: string,
@@ -237,6 +246,183 @@ test('mobile surfaces a failed suggestion while retaining a saveable manual form
   } finally {
     await context.close();
   }
+});
+
+// The form reads the site on its own once an address is complete. In a real
+// browser that means: the fields fill with nothing pressed, the request goes out
+// once however the address was typed, nothing is saved, and a site that refuses
+// us says so where the address was typed rather than in a silent failure.
+test('fills the form from a pasted address with no button pressed, and saves nothing', async ({
+  page,
+  baseURL,
+}) => {
+  let reads = 0;
+  let writes = 0;
+  await isolate(page, new URL(baseURL!).origin, async (route) => {
+    const url = new URL(route.request().url());
+    const method = route.request().method();
+    if (url.pathname === '/profiles/suggestions') {
+      reads += 1;
+      return json(route, { name: 'Public title', industry: 'Dental clinic' });
+    }
+    if (method !== 'GET' && (url.pathname === '/profiles' || url.pathname.startsWith('/scans')))
+      writes += 1;
+    return baseApi(route);
+  });
+  await page.goto('/profiles');
+  await dismissCookies(page);
+  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('textbox', { name: /Site address/ }).fill('public.example');
+
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
+  await expect(
+    page.getByText(
+      'Filled in what this site’s homepage states. Review it in the section below before saving.',
+    ),
+  ).toBeVisible();
+  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await expect(
+    page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
+  ).toHaveValue('Dental clinic');
+  expect(reads).toBe(1);
+  expect(writes).toBe(0);
+  await page.screenshot({
+    path: '.agent-tmp/profile-autofill/auto-success.png',
+    fullPage: true,
+  });
+});
+
+test('asks the site once for an address typed a character at a time', async ({ page, baseURL }) => {
+  const asked: string[] = [];
+  await isolate(page, new URL(baseURL!).origin, async (route) => {
+    if (new URL(route.request().url()).pathname === '/profiles/suggestions') {
+      asked.push(JSON.parse(route.request().postData() ?? '{}').domain as string);
+      return json(route, { industry: 'Dental clinic' });
+    }
+    return baseApi(route);
+  });
+  await page.goto('/profiles');
+  await dismissCookies(page);
+  await page.getByRole('button', { name: '+ Add a site' }).click();
+  // Every keystroke from "typed.e" onwards is a complete address on its own,
+  // which is what the delay in front of the read exists for.
+  await page
+    .getByRole('textbox', { name: /Site address/ })
+    .pressSequentially('typed.example', { delay: 40 });
+
+  await expect(
+    page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
+  ).toHaveValue('Dental clinic');
+  // Given a moment more, a second read would have shown up by now.
+  await page.waitForTimeout(1_200);
+  expect(asked).toEqual(['https://typed.example']);
+});
+
+// Typing a path after the address, or pasting it again, is the same site: the
+// read already running stays, and what it filled in is not taken away and not
+// asked for twice.
+test('keeps the read and the filled fields when the address is edited inside one site', async ({
+  page,
+  baseURL,
+}) => {
+  const asked: string[] = [];
+  await isolate(page, new URL(baseURL!).origin, async (route) => {
+    if (new URL(route.request().url()).pathname === '/profiles/suggestions') {
+      asked.push(JSON.parse(route.request().postData() ?? '{}').domain as string);
+      return json(route, { name: 'Public title', industry: 'Dental clinic' });
+    }
+    return baseApi(route);
+  });
+  await page.goto('/profiles');
+  await dismissCookies(page);
+  await page.getByRole('button', { name: '+ Add a site' }).click();
+  const address = page.getByRole('textbox', { name: /Site address/ });
+  await address.fill('public.example');
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
+
+  await address.fill('public.example/pricing');
+  await page.waitForTimeout(1_200);
+
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
+  await expect(
+    page.getByText(
+      'Filled in what this site’s homepage states. Review it in the section below before saving.',
+    ),
+  ).toBeVisible();
+  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await expect(
+    page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
+  ).toHaveValue('Dental clinic');
+  expect(asked).toEqual(['https://public.example']);
+});
+
+// The owner pastes one site, then another: the first site's answer must not be
+// left behind in the fields of a profile that is now about the second.
+test('replaces one site’s filled-in answer when the address moves to another', async ({
+  page,
+  baseURL,
+}) => {
+  await isolate(page, new URL(baseURL!).origin, async (route) => {
+    if (new URL(route.request().url()).pathname === '/profiles/suggestions') {
+      const asked = JSON.parse(route.request().postData() ?? '{}').domain as string;
+      return json(
+        route,
+        asked === 'https://first.example'
+          ? { name: 'First title', industry: 'Dental clinic', region: 'Kyiv' }
+          : { name: 'Second title', industry: 'Product studio', region: 'United States' },
+      );
+    }
+    return baseApi(route);
+  });
+  await page.goto('/profiles');
+  await dismissCookies(page);
+  await page.getByRole('button', { name: '+ Add a site' }).click();
+  const address = page.getByRole('textbox', { name: /Site address/ });
+  await address.fill('first.example');
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('First title');
+  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await expect(page.getByPlaceholder('Kyiv and Kyiv region, Ukraine')).toHaveValue('Kyiv');
+
+  await address.fill('second.example');
+
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Second title');
+  await expect(
+    page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
+  ).toHaveValue('Product studio');
+  await expect(page.getByPlaceholder('Kyiv and Kyiv region, Ukraine')).toHaveValue('United States');
+  await page.screenshot({
+    path: '.agent-tmp/profile-autofill/auto-resite.png',
+    fullPage: true,
+  });
+});
+
+test('names a site that refused our crawler and still allows a manual save', async ({
+  page,
+  baseURL,
+}) => {
+  await isolate(page, new URL(baseURL!).origin, async (route) => {
+    if (new URL(route.request().url()).pathname === '/profiles/suggestions')
+      return refusal(route, 'SITE_ACCESS_DENIED', 'this site refused our crawler');
+    return baseApi(route);
+  });
+  await page.goto('/profiles');
+  await dismissCookies(page);
+  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('textbox', { name: /Site address/ }).fill('walled.example');
+
+  await expect(
+    page.getByText(/We could not read this site, so nothing was filled in\./),
+  ).toBeVisible();
+  await expect(page.getByText(/Allow FluxRadarBot and the address it comes from/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await expect(
+    page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
+  ).toHaveValue('');
+  await page.screenshot({
+    path: '.agent-tmp/profile-autofill/auto-blocked.png',
+    fullPage: true,
+  });
 });
 
 test('fills localized context in one request without changing target languages', async ({
