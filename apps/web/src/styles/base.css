@@ -505,6 +505,14 @@ code,
 .technical-input {
   font-family: var(--mono-font);
 }
+/* Held by something the form is doing — the add-a-site form holds every field
+   a read may rewrite until it settles. A field that is unusable has to look
+   unusable, or typing into nothing reads as a broken form rather than a wait. */
+.control:disabled {
+  background: var(--plat-100);
+  color: var(--plat-600);
+  cursor: default;
+}
 .control--error {
   border-color: #9b1c12;
 }
@@ -606,6 +614,16 @@ code,
 }
 .checkbox input:checked + .checkbox__mark svg {
   display: block;
+}
+/* A master checkbox whose categories disagree is neither on nor off, and a box
+   drawn empty would say "off" — a dash is the one mark a reader already knows
+   means "some of these". The mark is a centred pseudo-element because
+   `.checkbox__mark` is a centring grid, so this needs no extra markup. */
+.checkbox input:indeterminate + .checkbox__mark::after {
+  content: '';
+  width: 8px;
+  height: 2px;
+  background: var(--selection);
 }
 /* The target-language picker is an anchored dropdown: the pop-up hangs off the
    trigger and takes no room in the form, so opening it no longer walks the eight
@@ -2252,6 +2270,32 @@ code,
   color: var(--term-green);
   border-color: var(--term-green);
 }
+/* The same text-as-a-control shape as `.home__text-action`, in the colours a
+   light surface needs. "Forgot password?" borrowed the home page's rule and so
+   drew white-on-platinum inside the sign-in dialog — invisible until hovered.
+   `--selection` is the blue this app already paints links and checkmarks in:
+   7.4:1 on the window's `--plat-100` face.
+
+   `justify-self` keeps it the width of its own words: the form is a one-column
+   grid, so a stretched button would underline the whole dialog. */
+.auth__text-action {
+  justify-self: start;
+  padding: 3px 0;
+  border: 0;
+  border-bottom: 1px solid var(--selection);
+  background: transparent;
+  color: var(--selection);
+  font: inherit;
+  cursor: pointer;
+}
+.auth__text-action:hover {
+  color: var(--plat-900);
+  border-color: var(--plat-900);
+}
+.auth__text-action:focus-visible {
+  outline: 2px solid var(--selection);
+  outline-offset: 3px;
+}
 .home__proof {
   display: flex;
   flex-wrap: wrap;
@@ -3382,6 +3426,49 @@ code,
 }
 .powered-by__mark {
   color: var(--term-green);
+}
+/* A slow highlight travelling across the label, the one piece of the footer
+   meant to catch an eye on its way out of the product.
+
+   Everything about it is additive. The gradient is painted *through* the text
+   and only where a browser supports clipping a background to glyphs; without
+   that support — and for a reader who asked for less motion — the label simply
+   inherits the white the link already declares. The animation moves a
+   background position rather than the layout, so nothing around it reflows, and
+   `background-clip` is kept alongside its `-webkit-` form because Safari still
+   answers to the prefixed property. */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .powered-by .powered-by__label {
+    background: linear-gradient(
+      100deg,
+      #ffffff 0%,
+      #ffffff 38%,
+      var(--term-green) 50%,
+      #ffffff 62%,
+      #ffffff 100%
+    );
+    background-size: 300% 100%;
+    background-position: 150% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: attribution-shimmer 6s linear infinite;
+  }
+}
+@keyframes attribution-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .powered-by .powered-by__label {
+    background: none;
+    color: inherit;
+    animation: none;
+  }
 }
 
 @keyframes cursor-blink {

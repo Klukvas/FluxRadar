@@ -6,13 +6,17 @@ import { ReportsScreen } from './Reports';
 
 /** The owner's saved sites: where they add one, and start a scan or a report from it. */
 export function DesktopRoute({ app }: { readonly app: AppModel }) {
-  const { language, navigate, openScanById, retryScan, setError, setNotice } = app;
+  const { account, language, navigate, openScanById, retryScan, setError, setNotice } = app;
   const { profiles, setProfiles, setNewScanPlan, setReportsProfile, setSelectedProfile } = app;
   const { tourOpen, setTourOpen } = app;
   return (
     <DesktopScreen
       profiles={profiles}
       initialDomain={new URLSearchParams(window.location.search).get('add')}
+      // Null until the session has been read: the half-written profile the
+      // browser kept belongs to one account and is restored for no other.
+      accountId={account?.accountId ?? null}
+      onOpenIntegrations={() => navigate('integrations')}
       onOpenScan={(scanId) => void openScanById(scanId)}
       onRetryScan={retryScan}
       onNotice={setNotice}

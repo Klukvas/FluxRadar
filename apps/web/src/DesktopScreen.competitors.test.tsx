@@ -27,6 +27,7 @@ function renderForm(language: 'en' | 'uk' = 'en', profiles: readonly SiteProfile
       onError={() => {}}
       onNotice={() => {}}
       onOnboarding={() => {}}
+      onOpenIntegrations={() => {}}
       language={language}
     />,
   );
@@ -77,11 +78,10 @@ describe('the profile form competitors field (T7)', () => {
     ).toBeInTheDocument();
   });
 
+  // No address: a complete one starts the read that holds the form, and what
+  // this test is about is the list and the save button, not the read.
   it('accepts a valid list and re-enables save', () => {
     renderForm('en');
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
-      target: { value: 'https://smile.example' },
-    });
     fireEvent.change(screen.getByPlaceholderText('Product site'), {
       target: { value: 'Smile Clinic' },
     });

@@ -104,19 +104,17 @@ describe('a connection’s status and its action', () => {
     stubApi();
     renderScreen();
 
-    for (const name of ['Google data', 'Bing Webmaster Tools']) {
-      const row = await findRow(name);
-      const action = row.querySelector('.integration-row__action');
-      const copyColumn = row.querySelector('.integration-row__copy');
-      const chip = within(row).getByText(en.readyToConnect);
-      const button = within(row).getByRole('button', { name: en.connect });
+    const row = await findRow('Google data');
+    const action = row.querySelector('.integration-row__action');
+    const copyColumn = row.querySelector('.integration-row__copy');
+    const chip = within(row).getByText(en.readyToConnect);
+    const button = within(row).getByRole('button', { name: en.connect });
 
-      expect(action).toContainElement(chip);
-      expect(action).toContainElement(button);
-      // The old placement — the chip beside the name, a column away from the
-      // control it reports on — is what could not stay aligned.
-      expect(copyColumn).not.toContainElement(chip);
-    }
+    expect(action).toContainElement(chip);
+    expect(action).toContainElement(button);
+    // The old placement — the chip beside the name, a column away from the
+    // control it reports on — is what could not stay aligned.
+    expect(copyColumn).not.toContainElement(chip);
   });
 
   it('still starts the connection the row offers', async () => {
@@ -124,13 +122,35 @@ describe('a connection’s status and its action', () => {
     vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
     renderScreen();
 
-    const row = await findRow('Bing Webmaster Tools');
+    const row = await findRow('Google data');
     fireEvent.click(within(row).getByRole('button', { name: en.connect }));
 
     await waitFor(() => {
-      expect(calls).toContainEqual({ path: '/integrations/bing/start', method: 'POST' });
+      expect(calls).toContainEqual({ path: '/integrations/google/start', method: 'POST' });
     });
     expect(window.location.assign).toHaveBeenCalledWith('https://provider.example/oauth');
+  });
+});
+
+// Bing is built — the OAuth start, the property picker, the report panel — and
+// deliberately not offered yet. The API still answers with the row; the screen
+// is the one place that decides not to list it, so turning it back on is a
+// one-line change rather than a rebuild.
+describe('a connection the screen does not offer yet', () => {
+  it('lists nothing for Bing even though the API still answers with it', async () => {
+    stubApi();
+    renderScreen();
+
+    await screen.findByRole('heading', { name: 'Google data' });
+    expect(screen.queryByRole('heading', { name: 'Bing Webmaster Tools' })).not.toBeInTheDocument();
+    expect(screen.queryByText(en.whyConnect.bing)).not.toBeInTheDocument();
+    // One row, one connect button: the hidden one cannot be reached at all.
+    expect(screen.getAllByRole('button', { name: en.connect })).toHaveLength(1);
+  });
+
+  it('keeps the copy it will need when the row comes back', () => {
+    expect(en.whyConnect.bing).toBeTruthy();
+    expect(uk.whyConnect.bing).toBeTruthy();
   });
 });
 
@@ -139,19 +159,14 @@ describe('why a customer would connect', () => {
     stubApi();
     renderScreen();
 
-    for (const [name, reason] of [
-      ['Google data', en.whyConnect.google],
-      ['Bing Webmaster Tools', en.whyConnect.bing],
-    ] as const) {
-      const row = await findRow(name);
-      expect(within(row).getByText(reason)).toBeInTheDocument();
+    const row = await findRow('Google data');
+    expect(within(row).getByText(en.whyConnect.google)).toBeInTheDocument();
 
-      const described = within(row)
-        .getByRole('button', { name: en.connect })
-        .getAttribute('aria-describedby');
-      expect(described).not.toBeNull();
-      expect(document.getElementById(described ?? '')).toHaveTextContent(reason);
-    }
+    const described = within(row)
+      .getByRole('button', { name: en.connect })
+      .getAttribute('aria-describedby');
+    expect(described).not.toBeNull();
+    expect(document.getElementById(described ?? '')).toHaveTextContent(en.whyConnect.google);
   });
 
   it('explains each connection in Ukrainian', async () => {
@@ -159,7 +174,6 @@ describe('why a customer would connect', () => {
     renderScreen('uk');
 
     expect(await screen.findByText(uk.whyConnect.google)).toBeInTheDocument();
-    expect(screen.getByText(uk.whyConnect.bing)).toBeInTheDocument();
     expect(screen.queryByText(en.whyConnect.google)).not.toBeInTheDocument();
   });
 

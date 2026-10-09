@@ -64,6 +64,12 @@ export function Window(props: {
  * own row so the brand/links row above it keeps the layout it already had, and
  * it opens the studio site in a new tab — which is why it carries the
  * `noopener noreferrer` pair and says so to a screen reader.
+ *
+ * The label is wrapped rather than written straight into the link because the
+ * shimmer that travels across it paints the *text*, and painting text means a
+ * clipped background on an element of its own. The link keeps its own declared
+ * colour, so a browser without `background-clip: text` — and a reader who asked
+ * for less motion — still reads a plain, legible line.
  */
 export function CreatedByFluxLab(props: { language: Language }) {
   const label = createdByFluxLab[props.language];
@@ -79,7 +85,7 @@ export function CreatedByFluxLab(props: { language: Language }) {
         <span className="powered-by__mark" aria-hidden="true">
           ◈
         </span>
-        {label}
+        <span className="powered-by__label">{label}</span>
       </a>
     </span>
   );
@@ -521,6 +527,8 @@ export function Field(props: {
   maxLength?: number;
   /** Renders the value in monospace; see `controlClass`. */
   technical?: boolean;
+  /** Held by something the form is doing — a real `disabled`, not a styled hint. */
+  disabled?: boolean;
   'data-tour-target'?: string;
 }) {
   // A rejected value was red text and nothing else: a screen reader was told
@@ -551,6 +559,7 @@ export function Field(props: {
         autoComplete={props.autoComplete}
         inputMode={props.inputMode}
         maxLength={props.maxLength}
+        disabled={props.disabled}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={invalid ? errorId : undefined}
       />
@@ -575,6 +584,8 @@ export function TextAreaField(props: {
   autoComplete?: string;
   rows?: number;
   maxLength?: number;
+  /** Held by something the form is doing; see `Field`. */
+  disabled?: boolean;
 }) {
   // The same error contract as `Field`; see the note there.
   const invalid = props.error !== undefined && props.error !== '';
@@ -591,6 +602,7 @@ export function TextAreaField(props: {
         autoComplete={props.autoComplete}
         rows={props.rows ?? 3}
         maxLength={props.maxLength}
+        disabled={props.disabled}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={invalid ? errorId : undefined}
       />
@@ -661,14 +673,29 @@ export function Checkbox(props: {
   name?: string;
   describedBy?: string;
   className?: string;
+  /**
+   * A master box over boxes that disagree: neither on nor off.
+   *
+   * There is no attribute for it — `indeterminate` is a property of the DOM
+   * node — so it is written through a ref on every render, and the mixed state
+   * is announced through `aria-checked` for a reader who never sees the dash.
+   */
+  indeterminate?: boolean;
 }) {
+  const box = useRef<HTMLInputElement>(null);
+  const mixed = props.indeterminate === true && !props.checked;
+  useEffect(() => {
+    if (box.current !== null) box.current.indeterminate = mixed;
+  }, [mixed]);
   return (
     <label className={props.className === undefined ? 'checkbox' : `checkbox ${props.className}`}>
       <span className="checkbox__control">
         <input
+          ref={box}
           type="checkbox"
           name={props.name}
           checked={props.checked}
+          {...(mixed ? { 'aria-checked': 'mixed' as const } : {})}
           {...(props.describedBy === undefined ? {} : { 'aria-describedby': props.describedBy })}
           onChange={(event) => props.onChange(event.target.checked)}
         />

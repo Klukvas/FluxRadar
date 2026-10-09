@@ -226,6 +226,22 @@ export const copy = {
       intro: 'Unified public site audit station.',
       sites: 'Site Profiles',
       registered: 'Registered public origins',
+      // The sites list is where an owner lands; the Google connection lives two
+      // tabs away. Each line names the one step actually outstanding, and the
+      // reminder says nothing at all once there is none — see
+      // `GoogleConnectionReminder`.
+      googleReminderTitle: 'Your own Google data',
+      googleReminderConnect:
+        'Connect Google Search Console and Analytics 4 to add your own indexing and traffic data to every report. FluxRadar only reads them, and audits run without them.',
+      googleReminderConnectAction: 'Connect Google data',
+      googleReminderReconnect:
+        'The Google connection stopped working, so reports are running without your Search Console and Analytics data. Reconnecting takes one click.',
+      googleReminderReconnectAction: 'Reconnect Google data',
+      // Number-free on purpose: the list is formatted separately, so one site
+      // and five read the same sentence in both locales.
+      googleReminderChooseProperty:
+        'Google is connected, but not every site reads a property yet — without one, a report leaves your Search Console and Analytics data out. No property yet: {sites}.',
+      googleReminderChoose: 'Choose properties',
       noSites: 'No profiles yet',
       noSitesHelp:
         'Add your first profile to begin. Enter the homepage address of your site (like mysite.com) and FluxRadar saves it as a profile you can scan whenever you are ready.',
@@ -2279,6 +2295,16 @@ export const copy = {
       intro: 'Єдина станція аудиту публічного сайту.',
       sites: 'Профілі сайтів',
       registered: 'Зареєстровані публічні джерела',
+      googleReminderTitle: 'Ваші власні дані Google',
+      googleReminderConnect:
+        'Підключіть Google Search Console та Analytics 4, щоб додати до кожного звіту власні дані про індексацію й трафік. FluxRadar лише читає їх, і аудит працює й без них.',
+      googleReminderConnectAction: 'Підключити дані Google',
+      googleReminderReconnect:
+        'Підключення Google перестало працювати, тому звіти формуються без ваших даних Search Console та Analytics. Повторне підключення — один клік.',
+      googleReminderReconnectAction: 'Підключити Google знову',
+      googleReminderChooseProperty:
+        'Google підключено, але не кожен сайт читає property — без нього звіт не містить ваших даних Search Console та Analytics. Ще без property: {sites}.',
+      googleReminderChoose: 'Обрати property',
       noSites: 'Профілів ще немає',
       noSitesHelp:
         'Додайте перший профіль, щоб почати. Введіть адресу головної сторінки вашого сайту (наприклад, mysite.com) — FluxRadar збереже її як профіль, який можна перевірити будь-коли.',

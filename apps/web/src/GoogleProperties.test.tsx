@@ -444,25 +444,23 @@ describe('Google properties sit inside the Google connection', () => {
     return envelope(null);
   };
 
-  it('renders the property panel above Bing, not as a panel of its own after it', async () => {
+  // Bing used to be the row below, which is what made the ordering visible.
+  // It is not offered at all for now (`HIDDEN_PROVIDERS` in Integrations.tsx),
+  // so what is left to pin is the half that was the actual defect: the panel
+  // belongs to the Google row rather than floating after the whole list.
+  it('renders the property panel inside the Google row, not as a panel of its own', async () => {
     stubApi(connectedWithProfile);
     render(<Harness />);
 
     const panel = await screen.findByText(en.title);
-    // The row's name and its single service read the same; the first match is
-    // the row heading, which is what the ordering is about.
-    const [bing] = screen.getAllByText('Bing Webmaster Tools');
-    if (bing === undefined) throw new Error('expected the Bing row to render');
 
-    // Same connection: the panel lives inside the Google row's group.
     const googleGroup = screen.getByText('Google data').closest('.integration-group');
     expect(googleGroup).toContainElement(panel);
-    expect(googleGroup).not.toContainElement(bing);
-    // And it is rendered before Bing, so reading the screen top to bottom keeps
-    // the Google settings with the Google connection.
-    expect(panel.compareDocumentPosition(bing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Exactly one such panel: the old standalone copy after the list is gone.
     expect(screen.getAllByText(en.title)).toHaveLength(1);
+    // And the list holds exactly the one connection that is offered.
+    expect(document.querySelectorAll('.integration-group')).toHaveLength(1);
+    expect(screen.queryByText('Bing Webmaster Tools')).not.toBeInTheDocument();
   });
 
   it('says the connection is read-only and that the two services are separate sources', async () => {

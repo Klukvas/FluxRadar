@@ -219,7 +219,11 @@ describe('public legal documents', () => {
     const policy = screen.getByRole('article');
     expect(policy).toHaveAttribute('lang', 'en');
     expect(policy).toHaveTextContent(/fluxradar_session/);
-    expect(policy).toHaveTextContent(/browser session closes.*Remember me.*7 days/is);
+    // The sign-in form no longer asks to be remembered for 7 days, so the row
+    // states the one lifetime it has: the browser session, with the server's
+    // own 7-day ceiling behind it.
+    expect(policy).toHaveTextContent(/browser session closes.*no later than\s+7 days/is);
+    expect(policy).not.toHaveTextContent(/“Remember me”/);
     expect(policy).toHaveTextContent(/fluxradar\.pendingCheckout/);
     expect(policy).toHaveTextContent(/fluxradar\.cookieConsent.*180 days/is);
     expect(policy).toHaveTextContent(/fluxradar\.language/);

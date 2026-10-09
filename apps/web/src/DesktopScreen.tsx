@@ -1,6 +1,23 @@
 // The workspace desktop: the owner's saved sites, the form that adds one, and
 // the one thing to do next.
 //
+// Four things about the add-a-site form are about it reading the site on its
+// own, which is a thing nobody pressed a button for and so has to be visible:
+// the line under the address says what is happening and marks it as working,
+// everything the read is about to rewrite is held while it is owed (the
+// debounce included, or a profile gets saved a keystroke before the form fills
+// itself in), the context section unfolds itself once a read has settled so the
+// answer is reviewed rather than saved unseen, and the whole half-written form
+// survives a reload — including a read that was still running when the page
+// went away. What is kept, and for how long, is `profile-draft-storage.ts`.
+//
+// The hold covers the name, the context fields and the row and next-step
+// actions that would replace the form under it, so there is one way out of it
+// and it is deliberate: Cancel, which is offered for as long as the hold lasts.
+// The address itself stays writable — editing it is not a race with the read
+// but the end of it, since another site retires the read and asks about the new
+// one.
+//
 // Three things changed here. The add-profile form was always open — eight
 // fields under every list, however many sites it already held — so it now
 // folds behind "+ Add a site" once there is a site, with the six AI-context
@@ -21,9 +38,16 @@ import {
 } from './competitors-input';
 import { Button, EmptyState, Field, Panel, TextAreaField, Window } from './components';
 import { desktopCopy } from './desktop-copy';
+import { GoogleConnectionReminder } from './GoogleConnectionReminder';
 import { copy, fillCopy, type Language } from './i18n';
 import { NextStep, nextStepFor } from './NextStep';
 import { autofillStatusMessage, type ProfileContextLabel } from './profile-autofill';
+import {
+  clearProfileDraft,
+  isEmptyProfileDraft,
+  readProfileDraft,
+  storeProfileDraft,
+} from './profile-draft-storage';
 import { ProfileDeletion } from './ProfileDeletion';
 import { normalizeSiteAddress } from './site-address-input';
 import { useProfileAutofill } from './use-profile-autofill';
@@ -37,6 +61,14 @@ export interface DesktopScreenProps {
   readonly profiles: readonly SiteProfile[];
   /** A public-page address handed off after sign-in, awaiting owner confirmation. */
   readonly initialDomain?: string | null;
+  /**
+   * Whose half-written profile the browser may restore here, or null while the
+   * session is still being read. A draft belongs to one account: a shared
+   * browser must never hand one owner the site another was describing.
+   */
+  readonly accountId?: string | null;
+  /** Opens the screen that holds the data connections and their properties. */
+  readonly onOpenIntegrations: () => void;
   readonly onRefresh: () => Promise<void>;
   /** Called once a profile is gone, so screens still holding it can let it go. */
   readonly onProfileDeleted: (profile: SiteProfile) => void;
@@ -133,6 +165,90 @@ export function DesktopScreen(props: DesktopScreenProps) {
     // the page before this one, so the form reads it the same way.
     autofill.addressChanged(props.initialDomain, '');
   }, [props.initialDomain]);
+
+  /**
+   * Whether the browser's draft has had its turn at this form.
+   *
+   * State rather than a ref because the effect that *writes* the draft must not
+   * run before the one that reads it: both would run in the same commit, and
+   * the writer would see the empty form of the render before the restore and
+   * overwrite the very draft it is about to restore.
+   */
+  const [draftSettled, setDraftSettled] = useState(false);
+  useEffect(() => {
+    if (draftSettled) return;
+    const accountId = props.accountId ?? null;
+    // Still reading the session: nothing can be restored or written yet, and
+    // the slot must not be touched on behalf of an account we cannot name.
+    if (accountId === null) return;
+    setDraftSettled(true);
+    // An address carried in from the page before this one is a fresher
+    // instruction than a draft, so it wins; the draft is simply replaced by
+    // whatever the form holds from here on.
+    if (props.initialDomain !== null && props.initialDomain !== undefined) return;
+    const draft = readProfileDraft(accountId);
+    if (draft === null) return;
+    setFormRequested(true);
+    setDomain(draft.address);
+    setName(draft.name);
+    setSuggestedName(draft.suggestedName);
+    setIndustry(draft.context.businessType);
+    setBusinessDescription(draft.context.businessDescription);
+    setOfferings(draft.context.offerings);
+    setRegion(draft.context.operatingRegion);
+    setTargetLanguages(draft.context.targetLanguages);
+    setTargetAudience(draft.context.targetAudience);
+    setCompetitorsInput(draft.competitors);
+    autofill.restore({
+      applied: draft.applied,
+      askedOrigin: draft.askedOrigin,
+      pendingOrigin: draft.pendingOrigin,
+    });
+  }, [props.accountId, props.initialDomain, draftSettled]);
+
+  useEffect(() => {
+    const accountId = props.accountId ?? null;
+    // A saved profile open for editing is not a draft: what the fields hold is
+    // the server's copy, and restoring it after a reload would read as an
+    // unsaved change to a site that has none.
+    if (!draftSettled || accountId === null || editingProfile !== null) return;
+    const draft = {
+      accountId,
+      address: domain,
+      name,
+      suggestedName,
+      context: contextValues,
+      competitors: competitorsInput,
+      applied: autofill.applied,
+      pendingOrigin: autofill.pendingOrigin,
+      askedOrigin: autofill.askedOrigin,
+      savedAt: Date.now(),
+    };
+    if (isEmptyProfileDraft(draft)) clearProfileDraft();
+    else storeProfileDraft(draft);
+    // `autofill.pending` and `.completions` are in here because a read being
+    // owed, or having just settled, changes the draft without changing a field
+    // the owner touched — and they are what makes a reload resume rather than
+    // forget. The provenance and the origins are read from the hook's refs at
+    // render time, so they are current without being dependencies of their own.
+  }, [
+    props.accountId,
+    draftSettled,
+    editingProfile,
+    domain,
+    name,
+    suggestedName,
+    industry,
+    businessDescription,
+    offerings,
+    region,
+    targetLanguages,
+    targetAudience,
+    competitorsInput,
+    autofill.pending,
+    autofill.completions,
+  ]);
+
   const [latest, setLatest] = useState<Scan | null | undefined>(undefined);
   const formRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -162,6 +278,46 @@ export function DesktopScreen(props: DesktopScreenProps) {
       ? undefined
       : competitorsErrorMessage(competitorsProblem, props.language);
   const autofillMessage = autofillStatusMessage(autofill.status, props.language);
+  /**
+   * Whether a read is owed, and so everything it may rewrite is held.
+   *
+   * The owner asked for the form to stop taking actions until the check is
+   * finished: a proposal that lands in a field they are halfway through
+   * writing, or a row action that replaces the form while it fills itself in,
+   * is work lost to something nobody pressed a button for.
+   */
+  const locked = autofill.pending;
+
+  /**
+   * Whether the six context fields are unfolded.
+   *
+   * Controlled, because two things now open the section the owner did not open
+   * themselves: a saved profile that has context in it, and a read that just
+   * filled some in. `onToggle` keeps their own clicks authoritative — an
+   * uncontrolled `open` prop would spring back open on the next render.
+   */
+  const [contextOpen, setContextOpen] = useState(false);
+  const openedProfile = useRef<SiteProfile | null>(null);
+  useEffect(() => {
+    // Keyed on *which* profile the form is about, deliberately not on whether
+    // there is context in it: `hasContext` is true for most of typing, and
+    // following it would unfold the section the owner has just folded away.
+    if (openedProfile.current === editingProfile) return;
+    openedProfile.current = editingProfile;
+    setContextOpen(editingProfile !== null && hasContext);
+  }, [editingProfile, hasContext]);
+  const completions = autofill.completions;
+  useEffect(() => {
+    // A read has settled with an answer about the owner's own site, drawn from
+    // a page we read without being asked. Leaving it folded away is how an
+    // owner saves a profile describing something they never saw — and an answer
+    // that stated nothing is unfolded too, because the empty fields it could
+    // not fill are now theirs to write.
+    //
+    // Keyed on the count, so folding the section away again stays folded: it
+    // reopens for the next answer, not on the next render.
+    if (completions > 0) setContextOpen(true);
+  }, [completions]);
 
   const resetForm = () => {
     setEditingProfile(null);
@@ -177,7 +333,12 @@ export function DesktopScreen(props: DesktopScreenProps) {
     setTargetAudience('');
     setCompetitorsInput('');
     setDomainError(null);
+    setContextOpen(false);
     autofill.reset();
+    // A profile that is saved, or a form the owner emptied on purpose, is not
+    // work in progress any more. Said here as well as left to the effect
+    // above, because "there is nothing to come back to" is the point.
+    clearProfileDraft();
   };
 
   /** Reads the site because the owner asked for it, not because the address changed. */
@@ -212,6 +373,10 @@ export function DesktopScreen(props: DesktopScreenProps) {
     setTargetAudience(profile.targetAudience ?? '');
     setCompetitorsInput((profile.competitors ?? []).join(', '));
     setDomainError(null);
+    // The owner has moved on to a site they already saved, and the form can
+    // only hold one thing at a time: whatever new site was half-described here
+    // is not coming back, so it is not kept as something to come back to.
+    clearProfileDraft();
     window.requestAnimationFrame(() => formRef.current?.scrollIntoView({ block: 'start' }));
   };
 
@@ -222,6 +387,10 @@ export function DesktopScreen(props: DesktopScreenProps) {
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    // The button is disabled while a read is owed; a submit that arrives anyway
+    // — a keypress in flight, a programmatic one — must not slip past the hold
+    // and store a site the next moment is about to describe.
+    if (locked) return;
     const normalized = normalizeSiteAddress(domain);
     if (!normalized.ok) {
       setDomainError(t.workspace.siteAddressError);
@@ -290,6 +459,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                       key={profile.id}
                       profile={profile}
                       language={props.language}
+                      locked={locked}
                       deleting={deletingProfileId === profile.id}
                       onOpenDelete={() => setDeletingProfileId(profile.id)}
                       onCancelDelete={() => setDeletingProfileId(null)}
@@ -309,6 +479,18 @@ export function DesktopScreen(props: DesktopScreenProps) {
               </div>
             </Panel>
           </div>
+          {/* About the sites in the list above, so it sits under them: the
+              Google connection is configured two tabs away, and an owner who
+              never opens that tab never learns their reports are running
+              without their own Search Console and Analytics data. It renders
+              nothing at all once there is nothing outstanding. */}
+          {props.profiles.length === 0 ? null : (
+            <GoogleConnectionReminder
+              profiles={props.profiles}
+              language={props.language}
+              onOpenIntegrations={props.onOpenIntegrations}
+            />
+          )}
           {/* Under the list, not inside it: in the panel it read as one more
               action of the last site's row. */}
           {formOpen ? null : (
@@ -321,7 +503,11 @@ export function DesktopScreen(props: DesktopScreenProps) {
               <Panel
                 title={editingProfile === null ? t.workspace.addSite : t.workspace.editProfile}
               >
-                <form className="stack" onSubmit={save}>
+                {/* `aria-busy` on the form, not on the one control it
+                    disables: what is working is the form — it is about to
+                    rewrite several of these fields — and a reader who lands on
+                    the save button is owed that, not only its disabled state. */}
+                <form className="stack" onSubmit={save} aria-busy={autofill.pending}>
                   <p className="muted panel-help">{t.workspace.addSiteHelp}</p>
                   <Field
                     label={t.workspace.siteAddressLabel}
@@ -342,10 +528,20 @@ export function DesktopScreen(props: DesktopScreenProps) {
                   {/* Under the address, not inside the folded context section:
                       the form filled itself without being asked, so what it is
                       doing has to be readable — and announced — where the
-                      address was just typed. */}
-                  <div className="profile-autofill-status" aria-live="polite">
+                      address was just typed.
+
+                      `role="status"` carries the polite live region; the
+                      pulsing dot beside the sentence is the same marker a
+                      running scan section uses, and it is decoration — the
+                      sentence is what a screen reader is given. */}
+                  <div className="profile-autofill-status" role="status">
                     {autofillMessage === null ? null : (
-                      <p className="muted profile-suggestions">{autofillMessage}</p>
+                      <p className="muted profile-suggestions">
+                        {autofill.pending ? (
+                          <span className="profile-autofill-status__pulse" aria-hidden="true" />
+                        ) : null}
+                        {autofillMessage}
+                      </p>
                     )}
                   </div>
                   <Field
@@ -358,10 +554,18 @@ export function DesktopScreen(props: DesktopScreenProps) {
                       setName(value);
                     }}
                     placeholder={t.workspace.displayNamePlaceholder}
+                    disabled={locked}
                   />
-                  {/* Open by default only when there is context to show: a new
-                      owner reaches the save button past two fields, not eight. */}
-                  <details className="profile-context" open={editingProfile !== null && hasContext}>
+                  {/* Folded by default — a new owner reaches the save button
+                      past two fields, not eight — and unfolded by the two
+                      things that put something in it the owner did not type: a
+                      saved profile with context, and a read that just filled
+                      some in. See `contextOpen`. */}
+                  <details
+                    className="profile-context"
+                    open={contextOpen}
+                    onToggle={(event) => setContextOpen(event.currentTarget.open)}
+                  >
                     <summary>{d.contextSummary}</summary>
                     <div className="stack">
                       <p className="muted">{t.workspace.profileContextHelp}</p>
@@ -370,6 +574,11 @@ export function DesktopScreen(props: DesktopScreenProps) {
                           {t.workspace.suggestProfileHelp}
                         </p>
                         <div className="button-row">
+                          {/* Held while a request is in flight, not for the
+                              whole time a read is owed: pressing this during
+                              the debounce is "read it now", and it is the one
+                              action that makes the wait shorter rather than
+                              racing it. */}
                           <Button
                             type="button"
                             onClick={() => void fillFromSite()}
@@ -414,6 +623,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         }}
                         placeholder={t.workspace.businessTypePlaceholder}
                         hint={t.workspace.businessTypeHint}
+                        disabled={locked}
                       />
                       <TextAreaField
                         label={t.workspace.businessDescription}
@@ -426,6 +636,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         }}
                         placeholder={t.workspace.businessDescriptionPlaceholder}
                         hint={t.workspace.businessDescriptionHint}
+                        disabled={locked}
                       />
                       <TextAreaField
                         label={t.workspace.offerings}
@@ -438,6 +649,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         }}
                         placeholder={t.workspace.offeringsPlaceholder}
                         hint={t.workspace.offeringsHint}
+                        disabled={locked}
                       />
                       <Field
                         label={t.workspace.operatingRegion}
@@ -450,6 +662,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         }}
                         placeholder={t.workspace.operatingRegionPlaceholder}
                         hint={t.workspace.operatingRegionHint}
+                        disabled={locked}
                       />
                       <TargetLanguagesField
                         label={t.workspace.targetLanguages}
@@ -461,6 +674,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         placeholder={t.workspace.targetLanguagesPlaceholder}
                         hint={t.workspace.targetLanguagesHint}
                         language={props.language}
+                        disabled={locked}
                       />
                       <TextAreaField
                         label={t.workspace.targetAudience}
@@ -473,6 +687,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         }}
                         placeholder={t.workspace.targetAudiencePlaceholder}
                         hint={t.workspace.targetAudienceHint}
+                        disabled={locked}
                       />
                       <Field
                         label={t.workspace.competitors}
@@ -483,14 +698,27 @@ export function DesktopScreen(props: DesktopScreenProps) {
                         placeholder={t.workspace.competitorsPlaceholder}
                         hint={t.workspace.competitorsHint}
                         error={competitorsFieldError}
+                        disabled={locked}
                       />
                     </div>
                   </details>
                   <div className="button-row">
+                    {/* Held while a read is owed, including through the
+                        debounce: saving one keystroke after pasting an address
+                        would store a site without the context the next moment
+                        is about to fill in. The hold is never permanent — an
+                        answer, a refusal, writing in a field yourself, or
+                        cancelling all release it — and the line above says
+                        what is happening while it lasts. */}
                     <Button
                       type="submit"
                       variant="primary"
-                      disabled={busy || name.trim() === '' || competitorsFieldError !== undefined}
+                      disabled={
+                        busy ||
+                        autofill.pending ||
+                        name.trim() === '' ||
+                        competitorsFieldError !== undefined
+                      }
                       data-tour-target="save-profile"
                     >
                       {busy
@@ -499,7 +727,14 @@ export function DesktopScreen(props: DesktopScreenProps) {
                           ? t.workspace.saveProfile
                           : t.workspace.updateProfile}
                     </Button>
-                    {editingProfile !== null || (formRequested && props.profiles.length > 0) ? (
+                    {/* Deliberately not held, and offered for as long as the
+                        hold lasts even on an owner's very first site: emptying
+                        the form is the one way out of a read they no longer
+                        want to wait for, and it aborts the read and throws the
+                        draft away rather than leaving either behind. */}
+                    {editingProfile !== null ||
+                    locked ||
+                    (formRequested && props.profiles.length > 0) ? (
                       <Button type="button" onClick={resetForm}>
                         {t.workspace.cancelEdit}
                       </Button>
@@ -516,6 +751,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
           {props.profiles.length > 1 ? (
             <SiteNextSteps
               language={props.language}
+              locked={locked}
               profiles={props.profiles}
               onAddSite={openForm}
               onNewScan={props.onNewScan}
@@ -528,6 +764,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
               {latest === undefined ? null : (
                 <NextStep
                   language={props.language}
+                  locked={locked}
                   kind={nextStepFor(props.profiles, latest)}
                   profiles={props.profiles}
                   latest={latest}
@@ -566,6 +803,14 @@ export function DesktopScreen(props: DesktopScreenProps) {
 function ProfileRow(props: {
   profile: SiteProfile;
   language: Language;
+  /**
+   * Whether the form below is reading a site, and so this row's actions would
+   * replace or discard a profile being described right now.
+   *
+   * Reports stays available: reading another site's reports is somewhere else
+   * to be, not something done to the form.
+   */
+  locked: boolean;
   deleting: boolean;
   onOpenDelete: () => void;
   onCancelDelete: () => void;
@@ -585,7 +830,7 @@ function ProfileRow(props: {
         <span className="profile-row__domain">{profile.domain}</span>
       </div>
       <div className="profile-row__actions">
-        <Button onClick={props.onNewScan} variant="primary">
+        <Button onClick={props.onNewScan} variant="primary" disabled={props.locked}>
           {t.newScan}
         </Button>
         <ActionMenu
@@ -593,12 +838,18 @@ function ProfileRow(props: {
           buttonRef={menuButtonRef}
           items={[
             { id: 'reports', label: t.inspect, onSelect: props.onReports },
-            { id: 'edit', label: t.editProfile, onSelect: props.onEdit },
+            {
+              id: 'edit',
+              label: t.editProfile,
+              onSelect: props.onEdit,
+              disabled: props.locked,
+            },
             {
               id: 'delete',
               label: t.deleteProfileAction,
               onSelect: props.onOpenDelete,
               danger: true,
+              disabled: props.locked,
             },
           ]}
         />

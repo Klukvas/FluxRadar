@@ -61,8 +61,19 @@ export function nextStepFor(profiles: readonly SiteProfile[], latest: Scan | nul
   return latest.plan === 'Free' ? 'freeDone' : 'paidDone';
 }
 
+/** Whether this next step buys or starts a scan, rather than opening something. */
+function startsAScan(kind: NextStepKind): boolean {
+  return kind === 'noScans' || kind === 'freeDone' || kind === 'partial';
+}
+
 export interface NextStepActionsProps {
   readonly language: Language;
+  /**
+   * Whether the add-a-site form is reading a site. The steps that start a scan
+   * are held while it does: buying one for a site the owner is still describing
+   * leaves the form behind half-written.
+   */
+  readonly locked: boolean;
   readonly kind: NextStepKind;
   /** The site the step is about; undefined only when there is no site at all. */
   readonly profile: SiteProfile | undefined;
@@ -109,7 +120,11 @@ export function NextStepActions(props: NextStepActionsProps) {
     <>
       <p>{d.bodies[kind](domain)}</p>
       <div className="button-row">
-        <Button variant="primary" onClick={act} disabled={retrying}>
+        <Button
+          variant="primary"
+          onClick={act}
+          disabled={retrying || (props.locked && startsAScan(kind))}
+        >
           {d.actions[kind](domain)}
         </Button>
         {kind === 'freeDone' && latest !== null ? (

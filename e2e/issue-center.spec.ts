@@ -250,8 +250,11 @@ async function installFixtures(
 
 async function dismissCookies(page: Page): Promise<void> {
   const banner = page.getByRole('region', { name: 'Cookies & storage' });
-  if (await banner.isVisible())
-    await banner.getByRole('button', { name: 'Only necessary' }).click();
+  if (await banner.isVisible()) {
+    // Optional storage is suggested on, so refusing it is a switch and a save.
+    await banner.getByRole('checkbox', { name: 'All optional storage' }).click();
+    await banner.getByRole('button', { name: 'Save choice' }).click();
+  }
 }
 
 test.describe('the Issue Center on a report full of header findings', () => {

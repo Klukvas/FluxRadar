@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SiteProfile } from './api';
 import { DesktopScreen } from './DesktopScreen';
 import type { Language } from './i18n';
-import { AUTOFILL_DEBOUNCE_MS } from './profile-autofill';
+import { AUTOFILL_DEBOUNCE_MS, AUTOFILL_TIMEOUT_MS } from './profile-autofill';
 
 const success = (data: unknown) =>
   new Response(JSON.stringify({ success: true, data, error: null }), {
@@ -25,11 +25,14 @@ function renderForm(
     readonly language?: Language;
     /** An address handed over from the public page, awaiting confirmation. */
     readonly initialDomain?: string;
+    /** Whose draft the form may restore; null stands for "session not read yet". */
+    readonly accountId?: string | null;
   } = {},
 ) {
   const desktopProps = {
     profiles: options.profiles ?? [],
     initialDomain: options.initialDomain ?? null,
+    accountId: options.accountId === undefined ? 'account-1' : options.accountId,
     onRefresh: () => Promise.resolve(),
     onProfileDeleted: () => {},
     onSelectProfile: () => {},
@@ -39,6 +42,7 @@ function renderForm(
     onError: () => {},
     onNotice: options.onNotice ?? (() => {}),
     onOnboarding: () => {},
+    onOpenIntegrations: () => {},
   };
   const rendered = render(<DesktopScreen {...desktopProps} language={options.language ?? 'en'} />);
   return {
@@ -226,7 +230,10 @@ describe('profile suggestions', () => {
     ).toHaveValue('In-house engineers');
   });
 
-  it('drops a proposal for the new fields that arrives after the owner typed one', async () => {
+  // The owner asked for the form to stop taking actions until the check has
+  // finished, so the race this used to arbitrate is now prevented: every field
+  // the proposal may write into is held while the read runs.
+  it('holds the fields a proposal may fill while the read is still running', async () => {
     const pending = deferred<Response>();
     vi.stubGlobal(
       'fetch',
@@ -240,19 +247,19 @@ describe('profile suggestions', () => {
       target: { value: 'clinic.example' },
     });
     fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
-    fireEvent.change(screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine'), {
-      target: { value: 'Berlin' },
-    });
+
+    const region = screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine');
+    expect(region).toBeDisabled();
+    expect(screen.getByPlaceholderText('Product site')).toBeDisabled();
+    expect(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+
     pending.resolve(success({ region: 'United States', industry: 'Dentist' }));
 
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine')).toHaveValue('Berlin'),
-    );
-    expect(
-      screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
-    ).toHaveValue('');
+    await waitFor(() => expect(region).toHaveValue('United States'));
+    expect(region).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
   });
 
   it('keeps a manual name when an older request returns after an address edit', async () => {
@@ -343,7 +350,7 @@ describe('profile suggestions', () => {
     );
   });
 
-  it('does not let a pending new-profile suggestion overwrite a saved profile opened for edit', async () => {
+  it('holds the row actions that would replace the form while it is reading a site', async () => {
     const pending = deferred<Response>();
     vi.stubGlobal(
       'fetch',
@@ -364,11 +371,25 @@ describe('profile suggestions', () => {
     });
     fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
+
+    // Opening a saved profile here would throw away the site being described
+    // and the read it is waiting for, so neither it nor Delete nor New scan is
+    // selectable until the read settles. Reports stays: that is somewhere else
+    // to be, not something done to this form.
+    expect(screen.getByRole('button', { name: 'New scan' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Saved profile' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit profile' }));
-    pending.resolve(success({ name: 'Stale public title' }));
+    expect(screen.getByRole('menuitem', { name: 'Edit profile' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Reports' })).toBeEnabled();
+
+    // The half-written profile is still the one in the form afterwards.
+    pending.resolve(success({ name: 'Public title' }));
     await waitFor(() =>
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Saved profile'),
+      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public title'),
+    );
+    expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('new.example');
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Edit profile' })).toBeEnabled(),
     );
   });
 
@@ -630,22 +651,29 @@ describe('automatic autofill from the pasted address', () => {
     expect(suggestionCalls(fetchMock)).toHaveLength(0);
   });
 
-  it('drops a scheduled read as soon as the owner describes the site themselves', async () => {
+  // The way out of a read the owner does not want to wait for is Cancel, not a
+  // keystroke in a field: the fields are held from the moment the read is owed.
+  it('holds the context fields through the wait and lets Cancel call the read off', async () => {
     const fetchMock = stubSuggestions(() => success({ industry: 'Dentist' }));
     renderForm();
 
     typeAddress('clinic.example');
     await act(() => vi.advanceTimersByTimeAsync(AUTOFILL_DEBOUNCE_MS / 2));
-    fireEvent.change(
+    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
-      { target: { value: 'Marketing agency' } },
-    );
+    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+
+    // Offered even on a first site, for as long as the hold lasts.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel editing' }));
     await autofillSettles(1_000);
 
     expect(suggestionCalls(fetchMock)).toHaveLength(0);
+    expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('');
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
-    ).toHaveValue('Marketing agency');
+    ).toBeEnabled();
   });
 
   it('starts no read when the owner has already answered everything', async () => {
@@ -1061,6 +1089,314 @@ describe('automatic autofill from the pasted address', () => {
         'This site’s homepage states nothing we could reuse, so the details below are yours to fill in.',
       ),
     ).toBeInTheDocument();
+  });
+
+  // A read nobody asked for is also a read nobody is watching for, so the form
+  // has to say it is working, stop the owner saving a profile the next moment
+  // is about to rewrite, show them what it wrote, and survive the reload that
+  // used to throw all of it away.
+  // A read is the one thing holding the form, so it is not allowed to hold it
+  // for good: a request that never answers is dropped and said to have failed,
+  // and the answer it eventually gives is nobody's business any more.
+  describe('a read that never answers', () => {
+    const UNAVAILABLE =
+      'Could not read public details from this site. You can still save it manually.';
+
+    it('stops waiting for a hung read and frees the form for a retry', async () => {
+      const hung = deferred<Response>();
+      let reads = 0;
+      const fetchMock = stubSuggestions(() => {
+        reads += 1;
+        return reads === 1 ? hung.promise : success({ name: 'Public clinic', industry: 'Dentist' });
+      });
+      renderForm();
+
+      typeAddress('slow.example');
+      await autofillSettles();
+      expect(screen.getByText(CHECKING)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+
+      await act(() => vi.advanceTimersByTimeAsync(AUTOFILL_TIMEOUT_MS));
+
+      expect(screen.getByText(UNAVAILABLE)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+      fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+      expect(
+        screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
+      ).toBeEnabled();
+
+      // Asking again by hand is the retry the sentence offers.
+      fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
+      await waitFor(() =>
+        expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic'),
+      );
+      expect(suggestionCalls(fetchMock)).toHaveLength(2);
+    });
+
+    it('ignores the answer a timed-out read gives afterwards', async () => {
+      const hung = deferred<Response>();
+      stubSuggestions(() => hung.promise);
+      renderForm();
+
+      typeAddress('slow.example');
+      await autofillSettles();
+      await act(() => vi.advanceTimersByTimeAsync(AUTOFILL_TIMEOUT_MS));
+      expect(screen.getByText(UNAVAILABLE)).toBeInTheDocument();
+
+      hung.resolve(success({ name: 'Too late', industry: 'Dentist' }));
+      await act(() => vi.advanceTimersByTimeAsync(100));
+
+      // The owner has already been told the read failed and may have started
+      // writing: a proposal arriving now would land in a form that moved on.
+      expect(screen.getByPlaceholderText('Product site')).toHaveValue('slow.example');
+      fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+      expect(
+        screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
+      ).toHaveValue('');
+      expect(screen.getByText(UNAVAILABLE)).toBeInTheDocument();
+    });
+  });
+
+  // The button used to show its progress only in its own label, which said
+  // nothing about the form being held — the pulse and the sentence under the
+  // address are what mark the form as working, whoever started the read.
+  it('says it is checking the site for a read the owner pressed for too', async () => {
+    const pending = deferred<Response>();
+    stubSuggestions(() => pending.promise);
+    renderForm();
+
+    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+      target: { value: 'Written by hand' },
+    });
+    typeAddress('clinic.example');
+    await autofillSettles();
+    await waitFor(() => expect(screen.getByText(CHECKING)).toBeInTheDocument());
+
+    pending.resolve(success({ industry: 'Dentist' }));
+    await waitFor(() => expect(screen.getByText(FILLED)).toBeInTheDocument());
+    expect(document.querySelector('.profile-autofill-status__pulse')).toBeNull();
+  });
+
+  describe('a form that is busy, and a form that comes back', () => {
+    const saveButton = () => screen.getByRole('button', { name: 'Save profile' });
+    const form = () => document.querySelector('form') as HTMLFormElement;
+    const contextSection = () =>
+      screen.getByText(/Describe the site for AI visibility checks/).closest('details');
+
+    it('holds the save button from the keystroke that starts the read', async () => {
+      stubSuggestions(() => success({ name: 'Public clinic', industry: 'Dentist' }));
+      renderForm();
+
+      typeAddress('clinic.example');
+
+      // Before the debounce has even expired: this is the window in which a
+      // profile used to be saved without the context about to arrive.
+      expect(saveButton()).toBeDisabled();
+      expect(form()).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByRole('status')).toHaveTextContent(CHECKING);
+
+      await autofillSettles();
+
+      expect(saveButton()).toBeEnabled();
+      expect(form()).toHaveAttribute('aria-busy', 'false');
+      expect(screen.getByRole('status')).toHaveTextContent(FILLED);
+    });
+
+    it('releases it when the site refuses to be read', async () => {
+      stubSuggestions(() => refusal(409, 'SITE_ACCESS_DENIED', 'this site refused our crawler'));
+      renderForm();
+
+      typeAddress('walled.example');
+      expect(saveButton()).toBeDisabled();
+      await autofillSettles();
+
+      // A refusal is not a reason to lock an owner out of their own form.
+      expect(saveButton()).toBeEnabled();
+      expect(form()).toHaveAttribute('aria-busy', 'false');
+    });
+
+    // The hold is not something a write into one of the held fields can lift:
+    // such a write can only be a stale or programmatic one, and treating it as
+    // "the owner no longer wants the read" is how saving gets past the hold.
+    it('keeps the hold when a write reaches a held field anyway', async () => {
+      const fetchMock = stubSuggestions(() => success({ industry: 'Dentist' }));
+      renderForm();
+
+      typeAddress('clinic.example');
+      expect(saveButton()).toBeDisabled();
+      fireEvent.change(
+        screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
+        { target: { value: 'Marketing agency' } },
+      );
+
+      expect(saveButton()).toBeDisabled();
+      await autofillSettles();
+      // The read went out and settled, and only then is the form free again.
+      expect(suggestionCalls(fetchMock)).toHaveLength(1);
+      expect(saveButton()).toBeEnabled();
+    });
+
+    it('unfolds the context section once the read has written into it', async () => {
+      stubSuggestions(() => success({ name: 'Public clinic', industry: 'Dentist' }));
+      renderForm();
+
+      expect(contextSection()).not.toHaveAttribute('open');
+
+      typeAddress('clinic.example');
+      await autofillSettles();
+
+      // The values are a proposal about the owner's own site, drawn from a page
+      // read without being asked: folded away, they get saved unseen.
+      expect(contextSection()).toHaveAttribute('open');
+    });
+
+    it('unfolds it for an answer that states nothing, so the owner can fill it in', async () => {
+      stubSuggestions(() => success({}));
+      renderForm();
+
+      expect(contextSection()).not.toHaveAttribute('open');
+
+      typeAddress('empty.example');
+      await autofillSettles();
+
+      // The check finished: the fields it could not fill are the owner's to
+      // write, and folded away they read as a form with nothing left to do.
+      expect(contextSection()).toHaveAttribute('open');
+    });
+
+    it('comes back with the half-written form after a reload', async () => {
+      stubSuggestions(() => success({ name: 'Public clinic', industry: 'Dentist' }));
+      renderForm();
+      typeAddress('clinic.example');
+      await autofillSettles();
+      fireEvent.change(
+        screen.getByPlaceholderText('Adults and families looking for a dentist in Kyiv'),
+        { target: { value: 'Local families' } },
+      );
+
+      // The page goes away and comes back: a reload, a restored tab.
+      cleanup();
+      renderForm();
+
+      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('clinic.example');
+      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic');
+      expect(
+        screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
+      ).toHaveValue('Dentist');
+      expect(
+        screen.getByPlaceholderText('Adults and families looking for a dentist in Kyiv'),
+      ).toHaveValue('Local families');
+      // What stands in the fields still came from the homepage, and is still
+      // the form's own rather than the owner's.
+      expect(
+        screen.getByText('Suggested from the public homepage. Review and edit before saving.'),
+      ).toBeInTheDocument();
+      // And it comes back in view: a draft whose fields hold an answer is a
+      // draft with an answer still to review.
+      expect(contextSection()).toHaveAttribute('open');
+    });
+
+    it('does not ask the restored address again', async () => {
+      const fetchMock = stubSuggestions(() => success({ industry: 'Dentist' }));
+      renderForm();
+      typeAddress('clinic.example');
+      await autofillSettles();
+      expect(suggestionCalls(fetchMock)).toHaveLength(1);
+
+      cleanup();
+      renderForm();
+      await autofillSettles(1_000);
+
+      expect(suggestionCalls(fetchMock)).toHaveLength(1);
+      expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+    });
+
+    it('resumes a read that was still running when the page went away', async () => {
+      const pending = deferred<Response>();
+      let reads = 0;
+      const fetchMock = stubSuggestions(() => {
+        reads += 1;
+        return reads === 1
+          ? pending.promise
+          : success({ name: 'Public clinic', industry: 'Dentist' });
+      });
+      renderForm();
+      typeAddress('clinic.example');
+      await autofillSettles();
+      expect(screen.getByText(CHECKING)).toBeInTheDocument();
+
+      // The request dies with the page; the owner's wait for it does not.
+      cleanup();
+      renderForm();
+
+      expect(screen.getByRole('status')).toHaveTextContent(CHECKING);
+      expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+      await waitFor(() => expect(suggestionCalls(fetchMock)).toHaveLength(2));
+      expect(suggestionCalls(fetchMock)[1]?.[1]).toMatchObject({
+        body: JSON.stringify({ domain: 'https://clinic.example', targetLanguage: 'en' }),
+      });
+      await waitFor(() =>
+        expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic'),
+      );
+      expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+    });
+
+    it('keeps one owner’s draft away from the next account signed in here', async () => {
+      stubSuggestions(() => success({ name: 'Public clinic', industry: 'Dentist' }));
+      renderForm({ accountId: 'account-1' });
+      typeAddress('clinic.example');
+      await autofillSettles();
+
+      cleanup();
+      renderForm({ accountId: 'account-2' });
+
+      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('');
+      expect(screen.getByPlaceholderText('Product site')).toHaveValue('');
+    });
+
+    it('waits for the session before restoring anything', async () => {
+      stubSuggestions(() => success({ name: 'Public clinic', industry: 'Dentist' }));
+      renderForm();
+      typeAddress('clinic.example');
+      await autofillSettles();
+
+      cleanup();
+      // The session has not been read yet, so there is no account to restore a
+      // draft for — and the draft must survive being asked too early.
+      renderForm({ accountId: null });
+      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('');
+
+      cleanup();
+      renderForm({ accountId: 'account-1' });
+      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('clinic.example');
+    });
+
+    it('prefers an address carried in from the page before over the draft', async () => {
+      stubSuggestions(() => success({ industry: 'Dentist' }));
+      renderForm();
+      typeAddress('clinic.example');
+      await autofillSettles();
+
+      cleanup();
+      renderForm({ initialDomain: 'carried.example' });
+
+      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('carried.example');
+    });
+
+    it('keeps nothing once the profile is saved', async () => {
+      stubSuggestions(() => success({ name: 'Public clinic', industry: 'Dentist' }));
+      renderForm();
+      typeAddress('clinic.example');
+      await autofillSettles();
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(screen.getByPlaceholderText('mysite.com')).toHaveValue(''));
+
+      cleanup();
+      renderForm();
+
+      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('');
+      expect(screen.getByPlaceholderText('Product site')).toHaveValue('');
+    });
   });
 });
 

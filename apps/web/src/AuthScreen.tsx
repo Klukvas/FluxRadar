@@ -5,6 +5,14 @@
 // owner fills in half-translated. It also drew two password fields when a reset
 // link was followed — the sign-in field and "New password", both bound to the
 // same value.
+//
+// It no longer asks whether to be remembered for 7 days. The question put a
+// cookie-lifetime decision in front of someone who came here to sign in, and
+// the honest answer for almost everyone is the default: the session cookie the
+// server sets when nothing is requested, which lasts as long as the browser
+// session. `rememberMe: false` is sent explicitly rather than left out, so the
+// lifetime this form asks for is stated at the call site instead of depending
+// on a schema default on the other side of the wire.
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
@@ -40,7 +48,6 @@ export function AuthScreen(props: {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const isReset = props.emailAction?.kind === 'reset';
@@ -81,7 +88,7 @@ export function AuthScreen(props: {
       }
       const account = await apiRequest<Account>(`/auth/${mode}`, {
         method: 'POST',
-        body: JSON.stringify({ email, password, rememberMe }),
+        body: JSON.stringify({ email, password, rememberMe: false }),
       });
       // GA4's recommended names, so both land in the standard acquisition reports.
       trackEvent(mode === 'register' ? 'sign_up' : 'login', { method: 'email' });
@@ -180,12 +187,6 @@ export function AuthScreen(props: {
         ) : null}
         {signingIn ? (
           <>
-            <Checkbox
-              name="remember-me"
-              label={t.rememberMe}
-              checked={rememberMe}
-              onChange={setRememberMe}
-            />
             <p className="muted">
               {mode === 'login' ? t.cookieNote : t.consentNote}
               <a href={`/terms?lang=${props.language}`}>{legal.terms.title}</a>
@@ -228,7 +229,7 @@ export function AuthScreen(props: {
         </div>
         {mode === 'login' && !forgotPassword && !isVerification && !isReset ? (
           <button
-            className="home__text-action"
+            className="auth__text-action"
             type="button"
             onClick={() => {
               setForgotPassword(true);

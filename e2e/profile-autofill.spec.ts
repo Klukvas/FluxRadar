@@ -41,8 +41,11 @@ async function isolate(
 
 async function dismissCookies(page: Page): Promise<void> {
   const banner = page.getByRole('region', { name: 'Cookies & storage' });
-  if (await banner.isVisible())
-    await banner.getByRole('button', { name: 'Only necessary' }).click();
+  if (await banner.isVisible()) {
+    // Optional storage is suggested on, so refusing it is a switch and a save.
+    await banner.getByRole('checkbox', { name: 'All optional storage' }).click();
+    await banner.getByRole('button', { name: 'Save choice' }).click();
+  }
 }
 
 function baseApi(route: Route): Promise<void> {
@@ -172,11 +175,15 @@ test('a late public proposal cannot replace a manual profile name', async ({ pag
   await page.goto('/profiles');
   await dismissCookies(page);
   await page.getByRole('button', { name: '+ Add a site' }).click();
+  // The name is written first: the form holds that field while it reads the
+  // site, so the owner's own answer is the one that was already there.
+  await page.getByRole('textbox', { name: 'Display name' }).fill('Manual title');
   await page.getByRole('textbox', { name: /Site address/ }).fill('manual.example');
   await page.getByText(/Describe the site for AI visibility checks/).click();
   await page.getByRole('button', { name: 'Fill from site' }).click();
-  await page.getByRole('textbox', { name: 'Display name' }).fill('Manual title');
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toBeDisabled();
   release();
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toBeEnabled();
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Manual title');
 });
 
@@ -229,8 +236,8 @@ test('mobile surfaces a failed suggestion while retaining a saveable manual form
     await page.goto('/profiles');
     await dismissCookies(page);
     await page.getByRole('button', { name: '+ Add a site' }).click();
-    await page.getByRole('textbox', { name: /Site address/ }).fill('manual.example');
     await page.getByRole('textbox', { name: 'Display name' }).fill('Manual profile');
+    await page.getByRole('textbox', { name: /Site address/ }).fill('manual.example');
     await page.getByText(/Describe the site for AI visibility checks/).click();
     await page.getByRole('button', { name: 'Fill from site' }).click();
     await expect(
@@ -396,6 +403,95 @@ test('replaces one site’s filled-in answer when the address moves to another',
   });
 });
 
+// The owner asked for the form to stop taking actions until the check has
+// finished. In a real browser that means the fields and the row actions are
+// genuinely unusable — not styled as if they were — and that there is one
+// deliberate way out of the wait, offered for as long as it lasts.
+test('holds the form and the row actions while it reads a site, and takes Cancel', async ({
+  page,
+  baseURL,
+}) => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await isolate(page, new URL(baseURL!).origin, async (route) => {
+    if (new URL(route.request().url()).pathname === '/profiles/suggestions') {
+      await held;
+      return json(route, { name: 'Public title', industry: 'Dental clinic' });
+    }
+    return baseApi(route);
+  });
+  await page.goto('/profiles');
+  await dismissCookies(page);
+  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('textbox', { name: /Site address/ }).fill('public.example');
+  await page.getByText(/Describe the site for AI visibility checks/).click();
+
+  await expect(page.getByText(/Checking whether we can read this site/)).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toBeDisabled();
+  await expect(
+    page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
+  ).toBeDisabled();
+  await expect(page.getByPlaceholder('Acme Dental, Bright Smile Clinic')).toBeDisabled();
+  await expect(page.locator('.language-picker__summary')).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+  // The saved site's own row cannot replace the form under it either.
+  await expect(page.getByRole('button', { name: 'New scan' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Actions for Existing site' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Edit profile' })).toBeDisabled();
+  await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeDisabled();
+  await expect(page.getByRole('menuitem', { name: 'Reports' })).toBeEnabled();
+  await page.keyboard.press('Escape');
+  await page.screenshot({
+    path: '.agent-tmp/profile-autofill/pending-lock.png',
+    fullPage: true,
+  });
+
+  // The address stays writable: editing it is not a race with the read but the
+  // end of it, and Cancel is the deliberate way out of the wait.
+  await expect(page.getByRole('textbox', { name: /Site address/ })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Cancel editing' })).toBeEnabled();
+
+  release();
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toBeEnabled();
+  await expect(
+    page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
+  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'New scan' })).toBeEnabled();
+  await page.screenshot({
+    path: '.agent-tmp/profile-autofill/settled-form.png',
+    fullPage: true,
+  });
+
+  await page.getByRole('button', { name: 'Cancel editing' }).click();
+  await expect(page.getByRole('textbox', { name: /Site address/ })).toHaveCount(0);
+});
+
+// A homepage that states nothing is still a finished check: the fields it could
+// not fill are the owner's to write, and folded away they read as a form with
+// nothing left to do.
+test('unfolds the context section for a homepage that states nothing', async ({
+  page,
+  baseURL,
+}) => {
+  await isolate(page, new URL(baseURL!).origin, async (route) => {
+    if (new URL(route.request().url()).pathname === '/profiles/suggestions') return json(route, {});
+    return baseApi(route);
+  });
+  await page.goto('/profiles');
+  await dismissCookies(page);
+  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await expect(page.locator('details.profile-context')).not.toHaveAttribute('open', '');
+  await page.getByRole('textbox', { name: /Site address/ }).fill('empty.example');
+
+  await expect(page.getByText(/states nothing we could reuse/)).toBeVisible();
+  await expect(page.locator('details.profile-context')).toHaveAttribute('open', '');
+  await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+});
+
 test('names a site that refused our crawler and still allows a manual save', async ({
   page,
   baseURL,
@@ -445,4 +541,78 @@ test('fills localized context in one request without changing target languages',
   await expect(page.getByRole('button', { name: /Translate context/ })).toHaveCount(0);
   await expect(page.locator('.language-picker__summary')).toHaveText('Choose languages');
   await expect(page.getByRole('button', { name: 'Restore original text' })).toHaveCount(0);
+});
+
+// The reload that used to throw a half-written profile away, in a real browser:
+// what the form held comes back, the context section it filled comes back open,
+// and a read that was still running when the page went is started again rather
+// than left as a form that is quietly waiting for nothing.
+test('a half-written profile and the read it was waiting for survive a reload', async ({
+  page,
+  baseURL,
+}) => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let reads = 0;
+  await isolate(page, new URL(baseURL!).origin, async (route) => {
+    if (new URL(route.request().url()).pathname === '/profiles/suggestions') {
+      reads += 1;
+      // No read answers until the test lets it: the first one is the request the
+      // reload kills, and the second is the resumed one, which has to be caught
+      // still running rather than already finished.
+      await held;
+      return json(route, { industry: 'Dentist' });
+    }
+    return baseApi(route);
+  });
+  await page.goto('/profiles');
+  await dismissCookies(page);
+  await page.getByRole('button', { name: '+ Add a site' }).click();
+  // The name first, the address second: writing in a field the read could fill
+  // is how the owner calls it off, so the order is what leaves a read owed and
+  // a value of the owner's own in the same form.
+  await page.getByRole('textbox', { name: 'Display name' }).fill('Written by hand');
+  await page.getByRole('textbox', { name: /Site address/ }).fill('clinic.example');
+  await expect(page.getByText(/Checking whether we can read this site/)).toBeVisible();
+  // Saving is held while the read is owed, so a profile cannot be stored a
+  // keystroke before the form fills itself in.
+  await expect(page.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+  // The wait is shown as soon as the address is complete, but the request only
+  // leaves after the debounce. Reloading before it does would make the resumed
+  // read the first one the handler ever sees, and the count below would stop at
+  // one. Wait for the request the reload is supposed to kill to exist.
+  await expect.poll(() => reads, { timeout: 15_000 }).toBe(1);
+
+  await page.reload();
+  await dismissCookies(page);
+
+  // The address and the owner's own name are back, and so is the wait.
+  await expect(page.getByRole('textbox', { name: /Site address/ })).toHaveValue('clinic.example');
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Written by hand');
+  await expect(page.getByText(/Checking whether we can read this site/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+  // Asked again: a request cannot survive a page, so the resumed wait is a new
+  // one rather than a spinner over nothing. More than one resumed read is the
+  // dev server's StrictMode double-mount, not a second site read the owner
+  // caused, so the invariant is "the read came back", not an exact count. The
+  // budget is wide because the reload reopens the page against the dev server,
+  // which under a full parallel suite can take longer than the default poll.
+  await expect.poll(() => reads, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+
+  release();
+  // The resumed read answers, and what it wrote is unfolded for review rather
+  // than left behind a closed disclosure.
+  await expect(
+    page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
+  ).toHaveValue('Dentist');
+  await expect(page.locator('details.profile-context')).toHaveAttribute('open', '');
+  await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+  // The name the owner typed is theirs, before the reload and after it.
+  await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Written by hand');
+  await page.screenshot({
+    path: '.agent-tmp/profile-autofill/reload-resumes.png',
+    fullPage: true,
+  });
 });

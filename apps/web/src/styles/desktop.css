@@ -35,6 +35,51 @@
   padding-left: var(--sp-2);
 }
 
+/* The line under the address, while the form is reading the site it was just
+   given. The sentence carries the meaning; the dot is there so a glance at the
+   form can tell "working" from "finished" without reading it. */
+.profile-autofill-status p {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0;
+}
+/* The same marker a running scan section uses, so "working" looks the same
+   wherever this app says it. `align-self` holds it on the first line of a
+   sentence that wraps to three. */
+.profile-autofill-status__pulse {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--selection);
+  animation: profile-autofill-pulse 1.4s ease-in-out infinite;
+}
+@keyframes profile-autofill-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.72);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-autofill-status__pulse {
+    animation: none;
+  }
+}
+
+/* A reminder about data the reports could be using, between the sites it is
+   about and the form that adds another. White like `.next-step`, because it is
+   a thing to act on rather than one more field of the screen. */
+.google-reminder {
+  margin-top: var(--sp-3);
+  border-color: var(--plat-900);
+  background: #fff;
+}
+.google-reminder p {
+  margin-top: 0;
+}
+
 /* The site-status rows share one pair of columns. Each `.field-row` sized its
    own at 180px + 1fr, so in this narrow column the value got ~120px and the
    "Checked with limits" chip ran out of the panel. The labels now take only

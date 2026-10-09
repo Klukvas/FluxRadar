@@ -6,10 +6,21 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { apiRequest, type IntegrationStatus, type SiteProfile } from './api';
-import { BingProperties } from './BingProperties';
 import { Button, LoadingState, Panel, StatusChip, Window } from './components';
 import { GoogleProperties } from './GoogleProperties';
 import { copy, type Copy, type Language } from './i18n';
+
+/**
+ * Connections the API offers that this screen does not.
+ *
+ * Bing Webmaster Tools is implemented end to end — the OAuth start, the token
+ * store, the property picker in `BingProperties` and the report panel all
+ * stand — but it is not being offered to owners yet, and a row they cannot be
+ * supported through is worse than no row. Hidden here, in the one place that
+ * lists connections, rather than taken out of the API: deleting the server half
+ * is how a feature comes back as a rewrite.
+ */
+const HIDDEN_PROVIDERS: readonly string[] = ['bing'];
 
 /**
  * Why a customer would connect this provider, in their own words.
@@ -40,7 +51,8 @@ export function IntegrationsScreen(props: {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setIntegrations(await apiRequest<IntegrationStatus[]>('/integrations'));
+      const offered = await apiRequest<IntegrationStatus[]>('/integrations');
+      setIntegrations(offered.filter((one) => !HIDDEN_PROVIDERS.includes(one.provider)));
     } catch (caught) {
       props.onError(caught instanceof Error ? caught.message : 'Integrations unavailable');
     } finally {
@@ -190,16 +202,6 @@ export function IntegrationsScreen(props: {
                       language={props.language}
                       onAddProfile={props.onAddProfile}
                       onProfilesChanged={props.onProfilesChanged}
-                    />
-                  </div>
-                ) : null}
-                {integration.provider === 'bing' ? (
-                  <div className="integration-group__detail">
-                    <BingProperties
-                      profiles={props.profiles}
-                      connected={integration.status === 'connected'}
-                      language={props.language}
-                      onAddProfile={props.onAddProfile}
                     />
                   </div>
                 ) : null}

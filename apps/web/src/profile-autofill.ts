@@ -43,6 +43,17 @@ import {
 export const AUTOFILL_DEBOUNCE_MS = 800;
 
 /**
+ * How long a read may run before the form stops waiting for it.
+ *
+ * The form is held while a read is owed, so a request that never answers would
+ * hold it for the rest of the session. The ceiling sits just past what the
+ * server allows itself — a preflight, an 8s homepage fetch and a 30s model call
+ * — and running out of it is a failure the owner is told about, not a silent
+ * release.
+ */
+export const AUTOFILL_TIMEOUT_MS = 45_000;
+
+/**
  * The context fields a public homepage may propose, named by their own label.
  *
  * The form tells the owner which of these the page said nothing about, so a

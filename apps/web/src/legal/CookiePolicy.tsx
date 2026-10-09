@@ -46,10 +46,11 @@ function UkrainianCookiePolicy(): JSX.Element {
           може працювати належно.
         </p>
         <p>
-          Дві інші категорії необов’язкові й вимкнені, доки ви їх не ввімкнете: позначте потрібну й
-          натисніть «Зберегти вибір» або оберіть «Дозволити все». Preferences запам’ятовують мову
-          інтерфейсу. Аналітика завантажує Google Analytics 4 — див. розділ 04. FluxRadar не
-          використовує рекламні trackers, remarketing або Google Signals.
+          Дві інші категорії необов’язкові й не діють, доки ви не натиснете «Зберегти вибір». У
+          формі їх запропоновано ввімкненими, але це лише пропозиція: вимкніть перемикач «Усе
+          необов’язкове сховище» або будь-який окремий параметр, а потім збережіть вибір.
+          Preferences запам’ятовують мову інтерфейсу. Аналітика завантажує Google Analytics 4 — див.
+          розділ 04. FluxRadar не використовує рекламні trackers, remarketing або Google Signals.
         </p>
       </section>
       <section id="cookies-inventory" className="legal-section">
@@ -71,8 +72,8 @@ function UkrainianCookiePolicy(): JSX.Element {
                 </td>
                 <td>Необхідний HTTP-only cookie для автентифікації та захисту акаунта.</td>
                 <td>
-                  До закриття browser session; якщо обрано «Запам’ятати вхід» — до 7 днів. Серверна
-                  сесія в будь-якому разі спливає не пізніше ніж через 7 днів.
+                  До закриття browser session. Серверна сесія в будь-якому разі спливає не пізніше
+                  ніж через 7 днів.
                 </td>
               </tr>
               <tr>
@@ -222,10 +223,11 @@ function EnglishCookiePolicy(): JSX.Element {
           work properly without them.
         </p>
         <p>
-          The two other categories are optional and stay off until you turn them on: tick one and
-          choose “Save choice”, or choose “Allow all”. Preferences remember the interface language.
-          Analytics loads Google Analytics 4 — see section 04. FluxRadar uses no advertising
-          trackers, remarketing or Google Signals.
+          The two other categories are optional and take effect only when you choose “Save choice”.
+          The form suggests them switched on, and a suggestion is all it is: turn off the “All
+          optional storage” switch, or either option on its own, and then save. Preferences remember
+          the interface language. Analytics loads Google Analytics 4 — see section 04. FluxRadar
+          uses no advertising trackers, remarketing or Google Signals.
         </p>
       </section>
       <section id="cookies-inventory" className="legal-section">
@@ -251,8 +253,8 @@ function EnglishCookiePolicy(): JSX.Element {
                 </td>
                 <td>An essential HTTP-only cookie for authentication and account security.</td>
                 <td>
-                  Until the browser session closes; if “Remember me” is selected, up to 7 days. The
-                  server session always expires no later than 7 days.
+                  Until the browser session closes. The server session always expires no later than
+                  7 days.
                 </td>
               </tr>
               <tr>

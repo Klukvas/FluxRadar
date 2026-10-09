@@ -109,6 +109,7 @@ function renderDesktop(profiles: readonly SiteProfile[], language: 'en' | 'uk' =
   const view = render(
     <DesktopScreen
       profiles={profiles}
+      onOpenIntegrations={() => {}}
       onRefresh={() => Promise.resolve()}
       onProfileDeleted={() => {}}
       onSelectProfile={() => {}}

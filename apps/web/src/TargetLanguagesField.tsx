@@ -35,6 +35,8 @@ export function TargetLanguagesField(props: {
   placeholder: string;
   hint: string;
   language: Language;
+  /** Held by something the form is doing: the list cannot be opened at all. */
+  disabled?: boolean;
 }) {
   const id = useId();
   const labelId = `${id}-label`;
@@ -125,6 +127,9 @@ export function TargetLanguagesField(props: {
   };
 
   const chosen = selected.map((name) => targetLanguageLabel(name, props.language)).join(', ');
+  // A list that was open when the field was held folds away: its checkboxes are
+  // the one way a choice could still be made in a field nobody may write in.
+  const expanded = open && props.disabled !== true;
   return (
     <div className="field">
       <span className="field__label" id={labelId}>
@@ -135,9 +140,10 @@ export function TargetLanguagesField(props: {
           ref={triggerRef}
           type="button"
           className="control language-picker__summary"
+          disabled={props.disabled}
           aria-haspopup="true"
-          aria-expanded={open}
-          aria-controls={open ? popupId : undefined}
+          aria-expanded={expanded}
+          aria-controls={expanded ? popupId : undefined}
           aria-labelledby={`${labelId} ${summaryId}`}
           onClick={() => setOpen(!open)}
           onKeyDown={onTriggerKeyDown}
@@ -151,7 +157,7 @@ export function TargetLanguagesField(props: {
               : `${fillCopy(t.targetLanguagesChosen, { count: String(selected.length) })}: ${chosen}`}
           </span>
         </button>
-        {open ? (
+        {expanded ? (
           <div
             id={popupId}
             className="language-picker__popup"

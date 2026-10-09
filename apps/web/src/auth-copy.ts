@@ -35,7 +35,6 @@ export type AuthCopy = {
   readonly newPassword: string;
   readonly passwordPlaceholder: string;
   readonly showPassword: string;
-  readonly rememberMe: string;
   readonly cookieNote: string;
   readonly consentNote: string;
   readonly working: string;
@@ -92,8 +91,7 @@ export const authCopy: Record<Language, AuthCopy> = {
     newPassword: 'New password',
     passwordPlaceholder: '8+ characters',
     showPassword: 'Show password',
-    rememberMe: 'Remember me for 7 days',
-    cookieNote: 'Sign-in uses a necessary cookie. Learn more: ',
+    cookieNote: 'Sign-in uses a necessary cookie that lasts for this browser session. Learn more: ',
     consentNote: 'By creating an account, you agree to the terms and acknowledge the policies: ',
     working: 'Working…',
     submit: {
@@ -147,8 +145,8 @@ export const authCopy: Record<Language, AuthCopy> = {
     newPassword: 'Новий пароль',
     passwordPlaceholder: 'від 8 символів',
     showPassword: 'Показати пароль',
-    rememberMe: 'Запамʼятати вхід на 7 днів',
-    cookieNote: 'Вхід використовує необхідний cookie. Докладніше: ',
+    cookieNote:
+      'Вхід використовує необхідний cookie, який діє протягом цієї сесії браузера. Докладніше: ',
     consentNote:
       'Створюючи акаунт, ви погоджуєтеся з умовами та підтверджуєте ознайомлення з політиками: ',
     working: 'Зачекайте…',

@@ -143,10 +143,11 @@ describe('authentication UI', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 
-  it.each([
-    { rememberMe: false, label: 'a browser-session cookie' },
-    { rememberMe: true, label: 'an explicitly persistent cookie' },
-  ])('submits $label only when Remember me is selected', async ({ rememberMe }) => {
+  // The form used to ask whether to be remembered for 7 days. It no longer
+  // does: there is one session lifetime, the browser-session cookie the server
+  // sets when nothing else is asked for, and the form states that lifetime
+  // rather than making it a decision.
+  it('asks for a browser-session cookie with no lifetime question to answer', async () => {
     const fetchMock = await renderUnauthenticated((path) => {
       if (path === '/auth/me') return failure(401, 'session required');
       if (path === '/auth/register') return envelope(account, 201);
@@ -156,8 +157,7 @@ describe('authentication UI', () => {
 
     openAuth();
     const dialog = screen.getByRole('dialog');
-    const checkbox = within(dialog).getByRole('checkbox', { name: 'Remember me for 7 days' });
-    expect(checkbox).not.toBeChecked();
+    expect(within(dialog).queryByRole('checkbox', { name: /Remember me/ })).not.toBeInTheDocument();
     expect(within(dialog).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
       'href',
       '/terms?lang=en',
@@ -170,7 +170,6 @@ describe('authentication UI', () => {
       'href',
       '/cookies?lang=en',
     );
-    if (rememberMe) fireEvent.click(checkbox);
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Email' }), {
       target: { value: account.email },
     });
@@ -184,7 +183,7 @@ describe('authentication UI', () => {
     expect(registerCall).toBeDefined();
     expect(JSON.parse(String((registerCall?.[1] as RequestInit | undefined)?.body))).toMatchObject({
       email: account.email,
-      rememberMe,
+      rememberMe: false,
     });
   });
 
@@ -264,7 +263,9 @@ describe('authentication UI', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'I already have an account' }));
     expect(screen.getByText('FluxRadar — Sign in')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Create an account' })).toBeInTheDocument();
-    expect(dialog).toHaveTextContent('Sign-in uses a necessary cookie. Learn more:');
+    expect(dialog).toHaveTextContent(
+      'Sign-in uses a necessary cookie that lasts for this browser session. Learn more:',
+    );
     expect(dialog).not.toHaveTextContent('By creating an account');
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to home' }));
@@ -1811,7 +1812,9 @@ describe('MenuBar navigation (signed in)', () => {
     render(<App />);
 
     await screen.findByText('Google data');
-    expect(screen.getAllByText('Bing Webmaster Tools')).toHaveLength(2);
+    // Bing is implemented but not offered yet, so the row the API still
+    // answers with is not listed — see `HIDDEN_PROVIDERS` in Integrations.tsx.
+    expect(screen.queryByText('Bing Webmaster Tools')).not.toBeInTheDocument();
     expect(screen.queryByText('Chrome UX Report')).not.toBeInTheDocument();
     expect(screen.queryByText('Anthropic')).not.toBeInTheDocument();
     expect(screen.queryByText('Hetzner Object Storage')).not.toBeInTheDocument();
@@ -2156,6 +2159,18 @@ describe('add-profile form', () => {
     expect(screen.getByRole('button', { name: 'Зберегти профіль' })).toBeInTheDocument();
   });
 
+  /**
+   * Saving is held while the form is reading the site it was just given, so a
+   * profile cannot be stored a keystroke before the read fills it in. These
+   * tests are about the derived name, so they wait the read out — the timeout
+   * covers the 800ms debounce and the request behind it.
+   */
+  const saveAvailable = async (name = 'Save profile'): Promise<void> => {
+    await waitFor(() => expect(screen.getByRole('button', { name })).toBeEnabled(), {
+      timeout: 4_000,
+    });
+  };
+
   it('fills the name from the address the owner pastes, and keeps it editable', async () => {
     const fetchMock = await renderProfilesScreen();
 
@@ -2163,11 +2178,12 @@ describe('add-profile form', () => {
     typeAddress('https://www.mysite.com/pricing?ref=1');
 
     expect(nameField().value).toBe('mysite.com');
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+    await saveAvailable();
 
     // The suggestion keeps following the address while it is untouched.
     typeAddress('shop.other.co.uk');
     expect(nameField().value).toBe('shop.other.co.uk');
+    await saveAvailable();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
     await waitFor(() => expect(calledMethod(fetchMock, '/profiles', 'POST')).toBe(true));
@@ -2249,6 +2265,6 @@ describe('add-profile form', () => {
     expect((screen.getByRole('textbox', { name: /^Назва/ }) as HTMLInputElement).value).toBe(
       'mysite.com',
     );
-    expect(screen.getByRole('button', { name: 'Зберегти профіль' })).toBeEnabled();
+    await saveAvailable('Зберегти профіль');
   });
 });

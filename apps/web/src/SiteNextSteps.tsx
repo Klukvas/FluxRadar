@@ -27,6 +27,8 @@ const LOADING: SiteLatest = { state: 'loading' };
 
 export interface SiteNextStepsProps {
   readonly language: Language;
+  /** Passed straight through: see `locked` on NextStepActionsProps. */
+  readonly locked: boolean;
   readonly profiles: readonly SiteProfile[];
   readonly onAddSite: () => void;
   readonly onNewScan: (profile: SiteProfile, plan?: NewScanPlan) => void;
@@ -165,6 +167,7 @@ export function SiteNextSteps(props: SiteNextStepsProps) {
         <SiteBlock
           key={profile.id}
           language={props.language}
+          locked={props.locked}
           profile={profile}
           result={siteResults[index] ?? LOADING}
           onRetryLoad={() => read(profile.id)}
@@ -188,6 +191,7 @@ export function SiteNextSteps(props: SiteNextStepsProps) {
 
 interface SiteBlockProps {
   readonly language: Language;
+  readonly locked: boolean;
   readonly profile: SiteProfile;
   readonly result: SiteLatest;
   readonly onRetryLoad: () => void;
@@ -207,6 +211,7 @@ function SiteBlock(props: SiteBlockProps) {
       </h2>
       <SiteBlockBody
         language={props.language}
+        locked={props.locked}
         profile={props.profile}
         result={props.result}
         onRetryLoad={props.onRetryLoad}
@@ -245,6 +250,7 @@ function SiteBlockBody(props: SiteBlockProps) {
       </p>
       <NextStepActions
         language={props.language}
+        locked={props.locked}
         kind={kind}
         profile={props.profile}
         latest={result.latest}

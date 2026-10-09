@@ -52,8 +52,11 @@ async function isolate(
 
 async function dismissCookies(page: Page): Promise<void> {
   const banner = page.getByRole('region', { name: 'Cookies & storage' });
-  if (await banner.isVisible())
-    await banner.getByRole('button', { name: 'Only necessary' }).click();
+  if (await banner.isVisible()) {
+    // Optional storage is suggested on, so refusing it is a switch and a save.
+    await banner.getByRole('checkbox', { name: 'All optional storage' }).click();
+    await banner.getByRole('button', { name: 'Save choice' }).click();
+  }
 }
 
 test.describe('critical customer journeys', () => {
@@ -113,6 +116,10 @@ test.describe('critical customer journeys', () => {
 
     await page.goto('/');
     await expect(page.getByText('FluxRadar is unavailable')).toBeVisible();
+    // The consent panel is centred on the viewport, which is where this
+    // screen's one control is, so a first-time visitor answers it first — as
+    // this test now does.
+    await dismissCookies(page);
     await page.getByRole('button', { name: 'Try again' }).click();
     await expect(page.getByRole('heading', { name: 'One URL. Every signal.' })).toBeVisible();
     expect(sessionReads).toBeGreaterThanOrEqual(2);

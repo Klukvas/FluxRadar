@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 describe('cookie choices', () => {
-  it('offers equally direct choices on first visit in a nonmodal region without moving focus', () => {
+  it('opens on a suggested choice that stores nothing, in a nonmodal region without moving focus', () => {
     const view = render(
       <>
         <button>Continue browsing</button>
@@ -41,29 +41,33 @@ describe('cookie choices', () => {
       </>,
     );
     const banner = screen.getByRole('region', { name: 'Cookies & storage' });
-    expect(within(banner).getByRole('button', { name: 'Only necessary' })).toBeEnabled();
     expect(within(banner).getByRole('button', { name: 'Save choice' })).toBeEnabled();
-    expect(within(banner).getByRole('button', { name: 'Allow all' })).toBeEnabled();
-    // Nothing optional is pre-ticked: an untouched form saves a refusal.
-    expect(within(banner).getByRole('checkbox', { name: 'Preferences' })).not.toBeChecked();
-    expect(within(banner).getByRole('checkbox', { name: 'Analytics' })).not.toBeChecked();
+    // The form opens on the suggested answer — both categories, and the master
+    // switch over them — and every one of them is a draft: no record is
+    // written, no language is remembered and no analytics are armed until Save.
+    expect(within(banner).getByRole('checkbox', { name: 'All optional storage' })).toBeChecked();
+    expect(within(banner).getByRole('checkbox', { name: 'Preferences' })).toBeChecked();
+    expect(within(banner).getByRole('checkbox', { name: 'Analytics' })).toBeChecked();
+    expect(preferencesAllowed()).toBe(false);
+    expect(analyticsAllowed()).toBe(false);
+    expect(window.localStorage.getItem('fluxradar.cookieConsent')).toBeNull();
+    expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
     expect(within(banner).getByRole('checkbox', { name: 'Analytics' })).toHaveAccessibleDescription(
       /Google Analytics 4/,
     );
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(banner).not.toHaveAttribute('aria-modal');
     expect(document.activeElement).toBe(browsing);
-    expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
     expect(within(banner).getByRole('link', { name: 'Cookie details' })).toHaveAttribute(
       'href',
       '/cookies?lang=en',
     );
   });
 
-  it('allows everything, reopens settings with the saved choice, and withdraws it all', () => {
+  it('saves the suggested choice, reopens settings with it, and withdraws it all', () => {
     window.localStorage.setItem('fluxradar.pendingCheckout', 'pending-test');
     const view = render(<CookieConsent language="uk" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Дозволити все' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти вибір' }));
     expect(preferencesAllowed()).toBe(true);
     expect(analyticsAllowed()).toBe(true);
     expect(window.localStorage.getItem('fluxradar.language')).toBe('uk');
@@ -87,7 +91,9 @@ describe('cookie choices', () => {
     );
     expect(screen.getByRole('checkbox', { name: 'Налаштування' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Аналітика' })).toBeChecked();
-    fireEvent.click(screen.getByRole('button', { name: 'Лише необхідні' }));
+    // The master switch is how everything is withdrawn at once now.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Усе необов’язкове сховище' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти вибір' }));
     expect(preferencesAllowed()).toBe(false);
     expect(analyticsAllowed()).toBe(false);
     expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
@@ -102,28 +108,34 @@ describe('cookie choices', () => {
         <CookieConsent language="en" />
       </>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
     expect(screen.queryByRole('region')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Cookie settings' })).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Cookie settings' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Only necessary' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'All optional storage' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
 
     expect(screen.getAllByRole('button', { name: 'Cookie settings' })).toHaveLength(2);
   });
 
   // On a phone the lone launcher must not float over the page. Layout is not
-  // computed here, so what is pinned is the decision: the dock is marked when
-  // the launcher is all it holds, and the phone rule takes that dock out of the
-  // fixed layer while the open banner keeps floating.
+  // computed here, so what is pinned is the decision: the dock exists only when
+  // the launcher is all there is to show, it carries the class the phone rule
+  // keys on, and that rule takes it out of the fixed layer while the open
+  // banner keeps floating in its own centred layer.
   it('marks the dock that holds only the launcher, so a phone can drop it into the page', () => {
     const view = render(<CookieConsent language="en" />);
-    const dock = view.container.firstElementChild;
-    expect(dock).not.toHaveClass('cookie-consent-dock--launcher-only');
-    fireEvent.click(screen.getByRole('button', { name: 'Only necessary' }));
-    expect(dock).toHaveClass('cookie-consent-dock--launcher-only');
-    fireEvent.click(screen.getByRole('button', { name: 'Cookie settings' }));
-    expect(dock).not.toHaveClass('cookie-consent-dock--launcher-only');
+    expect(view.container.querySelector('.cookie-consent-dock')).toBeNull();
+    expect(view.container.querySelector('.cookie-consent-layer')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'All optional storage' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
+
+    expect(view.container.querySelector('.cookie-consent-layer')).toBeNull();
+    expect(view.container.querySelector('.cookie-consent-dock')).toHaveClass(
+      'cookie-consent-dock--launcher-only',
+    );
 
     const css = readFileSync(
       join(resolve(process.cwd()), 'src', 'styles', 'cookie-consent.css'),
@@ -134,9 +146,9 @@ describe('cookie choices', () => {
     );
   });
 
-  it('saves only the categories that were ticked', () => {
+  it('saves only the categories that were left ticked', () => {
     render(<CookieConsent language="en" />);
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Analytics' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Preferences' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
 
     expect(analyticsAllowed()).toBe(true);
@@ -144,6 +156,81 @@ describe('cookie choices', () => {
     expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
     // Not everything is allowed, so the way back to the settings stays in view.
     expect(screen.getByRole('button', { name: 'Cookie settings' })).toBeVisible();
+  });
+
+  // The master switch replaced two buttons that each decided *and* saved in one
+  // press. What it must not lose is either direction of that decision, or the
+  // ability to pick one category on its own.
+  describe('the master switch over both categories', () => {
+    it('turns both off and back on again without saving anything', () => {
+      render(<CookieConsent language="en" />);
+      const master = screen.getByRole('checkbox', { name: 'All optional storage' });
+
+      fireEvent.click(master);
+      expect(screen.getByRole('checkbox', { name: 'Preferences' })).not.toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Analytics' })).not.toBeChecked();
+      expect(master).not.toBePartiallyChecked();
+
+      fireEvent.click(master);
+      expect(screen.getByRole('checkbox', { name: 'Preferences' })).toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Analytics' })).toBeChecked();
+      // Still a draft: two presses of a switch are not a decision.
+      expect(window.localStorage.getItem('fluxradar.cookieConsent')).toBeNull();
+    });
+
+    it('reads as mixed while the two categories disagree', () => {
+      render(<CookieConsent language="en" />);
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Analytics' }));
+
+      const master = screen.getByRole('checkbox', { name: 'All optional storage' });
+      expect(master).not.toBeChecked();
+      expect(master).toBePartiallyChecked();
+      expect(screen.getByRole('checkbox', { name: 'Preferences' })).toBeChecked();
+    });
+
+    it('resolves a mixed state to everything on, then saves exactly that', () => {
+      render(<CookieConsent language="en" />);
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Preferences' }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'All optional storage' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
+
+      expect(preferencesAllowed()).toBe(true);
+      expect(analyticsAllowed()).toBe(true);
+    });
+  });
+
+  // Pre-ticking is only defensible while it is a draft. A visitor who has
+  // already refused must not be shown their refusal as a suggestion to accept.
+  it('reopens a stored refusal as a refusal, not as the suggested choice', () => {
+    saveCookieConsent({ preferences: false, analytics: false });
+    render(
+      <>
+        <CookieSettingsButton language="en" />
+        <CookieConsent language="en" />
+      </>,
+    );
+    // Two of them while a choice is outstanding: the page's own and the
+    // floating launcher. Either opens the same form.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Cookie settings' })[0] as HTMLElement);
+
+    expect(screen.getByRole('checkbox', { name: 'All optional storage' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Preferences' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Analytics' })).not.toBeChecked();
+  });
+
+  it('reopens a partial choice exactly as it was stored', () => {
+    saveCookieConsent({ preferences: true, analytics: false });
+    render(
+      <>
+        <CookieSettingsButton language="en" />
+        <CookieConsent language="en" />
+      </>,
+    );
+    fireEvent.click(screen.getAllByRole('button', { name: 'Cookie settings' })[0] as HTMLElement);
+
+    expect(screen.getByRole('checkbox', { name: 'Preferences' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Analytics' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'All optional storage' })).toBePartiallyChecked();
   });
 
   // A v1 record predates the analytics category: the banner has to ask again,
@@ -170,7 +257,8 @@ describe('cookie choices', () => {
 
   it('keeps the floating launcher after choosing only necessary storage', () => {
     render(<CookieConsent language="en" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Only necessary' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'All optional storage' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
     expect(screen.getByRole('button', { name: 'Cookie settings' })).toBeVisible();
   });
 
@@ -187,14 +275,41 @@ describe('cookie choices', () => {
       }),
     );
     render(<CookieConsent language="en" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Your choice could not be saved');
     expect(screen.getByRole('region', { name: 'Cookies & storage' })).toBeVisible();
     expect(preferencesAllowed()).toBe(false);
     getter.mockRestore();
-    fireEvent.click(screen.getByRole('button', { name: 'Only necessary' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'All optional storage' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cookie settings' })).toBeVisible();
+  });
+
+  // The retry has to start from what the visitor asked for, not from the
+  // suggestion: a refusal that could not be written, shown back with both
+  // boxes ticked, is how a refusal becomes an acceptance.
+  it('keeps a refusal that could not be saved on screen as a refusal', () => {
+    const storage = window.localStorage;
+    const getter = vi.spyOn(window, 'localStorage', 'get').mockReturnValue(
+      new Proxy(storage, {
+        get: (target, property) =>
+          property === 'setItem'
+            ? () => {
+                throw new DOMException('Storage blocked', 'SecurityError');
+              }
+            : Reflect.get(target, property),
+      }),
+    );
+    render(<CookieConsent language="en" />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'All optional storage' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Your choice could not be saved');
+    expect(screen.getByRole('checkbox', { name: 'All optional storage' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Preferences' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Analytics' })).not.toBeChecked();
+    getter.mockRestore();
   });
 
   it('explains a failed language save and leaves preferences disabled', () => {
@@ -212,7 +327,7 @@ describe('cookie choices', () => {
       }),
     );
     render(<CookieConsent language="en" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Your language could not be saved');
     expect(preferencesAllowed()).toBe(false);
     // Only the category that failed is withdrawn; analytics was allowed and stays so.

@@ -23,6 +23,13 @@ export interface ActionMenuItem {
   readonly onSelect: () => void;
   /** An irreversible action: drawn in red, below a divider, never beside an everyday one. */
   readonly danger?: boolean;
+  /**
+   * Held by something else on the screen — offered, but not selectable now.
+   *
+   * Kept in the menu rather than removed from it: a row whose actions come and
+   * go is a row whose menu is a different menu every time it is opened.
+   */
+  readonly disabled?: boolean;
 }
 
 export function ActionMenu(props: {
@@ -39,7 +46,6 @@ export function ActionMenu(props: {
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const isOpen = activeIndex !== null;
-  const lastIndex = props.items.length - 1;
 
   useEffect(() => {
     if (activeIndex !== null) itemRefs.current[activeIndex]?.focus();
@@ -60,28 +66,39 @@ export function ActionMenu(props: {
   };
 
   const select = (item: ActionMenuItem) => {
+    if (item.disabled === true) return;
     // Focus goes back first, so an action that moves focus on (the delete
     // confirmation takes it into its own field) has the last word.
     closeAndRefocus();
     item.onSelect();
   };
 
+  /** The next item in that direction the arrow keys may land on, wrapping round. */
+  const step = (from: number, delta: number): number => {
+    const count = props.items.length;
+    for (let moved = 1; moved <= count; moved += 1) {
+      const index = (((from + delta * moved) % count) + count) % count;
+      if (props.items[index]?.disabled !== true) return index;
+    }
+    return from;
+  };
+
   const onButtonKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setActiveIndex(0);
+      setActiveIndex(step(-1, 1));
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setActiveIndex(lastIndex);
+      setActiveIndex(step(0, -1));
     }
   };
 
   const onItemKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
     const moves: Record<string, number> = {
-      ArrowDown: index === lastIndex ? 0 : index + 1,
-      ArrowUp: index === 0 ? lastIndex : index - 1,
-      Home: 0,
-      End: lastIndex,
+      ArrowDown: step(index, 1),
+      ArrowUp: step(index, -1),
+      Home: step(-1, 1),
+      End: step(0, -1),
     };
     const next = moves[event.key];
     if (next !== undefined) {
@@ -108,7 +125,7 @@ export function ActionMenu(props: {
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        onClick={() => (isOpen ? setActiveIndex(null) : setActiveIndex(0))}
+        onClick={() => setActiveIndex(isOpen ? null : step(-1, 1))}
         onKeyDown={onButtonKeyDown}
       >
         <svg viewBox="0 0 16 4" aria-hidden="true" className="action-menu__icon">
@@ -137,6 +154,7 @@ export function ActionMenu(props: {
                     ? 'action-menu__item action-menu__item--danger'
                     : 'action-menu__item'
                 }
+                disabled={item.disabled}
                 onClick={() => select(item)}
                 onKeyDown={(event) => onItemKeyDown(event, index)}
               >

@@ -555,8 +555,11 @@ async function installReportFixtures(
 async function openReport(page: Page, search = ''): Promise<void> {
   await page.goto(`/scans/${SCAN_ID}${search}`);
   const banner = page.getByRole('region', { name: 'Cookies & storage' });
-  if (await banner.isVisible())
-    await banner.getByRole('button', { name: 'Only necessary' }).click();
+  if (await banner.isVisible()) {
+    // Optional storage is suggested on, so refusing it is a switch and a save.
+    await banner.getByRole('checkbox', { name: 'All optional storage' }).click();
+    await banner.getByRole('button', { name: 'Save choice' }).click();
+  }
 }
 
 test.describe('AI Action Plan on a Complete report', () => {

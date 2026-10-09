@@ -475,11 +475,13 @@ describe('the first site, from an account that has none', () => {
     fireEvent.change(screen.getByRole('textbox', { name: /^Site address/ }), {
       target: { value: SALON.domain },
     });
-    // The name is suggested from the address; typed here so the fixture's own
-    // name is what comes back.
-    fireEvent.change(screen.getByRole('textbox', { name: /^Display name/ }), {
-      target: { value: SALON.name },
-    });
+    // The address starts a read of the site, and everything that read may
+    // rewrite is held until it is answered — here, by the 404 above. The name
+    // is suggested from the address; typed once the hold lifts, so the
+    // fixture's own name is what comes back.
+    const displayName = screen.getByRole('textbox', { name: /^Display name/ });
+    await waitFor(() => expect(displayName).toBeEnabled(), { timeout: 5000 });
+    fireEvent.change(displayName, { target: { value: SALON.name } });
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
     await waitFor(() => expect(screen.getByText(SALON.domain)).toBeTruthy());
     fireEvent.click(screen.getAllByRole('button', { name: 'New scan' })[0] as HTMLElement);

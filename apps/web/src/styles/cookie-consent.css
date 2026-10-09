@@ -1,3 +1,4 @@
+/* The corner the way back to the settings lives in, once a choice is made. */
 .cookie-consent-dock {
   position: fixed;
   z-index: 80;
@@ -9,10 +10,32 @@
   pointer-events: none;
 }
 
+/* The banner itself is centred on the viewport: it asks for a decision, and in
+   the bottom corner it read as a badge to be flicked away. Click-through, so
+   the page behind it stays usable and the region stays nonmodal — the choice is
+   not a trap, and focus is never taken from wherever the reader was.
+
+   `align-items: center` rather than `place-items`, because the panel has to be
+   free to be its own width on a phone and 720px on a desktop. */
+.cookie-consent-layer {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-3);
+  padding-bottom: max(var(--sp-3), env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
 .cookie-consent {
   width: min(100%, 720px);
   min-width: 0;
-  max-height: min(440px, 50dvh);
+  /* Centred, it has the whole viewport to sit in rather than the strip above
+     the fold, so the cap is what keeps it from filling a tall screen — and on a
+     short one it still scrolls inside its own box. */
+  max-height: min(620px, 86dvh);
   overflow: auto;
   overscroll-behavior: contain;
   overflow-wrap: anywhere;
@@ -74,16 +97,28 @@
   margin-bottom: 0;
 }
 
-/* Three equal buttons: refusing everything is exactly as direct as allowing it.
-   They stay pinned to the foot of the banner, because on a phone the categories
-   make it taller than its 50dvh cap and the choice would otherwise scroll out of
-   reach. The negative bottom margin cancels the body padding, so the pinned row
-   meets the banner's edge instead of leaving a strip for text to show through. */
+/* The master switch reads as the heading of the two boxes under it, so it is
+   set apart from them rather than listed as a third category. */
+.cookie-consent__master {
+  font-weight: 700;
+}
+.cookie-consent__master + .cookie-consent__hint {
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--plat-300);
+}
+
+/* One button now: the two that decided and saved in a single press are a master
+   switch above, so what is left is confirming the form. It stays pinned to the
+   foot of the banner, because on a phone the categories make it taller than its
+   height cap and the choice would otherwise scroll out of reach. The negative
+   bottom margin cancels the body padding, so the pinned row meets the banner's
+   edge instead of leaving a strip for text to show through. */
 .cookie-consent__actions {
   position: sticky;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-2);
   margin: var(--sp-3) 0 calc(-1 * var(--sp-3));
   padding: var(--sp-2) 0 var(--sp-3);
@@ -118,13 +153,6 @@
   white-space: normal;
 }
 
-/* Three columns of Ukrainian labels wrap into four lines each below this. */
-@media (max-width: 560px) {
-  .cookie-consent__actions {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* On a phone a floating launcher sat over the bottom-right of every page,
    covering text and buttons. Left with nothing else to show, the dock drops
    into the page flow instead: the button lands at the very foot of the page,
@@ -140,7 +168,8 @@
 }
 
 @media (max-width: 380px) {
-  .cookie-consent-dock {
+  .cookie-consent-dock,
+  .cookie-consent-layer {
     padding: var(--sp-2);
     padding-bottom: max(var(--sp-2), env(safe-area-inset-bottom));
   }

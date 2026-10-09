@@ -400,6 +400,62 @@ describe('attribution styling', () => {
   });
 });
 
+// The one deliberately animated thing in the footer. What happy-dom can check
+// is that the label is its own element, that the gradient only applies where a
+// browser can clip a background to glyphs, and that the two ways of asking for
+// a plain line — no `background-clip: text`, or `prefers-reduced-motion` — both
+// get one. The travelling highlight itself is a browser check.
+describe('the attribution shimmer', () => {
+  /** The body of an at-rule block, from its brace to the matching outer one. */
+  function atRule(prelude: string): string {
+    const start = BASE_CSS.indexOf(`${prelude} {`);
+    if (start === -1) throw new Error(`base.css has no ${prelude} block`);
+    return BASE_CSS.slice(start, BASE_CSS.indexOf('\n}', start));
+  }
+
+  it('paints the label and nothing around it', async () => {
+    renderAt('/', signedOut);
+    const link = await screen.findByRole('link', { name: /Created by FluxLab/ });
+
+    const label = link.querySelector('.powered-by__label');
+    expect(label?.textContent).toBe('Created by FluxLab');
+    // The mark stays outside it: the gradient travels across the words.
+    expect(label?.querySelector('.powered-by__mark')).toBeNull();
+  });
+
+  it('animates the gradient only where the text can be painted with it', () => {
+    const supported = atRule(
+      '@supports (background-clip: text) or (-webkit-background-clip: text)',
+    );
+    expect(supported).toMatch(/\.powered-by \.powered-by__label \{/);
+    expect(supported).toMatch(/-webkit-background-clip: text;/);
+    expect(supported).toMatch(/animation: attribution-shimmer/);
+    expect(BASE_CSS).toMatch(/@keyframes attribution-shimmer \{/);
+  });
+
+  it('leaves the declared colour to read when the gradient cannot be clipped', () => {
+    // Transparent text is only safe where the gradient is actually painted
+    // through it, so the label is styled in exactly two guarded places: the
+    // @supports block that clips it, and the reduced-motion block that undoes
+    // it. Anywhere else and the fallback is an invisible footer line.
+    expect(BASE_CSS.match(/\.powered-by \.powered-by__label \{/g)).toHaveLength(2);
+    expect(atRule('@supports (background-clip: text) or (-webkit-background-clip: text)')).toMatch(
+      /color: transparent;/,
+    );
+  });
+
+  it('stands still for a reader who asked for less motion', () => {
+    const reduced = BASE_CSS.slice(
+      BASE_CSS.indexOf('@media (prefers-reduced-motion: reduce)', BASE_CSS.indexOf('.powered-by')),
+    );
+    const block = reduced.slice(0, reduced.indexOf('\n}\n'));
+    expect(block).toMatch(/\.powered-by \.powered-by__label \{/);
+    expect(block).toMatch(/animation: none;/);
+    // And it goes back to inheriting a real colour, not a transparent one.
+    expect(block).toMatch(/color: inherit;/);
+  });
+});
+
 // The last shell on the site with no floor at all. `.legal-shell` and
 // `.workspace-shell` were both given one; the marketing home page kept a footer
 // that simply ended where the last section did, so a viewport taller than the
