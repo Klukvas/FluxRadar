@@ -2132,7 +2132,7 @@ export const copy = {
       },
       policyTitle: 'Current policy',
       policyBody:
-        'Google and Bing connections are read-only. FluxRadar requests no CMS credentials and never changes a client site. Public-site scans continue to work without either connection.',
+        'The Google connection is read-only. FluxRadar requests no CMS credentials and never changes a client site. Public-site scans continue to work without this connection.',
     },
     checkout: {
       windowTitle: 'Payment — confirming',
@@ -3964,7 +3964,7 @@ export const copy = {
       },
       policyTitle: 'Поточна політика',
       policyBody:
-        'Підключення Google і Bing працюють лише на читання. FluxRadar не запитує доступів до CMS і ніколи не змінює сайт клієнта. Перевірки публічного сайту працюють без обох підключень.',
+        'Підключення Google працює лише на читання. FluxRadar не запитує доступів до CMS і ніколи не змінює сайт клієнта. Перевірки публічного сайту працюють без цього підключення.',
     },
     checkout: {
       windowTitle: 'Оплата — підтвердження',
