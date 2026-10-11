@@ -448,19 +448,11 @@ function ScanLaunchColumn(props: {
       {/* The part that may scroll inside the pinned column, so the actions below
           it cannot be pushed off a short viewport. */}
       <div className="launch-form__review">
-        <LaunchSummary
-          language={props.language}
-          site={launchSite}
-          plan={plan}
-          planLabel={planLabel}
-          scope={scope}
-          egressLocation={egressLocation}
-          egressDirect={launchConfig.status === 'ready' && launchConfig.egress.mode === 'direct'}
-        />
-        {/* In the launch column, directly above the button it gates: this is
-            the one thing on the form that can stop the purchase, and a buyer
-            should meet it here rather than as a 409 after pressing pay. Free is
-            not a purchase, so it is not gated. */}
+        {/* First in the launch column, above the summary: this is the one thing
+            on the form that can stop the purchase, and below the summary it sat
+            under the fold of a normal window. A buyer should meet a refusal
+            here rather than as a 409 after pressing pay. Free is not a
+            purchase, so it is not gated. */}
         {plan === 'Free' || props.internalFreeAccess ? null : (
           <SiteReachabilityPanel
             language={props.language}
@@ -470,6 +462,15 @@ function ScanLaunchColumn(props: {
             onResult={setSiteReachable}
           />
         )}
+        <LaunchSummary
+          language={props.language}
+          site={launchSite}
+          plan={plan}
+          planLabel={planLabel}
+          scope={scope}
+          egressLocation={egressLocation}
+          egressDirect={launchConfig.status === 'ready' && launchConfig.egress.mode === 'direct'}
+        />
         {usingSavedProfile && (plan === 'WebsiteAudit' || plan === 'Complete') ? (
           <GoogleLaunchContext profileId={target} language={props.language} />
         ) : null}
