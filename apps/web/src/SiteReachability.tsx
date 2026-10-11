@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { apiRequest, type SiteReachability } from './api';
-import { Button, Panel, StatusChip } from './components';
+import { Button, Panel } from './components';
 import { copy, fillCopy, type Language } from './i18n';
 
 export interface SiteReachabilityPanelProps {
@@ -134,30 +134,33 @@ function Body(props: { language: Language; state: PanelState }) {
 
   const { result } = props.state;
   const expired = result.expired === true;
+  const verdict = expired ? t.states.expired : stateCopy(props.language, result.state);
+  // A refusal is the one thing on this form that stops the purchase, so it is
+  // drawn as a verdict box the reader cannot scroll past, not as a chip and a
+  // grey line. `canPurchase` is the API's word; the colour only repeats it.
+  const tone = result.canPurchase ? 'ok' : 'blocked';
   return (
-    <>
-      <div className="split">
-        <StatusChip
-          // The machine word the chip colours itself from (`statusKind`); the
-          // label beside it is what the reader actually reads.
-          status={result.canPurchase ? 'ok' : 'warning'}
-          label={expired ? t.states.expired.label : stateCopy(props.language, result.state).label}
-        />
+    <div className={`reach-verdict reach-verdict--${tone}`} role="status">
+      <span className="reach-verdict__icon" aria-hidden="true">
+        {result.canPurchase ? '✓' : '!'}
+      </span>
+      <div className="reach-verdict__text">
+        <strong className="reach-verdict__label">{verdict.label}</strong>
+        <p className="reach-verdict__body">{verdict.body}</p>
+        {result.startStatus === null || result.canPurchase ? null : (
+          <p className="reach-verdict__meta">
+            {fillCopy(t.answeredWith, { status: String(result.startStatus) })}
+          </p>
+        )}
+        {result.accessControlSignals !== undefined && result.accessControlSignals.length > 0 ? (
+          // Named, not interpreted: a site may sit behind Cloudflare and answer
+          // perfectly well, so this is evidence for its owner rather than a verdict.
+          <p className="reach-verdict__meta">
+            {fillCopy(t.signals, { signals: result.accessControlSignals.join(', ') })}
+          </p>
+        ) : null}
       </div>
-      <p role="status">
-        {expired ? t.states.expired.body : stateCopy(props.language, result.state).body}
-      </p>
-      {result.startStatus === null || result.canPurchase ? null : (
-        <p className="muted">{fillCopy(t.answeredWith, { status: String(result.startStatus) })}</p>
-      )}
-      {result.accessControlSignals !== undefined && result.accessControlSignals.length > 0 ? (
-        // Named, not interpreted: a site may sit behind Cloudflare and answer
-        // perfectly well, so this is evidence for its owner rather than a verdict.
-        <p className="muted">
-          {fillCopy(t.signals, { signals: result.accessControlSignals.join(', ') })}
-        </p>
-      ) : null}
-    </>
+    </div>
   );
 }
 

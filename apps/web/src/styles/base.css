@@ -1728,6 +1728,53 @@ code,
   line-height: 1.45;
 }
 
+/* The answer to "can we read your site?". A refusal stops the purchase, so it
+   is a box with a heavy left rule and its own icon — readable at a glance, and
+   not by colour alone (the label and the "!" carry the same meaning). */
+.reach-verdict {
+  display: flex;
+  gap: var(--sp-3);
+  margin: var(--sp-2) 0;
+  padding: var(--sp-3);
+  border: 1px solid;
+  border-left-width: 6px;
+  line-height: 1.45;
+}
+.reach-verdict--blocked {
+  color: #59130e;
+  background: #ffd9d4;
+  border-color: #9b1c12;
+}
+.reach-verdict--ok {
+  color: #124a22;
+  background: #d6efd9;
+  border-color: #1a6b2f;
+}
+.reach-verdict__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  height: 24px;
+  border: 1px solid;
+  font: bold 16px var(--mono-font);
+}
+.reach-verdict__text {
+  flex: 1;
+  min-width: 0;
+}
+.reach-verdict__label {
+  display: block;
+  font-size: 15px;
+}
+.reach-verdict__body {
+  margin: var(--sp-1) 0 0;
+}
+.reach-verdict__meta {
+  margin: var(--sp-2) 0 0;
+  font: 11px/1.4 var(--mono-font);
+  overflow-wrap: anywhere;
+}
+
 .configuration-status {
   margin-top: var(--sp-3);
   padding: var(--sp-3);
