@@ -87,9 +87,9 @@ export async function loadAdminStats(days: AdminStatsWindow): Promise<AdminStats
   }
 }
 
-type Shape = Readonly<Record<string, unknown>>;
+export type Shape = Readonly<Record<string, unknown>>;
 
-function isShape(value: unknown): value is Shape {
+export function isShape(value: unknown): value is Shape {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -101,7 +101,7 @@ function hasCounts(value: unknown, keys: readonly string[]): value is Shape {
   return isShape(value) && keys.every((key) => isCount(value[key]));
 }
 
-function isListOf<Row>(value: unknown, isRow: (row: unknown) => row is Row): value is Row[] {
+export function isListOf<Row>(value: unknown, isRow: (row: unknown) => row is Row): value is Row[] {
   return Array.isArray(value) && value.every(isRow);
 }
 
