@@ -22,8 +22,10 @@ import {
   type RevenueLine,
   type StatusCount,
 } from './admin-stats';
+import { AccountsSection } from './AdminAccounts';
 import { DailyCharts } from './AdminDailyChart';
-import { Button, DataTable, EmptyState, Panel, SkeletonRows, Window } from './components';
+import { RetryPanel } from './AdminRetryPanel';
+import { DataTable, EmptyState, Panel, SkeletonRows, Window } from './components';
 // `.segmented`, the two-state switch the Issue Center already draws.
 import './styles/findings.css';
 import './styles/admin-stats.css';
@@ -55,22 +57,43 @@ function formatMoney(amount: number, currency: string): string {
     : amount.toFixed(2);
 }
 
-export function AdminStatsScreen() {
+/** The chosen window, its numbers, and the two ways to ask again. */
+function useAdminStats() {
   const [days, setDays] = useState<AdminStatsWindow>(DEFAULT_ADMIN_STATS_WINDOW);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<LoadState>(LOADING);
+  // The Accounts list mounts after the first numbers arrive and then stays, so
+  // switching the period does not throw away its page and search.
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     // A slow answer for the window the owner just left must not replace the
     // one they switched to.
     let isCurrent = true;
     void loadAdminStats(days).then((result) => {
-      if (isCurrent) setState(result);
+      if (!isCurrent) return;
+      setState(result);
+      if (result.kind === 'ready') setHasLoaded(true);
     });
     return () => {
       isCurrent = false;
     };
   }, [days, attempt]);
+
+  const chooseWindow = (next: AdminStatsWindow): void => {
+    if (next === days) return;
+    setState(LOADING);
+    setDays(next);
+  };
+  const retry = (): void => {
+    setState(LOADING);
+    setAttempt((count) => count + 1);
+  };
+  return { days, state, hasLoaded, chooseWindow, retry };
+}
+
+export function AdminStatsScreen() {
+  const { days, state, hasLoaded, chooseWindow, retry } = useAdminStats();
 
   if (state.kind === 'unavailable') {
     return (
@@ -82,16 +105,6 @@ export function AdminStatsScreen() {
       </Window>
     );
   }
-
-  const chooseWindow = (next: AdminStatsWindow): void => {
-    if (next === days) return;
-    setState(LOADING);
-    setDays(next);
-  };
-  const retry = (): void => {
-    setState(LOADING);
-    setAttempt((count) => count + 1);
-  };
 
   return (
     <div className="stack admin-stats">
@@ -108,6 +121,8 @@ export function AdminStatsScreen() {
           <WindowSwitch days={days} onChoose={chooseWindow} />
         </div>
         <DashboardBody state={state} onRetry={retry} />
+        {hasLoaded ? <AccountsSection /> : null}
+        {state.kind === 'ready' ? <TestModeNote stats={state.stats} /> : null}
       </Window>
     </div>
   );
@@ -139,16 +154,11 @@ function DashboardBody(props: { state: BodyState; onRetry: () => void }) {
   if (state.kind === 'loading') return <SkeletonRows rows={4} />;
   if (state.kind === 'failed') {
     return (
-      <Panel title="The numbers could not be loaded">
-        <p className="muted" role="alert">
-          {state.message}
-        </p>
-        <div className="button-row">
-          <Button variant="primary" onClick={props.onRetry}>
-            Try again
-          </Button>
-        </div>
-      </Panel>
+      <RetryPanel
+        title="The numbers could not be loaded"
+        message={state.message}
+        onRetry={props.onRetry}
+      />
     );
   }
   return <Dashboard stats={state.stats} />;
@@ -166,12 +176,19 @@ function Dashboard({ stats }: { stats: AdminStats }) {
       </section>
       <DailyCharts daily={stats.daily} />
       <Breakdowns period={period} allTime={allTime} periodLabel={periodLabel} />
-      <p className="muted admin-stats__note">
-        Test mode, {periodLabel.toLowerCase()} — checkouts opened:{' '}
-        {formatCount(period.testMode.checkoutsOpened)}, orders paid:{' '}
-        {formatCount(period.testMode.purchases)}. None of it is counted above.
-      </p>
     </>
+  );
+}
+
+/** Under the Accounts list, closing the page as it did before the list existed. */
+function TestModeNote({ stats }: { stats: AdminStats }) {
+  const { testMode } = stats.period;
+  return (
+    <p className="muted admin-stats__note">
+      Test mode, last {stats.window.days} days — checkouts opened:{' '}
+      {formatCount(testMode.checkoutsOpened)}, orders paid: {formatCount(testMode.purchases)}. None
+      of it is counted above.
+    </p>
   );
 }
 

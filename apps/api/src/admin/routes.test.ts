@@ -1,15 +1,24 @@
 import { randomUUID } from 'node:crypto';
 
-import { RULESET_VERSION } from '@fluxradar/contracts';
 import type { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { SESSION_COOKIE_NAME, createSession } from '../auth/sessions.ts';
-import { silentLogger } from '../http/logger.ts';
-import { createApp } from '../index.ts';
 import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import { ADMIN_EMAILS_ENV } from './admin-emails.ts';
+import {
+  ADMIN_EMAIL,
+  ADMIN_TEST_NOW as NOW,
+  ADMINS,
+  adminTestApp,
+  at,
+  seedAccount,
+  seedCheckout,
+  seedPurchase,
+  seedScan,
+  unknownRouteAnswer,
+  type SeededOwner,
+} from '../test-utils/admin-fixtures.ts';
 
 // GET /admin/stats: the owner dashboard.
 //
@@ -22,9 +31,6 @@ import { ADMIN_EMAILS_ENV } from './admin-emails.ts';
 // Every seeded row is younger than the shortest retention period and every open
 // checkout has a future deadline, so the retention sweep createApp starts in
 // the background has nothing to remove or relabel while a test reads.
-
-const NOW = new Date('2026-09-21T15:00:00.000Z');
-const ADMIN_EMAIL = 'Owner@Example.com';
 
 let db: TestDb;
 const previousAdminEmails = process.env[ADMIN_EMAILS_ENV];
@@ -40,57 +46,7 @@ afterEach(async () => {
   else process.env[ADMIN_EMAILS_ENV] = previousAdminEmails;
 });
 
-/** The app with an explicit admin list, or the production env read when none is given. */
-function appFor(adminEmails?: ReadonlySet<string>) {
-  return createApp({
-    prisma: db.prisma,
-    autoProcess: false,
-    logger: silentLogger,
-    now: () => NOW,
-    supportChannel: null,
-    ...(adminEmails === undefined ? {} : { adminEmails }),
-  });
-}
-
-const ADMINS: ReadonlySet<string> = new Set(['owner@example.com']);
-
-interface SeededOwner {
-  readonly accountId: string;
-  readonly siteProfileId: string;
-  readonly cookie: string;
-}
-
-async function seedAccount(
-  prisma: PrismaClient,
-  options: { email: string; verified: boolean; createdAt: Date },
-): Promise<SeededOwner> {
-  const account = await prisma.account.create({
-    data: {
-      email: options.email,
-      passwordHash: 'test-hash',
-      emailVerifiedAt: options.verified ? options.createdAt : null,
-      createdAt: options.createdAt,
-    },
-  });
-  const profile = await prisma.siteProfile.create({
-    data: { accountId: account.id, name: 'Site', domain: `https://${randomUUID()}.example` },
-  });
-  const session = await createSession(prisma, account.id, NOW);
-  return {
-    accountId: account.id,
-    siteProfileId: profile.id,
-    cookie: `${SESSION_COOKIE_NAME}=${session.token}`,
-  };
-}
-
-const at = (iso: string): Date => new Date(iso);
-
-/** What an unmounted path answers, to compare every refusal against. */
-async function unknownRouteAnswer(app: ReturnType<typeof appFor>, cookie?: string) {
-  const unknown = request(app).get('/admin/unknown-route');
-  const response = await (cookie === undefined ? unknown : unknown.set('Cookie', cookie));
-  return { status: response.status, body: response.body as unknown };
-}
+const appFor = (adminEmails?: ReadonlySet<string>) => adminTestApp(db.prisma, adminEmails);
 
 describe('GET /admin/stats access', () => {
   it('answers a visitor with no session exactly as an unknown route', async () => {
@@ -390,81 +346,6 @@ async function seedBusiness(prisma: PrismaClient): Promise<SeededOwner> {
   await seedRefund(prisma, testOrder, { at: '2026-09-21T12:00:00Z', amount: 120, currency: 'USD' });
 
   return owner;
-}
-
-async function seedScan(
-  prisma: PrismaClient,
-  owner: SeededOwner,
-  plan: 'Free' | 'Basic' | 'Complete',
-  status: string,
-  createdAt: string,
-): Promise<void> {
-  await prisma.scan.create({
-    data: {
-      accountId: owner.accountId,
-      siteProfileId: owner.siteProfileId,
-      plan,
-      domain: 'https://example.com',
-      status,
-      scopeJson: '{}',
-      rulesetVersion: RULESET_VERSION,
-      createdAt: at(createdAt),
-    },
-  });
-}
-
-async function seedPurchase(
-  prisma: PrismaClient,
-  owner: SeededOwner,
-  options: {
-    at: string;
-    usd: number;
-    settled?: { amount: number; currency: string };
-    status?: string;
-    provider?: string;
-  },
-): Promise<string> {
-  const purchase = await prisma.purchase.create({
-    data: {
-      accountId: owner.accountId,
-      siteProfileId: owner.siteProfileId,
-      plan: options.usd === 55 ? 'Basic' : 'Complete',
-      provider: options.provider ?? 'fastspring',
-      providerTransactionId: `ord_${randomUUID()}`,
-      amountUsd: options.usd,
-      currency: 'USD',
-      settledAmount: options.settled?.amount ?? null,
-      settledCurrency: options.settled?.currency ?? null,
-      status: options.status ?? 'paid',
-      createdAt: at(options.at),
-    },
-  });
-  return purchase.id;
-}
-
-async function seedCheckout(
-  prisma: PrismaClient,
-  owner: SeededOwner,
-  options: { at: string; status: string; purchaseId?: string; liveMode?: boolean },
-): Promise<void> {
-  await prisma.checkoutSession.create({
-    data: {
-      provider: 'fastspring',
-      reference: randomUUID(),
-      accountId: owner.accountId,
-      siteProfileId: owner.siteProfileId,
-      plan: 'Basic',
-      productPath: 'fluxradar-basic',
-      expectedAmountUsd: 55,
-      liveMode: options.liveMode ?? true,
-      status: options.status,
-      scopeJson: '{}',
-      purchaseId: options.purchaseId ?? null,
-      // Far enough ahead that the retention sweep never calls it abandoned.
-      expiresAt: new Date(NOW.getTime() + 24 * 60 * 60 * 1000),
-      createdAt: at(options.at),
-    },
-  });
 }
 
 async function seedRefund(

@@ -76,7 +76,7 @@ export interface BusinessStats {
 
 /** A purchase paid through a checkout opened in the provider's test mode. */
 const TEST_MODE_PURCHASE: Prisma.PurchaseWhereInput = { checkout: { is: { liveMode: false } } };
-const REAL_PURCHASE: Prisma.PurchaseWhereInput = { NOT: TEST_MODE_PURCHASE };
+export const REAL_PURCHASE: Prisma.PurchaseWhereInput = { NOT: TEST_MODE_PURCHASE };
 
 export async function readBusinessStats(
   prisma: PrismaClient,

@@ -96,3 +96,28 @@
   color: var(--plat-600);
   font-size: 11px;
 }
+
+/* The Accounts list: the search field and its buttons on one line where the
+   width allows, the buttons under the field on a phone. */
+.admin-accounts__search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: flex-end;
+  margin: var(--sp-3) 0;
+}
+.admin-accounts__search > .field {
+  flex: 1 1 240px;
+  max-width: 420px;
+}
+.admin-accounts__pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.admin-accounts__pager > p {
+  margin: 0;
+}

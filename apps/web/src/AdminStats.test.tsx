@@ -69,24 +69,51 @@ function failure(status: number, code: string, message: string): Response {
   });
 }
 
-function stubApi(adminStats: (search: string) => Response, signedIn = true) {
+/** The Accounts list the dashboard now draws under the numbers; its own tests are in AdminAccounts.test.tsx. */
+const accountsPage = {
+  page: 1,
+  pageSize: 50,
+  total: 1,
+  rows: [
+    {
+      email: 'buyer@example.com',
+      createdAt: '2026-09-16T09:00:00.000Z',
+      emailVerified: true,
+      freeCheckUsedAt: null,
+      scans: 2,
+      purchases: 1,
+      lastActivityAt: '2026-09-18T10:00:00.000Z',
+    },
+  ],
+};
+
+function stubApi(
+  adminStats: (search: string) => Response,
+  signedIn = true,
+  adminAccounts: (search: string) => Response = () => envelope(accountsPage),
+) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = new URL(String(input));
     if (url.pathname === '/auth/me')
       return Promise.resolve(signedIn ? envelope(account) : failure(401, 'UNAUTHORIZED', 'no'));
     if (url.pathname === '/profiles') return Promise.resolve(envelope([]));
     if (url.pathname === '/admin/stats') return Promise.resolve(adminStats(url.search));
+    if (url.pathname === '/admin/accounts') return Promise.resolve(adminAccounts(url.search));
     return Promise.resolve(envelope(null));
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
 
-function statsRequests(fetchMock: ReturnType<typeof vi.fn>): string[] {
+function requestsTo(fetchMock: ReturnType<typeof vi.fn>, pathname: string): string[] {
   return fetchMock.mock.calls
     .map(([input]) => new URL(String(input)))
-    .filter((url) => url.pathname === '/admin/stats')
+    .filter((url) => url.pathname === pathname)
     .map((url) => url.search);
+}
+
+function statsRequests(fetchMock: ReturnType<typeof vi.fn>): string[] {
+  return requestsTo(fetchMock, '/admin/stats');
 }
 
 function panelTitled(title: string): HTMLElement {
@@ -129,6 +156,8 @@ describe('owner dashboard', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/checkouts opened: 3, orders paid: 1\./)).toBeInTheDocument();
     expect(statsRequests(fetchMock)).toEqual(['?days=30']);
+    expect(await screen.findByText('buyer@example.com')).toBeInTheDocument();
+    expect(requestsTo(fetchMock, '/admin/accounts')).toEqual(['?page=1']);
     // Never indexed: it is a workspace page to search engines.
     expect(document.head.querySelector('meta[name="robots"]')).toHaveAttribute(
       'content',
@@ -151,8 +180,45 @@ describe('owner dashboard', () => {
     expect(statsRequests(fetchMock)).toEqual(['?days=30', '?days=7']);
   });
 
+  it('keeps the accounts page and search when the owner switches the period', async () => {
+    const fetchMock = stubApi(
+      (search) => envelope(statsFor(Number(new URLSearchParams(search).get('days')))),
+      true,
+      (search) => {
+        const page = Number(new URLSearchParams(search).get('page'));
+        return envelope({
+          ...accountsPage,
+          page,
+          total: 120,
+          rows: Array.from({ length: 50 }, (_, index) => ({
+            ...accountsPage.rows[0],
+            email: `buyer-${(page - 1) * 50 + index}@example.com`,
+          })),
+        });
+      },
+    );
+    window.history.replaceState(null, '', '/admin/stats');
+    render(<App />);
+    await screen.findByText('buyer-0@example.com');
+    fireEvent.change(screen.getByLabelText('Search by email'), { target: { value: 'buyer' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('buyer-50@example.com');
+    const before = requestsTo(fetchMock, '/admin/accounts');
+
+    fireEvent.click(screen.getByRole('button', { name: '7 days' }));
+
+    expect(await screen.findByText('Revenue · last 7 days')).toBeInTheDocument();
+    expect(before).toEqual(['?page=1', '?page=1&q=buyer', '?page=2&q=buyer']);
+    expect(requestsTo(fetchMock, '/admin/accounts')).toEqual(before);
+    expect(screen.getByText('Showing 51–100 of 120')).toBeInTheDocument();
+    expect(screen.getByLabelText('Search by email')).toHaveValue('buyer');
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument();
+  });
+
   it('says "Not available" when the API answers 404', async () => {
-    stubApi(() => failure(404, 'NOT_FOUND', 'route not found'));
+    const fetchMock = stubApi(() => failure(404, 'NOT_FOUND', 'route not found'));
     window.history.replaceState(null, '', '/admin/stats');
 
     render(<App />);
@@ -162,6 +228,8 @@ describe('owner dashboard', () => {
       screen.getByText('This page does not exist, or is not available to this account.'),
     ).toBeInTheDocument();
     expect(screen.queryByText('Business numbers')).not.toBeInTheDocument();
+    // An unavailable dashboard never asks for the accounts list.
+    expect(requestsTo(fetchMock, '/admin/accounts')).toEqual([]);
   });
 
   it.each([
@@ -204,6 +272,7 @@ describe('owner dashboard', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(statsRequests(fetchMock)).toEqual([]);
+    expect(requestsTo(fetchMock, '/admin/accounts')).toEqual([]);
   });
 });
 
