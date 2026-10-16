@@ -60,6 +60,17 @@ describe('home hero', () => {
     expect(heading.textContent).toBe(title);
   });
 
+  // The dark panel is what keeps the copy's small text at AA; the platinum
+  // example window beside it must not take it.
+  it('puts the copy column on the dark panel and leaves the example window light', () => {
+    renderHome('en');
+    const column = screen.getByRole('heading', { level: 1 }).parentElement as HTMLElement;
+    expect(column).toHaveClass('home-hero__panel');
+    const window = screen.getByRole('region', { name: 'Example report' });
+    expect(window).not.toHaveClass('home-hero__panel');
+    expect(window.querySelector('.home-hero__panel')).toBeNull();
+  });
+
   it.each(LANGUAGES)('shows no terminal, counters or ticker (%s)', (language) => {
     renderHome(language);
     const page = document.body;

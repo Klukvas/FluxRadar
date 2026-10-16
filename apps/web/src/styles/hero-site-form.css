@@ -27,6 +27,13 @@
   color: var(--plat-900);
   font-size: 16px;
 }
+/* The browser's default placeholder grey is 2.35:1 on the white field; the
+   example address has to be readable, so it takes --plat-600 at full opacity
+   (Firefox dims placeholders by default). */
+.home__site-input::placeholder {
+  color: var(--plat-600);
+  opacity: 1;
+}
 .home__site-input[aria-invalid='true'] {
   outline: 2px solid var(--term-red);
   outline-offset: 1px;

@@ -201,6 +201,14 @@ describe('hero copy panel contrast', () => {
     expect(contrast(colour(), panel())).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 
+  // The placeholder sits on the field's own white face, not on the panel.
+  it('reads the field placeholder at AA on the field', () => {
+    const placeholder = ruleIn(FORM_CSS, '.home__site-input::placeholder');
+    expect(placeholder).toMatch(/opacity: 1;/);
+    const field = declared(ruleIn(FORM_CSS, '.home__site-input'), 'background');
+    expect(contrast(declared(placeholder, 'color'), field)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+  });
+
   // Focus rings and the invalid outline are non-text indicators: 3:1.
   it.each<[string, () => string]>([
     [
