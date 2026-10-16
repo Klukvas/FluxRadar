@@ -144,3 +144,81 @@ describe('primary buttons stay distinct', () => {
     expect(token('button-fg')).not.toBe(token('term-bg'));
   });
 });
+
+// The hero's copy column sat on the bare desktop blue, where its small text
+// measured 3.3–4.4:1. It is a dark panel now, and every colour painted on it is
+// read from the stylesheets here, so a later colour change that drops a pair
+// below AA fails instead of shipping.
+describe('hero copy panel contrast', () => {
+  const HERO_CSS = readFileSync(join(STYLES, 'home-hero.css'), 'utf8');
+  const FORM_CSS = readFileSync(join(STYLES, 'hero-site-form.css'), 'utf8');
+
+  function ruleIn(css: string, selector: string): string {
+    const start = css.indexOf(`\n${selector} {`);
+    if (start === -1) throw new Error(`no rule for ${selector}`);
+    return css.slice(start, css.indexOf('}', start));
+  }
+
+  /** The colour a declaration names, as a six-digit hex. */
+  function declared(body: string, property: string): string {
+    const value = new RegExp(`\\n\\s*${property}: ([^;]+);`).exec(body)?.[1]?.trim();
+    if (value === undefined) throw new Error(`no ${property} in ${body}`);
+    const variable = /^var\(--([a-z0-9-]+)\)$/.exec(value)?.[1];
+    if (variable !== undefined) return token(variable);
+    if (/^#[0-9a-f]{3}$/i.test(value)) {
+      return `#${[...value.slice(1)].map((digit) => digit + digit).join('')}`;
+    }
+    if (/^#[0-9a-f]{6}$/i.test(value)) return value;
+    throw new Error(`${property}: ${value} is not a colour this test can read`);
+  }
+
+  const panel = (): string => declared(ruleIn(HERO_CSS, '.home-hero__panel'), 'background');
+
+  it('puts the copy column on the terminal background, in a bordered window', () => {
+    const body = ruleIn(HERO_CSS, '.home-hero__panel');
+    expect(body).toMatch(/background: var\(--term-bg\);/);
+    expect(body).toMatch(/border: 1px solid var\(--plat-900\);/);
+    expect(body).toMatch(/box-shadow: 2px 2px 0 /);
+  });
+
+  // The title inherits the panel's colour; a colour of its own would escape
+  // the pairs checked below.
+  it('lets the title take the panel colour', () => {
+    expect(rule('.home h1')).not.toMatch(/\n\s*color:/);
+  });
+
+  it.each<[string, () => string]>([
+    ['title and panel text', () => declared(ruleIn(HERO_CSS, '.home-hero__panel'), 'color')],
+    ['lede', () => declared(rule('.home__lede'), 'color')],
+    ['form label', () => declared(ruleIn(FORM_CSS, '.home__site-label'), 'color')],
+    ['note under the form', () => declared(ruleIn(FORM_CSS, '.home__site-hint'), 'color')],
+    ['invalid-address error', () => declared(ruleIn(FORM_CSS, '.home__site-hint--error'), 'color')],
+    ['trust list', () => declared(ruleIn(HERO_CSS, '.home-hero__trust'), 'color')],
+    ['trust tick', () => declared(ruleIn(HERO_CSS, '.home-hero__check'), 'color')],
+    ['pricing link', () => declared(rule('.home__text-action'), 'color')],
+    ['pricing link on hover', () => declared(rule('.home__text-action:hover'), 'color')],
+  ])('reads the %s at AA on the panel', (_name, colour) => {
+    expect(contrast(colour(), panel())).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+  });
+
+  // Focus rings and the invalid outline are non-text indicators: 3:1.
+  it.each<[string, () => string]>([
+    [
+      'link and button focus ring',
+      () => declared(rule('.home a:focus-visible,\n.home button:focus-visible'), 'outline-color'),
+    ],
+    [
+      'field focus ring',
+      () => declared(ruleIn(HERO_CSS, '.home-hero__panel input:focus-visible'), 'outline-color'),
+    ],
+    ['invalid-field outline', () => token('term-red')],
+  ])('keeps the %s visible on the panel', (_name, colour) => {
+    expect(contrast(colour(), panel())).toBeGreaterThanOrEqual(3);
+  });
+
+  it('draws the invalid-field outline in --term-red', () => {
+    expect(ruleIn(FORM_CSS, ".home__site-input[aria-invalid='true']")).toMatch(
+      /outline: 2px solid var\(--term-red\);/,
+    );
+  });
+});

@@ -20,7 +20,7 @@ export function HomeHero(props: {
   const t = copy[props.language].home.hero;
   return (
     <section className="home__hero" aria-labelledby="home-title">
-      <div className="home__hero-copy">
+      <div className="home__hero-copy home-hero__panel">
         <h1 id="home-title">{t.title}</h1>
         <p className="home__lede">{t.lede}</p>
         <HeroSiteForm
