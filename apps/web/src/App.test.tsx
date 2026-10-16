@@ -815,6 +815,27 @@ describe('public /checks — audit coverage page', () => {
     ).toHaveAttribute('href', '/checks');
   });
 
+  it('opens the home page in Ukrainian on /uk with no consent and only the home reads', async () => {
+    // The Ukrainian Instagram bio links here; a first-time visitor has not
+    // answered the cookie banner, so nothing stored can carry the language.
+    const signedOut = (path: string) =>
+      path === '/auth/me' ? failure(401, 'session required') : envelope(null);
+    const englishFetch = stubApi(signedOut);
+    render(<App />);
+    expect(await screen.findByText(copy.en.home.hero.promise)).toBeInTheDocument();
+    const englishRequests = requestedPaths(englishFetch);
+    cleanup();
+
+    window.history.replaceState(null, '', '/uk');
+    const ukrainianFetch = stubApi(signedOut);
+    render(<App />);
+    expect(await screen.findByText(copy.uk.home.hero.promise)).toBeInTheDocument();
+    expect(screen.queryByText(copy.en.home.hero.promise)).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
+    // The Ukrainian address is the same home page: it asks for nothing `/` does not.
+    expect(requestedPaths(ukrainianFetch)).toEqual(englishRequests);
+  });
+
   it('says what the product does in plain words before the brand title', async () => {
     window.history.replaceState(null, '', '/');
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));

@@ -45,17 +45,26 @@ export function readLanguageParam(search: string = window.location.search): Lang
   }
 }
 
+/** The Ukrainian home address that Instagram bios and other Ukrainian links point at. */
+export const UKRAINIAN_HOME_PATH = '/uk';
+
+/** `uk` on `/uk` (with or without a trailing slash), or null on every other path. */
+export function readLanguagePath(pathname: string = window.location.pathname): Language | null {
+  return pathname.replace(/\/+$/, '') === UKRAINIAN_HOME_PATH ? 'uk' : null;
+}
+
 /**
  * The language a session opens in.
  *
- * `?lang=` wins over the stored preference and is written back only when
- * preference storage was allowed, because
- * that parameter is what the blog's language filter, the sitemap's `hreflang`
- * alternates and any shared link carry: following one of those has to land in
- * the language it promised, and stay there for the rest of the visit.
+ * `?lang=` wins over everything, then the `/uk` address, then the stored
+ * preference. The first two are written back only when preference storage was
+ * allowed, because they are what the blog's language filter, the sitemap's
+ * `hreflang` alternates, the Instagram bio and any shared link carry: following
+ * one of those has to land in the language it promised — even for a visitor who
+ * has not answered the cookie banner — and stay there for the rest of the visit.
  */
 export function readInitialLanguage(): Language {
-  const requested = readLanguageParam();
+  const requested = readLanguageParam() ?? readLanguagePath();
   if (requested === null) return readStoredLanguage();
   storeLanguage(requested);
   return requested;
