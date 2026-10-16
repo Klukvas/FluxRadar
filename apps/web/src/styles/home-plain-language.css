@@ -1,16 +1,7 @@
-/* The home page in plain words: the one-line promise above the brand title,
-   and the example report that shows what a finding reads like. Both sit on the
-   dark hero background; the example window takes the light card surface of the
-   capability cards beside it, so it reads as a document, not as more scenery. */
-
-.home__promise {
-  max-width: 590px;
-  margin: 18px 0 0;
-  color: #fff;
-  font-size: 19px;
-  font-weight: 700;
-  line-height: 1.4;
-}
+/* The home page in plain words: the example report that shows what a finding
+   reads like. It sits on the dark page background; the example window takes
+   the light card surface of the capability cards beside it, so it reads as a
+   document, not as more scenery. */
 
 /* The coverage entry below draws a rule on its top edge; the window's hard
    shadow would sit on that rule without this room. Doubled class: base.css
@@ -109,9 +100,6 @@
 }
 
 @media (max-width: 699px) {
-  .home__promise {
-    font-size: 17px;
-  }
   .home-example__finding {
     padding: 14px 14px 16px;
   }

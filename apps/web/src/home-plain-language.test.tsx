@@ -196,10 +196,10 @@ describe('home page names standards after plain words', () => {
   function homeSentences(language: Language): readonly string[] {
     const home = copy[language].home;
     return [
+      home.hero.title,
       home.hero.lede,
-      home.instrument.moduleAiSeo,
-      ...home.instrument.terminalLines,
-      home.ticker.aiSeo,
+      home.hero.note,
+      ...home.hero.example.findings.flatMap((finding) => [finding.problem, finding.action]),
       home.capabilities.seo.title,
       home.capabilities.seo.body,
       home.capabilities.ai.title,
@@ -226,18 +226,7 @@ describe('home page names standards after plain words', () => {
     expect(bare).toEqual([]);
   });
 
-  // One concept, one name: the instrument panel, the ticker and the capability
-  // card all call the AI module the same thing, so an owner never wonders
-  // whether they are three different checks.
-  it.each(LANGUAGES)('gives the AI module one name on the home page (%s)', (language) => {
-    const home = copy[language].home;
-    const name = home.capabilities.ai.title;
-    expect(home.instrument.moduleAiSeo).toBe(name);
-    expect(home.ticker.aiSeo).toBe(name.toLocaleUpperCase(language));
-  });
-
-  // The eyebrow keeps the product's "audit station" name, which the menu bar,
-  // the footer and the coverage page share; only the lede has to be plain.
+  // The hero lede is the first thing an owner reads under the title.
   it.each(LANGUAGES)('drops "operating picture" from the hero lede (%s)', (language) => {
     expect(copy[language].home.hero.lede).not.toMatch(/operating picture|картину/i);
   });

@@ -127,14 +127,14 @@ describe('default button foreground', () => {
 describe('primary buttons stay distinct', () => {
   // The green primary carries its own pair, so the shared foreground must not
   // flatten the two variants into one look.
-  it.each([
-    '.home__actions .button--primary,\n.home__last-call .button--primary',
-    '.home__account-actions .button--primary',
-  ])('keeps %s on its own green-on-dark pair', (selector) => {
-    const body = rule(selector);
-    expect(body).toMatch(/background: var\(--term-green\);/);
-    expect(body).toMatch(/color: var\(--term-bg\);/);
-  });
+  it.each(['.home__last-call .button--primary', '.home__account-actions .button--primary'])(
+    'keeps %s on its own green-on-dark pair',
+    (selector) => {
+      const body = rule(selector);
+      expect(body).toMatch(/background: var\(--term-green\);/);
+      expect(body).toMatch(/color: var\(--term-bg\);/);
+    },
+  );
 
   it('reads the green primary at AA as well', () => {
     expect(contrast(token('term-bg'), token('term-green'))).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);

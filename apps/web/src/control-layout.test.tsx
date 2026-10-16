@@ -438,17 +438,6 @@ describe('base.css layout rules', () => {
     expect(BASE_CSS).toMatch(/\.window--dialog \{\s*max-width: 520px;/);
     expect(BASE_CSS).toMatch(/\.window--launch \{\s*max-width: 1040px;/);
   });
-
-  // The Ukrainian hints under the hero figures are about twice as long as the
-  // English ones; clipped to a single line they lost most of their sentence.
-  it('wraps the hero readout hints instead of clipping them', () => {
-    const readout = BASE_CSS.slice(
-      BASE_CSS.indexOf('.home__readout-cell small'),
-      BASE_CSS.indexOf('.home__instrument .terminal'),
-    );
-    expect(readout).not.toMatch(/white-space: nowrap/);
-    expect(readout).toMatch(/overflow-wrap: anywhere/);
-  });
 });
 
 const stylesheet = (name: string): string =>

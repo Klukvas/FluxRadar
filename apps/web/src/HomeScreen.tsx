@@ -1,20 +1,17 @@
 import { useEffect, useRef } from 'react';
 
-import { Button, CreatedByFluxLab, MenuBar, StatusChip, Terminal } from './components';
+import { Button, CreatedByFluxLab, MenuBar } from './components';
 import type { Account } from './api';
 import { AuthScreen } from './AuthScreen';
-import { CoverageTicker } from './CoverageTicker';
 import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { ExampleReport } from './ExampleReport';
-import { HeroSiteForm } from './HeroSiteForm';
-import { HeroTitle } from './HeroTitle';
+import { HomeHero } from './HomeHero';
 import { copy, type Language } from './i18n';
 import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
-import { PAID_PLAN_ORDER } from './plan-modules';
 import './styles/home-plain-language.css';
 
 /**
- * The public landing page: the hero, the instrument preview, the pricing block
+ * The public landing page: the hero, the example report, the pricing block
  * and the sign-in dialog that opens over them.
  *
  * It renders from its props alone and owns no application state, which is why
@@ -103,7 +100,6 @@ export function HomeScreen(props: {
       />
       <main className="home" id="top">
         <div className="home__account-bar">
-          <span className="home__account-label">{t.home.accountBar}</span>
           {props.signedIn ? (
             <div className="home__account-actions">
               <span className="home__account-email technical">{props.accountEmail}</span>
@@ -120,111 +116,10 @@ export function HomeScreen(props: {
             </div>
           )}
         </div>
-        <section className="home__hero" aria-labelledby="home-title">
-          <div className="home__hero-copy">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">01</span> {t.home.hero.eyebrow}
-            </div>
-            {/* The brand title says what the product is to someone who already
-                knows the words; this line says it to a salon owner who does not. */}
-            <p className="home__promise">{t.home.hero.promise}</p>
-            {/* Keyed by language so a switch retypes the new title from the
-                start instead of leaving half of it already revealed. */}
-            <HeroTitle
-              key={props.language}
-              id="home-title"
-              line={t.home.hero.titleLine1}
-              emphasis={t.home.hero.titleEm}
-            />
-            <p className="home__lede">{t.home.hero.lede}</p>
-            <HeroSiteForm
-              language={props.language}
-              submitLabel={t.home.freeCta}
-              onStart={props.onStartSite}
-            />
-            <div className="home__actions">
-              <button
-                className="home__text-action"
-                type="button"
-                onClick={() => scrollTo('pricing')}
-              >
-                {t.home.seePricing} <span aria-hidden="true">↓</span>
-              </button>
-            </div>
-            <div className="home__proof" aria-label={t.home.hero.proofAriaLabel}>
-              <span>
-                <strong>01</strong> {t.home.hero.proofScan}
-              </span>
-              <span>
-                <strong>06</strong> {t.home.hero.proofSignals}
-              </span>
-              <span>
-                <strong>{String(PAID_PLAN_ORDER.length).padStart(2, '0')}</strong>{' '}
-                {t.home.hero.proofTiers}
-              </span>
-            </div>
-          </div>
-          <div className="home__instrument" aria-label={t.home.instrument.previewAriaLabel}>
-            <div className="home__instrument-bar">
-              <span className="home__live-dot" /> {t.home.instrument.live}{' '}
-              <span className="home__instrument-mode">{t.home.instrument.mode}</span>
-            </div>
-            <div className="home__instrument-body">
-              <div className="home__origin">
-                <span className="home__label">{t.home.instrument.originLabel}</span>
-                <strong className="technical">https://your-site.com</strong>
-                <StatusChip status="Running" label={t.home.instrument.statusRunning} />
-              </div>
-              <div className="home__readout">
-                <div className="home__readout-cell">
-                  <span className="home__label">{t.home.instrument.signalScore}</span>
-                  <strong>—</strong>
-                  <small>{t.home.instrument.signalScoreHint}</small>
-                </div>
-                <div className="home__readout-cell">
-                  <span className="home__label">{t.home.instrument.coverage}</span>
-                  <strong>—</strong>
-                  <small>{t.home.instrument.coverageHint}</small>
-                </div>
-                <div className="home__readout-cell">
-                  <span className="home__label">{t.home.instrument.findings}</span>
-                  <strong>—</strong>
-                  <small>{t.home.instrument.findingsHint}</small>
-                </div>
-              </div>
-              <Terminal lines={[...t.home.instrument.terminalLines]} active />
-              <div className="home__module-list" aria-label={t.home.instrument.modulesAriaLabel}>
-                <span>
-                  <i className="home__module-mark home__module-mark--green" />{' '}
-                  {t.home.instrument.moduleSeo}
-                </span>
-                <span>
-                  <i className="home__module-mark home__module-mark--cyan" />{' '}
-                  {t.home.instrument.moduleAiSeo}
-                </span>
-                <span>
-                  <i className="home__module-mark home__module-mark--amber" />{' '}
-                  {t.home.instrument.moduleSecurity}
-                </span>
-                <span>
-                  <i className="home__module-mark home__module-mark--dim" />{' '}
-                  {t.home.instrument.moduleMore}
-                </span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <CoverageTicker
-          label={t.home.ticker.ariaLabel}
-          items={[
-            t.home.ticker.seo,
-            t.home.ticker.aiSeo,
-            t.home.ticker.security,
-            t.home.ticker.accessibility,
-            t.home.ticker.reliability,
-            t.home.ticker.privacy,
-          ]}
+        <HomeHero
+          language={props.language}
+          onStartSite={props.onStartSite}
+          onSeePricing={() => scrollTo('pricing')}
         />
 
         <section className="home__section" id="capabilities" aria-labelledby="capabilities-title">

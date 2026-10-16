@@ -295,7 +295,9 @@ describe('a plan the visitor chose on a pricing card', () => {
   ): Promise<void> {
     stub(profiles);
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     fireEvent.click(
       await screen.findByRole('button', {
         name: plan === 'Complete' ? copy.en.pricing.chooseComplete : copy.en.pricing.chooseBasic,
@@ -458,7 +460,9 @@ describe('the first site, from an account that has none', () => {
       ),
     );
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     // The plan is chosen the way a visitor chooses it: on a pricing card.
     fireEvent.click(await screen.findByRole('button', { name: copy.en.pricing.chooseBasic }));

@@ -213,7 +213,9 @@ describe('public page metadata in the rendered app', () => {
   it('follows the language switch on the home page', async () => {
     stubApi(signedOut);
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     expect(canonical()).toBe('https://fluxradar.net/');
 
     switchLanguageToUkrainian();

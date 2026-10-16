@@ -109,7 +109,7 @@ function calledMethod(fetchMock: ReturnType<typeof vi.fn>, path: string, method:
 }
 
 function openAuth(): void {
-  fireEvent.click(screen.getByRole('button', { name: 'Run a free homepage check' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Check my site' }));
 }
 
 async function renderUnauthenticated(
@@ -117,7 +117,9 @@ async function renderUnauthenticated(
 ): Promise<ReturnType<typeof vi.fn>> {
   const fetchMock = stubApi(handler);
   render(<App />);
-  await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+  await screen.findByRole('heading', {
+    name: 'We check your website and show what keeps customers from finding you',
+  });
   return fetchMock;
 }
 
@@ -270,7 +272,11 @@ describe('authentication UI', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to home' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'One URL. Every signal.' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: 'We check your website and show what keeps customers from finding you',
+      }),
+    ).toBeInTheDocument();
   });
 
   it('shows a product error for a failed sign-in without leaking the HTTP error', async () => {
@@ -337,7 +343,9 @@ describe('authentication UI', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: 'One URL. Every signal.' }),
+      await screen.findByRole('heading', {
+        name: 'We check your website and show what keeps customers from finding you',
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText(account.email)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
@@ -345,7 +353,11 @@ describe('authentication UI', () => {
       expect(screen.getByText('Unified public site audit station.')).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Home' }));
-    expect(screen.getByRole('heading', { name: 'One URL. Every signal.' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: 'We check your website and show what keeps customers from finding you',
+      }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -795,7 +807,9 @@ describe('public /checks — audit coverage page', () => {
     window.history.replaceState(null, '', '/');
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     expect(screen.getByRole('link', { name: 'Audit coverage' })).toHaveAttribute('href', '/checks');
   });
 
@@ -803,7 +817,9 @@ describe('public /checks — audit coverage page', () => {
     window.history.replaceState(null, '', '/');
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     expect(
       screen.getByRole('heading', { name: 'Every check. Every standard. No surprises.' }),
     ).toBeInTheDocument();
@@ -815,24 +831,26 @@ describe('public /checks — audit coverage page', () => {
     ).toHaveAttribute('href', '/checks');
   });
 
-  it('says what the product does in plain words before the brand title', async () => {
+  it('opens on what the product does, in plain words, with no audit terminal', async () => {
     window.history.replaceState(null, '', '/');
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
     render(<App />);
-    const title = await screen.findByRole('heading', { name: 'One URL. Every signal.' });
-    const promise = screen.getByText(
-      'We check your website and show what keeps customers from finding you.',
-    );
-    // The promise is read first: a visitor who does not know what "every
-    // signal" means has the answer before the brand line, not after it.
-    expect(promise.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const title = await screen.findByRole('heading', {
+      level: 1,
+      name: 'We check your website and show what keeps customers from finding you',
+    });
+    expect(title).toHaveAttribute('id', 'home-title');
+    expect(screen.queryByText('FLUXRADAR / PUBLIC WEB AUDIT STATION')).not.toBeInTheDocument();
+    expect(screen.queryByText('LIVE AUDIT PREVIEW')).not.toBeInTheDocument();
   });
 
   it('shows an example report after what FluxRadar reads and before the coverage entry', async () => {
     window.history.replaceState(null, '', '/');
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     const capabilities = screen.getByRole('heading', { name: 'A website is more than a ranking.' });
     const example = screen.getByRole('figure', { name: 'Example report for a made-up website' });
     const coverage = screen.getByRole('heading', {
@@ -856,7 +874,9 @@ describe('public /checks — audit coverage page', () => {
     saveCookieConsent({ preferences: false, analytics: false });
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
     const view = render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     const footer = view.container.querySelector('footer');
     const launcher = view.container.querySelector('.cookie-consent-dock--launcher-only');
     expect(footer).not.toBeNull();
@@ -1092,7 +1112,9 @@ describe('/blog routing — SPA does not intercept static pages', () => {
     // The SPA shows the public home page (the blog index is served by the
     // static layer before React ever loads in a correctly-configured server).
     expect(
-      await screen.findByRole('heading', { name: 'One URL. Every signal.' }),
+      await screen.findByRole('heading', {
+        name: 'We check your website and show what keeps customers from finding you',
+      }),
     ).toBeInTheDocument();
 
     // The URL is preserved as /blog — the SPA must not rewrite it.
@@ -1106,7 +1128,9 @@ describe('/blog routing — SPA does not intercept static pages', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: 'One URL. Every signal.' }),
+      await screen.findByRole('heading', {
+        name: 'We check your website and show what keeps customers from finding you',
+      }),
     ).toBeInTheDocument();
     expect(window.location.pathname).toBe('/blog/ai-crawler-readiness');
   });
@@ -1123,7 +1147,9 @@ describe('home pricing and workspace onboarding', () => {
 
   it('describes every one-time product on the home page with its price', async () => {
     renderHome();
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     const pricing = screen.getByRole('region', {
       name: 'Three one-time reports. No subscription.',
@@ -1162,7 +1188,9 @@ describe('home pricing and workspace onboarding', () => {
 
   it('presents Complete as one price with every module and no add-on', async () => {
     renderHome();
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     const complete = screen
       .getByRole('heading', { name: 'Complete' })
@@ -1179,7 +1207,9 @@ describe('home pricing and workspace onboarding', () => {
 
   it('explains in plain language which product to choose and what stays free', async () => {
     renderHome();
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     expect(
       screen.getByRole('heading', { name: 'Which one is right for you?' }),
@@ -1206,7 +1236,9 @@ describe('home pricing and workspace onboarding', () => {
   // have to choose between first and understand afterwards.
   it('puts the plain-language comparison above the three cards', async () => {
     renderHome();
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     const pricing = screen.getByRole('region', {
       name: 'Three one-time reports. No subscription.',
@@ -1224,7 +1256,9 @@ describe('home pricing and workspace onboarding', () => {
 
   it('describes every product in Ukrainian after switching language', async () => {
     renderHome();
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     switchLanguageToUkrainian();
 
@@ -1247,7 +1281,9 @@ describe('home pricing and workspace onboarding', () => {
     window.history.replaceState(null, '', '/plans');
     renderHome();
 
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     expect(
       screen.getByRole('region', { name: 'Three one-time reports. No subscription.' }),
     ).toBeInTheDocument();
@@ -1263,7 +1299,9 @@ describe('home pricing and workspace onboarding', () => {
 
   it('opens registration from a product CTA for a signed-out visitor', async () => {
     renderHome();
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Start with Complete' }));
 
@@ -1275,19 +1313,21 @@ describe('home pricing and workspace onboarding', () => {
     saveCookieConsent({ preferences: true, analytics: false });
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     switchLanguageToUkrainian();
     expect(screen.getByRole('button', { name: 'Увійти' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Перевірити сайт' })).toBeInTheDocument();
     expect(window.localStorage.getItem('fluxradar.language')).toBe('uk');
 
     cleanup();
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
-    await screen.findByRole('heading', { name: 'Одна адреса. Усі сигнали.' });
+    await screen.findByRole('heading', {
+      name: 'Перевіримо ваш сайт і покажемо, що заважає клієнтам вас знайти',
+    });
     expect(screen.getByRole('combobox', { name: 'Мова' })).toHaveTextContent('Українська');
     expect(screen.getByRole('button', { name: 'Увійти' })).toBeInTheDocument();
   });
@@ -1295,7 +1335,9 @@ describe('home pricing and workspace onboarding', () => {
   it('keeps the language listbox outside the scrollable menubar strip', async () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Language' }));
 
@@ -1308,7 +1350,9 @@ describe('home pricing and workspace onboarding', () => {
   it('closes the language listbox when clicking outside it inside the mobile burger menu', async () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Language' }));
     expect(screen.getByRole('listbox', { name: 'Language' })).toBeInTheDocument();
@@ -1321,15 +1365,16 @@ describe('home pricing and workspace onboarding', () => {
   it('renders the full homepage in Ukrainian, not just the header, after switching language', async () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     switchLanguageToUkrainian();
 
     expect(
-      await screen.findByRole('heading', { name: 'Одна адреса. Усі сигнали.' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Перевіримо ваш сайт і покажемо, що заважає клієнтам вас знайти.'),
+      await screen.findByRole('heading', {
+        name: 'Перевіримо ваш сайт і покажемо, що заважає клієнтам вас знайти',
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: 'Сайт — це більше, ніж позиція в рейтингу.' }),
@@ -1344,9 +1389,7 @@ describe('home pricing and workspace onboarding', () => {
       screen.getByRole('heading', { name: 'Від публічної адреси до пріоритезованих завдань.' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Почніть із сайту/ })).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Перевірити сайт' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Запустити перевірку/ })).toBeInTheDocument();
     expect(screen.getByText('FLUXRADAR / ВІД FLUXLAB')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Політика приватності' })).toBeInTheDocument();
@@ -1761,7 +1804,9 @@ describe('MenuBar navigation (signed in)', () => {
     stubSignedIn();
     render(<App />);
 
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     expect(screen.getByRole('button', { name: 'Profiles' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Profiles' }));
 
@@ -1772,7 +1817,9 @@ describe('MenuBar navigation (signed in)', () => {
     stubSignedIn();
     render(<App />);
 
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Integrations' }));
 
     await screen.findByText('Connected data sources');
