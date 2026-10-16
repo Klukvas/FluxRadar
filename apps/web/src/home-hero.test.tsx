@@ -85,11 +85,14 @@ describe('home hero', () => {
     renderHome(language);
     const lists = within(hero()).getAllByRole('list');
     const trust = lists.find((list) => list.closest('.home-hero__window') === null);
-    expect(
-      within(trust as HTMLElement)
-        .getAllByRole('listitem')
-        .map((item) => item.textContent),
-    ).toEqual(items);
+    // Explicit, because Safari drops the semantics of an unstyled list.
+    expect(trust).toHaveAttribute('role', 'list');
+    const listItems = within(trust as HTMLElement).getAllByRole('listitem');
+    // The tick is decoration: drawn for the eye, hidden from a screen reader.
+    expect(listItems.map((item) => item.textContent)).toEqual(items.map((item) => `✓${item}`));
+    for (const item of listItems) {
+      expect(item.querySelector('.home-hero__check')).toHaveAttribute('aria-hidden', 'true');
+    }
   });
 
   // The note names the cheapest paid report's price, read from the same table
@@ -111,6 +114,7 @@ describe('home hero', () => {
     const window = screen.getByRole('region', { name });
     expect(within(window).getByText(t.site)).toBeInTheDocument();
     expect(within(window).getByText(t.meta)).toBeInTheDocument();
+    expect(within(window).getByRole('list')).toHaveAttribute('role', 'list');
     const findings = within(window).getAllByRole('listitem');
     expect(findings).toHaveLength(3);
     t.findings.forEach((finding, index) => {

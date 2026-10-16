@@ -33,9 +33,16 @@ export function HomeHero(props: {
           note={fillCopy(t.note, { price: BASIC_PRICE })}
           onStart={props.onStartSite}
         />
-        <ul className="home-hero__trust">
+        {/* role="list": Safari drops list semantics from a list styled with
+            `list-style: none`, and VoiceOver then reads three loose lines. */}
+        <ul className="home-hero__trust" role="list">
           {t.trust.map((item) => (
-            <li key={item}>{item}</li>
+            <li key={item}>
+              <span className="home-hero__check" aria-hidden="true">
+                ✓
+              </span>
+              {item}
+            </li>
           ))}
         </ul>
         <button className="home__text-action" type="button" onClick={props.onSeePricing}>

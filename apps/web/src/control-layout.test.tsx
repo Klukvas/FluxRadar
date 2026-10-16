@@ -597,3 +597,31 @@ describe('the line a report ends on', () => {
     expect(rule).toMatch(/overflow-wrap: anywhere;/);
   });
 });
+
+// The home hero lost the marquee whose test used to pin these, but the
+// decisions outlived it: the page must never scroll sideways, the two hero
+// columns must become one before they get too narrow, and the site form must
+// stack its field and button on a phone.
+describe('home hero layout', () => {
+  it('clips the home page so nothing wider than it scrolls the page sideways', () => {
+    const start = BASE_CSS.indexOf('\n.home {');
+    expect(start).toBeGreaterThan(-1);
+    const home = BASE_CSS.slice(start, BASE_CSS.indexOf('\n}', start + 1));
+    expect(home).toMatch(/^\s*overflow: hidden;/m);
+  });
+
+  it('puts the example report under the form at 900px and below', () => {
+    expect(mediaWidthsWith(BASE_CSS, /\.home__hero \{\s*grid-template-columns: 1fr;/)).toEqual([
+      '900px',
+    ]);
+  });
+
+  it('stacks the site field and its button on a phone', () => {
+    expect(
+      mediaWidthsWith(
+        stylesheet('hero-site-form.css'),
+        /\.home__site-row \{\s*flex-direction: column;/,
+      ),
+    ).toEqual(['699px']);
+  });
+});

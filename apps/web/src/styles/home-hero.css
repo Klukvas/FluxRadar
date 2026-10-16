@@ -13,8 +13,8 @@
   color: #fff;
   font-size: 14px;
 }
-.home-hero__trust li::before {
-  content: '✓ ';
+.home-hero__check {
+  margin-right: 0.35em;
   color: var(--term-green);
   font-weight: 700;
 }

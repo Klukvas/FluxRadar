@@ -23,7 +23,9 @@ export function HeroExampleReport(props: { language: Language }) {
         <p className="home-hero__window-site">{t.site}</p>
         <p className="home-hero__window-meta">{t.meta}</p>
       </div>
-      <ul className="home-hero__findings">
+      {/* role="list" keeps the findings a list in Safari, which drops the
+          semantics of an unstyled list. */}
+      <ul className="home-hero__findings" role="list">
         {t.findings.map((finding) => (
           <li
             key={finding.problem}
