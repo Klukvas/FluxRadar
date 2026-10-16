@@ -71,21 +71,22 @@ describe('the SEO check count the public pages promise', () => {
 
   it('matches in the home page, pricing and package copy in both languages', () => {
     const counts = claimedCounts('i18n.ts', [
-      /(\d+) checks · complete/g,
       /(\d+) deterministic checks · JSON-LD/g,
       /(\d+) SEO checks, AI crawler readiness/g,
       /The full SEO analysis — (\d+) checks/g,
-      /(\d+) перевірк[а-яіїєґ']* · завершено/g,
       /(\d+) детермінован[а-яіїєґ']+ перевірк[а-яіїєґ']+ · перевірки JSON-LD/g,
       /(\d+) SEO-перевірк[а-яіїєґ']+, готовність до AI-краулерів/g,
       /Повний SEO-аналіз — (\d+) перевірк[а-яіїєґ']*/g,
     ]);
     // Pinned exactly, not as a floor: a reworded sentence stops matching its
     // pattern, and a floor would let that pass while the guard on it quietly
-    // disappeared. Ten, because the package description and its short form
-    // repeat the same phrase in each language. If this fails after a copy edit,
-    // the phrase moved — update the pattern, do not lower the number.
-    expect(counts).toHaveLength(10);
+    // disappeared. Eight — four per language: the SEO capability card's foot,
+    // the package description and its short form (which repeat one phrase),
+    // and the full-analysis line. The home hero's terminal preview also claimed
+    // the figure until it was removed with the plain-language hero, which is
+    // why this was ten. If this fails after a copy edit, the phrase moved —
+    // update the pattern, do not lower the number.
+    expect(counts).toHaveLength(8);
     expect([...new Set(counts)]).toEqual([expected]);
   });
 
