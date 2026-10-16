@@ -85,7 +85,7 @@ test.describe('critical customer journeys', () => {
 
     await page.goto('/');
     await dismissCookies(page);
-    await page.getByRole('button', { name: 'Run a free homepage check' }).click();
+    await page.getByRole('button', { name: 'Check my site' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('textbox', { name: 'Email' }).fill(EMAIL);
     await dialog.getByRole('textbox', { name: 'Password' }).fill('valid-password');
@@ -121,7 +121,11 @@ test.describe('critical customer journeys', () => {
     // this test now does.
     await dismissCookies(page);
     await page.getByRole('button', { name: 'Try again' }).click();
-    await expect(page.getByRole('heading', { name: 'One URL. Every signal.' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        name: 'We check your website and show what keeps customers from finding you',
+      }),
+    ).toBeVisible();
     expect(sessionReads).toBeGreaterThanOrEqual(2);
   });
 });

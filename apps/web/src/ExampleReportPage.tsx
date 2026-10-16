@@ -1,8 +1,9 @@
 // The public example report (/example-report).
 //
 // A visitor who has not paid cannot see a report, and nothing on the site let
-// them picture one: the hero promises "every signal" and the instrument panel
-// beside it shows dashes. This is a whole finished report for a made-up salon,
+// them picture one: the old hero promised "every signal" while the instrument
+// panel beside it showed dashes (both have since been replaced by a plain hero
+// with a static sample). This is a whole finished report for a made-up salon,
 // readable with no account, in both languages, making no network request.
 //
 // It is assembled from the REAL report components over typed fixture data

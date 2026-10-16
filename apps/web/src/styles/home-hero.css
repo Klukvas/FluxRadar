@@ -1,0 +1,137 @@
+/* The home page's first screen: what the hero form promises, and the example
+   report window beside it. The grid, the title and the lede live in base.css
+   with the rest of `.home`; these selectors are the hero's own, so the order
+   the two stylesheets load in never decides a tie. */
+
+/* The copy column sits on a dark terminal window. On the bare desktop blue the
+   small text (note, label, trust list, pricing link) measured 3.3–4.4:1 and
+   failed WCAG AA; on --term-bg every colour in it clears 4.5:1, which
+   button-contrast.test.tsx checks against the values written here. The
+   colour is declared, not inherited from `.home`, so that test can read it. */
+.home-hero__panel {
+  padding: 28px 32px;
+  border: 1px solid var(--plat-900);
+  background: var(--term-bg);
+  color: #fff;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+}
+/* The global focus ring is --selection blue, which all but disappears on the
+   dark panel; the field takes the green ring the panel's button and link do. */
+.home-hero__panel input:focus-visible {
+  outline-color: var(--term-green);
+}
+
+.home-hero__trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  color: #fff;
+  font-size: 14px;
+}
+.home-hero__check {
+  margin-right: 0.35em;
+  color: var(--term-green);
+  font-weight: 700;
+}
+.home__hero-copy > .home__text-action {
+  margin-top: 20px;
+  font-size: 14px;
+}
+
+/* A platinum window holding an example report: the light document surface the
+   example section further down uses, so the two read as the same product. */
+.home-hero__window {
+  min-width: 0;
+  border: 1px solid var(--plat-900);
+  background: var(--plat-50);
+  color: var(--plat-900);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+}
+.home-hero__window-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--plat-900);
+  background: repeating-linear-gradient(to bottom, var(--plat-100) 0 1px, var(--plat-50) 1px 3px);
+}
+.home-hero__window-title {
+  margin: 0;
+  padding: 0 6px;
+  background: var(--plat-50);
+  font: bold 12px var(--ui-font);
+}
+.home-hero__window-head {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--plat-300);
+}
+.home-hero__window-site {
+  margin: 0;
+  font: bold 15px var(--mono-font);
+  overflow-wrap: anywhere;
+}
+.home-hero__window-meta {
+  margin: 2px 0 0;
+  color: var(--plat-600);
+  font-size: 13px;
+}
+.home-hero__findings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.home-hero__finding {
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--plat-300);
+  border-left: 4px solid var(--term-amber);
+}
+.home-hero__finding--first {
+  border-left-color: var(--term-red);
+}
+.home-hero__chip {
+  justify-self: start;
+  padding: 1px 6px;
+  border: 1px solid var(--plat-900);
+  background: #ffe7a8;
+  font: bold 11px var(--mono-font);
+}
+.home-hero__finding--first .home-hero__chip {
+  background: #ffd2cc;
+}
+.home-hero__problem {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.home-hero__todo {
+  margin: 0;
+  color: var(--plat-600);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.home-hero__window-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 16px;
+  color: var(--plat-600);
+  font-size: 13px;
+}
+.home-hero__window-foot a {
+  color: var(--button-fg);
+  font-weight: 700;
+}
+
+@media (max-width: 699px) {
+  .home-hero__panel {
+    padding: 20px 16px;
+  }
+}

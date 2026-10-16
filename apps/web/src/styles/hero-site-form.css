@@ -9,10 +9,9 @@
   margin-top: 30px;
 }
 .home__site-label {
-  color: #e2e8f0;
-  font: 11px var(--mono-font);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: #eef2f7;
+  font-size: 14px;
+  font-weight: 700;
 }
 .home__site-row {
   display: flex;
@@ -21,19 +20,28 @@
 .home__site-input {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 32px;
-  padding: 4px 10px;
+  min-height: 40px;
+  padding: 4px 12px;
   border: 1px solid var(--term-bg);
   background: #fff;
   color: var(--plat-900);
-  font-size: 15px;
+  font-size: 16px;
+}
+/* The browser's default placeholder grey is 2.35:1 on the white field; the
+   example address has to be readable, so it takes --plat-600 at full opacity
+   (Firefox dims placeholders by default). */
+.home__site-input::placeholder {
+  color: var(--plat-600);
+  opacity: 1;
 }
 .home__site-input[aria-invalid='true'] {
   outline: 2px solid var(--term-red);
   outline-offset: 1px;
 }
 .home__site-form .button--primary {
-  min-height: 32px;
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: 15px;
   background: var(--term-green);
   color: var(--term-bg);
   border-color: var(--term-bg);
@@ -43,17 +51,14 @@
   background: #b8ffc8;
 }
 .home__site-hint {
-  margin: 0;
-  color: #cbd5e1;
-  font-size: 13px;
+  margin: 4px 0 0;
+  color: #e2e8f0;
+  font-size: 14px;
+  line-height: 1.5;
 }
 .home__site-hint--error {
   color: #ffd9d4;
   font-weight: 700;
-}
-/* The "see what you get" link moves under the form. */
-.home__site-form + .home__actions {
-  margin-top: 14px;
 }
 
 @media (max-width: 699px) {

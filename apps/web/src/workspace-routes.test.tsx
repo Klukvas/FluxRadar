@@ -147,7 +147,11 @@ describe('menu bar tabs land somewhere real', () => {
   });
 
   it('returns to the report, not to the progress window, when Back leaves the Issue Center', async () => {
-    const completed = { ...runningScan, status: 'Completed', completedAt: '2026-09-04T00:03:00.000Z' };
+    const completed = {
+      ...runningScan,
+      status: 'Completed',
+      completedAt: '2026-09-04T00:03:00.000Z',
+    };
     stubApi((path) => {
       if (path === `/scans/${runningScan.id}`) return envelope(completed);
       if (path === `/scans/${runningScan.id}/dashboard`)
@@ -206,7 +210,8 @@ describe('signed-out visitors following a workspace link', () => {
   it('lands on the screen that was asked for once signed in', async () => {
     let authenticated = false;
     stubApi((path) => {
-      if (path === '/auth/me') return authenticated ? envelope(account) : failure(401, 'no session');
+      if (path === '/auth/me')
+        return authenticated ? envelope(account) : failure(401, 'no session');
       if (path === '/auth/login') {
         authenticated = true;
         return envelope(account);
@@ -222,7 +227,9 @@ describe('signed-out visitors following a workspace link', () => {
     });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password-1234' } });
     fireEvent.click(
-      screen.getAllByRole('button', { name: 'Sign in' }).filter((button) => button.getAttribute('type') === 'submit')[0]!,
+      screen
+        .getAllByRole('button', { name: 'Sign in' })
+        .filter((button) => button.getAttribute('type') === 'submit')[0]!,
     );
 
     expect(await screen.findByText('Connected data sources')).toBeInTheDocument();
@@ -234,7 +241,9 @@ describe('document language', () => {
   it('marks the page in the language it is actually rendered in', async () => {
     stubApi(signedIn);
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
     expect(document.documentElement.lang).toBe('en');
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Language' }));
@@ -243,7 +252,6 @@ describe('document language', () => {
     await waitFor(() => expect(document.documentElement.lang).toBe('uk'));
   });
 });
-
 
 // ─── Controls that look like controls must be controls ───────────────────────
 //

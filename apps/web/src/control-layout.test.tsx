@@ -438,17 +438,6 @@ describe('base.css layout rules', () => {
     expect(BASE_CSS).toMatch(/\.window--dialog \{\s*max-width: 520px;/);
     expect(BASE_CSS).toMatch(/\.window--launch \{\s*max-width: 1040px;/);
   });
-
-  // The Ukrainian hints under the hero figures are about twice as long as the
-  // English ones; clipped to a single line they lost most of their sentence.
-  it('wraps the hero readout hints instead of clipping them', () => {
-    const readout = BASE_CSS.slice(
-      BASE_CSS.indexOf('.home__readout-cell small'),
-      BASE_CSS.indexOf('.home__instrument .terminal'),
-    );
-    expect(readout).not.toMatch(/white-space: nowrap/);
-    expect(readout).toMatch(/overflow-wrap: anywhere/);
-  });
 });
 
 const stylesheet = (name: string): string =>
@@ -606,5 +595,33 @@ describe('the line a report ends on', () => {
     // A scan id is one unbroken token and is wider than a 360px line on its
     // own, so wrapping has to be allowed inside it too.
     expect(rule).toMatch(/overflow-wrap: anywhere;/);
+  });
+});
+
+// The home hero lost the marquee whose test used to pin these, but the
+// decisions outlived it: the page must never scroll sideways, the two hero
+// columns must become one before they get too narrow, and the site form must
+// stack its field and button on a phone.
+describe('home hero layout', () => {
+  it('clips the home page so nothing wider than it scrolls the page sideways', () => {
+    const start = BASE_CSS.indexOf('\n.home {');
+    expect(start).toBeGreaterThan(-1);
+    const home = BASE_CSS.slice(start, BASE_CSS.indexOf('\n}', start + 1));
+    expect(home).toMatch(/^\s*overflow: hidden;/m);
+  });
+
+  it('puts the example report under the form at 900px and below', () => {
+    expect(mediaWidthsWith(BASE_CSS, /\.home__hero \{\s*grid-template-columns: 1fr;/)).toEqual([
+      '900px',
+    ]);
+  });
+
+  it('stacks the site field and its button on a phone', () => {
+    expect(
+      mediaWidthsWith(
+        stylesheet('hero-site-form.css'),
+        /\.home__site-row \{\s*flex-direction: column;/,
+      ),
+    ).toEqual(['699px']);
   });
 });

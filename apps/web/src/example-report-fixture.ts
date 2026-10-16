@@ -2,7 +2,8 @@
 //
 // A visitor who has not paid cannot see a report, and the home page's three-line
 // sample was not enough to picture one: "the hero promises every signal and the
-// instrument panel shows dashes" was the actual complaint. So this is a whole
+// instrument panel shows dashes" was the actual complaint about the hero of the
+// time, since replaced by a plain one. So this is a whole
 // report, built out of the same data shapes the API sends — `Dashboard`,
 // `Issue`, `IssueSummary` — and drawn by the same components, so it cannot
 // quietly drift away from what a real report looks like.

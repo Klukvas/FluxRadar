@@ -141,7 +141,9 @@ describe('the links that lead to it', () => {
   it('is linked from the home page’s sample, its pricing block and its footer', async () => {
     stubSignedOut();
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     const links = Array.from(
       document.querySelectorAll(`a[href="${EXAMPLE_REPORT_PATH}"]`),
@@ -156,7 +158,9 @@ describe('the links that lead to it', () => {
   it('leaves the home page’s own requests unchanged', async () => {
     const fetchMock = stubSignedOut();
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     expect(requestedPaths(fetchMock)).toEqual(PUBLIC_PAGE_REQUESTS);
   });

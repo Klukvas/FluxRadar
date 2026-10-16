@@ -113,12 +113,14 @@ describe('the home page carries what the visitor asked for through sign-up', () 
       return envelope(null);
     });
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Your website' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your website address' }), {
       target: { value: 'shop.example.com/pricing' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Run a free homepage check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check my site' }));
 
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('shop.example.com');
@@ -140,12 +142,14 @@ describe('the home page carries what the visitor asked for through sign-up', () 
   it('refuses an address that is not a website before asking for an account', async () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'UNAUTHORIZED', 'no') : envelope(null)));
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Your website' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your website address' }), {
       target: { value: 'not a website' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Run a free homepage check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check my site' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Enter a public website address');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -164,7 +168,9 @@ describe('the home page carries what the visitor asked for through sign-up', () 
       return envelope(null);
     });
     render(<App />);
-    await screen.findByRole('heading', { name: 'One URL. Every signal.' });
+    await screen.findByRole('heading', {
+      name: 'We check your website and show what keeps customers from finding you',
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Start with Basic' }));
     const dialog = await screen.findByRole('dialog');
