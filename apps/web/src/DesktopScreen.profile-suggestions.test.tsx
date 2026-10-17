@@ -327,7 +327,7 @@ describe('profile suggestions', () => {
 
   it('drops a localized proposal that settles after the UI locale changes', async () => {
     const pending = deferred<Response>();
-    const form = renderForm();
+    // Stubbed before the render: the screen's side panels read the API on mount.
     vi.stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) =>
@@ -336,6 +336,7 @@ describe('profile suggestions', () => {
           : Promise.resolve(success([])),
       ),
     );
+    const form = renderForm();
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'studio.example' },
     });
