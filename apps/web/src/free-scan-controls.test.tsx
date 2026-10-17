@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
 import { App } from './App';
+import { choosePlanCard } from './new-scan-test-support';
 
 // What the new-scan form is allowed to offer on the Free plan.
 //
@@ -110,14 +111,14 @@ afterEach(() => {
 describe('free plan controls', () => {
   it.each(PAID_ONLY_CONTROLS)('does not offer %s on Free', async (_label, pattern) => {
     renderNewScan(account);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     expect(screen.queryByLabelText(pattern)).not.toBeInTheDocument();
   });
 
   it('explains what the free check actually reads', async () => {
     renderNewScan(account);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     expect(screen.getByText('What the free check does')).toBeInTheDocument();
     expect(screen.getByText(/reads your homepage and nothing else/)).toBeInTheDocument();
@@ -130,7 +131,7 @@ describe('free plan controls', () => {
 
   it('explains it in Ukrainian too', async () => {
     renderNewScan(account, 'uk');
-    await screen.findByText('Нова перевірка — область і тариф');
+    await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
 
     expect(screen.getByText('Що робить безкоштовна перевірка')).toBeInTheDocument();
     expect(screen.getByText(/читає лише головну сторінку/)).toBeInTheDocument();
@@ -144,7 +145,7 @@ describe('free plan controls', () => {
   // the browser asking for limits that would be quietly replaced.
   it('asks for the homepage check and nothing more', async () => {
     const fetchMock = renderNewScan(account);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
 
@@ -177,7 +178,7 @@ describe('a free check the API refuses', () => {
     renderNewScan(account, 'en', [profile], () =>
       refusal('FREE_CHECK_USED', 'the one-time free check has already been used'),
     );
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
 
@@ -193,7 +194,7 @@ describe('a free check the API refuses', () => {
     renderNewScan(account, 'uk', [profile], () =>
       refusal('FREE_CHECK_DOMAIN_USED', 'this domain has already received a free check'),
     );
-    await screen.findByText('Нова перевірка — область і тариф');
+    await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }));
 
@@ -206,7 +207,7 @@ describe('a free check the API refuses', () => {
 describe('paid plan controls', () => {
   it('keeps every crawl control the paid plans do reach', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     // An internal account opens on Complete, so the paid controls are the
     // starting state rather than something that has to be switched on.
@@ -221,7 +222,7 @@ describe('paid plan controls', () => {
 
   it('discloses included AI processing before a paid audit starts', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     const callout = screen.getByRole('group', {
       name: 'AI processing included in this audit',
@@ -246,7 +247,7 @@ describe('paid plan controls', () => {
   // what the buyer agrees to by paying, so it stays visible in full.
   it('says the AI disclosure in one plain sentence first, without folding it', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     const callout = screen.getByRole('group', {
       name: 'AI processing included in this audit',
@@ -274,7 +275,7 @@ describe('paid plan controls', () => {
 
   it('discloses the external performance provider before a Complete scan can start', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     const callout = screen.getByRole('group', { name: 'External performance measurement' });
     expect(within(callout).getByText(/Google PageSpeed Insights/)).toHaveTextContent(
@@ -285,7 +286,7 @@ describe('paid plan controls', () => {
 
   it('explains how robots.txt changes the crawl before the controls', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     const callout = screen.getByRole('group', { name: 'How robots.txt affects this scan' });
     expect(within(callout).getByText(/reads the site’s public robots\.txt/)).toBeInTheDocument();
@@ -304,7 +305,7 @@ describe('paid plan controls', () => {
 
   it('localizes the included AI processing disclosure', async () => {
     renderNewScan(internalAccount, 'uk');
-    await screen.findByText('Нова перевірка — область і тариф');
+    await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
 
     const callout = screen.getByRole('group', { name: 'AI-обробка включена в цей аудит' });
     expect(within(callout).getByRole('link', { name: 'Політика приватності' })).toHaveAttribute(
@@ -315,7 +316,7 @@ describe('paid plan controls', () => {
 
   it('localizes the robots.txt explanation', async () => {
     renderNewScan(internalAccount, 'uk');
-    await screen.findByText('Нова перевірка — область і тариф');
+    await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
 
     const callout = screen.getByRole('group', { name: 'Як robots.txt впливає на перевірку' });
     expect(within(callout).getByText(/читає публічний robots\.txt сайту/)).toBeInTheDocument();
@@ -327,7 +328,7 @@ describe('paid plan controls', () => {
 
   it('sends the settings the owner set', async () => {
     const fetchMock = renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     fireEvent.click(screen.getByLabelText(/Include subdomains/));
     fireEvent.change(screen.getByLabelText(/^Maximum pages/), { target: { value: '30' } });
@@ -368,13 +369,11 @@ describe('paid plan controls', () => {
   // Switching down to Free must not smuggle the paid settings out with it.
   it('drops back to the homepage check when the plan changes to Free', async () => {
     const fetchMock = renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     fireEvent.click(screen.getByLabelText(/Include subdomains/));
     fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
-    fireEvent.change(screen.getByRole('combobox', { name: /^Scan plan/ }), {
-      target: { value: 'Free' },
-    });
+    choosePlanCard('Free');
     fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
 
     await waitFor(() =>
@@ -418,9 +417,10 @@ describe('advanced crawl rules', () => {
 
   it('starts folded when the saved configuration holds the defaults', async () => {
     renderWithConfig({ plan: 'Complete', scope: defaultScope });
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
-    expect(screen.getByText('Advanced crawl rules')).toBeVisible();
+    expect(screen.getByText('For advanced users')).toBeVisible();
+    expect(screen.getByText('Advanced crawl rules')).not.toBeVisible();
     expect(screen.getByLabelText(/^Include path patterns/)).not.toBeVisible();
   });
 
@@ -429,7 +429,7 @@ describe('advanced crawl rules', () => {
       plan: 'Complete',
       scope: { ...defaultScope, excludePatterns: ['/admin/*'] },
     });
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     // The group opens from an effect, a tick after the saved values land, so
     // both facts are awaited together rather than read between the two renders.
@@ -457,13 +457,13 @@ describe('advanced crawl rules', () => {
       },
       second,
     ]);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await waitFor(() => expect(screen.getByLabelText(/^Exclude path patterns/)).toBeVisible());
 
     fireEvent.click(screen.getByText('Advanced crawl rules'));
     await waitFor(() => expect(screen.getByLabelText(/^Exclude path patterns/)).not.toBeVisible());
 
-    fireEvent.change(screen.getByLabelText(/^Profile/), { target: { value: 'profile-2' } });
+    fireEvent.change(screen.getByLabelText(/^Site/), { target: { value: 'profile-2' } });
 
     await waitFor(() =>
       expect(screen.getByLabelText(/^Exclude path patterns/)).toHaveValue('/private/*'),
@@ -476,7 +476,7 @@ describe('advanced crawl rules', () => {
       plan: 'Complete',
       scope: { ...defaultScope, queryPolicy: 'include' as const },
     });
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     await waitFor(() => expect(screen.getByLabelText(/^URL query parameters/)).toBeVisible());
   });
@@ -490,7 +490,7 @@ describe('advanced crawl rules', () => {
 describe('what a callout discloses before the purchase', () => {
   it('opens the AI-processing disclosure and folds the robots.txt explanation', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).toBeVisible();
     expect(screen.getByText(/do not connect a Google account/)).toBeVisible();
@@ -503,7 +503,7 @@ describe('what a callout discloses before the purchase', () => {
   // they come back to buy, rather than carrying their fold into a new scan.
   it('opens the AI-processing disclosure again on the next visit', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     const disclosure = screen
       .getByText(/instruct FluxRadar to use Anthropic/)
       .closest('details') as HTMLDetailsElement;
@@ -516,13 +516,13 @@ describe('what a callout discloses before the purchase', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
     fireEvent.click((await screen.findAllByRole('button', { name: 'New scan' }))[0] as HTMLElement);
 
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).toBeVisible();
   });
 
   it('opens the AI-processing disclosure in Ukrainian too', async () => {
     renderNewScan(internalAccount, 'uk');
-    await screen.findByText('Нова перевірка — область і тариф');
+    await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
 
     expect(screen.getByText(/доручаєте FluxRadar/)).toBeVisible();
   });
@@ -536,7 +536,7 @@ describe('what a callout discloses before the purchase', () => {
 describe('a submit the settings are blocking', () => {
   it('says which setting is holding the scan back', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
 
     const button = screen.getByRole('button', { name: 'Run internal scan' });
@@ -548,7 +548,7 @@ describe('a submit the settings are blocking', () => {
 
   it('offers the tick and the way back beside the button it blocks', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
 
     const actions = screen
@@ -568,7 +568,7 @@ describe('a submit the settings are blocking', () => {
 
   it('drops the reason once the owner says yes', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(screen.getByLabelText(/Respect robots\.txt/));
     fireEvent.click(screen.getByLabelText(/Yes, read the pages robots\.txt asks crawlers to skip/));
 
@@ -582,7 +582,7 @@ describe('a submit the settings are blocking', () => {
 
   it('moves to the field a rejected page count is reported on', async () => {
     renderNewScan(internalAccount);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     const pages = screen.getByLabelText(/^Maximum pages/);
     fireEvent.change(pages, { target: { value: '0' } });
     fireEvent.click(screen.getByRole('button', { name: 'Run internal scan' }));

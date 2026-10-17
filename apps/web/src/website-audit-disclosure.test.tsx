@@ -17,6 +17,7 @@ import { NewScanScreen } from './NewScanScreen';
 import { copy, type Language } from './i18n';
 import { DEFAULT_SCOPE_FORM } from './scan-scope';
 import { PLAN_MODULES } from './plan-modules';
+import { checkedPlan, choosePlanCard, queryPlanRadio } from './new-scan-test-support';
 
 afterEach(() => {
   cleanup();
@@ -27,9 +28,8 @@ function launchSummaryFor(plan: 'Free' | 'Basic' | 'WebsiteAudit' | 'Complete') 
   render(
     <LaunchSummary
       language="en"
-      site="https://example.com"
       plan={plan}
-      planLabel={plan}
+      labelledBy="technical-rows"
       scope={DEFAULT_SCOPE_FORM}
       egressLocation={null}
       egressDirect
@@ -221,11 +221,6 @@ function renderNewScan(language: Language) {
       onCreateProfile={() => undefined}
     />,
   );
-  const planSelect = (): HTMLSelectElement => {
-    const select = view.container.querySelector<HTMLSelectElement>('select[name="scan-plan"]');
-    if (select === null) throw new Error('the plan picker is not on screen');
-    return select;
-  };
   /**
    * Picks a plan once the picker actually offers it.
    *
@@ -234,13 +229,11 @@ function renderNewScan(language: Language) {
    * so the wait is what makes this a plan change rather than a no-op.
    */
   const choosePlan = async (plan: string): Promise<void> => {
-    await waitFor(() =>
-      expect(planSelect().querySelector(`option[value="${plan}"]`)).not.toBeNull(),
-    );
-    fireEvent.change(planSelect(), { target: { value: plan } });
-    expect(planSelect()).toHaveValue(plan);
+    await waitFor(() => expect(queryPlanRadio(plan, view.container)).not.toBeNull());
+    choosePlanCard(plan, view.container);
+    expect(checkedPlan(view.container)).toBe(plan);
   };
-  return { fetchMock, choosePlan, planSelect };
+  return { fetchMock, choosePlan };
 }
 
 /** The optional block as a whole: its heading, and the two controls under it. */
@@ -309,7 +302,9 @@ describe('what a Website Audit checkout records as AI consent', () => {
   }
 
   async function launch(language: Language = 'en'): Promise<void> {
-    fireEvent.click(await screen.findByRole('button', { name: copy[language].newScan.runPaid }));
+    // The pay button names the price of whichever plan is chosen.
+    const pay = language === 'en' ? /^Pay \$\d+ and start$/ : /^Оплатити \$\d+ і запустити$/;
+    fireEvent.click(await screen.findByRole('button', { name: pay }));
   }
 
   it('drops a tick made on Complete when the buyer switches to Website Audit', async () => {

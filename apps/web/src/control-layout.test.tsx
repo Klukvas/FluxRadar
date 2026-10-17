@@ -412,24 +412,30 @@ describe('base.css layout rules', () => {
   });
 
   // The new-scan screen was a 520px column 2309px tall at 1440x900, with the
-  // pay button under every word of it. The settings and the launch column are
-  // side by side from 1100px, and the launch column stays on screen.
-  it('lays the new-scan form out in a settings column and a launch column', () => {
+  // pay button under every word of it. The steps and the order summary are
+  // side by side, and the summary column stays on screen.
+  it('lays the new-scan form out in a steps column and an order-summary column', () => {
     expect(BASE_CSS).toMatch(/\.launch-form \{[^}]*grid-template-columns: minmax\(0, 1fr\) 360px;/);
     expect(BASE_CSS).toMatch(/\.launch-form \{[^}]*align-items: start;/);
     expect(BASE_CSS).toMatch(/\.launch-form__launch \{[^}]*position: sticky;/);
   });
 
-  // Narrower than two columns the launch column is simply the end of the form,
-  // and the window goes back to the reading width the modals share.
-  it('collapses the launch column below 1100px', () => {
+  // Narrower than two columns the summary is simply the end of the form. The
+  // breakpoint moved from 1100px to 820px with the simplified screen: the
+  // two-column layout fits a tablet, and the window no longer shrinks to the
+  // 520px dialog width in between.
+  it('collapses the order-summary column at 820px', () => {
     const narrow = BASE_CSS.slice(
-      BASE_CSS.indexOf('@media (max-width: 1099px)'),
-      BASE_CSS.indexOf('@media (max-width: 900px)'),
+      BASE_CSS.indexOf('@media (max-width: 820px)'),
+      BASE_CSS.indexOf('@media (max-width: 699px)', BASE_CSS.indexOf('@media (max-width: 820px)')),
     );
     expect(narrow).toMatch(/\.launch-form \{\s*grid-template-columns: minmax\(0, 1fr\);/);
     expect(narrow).toMatch(/\.launch-form__launch \{\s*position: static;/);
-    expect(narrow).toMatch(/\.window--launch \{\s*max-width: 520px;/);
+    const tablet = BASE_CSS.slice(
+      BASE_CSS.indexOf('@media (max-width: 1099px)'),
+      BASE_CSS.indexOf('@media (max-width: 900px)'),
+    );
+    expect(tablet).not.toMatch(/\.window--launch|\.launch-form/);
   });
 
   // The extra room belongs to the one dialog-shaped window that is a whole

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { PLAN_URL_LIMIT } from './plan-modules';
+import { choosePlanCard } from './new-scan-test-support';
 
 // What the new-scan form does with a page count that cannot be run as typed.
 //
@@ -142,11 +143,11 @@ function renderNewScanWithTwoSites(): ReturnType<typeof vi.fn> {
 }
 
 function chooseSite(id: string): void {
-  fireEvent.change(screen.getByRole('combobox', { name: /^Profile/ }), { target: { value: id } });
+  fireEvent.change(screen.getByRole('combobox', { name: /^Site/ }), { target: { value: id } });
 }
 
 function choosePlan(value: 'Free' | 'Basic' | 'Complete'): void {
-  fireEvent.change(screen.getByRole('combobox', { name: /^Scan plan/ }), { target: { value } });
+  choosePlanCard(value);
 }
 
 const pagesField = () => screen.getByRole('spinbutton', { name: /^Maximum pages/ });
@@ -180,7 +181,7 @@ describe('a page count the API would refuse', () => {
     ['negative', '-3'],
   ])('stops the scan and says so when the page count is %s', async (_label, value) => {
     const fetchMock = renderNewScan();
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(42);
 
     fireEvent.change(pagesField(), { target: { value } });
@@ -198,7 +199,7 @@ describe('a page count the API would refuse', () => {
   // be the same one, and `scan-scope.test.ts` covers the value directly.
   it('never asks for half a page', async () => {
     const fetchMock = renderNewScan();
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(42);
 
     fireEvent.change(pagesField(), { target: { value: '2.5' } });
@@ -210,7 +211,7 @@ describe('a page count the API would refuse', () => {
 
   it('says the same about a crawl depth, and leaves the page count alone', async () => {
     renderNewScan();
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(42);
 
     fireEvent.change(depthField(), { target: { value: '-1' } });
@@ -224,7 +225,7 @@ describe('a page count the API would refuse', () => {
   // Depth counts from the homepage, so zero is an answer there rather than a typo.
   it('accepts a crawl depth of zero', async () => {
     const fetchMock = renderNewScan();
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(42);
 
     fireEvent.change(depthField(), { target: { value: '0' } });
@@ -238,7 +239,7 @@ describe('a page count the API would refuse', () => {
 
   it('withdraws the message when the field is corrected, and runs the scan', async () => {
     const fetchMock = renderNewScan();
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(42);
 
     fireEvent.change(pagesField(), { target: { value: '0' } });
@@ -260,7 +261,7 @@ describe('a page count the API would refuse', () => {
 
   it('names the mistake in the language the form is read in', async () => {
     renderNewScan([lastModestScan], 'uk');
-    await screen.findByText('Нова перевірка — область і тариф');
+    await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
     await waitFor(() =>
       expect(screen.getByRole('spinbutton', { name: /^Максимум сторінок/ })).toHaveValue(42),
     );
@@ -277,7 +278,7 @@ describe('a page count the API would refuse', () => {
 describe('a carried-over scope larger than the chosen plan', () => {
   it('brings a carried-over Complete limit down to what Basic sells', async () => {
     renderNewScan([lastCompleteScan]);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(20_000);
 
     choosePlan('Basic');
@@ -287,7 +288,7 @@ describe('a carried-over scope larger than the chosen plan', () => {
 
   it('asks for a scan Basic can run, instead of one the API refuses', async () => {
     const fetchMock = renderNewScan([lastCompleteScan]);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(20_000);
 
     choosePlan('Basic');
@@ -306,7 +307,7 @@ describe('a carried-over scope larger than the chosen plan', () => {
   // sell right up until the checkout quietly replaced it.
   it('brings a prefill that lands on an already-chosen Basic down to what Basic sells', async () => {
     renderNewScanWithTwoSites();
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(42);
 
     choosePlan('Basic');
@@ -318,7 +319,7 @@ describe('a carried-over scope larger than the chosen plan', () => {
 
   it('asks for the scan the form is showing, not the one that was carried over', async () => {
     const fetchMock = renderNewScanWithTwoSites();
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(42);
 
     choosePlan('Basic');
@@ -337,7 +338,7 @@ describe('a carried-over scope larger than the chosen plan', () => {
   // arriving on Complete keeps every page it was checked with.
   it('leaves a prefill alone when the chosen plan sells it', async () => {
     renderNewScanWithTwoSites();
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(42);
 
     chooseSite(otherProfile.id);
@@ -348,7 +349,7 @@ describe('a carried-over scope larger than the chosen plan', () => {
   // Switching back up must find the plan it switched to, not the one it left.
   it('keeps the full limits when the plan stays on Complete', async () => {
     const fetchMock = renderNewScan([lastCompleteScan]);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await openedOn(20_000);
 
     runScan();

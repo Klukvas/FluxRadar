@@ -76,7 +76,7 @@ afterEach(() => {
 describe('workspace deep links survive a reload', () => {
   it.each([
     ['/profiles', 'Site Profiles'],
-    ['/scan', 'New scan — scope and tariff'],
+    ['/scan', 'Which site are we checking?'],
     ['/reports', 'Your audit reports'],
     ['/integrations', 'Connected data sources'],
   ])('restores %s directly', async (path, expected) => {
@@ -182,13 +182,15 @@ describe('menu bar tabs land somewhere real', () => {
     await screen.findByText('Site Profiles');
 
     fireEvent.click(screen.getByRole('button', { name: 'Scan' }));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
     await screen.findByText('Your audit reports');
 
     window.history.back();
     await waitFor(() => expect(window.location.pathname).toBe('/scan'));
-    expect(await screen.findByText('New scan — scope and tariff')).toBeInTheDocument();
+    expect(
+      await screen.findByText('New scan', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
 
     window.history.back();
     await waitFor(() => expect(window.location.pathname).toBe('/profiles'));
@@ -270,7 +272,7 @@ describe('window titlebar close box', () => {
     expect(screen.queryByRole('button', { name: 'Close window' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Scan' }));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     // The new-scan window is closable, so its box is a button and it works.
     const close = screen.getByRole('button', { name: 'Close window' });

@@ -441,14 +441,18 @@ describe('NewScanScreen', () => {
 
     // Open the New scan dialog.
     fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
-    expect(await screen.findByText('New scan — scope and tariff')).toBeInTheDocument();
+    expect(
+      await screen.findByText('New scan', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
 
     // Close the dialog via the title-bar close button.
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
 
     // Should be back on the desktop, not on the new-scan screen.
     expect(await screen.findByText('Unified public site audit station.')).toBeInTheDocument();
-    expect(screen.queryByText('New scan — scope and tariff')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('New scan', { selector: '.window__titlebar > span' }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -668,13 +672,17 @@ describe('new scan modal — Close window button', () => {
     await renderDesktop();
 
     // The new-scan window must not be visible yet.
-    expect(screen.queryByText('New scan — scope and tariff')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('New scan', { selector: '.window__titlebar > span' }),
+    ).not.toBeInTheDocument();
 
     // Navigate into the new-scan screen via the profile's "New scan" button.
     fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
 
     // The new-scan window is now on screen; the desktop windows are gone.
-    expect(screen.getByText('New scan — scope and tariff')).toBeInTheDocument();
+    expect(
+      screen.getByText('New scan', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Site Profiles')).not.toBeInTheDocument();
 
     // Click the window's Close button (the ✕ in the titlebar).
@@ -682,7 +690,9 @@ describe('new scan modal — Close window button', () => {
 
     // The desktop must be restored; the new-scan window must be gone.
     expect(screen.getByText('Site Profiles')).toBeInTheDocument();
-    expect(screen.queryByText('New scan — scope and tariff')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('New scan', { selector: '.window__titlebar > span' }),
+    ).not.toBeInTheDocument();
 
     // The URL must name the screen we landed on (no stale /scans/… fragment),
     // so a reload from here comes back to the workspace rather than to home.
@@ -694,7 +704,9 @@ describe('new scan modal — Close window button', () => {
     await renderDesktop();
 
     fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
-    expect(screen.getByText('New scan — scope and tariff')).toBeInTheDocument();
+    expect(
+      screen.getByText('New scan', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
 
     // Record API calls up to this point (auth + profiles + active scan).
     const callCountBefore = fetchMock.mock.calls.length;
@@ -729,12 +741,16 @@ describe('new scan modal — Close window button', () => {
     await renderDesktop();
 
     fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
-    expect(screen.getByText('New scan — scope and tariff')).toBeInTheDocument();
+    expect(
+      screen.getByText('New scan', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
 
     // Escape currently does nothing for this non-modal window.
     // The screen stays on new-scan without errors.
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.getByText('New scan — scope and tariff')).toBeInTheDocument();
+    expect(
+      screen.getByText('New scan', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -2017,8 +2033,8 @@ describe('workspace tour copy', () => {
 //     free-check, never internal-checkout). The paid flow itself lives in
 //     Checkout.test.tsx.
 //
-//  2. internalFreeAccess user sees "Basic · internal free" / "Complete · internal
-//     free" plan options and the "Run internal scan" button; no unavailable note.
+//  2. internalFreeAccess user sees the Basic and Complete plan cards priced as
+//     internal, and the "Run internal scan" button; no unavailable note.
 //
 //  3. After switching the shell language to Ukrainian the NewScanScreen window
 //     title, key field labels and the submit button all render in Ukrainian.
@@ -2046,7 +2062,7 @@ describe('NewScanScreen — paid availability and i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
     await screen.findByText('Site Profiles');
     fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     return fetchMock;
   }
 
@@ -2058,9 +2074,9 @@ describe('NewScanScreen — paid availability and i18n', () => {
       screen.getByText(/Paid scans will be available when checkout is enabled/i),
     ).toBeInTheDocument();
 
-    // Basic and Complete options are absent from the plan selector.
-    expect(screen.queryByText(/Basic · \$55/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Complete · \$120/)).not.toBeInTheDocument();
+    // Basic and Complete cards are absent from the plan step.
+    expect(screen.queryByRole('radio', { name: /^Basic/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /^Complete/ })).not.toBeInTheDocument();
 
     // Submit button is enabled and labelled for Free.
     const runBtn = screen.getByRole('button', { name: 'Run free check' });
@@ -2111,7 +2127,7 @@ describe('NewScanScreen — paid availability and i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
     await screen.findByText('Site Profiles');
     fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     expect(
       screen.getByText('Checking whether paid reports can be bought here…'),
@@ -2123,7 +2139,7 @@ describe('NewScanScreen — paid availability and i18n', () => {
     releaseConfig();
 
     // Once the answer lands, the paid plans are offered — no note either way.
-    expect(await screen.findByText(/Complete · \$/)).toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: /^Complete/ })).toBeInTheDocument();
     expect(
       screen.queryByText('Checking whether paid reports can be bought here…'),
     ).not.toBeInTheDocument();
@@ -2138,9 +2154,10 @@ describe('NewScanScreen — paid availability and i18n', () => {
       screen.queryByText(/Paid scans will be available when checkout is enabled/i),
     ).not.toBeInTheDocument();
 
-    // Internal-free labels appear in the plan selector.
-    expect(screen.getByText('Basic · internal free')).toBeInTheDocument();
-    expect(screen.getAllByText('Complete · internal free').length).toBeGreaterThan(0);
+    // The paid cards are offered, priced as internal rather than in dollars.
+    expect(screen.getByRole('radio', { name: /^Basic.*internal/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^Complete internal/ })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /\$120/ })).not.toBeInTheDocument();
 
     // Default plan is Complete for internal users → submit label is Run internal scan.
     expect(screen.getByRole('button', { name: 'Run internal scan' })).toBeInTheDocument();
@@ -2148,8 +2165,10 @@ describe('NewScanScreen — paid availability and i18n', () => {
       name: 'External performance measurement',
     });
     expect(within(performance).getByText(/You do not connect a Google account/i)).toBeVisible();
-    expect(screen.getByText('Performance provider')).toBeVisible();
-    expect(screen.getByText('Google PageSpeed / CrUX · no sign-in')).toBeVisible();
+    // The provider row is technical, so it sits folded under "For advanced
+    // users"; the disclosure above is the part a buyer must see before paying.
+    expect(screen.getByText('Performance provider')).toBeInTheDocument();
+    expect(screen.getByText('Google PageSpeed / CrUX · no sign-in')).toBeInTheDocument();
   });
 
   it('renders New scan labels in Ukrainian after language switch', async () => {
@@ -2165,13 +2184,17 @@ describe('NewScanScreen — paid availability and i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Нова перевірка' }));
 
     // Window title in Ukrainian.
-    expect(await screen.findByText('Нова перевірка — область і тариф')).toBeInTheDocument();
-    // Field label in Ukrainian. The control picks a saved profile, so it is
-    // named after that and not after the public address the profile holds.
-    expect(screen.getByText('Профіль')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
+    // The three steps in Ukrainian. The site step names what a buyer picks — a
+    // site — and not the public address the saved record holds.
+    expect(screen.getByRole('heading', { name: /Який сайт перевіряємо\?/ })).toBeInTheDocument();
     expect(screen.queryByText('Публічне джерело')).not.toBeInTheDocument();
-    // Plan selector label in Ukrainian.
-    expect(screen.getByText('Тариф перевірки')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Що перевірити\?/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Чи можемо ми прочитати ваш сайт\?/ }),
+    ).toBeInTheDocument();
     // Submit button in Ukrainian (ordinary account → Free plan → runFree).
     expect(
       screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }),

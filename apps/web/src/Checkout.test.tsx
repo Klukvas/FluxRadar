@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
 import { App } from './App';
 import { CheckoutPending, type PendingCheckout } from './Checkout';
+import { choosePlanCard } from './new-scan-test-support';
 
 // Paid checkout in the UI.
 //
@@ -98,7 +99,7 @@ function stubApi(handler: (path: string, init?: RequestInit) => Response) {
 }
 
 function selectPlan(plan: string): void {
-  fireEvent.change(screen.getByLabelText('Scan plan'), { target: { value: plan } });
+  choosePlanCard(plan);
 }
 
 /**
@@ -110,7 +111,7 @@ function selectPlan(plan: string): void {
  */
 async function awaitPayable(): Promise<void> {
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Pay and run scan' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Pay $120 and start' })).toBeEnabled(),
   );
 }
 
@@ -125,7 +126,7 @@ async function openNewScan(handler: (path: string, init?: RequestInit) => Respon
   fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
   await screen.findByText('Site Profiles');
   fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
-  await screen.findByText('New scan — scope and tariff');
+  await screen.findByText('New scan', { selector: '.window__titlebar > span' });
   return fetchMock;
 }
 
@@ -166,10 +167,10 @@ describe('paid checkout flow', () => {
         });
       return envelope(null);
     });
-    await screen.findByText('Complete · $120');
+    await screen.findByRole('radio', { name: /^Complete/ });
     selectPlan('Complete');
     await awaitPayable();
-    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
     await screen.findByText('Payment — confirming');
 
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
@@ -204,7 +205,7 @@ describe('paid checkout flow', () => {
     });
 
     // Paid plans are offered because the server says checkout is configured.
-    expect(await screen.findByText('Complete · $120')).toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: /^Complete/ })).toBeInTheDocument();
     expect(
       screen.getByText(
         'Payments here are still being set up, so nothing is taken from your card and no money changes hands. The check itself runs normally.',
@@ -217,7 +218,7 @@ describe('paid checkout flow', () => {
     await awaitPayable();
     const legalNotice = screen.getByRole('note', { name: 'Purchase terms' });
     expect(legalNotice).toHaveTextContent(
-      'By selecting “Pay and run scan”, you agree to the Terms of service and acknowledge the Privacy policy · Cookie policy.',
+      'By selecting “Pay $120 and start”, you agree to the Terms of service and acknowledge the Privacy policy · Cookie policy.',
     );
     expect(within(legalNotice).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
       'href',
@@ -232,7 +233,7 @@ describe('paid checkout flow', () => {
       '/cookies?lang=en',
     );
     expect(screen.queryByRole('checkbox', { name: /Anthropic/i })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
 
     expect(await screen.findByText('Payment — confirming')).toBeInTheDocument();
     await waitFor(() => expect(locationAssignSpy).toHaveBeenCalledWith(session.checkoutUrl));
@@ -283,10 +284,10 @@ describe('paid checkout flow', () => {
       return envelope(null);
     });
 
-    await screen.findByText('Complete · $120');
+    await screen.findByRole('radio', { name: /^Complete/ });
     selectPlan('Complete');
     await awaitPayable();
-    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
 
     expect(
       await screen.findByText(/The payment provider reported a problem with this checkout/),
@@ -320,7 +321,7 @@ describe('paid checkout flow', () => {
     expect(
       await screen.findByText(/Paid checkout is not configured for this environment yet/),
     ).toBeInTheDocument();
-    expect(screen.queryByText('Complete · $120')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /^Complete/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
     await waitFor(() => expect(called(fetchMock, `/profiles/${profile.id}/free-check`)).toBe(true));
@@ -351,7 +352,7 @@ describe('paid checkout flow', () => {
     expect(
       screen.queryByText(/Paid checkout is not configured for this environment yet/),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText('Complete · $120')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /^Complete/ })).not.toBeInTheDocument();
   });
 
   // An unreachable config endpoint says nothing about the deployment, so the
@@ -368,7 +369,7 @@ describe('paid checkout flow', () => {
     expect(
       await screen.findByText(/Paid scans will be available when checkout is enabled/),
     ).toBeInTheDocument();
-    expect(screen.queryByText('Complete · $120')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /^Complete/ })).not.toBeInTheDocument();
   });
 
   it('keeps the internal free allowlist on the internal-checkout path', async () => {
@@ -413,10 +414,10 @@ describe('paid checkout flow', () => {
       return envelope(null);
     };
     await openNewScan(handler);
-    await screen.findByText('Complete · $120');
+    await screen.findByRole('radio', { name: /^Complete/ });
     selectPlan('Complete');
     await awaitPayable();
-    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
     await screen.findByText('Payment — confirming');
 
     // A reload: everything React held is gone, only storage survives.
@@ -639,7 +640,7 @@ describe('optional AI recipients at checkout', () => {
       if (path === '/billing/checkout-session') return envelope(session, 201);
       return envelope(null);
     });
-    await screen.findByText('Complete · $120');
+    await screen.findByRole('radio', { name: /^Complete/ });
     selectPlan('Complete');
     return fetchMock;
   }
@@ -675,7 +676,7 @@ describe('optional AI recipients at checkout', () => {
     const fetchMock = await openPaidForm(['google', 'perplexity']);
     await screen.findByRole('checkbox', { name: OPT_IN_LABEL });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
     await waitFor(() => expect(called(fetchMock, '/billing/checkout-session')).toBe(true));
 
     expect(submittedConsent(fetchMock)).toEqual({
@@ -691,7 +692,7 @@ describe('optional AI recipients at checkout', () => {
     fireEvent.click(google);
     fireEvent.click(screen.getByRole('checkbox', { name: 'Also ask Perplexity' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Also ask Perplexity' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
     await waitFor(() => expect(called(fetchMock, '/billing/checkout-session')).toBe(true));
 
     expect(submittedConsent(fetchMock)).toEqual({

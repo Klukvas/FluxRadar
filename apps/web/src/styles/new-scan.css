@@ -1,20 +1,7 @@
-/* The new-scan screen's plain-language layer: which site is being checked,
-   beside the button; the folded block of crawl settings; and the warning plus
-   the confirmation a skipped robots.txt earns. The form's layout itself lives
-   in base.css. */
-
-/* "Checking: <site>, <address>, plan <plan>" — the last thing read before
-   paying, so it is the largest text in the launch column. Addresses are long
-   and unbroken, so they wrap rather than widen a phone-width column. */
-.launch-form__target {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-.launch-form__target strong {
-  font-size: 16px;
-}
+/* The new-scan screen's own pieces: the numbered steps, the plan cards, the
+   order summary, the folded section for advanced settings, and the warning
+   plus the confirmation a skipped robots.txt earns. The two-column layout
+   itself lives in base.css (.launch-form), where control-layout.test pins it. */
 
 /* A setting that reads pages the site asked crawlers to skip. Marked by a
    coloured edge and text, not colour alone, so it reads in any contrast mode. */
@@ -53,4 +40,158 @@
 .scan-expert__summary {
   font-size: 13px;
   font-weight: 700;
+}
+
+/* The three numbered steps. Each is a bordered block with its number set in
+   the terminal colours, so a buyer can see at a glance how far through the
+   form they are. */
+.scan-step {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--plat-400);
+  background: var(--plat-50);
+}
+.scan-step__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+.scan-step__number {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 24px;
+  height: 24px;
+  border: 1px solid var(--plat-900);
+  background: var(--term-bg);
+  color: var(--term-green);
+  font: 700 13px var(--mono-font);
+}
+.scan-step__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Step 2's plans: one card each, the whole card a label for its radio. The
+   chosen card is marked by a heavier border and a tint, not colour alone. */
+.plan-cards {
+  display: grid;
+  gap: var(--sp-2);
+}
+.plan-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--sp-1) var(--sp-3);
+  align-items: start;
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: #fff;
+  cursor: pointer;
+}
+.plan-card--checked {
+  border-color: var(--selection);
+  box-shadow: inset 0 0 0 1px var(--selection);
+  background: #f3f3ff;
+}
+.plan-card:focus-within {
+  outline: 2px solid var(--selection);
+  outline-offset: 2px;
+}
+.plan-card__radio {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--selection);
+}
+.plan-card__name {
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.plan-card__badge {
+  display: inline-block;
+  margin-left: var(--sp-2);
+  padding: 0 6px;
+  border: 1px solid var(--plat-900);
+  background: var(--term-green);
+  color: var(--term-bg);
+  font: 700 10px/1.6 var(--mono-font);
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+.plan-card__price {
+  font: 700 14px var(--mono-font);
+  white-space: nowrap;
+}
+.plan-card__line {
+  grid-column: 2 / 4;
+  color: var(--plat-600);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* "Your report": the order, its price and the one button, pinned beside the
+   steps on a wide screen. */
+.order-summary {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--plat-900);
+  background: #fff;
+}
+.order-summary__title {
+  margin: 0;
+  font-size: 16px;
+}
+.order-summary__total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin: 0;
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--plat-300);
+}
+.order-summary__total span {
+  color: var(--plat-600);
+}
+.order-summary__total strong {
+  font: 700 20px var(--mono-font);
+}
+.order-summary__note {
+  margin: 0;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* "For advanced users": the one fold under the steps. Its headings sit at the
+   body size of the rows they label. */
+.scan-advanced-section {
+  background: var(--plat-50);
+}
+.scan-advanced__heading {
+  margin: 0 0 var(--sp-2);
+  font-size: 13px;
+}
+
+@media (max-width: 699px) {
+  .scan-step,
+  .order-summary {
+    padding: var(--sp-3);
+  }
+}
+
+/* The saved-settings status when it needs reading before launch, above the
+   fold. The live region stays mounted while empty (so its first message is
+   announced), and an empty one gives back the grid gap it would otherwise
+   add between step 3 and the fold. */
+.configuration-attention .configuration-status {
+  margin-top: 0;
+}
+.launch-form__controls > .configuration-attention:empty {
+  margin-top: calc(-1 * var(--sp-3));
 }

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { NewScanScreen } from './NewScanScreen';
+import { choosePlanCard } from './new-scan-test-support';
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
 const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
@@ -79,15 +80,21 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
+/** A row of the order summary beside the steps, by its label. */
+function orderValue(label: string): Element | null {
+  const order = screen.getByRole('region', { name: 'Your report' });
+  return within(order).getByText(label).nextElementSibling;
+}
+
 describe('new scan requires a saved profile', () => {
   it('shows the profile CTA without rendering a target address field or resolving a profile', async () => {
     const fetchMock = renderNewScan(workspace([]));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     // A button inside the app, not a link that reloads it: the plan picked on a
     // pricing card lives in memory, and a page load dropped it (App.test.tsx
     // holds the whole journey).
-    expect(screen.getByRole('button', { name: 'Create profile' })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Create profile' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add a site' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Add a site' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: /^Site address/ })).toBeNull();
     expect(fetchMock.mock.calls.some(([input]) => pathOf(input) === '/profiles/resolve')).toBe(
       false,
@@ -96,7 +103,7 @@ describe('new scan requires a saved profile', () => {
 
   it('launches the selected saved profile without resolving or creating another profile', async () => {
     const fetchMock = renderNewScan(workspace([profile]));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
     await waitFor(() =>
       expect(
@@ -112,8 +119,8 @@ describe('new scan requires a saved profile', () => {
 
   it('offers only saved profiles as targets', async () => {
     renderNewScan(workspace([profile]));
-    await screen.findByText('New scan — scope and tariff');
-    expect(screen.getByRole('combobox', { name: /^Profile/ })).toHaveValue(profile.id);
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+    expect(screen.getByRole('combobox', { name: /^Site/ })).toHaveValue(profile.id);
     expect(screen.queryByRole('option', { name: /Another site address/ })).toBeNull();
   });
 
@@ -123,7 +130,7 @@ describe('new scan requires a saved profile', () => {
         ? envelope({ ...account, internalFreeAccess: true })
         : workspace([configuredProfile])(path, init),
     );
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await waitFor(() =>
       expect(
         screen.getByRole('checkbox', { name: /Read pages after their JavaScript/ }),
@@ -147,37 +154,30 @@ describe('new scan requires a saved profile', () => {
     const row = salonName.closest('.profile-row') as HTMLElement;
     fireEvent.click(within(row).getByRole('button', { name: 'New scan' }));
 
-    await screen.findByText('New scan — scope and tariff');
-    expect(screen.getByRole('combobox', { name: /^Profile/ })).toHaveValue(salon.id);
-    expect(screen.getByText(/^Checking:/)).toHaveTextContent(
-      'Checking: Eva Grace, https://evagrace.example, plan Free',
-    );
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+    expect(screen.getByRole('combobox', { name: /^Site/ })).toHaveValue(salon.id);
+    expect(orderValue('Site')).toHaveTextContent('evagrace.example');
+    expect(orderValue('Plan')).toHaveTextContent('Free');
   });
 
-  it('keeps the "Checking" line beside the button in step with the profile and the plan', async () => {
+  it('keeps the order summary in step with the site and the plan', async () => {
     const salon = { id: 'profile-salon', name: 'Eva Grace', domain: 'https://evagrace.example' };
     renderNewScan((path, init) =>
       path === '/auth/me'
         ? envelope({ ...account, internalFreeAccess: true })
         : workspace([profile, salon])(path, init),
     );
-    await screen.findByText('New scan — scope and tariff');
-    expect(screen.getByText(/^Checking:/)).toHaveTextContent(
-      'Checking: My Site, https://example.com, plan Complete',
-    );
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+    expect(orderValue('Site')).toHaveTextContent(/^example\.com$/);
+    expect(orderValue('Plan')).toHaveTextContent('Complete');
 
-    fireEvent.change(screen.getByRole('combobox', { name: /^Profile/ }), {
+    fireEvent.change(screen.getByRole('combobox', { name: /^Site/ }), {
       target: { value: salon.id },
     });
-    fireEvent.change(screen.getByRole('combobox', { name: /^Scan plan/ }), {
-      target: { value: 'Basic' },
-    });
+    choosePlanCard('Basic');
 
-    await waitFor(() =>
-      expect(screen.getByText(/^Checking:/)).toHaveTextContent(
-        'Checking: Eva Grace, https://evagrace.example, plan Basic',
-      ),
-    );
+    await waitFor(() => expect(orderValue('Site')).toHaveTextContent(/^evagrace\.example$/));
+    expect(orderValue('Plan')).toHaveTextContent('Basic');
   });
 
   it('saves configuration only to the selected saved profile', async () => {
@@ -186,8 +186,8 @@ describe('new scan requires a saved profile', () => {
         ? envelope({ ...account, internalFreeAccess: true })
         : workspace([configuredProfile])(path, init),
     );
-    await screen.findByText('New scan — scope and tariff');
-    fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save these settings for the site' }));
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(
@@ -255,7 +255,7 @@ describe('a robots.txt override restored from saved settings', () => {
 
   it('warns in the summary and holds the launch until the override is confirmed again', async () => {
     const fetchMock = renderNewScan(internalWorkspace);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     const confirmation = await screen.findByRole('checkbox', overrideBox);
     expect(confirmation).not.toBeChecked();
@@ -295,7 +295,7 @@ describe('a robots.txt override restored from saved settings', () => {
   // The disabled button is not the only guard: Enter in a field submits too.
   it('starts nothing when the form is submitted without the confirmation', async () => {
     const fetchMock = renderNewScan(internalWorkspace);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await screen.findByRole('checkbox', overrideBox);
 
     fireEvent.submit(
@@ -313,11 +313,11 @@ describe('a robots.txt override restored from saved settings', () => {
 
   it('withdraws a confirmation when the site changes, and asks again on coming back', async () => {
     renderNewScan(internalWorkspace);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(await screen.findByRole('checkbox', overrideBox));
     expect(screen.getByRole('button', { name: 'Run internal scan' })).toBeEnabled();
 
-    const site = screen.getByRole('combobox', { name: /^Profile/ });
+    const site = screen.getByRole('combobox', { name: /^Site/ });
     fireEvent.change(site, { target: { value: plainSite.id } });
     await waitFor(() => expect(screen.queryByRole('checkbox', overrideBox)).toBeNull());
     fireEvent.change(site, { target: { value: overriddenProfile.id } });
@@ -356,11 +356,11 @@ describe('a robots.txt override restored from saved settings', () => {
 
   it("keeps a confirmation given here through the owner's own save", async () => {
     renderNewScan(savingServer('succeeds'));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(await screen.findByRole('checkbox', overrideBox));
     fireEvent.change(screen.getByLabelText(/^Maximum crawl depth/), { target: { value: '7' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save these settings for the site' }));
 
     await screen.findByText('Saved · version 5');
     expect(screen.getByRole('checkbox', overrideBox)).toBeChecked();
@@ -371,7 +371,7 @@ describe('a robots.txt override restored from saved settings', () => {
 
   it('keeps it through a launch that saved the settings and then failed', async () => {
     renderNewScan(savingServer('fails'));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(await screen.findByRole('checkbox', overrideBox));
     fireEvent.change(screen.getByLabelText(/^Maximum crawl depth/), { target: { value: '7' } });
 
@@ -386,7 +386,7 @@ describe('a robots.txt override restored from saved settings', () => {
 
   it('reads as saved, and rewrites nothing, just by opening the form', async () => {
     const fetchMock = renderNewScan(internalWorkspace);
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await screen.findByRole('checkbox', overrideBox);
 
     expect(screen.getByText('Saved · version 4')).toBeInTheDocument();
@@ -431,7 +431,7 @@ describe('the note over carried-over crawl settings', () => {
 
   it('says where a value nobody chose on this screen came from', async () => {
     renderNewScan(internalWith(configuredProfile));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     // The saved mobile user agent and depth 6 open the block by themselves.
     expect(await screen.findByText(CARRIED)).toBeVisible();
@@ -440,7 +440,7 @@ describe('the note over carried-over crawl settings', () => {
 
   it('says nothing when the saved settings hold the safe defaults', async () => {
     renderNewScan(internalWith(defaultsProfile));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     await waitFor(() => expect(screen.getByText('Saved · version 2')).toBeInTheDocument());
 
     // Carried over all the same — the settings came from the profile — but
@@ -450,11 +450,11 @@ describe('the note over carried-over crawl settings', () => {
 
     // Opened by hand, the block still has no reason to explain: the owner's
     // own click is why it is open.
-    const block = screen
-      .getByText('For experienced users')
-      .closest('details') as HTMLDetailsElement;
-    block.open = true;
-    fireEvent(block, new Event('toggle'));
+    for (const title of ['For advanced users', 'Crawl settings']) {
+      const block = screen.getByText(title).closest('details') as HTMLDetailsElement;
+      block.open = true;
+      fireEvent(block, new Event('toggle'));
+    }
     expect(screen.getByLabelText(/^User agent/)).toBeVisible();
     expect(screen.queryByText(CARRIED)).toBeNull();
   });
@@ -469,16 +469,16 @@ describe('the simple view', () => {
           ? envelope({ scanId: 'scan-paid-1' })
           : workspace([profile])(path, init),
     );
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
-    expect(screen.getByText('For experienced users')).toBeVisible();
+    expect(screen.getByText('For advanced users')).toBeVisible();
     expect(screen.getByLabelText(/^User agent/)).not.toBeVisible();
     expect(screen.getByLabelText(/Include subdomains/)).not.toBeVisible();
     expect(screen.getByLabelText(/^Maximum pages/)).not.toBeVisible();
     expect(screen.getByLabelText(/Respect robots\.txt/)).not.toBeVisible();
     // The site, the plan and the button are what the screen opens on.
-    expect(screen.getByRole('combobox', { name: /^Profile/ })).toBeVisible();
-    expect(screen.getByRole('combobox', { name: /^Scan plan/ })).toBeVisible();
+    expect(screen.getByRole('combobox', { name: /^Site/ })).toBeVisible();
+    expect(screen.getByRole('radio', { name: /^Basic/ })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Run internal scan' })).toBeVisible();
 
     // A value changed inside the folded block is part of the scan all the same.
@@ -505,7 +505,7 @@ describe('the simple view', () => {
         ? envelope({ ...account, internalFreeAccess: true })
         : workspace([profile])(path, init),
     );
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     const pages = screen.getByLabelText(/^Maximum pages/);
     expect(pages).not.toBeVisible();
 
@@ -529,7 +529,7 @@ describe('the simple view', () => {
         ? envelope({ ...account, internalFreeAccess: true })
         : workspace([profile])(path, init),
     );
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     const seeds = screen.getByLabelText(/^Start URLs/);
     expect(seeds).not.toBeVisible();
 
@@ -561,7 +561,7 @@ describe('the simple view', () => {
             },
           ])(path, init),
     );
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     await waitFor(() => expect(screen.getByLabelText(/^Start URLs/)).toBeVisible());
   });
@@ -572,7 +572,7 @@ describe('the simple view', () => {
         ? envelope({ ...account, internalFreeAccess: true })
         : workspace([configuredProfile])(path, init),
     );
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     await waitFor(() => expect(screen.getByLabelText(/^User agent/)).toBeVisible());
     expect(screen.getByLabelText(/^User agent/)).toHaveValue('mobile');
@@ -592,12 +592,12 @@ describe('the simple view', () => {
       ),
     );
     render(<App />);
-    await screen.findByText('Нова перевірка — область і тариф');
+    await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
 
     expect(screen.getByText('Для досвідчених користувачів')).toBeVisible();
-    expect(
-      screen.getByText(/^Перевіряємо: My Site, https:\/\/example\.com, тариф Complete/),
-    ).toBeVisible();
+    const order = screen.getByRole('region', { name: 'Ваш звіт' });
+    expect(within(order).getByText('example.com')).toBeVisible();
+    expect(within(order).getByText('Complete')).toBeVisible();
   });
 });
 
@@ -628,10 +628,10 @@ describe('the site the form is opened on', () => {
     const { rerender } = render(<NewScanScreen {...props} profiles={[]} selectedProfile={null} />);
     rerender(<NewScanScreen {...props} profiles={[profile, salon]} selectedProfile={salon} />);
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: /^Profile/ })).toHaveValue(salon.id),
+      expect(screen.getByRole('combobox', { name: /^Site/ })).toHaveValue(salon.id),
     );
 
-    fireEvent.change(screen.getByRole('combobox', { name: /^Profile/ }), {
+    fireEvent.change(screen.getByRole('combobox', { name: /^Site/ }), {
       target: { value: profile.id },
     });
     // A refreshed list (after a save) must not drag the form back to the row's site.
@@ -642,7 +642,7 @@ describe('the site the form is opened on', () => {
         selectedProfile={salon}
       />,
     );
-    expect(screen.getByRole('combobox', { name: /^Profile/ })).toHaveValue(profile.id);
+    expect(screen.getByRole('combobox', { name: /^Site/ })).toHaveValue(profile.id);
   });
 });
 
@@ -671,13 +671,13 @@ describe('"New scan" from a site\'s report list', () => {
     // Then a scan opened for the other site, and abandoned.
     fireEvent.click(screen.getByRole('button', { name: 'Profiles' }));
     fireEvent.click(within(await rowOf('My Site')).getByRole('button', { name: 'New scan' }));
-    await screen.findByText('New scan — scope and tariff');
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
     // Back to the salon's list, and a scan from there.
     fireEvent.click(await screen.findByRole('button', { name: 'Reports' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Check a profile' }));
 
-    await screen.findByText('New scan — scope and tariff');
-    expect(screen.getByRole('combobox', { name: /^Profile/ })).toHaveValue(salon.id);
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+    expect(screen.getByRole('combobox', { name: /^Site/ })).toHaveValue(salon.id);
   });
 });

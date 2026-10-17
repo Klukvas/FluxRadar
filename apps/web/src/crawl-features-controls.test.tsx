@@ -69,7 +69,7 @@ function renderNewScan(): ReturnType<typeof vi.fn> {
 }
 
 async function openAdvanced(): Promise<void> {
-  await screen.findByText('New scan — scope and tariff');
+  await screen.findByText('New scan', { selector: '.window__titlebar > span' });
   fireEvent.click(screen.getByText('Advanced crawl rules'));
 }
 
