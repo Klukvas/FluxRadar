@@ -962,8 +962,13 @@ describe('the reach of a developer task', () => {
     render(
       <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEC-ASVS-001" />,
     );
+    // The findings and the summary land separately, and the button shows as
+    // soon as the findings do. Clicked before the summary, it copied "at least
+    // 46 pages so far", and the summary landing then rightly took back the
+    // "copied" of a text no longer on offer.
+    expect(await screen.findByText(/and the 57 pages it was found on/)).toBeInTheDocument();
     fireEvent.click(
-      await screen.findByRole('button', {
+      screen.getByRole('button', {
         name: 'Copy task for developer: Pages do not limit where they load content from',
       }),
     );
