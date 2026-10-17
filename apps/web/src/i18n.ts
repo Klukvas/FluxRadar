@@ -2548,7 +2548,7 @@ export const copy = {
         step2Title: 'Ми перевіряємо',
         step2Body: 'FluxRadar відкриває публічні сторінки й зберігає докази для кожної знахідки.',
         step3Title: 'Виправте головне',
-        step3Body: 'Відкрийте Issue Center, призначте статус і експортуйте звіт Complete.',
+        step3Body: 'Відкрийте Центр проблем, призначте статус і експортуйте звіт Complete.',
       },
       pricingEyebrow: 'ОПЛАТА ЗА ПЕРЕВІРКУ',
       lastCall: {
