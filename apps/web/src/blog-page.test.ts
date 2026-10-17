@@ -236,7 +236,7 @@ describe('blog header renders the same way on every page variant', () => {
   it.each(PAGES)('%s lists the destinations the product header lists', (name) => {
     expect(destinations(name)).toEqual([
       'Home',
-      'Profiles',
+      'My sites',
       'Scan',
       'Reports',
       'Integrations',

@@ -440,7 +440,7 @@ describe('NewScanScreen', () => {
     await screen.findByText('Unified public site audit station.');
 
     // Open the New scan dialog.
-    fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check this site' }));
     expect(
       await screen.findByText('New scan', { selector: '.window__titlebar > span' }),
     ).toBeInTheDocument();
@@ -664,7 +664,7 @@ describe('new scan modal — Close window button', () => {
     // Navigate to the workspace.
     fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
     // Desktop is ready once the "Site Profiles" window title appears.
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
   }
 
   it('returns to the workspace desktop when the Close window button is clicked', async () => {
@@ -677,19 +677,23 @@ describe('new scan modal — Close window button', () => {
     ).not.toBeInTheDocument();
 
     // Navigate into the new-scan screen via the profile's "New scan" button.
-    fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check this site' }));
 
     // The new-scan window is now on screen; the desktop windows are gone.
     expect(
       screen.getByText('New scan', { selector: '.window__titlebar > span' }),
     ).toBeInTheDocument();
-    expect(screen.queryByText('Site Profiles')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('My sites', { selector: '.window__titlebar > span' }),
+    ).not.toBeInTheDocument();
 
     // Click the window's Close button (the ✕ in the titlebar).
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
 
     // The desktop must be restored; the new-scan window must be gone.
-    expect(screen.getByText('Site Profiles')).toBeInTheDocument();
+    expect(
+      screen.getByText('My sites', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText('New scan', { selector: '.window__titlebar > span' }),
     ).not.toBeInTheDocument();
@@ -703,7 +707,7 @@ describe('new scan modal — Close window button', () => {
     const fetchMock = stubDesktop();
     await renderDesktop();
 
-    fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check this site' }));
     expect(
       screen.getByText('New scan', { selector: '.window__titlebar > span' }),
     ).toBeInTheDocument();
@@ -719,7 +723,9 @@ describe('new scan modal — Close window button', () => {
     // mount — so what is asserted is the thing the test is named for: nothing
     // that leaves the form writes. The list of reads is deliberately not
     // enumerated; adding another read panel is not this test's business.
-    expect(screen.getByText('Site Profiles')).toBeInTheDocument();
+    expect(
+      screen.getByText('My sites', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
     const afterClose = fetchMock.mock.calls.slice(callCountBefore);
     expect(
       afterClose.map(([input, init]) => [
@@ -740,7 +746,7 @@ describe('new scan modal — Close window button', () => {
     stubDesktop();
     await renderDesktop();
 
-    fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check this site' }));
     expect(
       screen.getByText('New scan', { selector: '.window__titlebar > span' }),
     ).toBeInTheDocument();
@@ -1492,7 +1498,7 @@ describe('home pricing and workspace onboarding', () => {
     // The spotlight anchors to a stable data-tour-target that contains the
     // whole tab strip, so highlighting the header cannot miss the tabs.
     const highlighted = resolvedTourTarget();
-    expect(highlighted).toContainElement(screen.getByRole('button', { name: 'Profiles' }));
+    expect(highlighted).toContainElement(screen.getByRole('button', { name: 'My sites' }));
     expect(highlighted).toContainElement(screen.getByRole('button', { name: 'Scan' }));
     expect(highlighted).toContainElement(screen.getByRole('button', { name: 'Reports' }));
 
@@ -1510,9 +1516,7 @@ describe('home pricing and workspace onboarding', () => {
 
     // Next and Back change the visible step, announced through the dialog name.
     fireEvent.click(within(tour).getByRole('button', { name: 'Next' }));
-    expect(
-      await screen.findByRole('dialog', { name: 'Add your first profile' }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Add your first site' })).toBeInTheDocument();
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Back' }));
     expect(await screen.findByRole('dialog', { name: 'Your workspace tabs' })).toBeInTheDocument();
 
@@ -1544,7 +1548,9 @@ describe('home pricing and workspace onboarding', () => {
 
     // Entering the workspace does not resurrect the skipped tour either.
     fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
-    expect(await screen.findByText('Site Profiles')).toBeInTheDocument();
+    expect(
+      await screen.findByText('My sites', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -1589,7 +1595,7 @@ describe('home pricing and workspace onboarding', () => {
 
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Open workspace' }));
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
     fireEvent.click(screen.getByRole('button', { name: 'Open setup guide' }));
     expect(await screen.findByRole('heading', { name: 'Your workspace tabs' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
@@ -1623,7 +1629,7 @@ describe('home pricing and workspace onboarding', () => {
     // that choice, and what matters here is that the tabs are inside it.
     const highlighted = resolvedTourTarget();
     expect(['workspace-header', 'workspace-tabs']).toContain(highlighted.dataset.tourTarget);
-    for (const tab of ['Profiles', 'Scan', 'Reports']) {
+    for (const tab of ['My sites', 'Scan', 'Reports']) {
       expect(highlighted).toContainElement(screen.getByRole('button', { name: tab }));
     }
 
@@ -1659,11 +1665,11 @@ describe('self-explanatory workflow copy', () => {
       path === '/auth/me' ? failure(401, 'session required') : envelope([]),
     );
 
-    expect(screen.getByRole('button', { name: 'Profiles' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'My sites' })).toHaveAttribute(
       'title',
-      'Your saved profiles and their audit history.',
+      'Your saved sites and their check history.',
     );
-    expect(screen.getByRole('button', { name: 'Profiles' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'My sites' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Scan' })).toHaveAttribute(
       'title',
       'Set up and start a new audit.',
@@ -1692,7 +1698,7 @@ describe('self-explanatory workflow copy', () => {
     expect(JSON.stringify(copy)).not.toContain('Files');
 
     switchLanguageToUkrainian();
-    expect(screen.getByRole('button', { name: 'Профілі' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Мої сайти' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Сайти' })).not.toBeInTheDocument();
   });
 
@@ -1732,9 +1738,9 @@ describe('self-explanatory workflow copy', () => {
 
     switchLanguageToUkrainian();
 
-    expect(screen.getByRole('button', { name: 'Профілі' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Мої сайти' })).toHaveAttribute(
       'title',
-      'Ваші збережені профілі та історія їхніх перевірок.',
+      'Ваші збережені сайти та історія їхніх перевірок.',
     );
     expect(screen.getByRole('button', { name: 'Перевірка' })).toHaveAttribute(
       'title',
@@ -1751,14 +1757,14 @@ describe('self-explanatory workflow copy', () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Open workspace' }));
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     expect(screen.queryByRole('region', { name: /what each area does/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/what each area does/i)).not.toBeInTheDocument();
     // The per-tab explanation of the workflow stays available on the tabs.
-    expect(screen.getByRole('button', { name: 'Profiles' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'My sites' })).toHaveAttribute(
       'title',
-      'Your saved profiles and their audit history.',
+      'Your saved sites and their check history.',
     );
   });
 
@@ -1769,15 +1775,15 @@ describe('self-explanatory workflow copy', () => {
     await screen.findByRole('button', { name: 'Open workspace' });
     switchLanguageToUkrainian();
     fireEvent.click(screen.getByRole('button', { name: 'Відкрити робочий простір' }));
-    await screen.findByText('Профілі сайтів');
+    await screen.findByText('Мої сайти', { selector: '.window__titlebar > span' });
 
     expect(
       screen.queryByRole('region', { name: /Що робить кожен розділ/i }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/Що робить кожен розділ/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Профілі' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Мої сайти' })).toHaveAttribute(
       'title',
-      'Ваші збережені профілі та історія їхніх перевірок.',
+      'Ваші збережені сайти та історія їхніх перевірок.',
     );
   });
 
@@ -1793,12 +1799,12 @@ describe('self-explanatory workflow copy', () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Open workspace' }));
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     // Empty state names the first action and the input in plain language.
-    expect(screen.getByText(/Add your first profile to begin/i)).toBeInTheDocument();
+    expect(screen.getByText(/Add your first site to begin/i)).toBeInTheDocument();
     // The add-site form reassures that saving is not a scan and not a charge.
-    expect(screen.getByText(/saving does not start a scan or charge you/i)).toBeInTheDocument();
+    expect(screen.getByText(/Saving starts nothing and charges nothing/i)).toBeInTheDocument();
   });
 
   it('explains score, coverage and findings on the report dashboard', async () => {
@@ -1848,8 +1854,8 @@ describe('MenuBar navigation (signed in)', () => {
     await screen.findByRole('heading', {
       name: 'We check your website and show what keeps customers from finding you',
     });
-    expect(screen.getByRole('button', { name: 'Profiles' })).toBeEnabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Profiles' }));
+    expect(screen.getByRole('button', { name: 'My sites' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'My sites' }));
 
     await screen.findByText('Unified public site audit station.');
   });
@@ -1934,7 +1940,7 @@ describe('workspace tour copy', () => {
     expect(within(tour).queryByText(/saved files/i)).not.toBeInTheDocument();
     expect(within(tour).queryByText(/audit artifacts/i)).not.toBeInTheDocument();
     expect(
-      within(tour).getByText(/Profiles holds the public sites you saved as profiles/i),
+      within(tour).getByText(/My sites holds the public sites you saved/i),
     ).toBeInTheDocument();
     expect(within(tour).getByText(/Scan starts an audit/i)).toBeInTheDocument();
     expect(within(tour).getByText(/Reports keeps the finished results/i)).toBeInTheDocument();
@@ -2008,7 +2014,7 @@ describe('workspace tour copy', () => {
 
     const tour = await screen.findByRole('dialog', { name: 'Вкладки робочого простору' });
     expect(
-      within(tour).getByText(/«Профілі» — це публічні сайти, які ви зберегли/),
+      within(tour).getByText(/«Мої сайти» — це публічні сайти, які ви зберегли/),
     ).toBeInTheDocument();
     expect(within(tour).getByText(/«Перевірка» запускає аудит/)).toBeInTheDocument();
 
@@ -2060,8 +2066,8 @@ describe('NewScanScreen — paid availability and i18n', () => {
     render(<App />);
     await screen.findByText(account.email);
     fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
-    await screen.findByText('Site Profiles');
-    fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
+    fireEvent.click(screen.getByRole('button', { name: 'Check this site' }));
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     return fetchMock;
   }
@@ -2125,8 +2131,8 @@ describe('NewScanScreen — paid availability and i18n', () => {
     render(<App />);
     await screen.findByText(account.email);
     fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
-    await screen.findByText('Site Profiles');
-    fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
+    fireEvent.click(screen.getByRole('button', { name: 'Check this site' }));
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     expect(
@@ -2180,8 +2186,8 @@ describe('NewScanScreen — paid availability and i18n', () => {
     switchLanguageToUkrainian();
 
     fireEvent.click(screen.getByRole('button', { name: 'Відкрити робочий простір' }));
-    await screen.findByText('Профілі сайтів');
-    fireEvent.click(screen.getByRole('button', { name: 'Нова перевірка' }));
+    await screen.findByText('Мої сайти', { selector: '.window__titlebar > span' });
+    fireEvent.click(screen.getByRole('button', { name: 'Перевірити сайт' }));
 
     // Window title in Ukrainian.
     expect(
@@ -2220,7 +2226,7 @@ describe('add-profile form', () => {
     const fetchMock = stubApi(emptyProfiles);
     window.history.replaceState(null, '', '/profiles');
     render(<App />);
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
     return fetchMock;
   }
 
@@ -2232,26 +2238,26 @@ describe('add-profile form', () => {
   const typeAddress = (value: string) => fireEvent.change(addressField(), { target: { value } });
   const typeName = (value: string) => fireEvent.change(nameField(), { target: { value } });
 
-  it('shows the empty state without a second Add profile button', async () => {
+  it('shows the empty state without a second add-a-site button', async () => {
     await renderProfilesScreen();
 
-    expect(screen.getByText('No profiles yet')).toBeInTheDocument();
+    expect(screen.getByText('No sites yet')).toBeInTheDocument();
     // The form on the same screen is the one and only way to add a profile.
-    expect(screen.queryByRole('button', { name: 'Add profile' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+ Add a site' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save site' })).toBeInTheDocument();
   });
 
-  it('shows the empty state without a second Add profile button in Ukrainian', async () => {
+  it('shows the empty state without a second add-a-site button in Ukrainian', async () => {
     stubApi(emptyProfiles);
     window.history.replaceState(null, '', '/profiles');
     saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     render(<App />);
-    await screen.findByText('Профілі сайтів');
+    await screen.findByText('Мої сайти', { selector: '.window__titlebar > span' });
 
-    expect(screen.getByText('Профілів ще немає')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Додати профіль' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Зберегти профіль' })).toBeInTheDocument();
+    expect(screen.getByText('Сайтів ще немає')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+ Додати сайт' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Зберегти сайт' })).toBeInTheDocument();
   });
 
   /**
@@ -2260,7 +2266,7 @@ describe('add-profile form', () => {
    * tests are about the derived name, so they wait the read out — the timeout
    * covers the 800ms debounce and the request behind it.
    */
-  const saveAvailable = async (name = 'Save profile'): Promise<void> => {
+  const saveAvailable = async (name = 'Save site'): Promise<void> => {
     await waitFor(() => expect(screen.getByRole('button', { name })).toBeEnabled(), {
       timeout: 4_000,
     });
@@ -2269,7 +2275,7 @@ describe('add-profile form', () => {
   it('fills the name from the address the owner pastes, and keeps it editable', async () => {
     const fetchMock = await renderProfilesScreen();
 
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
     typeAddress('https://www.mysite.com/pricing?ref=1');
 
     expect(nameField().value).toBe('mysite.com');
@@ -2280,7 +2286,7 @@ describe('add-profile form', () => {
     expect(nameField().value).toBe('shop.other.co.uk');
     await saveAvailable();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save site' }));
     await waitFor(() => expect(calledMethod(fetchMock, '/profiles', 'POST')).toBe(true));
     const created = fetchMock.mock.calls.find(
       ([input, init]) =>
@@ -2334,7 +2340,7 @@ describe('add-profile form', () => {
 
     typeAddress('mysite');
     expect(nameField().value).toBe('');
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
 
     typeAddress('mysite.com');
     expect(nameField().value).toBe('mysite.com');
@@ -2342,7 +2348,7 @@ describe('add-profile form', () => {
     // Clearing the address clears the name this form suggested — nothing stale.
     typeAddress('');
     expect(nameField().value).toBe('');
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
   });
 
   it('fills the name from the address in Ukrainian too', async () => {
@@ -2351,7 +2357,7 @@ describe('add-profile form', () => {
     saveCookieConsent({ preferences: true, analytics: false });
     window.localStorage.setItem('fluxradar.language', 'uk');
     render(<App />);
-    await screen.findByText('Профілі сайтів');
+    await screen.findByText('Мої сайти', { selector: '.window__titlebar > span' });
 
     fireEvent.change(screen.getByRole('textbox', { name: /^Адреса сайту/ }), {
       target: { value: 'www.mysite.com' },
@@ -2360,6 +2366,6 @@ describe('add-profile form', () => {
     expect((screen.getByRole('textbox', { name: /^Назва/ }) as HTMLInputElement).value).toBe(
       'mysite.com',
     );
-    await saveAvailable('Зберегти профіль');
+    await saveAvailable('Зберегти сайт');
   });
 });

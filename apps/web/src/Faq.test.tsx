@@ -90,7 +90,7 @@ describe('/faq route', () => {
 const SITE_MENU = /^(Site menu|Меню сайту)$/;
 
 describe('/faq header is the platform header', () => {
-  const ENGLISH_ROW = ['Home', 'Profiles', 'Scan', 'Reports', 'Integrations', 'FAQ', 'Blog'];
+  const ENGLISH_ROW = ['Home', 'My sites', 'Scan', 'Reports', 'Integrations', 'FAQ', 'Blog'];
 
   function headerNav(): HTMLElement {
     return screen.getByRole('navigation', { name: SITE_MENU });
@@ -144,7 +144,7 @@ describe('/faq header is the platform header', () => {
     await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
 
     const nav = headerNav();
-    for (const label of ['Profiles', 'Scan', 'Reports', 'Integrations']) {
+    for (const label of ['My sites', 'Scan', 'Reports', 'Integrations']) {
       expect(within(nav).getByRole('button', { name: label })).toBeDisabled();
     }
   });
@@ -189,7 +189,7 @@ describe('/faq header is the platform header', () => {
     const nav = headerNav();
     expect(destinations(nav)).toEqual([
       'Головна',
-      'Профілі',
+      'Мої сайти',
       'Перевірка',
       'Звіти',
       'Інтеграції',

@@ -13,10 +13,15 @@ export type NextStepKind =
   | 'unread';
 
 export type DesktopCopy = {
+  /** Opens the form when no site is saved yet. */
   readonly addSiteToggle: string;
+  /** Opens the form once a site exists: it adds another, it does not check one. */
+  readonly addAnotherSiteToggle: string;
   /** Names the "⋯" button of a site row, which shows only an icon. */
   readonly rowActions: (name: string) => string;
   readonly contextSummary: string;
+  /** Under the context label: one example and what it is used for, nothing more. */
+  readonly contextHint: string;
   readonly profileSaved: (name: string) => string;
   readonly profileUpdated: (name: string) => string;
   /** Names the site a per-site status block is about: its name and address. */
@@ -34,8 +39,11 @@ export type DesktopCopy = {
 export const desktopCopy: Record<Language, DesktopCopy> = {
   en: {
     addSiteToggle: '+ Add a site',
+    addAnotherSiteToggle: '+ Add another site',
     rowActions: (name) => `Actions for ${name}`,
-    contextSummary: 'Describe the site for AI visibility checks (optional)',
+    contextSummary: 'What your business does (optional)',
+    contextHint:
+      'For example: “Nail salon in Zhytomyr, gel polish and pedicure.” It helps us check more accurately whether ChatGPT and other AI assistants know about you.',
     profileSaved: (name) => `“${name}” saved. Start a check from its row.`,
     profileUpdated: (name) => `“${name}” updated.`,
     siteHeading: (name, domain) => `${name} · ${domain}`,
@@ -84,8 +92,11 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
   },
   uk: {
     addSiteToggle: '+ Додати сайт',
+    addAnotherSiteToggle: '+ Додати ще один сайт',
     rowActions: (name) => `Дії для ${name}`,
-    contextSummary: 'Опишіть сайт для перевірок видимості в AI (необовʼязково)',
+    contextSummary: 'Чим займається ваш бізнес (необов’язково)',
+    contextHint:
+      'Наприклад: «Салон манікюру у Житомирі, гель-лак і педикюр». Так ми точніше перевіримо, чи знають про вас ChatGPT та інші ШІ-помічники.',
     profileSaved: (name) => `«${name}» збережено. Запустіть перевірку з його рядка.`,
     profileUpdated: (name) => `«${name}» оновлено.`,
     siteHeading: (name, domain) => `${name} · ${domain}`,

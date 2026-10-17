@@ -489,9 +489,9 @@ describe('the first site, from an account that has none', () => {
     const displayName = screen.getByRole('textbox', { name: /^Display name/ });
     await waitFor(() => expect(displayName).toBeEnabled(), { timeout: 5000 });
     fireEvent.change(displayName, { target: { value: SALON.name } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save site' }));
     await waitFor(() => expect(screen.getByText(SALON.domain)).toBeTruthy());
-    fireEvent.click(screen.getAllByRole('button', { name: 'New scan' })[0] as HTMLElement);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Check this site' })[0] as HTMLElement);
 
     await screen.findByText(copy.en.newScan.windowTitle, { selector: '.window__titlebar > span' });
     // The plan the owner picked on the card, not the Free the form opens on.

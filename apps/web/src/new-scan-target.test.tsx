@@ -152,7 +152,7 @@ describe('new scan requires a saved profile', () => {
 
     const salonName = await screen.findByText('Eva Grace');
     const row = salonName.closest('.profile-row') as HTMLElement;
-    fireEvent.click(within(row).getByRole('button', { name: 'New scan' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Check this site' }));
 
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     expect(screen.getByRole('combobox', { name: /^Site/ })).toHaveValue(salon.id);
@@ -669,8 +669,10 @@ describe('"New scan" from a site\'s report list', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Reports' }));
     await screen.findByText('No reports for this profile yet');
     // Then a scan opened for the other site, and abandoned.
-    fireEvent.click(screen.getByRole('button', { name: 'Profiles' }));
-    fireEvent.click(within(await rowOf('My Site')).getByRole('button', { name: 'New scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'My sites' }));
+    fireEvent.click(
+      within(await rowOf('My Site')).getByRole('button', { name: 'Check this site' }),
+    );
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
     // Back to the salon's list, and a scan from there.

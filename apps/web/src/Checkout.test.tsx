@@ -124,8 +124,8 @@ async function openNewScan(handler: (path: string, init?: RequestInit) => Respon
   render(<App />);
   await screen.findByText(account.email);
   fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
-  await screen.findByText('Site Profiles');
-  fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+  await screen.findByText('My sites', { selector: '.window__titlebar > span' });
+  fireEvent.click(screen.getByRole('button', { name: 'Check this site' }));
   await screen.findByText('New scan', { selector: '.window__titlebar > span' });
   return fetchMock;
 }

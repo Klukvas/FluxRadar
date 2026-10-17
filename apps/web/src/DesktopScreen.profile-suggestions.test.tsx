@@ -86,7 +86,7 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'clinic.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic'),
@@ -129,7 +129,7 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'clinic.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Product site')).toHaveValue('Bright Smile'),
@@ -169,7 +169,7 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'flux-lab.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Product site')).toHaveValue('fluxLab.dev'),
@@ -200,7 +200,7 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'clinic.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.change(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
       {
@@ -216,7 +216,7 @@ describe('profile suggestions', () => {
         target: { value: 'In-house engineers' },
       },
     );
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
 
     await waitFor(() =>
@@ -246,20 +246,20 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'clinic.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
 
     const region = screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine');
     expect(region).toBeDisabled();
     expect(screen.getByPlaceholderText('Product site')).toBeDisabled();
     expect(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic')).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
 
     pending.resolve(success({ region: 'United States', industry: 'Dentist' }));
 
     await waitFor(() => expect(region).toHaveValue('United States'));
     expect(region).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).toBeEnabled();
   });
 
   it('keeps a manual name when an older request returns after an address edit', async () => {
@@ -275,7 +275,7 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'first.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'second.example' },
@@ -306,7 +306,7 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'first.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'second.example' },
@@ -340,7 +340,7 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'studio.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     form.rerenderLanguage('uk');
     pending.resolve(success({ industry: 'Product studio' }));
@@ -366,20 +366,20 @@ describe('profile suggestions', () => {
       domain: 'https://saved.example',
     };
     renderForm({ profiles: [profile] });
-    fireEvent.click(screen.getByRole('button', { name: '+ Add a site' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add another site' }));
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'new.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
 
     // Opening a saved profile here would throw away the site being described
     // and the read it is waiting for, so neither it nor Delete nor New scan is
     // selectable until the read settles. Reports stays: that is somewhere else
     // to be, not something done to this form.
-    expect(screen.getByRole('button', { name: 'New scan' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Check this site' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Saved profile' }));
-    expect(screen.getByRole('menuitem', { name: 'Edit profile' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Edit site' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Reports' })).toBeEnabled();
 
@@ -389,9 +389,7 @@ describe('profile suggestions', () => {
       expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public title'),
     );
     expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('new.example');
-    await waitFor(() =>
-      expect(screen.getByRole('menuitem', { name: 'Edit profile' })).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Edit site' })).toBeEnabled());
   });
 
   it('reports a suggestion failure but leaves manual profile save available', async () => {
@@ -413,14 +411,14 @@ describe('profile suggestions', () => {
     fireEvent.change(screen.getByPlaceholderText('Product site'), {
       target: { value: 'Manual profile' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
       expect(notice).toHaveBeenCalledWith(
         'Could not read public details from this site. You can still save it manually.',
       ),
     );
-    expect(screen.getByRole('button', { name: 'Save profile' })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).not.toBeDisabled();
   });
 });
 
@@ -645,7 +643,7 @@ describe('automatic autofill from the pasted address', () => {
     renderForm({ profiles: [profile] });
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Saved profile' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit profile' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit site' }));
     typeAddress('moved.example');
     await autofillSettles();
 
@@ -660,11 +658,11 @@ describe('automatic autofill from the pasted address', () => {
 
     typeAddress('clinic.example');
     await act(() => vi.advanceTimersByTimeAsync(AUTOFILL_DEBOUNCE_MS / 2));
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
 
     // Offered even on a first site, for as long as the hold lasts.
     fireEvent.click(screen.getByRole('button', { name: 'Cancel editing' }));
@@ -725,14 +723,14 @@ describe('automatic autofill from the pasted address', () => {
 
     expect(
       screen.getByText(
-        /We could not read this site, so nothing was filled in\..*WAF or bot protection.*save the profile and describe the site yourself\./s,
+        /We could not read this site, so nothing was filled in\..*WAF or bot protection.*save the site and describe it yourself\./s,
       ),
     ).toBeInTheDocument();
     expect(suggestionCalls(fetchMock)).toHaveLength(1);
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toHaveValue('');
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).toBeEnabled();
   });
 
   // What the automatic read said is an answer about this address, so the moment
@@ -755,7 +753,7 @@ describe('automatic autofill from the pasted address', () => {
     const refused = /We could not read this site, so nothing was filled in\./;
     expect(screen.getByText(refused)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     const audience = screen.getByPlaceholderText(
       'Adults and families looking for a dentist in Kyiv',
     );
@@ -794,7 +792,7 @@ describe('automatic autofill from the pasted address', () => {
     await autofillSettles();
     expect(screen.getByText(FILLED)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
 
     await waitFor(() =>
@@ -860,7 +858,7 @@ describe('automatic autofill from the pasted address', () => {
 
     typeAddress('clinic.example');
     await autofillSettles();
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() => expect(suggestionCalls(fetchMock)).toHaveLength(2));
 
@@ -1115,13 +1113,13 @@ describe('automatic autofill from the pasted address', () => {
       typeAddress('slow.example');
       await autofillSettles();
       expect(screen.getByText(CHECKING)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
 
       await act(() => vi.advanceTimersByTimeAsync(AUTOFILL_TIMEOUT_MS));
 
       expect(screen.getByText(UNAVAILABLE)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
-      fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+      expect(screen.getByRole('button', { name: 'Save site' })).toBeEnabled();
+      fireEvent.click(screen.getByText(/What your business does/));
       expect(
         screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
       ).toBeEnabled();
@@ -1150,7 +1148,7 @@ describe('automatic autofill from the pasted address', () => {
       // The owner has already been told the read failed and may have started
       // writing: a proposal arriving now would land in a form that moved on.
       expect(screen.getByPlaceholderText('Product site')).toHaveValue('slow.example');
-      fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+      fireEvent.click(screen.getByText(/What your business does/));
       expect(
         screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
       ).toHaveValue('');
@@ -1179,10 +1177,9 @@ describe('automatic autofill from the pasted address', () => {
   });
 
   describe('a form that is busy, and a form that comes back', () => {
-    const saveButton = () => screen.getByRole('button', { name: 'Save profile' });
+    const saveButton = () => screen.getByRole('button', { name: 'Save site' });
     const form = () => document.querySelector('form') as HTMLFormElement;
-    const contextSection = () =>
-      screen.getByText(/Describe the site for AI visibility checks/).closest('details');
+    const contextSection = () => screen.getByText(/What your business does/).closest('details');
 
     it('holds the save button from the keystroke that starts the read', async () => {
       stubSuggestions(() => success({ name: 'Public clinic', industry: 'Dentist' }));
@@ -1309,7 +1306,7 @@ describe('automatic autofill from the pasted address', () => {
       await autofillSettles(1_000);
 
       expect(suggestionCalls(fetchMock)).toHaveLength(1);
-      expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Save site' })).toBeEnabled();
     });
 
     it('resumes a read that was still running when the page went away', async () => {
@@ -1331,7 +1328,7 @@ describe('automatic autofill from the pasted address', () => {
       renderForm();
 
       expect(screen.getByRole('status')).toHaveTextContent(CHECKING);
-      expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
       await waitFor(() => expect(suggestionCalls(fetchMock)).toHaveLength(2));
       expect(suggestionCalls(fetchMock)[1]?.[1]).toMatchObject({
         body: JSON.stringify({ domain: 'https://clinic.example', targetLanguage: 'en' }),
@@ -1339,7 +1336,7 @@ describe('automatic autofill from the pasted address', () => {
       await waitFor(() =>
         expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic'),
       );
-      expect(screen.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Save site' })).toBeEnabled();
     });
 
     it('keeps one owner’s draft away from the next account signed in here', async () => {
@@ -1414,7 +1411,7 @@ describe('localized profile context', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'studio.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     const field = screen.getByPlaceholderText('Dental clinic, recruiting platform, online store');
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() => expect(field).toHaveValue('Product studio'));
@@ -1440,7 +1437,7 @@ describe('localized profile context', () => {
     fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
       target: { value: 'studio.example' },
     });
-    fireEvent.click(screen.getByText(/Describe the site for AI visibility checks/));
+    fireEvent.click(screen.getByText(/What your business does/));
     const field = screen.getByPlaceholderText('Dental clinic, recruiting platform, online store');
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>

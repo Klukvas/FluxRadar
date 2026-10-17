@@ -104,6 +104,13 @@
   font-weight: 700;
   cursor: pointer;
 }
+/* The example sits under the label, inside the summary, so an owner reads what
+   to write before deciding whether to open the section. */
+.profile-context__hint {
+  display: block;
+  margin-top: var(--sp-1);
+  font-weight: 400;
+}
 .profile-context > .stack {
   padding: 0 10px 10px;
 }
