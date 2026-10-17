@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
 import { App } from './App';
 import { choosePlanCard } from './new-scan-test-support';
+import { DEFAULT_SCOPE_FORM, profileScanConfigFromForm } from './scan-scope';
 
 // What the new-scan form is allowed to offer on the Free plan.
 //
@@ -407,17 +408,17 @@ describe('advanced crawl rules', () => {
     renderNewScan(internalAccount, 'en', [{ ...profile, scanConfig }]);
   }
 
-  const defaultScope = {
-    includeSubdomains: false,
-    queryPolicy: 'ignore' as const,
-    respectRobots: true,
-    robotsOverrideConfirmed: false,
-    userAgent: 'desktop' as const,
-  };
+  // What saving an untouched form actually stores. A hand-written scope that
+  // left out the crawl depth was not "the defaults": a saved config without one
+  // means the owner cleared the limit, which rightly unfolds the section.
+  const defaultScope = profileScanConfigFromForm(DEFAULT_SCOPE_FORM, 'Complete').scope;
 
   it('starts folded when the saved configuration holds the defaults', async () => {
     renderWithConfig({ plan: 'Complete', scope: defaultScope });
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+    // The saved values land a render after the title; asserting before that
+    // read the pre-load form and passed or failed on timing alone.
+    await screen.findByText('Saved · version 1');
 
     expect(screen.getByText('For advanced users')).toBeVisible();
     expect(screen.getByText('Advanced crawl rules')).not.toBeVisible();
