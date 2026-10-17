@@ -1105,6 +1105,31 @@ code,
 .score-dial__coverage {
   margin-top: 3px;
 }
+/* A Free report's result, where a paid report has its dial: the same box, with
+   two plain sentences instead of a dash nobody could read as a result. */
+.free-status {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: min(180px, 100%);
+  max-width: 280px;
+  padding: var(--sp-4);
+  border: 1px solid var(--plat-900);
+  background: var(--plat-50);
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 var(--plat-300);
+}
+.free-status__headline {
+  margin: 0;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.free-status__problems {
+  margin: 0;
+  color: var(--plat-600);
+  font-size: 13px;
+}
 
 .table-wrap {
   overflow-x: auto;
@@ -1707,16 +1732,36 @@ code,
   font-weight: 700;
   overflow-wrap: anywhere;
 }
-/* The line a report ends on: its id, the ruleset version and how much was
-   checked. Held on one line it was 395-421px of text scrolling inside 331px of
-   a phone, so the coverage sentence — the only part an owner reads — was never
-   on screen. It wraps instead: between the "·" separators where it can, and
-   inside the scan id, which is one unbroken token, where it must. */
-.breadcrumb {
+/* "Report details": the ids support asks for, folded at the foot of a report.
+   A scan id is one unbroken token wider than a 360px line on its own, so the
+   values wrap inside themselves rather than scrolling the report sideways. */
+.report-tech {
   margin-top: var(--sp-4);
-  padding: 3px 6px;
+  padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--plat-400);
   background: var(--plat-100);
+  font-size: 12px;
+}
+.report-tech__summary {
+  cursor: pointer;
+  color: var(--plat-600);
+  font-weight: 700;
+}
+.report-tech__lead {
+  margin: var(--sp-2) 0 0;
+  line-height: 1.45;
+}
+.report-tech__list {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: 4px var(--sp-3);
+  margin: var(--sp-2) 0 0;
+}
+.report-tech__list dt {
+  color: var(--plat-600);
+}
+.report-tech__value {
+  margin: 0;
   font: 11px var(--mono-font);
   white-space: normal;
   overflow-wrap: anywhere;
@@ -1966,15 +2011,17 @@ code,
   background: var(--plat-50);
   border: 1px solid var(--plat-400);
 }
-.report-help .section-heading {
-  margin-bottom: var(--sp-2);
-  font-size: 14px;
+/* Folded: the native disclosure triangle is the only thing that says the line
+   opens, so it is left alone. */
+.report-help__summary {
+  cursor: pointer;
+  font-weight: 700;
 }
 .report-help__list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: var(--sp-3);
-  margin: 0;
+  margin: var(--sp-3) 0 0;
 }
 .report-help__list dt {
   margin-bottom: 2px;

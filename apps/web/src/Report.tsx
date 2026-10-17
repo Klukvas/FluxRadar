@@ -25,7 +25,7 @@ import {
   StatusChip,
   Window,
 } from './components';
-import { egressLocationLabel } from './egress-location';
+import { checkCopyTitle } from './check-titles';
 import { findingsCopy } from './findings-copy';
 import { geoVisibilitySummaryOf } from './geo-visibility';
 import { copy, fillCopy, type Language } from './i18n';
@@ -34,7 +34,14 @@ import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChec
 import { moduleResponsibilities, moduleStatusReasons } from './module-status';
 import { modulesBeyondPlan, planIncludesExport, planName, type PaidPlan } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
-import { ReportNextSteps } from './ReportNextSteps';
+import {
+  checksSummary,
+  FreeCheckStatus,
+  ReportHeaderMeta,
+  ReportHelp,
+  ReportTechnicalDetails,
+} from './ReportHeader';
+import { ReportNextStepsWithSummary, useIssueSummary } from './ReportNextSteps';
 import { nothingWasChecked, reportFailureCopy, siteReadFailureOf } from './report-failure-copy';
 import { moduleLabel } from './rule-titles';
 import { ScanComparisonPanel } from './ScanComparison';
@@ -104,6 +111,10 @@ export function ResultsScreen(props: {
   useEffect(() => {
     void load();
   }, [load]);
+  // Fetched once the dashboard is here, and only here: the next-step blocks
+  // and the Free result panel both count from it, and a second request for
+  // the same summary could only disagree with the first.
+  const issueSummary = useIssueSummary(dashboard?.scan.id ?? null);
   if (loading)
     return (
       <Window title={t.loadingTitle}>
@@ -170,53 +181,21 @@ export function ResultsScreen(props: {
         <div className="split">
           <div>
             <h2 className="section-heading">{t.signalHeading}</h2>
-            <div className="report-meta" aria-label={t.detailsLabel}>
-              <span>
-                <small>{t.siteAddress}</small>
-                <strong className="technical">{displayDomain(scan.domain)}</strong>
-              </span>
-              <span>
-                <small>{t.plan}</small>
-                <strong>{planName(scan.plan)}</strong>
-              </span>
-              <span>
-                <small>{t.report}</small>
-                <strong className="technical">{scan.id}</strong>
-              </span>
-              {scan.profileConfigVersion === undefined ? null : (
-                <span>
-                  <small>{t.configurationVersion}</small>
-                  <strong>v{scan.profileConfigVersion}</strong>
-                </span>
-              )}
-              {/* Where the crawl left from (D-228). A scan from before the
-                  choice says so plainly: some of those left from Kyiv, the
-                  earliest from a server in Germany, and nothing recorded which. */}
-              <span>
-                <small>{t.egressLocation}</small>
-                <strong>
-                  {scan.egressLocation == null
-                    ? t.egressLocationUnrecorded
-                    : egressLocationLabel(scan.egressLocation, props.language)}
-                </strong>
-              </span>
-            </div>
+            <ReportHeaderMeta scan={scan} language={props.language} />
           </div>
-          {unscoredPlan || scoreUnavailable ? (
-            <div
-              className="score-dial"
-              role="status"
-              aria-label={scoreUnavailable ? t.verdictUnavailable : t.unscoredLabel}
-            >
+          {scoreUnavailable ? (
+            <div className="score-dial" role="status" aria-label={t.verdictUnavailable}>
               <div className="score-dial__number">—</div>
-              <div className="score-dial__label">
-                {scoreUnavailable ? t.helpScoreTerm : t.unscoredLabel}
-              </div>
-              {scoreUnavailable ? (
-                <StatusChip status={scan.status} label={t.verdictUnavailable} />
-              ) : null}
+              <div className="score-dial__label">{t.helpScoreTerm}</div>
+              <StatusChip status={scan.status} label={t.verdictUnavailable} />
               <div className="score-dial__coverage">{checksLine}</div>
             </div>
+          ) : unscoredPlan ? (
+            <FreeCheckStatus
+              modules={dashboard.modules}
+              summary={issueSummary}
+              language={props.language}
+            />
           ) : (
             <ScoreDial
               score={overall.score}
@@ -226,11 +205,10 @@ export function ResultsScreen(props: {
             />
           )}
         </div>
-        {unscoredPlan ? (
-          <p className="muted">{fillCopy(t.unscoredLead, { plan: planName(scan.plan) })}</p>
-        ) : null}
-        <ReportNextSteps
+        {unscoredPlan ? <p className="muted">{t.unscoredLead}</p> : null}
+        <ReportNextStepsWithSummary
           scan={scan}
+          summary={issueSummary}
           language={props.language}
           targetLanguages={props.targetLanguages}
           onOpenProblem={props.onOpenProblem ?? (() => props.onIssues())}
@@ -240,27 +218,7 @@ export function ResultsScreen(props: {
           siteFailure={siteFailure}
           nothingChecked={checkedNothing}
         />
-        <section className="report-help" aria-label={t.helpHeading}>
-          <h3 className="section-heading">{t.helpHeading}</h3>
-          <dl className="report-help__list">
-            <div>
-              <dt>{t.helpScoreTerm}</dt>
-              <dd>
-                {unscoredPlan
-                  ? fillCopy(t.unscoredScoreBody, { plan: planName(scan.plan) })
-                  : t.helpScoreBody}
-              </dd>
-            </div>
-            <div>
-              <dt>{t.helpCoverageTerm}</dt>
-              <dd>{t.helpCoverageBody}</dd>
-            </div>
-            <div>
-              <dt>{t.helpFindingsTerm}</dt>
-              <dd>{t.helpFindingsBody}</dd>
-            </div>
-          </dl>
-        </section>
+        <ReportHelp unscoredPlan={unscoredPlan} plan={scan.plan} language={props.language} />
         {/* Before the section cards, because every coverage figure on them is
             module coverage and means something narrower than a reader assumes. */}
         {siteFailure === null ? (
@@ -412,14 +370,17 @@ export function ResultsScreen(props: {
             )}
           </>
         )}
-        <div className="breadcrumb">
-          {scan.id} · {scan.rulesetVersion} ·{' '}
-          {unscoredPlan
-            ? checksLine
-            : fillCopy(t.coverageValue, {
-                percent: (overall.weightedCoverage * 100).toFixed(0),
-              })}
-        </div>
+        <ReportTechnicalDetails
+          scan={scan}
+          language={props.language}
+          checksFigure={
+            unscoredPlan
+              ? checksLine
+              : fillCopy(t.coverageValue, {
+                  percent: (overall.weightedCoverage * 100).toFixed(0),
+                })
+          }
+        />
       </Window>
     </div>
   );
@@ -453,37 +414,6 @@ function moduleCardClass(module: ScanModule, expandable: boolean, open: boolean)
 function toggleFromCard(event: MouseEvent<HTMLDivElement>, toggle: () => void): void {
   if (event.target instanceof Element && event.target.closest('button') !== null) return;
   toggle();
-}
-
-/**
- * The one line an unscored report can put where the coverage number goes.
- *
- * Completed checks, not a percentage: on a plan with no score weights the
- * weighted coverage is 0 by construction, and printing it would repeat the very
- * claim this screen exists to stop making. A scan that read nothing says so.
- *
- * Both halves are counted over the modules that produced usable output, so the
- * ratio stays a statement about one set of results. Counting the denominator
- * over every module would fold in checks belonging to a module that returned
- * nothing, and the line would read as a shortfall in the checks that did run.
- */
-function checksSummary(modules: readonly ScanModule[], language: Language): string {
-  const t = copy[language].report;
-  const usable = modules.filter((module) => module.usableOutput);
-  if (usable.length === 0) {
-    return t.unscoredChecksNone;
-  }
-  return fillCopy(t.unscoredChecks, {
-    completed: sumChecks(usable, (module) => module.completedApplicableChecks),
-    applicable: sumChecks(usable, (module) => module.applicableChecks),
-  });
-}
-
-function sumChecks(
-  modules: readonly ScanModule[],
-  select: (module: ScanModule) => number | null,
-): number {
-  return modules.reduce((total, module) => total + (select(module) ?? 0), 0);
 }
 
 /**
@@ -564,7 +494,7 @@ function scopeDetail(module: ScanModule, language: Language): string {
       }),
     );
   }
-  parts.push(...checkTitles(module.metadata));
+  parts.push(...checkTitles(module.metadata, language));
   return parts.join(' · ');
 }
 
@@ -600,7 +530,7 @@ function ModuleMetadata({
     // social-preview ones, so the paid module's line would name checks that
     // never ran. What the module row itself recorded wins; failing that, a scan
     // known not to be the full module says nothing rather than something false.
-    const checks = checkTitles(module.metadata);
+    const checks = checkTitles(module.metadata, language);
     if (checks.length > 0) {
       return <small className="module-card__meta">{checks.join(' · ')}</small>;
     }
@@ -676,15 +606,25 @@ function ModuleReasons({ module, language }: { module: ScanModule; language: Lan
   );
 }
 
-/** Titles of the checks a module row says it ran; empty when it recorded none. */
-function checkTitles(metadata: Readonly<Record<string, unknown>> | undefined): readonly string[] {
+/**
+ * Names of the checks a module row says it ran, in the report language; empty
+ * when it recorded none. The stored title is the fallback for a rule the report
+ * has no copy for.
+ */
+function checkTitles(
+  metadata: Readonly<Record<string, unknown>> | undefined,
+  language: Language,
+): readonly string[] {
   const checks = metadata?.checks;
   if (!Array.isArray(checks)) {
     return [];
   }
   return checks.flatMap((entry: unknown) => {
-    const title = asRecord(entry)?.title;
-    return typeof title === 'string' && title !== '' ? [title] : [];
+    const record = asRecord(entry);
+    const title = record?.title;
+    if (typeof title !== 'string' || title === '') return [];
+    const ruleId = record?.ruleId;
+    return [(typeof ruleId === 'string' ? checkCopyTitle(ruleId, language) : undefined) ?? title];
   });
 }
 

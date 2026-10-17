@@ -109,6 +109,25 @@ export function takesUkSingular(count: number): boolean {
   return Math.abs(count) % 10 === 1 && Math.abs(count) % 100 !== 11;
 }
 
+/**
+ * The three Ukrainian forms after a numeral — «1 річ», «2 речі», «5 речей» —
+ * with the teens taking the many form however they end («11 речей»).
+ */
+function ukCountForm(count: number, one: string, few: string, many: string): string {
+  const teens = Math.abs(count) % 100;
+  if (teens >= 11 && teens <= 14) return many;
+  if (takesUkSingular(count)) return one;
+  const last = Math.abs(count) % 10;
+  return last >= 2 && last <= 4 ? few : many;
+}
+
+/** Accusative of «проблема», as the object of «знайшла»/«знайдено»: «1 проблему», «2 проблеми», «5 проблем». */
+export const ukProblemsAccusative = (count: number): string =>
+  ukCountForm(count, 'проблему', 'проблеми', 'проблем');
+
+/** «річ» after a numeral, as the subject of «перевірено»: «1 річ», «2 речі», «5 речей». */
+const ukThings = (count: number): string => ukCountForm(count, 'річ', 'речі', 'речей');
+
 export const copy = {
   en: {
     nav: {
@@ -1021,16 +1040,32 @@ export const copy = {
       // screen is, in the words the rest of the product already uses — "audit"
       // from the coverage page and the plans, "report" from the reports list.
       // "Site", not "Website": a workspace surface never says Website (see
-      // workspace-i18n.test.tsx), and "Site address" is the label directly
-      // beneath this heading.
+      // workspace-i18n.test.tsx), and "Site" is the label directly beneath
+      // this heading.
       signalHeading: 'Site audit report',
-      detailsLabel: 'Report details',
-      siteAddress: 'Site address',
+      // The header says what an owner asks first: which site, which plan,
+      // when. The ids support needs moved to the fold at the bottom.
+      headerLabel: 'About this report',
+      siteAddress: 'Site',
       plan: 'Plan',
-      report: 'Report',
+      checkedOn: 'Checked on',
+      technicalHeading: 'Report details',
+      technicalLead: 'For support: quote these if you write to us about this report.',
+      reportId: 'Report ID',
+      rulesetVersion: 'Ruleset version',
       configurationVersion: 'Configuration version',
       egressLocation: 'Checked from',
       egressLocationUnrecorded: 'Not recorded',
+      // The Free report's result panel, where a paid report has its score dial.
+      // A dash in a dial read as a broken report; this says what was done.
+      freeStatusLabel: 'Free check result',
+      freeStatusChecked: (count: number) =>
+        `${count} ${count === 1 ? 'thing' : 'things'} checked on your homepage`,
+      freeStatusProblems: (count: number) =>
+        count === 0
+          ? 'No problems found'
+          : `${count} ${count === 1 ? 'problem' : 'problems'} found`,
+      freeStatusUnread: 'Your homepage could not be read',
       helpHeading: 'How to read this report',
       helpScoreTerm: 'Score',
       helpScoreBody:
@@ -1188,10 +1223,9 @@ export const copy = {
       unscoredLabel: 'Not scored on this plan',
       unscoredChecks: '{completed}/{applicable} checks completed',
       unscoredChecksNone: 'homepage could not be read',
-      unscoredLead:
-        'The {plan} check runs a fixed set of homepage checks. The findings below are real, and each one carries its evidence.',
+      unscoredLead: 'Each finding below carries the evidence behind it.',
       unscoredScoreBody:
-        'A 0–100 rating is part of the Basic and Complete scans. The {plan} check reports findings only, so this report shows a dash rather than a number nothing measured.',
+        'A 0–100 rating is part of the Basic and Complete scans. The {plan} check reports findings only, so this report says what it checked and what it found rather than showing a number nothing measured.',
       // What the plan did and did not look at. A section a plan never runs sends
       // no module row, so its absence is invisible on the cards above — an owner
       // reading a Free report cannot tell "we found nothing wrong with your
@@ -1558,6 +1592,11 @@ export const copy = {
           'ANALYTICS-LINK-001': 'No page had search impressions in the period',
         },
         titles: {
+          // The four Free checks, which a Free report names on its SEO card.
+          'SEO-ONPAGE-001': 'Page title',
+          'SEO-ONPAGE-002': 'Page description for search (meta description)',
+          'SEO-ONPAGE-003': 'Heading structure (H1–H6)',
+          'SEO-TECH-008': 'Whether search engines may list the page (noindex)',
           'A11Y-001': 'Text contrast',
           'A11Y-002': 'Image alt text',
           'A11Y-003': 'Page language and heading structure',
@@ -2980,13 +3019,22 @@ export const copy = {
       errorTitle: 'Не вдалося відкрити цей звіт',
       retry: 'Спробувати ще раз',
       signalHeading: 'Звіт аудиту сайту',
-      detailsLabel: 'Деталі звіту',
-      siteAddress: 'Адреса сайту',
+      headerLabel: 'Про цей звіт',
+      siteAddress: 'Сайт',
       plan: 'Тариф',
-      report: 'Звіт',
+      checkedOn: 'Дата перевірки',
+      technicalHeading: 'Технічні дані звіту',
+      technicalLead: 'Для підтримки: назвіть ці дані, якщо пишете нам про цей звіт.',
+      reportId: 'Ідентифікатор звіту',
+      rulesetVersion: 'Версія правил',
       configurationVersion: 'Версія конфігурації',
       egressLocation: 'Країна перевірки',
       egressLocationUnrecorded: 'Не зафіксовано',
+      freeStatusLabel: 'Результат перевірки Free',
+      freeStatusChecked: (count: number) => `Перевірено ${count} ${ukThings(count)} на головній`,
+      freeStatusProblems: (count: number) =>
+        count === 0 ? 'Проблем не знайдено' : `Знайдено ${count} ${ukProblemsAccusative(count)}`,
+      freeStatusUnread: 'Не вдалося прочитати вашу головну сторінку',
       helpHeading: 'Як читати цей звіт',
       helpScoreTerm: 'Оцінка',
       helpScoreBody:
@@ -3127,10 +3175,9 @@ export const copy = {
       unscoredLabel: 'Цей тариф не оцінюється',
       unscoredChecks: 'виконано перевірок: {completed}/{applicable}',
       unscoredChecksNone: 'не вдалося прочитати головну сторінку',
-      unscoredLead:
-        'Перевірка {plan} виконує фіксований набір перевірок головної сторінки. Знахідки нижче справжні, і кожна має свій доказ.',
+      unscoredLead: 'Кожна знахідка нижче має свій доказ.',
       unscoredScoreBody:
-        'Оцінка 0–100 доступна в тарифах Basic і Complete. Перевірка {plan} показує лише знахідки, тому тут стоїть риска, а не число, якого ніхто не вимірював.',
+        'Оцінка 0–100 доступна в тарифах Basic і Complete. Перевірка {plan} показує лише знахідки, тому звіт каже, що перевірено і що знайдено, а не показує число, якого ніхто не вимірював.',
       scopeSummary: 'Що охопила перевірка {plan}',
       scopeLead:
         'Кожен розділ аудиту нижче або виконувався в цьому звіті, або він належить до тарифу, за яким цю перевірку не запускали.',
@@ -3419,6 +3466,10 @@ export const copy = {
           'ANALYTICS-LINK-001': 'За період жодна сторінка не мала показів у пошуку',
         },
         titles: {
+          'SEO-ONPAGE-001': 'Заголовок сторінки (title)',
+          'SEO-ONPAGE-002': 'Опис сторінки для пошуку (meta description)',
+          'SEO-ONPAGE-003': 'Структура заголовків (H1–H6)',
+          'SEO-TECH-008': 'Чи може пошуковик показувати сторінку (noindex)',
           'A11Y-001': 'Контраст тексту',
           'A11Y-002': 'Альтернативний текст зображень',
           'A11Y-003': 'Мова сторінки та структура заголовків',
