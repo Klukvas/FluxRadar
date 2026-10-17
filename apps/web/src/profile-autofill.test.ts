@@ -144,7 +144,7 @@ describe('what the owner is told when the read did not happen', () => {
 
     expect(denied).toContain('We could not read this site, so nothing was filled in.');
     expect(denied).toContain('WAF or bot protection');
-    expect(denied).toContain('save the profile and describe the site yourself');
+    expect(denied).toContain('save the site and describe it yourself');
   });
 
   it('separates robots.txt, no answer and an unreadable page', () => {

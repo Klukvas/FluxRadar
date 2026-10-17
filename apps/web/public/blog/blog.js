@@ -42,13 +42,13 @@
     'nav.home': { en: 'Home', uk: 'Головна' },
     // The workspace tabs the product header lists: shipped disabled, as a visitor
     // sees them everywhere, until readSession finds a signed-in reader.
-    'nav.profiles': { en: 'Profiles', uk: 'Профілі' },
+    'nav.profiles': { en: 'My sites', uk: 'Мої сайти' },
     'nav.scan': { en: 'Scan', uk: 'Перевірка' },
     'nav.reports': { en: 'Reports', uk: 'Звіти' },
     'nav.integrations': { en: 'Integrations', uk: 'Інтеграції' },
     'nav.profilesHint': {
-      en: 'Your saved profiles and their audit history.',
-      uk: 'Ваші збережені профілі та історія їхніх перевірок.',
+      en: 'Your saved sites and their check history.',
+      uk: 'Ваші збережені сайти та історія їхніх перевірок.',
     },
     'nav.scanHint': {
       en: 'Set up and start a new audit.',

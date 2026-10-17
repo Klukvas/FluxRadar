@@ -75,7 +75,7 @@ afterEach(() => {
 
 describe('workspace deep links survive a reload', () => {
   it.each([
-    ['/profiles', 'Site Profiles'],
+    ['/profiles', 'Open setup guide'],
     ['/scan', 'Which site are we checking?'],
     ['/reports', 'Your audit reports'],
     ['/integrations', 'Connected data sources'],
@@ -138,7 +138,7 @@ describe('menu bar tabs land somewhere real', () => {
     stubApi(signedIn);
     window.history.replaceState(null, '', '/profiles');
     render(<App />);
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
 
@@ -179,7 +179,7 @@ describe('menu bar tabs land somewhere real', () => {
     stubApi(signedIn);
     window.history.replaceState(null, '', '/profiles');
     render(<App />);
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Scan' }));
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
@@ -194,7 +194,9 @@ describe('menu bar tabs land somewhere real', () => {
 
     window.history.back();
     await waitFor(() => expect(window.location.pathname).toBe('/profiles'));
-    expect(await screen.findByText('Site Profiles')).toBeInTheDocument();
+    expect(
+      await screen.findByText('My sites', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -266,7 +268,7 @@ describe('window titlebar close box', () => {
     stubApi(signedIn);
     window.history.replaceState(null, '', '/profiles');
     render(<App />);
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     // The workspace desktop has no closable window, so it offers no close button.
     expect(screen.queryByRole('button', { name: 'Close window' })).not.toBeInTheDocument();
@@ -277,6 +279,8 @@ describe('window titlebar close box', () => {
     // The new-scan window is closable, so its box is a button and it works.
     const close = screen.getByRole('button', { name: 'Close window' });
     fireEvent.click(close);
-    expect(await screen.findByText('Site Profiles')).toBeInTheDocument();
+    expect(
+      await screen.findByText('My sites', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
   });
 });

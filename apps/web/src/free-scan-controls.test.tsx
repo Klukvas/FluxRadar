@@ -514,7 +514,9 @@ describe('what a callout discloses before the purchase', () => {
     expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).not.toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
-    fireEvent.click((await screen.findAllByRole('button', { name: 'New scan' }))[0] as HTMLElement);
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: 'Check this site' }))[0] as HTMLElement,
+    );
 
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
     expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).toBeVisible();

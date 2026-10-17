@@ -13,11 +13,11 @@ type DomainOwnershipCopy = {
 
 export const domainOwnershipCopy: Readonly<Record<Language, DomainOwnershipCopy>> = {
   en: {
-    summary: 'Confirm this is your site (optional)',
+    summary: 'Optional: confirm the site is yours',
     why: 'It only records that this account controls the site; scans, plans and prices work the same without it.',
   },
   uk: {
-    summary: 'Підтвердьте, що це ваш сайт (необов’язково)',
+    summary: 'Необов’язково: підтвердити, що сайт ваш',
     why: 'Це лише фіксує, що цей акаунт керує сайтом; перевірки, тарифи й ціни працюють так само і без цього.',
   },
 };

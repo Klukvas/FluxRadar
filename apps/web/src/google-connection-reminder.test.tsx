@@ -233,8 +233,8 @@ describe('on the profiles screen', () => {
     const reminder = await screen.findByText(en.googleReminderConnect);
     // Under the sites panel, above the form that adds another one.
     const panels = Array.from(document.querySelectorAll('.panel'));
-    const list = panels.find((panel) => panel.textContent?.includes(en.registered));
-    if (list === undefined) throw new Error('expected the registered-sites panel to render');
+    const list = panels.find((panel) => panel.textContent?.includes(clinic.name));
+    if (list === undefined) throw new Error('expected the sites panel to render');
     expect(list.compareDocumentPosition(reminder) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

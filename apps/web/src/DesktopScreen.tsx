@@ -22,20 +22,16 @@
 // fields under every list, however many sites it already held — so it now
 // folds behind "+ Add a site" once there is a site, with the six AI-context
 // fields folded again inside it. A site row carried four labelled buttons; it
-// now keeps New scan and folds Reports, Edit and — below a divider — Delete
+// now keeps its check button and folds Reports, Edit and — below a divider — Delete
 // into one "⋯" menu. And the right column's terminal repeated the price list
 // in four hard-coded English lines; it now names the owner's next step, worked
 // out from their own last scan.
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { ActionMenu } from './ActionMenu';
 import { apiRequest, type Scan, type SiteProfile } from './api';
-import {
-  competitorsError,
-  parseCompetitorsInput,
-  type CompetitorsInputError,
-} from './competitors-input';
+import { competitorsErrorMessage } from './competitors-error-copy';
+import { competitorsError, parseCompetitorsInput } from './competitors-input';
 import { Button, EmptyState, Field, Panel, TextAreaField, Window } from './components';
 import { desktopCopy } from './desktop-copy';
 import { GoogleConnectionReminder } from './GoogleConnectionReminder';
@@ -48,7 +44,7 @@ import {
   readProfileDraft,
   storeProfileDraft,
 } from './profile-draft-storage';
-import { ProfileDeletion } from './ProfileDeletion';
+import { AddSiteToggle, ProfileRow } from './ProfileRow';
 import { normalizeSiteAddress } from './site-address-input';
 import { useProfileAutofill } from './use-profile-autofill';
 import { DomainOwnershipPanel } from './DomainOwnership';
@@ -83,23 +79,6 @@ export interface DesktopScreenProps {
   /** While the setup tour runs, the form it points at must be on screen. */
   readonly tourActive?: boolean;
   readonly language: Language;
-}
-
-/** The competitors field's live validation message, in the reader's words (T7). */
-function competitorsErrorMessage(error: CompetitorsInputError, language: Language): string {
-  const w = copy[language].workspace;
-  switch (error.kind) {
-    case 'too-many':
-      return w.competitorsErrorTooMany;
-    case 'too-short':
-      return w.competitorsErrorTooShort;
-    case 'too-long':
-      return w.competitorsErrorTooLong;
-    case 'duplicate':
-      return fillCopy(w.competitorsErrorDuplicate, { name: error.name });
-    case 'own-brand':
-      return fillCopy(w.competitorsErrorOwnBrand, { name: error.name });
-  }
 }
 
 // Re-exported where it has always been imported from.
@@ -449,7 +428,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
       <div className="desktop__grid">
         <Window title={t.workspace.sites} showInertClose={false}>
           <div ref={listRef}>
-            <Panel title={t.workspace.registered}>
+            <Panel>
               <div>
                 {props.profiles.length === 0 ? (
                   <EmptyState title={t.workspace.noSites} description={t.workspace.noSitesHelp} />
@@ -495,7 +474,11 @@ export function DesktopScreen(props: DesktopScreenProps) {
               action of the last site's row. */}
           {formOpen ? null : (
             <div className="button-row profile-add-toggle">
-              <Button onClick={openForm}>{d.addSiteToggle}</Button>
+              <AddSiteToggle
+                language={props.language}
+                siteCount={props.profiles.length}
+                onOpen={openForm}
+              />
             </div>
           )}
           {formOpen ? (
@@ -566,9 +549,15 @@ export function DesktopScreen(props: DesktopScreenProps) {
                     open={contextOpen}
                     onToggle={(event) => setContextOpen(event.currentTarget.open)}
                   >
-                    <summary>{d.contextSummary}</summary>
+                    {/* Named by the label alone; the example is its description,
+                        so a screen reader is not read two sentences as a name. */}
+                    <summary aria-label={d.contextSummary} aria-describedby="profile-context-hint">
+                      {d.contextSummary}
+                      <span id="profile-context-hint" className="muted profile-context__hint">
+                        {d.contextHint}
+                      </span>
+                    </summary>
                     <div className="stack">
-                      <p className="muted">{t.workspace.profileContextHelp}</p>
                       <div className="stack profile-context-actions">
                         <p className="muted profile-suggestions">
                           {t.workspace.suggestProfileHelp}
@@ -736,7 +725,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                     locked ||
                     (formRequested && props.profiles.length > 0) ? (
                       <Button type="button" onClick={resetForm}>
-                        {t.workspace.cancelEdit}
+                        {editingProfile === null ? t.workspace.cancelAdd : t.workspace.cancelEdit}
                       </Button>
                     ) : null}
                   </div>
@@ -796,78 +785,6 @@ export function DesktopScreen(props: DesktopScreenProps) {
           </div>
         </Window>
       </div>
-    </div>
-  );
-}
-
-function ProfileRow(props: {
-  profile: SiteProfile;
-  language: Language;
-  /**
-   * Whether the form below is reading a site, and so this row's actions would
-   * replace or discard a profile being described right now.
-   *
-   * Reports stays available: reading another site's reports is somewhere else
-   * to be, not something done to the form.
-   */
-  locked: boolean;
-  deleting: boolean;
-  onOpenDelete: () => void;
-  onCancelDelete: () => void;
-  onNewScan: () => void;
-  onReports: () => void;
-  onEdit: () => void;
-  onDeleted: (profile: SiteProfile) => Promise<void>;
-  onError: (value: string) => void;
-}) {
-  const t = copy[props.language].workspace;
-  const { profile } = props;
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  return (
-    <div className="profile-row">
-      <div className="profile-row__site">
-        <strong>{profile.name}</strong>
-        <span className="profile-row__domain">{profile.domain}</span>
-      </div>
-      <div className="profile-row__actions">
-        <Button onClick={props.onNewScan} variant="primary" disabled={props.locked}>
-          {t.newScan}
-        </Button>
-        <ActionMenu
-          label={desktopCopy[props.language].rowActions(profile.name)}
-          buttonRef={menuButtonRef}
-          items={[
-            { id: 'reports', label: t.inspect, onSelect: props.onReports },
-            {
-              id: 'edit',
-              label: t.editProfile,
-              onSelect: props.onEdit,
-              disabled: props.locked,
-            },
-            {
-              id: 'delete',
-              label: t.deleteProfileAction,
-              onSelect: props.onOpenDelete,
-              danger: true,
-              disabled: props.locked,
-            },
-          ]}
-        />
-      </div>
-      {props.deleting ? (
-        <div className="profile-row__deletion">
-          <ProfileDeletion
-            profile={profile}
-            language={props.language}
-            onDeleted={props.onDeleted}
-            onError={props.onError}
-            onCancel={() => {
-              props.onCancelDelete();
-              menuButtonRef.current?.focus();
-            }}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -167,8 +167,8 @@ async function payForCompleteScan(): Promise<void> {
   render(<App />);
   await screen.findByText(account.email);
   fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
-  await screen.findByText('Site Profiles');
-  fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
+  await screen.findByText('My sites', { selector: '.window__titlebar > span' });
+  fireEvent.click(screen.getByRole('button', { name: 'Check this site' }));
   await screen.findByText('New scan', { selector: '.window__titlebar > span' });
   await screen.findByRole('radio', { name: /^Complete/ });
   choosePlanCard('Complete');
@@ -339,7 +339,7 @@ describe('coming back from the Creem hosted checkout', () => {
       fetchMock.mock.calls.filter(([input]) => new URL(String(input)).pathname === foreignStatus),
     ).toHaveLength(1);
     // And the workspace is usable again.
-    fireEvent.click(await screen.findByRole('button', { name: 'New scan' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Check this site' }));
     expect(
       await screen.findByText('New scan', { selector: '.window__titlebar > span' }),
     ).toBeInTheDocument();
@@ -386,7 +386,9 @@ describe('coming back from the Creem hosted checkout', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('Site Profiles')).toBeInTheDocument();
+    expect(
+      await screen.findByText('My sites', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Payment — confirming')).not.toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([input]) =>

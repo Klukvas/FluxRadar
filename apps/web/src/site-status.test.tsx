@@ -100,7 +100,7 @@ describe('site status panel', () => {
       release = () => resolve(envelope([lastScan], { total: 7, page: 1, limit: 1 }));
     });
     renderProfiles((path) => (path === '/scans' ? pending : stubWorkspace()(path)));
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     expect(within(panel()).getByLabelText('Loading results')).toBeInTheDocument();
 
@@ -110,7 +110,7 @@ describe('site status panel', () => {
 
   it('reports the last check, how many there have been and the Google link', async () => {
     renderProfiles(stubWorkspace());
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     const status = await screen.findByText('Site status');
     const body = status.closest('.panel') as HTMLElement;
@@ -132,10 +132,49 @@ describe('site status panel', () => {
     renderProfiles(
       stubWorkspace({ [`/profiles/${profile.id}/google-binding`]: () => envelope(null) }),
     );
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
-    expect(await within(panel()).findByText('Not linked')).toBeInTheDocument();
+    expect(await within(panel()).findByText('Not connected (optional)')).toBeInTheDocument();
   });
+
+  // Google data is an extra, so its absence is said as an option left open, in
+  // plain text: never as a chip whose colour reads like a missing step.
+  it('marks an unconnected Google row as optional in Ukrainian', async () => {
+    renderProfiles(
+      stubWorkspace({ [`/profiles/${profile.id}/google-binding`]: () => envelope(null) }),
+      'uk',
+    );
+    await screen.findByText('Мої сайти', { selector: '.window__titlebar > span' });
+
+    const value = await screen.findByText('Не підключено (необов’язково)');
+    expect(value.closest('[class*="chip"]')).toBeNull();
+  });
+
+  // Connected, but no Search Console or Analytics property picked for the site:
+  // saying "not connected" there would send the owner to connect Google again.
+  it.each([
+    ['en', 'No property chosen (optional)', 'Not connected (optional)'],
+    ['uk', 'Ресурс не обрано (необов’язково)', 'Не підключено (необов’язково)'],
+  ] as const)(
+    'tells a connection with no property chosen apart in %s',
+    async (language, text, notConnected) => {
+      renderProfiles(
+        stubWorkspace({
+          [`/profiles/${profile.id}/google-binding`]: () =>
+            envelope({
+              ...binding,
+              searchConsoleSiteUrl: null,
+              ga4PropertyId: null,
+              ga4PropertyName: null,
+            }),
+        }),
+        language,
+      );
+
+      expect(await screen.findByText(text)).toBeInTheDocument();
+      expect(screen.queryByText(notConnected)).not.toBeInTheDocument();
+    },
+  );
 
   // An unreadable binding is not the same fact as "not connected", and saying
   // the second one would be inventing an answer.
@@ -145,17 +184,17 @@ describe('site status panel', () => {
         [`/profiles/${profile.id}/google-binding`]: () => failure(500, 'upstream down'),
       }),
     );
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     expect(await within(panel()).findByText('Could not be read')).toBeInTheDocument();
-    expect(within(panel()).queryByText('Not linked')).not.toBeInTheDocument();
+    expect(within(panel()).queryByText('Not connected (optional)')).not.toBeInTheDocument();
   });
 
   it('has something to say to an account that has never run a check', async () => {
     renderProfiles(
       stubWorkspace({ '/scans': () => envelope([], { total: 0, page: 1, limit: 1 }) }),
     );
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     const body = panel();
     expect(await within(body).findByText(/No checks yet/)).toBeInTheDocument();
@@ -172,7 +211,7 @@ describe('site status panel', () => {
         '/scans': () => envelope([], { total: 0, page: 1, limit: 1 }),
       }),
     );
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     expect(await within(panel()).findByText(/No sites yet/)).toBeInTheDocument();
   });
@@ -186,7 +225,7 @@ describe('site status panel', () => {
           : envelope([lastScan], { total: 7, page: 1, limit: 1 })
         : stubWorkspace()(path),
     );
-    await screen.findByText('Site Profiles');
+    await screen.findByText('My sites', { selector: '.window__titlebar > span' });
 
     const failed = await within(panel()).findByRole('alert');
     // The panel names the failure in its own words; the server's sentence, which
@@ -213,7 +252,7 @@ describe('site status panel', () => {
           : stubWorkspace()(path),
       'uk',
     );
-    await screen.findByText('Профілі сайтів');
+    await screen.findByText('Мої сайти', { selector: '.window__titlebar > span' });
 
     const body = screen.getByText('Стан сайтів').closest('.panel') as HTMLElement;
     const failed = await within(body).findByRole('alert');
@@ -224,7 +263,7 @@ describe('site status panel', () => {
 
   it('reads in Ukrainian', async () => {
     renderProfiles(stubWorkspace(), 'uk');
-    await screen.findByText('Профілі сайтів');
+    await screen.findByText('Мої сайти', { selector: '.window__titlebar > span' });
 
     const body = screen.getByText('Стан сайтів').closest('.panel') as HTMLElement;
     expect(await within(body).findByText('example.com')).toBeInTheDocument();

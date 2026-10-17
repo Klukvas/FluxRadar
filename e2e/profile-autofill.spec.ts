@@ -80,9 +80,9 @@ test('desktop offers grounded details without saving and keeps a gap before the 
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   await page.getByRole('textbox', { name: /Site address/ }).fill('public.example');
-  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByText(/What your business does/).click();
   await page.getByRole('button', { name: 'Fill from site' }).click();
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
   await expect(
@@ -130,8 +130,8 @@ test('the language dropdown floats over the form and takes several choices', asy
   await isolate(page, new URL(baseURL!).origin, baseApi);
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
-  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
+  await page.getByText(/What your business does/).click();
   const audience = page.getByPlaceholder('Adults and families looking for a dentist in Kyiv');
   // Page coordinates, not viewport ones: clicking the trigger scrolls it into
   // view, which would move every viewport-relative box on its own.
@@ -174,12 +174,12 @@ test('a late public proposal cannot replace a manual profile name', async ({ pag
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   // The name is written first: the form holds that field while it reads the
   // site, so the owner's own answer is the one that was already there.
   await page.getByRole('textbox', { name: 'Display name' }).fill('Manual title');
   await page.getByRole('textbox', { name: /Site address/ }).fill('manual.example');
-  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByText(/What your business does/).click();
   await page.getByRole('button', { name: 'Fill from site' }).click();
   await expect(page.getByRole('textbox', { name: 'Display name' })).toBeDisabled();
   release();
@@ -199,8 +199,8 @@ test('the language dropdown stays inside a narrow screen', async ({ browser, bas
     await isolate(page, new URL(baseURL!).origin, baseApi);
     await page.goto('/profiles');
     await dismissCookies(page);
-    await page.getByRole('button', { name: '+ Add a site' }).click();
-    await page.getByText(/Describe the site for AI visibility checks/).click();
+    await page.getByRole('button', { name: '+ Add another site' }).click();
+    await page.getByText(/What your business does/).click();
     await page.locator('.language-picker__summary').click();
     const popup = await page.locator('.language-picker__popup').boundingBox();
     expect(popup!.x).toBeGreaterThanOrEqual(0);
@@ -235,17 +235,17 @@ test('mobile surfaces a failed suggestion while retaining a saveable manual form
     });
     await page.goto('/profiles');
     await dismissCookies(page);
-    await page.getByRole('button', { name: '+ Add a site' }).click();
+    await page.getByRole('button', { name: '+ Add another site' }).click();
     await page.getByRole('textbox', { name: 'Display name' }).fill('Manual profile');
     await page.getByRole('textbox', { name: /Site address/ }).fill('manual.example');
-    await page.getByText(/Describe the site for AI visibility checks/).click();
+    await page.getByText(/What your business does/).click();
     await page.getByRole('button', { name: 'Fill from site' }).click();
     await expect(
       page.getByText(
         'Could not read public details from this site. You can still save it manually.',
       ),
     ).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Save site' })).toBeEnabled();
     await page.screenshot({
       path: '.agent-tmp/profile-autofill/mobile-failure.png',
       fullPage: true,
@@ -278,7 +278,7 @@ test('fills the form from a pasted address with no button pressed, and saves not
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   await page.getByRole('textbox', { name: /Site address/ }).fill('public.example');
 
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
@@ -287,7 +287,7 @@ test('fills the form from a pasted address with no button pressed, and saves not
       'Filled in what this site’s homepage states. Review it in the section below before saving.',
     ),
   ).toBeVisible();
-  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByText(/What your business does/).click();
   await expect(
     page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
   ).toHaveValue('Dental clinic');
@@ -310,7 +310,7 @@ test('asks the site once for an address typed a character at a time', async ({ p
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   // Every keystroke from "typed.e" onwards is a complete address on its own,
   // which is what the delay in front of the read exists for.
   await page
@@ -342,7 +342,7 @@ test('keeps the read and the filled fields when the address is edited inside one
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   const address = page.getByRole('textbox', { name: /Site address/ });
   await address.fill('public.example');
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
@@ -356,7 +356,7 @@ test('keeps the read and the filled fields when the address is edited inside one
       'Filled in what this site’s homepage states. Review it in the section below before saving.',
     ),
   ).toBeVisible();
-  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByText(/What your business does/).click();
   await expect(
     page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
   ).toHaveValue('Dental clinic');
@@ -383,11 +383,11 @@ test('replaces one site’s filled-in answer when the address moves to another',
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   const address = page.getByRole('textbox', { name: /Site address/ });
   await address.fill('first.example');
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('First title');
-  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByText(/What your business does/).click();
   await expect(page.getByPlaceholder('Kyiv and Kyiv region, Ukraine')).toHaveValue('Kyiv');
 
   await address.fill('second.example');
@@ -424,9 +424,9 @@ test('holds the form and the row actions while it reads a site, and takes Cancel
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   await page.getByRole('textbox', { name: /Site address/ }).fill('public.example');
-  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByText(/What your business does/).click();
 
   await expect(page.getByText(/Checking whether we can read this site/)).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Display name' })).toBeDisabled();
@@ -435,11 +435,11 @@ test('holds the form and the row actions while it reads a site, and takes Cancel
   ).toBeDisabled();
   await expect(page.getByPlaceholder('Acme Dental, Bright Smile Clinic')).toBeDisabled();
   await expect(page.locator('.language-picker__summary')).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save site' })).toBeDisabled();
   // The saved site's own row cannot replace the form under it either.
-  await expect(page.getByRole('button', { name: 'New scan' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Check this site' })).toBeDisabled();
   await page.getByRole('button', { name: 'Actions for Existing site' }).click();
-  await expect(page.getByRole('menuitem', { name: 'Edit profile' })).toBeDisabled();
+  await expect(page.getByRole('menuitem', { name: 'Edit site' })).toBeDisabled();
   await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeDisabled();
   await expect(page.getByRole('menuitem', { name: 'Reports' })).toBeEnabled();
   await page.keyboard.press('Escape');
@@ -451,7 +451,7 @@ test('holds the form and the row actions while it reads a site, and takes Cancel
   // The address stays writable: editing it is not a race with the read but the
   // end of it, and Cancel is the deliberate way out of the wait.
   await expect(page.getByRole('textbox', { name: /Site address/ })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Cancel editing' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeEnabled();
 
   release();
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
@@ -459,14 +459,14 @@ test('holds the form and the row actions while it reads a site, and takes Cancel
   await expect(
     page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
   ).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'New scan' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Save site' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Check this site' })).toBeEnabled();
   await page.screenshot({
     path: '.agent-tmp/profile-autofill/settled-form.png',
     fullPage: true,
   });
 
-  await page.getByRole('button', { name: 'Cancel editing' }).click();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByRole('textbox', { name: /Site address/ })).toHaveCount(0);
 });
 
@@ -483,13 +483,13 @@ test('unfolds the context section for a homepage that states nothing', async ({
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   await expect(page.locator('details.profile-context')).not.toHaveAttribute('open', '');
   await page.getByRole('textbox', { name: /Site address/ }).fill('empty.example');
 
   await expect(page.getByText(/states nothing we could reuse/)).toBeVisible();
   await expect(page.locator('details.profile-context')).toHaveAttribute('open', '');
-  await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Save site' })).toBeEnabled();
 });
 
 test('names a site that refused our crawler and still allows a manual save', async ({
@@ -503,15 +503,15 @@ test('names a site that refused our crawler and still allows a manual save', asy
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   await page.getByRole('textbox', { name: /Site address/ }).fill('walled.example');
 
   await expect(
     page.getByText(/We could not read this site, so nothing was filled in\./),
   ).toBeVisible();
   await expect(page.getByText(/Allow FluxRadarBot and the address it comes from/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
-  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await expect(page.getByRole('button', { name: 'Save site' })).toBeEnabled();
+  await page.getByText(/What your business does/).click();
   await expect(
     page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
   ).toHaveValue('');
@@ -532,9 +532,9 @@ test('fills localized context in one request without changing target languages',
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   await page.getByRole('textbox', { name: /Site address/ }).fill('studio.example');
-  await page.getByText(/Describe the site for AI visibility checks/).click();
+  await page.getByText(/What your business does/).click();
   const industry = page.getByPlaceholder('Dental clinic, recruiting platform, online store');
   await page.getByRole('button', { name: 'Fill from site' }).click();
   await expect(industry).toHaveValue('Localized studio');
@@ -569,7 +569,7 @@ test('a half-written profile and the read it was waiting for survive a reload', 
   });
   await page.goto('/profiles');
   await dismissCookies(page);
-  await page.getByRole('button', { name: '+ Add a site' }).click();
+  await page.getByRole('button', { name: '+ Add another site' }).click();
   // The name first, the address second: writing in a field the read could fill
   // is how the owner calls it off, so the order is what leaves a read owed and
   // a value of the owner's own in the same form.
@@ -578,7 +578,7 @@ test('a half-written profile and the read it was waiting for survive a reload', 
   await expect(page.getByText(/Checking whether we can read this site/)).toBeVisible();
   // Saving is held while the read is owed, so a profile cannot be stored a
   // keystroke before the form fills itself in.
-  await expect(page.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save site' })).toBeDisabled();
   // The wait is shown as soon as the address is complete, but the request only
   // leaves after the debounce. Reloading before it does would make the resumed
   // read the first one the handler ever sees, and the count below would stop at
@@ -592,7 +592,7 @@ test('a half-written profile and the read it was waiting for survive a reload', 
   await expect(page.getByRole('textbox', { name: /Site address/ })).toHaveValue('clinic.example');
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Written by hand');
   await expect(page.getByText(/Checking whether we can read this site/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save site' })).toBeDisabled();
   // Asked again: a request cannot survive a page, so the resumed wait is a new
   // one rather than a spinner over nothing. More than one resumed read is the
   // dev server's StrictMode double-mount, not a second site read the owner
@@ -608,7 +608,7 @@ test('a half-written profile and the read it was waiting for survive a reload', 
     page.getByPlaceholder('Dental clinic, recruiting platform, online store'),
   ).toHaveValue('Dentist');
   await expect(page.locator('details.profile-context')).toHaveAttribute('open', '');
-  await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Save site' })).toBeEnabled();
   // The name the owner typed is theirs, before the reload and after it.
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Written by hand');
   await page.screenshot({

@@ -22,7 +22,7 @@ const ACCOUNT = {
 };
 
 const WORKSPACE_TABS = [
-  ['Profiles', '/profiles'],
+  ['My sites', '/profiles'],
   ['Scan', '/scan'],
   ['Reports', '/reports'],
   ['Integrations', '/integrations'],

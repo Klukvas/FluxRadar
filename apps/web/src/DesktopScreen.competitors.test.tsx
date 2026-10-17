@@ -69,19 +69,19 @@ describe('the profile form competitors field (T7)', () => {
 
   it('flags more than 5 competitors and disables save', () => {
     renderForm('en');
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Smile Clinic' },
     });
     fireEvent.change(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic'), {
       target: { value: 'A1, B1, C1, D1, E1, F1' },
     });
     expect(screen.getByText('List up to 5 competitors.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
   });
 
   it('flags a competitor equal to the site’s own name', () => {
     renderForm('en');
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Smile Clinic' },
     });
     fireEvent.change(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic'), {
@@ -98,14 +98,14 @@ describe('the profile form competitors field (T7)', () => {
   // this test is about is the list and the save button, not the read.
   it('accepts a valid list and re-enables save', () => {
     renderForm('en');
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Smile Clinic' },
     });
     fireEvent.change(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic'), {
       target: { value: 'Acme Dental, Bright Smile' },
     });
     expect(screen.queryByText('List up to 5 competitors.')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Save profile' })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save site' })).not.toBeDisabled();
   });
 
   it('pre-fills the field from a saved profile when editing', () => {
@@ -117,7 +117,7 @@ describe('the profile form competitors field (T7)', () => {
     };
     renderForm('en', [profile]);
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Smile Clinic' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit profile' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit site' }));
     expect(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic')).toHaveValue(
       'Acme Dental, Bright Smile',
     );

@@ -49,7 +49,7 @@ describe('normalizeSiteAddress — rejects unsafe or invalid input', () => {
     for (const language of ['en', 'uk'] as const) {
       const message = copy[language].workspace.siteAddressError;
       expect(message).not.toMatch(/origin|https|url|protocol|hostname/i);
-      expect(message).toContain('mysite.com');
+      expect(message).toContain(copy[language].workspace.siteAddressPlaceholder);
     }
   });
 });

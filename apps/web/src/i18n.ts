@@ -113,7 +113,7 @@ export const copy = {
   en: {
     nav: {
       home: 'Home',
-      profiles: 'Profiles',
+      profiles: 'My sites',
       scan: 'Scan',
       reports: 'Reports',
       integrations: 'Integrations',
@@ -124,7 +124,7 @@ export const copy = {
       navigateGroup: 'Navigate',
       systemGroup: 'System',
       descriptions: {
-        profiles: 'Your saved profiles and their audit history.',
+        profiles: 'Your saved sites and their check history.',
         scan: 'Set up and start a new audit.',
         reports: 'Completed and in-progress audit results.',
         integrations: 'Optional data connections. The public-site scan works without them.',
@@ -232,8 +232,7 @@ export const copy = {
     },
     workspace: {
       intro: 'Unified public site audit station.',
-      sites: 'Site Profiles',
-      registered: 'Registered public origins',
+      sites: 'My sites',
       // The sites list is where an owner lands; the Google connection lives two
       // tabs away. Each line names the one step actually outstanding, and the
       // reminder says nothing at all once there is none — see
@@ -250,21 +249,17 @@ export const copy = {
       googleReminderChooseProperty:
         'Google is connected, but not every site reads a property yet — without one, a report leaves your Search Console and Analytics data out. No property yet: {sites}.',
       googleReminderChoose: 'Choose properties',
-      noSites: 'No profiles yet',
+      noSites: 'No sites yet',
       noSitesHelp:
-        'Add your first profile to begin. Enter the homepage address of your site (like mysite.com) and FluxRadar saves it as a profile you can scan whenever you are ready.',
-      addSite: 'Add profile',
+        'Add your first site to begin. Enter its homepage address (like mysalon.com) and FluxRadar saves it, ready to check whenever you are.',
+      addSite: 'Add a site',
       addSiteHelp:
-        'A profile is the complete saved configuration for one site: identity, audience context and audit history. FluxRadar reads only public pages — no passwords or CMS access — and saving does not start a scan or charge you.',
-      profileContextHeading: 'Site context for AI queries',
-      profileContextHelp:
-        'Tell FluxRadar what this site is about. This context will later help generate realistic, domain-specific AI visibility questions instead of generic audit questions. Write plain language; leave anything unknown blank.',
+        'Add your site’s address. We read only public pages, with no passwords and no access to your site. Saving starts nothing and charges nothing.',
       displayName: 'Display name',
-      displayNamePlaceholder: 'Product site',
+      displayNamePlaceholder: 'My salon',
       siteAddressLabel: 'Site address',
-      siteAddressPlaceholder: 'mysite.com',
-      siteAddressHint:
-        'Enter your homepage domain, for example mysite.com. No CMS access or passwords needed.',
+      siteAddressPlaceholder: 'mysalon.com',
+      siteAddressHint: 'Enter the address of your homepage, for example mysalon.com.',
       suggestProfile: 'Fill from site',
       suggestProfileHelp:
         'We use public homepage details only. Review and add to them before saving.',
@@ -302,9 +297,9 @@ export const copy = {
       // {reason} is the site's own verdict, in the same words the pre-purchase
       // check uses: the refusal that stops this read would also stop the audit.
       autofillBlocked:
-        'We could not read this site, so nothing was filled in. {reason} You can still save the profile and describe the site yourself.',
+        'We could not read this site, so nothing was filled in. {reason} You can still save the site and describe it yourself.',
       siteAddressError:
-        'That does not look like a site address. Enter your domain, like mysite.com.',
+        'That does not look like a site address. Enter your domain, like mysalon.com.',
       businessType: 'Business or site type',
       businessTypePlaceholder: 'Dental clinic, recruiting platform, online store',
       businessTypeHint: 'The short category a customer would use to describe this site.',
@@ -337,27 +332,28 @@ export const copy = {
       competitorsErrorDuplicate: 'Remove the repeated name: "{name}".',
       competitorsErrorOwnBrand:
         'A competitor cannot repeat this site’s own name or domain: "{name}".',
-      saveProfile: 'Save profile',
-      updateProfile: 'Update profile',
-      editProfile: 'Edit profile',
+      saveProfile: 'Save site',
+      updateProfile: 'Save changes',
+      editProfile: 'Edit site',
       cancelEdit: 'Cancel editing',
+      cancelAdd: 'Cancel',
       deleteProfileAction: 'Delete',
-      deleteProfileHeading: 'Delete this profile',
+      deleteProfileHeading: 'Delete this site',
       deleteProfileHelp:
-        'Deleting removes the profile together with its audit history: every scan and report, exported files, AI answers and the purchase records of this site. It cannot be undone, and it is not possible while a scan is running, a checkout can still be paid or a refund is still being processed.',
+        'Deleting removes the site together with its audit history: every scan and report, exported files, AI answers and the purchase records of this site. It cannot be undone, and it is not possible while a scan is running, a checkout can still be paid or a refund is still being processed.',
       deleteProfileConfirmLabel: 'Type {domain} to confirm',
-      deleteProfileButton: 'Delete profile',
+      deleteProfileButton: 'Delete site',
       deletingProfile: 'Deleting…',
       deleteProfileCancel: 'Cancel',
       deleteProfileActiveScan:
-        'This site has a scan in progress. Wait for it to finish or cancel it, then delete the profile.',
+        'This site has a scan in progress. Wait for it to finish or cancel it, then delete the site.',
       deleteProfileOpenCheckout:
         'A checkout for this site can still be paid. Complete it or let it expire, then try again.',
       deleteProfileOpenRefund:
-        'A refund for this site is still being processed. The profile can be deleted once it is complete.',
-      deleteProfileFailed: 'The profile could not be deleted. Try again in a moment.',
+        'A refund for this site is still being processed. The site can be deleted once it is complete.',
+      deleteProfileFailed: 'The site could not be deleted. Try again in a moment.',
       saving: 'Saving…',
-      newScan: 'New scan',
+      newScan: 'Check this site',
       inspect: 'Reports',
       notes: 'Operator notes',
       guide: 'Open setup guide',
@@ -380,7 +376,8 @@ export const copy = {
       totalChecks: 'Reports listed',
       sitesSaved: 'Sites saved',
       googleLabel: 'Google data',
-      googleNotLinked: 'Not linked',
+      googleNotLinked: 'Not connected (optional)',
+      googleNoProperty: 'No property chosen (optional)',
       googleUnknown: 'Could not be read',
       googleSearchConsole: 'Search Console',
       googleAnalytics: 'Analytics',
@@ -587,15 +584,15 @@ export const copy = {
       steps: tourStepCopy({
         'workspace-tabs': {
           title: 'Your workspace tabs',
-          body: 'The bar at the top is the whole workspace. Profiles holds the public sites you saved as profiles, Scan starts an audit of one of them, and Reports keeps the finished results. Integrations is optional context — a public audit works without it, and FAQ answers what each check covers.',
+          body: 'The bar at the top is the whole workspace. My sites holds the public sites you saved, Scan starts an audit of one of them, and Reports keeps the finished results. Integrations is optional context — a public audit works without it, and FAQ answers what each check covers.',
         },
         'profile-domain': {
-          title: 'Add your first profile',
-          body: 'Enter the homepage address of a site anyone can open, like mysite.com. FluxRadar reads only public pages — it never needs a CMS password or source-code access.',
+          title: 'Add your first site',
+          body: 'Enter the homepage address of a site anyone can open, like mysalon.com. FluxRadar reads only public pages — it never needs a CMS password or source-code access.',
         },
         'save-profile': {
-          title: 'Save the profile',
-          body: 'The name is filled in from the address you entered, and you can rename it to anything you recognise. Saving only creates a reusable profile: it does not start a scan and it does not charge you.',
+          title: 'Save the site',
+          body: 'The name is filled in from the address you entered, and you can rename it to anything you recognise. Saving only keeps the site in your list: it does not start a scan and it does not charge you.',
         },
         integrations: {
           title: 'Integrations are optional',
@@ -603,7 +600,7 @@ export const copy = {
         },
         'run-scan': {
           title: 'Start a scan when you are ready',
-          body: 'To audit a saved site, open Scan from this bar (or New scan next to the site), pick Basic or Complete, review the crawl scope and press start. Nothing runs until you press it — this tour never starts a scan for you.',
+          body: 'To audit a saved site, open Scan from this bar (or Check this site next to the site), pick Basic or Complete, review the crawl scope and press start. Nothing runs until you press it — this tour never starts a scan for you.',
         },
       }),
     },
@@ -2144,7 +2141,7 @@ export const copy = {
   uk: {
     nav: {
       home: 'Головна',
-      profiles: 'Профілі',
+      profiles: 'Мої сайти',
       scan: 'Перевірка',
       reports: 'Звіти',
       integrations: 'Інтеграції',
@@ -2155,7 +2152,7 @@ export const copy = {
       navigateGroup: 'Навігація',
       systemGroup: 'Система',
       descriptions: {
-        profiles: 'Ваші збережені профілі та історія їхніх перевірок.',
+        profiles: 'Ваші збережені сайти та історія їхніх перевірок.',
         scan: 'Налаштуйте та запустіть нову перевірку.',
         reports: 'Готові та поточні результати перевірок.',
         integrations: 'Необовʼязкові підключення даних. Публічна перевірка працює без них.',
@@ -2263,8 +2260,7 @@ export const copy = {
     },
     workspace: {
       intro: 'Єдина станція аудиту публічного сайту.',
-      sites: 'Профілі сайтів',
-      registered: 'Зареєстровані публічні джерела',
+      sites: 'Мої сайти',
       googleReminderTitle: 'Ваші власні дані Google',
       googleReminderConnect:
         'Підключіть Google Search Console та Analytics 4, щоб додати до кожного звіту власні дані про індексацію й трафік. FluxRadar лише читає їх, і аудит працює й без них.',
@@ -2275,21 +2271,17 @@ export const copy = {
       googleReminderChooseProperty:
         'Google підключено, але не кожен сайт читає property — без нього звіт не містить ваших даних Search Console та Analytics. Ще без property: {sites}.',
       googleReminderChoose: 'Обрати property',
-      noSites: 'Профілів ще немає',
+      noSites: 'Сайтів ще немає',
       noSitesHelp:
-        'Додайте перший профіль, щоб почати. Введіть адресу головної сторінки вашого сайту (наприклад, mysite.com) — FluxRadar збереже її як профіль, який можна перевірити будь-коли.',
-      addSite: 'Додати профіль',
+        'Додайте перший сайт, щоб почати. Введіть адресу головної сторінки (наприклад, mysalon.com.ua), і FluxRadar збереже сайт, щоб ви перевірили його, коли будете готові.',
+      addSite: 'Додати сайт',
       addSiteHelp:
-        'Профіль — це повна збережена конфігурація одного сайту: ідентичність, контекст аудиторії та історія перевірок. FluxRadar читає лише публічні сторінки — без паролів і доступу до CMS — а збереження не запускає перевірку й не стягує оплату.',
-      profileContextHeading: 'Контекст сайту для AI-запитів',
-      profileContextHelp:
-        'Розкажіть FluxRadar, про що цей сайт. Надалі цей контекст допоможе генерувати реалістичні тематичні запити для перевірки AI-видимості, а не загальні питання про аудит. Пишіть простими словами; невідомі поля можна залишити порожніми.',
+        'Додайте адресу сайту. Ми читаємо лише публічні сторінки, без паролів і доступу до сайту. Збереження нічого не запускає і не списує гроші.',
       displayName: 'Назва',
-      displayNamePlaceholder: 'Сайт продукту',
+      displayNamePlaceholder: 'Мій салон',
       siteAddressLabel: 'Адреса сайту',
-      siteAddressPlaceholder: 'mysite.com',
-      siteAddressHint:
-        'Введіть домен головної сторінки, наприклад mysite.com. Доступ до CMS і паролі не потрібні.',
+      siteAddressPlaceholder: 'mysalon.com.ua',
+      siteAddressHint: 'Введіть адресу головної сторінки, наприклад mysalon.com.ua.',
       suggestProfile: 'Заповнити за сайтом',
       suggestProfileHelp:
         'Використаємо лише публічні дані головної сторінки. Перевірте й доповніть їх перед збереженням.',
@@ -2320,8 +2312,8 @@ export const copy = {
       autofillNothing:
         'Головна сторінка цього сайту не вказує нічого, що можна було б використати, тому поля нижче заповніть самі.',
       autofillBlocked:
-        'Ми не змогли прочитати цей сайт, тому нічого не заповнили. {reason} Профіль усе одно можна зберегти й описати сайт самостійно.',
-      siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysite.com.',
+        'Ми не змогли прочитати цей сайт, тому нічого не заповнили. {reason} Сайт усе одно можна зберегти й описати самостійно.',
+      siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysalon.com.ua.',
       businessType: 'Тип бізнесу або сайту',
       businessTypePlaceholder: 'Стоматологія, рекрутингова платформа, інтернет-магазин',
       businessTypeHint: 'Коротка категорія, якою клієнт описав би цей сайт.',
@@ -2352,27 +2344,28 @@ export const copy = {
       competitorsErrorDuplicate: 'Приберіть повторювану назву: «{name}».',
       competitorsErrorOwnBrand:
         'Конкурент не може повторювати назву чи домен цього сайту: «{name}».',
-      saveProfile: 'Зберегти профіль',
-      updateProfile: 'Оновити профіль',
-      editProfile: 'Редагувати профіль',
+      saveProfile: 'Зберегти сайт',
+      updateProfile: 'Зберегти зміни',
+      editProfile: 'Змінити сайт',
       cancelEdit: 'Скасувати редагування',
+      cancelAdd: 'Скасувати',
       deleteProfileAction: 'Видалити',
-      deleteProfileHeading: 'Видалити цей профіль',
+      deleteProfileHeading: 'Видалити цей сайт',
       deleteProfileHelp:
-        'Видалення прибирає профіль разом з історією аудитів: усі перевірки та звіти, експортовані файли, відповіді AI та записи про покупки цього сайту. Це не можна скасувати, і це неможливо, поки триває перевірка, оплату ще можна завершити або ще обробляється повернення коштів.',
+        'Видалення прибирає сайт разом з історією аудитів: усі перевірки та звіти, експортовані файли, відповіді AI та записи про покупки цього сайту. Це не можна скасувати, і це неможливо, поки триває перевірка, оплату ще можна завершити або ще обробляється повернення коштів.',
       deleteProfileConfirmLabel: 'Введіть {domain}, щоб підтвердити',
-      deleteProfileButton: 'Видалити профіль',
+      deleteProfileButton: 'Видалити сайт',
       deletingProfile: 'Видалення…',
       deleteProfileCancel: 'Скасувати',
       deleteProfileActiveScan:
-        'Для цього сайту триває перевірка. Дочекайтеся її завершення або скасуйте її, а потім видаліть профіль.',
+        'Для цього сайту триває перевірка. Дочекайтеся її завершення або скасуйте її, а потім видаліть сайт.',
       deleteProfileOpenCheckout:
         'Оплату для цього сайту ще можна завершити. Завершіть її або дочекайтеся, поки вона стане недійсною, і спробуйте знову.',
       deleteProfileOpenRefund:
-        'Повернення коштів за цей сайт ще обробляється. Профіль можна буде видалити, щойно його буде завершено.',
-      deleteProfileFailed: 'Не вдалося видалити профіль. Спробуйте ще раз трохи згодом.',
+        'Повернення коштів за цей сайт ще обробляється. Сайт можна буде видалити, щойно повернення буде завершено.',
+      deleteProfileFailed: 'Не вдалося видалити сайт. Спробуйте ще раз трохи згодом.',
       saving: 'Збереження…',
-      newScan: 'Нова перевірка',
+      newScan: 'Перевірити сайт',
       inspect: 'Звіти',
       notes: 'Нотатки оператора',
       guide: 'Відкрити інструкцію',
@@ -2396,7 +2389,8 @@ export const copy = {
       totalChecks: 'Звітів у списку',
       sitesSaved: 'Збережено сайтів',
       googleLabel: 'Дані Google',
-      googleNotLinked: 'Не підключено',
+      googleNotLinked: 'Не підключено (необов’язково)',
+      googleNoProperty: 'Ресурс не обрано (необов’язково)',
       googleUnknown: 'Не вдалося прочитати',
       googleSearchConsole: 'Search Console',
       googleAnalytics: 'Analytics',
@@ -2585,15 +2579,15 @@ export const copy = {
       steps: tourStepCopy({
         'workspace-tabs': {
           title: 'Вкладки робочого простору',
-          body: 'Верхня панель — це весь робочий простір. «Профілі» — це публічні сайти, які ви зберегли, «Перевірка» запускає аудит одного з них, «Звіти» містять готові результати. «Інтеграції» — необовʼязковий контекст: публічний аудит працює й без них, а FAQ пояснює, що саме входить у кожну перевірку.',
+          body: 'Верхня панель — це весь робочий простір. «Мої сайти» — це публічні сайти, які ви зберегли, «Перевірка» запускає аудит одного з них, «Звіти» містять готові результати. «Інтеграції» — необовʼязковий контекст: публічний аудит працює й без них, а FAQ пояснює, що саме входить у кожну перевірку.',
         },
         'profile-domain': {
-          title: 'Додайте перший профіль',
-          body: 'Введіть адресу головної сторінки, яку може відкрити будь-хто, наприклад mysite.com. FluxRadar читає лише публічні сторінки — пароль до CMS або доступ до коду не потрібні.',
+          title: 'Додайте перший сайт',
+          body: 'Введіть адресу головної сторінки, яку може відкрити будь-хто, наприклад mysalon.com.ua. FluxRadar читає лише публічні сторінки — пароль до CMS або доступ до коду не потрібні.',
         },
         'save-profile': {
-          title: 'Збережіть профіль',
-          body: 'Назва підставляється з введеної адреси, і ви можете змінити її на будь-яку зрозумілу вам. Це лише створює багаторазовий профіль: перевірка не запускається й оплата не стягується.',
+          title: 'Збережіть сайт',
+          body: 'Назва підставляється з введеної адреси, і ви можете змінити її на будь-яку зрозумілу вам. Збереження лише додає сайт до вашого списку: перевірка не запускається й оплата не стягується.',
         },
         integrations: {
           title: 'Інтеграції — необовʼязкові',
@@ -2601,7 +2595,7 @@ export const copy = {
         },
         'run-scan': {
           title: 'Запустіть перевірку, коли будете готові',
-          body: 'Щоб перевірити збережений сайт, відкрийте «Перевірку» на цій панелі (або «Нову перевірку» біля сайту), оберіть Basic або Complete, перегляньте область обходу та натисніть запуск. Нічого не почнеться, доки ви не натиснете — цей огляд не запускає перевірку за вас.',
+          body: 'Щоб перевірити збережений сайт, відкрийте «Перевірку» на цій панелі (або «Перевірити сайт» біля сайту), оберіть Basic або Complete, перегляньте область обходу та натисніть запуск. Нічого не почнеться, доки ви не натиснете — цей огляд не запускає перевірку за вас.',
         },
       }),
     },
