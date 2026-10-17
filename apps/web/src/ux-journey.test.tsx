@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { saveCookieConsent } from './browser-consent';
 import { BASIC_PRICE } from './tariff-prices';
+import { checkedPlan } from './new-scan-test-support';
 
 const account = { accountId: 'account-1', email: 'owner@example.com' };
 const profile = { id: 'profile-1', name: 'Shop', domain: 'https://shop.example.com' };
@@ -435,7 +436,7 @@ describe('a Free report', () => {
   it('offers a Basic scan of the same site, opening the form on Basic', async () => {
     renderReport();
     window.history.replaceState(null, '', `/scans/${freeScan.id}`);
-    const view = render(<App />);
+    render(<App />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: `Check the whole site for ${BASIC_PRICE}` }),
@@ -444,11 +445,10 @@ describe('a Free report', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/scan'));
     const target = (await screen.findByRole('combobox', { name: /^Site/ })) as HTMLSelectElement;
     expect(target.value).toBe(profile.id);
-    await waitFor(() =>
-      expect(
-        view.container.querySelector<HTMLSelectElement>('select[name="scan-plan"]')?.value,
-      ).toBe('Basic'),
-    );
+    // The plan cards are radios named `scan-plan`; the Basic card is the one
+    // chosen, and no other card is.
+    await waitFor(() => expect(screen.getByRole('radio', { name: /^Basic/ })).toBeChecked());
+    expect(checkedPlan()).toBe('Basic');
   });
 
   it('opens a printable client report of the scan', async () => {
