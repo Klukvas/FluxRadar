@@ -328,7 +328,7 @@ export const checksCopyUk: ChecksCopy = {
       nav: 'Докази',
       label: '08 / ДОКАЗИ',
       title: 'Як підтверджується кожна знахідка',
-      intro: ['Кожна проблема в Issue Center містить:'],
+      intro: ['Кожна проблема в Центрі проблем містить:'],
       bullets: [
         { term: 'URL', body: 'сторінку, на якій знахідку зафіксовано.' },
         {

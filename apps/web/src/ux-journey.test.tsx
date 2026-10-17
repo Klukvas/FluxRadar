@@ -414,7 +414,7 @@ describe('a Free report', () => {
 
     fireEvent.click(
       within(block as HTMLElement).getByRole('button', {
-        name: 'Show findings: Page summary for search results is missing or the wrong length',
+        name: 'Where exactly and how to fix: Page summary for search results is missing or the wrong length',
       }),
     );
 

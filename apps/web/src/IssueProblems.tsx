@@ -9,7 +9,7 @@
 import type { IssueSummary } from './api';
 import { Button, DataTable, EmptyState, StatusChip } from './components';
 import { findingCountsPages, problemSupportCode, problemTitle } from './finding-explainers';
-import { FindingExplainer, FindingWhat } from './FindingExplainer';
+import { ProblemExplainer } from './FindingExplainer';
 import { findingsCopy } from './findings-copy';
 import { copy, type Language } from './i18n';
 import { moduleLabel } from './rule-titles';
@@ -74,18 +74,10 @@ export function IssueProblems(props: {
                     </>
                   )}
                 </span>
-                {/* What the check found, said on the row: the fold below is
-                    the rest of the explanation, and a row whose only readable
-                    part was its name made understanding the list a click per
-                    problem. */}
-                <FindingWhat ruleId={group.ruleId} language={props.language} />
-                {/* Why it matters, what to do and what one finding counts stay
-                    folded: the row has to stay one row per problem. */}
-                <FindingExplainer
-                  ruleId={group.ruleId}
-                  language={props.language}
-                  withWhat={false}
-                />
+                {/* Why it matters and what to do, in view: they are what the
+                    owner reads the list for. What the check measured is one
+                    click down, under "Technical details". */}
+                <ProblemExplainer ruleId={group.ruleId} language={props.language} />
               </td>
               <td data-label={f.issues.columnPages}>
                 {settled
