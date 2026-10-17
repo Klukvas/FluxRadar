@@ -235,11 +235,16 @@ describe('the report header', () => {
       />,
     );
     await screen.findByText('Звіт аудиту сайту');
-    return screen.getByLabelText('Деталі звіту');
+    const details = screen.getByText('Технічні дані звіту').closest('details');
+    if (details === null) throw new Error('the report details fold is missing');
+    return details;
   }
 
-  it('says where the check ran from, beside the plan and the configuration version', async () => {
+  it('says where the check ran from in the report details, beside the configuration version', async () => {
     const details = await openReport(dashboardWith(KYIV));
+
+    // Support data, folded at the foot: the header itself names no country.
+    expect(screen.getByRole('group', { name: 'Про цей звіт' })).not.toHaveTextContent('Україна');
 
     expect(within(details).getByText('Країна перевірки').nextSibling).toHaveTextContent(
       'Україна, Київ',

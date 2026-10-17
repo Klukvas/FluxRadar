@@ -100,7 +100,7 @@ describe('Ukrainian result screens', () => {
 
     expect(await screen.findByText('Панель звіту · example.com')).toBeInTheDocument();
     expect(screen.getByText('Звіт аудиту сайту')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Як читати цей звіт' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Як читати цей звіт' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Відкрити Центр проблем' })).toBeInTheDocument();
     // The English literals these replaced must be gone, not merely alongside.
     expect(screen.queryByText('Site audit report')).not.toBeInTheDocument();
@@ -264,7 +264,8 @@ describe('the report score area in Ukrainian', () => {
     expect(screen.queryByText('score-v1')).not.toBeInTheDocument();
     // The word under the number is the one the report's own legend uses.
     expect(screen.getAllByText(copy.uk.report.helpScoreTerm).length).toBeGreaterThan(0);
-    expect(screen.getByText('виконано 100% перевірок')).toBeInTheDocument();
+    // The dial, and the same figure in the folded report details.
+    expect(screen.getAllByText('виконано 100% перевірок')).toHaveLength(2);
     expect(screen.queryByText('100% of the checks were done')).not.toBeInTheDocument();
   });
 

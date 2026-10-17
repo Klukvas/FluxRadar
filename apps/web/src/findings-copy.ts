@@ -6,7 +6,7 @@
 // shared file is already far past the size anyone can review, and these screens
 // are read together.
 
-import { takesUkSingular, type Language } from './i18n';
+import { takesUkSingular, ukProblemsAccusative, type Language } from './i18n';
 import { BASIC_PRICE } from './tariff-prices';
 
 export type FindingsCopy = {
@@ -242,15 +242,6 @@ export const ukPagesAccusative = (count: number): string => {
   const last = Math.abs(count) % 10;
   if (last === 1) return 'сторінку';
   return last >= 2 && last <= 4 ? 'сторінки' : 'сторінок';
-};
-
-/** Accusative of «проблема», as the object of «знайшла»: «1 проблему», «2 проблеми», «5 проблем». */
-const ukProblemsAccusative = (count: number): string => {
-  const teens = Math.abs(count) % 100;
-  if (teens >= 11 && teens <= 14) return 'проблем';
-  if (takesUkSingular(count)) return 'проблему';
-  const last = Math.abs(count) % 10;
-  return last >= 2 && last <= 4 ? 'проблеми' : 'проблем';
 };
 
 export const findingsCopy: Record<Language, FindingsCopy> = {

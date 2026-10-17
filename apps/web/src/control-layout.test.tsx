@@ -590,17 +590,15 @@ describe('a finding’s own rows in a stacked table', () => {
   });
 });
 
-// The report ends on `scan-id · 0.1.0 · 98% of the checks were done`. Held on one
-// line it scrolled inside itself on a phone — 331px of 395-421px visible — so
-// the sentence an owner actually reads was off screen with no scrollbar in view.
-describe('the line a report ends on', () => {
-  it('wraps rather than scrolling inside itself', () => {
-    const line = BASE_CSS.slice(BASE_CSS.indexOf('.breadcrumb {'));
-    const rule = line.slice(0, line.indexOf('}'));
+// The report ends on its folded "Report details": a scan id is one unbroken
+// token wider than a 360px phone line, and the old one-line footer scrolled
+// inside itself, off screen, with no scrollbar in view.
+describe('the report details a report ends on', () => {
+  it('wraps its values rather than scrolling inside itself', () => {
+    const from = BASE_CSS.slice(BASE_CSS.indexOf('.report-tech__value {'));
+    const rule = from.slice(0, from.indexOf('}'));
     expect(rule).not.toMatch(/white-space: nowrap/);
     expect(rule).not.toMatch(/overflow-x:/);
-    // A scan id is one unbroken token and is wider than a 360px line on its
-    // own, so wrapping has to be allowed inside it too.
     expect(rule).toMatch(/overflow-wrap: anywhere;/);
   });
 });

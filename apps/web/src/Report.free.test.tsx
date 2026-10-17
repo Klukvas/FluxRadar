@@ -103,19 +103,18 @@ describe('a report on a plan that is not scored', () => {
       scan,
     );
 
-    // Twice: the overall dial, and the SEO card whose own score slot used to
-    // read a bare "No score" beside a Completed chip and a full coverage bar.
-    expect((await screen.findAllByText('Not scored on this plan')).length).toBe(2);
+    // The result panel says what ran, where a dash in a dial read as broken.
+    expect(await screen.findByText('4 things checked on your homepage')).toBeInTheDocument();
+    // The SEO card, whose own score slot used to read a bare "No score" beside
+    // a Completed chip and a full coverage bar.
+    expect(screen.getAllByText('Not scored on this plan')).toHaveLength(1);
     expect(screen.queryByText('No score')).toBeNull();
     // The two sentences the owner read as a failed scan.
     expect(screen.queryByText('Insufficient data')).toBeNull();
     expect(screen.queryByText(/0% of the checks were done/)).toBeNull();
     // What actually ran, counted rather than expressed as a 0% share of a score
-    // this plan never computes. Two elements carry it — the dial and the
-    // breadcrumb — so the two cannot drift into disagreeing about the run. The
-    // matcher is a pattern because the breadcrumb surrounds the line with the
-    // scan id and the ruleset version.
-    expect(screen.getAllByText(/4\/4 checks completed/).length).toBe(2);
+    // this plan never computes — kept in the folded report details.
+    expect(screen.getAllByText('4/4 checks completed')).toHaveLength(1);
   });
 
   it('leaves the section unscored rather than inventing a number for it', async () => {
@@ -134,7 +133,7 @@ describe('a report on a plan that is not scored', () => {
       scan,
     );
 
-    await screen.findAllByText('Not scored on this plan');
+    await screen.findByText('4 things checked on your homepage');
     // A completed check with no score must not acquire one — not a zero, and
     // not the 100 a run without findings could be mistaken for.
     expect(screen.queryByText('0.00')).toBeNull();
@@ -175,8 +174,10 @@ describe('a report on a plan that is not scored', () => {
     );
 
     expect(await screen.findByText('No score')).toBeTruthy();
-    // Once only: the dial, not the card.
-    expect(screen.getAllByText('Not scored on this plan').length).toBe(1);
+    // Not on the card: its own status is the specific truth. The result panel
+    // says the homepage was not read instead.
+    expect(screen.queryByText('Not scored on this plan')).toBeNull();
+    expect(screen.getByText('Your homepage could not be read')).toBeInTheDocument();
   });
 
   it('names the checks the free run performed, not the paid module ones', async () => {
@@ -259,11 +260,14 @@ describe('a report on a plan that is not scored', () => {
       scan,
     );
 
-    expect(await screen.findByText('Not scored on this plan')).toBeTruthy();
+    expect(await screen.findByText('Your homepage could not be read')).toBeTruthy();
     // A completed-checks count would be the invented part here; there is none.
-    // The dial and the breadcrumb say the same thing, from the same line.
+    // The panel and the folded report details say the same thing.
     expect(screen.getAllByText(/homepage could not be read/).length).toBe(2);
     expect(screen.queryByText(/checks completed/)).toBeNull();
+    expect(screen.queryByText(/things? checked/)).toBeNull();
+    // Nor a problem count: "no problems found" on an unread page would be false.
+    expect(screen.queryByText(/problems? found/)).toBeNull();
     expect(screen.getByText('Unavailable')).toBeTruthy();
   });
 });
@@ -301,7 +305,7 @@ describe('a paid report that genuinely could not be measured', () => {
     );
 
     expect((await screen.findAllByText('Insufficient data')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/20% of the checks were done/).length).toBe(2); // dial + breadcrumb
+    expect(screen.getAllByText(/20% of the checks were done/).length).toBe(2); // dial + report details
     expect(screen.queryByText('Not scored on this plan')).toBeNull();
     // A paid section with no readable result reports the absence and no reason
     // for it; the plan is not what deprived this one of a number.
