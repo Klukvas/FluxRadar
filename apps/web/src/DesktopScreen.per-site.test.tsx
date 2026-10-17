@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DesktopScreen } from './DesktopScreen';
 import { nextStepFor } from './NextStep';
 import type { Scan, SiteProfile } from './api';
+import { BASIC_PRICE } from './tariff-prices';
 
 const salon = { id: 'p-salon', name: 'Eva Grace', domain: 'https://eva-grace.example' };
 const lab = { id: 'p-lab', name: 'Flux Lab', domain: 'https://flux-lab.dev' };
@@ -237,6 +238,50 @@ describe('the desktop with two saved sites', () => {
       await within(salonBlock).findByRole('button', { name: 'Check eva-grace.example' }),
     );
     expect(onNewScan).toHaveBeenLastCalledWith(salon, 'Free');
+  });
+
+  it('sells Basic for a site whose free check is done, for that site', async () => {
+    const freeDone = {
+      ...salonDeniedScan,
+      plan: 'Free' as const,
+      status: 'Completed' as const,
+      statusReason: null,
+      crawlSummary: readAll,
+    };
+    stubApi({ [salon.id]: () => envelope([freeDone]), [lab.id]: () => envelope([labScan]) });
+    const { onNewScan } = renderDesktop(bothSites);
+
+    const salonBlock = await siteBlock('Eva Grace · eva-grace.example');
+    expect(
+      await within(salonBlock).findByText(
+        /^The free check read the homepage only\. Basic checks every page/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(salonBlock).getByRole('button', {
+        name: `Check all of eva-grace.example for ${BASIC_PRICE}`,
+      }),
+    );
+    expect(onNewScan).toHaveBeenLastCalledWith(salon, 'Basic');
+  });
+
+  it('sells Basic after a free check in Ukrainian too', async () => {
+    const freeDone = {
+      ...salonDeniedScan,
+      plan: 'Free' as const,
+      status: 'Completed' as const,
+      statusReason: null,
+      crawlSummary: readAll,
+    };
+    stubApi({ [salon.id]: () => envelope([freeDone]), [lab.id]: () => envelope([labScan]) });
+    const { onNewScan } = renderDesktop(bothSites, 'uk');
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: `Перевірити весь сайт eva-grace.example за ${BASIC_PRICE}`,
+      }),
+    );
+    expect(onNewScan).toHaveBeenLastCalledWith(salon, 'Basic');
   });
 
   it('keeps the account’s own facts under the sites', async () => {

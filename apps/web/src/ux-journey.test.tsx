@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { saveCookieConsent } from './browser-consent';
+import { BASIC_PRICE } from './tariff-prices';
 
 const account = { accountId: 'account-1', email: 'owner@example.com' };
 const profile = { id: 'profile-1', name: 'Shop', domain: 'https://shop.example.com' };
@@ -375,6 +376,15 @@ describe('a Free report', () => {
           modules: freeScan.modules,
         });
       if (path === `/scans/${freeScan.id}/issues/summary`) return envelope(summary);
+      // A deployment that can sell a scan, so the form can open on a paid plan.
+      if (path === '/billing/checkout-config')
+        return envelope({
+          provider: 'creem',
+          available: true,
+          mode: 'test',
+          unavailableReason: null,
+          plans: [{ plan: 'Basic', priceUsd: 55, currency: 'USD' }],
+        });
       if (path === `/scans/${freeScan.id}/issues`)
         return envelope([], 200, { total: 0, page: 1, limit: 50 });
       return envelope(null);
@@ -422,16 +432,23 @@ describe('a Free report', () => {
     expect(screen.getByRole('button', { name: 'Back to all problems' })).toBeInTheDocument();
   });
 
-  it('offers the paid scan of the same site on the plan that reads it all', async () => {
+  it('offers a Basic scan of the same site, opening the form on Basic', async () => {
     renderReport();
     window.history.replaceState(null, '', `/scans/${freeScan.id}`);
-    render(<App />);
+    const view = render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Run Complete for this site' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: `Check the whole site for ${BASIC_PRICE}` }),
+    );
 
     await waitFor(() => expect(window.location.pathname).toBe('/scan'));
     const target = (await screen.findByRole('combobox', { name: /^Site/ })) as HTMLSelectElement;
     expect(target.value).toBe(profile.id);
+    await waitFor(() =>
+      expect(
+        view.container.querySelector<HTMLSelectElement>('select[name="scan-plan"]')?.value,
+      ).toBe('Basic'),
+    );
   });
 
   it('opens a printable client report of the scan', async () => {

@@ -40,7 +40,7 @@ import { Button, EmptyState, Field, Panel, TextAreaField, Window } from './compo
 import { desktopCopy } from './desktop-copy';
 import { GoogleConnectionReminder } from './GoogleConnectionReminder';
 import { copy, fillCopy, type Language } from './i18n';
-import { NextStep, nextStepFor } from './NextStep';
+import { NextStep, nextStepFor, type NewScanPlan } from './NextStep';
 import { autofillStatusMessage, type ProfileContextLabel } from './profile-autofill';
 import {
   clearProfileDraft,
@@ -73,7 +73,7 @@ export interface DesktopScreenProps {
   /** Called once a profile is gone, so screens still holding it can let it go. */
   readonly onProfileDeleted: (profile: SiteProfile) => void;
   readonly onSelectProfile: (profile: SiteProfile) => void;
-  readonly onNewScan: (profile: SiteProfile, plan?: 'Free' | 'WebsiteAudit' | 'Complete') => void;
+  readonly onNewScan: (profile: SiteProfile, plan?: NewScanPlan) => void;
   readonly onOpenScan: (scanId: string) => void;
   /** Retries the one unfinished section of a Partial scan. */
   readonly onRetryScan: (scanId: string) => Promise<void>;

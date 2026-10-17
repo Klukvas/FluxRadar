@@ -328,6 +328,14 @@
 .upsell li + li {
   margin-top: var(--sp-1);
 }
+.upsell .upsell__intro {
+  margin-bottom: var(--sp-2);
+  font-weight: 600;
+}
+.upsell .upsell__price {
+  margin: 0 0 var(--sp-3);
+  font-weight: 600;
+}
 
 @media (max-width: 699px) {
   .issue-filters {

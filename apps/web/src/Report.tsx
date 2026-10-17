@@ -32,7 +32,7 @@ import { copy, fillCopy, type Language } from './i18n';
 import { asRecord, numberValue } from './module-metadata';
 import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
 import { moduleResponsibilities, moduleStatusReasons } from './module-status';
-import { modulesBeyondPlan, planIncludesExport, planName } from './plan-modules';
+import { modulesBeyondPlan, planIncludesExport, planName, type PaidPlan } from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { ReportNextSteps } from './ReportNextSteps';
 import { nothingWasChecked, reportFailureCopy, siteReadFailureOf } from './report-failure-copy';
@@ -50,8 +50,11 @@ export function ResultsScreen(props: {
   onIssues: () => void;
   /** Opens the Issue Center on one problem's findings. */
   onOpenProblem?: (ruleId: string) => void;
-  /** Starts a paid scan of the same site, from a Free or Basic report. */
-  onUpgrade?: (scan: Scan) => void;
+  /**
+   * Opens the scan form for the same site on `plan`: Basic from a Free report's
+   * upsell, Complete from a Basic report's locked Action Plan.
+   */
+  onUpgrade?: (scan: Scan, plan: PaidPlan) => void;
   /** Opens the printable client report. */
   onPrint?: (scan: Scan) => void;
   /** Opens another report of the same site — the previous scan's, from the
@@ -232,7 +235,7 @@ export function ResultsScreen(props: {
           targetLanguages={props.targetLanguages}
           onOpenProblem={props.onOpenProblem ?? (() => props.onIssues())}
           onAllProblems={props.onIssues}
-          onUpgrade={() => props.onUpgrade?.(scan)}
+          onUpgrade={(plan) => props.onUpgrade?.(scan, plan)}
           onRetry={onRetry === undefined ? undefined : () => onRetry(scan)}
           siteFailure={siteFailure}
           nothingChecked={checkedNothing}
