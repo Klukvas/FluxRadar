@@ -69,7 +69,7 @@ describe('the profile form competitors field (T7)', () => {
 
   it('flags more than 5 competitors and disables save', () => {
     renderForm('en');
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Smile Clinic' },
     });
     fireEvent.change(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic'), {
@@ -81,7 +81,7 @@ describe('the profile form competitors field (T7)', () => {
 
   it('flags a competitor equal to the site’s own name', () => {
     renderForm('en');
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Smile Clinic' },
     });
     fireEvent.change(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic'), {
@@ -98,7 +98,7 @@ describe('the profile form competitors field (T7)', () => {
   // this test is about is the list and the save button, not the read.
   it('accepts a valid list and re-enables save', () => {
     renderForm('en');
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Smile Clinic' },
     });
     fireEvent.change(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic'), {

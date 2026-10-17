@@ -83,13 +83,13 @@ describe('profile suggestions', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'clinic.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic'),
+      expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public clinic'),
     );
     expect(
       screen.getByText('Suggested from the public homepage. Review and edit before saving.'),
@@ -126,13 +126,13 @@ describe('profile suggestions', () => {
       ),
     );
     renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'clinic.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     await waitFor(() =>
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Bright Smile'),
+      expect(screen.getByPlaceholderText('My salon')).toHaveValue('Bright Smile'),
     );
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
@@ -166,14 +166,12 @@ describe('profile suggestions', () => {
       ),
     );
     renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'flux-lab.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('fluxLab.dev'),
-    );
+    await waitFor(() => expect(screen.getByPlaceholderText('My salon')).toHaveValue('fluxLab.dev'));
     expect(
       screen.getByText(
         'We could not identify the business or site type and who it is for in the homepage’s public metadata, so those stay empty — fill them in yourself.',
@@ -197,7 +195,7 @@ describe('profile suggestions', () => {
       ),
     );
     renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'clinic.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
@@ -243,7 +241,7 @@ describe('profile suggestions', () => {
       }),
     );
     renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'clinic.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
@@ -251,7 +249,7 @@ describe('profile suggestions', () => {
 
     const region = screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine');
     expect(region).toBeDisabled();
-    expect(screen.getByPlaceholderText('Product site')).toBeDisabled();
+    expect(screen.getByPlaceholderText('My salon')).toBeDisabled();
     expect(screen.getByPlaceholderText('Acme Dental, Bright Smile Clinic')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
 
@@ -272,21 +270,19 @@ describe('profile suggestions', () => {
       }),
     );
     renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'first.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'second.example' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Manual name' },
     });
     pending.resolve(success({ name: 'Old public title' }));
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Manual name'),
-    );
+    await waitFor(() => expect(screen.getByPlaceholderText('My salon')).toHaveValue('Manual name'));
   });
 
   it('keeps the latest Fill result when an aborted earlier request settles late', async () => {
@@ -303,26 +299,24 @@ describe('profile suggestions', () => {
       }),
     );
     renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'first.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'second.example' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
     second.resolve(success({ name: 'Second site', industry: 'Latest industry' }));
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Second site'),
-    );
+    await waitFor(() => expect(screen.getByPlaceholderText('My salon')).toHaveValue('Second site'));
     first.resolve(success({ name: 'First site', industry: 'Stale industry' }));
     await waitFor(() =>
       expect(
         screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
       ).toHaveValue('Latest industry'),
     );
-    expect(screen.getByPlaceholderText('Product site')).toHaveValue('Second site');
+    expect(screen.getByPlaceholderText('My salon')).toHaveValue('Second site');
   });
 
   it('drops a localized proposal that settles after the UI locale changes', async () => {
@@ -337,7 +331,7 @@ describe('profile suggestions', () => {
       ),
     );
     const form = renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'studio.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
@@ -367,7 +361,7 @@ describe('profile suggestions', () => {
     };
     renderForm({ profiles: [profile] });
     fireEvent.click(screen.getByRole('button', { name: '+ Add another site' }));
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'new.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
@@ -386,9 +380,9 @@ describe('profile suggestions', () => {
     // The half-written profile is still the one in the form afterwards.
     pending.resolve(success({ name: 'Public title' }));
     await waitFor(() =>
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public title'),
+      expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public title'),
     );
-    expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('new.example');
+    expect(screen.getByPlaceholderText('mysalon.com')).toHaveValue('new.example');
     await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Edit site' })).toBeEnabled());
   });
 
@@ -405,10 +399,10 @@ describe('profile suggestions', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     renderForm({ onNotice: notice });
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'manual.example' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Manual profile' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
@@ -460,7 +454,7 @@ describe('automatic autofill from the pasted address', () => {
   }
 
   function typeAddress(value: string): void {
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), { target: { value } });
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), { target: { value } });
   }
 
   it('fills the form from the pasted address with no button pressed', async () => {
@@ -477,7 +471,7 @@ describe('automatic autofill from the pasted address', () => {
     typeAddress('clinic.example');
     await autofillSettles();
 
-    expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic');
+    expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public clinic');
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toHaveValue('Dentist');
@@ -571,7 +565,7 @@ describe('automatic autofill from the pasted address', () => {
     await autofillSettles();
 
     expect(suggestionCalls(fetchMock)).toHaveLength(2);
-    expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic');
+    expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public clinic');
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toHaveValue('Dentist');
@@ -665,11 +659,11 @@ describe('automatic autofill from the pasted address', () => {
     expect(screen.getByRole('button', { name: 'Save site' })).toBeDisabled();
 
     // Offered even on a first site, for as long as the hold lasts.
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel editing' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await autofillSettles(1_000);
 
     expect(suggestionCalls(fetchMock)).toHaveLength(0);
-    expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('');
+    expect(screen.getByPlaceholderText('mysalon.com')).toHaveValue('');
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toBeEnabled();
@@ -679,7 +673,7 @@ describe('automatic autofill from the pasted address', () => {
     const fetchMock = stubSuggestions(() => success({ industry: 'Dentist' }));
     renderForm();
 
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Written by hand' },
     });
     const written: readonly [string, string][] = [
@@ -767,7 +761,7 @@ describe('automatic autofill from the pasted address', () => {
       success({ name: 'Walled clinic', industry: 'Dentist', targetAudience: 'Anyone at all' }),
     );
     await waitFor(() =>
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Walled clinic'),
+      expect(screen.getByPlaceholderText('My salon')).toHaveValue('Walled clinic'),
     );
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
@@ -823,13 +817,13 @@ describe('automatic autofill from the pasted address', () => {
     stubSuggestions(() => success({ name: 'Public clinic', industry: 'Dentist' }));
     renderForm();
 
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Client landing page' },
     });
     typeAddress('clinic.example');
     await autofillSettles();
 
-    expect(screen.getByPlaceholderText('Product site')).toHaveValue('Client landing page');
+    expect(screen.getByPlaceholderText('My salon')).toHaveValue('Client landing page');
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toHaveValue('Dentist');
@@ -869,7 +863,7 @@ describe('automatic autofill from the pasted address', () => {
         screen.getByText('Suggested from the public homepage. Review and edit before saving.'),
       ).toBeInTheDocument(),
     );
-    expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic');
+    expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public clinic');
   });
 
   // An edit that leaves the origin alone used to abort the read it had just
@@ -897,7 +891,7 @@ describe('automatic autofill from the pasted address', () => {
     expect(signals.map((signal) => signal.aborted)).toEqual([false]);
     pending.resolve(success({ name: 'Public clinic', industry: 'Dentist' }));
     await waitFor(() =>
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic'),
+      expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public clinic'),
     );
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
@@ -960,11 +954,11 @@ describe('automatic autofill from the pasted address', () => {
 
     typeAddress('clinic.example');
     await autofillSettles();
-    expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic');
+    expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public clinic');
     typeAddress('studio.example');
     await autofillSettles();
 
-    expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public studio');
+    expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public studio');
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toHaveValue('Product studio');
@@ -1037,7 +1031,7 @@ describe('automatic autofill from the pasted address', () => {
     typeAddress('');
     await autofillSettles();
 
-    expect(screen.getByPlaceholderText('Product site')).toHaveValue('');
+    expect(screen.getByPlaceholderText('My salon')).toHaveValue('');
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toHaveValue('');
@@ -1127,7 +1121,7 @@ describe('automatic autofill from the pasted address', () => {
       // Asking again by hand is the retry the sentence offers.
       fireEvent.click(screen.getByRole('button', { name: 'Fill from site' }));
       await waitFor(() =>
-        expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic'),
+        expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public clinic'),
       );
       expect(suggestionCalls(fetchMock)).toHaveLength(2);
     });
@@ -1147,7 +1141,7 @@ describe('automatic autofill from the pasted address', () => {
 
       // The owner has already been told the read failed and may have started
       // writing: a proposal arriving now would land in a form that moved on.
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('slow.example');
+      expect(screen.getByPlaceholderText('My salon')).toHaveValue('slow.example');
       fireEvent.click(screen.getByText(/What your business does/));
       expect(
         screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
@@ -1164,7 +1158,7 @@ describe('automatic autofill from the pasted address', () => {
     stubSuggestions(() => pending.promise);
     renderForm();
 
-    fireEvent.change(screen.getByPlaceholderText('Product site'), {
+    fireEvent.change(screen.getByPlaceholderText('My salon'), {
       target: { value: 'Written by hand' },
     });
     typeAddress('clinic.example');
@@ -1276,8 +1270,8 @@ describe('automatic autofill from the pasted address', () => {
       cleanup();
       renderForm();
 
-      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('clinic.example');
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic');
+      expect(screen.getByPlaceholderText('mysalon.com')).toHaveValue('clinic.example');
+      expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public clinic');
       expect(
         screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
       ).toHaveValue('Dentist');
@@ -1334,7 +1328,7 @@ describe('automatic autofill from the pasted address', () => {
         body: JSON.stringify({ domain: 'https://clinic.example', targetLanguage: 'en' }),
       });
       await waitFor(() =>
-        expect(screen.getByPlaceholderText('Product site')).toHaveValue('Public clinic'),
+        expect(screen.getByPlaceholderText('My salon')).toHaveValue('Public clinic'),
       );
       expect(screen.getByRole('button', { name: 'Save site' })).toBeEnabled();
     });
@@ -1348,8 +1342,8 @@ describe('automatic autofill from the pasted address', () => {
       cleanup();
       renderForm({ accountId: 'account-2' });
 
-      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('');
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('');
+      expect(screen.getByPlaceholderText('mysalon.com')).toHaveValue('');
+      expect(screen.getByPlaceholderText('My salon')).toHaveValue('');
     });
 
     it('waits for the session before restoring anything', async () => {
@@ -1362,11 +1356,11 @@ describe('automatic autofill from the pasted address', () => {
       // The session has not been read yet, so there is no account to restore a
       // draft for — and the draft must survive being asked too early.
       renderForm({ accountId: null });
-      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('');
+      expect(screen.getByPlaceholderText('mysalon.com')).toHaveValue('');
 
       cleanup();
       renderForm({ accountId: 'account-1' });
-      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('clinic.example');
+      expect(screen.getByPlaceholderText('mysalon.com')).toHaveValue('clinic.example');
     });
 
     it('prefers an address carried in from the page before over the draft', async () => {
@@ -1378,7 +1372,7 @@ describe('automatic autofill from the pasted address', () => {
       cleanup();
       renderForm({ initialDomain: 'carried.example' });
 
-      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('carried.example');
+      expect(screen.getByPlaceholderText('mysalon.com')).toHaveValue('carried.example');
     });
 
     it('keeps nothing once the profile is saved', async () => {
@@ -1387,13 +1381,13 @@ describe('automatic autofill from the pasted address', () => {
       typeAddress('clinic.example');
       await autofillSettles();
       fireEvent.click(saveButton());
-      await waitFor(() => expect(screen.getByPlaceholderText('mysite.com')).toHaveValue(''));
+      await waitFor(() => expect(screen.getByPlaceholderText('mysalon.com')).toHaveValue(''));
 
       cleanup();
       renderForm();
 
-      expect(screen.getByPlaceholderText('mysite.com')).toHaveValue('');
-      expect(screen.getByPlaceholderText('Product site')).toHaveValue('');
+      expect(screen.getByPlaceholderText('mysalon.com')).toHaveValue('');
+      expect(screen.getByPlaceholderText('My salon')).toHaveValue('');
     });
   });
 });
@@ -1408,7 +1402,7 @@ describe('localized profile context', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     renderForm();
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'studio.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));
@@ -1434,7 +1428,7 @@ describe('localized profile context', () => {
       }),
     );
     renderForm({ onNotice: notice });
-    fireEvent.change(screen.getByPlaceholderText('mysite.com'), {
+    fireEvent.change(screen.getByPlaceholderText('mysalon.com'), {
       target: { value: 'studio.example' },
     });
     fireEvent.click(screen.getByText(/What your business does/));

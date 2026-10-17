@@ -251,14 +251,14 @@ export const copy = {
       googleReminderChoose: 'Choose properties',
       noSites: 'No sites yet',
       noSitesHelp:
-        'Add your first site to begin. Enter its homepage address (like mysite.com) and FluxRadar saves it, ready to check whenever you are.',
+        'Add your first site to begin. Enter its homepage address (like mysalon.com) and FluxRadar saves it, ready to check whenever you are.',
       addSite: 'Add a site',
       addSiteHelp:
         'Add your site’s address. We read only public pages, with no passwords and no access to your site. Saving starts nothing and charges nothing.',
       displayName: 'Display name',
-      displayNamePlaceholder: 'Product site',
+      displayNamePlaceholder: 'My salon',
       siteAddressLabel: 'Site address',
-      siteAddressPlaceholder: 'mysite.com',
+      siteAddressPlaceholder: 'mysalon.com',
       siteAddressHint: 'Enter the address of your homepage, for example mysalon.com.',
       suggestProfile: 'Fill from site',
       suggestProfileHelp:
@@ -299,7 +299,7 @@ export const copy = {
       autofillBlocked:
         'We could not read this site, so nothing was filled in. {reason} You can still save the site and describe it yourself.',
       siteAddressError:
-        'That does not look like a site address. Enter your domain, like mysite.com.',
+        'That does not look like a site address. Enter your domain, like mysalon.com.',
       businessType: 'Business or site type',
       businessTypePlaceholder: 'Dental clinic, recruiting platform, online store',
       businessTypeHint: 'The short category a customer would use to describe this site.',
@@ -336,6 +336,7 @@ export const copy = {
       updateProfile: 'Save changes',
       editProfile: 'Edit site',
       cancelEdit: 'Cancel editing',
+      cancelAdd: 'Cancel',
       deleteProfileAction: 'Delete',
       deleteProfileHeading: 'Delete this site',
       deleteProfileHelp:
@@ -376,6 +377,7 @@ export const copy = {
       sitesSaved: 'Sites saved',
       googleLabel: 'Google data',
       googleNotLinked: 'Not connected (optional)',
+      googleNoProperty: 'No property chosen (optional)',
       googleUnknown: 'Could not be read',
       googleSearchConsole: 'Search Console',
       googleAnalytics: 'Analytics',
@@ -586,7 +588,7 @@ export const copy = {
         },
         'profile-domain': {
           title: 'Add your first site',
-          body: 'Enter the homepage address of a site anyone can open, like mysite.com. FluxRadar reads only public pages — it never needs a CMS password or source-code access.',
+          body: 'Enter the homepage address of a site anyone can open, like mysalon.com. FluxRadar reads only public pages — it never needs a CMS password or source-code access.',
         },
         'save-profile': {
           title: 'Save the site',
@@ -2271,14 +2273,14 @@ export const copy = {
       googleReminderChoose: 'Обрати property',
       noSites: 'Сайтів ще немає',
       noSitesHelp:
-        'Додайте перший сайт, щоб почати. Введіть адресу головної сторінки (наприклад, mysite.com), і FluxRadar збереже сайт, щоб ви перевірили його, коли будете готові.',
+        'Додайте перший сайт, щоб почати. Введіть адресу головної сторінки (наприклад, mysalon.com.ua), і FluxRadar збереже сайт, щоб ви перевірили його, коли будете готові.',
       addSite: 'Додати сайт',
       addSiteHelp:
-        'Додайте адресу сайту — ми читаємо лише публічні сторінки, без паролів і доступу до сайту. Збереження нічого не запускає і не списує гроші.',
+        'Додайте адресу сайту. Ми читаємо лише публічні сторінки, без паролів і доступу до сайту. Збереження нічого не запускає і не списує гроші.',
       displayName: 'Назва',
-      displayNamePlaceholder: 'Сайт продукту',
+      displayNamePlaceholder: 'Мій салон',
       siteAddressLabel: 'Адреса сайту',
-      siteAddressPlaceholder: 'mysite.com',
+      siteAddressPlaceholder: 'mysalon.com.ua',
       siteAddressHint: 'Введіть адресу головної сторінки, наприклад mysalon.com.ua.',
       suggestProfile: 'Заповнити за сайтом',
       suggestProfileHelp:
@@ -2311,7 +2313,7 @@ export const copy = {
         'Головна сторінка цього сайту не вказує нічого, що можна було б використати, тому поля нижче заповніть самі.',
       autofillBlocked:
         'Ми не змогли прочитати цей сайт, тому нічого не заповнили. {reason} Сайт усе одно можна зберегти й описати самостійно.',
-      siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysite.com.',
+      siteAddressError: 'Це не схоже на адресу сайту. Введіть домен, наприклад mysalon.com.ua.',
       businessType: 'Тип бізнесу або сайту',
       businessTypePlaceholder: 'Стоматологія, рекрутингова платформа, інтернет-магазин',
       businessTypeHint: 'Коротка категорія, якою клієнт описав би цей сайт.',
@@ -2346,6 +2348,7 @@ export const copy = {
       updateProfile: 'Зберегти зміни',
       editProfile: 'Змінити сайт',
       cancelEdit: 'Скасувати редагування',
+      cancelAdd: 'Скасувати',
       deleteProfileAction: 'Видалити',
       deleteProfileHeading: 'Видалити цей сайт',
       deleteProfileHelp:
@@ -2387,6 +2390,7 @@ export const copy = {
       sitesSaved: 'Збережено сайтів',
       googleLabel: 'Дані Google',
       googleNotLinked: 'Не підключено (необов’язково)',
+      googleNoProperty: 'Ресурс не обрано (необов’язково)',
       googleUnknown: 'Не вдалося прочитати',
       googleSearchConsole: 'Search Console',
       googleAnalytics: 'Analytics',
@@ -2579,7 +2583,7 @@ export const copy = {
         },
         'profile-domain': {
           title: 'Додайте перший сайт',
-          body: 'Введіть адресу головної сторінки, яку може відкрити будь-хто, наприклад mysite.com. FluxRadar читає лише публічні сторінки — пароль до CMS або доступ до коду не потрібні.',
+          body: 'Введіть адресу головної сторінки, яку може відкрити будь-хто, наприклад mysalon.com.ua. FluxRadar читає лише публічні сторінки — пароль до CMS або доступ до коду не потрібні.',
         },
         'save-profile': {
           title: 'Збережіть сайт',

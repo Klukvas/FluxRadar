@@ -150,6 +150,32 @@ describe('site status panel', () => {
     expect(value.closest('[class*="chip"]')).toBeNull();
   });
 
+  // Connected, but no Search Console or Analytics property picked for the site:
+  // saying "not connected" there would send the owner to connect Google again.
+  it.each([
+    ['en', 'No property chosen (optional)', 'Not connected (optional)'],
+    ['uk', 'Ресурс не обрано (необов’язково)', 'Не підключено (необов’язково)'],
+  ] as const)(
+    'tells a connection with no property chosen apart in %s',
+    async (language, text, notConnected) => {
+      renderProfiles(
+        stubWorkspace({
+          [`/profiles/${profile.id}/google-binding`]: () =>
+            envelope({
+              ...binding,
+              searchConsoleSiteUrl: null,
+              ga4PropertyId: null,
+              ga4PropertyName: null,
+            }),
+        }),
+        language,
+      );
+
+      expect(await screen.findByText(text)).toBeInTheDocument();
+      expect(screen.queryByText(notConnected)).not.toBeInTheDocument();
+    },
+  );
+
   // An unreadable binding is not the same fact as "not connected", and saying
   // the second one would be inventing an answer.
   it('separates a binding it could not read from one that is not there', async () => {

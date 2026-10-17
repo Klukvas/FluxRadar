@@ -43,7 +43,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
     rowActions: (name) => `Actions for ${name}`,
     contextSummary: 'What your business does (optional)',
     contextHint:
-      'For example: “Nail salon in Zhytomyr, gel polish and pedicure.” It helps us check more accurately whether ChatGPT and other AI assistants know about you.',
+      'Fill in the type of business, services and city, for example “nail salon”, “gel polish and pedicure”, “Zhytomyr”. It helps us check more accurately whether ChatGPT and other AI assistants know about you.',
     profileSaved: (name) => `“${name}” saved. Start a check from its row.`,
     profileUpdated: (name) => `“${name}” updated.`,
     siteHeading: (name, domain) => `${name} · ${domain}`,
@@ -96,7 +96,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
     rowActions: (name) => `Дії для ${name}`,
     contextSummary: 'Чим займається ваш бізнес (необов’язково)',
     contextHint:
-      'Наприклад: «Салон манікюру у Житомирі, гель-лак і педикюр». Так ми точніше перевіримо, чи знають про вас ChatGPT та інші ШІ-помічники.',
+      'Вкажіть тип бізнесу, послуги й місто, наприклад «салон манікюру», «гель-лак і педикюр», «Житомир». Так ми точніше перевіримо, чи знають про вас ChatGPT та інші ШІ-помічники.',
     profileSaved: (name) => `«${name}» збережено. Запустіть перевірку з його рядка.`,
     profileUpdated: (name) => `«${name}» оновлено.`,
     siteHeading: (name, domain) => `${name} · ${domain}`,

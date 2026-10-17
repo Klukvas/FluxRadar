@@ -176,7 +176,7 @@ function OwnershipFold(props: {
     <Panel className="ownership-fold">
       <details open={props.isOpen} onToggle={(event) => props.onToggle(event.currentTarget.open)}>
         <summary className="ownership-fold__summary">
-          <span className="ownership-fold__title">{fold.summary}</span>
+          <span>{fold.summary}</span>
           <span className="muted ownership-fold__why">{fold.why}</span>
         </summary>
         <div className="ownership-fold__body">

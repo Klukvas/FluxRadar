@@ -451,7 +451,7 @@ test('holds the form and the row actions while it reads a site, and takes Cancel
   // The address stays writable: editing it is not a race with the read but the
   // end of it, and Cancel is the deliberate way out of the wait.
   await expect(page.getByRole('textbox', { name: /Site address/ })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Cancel editing' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeEnabled();
 
   release();
   await expect(page.getByRole('textbox', { name: 'Display name' })).toHaveValue('Public title');
@@ -466,7 +466,7 @@ test('holds the form and the row actions while it reads a site, and takes Cancel
     fullPage: true,
   });
 
-  await page.getByRole('button', { name: 'Cancel editing' }).click();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByRole('textbox', { name: /Site address/ })).toHaveCount(0);
 });
 

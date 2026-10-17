@@ -549,9 +549,13 @@ export function DesktopScreen(props: DesktopScreenProps) {
                     open={contextOpen}
                     onToggle={(event) => setContextOpen(event.currentTarget.open)}
                   >
-                    <summary>
+                    {/* Named by the label alone; the example is its description,
+                        so a screen reader is not read two sentences as a name. */}
+                    <summary aria-label={d.contextSummary} aria-describedby="profile-context-hint">
                       {d.contextSummary}
-                      <span className="muted profile-context__hint">{d.contextHint}</span>
+                      <span id="profile-context-hint" className="muted profile-context__hint">
+                        {d.contextHint}
+                      </span>
                     </summary>
                     <div className="stack">
                       <div className="stack profile-context-actions">
@@ -721,7 +725,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
                     locked ||
                     (formRequested && props.profiles.length > 0) ? (
                       <Button type="button" onClick={resetForm}>
-                        {t.workspace.cancelEdit}
+                        {editingProfile === null ? t.workspace.cancelAdd : t.workspace.cancelEdit}
                       </Button>
                     ) : null}
                   </div>

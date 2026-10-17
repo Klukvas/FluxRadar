@@ -179,7 +179,8 @@ function googleValue(binding: GoogleBinding | null | undefined, language: Langua
     binding.searchConsoleSiteUrl === null ? null : t.googleSearchConsole,
     binding.ga4PropertyId === null ? null : (binding.ga4PropertyName ?? t.googleAnalytics),
   ].filter((source): source is string => source !== null);
-  return sources.length === 0 ? t.googleNotLinked : sources.join(' · ');
+  // Connected, with no property picked for this site: a different fact.
+  return sources.length === 0 ? t.googleNoProperty : sources.join(' · ');
 }
 
 /**

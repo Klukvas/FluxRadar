@@ -147,7 +147,7 @@ describe('the add-a-site form', () => {
     [
       'uk',
       'Додати сайт',
-      'Додайте адресу сайту — ми читаємо лише публічні сторінки, без паролів і доступу до сайту. Збереження нічого не запускає і не списує гроші.',
+      'Додайте адресу сайту. Ми читаємо лише публічні сторінки, без паролів і доступу до сайту. Збереження нічого не запускає і не списує гроші.',
       'Введіть адресу головної сторінки, наприклад mysalon.com.ua.',
       'Зберегти сайт',
     ],
@@ -168,12 +168,12 @@ describe('the add-a-site form', () => {
     [
       'en',
       'What your business does (optional)',
-      'For example: “Nail salon in Zhytomyr, gel polish and pedicure.” It helps us check more accurately whether ChatGPT and other AI assistants know about you.',
+      'Fill in the type of business, services and city, for example “nail salon”, “gel polish and pedicure”, “Zhytomyr”. It helps us check more accurately whether ChatGPT and other AI assistants know about you.',
     ],
     [
       'uk',
       'Чим займається ваш бізнес (необов’язково)',
-      'Наприклад: «Салон манікюру у Житомирі, гель-лак і педикюр». Так ми точніше перевіримо, чи знають про вас ChatGPT та інші ШІ-помічники.',
+      'Вкажіть тип бізнесу, послуги й місто, наприклад «салон манікюру», «гель-лак і педикюр», «Житомир». Так ми точніше перевіримо, чи знають про вас ChatGPT та інші ШІ-помічники.',
     ],
   ] as const)(
     'asks what the business does, with an example, before it is unfolded in %s',
@@ -184,6 +184,9 @@ describe('the add-a-site form', () => {
       if (summary === null) throw new Error('expected the context section summary');
       expect(summary).toHaveTextContent(hint);
       expect(summary.closest('details')).not.toHaveAttribute('open');
+      // Named by the label alone, with the example as its description.
+      expect(summary).toHaveAccessibleName(label);
+      expect(summary).toHaveAccessibleDescription(hint);
     },
   );
 
@@ -199,6 +202,33 @@ describe('the add-a-site form', () => {
     expect(screen.getByText(edit, PANEL_LABEL)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: save })).toBeInTheDocument();
   });
+
+  it.each([
+    ['en', '+ Add another site', 'Cancel', 'Cancel editing', 'Actions for Salon', 'Edit site'],
+    [
+      'uk',
+      '+ Додати ще один сайт',
+      'Скасувати',
+      'Скасувати редагування',
+      'Дії для Salon',
+      'Змінити сайт',
+    ],
+  ] as const)(
+    'offers a plain Cancel when adding and Cancel editing when editing in %s',
+    (language, add, cancelAdd, cancelEdit, menu, edit) => {
+      renderDesktop(language, [salon]);
+
+      fireEvent.click(screen.getByRole('button', { name: add }));
+      expect(screen.getByRole('button', { name: cancelAdd })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: cancelEdit })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: cancelAdd }));
+
+      fireEvent.click(screen.getByRole('button', { name: menu }));
+      fireEvent.click(screen.getByRole('menuitem', { name: edit }));
+      expect(screen.getByRole('button', { name: cancelEdit })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: cancelAdd })).not.toBeInTheDocument();
+    },
+  );
 });
 
 describe('optional extras', () => {
