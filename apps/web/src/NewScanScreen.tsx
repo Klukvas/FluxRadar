@@ -5,7 +5,7 @@ import { Window } from './components';
 import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import { useNewScanForm, type NewScanForm, type NewScanFormProps } from './new-scan-form';
-import { AdvancedSection } from './NewScanAdvancedSection';
+import { AdvancedSection, ConfigurationAttention } from './NewScanAdvancedSection';
 import { OrderSummary } from './NewScanOrderSummary';
 import { PlanStep } from './NewScanPlanStep';
 import { ReachStep, SiteStep } from './NewScanSteps';
@@ -173,6 +173,7 @@ function ScanStepsColumn(props: {
         internalFreeAccess={props.internalFreeAccess}
         claimAutoCheck={props.claimAutoCheck}
       />
+      <ConfigurationAttention form={props.form} language={props.language} />
       <AdvancedSection form={props.form} language={props.language} />
     </div>
   );

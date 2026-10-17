@@ -184,3 +184,14 @@
     padding: var(--sp-3);
   }
 }
+
+/* The saved-settings status when it needs reading before launch, above the
+   fold. The live region stays mounted while empty (so its first message is
+   announced), and an empty one gives back the grid gap it would otherwise
+   add between step 3 and the fold. */
+.configuration-attention .configuration-status {
+  margin-top: 0;
+}
+.launch-form__controls > .configuration-attention:empty {
+  margin-top: calc(-1 * var(--sp-3));
+}

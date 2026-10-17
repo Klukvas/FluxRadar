@@ -94,8 +94,8 @@ export function ReachStep(props: {
   claimAutoCheck: (profileId: string) => boolean;
 }) {
   const c = newScanCopy[props.language];
-  const { egressLocation, launchConfig, plan, resolveTargetProfileId, setSiteReachable } =
-    props.form;
+  const { configLoading, egressLocation, launchConfig, plan } = props.form;
+  const { resolveTargetProfileId, setSiteReachable } = props.form;
   const { target, usingSavedProfile } = props.form;
   const gated = plan !== 'Free' && !props.internalFreeAccess;
   return (
@@ -112,7 +112,13 @@ export function ReachStep(props: {
           egressLocationId={egressLocation?.id ?? null}
           resolveProfileId={resolveTargetProfileId}
           onResult={setSiteReachable}
-          autoCheck={{ ready: launchConfig.status !== 'loading', claim: props.claimAutoCheck }}
+          // Ready once both sources of the egress country have answered: the
+          // deployment's locations and, for a site with no saved settings,
+          // the carried-over scope of its last scan.
+          autoCheck={{
+            ready: launchConfig.status !== 'loading' && !configLoading,
+            claim: props.claimAutoCheck,
+          }}
         />
       ) : (
         <p className="muted panel-help">

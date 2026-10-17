@@ -53,12 +53,36 @@ interface ServerOptions {
   readonly sells?: boolean;
   /** The stored reachability answer per profile id; default never checked. */
   readonly stored?: Readonly<Record<string, unknown>>;
-  /** What a fresh probe answers. */
+  /** What a fresh probe answers. A valid answer is stored, as the API does. */
   readonly probe?: unknown;
+  /** Holds a profile's probe until the test answers it. */
+  readonly holdProbeFor?: string;
+  /** Holds the last-scan read a profile without saved settings starts from. */
+  readonly holdLastScanFor?: string;
 }
 
-function stubApi(options: ServerOptions = {}): ReturnType<typeof vi.fn> {
-  const { sells = true, stored = {}, probe = REACHABLE } = options;
+/** A response the test answers when it chooses to. */
+function held(): { promise: Promise<Response>; answer: (data: unknown) => void } {
+  let answer: (data: unknown) => void = () => undefined;
+  const promise = new Promise<Response>((resolve) => {
+    answer = (data) => resolve(envelope(data));
+  });
+  return { promise, answer };
+}
+
+interface Server {
+  readonly fetchMock: ReturnType<typeof vi.fn>;
+  /** Answers the held probe. */
+  readonly answerProbe: (data: unknown) => void;
+  /** Answers the held last-scan read. */
+  readonly answerLastScan: (data: unknown) => void;
+}
+
+function stubServer(options: ServerOptions = {}): Server {
+  const { sells = true, probe = REACHABLE } = options;
+  const stored: Record<string, unknown> = { ...options.stored };
+  const heldProbe = held();
+  const heldLastScan = held();
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname } = new URL(String(input));
     const method = (init?.method ?? 'GET').toUpperCase();
@@ -78,15 +102,26 @@ function stubApi(options: ServerOptions = {}): ReturnType<typeof vi.fn> {
     const reach = /^\/profiles\/([^/]+)\/reachability$/.exec(pathname);
     if (reach !== null) {
       const profileId = decodeURIComponent(reach[1] ?? '');
-      return Promise.resolve(
-        envelope(method === 'POST' ? probe : (stored[profileId] ?? NEVER_CHECKED)),
-      );
+      if (method !== 'POST') return Promise.resolve(envelope(stored[profileId] ?? NEVER_CHECKED));
+      if (profileId === options.holdProbeFor) return heldProbe.promise;
+      if (typeof probe === 'object' && probe !== null && 'canPurchase' in probe) {
+        stored[profileId] = probe;
+      }
+      return Promise.resolve(envelope(probe));
+    }
+    const lastScan = /^\/profiles\/([^/]+)\/scans$/.exec(pathname);
+    if (lastScan !== null && decodeURIComponent(lastScan[1] ?? '') === options.holdLastScanFor) {
+      return heldLastScan.promise;
     }
     if (pathname === '/scans/launch-config') return Promise.resolve(envelope(null));
     return Promise.resolve(envelope(null));
   });
   vi.stubGlobal('fetch', fetchMock);
-  return fetchMock;
+  return { fetchMock, answerProbe: heldProbe.answer, answerLastScan: heldLastScan.answer };
+}
+
+function stubApi(options: ServerOptions = {}): ReturnType<typeof vi.fn> {
+  return stubServer(options).fetchMock;
 }
 
 function renderScreen(
@@ -182,6 +217,14 @@ describe('the plan cards', () => {
       expect(card).toHaveTextContent(newScanCopy.en.planCards[plan].line);
     }
     expect(planRadio('Basic').closest('label')).toHaveTextContent('GOOD PLACE TO START');
+    // Named by its plan, price and recommendation; the line is its description.
+    expect(
+      screen.getByRole('radio', { name: `Basic ${PLAN_PRICE.Basic} recommended` }),
+    ).toHaveAccessibleDescription(newScanCopy.en.planCards.Basic.line);
+    expect(
+      screen.getByRole('radio', { name: `Complete ${PLAN_PRICE.Complete}` }),
+    ).toHaveAccessibleDescription(newScanCopy.en.planCards.Complete.line);
+    expect(screen.getByRole('radio', { name: 'Free $0' })).toBeChecked();
     expect(planRadio('Complete').closest('label')).not.toHaveTextContent('GOOD PLACE TO START');
     expect(screen.queryByRole('combobox', { name: /plan/i })).toBeNull();
   });
@@ -385,5 +428,110 @@ describe('the reachability step', () => {
     expect(
       screen.getByRole('button', { name: `Pay ${PLAN_PRICE.Basic} and start` }),
     ).toBeDisabled();
+  });
+});
+
+describe('the reachability step, against answers that arrive late', () => {
+  it('ignores a probe for a site the buyer has already left', async () => {
+    const BLOCKED = { ...REACHABLE, state: 'access-denied', startStatus: 403, canPurchase: false };
+    const server = stubServer({ holdProbeFor: SALON.id, stored: { [SHOP.id]: BLOCKED } });
+    renderScreen({ profiles: [SALON, SHOP] });
+    await paidCardsOffered();
+    choosePlanCard('Basic');
+    await waitFor(() => expect(probes(server.fetchMock, SALON.id)).toBe(1));
+
+    fireEvent.change(screen.getByRole('combobox', { name: /^Site/ }), {
+      target: { value: SHOP.id },
+    });
+    await screen.findByText(copy.en.reachability.states.accessDenied.label);
+    // The salon's probe lands only now, saying the salon can be bought.
+    server.answerProbe(REACHABLE);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(screen.getByText(copy.en.reachability.states.accessDenied.label)).toBeInTheDocument();
+    expect(screen.queryByText(copy.en.reachability.states.reachable.label)).toBeNull();
+    expect(
+      screen.getByRole('button', { name: `Pay ${PLAN_PRICE.Basic} and start` }),
+    ).toBeDisabled();
+    expect(orderValue('Site')).toHaveTextContent(/^shop\.example$/);
+  });
+
+  it('waits for the last-scan settings of a site with none saved before probing', async () => {
+    const server = stubServer({ holdLastScanFor: SALON.id });
+    renderScreen();
+    await paidCardsOffered();
+    choosePlanCard('Basic');
+    await screen.findByText(copy.en.reachability.unchecked);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The carried-over scope can name the country the probe must leave from.
+    expect(probes(server.fetchMock)).toBe(0);
+
+    server.answerLastScan([]);
+    await screen.findByText(copy.en.reachability.states.reachable.label);
+    expect(probes(server.fetchMock)).toBe(1);
+  });
+
+  it('shows a stored yes after the plan goes to Free and back, without probing again', async () => {
+    const fetchMock = stubApi();
+    renderScreen();
+    await paidCardsOffered();
+    choosePlanCard('Basic');
+    await screen.findByText(copy.en.reachability.states.reachable.label);
+
+    choosePlanCard('Free');
+    await screen.findByText(newScanCopy.en.reach.freeNote);
+    choosePlanCard('Basic');
+
+    expect(
+      await screen.findByText(copy.en.reachability.states.reachable.label),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: `Pay ${PLAN_PRICE.Basic} and start` }),
+      ).toBeEnabled(),
+    );
+    expect(probes(fetchMock)).toBe(1);
+  });
+});
+
+describe('the saved-settings status', () => {
+  const SAVED: SiteProfile = {
+    ...SALON,
+    scanConfig: {
+      plan: 'Basic',
+      scope: {
+        includeSubdomains: false,
+        maxDepth: 5,
+        renderJs: true,
+        queryPolicy: 'ignore',
+        respectRobots: true,
+        robotsOverrideConfirmed: false,
+        userAgent: 'desktop',
+      },
+    },
+    scanConfigVersion: 3,
+  } as SiteProfile;
+
+  it('stays inside the fold while the settings are the saved ones', async () => {
+    stubApi({ stored: { [SALON.id]: REACHABLE } });
+    renderScreen({ profiles: [SAVED] });
+    await waitFor(() => expect(checkedPlan()).toBe('Basic'));
+
+    expect(screen.getByText('Saved · version 3')).not.toBeVisible();
+  });
+
+  it('comes out of the fold, in a live region, once the owner changes them', async () => {
+    stubApi({ stored: { [SALON.id]: REACHABLE } });
+    renderScreen({ profiles: [SAVED] });
+    await waitFor(() => expect(checkedPlan()).toBe('Basic'));
+
+    choosePlanCard('Complete');
+
+    const status = await screen.findByText('Unsaved changes');
+    expect(status).toBeVisible();
+    expect(screen.getByText(copy.en.newScan.configurationUnsavedBody)).toBeVisible();
+    expect(status.closest('[aria-live="polite"]')).not.toBeNull();
+    expect(status.closest('details')).toBeNull();
+    expect(screen.getAllByText(copy.en.newScan.configurationTitle)).toHaveLength(1);
   });
 });

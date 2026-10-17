@@ -30,7 +30,7 @@ import {
   type ConfigurationState,
 } from './new-scan-configuration';
 import { requestScan } from './new-scan-request';
-import { PLAN_MODULES, type Plan } from './plan-modules';
+import { PAID_PLAN_ORDER, PLAN_MODULES, type Plan } from './plan-modules';
 import {
   DEFAULT_SCOPE_FORM,
   clampScopeToPlan,
@@ -94,11 +94,6 @@ export interface NewScanFormProps {
   onTargetChange?: (profileId: string) => void;
 }
 
-interface PlanOption {
-  readonly value: Plan;
-  readonly label: string;
-}
-
 /**
  * What the screen renders from and acts through.
  *
@@ -129,6 +124,11 @@ export interface NewScanForm {
   readonly checkoutConfig: CheckoutConfig | null;
   readonly checkoutPending: boolean;
   readonly configurationState: ConfigurationState;
+  /**
+   * True while the settings of a profile with no saved configuration are still
+   * being read from its last scan — the egress country among them.
+   */
+  readonly configLoading: boolean;
   readonly configurationStatusLabel: string;
   /** True while the deployment offers locations but none of them can be used. */
   readonly egressBlocked: boolean;
@@ -158,13 +158,12 @@ export interface NewScanForm {
   readonly optInAiProviders: readonly AiProcessingOptInProvider[];
   /** What the submit button says right now, including while it is working. */
   readonly launchLabel: string;
-  readonly launchSite: string;
   readonly paidAvailable: boolean;
   /** True on the plans whose crawl the form may actually shape. */
   readonly paidScopeControls: boolean;
   readonly plan: Plan;
-  readonly planLabel: string;
-  readonly planOptions: readonly PlanOption[];
+  /** The plans this form can run right now, cheapest first. */
+  readonly planOptions: readonly Plan[];
   readonly robotsUnconfirmed: boolean;
   /**
    * True while the saved profile carries a robots.txt override that has not
@@ -179,8 +178,6 @@ export interface NewScanForm {
   readonly showsPurchaseTerms: boolean;
   readonly target: string;
   readonly targetLabel: string;
-  /** The selected profile's name, or null while no saved profile is selected. */
-  readonly targetName: string | null;
   readonly usingSavedProfile: boolean;
   /** Setup changed locally and would be lost if the window closes. */
   readonly hasUnsavedChanges: boolean;
@@ -669,27 +666,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   );
   const offersPlan = (value: string): boolean =>
     props.internalFreeAccess || listedPlans.length === 0 || sellablePlans.has(value);
-  const everyPaidPlanOption: readonly PlanOption[] = [
-    {
-      value: 'Basic',
-      label: props.internalFreeAccess ? t.newScan.planBasicInternal : t.newScan.planBasicPaid,
-    },
-    {
-      value: 'WebsiteAudit',
-      label: props.internalFreeAccess
-        ? t.newScan.planWebsiteAuditInternal
-        : t.newScan.planWebsiteAuditPaid,
-    },
-    {
-      value: 'Complete',
-      label: props.internalFreeAccess ? t.newScan.planCompleteInternal : t.newScan.planCompletePaid,
-    },
-  ];
-  const paidPlanOptions = everyPaidPlanOption.filter((option) => offersPlan(option.value));
-  const planOptions: readonly PlanOption[] = [
-    { value: 'Free', label: t.newScan.planFree },
-    ...(paidAvailable ? paidPlanOptions : []),
-  ];
+  const paidPlanOptions = PAID_PLAN_ORDER.filter((paidPlan) => offersPlan(paidPlan));
+  const planOptions: readonly Plan[] = ['Free', ...(paidAvailable ? paidPlanOptions : [])];
   // Free is the fixed homepage check: the crawl controls below do not reach it,
   // so they are not offered on it. The server enforces the same thing whatever
   // is sent (orchestrator/run-attempt.ts); this is the form telling the truth
@@ -702,8 +680,6 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     savedFingerprint: savedConfigFingerprint,
     dirty: configurationDirty,
   });
-  const planLabel = planOptions.find((option) => option.value === plan)?.label ?? plan;
-  const launchSite = targetLabel;
   // The one thing standing between a filled-in form and the checkout, said
   // beside the button rather than only at the checkbox two columns away.
   const robotsUnconfirmed =
@@ -752,6 +728,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     checkoutConfig,
     checkoutPending,
     configurationState,
+    configLoading,
     configurationStatusLabel: configurationStatusLabel(
       configurationState,
       props.language,
@@ -769,11 +746,9 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     offeredOptInAiProviders,
     optInAiProviders,
     launchLabel,
-    launchSite,
     paidAvailable,
     paidScopeControls,
     plan,
-    planLabel,
     planOptions,
     robotsUnconfirmed,
     robotsOverrideStale,
@@ -782,7 +757,6 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     showsPurchaseTerms: purchasing,
     target,
     targetLabel,
-    targetName: selected?.name ?? null,
     usingSavedProfile,
     hasUnsavedChanges,
     chooseTarget: (nextTarget) => {

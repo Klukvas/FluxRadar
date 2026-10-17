@@ -3,11 +3,8 @@ import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
 import {
-  BASIC_PRICE,
   BASIC_PRICE_USD,
-  COMPLETE_PRICE,
   COMPLETE_PRICE_USD,
-  WEBSITE_AUDIT_PRICE,
   PLAN_PRICE,
   WEBSITE_AUDIT_PRICE_USD,
   type PricedPlan,
@@ -736,12 +733,6 @@ export const copy = {
     },
     newScan: {
       windowTitle: 'New scan',
-      optionNewAddress: 'Another site address…',
-      labelAddress: 'Site address',
-      noAddress: 'Enter a site address',
-      addressPlaceholder: 'mysite.com',
-      hintAddress:
-        'FluxRadar saves this address as a profile, so every report for the site stays in one place.',
       prefillNote: 'Settings carried over from your last check of this site.',
       freeScopeTitle: 'What the free check does',
       freeScopeNote:
@@ -775,14 +766,6 @@ export const copy = {
       freeCheckDomainUsedError:
         'This site has already had its free check — each site gets one. Yours is still unused and works on another site; to audit this one, choose Basic or Complete.',
       blockedByEgress: 'A scan cannot start while no check location is answering.',
-      planFree: 'Free · homepage only',
-      planBasicInternal: 'Basic · internal free',
-      planBasicPaid: `Basic · ${BASIC_PRICE}`,
-      planWebsiteAuditInternal: 'Website Audit · internal free',
-      planWebsiteAuditPaid: `Website Audit · ${WEBSITE_AUDIT_PRICE}`,
-      planCompleteInternal: 'Complete · internal free',
-      planCompletePaid: `Complete · ${COMPLETE_PRICE}`,
-      planUnavailableSuffix: 'not available here yet',
       labelMaxPages: 'Maximum pages',
       maxPagesError: 'Enter a whole number of pages, 1 or more, or leave it empty.',
       labelMaxDepth: 'Maximum crawl depth',
@@ -914,7 +897,6 @@ export const copy = {
       launchSummaryOverridden: 'Ignored — you confirmed it',
     },
     reachability: {
-      title: 'Can we read your site?',
       check: 'Check the site',
       again: 'Check again',
       checking: 'Asking your site…',
@@ -2744,12 +2726,6 @@ export const copy = {
     },
     newScan: {
       windowTitle: 'Нова перевірка',
-      optionNewAddress: 'Інша адреса сайту…',
-      labelAddress: 'Адреса сайту',
-      noAddress: 'Введіть адресу сайту',
-      addressPlaceholder: 'mysite.com',
-      hintAddress:
-        'FluxRadar збереже цю адресу як профіль, щоб усі звіти для сайту були в одному місці.',
       prefillNote: 'Налаштування перенесено з вашої попередньої перевірки цього сайту.',
       freeScopeTitle: 'Що робить безкоштовна перевірка',
       freeScopeNote:
@@ -2783,14 +2759,6 @@ export const copy = {
       freeCheckDomainUsedError:
         'Цей сайт уже мав безкоштовну перевірку — кожен сайт отримує одну. Ваша ще не використана й підійде для іншого сайту; щоб перевірити цей, оберіть Basic або Complete.',
       blockedByEgress: 'Перевірку не можна запустити, поки жодна точка перевірки не відповідає.',
-      planFree: 'Free · лише головна',
-      planBasicInternal: 'Basic · внутрішній безкоштовний',
-      planBasicPaid: `Basic · ${BASIC_PRICE}`,
-      planWebsiteAuditInternal: 'Website Audit · внутрішній безкоштовний',
-      planWebsiteAuditPaid: `Website Audit · ${WEBSITE_AUDIT_PRICE}`,
-      planCompleteInternal: 'Complete · внутрішній безкоштовний',
-      planCompletePaid: `Complete · ${COMPLETE_PRICE}`,
-      planUnavailableSuffix: 'поки недоступний тут',
       labelMaxPages: 'Максимум сторінок',
       maxPagesError: 'Введіть ціле число сторінок — 1 або більше, або залиште поле порожнім.',
       labelMaxDepth: 'Максимальна глибина обходу',
@@ -2899,7 +2867,6 @@ export const copy = {
       launchSummaryOverridden: 'Ігнорується — ви підтвердили',
     },
     reachability: {
-      title: 'Чи можемо ми прочитати ваш сайт?',
       check: 'Перевірити сайт',
       again: 'Перевірити ще раз',
       checking: 'Запитуємо ваш сайт…',

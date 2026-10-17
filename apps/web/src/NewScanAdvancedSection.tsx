@@ -45,7 +45,9 @@ export function AdvancedSection(props: { form: NewScanForm; language: Language }
       <summary className="scan-advanced__summary scan-expert__summary">{c.expertTitle}</summary>
       <div className="scan-advanced__fields">
         <TechnicalRows form={props.form} language={props.language} />
-        <ConfigurationStatus form={props.form} language={props.language} />
+        {configurationNeedsAttention(props.form) ? null : (
+          <ConfigurationStatus form={props.form} language={props.language} />
+        )}
         <FreeScope form={props.form} language={props.language} />
         <ExpertSettings form={props.form} language={props.language} />
         {props.form.paidScopeControls ? (
@@ -82,16 +84,39 @@ function TechnicalRows(props: { form: NewScanForm; language: Language }) {
   );
 }
 
+/**
+ * Whether the saved-settings status says something the owner must read before
+ * launching: that the launch will save their edits as a new version, or that a
+ * saved robots.txt permission was not carried over. Either is shown above the
+ * fold, not inside it.
+ */
+function configurationNeedsAttention(form: NewScanForm): boolean {
+  return form.configurationState === 'dirty' || form.robotsOverrideStale;
+}
+
+/**
+ * The saved-settings status when it needs attention, outside "For advanced
+ * users" so a folded section cannot hide it. The live region is always
+ * mounted, so the status is announced when it appears rather than only when
+ * it changes after appearing.
+ */
+export function ConfigurationAttention(props: { form: NewScanForm; language: Language }) {
+  return (
+    <div className="configuration-attention" aria-live="polite">
+      {configurationNeedsAttention(props.form) ? (
+        <ConfigurationStatus form={props.form} language={props.language} />
+      ) : null}
+    </div>
+  );
+}
+
 /** Whether these settings are the ones saved for the site, and what launching does to them. */
 function ConfigurationStatus(props: { form: NewScanForm; language: Language }) {
   const t = copy[props.language];
   const { carriedOver, configurationState, configurationStatusLabel, robotsOverrideStale } =
     props.form;
   return (
-    <section
-      className={`configuration-status configuration-status--${configurationState}`}
-      aria-live="polite"
-    >
+    <section className={`configuration-status configuration-status--${configurationState}`}>
       <div className="configuration-status__header">
         <strong>{t.newScan.configurationTitle}</strong>
         <StatusChip

@@ -28,6 +28,8 @@ export type NewScanClarityCopy = {
   /** Step 2: one card per plan, priced from `tariff-prices.ts`. */
   readonly planCards: Readonly<Record<Plan, { readonly name: string; readonly line: string }>>;
   readonly planRecommended: string;
+  /** The same badge as a screen reader hears it, at the end of the card's name. */
+  readonly planRecommendedSpoken: string;
   /** The price on a card when an internal account pays nothing. */
   readonly planInternalPrice: string;
   /** Step 3: why the question is asked, and what replaces it where nothing is bought. */
@@ -150,6 +152,7 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
       },
     },
     planRecommended: 'GOOD PLACE TO START',
+    planRecommendedSpoken: 'recommended',
     planInternalPrice: 'internal',
     reach: {
       hint: 'We check this before payment so you never pay for a site we cannot read.',
@@ -257,6 +260,7 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
       },
     },
     planRecommended: 'РАДИМО ПОЧАТИ',
+    planRecommendedSpoken: 'радимо',
     planInternalPrice: 'внутрішній',
     reach: {
       hint: 'Перевіряємо це до оплати, щоб ви не заплатили за сайт, який неможливо прочитати.',

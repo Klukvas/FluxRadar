@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 import type { CheckoutConfig } from './api';
 import { Checkbox } from './components';
 import { copy, type Language } from './i18n';
@@ -55,7 +57,7 @@ export function PlanStep(props: {
   return (
     <NewScanStep number={2} title={c.steps.plan} id="scan-step-plan">
       <div className="plan-cards" role="radiogroup" aria-labelledby="scan-step-plan">
-        {planOptions.map(({ value }) => (
+        {planOptions.map((value) => (
           <PlanCard
             key={value}
             plan={value}
@@ -179,6 +181,12 @@ function PlanCard(props: {
     props.internalFreeAccess && props.plan !== 'Free'
       ? c.planInternalPrice
       : PLAN_PRICE[props.plan];
+  const id = useId();
+  const recommended = props.plan === 'Basic';
+  // Named "Basic $55 recommended" and described by its line, rather than
+  // named by everything the label wraps: a screen reader read the badge in
+  // capitals and the whole sentence as the option's name.
+  const labelledBy = [`${id}-name`, `${id}-price`, ...(recommended ? [`${id}-recommended`] : [])];
   return (
     <label className={`plan-card${props.checked ? ' plan-card--checked' : ''}`}>
       <input
@@ -187,16 +195,29 @@ function PlanCard(props: {
         name="scan-plan"
         value={props.plan}
         checked={props.checked}
+        aria-labelledby={labelledBy.join(' ')}
+        aria-describedby={`${id}-line`}
         onChange={() => props.onChoose(props.plan)}
       />
       <span className="plan-card__name">
-        {card.name}
-        {props.plan === 'Basic' ? (
-          <span className="plan-card__badge">{c.planRecommended}</span>
+        <span id={`${id}-name`}>{card.name}</span>
+        {recommended ? (
+          <>
+            <span className="plan-card__badge" aria-hidden="true">
+              {c.planRecommended}
+            </span>
+            <span className="sr-only" id={`${id}-recommended`}>
+              {c.planRecommendedSpoken}
+            </span>
+          </>
         ) : null}
       </span>
-      <span className="plan-card__price">{price}</span>
-      <span className="plan-card__line">{card.line}</span>
+      <span className="plan-card__price" id={`${id}-price`}>
+        {price}
+      </span>
+      <span className="plan-card__line" id={`${id}-line`}>
+        {card.line}
+      </span>
     </label>
   );
 }
