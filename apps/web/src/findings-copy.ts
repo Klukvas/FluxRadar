@@ -7,6 +7,7 @@
 // are read together.
 
 import { takesUkSingular, type Language } from './i18n';
+import { BASIC_PRICE } from './tariff-prices';
 
 export type FindingsCopy = {
   readonly severity: Readonly<Record<string, string>>;
@@ -151,11 +152,19 @@ export type FindingsCopy = {
     readonly action: string;
     readonly working: string;
   };
+  /**
+   * The Free report's last block, which sells Basic. Its lead states what this
+   * free check found on the homepage, and nothing about the rest of the site:
+   * no page past the homepage was read, so there is nothing to count there.
+   */
   readonly upsell: {
     readonly heading: string;
-    readonly lead: (domain: string) => string;
+    /** `problems` is null while the issue summary is loading: no number is said then. */
+    readonly lead: (domain: string, problems: number | null) => string;
+    readonly listIntro: string;
     readonly points: readonly string[];
-    readonly action: (plan: string) => string;
+    readonly price: string;
+    readonly action: string;
     readonly compare: string;
   };
   /**
@@ -223,6 +232,15 @@ export const ukPagesAccusative = (count: number): string => {
   const last = Math.abs(count) % 10;
   if (last === 1) return 'сторінку';
   return last >= 2 && last <= 4 ? 'сторінки' : 'сторінок';
+};
+
+/** Accusative of «проблема», as the object of «знайшла»: «1 проблему», «2 проблеми», «5 проблем». */
+const ukProblemsAccusative = (count: number): string => {
+  const teens = Math.abs(count) % 100;
+  if (teens >= 11 && teens <= 14) return 'проблем';
+  if (takesUkSingular(count)) return 'проблему';
+  const last = Math.abs(count) % 10;
+  return last >= 2 && last <= 4 ? 'проблеми' : 'проблем';
 };
 
 export const findingsCopy: Record<Language, FindingsCopy> = {
@@ -369,17 +387,25 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       working: 'Starting the retry…',
     },
     upsell: {
-      heading: 'What the free check did not look at',
-      lead: (domain) =>
-        `The free check read four things on the homepage of ${domain}. The rest of the site — and security, accessibility, performance, privacy and AI visibility — has not been checked yet.`,
+      heading: 'Your homepage is checked. The rest of the site is not',
+      lead: (domain, problems) => {
+        const rest = 'The other pages of the site have not been checked yet.';
+        if (problems === null)
+          return `The free check looked at four things on the homepage of ${domain}. ${rest}`;
+        if (problems === 0)
+          return `On the homepage of ${domain}, the free check found no problems in the four things it looks at. ${rest}`;
+        return `The free check found ${problems} ${problems === 1 ? 'problem' : 'problems'} on the homepage of ${domain}, in the four things it looks at. ${rest}`;
+      },
+      listIntro: 'A full Basic report checks every page for:',
       points: [
-        'Every public page, not just the homepage — up to 50,000 pages',
-        'Security headers, accessibility (WCAG 2.2 AA), performance, privacy and content',
-        'A score, a prioritised list of problems and a client-ready report',
-        'On Complete, an AI Action Plan: the findings as an ordered list of changes, with an overview for your client',
+        'Broken links — where a visitor clicks and lands nowhere',
+        'Pages with no description, the same title, or duplicates',
+        'Which pages Google cannot show — and why',
+        'Whether AI assistants like ChatGPT know about your business',
       ],
-      action: (plan) => `Run ${plan} for this site`,
-      compare: 'Compare plans',
+      price: `Basic — ${BASIC_PRICE}, paid once, no subscription.`,
+      action: `Check the whole site for ${BASIC_PRICE}`,
+      compare: 'Need security, speed and accessibility too? Compare plans',
     },
     download: {
       pdf: 'Download full report (PDF)',
@@ -568,17 +594,25 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       working: 'Запускаємо повтор…',
     },
     upsell: {
-      heading: 'Чого безкоштовна перевірка не торкалася',
-      lead: (domain) =>
-        `Безкоштовна перевірка прочитала чотири речі на головній сторінці ${domain}. Решту сайту — а також безпеку, доступність, швидкодію, приватність і видимість в AI — ще не перевірено.`,
+      heading: 'Головну перевірено. Решту сайту — ще ні',
+      lead: (domain, problems) => {
+        const rest = 'Інші сторінки сайту ще не перевірено.';
+        if (problems === null)
+          return `Безкоштовна перевірка подивилася чотири речі на головній сторінці ${domain}. ${rest}`;
+        if (problems === 0)
+          return `На головній сторінці ${domain} у чотирьох речах, які дивиться безкоштовна перевірка, проблем немає. ${rest}`;
+        return `Безкоштовна перевірка знайшла на головній сторінці ${domain} ${problems} ${ukProblemsAccusative(problems)} у чотирьох речах, які вона дивиться. ${rest}`;
+      },
+      listIntro: 'Повний звіт Basic перевірить на всіх сторінках:',
       points: [
-        'Усі публічні сторінки, а не лише головна — до 50 000 сторінок',
-        'Заголовки безпеки, доступність (WCAG 2.2 AA), швидкодія, приватність і контент',
-        'Оцінка, пріоритезований список проблем і звіт, який можна віддати клієнту',
-        'У Complete — план дій від ШІ: знахідки як упорядкований список змін з оглядом для вашого клієнта',
+        'Биті посилання — куди клієнт клікає і потрапляє в нікуди',
+        'Сторінки без опису, з однаковими заголовками або дублікатами',
+        'Які сторінки Google не може показати — і чому',
+        'Чи знають про ваш бізнес ШІ-помічники на кшталт ChatGPT',
       ],
-      action: (plan) => `Запустити ${plan} для цього сайту`,
-      compare: 'Порівняти тарифи',
+      price: `Basic — ${BASIC_PRICE}, оплата один раз, без підписки.`,
+      action: `Перевірити весь сайт за ${BASIC_PRICE}`,
+      compare: 'Потрібні ще безпека, швидкість і доступність? Порівняти тарифи',
     },
     download: {
       pdf: 'Завантажити повний звіт (PDF)',

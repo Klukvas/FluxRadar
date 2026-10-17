@@ -107,10 +107,10 @@ export function ResultsRoute({ app }: { readonly app: AppModel }) {
         setIssueRuleFilter(ruleId);
         if (selectedScan) navigate('issues', selectedScan.id);
       }}
-      onUpgrade={(scan) => {
+      onUpgrade={(scan, plan) => {
         const profile = profiles.find((candidate) => candidate.id === scan.profileId);
         if (profile) setSelectedProfile(profile);
-        setNewScanPlan('Complete');
+        setNewScanPlan(plan);
         navigate('new-scan');
       }}
       onPrint={(scan) => navigate('print', scan.id)}
