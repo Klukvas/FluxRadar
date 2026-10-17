@@ -80,14 +80,31 @@ function indexedColumns(definition: string): readonly string[] {
 }
 
 /**
- * Plans the statement with sequential scans disabled. On an empty test table
- * PostgreSQL always prefers a sequential scan whatever indexes exist, so the
- * question this can answer is not "is the index used at this size" but "is
- * there an index that CAN answer this shape at all" — which is exactly the
- * regression worth catching.
+ * Plans the statement with every alternative to an ordered index scan
+ * disabled. On a near-empty test table the planner's choice is a coin flip on
+ * cost estimates — a sequential scan plus a sort, or another index plus a
+ * sort, is as cheap as the right index — so the question this can answer is
+ * not "is the index used at this size" but "is there an index that CAN answer
+ * this shape, filter and order, at all" — which is exactly the regression
+ * worth catching.
+ *
+ * SET LOCAL lasts only until the end of the transaction and is a silent no-op
+ * outside one, so the settings and the EXPLAIN must share one interactive
+ * transaction (and with it one pooled connection).
  */
 async function explain(db: TestDb, statement: string): Promise<string> {
-  await db.prisma.$executeRawUnsafe('SET LOCAL enable_seqscan = off');
-  const rows = await db.prisma.$queryRawUnsafe<Record<string, string>[]>(`EXPLAIN ${statement}`);
+  const rows = await db.prisma.$transaction(async (tx) => {
+    for (const setting of PLANNER_ALTERNATIVES_TO_AN_ORDERED_INDEX) {
+      await tx.$executeRawUnsafe(`SET LOCAL ${setting} = off`);
+    }
+    return tx.$queryRawUnsafe<Record<string, string>[]>(`EXPLAIN ${statement}`);
+  });
   return rows.map((row) => Object.values(row).join(' ')).join('\n');
 }
+
+const PLANNER_ALTERNATIVES_TO_AN_ORDERED_INDEX = [
+  'enable_seqscan',
+  'enable_bitmapscan',
+  'enable_sort',
+  'enable_incremental_sort',
+] as const;
