@@ -11,10 +11,13 @@ import { useState } from 'react';
 import { canRetrySection, isReportReady, type Scan, type SiteProfile } from './api';
 import { Button, Panel } from './components';
 import { desktopCopy, type NextStepKind } from './desktop-copy';
+import { FREE_UPSELL_PLAN } from './FreeUpsell';
 import type { Language } from './i18n';
+import type { Plan } from './plan-modules';
 import { displayDomain, isTerminalScanStatus } from './scan-status';
 
-export type NewScanPlan = 'Free' | 'WebsiteAudit' | 'Complete';
+/** Any plan the scan form can open on, Free included. */
+export type NewScanPlan = Plan;
 
 /**
  * The status reasons the API gives a scan whose crawl never read the site.
@@ -105,8 +108,9 @@ export function NextStepActions(props: NextStepActionsProps) {
       props.onNewScan(profile, 'Free');
       return;
     }
+    // The same plan the Free report's own upsell sells (FreeUpsell.tsx).
     if (kind === 'freeDone' && profile) {
-      props.onNewScan(profile, 'Complete');
+      props.onNewScan(profile, FREE_UPSELL_PLAN);
       return;
     }
     if (kind === 'partial' && latest !== null) {

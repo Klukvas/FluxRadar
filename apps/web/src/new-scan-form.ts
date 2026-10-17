@@ -79,8 +79,9 @@ export interface NewScanFormProps {
   onError: (value: string) => void;
   /**
    * The plan the owner already chose — on the pricing cards before signing up,
-   * or with "Run Complete for this site" on a Free report. Applied once, and
-   * only when that plan can actually be bought here.
+   * with a report's upgrade button (Basic from a Free report, Complete from a
+   * locked Action Plan), or on the dashboard card (Basic after a Free scan).
+   * Applied once, and only when that plan can actually be bought here.
    */
   initialPlan?: Plan | null;
   /**

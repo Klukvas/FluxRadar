@@ -1,4 +1,5 @@
 import type { Language } from './i18n';
+import { BASIC_PRICE } from './tariff-prices';
 
 export type NextStepKind =
   | 'noProfiles'
@@ -60,7 +61,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         partial: (domain) =>
           `The report for ${domain} is ready, but at least one section came back incomplete. You can retry the unfinished section once, at no extra charge.`,
         freeDone: () =>
-          'The free check read the homepage only. Complete reads every public page and every section — security, accessibility, performance, privacy and AI visibility.',
+          'The free check read the homepage only. Basic checks every page for broken links, missing descriptions and duplicates, pages Google cannot show, and whether AI assistants like ChatGPT know your business.',
         paidDone: () => 'Start with the most urgent problems; each one is a single fix.',
         failed: () =>
           'Open it to see why. A scan that failed on our side is run once more by itself; if it failed again and was paid for, a refund is recorded automatically and issued by hand through Creem.',
@@ -72,7 +73,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         noScans: (domain) => `Check ${domain}`,
         running: () => 'Follow progress',
         partial: () => 'Retry the unfinished section',
-        freeDone: (domain) => `Run Complete for ${domain}`,
+        freeDone: (domain) => `Check all of ${domain} for ${BASIC_PRICE}`,
         paidDone: (domain) => `Open the report for ${domain}`,
         failed: (domain) => `Open the scan for ${domain}`,
         unread: (domain) => `Open the scan for ${domain}`,
@@ -110,7 +111,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         partial: (domain) =>
           `Звіт для ${domain} готовий, але щонайменше один розділ повернувся неповним. Його можна один раз перезапустити без доплати.`,
         freeDone: () =>
-          'Безкоштовна перевірка прочитала лише головну. Complete читає всі публічні сторінки й усі розділи — безпеку, доступність, швидкодію, приватність і видимість в AI.',
+          'Безкоштовна перевірка прочитала лише головну. Basic перевірить усі сторінки: биті посилання, відсутні описи й дублікати, сторінки, які Google не може показати, і чи знають про ваш бізнес ШІ-помічники на кшталт ChatGPT.',
         paidDone: () => 'Почніть із найтерміновіших проблем — кожна виправляється одним рішенням.',
         failed: () =>
           'Відкрийте її, щоб побачити причину. Перевірку, що зламалася з нашого боку, ми самі запускаємо ще раз; якщо вона знову не вдалася і була платною, повернення коштів фіксується автоматично й оформлюється вручну через Creem.',
@@ -122,7 +123,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         noScans: (domain) => `Перевірити ${domain}`,
         running: () => 'Стежити за перевіркою',
         partial: () => 'Перезапустити незавершений розділ',
-        freeDone: (domain) => `Запустити Complete для ${domain}`,
+        freeDone: (domain) => `Перевірити весь сайт ${domain} за ${BASIC_PRICE}`,
         paidDone: (domain) => `Відкрити звіт для ${domain}`,
         failed: (domain) => `Відкрити перевірку для ${domain}`,
         unread: (domain) => `Відкрити перевірку для ${domain}`,
