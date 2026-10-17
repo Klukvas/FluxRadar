@@ -1709,25 +1709,23 @@ code,
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
-  margin-top: 8px;
+  margin: 8px 0 0;
   color: var(--plat-600);
   font: 11px var(--mono-font);
 }
-.report-meta > span {
+/* No textual separator between the terms: the gap is the separator, so a line
+   that wraps on a phone never opens on a stray "·". */
+.report-meta > div {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
 }
-.report-meta > span + span::before {
-  content: '·';
-  margin-right: 7px;
-  color: var(--plat-400);
-}
-.report-meta small {
+.report-meta dt {
   color: var(--plat-600);
   text-transform: uppercase;
 }
-.report-meta strong {
+.report-meta dd {
+  margin: 0;
   color: var(--plat-900);
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -1762,9 +1760,13 @@ code,
 }
 .report-tech__value {
   margin: 0;
-  font: 11px var(--mono-font);
   white-space: normal;
   overflow-wrap: anywhere;
+}
+/* Only the identifiers are technical values (DESIGN_SYSTEM §2); the country,
+   "Not recorded" and the checks figure are prose and keep the body font. */
+.report-tech__value--technical {
+  font: 11px var(--mono-font);
 }
 
 /* Contextual help copy that sits inline in panels and empty states. */

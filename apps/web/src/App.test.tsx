@@ -600,7 +600,7 @@ describe('refresh-safe scan routes', () => {
 
     expect(await screen.findByText('Report dashboard · flux-lab.dev')).toBeInTheDocument();
     // Site, plan and date in the header; the report id lives in the fold below.
-    const header = screen.getByLabelText('About this report');
+    const header = screen.getByRole('group', { name: 'About this report' });
     expect(within(header).getByText('Site')).toBeInTheDocument();
     expect(within(header).getByText('flux-lab.dev')).toBeInTheDocument();
     expect(within(header).getByText('Plan')).toBeInTheDocument();

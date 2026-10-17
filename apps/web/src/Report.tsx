@@ -37,6 +37,7 @@ import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } fro
 import {
   checksSummary,
   FreeCheckStatus,
+  reportChecksOf,
   ReportHeaderMeta,
   ReportHelp,
   ReportTechnicalDetails,
@@ -164,13 +165,16 @@ export function ResultsScreen(props: {
   // the platform failure. Those results stay visible below, but their weighted
   // aggregate is not a completed site score and must not wear a green verdict.
   const scoreUnavailable = /failed|cancelled/i.test(scan.status);
-  const checksLine = checksSummary(dashboard.modules, props.language);
   const geoObservations = dashboard.geoObservations ?? [];
   const geoEvidence = dashboard.geoEvidence ?? null;
   const geoVisibilitySummary = geoVisibilitySummaryOf(dashboard.geoVisibilitySummary);
   // No page of the site was read: one block explains it, and the section cards —
   // each saying the same "Unavailable" — fold into a single line.
   const siteFailure = siteReadFailureOf(scan, dashboard.modules);
+  // One reading of what the checks came to, for the Free panel and the checks
+  // line alike, so the two cannot disagree about an unread site.
+  const checks = reportChecksOf(dashboard.modules, siteFailure !== null);
+  const checksLine = checksSummary(checks, props.language);
   // Read once: the next-step blocks and the action row below both turn on it,
   // and a row offering an export of a report whose own blocks say nothing was
   // checked is the contradiction this answers.
@@ -183,19 +187,18 @@ export function ResultsScreen(props: {
             <h2 className="section-heading">{t.signalHeading}</h2>
             <ReportHeaderMeta scan={scan} language={props.language} />
           </div>
-          {scoreUnavailable ? (
+          {/* The Free panel first: a Free check of a site that could not be
+              read ends as Failed, and its owner must not get the paid
+              report's "Unavailable" dial for a plan that has no score. */}
+          {unscoredPlan ? (
+            <FreeCheckStatus checks={checks} summary={issueSummary} language={props.language} />
+          ) : scoreUnavailable ? (
             <div className="score-dial" role="status" aria-label={t.verdictUnavailable}>
               <div className="score-dial__number">—</div>
               <div className="score-dial__label">{t.helpScoreTerm}</div>
               <StatusChip status={scan.status} label={t.verdictUnavailable} />
               <div className="score-dial__coverage">{checksLine}</div>
             </div>
-          ) : unscoredPlan ? (
-            <FreeCheckStatus
-              modules={dashboard.modules}
-              summary={issueSummary}
-              language={props.language}
-            />
           ) : (
             <ScoreDial
               score={overall.score}

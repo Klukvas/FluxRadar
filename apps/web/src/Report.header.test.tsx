@@ -246,6 +246,60 @@ describe('the Free result panel', () => {
   });
 });
 
+describe('a Free report of a site that could not be read', () => {
+  // Production ends such a scan as Failed (blocked-site.test.ts in apps/api).
+  function unreadFreeScan(): { scan: Scan; dashboard: unknown } {
+    const scan = scanOf('Free', { status: 'Failed', statusReason: 'TargetsUnreachable' });
+    const unread: ScanModule = {
+      ...freeSeoModule(),
+      status: 'Unavailable',
+      statusReason: 'TargetsUnreachable',
+      coverage: 0,
+      completedApplicableChecks: 0,
+      usableOutput: false,
+    };
+    return { scan, dashboard: freeDashboard(scan, [unread]) };
+  }
+
+  it('shows the Free panel, not the paid "Unavailable" dial', async () => {
+    const { scan, dashboard } = unreadFreeScan();
+    stubApi(dashboard, summaryWith(0));
+    renderReport(scan);
+
+    const panel = await freeStatus('Free check result');
+    expect(panel).toHaveTextContent('Your homepage could not be read');
+    expect(within(panel).queryByText(/problems? found/)).toBeNull();
+    expect(document.querySelector('.score-dial')).toBeNull();
+    expect(screen.queryByRole('status', { name: 'Unavailable' })).toBeNull();
+    expect(screen.queryByText(/insufficient/i)).toBeNull();
+  });
+
+  it('still counts the checks of a Free scan that failed for a platform reason', async () => {
+    const scan = scanOf('Free', { status: 'Failed', statusReason: 'InternalError' });
+    stubApi(freeDashboard(scan), summaryWith(1));
+    renderReport(scan);
+
+    const panel = await freeStatus('Free check result');
+    expect(panel).toHaveTextContent('4 things checked on your homepage');
+    expect(await within(panel).findByText('1 problem found')).toBeInTheDocument();
+    expect(document.querySelector('.score-dial')).toBeNull();
+  });
+
+  it('agrees with the report details when a section ran but completed no check', async () => {
+    const scan = scanOf('Free');
+    stubApi(freeDashboard(scan, [freeSeoModule(0)]), summaryWith(0));
+    renderReport(scan);
+
+    const panel = await freeStatus('Free check result');
+    expect(panel).toHaveTextContent('0 things checked on your homepage');
+    // Nothing measured, so no "No problems found" either.
+    expect(within(panel).queryByText(/problems? found/)).toBeNull();
+    const fold = screen.getByText('Report details').closest('details');
+    expect(fold).toHaveTextContent('0/0 checks completed');
+    expect(fold).not.toHaveTextContent('could not be read');
+  });
+});
+
 describe('the paid score area', () => {
   it('keeps the score dial and its verdict, and no Free panel', async () => {
     const scan = scanOf('Basic');
@@ -274,11 +328,16 @@ describe('the report header and its details fold', () => {
     stubApi(freeDashboard(scan), summaryWith(0));
     renderReport(scan);
 
-    const header = await screen.findByLabelText('About this report');
+    const header = await screen.findByRole('group', { name: 'About this report' });
     expect(header).toHaveTextContent('salon.example');
     expect(header).toHaveTextContent('Free');
     expect(within(header).getByText('Checked on')).toBeInTheDocument();
     expect(header).toHaveTextContent('6 September 2026');
+    // A machine-readable date, and terms rather than "·"-joined spans, so a
+    // wrapped line on a phone never opens on a separator.
+    expect(header.querySelector('time')).toHaveAttribute('datetime', '2026-09-06T12:00:00.000Z');
+    expect(within(header).getAllByRole('term')).toHaveLength(3);
+    expect(header).not.toHaveTextContent('·');
     expect(header).not.toHaveTextContent('scan-header-1');
     expect(header).not.toHaveTextContent('rules-mvp-0.1');
     expect(header).not.toHaveTextContent('v3');
@@ -290,7 +349,7 @@ describe('the report header and its details fold', () => {
     stubApi(freeDashboard(scan), summaryWith(0));
     renderReport(scan, 'uk');
 
-    const header = await screen.findByLabelText('Про цей звіт');
+    const header = await screen.findByRole('group', { name: 'Про цей звіт' });
     expect(within(header).getByText('Дата перевірки')).toBeInTheDocument();
     expect(header).toHaveTextContent('5 вересня 2026');
   });
@@ -311,6 +370,13 @@ describe('the report header and its details fold', () => {
     expect(fold).toHaveTextContent('Ukraine, Kyiv');
     expect(fold).toHaveTextContent('4/4 checks completed');
     expect(screen.getByText('scan-header-1')).not.toBeVisible();
+    // Identifiers wear the technical face; the prose values do not.
+    expect(screen.getByText('scan-header-1')).toHaveClass('report-tech__value--technical');
+    expect(screen.getByText('rules-mvp-0.1')).toHaveClass('report-tech__value--technical');
+    expect(screen.getByText('Ukraine, Kyiv')).not.toHaveClass('report-tech__value--technical');
+    expect(screen.getByText('4/4 checks completed')).not.toHaveClass(
+      'report-tech__value--technical',
+    );
   });
 
   it('names the Ukrainian fold, and states an unrecorded country plainly', async () => {

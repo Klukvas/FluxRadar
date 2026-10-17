@@ -244,7 +244,7 @@ describe('the report header', () => {
     const details = await openReport(dashboardWith(KYIV));
 
     // Support data, folded at the foot: the header itself names no country.
-    expect(screen.getByLabelText('Про цей звіт')).not.toHaveTextContent('Україна');
+    expect(screen.getByRole('group', { name: 'Про цей звіт' })).not.toHaveTextContent('Україна');
 
     expect(within(details).getByText('Країна перевірки').nextSibling).toHaveTextContent(
       'Україна, Київ',
