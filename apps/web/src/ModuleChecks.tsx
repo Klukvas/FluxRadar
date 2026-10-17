@@ -22,6 +22,7 @@ import type {
   ScanModule,
 } from './api';
 import { BingDataPanel, bingSectionIn } from './BingDataPanel';
+import { localizedCheckTitle } from './check-titles';
 import { CheckRow } from './CheckRow';
 import { geoEvaluationSummary } from './GeoEvaluation';
 import { GeoObservationCard } from './GeoObservationCard';
@@ -464,8 +465,7 @@ function resultLabel(result: RuleCheckResult, language: Language): string {
  * back to the registry title rather than to nothing.
  */
 function checkTitle(check: RuleCheck, language: Language): string {
-  const titles: Readonly<Record<string, string | undefined>> = copy[language].report.checks.titles;
-  return titles[check.ruleId] ?? check.title.charAt(0).toUpperCase() + check.title.slice(1);
+  return localizedCheckTitle(check.ruleId, check.title, language);
 }
 
 function checkDetail(check: RuleCheck, result: RuleCheckOutcome, language: Language): string {

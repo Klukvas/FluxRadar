@@ -599,10 +599,13 @@ describe('refresh-safe scan routes', () => {
     render(<App />);
 
     expect(await screen.findByText('Report dashboard · flux-lab.dev')).toBeInTheDocument();
-    expect(screen.getByText('Site address')).toBeInTheDocument();
-    expect(screen.getByText('flux-lab.dev')).toBeInTheDocument();
-    expect(screen.getByText('Plan')).toBeInTheDocument();
-    expect(screen.getByText('Report')).toBeInTheDocument();
+    // Site, plan and date in the header; the report id lives in the fold below.
+    const header = screen.getByRole('group', { name: 'About this report' });
+    expect(within(header).getByText('Site')).toBeInTheDocument();
+    expect(within(header).getByText('flux-lab.dev')).toBeInTheDocument();
+    expect(within(header).getByText('Plan')).toBeInTheDocument();
+    expect(within(header).getByText('Checked on')).toBeInTheDocument();
+    expect(within(header).queryByText('Report')).not.toBeInTheDocument();
     expect(screen.getByText('Insufficient data · coverage unavailable')).toBeInTheDocument();
     expect(screen.getByText('No score')).toBeInTheDocument();
     expect(screen.queryByText('Completed')).not.toBeInTheDocument();
@@ -1819,7 +1822,10 @@ describe('self-explanatory workflow copy', () => {
 
     render(<App />);
 
-    const help = await screen.findByRole('region', { name: 'How to read this report' });
+    // Folded, after the problems: every definition is still there to open.
+    const help = await screen.findByRole('group', { name: 'How to read this report' });
+    expect(help.tagName).toBe('DETAILS');
+    expect(help).not.toHaveAttribute('open');
     expect(within(help).getByText('Score')).toBeInTheDocument();
     expect(within(help).getByText(/0–100 rating/)).toBeInTheDocument();
     expect(within(help).getByText('Checks done')).toBeInTheDocument();

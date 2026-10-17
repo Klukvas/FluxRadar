@@ -67,13 +67,24 @@ export function hasPlannableOpenIssues(summary: IssueSummary): boolean {
   return summary.groups.some((group) => group.module !== ANALYTICS_MODULE && group.openIssues > 0);
 }
 
-export function useIssueSummary(scanId: string): IssueSummary | null {
-  const [summary, setSummary] = useState<IssueSummary | null>(null);
+/**
+ * The report's issue summary, fetched once per scan; null while it loads, when
+ * it failed, and when there is no scan yet (`scanId` null).
+ *
+ * Kept per scan id, so a screen that moves to another report never shows the
+ * previous report's problems while the new summary is on its way.
+ */
+export function useIssueSummary(scanId: string | null): IssueSummary | null {
+  const [loaded, setLoaded] = useState<{
+    readonly scanId: string;
+    readonly summary: IssueSummary;
+  } | null>(null);
   useEffect(() => {
+    if (scanId === null) return undefined;
     let current = true;
     apiRequest<IssueSummary>(`/scans/${encodeURIComponent(scanId)}/issues/summary`)
       .then((value) => {
-        if (current && Array.isArray(value?.groups)) setSummary(value);
+        if (current && Array.isArray(value?.groups)) setLoaded({ scanId, summary: value });
       })
       .catch((caught: unknown) => {
         // The report reads without this block; the Issue Center still lists everything.
@@ -83,7 +94,7 @@ export function useIssueSummary(scanId: string): IssueSummary | null {
       current = false;
     };
   }, [scanId]);
-  return summary;
+  return loaded !== null && loaded.scanId === scanId ? loaded.summary : null;
 }
 
 /**
@@ -607,7 +618,7 @@ function drawsOwnChanges(scan: Scan): boolean {
  * then either what changed since the last scan (a paid report without the
  * comparison panel) or what the free check left unread (a Free one).
  */
-export function ReportNextSteps(props: {
+type ReportNextStepsProps = {
   scan: Scan;
   language: Language;
   onOpenProblem: (ruleId: string) => void;
@@ -622,8 +633,26 @@ export function ReportNextSteps(props: {
   siteFailure?: SiteReadFailure | null;
   /** Whether the scan checked nothing; derived from the scan when absent. */
   nothingChecked?: boolean;
-}) {
+};
+
+/** The blocks on their own, fetching the report's issue summary themselves. */
+export function ReportNextSteps(props: ReportNextStepsProps) {
   const summary = useIssueSummary(props.scan.id);
+  return <ReportNextStepsWithSummary {...props} summary={summary} />;
+}
+
+/**
+ * The same blocks over a summary the caller already holds — the report screen
+ * fetches it once and also counts its problems in the Free result panel, so a
+ * second request for the same summary would only be a chance to disagree.
+ */
+export function ReportNextStepsWithSummary(
+  props: ReportNextStepsProps & {
+    /** Null while the summary loads or when it could not be fetched. */
+    summary: IssueSummary | null;
+  },
+) {
+  const { summary } = props;
   const siteFailure = props.siteFailure ?? null;
   const nothingChecked =
     props.nothingChecked ?? (siteFailure !== null || nothingWasChecked(props.scan));
