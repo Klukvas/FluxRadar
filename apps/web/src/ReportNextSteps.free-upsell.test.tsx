@@ -6,7 +6,7 @@
 // loading it says no number at all, so a "0" never flashes before the real one.
 
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -168,6 +168,30 @@ describe('Free upsell → what the free check found', () => {
     expect(await within(block).findByText(lead)).toBeInTheDocument();
   });
 
+  // Ukrainian has three noun forms after a number, and the teens break the
+  // pattern the last digit sets: 11–14 take «проблем», 21 and 101 «проблему».
+  it.each([
+    [4, 'проблеми'],
+    [11, 'проблем'],
+    [12, 'проблем'],
+    [14, 'проблем'],
+    [21, 'проблему'],
+    [22, 'проблеми'],
+    [25, 'проблем'],
+    [101, 'проблему'],
+    [111, 'проблем'],
+  ])('in Ukrainian, %i takes «%s»', async (count, noun) => {
+    stubFetch(summaryWithOpenProblems(count));
+    renderNextSteps({ language: 'uk' });
+
+    const block = await upsellBlock(UK_HEADING);
+    expect(
+      await within(block).findByText(
+        `Безкоштовна перевірка знайшла на головній сторінці smile.example ${count} ${noun} у чотирьох речах, які вона дивиться. ${UK_REST}`,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('counts problems as "Fix these first" does, not findings', async () => {
     // Two open rules with three findings each: two problems, not six.
     stubFetch(summaryWithOpenProblems(2));
@@ -266,11 +290,13 @@ describe('Free upsell → what Basic adds', () => {
   });
 
   it('takes the price from the tariff table, never a literal', () => {
-    const source = readFileSync(join(resolve(process.cwd()), 'src', 'findings-copy.ts'), 'utf8');
-    const upsells = source.split('    upsell: {').slice(1);
+    const source = readFileSync(resolve(__dirname, 'findings-copy.ts'), 'utf8');
+    // Each language's upsell block (not the type's) runs up to the `download` block after it.
+    const upsells = [
+      ...source.matchAll(/(?<!readonly\s+)\bupsell:\s*\{([\s\S]*?)\bdownload:\s*\{/g),
+    ].map((match) => match[1]);
     expect(upsells).toHaveLength(2);
-    for (const block of upsells) {
-      const body = block.slice(0, block.indexOf('    download: {'));
+    for (const body of upsells) {
       expect(body).toContain('${BASIC_PRICE}');
       expect(body).not.toMatch(/\$\d/);
     }
