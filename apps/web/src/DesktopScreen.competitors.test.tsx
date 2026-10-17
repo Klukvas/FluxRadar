@@ -7,12 +7,28 @@
 // match on the label alone never succeeds for any field here.
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DesktopScreen } from './DesktopScreen';
 import type { SiteProfile } from './api';
 
 const NOOP_ASYNC = () => Promise.resolve();
+
+const empty = () =>
+  new Response(JSON.stringify({ success: true, data: null, error: null }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+
+// The screen's side panels (report count, latest check, Google reminder, domain
+// ownership) read the API on mount. Unanswered, those reads went to a real
+// localhost:3310 and failed with ECONNREFUSED in the middle of other files.
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(empty())),
+  );
+});
 
 function renderForm(language: 'en' | 'uk' = 'en', profiles: readonly SiteProfile[] = []) {
   render(
