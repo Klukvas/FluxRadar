@@ -13,7 +13,7 @@
 // The last piece hands the problem on: one ready message for the developer,
 // copied to the clipboard, or shown to copy by hand when the browser refuses.
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import type { Issue } from './api';
 import { Button } from './components';
@@ -187,13 +187,14 @@ type CopyState = 'idle' | 'copied' | 'failed';
  * with its rule and kept as state for the caller to say out loud.
  *
  * A new text resets the state: a "copied" left over from the previous text
- * would no longer be true of this one.
+ * would no longer be true of this one. The outcome is kept with the text it is
+ * about instead of being cleared by an effect: a reset effect still pending
+ * from the button's first render could run after a quick copy had finished and
+ * wipe its "copied" or its refusal.
  */
 function useClipboardCopy(text: string | null, ruleId: string) {
-  const [state, setState] = useState<CopyState>('idle');
-  useEffect(() => {
-    setState('idle');
-  }, [text]);
+  const [outcome, setOutcome] = useState<{ text: string; state: CopyState } | null>(null);
+  const state: CopyState = outcome !== null && outcome.text === text ? outcome.state : 'idle';
   const copy = async (): Promise<void> => {
     if (text === null) return;
     try {
@@ -201,10 +202,10 @@ function useClipboardCopy(text: string | null, ruleId: string) {
         throw new Error('Clipboard API unavailable');
       }
       await navigator.clipboard.writeText(text);
-      setState('copied');
+      setOutcome({ text, state: 'copied' });
     } catch (caught) {
       console.error('FluxRadar developer task could not be copied', ruleId, caught);
-      setState('failed');
+      setOutcome({ text, state: 'failed' });
     }
   };
   return { state, copy } as const;
