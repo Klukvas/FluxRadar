@@ -320,7 +320,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     expect(csp).toHaveTextContent('Pages do not limit where they load content from');
     expect(csp).not.toHaveTextContent('Content-Security-Policy is missing or weak');
 
-    const meaning = within(csp).getByText(/That instruction is an extra safeguard/);
+    const meaning = within(csp).getByText(/is an extra safeguard/);
     expect(meaning).toBeVisible();
     expect(meaning.closest('details')).toBeNull();
     // The owner's action is to ask a developer — not a header to paste.
@@ -329,7 +329,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     expect(fix).toHaveTextContent(/^What to do:/);
     expect(within(csp).queryByText('What this means in plain language')).toBeNull();
 
-    const technical = within(csp).getByText('Technical details').closest('details');
+    const technical = within(csp).getByText('What the check measures').closest('details');
     if (technical === null) throw new Error('expected the technical disclosure');
     expect(technical).not.toHaveAttribute('open');
     expect(
@@ -356,10 +356,10 @@ describe('the security problems an owner cannot read from a header name', () => 
 
     const rows = (await screen.findAllByRole('row')).slice(1);
     const csp = nth(rows, 0, 'the CSP problem row');
-    const meaning = within(csp).getByText(/Це додатковий запобіжник/);
+    const meaning = within(csp).getByText(/є додатковим запобіжником/);
     expect(meaning).toBeVisible();
     expect(meaning.closest('details')).toBeNull();
-    const technical = within(csp).getByText('Технічні деталі').closest('details');
+    const technical = within(csp).getByText('Що саме перевіряється').closest('details');
     if (technical === null) throw new Error('expected the technical disclosure');
     expect(technical).not.toHaveAttribute('open');
     expect(
@@ -390,7 +390,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     ).toBeInTheDocument();
     // A rule with no explanation gets no empty disclosure and no made-up fix, keeps its own title
     // and id, and is counted in findings — it may not be one per page.
-    expect(within(altText).queryByText('Technical details')).not.toBeInTheDocument();
+    expect(within(altText).queryByText('What the check measures')).not.toBeInTheDocument();
     expect(within(altText).queryByText('What to do:')).not.toBeInTheDocument();
     expect(within(altText).getByText('Images without a text alternative')).toBeInTheDocument();
     expect(altText).toHaveTextContent('A11Y-002');
@@ -406,9 +406,9 @@ describe('the security problems an owner cannot read from a header name', () => 
 
     const rows = (await screen.findAllByRole('row')).slice(1);
     const csp = nth(rows, 0, 'the CSP problem row');
-    expect(within(csp).getByText('Технічні деталі')).toBeInTheDocument();
+    expect(within(csp).getByText('Що саме перевіряється')).toBeInTheDocument();
     expect(within(csp).getByText('Що зробити:')).toBeVisible();
-    expect(within(csp).getByText(/Це додатковий запобіжник/)).toBeInTheDocument();
+    expect(within(csp).getByText(/є додатковим запобіжником/)).toBeInTheDocument();
     expect(
       within(csp).getByText(/Попросіть розробника налаштувати цей захист на сервері/),
     ).toBeInTheDocument();
@@ -508,7 +508,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     const thirdDetails = nth(
       screen.getAllByRole('button', { name: 'Explanation and evidence' }),
       2,
-      'a Details button',
+      'an Explanation and evidence button',
     );
     fireEvent.click(thirdDetails);
     const detail = document.getElementById('issue-detail-issue-3');

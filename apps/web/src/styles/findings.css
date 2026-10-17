@@ -105,6 +105,7 @@
   max-width: 68ch;
   overflow-wrap: break-word;
 }
+.problem-explainer__found,
 .problem-explainer__meaning,
 .problem-explainer__fix {
   margin: 0 0 var(--sp-1);

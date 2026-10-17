@@ -18,7 +18,12 @@ import { useState } from 'react';
 import type { Issue } from './api';
 import { Button } from './components';
 import { developerTaskText, nothingOpen, taskPageCount } from './developer-task';
-import { findingCountsPages, findingExplainer, problemTitle } from './finding-explainers';
+import {
+  findingCountsPages,
+  findingExplainer,
+  isAiReviewRule,
+  problemTitle,
+} from './finding-explainers';
 import { problemBreakdown, type EvidenceVariant } from './finding-variants';
 import { findingsCopy } from './findings-copy';
 import type { Language } from './i18n';
@@ -40,6 +45,10 @@ export const VARIANT_PAGE_LIMIT = 5;
  * read as a developer's checklist. The thresholds are still one click away, in
  * a real disclosure, never removed.
  *
+ * An AI-review rule keeps what it found in view, first: that sentence is the
+ * only one saying the finding is an AI review that read the page text only,
+ * and a caveat folded away is a caveat nobody reads.
+ *
  * Nothing at all for a rule with no explanation: it keeps the title, evidence
  * and recommendation it always had, and gets no "What to do" line made up for it.
  */
@@ -47,8 +56,10 @@ export function ProblemExplainer(props: { ruleId: string; language: Language }) 
   const f = findingsCopy[props.language].issues;
   const explainer = findingExplainer(props.ruleId, props.language);
   if (explainer === null) return null;
+  const whatInView = isAiReviewRule(props.ruleId);
   return (
     <div className="finding-explainer problem-explainer">
+      {whatInView ? <p className="problem-explainer__found">{explainer.what}</p> : null}
       <p className="problem-explainer__meaning">{explainer.why}</p>
       <p className="problem-explainer__fix">
         <strong>{f.fixLead}</strong> {explainer.fix}
@@ -56,10 +67,12 @@ export function ProblemExplainer(props: { ruleId: string; language: Language }) 
       <details className="problem-explainer__technical">
         <summary className="finding-explainer__summary">{f.rowTechnicalTitle}</summary>
         <dl className="finding-explainer__body">
-          <div>
-            <dt>{f.explainerWhat}</dt>
-            <dd>{explainer.what}</dd>
-          </div>
+          {whatInView ? null : (
+            <div>
+              <dt>{f.explainerWhat}</dt>
+              <dd>{explainer.what}</dd>
+            </div>
+          )}
           <div>
             <dt>{f.explainerCount}</dt>
             <dd>{explainer.count}</dd>

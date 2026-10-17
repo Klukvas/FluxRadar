@@ -58,10 +58,10 @@ function json(data: unknown, meta?: Record<string, number>): Response {
 }
 
 /** Answers the summary and every findings page; nothing goes unmocked. */
-function stubApi(): ReturnType<typeof vi.fn> {
+function stubApi(summary: IssueSummary = SUMMARY): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = new URL(String(input));
-    if (url.pathname.endsWith('/issues/summary')) return Promise.resolve(json(SUMMARY));
+    if (url.pathname.endsWith('/issues/summary')) return Promise.resolve(json(summary));
     return Promise.resolve(json([FINDING], { total: 1, page: 1, limit: 50 }));
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -100,7 +100,7 @@ describe('a problem row in Ukrainian', () => {
     const measured = within(title).getByText(/коротша за 10 чи довша за 70 символів/);
     expect(measured).not.toBeVisible();
     expect(measured.closest('details')).not.toBeNull();
-    expect(within(title).getByText('Технічні деталі').tagName).toBe('SUMMARY');
+    expect(within(title).getByText('Що саме перевіряється').tagName).toBe('SUMMARY');
     expect(within(title).queryByText('Що це означає простою мовою')).toBeNull();
   });
 
@@ -121,7 +121,7 @@ describe('a problem row in Ukrainian', () => {
     stubApi();
     const images = row(await problemRows('uk'), 2);
     expect(within(images).queryByText('Що зробити:')).toBeNull();
-    expect(within(images).queryByText('Технічні деталі')).toBeNull();
+    expect(within(images).queryByText('Що саме перевіряється')).toBeNull();
   });
 });
 
@@ -146,7 +146,7 @@ describe('a problem row in English', () => {
   it('opens what the check measured with one click', async () => {
     stubApi();
     const title = row(await problemRows('en'), 0);
-    const technical = within(title).getByText('Technical details').closest('details');
+    const technical = within(title).getByText('What the check measures').closest('details');
     if (technical === null) throw new Error('expected the technical disclosure');
     technical.open = true;
     fireEvent(technical, new Event('toggle'));
@@ -216,5 +216,67 @@ describe('the Issue Center’s name in Ukrainian', () => {
     expect(JSON.stringify(copy.uk)).not.toContain('Issue Center');
     expect(JSON.stringify(checksCopyUk)).not.toContain('Issue Center');
     expect(JSON.stringify(checksCopyUk)).toContain('Центрі проблем');
+  });
+});
+
+// The AI-review rules' `what` is the only sentence saying a finding is an AI
+// review that read the page text only. Folded with the measurements, the
+// caveat went with it, so for these rules it stays on the row.
+describe('an AI-review problem row', () => {
+  const AI_SUMMARY: IssueSummary = {
+    total: 2,
+    open: 2,
+    bySeverity: { Critical: 0, High: 0, Medium: 2, Low: 0 },
+    groups: [
+      { ruleId: 'UX-CONV-AI-001', module: 'UX', severity: 'Medium', issues: 1, openIssues: 1 },
+      { ruleId: 'SEO-ONPAGE-001', module: 'SEO', severity: 'Medium', issues: 1, openIssues: 1 },
+    ],
+  };
+
+  async function aiRow(language: Language): Promise<HTMLElement> {
+    stubApi(AI_SUMMARY);
+    render(<IssuesScreen scan={SCAN} language={language} onError={() => {}} />);
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    expect(rows).toHaveLength(2);
+    return row(rows, 0);
+  }
+
+  it('keeps the AI-review caveat in view in English', async () => {
+    const ai = await aiRow('en');
+    const caveat = within(ai).getByText(/An AI review of the text on these pages/);
+    expect(caveat).toBeVisible();
+    expect(caveat).toHaveTextContent('It read the page text only, not how the page looks.');
+    expect(caveat.closest('details')).toBeNull();
+    // Said once: the fold under it does not repeat it.
+    expect(within(ai).getAllByText(/An AI review of the text/)).toHaveLength(1);
+    expect(within(ai).getByText(/Visitors decide quickly/)).toBeVisible();
+  });
+
+  it('keeps the AI-review caveat in view in Ukrainian', async () => {
+    const ai = await aiRow('uk');
+    const caveat = within(ai).getByText(/Перевірка тексту цих сторінок штучним інтелектом/);
+    expect(caveat).toBeVisible();
+    expect(caveat).toHaveTextContent('Вона читала лише текст сторінки, а не її вигляд.');
+    expect(caveat.closest('details')).toBeNull();
+    expect(within(ai).getByText('Що саме перевіряється')).toBeInTheDocument();
+  });
+
+  it('still folds the measurement for a deterministic rule beside it', async () => {
+    stubApi(AI_SUMMARY);
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
+    const rows = (await screen.findAllByRole('row')).slice(1);
+    expect(within(row(rows, 1)).getByText(/shorter than 10 or longer than 70/)).not.toBeVisible();
+  });
+});
+
+// The fix lines send the owner to "the technical details" for a finding's
+// evidence, which is the per-finding fold. The row's own fold holds only what
+// the check measures, and is named for that, so the two are not confused.
+describe('the row fold’s name', () => {
+  it('is not the per-finding fold’s name in either language', async () => {
+    stubApi();
+    const title = row(await problemRows('en'), 0);
+    expect(within(title).getByText('What the check measures').tagName).toBe('SUMMARY');
+    expect(within(title).queryByText(/^Technical details/)).toBeNull();
   });
 });

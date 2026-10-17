@@ -64,7 +64,9 @@ export type FindingsCopy = {
     readonly technicalTitle: string;
     /**
      * A problem row's own fold: what the check measured (thresholds, counts)
-     * and what one finding is. The row itself leads with why it matters and
+     * and what one finding is. Not called "Technical details": the fix lines
+     * send the owner there for a finding's evidence, which lives in the
+     * per-finding fold (`technicalTitle`), not here. The row itself leads with why it matters and
      * what to do, which is what an owner reads a list of problems for.
      */
     readonly rowTechnicalTitle: string;
@@ -312,7 +314,7 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       explainerScope:
         'FluxRadar reads the public responses of the pages this scan crawled. These findings describe what those responses carried at the time; nothing was attacked, logged into or tested for whether it can be exploited, and pages outside this scan’s scope were not read.',
       technicalTitle: 'Technical details for your developer',
-      rowTechnicalTitle: 'Technical details',
+      rowTechnicalTitle: 'What the check measures',
       fixLead: 'What to do:',
       breakdownPages: (pages) =>
         `These findings are on ${pages} ${pages === 1 ? 'page' : 'pages'}.`,
@@ -518,7 +520,7 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       explainerScope:
         'FluxRadar читає публічні відповіді тих сторінок, які обійшла ця перевірка. Знахідки описують те, що було в цих відповідях на той момент; жодної атаки, входу в акаунт чи перевірки на можливість зламу не виконувалося, а сторінки поза областю цієї перевірки не читалися.',
       technicalTitle: 'Технічні деталі для вашого розробника',
-      rowTechnicalTitle: 'Технічні деталі',
+      rowTechnicalTitle: 'Що саме перевіряється',
       fixLead: 'Що зробити:',
       breakdownPages: (pages) => `Сторінок із цими знахідками: ${pages}.`,
       breakdownPagesSoFar: (pages) =>
