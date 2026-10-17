@@ -81,8 +81,9 @@ function useSelectionState() {
   const updateSelectedScan = useCallback((scan: Scan) => setSelectedScan(scan), []);
   // The problem the Issue Center opens on, when "Fix these first" sent the owner there.
   const [issueRuleFilter, setIssueRuleFilter] = useState<string | null>(null);
-  // The plan the scan form opens on: chosen on the pricing cards, or from a Free
-  // report's "Run Complete for this site".
+  // The plan the scan form opens on: chosen on the pricing cards, or from a
+  // report's upgrade button (Basic from a Free report, Complete from the Action
+  // Plan's locked block).
   const [newScanPlan, setNewScanPlan] = useState<
     'Free' | 'Basic' | 'WebsiteAudit' | 'Complete' | null
   >(null);

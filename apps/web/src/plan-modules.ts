@@ -15,6 +15,9 @@ import type { Scan } from './api';
 
 export type Plan = Scan['plan'];
 
+/** A plan a buyer pays for: the one a report's upgrade button preselects. */
+export type PaidPlan = Exclude<Plan, 'Free'>;
+
 /**
  * The plans, cheapest first.
  *

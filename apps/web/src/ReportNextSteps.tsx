@@ -21,7 +21,8 @@ import { egressLocationLabel } from './egress-location';
 import { findingsCopy, type FindingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
-import { planIncludesIssueHistory } from './plan-modules';
+import { FreeUpsell } from './FreeUpsell';
+import { planIncludesIssueHistory, type PaidPlan } from './plan-modules';
 import { problemTitle } from './finding-explainers';
 import {
   CRAWLER_PAGE_HREF,
@@ -36,8 +37,22 @@ import { ANALYTICS_MODULE } from './rule-titles';
 import { displayDomain } from './scan-status';
 import './styles/findings.css';
 
+/**
+ * What the Action Plan's locked block sells: the plan is a Complete feature, so
+ * a Basic report's "get the plan" button opens the form on Complete.
+ */
+const ACTION_PLAN_UPGRADE_PLAN: PaidPlan = 'Complete';
+
 /** How many problems the report puts in front of the owner. */
 export const FIX_FIRST_LIMIT = 5;
+
+/**
+ * The problems a report still has open, one per rule — what "Fix these first"
+ * lists and what its "All N problems" button and the Free upsell count.
+ */
+export function openProblemGroups(summary: IssueSummary): readonly IssueRuleGroup[] {
+  return summary.groups.filter((group) => group.openIssues > 0);
+}
 
 /**
  * Whether this report holds anything an Action Plan could be written about.
@@ -233,7 +248,7 @@ export interface FixFirstProps {
 
 export function FixFirst(props: FixFirstProps) {
   const f = findingsCopy[props.language];
-  const open = props.summary.groups.filter((group) => group.openIssues > 0);
+  const open = openProblemGroups(props.summary);
   const top = open.slice(0, FIX_FIRST_LIMIT);
   const Heading = props.headingLevel === 2 ? 'h2' : 'h3';
   return (
@@ -566,27 +581,6 @@ function SiteFailureStepText(props: {
   }
 }
 
-export function FreeUpsell(props: { scan: Scan; language: Language; onUpgrade: () => void }) {
-  const f = findingsCopy[props.language];
-  return (
-    <section className="report-block upsell" aria-labelledby="upsell-heading">
-      <h3 id="upsell-heading">{f.upsell.heading}</h3>
-      <p>{f.upsell.lead(displayDomain(props.scan.domain))}</p>
-      <ul>
-        {f.upsell.points.map((point) => (
-          <li key={point}>{point}</li>
-        ))}
-      </ul>
-      <div className="button-row">
-        <Button variant="primary" onClick={props.onUpgrade}>
-          {f.upsell.action('Complete')}
-        </Button>
-        <a href="/plans">{f.upsell.compare}</a>
-      </div>
-    </section>
-  );
-}
-
 /**
  * Whether this report draws its own "since last scan" numbers here.
  *
@@ -618,7 +612,8 @@ export function ReportNextSteps(props: {
   language: Language;
   onOpenProblem: (ruleId: string) => void;
   onAllProblems: () => void;
-  onUpgrade: () => void;
+  /** Opens the scan form on the given plan for this report's site. */
+  onUpgrade: (plan: PaidPlan) => void;
   /** The site profile's target languages, offered first by the plan picker. */
   targetLanguages?: string | null;
   /** Absent where the screen offers no retry; the block is then not drawn. */
@@ -659,7 +654,7 @@ export function ReportNextSteps(props: {
           language={props.language}
           targetLanguages={props.targetLanguages}
           onOpenProblem={props.onOpenProblem}
-          onUpgrade={props.onUpgrade}
+          onUpgrade={() => props.onUpgrade(ACTION_PLAN_UPGRADE_PLAN)}
           hasOpenIssues={hasOpenIssues}
           nothingChecked={nothingChecked}
           onPlanReadyChange={setPlanReady}
@@ -677,7 +672,12 @@ export function ReportNextSteps(props: {
       {/* Selling a bigger scan of a site we could not read would sell a second
           failure; the block above says what to fix first. */}
       {props.scan.plan === 'Free' && siteFailure === null ? (
-        <FreeUpsell scan={props.scan} language={props.language} onUpgrade={props.onUpgrade} />
+        <FreeUpsell
+          scan={props.scan}
+          language={props.language}
+          openProblems={summary === null ? null : openProblemGroups(summary).length}
+          onUpgrade={props.onUpgrade}
+        />
       ) : null}
       {drawsOwnChanges(props.scan) ? (
         <ScanChangesBlock scanId={props.scan.id} language={props.language} />
