@@ -959,17 +959,17 @@ describe('public /checks — audit coverage page', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // ─── Regression: Issue Center — inline detail row ────────────────────────────
 //
-// Finding: clicking "Details" for a finding must reveal its detail content
-// inline directly below that row (not in a detached block below the table).
+// Finding: clicking "Explanation and evidence" for a finding must reveal its
+// detail content inline directly below that row (not in a detached block below the table).
 //
 // Expectations:
 //   • Details are hidden by default.
-//   • Clicking "Details" expands the row inline (same tbody); detail content
-//     appears; button label changes to "Hide details".
-//   • Clicking "Hide details" collapses the row — and that row control is the
+//   • Clicking "Explanation and evidence" expands the row inline (same tbody);
+//     detail content appears; button label changes to "Hide explanation".
+//   • Clicking "Hide explanation" collapses the row — and that row control is the
 //     only one: the open panel's second "Close details" is gone (see below).
-//   • Clicking "Details" on a second row collapses the first and expands the
-//     second — only one detail row is visible at a time.
+//   • Clicking "Explanation and evidence" on a second row collapses the first
+//     and expands the second — only one detail row is visible at a time.
 //   • The trigger button carries aria-expanded=true/false.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('Issue Center — inline detail row', () => {
@@ -1042,7 +1042,7 @@ describe('Issue Center — inline detail row', () => {
     stubIssues();
     await renderIssues();
 
-    const detailsButtons = screen.getAllByRole('button', { name: 'Details' });
+    const detailsButtons = screen.getAllByRole('button', { name: 'Explanation and evidence' });
     fireEvent.click(detailsButtons[0] as HTMLElement);
 
     // Detail content for issue1 must be visible.
@@ -1053,63 +1053,69 @@ describe('Issue Center — inline detail row', () => {
     expect(screen.queryByText('Content-Security-Policy header absent')).not.toBeInTheDocument();
   });
 
-  it('changes button label to "Hide details" when expanded', async () => {
+  it('changes button label to "Hide explanation" when expanded', async () => {
     stubIssues();
     await renderIssues();
 
-    const firstDetails = screen.getAllByRole('button', { name: 'Details' })[0]!;
+    const firstDetails = screen.getAllByRole('button', { name: 'Explanation and evidence' })[0]!;
     fireEvent.click(firstDetails);
 
-    expect(await screen.findByRole('button', { name: 'Hide details' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Hide explanation' })).toBeInTheDocument();
   });
 
   it('sets aria-expanded=true on the trigger button when expanded', async () => {
     stubIssues();
     await renderIssues();
 
-    const firstDetails = screen.getAllByRole('button', { name: 'Details' })[0] as HTMLElement;
+    const firstDetails = screen.getAllByRole('button', {
+      name: 'Explanation and evidence',
+    })[0] as HTMLElement;
     expect(firstDetails).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(firstDetails);
 
-    const hideBtn = await screen.findByRole('button', { name: 'Hide details' });
+    const hideBtn = await screen.findByRole('button', { name: 'Hide explanation' });
     expect(hideBtn).toHaveAttribute('aria-expanded', 'true');
   });
 
-  it('collapses the detail row when Hide details is clicked', async () => {
+  it('collapses the detail row when Hide explanation is clicked', async () => {
     stubIssues();
     await renderIssues();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Details' })[0] as HTMLElement);
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Explanation and evidence' })[0] as HTMLElement,
+    );
     await screen.findByText('No <title> element found');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Hide details' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hide explanation' }));
 
     await waitFor(() =>
       expect(screen.queryByText('No <title> element found')).not.toBeInTheDocument(),
     );
     // Button label reverts.
-    expect(screen.getAllByRole('button', { name: 'Details' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Explanation and evidence' })).toHaveLength(2);
   });
 
   // One open finding, one control that closes it. The open panel used to carry
-  // a "Close details" of its own beside the row's "Hide details": two names for
+  // a "Close details" of its own beside the row's "Hide explanation": two names for
   // one thing, and neither obviously the other's pair.
   it('offers one close control per open finding, not two', async () => {
     stubIssues();
     await renderIssues();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Details' })[0] as HTMLElement);
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Explanation and evidence' })[0] as HTMLElement,
+    );
     await screen.findByText('No <title> element found');
 
     expect(screen.queryByRole('button', { name: 'Close details' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Hide details' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Hide explanation' })).toHaveLength(1);
   });
 
   it('collapses the first row and expands the second when a different row is clicked', async () => {
     stubIssues();
     await renderIssues();
 
-    const allDetails = screen.getAllByRole('button', { name: 'Details' });
+    const allDetails = screen.getAllByRole('button', { name: 'Explanation and evidence' });
     const firstDetailsBtn = allDetails[0] as HTMLElement;
     const secondDetailsBtn = allDetails[1] as HTMLElement;
 
@@ -1132,12 +1138,10 @@ describe('Issue Center — inline detail row', () => {
     await renderIssues();
 
     // A non-technical owner is told what a finding is and how to act on it.
-    expect(
-      screen.getByText(/Findings are grouped by the problem behind them, most urgent first/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Start with the most urgent problems at the top/i)).toBeInTheDocument();
     // Each level says what to do about it, not just where it ranks: "Low" and
     // "Medium" are relative words with nothing on the screen to be relative to.
-    const legend = screen.getByText(/says how soon it is worth dealing with/i);
+    const legend = screen.getByText(/says how soon to act/i);
     expect(legend).toHaveTextContent('Critical — deal with it first');
     expect(legend).toHaveTextContent('High — fix it soon');
     expect(legend).toHaveTextContent('Medium — worth fixing');

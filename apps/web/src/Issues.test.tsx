@@ -50,7 +50,7 @@ async function openDetails(issue: Issue, language: Language): Promise<void> {
   );
   render(<IssuesScreen scan={SCAN} language={language} onError={() => {}} />);
   const details = await screen.findByRole('button', {
-    name: language === 'uk' ? 'Деталі' : 'Details',
+    name: language === 'uk' ? 'Пояснення й доказ' : 'Explanation and evidence',
   });
   fireEvent.click(details);
 }

@@ -561,7 +561,7 @@ describe('a finding’s own rows in a stacked table', () => {
     expect(stacked).toHaveLength(1);
     const freed = mediaWidthsWith(
       stylesheet('findings.css'),
-      /\.finding-what,\s*\.finding-explainer \{\s*grid-column: 1 \/ -1;/,
+      /\n {2}\.finding-explainer \{\s*grid-column: 1 \/ -1;/,
     );
     expect(freed).toEqual(stacked);
   });

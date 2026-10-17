@@ -62,6 +62,14 @@ export type FindingsCopy = {
     readonly explainerScope: string;
     /** The fold over the raw evidence, recommendation, confidence and rule id. */
     readonly technicalTitle: string;
+    /**
+     * A problem row's own fold: what the check measured (thresholds, counts)
+     * and what one finding is. The row itself leads with why it matters and
+     * what to do, which is what an owner reads a list of problems for.
+     */
+    readonly rowTechnicalTitle: string;
+    /** "What to do:", the label of a problem row's fix line. */
+    readonly fixLead: string;
     /** One problem's loaded findings: the pages they are on, and how they differ. */
     readonly breakdownPages: (pages: number) => string;
     readonly breakdownPagesSoFar: (pages: number) => string;
@@ -261,7 +269,7 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       Reopened: 'Reopened',
     },
     issues: {
-      lead: 'Findings are grouped by the problem behind them, most urgent first. Open a problem to see every page it affects, the evidence and the fix. The status you set is remembered on your next full scan.',
+      lead: 'Start with the most urgent problems at the top. Set a status on the ones you have taken on or that do not apply to you; it carries over to your next full scan.',
       viewLabel: 'Show',
       viewProblems: 'Problems',
       viewAll: 'Every finding',
@@ -291,8 +299,10 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
         countsPages
           ? `Settled on ${total} ${enPages(total)}`
           : `All ${total} ${enFindings(total)} settled`,
-      showFindings: 'Show findings',
-      showFindingsFor: (title) => `Show findings: ${title}`,
+      // What the button opens: the pages the problem was found on, and on each
+      // of them the explanation, the fix and the task for a developer.
+      showFindings: 'Where exactly and how to fix',
+      showFindingsFor: (title) => `Where exactly and how to fix: ${title}`,
       learnMore: 'How this is checked',
       explainerTitle: 'What this means in plain language',
       explainerWhat: 'What the check found',
@@ -302,6 +312,8 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       explainerScope:
         'FluxRadar reads the public responses of the pages this scan crawled. These findings describe what those responses carried at the time; nothing was attacked, logged into or tested for whether it can be exploited, and pages outside this scan’s scope were not read.',
       technicalTitle: 'Technical details for your developer',
+      rowTechnicalTitle: 'Technical details',
+      fixLead: 'What to do:',
       breakdownPages: (pages) =>
         `These findings are on ${pages} ${pages === 1 ? 'page' : 'pages'}.`,
       breakdownPagesSoFar: (pages) =>
@@ -467,7 +479,7 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       Reopened: 'Повернулася',
     },
     issues: {
-      lead: 'Знахідки згруповано за проблемою, що їх спричинила, — спершу найтерміновіші. Відкрийте проблему, щоб побачити всі сторінки, докази та виправлення. Встановлений вами статус збережеться під час наступної повної перевірки.',
+      lead: 'Почніть із найтерміновіших проблем угорі списку. Позначте статусом ті, за які ви взялися або які вас не стосуються: статус збережеться до наступної повної перевірки.',
       viewLabel: 'Показати',
       viewProblems: 'Проблеми',
       viewAll: 'Усі знахідки',
@@ -495,8 +507,8 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
             : `Відкрито знахідок: ${open} з ${total}`,
       groupSettled: (total, countsPages) =>
         countsPages ? `Закрито на ${total} ${ukPagesOn(total)}` : `Усі знахідки закрито (${total})`,
-      showFindings: 'Показати знахідки',
-      showFindingsFor: (title) => `Показати знахідки: ${title}`,
+      showFindings: 'Де саме і як виправити',
+      showFindingsFor: (title) => `Де саме і як виправити: ${title}`,
       learnMore: 'Як це перевіряється',
       explainerTitle: 'Що це означає простою мовою',
       explainerWhat: 'Що знайшла перевірка',
@@ -506,6 +518,8 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       explainerScope:
         'FluxRadar читає публічні відповіді тих сторінок, які обійшла ця перевірка. Знахідки описують те, що було в цих відповідях на той момент; жодної атаки, входу в акаунт чи перевірки на можливість зламу не виконувалося, а сторінки поза областю цієї перевірки не читалися.',
       technicalTitle: 'Технічні деталі для вашого розробника',
+      rowTechnicalTitle: 'Технічні деталі',
+      fixLead: 'Що зробити:',
       breakdownPages: (pages) => `Сторінок із цими знахідками: ${pages}.`,
       breakdownPagesSoFar: (pages) =>
         `Сторінок серед завантажених знахідок: ${pages} — завантажте решту, щоб порахувати всі.`,

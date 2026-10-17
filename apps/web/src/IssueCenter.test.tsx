@@ -130,7 +130,9 @@ describe('the Issue Center', () => {
     stubIssues();
     render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
     const problem = 'Page summary for search results is missing or the wrong length';
-    fireEvent.click(await screen.findByRole('button', { name: `Show findings: ${problem}` }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: `Where exactly and how to fix: ${problem}` }),
+    );
     await screen.findByText('Showing 50 of 60');
 
     expect(screen.getByRole('heading', { name: problem })).toBeInTheDocument();
@@ -178,7 +180,7 @@ describe('the Issue Center', () => {
 
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'Show findings: Page summary for search results is missing or the wrong length',
+        name: 'Where exactly and how to fix: Page summary for search results is missing or the wrong length',
       }),
     );
 
@@ -222,7 +224,7 @@ describe('the Issue Center', () => {
       'Опис сторінки для пошуку відсутній або неправильної довжини',
     );
     expect(title.length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Деталі' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Пояснення й доказ' }));
     const detail = screen.getByText('Як це перевіряється →').closest('a');
     expect(detail).toHaveAttribute('href', '/checks#checks-seo');
     // The window is titled with the site, not with the report's database id.
@@ -304,7 +306,10 @@ describe('the security problems an owner cannot read from a header name', () => 
     });
   }
 
-  it('keeps one row per problem and explains it in plain language, folded', async () => {
+  // The row used to lead with what the check measured and fold the plain
+  // meaning away, so nobody read it. Why it matters and what to do are in view
+  // now; the measurement and the scope are one click down, never removed.
+  it('keeps one row per problem and leads with why it matters and what to do', async () => {
     stubSecurity([]);
     render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
 
@@ -315,76 +320,53 @@ describe('the security problems an owner cannot read from a header name', () => 
     expect(csp).toHaveTextContent('Pages do not limit where they load content from');
     expect(csp).not.toHaveTextContent('Content-Security-Policy is missing or weak');
 
-    const disclosure = within(csp)
-      .getByText('What this means in plain language')
-      .closest('details');
-    // Folded: a row that opened itself would be a row per problem in name only.
-    expect(disclosure).not.toHaveAttribute('open');
-    expect(
-      within(csp).getByText(/do not tell the browser which outside sources/),
-    ).toBeInTheDocument();
+    const meaning = within(csp).getByText(/That instruction is an extra safeguard/);
+    expect(meaning).toBeVisible();
+    expect(meaning.closest('details')).toBeNull();
     // The owner's action is to ask a developer — not a header to paste.
+    const fix = within(csp).getByText(/Ask your website developer to set this protection up/);
+    expect(fix).toBeVisible();
+    expect(fix).toHaveTextContent(/^What to do:/);
+    expect(within(csp).queryByText('What this means in plain language')).toBeNull();
+
+    const technical = within(csp).getByText('Technical details').closest('details');
+    if (technical === null) throw new Error('expected the technical disclosure');
+    expect(technical).not.toHaveAttribute('open');
     expect(
-      within(csp).getByText(/Ask your website developer to set this protection up/),
-    ).toBeInTheDocument();
+      within(technical).getByText(/do not tell the browser which outside sources/),
+    ).not.toBeVisible();
     // One finding per page for this rule, so the count can be read as pages.
     expect(
-      within(csp).getByText('One finding for each page where it is not set.'),
+      within(technical).getByText('One finding for each page where it is not set.'),
     ).toBeInTheDocument();
     // Never "you have been attacked", and never "every page of your site".
     expect(
-      within(csp).getByText(
+      within(technical).getByText(
         /nothing was attacked, logged into or tested for whether it can be exploited/,
       ),
     ).toBeInTheDocument();
     expect(
-      within(csp).getByText(/pages outside this scan’s scope were not read/),
+      within(technical).getByText(/pages outside this scan’s scope were not read/),
     ).toBeInTheDocument();
   });
 
-  // The fold was the whole explanation, so a list of problems could only be
-  // read by opening one disclosure per row — which nobody does. The first
-  // sentence is on the row; the rest of the explanation stays folded, because
-  // one row per problem is what makes the list readable at all.
-  it('says what each problem is on the row, without a click', async () => {
-    stubSecurity([]);
-    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
-
-    const rows = (await screen.findAllByRole('row')).slice(1);
-    const csp = nth(rows, 0, 'the CSP problem row');
-    const sentence = within(csp).getByText(
-      'These pages do not tell the browser which outside sources it may load content from.',
-    );
-    expect(sentence).toBeVisible();
-    expect(sentence.closest('details')).toBeNull();
-
-    // Said once: the fold under it no longer repeats the same sentence.
-    const disclosure = within(csp)
-      .getByText('What this means in plain language')
-      .closest('details');
-    if (disclosure === null) throw new Error('expected the plain-language disclosure');
-    expect(disclosure).not.toHaveAttribute('open');
-    expect(within(csp).queryByText('What the check found')).toBeNull();
-    // Why it matters, what to do and what one finding counts are still in it.
-    expect(within(disclosure).getByText('Why it matters')).toBeInTheDocument();
-    expect(within(disclosure).getByText('What to do')).toBeInTheDocument();
-    expect(within(disclosure).getByText('What one finding is')).toBeInTheDocument();
-    expect(within(disclosure).getByText(/extra safeguard/)).not.toBeVisible();
-  });
-
-  it('says it on the row in Ukrainian too', async () => {
+  it('leads with the plain meaning in Ukrainian too', async () => {
     stubSecurity([]);
     render(<IssuesScreen scan={SCAN} language="uk" onError={() => {}} />);
 
     const rows = (await screen.findAllByRole('row')).slice(1);
     const csp = nth(rows, 0, 'the CSP problem row');
-    const sentence = within(csp).getByText(
-      'Ці сторінки не повідомляють браузеру, з яких сторонніх джерел йому можна завантажувати вміст.',
-    );
-    expect(sentence).toBeVisible();
-    expect(sentence.closest('details')).toBeNull();
-    expect(within(csp).queryByText('Що знайшла перевірка')).toBeNull();
-    expect(within(csp).getByText('Чому це важливо')).toBeInTheDocument();
+    const meaning = within(csp).getByText(/Це додатковий запобіжник/);
+    expect(meaning).toBeVisible();
+    expect(meaning.closest('details')).toBeNull();
+    const technical = within(csp).getByText('Технічні деталі').closest('details');
+    if (technical === null) throw new Error('expected the technical disclosure');
+    expect(technical).not.toHaveAttribute('open');
+    expect(
+      within(technical).getByText(
+        'Ці сторінки не повідомляють браузеру, з яких сторонніх джерел йому можна завантажувати вміст.',
+      ),
+    ).not.toBeVisible();
   });
 
   it('explains the cookie and header rules too, and leaves other rules alone', async () => {
@@ -406,11 +388,10 @@ describe('the security problems an owner cannot read from a header name', () => 
     expect(
       within(cookies).getByText(/value is not shown in the finding evidence/),
     ).toBeInTheDocument();
-    // A rule with no explanation gets no empty disclosure, keeps its own title
+    // A rule with no explanation gets no empty disclosure and no made-up fix, keeps its own title
     // and id, and is counted in findings — it may not be one per page.
-    expect(
-      within(altText).queryByText('What this means in plain language'),
-    ).not.toBeInTheDocument();
+    expect(within(altText).queryByText('Technical details')).not.toBeInTheDocument();
+    expect(within(altText).queryByText('What to do:')).not.toBeInTheDocument();
     expect(within(altText).getByText('Images without a text alternative')).toBeInTheDocument();
     expect(altText).toHaveTextContent('A11Y-002');
     expect(altText).toHaveTextContent('1 open finding');
@@ -425,7 +406,8 @@ describe('the security problems an owner cannot read from a header name', () => 
 
     const rows = (await screen.findAllByRole('row')).slice(1);
     const csp = nth(rows, 0, 'the CSP problem row');
-    expect(within(csp).getByText('Що це означає простою мовою')).toBeInTheDocument();
+    expect(within(csp).getByText('Технічні деталі')).toBeInTheDocument();
+    expect(within(csp).getByText('Що зробити:')).toBeVisible();
     expect(within(csp).getByText(/Це додатковий запобіжник/)).toBeInTheDocument();
     expect(
       within(csp).getByText(/Попросіть розробника налаштувати цей захист на сервері/),
@@ -443,7 +425,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'Show findings: Some browser protection settings are off',
+        name: 'Where exactly and how to fix: Some browser protection settings are off',
       }),
     );
     expect(await screen.findByText('Showing 1 of 1')).toBeInTheDocument();
@@ -461,7 +443,7 @@ describe('the security problems an owner cannot read from a header name', () => 
 
     expect(
       await screen.findByRole('button', {
-        name: 'Show findings: Pages do not limit where they load content from',
+        name: 'Where exactly and how to fix: Pages do not limit where they load content from',
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Problems' })).toHaveAttribute(
@@ -479,7 +461,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'Show findings: Some browser protection settings are off',
+        name: 'Where exactly and how to fix: Some browser protection settings are off',
       }),
     );
     expect(await screen.findByText('Showing one problem only')).toBeInTheDocument();
@@ -524,7 +506,7 @@ describe('the security problems an owner cannot read from a header name', () => 
       screen.getAllByRole('combobox', { name: 'Status: Some browser protection settings are off' }),
     ).toHaveLength(3);
     const thirdDetails = nth(
-      screen.getAllByRole('button', { name: 'Details' }),
+      screen.getAllByRole('button', { name: 'Explanation and evidence' }),
       2,
       'a Details button',
     );
@@ -586,7 +568,7 @@ describe('the security problems an owner cannot read from a header name', () => 
       }),
     ]);
     render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="A11Y-002" />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Details' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Explanation and evidence' }));
 
     const detail = document.getElementById('issue-detail-issue-1');
     if (detail === null) throw new Error('expected the finding’s detail panel');
@@ -1083,7 +1065,7 @@ describe('opening a problem while a search is typed', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Problems' }));
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'Show findings: Page summary for search results is missing or the wrong length',
+        name: 'Where exactly and how to fix: Page summary for search results is missing or the wrong length',
       }),
     );
 

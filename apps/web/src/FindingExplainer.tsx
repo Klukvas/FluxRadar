@@ -2,11 +2,11 @@
 // findings add up to.
 //
 // A report that says `The HTML response has no Content-Security-Policy` three
-// hundred times tells the owner nothing they can act on. The disclosure says
-// what the problem is — folded, so the problem list stays one row per problem —
-// and the breakdown says whether it is one fix or several.
+// hundred times tells the owner nothing they can act on. The explanation says
+// why the problem matters and what to do about it, and the breakdown says
+// whether it is one fix or several.
 //
-// Both stay quiet about what the scanner does not know: the disclosure closes
+// Both stay quiet about what the scanner does not know: the explanation closes
 // with the scope sentence, and the breakdown says "so far" until every finding
 // of the problem is loaded.
 //
@@ -31,19 +31,44 @@ export const VARIANT_LIMIT = 5;
 export const VARIANT_PAGE_LIMIT = 5;
 
 /**
- * What the check found, in one plain sentence, for the rules that have an
- * explanation — and nothing at all for the rest.
+ * A problem row's explanation, read in the order an owner needs it: why it
+ * matters, then what to do — both in view — and only then, one click down, what
+ * the check measured and what one finding is.
  *
- * It is on the row rather than behind the fold below it: a list of problems
- * whose plain names are its only readable part is a list the owner has to open
- * a disclosure per row to understand, and they do not. The rest of the
- * explanation — why it matters, what to do, what one finding counts — stays in
- * the fold, so the row is still one row.
+ * The measurement led the row before ("shorter than 10 or longer than 70
+ * characters") and the plain meaning sat in a fold nobody opened, so the list
+ * read as a developer's checklist. The thresholds are still one click away, in
+ * a real disclosure, never removed.
+ *
+ * Nothing at all for a rule with no explanation: it keeps the title, evidence
+ * and recommendation it always had, and gets no "What to do" line made up for it.
  */
-export function FindingWhat(props: { ruleId: string; language: Language }) {
+export function ProblemExplainer(props: { ruleId: string; language: Language }) {
+  const f = findingsCopy[props.language].issues;
   const explainer = findingExplainer(props.ruleId, props.language);
   if (explainer === null) return null;
-  return <p className="muted finding-what">{explainer.what}</p>;
+  return (
+    <div className="finding-explainer problem-explainer">
+      <p className="problem-explainer__meaning">{explainer.why}</p>
+      <p className="problem-explainer__fix">
+        <strong>{f.fixLead}</strong> {explainer.fix}
+      </p>
+      <details className="problem-explainer__technical">
+        <summary className="finding-explainer__summary">{f.rowTechnicalTitle}</summary>
+        <dl className="finding-explainer__body">
+          <div>
+            <dt>{f.explainerWhat}</dt>
+            <dd>{explainer.what}</dd>
+          </div>
+          <div>
+            <dt>{f.explainerCount}</dt>
+            <dd>{explainer.count}</dd>
+          </div>
+        </dl>
+        <p className="muted finding-explainer__scope">{f.explainerScope}</p>
+      </details>
+    </div>
+  );
 }
 
 /**
@@ -51,18 +76,10 @@ export function FindingWhat(props: { ruleId: string; language: Language }) {
  * an explanation, and nothing at all for the rest, so the problem list does not
  * grow an empty disclosure per row.
  *
- * `open` is for the finding detail. In a list it stays folded: one row per
- * problem is the whole reason the list reads.
- *
- * `withWhat` is for a caller that already says the first sentence itself
- * (`FindingWhat`): saying it twice on one row would be worse than folding it.
+ * `open` is for the finding detail, where the owner came to understand it; the
+ * problem list uses `ProblemExplainer` instead.
  */
-export function FindingExplainer(props: {
-  ruleId: string;
-  language: Language;
-  open?: boolean;
-  withWhat?: boolean;
-}) {
+export function FindingExplainer(props: { ruleId: string; language: Language; open?: boolean }) {
   const f = findingsCopy[props.language].issues;
   const explainer = findingExplainer(props.ruleId, props.language);
   if (explainer === null) return null;
@@ -70,12 +87,10 @@ export function FindingExplainer(props: {
     <details className="finding-explainer" {...(props.open ? { open: true } : {})}>
       <summary className="finding-explainer__summary">{f.explainerTitle}</summary>
       <dl className="finding-explainer__body">
-        {props.withWhat === false ? null : (
-          <div>
-            <dt>{f.explainerWhat}</dt>
-            <dd>{explainer.what}</dd>
-          </div>
-        )}
+        <div>
+          <dt>{f.explainerWhat}</dt>
+          <dd>{explainer.what}</dd>
+        </div>
         <div>
           <dt>{f.explainerWhy}</dt>
           <dd>{explainer.why}</dd>
