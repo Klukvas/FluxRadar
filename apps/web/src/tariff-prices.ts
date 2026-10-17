@@ -20,3 +20,18 @@ export const COMPLETE_PRICE = `$${TARIFF_PRICES_USD.Complete}`;
 export const BASIC_PRICE_USD = `${BASIC_PRICE} USD`;
 export const WEBSITE_AUDIT_PRICE_USD = `${WEBSITE_AUDIT_PRICE} USD`;
 export const COMPLETE_PRICE_USD = `${COMPLETE_PRICE} USD`;
+
+/** A plan identifier the price list knows, Free included. */
+export type PricedPlan = 'Free' | keyof typeof TARIFF_PRICES_USD;
+
+/**
+ * "$55" for each plan, keyed by the identifier the scan form holds. Free is
+ * "$0": the plan cards show a price on every card, and the free one costs
+ * nothing rather than having no price at all.
+ */
+export const PLAN_PRICE: Readonly<Record<PricedPlan, string>> = {
+  Free: '$0',
+  Basic: BASIC_PRICE,
+  WebsiteAudit: WEBSITE_AUDIT_PRICE,
+  Complete: COMPLETE_PRICE,
+};
