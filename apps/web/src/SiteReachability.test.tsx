@@ -240,6 +240,43 @@ describe('the site reachability panel', () => {
     expect(posts()).toHaveLength(1);
   });
 
+  // A probe that lands after the reader moved to another country is about a
+  // purchase no longer on screen: it must neither show nor unlock anything.
+  it('ignores a probe that lands after the egress location changed', async () => {
+    let answerPost: (data: unknown) => void = () => undefined;
+    const BLOCKED_IN_DE = { ...BLOCKED, accessControlSignals: [] };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET').toUpperCase() === 'POST')
+        return new Promise<Response>((resolve) => {
+          answerPost = (data) => resolve(envelope(data));
+        });
+      return Promise.resolve(
+        envelope(String(input).endsWith('egressLocation=de') ? BLOCKED_IN_DE : NEVER_CHECKED),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const onResult = vi.fn();
+    const props = {
+      language: 'en' as const,
+      profileId: 'profile-1',
+      resolveProfileId: async () => 'profile-1',
+      onResult,
+    };
+    const { rerender } = render(<SiteReachabilityPanel {...props} egressLocationId="ua" />);
+    await screen.findByText('Not checked yet.');
+    fireEvent.click(screen.getByRole('button', { name: 'Check the site' }));
+    await screen.findByText('Asking your site…');
+
+    rerender(<SiteReachabilityPanel {...props} egressLocationId="de" />);
+    await screen.findByText(/Allow FluxRadarBot/);
+    answerPost(REACHABLE);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(screen.getByText(/Allow FluxRadarBot/)).toBeInTheDocument();
+    expect(screen.queryByText('The site opens for our crawler')).toBeNull();
+    expect(onResult).not.toHaveBeenCalledWith(true);
+  });
+
   it('is translated', async () => {
     stubApi({ get: BLOCKED });
     render(

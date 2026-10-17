@@ -10,7 +10,7 @@
 // re-reads its own stored probe when the checkout opens — a browser that has
 // been told the site is fine proves nothing.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { apiRequest, type SiteReachability } from './api';
 import { Button } from './components';
@@ -69,6 +69,19 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
   const t = copy[props.language].reachability;
   const [state, setState] = useState<PanelState>({ kind: 'idle' });
   const { autoCheck, egressLocationId = null, onResult, profileId, resolveProfileId } = props;
+  // Which request may still write its answer. A read for another site or
+  // country, or a newer probe, moves it on; anything that finishes after that
+  // is about a purchase no longer on screen, and must not set this one's
+  // state or unlock (or block) its pay button.
+  const latestRequest = useRef(0);
+  // Unmounting retires whatever is in flight as well: a probe the reader can
+  // no longer see must not be sent, or answer, after the panel has gone.
+  useEffect(
+    () => () => {
+      latestRequest.current += 1;
+    },
+    [],
+  );
 
   // A saved profile may already have been checked. Reading that costs nothing
   // and is not rate-limited, so the reader does not press a button to be told
@@ -79,12 +92,14 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
       onResult(false);
       return;
     }
+    latestRequest.current += 1;
+    const request = latestRequest.current;
     let current = true;
     const query =
       egressLocationId === null ? '' : `?egressLocation=${encodeURIComponent(egressLocationId)}`;
     apiRequest<unknown>(`/profiles/${encodeURIComponent(profileId)}/reachability${query}`)
       .then((value) => {
-        if (!current) return;
+        if (!current || request !== latestRequest.current) return;
         const result = readSiteReachability(value);
         // An answer of the wrong shape is no answer: it must neither unlock
         // the purchase nor count as "never checked" and start a probe.
@@ -101,7 +116,7 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
         onResult(result.canPurchase);
       })
       .catch(() => {
-        if (!current) return;
+        if (!current || request !== latestRequest.current) return;
         // An unreadable last answer is not a verdict on the site: the reader is
         // offered the check rather than a failure they did not cause.
         setState({ kind: 'idle' });
@@ -113,10 +128,14 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
   }, [egressLocationId, profileId, onResult]);
 
   const check = useCallback(async (): Promise<void> => {
+    latestRequest.current += 1;
+    const request = latestRequest.current;
+    const stale = (): boolean => request !== latestRequest.current;
     setState({ kind: 'checking' });
     onResult(false);
     try {
       const id = await resolveProfileId();
+      if (stale()) return;
       if (id === null) {
         // The form is already saying why — an address it cannot read.
         setState({ kind: 'idle' });
@@ -130,10 +149,12 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
           ),
         }),
       );
+      if (stale()) return;
       if (result === null) throw new Error('Unreadable reachability answer');
       setState({ kind: 'result', result });
       onResult(result.canPurchase);
     } catch {
+      if (stale()) return;
       // Every message an ApiRequestError carries is written in English by the
       // API; the panel says what happened in the language it is read in, and
       // the retry is the part that was ever actionable.
