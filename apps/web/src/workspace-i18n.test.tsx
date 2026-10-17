@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { copy } from './i18n';
+import { newScanCopy } from './new-scan-copy';
 
 // ─── Localised result screens ────────────────────────────────────────────────
 //
@@ -188,17 +189,17 @@ describe('one word for a saved site, in both languages', () => {
   });
 
   // The scan screen named its picker after what a profile *holds* — a public
-  // origin — while the dropdown it labels lists saved profiles. The label says
-  // what is being chosen; the address and the public-pages-only promise it used
-  // to carry moved to the hint under the field.
-  it('names the profile picker of the scan screen Profile, not a public origin', () => {
-    expect(copy.en.newScan.labelProfile).toBe('Profile');
-    expect(copy.uk.newScan.labelProfile).toBe('Профіль');
+  // origin — and later after the saved record, "Profile". Four persona reviews
+  // read "profile" as an account setting, so the new-scan screen alone says
+  // "site": it is what a buyer is choosing there. The public-pages-only promise
+  // the old hint carried is still said under the field.
+  it('names the site picker of the scan screen Site, not a public origin or a profile', () => {
+    expect(newScanCopy.en.site.label).toBe('Site');
+    expect(newScanCopy.uk.site.label).toBe('Сайт');
     expect(JSON.stringify(copy.en.newScan)).not.toMatch(/Public origin/);
     expect(JSON.stringify(copy.uk.newScan)).not.toMatch(/Публічне джерело/);
-    // Nothing about the scan's scope was lost in the rename.
-    expect(copy.en.newScan.hintProfile).toMatch(/public pages/i);
-    expect(copy.uk.newScan.hintProfile).toMatch(/публічні сторінки/);
+    expect(newScanCopy.en.site.hint).toMatch(/only what any visitor sees/i);
+    expect(newScanCopy.uk.site.hint).toMatch(/лише те, що бачить будь-який відвідувач/);
   });
 
   it('names the profile picker of the Google panel Profile, not Website', () => {

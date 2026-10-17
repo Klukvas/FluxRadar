@@ -4,12 +4,13 @@
 // the only provider this deployment sells through. It appears only once the
 // checkout config has arrived, and says nothing while it has not.
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SiteProfile } from './api';
 import { NewScanScreen } from './NewScanScreen';
 import { copy, type Language } from './i18n';
+import { choosePlanCard, queryPlanRadio } from './new-scan-test-support';
 
 const PROFILE: SiteProfile = {
   id: 'profile-1',
@@ -80,16 +81,9 @@ async function purchaseNote(provider: string, language: Language): Promise<HTMLE
       onCreateProfile={() => undefined}
     />,
   );
-  const planSelect = (): HTMLSelectElement => {
-    const select = view.container.querySelector<HTMLSelectElement>('select[name="scan-plan"]');
-    if (select === null) throw new Error('the plan picker is not on screen');
-    return select;
-  };
-  // The paid option exists only once the checkout config has arrived.
-  await waitFor(() =>
-    expect(planSelect().querySelector('option[value="Complete"]')).not.toBeNull(),
-  );
-  fireEvent.change(planSelect(), { target: { value: 'Complete' } });
+  // The paid card exists only once the checkout config has arrived.
+  await waitFor(() => expect(queryPlanRadio('Complete', view.container)).not.toBeNull());
+  choosePlanCard('Complete', view.container);
   return screen.findByRole('note', { name: copy[language].newScan.purchaseTermsLabel });
 }
 

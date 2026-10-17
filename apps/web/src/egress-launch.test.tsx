@@ -77,8 +77,10 @@ function renderNewScan(egress: EgressLaunchConfig): ReturnType<typeof vi.fn> {
 }
 
 function summaryRow(label: string): Element | null {
-  const summary = screen.getByText('What will run').closest('section') ?? document.body;
-  return within(summary as HTMLElement).getByText(label).nextElementSibling;
+  // The technical rows live inside "For advanced users"; folded, they are still
+  // what the scan will do, so their text is read whether or not it is open.
+  const rows = screen.getByRole('group', { name: 'What the crawler will do' });
+  return within(rows).getByText(label).nextElementSibling;
 }
 
 afterEach(() => {

@@ -13,8 +13,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { apiRequest, type SiteReachability } from './api';
-import { Button, Panel } from './components';
+import { Button } from './components';
 import { copy, fillCopy, type Language } from './i18n';
+import { readSiteReachability } from './site-reachability-response';
 
 export interface SiteReachabilityPanelProps {
   readonly language: Language;
@@ -35,18 +36,39 @@ export interface SiteReachabilityPanelProps {
   readonly egressLocationId?: string | null;
   /** Tells the form whether the purchase may proceed. */
   readonly onResult: (canPurchase: boolean) => void;
+  /**
+   * Run the probe without a click when the site has never been checked.
+   *
+   * Absent means never: the panel only probes on request. When present, the
+   * panel probes only after the stored answer came back as "never checked",
+   * only once `ready` says the egress location is settled (a probe from the
+   * wrong country would be stored and then read as "never checked" for the
+   * right one), and only when `claim` agrees — the screen owns that memory,
+   * because this panel unmounts whenever the plan goes to Free and back.
+   */
+  readonly autoCheck?: {
+    readonly ready: boolean;
+    readonly claim: (profileId: string) => boolean;
+  };
 }
 
 type PanelState =
   | { readonly kind: 'idle' }
+  /** The API's own answer that this site has no current probe for `key`. */
+  | { readonly kind: 'unchecked'; readonly key: string }
   | { readonly kind: 'checking' }
   | { readonly kind: 'result'; readonly result: SiteReachability }
   | { readonly kind: 'failed' };
 
+/** Which stored answer a state describes: one per profile and country. */
+function answerKey(profileId: string, egressLocationId: string | null): string {
+  return `${profileId}|${egressLocationId ?? ''}`;
+}
+
 export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
   const t = copy[props.language].reachability;
   const [state, setState] = useState<PanelState>({ kind: 'idle' });
-  const { egressLocationId = null, onResult, profileId, resolveProfileId } = props;
+  const { autoCheck, egressLocationId = null, onResult, profileId, resolveProfileId } = props;
 
   // A saved profile may already have been checked. Reading that costs nothing
   // and is not rate-limited, so the reader does not press a button to be told
@@ -60,10 +82,22 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
     let current = true;
     const query =
       egressLocationId === null ? '' : `?egressLocation=${encodeURIComponent(egressLocationId)}`;
-    apiRequest<SiteReachability>(`/profiles/${encodeURIComponent(profileId)}/reachability${query}`)
-      .then((result) => {
+    apiRequest<unknown>(`/profiles/${encodeURIComponent(profileId)}/reachability${query}`)
+      .then((value) => {
         if (!current) return;
-        setState(result.state === null ? { kind: 'idle' } : { kind: 'result', result });
+        const result = readSiteReachability(value);
+        // An answer of the wrong shape is no answer: it must neither unlock
+        // the purchase nor count as "never checked" and start a probe.
+        if (result === null) {
+          setState({ kind: 'idle' });
+          onResult(false);
+          return;
+        }
+        setState(
+          result.state === null
+            ? { kind: 'unchecked', key: answerKey(profileId, egressLocationId) }
+            : { kind: 'result', result },
+        );
         onResult(result.canPurchase);
       })
       .catch(() => {
@@ -88,15 +122,15 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
         setState({ kind: 'idle' });
         return;
       }
-      const result = await apiRequest<SiteReachability>(
-        `/profiles/${encodeURIComponent(id)}/reachability`,
-        {
+      const result = readSiteReachability(
+        await apiRequest<unknown>(`/profiles/${encodeURIComponent(id)}/reachability`, {
           method: 'POST',
           body: JSON.stringify(
             egressLocationId === null ? {} : { egressLocation: egressLocationId },
           ),
-        },
+        }),
       );
+      if (result === null) throw new Error('Unreadable reachability answer');
       setState({ kind: 'result', result });
       onResult(result.canPurchase);
     } catch {
@@ -108,29 +142,50 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
     }
   }, [egressLocationId, onResult, resolveProfileId]);
 
+  // The probe a buyer would otherwise have to ask for. Only on the API's own
+  // "never checked" for exactly this site and country — never on an expired or
+  // refused answer, which already says something — and at most once per site
+  // for as long as the screen is open (`claim`), so toggling plans cannot turn
+  // it into a stream of requests to somebody else's server.
+  const autoReady = autoCheck?.ready === true;
+  const claimAutoCheck = autoCheck?.claim;
+  const uncheckedKey = state.kind === 'unchecked' ? state.key : null;
+  useEffect(() => {
+    if (!autoReady || claimAutoCheck === undefined || profileId === null) return;
+    if (uncheckedKey !== answerKey(profileId, egressLocationId)) return;
+    if (!claimAutoCheck(profileId)) return;
+    void check();
+  }, [autoReady, check, claimAutoCheck, egressLocationId, profileId, uncheckedKey]);
+
+  const answered = state.kind === 'result' || state.kind === 'failed';
   return (
-    <Panel title={t.title}>
-      <p className="muted panel-help">{t.lead}</p>
+    <div className="reach-step">
       <Body language={props.language} state={state} />
-      <div className="button-row">
-        <Button onClick={() => void check()} disabled={state.kind === 'checking'}>
-          {state.kind === 'result' || state.kind === 'failed' ? t.again : t.check}
-        </Button>
-      </div>
-    </Panel>
+      {state.kind === 'checking' ? null : (
+        <div className="button-row">
+          <Button onClick={() => void check()}>{answered ? t.again : t.check}</Button>
+        </div>
+      )}
+    </div>
   );
 }
 
 function Body(props: { language: Language; state: PanelState }) {
   const t = copy[props.language].reachability;
-  if (props.state.kind === 'checking') return <p className="muted">{t.checking}</p>;
+  if (props.state.kind === 'checking')
+    return (
+      <p className="muted" role="status">
+        {t.checking}
+      </p>
+    );
   if (props.state.kind === 'failed')
     return (
       <p className="muted" role="alert">
         {t.failed}
       </p>
     );
-  if (props.state.kind === 'idle') return <p className="muted">{t.unchecked}</p>;
+  if (props.state.kind === 'idle' || props.state.kind === 'unchecked')
+    return <p className="muted">{t.unchecked}</p>;
 
   const { result } = props.state;
   const expired = result.expired === true;

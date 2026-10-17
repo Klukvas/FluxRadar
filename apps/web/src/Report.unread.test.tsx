@@ -392,7 +392,7 @@ describe('a report whose site could not be read', () => {
     const steps = within(block).getAllByRole('listitem');
     expect(steps).toHaveLength(2);
     expect(steps[0]).toHaveTextContent(
-      'Allow FluxRadarBot in robots.txt — our crawler page has the two lines to paste. Or turn off “Respect robots.txt” under “For experienced users” and, beside the Run button, tick that you want the skipped pages read.',
+      'Allow FluxRadarBot in robots.txt — our crawler page has the two lines to paste. Or turn off “Respect robots.txt” under “For advanced users” and, beside the Run button, tick that you want the skipped pages read.',
     );
     // The step names the new-scan screen's folded block by its own title, so a
     // rename on either side fails here instead of sending the owner nowhere.

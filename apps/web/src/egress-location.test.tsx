@@ -165,9 +165,8 @@ describe('the launch summary', () => {
     render(
       <LaunchSummary
         language="uk"
-        site="https://example.com"
         plan={plan}
-        planLabel={plan}
+        labelledBy="technical-rows"
         scope={DEFAULT_SCOPE_FORM}
         egressLocation={egressLocation}
         egressDirect={false}

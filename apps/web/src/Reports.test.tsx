@@ -151,7 +151,9 @@ describe('Reports list', () => {
       screen.getByText(/A report appears here as soon as you check one of your profiles/i),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Check a profile' }));
-    expect(await screen.findByText('New scan — scope and tariff')).toBeInTheDocument();
+    expect(
+      await screen.findByText('New scan', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
   });
 
   it('reports a failed load in product language and retries in place', async () => {

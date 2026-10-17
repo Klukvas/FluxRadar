@@ -738,7 +738,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     : paidScopeControls
       ? props.internalFreeAccess
         ? t.newScan.runInternal
-        : t.newScan.runPaid
+        : t.newScan.runPaid(plan)
       : t.newScan.runFree;
 
   return {

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
+import { choosePlanCard } from './new-scan-test-support';
 
 // Creem's hosted checkout: the redirect flow.
 //
@@ -168,13 +169,13 @@ async function payForCompleteScan(): Promise<void> {
   fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
   await screen.findByText('Site Profiles');
   fireEvent.click(screen.getByRole('button', { name: 'New scan' }));
-  await screen.findByText('New scan — scope and tariff');
-  await screen.findByText('Complete · $120');
-  fireEvent.change(screen.getByLabelText('Scan plan'), { target: { value: 'Complete' } });
+  await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+  await screen.findByRole('radio', { name: /^Complete/ });
+  choosePlanCard('Complete');
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Pay and run scan' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Pay $120 and start' })).toBeEnabled(),
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Pay and run scan' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
 }
 
 afterEach(() => {
@@ -339,7 +340,9 @@ describe('coming back from the Creem hosted checkout', () => {
     ).toHaveLength(1);
     // And the workspace is usable again.
     fireEvent.click(await screen.findByRole('button', { name: 'New scan' }));
-    expect(await screen.findByText('New scan — scope and tariff')).toBeInTheDocument();
+    expect(
+      await screen.findByText('New scan', { selector: '.window__titlebar > span' }),
+    ).toBeInTheDocument();
   });
 
   // The stored record is the checkout this browser started, with the page it

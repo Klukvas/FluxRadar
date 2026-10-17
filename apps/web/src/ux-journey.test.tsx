@@ -183,10 +183,8 @@ describe('the home page carries what the visitor asked for through sign-up', () 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create account' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/scan'));
-    const planSelect = (await screen.findByRole('combobox', {
-      name: /Scan plan/i,
-    })) as HTMLSelectElement;
-    await waitFor(() => expect(planSelect.value).toBe('Basic'));
+    const basic = await screen.findByRole('radio', { name: /^Basic/ });
+    await waitFor(() => expect(basic).toBeChecked());
   });
 });
 
@@ -432,7 +430,7 @@ describe('a Free report', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Run Complete for this site' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/scan'));
-    const target = (await screen.findByRole('combobox', { name: /^Profile/ })) as HTMLSelectElement;
+    const target = (await screen.findByRole('combobox', { name: /^Site/ })) as HTMLSelectElement;
     expect(target.value).toBe(profile.id);
   });
 

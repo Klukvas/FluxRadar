@@ -3246,20 +3246,6 @@ code,
   }
 }
 @media (max-width: 1099px) {
-  .window--launch {
-    max-width: 520px;
-  }
-  .launch-form {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--sp-3);
-  }
-  .launch-form__launch {
-    position: static;
-    max-height: none;
-  }
-  .launch-form__review {
-    overflow-y: visible;
-  }
   .desktop {
     padding: var(--sp-4);
   }
@@ -3310,6 +3296,23 @@ code,
     width: 1px;
     height: 18px;
     margin: 0;
+  }
+}
+/* The new-scan screen keeps its two columns down to 820px — the order summary
+   beside the steps is the point of the layout — and below that becomes one
+   stack with the summary after the steps. The window itself keeps the full
+   width it is given rather than narrowing to the 520px dialog width. */
+@media (max-width: 820px) {
+  .launch-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3);
+  }
+  .launch-form__launch {
+    position: static;
+    max-height: none;
+  }
+  .launch-form__review {
+    overflow-y: visible;
   }
 }
 @media (max-width: 699px) {

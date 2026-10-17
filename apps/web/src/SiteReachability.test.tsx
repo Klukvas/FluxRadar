@@ -196,6 +196,50 @@ describe('the site reachability panel', () => {
     expect(screen.getByText('Not checked yet.')).toBeInTheDocument();
   });
 
+  // The screen asks the panel to probe by itself only once the country the
+  // scan leaves from is known: a probe from the default location would be
+  // stored, then read as "never checked" for the country actually chosen.
+  it('waits for the egress location before probing by itself, then probes once', async () => {
+    const fetchMock = stubApi({ get: NEVER_CHECKED, post: REACHABLE });
+    const claimed: string[] = [];
+    const claim = (profileId: string): boolean => {
+      if (claimed.includes(profileId)) return false;
+      claimed.push(profileId);
+      return true;
+    };
+    const props = {
+      language: 'en' as const,
+      profileId: 'profile-1',
+      resolveProfileId: async () => 'profile-1',
+      onResult: vi.fn(),
+    };
+    const posts = () =>
+      fetchMock.mock.calls.filter(
+        ([, init]) => (init as RequestInit | undefined)?.method === 'POST',
+      );
+    const { rerender } = render(
+      <SiteReachabilityPanel {...props} autoCheck={{ ready: false, claim }} />,
+    );
+    await screen.findByText('Not checked yet.');
+    expect(posts()).toHaveLength(0);
+
+    rerender(
+      <SiteReachabilityPanel {...props} egressLocationId="ua" autoCheck={{ ready: true, claim }} />,
+    );
+    await screen.findByText('The site opens for our crawler');
+    expect(posts()).toHaveLength(1);
+    expect(JSON.parse(String((posts()[0]?.[1] as RequestInit).body))).toEqual({
+      egressLocation: 'ua',
+    });
+
+    // Another country for the same site reads its own answer, and is not probed again.
+    rerender(
+      <SiteReachabilityPanel {...props} egressLocationId="de" autoCheck={{ ready: true, claim }} />,
+    );
+    await screen.findByText('Not checked yet.');
+    expect(posts()).toHaveLength(1);
+  });
+
   it('is translated', async () => {
     stubApi({ get: BLOCKED });
     render(

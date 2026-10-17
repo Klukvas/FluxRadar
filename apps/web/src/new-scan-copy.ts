@@ -2,20 +2,65 @@ import type { Language } from './i18n';
 import type { Plan } from './plan-modules';
 
 /**
- * The new-scan screen's plain-language layer: the line that names the site
- * beside the launch button, the folded block for crawl settings most owners
- * never touch, and the warning a carried-over robots.txt override earns.
+ * The new-scan screen's plain-language layer: the three numbered steps, the
+ * plan cards, the order summary beside them, the folded section for settings
+ * most owners never touch, and the warning a carried-over robots.txt override
+ * earns. The screen says "site" where the rest of the app says "profile": it is
+ * what a buyer is choosing, and the word the persona reviews tripped on.
  *
  * Kept apart from `i18n.ts` so the screen's own wording can change without
  * touching the shared catalogue.
  */
 export type NewScanClarityCopy = {
-  /** "Checking: Eva Grace, https://evagrace.example, plan Basic". */
-  readonly checking: (site: { name: string; domain: string }, plan: string) => string;
+  /** The three numbered steps the left column is read as. */
+  readonly steps: {
+    readonly site: string;
+    readonly plan: string;
+    readonly reach: string;
+  };
+  /** Step 1: the saved site the scan runs against. */
+  readonly site: {
+    readonly label: string;
+    readonly hint: string;
+    /** Said instead of the picker while the account has no saved site. */
+    readonly noneLead: string;
+  };
+  /** Step 2: one card per plan, priced from `tariff-prices.ts`. */
+  readonly planCards: Readonly<Record<Plan, { readonly name: string; readonly line: string }>>;
+  readonly planRecommended: string;
+  /** The price on a card when an internal account pays nothing. */
+  readonly planInternalPrice: string;
+  /** Step 3: why the question is asked, and what replaces it where nothing is bought. */
+  readonly reach: {
+    readonly hint: string;
+    readonly freeNote: string;
+    readonly internalNote: string;
+  };
+  /** The order summary beside the steps. */
+  readonly summary: {
+    readonly title: string;
+    readonly site: string;
+    readonly plan: string;
+    readonly pages: string;
+    readonly checks: string;
+    readonly pagesHomepage: string;
+    readonly pagesAll: (limit: string) => string;
+    readonly pagesOwner: (limit: string) => string;
+    readonly checksByPlan: Readonly<Record<Plan, string>>;
+    readonly total: string;
+    readonly totalFree: string;
+    readonly totalInternal: string;
+    readonly noSubscription: string;
+  };
   readonly noSiteChosen: string;
-  /** The product names, without prices: the line names the plan, the picker sells it. */
-  readonly planNames: Readonly<Record<Plan, string>>;
+  /** "For advanced users": the folded section holding everything technical. */
   readonly expertTitle: string;
+  /** The rows that used to be the "What will run" table, inside that section. */
+  readonly technicalTitle: string;
+  /** The crawl settings block inside that section. */
+  readonly crawlSettingsTitle: string;
+  readonly saveSettings: string;
+  readonly savingSettings: string;
   readonly expertLead: string;
   /**
    * Added when the values inside came from the site's saved settings rather
@@ -74,19 +119,69 @@ export type NewScanClarityCopy = {
   };
 };
 
-const PLAN_NAMES: Readonly<Record<Plan, string>> = {
-  Free: 'Free',
-  Basic: 'Basic',
-  WebsiteAudit: 'Website Audit',
-  Complete: 'Complete',
-};
-
 export const newScanCopy: Record<Language, NewScanClarityCopy> = {
   en: {
-    checking: (site, plan) => `Checking: ${site.name}, ${site.domain}, plan ${plan}`,
+    steps: {
+      site: 'Which site are we checking?',
+      plan: 'What should we check?',
+      reach: 'Can we read your site?',
+    },
+    site: {
+      label: 'Site',
+      hint: 'We read only what any visitor sees. No passwords or site access needed.',
+      noneLead: 'No saved sites yet — add your site first, then choose it here.',
+    },
+    planCards: {
+      Free: {
+        name: 'Free',
+        line: 'Homepage only: its title, description and whether Google can show it.',
+      },
+      Basic: {
+        name: 'Basic',
+        line: 'Why you are not found in Google and AI assistants: broken links, pages with no description, duplicates, what ChatGPT sees.',
+      },
+      WebsiteAudit: {
+        name: 'Website Audit',
+        line: 'Whether the site itself is in good shape: security, speed, accessibility, privacy. No search.',
+      },
+      Complete: {
+        name: 'Complete',
+        line: 'Everything together: search, AI and site health in one report.',
+      },
+    },
+    planRecommended: 'GOOD PLACE TO START',
+    planInternalPrice: 'internal',
+    reach: {
+      hint: 'We check this before payment so you never pay for a site we cannot read.',
+      freeNote: 'The free check does not need this step: nothing is paid for.',
+      internalNote: 'Internal scans skip this step: nothing is paid for.',
+    },
+    summary: {
+      title: 'Your report',
+      site: 'Site',
+      plan: 'Plan',
+      pages: 'Pages',
+      checks: 'We check',
+      pagesHomepage: 'homepage only',
+      pagesAll: (limit) => `all, up to ${limit}`,
+      pagesOwner: (limit) => `up to ${limit}`,
+      checksByPlan: {
+        Free: 'your homepage',
+        Basic: 'Google and AI assistants',
+        WebsiteAudit: 'the health of the site itself',
+        Complete: 'everything together',
+      },
+      total: 'Total, one-time',
+      totalFree: 'Free',
+      totalInternal: 'Internal, no charge',
+      noSubscription: 'no subscription',
+    },
     noSiteChosen: 'No site chosen yet',
-    planNames: PLAN_NAMES,
-    expertTitle: 'For experienced users',
+    expertTitle: 'For advanced users',
+    technicalTitle: 'What the crawler will do',
+    crawlSettingsTitle: 'Crawl settings',
+    saveSettings: 'Save these settings for the site',
+    savingSettings: 'Saving settings…',
     expertLead:
       'Crawl settings with safe defaults. Most checks never need them; anything changed here is used by the scan even while this block is folded.',
     expertCarriedOver:
@@ -114,7 +209,7 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
     robotsConfirmLabel: 'Yes, read the pages robots.txt asks crawlers to skip',
     robotsBackOn: 'Switch robots.txt back on',
     closeWindow: 'Close window',
-    createProfile: 'Create profile',
+    createProfile: 'Add a site',
     discard: {
       title: 'Discard unsaved scan setup?',
       body: 'Your changes to this new scan will be lost.',
@@ -125,7 +220,7 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
       title: 'Google data (optional)',
       loading: 'Checking connected Google properties…',
       ready:
-        'Search Console or GA4 is connected for this profile. That context will be included in the audit; PageSpeed is independent of this connection.',
+        'Search Console or GA4 is connected for this site. That context will be included in the audit; PageSpeed is independent of this connection.',
       missing:
         'Connect Search Console or GA4 to add Google context to this audit. PageSpeed does not need a connection.',
       unavailable: 'Google connection status is unavailable. The audit can still continue.',
@@ -133,10 +228,67 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
     },
   },
   uk: {
-    checking: (site, plan) => `Перевіряємо: ${site.name}, ${site.domain}, тариф ${plan}`,
+    steps: {
+      site: 'Який сайт перевіряємо?',
+      plan: 'Що перевірити?',
+      reach: 'Чи можемо ми прочитати ваш сайт?',
+    },
+    site: {
+      label: 'Сайт',
+      hint: 'Ми читаємо лише те, що бачить будь-який відвідувач. Паролі й доступ до сайту не потрібні.',
+      noneLead: 'Збережених сайтів ще немає — спершу додайте свій сайт, а потім виберіть його тут.',
+    },
+    planCards: {
+      Free: {
+        name: 'Безкоштовно',
+        line: 'Лише головна сторінка: заголовок, опис і чи може Google її показати.',
+      },
+      Basic: {
+        name: 'Basic',
+        line: 'Чому вас не знаходять у Google і ШІ-помічниках: биті посилання, сторінки без опису, дублікати, що бачить ChatGPT.',
+      },
+      WebsiteAudit: {
+        name: 'Website Audit',
+        line: 'Чи все гаразд із самим сайтом: безпека, швидкість, доступність, приватність. Без пошуку.',
+      },
+      Complete: {
+        name: 'Complete',
+        line: 'Усе разом: пошук, ШІ і стан сайту в одному звіті.',
+      },
+    },
+    planRecommended: 'РАДИМО ПОЧАТИ',
+    planInternalPrice: 'внутрішній',
+    reach: {
+      hint: 'Перевіряємо це до оплати, щоб ви не заплатили за сайт, який неможливо прочитати.',
+      freeNote: 'Безкоштовній перевірці цей крок не потрібен: ви нічого не оплачуєте.',
+      internalNote: 'Внутрішня перевірка пропускає цей крок: ви нічого не оплачуєте.',
+    },
+    summary: {
+      title: 'Ваш звіт',
+      site: 'Сайт',
+      plan: 'Тариф',
+      pages: 'Сторінок',
+      checks: 'Перевіримо',
+      pagesHomepage: 'лише головна',
+      pagesAll: (limit) => `усі, до ${limit}`,
+      pagesOwner: (limit) => `до ${limit}`,
+      checksByPlan: {
+        Free: 'головну сторінку',
+        Basic: 'Google і ШІ-помічники',
+        WebsiteAudit: 'стан самого сайту',
+        Complete: 'усе разом',
+      },
+      total: 'Разом, один раз',
+      totalFree: 'Безкоштовно',
+      totalInternal: 'Внутрішня, без оплати',
+      noSubscription: 'без підписки',
+    },
     noSiteChosen: 'Сайт ще не вибрано',
-    planNames: PLAN_NAMES,
     expertTitle: 'Для досвідчених користувачів',
+    technicalTitle: 'Що саме зробить краулер',
+    crawlSettingsTitle: 'Налаштування обходу',
+    saveSettings: 'Зберегти ці налаштування для сайту',
+    savingSettings: 'Зберігаємо налаштування…',
     expertLead:
       'Налаштування обходу з безпечними значеннями. Здебільшого їх не чіпають; усе, що змінено тут, перевірка використає, навіть коли блок згорнуто.',
     expertCarriedOver:
@@ -164,7 +316,7 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
     robotsConfirmLabel: 'Так, читати сторінки, які robots.txt просить пропускати',
     robotsBackOn: 'Знову увімкнути robots.txt',
     closeWindow: 'Закрити вікно',
-    createProfile: 'Створити профіль',
+    createProfile: 'Додати сайт',
     discard: {
       title: 'Відкинути незбережені налаштування?',
       // «перевірка», not «сканування»: the Ukrainian interface has one word
@@ -178,7 +330,7 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
       title: 'Дані Google (необов’язково)',
       loading: 'Перевіряємо підключені властивості Google…',
       ready:
-        'Search Console або GA4 підключено для цього профілю. Цей контекст буде додано до аудиту; PageSpeed від підключення не залежить.',
+        'Search Console або GA4 підключено для цього сайту. Цей контекст буде додано до аудиту; PageSpeed від підключення не залежить.',
       missing:
         'Підключіть Search Console або GA4, щоб додати контекст Google до цього аудиту. PageSpeed цього не потребує.',
       unavailable: 'Не вдалося перевірити підключення Google. Аудит все одно може продовжитися.',

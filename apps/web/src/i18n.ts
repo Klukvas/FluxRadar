@@ -8,7 +8,9 @@ import {
   COMPLETE_PRICE,
   COMPLETE_PRICE_USD,
   WEBSITE_AUDIT_PRICE,
+  PLAN_PRICE,
   WEBSITE_AUDIT_PRICE_USD,
+  type PricedPlan,
 } from './tariff-prices';
 import { tourStepCopy } from './tour-steps';
 
@@ -733,18 +735,13 @@ export const copy = {
       },
     },
     newScan: {
-      windowTitle: 'New scan — scope and tariff',
-      panelTarget: 'Target',
-      labelProfile: 'Profile',
-      hintProfile: 'Scans the site address saved on this profile, and reads its public pages only.',
+      windowTitle: 'New scan',
       optionNewAddress: 'Another site address…',
       labelAddress: 'Site address',
       noAddress: 'Enter a site address',
       addressPlaceholder: 'mysite.com',
       hintAddress:
         'FluxRadar saves this address as a profile, so every report for the site stays in one place.',
-      noProfilesLead:
-        'No saved profiles yet — create a profile first, then choose it here to start a scan.',
       prefillNote: 'Settings carried over from your last check of this site.',
       freeScopeTitle: 'What the free check does',
       freeScopeNote:
@@ -778,8 +775,6 @@ export const copy = {
       freeCheckDomainUsedError:
         'This site has already had its free check — each site gets one. Yours is still unused and works on another site; to audit this one, choose Basic or Complete.',
       blockedByEgress: 'A scan cannot start while no check location is answering.',
-      panelDepth: 'Audit depth',
-      labelScanPlan: 'Scan plan',
       planFree: 'Free · homepage only',
       planBasicInternal: 'Basic · internal free',
       planBasicPaid: `Basic · ${BASIC_PRICE}`,
@@ -866,23 +861,21 @@ export const copy = {
       performanceInfoMode: 'No sign-in or site script',
       performanceInfoBody:
         'Complete sends the public page URL to Google PageSpeed Insights for a point-in-time Lighthouse lab test and requests available CrUX field data for that URL or origin. You do not connect a Google account or install anything on the tested site. Google can return no field data or fail to answer; in that case the report shows the limitation instead of inventing a score.',
-      noProfile: 'Select a profile',
-      publicSiteOnly: '· public site only',
+      noProfile: 'Select a site',
       creating: 'Creating…',
       runFree: 'Run free check',
       runInternal: 'Run internal scan',
-      runPaid: 'Pay and run scan',
+      runPaid: (plan: PricedPlan) => `Pay ${PLAN_PRICE[plan]} and start`,
       paidUnavailable:
         'Paid scans will be available when checkout is enabled. Free scan is available now. Any saved paid configuration is preserved; this Free run does not replace it.',
       paidChecking: 'Checking whether paid reports can be bought here…',
       openingCheckout: 'Opening checkout…',
       purchaseTermsLabel: 'Purchase terms',
-      purchaseTermsPrefix: 'By selecting “Pay and run scan”, you agree to the',
+      purchaseTermsPrefix: (plan: PricedPlan) =>
+        `By selecting “Pay ${PLAN_PRICE[plan]} and start”, you agree to the`,
       purchaseTermsJoin: 'and acknowledge the',
       purchaseTermsMerchant: 'Creem handles payment as merchant of record.',
-      saveConfiguration: 'Save configuration',
-      savingConfiguration: 'Saving configuration…',
-      configurationTitle: 'Profile configuration',
+      configurationTitle: 'Site settings',
       configurationSaved: 'Saved · version {version}',
       configurationUnsaved: 'Unsaved changes',
       configurationUnsavedBody:
@@ -894,17 +887,13 @@ export const copy = {
       configurationRobotsNotReused:
         'One saved setting is never reused: the permission to read pages robots.txt asks crawlers to skip. Confirm it again beside the Run button, or switch robots.txt back on — nothing else about these settings has changed.',
       configurationNew: 'New configuration',
-      configurationNewBody: 'It will be saved to this profile before the check starts.',
+      configurationNewBody: 'They will be saved for this site before the check starts.',
       configurationLoading: 'Configuration is loading…',
       aiContextTitle: 'What this site offers',
       aiContextHelp:
         'Used to ask AI models neutral questions about your topic — questions that never name your brand or domain, so a mention in the answer means the model knows you rather than that we told it.',
       aiContextMissing:
         'Without these, the AI visibility section can only ask questions that name your brand — and an answer repeating a name we supplied measures nothing. Fill them in to get neutral questions about your topic. They are saved with the site.',
-      launchSummaryTitle: 'What will run',
-      launchSummarySite: 'Site',
-      launchSummaryPlan: 'Plan',
-      launchSummaryPages: 'Pages',
       launchSummaryDepth: 'Maximum depth',
       launchSummarySubdomains: 'Subdomains',
       launchSummaryRobots: 'robots.txt',
@@ -919,7 +908,6 @@ export const copy = {
       // Website Audit runs no AI SEO / GEO, but its UX review is AI-assisted.
       launchSummaryAiUxOnly: 'Not in this plan · AI is used for the UX review',
       launchSummaryDisabled: 'Off',
-      launchSummaryHomepage: 'Homepage only',
       launchSummaryIncluded: 'Included',
       launchSummaryIgnored: 'Ignored',
       launchSummaryRespected: 'Respected',
@@ -927,7 +915,6 @@ export const copy = {
     },
     reachability: {
       title: 'Can we read your site?',
-      lead: 'We check this before you pay, with the same crawler that will run the audit. A site that refuses it cannot be audited, and we would rather tell you now than refund you later.',
       check: 'Check the site',
       again: 'Check again',
       checking: 'Asking your site…',
@@ -937,7 +924,7 @@ export const copy = {
       signals: 'Sent by: {signals}',
       states: {
         reachable: {
-          label: 'Reachable',
+          label: 'The site opens for our crawler',
           body: 'Your site answered and let our crawler read a page. The audit can run.',
         },
         accessDenied: {
@@ -2756,19 +2743,13 @@ export const copy = {
       },
     },
     newScan: {
-      windowTitle: 'Нова перевірка — область і тариф',
-      panelTarget: 'Ціль',
-      labelProfile: 'Профіль',
-      hintProfile:
-        'Перевіряє адресу сайту, збережену в цьому профілі, і читає лише публічні сторінки.',
+      windowTitle: 'Нова перевірка',
       optionNewAddress: 'Інша адреса сайту…',
       labelAddress: 'Адреса сайту',
       noAddress: 'Введіть адресу сайту',
       addressPlaceholder: 'mysite.com',
       hintAddress:
         'FluxRadar збереже цю адресу як профіль, щоб усі звіти для сайту були в одному місці.',
-      noProfilesLead:
-        'Збережених профілів ще немає — спершу створіть профіль, а потім оберіть його тут для запуску перевірки.',
       prefillNote: 'Налаштування перенесено з вашої попередньої перевірки цього сайту.',
       freeScopeTitle: 'Що робить безкоштовна перевірка',
       freeScopeNote:
@@ -2802,8 +2783,6 @@ export const copy = {
       freeCheckDomainUsedError:
         'Цей сайт уже мав безкоштовну перевірку — кожен сайт отримує одну. Ваша ще не використана й підійде для іншого сайту; щоб перевірити цей, оберіть Basic або Complete.',
       blockedByEgress: 'Перевірку не можна запустити, поки жодна точка перевірки не відповідає.',
-      panelDepth: 'Глибина аудиту',
-      labelScanPlan: 'Тариф перевірки',
       planFree: 'Free · лише головна',
       planBasicInternal: 'Basic · внутрішній безкоштовний',
       planBasicPaid: `Basic · ${BASIC_PRICE}`,
@@ -2872,23 +2851,21 @@ export const copy = {
       performanceInfoMode: 'Без входу й скрипту на сайті',
       performanceInfoBody:
         'Complete надсилає публічну URL-адресу Google PageSpeed Insights для разового лабораторного тесту Lighthouse та запитує доступні польові дані CrUX для цієї адреси або джерела. Не потрібно підключати Google-акаунт чи встановлювати щось на сайті. Google може не мати польових даних або не відповісти; тоді звіт покаже обмеження, а не вигадану оцінку.',
-      noProfile: 'Оберіть профіль',
-      publicSiteOnly: '· лише публічний сайт',
+      noProfile: 'Виберіть сайт',
       creating: 'Створення…',
       runFree: 'Запустити безкоштовну перевірку',
       runInternal: 'Запустити внутрішню перевірку',
-      runPaid: 'Оплатити та запустити',
+      runPaid: (plan: PricedPlan) => `Оплатити ${PLAN_PRICE[plan]} і запустити`,
       paidUnavailable:
         'Платні перевірки будуть доступні після підключення оплати. Безкоштовна перевірка доступна зараз. Збережену платну конфігурацію не буде змінено: цей безкоштовний запуск її не замінює.',
       paidChecking: 'Перевіряємо, чи можна тут купити платні звіти…',
       openingCheckout: 'Відкриваємо оплату…',
       purchaseTermsLabel: 'Умови придбання',
-      purchaseTermsPrefix: 'Натискаючи «Оплатити та запустити», ви погоджуєтеся з',
+      purchaseTermsPrefix: (plan: PricedPlan) =>
+        `Натискаючи «Оплатити ${PLAN_PRICE[plan]} і запустити», ви погоджуєтеся з`,
       purchaseTermsJoin: 'і підтверджуєте, що ознайомилися з',
       purchaseTermsMerchant: 'Creem обробляє оплату як merchant of record.',
-      saveConfiguration: 'Зберегти конфігурацію',
-      savingConfiguration: 'Зберігаємо конфігурацію…',
-      configurationTitle: 'Конфігурація профілю',
+      configurationTitle: 'Налаштування сайту',
       configurationSaved: 'Збережено · версія {version}',
       configurationUnsaved: 'Є незбережені зміни',
       configurationUnsavedBody:
@@ -2896,17 +2873,13 @@ export const copy = {
       configurationRobotsNotReused:
         'Одне збережене налаштування ніколи не переноситься — дозвіл читати сторінки, які robots.txt просить пропускати. Підтвердьте його ще раз біля кнопки запуску або знову увімкніть robots.txt: більше в цих налаштуваннях нічого не змінилося.',
       configurationNew: 'Нова конфігурація',
-      configurationNewBody: 'Її буде збережено в цьому профілі перед запуском перевірки.',
+      configurationNewBody: 'Їх буде збережено для цього сайту перед запуском перевірки.',
       configurationLoading: 'Завантажуємо конфігурацію…',
       aiContextTitle: 'Що пропонує цей сайт',
       aiContextHelp:
         'Використовується, щоб ставити AI-моделям нейтральні питання про вашу тему — питання, які не називають ні бренд, ні домен, тож згадка у відповіді означає, що модель вас знає, а не що ми їй підказали.',
       aiContextMissing:
         'Без цього розділ AI-видимості зможе ставити лише питання, які називають ваш бренд, — а відповідь, що повторює підказане нами імʼя, нічого не вимірює. Заповніть поля, щоб отримати нейтральні питання про вашу тему. Вони зберігаються разом із сайтом.',
-      launchSummaryTitle: 'Що буде запущено',
-      launchSummarySite: 'Сайт',
-      launchSummaryPlan: 'Тариф',
-      launchSummaryPages: 'Сторінки',
       launchSummaryDepth: 'Максимальна глибина',
       launchSummarySubdomains: 'Піддомени',
       launchSummaryRobots: 'robots.txt',
@@ -2920,7 +2893,6 @@ export const copy = {
       launchSummaryEnabled: 'Увімкнено',
       launchSummaryAiUxOnly: 'Не входить у цей тариф · AI використовується для UX-огляду',
       launchSummaryDisabled: 'Вимкнено',
-      launchSummaryHomepage: 'Лише головна',
       launchSummaryIncluded: 'Включено',
       launchSummaryIgnored: 'Ігноруються',
       launchSummaryRespected: 'Дотримуємось',
@@ -2928,7 +2900,6 @@ export const copy = {
     },
     reachability: {
       title: 'Чи можемо ми прочитати ваш сайт?',
-      lead: 'Ми перевіряємо це до оплати тим самим краулером, який робитиме аудит. Сайт, який його не пускає, перевірити неможливо, і краще сказати про це зараз, ніж повертати кошти потім.',
       check: 'Перевірити сайт',
       again: 'Перевірити ще раз',
       checking: 'Запитуємо ваш сайт…',
@@ -2938,7 +2909,7 @@ export const copy = {
       signals: 'Надіслано: {signals}',
       states: {
         reachable: {
-          label: 'Доступний',
+          label: 'Сайт відкривається для нашого краулера',
           body: 'Ваш сайт відповів і дозволив нашому краулеру прочитати сторінку. Аудит можна запускати.',
         },
         accessDenied: {

@@ -15,6 +15,7 @@ import { App } from './App';
 import { copy } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import { PLAN_URL_LIMIT } from './plan-modules';
+import { checkedPlan } from './new-scan-test-support';
 
 const ACCOUNT = { accountId: 'account-1', email: 'owner@example.com', emailVerified: true };
 
@@ -107,30 +108,26 @@ async function openScanForm(
   stub(profiles);
   window.history.replaceState(null, '', address);
   render(<App />);
-  await screen.findByText(copy[language].newScan.windowTitle);
+  await screen.findByText(copy[language].newScan.windowTitle, {
+    selector: '.window__titlebar > span',
+  });
   const savedPlan = (profiles[0] as { scanConfig?: { plan?: string } } | undefined)?.scanConfig
     ?.plan;
   if (savedPlan !== undefined) {
-    await waitFor(() => expect(planPicker(language)).toHaveValue(savedPlan));
+    await waitFor(() => expect(checkedPlan()).toBe(savedPlan));
   }
   await waitFor(() =>
     expect(document.body.textContent).toContain(newScanCopy[language].expertTitle),
   );
 }
 
-function planPicker(language: 'en' | 'uk' = 'en'): HTMLSelectElement {
-  return screen.getByRole('combobox', {
-    name: new RegExp(`^${copy[language].newScan.labelScanPlan}`),
-  }) as HTMLSelectElement;
-}
-
 function profilePicker(language: 'en' | 'uk' = 'en'): HTMLSelectElement {
   return screen.getByRole('combobox', {
-    name: new RegExp(`^${copy[language].newScan.labelProfile}`),
+    name: new RegExp(`^${newScanCopy[language].site.label}`),
   }) as HTMLSelectElement;
 }
 
-/** The chip in the "Profile configuration" panel. */
+/** The chip in the "Site settings" panel, inside "For advanced users". */
 function configurationPanel(): HTMLElement {
   const panel = document.querySelector('.configuration-status');
   if (panel === null) throw new Error('expected the configuration panel');
@@ -303,8 +300,8 @@ describe('a plan the visitor chose on a pricing card', () => {
         name: plan === 'Complete' ? copy.en.pricing.chooseComplete : copy.en.pricing.chooseBasic,
       }),
     );
-    await screen.findByText(copy.en.newScan.windowTitle);
-    await waitFor(() => expect(planPicker()).toHaveValue(plan));
+    await screen.findByText(copy.en.newScan.windowTitle, { selector: '.window__titlebar > span' });
+    await waitFor(() => expect(checkedPlan()).toBe(plan));
   }
 
   it('says the saved settings will change when the card names another plan', async () => {
@@ -331,18 +328,22 @@ describe('a plan the visitor chose on a pricing card', () => {
   // on a card, not here, and which the same card gives back.
   it('does not offer to discard changes nobody made, on a site with nothing saved', async () => {
     await chooseOnCard([SALON], 'Complete');
-    await waitFor(() => expect(planPicker()).toHaveValue('Complete'));
+    await waitFor(() => expect(checkedPlan()).toBe('Complete'));
 
     fireEvent.click(screen.getByRole('button', { name: newScanCopy.en.closeWindow }));
 
-    await waitFor(() => expect(screen.queryByText(copy.en.newScan.windowTitle)).toBeNull());
+    await waitFor(() =>
+      expect(
+        screen.queryByText(copy.en.newScan.windowTitle, { selector: '.window__titlebar > span' }),
+      ).toBeNull(),
+    );
     expect(document.body.textContent).not.toContain(newScanCopy.en.discard.title);
   });
 
   // And it still offers to, once there is something saved to lose.
   it('still offers to discard a plan that differs from the saved one', async () => {
     await chooseOnCard([configured(SALON, {})], 'Complete');
-    await waitFor(() => expect(planPicker()).toHaveValue('Complete'));
+    await waitFor(() => expect(checkedPlan()).toBe('Complete'));
 
     fireEvent.click(screen.getByRole('button', { name: newScanCopy.en.closeWindow }));
 
@@ -408,7 +409,9 @@ describe('the site the form is set up for survives a refresh', () => {
     await openScanForm([SALON, SHOP], '/scan?profile=profile-that-was-deleted');
 
     await waitFor(() => expect(profilePicker()).toHaveValue(SALON.id));
-    expect(screen.getByText(copy.en.newScan.windowTitle)).toBeTruthy();
+    expect(
+      screen.getByText(copy.en.newScan.windowTitle, { selector: '.window__titlebar > span' }),
+    ).toBeTruthy();
   });
 
   it('survives an empty or malformed value', async () => {
@@ -466,10 +469,10 @@ describe('the first site, from an account that has none', () => {
 
     // The plan is chosen the way a visitor chooses it: on a pricing card.
     fireEvent.click(await screen.findByRole('button', { name: copy.en.pricing.chooseBasic }));
-    await screen.findByText(copy.en.newScan.windowTitle);
+    await screen.findByText(copy.en.newScan.windowTitle, { selector: '.window__titlebar > span' });
     // The plan the card chose is applied once the deployment has confirmed it
     // can actually be bought here.
-    await waitFor(() => expect(planPicker()).toHaveValue('Basic'));
+    await waitFor(() => expect(checkedPlan()).toBe('Basic'));
 
     // No profile yet, so the screen offers the way to make one.
     fireEvent.click(screen.getByRole('button', { name: newScanCopy.en.createProfile }));
@@ -490,9 +493,9 @@ describe('the first site, from an account that has none', () => {
     await waitFor(() => expect(screen.getByText(SALON.domain)).toBeTruthy());
     fireEvent.click(screen.getAllByRole('button', { name: 'New scan' })[0] as HTMLElement);
 
-    await screen.findByText(copy.en.newScan.windowTitle);
+    await screen.findByText(copy.en.newScan.windowTitle, { selector: '.window__titlebar > span' });
     // The plan the owner picked on the card, not the Free the form opens on.
-    await waitFor(() => expect(planPicker()).toHaveValue('Basic'));
+    await waitFor(() => expect(checkedPlan()).toBe('Basic'));
   });
 });
 
@@ -529,7 +532,7 @@ describe('a scan link followed before signing in', () => {
         .filter((button) => button.getAttribute('type') === 'submit')[0] as HTMLElement,
     );
 
-    await screen.findByText(copy.en.newScan.windowTitle);
+    await screen.findByText(copy.en.newScan.windowTitle, { selector: '.window__titlebar > span' });
     await waitFor(() => expect(profilePicker()).toHaveValue(SHOP.id));
   });
 
@@ -561,7 +564,7 @@ describe('a scan link followed before signing in', () => {
         .filter((button) => button.getAttribute('type') === 'submit')[0] as HTMLElement,
     );
 
-    await screen.findByText(copy.en.newScan.windowTitle);
+    await screen.findByText(copy.en.newScan.windowTitle, { selector: '.window__titlebar > span' });
     await waitFor(() => expect(profilePicker()).toHaveValue(SALON.id));
     // And nothing was asked about it: the id is only ever compared with the
     // list of the account's own profiles.

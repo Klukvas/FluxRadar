@@ -17,7 +17,10 @@ import type { ScanScopeForm } from './scan-scope';
  * saved setting cannot change the scan out of sight (new-scan-form.ts).
  */
 
-/** "For experienced users": subdomains, user agent, country, limits, JavaScript, robots.txt. */
+/**
+ * The crawl settings inside "For advanced users": subdomains, user agent,
+ * country, limits, JavaScript, robots.txt.
+ */
 export function ExpertSettings(props: { form: NewScanForm; language: Language }) {
   const t = copy[props.language];
   const c = newScanCopy[props.language];
@@ -30,7 +33,9 @@ export function ExpertSettings(props: { form: NewScanForm; language: Language })
       open={expertOpen}
       onToggle={(event) => toggleExpert(event.currentTarget.open)}
     >
-      <summary className="scan-advanced__summary scan-expert__summary">{c.expertTitle}</summary>
+      <summary className="scan-advanced__summary scan-expert__summary">
+        {c.crawlSettingsTitle}
+      </summary>
       <div className="scan-advanced__fields">
         <p className="muted panel-help">{c.expertLead}</p>
         {/* A box the owner never ticked, ticked: say where the value came from

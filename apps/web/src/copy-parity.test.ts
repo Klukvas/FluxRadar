@@ -34,7 +34,7 @@ const CATALOGUES = {
  */
 const SAME_IN_BOTH_LANGUAGES: readonly RegExp[] = [
   // Plan names are the product's own: "Basic" is Basic on a Ukrainian invoice.
-  /^newScanCopy\.planNames\./,
+  /^newScanCopy\.planCards\.(?:Basic|WebsiteAudit|Complete)\.name$/,
   // The wire values the chip colours and the API's filters are keyed by.
   /^findingsCopy\.severity\.[A-Za-z ]+$/,
   /^findingsCopy\.status\.[A-Za-z ]+$/,
@@ -126,8 +126,8 @@ describe('the copy objects the screens outside i18n.ts own', () => {
   // a sentence no catalogue holds, so nothing above can see it. These were the
   // ones the walkthrough found, and they are now keys.
   it('holds the strings that used to be written into the markup', () => {
-    expect(newScanCopy.en.createProfile).toBe('Create profile');
-    expect(newScanCopy.uk.createProfile).toBe('Створити профіль');
+    expect(newScanCopy.en.createProfile).toBe('Add a site');
+    expect(newScanCopy.uk.createProfile).toBe('Додати сайт');
     for (const key of ['closeWindow', 'createProfile'] as const) {
       expect(newScanCopy.uk[key]).not.toBe(newScanCopy.en[key]);
     }

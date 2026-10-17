@@ -1,18 +1,19 @@
 import type { EgressLocation } from './api';
-import { FieldRow, Panel } from './components';
+import { FieldRow } from './components';
 import { egressLocationLabel } from './egress-location';
 import { copy, type Language } from './i18n';
-import { PLAN_MODULES, PLAN_URL_LIMIT, type Plan } from './plan-modules';
+import { PLAN_MODULES, type Plan } from './plan-modules';
 import type { ScanScopeForm } from './scan-scope';
 
 /**
- * What this scan will actually do, in the words of the settings above it.
+ * What the crawler will actually do, in the words of the settings around it.
  *
- * It repeats the form on purpose: the owner is about to pay for one run of one
- * configuration, and the last thing they read before the button should be the
- * configuration, not a field they have to scroll back to. On a wide screen it
- * sits in the sticky launch column beside the controls, so the repetition costs
- * no height and updates as the fields change.
+ * This used to be the "What will run" table in the launch column, and four
+ * persona reviews named it the hardest part of the hardest screen: depth,
+ * subdomains and URL parameters, read by a salon owner about to pay. The site,
+ * the plan and the page count now live in the order summary in plain words
+ * (`NewScanOrderSummary.tsx`); the technical rows live here, inside "For
+ * advanced users", beside the controls that change them.
  *
  * Every "what does Free actually do" answer is resolved here rather than by the
  * caller. Splitting them left half the plan cascade in the screen and half in
@@ -31,11 +32,9 @@ function aiValue(plan: Plan, t: NewScanCopy): string {
 
 export function LaunchSummary(props: {
   language: Language;
-  /** The domain saved on the selected profile. */
-  site: string;
   plan: Plan;
-  /** The plan as the plan picker spells it, prices and all. */
-  planLabel: string;
+  /** Names the rows for the heading the caller renders above them. */
+  labelledBy: string;
   scope: ScanScopeForm;
   /** Where this launch will leave from, or null while nothing is on offer. */
   egressLocation: EgressLocation | null;
@@ -56,62 +55,50 @@ export function LaunchSummary(props: {
       ? t.launchSummaryOverridden
       : t.launchSummaryDisabled;
   return (
-    <Panel title={t.launchSummaryTitle}>
-      <div className="launch-summary">
-        <FieldRow label={t.launchSummarySite} value={props.site} technical />
-        <FieldRow label={t.launchSummaryPlan} value={props.planLabel} />
-        <FieldRow
-          label={t.launchSummaryPages}
-          value={
-            free
-              ? t.launchSummaryHomepage
-              : scope.maxPages.trim() || t.planPageLimit(PLAN_URL_LIMIT[props.plan])
-          }
-        />
-        <FieldRow label={t.launchSummaryDepth} value={free ? '—' : scope.maxDepth.trim() || '—'} />
-        <FieldRow
-          label={t.launchSummarySubdomains}
-          value={scope.includeSubdomains ? t.launchSummaryEnabled : t.launchSummaryDisabled}
-        />
-        {/* Ignoring robots.txt reads pages the site asked crawlers to skip, so
+    <div className="launch-summary" role="group" aria-labelledby={props.labelledBy}>
+      <FieldRow label={t.launchSummaryDepth} value={free ? '—' : scope.maxDepth.trim() || '—'} />
+      <FieldRow
+        label={t.launchSummarySubdomains}
+        value={scope.includeSubdomains ? t.launchSummaryEnabled : t.launchSummaryDisabled}
+      />
+      {/* Ignoring robots.txt reads pages the site asked crawlers to skip, so
             it is never just one more row in the list — but its warning and the
             tick that answers it live together beside the button
             (RobotsConfirmation), not here, two screens above the control. */}
-        <FieldRow label={t.launchSummaryRobots} value={robots} />
+      <FieldRow label={t.launchSummaryRobots} value={robots} />
+      <FieldRow
+        label={t.launchSummaryQueries}
+        value={
+          !free && scope.queryPolicy === 'include'
+            ? t.launchSummaryIncluded
+            : t.launchSummaryIgnored
+        }
+      />
+      <FieldRow
+        label={t.launchSummaryUserAgent}
+        value={scope.userAgent === 'desktop' ? t.userAgentDesktop : t.userAgentMobile}
+      />
+      {props.egressDirect ? null : (
         <FieldRow
-          label={t.launchSummaryQueries}
+          label={t.launchSummaryEgress}
           value={
-            !free && scope.queryPolicy === 'include'
-              ? t.launchSummaryIncluded
-              : t.launchSummaryIgnored
+            props.egressLocation === null
+              ? '—'
+              : free
+                ? `${egressLocationLabel(props.egressLocation, props.language)} · ${t.launchSummaryEgressDefault}`
+                : egressLocationLabel(props.egressLocation, props.language)
           }
         />
-        <FieldRow
-          label={t.launchSummaryUserAgent}
-          value={scope.userAgent === 'desktop' ? t.userAgentDesktop : t.userAgentMobile}
-        />
-        {props.egressDirect ? null : (
-          <FieldRow
-            label={t.launchSummaryEgress}
-            value={
-              props.egressLocation === null
-                ? '—'
-                : free
-                  ? `${egressLocationLabel(props.egressLocation, props.language)} · ${t.launchSummaryEgressDefault}`
-                  : egressLocationLabel(props.egressLocation, props.language)
-            }
-          />
-        )}
-        {/* What this plan actually asks a provider, not "AI: on". Website Audit
+      )}
+      {/* What this plan actually asks a provider, not "AI: on". Website Audit
             runs no AI SEO / GEO at all, so calling its AI visibility "enabled"
             would promise a section the report will not contain — while its UX
             review does send evidence to Anthropic, so "off" would be just as
             wrong. Each plan says its own truth. */}
-        <FieldRow label={t.launchSummaryAi} value={aiValue(props.plan, t)} />
-        {PLAN_MODULES[props.plan].includes('Performance') ? (
-          <FieldRow label={t.launchSummaryPerformance} value={t.launchSummaryPerformanceValue} />
-        ) : null}
-      </div>
-    </Panel>
+      <FieldRow label={t.launchSummaryAi} value={aiValue(props.plan, t)} />
+      {PLAN_MODULES[props.plan].includes('Performance') ? (
+        <FieldRow label={t.launchSummaryPerformance} value={t.launchSummaryPerformanceValue} />
+      ) : null}
+    </div>
   );
 }
