@@ -300,16 +300,16 @@ export const SEO_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
   'SEO-TECH-005': {
     countsPages: true,
     en: {
-      title: 'Addresses that forward several times, or in a circle',
+      title: 'Addresses that forward too many times',
       what: 'These addresses forward the visitor two or more times before the page appears, or keep forwarding without ever reaching a page.',
-      why: 'Each extra step makes the page open more slowly, and search engines may stop following a long chain; a circle means the page does not open at all.',
+      why: 'Each extra step makes the page open more slowly, and search engines may stop following a long chain; an address that never reaches a page does not open at all.',
       fix: 'Ask your website developer to forward old addresses straight to the final page in one step, and to point the site’s own links at the final address. The technical details show each step.',
       count: 'One finding for each address.',
     },
     uk: {
-      title: 'Адреси, що перенаправляють кілька разів або по колу',
+      title: 'Адреси із забагатьма перенаправленнями',
       what: 'Ці адреси перенаправляють відвідувача двічі або більше, перш ніж зʼявиться сторінка, або перенаправляють далі й далі, так і не діставшись сторінки.',
-      why: 'Кожен зайвий крок сповільнює відкриття сторінки, а за довгим ланцюжком пошукові системи можуть і не піти; коло означає, що сторінка не відкривається зовсім.',
+      why: 'Кожен зайвий крок сповільнює відкриття сторінки, а за довгим ланцюжком пошукові системи можуть і не піти; а якщо перенаправлення так і не доходять до сторінки, вона не відкривається зовсім.',
       fix: 'Попросіть розробника перенаправляти старі адреси одразу на кінцеву сторінку одним кроком, а посилання самого сайту спрямувати на кінцеву адресу. Технічні деталі показують кожен крок.',
       count: 'Одна знахідка на кожну адресу.',
     },
