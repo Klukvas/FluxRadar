@@ -27,7 +27,7 @@ const scan = {
   statusReason: null,
   scope: { includeSubdomains: false },
   rulesetVersion: 'rules-v1',
-  progress: { completedModules: 1, totalModules: 6, scannedUrls: 12, discoveredUrls: 40 },
+  progress: { completedModules: 0, totalModules: 6, scannedUrls: 12, discoveredUrls: 40 },
   startedAt: null,
   completedAt: null,
   createdAt: '2026-09-22T00:00:00.000Z',
@@ -222,13 +222,13 @@ describe('the progress screen', () => {
   it('shows how much of the site has been read', async () => {
     renderProgress('Running');
 
-    expect(await screen.findByText('12 of 40 pages read')).toBeInTheDocument();
+    expect(await screen.findByText('12 pages read so far')).toBeInTheDocument();
   });
 
   it('offers no pause or resume on a running scan, and keeps cancel', async () => {
     renderProgress('Running');
 
-    expect(await screen.findByText('12 of 40 pages read')).toBeInTheDocument();
+    expect(await screen.findByText('12 pages read so far')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /pause/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /resume/i })).not.toBeInTheDocument();
     expect(screen.getByText('You can close this page; the scan continues.')).toBeInTheDocument();

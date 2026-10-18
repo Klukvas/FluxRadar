@@ -11,7 +11,9 @@ import { apiRequest, type Scan, type ScanModule } from './api';
 import { Button, EmptyState, FieldRow, Panel, ProgressBar, StatusChip, Window } from './components';
 import { copy, fillCopy, type Language } from './i18n';
 import { moduleStatusReasons } from './module-status';
-import { PLAN_URL_LIMIT, planName } from './plan-modules';
+import { planName } from './plan-modules';
+import { finishedProgressPercent, liveProgressPercent } from './scan-progress-state';
+import { ScanProgressStatus } from './ScanProgressStatus';
 import {
   displayDomain,
   formatTimestamp,
@@ -36,6 +38,7 @@ export function ScanScreen(props: {
   const [confirmCancel, setConfirmCancel] = useState<Scan | null>(null);
   const cancelTrigger = useRef<HTMLButtonElement>(null);
   const cancelDialog = useRef<HTMLElement>(null);
+  const highestLive = useRef<{ scanId: string; value: number } | null>(null);
   useEffect(() => {
     if (confirmCancel === null) return;
     const previousOverflow = document.body.style.overflow;
@@ -127,17 +130,18 @@ export function ScanScreen(props: {
       </Window>
     );
   const scan = props.scan;
-  const progress =
-    scan.progress.totalModules === 0
-      ? 0
-      : (scan.progress.completedModules / scan.progress.totalModules) * 100;
   const terminal = isTerminalScanStatus(scan.status);
   const reportFinalizing = terminal && scan.reportReady === false;
+  const settled = terminal && !reportFinalizing;
+  // A live bar only ever moves forward: the highest value shown for this scan
+  // is kept, so a retried section or a late poll cannot pull it back. A
+  // finished scan's bar is its measurement instead and is shown as it is.
+  const live = liveProgressPercent(scan);
+  const shownLive =
+    highestLive.current?.scanId === scan.id ? Math.max(highestLive.current.value, live) : live;
+  highestLive.current = { scanId: scan.id, value: shownLive };
+  const progress = settled ? finishedProgressPercent(scan) : shownLive;
   const finishedAt = formatTimestamp(scan.completedAt, props.language);
-  // A legacy paused scan, from before the pause feature was removed: the server
-  // puts it back in the queue on its own, so it reads as resuming rather than
-  // as a state the owner has to act on. Kept until no Paused rows remain.
-  const resuming = scan.status === 'Paused';
   const cancel = async () => {
     setCancelBusy(true);
     try {
@@ -182,9 +186,9 @@ export function ScanScreen(props: {
         <ProgressBar
           value={progress}
           label={t.progressLabel}
-          variant={terminal ? 'result' : 'live'}
+          variant={settled ? 'result' : 'live'}
         />
-        {terminal && !reportFinalizing ? (
+        {settled ? (
           <div className="scan-complete" role="status" aria-live="polite">
             <StatusChip status={scan.status} label={scanStateLabel(scan.status, props.language)} />
             <div>
@@ -199,44 +203,7 @@ export function ScanScreen(props: {
         ) : reportFinalizing ? (
           <p role="status">{t.finalizing}</p>
         ) : (
-          <>
-            <p className="muted">
-              {/* Before the sections are planned there is nothing to count, and
-                  "0 of 0 audit sections done" read like a scan with no work. */}
-              {resuming
-                ? t.resumingBody
-                : scan.progress.totalModules === 0
-                  ? t.runningPreparing
-                  : fillCopy(t.running, {
-                      done: scan.progress.completedModules,
-                      total: scan.progress.totalModules,
-                    })}
-            </p>
-            {/* The sections above say which parts of the audit are done; this
-                says how much of the site has actually been read, which is the
-                number that moves on a large crawl. */}
-            {(scan.progress.scannedUrls ?? 0) > 0 ? (
-              <p className="muted">
-                {fillCopy(t.scannedUrls, {
-                  scanned: scan.progress.scannedUrls ?? 0,
-                  discovered: Math.max(
-                    scan.progress.discoveredUrls ?? 0,
-                    scan.progress.scannedUrls ?? 0,
-                  ),
-                })}
-              </p>
-            ) : null}
-            <p className="muted">
-              {props.language === 'uk'
-                ? `Обсяг: до ${(scan.scope.maxPages ?? PLAN_URL_LIMIT[scan.plan]).toLocaleString()} сторінок. Після завершення розділів звіт буде фіналізовано.`
-                : `Scope: up to ${(scan.scope.maxPages ?? PLAN_URL_LIMIT[scan.plan]).toLocaleString()} pages. Your report is finalized after the sections finish.`}
-            </p>
-            <p className="muted">
-              {props.language === 'uk'
-                ? 'Можна закрити цю сторінку — перевірка продовжиться.'
-                : 'You can close this page; the scan continues.'}
-            </p>
-          </>
+          <ScanProgressStatus scan={scan} language={props.language} now={Date.now()} />
         )}
       </Panel>
       <Panel title={t.sectionsTitle}>
