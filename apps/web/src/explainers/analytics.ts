@@ -6,9 +6,15 @@
 import type { ExplainedRule } from './types';
 
 const GOOGLE_DATA_SCOPE_EN =
-  'These findings come from the Google Analytics or Search Console account you connected, read with view-only access, next to the pages this scan crawled. FluxRadar changed nothing in that account, and the figures are the ones Google reported at the time of the scan.';
+  'These findings come from the Google Analytics or Search Console account you connected, read with view-only access, compared with the pages this scan crawled. FluxRadar changed nothing in that account, and the figures are the ones Google reported at the time of the scan.';
 const GOOGLE_DATA_SCOPE_UK =
-  'Ці знахідки ґрунтуються на даних підключеного вами облікового запису Google Analytics чи Search Console, прочитаних лише з доступом на перегляд, поряд зі сторінками, які обійшла ця перевірка. FluxRadar нічого в ньому не змінював, а цифри такі, якими їх подав Google на момент перевірки.';
+  'Ці знахідки ґрунтуються на даних підключеного вами акаунта Google Analytics чи Search Console, прочитаних лише з доступом на перегляд і зіставлених зі сторінками, які обійшло це сканування. FluxRadar нічого в цьому акаунті не змінював, а цифри такі, якими їх подав Google на момент сканування.';
+
+// GA-002 needs a connected property to run, but reads the crawled pages' code.
+const PAGE_CODE_SCOPE_EN =
+  'This check runs only while a Google Analytics property is connected, but what it reads is the code of the pages this scan crawled, not your Google data. FluxRadar changed nothing in that account.';
+const PAGE_CODE_SCOPE_UK =
+  'Ця перевірка виконується лише тоді, коли підключено ресурс Google Analytics, але читає вона код сторінок, які обійшло це сканування, а не ваші дані Google. FluxRadar нічого в цьому акаунті не змінював.';
 
 export const ANALYTICS_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
   'ANALYTICS-GA-001': {
@@ -23,7 +29,7 @@ export const ANALYTICS_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
     },
     uk: {
       title: 'Google Analytics не фіксує жодних ключових дій',
-      what: 'У ресурсі Google Analytics, який ви підключили, за останні 28 днів є відвідування, але немає жодної ключової події, тобто дії, яку ви позначаєте як важливу: запису, дзвінка чи надісланої форми.',
+      what: 'У ресурсі Google Analytics, який ви підключили, за останні 28 днів є відвідування, але немає жодної ключової події, тобто дії, яку ви позначаєте як важливу: запису на прийом, дзвінка чи надісланої форми.',
       why: 'Без ключових подій Google Analytics не покаже, які відвідування закінчилися зверненням чи покупкою, тож ви не знаєте, які сторінки чи канали приводять клієнтів.',
       fix: 'У Google Analytics позначте як ключові події ті дії, що для вас важливі, як-от надіслану форму чи запис, і перевірте, що вони справді фіксуються. Якщо сайт іще не передає таких дій у Google Analytics, попросіть того, хто його налаштовував, їх додати.',
       count: 'Одна знахідка на весь сайт.',
@@ -41,15 +47,15 @@ export const ANALYTICS_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
       why: 'Visits to a page without the tag are probably not counted, so your Google Analytics figures for these pages can come out lower than they really are.',
       fix: 'Add the same Google tag the other pages use, usually once in your site builder’s site-wide settings (often a field for header code or tracking code), or ask whoever set up Google Analytics.',
       count: 'One finding for each page without the tag.',
-      scope: GOOGLE_DATA_SCOPE_EN,
+      scope: PAGE_CODE_SCOPE_EN,
     },
     uk: {
       title: 'Сторінки, які Google Analytics може не враховувати',
-      what: 'Код цих сторінок не містить тегу Google Analytics чи Google Tag Manager, тоді як інші сторінки цього ж сканування його мають. Читається лише код сторінки, який отримав FluxRadar, тож тег, який сайт додає інакше, не видно.',
+      what: 'Код цих сторінок не містить тегу Google Analytics чи Google Tag Manager, тоді як інші сторінки цього ж сканування його мають. Читається лише код сторінки, який отримав FluxRadar, тож тегу, який сайт додає інакше, не видно.',
       why: 'Відвідування сторінки без тегу, імовірно, не враховуються, тож цифри Google Analytics для цих сторінок можуть бути меншими, ніж насправді.',
       fix: 'Додайте той самий тег Google, що й на інших сторінках, зазвичай один раз у загальних налаштуваннях конструктора сайту (часто це поле для коду в шапці чи коду відстеження), або зверніться до того, хто налаштовував Google Analytics.',
       count: 'Одна знахідка на кожну сторінку без тегу.',
-      scope: GOOGLE_DATA_SCOPE_UK,
+      scope: PAGE_CODE_SCOPE_UK,
     },
   },
   // search-checks.ts: clicks when the earlier period had at least 10, the
@@ -66,7 +72,7 @@ export const ANALYTICS_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
     },
     uk: {
       title: 'Менше переходів із пошуку Google',
-      what: 'За даними Search Console, яку ви підключили, переходів із пошуку Google за останні 28 днів стало на 30% або більше менше, ніж за 28 днів перед тим. Якщо переходів замало для порівняння, натомість порівнюється, скільки разів Google показував сайт.',
+      what: 'За даними Search Console, яку ви підключили, переходів із пошуку Google за останні 28 днів стало щонайменше на 30% менше, ніж за попередні 28 днів. Якщо переходів замало для порівняння, натомість порівнюється, скільки разів Google показував сайт.',
       why: 'Таке падіння більше за звичайні коливання: до сайту з Google доходить менше людей, і варто знайти, з яких сторінок чи пошукових запитів воно почалося.',
       fix: 'У Search Console порівняйте обидва періоди за сторінками й запитами, щоб побачити, куди поділися переходи, і перевірте, чи не випали якісь сторінки з Google або чи не змінили вони адресу. З другим може допомогти розробник.',
       count: 'Одна знахідка на весь сайт.',
@@ -84,10 +90,10 @@ export const ANALYTICS_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
       scope: GOOGLE_DATA_SCOPE_EN,
     },
     uk: {
-      title: 'Сторінки з першої сторінки Google, на які ніхто не переходить',
+      title: 'Сторінки серед перших результатів Google, на які ніхто не переходить',
       what: 'За даними Search Console, яку ви підключили, Google показав кожну з цих сторінок щонайменше 50 разів, у середньому серед перших 10 результатів, і ніхто на неї не перейшов.',
-      why: 'Бути на першій сторінці й не бути обраним зазвичай означає, що заголовок і опис у результаті не кажуть людям, що це саме те, що вони шукають.',
-      fix: 'Перепишіть назву й опис сторінки для пошуку так, щоб вони прямо казали, що пропонує сторінка; у більшості конструкторів ці поля звуться SEO-заголовок і SEO-опис. Також перевірте, що сторінка відповідає на запити, за якими її показують.',
+      why: 'Якщо сторінка серед перших результатів, а її не обирають, це зазвичай означає, що заголовок і опис у результаті не кажуть людям, що це саме те, що вони шукають.',
+      fix: 'Перепишіть назву й опис сторінки для пошуку так, щоб вони прямо казали, що пропонує сторінка; у більшості конструкторів сайтів ці поля звуться SEO-заголовок і SEO-опис. Також перевірте, що сторінка відповідає на запити, за якими її показують.',
       count: 'Одна знахідка на кожну таку сторінку.',
       scope: GOOGLE_DATA_SCOPE_UK,
     },
@@ -98,7 +104,7 @@ export const ANALYTICS_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
     countsPages: true,
     en: {
       title: 'Pages Google has not shown in search',
-      what: 'These pages were read by this scan and do not ask to be kept out of search, yet the Search Console data you connected records not one appearance of them in Google’s results in the last 28 days.',
+      what: 'These pages were read by this scan, are not hidden from search and do not name another address as their main one, yet the Search Console data you connected records not one appearance of them in Google’s results in the last 28 days.',
       why: 'A page Google never shows brings no visitors from search: Google may not have added it to its index yet, or finds other pages a better match.',
       fix: 'Check in Search Console whether Google has indexed the page. If it has, link to it from pages that already get visits from search, and make its name match what people search for. A page published in the last few weeks may simply not have been shown yet.',
       count: 'One finding for each such page.',
@@ -106,7 +112,7 @@ export const ANALYTICS_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
     },
     uk: {
       title: 'Сторінки, яких Google не показував у пошуку',
-      what: 'Ці сторінки прочитано під час сканування, і вони не просять не показувати їх у пошуку, але за даними Search Console, яку ви підключили, за останні 28 днів Google жодного разу не показав їх у результатах.',
+      what: 'Ці сторінки прочитано під час сканування, вони не приховані від пошуку й не називають іншу адресу своєю головною, але за даними Search Console, яку ви підключили, за останні 28 днів Google жодного разу не показав їх у результатах.',
       why: 'Сторінка, якої Google не показує, не приводить відвідувачів із пошуку: можливо, Google ще не додав її до свого індексу або вважає інші сторінки кращою відповіддю.',
       fix: 'Перевірте в Search Console, чи Google проіндексував сторінку. Якщо так, поставте на неї посилання зі сторінок, які вже мають переходи з пошуку, і узгодьте її назву з тим, що шукають люди. Сторінку, опубліковану кілька тижнів тому, Google міг ще просто не показувати.',
       count: 'Одна знахідка на кожну таку сторінку.',
@@ -127,7 +133,7 @@ export const ANALYTICS_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
       title: 'Google показує сайт, але ніхто не переходить',
       what: 'За даними Search Console, яку ви підключили, Google показав сайт щонайменше 100 разів за останні 28 днів, і жодна людина на нього не перейшла.',
       why: 'Зазвичай це означає, що сайт зʼявляється надто низько в результатах, куди люди рідко дивляться, тож із пошуку він поки не приводить відвідувачів.',
-      fix: 'Перегляньте в Search Console запити, за якими Google показує сайт, почавши з тих, що є в списку «Запити, близькі до топу пошуку» в розділі Analytics звіту, і зробіть так, щоб сторінки, які Google уже показує за ними, краще на ці запити відповідали.',
+      fix: 'Перегляньте в Search Console запити, за якими Google показує сайт, почавши з тих, що є в списку «Запити, близькі до топу пошуку» в розділі «Аналітика» звіту, і зробіть так, щоб сторінки, які Google уже показує за ними, краще відповідали на ці запити.',
       count: 'Одна знахідка на весь сайт.',
       scope: GOOGLE_DATA_SCOPE_UK,
     },

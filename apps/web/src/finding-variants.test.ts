@@ -280,6 +280,8 @@ describe('the plain-language explanations', () => {
       }
     }
     expect(findingExplainer('ANALYTICS-SC-002', 'en')?.scope).toContain('Search Console');
+    // GA-002 only runs with GA connected, but reads the crawled pages' code.
+    expect(findingExplainer('ANALYTICS-GA-002', 'en')?.scope).toContain('code of the pages');
     expect(findingExplainer('SEO-TECH-001', 'en')?.scope).toBeUndefined();
   });
 
