@@ -162,7 +162,6 @@ describe('base.css layout rules', () => {
     const burger = mediaBlocks('999px');
     expect(burger).toMatch(/\.menubar__toggle \{\s*display: inline-flex;/);
     expect(burger).toMatch(/\.menubar__links \{\s*display: none;/);
-    expect(burger).toMatch(/\.menubar__system \{\s*display: none;/);
     // A header rule left behind in a phone block would split the header in two
     // again, showing part of the sheet only below 700px.
     expect(mediaBlocks('699px')).not.toMatch(/\.menubar/);

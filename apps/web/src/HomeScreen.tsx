@@ -246,7 +246,6 @@ export function HomeScreen(props: {
             <a href="/terms#terms-paid">{t.home.footer.refundLink}</a>
             <a href="/cookies">{t.legal.cookies.title}</a>
             <a href="/blog">{t.home.footer.fieldNotes}</a>
-            <span>{t.nav.system}</span>
           </span>
           <CreatedByFluxLab language={props.language} />
         </footer>

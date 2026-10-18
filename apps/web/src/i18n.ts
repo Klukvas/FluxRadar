@@ -139,7 +139,6 @@ export const copy = {
       faq: 'FAQ',
       blog: 'Blog',
       language: 'Language',
-      system: 'PUBLIC WEB AUDIT STATION · v0.1',
       navigateGroup: 'Navigate',
       systemGroup: 'System',
       descriptions: {
@@ -250,7 +249,7 @@ export const copy = {
       workspaceTitle: 'Workspace — FluxRadar',
     },
     workspace: {
-      intro: 'Unified public site audit station.',
+      intro: 'Check your site and fix what keeps customers away.',
       sites: 'My sites',
       // The sites list is where an owner lands; the Google connection lives two
       // tabs away. Each line names the one step actually outstanding, and the
@@ -2188,7 +2187,6 @@ export const copy = {
       faq: 'FAQ',
       blog: 'Блог',
       language: 'Мова',
-      system: 'СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1',
       navigateGroup: 'Навігація',
       systemGroup: 'Система',
       descriptions: {
@@ -2299,7 +2297,7 @@ export const copy = {
       workspaceTitle: 'Робочий простір — FluxRadar',
     },
     workspace: {
-      intro: 'Єдина станція аудиту публічного сайту.',
+      intro: 'Перевіряйте сайт і виправляйте те, що заважає клієнтам вас знайти.',
       sites: 'Мої сайти',
       googleReminderTitle: 'Ваші власні дані Google',
       googleReminderConnect:
