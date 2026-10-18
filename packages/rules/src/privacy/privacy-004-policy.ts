@@ -3,6 +3,7 @@
 // policy is complete or valid for a particular jurisdiction.
 
 import type { PageSnapshot } from '@fluxradar/crawler';
+import type { HTMLElement } from 'node-html-parser';
 
 import { requireDescriptor } from '../engine/descriptor.js';
 import { siteFinding } from '../engine/finding.js';
@@ -13,7 +14,22 @@ import { parsePage } from '../seo/dom.js';
 
 const descriptor = requireDescriptor('PRIVACY-004');
 
-const POLICY_MARKER = /(privacy|cookie|datenschutz|privacidad|confidential|политик|приватност)/i;
+// Each marker names the policy itself, never a generic word: «политика» or
+// «приватний» alone also label refund policies and "private lessons", and
+// a false "policy found" hides a real finding. Cyrillic markers are pinned to
+// noun forms so adjectives (приватний, конфіденційна) do not count; the Latin
+// ones cover transliterated slugs such as /polityka-konfidentsiinosti.
+const POLICY_MARKERS: readonly RegExp[] = [
+  /privacy|cookie|datenschutz|privacidad|confidential/i,
+  /приватн(?:іст|ост)/iu,
+  /конфіденційн(?:іст|ост)/iu,
+  /конфиденциальност/iu,
+  /персональн\p{L}*\s+дан/iu,
+  /(?<!\p{L})кук(?:і|и|іс|ис)(?!\p{L})/iu,
+  /pryvatn(?:ist|ost)|privatnost/i,
+  /konfiden(?:ts|c|z)i/i,
+  /personal[a-z]*[-_]+(?:dan|data)/i,
+];
 
 export const privacy004PolicyDiscoverability: SiteRule = {
   kind: 'site',
@@ -31,9 +47,7 @@ export const privacy004PolicyDiscoverability: SiteRule = {
     const checkedTargets = [homepage.normalizedUrl];
     const policyLink = parsePage(homepage)
       .querySelectorAll('a')
-      .some((anchor) =>
-        hasSameSitePolicyLink(anchor.getAttribute('href'), anchor.text, homepage, ctx),
-      );
+      .some((anchor) => hasSameSitePolicyLink(anchor, homepage, ctx));
     if (policyLink) {
       return { findings: [], applicableTargets: 1, affectedTargets: 0, checkedTargets };
     }
@@ -55,13 +69,19 @@ export const privacy004PolicyDiscoverability: SiteRule = {
 };
 
 function hasSameSitePolicyLink(
-  href: string | undefined,
-  text: string,
+  anchor: HTMLElement,
   homepage: PageSnapshot,
   ctx: SiteContext,
 ): boolean {
+  const href = anchor.getAttribute('href');
   if (href === undefined || href.trim() === '') return false;
-  if (!POLICY_MARKER.test(`${href} ${text}`)) return false;
+  const label = [
+    decodeHref(href),
+    anchor.text,
+    anchor.getAttribute('aria-label') ?? '',
+    anchor.getAttribute('title') ?? '',
+  ].join(' ');
+  if (!POLICY_MARKERS.some((marker) => marker.test(label))) return false;
   try {
     const target = new URL(href, homepage.finalUrl);
     if (target.protocol !== 'http:' && target.protocol !== 'https:') return false;
@@ -69,5 +89,15 @@ function hasSameSitePolicyLink(
     return target.hostname === sourceHost || target.hostname.endsWith(`.${sourceHost}`);
   } catch {
     return false;
+  }
+}
+
+// Cyrillic slugs arrive percent-encoded (/%D0%BF%D0%BE...); a malformed escape
+// is still a usable href, so it is matched as written.
+function decodeHref(href: string): string {
+  try {
+    return decodeURIComponent(href);
+  } catch {
+    return href;
   }
 }
