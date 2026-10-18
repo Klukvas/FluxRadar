@@ -7,7 +7,7 @@
 // scan is really in, a bar that keeps moving forward, a rough time, and the
 // report list as the place to come back to.
 
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useCallback, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -429,17 +429,5 @@ describe('the page limit', () => {
     show({ ...reading(1, 1), plan: 'Free', modules: [module('SEO', 'Pending')] });
 
     expect(await screen.findByText('This check reads your homepage only.')).toBeInTheDocument();
-  });
-});
-
-describe('a legacy paused scan', () => {
-  it('still reads as resuming, with cancel available', async () => {
-    show({ ...reading(4, 4), status: 'Paused', statusReason: 'UserPausedAfterQueue' }, 'uk');
-
-    expect(await screen.findByText('Відновлюємо перевірку…')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Інші дії'));
-    fireEvent.click(screen.getByRole('button', { name: 'Скасувати перевірку' }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(/автоматичне повернення не передбачене/)).toBeInTheDocument();
   });
 });

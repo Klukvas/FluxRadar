@@ -13,7 +13,6 @@ import { isTerminalScanStatus } from './scan-status';
 
 export type ProgressStage =
   | { readonly kind: 'queued' }
-  | { readonly kind: 'resuming' }
   | { readonly kind: 'reading' }
   /** `module` is null between two sections, when none is running yet. */
   | { readonly kind: 'checking'; readonly module: string | null }
@@ -21,9 +20,6 @@ export type ProgressStage =
 
 /** Where the scan is, in the order the worker runs it. */
 export function progressStage(scan: Scan): ProgressStage {
-  // A legacy paused scan, from before the pause feature was removed: the
-  // server puts it back in the queue on its own.
-  if (scan.status === 'Paused') return { kind: 'resuming' };
   if (scan.status === 'Pending' || scan.status === 'Queued') return { kind: 'queued' };
   if (isTerminalScanStatus(scan.status)) return { kind: 'finishing' };
   return workStage(scan);
@@ -38,7 +34,7 @@ function workStage(scan: Scan): ProgressStage {
   // job and resets them to Pending, so the screen briefly says the report is
   // being put together before the retried section shows up.
   if (totalModules > 0 && completedModules >= totalModules) return { kind: 'finishing' };
-  // A resumed attempt that continues its crawl also lands here: some sections
+  // An attempt that continues an interrupted crawl also lands here: some sections
   // settled before, none runs yet, and the headline says we are checking what
   // was read while the crawl still reads. Accepted: it is true of the pages
   // already read, and it never claims a stage the scan has left behind.
@@ -73,10 +69,9 @@ const RUNNING_SECTION_SHARE = 0.5;
  * and `nextLiveProgress` keeps the highest value shown within one attempt.
  */
 export function liveProgressPercent(scan: Scan): number {
-  const stage = scan.status === 'Paused' ? workStage(scan) : progressStage(scan);
+  const stage = progressStage(scan);
   switch (stage.kind) {
     case 'queued':
-    case 'resuming':
       return 0;
     case 'reading': {
       const read = Math.max(0, scan.progress.scannedUrls ?? 0);

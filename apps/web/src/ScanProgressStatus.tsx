@@ -21,7 +21,7 @@ export function ScanProgressStatus(props: { scan: Scan; language: Language; now:
   const pagesRead = props.scan.progress.scannedUrls ?? 0;
   // The count belongs to the crawl; once the sections run it would sit frozen
   // under a headline about something else.
-  const showPages = pagesRead > 0 && (stage.kind === 'reading' || stage.kind === 'resuming');
+  const showPages = pagesRead > 0 && stage.kind === 'reading';
   return (
     <>
       <p role="status" aria-live="polite">
@@ -45,8 +45,6 @@ function stageHeadline(stage: ProgressStage, t: ProgressCopy, language: Language
   switch (stage.kind) {
     case 'queued':
       return t.stageQueued;
-    case 'resuming':
-      return t.resumingBody;
     case 'reading':
       return t.stageReading;
     case 'checking':

@@ -302,11 +302,9 @@ export function ScanScreen(props: {
   );
 }
 
-/** The cancellation policy follows the state a legacy paused scan was paused from. */
+/** Only a scan that never entered the queue is cancelled under the pre-queue policy. */
 function cancellationRefundCategory(scan: Scan): 'pre-queue' | 'after-queue' {
-  return scan.status === 'Pending' || scan.statusReason === 'UserPausedBeforeQueue'
-    ? 'pre-queue'
-    : 'after-queue';
+  return scan.status === 'Pending' ? 'pre-queue' : 'after-queue';
 }
 
 /**
