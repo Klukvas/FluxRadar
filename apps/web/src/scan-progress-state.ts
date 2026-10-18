@@ -102,70 +102,58 @@ export function finishedProgressPercent(scan: Scan): number {
   return totalModules === 0 ? 0 : (completedModules / totalModules) * 100;
 }
 
-/** Rows the API counts as settled (`TERMINAL_MODULE_STATUSES` in scan-dto.ts). */
-const SETTLED_MODULE_STATUSES: ReadonlySet<string> = new Set([
-  'Completed',
-  'Partial',
-  'Unavailable',
-  'Not applicable',
-]);
-
 /** What the screen remembers between polls to keep the bar moving forward. */
 export interface LiveProgressMark {
   readonly scanId: string;
-  /** Highest reading/checking value shown in this attempt; never the 97. */
+  /** The section-retry count the mark belongs to (see `attemptOf`). */
+  readonly attempt: number;
+  /** Highest value shown in this attempt; 97 only after work was shown. */
   readonly highest: number;
-  readonly completedModules: number;
-  readonly allRowsSettled: boolean;
-}
-
-function allRowsSettled(scan: Scan): boolean {
-  return (
-    scan.modules.length > 0 && scan.modules.every((row) => SETTLED_MODULE_STATUSES.has(row.status))
-  );
 }
 
 /**
- * Whether this poll belongs to a new attempt of the same scan.
+ * Which attempt of the scan a poll describes.
  *
- * A section retry or a platform retry resets the rows: the settled count
- * drops, or a Pending/Running row appears where every row had settled. The
- * bar then starts again from what the new attempt has done, instead of
- * sitting at the old attempt's high point.
+ * A section retry increments `retry.module` in the same compare-and-set that
+ * flips Partial→Running (billing/state-machine.ts), before the worker resets
+ * the retried row, so the counter changes exactly when the bar should start
+ * over. A platform retry is deliberately not counted: it continues the
+ * attempt, and the rows that settled before it survive (worker.ts). An older
+ * API sends no `retry` and reads as attempt 0.
+ *
+ * Keyed on the server's counter rather than on the rows because polls
+ * overlap and can answer out of order: a stale poll with fewer settled
+ * sections must only feed the high-water mark, not wipe it.
  */
-function startedNewAttempt(previous: LiveProgressMark, scan: Scan): boolean {
-  return (
-    scan.progress.completedModules < previous.completedModules ||
-    (previous.allRowsSettled && !allRowsSettled(scan))
-  );
+function attemptOf(scan: Scan): number {
+  return scan.retry?.module ?? 0;
 }
 
 /**
  * The live bar's value for this poll, and what to remember for the next one.
  *
- * Within one attempt the bar keeps its highest reading/checking value, so a
- * late poll cannot pull it back. The finishing value is shown but never
- * remembered: a retry starts with every row still settled, and remembering
- * 97 there would pin the bar at 97 for the whole retried section.
+ * Within one attempt the bar keeps its highest value, so a late poll cannot
+ * pull it back. The finishing value is remembered only once this attempt has
+ * shown work (reading or checking): a section retry is first seen with every
+ * row still settled, before the worker resets the retried one, and
+ * remembering 97 there would pin the bar at 97 for the whole retried
+ * section. After real work, remembering it keeps a stale poll from dropping
+ * the bar back from 97.
  */
 export function nextLiveProgress(
   previous: LiveProgressMark | null,
   scan: Scan,
 ): { readonly shown: number; readonly mark: LiveProgressMark } {
   const live = liveProgressPercent(scan);
-  const sameAttempt =
-    previous !== null && previous.scanId === scan.id && !startedNewAttempt(previous, scan);
-  const carried = sameAttempt ? previous.highest : 0;
+  const sameScan = previous !== null && previous.scanId === scan.id;
+  const attempt = sameScan ? Math.max(previous.attempt, attemptOf(scan)) : attemptOf(scan);
+  const carried = sameScan && attempt === previous.attempt ? previous.highest : 0;
   const finishing = live === FINISHING;
-  const highest = finishing ? carried : Math.max(carried, live);
+  const sawWork = carried > 0;
+  const highest = finishing && !sawWork ? carried : Math.max(carried, live);
   return {
     shown: finishing ? FINISHING : highest,
-    mark: {
-      scanId: scan.id,
-      highest,
-      completedModules: scan.progress.completedModules,
-      allRowsSettled: allRowsSettled(scan),
-    },
+    mark: { scanId: scan.id, attempt, highest },
   };
 }
 

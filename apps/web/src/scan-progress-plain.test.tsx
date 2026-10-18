@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Scan, ScanModule } from './api';
 import type { Language } from './i18n';
+import { nextLiveProgress } from './scan-progress-state';
 import { ScanScreen } from './ScanProgress';
 
 const STARTED = Date.parse('2026-10-18T10:00:00.000Z');
@@ -223,6 +224,8 @@ describe('the progress bar', () => {
       progress: { completedModules: 2, totalModules: 2, scannedUrls: 30, discoveredUrls: 30 },
       retry: { platform: 0, module: 1 },
     };
+    // `retry.module` is incremented by the same write that flips the status,
+    // so every poll of the retried attempt carries it.
     const polls: Scan[] = [
       settledBeforeClaim,
       {
@@ -231,7 +234,7 @@ describe('the progress bar', () => {
       },
       checking('Completed', 'Running'),
       checking('Completed', 'Completed'),
-    ];
+    ].map((scan) => ({ ...scan, retry: { platform: 0, module: 1 } }));
     stubPolls(polls);
     render(<Harness initial={settledBeforeClaim} language="en" onReports={() => {}} />);
 
@@ -248,6 +251,46 @@ describe('the progress bar', () => {
     const newAttempt = seen.slice(firstDrop);
     expect(newAttempt).toEqual([...newAttempt].sort((a, b) => a - b));
     expect(seen[seen.length - 1]).toBe(97);
+  });
+
+  // Polls overlap, so an older answer can land after a newer one. Without a
+  // `retry` field (an older API) it is the same attempt and must not move
+  // the bar back.
+  it('does not move back when a stale poll answers after a newer one', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: STARTED + 2 * MINUTE });
+    const oneDone = checking('Completed', 'Running');
+    const polls = [oneDone, checking('Completed', 'Completed'), oneDone];
+    stubPolls(polls);
+    render(<Harness initial={oneDone} language="en" onReports={() => {}} />);
+
+    const seen: number[] = [barValue()];
+    for (let poll = 0; poll < polls.length; poll += 1) {
+      await settle(1000);
+      seen.push(barValue());
+    }
+
+    expect(seen).toContain(97);
+    expect(seen).toEqual([...seen].sort((a, b) => a - b));
+  });
+
+  // The screen may still hold the mark of the attempt before a retry; the
+  // server's retry counter is what tells the two attempts apart.
+  it("forgets the previous attempt's high point when the retry counter moves", () => {
+    const before = nextLiveProgress(null, checking('Completed', 'Running'));
+    const finished = nextLiveProgress(before.mark, checking('Completed', 'Completed'));
+    expect(finished.shown).toBe(97);
+
+    const retried = nextLiveProgress(finished.mark, {
+      ...checking('Completed', 'Pending'),
+      retry: { platform: 0, module: 1 },
+    });
+    expect(retried.shown).toBeLessThan(97);
+
+    const platformRetry = nextLiveProgress(finished.mark, {
+      ...checking('Completed', 'Pending'),
+      retry: { platform: 1, module: 0 },
+    });
+    expect(platformRetry.shown).toBe(97);
   });
 
   it('shows a finished scan as a full measurement', async () => {
