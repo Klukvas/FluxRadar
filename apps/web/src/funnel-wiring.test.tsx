@@ -232,26 +232,33 @@ describe('scan_started and begin_checkout from the scan request', () => {
 
     await requestScan(scanRequest('Complete'));
 
+    // gtag.js never loads here, so the fallback timer is what redirects.
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
     expect(assign).toHaveBeenCalledWith(liveSession.checkoutUrl);
     expect(eventsNamed('begin_checkout')).toEqual([
       {
         currency: 'USD',
         value: 120,
         items: [{ item_id: 'Complete', item_name: 'FluxRadar Complete' }],
+        transport_type: 'beacon',
+        event_callback: expect.any(Function),
       },
     ]);
     expect(eventsNamed('scan_started')).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(assign).toHaveBeenCalledTimes(1);
   });
 
   it('reports no checkout from a test-mode store', async () => {
     allowAnalytics();
-    vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
     stubApi((path) =>
       path === '/billing/checkout-session' ? envelope({ ...liveSession, mode: 'test' }, 201) : null,
     );
 
     await requestScan(scanRequest('Complete'));
 
+    expect(assign).toHaveBeenCalledTimes(1);
     expect(eventsNamed('begin_checkout')).toEqual([]);
   });
 });
@@ -259,10 +266,27 @@ describe('scan_started and begin_checkout from the scan request', () => {
 describe('purchase and scan_started from the payment confirmation', () => {
   const PURCHASE_ID = 'purchase_live_1';
 
-  function renderPending(scanId: string | null) {
-    const onConfirmed = vi.fn();
-    stubApi((path) => {
-      if (path === '/billing/checkout-config') return envelope(liveConfig);
+  type ConfigAnswer = 'ready' | 'failed' | Promise<void>;
+
+  function renderPending(
+    scanId: string | null,
+    {
+      config = 'ready',
+      closeOnConfirm = false,
+    }: { config?: ConfigAnswer; closeOnConfirm?: boolean } = {},
+  ) {
+    let close = (): void => undefined;
+    const onConfirmed = vi.fn(() => {
+      // What the parent does: the confirmation ends the checkout window.
+      if (closeOnConfirm) close();
+    });
+    const answer = (path: string): Response | Promise<Response> | null => {
+      if (path === '/billing/checkout-config') {
+        if (config === 'ready') return envelope(liveConfig);
+        if (config === 'failed') return new Response('{}', { status: 500 });
+        // A fresh body per request: StrictMode asks twice.
+        return config.then(() => envelope(liveConfig));
+      }
       if (path === `/billing/checkout-session/${liveSession.reference}`) {
         return envelope({
           reference: liveSession.reference,
@@ -276,8 +300,14 @@ describe('purchase and scan_started from the payment confirmation', () => {
       }
       if (scanId !== null && path === `/scans/${scanId}`) return envelope(scanOf('Complete'));
       return null;
-    });
-    strictRender(
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(answer(new URL(String(input)).pathname) ?? envelope(null)),
+      ),
+    );
+    const view = strictRender(
       <CheckoutPending
         language="en"
         checkout={{
@@ -293,6 +323,7 @@ describe('purchase and scan_started from the payment confirmation', () => {
         onNotFound={vi.fn()}
       />,
     );
+    close = () => view.unmount();
     return onConfirmed;
   }
 
@@ -313,6 +344,40 @@ describe('purchase and scan_started from the payment confirmation', () => {
         items: [{ item_id: 'Complete', item_name: 'FluxRadar Complete' }],
       },
     ]);
+    expect(eventsNamed('scan_started')).toEqual([{ plan: 'Complete' }]);
+  });
+
+  it('reports the order once with its price when the config arrives after the window closed', async () => {
+    allowAnalytics();
+    let answerConfig: () => void = () => undefined;
+    const lateConfig = new Promise<void>((resolve) => {
+      answerConfig = resolve;
+    });
+    const onConfirmed = renderPending('scan-Complete', {
+      config: lateConfig,
+      closeOnConfirm: true,
+    });
+
+    await waitFor(() => expect(onConfirmed).toHaveBeenCalled());
+    expect(eventsNamed('purchase')).toEqual([]);
+    answerConfig();
+
+    await waitFor(() => expect(eventsNamed('purchase')).toHaveLength(1));
+    expect(eventsNamed('purchase')[0]).toMatchObject({
+      transaction_id: PURCHASE_ID,
+      currency: 'USD',
+      value: 120,
+    });
+  });
+
+  it('confirms the scan at once and sends no purchase when the config cannot be read', async () => {
+    allowAnalytics();
+    const onConfirmed = renderPending('scan-Complete', { config: 'failed', closeOnConfirm: true });
+
+    await waitFor(() => expect(onConfirmed).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(eventsNamed('purchase')).toEqual([]);
     expect(eventsNamed('scan_started')).toEqual([{ plan: 'Complete' }]);
   });
 
@@ -465,7 +530,7 @@ describe('plan_selected and begin_checkout on the new-scan screen', () => {
 
   it('reports the chosen paid plan once and the checkout it opens', async () => {
     allowAnalytics();
-    vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
     stubApi((path) => {
       if (path === '/auth/me') return envelope(account);
       if (path === '/profiles') return envelope([profile]);
@@ -498,6 +563,7 @@ describe('plan_selected and begin_checkout on the new-scan screen', () => {
     await waitFor(() => expect(pay).toBeEnabled());
     fireEvent.click(pay);
     await waitFor(() => expect(eventsNamed('begin_checkout')).toHaveLength(1));
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
 
     expect(eventsNamed('plan_selected')).toEqual([{ plan: 'Complete' }]);
     expect(eventsNamed('scan_started')).toEqual([]);

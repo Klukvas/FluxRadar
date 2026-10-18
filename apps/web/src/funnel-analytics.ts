@@ -15,8 +15,11 @@
 // | report_viewed          | a finished report screen loaded                   | plan, status      |
 // | upgrade_clicked        | an upgrade button on a report or the dashboard    | plan, source      |
 // | plan_selected          | a paid plan held on the new-scan form for 1 s     | plan              |
+//
+// Known limit: `scan_started` is guarded per page load only, so going Back to
+// `/checkout/return` after a paid scan started can report that start again.
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 import { trackEvent } from './analytics';
 import { PLAN_ORDER, type PaidPlan, type Plan } from './plan-modules';
@@ -37,6 +40,7 @@ type TerminalStatus = (typeof TERMINAL_SCAN_STATUSES)[number];
 
 const startedScans = new Set<string>();
 const viewedReports = new Set<string>();
+const selectedPlans = new Set<Plan>();
 
 /** A plan name the tariff table knows, or null for anything else the server might send. */
 function knownPlan(value: string): Plan | null {
@@ -78,16 +82,17 @@ export function useReportViewed(
 }
 
 /**
- * Reports the paid plan the new-scan form settles on: the preselected one once,
- * then each change to a different paid plan. Free is not a selection here, and
- * going back to the last reported plan is not a new one.
+ * Reports the paid plan the new-scan form settles on: the preselected one, then
+ * each different paid plan, once per plan per page load — closing and reopening
+ * the form on the same plan is not a new choice. Free is not a selection here.
  */
 export function usePlanSelected(plan: Plan, offered: boolean): void {
-  const lastReported = useRef<Plan | null>(null);
   useEffect(() => {
-    if (plan === 'Free' || !offered || lastReported.current === plan) return undefined;
+    if (plan === 'Free' || !offered || selectedPlans.has(plan)) return undefined;
     const timer = setTimeout(() => {
-      if (trackEvent('plan_selected', { plan })) lastReported.current = plan;
+      if (!selectedPlans.has(plan) && trackEvent('plan_selected', { plan })) {
+        selectedPlans.add(plan);
+      }
     }, PLAN_SETTLE_MS);
     return () => clearTimeout(timer);
   }, [plan, offered]);
@@ -97,4 +102,5 @@ export function usePlanSelected(plan: Plan, offered: boolean): void {
 export function resetFunnelAnalyticsForTests(): void {
   startedScans.clear();
   viewedReports.clear();
+  selectedPlans.clear();
 }

@@ -82,7 +82,6 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
   });
   // A paid scan starts only when the webhook confirms the order (Checkout.tsx);
   // what starts here is the checkout, once per session the server created.
-  trackBeginCheckout(session);
-  window.location.assign(session.checkoutUrl);
+  trackBeginCheckout(session, () => window.location.assign(session.checkoutUrl));
   return null;
 }

@@ -11,6 +11,8 @@ import { resetAnalyticsForTests, startAnalytics } from './analytics';
 import type { CheckoutConfig, CheckoutSession, CheckoutStatus } from './api';
 import { EVERYTHING_ALLOWED, NECESSARY_ONLY, saveCookieConsent } from './browser-consent';
 import {
+  BEGIN_CHECKOUT_DELIVERY_MS,
+  reportPurchaseWhenConfigReady,
   resetCheckoutAnalyticsForTests,
   trackBeginCheckout,
   trackPurchase,
@@ -116,7 +118,7 @@ describe('funnel steps before and after consent', () => {
     trackFreeCheckRequested(false);
     trackScanStarted(scan);
     trackUpgradeClicked('Basic', 'free_report');
-    trackBeginCheckout(liveSession);
+    trackBeginCheckout(liveSession, () => undefined);
     trackPurchase(confirmed, liveConfig);
     renderHook(() => useReportViewed(scan));
 
@@ -204,8 +206,8 @@ describe('each step, once, with its fixed parameters', () => {
 
   it('begin_checkout fires once per created session, purchase once per order', () => {
     allowAnalytics();
-    trackBeginCheckout(liveSession);
-    trackBeginCheckout(liveSession);
+    trackBeginCheckout(liveSession, () => undefined);
+    trackBeginCheckout(liveSession, () => undefined);
     trackPurchase(confirmed, liveConfig);
     trackPurchase(confirmed, liveConfig);
 
@@ -223,6 +225,87 @@ describe('each step, once, with its fixed parameters', () => {
   it('purchase never fires before the webhook created the scan', () => {
     allowAnalytics();
     trackPurchase({ ...confirmed, scanId: null }, liveConfig);
+
+    expect(eventsNamed('purchase')).toEqual([]);
+  });
+});
+
+describe('begin_checkout before the redirect to the provider', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  function deliveryCallback(): () => void {
+    const [params] = eventsNamed('begin_checkout');
+    expect(params).toMatchObject({ transport_type: 'beacon' });
+    return params?.event_callback as () => void;
+  }
+
+  it('redirects once, when gtag has handed the event over', () => {
+    allowAnalytics();
+    const proceed = vi.fn();
+    trackBeginCheckout(liveSession, proceed);
+    expect(proceed).not.toHaveBeenCalled();
+
+    const delivered = deliveryCallback();
+    delivered();
+    delivered();
+    vi.advanceTimersByTime(BEGIN_CHECKOUT_DELIVERY_MS * 2);
+
+    expect(proceed).toHaveBeenCalledTimes(1);
+  });
+
+  it('redirects once after the fallback when gtag never calls back', () => {
+    allowAnalytics();
+    const proceed = vi.fn();
+    trackBeginCheckout(liveSession, proceed);
+    vi.advanceTimersByTime(BEGIN_CHECKOUT_DELIVERY_MS - 1);
+    expect(proceed).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    deliveryCallback()();
+
+    expect(proceed).toHaveBeenCalledTimes(1);
+  });
+
+  it('redirects at once when nothing is sent', () => {
+    saveCookieConsent(NECESSARY_ONLY);
+    startAnalytics();
+    const proceed = vi.fn();
+    trackBeginCheckout(liveSession, proceed);
+    expect(proceed).toHaveBeenCalledTimes(1);
+
+    allowAnalytics();
+    const testMode = vi.fn();
+    trackBeginCheckout({ ...liveSession, mode: 'test' }, testMode);
+    expect(testMode).toHaveBeenCalledTimes(1);
+    expect(eventsNamed('begin_checkout')).toEqual([]);
+  });
+});
+
+describe('purchase once the store config is known', () => {
+  it('waits for a late config and reports the order once, with its price', async () => {
+    allowAnalytics();
+    let resolveConfig: (value: CheckoutConfig | null) => void = () => undefined;
+    const config = new Promise<CheckoutConfig | null>((resolve) => {
+      resolveConfig = resolve;
+    });
+    reportPurchaseWhenConfigReady(confirmed, config);
+    reportPurchaseWhenConfigReady(confirmed, config);
+    expect(eventsNamed('purchase')).toEqual([]);
+
+    resolveConfig(liveConfig);
+    await config;
+    await Promise.resolve();
+
+    expect(eventsNamed('purchase')).toEqual([expect.objectContaining({ value: 55 })]);
+  });
+
+  it('sends no purchase when the config could not be read', async () => {
+    allowAnalytics();
+    const config = Promise.resolve(null);
+    reportPurchaseWhenConfigReady(confirmed, config);
+    await config;
+    await Promise.resolve();
 
     expect(eventsNamed('purchase')).toEqual([]);
   });
@@ -287,6 +370,22 @@ describe('plan_selected on the new-scan form', () => {
     expect(eventsNamed('plan_selected')).toEqual([{ plan: 'Complete' }]);
   });
 
+  it('does not report the same plan again when the form is opened again', async () => {
+    allowAnalytics();
+    renderForm('Basic').unmount();
+    await settle();
+    expect(eventsNamed('plan_selected')).toEqual([]);
+    renderForm('Basic').unmount();
+    renderForm('Basic');
+    await settle();
+    renderForm('Basic');
+    await settle();
+    renderForm('Complete');
+    await settle();
+
+    expect(eventsNamed('plan_selected')).toEqual([{ plan: 'Basic' }, { plan: 'Complete' }]);
+  });
+
   it('sends nothing without consent', async () => {
     saveCookieConsent(NECESSARY_ONLY);
     startAnalytics();
@@ -327,7 +426,7 @@ describe('what a funnel step may carry', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PLAN_SETTLE_MS);
     });
-    trackBeginCheckout(liveSession);
+    trackBeginCheckout(liveSession, () => undefined);
     trackPurchase(confirmed, liveConfig);
 
     const funnel = sentEvents().filter(([name]) => name !== 'page_view');
@@ -343,7 +442,9 @@ describe('what a funnel step may carry', () => {
       'purchase',
     ]);
     for (const [name, params] of funnel) {
-      for (const [key, value] of Object.entries(params)) {
+      // How gtag delivers the event, not what it says (begin_checkout only).
+      const delivery = ['transport_type', 'event_callback'];
+      for (const [key, value] of Object.entries(params).filter(([k]) => !delivery.includes(k))) {
         const values = leaves(value).map(String);
         for (const text of values) {
           expect(text, `${name}.${key}`).not.toMatch(EMAIL);
