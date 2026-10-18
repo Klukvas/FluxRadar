@@ -57,4 +57,60 @@ export const UX_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
       count: AI_REVIEW_COUNT_UK,
     },
   },
+  // The two start-page checks look at the first page the crawl read only
+  // (ux/analyzer.ts, entryPageFindings); they are deterministic, not AI.
+  'UX-CONV-STATIC-001': {
+    countsPages: true,
+    en: {
+      title: 'The start page has no main heading',
+      what: 'The page this scan started at, usually your home page, has no main heading. Only that page is checked.',
+      why: 'The main heading is often the first thing a new visitor reads to see whether they are in the right place, and search engines use it to understand what the page is about.',
+      fix: 'Add one short main heading at the top of the page that says what you offer and where, such as “Dental clinic in Lviv”. In most site builders this is a text block set to the largest heading style.',
+      count: 'One finding, about the start page only.',
+    },
+    uk: {
+      title: 'Стартова сторінка без головного заголовка',
+      what: 'Сторінка, з якої почалося сканування (зазвичай головна), не має головного заголовка. Перевіряється лише вона.',
+      why: 'Головний заголовок часто є першим, що читає новий відвідувач, щоб зрозуміти, чи він там, де треба, а пошукові системи за ним розуміють, про що сторінка.',
+      fix: 'Додайте вгорі сторінки один короткий головний заголовок, що каже, що ви пропонуєте й де, наприклад «Стоматологія у Львові». У більшості конструкторів сайтів це текстовий блок зі стилем найбільшого заголовка.',
+      count: 'Одна знахідка лише про стартову сторінку.',
+    },
+  },
+  'UX-CONV-STATIC-002': {
+    countsPages: true,
+    en: {
+      title: 'The start page has nothing to press',
+      what: 'The page this scan started at, usually your home page, has not a single link, button or form button, as FluxRadar read it. Only that page is checked.',
+      why: 'A visitor who is ready to book, call or write needs something to press; a page with nothing to press leaves them to find their own way.',
+      fix: 'Add a clear button near the top of the page for the one thing you want visitors to do, such as “Book a visit” or “Call us”, leading to your booking page, form or phone number.',
+      count: 'One finding, about the start page only.',
+    },
+    uk: {
+      title: 'На стартовій сторінці нічого натиснути',
+      what: 'Сторінка, з якої почалося сканування (зазвичай головна), у тому вигляді, в якому її прочитав FluxRadar, не має жодного посилання, кнопки чи кнопки форми. Перевіряється лише вона.',
+      why: 'Відвідувачу, готовому записатися, подзвонити чи написати, потрібно щось натиснути; сторінка, на якій нічого натиснути, змушує його самостійно шукати, що робити далі.',
+      fix: 'Додайте вгорі сторінки помітну кнопку для тієї однієї дії, якої ви чекаєте від відвідувачів, як-от «Записатися» чи «Зателефонувати», що веде на сторінку запису, форму чи ваш номер.',
+      count: 'Одна знахідка лише про стартову сторінку.',
+    },
+  },
+  // ux/analyzer.ts counts only a button marked as the form's send button, so a
+  // button that merely looks like one is flagged too; the fix says to check
+  // the form works before asking for the mark.
+  'UX-CONV-STATIC-003': {
+    countsPages: false,
+    en: {
+      title: 'Forms without a clear send button',
+      what: 'A form on these pages has fields to fill in but no button marked as the one that sends it. Up to 12 pages are checked: the start page and the pages with the most forms, contact links and buttons.',
+      why: 'Without a proper send button a visitor may not find how to send the form, or it may not send when they press Enter, and the enquiry is lost. A button that looks right can still lack the mark that tells the browser it sends the form.',
+      fix: 'Check that each form named in the technical details has a clear button, such as “Send” or “Book”, and that a test message arrives. If it does, ask your website developer to mark that button as the form’s send button.',
+      count: 'One finding for each such form, so a page can appear more than once.',
+    },
+    uk: {
+      title: 'Форми без чіткої кнопки надсилання',
+      what: 'Форма на цих сторінках має поля для заповнення, але не має кнопки, позначеної як та, що її надсилає. Перевіряється до 12 сторінок: стартова й ті, де найбільше форм, контактних посилань і кнопок.',
+      why: 'Без справжньої кнопки надсилання відвідувач може не знайти, як надіслати форму, або вона не надішлеться натисканням Enter, і звернення загубиться. Кнопка, що виглядає правильно, теж може не мати позначки, яка каже браузеру, що вона надсилає форму.',
+      fix: 'Перевірте, що кожна форма з технічних деталей має чітку кнопку, як-от «Надіслати» чи «Записатися», і що тестове повідомлення доходить. Якщо доходить, попросіть розробника позначити цю кнопку як кнопку надсилання форми.',
+      count: 'Одна знахідка на кожну таку форму, тож сторінка може зʼявитися кілька разів.',
+    },
+  },
 };

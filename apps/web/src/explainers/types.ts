@@ -12,6 +12,13 @@ export interface FindingExplainer {
   readonly fix: string;
   /** What one finding of this rule is, so the count can be read correctly. */
   readonly count: string;
+  /**
+   * Where the finding's data came from, for a rule that does not read the
+   * crawled pages' public responses — the Google data the owner connected, or
+   * the address checks the owner listed. Absent, the report's general sentence
+   * about public responses applies.
+   */
+  readonly scope?: string;
 }
 
 export interface ExplainedRule {

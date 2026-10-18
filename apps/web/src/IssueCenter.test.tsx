@@ -265,7 +265,9 @@ describe('the security problems an owner cannot read from a header name', () => 
         openIssues: 4,
       },
       {
-        ruleId: 'A11Y-002',
+        // Informational (D-109): titled but unexplained, now that every
+        // scored rule has a plain explanation.
+        ruleId: 'A11Y-011',
         module: 'Accessibility',
         severity: 'Medium',
         issues: 1,
@@ -376,7 +378,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     const rows = (await screen.findAllByRole('row')).slice(1);
     const headers = nth(rows, 1, 'the security-headers problem row');
     const cookies = nth(rows, 2, 'the cookie problem row');
-    const altText = nth(rows, 3, 'the image-alternative problem row');
+    const altText = nth(rows, 3, 'the unexplained problem row');
     // Plain language all the way down: no header or attribute name in the row.
     expect(
       within(headers).getByText(/extra browser protection settings are not switched on/),
@@ -392,8 +394,8 @@ describe('the security problems an owner cannot read from a header name', () => 
     // and id, and is counted in findings — it may not be one per page.
     expect(within(altText).queryByText('What the check measures')).not.toBeInTheDocument();
     expect(within(altText).queryByText('What to do:')).not.toBeInTheDocument();
-    expect(within(altText).getByText('Images without a text alternative')).toBeInTheDocument();
-    expect(altText).toHaveTextContent('A11Y-002');
+    expect(within(altText).getByText('Needs a manual accessibility review')).toBeInTheDocument();
+    expect(altText).toHaveTextContent('A11Y-011');
     expect(altText).toHaveTextContent('1 open finding');
     // Cookies are counted per cookie, so their count is never said in pages.
     expect(cookies).toHaveTextContent('4 open findings');
@@ -561,13 +563,13 @@ describe('the security problems an owner cannot read from a header name', () => 
   it('keeps an unexplained rule’s evidence in view and folds its scoring', async () => {
     stubSecurity([
       issue(1, {
-        ruleId: 'A11Y-002',
+        ruleId: 'A11Y-011',
         module: 'Accessibility',
         evidenceExcerpt: 'img.hero has no alt text',
         recommendation: 'Add alt text to meaningful images.',
       }),
     ]);
-    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="A11Y-002" />);
+    render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="A11Y-011" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Explanation and evidence' }));
 
     const detail = document.getElementById('issue-detail-issue-1');
@@ -583,7 +585,7 @@ describe('the security problems an owner cannot read from a header name', () => 
     expect(within(detail).getByText('Add alt text to meaningful images.')).toBeInTheDocument();
     expect(within(technical).getByText('Places affected')).toBeInTheDocument();
     expect(within(technical).getByText('How sure this finding is')).toBeInTheDocument();
-    expect(within(technical).getByText('A11Y-002')).toBeInTheDocument();
+    expect(within(technical).getByText('A11Y-011')).toBeInTheDocument();
   });
 
   it('says the page count is only of the findings loaded so far', async () => {

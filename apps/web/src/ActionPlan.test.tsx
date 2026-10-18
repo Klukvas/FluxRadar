@@ -216,7 +216,9 @@ describe('the Action Plan block', () => {
     renderPlan({ onOpenProblem: (ruleId: string) => opened.push(ruleId) });
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'robots.txt is missing or unreachable' }),
+      await screen.findByRole('button', {
+        name: 'The instructions file for search engines is missing',
+      }),
     );
 
     expect(opened).toEqual(['SEO-TECH-001']);

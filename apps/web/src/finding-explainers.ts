@@ -16,16 +16,17 @@
 // page that reads worse than it could — never a claim that the site has been
 // exploited, and never a promise of what a fix will earn.
 //
-// Not every rule has an entry. `finding-variants.test.ts` reads the rule
-// registry and fails when a scored rule is neither explained here nor listed
-// there as deliberately left to its technical title, so a new rule is a
-// decision, not an accident. Scored rules only: informational ones (D-109)
-// never become Issue rows. A rule with no entry keeps the title, evidence and
+// Every scored rule has an entry. `finding-variants.test.ts` reads the rule
+// registry and fails when a scored rule has none, so a new rule is a decision,
+// not an accident. Scored rules only: informational ones (D-109) never become
+// Issue rows. A rule with no entry keeps the title, evidence and
 // recommendation it always had.
 
 import { ACCESSIBILITY_EXPLAINERS } from './explainers/accessibility';
+import { ANALYTICS_EXPLAINERS } from './explainers/analytics';
 import { CONTENT_EXPLAINERS } from './explainers/content';
 import { PRIVACY_EXPLAINERS } from './explainers/privacy';
+import { RELIABILITY_EXPLAINERS } from './explainers/reliability';
 import { SECURITY_EXPLAINERS } from './explainers/security';
 import { SEO_EXPLAINERS } from './explainers/seo';
 import type { ExplainedRule, FindingExplainer } from './explainers/types';
@@ -43,6 +44,8 @@ const EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
   ...PRIVACY_EXPLAINERS,
   ...CONTENT_EXPLAINERS,
   ...UX_EXPLAINERS,
+  ...RELIABILITY_EXPLAINERS,
+  ...ANALYTICS_EXPLAINERS,
 };
 
 /** Every rule with a plain-language explanation, for the coverage test. */

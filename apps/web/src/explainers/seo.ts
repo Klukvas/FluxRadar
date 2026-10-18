@@ -187,4 +187,206 @@ export const SEO_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
       count: 'Одна знахідка на кожну сторінку, хоч би скільки неповних частин на ній було.',
     },
   },
+  'SEO-ONPAGE-006': {
+    countsPages: true,
+    en: {
+      title: 'Several pages share the same summary in search results',
+      what: 'These pages have exactly the same short summary for search engines as at least one other page, and nothing tells search engines which of them is the main one. Pages with no summary at all are a separate finding.',
+      why: 'When pages share a summary, people reading the search results cannot tell them apart, and search engines often replace it with a piece of the page they pick themselves.',
+      fix: 'Write each page its own one- or two-sentence summary of what is on it; most site builders call this field the SEO description.',
+      count:
+        'One finding for each page that shares its summary, so two pages with the same summary are two findings.',
+    },
+    uk: {
+      title: 'Кілька сторінок мають однаковий опис у пошуку',
+      what: 'Ці сторінки мають точно такий самий короткий опис для пошукових систем, як щонайменше одна інша сторінка, і ніщо не підказує пошуковим системам, яка з них головна. Сторінки зовсім без опису — це окрема знахідка.',
+      why: 'Коли опис однаковий, люди в результатах пошуку не можуть розрізнити сторінки, а пошукові системи часто замінюють його шматком сторінки, обраним на свій розсуд.',
+      fix: 'Напишіть для кожної сторінки власний опис в одне-два речення про те, що на ній; у більшості конструкторів це поле зветься SEO-опис.',
+      count:
+        'Одна знахідка на кожну сторінку з повторюваним описом, тож дві сторінки з однаковим описом — це дві знахідки.',
+    },
+  },
+  'SEO-SOCIAL-001': {
+    countsPages: true,
+    en: {
+      title: 'Links to these pages share without a full preview',
+      what: 'These pages lack some of the fields that messengers and social networks read to build a link preview: its headline, short description, picture, address, or the card type X (formerly Twitter) uses. The technical details name the missing ones.',
+      why: 'When someone shares the page on Facebook, Telegram or Viber, the preview may come out without a picture or with the wrong text, and people are less likely to open it.',
+      fix: 'Fill in each page’s settings for sharing on social networks, usually called the social image and description in your site builder; on WordPress an SEO plugin does it. Then share a link to check the preview.',
+      count: 'One finding for each page, however many fields it lacks.',
+    },
+    uk: {
+      title: 'Посилання на ці сторінки поширюються без повного превʼю',
+      what: 'Цим сторінкам бракує частини полів, з яких месенджери й соцмережі складають превʼю посилання: заголовка, короткого опису, зображення, адреси чи типу картки, який використовує X (колишній Twitter). Технічні деталі називають, яких саме.',
+      why: 'Коли хтось ділиться сторінкою у Facebook, Telegram чи Viber, превʼю може вийти без зображення чи з не тим текстом, і відкривати його будуть рідше.',
+      fix: 'Заповніть для кожної сторінки налаштування для соцмереж, які в конструкторі сайту зазвичай звуться зображенням і описом для поширення; у WordPress це робить SEO-плагін. Потім поділіться посиланням, щоб перевірити превʼю.',
+      count: 'Одна знахідка на кожну сторінку, хоч би скільки полів їй бракувало.',
+    },
+  },
+  // seo/structured-data.ts: a block that is empty counts as one that cannot be
+  // read, so `what` says "broken or empty".
+  'SEO-STRUCT-001': {
+    countsPages: true,
+    en: {
+      title: 'Hidden page descriptions for search engines cannot be read',
+      what: 'These pages carry a hidden, machine-readable description for search engines, but at least one part of it is broken or empty and cannot be read at all.',
+      why: 'Search engines skip a part they cannot read, so whatever it was meant to tell them about your business, such as the address, opening hours or reviews, is lost to them.',
+      fix: 'Ask your website developer to repair it, or check the plugin that adds this description. The technical details say how many parts cannot be read.',
+      count: 'One finding for each page, however many broken parts it has.',
+    },
+    uk: {
+      title: 'Приховані описи сторінок для пошукових систем не читаються',
+      what: 'Ці сторінки містять прихований машиночитний опис для пошукових систем, але щонайменше одна його частина пошкоджена або порожня й не читається зовсім.',
+      why: 'Частину, яку не вдається прочитати, пошукові системи пропускають, тож усе, що вона мала сказати їм про ваш бізнес, як-от адресу, години роботи чи відгуки, для них втрачено.',
+      fix: 'Попросіть розробника її виправити або перевірте плагін, що додає цей опис. Технічні деталі кажуть, скільки частин не читаються.',
+      count: 'Одна знахідка на кожну сторінку, хоч би скільки пошкоджених частин на ній було.',
+    },
+  },
+  // seo-tech-001.ts: reported only when the file does not come back; an empty
+  // or odd file is not judged.
+  'SEO-TECH-001': {
+    countsPages: false,
+    en: {
+      title: 'The instructions file for search engines is missing',
+      what: 'Your site did not return its file of instructions for search engine crawlers at the usual address when FluxRadar asked for it. Only whether the file comes back is checked; an empty file would not have been reported.',
+      why: 'Search engines look for this file first, to learn what they may read and where your list of pages is. Without it they read everything they find, which is usually fine, but you cannot point them to that list.',
+      fix: 'Most site builders create this file for you, so check that it is not switched off in the SEO settings; otherwise ask your website developer to publish one with a link to the list of your pages.',
+      count: 'One finding for the whole site.',
+    },
+    uk: {
+      title: 'Немає файлу інструкцій для пошукових систем',
+      what: 'Ваш сайт не віддав файлу інструкцій для пошукових роботів за звичною адресою, коли FluxRadar його запитав. Перевіряється лише те, чи файл віддається; порожній файл знахідки не дав би.',
+      why: 'Пошукові системи першим шукають цей файл, щоб дізнатися, що їм можна читати й де лежить перелік ваших сторінок. Без нього вони читають усе, що знайдуть, і зазвичай це нормально, але вказати їм на цей перелік ви не можете.',
+      fix: 'Більшість конструкторів сайтів створюють цей файл самі, тож перевірте, чи його не вимкнено в налаштуваннях SEO; інакше попросіть розробника опублікувати його з посиланням на перелік ваших сторінок.',
+      count: 'Одна знахідка на весь сайт.',
+    },
+  },
+  'SEO-TECH-002': {
+    countsPages: false,
+    en: {
+      title: 'No list of pages for search engines',
+      what: 'FluxRadar found no list of your pages for search engines (a sitemap): the instructions file for search engines does not point to one, and the usual address does not return one with any pages in it.',
+      why: 'Search engines use this list to find every page you want shown, including ones few links lead to; without it, they rely on following links alone.',
+      fix: 'Most site builders make this list automatically, so check that it is switched on in the SEO settings; on WordPress an SEO plugin usually adds it. Otherwise ask your website developer to publish one.',
+      count: 'One finding for the whole site.',
+    },
+    uk: {
+      title: 'Немає переліку сторінок для пошукових систем',
+      what: 'FluxRadar не знайшов переліку ваших сторінок для пошукових систем (карти сайту): на нього не вказує файл інструкцій для пошукових систем, а за звичною адресою немає переліку бодай з однією сторінкою.',
+      why: 'Пошукові системи за цим переліком знаходять усі сторінки, які ви хочете показувати, зокрема ті, на які веде мало посилань; без нього вони покладаються лише на посилання.',
+      fix: 'Більшість конструкторів сайтів створюють цей перелік автоматично, тож перевірте, чи його ввімкнено в налаштуваннях SEO; у WordPress його зазвичай додає SEO-плагін. Інакше попросіть розробника його опублікувати.',
+      count: 'Одна знахідка на весь сайт.',
+    },
+  },
+  // seo-tech-004.ts: no mark, a mark that is not a valid address, or one on a
+  // different host — and the www and bare forms are different hosts there.
+  'SEO-TECH-004': {
+    countsPages: true,
+    en: {
+      title: 'Pages do not say which address is their main one',
+      what: 'These pages either do not name their own main address for search engines, name one that is not a valid address, or name an address on a different domain, where even the forms with and without “www” count as different.',
+      why: 'Search engines use this mark to pick one address when a page opens at several. Without it they pick for themselves, and a mark pointing to another domain asks them to show that domain instead.',
+      fix: 'Most site builders and SEO plugins set this mark for you, so check that it is switched on and that the site uses one form of its domain. The technical details say which of the three applies to each page; your website developer can fix the rest.',
+      count: 'One finding for each page.',
+    },
+    uk: {
+      title: 'Сторінки не вказують своєї головної адреси',
+      what: 'Ці сторінки або не називають пошуковим системам своєї головної адреси, або називають недійсну адресу, або адресу на іншому домені, причому навіть варіанти з «www» і без нього вважаються різними.',
+      why: 'Пошукові системи за цією позначкою обирають одну адресу, коли сторінка відкривається за кількома. Без неї вони обирають самі, а позначка, що веде на інший домен, просить їх показувати той домен замість вашого.',
+      fix: 'Більшість конструкторів сайтів і SEO-плагінів ставлять цю позначку самі, тож перевірте, чи її ввімкнено й чи сайт використовує одну форму домену. Технічні деталі кажуть, що з трьох стосується кожної сторінки; решту виправить розробник.',
+      count: 'Одна знахідка на кожну сторінку.',
+    },
+  },
+  'SEO-TECH-005': {
+    countsPages: true,
+    en: {
+      title: 'Addresses that forward several times, or in a circle',
+      what: 'These addresses forward the visitor two or more times before the page appears, or keep forwarding in a circle and never reach a page.',
+      why: 'Each extra step makes the page open more slowly, and search engines may stop following a long chain; a circle means the page does not open at all.',
+      fix: 'Ask your website developer to forward old addresses straight to the final page in one step, and to point the site’s own links at the final address. The technical details show each step.',
+      count: 'One finding for each address.',
+    },
+    uk: {
+      title: 'Адреси, що перенаправляють кілька разів або по колу',
+      what: 'Ці адреси перенаправляють відвідувача двічі або більше, перш ніж зʼявиться сторінка, або перенаправляють по колу, і сторінка так і не відкривається.',
+      why: 'Кожен зайвий крок сповільнює відкриття сторінки, а за довгим ланцюжком пошукові системи можуть і не піти; коло означає, що сторінка не відкривається зовсім.',
+      fix: 'Попросіть розробника перенаправляти старі адреси одразу на кінцеву сторінку одним кроком, а посилання самого сайту вести на кінцеву адресу. Технічні деталі показують кожен крок.',
+      count: 'Одна знахідка на кожну адресу.',
+    },
+  },
+  // A page that asks to stay out of search is reported only when the site
+  // still points to it (seo-tech-008.ts); on its own it is the owner's choice.
+  'SEO-TECH-008': {
+    countsPages: true,
+    en: {
+      title: 'Pages hidden from search that the site still points to',
+      what: 'These pages ask search engines not to show them, yet your list of pages for search engines includes them, or other pages of your site link to them.',
+      why: 'The two signals contradict each other: if the page should be found, the request to hide it keeps it out of search; if it should stay hidden, the list and the links keep sending search engines to it.',
+      fix: 'Decide whether each page should be found. If it should, switch off hiding it from search engines in its page settings; if not, take it out of the list of pages and remove the links to it.',
+      count: 'One finding for each page.',
+    },
+    uk: {
+      title: 'Сторінки, приховані від пошуку, на які сайт досі вказує',
+      what: 'Ці сторінки просять пошукові системи не показувати їх, але їх містить ваш перелік сторінок для пошукових систем або на них посилаються інші сторінки вашого сайту.',
+      why: 'Ці два сигнали суперечать один одному: якщо сторінку мають знаходити, прохання її приховати не пускає її в пошук; якщо вона має лишатися прихованою, перелік і посилання й далі ведуть до неї пошукові системи.',
+      fix: 'Вирішіть для кожної сторінки, чи її мають знаходити. Якщо так, вимкніть приховування від пошукових систем у її налаштуваннях; якщо ні, приберіть її з переліку сторінок і приберіть посилання на неї.',
+      count: 'Одна знахідка на кожну сторінку.',
+    },
+  },
+  // seo-tech-009.ts: in the sitemap, read, and linked from none of the pages
+  // the scan read; the start page is never a candidate.
+  'SEO-TECH-009': {
+    countsPages: true,
+    en: {
+      title: 'Pages only the list for search engines leads to',
+      what: 'These pages are in your list of pages for search engines, but none of the pages this scan read links to them.',
+      why: 'Visitors cannot reach such a page by clicking through the site, and search engines tend to treat a page nothing links to as less important.',
+      fix: 'Link to each of these pages from where it belongs: the menu, a related section or the footer. If a page is no longer needed, remove it from the site.',
+      count: 'One finding for each such page.',
+    },
+    uk: {
+      title: 'Сторінки, до яких веде лише перелік для пошукових систем',
+      what: 'Ці сторінки є у вашому переліку сторінок для пошукових систем, але жодна сторінка, прочитана під час сканування, на них не посилається.',
+      why: 'Відвідувачі не можуть дістатися до такої сторінки, переходячи сайтом, а пошукові системи зазвичай вважають сторінку, на яку ніщо не посилається, менш важливою.',
+      fix: 'Поставте посилання на кожну з цих сторінок там, де їй місце: у меню, схожому розділі чи підвалі сайту. Якщо сторінка більше не потрібна, приберіть її із сайту.',
+      count: 'Одна знахідка на кожну таку сторінку.',
+    },
+  },
+  'SEO-TECH-010': {
+    countsPages: true,
+    en: {
+      title: 'Pages too many clicks away from the start',
+      what: 'Reaching these pages from the page this scan started at, usually your home page, takes four or more clicks on links.',
+      why: 'Visitors rarely click that far, and search engines tend to find and revisit deep pages later than ones close to the home page.',
+      fix: 'Bring these pages closer: link to them from the menu, or from a section page one or two clicks from the home page.',
+      count: 'One finding for each such page; the technical details give the number of clicks.',
+    },
+    uk: {
+      title: 'Сторінки, до яких забагато кліків від початку',
+      what: 'Щоб дістатися цих сторінок від сторінки, з якої почалося сканування (зазвичай головної), потрібно чотири або більше кліків по посиланнях.',
+      why: 'Відвідувачі рідко клацають так далеко, а пошукові системи зазвичай знаходять і переглядають глибокі сторінки пізніше, ніж ті, що близько до головної.',
+      fix: 'Наблизьте ці сторінки: поставте на них посилання з меню або зі сторінки розділу, що за один-два кліки від головної.',
+      count: 'Одна знахідка на кожну таку сторінку; технічні деталі наводять кількість кліків.',
+    },
+  },
+  // seo-tech-013.ts reports each insecure file once per page; on a page not yet
+  // served securely only files from other sites count.
+  'SEO-TECH-013': {
+    countsPages: false,
+    en: {
+      title: 'Files loaded over an insecure connection',
+      what: 'These pages load a picture, script, embedded window, design file or icon from an address without the secure connection (one starting with “http://” rather than “https://”). On a page that is not yet served securely itself, only such files from other websites are counted.',
+      why: 'Browsers block some of these files or mark the page as not fully secure, so a picture may go missing or the visitor may see a warning.',
+      fix: 'Change each address named in the technical details to its secure version, which usually means adding an “s” after “http”, or upload the file to your own site. If it comes from the theme or a plugin, ask your website developer.',
+      count: 'One finding for each such file on each page, so a page can appear more than once.',
+    },
+    uk: {
+      title: 'Файли, що завантажуються незахищеним зʼєднанням',
+      what: 'Ці сторінки завантажують зображення, скрипт, вбудоване вікно, файл оформлення чи значок з адреси без захищеного зʼєднання (що починається з «http://», а не з «https://»). На сторінці, яка сама ще відкривається без захищеного зʼєднання, рахуються лише такі файли з інших сайтів.',
+      why: 'Браузери блокують частину таких файлів або позначають сторінку як не повністю захищену, тож зображення може зникнути, а відвідувач може побачити попередження.',
+      fix: 'Замініть кожну адресу з технічних деталей на її захищену версію, зазвичай це «s» після «http», або завантажте файл на власний сайт. Якщо він із теми чи плагіна, зверніться до розробника.',
+      count:
+        'Одна знахідка на кожен такий файл на кожній сторінці, тож сторінка може зʼявитися кілька разів.',
+    },
+  },
 };

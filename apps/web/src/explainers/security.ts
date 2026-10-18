@@ -73,4 +73,43 @@ export const SECURITY_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
         'Одна знахідка на кожну cookie на кожній сторінці, тож сторінка може зʼявитися кілька разів, а знахідок може бути більше, ніж сторінок.',
     },
   },
+  // sec-asvs-003-cors.ts: "any site may read this" together with "and with the
+  // visitor's sign-in". Browsers refuse the pair, so the copy calls it a setting
+  // that contradicts itself, not an opening.
+  'SEC-ASVS-003': {
+    countsPages: true,
+    en: {
+      title: 'Contradictory settings for sharing pages with other sites',
+      what: 'These pages tell the browser that any website may read them and, at the same time, that it may do so with the visitor’s sign-in. Browsers refuse that combination.',
+      why: 'The setting contradicts itself, which usually means it was switched on wider than intended; it is worth checking who really needs that access.',
+      fix: 'Ask your website developer to name the sites that really need this access, or to switch the sharing off if nothing needs it. The specifics are in the technical details.',
+      count: 'One finding for each page where it is set.',
+    },
+    uk: {
+      title: 'Суперечливі налаштування доступу інших сайтів до сторінок',
+      what: 'Ці сторінки кажуть браузеру, що будь-який сайт може їх читати, і водночас, що може робити це з даними входу відвідувача. Браузери таке поєднання відхиляють.',
+      why: 'Налаштування суперечить саме собі, а це зазвичай означає, що його ввімкнули ширше, ніж планували; варто перевірити, кому цей доступ справді потрібен.',
+      fix: 'Попросіть розробника вказати сайти, яким цей доступ справді потрібен, або вимкнути його, якщо він нікому не потрібен. Точний перелік є в технічних деталях.',
+      count: 'Одна знахідка на кожну сторінку, де це задано.',
+    },
+  },
+  // Judged on the home page only, and only for a site served securely
+  // (sec-passive-003.ts).
+  'SEC-PASSIVE-003': {
+    countsPages: false,
+    en: {
+      title: 'Browsers are not told to always use the secure connection',
+      what: 'The home page, opened over the secure connection, does not tell the browser to keep using the secure connection for this site on later visits. Only the home page is checked.',
+      why: 'Telling the browser to always use the secure connection is an extra safeguard: after the first visit, the browser opens the site securely even when an address without it is typed or followed.',
+      fix: ASK_DEVELOPER_SERVER_EN,
+      count: 'One finding for the whole site, checked on its home page.',
+    },
+    uk: {
+      title: 'Браузеру не сказано завжди використовувати захищене зʼєднання',
+      what: 'Головна сторінка, відкрита через захищене зʼєднання, не каже браузеру й надалі відкривати цей сайт лише захищено. Перевіряється лише головна сторінка.',
+      why: 'Вказівка завжди використовувати захищене зʼєднання є додатковим запобіжником: після першого відвідування браузер відкриває сайт захищено, навіть коли адресу без цього ввели вручну чи відкрили за посиланням.',
+      fix: ASK_DEVELOPER_SERVER_UK,
+      count: 'Одна знахідка на весь сайт, перевірена на головній сторінці.',
+    },
+  },
 };
