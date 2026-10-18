@@ -13,9 +13,9 @@
 import type { PrismaClient } from '@prisma/client';
 
 import { cancelLegacyPausedScan, pausedFromReason } from '../billing/cancel-scan.ts';
-import { JOB_STATUSES } from '../billing/constants.ts';
+import { JOB_STATUSES, PURCHASE_STATUSES } from '../billing/constants.ts';
 import { InvalidTransitionError } from '../billing/errors.ts';
-import { paidAccessDenial } from '../billing/report-access.ts';
+import { paidAccessDenial, type PaidAccessDenial } from '../billing/report-access.ts';
 import { transitionScan } from '../billing/state-machine.ts';
 import type { ApiLogger } from '../http/logger.ts';
 
@@ -62,7 +62,8 @@ export type LegacyPausedOutcome = 'resumed' | 'cancelled' | 'skipped';
  * cannot be deleted. Cancelling it applies the policy of the state it was
  * paused from, through the same Paused compare-and-set the owner's own cancel
  * uses; refunds are only recorded, and an existing one is not duplicated.
- * `skipped` means the scan was no longer paused: someone else moved it first.
+ * A pre-queue refund is recorded only when the customer's money is still with
+ * us (see `recordsPreQueueRefund`). `skipped` means the scan was no longer paused: someone else moved it first.
  */
 export async function settleLegacyPausedScan(
   prisma: PrismaClient,
@@ -78,8 +79,12 @@ export async function settleLegacyPausedScan(
     },
   });
   if (scan === null || scan.status !== 'Paused') return 'skipped';
-  if (paidAccessDenial(scan, { now }) !== null) {
-    if ((await cancelLegacyPausedScan(prisma, scanId)) === null) return 'skipped';
+  const denial = paidAccessDenial(scan, { now });
+  if (denial !== null) {
+    const recordRefund = recordsPreQueueRefund(denial, scan.purchase?.status ?? null);
+    if ((await cancelLegacyPausedScan(prisma, scanId, { recordRefund })) === null) {
+      return 'skipped';
+    }
     // The parked job will never run; a claimed one is its worker's to finish.
     await prisma.job.updateMany({
       where: { scanId, status: JOB_STATUSES.paused },
@@ -88,6 +93,21 @@ export async function settleLegacyPausedScan(
     return 'cancelled';
   }
   return (await resumeIfPaused(prisma, scanId, now)) ? 'resumed' : 'skipped';
+}
+
+/**
+ * Whether cancelling a pre-queue legacy scan records its §18 full refund.
+ *
+ * Only while the payment is still ours and uncontested: an expired entitlement,
+ * or a paid purchase that lost its entitlement row — the customer paid and the
+ * scan never ran, and the record is a decision for an operator, not a payout.
+ * A refunded purchase already returned the money (possibly by a path that wrote
+ * no RefundRecord) and a suspended one is disputed, so a fresh refund decision
+ * there would claim money that is gone or contested.
+ */
+function recordsPreQueueRefund(denial: PaidAccessDenial, purchaseStatus: string | null): boolean {
+  if (denial === 'expired') return true;
+  return denial === 'missing' && purchaseStatus === PURCHASE_STATUSES.paid;
 }
 
 export interface LegacyPauseSweepResult {

@@ -54,10 +54,16 @@ export async function cancelScan(prisma: PrismaClient, scanId: string): Promise<
  * it was paused from is recorded in `statusReason` by the pause itself, because
  * once the status reads `Paused` nothing else can tell the two apart. Returns
  * null when the scan is not paused, so the ordinary branches below decide.
+ *
+ * `recordRefund: false` is for the unattended legacy sweep cancelling a scan
+ * whose money was already returned or is contested: it settles the scan
+ * without writing a fresh refund decision. The owner's own cancel always
+ * passes the default.
  */
 export async function cancelLegacyPausedScan(
   prisma: PrismaClient,
   scanId: string,
+  options: { readonly recordRefund?: boolean } = {},
 ): Promise<CancelScanResult | null> {
   const scan = await prisma.scan.findUnique({ where: { id: scanId } });
   if (scan === null || scan.status !== 'Paused') {
@@ -72,7 +78,7 @@ export async function cancelLegacyPausedScan(
     return null;
   }
   const refund =
-    pausedFrom !== 'Pending' || scan.purchaseId === null
+    pausedFrom !== 'Pending' || scan.purchaseId === null || options.recordRefund === false
       ? null
       : (await requestRefund(prisma, scan.purchaseId, 'PRE_QUEUE_CANCEL')).record;
   return { cancelledFrom: 'Paused', refund };

@@ -7,6 +7,7 @@ import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 import { parsePlan } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
 
+import { JOB_STATUSES } from '../billing/constants.ts';
 import { InvalidTransitionError } from '../billing/errors.ts';
 import { requestRefund } from '../billing/refund.ts';
 import { paidAccessDenial } from '../billing/report-access.ts';
@@ -160,6 +161,19 @@ async function processClaimedJob(
         // the state it was paused from on the job this worker holds, one whose
         // paid access is gone is cancelled. The loop then re-reads it.
         await settleLegacyPausedScan(prisma, scanId, deps.now?.() ?? new Date());
+        const settled = await prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
+        if (settled.status === 'Paused') {
+          // Settling changed nothing — it threw before its compare-and-set or
+          // was refused — so looping would spin on the same row. The job is
+          // parked again for the legacy sweep to retry, which resumes it onto
+          // this same job; finishing it would strand the scan once resumed.
+          logger.error('legacy paused scan could not be settled; job parked', { scanId });
+          await prisma.job.update({
+            where: { id: activeJobId },
+            data: { status: JOB_STATUSES.paused, claimedAt: null, leaseUntil: null },
+          });
+          return resultFromExisting(scanId, 'Paused');
+        }
         continue;
       }
       if (await isBillingBlocked(prisma, scan.purchaseId, deps.now?.() ?? new Date())) {
