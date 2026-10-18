@@ -68,11 +68,6 @@ interface StatusCopy {
     readonly cancelledBeforeQueue: string;
     readonly cancelledAfterQueue: string;
     readonly cancelledAfterStart: string;
-    // Legacy Paused reasons. Kept until no Paused rows remain; removed with the
-    // schema in a follow-up.
-    readonly pausedBeforeQueue: string;
-    readonly pausedAfterQueue: string;
-    readonly pausedAfterStart: string;
     readonly scanCancelled: string;
     readonly noUsableOutput: string;
     readonly externalModuleFailure: string;
@@ -96,7 +91,6 @@ const EN: StatusCopy = {
     Completed: 'Completed',
     Failed: 'Failed',
     Cancelled: 'Cancelled',
-    Paused: 'Paused',
   },
   moduleStatus: {
     Pending: 'Waiting',
@@ -149,9 +143,6 @@ const EN: StatusCopy = {
     cancelledAfterStart: 'cancelled after the scan had started',
     scanCancelled:
       'you stopped this audit before the section finished, so it was stopped where it stood',
-    pausedBeforeQueue: 'paused before the scan was queued',
-    pausedAfterQueue: 'paused after the scan was queued',
-    pausedAfterStart: 'paused after the scan had started',
     noUsableOutput: 'no section produced a usable result',
     externalModuleFailure: 'an external service cost this scan at least one section',
     incompleteChecks: 'not every applicable check could be closed',
@@ -172,7 +163,6 @@ const UK: StatusCopy = {
     Completed: 'Завершено',
     Failed: 'Не вдалося',
     Cancelled: 'Скасовано',
-    Paused: 'Призупинено',
   },
   moduleStatus: {
     Pending: 'Очікує',
@@ -224,9 +214,6 @@ const UK: StatusCopy = {
     cancelledAfterStart: 'скасовано після початку перевірки',
     scanCancelled:
       'ви зупинили цю перевірку до завершення розділу, тож її спинено там, де вона була',
-    pausedBeforeQueue: 'призупинено до постановки в чергу',
-    pausedAfterQueue: 'призупинено після постановки в чергу',
-    pausedAfterStart: 'призупинено після початку',
     noUsableOutput: 'жоден розділ не дав придатного результату',
     externalModuleFailure: 'через зовнішній сервіс ця перевірка втратила щонайменше один розділ',
     incompleteChecks: 'вдалося закрити не всі застосовні перевірки',
@@ -272,9 +259,6 @@ const REASON_KEYS: Readonly<Record<string, ReasonKey | undefined>> = {
   UserCancelledAfterQueue: 'cancelledAfterQueue',
   UserCancelledAfterStart: 'cancelledAfterStart',
   ScanCancelled: 'scanCancelled',
-  UserPausedBeforeQueue: 'pausedBeforeQueue',
-  UserPausedAfterQueue: 'pausedAfterQueue',
-  UserPausedAfterStart: 'pausedAfterStart',
   NoUsableOutput: 'noUsableOutput',
   ExternalModuleFailure: 'externalModuleFailure',
   IncompleteChecks: 'incompleteChecks',

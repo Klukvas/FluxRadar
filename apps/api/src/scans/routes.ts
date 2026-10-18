@@ -66,11 +66,7 @@ const scanListQuerySchema = pageQuerySchema.extend({
 });
 const profileScanListQuerySchema = pageQuerySchema;
 
-// A legacy Paused scan belongs here: it is the account's in-flight scan until
-// the resume sweep puts it back in the queue, and the workspace has to keep
-// finding it (and offering Cancel) meanwhile. Kept until no Paused rows remain;
-// removed with the schema in a follow-up.
-const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running', 'Paused'] as const;
+const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running'] as const;
 // Newest first, with the id as the tie-breaker: two scans created in the same
 // millisecond must not swap places between one page and the next, which would
 // show one of them twice and hide the other entirely.

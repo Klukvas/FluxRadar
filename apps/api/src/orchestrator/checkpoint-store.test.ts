@@ -32,8 +32,7 @@ import {
 
 // What an interrupted run keeps so the attempt that continues it does not read
 // the site or pay for a stage twice: the checkpoint, the stored pages and media
-// probes, and the URL counters a resumed crawl writes. Legacy paused scans are
-// covered in legacy-paused-scans.test.ts.
+// probes, and the URL counters a resumed crawl writes.
 
 let db: TestDb;
 let account: SeededAccount;

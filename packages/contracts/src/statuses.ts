@@ -9,12 +9,6 @@ export const SCAN_TRANSITIONS: Readonly<Record<ScanRuntimeStatus, readonly ScanR
   Pending: ['Queued', 'Cancelled'],
   Queued: ['Running', 'Cancelled'],
   Running: ['Completed', 'Partial', 'Failed', 'Cancelled'],
-  // Nothing enters Paused any more: the pause feature was removed. A legacy
-  // paused row only leaves it — back to the state it was paused from on its
-  // own job (Pending for a scan paused before it was ever queued, so its
-  // pre-queue cancel still refunds in full; Queued otherwise), or to Cancelled.
-  // Kept until no Paused rows remain; removed with the schema in a follow-up.
-  Paused: ['Pending', 'Queued', 'Cancelled'],
   Partial: ['Running'],
   Failed: ['Queued'],
   Completed: [],

@@ -7,7 +7,6 @@ import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 import { parsePlan } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
 
-import { JOB_STATUSES } from '../billing/constants.ts';
 import { InvalidTransitionError } from '../billing/errors.ts';
 import { requestRefund } from '../billing/refund.ts';
 import { paidAccessDenial } from '../billing/report-access.ts';
@@ -26,7 +25,6 @@ import { markResolvedAgainstPrevious } from './issue-sync.ts';
 import type { RunCoverage } from './resolution-policy.ts';
 import { loadScanCoverage, pruneCoverageProofs, type UnreadableCoverage } from './run-coverage.ts';
 import { modulePlanFor } from './module-plan.ts';
-import { settleLegacyPausedScan } from './legacy-paused-scans.ts';
 import { ScanStopWatcher } from './stop-watcher.ts';
 import type { WorkerDeps } from './deps.ts';
 import {
@@ -46,11 +44,7 @@ const activeScanIds = new Set<string>();
 export interface ScanProcessResult {
   readonly scanId: string;
   readonly status: ScanRuntimeStatus;
-  /**
-   * `Paused` only ever describes a legacy paused scan read as it is: nothing
-   * parks a run any more, and the resume sweep puts such a scan back in the queue.
-   */
-  readonly outcome: 'Completed' | 'Partial' | 'Failed' | 'Cancelled' | 'Queued' | 'Paused';
+  readonly outcome: 'Completed' | 'Partial' | 'Failed' | 'Cancelled' | 'Queued';
   readonly refundId: string | null;
 }
 
@@ -153,29 +147,6 @@ async function processClaimedJob(
       if (scan === null) {
         throw new Error(`worker: scan ${scanId} not found`);
       }
-      if (scan.status === 'Paused') {
-        // A legacy paused scan whose job was claimed anyway — lease recovery
-        // hands a crashed claim back to the drain whatever its scan's status.
-        // Settled before the billing gate, which would otherwise finish the job
-        // under a scan still reading Paused: a scan that may run goes back to
-        // the state it was paused from on the job this worker holds, one whose
-        // paid access is gone is cancelled. The loop then re-reads it.
-        await settleLegacyPausedScan(prisma, scanId, deps.now?.() ?? new Date());
-        const settled = await prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
-        if (settled.status === 'Paused') {
-          // Settling changed nothing — it threw before its compare-and-set or
-          // was refused — so looping would spin on the same row. The job is
-          // parked again for the legacy sweep to retry, which resumes it onto
-          // this same job; finishing it would strand the scan once resumed.
-          logger.error('legacy paused scan could not be settled; job parked', { scanId });
-          await prisma.job.update({
-            where: { id: activeJobId },
-            data: { status: JOB_STATUSES.paused, claimedAt: null, leaseUntil: null },
-          });
-          return resultFromExisting(scanId, 'Paused');
-        }
-        continue;
-      }
       if (await isBillingBlocked(prisma, scan.purchaseId, deps.now?.() ?? new Date())) {
         // A refund/dispute overlay must not consume the paid job. The scan is
         // left in its current state for the billing/admin reconciliation flow.
@@ -187,8 +158,7 @@ async function processClaimedJob(
         // Losing this compare-and-set means a cancel took the scan between the
         // read above and here. The re-read below settles the job against
         // whatever won instead of throwing out of the loop with the job still
-        // claimed. A stray `pauseRequestedAt` left by the removed pause feature
-        // is deliberately not read: the run continues.
+        // claimed.
         await tryTransitionScan(prisma, scanId, 'Pending', 'Queued', deps.now?.());
       }
       const afterQueue = await prisma.scan.findUnique({ where: { id: scanId } });
@@ -227,9 +197,8 @@ async function processClaimedJob(
         const resumeFrom = await loadScanCheckpoint(prisma, scanId, now);
         // A checkpoint written by a process that stopped mid-run is read here:
         // after a restart the job is requeued and this is what stops the
-        // finished stages being run again. A legacy paused scan the resume
-        // sweep put back in the queue continues from its checkpoint the same
-        // way; an expired or missing one just means a fresh crawl.
+        // finished stages being run again; an expired or missing one just
+        // means a fresh crawl.
         const facts = await runScanAttempt(deps, scanId, {
           ...(moduleFromRetryJob(jobType) !== undefined
             ? { retryModule: moduleFromRetryJob(jobType) }
@@ -279,7 +248,7 @@ async function processClaimedJob(
         await persistAnalyticsModule(deps, scanId, facts.analyticsPages);
         // The run settled, so its checkpoint describes nothing that can be
         // resumed. Removing it here is also what keeps the table bounded by the
-        // number of *paused* scans rather than by every scan ever run.
+        // number of *unfinished* scans rather than by every scan ever run.
         await clearScanCheckpoint(prisma, scanId);
         await clearCrawlEvidence(prisma, scanId);
         if (outcome.kind === 'Completed') {

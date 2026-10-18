@@ -17,16 +17,6 @@ export const STATUS_REASONS = {
   externalModuleFailure: 'ExternalModuleFailure',
   /** Partial: modules usable but not all applicable checks are closed (§18). */
   incompleteChecks: 'IncompleteChecks',
-  /**
-   * Legacy Paused, and what the scan was doing when it stopped. The distinction
-   * is not cosmetic: cancelling a scan paused before it was queued is still a
-   * pre-queue cancellation and still refunds in full (§18), which the status
-   * alone could no longer tell. Nothing writes these any more; kept until no
-   * Paused rows remain; removed with the schema in a follow-up.
-   */
-  pausedPreQueue: 'UserPausedBeforeQueue',
-  pausedAfterQueue: 'UserPausedAfterQueue',
-  pausedAfterStart: 'UserPausedAfterStart',
 } as const;
 
 /**
@@ -52,12 +42,6 @@ export const JOB_TYPES = { scan: 'scan' } as const;
 export const JOB_STATUSES = {
   pending: 'Pending',
   claimed: 'Claimed',
-  /**
-   * Parked under a legacy paused scan: the drain skips it. Nothing parks a job
-   * any more; kept until no Paused rows remain; removed with the schema in a
-   * follow-up.
-   */
-  paused: 'Paused',
   done: 'Done',
 } as const;
 

@@ -498,11 +498,7 @@ describe('cancelling a running scan', () => {
   });
 });
 
-/**
- * The pause feature is gone; cancellation is the only way the owner stops a run.
- * A `pauseRequestedAt` left behind by the old code must not stop anything: the
- * worker no longer reads it, and a run that carries one settles like any other.
- */
+/** Cancellation is the only way the owner stops a run. */
 describe('stopping a running scan: only a cancellation stops it', () => {
   let db: TestDb | undefined;
 
@@ -510,29 +506,6 @@ describe('stopping a running scan: only a cancellation stops it', () => {
     await db?.cleanup();
     db = undefined;
   });
-
-  // A whole Complete run, unlike the stopped ones around it: under a full
-  // suite's load it outlasts the default five seconds.
-  it('a stray pause flag neither parks the run nor stops it', async () => {
-    db = await createTestDb();
-    const prisma = db.prisma;
-    const account = await seedAccountWithProfile(prisma);
-    const scan = await queueCompleteScan(prisma, account, { withPurchase: true });
-    await prisma.scan.update({ where: { id: scan.id }, data: { pauseRequestedAt: new Date() } });
-
-    const shape: SiteShape = { policyLink: true, robotsTxt: true, pricing: true };
-    const result = await processScan(workerDeps(prisma, shape, { stopPollMs: 5 }), scan.id);
-
-    expect(['Completed', 'Partial']).toContain(result.outcome);
-    const settled = await prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
-    expect(settled.status).not.toBe('Paused');
-    expect(settled.completedAt).not.toBeNull();
-    expect((await prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } })).status).toBe(
-      'Done',
-    );
-    // A settled run leaves nothing behind to continue from.
-    expect(await prisma.scanCheckpoint.count({ where: { scanId: scan.id } })).toBe(0);
-  }, 30_000);
 
   it('a cancel after the crawl is terminal and leaves no evidence behind to resume from', async () => {
     db = await createTestDb();

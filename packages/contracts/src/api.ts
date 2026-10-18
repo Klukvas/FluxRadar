@@ -498,8 +498,8 @@ export type ApiEnvelope<T> =
  *                            depth, render mode, entry URL, seeds, egress);
  *   *-crawl-truncated        that crawl stopped at its page limit, so the pages
  *                            it never read are missing rather than removed;
- *   *-stopped-early          that scan is not a finished one: cancelled, a legacy
- *                            paused one, or terminal with a module that failed;
+ *   *-stopped-early          that scan is not a finished one: cancelled, or
+ *                            terminal with a module that failed;
  *   crawl-not-recorded       one of them predates `Scan.crawlSummaryJson`, so
  *                            nobody can say whether its crawl was complete.
  */

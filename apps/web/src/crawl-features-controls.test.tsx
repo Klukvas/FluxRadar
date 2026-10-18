@@ -12,8 +12,7 @@ import type { Plan } from './plan-modules';
 //
 // What is defended here is that the form refuses a line the API would refuse,
 // *before* a checkout opens on a scan that would silently drop it, and that the
-// progress screen offers no pause (the feature was removed) while a legacy
-// paused scan still reads as resuming and can still be cancelled.
+// progress screen offers no pause (the feature was removed) and keeps cancel.
 
 const account = { accountId: 'account-1', email: 'operator@example.com', internalFreeAccess: true };
 const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
@@ -192,12 +191,8 @@ describe('the paid scan form', () => {
 });
 
 describe('the progress screen', () => {
-  function renderProgress(
-    status: string,
-    plan: Plan = scan.plan,
-    statusReason: string | null = null,
-  ) {
-    const current = { ...scan, status, plan, statusReason };
+  function renderProgress(status: string, plan: Plan = scan.plan) {
+    const current = { ...scan, status, plan };
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathOf(input);
       if (path === '/auth/me') return Promise.resolve(envelope(account));
@@ -236,32 +231,10 @@ describe('the progress screen', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
-  // A scan paused before the feature was removed: the server resumes it on its
-  // own, so the screen says so and asks nothing of the owner.
-  it('shows a legacy paused scan as resuming, with cancel still available', async () => {
-    const fetchMock = renderProgress('Paused', 'Complete', 'UserPausedAfterQueue');
-
-    expect(await screen.findByText('Resuming your scan…')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /pause|resume/i })).not.toBeInTheDocument();
-    await openCancelDialog();
-    expect(await screen.findByText(/entered the queue or started/)).toBeInTheDocument();
-    expect(
-      fetchMock.mock.calls.some(([input]) =>
-        /\/(pause|resume)$/.test(pathOf(input as RequestInfo | URL)),
-      ),
-    ).toBe(false);
-  });
-
   it('does not promise a refund for a free scan', async () => {
     renderProgress('Pending', 'Free');
     await openCancelDialog();
     expect(await screen.findByText(/unpaid check, so nothing was charged/)).toBeInTheDocument();
-  });
-
-  it('recognizes a legacy scan paused before queueing as eligible for the pre-queue policy', async () => {
-    renderProgress('Paused', 'Complete', 'UserPausedBeforeQueue');
-    await openCancelDialog();
-    expect(await screen.findByText(/has not entered the queue/)).toBeInTheDocument();
   });
 
   it('requires a second confirmation when Pending becomes Queued before cancellation', async () => {

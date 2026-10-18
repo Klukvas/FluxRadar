@@ -128,6 +128,15 @@ describe('BILLING-007 migration rollback safety', () => {
     }
   });
 
+  // The expand half of retiring Scan.pauseRequestedAt (D-229 pattern): this
+  // release stops declaring it, so its client no longer selects it, and only a
+  // later release may drop the column — under a contract migration that names
+  // 20261019120000_retire_paused_status as its prerequisite.
+  it('no longer declares pauseRequestedAt, so a later release may drop the column', () => {
+    const schema = readFileSync(PRISMA_SCHEMA_PATH, 'utf8');
+    expect(schema).not.toMatch(/^\s*pauseRequestedAt\s/m);
+  });
+
   describe('with a database', () => {
     let db: TestDb;
 

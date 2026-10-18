@@ -21,29 +21,6 @@ describe('scan state machine §18', () => {
     expect(canTransition('Failed', 'Queued')).toBe(true);
   });
 
-  // The pause feature is gone: no state leads into Paused any more, and a legacy
-  // paused row can only go back to the state it was paused from (the automatic
-  // resume) or be cancelled — never straight to a result.
-  it('lets nothing enter Paused, and lets a legacy paused scan leave only to Pending, the queue or Cancelled', () => {
-    expect(canTransition('Pending', 'Paused')).toBe(false);
-    expect(canTransition('Queued', 'Paused')).toBe(false);
-    expect(canTransition('Running', 'Paused')).toBe(false);
-    expect(canTransition('Paused', 'Pending')).toBe(true);
-    expect(canTransition('Paused', 'Queued')).toBe(true);
-    expect(canTransition('Paused', 'Cancelled')).toBe(true);
-  });
-
-  it('never lets a legacy pause settle a scan by itself', () => {
-    expect(canTransition('Paused', 'Completed')).toBe(false);
-    expect(canTransition('Paused', 'Partial')).toBe(false);
-    expect(canTransition('Paused', 'Failed')).toBe(false);
-    expect(canTransition('Paused', 'Running')).toBe(false);
-    expect(canTransition('Completed', 'Paused')).toBe(false);
-    expect(canTransition('Cancelled', 'Paused')).toBe(false);
-    expect(canTransition('Partial', 'Paused')).toBe(false);
-    expect(isTerminalScanStatus('Paused')).toBe(false);
-  });
-
   it('rejects forbidden transitions', () => {
     expect(canTransition('Pending', 'Running')).toBe(false);
     expect(canTransition('Queued', 'Completed')).toBe(false);

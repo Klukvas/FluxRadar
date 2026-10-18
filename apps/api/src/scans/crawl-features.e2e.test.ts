@@ -10,7 +10,6 @@ import { EMPTY_CRAWL_COVERAGE, saveScanCheckpoint } from '../orchestrator/checkp
 import { saveCrawlEvidence } from '../orchestrator/crawl-store.ts';
 import type { WorkerDeps } from '../orchestrator/deps.ts';
 import { createDefaultAiProvider } from '../orchestrator/geo.ts';
-import { resumeScan } from '../orchestrator/legacy-paused-scans.ts';
 import { runScanAttempt } from '../orchestrator/run-attempt.ts';
 import { processScan } from '../orchestrator/worker.ts';
 import {
@@ -302,19 +301,20 @@ describe('resuming an interrupted run', () => {
     expect((await moduleRow(scan.id, 'SEO')).runtimeStatus).not.toBe('Pending');
   });
 
-  // A legacy scan paused *after* a module had written its findings is where a
-  // resumed run's clock matters: the export contract reads
-  // started_at <= observed_at <= completed_at, so a resume that restarted the
-  // clock would put the earlier half's findings outside their own scan.
-  it('keeps a resumed run’s timestamps consistent with findings recorded before the pause', async () => {
+  // A run interrupted *after* a module had written its findings is where the
+  // continued run's clock matters: the export contract reads
+  // started_at <= observed_at <= completed_at, so a continuation that restarted
+  // the clock would put the earlier half's findings outside their own scan.
+  it('keeps a continued run’s timestamps consistent with findings recorded before the interruption', async () => {
     const scan = await seedCompleteScan(scopeWith({ maxDepth: 0 }));
-    // Stand in for an attempt that got as far as SEO and was then paused: its
-    // module row, its finding, and a checkpoint that names the stage as done.
+    // Stand in for an attempt that got as far as SEO and whose process then
+    // died, its job handed back to the queue: its module row, its finding, and
+    // a checkpoint that names the stage as done.
     const startedAt = new Date(Date.now() - 60_000);
     const observedAt = new Date(startedAt.getTime() + 1_000);
     await db.prisma.scan.update({
       where: { id: scan.id },
-      data: { status: 'Paused', statusReason: 'UserPausedAfterStart', startedAt },
+      data: { status: 'Queued', startedAt },
     });
     await db.prisma.scanModule.create({
       data: {
@@ -334,7 +334,7 @@ describe('resuming an interrupted run', () => {
         scanId: scan.id,
         ruleId: 'SEO-ONPAGE-001',
         module: 'SEO',
-        fingerprint: `fp-before-pause-${scan.id}`,
+        fingerprint: `fp-before-interruption-${scan.id}`,
         severity: 'Medium',
         severityRank: 2,
         category: 'SEO',
@@ -347,7 +347,7 @@ describe('resuming an interrupted run', () => {
         ruleVariant: 'v1',
         targetUrl: `${fixture.origin}/`,
         evidenceType: 'dom',
-        recommendation: 'Recorded before the pause.',
+        recommendation: 'Recorded before the interruption.',
         confidence: 1,
         applicableTargets: 1,
         affectedTargets: 1,
@@ -376,14 +376,13 @@ describe('resuming an interrupted run', () => {
       now: new Date(),
     });
 
-    await resumeScan(db.prisma, scan.id, new Date());
     await processScan(deps(), scan.id);
 
     const settled = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
-    // The finding from before the pause is still there, and still inside the
+    // The finding from before the interruption is still there, and still inside the
     // lifetime of the scan that produced it.
     const preserved = await db.prisma.issue.findFirstOrThrow({
-      where: { scanId: scan.id, fingerprint: `fp-before-pause-${scan.id}` },
+      where: { scanId: scan.id, fingerprint: `fp-before-interruption-${scan.id}` },
     });
     expect(preserved.observedAt.getTime()).toBe(observedAt.getTime());
     expect(settled.startedAt?.getTime()).toBe(startedAt.getTime());

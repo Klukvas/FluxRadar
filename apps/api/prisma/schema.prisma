@@ -299,10 +299,9 @@ model Scan {
   rulesetVersion         String
   platformRetryCount     Int       @default(0)
   moduleRetryCount       Int       @default(0)
-  /// Set when the owner asks the run to stop. The worker reads it between
-  /// bounded steps, which is what makes "paused" mean "no new outbound work"
-  /// rather than "the status column changed".
-  pauseRequestedAt       DateTime?
+  // `pauseRequestedAt` stays in the database, undeclared, until the contract
+  // migration after 20261019120000_retire_paused_status drops it: the release
+  // before this one still selects it (D-230).
   /// How much of the site this run has actually read. Module counts answer
   /// "which sections are done"; these answer "how far through my site is it".
   scannedUrlCount        Int       @default(0)
