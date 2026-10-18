@@ -223,6 +223,15 @@ describe('PRIVACY-002/004 consent and policy signals', () => {
     ['ru персональных данных', '<a href="/page/12">Обработка персональных данных</a>'],
     ['ru slug', '<a href="/politika-konfidencialnosti">Документ</a>'],
     ['ru personal data slug', '<a href="/personalnye-dannye">Документ</a>'],
+    ['uk upper-case text', '<a href="/page/12">ПОЛІТИКА КОНФІДЕНЦІЙНОСТІ</a>'],
+    ['uk konfidencijnist slug', '<a href="/konfidencijnist/">Документ</a>'],
+    ['uk konfidentsiynosti slug', '<a href="/polityka-konfidentsiynosti.html">Документ</a>'],
+    ['uk polityka-pryvatnosti slug', '<a href="/polityka-pryvatnosti">Документ</a>'],
+    ['ru privatnosti slug', '<a href="/politika-privatnosti">Документ</a>'],
+    ['en personal-data slug', '<a href="/personal-data">Документ</a>'],
+    ['uk personalni-dani slug', '<a href="/personalni-dani">Документ</a>'],
+    ['uk personalnykh-danykh slug', '<a href="/obrobka-personalnykh-danykh">Документ</a>'],
+    ['de text', '<a href="/datenschutz">Datenschutz</a>'],
   ])('accepts a %s policy link', (_variant, link) => {
     expect(runRule('Privacy', 'PRIVACY-004', homepageWith(link))).toEqual([]);
   });
@@ -235,7 +244,32 @@ describe('PRIVACY-002/004 consent and policy signals', () => {
     ['uk confidential consultation', '<a href="/page/5">Конфіденційна консультація</a>'],
     ['uk terms', '<a href="/umovy">Умови використання</a>'],
     ['ru external policy', '<a href="https://example.net/privacy">Политика конфиденциальности</a>'],
+    ['uk news section', '<a href="/polityka">Політика</a>'],
+    ['uk bank payment', '<a href="/privatbank">Оплата через ПриватБанк</a>'],
+    ['uk private house', '<a href="/budynky">Приватний будинок</a>'],
+    ['uk personal trainer', '<a href="/trainer">Персональний тренер</a>'],
+    ['uk personal training slug', '<a href="/personal-training">Персональні тренування</a>'],
+    ['uk corn', '<a href="/menu">Кукурудза гриль</a>'],
+    ['malformed escape', '<a href="/%E0%A4%A">Контакти</a>'],
+    [
+      'uk external policy',
+      '<a href="https://example.net/polityka-konfidentsiinosti">Політика конфіденційності</a>',
+    ],
   ])('still reports a homepage with only a %s link', (_variant, link) => {
     expect(runRule('Privacy', 'PRIVACY-004', homepageWith(link))).toHaveLength(1);
   });
+});
+
+describe('PRIVACY-002 Ukrainian and Russian consent banners', () => {
+  it.each(['Ми використовуємо файли кукі', 'Мы используем файлы куки'])(
+    'treats a banner saying «%s» as a consent marker',
+    (bannerText) => {
+      const ctx = htmlContext(
+        '<!doctype html><html lang="uk"><head><title>Трекінг</title>' +
+          '<script src="https://www.googletagmanager.com/gtm.js"></script></head>' +
+          `<body><div class="notice">${bannerText} <button>Прийняти</button></div></body></html>`,
+      );
+      expect(runRule('Privacy', 'PRIVACY-002', ctx)).toEqual([]);
+    },
+  );
 });

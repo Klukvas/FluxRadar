@@ -41,6 +41,9 @@ const TRACKER_CODE_MARKERS = [
 
 const CONSENT_MARKERS = [
   'cookie',
+  // Ukrainian and Russian banners often say only «файли кукі» / «файлы куки».
+  'кукі',
+  'куки',
   'consent',
   'onetrust',
   'cookiebot',
