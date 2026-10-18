@@ -424,6 +424,29 @@ export interface IssueRuleGroup {
   readonly issues: number;
   /** Findings of this rule still asking for work: New, Acknowledged or Reopened. */
   readonly openIssues: number;
+  /**
+   * The rule's first open findings (at most three), so a row can name the page
+   * and what was found there. Absent from an older API and from the example
+   * report; read through `readIssueSamples`, never directly.
+   */
+  readonly samples?: readonly IssueSample[];
+}
+
+/** A message the rule recorded: its catalogue code and the values it was filled with. */
+export interface FindingMessageRef {
+  readonly code: string;
+  readonly params: Readonly<Record<string, string | number>>;
+}
+
+/** One open finding of a problem, as the summary carries it. */
+export interface IssueSample {
+  readonly targetUrl: string;
+  readonly messages: {
+    readonly evidence: FindingMessageRef;
+    readonly recommendation: FindingMessageRef;
+  } | null;
+  /** The recorded evidence, rendered in each report language. */
+  readonly evidence: Readonly<Record<string, string | null>> | null;
 }
 
 export interface IssueSummary {

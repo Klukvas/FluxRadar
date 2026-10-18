@@ -22,8 +22,10 @@ import { findingsCopy, type FindingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
 import { FreeUpsell } from './FreeUpsell';
+import { trackUpgradeClicked } from './funnel-analytics';
 import { planIncludesIssueHistory, type PaidPlan } from './plan-modules';
 import { problemTitle } from './finding-explainers';
+import { ProblemEvidence } from './ProblemEvidence';
 import {
   CRAWLER_PAGE_HREF,
   nothingWasChecked,
@@ -198,7 +200,10 @@ function FixFirstRow(props: {
   return (
     <li className="fix-first__item">
       <StatusChip status={group.severity} label={labels.severity[group.severity]} />
-      <span className="fix-first__title">{title}</span>
+      <div className="fix-first__body">
+        <span className="fix-first__title">{title}</span>
+        <ProblemEvidence group={group} language={props.language} />
+      </div>
       <span className="muted fix-first__count">{labels.fixFirst.pages(group.openIssues)}</span>
       <FixFirstRowControl
         ruleId={group.ruleId}
@@ -683,7 +688,10 @@ export function ReportNextStepsWithSummary(
           language={props.language}
           targetLanguages={props.targetLanguages}
           onOpenProblem={props.onOpenProblem}
-          onUpgrade={() => props.onUpgrade(ACTION_PLAN_UPGRADE_PLAN)}
+          onUpgrade={() => {
+            trackUpgradeClicked(ACTION_PLAN_UPGRADE_PLAN, 'action_plan');
+            props.onUpgrade(ACTION_PLAN_UPGRADE_PLAN);
+          }}
           hasOpenIssues={hasOpenIssues}
           nothingChecked={nothingChecked}
           onPlanReadyChange={setPlanReady}
@@ -705,7 +713,10 @@ export function ReportNextStepsWithSummary(
           scan={props.scan}
           language={props.language}
           openProblems={summary === null ? null : openProblemGroups(summary).length}
-          onUpgrade={props.onUpgrade}
+          onUpgrade={(plan) => {
+            trackUpgradeClicked(plan, 'free_report');
+            props.onUpgrade(plan);
+          }}
         />
       ) : null}
       {drawsOwnChanges(props.scan) ? (

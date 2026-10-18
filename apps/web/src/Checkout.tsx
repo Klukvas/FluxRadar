@@ -9,7 +9,8 @@ import {
   type CheckoutStatus,
   type Scan,
 } from './api';
-import { trackPurchase } from './checkout-analytics';
+import { reportPurchaseWhenConfigReady } from './checkout-analytics';
+import { trackScanStarted } from './funnel-analytics';
 import type { PendingCheckout } from './checkout-storage';
 import { copy, type Language } from './i18n';
 
@@ -148,15 +149,21 @@ export function CheckoutPending(props: CheckoutPendingProps) {
     handlers.current = { onConfirmed, onError, onNotFound, pollFailed: t.pollFailed };
   });
 
-  // Prices and the store's test/live mode, for the purchase report below.
-  const checkoutConfig = useCheckoutConfig(true);
-  const readyConfig = checkoutConfig.status === 'ready' ? checkoutConfig.config : null;
-  const confirmedPurchase = status?.scanId == null ? null : status;
+  // Prices and the store's test/live mode, for the purchase report. Held as a
+  // promise rather than state: the confirmation ends this window (the parent
+  // unmounts it in `onConfirmed`), and the report has to wait for the config
+  // without depending on the window still being there to re-render.
+  const checkoutConfig = useRef<Promise<CheckoutConfig | null>>(Promise.resolve(null));
   useEffect(() => {
-    if (confirmedPurchase !== null) trackPurchase(confirmedPurchase, readyConfig);
-    // Keyed on the purchase id, not the status object: polling that returns the
-    // same order again must not report it again.
-  }, [confirmedPurchase?.purchaseId, readyConfig]);
+    // Unreadable means no purchase report (see reportPurchaseWhenConfigReady),
+    // never a guessed price; the confirmation itself does not depend on it.
+    checkoutConfig.current = apiRequest<CheckoutConfig>('/billing/checkout-config').catch(
+      (error: unknown) => {
+        console.error('FluxRadar checkout config unavailable', error);
+        return null;
+      },
+    );
+  }, []);
 
   const { reference } = checkout;
 
@@ -172,7 +179,11 @@ export function CheckoutPending(props: CheckoutPendingProps) {
     if (current.scanId === null) {
       return false;
     }
-    handlers.current.onConfirmed(await apiRequest<Scan>(`/scans/${current.scanId}`));
+    const scan = await apiRequest<Scan>(`/scans/${current.scanId}`);
+    // The paid scan exists only now, created by the signed webhook.
+    trackScanStarted(scan);
+    reportPurchaseWhenConfigReady(current, checkoutConfig.current);
+    handlers.current.onConfirmed(scan);
     return true;
   }, [reference]);
 
