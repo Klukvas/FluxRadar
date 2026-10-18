@@ -124,9 +124,7 @@ export function HomeScreen(props: {
 
         <section className="home__section" id="capabilities" aria-labelledby="capabilities-title">
           <div className="home__section-head">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">02</span> {t.home.capabilities.eyebrow}
-            </div>
+            <div className="home__eyebrow">{t.home.capabilities.eyebrow}</div>
             <h2 id="capabilities-title">{t.home.capabilities.title}</h2>
             <p>{t.home.capabilities.lead}</p>
           </div>
@@ -156,9 +154,7 @@ export function HomeScreen(props: {
 
         <section className="home__coverage-entry" aria-labelledby="coverage-entry-title">
           <div className="home__coverage-entry-inner">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">02b</span> {t.home.coverageEntry.eyebrow}
-            </div>
+            <div className="home__eyebrow">{t.home.coverageEntry.eyebrow}</div>
             <h2 id="coverage-entry-title">{t.home.coverageEntry.title}</h2>
             <p>{t.home.coverageEntry.body}</p>
             <a className="home__coverage-link" href="/checks">
@@ -169,9 +165,7 @@ export function HomeScreen(props: {
 
         <section className="home__workflow" aria-labelledby="workflow-title">
           <div className="home__workflow-copy">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">03</span> {t.home.workflow.eyebrow}
-            </div>
+            <div className="home__eyebrow">{t.home.workflow.eyebrow}</div>
             <h2 id="workflow-title">{t.home.workflow.title}</h2>
             <p>{t.home.workflow.lead}</p>
             <Button onClick={props.onStart}>{t.home.startPublicSite}</Button>
@@ -203,9 +197,7 @@ export function HomeScreen(props: {
 
         <section className="home__pricing" id="pricing" aria-labelledby="pricing-title">
           <div className="home__section-head">
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">04</span> {t.home.pricingEyebrow}
-            </div>
+            <div className="home__eyebrow">{t.home.pricingEyebrow}</div>
             <h2 id="pricing-title">{t.home.pricingTitle}</h2>
             <p>{t.home.pricingLead}</p>
             <span className="home__pricing-note home__pricing-note--public">
@@ -222,9 +214,7 @@ export function HomeScreen(props: {
 
         <section className="home__last-call" aria-labelledby="last-call-title">
           <div>
-            <div className="home__eyebrow">
-              <span className="home__eyebrow-index">05</span> {t.home.lastCall.eyebrow}
-            </div>
+            <div className="home__eyebrow">{t.home.lastCall.eyebrow}</div>
             <h2 id="last-call-title">
               {t.home.lastCall.titleLine1}
               <br />

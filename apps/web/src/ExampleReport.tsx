@@ -31,9 +31,7 @@ export function ExampleReport(props: { language: Language }) {
   return (
     <section className="home__section home-example" aria-labelledby="example-report-title">
       <div className="home__section-head">
-        <div className="home__eyebrow">
-          <span className="home__eyebrow-index">02a</span> {t.eyebrow}
-        </div>
+        <div className="home__eyebrow">{t.eyebrow}</div>
         <h2 id="example-report-title">{t.title}</h2>
         <p>{homePreviewLead(props.language)}</p>
       </div>

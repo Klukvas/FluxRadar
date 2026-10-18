@@ -2222,16 +2222,6 @@ code,
   font: 11px var(--mono-font);
   letter-spacing: 0.08em;
 }
-.home__eyebrow-index {
-  display: inline-grid;
-  place-items: center;
-  width: 26px;
-  height: 22px;
-  border: 1px solid #c4d0e2;
-  color: var(--term-green);
-  font-weight: 700;
-  letter-spacing: 0;
-}
 /* The hero title is a sentence an owner reads, not a brand line: the UI face
    at a size that still fits two or three lines beside the example report. */
 .home h1 {
@@ -3537,10 +3527,6 @@ code,
   }
   .home__eyebrow {
     font-size: 10px;
-  }
-  .home__eyebrow-index {
-    width: 23px;
-    height: 20px;
   }
   .home__lede {
     font-size: 16px;
