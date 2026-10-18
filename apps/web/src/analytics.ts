@@ -180,10 +180,12 @@ export function trackPageView(): void {
   lastLocation = page.location;
 }
 
-export function trackEvent(name: string, params: AnalyticsParams = {}): void {
-  if (!measuring()) return;
+/** Sends one event; answers whether it was sent, so a caller can report a milestone once. */
+export function trackEvent(name: string, params: AnalyticsParams = {}): boolean {
+  if (!measuring()) return false;
   describeCurrentPage();
   gtag('event', name, params);
+  return true;
 }
 
 /** Starts following the visitor's consent. Safe to call more than once. */

@@ -8,17 +8,24 @@
 import { trackEvent } from './analytics';
 import type { CheckoutConfig, CheckoutSession, CheckoutStatus } from './api';
 
+// What this page load already reported. A purchase seen again after a reload is
+// left to GA's transaction_id deduplication; within one page these keep a second
+// poll or a re-render from sending it twice.
+const reportedCheckouts = new Set<string>();
+const reportedPurchases = new Set<string>();
+
 function purchasedItems(plan: string): readonly Readonly<Record<string, string>>[] {
   return [{ item_id: plan, item_name: `FluxRadar ${plan}` }];
 }
 
 export function trackBeginCheckout(session: CheckoutSession): void {
-  if (session.mode !== 'live') return;
-  trackEvent('begin_checkout', {
+  if (session.mode !== 'live' || reportedCheckouts.has(session.reference)) return;
+  const sent = trackEvent('begin_checkout', {
     currency: session.currency,
     value: session.amount,
     items: purchasedItems(session.plan),
   });
+  if (sent) reportedCheckouts.add(session.reference);
 }
 
 /**
@@ -28,11 +35,19 @@ export function trackBeginCheckout(session: CheckoutSession): void {
  */
 export function trackPurchase(status: CheckoutStatus, config: CheckoutConfig | null): void {
   if (config?.mode !== 'live' || status.purchaseId === null) return;
+  if (status.scanId === null || reportedPurchases.has(status.purchaseId)) return;
   const plans = Array.isArray(config.plans) ? config.plans : [];
   const price = plans.find((entry) => entry.plan === status.plan);
-  trackEvent('purchase', {
+  const sent = trackEvent('purchase', {
     transaction_id: status.purchaseId,
     ...(price === undefined ? {} : { currency: price.currency, value: price.priceUsd }),
     items: purchasedItems(status.plan),
   });
+  if (sent) reportedPurchases.add(status.purchaseId);
+}
+
+/** Test seam: forgets which checkouts and purchases this page load reported. */
+export function resetCheckoutAnalyticsForTests(): void {
+  reportedCheckouts.clear();
+  reportedPurchases.clear();
 }
