@@ -180,7 +180,7 @@ describe('authentication UI', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create account' }));
 
-    await screen.findByText('Check your site and fix what keeps customers away.');
+    await screen.findByText('Check your site and fix what keeps customers from finding you.');
     const registerCall = fetchMock.mock.calls.find(([input]) => pathOf(input) === '/auth/register');
     expect(registerCall).toBeDefined();
     expect(JSON.parse(String((registerCall?.[1] as RequestInit | undefined)?.body))).toMatchObject({
@@ -324,7 +324,7 @@ describe('authentication UI', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText('Check your site and fix what keeps customers away.'),
+        screen.getByText('Check your site and fix what keeps customers from finding you.'),
       ).toBeInTheDocument(),
     );
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -353,7 +353,7 @@ describe('authentication UI', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
     await waitFor(() =>
       expect(
-        screen.getByText('Check your site and fix what keeps customers away.'),
+        screen.getByText('Check your site and fix what keeps customers from finding you.'),
       ).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Home' }));
@@ -441,7 +441,7 @@ describe('NewScanScreen', () => {
 
     // Navigate into the workspace.
     fireEvent.click(await screen.findByRole('button', { name: 'Open workspace' }));
-    await screen.findByText('Check your site and fix what keeps customers away.');
+    await screen.findByText('Check your site and fix what keeps customers from finding you.');
 
     // Open the New scan dialog.
     fireEvent.click(screen.getByRole('button', { name: 'Check this site' }));
@@ -454,7 +454,7 @@ describe('NewScanScreen', () => {
 
     // Should be back on the desktop, not on the new-scan screen.
     expect(
-      await screen.findByText('Check your site and fix what keeps customers away.'),
+      await screen.findByText('Check your site and fix what keeps customers from finding you.'),
     ).toBeInTheDocument();
     expect(
       screen.queryByText('New scan', { selector: '.window__titlebar > span' }),
@@ -1474,7 +1474,7 @@ describe('home pricing and workspace onboarding', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create account' }));
 
     expect(
-      await screen.findByText('Check your site and fix what keeps customers away.'),
+      await screen.findByText('Check your site and fix what keeps customers from finding you.'),
     ).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Your workspace tabs' })).toBeInTheDocument();
     expect(calledMethod(fetchMock, '/profiles', 'POST')).toBe(false);
@@ -1652,7 +1652,7 @@ describe('home pricing and workspace onboarding', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
     expect(
-      screen.getByText('Check your site and fix what keeps customers away.'),
+      screen.getByText('Check your site and fix what keeps customers from finding you.'),
     ).toBeInTheDocument();
     expect(calledMethod(fetchMock, '/scans', 'POST')).toBe(false);
     expect(calledMethod(fetchMock, '/profiles', 'POST')).toBe(false);
@@ -1877,7 +1877,7 @@ describe('MenuBar navigation (signed in)', () => {
     expect(screen.getByRole('button', { name: 'My sites' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'My sites' }));
 
-    await screen.findByText('Check your site and fix what keeps customers away.');
+    await screen.findByText('Check your site and fix what keeps customers from finding you.');
   });
 
   it('navigates from home to integrations when the Integrations tab is clicked', async () => {

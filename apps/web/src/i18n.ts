@@ -249,7 +249,7 @@ export const copy = {
       workspaceTitle: 'Workspace — FluxRadar',
     },
     workspace: {
-      intro: 'Check your site and fix what keeps customers away.',
+      intro: 'Check your site and fix what keeps customers from finding you.',
       sites: 'My sites',
       // The sites list is where an owner lands; the Google connection lives two
       // tabs away. Each line names the one step actually outstanding, and the
