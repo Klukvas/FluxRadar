@@ -95,31 +95,33 @@
   margin: var(--sp-2) 0 0;
 }
 
-/* What the check found, said on the problem row itself. Prose, so it keeps the
-   reading measure of a paragraph; no width of its own, so the cell decides how
-   wide it is, and a long word breaks rather than widening the table. */
-.finding-what {
-  max-width: 68ch;
-  margin: var(--sp-1) 0 0;
-  overflow-wrap: break-word;
-}
-/* The plain-language disclosure: folded in the problem list, open in a finding's
-   detail. Prose, so it keeps the reading measure of a paragraph rather than the
-   width of the table cell it sits in. */
+/* The plain-language explanation: on a problem row, why it matters and what to
+   do in view with the measurement folded under them; in a finding's detail, the
+   whole explanation open. Prose, so it keeps the reading measure of a paragraph
+   rather than the width of the table cell it sits in, and a long word breaks
+   rather than widening the table. */
 .finding-explainer {
   margin-top: var(--sp-2);
   max-width: 68ch;
+  overflow-wrap: break-word;
+}
+.problem-explainer__found,
+.problem-explainer__meaning,
+.problem-explainer__fix {
+  margin: 0 0 var(--sp-1);
+}
+.problem-explainer__technical {
+  margin-top: var(--sp-1);
 }
 /* A stacked row lays every cell out as a 110px label beside its value
-   (base.css). The sentence and the fold under the problem's name are neither,
-   and auto-placement would drop them into the label column: on a 375px screen
-   that is a paragraph two words wide. They take the whole cell.
+   (base.css). The explanation under the problem's name is neither, and
+   auto-placement would drop it into the label column: on a 375px screen that
+   is a paragraph two words wide. It takes the whole cell.
 
    The width is base.css's, not a narrower one of its own: between the two the
-   cells were already grids and these two were already in the label column
-   (control-layout.test.tsx pins the pair together). */
+   cells were already grids and the explanation was already in the label column
+   (control-layout.test.tsx pins the two widths together). */
 @media (max-width: 699px) {
-  .finding-what,
   .finding-explainer {
     grid-column: 1 / -1;
   }
@@ -129,7 +131,7 @@
      1fr beside it: "What the check found", "Why it matters" and "What to do"
      read in a 166px column starting a third of the way across the card, with
      the left third blank. The empty label box goes, and the panel takes the
-     whole cell — the same rule, at the same width, as the two rows above. */
+     whole cell — the same rule, at the same width, as the explanation above. */
   .issue-detail-cell::before {
     display: none;
   }

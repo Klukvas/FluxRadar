@@ -46,6 +46,12 @@ interface ExplainedRule {
    * that reports per cookie, per link, per address group or per AI remark.
    */
   readonly countsPages: boolean;
+  /**
+   * Whether a finding is an AI review's remark rather than a deterministic
+   * check. Its `what` is the only sentence saying so — and that it read the
+   * page text only — so a list that folds `what` away must still show it.
+   */
+  readonly isAiReview?: boolean;
   readonly en: FindingExplainer;
   readonly uk: FindingExplainer;
 }
@@ -67,14 +73,14 @@ const EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
     en: {
       title: 'Pages do not limit where they load content from',
       what: 'These pages do not tell the browser which outside sources it may load content from.',
-      why: 'That instruction is an extra safeguard: it lets you tell the browser which places scripts and other content may come from.',
+      why: 'Telling the browser which sources it may load content from is an extra safeguard: it lets you say which places scripts and other content may come from.',
       fix: ASK_DEVELOPER_SERVER_EN,
       count: 'One finding for each page where it is not set.',
     },
     uk: {
       title: 'Сторінки не обмежують, звідки завантажувати вміст',
       what: 'Ці сторінки не повідомляють браузеру, з яких сторонніх джерел йому можна завантажувати вміст.',
-      why: 'Це додатковий запобіжник: він дає змогу вказати браузеру, звідки можна брати скрипти та інший вміст.',
+      why: 'Обмеження джерел вмісту є додатковим запобіжником: воно дає змогу вказати браузеру, звідки можна брати скрипти та інший вміст.',
       fix: ASK_DEVELOPER_SERVER_UK,
       count: 'Одна знахідка на кожну сторінку, де його не задано.',
     },
@@ -84,14 +90,14 @@ const EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
     en: {
       title: 'Pages do not limit which device features they may use',
       what: 'These pages do not tell the browser which device features, such as the camera, microphone or location, the page and anything embedded in it may ask for.',
-      why: 'That instruction is an extra safeguard: where it is set, an embedded widget or an added script cannot ask for a feature you did not allow.',
+      why: 'Telling the browser which device features a page may ask for is an extra safeguard: where it is set, an embedded widget or an added script cannot ask for a feature you did not allow.',
       fix: ASK_DEVELOPER_SERVER_EN,
       count: 'One finding for each page where it is not set.',
     },
     uk: {
       title: 'Сторінки не обмежують, якими можливостями пристрою можна користуватися',
       what: 'Ці сторінки не повідомляють браузеру, які можливості пристрою — камеру, мікрофон, геолокацію — можуть запитувати сторінка та вбудований у неї вміст.',
-      why: 'Це додатковий запобіжник: там, де його задано, вбудований віджет чи доданий скрипт не зможе запитати можливість, якої ви не дозволили.',
+      why: 'Обмеження можливостей пристрою є додатковим запобіжником: там, де його задано, вбудований віджет чи доданий скрипт не зможе запитати можливість, якої ви не дозволили.',
       fix: ASK_DEVELOPER_SERVER_UK,
       count: 'Одна знахідка на кожну сторінку, де його не задано.',
     },
@@ -389,6 +395,7 @@ const EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
   },
   'UX-CONV-AI-001': {
     countsPages: false,
+    isAiReview: true,
     en: {
       title: 'It may not be clear what you offer',
       what: 'An AI review of the text on these pages, read against how your site profile describes the business, suggests that a new visitor may not quickly understand what you offer and to whom. It read the page text only, not how the page looks.',
@@ -406,6 +413,7 @@ const EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
   },
   'UX-CONV-AI-002': {
     countsPages: false,
+    isAiReview: true,
     en: {
       title: 'The main next step may be unclear',
       what: 'An AI review of the buttons, links and forms on these pages suggests that the one thing you want a visitor to do (book, call, buy, write) may be hard to spot or easy to confuse with other options. It read the page text only, not how the page looks.',
@@ -423,6 +431,7 @@ const EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
   },
   'UX-CONV-AI-003': {
     countsPages: false,
+    isAiReview: true,
     en: {
       title: 'Something may hold visitors back from contacting you',
       what: 'An AI review of the steps, contact options and signs of trust in the text of these pages (reviews, prices, an address, guarantees) suggests that something may make a visitor hesitate: a missing way to get in touch, an extra step, or too little to go on. It read the page text only, not how the page looks.',
@@ -463,6 +472,11 @@ export function hasFindingExplainer(ruleId: string): boolean {
  */
 export function findingCountsPages(ruleId: string): boolean {
   return EXPLAINERS[ruleId]?.countsPages ?? false;
+}
+
+/** Whether this rule's findings are AI-review remarks (`ExplainedRule.isAiReview`). */
+export function isAiReviewRule(ruleId: string): boolean {
+  return EXPLAINERS[ruleId]?.isAiReview === true;
 }
 
 /** The problem's name in the owner's words, or the rule's own title when it has none. */

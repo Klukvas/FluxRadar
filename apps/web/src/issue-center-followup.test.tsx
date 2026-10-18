@@ -237,7 +237,9 @@ describe('the Problems tab, pressed while one problem is open', () => {
     // Open one problem from the problem list.
     const problems = await screen.findAllByRole('row');
     fireEvent.click(
-      within(problems[1] as HTMLElement).getByRole('button', { name: /^Show findings/ }),
+      within(problems[1] as HTMLElement).getByRole('button', {
+        name: /^Where exactly and how to fix/,
+      }),
     );
     expect(await screen.findByText(findingsCopy.en.issues.problemFilter)).toBeTruthy();
 
@@ -259,7 +261,9 @@ describe('the Problems tab, pressed while one problem is open', () => {
 
     const problems = await screen.findAllByRole('row');
     fireEvent.click(
-      within(problems[1] as HTMLElement).getByRole('button', { name: /^Show findings/ }),
+      within(problems[1] as HTMLElement).getByRole('button', {
+        name: /^Where exactly and how to fix/,
+      }),
     );
     await screen.findByText(findingsCopy.en.issues.problemFilter);
 
