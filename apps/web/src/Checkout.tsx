@@ -10,6 +10,7 @@ import {
   type Scan,
 } from './api';
 import { trackPurchase } from './checkout-analytics';
+import { trackScanStarted } from './funnel-analytics';
 import type { PendingCheckout } from './checkout-storage';
 import { copy, type Language } from './i18n';
 
@@ -172,7 +173,10 @@ export function CheckoutPending(props: CheckoutPendingProps) {
     if (current.scanId === null) {
       return false;
     }
-    handlers.current.onConfirmed(await apiRequest<Scan>(`/scans/${current.scanId}`));
+    const scan = await apiRequest<Scan>(`/scans/${current.scanId}`);
+    // The paid scan exists only now, created by the signed webhook.
+    trackScanStarted(scan);
+    handlers.current.onConfirmed(scan);
     return true;
   }, [reference]);
 

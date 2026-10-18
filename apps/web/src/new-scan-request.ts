@@ -1,5 +1,7 @@
 import { apiRequest, type CheckoutSession, type Scan } from './api';
 import type { PendingCheckout } from './Checkout';
+import { trackBeginCheckout } from './checkout-analytics';
+import { trackScanStarted } from './funnel-analytics';
 import { AI_PROCESSING_NOTICE_VERSION, AI_PROCESSING_PROVIDERS } from './ai-processing-notice';
 import type { AiProcessingOptInProvider } from './ai-processing-notice';
 import type { Plan } from './plan-modules';
@@ -34,10 +36,12 @@ export interface ScanRequest {
 export async function requestScan(request: ScanRequest): Promise<Scan | null> {
   const { plan, profileId, scope, expectedProfileConfigVersion } = request;
   if (plan === 'Free') {
-    return apiRequest<Scan>(`/profiles/${profileId}/free-check`, {
+    const scan = await apiRequest<Scan>(`/profiles/${profileId}/free-check`, {
       method: 'POST',
       body: JSON.stringify({ scope, expectedProfileConfigVersion }),
     });
+    trackScanStarted(scan);
+    return scan;
   }
   // Basic and Complete include provider-backed AI checks as part of the
   // purchased audit. The UI presents the data-transfer notice before checkout;
@@ -58,7 +62,9 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
       '/billing/internal-checkout',
       { method: 'POST', body: JSON.stringify({ ...purchase, ...aiConsent }) },
     );
-    return apiRequest<Scan>(`/scans/${created.scanId}`);
+    const scan = await apiRequest<Scan>(`/scans/${created.scanId}`);
+    trackScanStarted(scan);
+    return scan;
   }
   const session = await apiRequest<CheckoutSession>('/billing/checkout-session', {
     method: 'POST',
@@ -74,6 +80,9 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
     checkoutUrl: session.checkoutUrl,
     restored: false,
   });
+  // A paid scan starts only when the webhook confirms the order (Checkout.tsx);
+  // what starts here is the checkout, once per session the server created.
+  trackBeginCheckout(session);
   window.location.assign(session.checkoutUrl);
   return null;
 }

@@ -29,6 +29,7 @@ import {
   scopeFromLastScan,
   type ConfigurationState,
 } from './new-scan-configuration';
+import { usePlanSelected } from './funnel-analytics';
 import { requestScan } from './new-scan-request';
 import { PAID_PLAN_ORDER, PLAN_MODULES, type Plan } from './plan-modules';
 import {
@@ -669,6 +670,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     props.internalFreeAccess || listedPlans.length === 0 || sellablePlans.has(value);
   const paidPlanOptions = PAID_PLAN_ORDER.filter((paidPlan) => offersPlan(paidPlan));
   const planOptions: readonly Plan[] = ['Free', ...(paidAvailable ? paidPlanOptions : [])];
+  usePlanSelected(plan, planOptions.includes(plan));
   // Free is the fixed homepage check: the crawl controls below do not reach it,
   // so they are not offered on it. The server enforces the same thing whatever
   // is sent (orchestrator/run-attempt.ts); this is the form telling the truth

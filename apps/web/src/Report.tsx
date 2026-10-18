@@ -43,6 +43,7 @@ import {
   ReportTechnicalDetails,
 } from './ReportHeader';
 import { ReportNextStepsWithSummary, useIssueSummary } from './ReportNextSteps';
+import { useReportViewed } from './funnel-analytics';
 import { nothingWasChecked, reportFailureCopy, siteReadFailureOf } from './report-failure-copy';
 import { moduleLabel } from './rule-titles';
 import { ScanComparisonPanel } from './ScanComparison';
@@ -116,6 +117,7 @@ export function ResultsScreen(props: {
   // and the Free result panel both count from it, and a second request for
   // the same summary could only disagree with the first.
   const issueSummary = useIssueSummary(dashboard?.scan.id ?? null);
+  useReportViewed(dashboard?.scan ?? null);
   if (loading)
     return (
       <Window title={t.loadingTitle}>
