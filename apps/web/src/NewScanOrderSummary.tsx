@@ -1,5 +1,6 @@
 import type { CheckoutConfig } from './api';
 import { Button, FieldRow } from './components';
+import { formatCount } from './format-count';
 import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import type { NewScanForm } from './new-scan-form';
@@ -26,11 +27,7 @@ function purchaseTermsMerchant(
 function pagesValue(plan: Plan, maxPages: string, language: Language): string {
   const c = newScanCopy[language].summary;
   if (plan === 'Free') return c.pagesHomepage;
-  const locale = language === 'uk' ? 'uk-UA' : 'en-US';
-  // Ukrainian groups digits with a narrow no-break space, which this UI font
-  // draws as a full-width gap ("5  000"); a plain no-break space reads right.
-  const count = (pages: number): string =>
-    pages.toLocaleString(locale).replace(/\u202f/g, '\u00a0');
+  const count = (pages: number): string => formatCount(pages, language);
   const owner = Number(maxPages.trim());
   // The owner's own limit, when it is a real one, is what the scan will obey;
   // an invalid entry is the field's to complain about, not this row's.

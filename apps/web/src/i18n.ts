@@ -125,6 +125,21 @@ function ukCountForm(count: number, one: string, few: string, many: string): str
 export const ukProblemsAccusative = (count: number): string =>
   ukCountForm(count, 'проблему', 'проблеми', 'проблем');
 
+/** Genitive, after «з» or «до»: «з 21 сторінки», «до 5 000 сторінок». */
+export const ukPagesOf = (count: number): string =>
+  takesUkSingular(count) ? 'сторінки' : 'сторінок';
+
+/**
+ * Accusative, as the direct object of a verb: «копіює 1 сторінку», «2
+ * сторінки», «5 сторінок».
+ *
+ * Three forms, not two: 2–4 take «сторінки» where 5 and up take «сторінок»,
+ * and the teens are the exception to both — 11–14 are «сторінок» however they
+ * end, while 21 is «сторінку» again.
+ */
+export const ukPagesAccusative = (count: number): string =>
+  ukCountForm(count, 'сторінку', 'сторінки', 'сторінок');
+
 /** «річ» after a numeral, as the subject of «перевірено»: «1 річ», «2 речі», «5 речей». */
 const ukThings = (count: number): string => ukCountForm(count, 'річ', 'речі', 'речей');
 
@@ -995,16 +1010,48 @@ export const copy = {
       // ready to open. Written inline in the component until now, so it was
       // the one line on the progress window no copy test could see.
       finalizing: 'Putting your report together…',
-      running: 'Checking your site — {done} of {total} audit sections done.',
-      runningPreparing: 'Checking your site — preparing the audit sections…',
+      stageQueued: 'Your check is in the queue and will start shortly.',
+      stageReading: 'Reading the pages of your site',
+      stageChecking: 'Now checking: {area}',
+      stageCheckingBetween: 'Checking the pages we’ve read',
+      pagesRead: (count: number, shown: string) =>
+        `${shown} ${count === 1 ? 'page' : 'pages'} read so far`,
+      // Rough on purpose: there is no time limit on a scan to quote, and a
+      // number here would read as a promise.
+      typicalDuration: 'This usually takes a few minutes. Large sites take longer.',
+      runningLong:
+        'This check is taking longer than usual. It is still in progress, so you can close this page and come back later.',
+      closePage: 'You can close this page; the scan continues.',
+      // Nothing emails the owner when a scan ends (the API sends only sign-up
+      // and password emails), so the report list is the one place to point at.
+      whereReport: 'When it is ready, you will find the report in Reports.',
+      scopeHomepage: 'This check reads your homepage only.',
+      scopePlanLimit: (count: number, shown: string) =>
+        `Plan limit: up to ${shown} ${count === 1 ? 'page' : 'pages'}.`,
+      scopeOwnerLimit: (count: number, shown: string) =>
+        `The limit you set: up to ${shown} ${count === 1 ? 'page' : 'pages'}.`,
+      // The section being checked, as the object of "Now checking:". Plain
+      // names written for this line (they differ from the example report's
+      // section titles on purpose); the developer names stay in the list below.
+      moduleAreas: {
+        SEO: 'being found in search',
+        'AI SEO / GEO': 'whether AI assistants mention you',
+        Security: 'basic security settings',
+        Performance: 'how fast pages load',
+        Accessibility: 'whether everyone can use the site',
+        Reliability: 'whether pages work at all',
+        'Content Quality': 'how your text reads',
+        Privacy: 'what data the site asks visitors for',
+        'UX/Conversion': 'whether visitors can easily reach you',
+        Analytics: 'your visitor statistics',
+      },
       sectionsTitle: 'What we’re checking',
-      sectionsPreparing: 'Getting your checks ready…',
+      sectionsPreparing: 'The list of checks appears once your check starts.',
       sectionsLabel: 'Audit sections',
       openReport: 'Open report',
       cancel: 'Cancel scan',
       cancelling: 'Cancelling…',
       resumingBody: 'Resuming your scan…',
-      scannedUrls: '{scanned} of {discovered} pages read',
       statusPartial: 'Your report is partially ready.',
       statusFailed: 'The scan could not finish.',
       statusCancelled: 'The scan was cancelled.',
@@ -2976,16 +3023,40 @@ export const copy = {
       finishedAt: 'Завершено: {time}.',
       finishedUnknown: 'Перевірку завершено.',
       finalizing: 'Збираємо ваш звіт…',
-      running: 'Перевіряємо ваш сайт — готово {done} з {total} розділів аудиту.',
-      runningPreparing: 'Перевіряємо ваш сайт — готуємо розділи аудиту…',
+      stageQueued: 'Ваша перевірка в черзі. Скоро почнемо.',
+      stageReading: 'Читаємо сторінки вашого сайту',
+      stageChecking: 'Зараз перевіряємо: {area}',
+      stageCheckingBetween: 'Перевіряємо прочитані сторінки',
+      pagesRead: (count: number, shown: string) => `Прочитано ${shown} ${ukPagesAccusative(count)}`,
+      typicalDuration: 'Зазвичай це триває кілька хвилин. Великі сайти перевіряємо довше.',
+      runningLong:
+        'Ця перевірка триває довше, ніж зазвичай. Вона ще не завершилася, тож можна закрити сторінку й повернутися пізніше.',
+      closePage: 'Цю сторінку можна закрити: перевірка триватиме далі.',
+      whereReport: 'Коли звіт буде готовий, ви знайдете його в розділі «Звіти».',
+      scopeHomepage: 'Ця перевірка читає лише головну сторінку.',
+      scopePlanLimit: (count: number, shown: string) =>
+        `Ліміт тарифу: до ${shown} ${ukPagesOf(count)}.`,
+      scopeOwnerLimit: (count: number, shown: string) =>
+        `Ліміт, який ви встановили: до ${shown} ${ukPagesOf(count)}.`,
+      moduleAreas: {
+        SEO: 'чи вас знаходять у пошуку',
+        'AI SEO / GEO': 'чи вас згадують ШІ-помічники',
+        Security: 'базові налаштування безпеки',
+        Performance: 'як швидко відкриваються сторінки',
+        Accessibility: 'чи всі можуть користуватися сайтом',
+        Reliability: 'чи сторінки взагалі працюють',
+        'Content Quality': 'як читається ваш текст',
+        Privacy: 'які дані сайт просить у відвідувачів',
+        'UX/Conversion': 'чи легко відвідувачу зв’язатися з вами',
+        Analytics: 'ваша статистика відвідувань',
+      },
       sectionsTitle: 'Що ми перевіряємо',
-      sectionsPreparing: 'Готуємо ваші перевірки…',
+      sectionsPreparing: 'Список з’явиться, щойно почнеться перевірка.',
       sectionsLabel: 'Розділи аудиту',
       openReport: 'Відкрити звіт',
       cancel: 'Скасувати перевірку',
       cancelling: 'Скасовуємо…',
       resumingBody: 'Відновлюємо перевірку…',
-      scannedUrls: 'Прочитано {scanned} з {discovered} сторінок',
       statusPartial: 'Ваш звіт готовий частково.',
       statusFailed: 'Перевірку не вдалося завершити.',
       statusCancelled: 'Перевірку скасовано.',

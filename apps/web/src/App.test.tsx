@@ -479,11 +479,10 @@ describe('refresh-safe scan routes', () => {
     expect(screen.getByText('Checking your site')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Audit progress' })).toHaveAttribute(
       'aria-valuenow',
-      '50',
+      '68',
     );
-    expect(
-      screen.getByText('Checking your site — 1 of 2 audit sections done.'),
-    ).toBeInTheDocument();
+    // One of two sections done and none running: past the crawl, between checks.
+    expect(screen.getByText('Checking the pages we’ve read')).toBeInTheDocument();
     // Technical internals must NOT appear anywhere on the progress screen.
     expect(screen.queryByText(/state Running/)).not.toBeInTheDocument();
     expect(screen.queryByText(/rules-v1/)).not.toBeInTheDocument();

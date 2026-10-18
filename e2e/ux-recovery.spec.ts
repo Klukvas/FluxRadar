@@ -129,10 +129,10 @@ test('terminal scan keeps progress polling until report readiness', async ({ pag
   });
   await page.goto('/scans/scan-e2e');
   await dismissCookies(page);
-  await expect(page.getByText('Finalizing report…')).toBeVisible();
+  await expect(page.getByText('Putting your report together…')).toBeVisible();
   await expect.poll(() => reads).toBeGreaterThan(1);
   ready = true;
-  await expect(page.getByText('Finalizing report…')).toHaveCount(0, { timeout: 6_000 });
+  await expect(page.getByText('Putting your report together…')).toHaveCount(0, { timeout: 6_000 });
 });
 
 test('dirty scan dialog traps keyboard focus, restores it on Escape, and has touch targets', async ({
