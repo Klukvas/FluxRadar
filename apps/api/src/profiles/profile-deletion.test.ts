@@ -198,10 +198,7 @@ describe('site profile deletion', () => {
     expect(await db.prisma.actionPlanAttempt.count({ where: { accountId, scanId: null } })).toBe(1);
   });
 
-  // Paused belongs on this list: the run has not been given up on, and a resume
-  // would crawl a site whose profile is gone. It leaves the same way the others
-  // do — the owner cancels or resumes it first.
-  it.each(['Pending', 'Queued', 'Running', 'Paused'] as const)(
+  it.each(['Pending', 'Queued', 'Running'] as const)(
     'refuses while a scan is %s and keeps everything',
     async (status) => {
       const { agent, accountId } = await signIn('busy@example.com');

@@ -33,10 +33,7 @@ import { createConfiguredObjectStore, type PrivateObjectStore } from '../integra
 
 export const PROFILE_DELETION_REASON = 'profile-deletion';
 
-// A legacy Paused scan is active: the resume sweep is about to put it back in
-// the queue, and deleting the profile under it would remove the site it will
-// crawl. Kept until no Paused rows remain; removed with the schema in a follow-up.
-const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running', 'Paused'];
+const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running'];
 const OPEN_REFUND_STATUSES = [REFUND_STATUSES.requested, REFUND_STATUSES.processing];
 
 export const PROFILE_DELETION_BLOCKERS = {

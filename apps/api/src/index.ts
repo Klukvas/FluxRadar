@@ -62,10 +62,6 @@ import { sweepRetention } from './data-retention.ts';
 import type { DomainVerificationDeps } from './profiles/domain-verification.ts';
 import type { WorkerCrawlOptions, WorkerDeps } from './orchestrator/deps.ts';
 import { recoverClaimedJobs } from './orchestrator/claim.ts';
-import {
-  LEGACY_PAUSE_SWEEP_INTERVAL_MS,
-  sweepLegacyPausedScans,
-} from './orchestrator/legacy-paused-scans.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { domainVerificationRouter } from './profiles/domain-verification-routes.ts';
 import { reachabilityRouter } from './profiles/reachability-routes.ts';
@@ -442,10 +438,6 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   // HTTP path while startup is requeueing jobs left by the previous process.
   const recovered = await recoverClaimedJobs(prisma);
   if (recovered > 0) logger.info('recovered claimed scan jobs', { recoveredCount: recovered });
-  // Scans paused before the pause feature was removed go back in the queue on
-  // their own job, before the first drain below picks the queue up. Kept until
-  // no Paused rows remain; removed with the schema in a follow-up.
-  await sweepLegacyPausedScans(prisma, new Date(), logger);
   const server = app.listen(port);
   await new Promise<void>((resolveReady, reject) => {
     server.once('listening', resolveReady);
@@ -568,10 +560,6 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       });
   }, QUEUE_RECOVERY_INTERVAL_MS);
   queueRecoveryTimer.unref();
-  const legacyPauseTimer = setInterval(() => {
-    void sweepLegacyPausedScans(prisma, new Date(), logger).then(drainQueue);
-  }, LEGACY_PAUSE_SWEEP_INTERVAL_MS);
-  legacyPauseTimer.unref();
   void drainQueue();
   return {
     app,
@@ -581,7 +569,6 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       clearInterval(pendingRefundTimer);
       clearInterval(refundDispatchTimer);
       clearInterval(queueRecoveryTimer);
-      clearInterval(legacyPauseTimer);
       clearInterval(egressHealthTimer);
       await new Promise<void>((resolveClose, reject) => {
         server.close((error) => (error ? reject(error) : resolveClose()));

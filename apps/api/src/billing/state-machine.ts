@@ -63,8 +63,7 @@ export async function transitionScan(
   }
   if (to === 'Running' && from === 'Queued') {
     // `startedAt` is when this run first began, not when it was last picked up.
-    // A run that re-enters Queued → Running (a platform retry, or a legacy
-    // paused scan the resume sweep put back in the queue) keeps it: moving
+    // A run that re-enters Queued → Running (a platform retry) keeps it: moving
     // its start forward would date it after findings the earlier half already
     // recorded — which the export contract rejects outright (EXPORT-001/2).
     // The guard is a second statement rather than part of the CAS above because
@@ -84,22 +83,17 @@ function timestampChanges(
   if (to === 'Running') {
     // Partial -> Running is the free module retry: keep the original startedAt.
     // Queued -> Running fills startedAt only when it is still blank, which the
-    // caller does separately; a resumed run keeps the start it already had.
+    // caller does separately; a retried run keeps the start it already had.
     return { completedAt: null };
   }
   if (to === 'Queued') {
-    // `startedAt` is when this *scan* first began reading the site, and both
-    // queueings that reach here continue the same scan: a resume, and a
+    // `startedAt` is when this *scan* first began reading the site, and the
+    // queueing that reaches here with one set continues the same scan: a
     // platform retry. The retry keeps the modules that already settled — an AI
     // stage is not paid for twice because an unrelated one crashed — so moving
     // the start forward would date those findings before their own scan began,
     // which the export contract rejects outright (EXPORT-001/2). The first
     // queueing has no start to keep.
-    return { completedAt: null };
-  }
-  if (to === 'Pending') {
-    // Only a legacy scan paused before it was ever queued goes back to Pending:
-    // it never started and has not finished.
     return { completedAt: null };
   }
   // Completed / Partial / Failed / Cancelled are result states.
