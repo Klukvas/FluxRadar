@@ -8,8 +8,8 @@ import { SUPPORT_EMAIL } from './brand';
 import { checksSections, type ChecksCopy } from './checks-copy-sections';
 
 export const checksCopyUk: ChecksCopy = {
-  kicker: 'FLUXRADAR / СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ',
-  meta: ['Оновлено 2026-10-02', 'Читати можна без входу', 'Набір правил v0.1'],
+  kicker: 'FLUXRADAR',
+  meta: ['Оновлено 2026-10-02', 'Читати можна без входу'],
   title: 'Обсяг аудиту',
   lede: 'Що саме перевіряє FluxRadar, навіщо і чого він не сертифікує — для основного публічного аудиту облікові дані клієнта не потрібні.',
   back: '← Назад на головну',

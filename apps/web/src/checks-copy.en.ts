@@ -8,8 +8,8 @@ import { SUPPORT_EMAIL } from './brand';
 import { checksSections, type ChecksCopy } from './checks-copy-sections';
 
 export const checksCopyEn: ChecksCopy = {
-  kicker: 'FLUXRADAR / PUBLIC WEB AUDIT STATION',
-  meta: ['Updated 2026-10-02', 'No login required to read this', 'Ruleset v0.1'],
+  kicker: 'FLUXRADAR',
+  meta: ['Updated 2026-10-02', 'No login required to read this'],
   title: 'Audit coverage',
   lede: 'Exactly what FluxRadar inspects, why, and what it cannot certify — with no customer credentials required for the core public audit.',
   back: '← Back to home',

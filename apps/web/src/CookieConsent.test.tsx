@@ -142,7 +142,7 @@ describe('cookie choices', () => {
       'utf8',
     );
     expect(css).toMatch(
-      /@media \(max-width: 600px\) \{\s*\.cookie-consent-dock\.cookie-consent-dock--launcher-only \{\s*position: static;/,
+      /@media \(max-width: 699px\) \{\s*\.cookie-consent-dock\.cookie-consent-dock--launcher-only \{\s*position: static;/,
     );
   });
 

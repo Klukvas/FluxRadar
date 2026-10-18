@@ -111,9 +111,9 @@ const WORKSPACE_TABS: readonly {
 
 /**
  * The one header the whole site ships, with one row of destinations everywhere:
- * FluxRadar, Home, the four workspace tabs, FAQ, Blog, the language switch and
- * the station line. A reader who moves between the home page, a public document
- * and the blog must not watch the navigation grow and shrink under them.
+ * FluxRadar, Home, the four workspace tabs, FAQ, Blog and the language switch.
+ * A reader who moves between the home page, a public document and the blog must
+ * not watch the navigation grow and shrink under them.
  *
  * `variant` decides how those destinations are wired, not which of them exist.
  * The `app` variant lives inside the running SPA, so it navigates through
@@ -228,7 +228,6 @@ export function MenuBar(props: MenuBarProps) {
             </svg>
             FluxRadar
           </span>
-          <span className="menubar__sheet-status">{labels.system}</span>
           <button
             className="menubar__close"
             type="button"
@@ -321,7 +320,6 @@ export function MenuBar(props: MenuBarProps) {
             activeLanguageLabel={activeLanguageLabel}
             onLanguageChange={props.onLanguageChange}
           />
-          <span className="menubar__system">{labels.system}</span>
         </div>
       </div>
     </nav>

@@ -146,10 +146,6 @@ summary:focus-visible {
   flex: 1;
   min-width: 16px;
 }
-.menubar__system {
-  font: 11px var(--mono-font);
-  color: var(--plat-600);
-}
 .menubar__toggle {
   display: none;
   align-items: center;
@@ -2226,16 +2222,6 @@ code,
   font: 11px var(--mono-font);
   letter-spacing: 0.08em;
 }
-.home__eyebrow-index {
-  display: inline-grid;
-  place-items: center;
-  width: 26px;
-  height: 22px;
-  border: 1px solid #c4d0e2;
-  color: var(--term-green);
-  font-weight: 700;
-  letter-spacing: 0;
-}
 /* The hero title is a sentence an owner reads, not a brand line: the UI face
    at a size that still fits two or three lines beside the example report. */
 .home h1 {
@@ -3542,10 +3528,6 @@ code,
   .home__eyebrow {
     font-size: 10px;
   }
-  .home__eyebrow-index {
-    width: 23px;
-    height: 20px;
-  }
   .home__lede {
     font-size: 16px;
   }
@@ -3641,14 +3623,11 @@ code,
 }
 
 /* The burger takes over below 1000px rather than with the phone rules at 700px.
-   The full row — seven destinations, the language switch and the station line —
+   The full row — seven destinations and the language switch —
    needs about 900px in English and 980px in Ukrainian, so between the two widths
    `.menubar__nav` clipped FAQ and Blog behind a scrollbar in the 22px bar.
    `public/blog/blog.css` hand-writes this header and must switch at the same width. */
 @media (max-width: 999px) {
-  .menubar__system {
-    display: none;
-  }
   .menubar__toggle {
     display: inline-flex;
   }
@@ -3689,20 +3668,6 @@ code,
     width: 12px;
     height: 12px;
     fill: var(--term-green);
-  }
-  /* The Ukrainian station name is long enough to wrap and push the head to two
-     rows, which broke the alignment of the brand and the close box against the
-     44px strip. It is a subtitle, so it gives way with an ellipsis instead. */
-  .menubar__sheet-status {
-    min-width: 0;
-    overflow: hidden;
-    font: 10px var(--mono-font);
-    color: var(--term-green);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-left: var(--sp-2);
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   /* One left edge for the whole sheet. The group labels, the navigation items,
      the brand and the language control each used to compute their own inset
