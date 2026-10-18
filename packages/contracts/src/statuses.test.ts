@@ -22,12 +22,13 @@ describe('scan state machine §18', () => {
   });
 
   // The pause feature is gone: no state leads into Paused any more, and a legacy
-  // paused row can only go back into the queue (the automatic resume) or be
-  // cancelled — never straight to a result.
-  it('lets nothing enter Paused, and lets a legacy paused scan leave only to the queue or Cancelled', () => {
+  // paused row can only go back to the state it was paused from (the automatic
+  // resume) or be cancelled — never straight to a result.
+  it('lets nothing enter Paused, and lets a legacy paused scan leave only to Pending, the queue or Cancelled', () => {
     expect(canTransition('Pending', 'Paused')).toBe(false);
     expect(canTransition('Queued', 'Paused')).toBe(false);
     expect(canTransition('Running', 'Paused')).toBe(false);
+    expect(canTransition('Paused', 'Pending')).toBe(true);
     expect(canTransition('Paused', 'Queued')).toBe(true);
     expect(canTransition('Paused', 'Cancelled')).toBe(true);
   });

@@ -97,6 +97,11 @@ function timestampChanges(
     // queueing has no start to keep.
     return { completedAt: null };
   }
+  if (to === 'Pending') {
+    // Only a legacy scan paused before it was ever queued goes back to Pending:
+    // it never started and has not finished.
+    return { completedAt: null };
+  }
   // Completed / Partial / Failed / Cancelled are result states.
   return { completedAt: now };
 }

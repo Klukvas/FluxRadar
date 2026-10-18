@@ -1,6 +1,5 @@
 import type { PrismaClient, RefundRecord } from '@prisma/client';
 
-import { pausedFromReason } from '../orchestrator/legacy-paused-scans.ts';
 import { STATUS_REASONS } from './constants.ts';
 import { BillingNotFoundError, InvalidTransitionError } from './errors.ts';
 import { requestRefund } from './refund.ts';
@@ -21,7 +20,7 @@ export interface CancelScanResult {
  * cannot both win the same state.
  */
 export async function cancelScan(prisma: PrismaClient, scanId: string): Promise<CancelScanResult> {
-  const paused = await cancelPaused(prisma, scanId);
+  const paused = await cancelLegacyPausedScan(prisma, scanId);
   if (paused !== null) {
     return paused;
   }
@@ -56,7 +55,7 @@ export async function cancelScan(prisma: PrismaClient, scanId: string): Promise<
  * once the status reads `Paused` nothing else can tell the two apart. Returns
  * null when the scan is not paused, so the ordinary branches below decide.
  */
-async function cancelPaused(
+export async function cancelLegacyPausedScan(
   prisma: PrismaClient,
   scanId: string,
 ): Promise<CancelScanResult | null> {
@@ -94,4 +93,16 @@ async function tryCancel(
     }
     throw error;
   }
+}
+
+/**
+ * The state a legacy paused scan was paused from, read back from its status
+ * reason. Cancelling it refunds as that state would have (§18): a scan paused
+ * before it was ever queued is still a pre-queue cancellation. Kept until no
+ * Paused rows remain; removed with the schema in a follow-up.
+ */
+export function pausedFromReason(statusReason: string | null): 'Pending' | 'Queued' | 'Running' {
+  if (statusReason === STATUS_REASONS.pausedPreQueue) return 'Pending';
+  if (statusReason === STATUS_REASONS.pausedAfterQueue) return 'Queued';
+  return 'Running';
 }

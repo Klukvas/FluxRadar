@@ -5,31 +5,43 @@
 // Pause and never came back. They are not abandoned work — the owner paid for
 // them — so they are resumed automatically, on the job and purchase they
 // already have, and continue from their checkpoint when one is still usable.
+// A scan whose paid access is gone (refunded, suspended, expired) cannot run,
+// so it is cancelled instead, under the pre-pause refund policy.
 //
 // Kept until no Paused rows remain; removed with the schema in a follow-up.
 
 import type { PrismaClient } from '@prisma/client';
 
-import { JOB_STATUSES, STATUS_REASONS } from '../billing/constants.ts';
-import type { ApiLogger } from '../http/logger.ts';
+import { cancelLegacyPausedScan, pausedFromReason } from '../billing/cancel-scan.ts';
+import { JOB_STATUSES } from '../billing/constants.ts';
 import { InvalidTransitionError } from '../billing/errors.ts';
+import { paidAccessDenial } from '../billing/report-access.ts';
 import { transitionScan } from '../billing/state-machine.ts';
+import type { ApiLogger } from '../http/logger.ts';
 
 /**
- * Puts a legacy paused scan back in the queue, on the job it already has.
+ * Puts a legacy paused scan back where it was paused from, on the job it
+ * already has.
  *
- * No new job, no new purchase and no entitlement is spent: `Paused → Queued` is
- * the same run continuing. The checkpoint is deliberately left in place — the
- * attempt reads it to know which stages not to repeat, and clears it itself
- * once the scan settles. One transaction, so a scan that reads `Queued` always
- * has a job something will claim.
+ * A scan paused before it was ever queued goes back to `Pending`, so cancelling
+ * it still refunds in full (§18); every other one goes back to `Queued`. No new
+ * job, no new purchase and no entitlement is spent: it is the same run
+ * continuing. The checkpoint is deliberately left in place — the attempt reads
+ * it to know which stages not to repeat, and clears it itself once the scan
+ * settles. One transaction, so the scan never reads as waiting without a job
+ * something will claim.
  *
  * Throws InvalidTransitionError when the scan is not paused (a cancel or an
  * earlier resume won the compare-and-set).
  */
 export async function resumeScan(prisma: PrismaClient, scanId: string, now: Date): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await transitionScan(tx, scanId, 'Paused', 'Queued', { statusReason: null, now });
+    const scan = await tx.scan.findUnique({
+      where: { id: scanId },
+      select: { statusReason: true },
+    });
+    const to = pausedFromReason(scan?.statusReason ?? null) === 'Pending' ? 'Pending' : 'Queued';
+    await transitionScan(tx, scanId, 'Paused', to, { statusReason: null, now });
     await tx.scan.updateMany({ where: { id: scanId }, data: { pauseRequestedAt: null } });
     await tx.job.updateMany({
       where: { scanId, status: JOB_STATUSES.paused },
@@ -38,20 +50,51 @@ export async function resumeScan(prisma: PrismaClient, scanId: string, now: Date
   });
 }
 
+/** What happened to one legacy paused scan. */
+export type LegacyPausedOutcome = 'resumed' | 'cancelled' | 'skipped';
+
 /**
- * The state a legacy paused scan was paused from, read back from its status
- * reason. Cancelling it refunds as that state would have (§18): a scan paused
- * before it was ever queued is still a pre-queue cancellation.
+ * Resumes a legacy paused scan whose purchase may still run, and cancels one
+ * whose paid access is gone.
+ *
+ * Resuming a scan the worker's billing gate will refuse leaves it waiting
+ * forever with a finished job — the workspace keeps opening it and the profile
+ * cannot be deleted. Cancelling it applies the policy of the state it was
+ * paused from, through the same Paused compare-and-set the owner's own cancel
+ * uses; refunds are only recorded, and an existing one is not duplicated.
+ * `skipped` means the scan was no longer paused: someone else moved it first.
  */
-export function pausedFromReason(statusReason: string | null): 'Pending' | 'Queued' | 'Running' {
-  if (statusReason === STATUS_REASONS.pausedPreQueue) return 'Pending';
-  if (statusReason === STATUS_REASONS.pausedAfterQueue) return 'Queued';
-  return 'Running';
+export async function settleLegacyPausedScan(
+  prisma: PrismaClient,
+  scanId: string,
+  now: Date,
+): Promise<LegacyPausedOutcome> {
+  const scan = await prisma.scan.findUnique({
+    where: { id: scanId },
+    select: {
+      status: true,
+      purchaseId: true,
+      purchase: { select: { status: true, entitlement: true } },
+    },
+  });
+  if (scan === null || scan.status !== 'Paused') return 'skipped';
+  if (paidAccessDenial(scan, { now }) !== null) {
+    if ((await cancelLegacyPausedScan(prisma, scanId)) === null) return 'skipped';
+    // The parked job will never run; a claimed one is its worker's to finish.
+    await prisma.job.updateMany({
+      where: { scanId, status: JOB_STATUSES.paused },
+      data: { status: JOB_STATUSES.done, claimedAt: null, leaseUntil: null },
+    });
+    return 'cancelled';
+  }
+  return (await resumeIfPaused(prisma, scanId, now)) ? 'resumed' : 'skipped';
 }
 
 export interface LegacyPauseSweepResult {
-  /** Paused scans put back in the queue on their own job. */
+  /** Paused scans put back where they were paused from, on their own job. */
   readonly resumedScanIds: readonly string[];
+  /** Paused scans whose paid access is gone, cancelled under §18. */
+  readonly cancelledScanIds: readonly string[];
   /** Parked jobs released under a scan that was no longer paused. */
   readonly releasedJobCount: number;
   /** Stray pause flags cleared on scans that were never parked. */
@@ -59,13 +102,12 @@ export interface LegacyPauseSweepResult {
 }
 
 /**
- * Resumes every legacy paused scan and clears what the removed pause left behind.
+ * Settles every legacy paused scan and clears what the removed pause left behind.
  *
- * Idempotent and safe to run from several processes at once: each resume is the
- * same `Paused → Queued` compare-and-set a cancel competes on, so a scan that a
- * cancel (or another sweep) took first is skipped, never resumed twice. The
- * release and the flag clear are conditional updates that match nothing on a
- * second pass.
+ * Idempotent and safe to run from several processes at once: each resume and
+ * each cancel is a compare-and-set on `Paused`, so a scan another writer moved
+ * first is skipped, never settled twice. The release and the flag clear are
+ * conditional updates that match nothing on a second pass.
  */
 export async function resumeLegacyPausedScans(
   prisma: PrismaClient,
@@ -77,8 +119,11 @@ export async function resumeLegacyPausedScans(
     orderBy: { createdAt: 'asc' },
   });
   const resumedScanIds: string[] = [];
+  const cancelledScanIds: string[] = [];
   for (const { id } of paused) {
-    if (await resumeIfPaused(prisma, id, now)) resumedScanIds.push(id);
+    const outcome = await settleLegacyPausedScan(prisma, id, now);
+    if (outcome === 'resumed') resumedScanIds.push(id);
+    if (outcome === 'cancelled') cancelledScanIds.push(id);
   }
   // A job parked under a scan that is queued or pending was stranded by the
   // old park/resume race: nothing claims a parked job, so it is handed back to
@@ -98,6 +143,7 @@ export async function resumeLegacyPausedScans(
   });
   return {
     resumedScanIds,
+    cancelledScanIds,
     releasedJobCount: released.count,
     clearedFlagCount: cleared.count,
   };
@@ -123,10 +169,11 @@ export async function sweepLegacyPausedScans(
     const result = await resumeLegacyPausedScans(prisma, now);
     if (
       result.resumedScanIds.length > 0 ||
+      result.cancelledScanIds.length > 0 ||
       result.releasedJobCount > 0 ||
       result.clearedFlagCount > 0
     ) {
-      logger.info('legacy paused scans resumed', { ...result });
+      logger.info('legacy paused scans settled', { ...result });
     }
   } catch (error) {
     logger.error('legacy paused scan sweep failed', {

@@ -2,7 +2,7 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { cancelScan } from '../billing/cancel-scan.ts';
-import { JOB_STATUSES, STATUS_REASONS } from '../billing/constants.ts';
+import { JOB_STATUSES, PURCHASE_STATUSES, STATUS_REASONS } from '../billing/constants.ts';
 import { InvalidTransitionError } from '../billing/errors.ts';
 import { transitionScan } from '../billing/state-machine.ts';
 import { silentLogger } from '../http/logger.ts';
@@ -14,13 +14,17 @@ import {
   type SeededAccount,
   type TestDb,
 } from '../test-utils/test-db.ts';
+import type { WorkerDeps } from './deps.ts';
 import { resumeLegacyPausedScans, resumeScan } from './legacy-paused-scans.ts';
+import { processScan } from './worker.ts';
 
 // Scans paused before the pause feature was removed. Nothing can pause a scan
 // any more, so every row here is written the way the old code left it — status
 // `Paused`, the state it was paused from in `statusReason`, the flag set and
 // the job parked — and what is defended is that such a paid run is never
-// stranded: it goes back in the queue on the job and purchase it already has.
+// stranded: it goes back to the state it was paused from on the job and
+// purchase it already has, or, when its paid access is gone, it is cancelled
+// under the policy of that state instead of waiting forever.
 
 let db: TestDb;
 let account: SeededAccount;
@@ -40,14 +44,32 @@ const PAUSED_REASON = {
   Running: STATUS_REASONS.pausedAfterStart,
 } as const;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /** A scan exactly as the removed pause left it: parked, flagged, job held. */
-async function seedLegacyPaused(from: 'Pending' | 'Queued' | 'Running') {
+async function seedLegacyPaused(
+  from: 'Pending' | 'Queued' | 'Running',
+  access: 'valid' | 'expired' | 'refunded' = 'valid',
+) {
   const { scan, purchase } = await seedScan(db.prisma, {
     account,
     status: 'Paused',
     statusReason: PAUSED_REASON[from],
     plan: 'Complete',
   });
+  if (purchase === null) throw new Error('seedScan did not create a purchase');
+  await db.prisma.entitlement.create({
+    data: {
+      purchaseId: purchase.id,
+      expiresAt: new Date(Date.now() + (access === 'expired' ? -DAY_MS : DAY_MS)),
+    },
+  });
+  if (access === 'refunded') {
+    await db.prisma.purchase.update({
+      where: { id: purchase.id },
+      data: { status: PURCHASE_STATUSES.refunded },
+    });
+  }
   const startedAt = from === 'Running' ? new Date(Date.now() - 60_000) : null;
   await db.prisma.scan.update({
     where: { id: scan.id },
@@ -127,9 +149,12 @@ describe('the legacy pause sweep', () => {
     const result = await resumeLegacyPausedScans(db.prisma, new Date());
 
     expect([...result.resumedScanIds].sort()).toEqual([first.scan.id, second.scan.id].sort());
-    for (const { scan, job } of [first, second]) {
+    for (const [{ scan, job }, restored] of [
+      [first, 'Pending'],
+      [second, 'Queued'],
+    ] as const) {
       const resumed = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
-      expect(resumed.status).toBe('Queued');
+      expect(resumed.status).toBe(restored);
       expect(resumed.pauseRequestedAt).toBeNull();
       const jobAfter = await db.prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } });
       expect(jobAfter.id).toBe(job.id);
@@ -182,7 +207,12 @@ describe('the legacy pause sweep', () => {
 
     const again = await resumeLegacyPausedScans(db.prisma, new Date());
 
-    expect(again).toEqual({ resumedScanIds: [], releasedJobCount: 0, clearedFlagCount: 0 });
+    expect(again).toEqual({
+      resumedScanIds: [],
+      cancelledScanIds: [],
+      releasedJobCount: 0,
+      clearedFlagCount: 0,
+    });
   });
 
   it('leaves a scan the owner cancelled first cancelled', async () => {
@@ -198,7 +228,8 @@ describe('the legacy pause sweep', () => {
 
   // The sweep and a cancel compete on the same Paused compare-and-set: exactly
   // one of them moves the scan out of Paused, and the loser is not an error. A
-  // cancel that lost still cancels — the resumed scan, from Queued.
+  // cancel that lost still cancels — the resumed scan, from Pending — and either
+  // way the pre-queue refund the owner was owed is recorded exactly once.
   it('converges with a concurrent cancel on exactly one winner', async () => {
     const { scan } = await seedLegacyPaused('Pending');
 
@@ -213,8 +244,109 @@ describe('the legacy pause sweep', () => {
       expect(swept.resumedScanIds).toEqual([]);
     } else {
       expect(swept.resumedScanIds).toEqual([scan.id]);
-      expect(cancelled.cancelledFrom).toBe('Queued');
+      expect(cancelled.cancelledFrom).toBe('Pending');
     }
+    const refunds = await db.prisma.refundRecord.findMany();
+    expect(refunds.map((refund) => refund.reasonCode)).toEqual(['PRE_QUEUE_CANCEL']);
+  });
+});
+
+// A scan the worker's billing gate would refuse must not be resumed: the gate
+// finishes the job and the scan would read as waiting forever, reopened on
+// every visit and blocking its profile's deletion.
+describe('a legacy paused scan whose paid access is gone', () => {
+  it('is cancelled when its purchase was refunded, without a second refund record', async () => {
+    const { scan, purchase } = await seedLegacyPaused('Pending', 'refunded');
+    await db.prisma.refundRecord.create({
+      data: {
+        purchaseId: purchase.id,
+        idempotencyKey: `refund-${scan.id}`,
+        reasonCode: 'PROVIDER_REFUND',
+        status: 'paid',
+        amountUsd: 1,
+        provider: 'creem',
+      },
+    });
+
+    const result = await resumeLegacyPausedScans(db.prisma, new Date());
+
+    expect(result).toMatchObject({ resumedScanIds: [], cancelledScanIds: [scan.id] });
+    const row = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    expect(row.status).toBe('Cancelled');
+    const job = await db.prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } });
+    expect(job.status).toBe(JOB_STATUSES.done);
+    await expect(db.prisma.refundRecord.count()).resolves.toBe(1);
+  });
+
+  it('is cancelled under the pre-queue policy when its entitlement expired before it was queued', async () => {
+    const { scan } = await seedLegacyPaused('Pending', 'expired');
+
+    const result = await resumeLegacyPausedScans(db.prisma, new Date());
+
+    expect(result.cancelledScanIds).toEqual([scan.id]);
+    const row = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    expect(row.status).toBe('Cancelled');
+    expect(row.statusReason).toBe(STATUS_REASONS.preQueueCancel);
+    const refunds = await db.prisma.refundRecord.findMany();
+    expect(refunds.map((refund) => refund.reasonCode)).toEqual(['PRE_QUEUE_CANCEL']);
+    const job = await db.prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } });
+    expect(job.status).toBe(JOB_STATUSES.done);
+  });
+
+  it('is cancelled without a refund when it had already been queued', async () => {
+    const { scan } = await seedLegacyPaused('Queued', 'expired');
+
+    await resumeLegacyPausedScans(db.prisma, new Date());
+
+    const row = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    expect(row.status).toBe('Cancelled');
+    await expect(db.prisma.refundRecord.count()).resolves.toBe(0);
+  });
+
+  // Lease recovery can hand the drain the job of a scan still reading Paused;
+  // the billing gate used to finish it there and leave the scan Paused.
+  it('is cancelled by a worker that claims its job, and the job is finished', async () => {
+    const { scan, job } = await seedLegacyPaused('Queued', 'expired');
+    await db.prisma.job.update({ where: { id: job.id }, data: { status: JOB_STATUSES.pending } });
+    const deps: WorkerDeps = {
+      prisma: db.prisma,
+      logger: silentLogger,
+      createAiProvider: () => {
+        throw new Error('a scan without paid access must not start any outbound work');
+      },
+    };
+
+    const result = await processScan(deps, scan.id);
+
+    expect(result.status).toBe('Cancelled');
+    const row = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    expect(row.status).toBe('Cancelled');
+    const jobAfter = await db.prisma.job.findUniqueOrThrow({ where: { id: job.id } });
+    expect(jobAfter.status).toBe(JOB_STATUSES.done);
+  });
+});
+
+// A scan paused before it was ever queued goes back to Pending, not Queued: the
+// pre-queue full refund on cancel is what it was entitled to when it paused.
+describe('a legacy scan paused before it was ever queued', () => {
+  it('goes back to Pending on its own job, and a cancel still refunds in full', async () => {
+    const { scan, job } = await seedLegacyPaused('Pending');
+
+    await resumeLegacyPausedScans(db.prisma, new Date());
+
+    const resumed = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    expect(resumed.status).toBe('Pending');
+    expect(resumed.statusReason).toBeNull();
+    expect(resumed.startedAt).toBeNull();
+    expect(resumed.completedAt).toBeNull();
+    const jobAfter = await db.prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } });
+    expect(jobAfter.id).toBe(job.id);
+    expect(jobAfter.status).toBe(JOB_STATUSES.pending);
+
+    const cancelled = await cancelScan(db.prisma, scan.id);
+
+    expect(cancelled.cancelledFrom).toBe('Pending');
+    expect(cancelled.refund?.reasonCode).toBe('PRE_QUEUE_CANCEL');
   });
 });
 

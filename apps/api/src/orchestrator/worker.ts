@@ -25,7 +25,7 @@ import { markResolvedAgainstPrevious } from './issue-sync.ts';
 import type { RunCoverage } from './resolution-policy.ts';
 import { loadScanCoverage, pruneCoverageProofs, type UnreadableCoverage } from './run-coverage.ts';
 import { modulePlanFor } from './module-plan.ts';
-import { resumeIfPaused } from './legacy-paused-scans.ts';
+import { settleLegacyPausedScan } from './legacy-paused-scans.ts';
 import { ScanStopWatcher } from './stop-watcher.ts';
 import type { WorkerDeps } from './deps.ts';
 import {
@@ -152,6 +152,16 @@ async function processClaimedJob(
       if (scan === null) {
         throw new Error(`worker: scan ${scanId} not found`);
       }
+      if (scan.status === 'Paused') {
+        // A legacy paused scan whose job was claimed anyway — lease recovery
+        // hands a crashed claim back to the drain whatever its scan's status.
+        // Settled before the billing gate, which would otherwise finish the job
+        // under a scan still reading Paused: a scan that may run goes back to
+        // the state it was paused from on the job this worker holds, one whose
+        // paid access is gone is cancelled. The loop then re-reads it.
+        await settleLegacyPausedScan(prisma, scanId, deps.now?.() ?? new Date());
+        continue;
+      }
       if (await isBillingBlocked(prisma, scan.purchaseId, deps.now?.() ?? new Date())) {
         // A refund/dispute overlay must not consume the paid job. The scan is
         // left in its current state for the billing/admin reconciliation flow.
@@ -174,14 +184,6 @@ async function processClaimedJob(
       if (afterQueue.status === 'Cancelled' || afterQueue.status === 'Completed') {
         await finishJob(prisma, activeJobId);
         return resultFromExisting(scanId, afterQueue.status as ScanRuntimeStatus);
-      }
-      if (afterQueue.status === 'Paused') {
-        // A legacy paused scan whose job was claimed anyway — lease recovery
-        // hands a crashed claim back to the drain whatever its scan's status.
-        // It is resumed here, on the job this worker already holds, and the
-        // loop re-reads it: Queued runs on, a cancel that won is settled.
-        await resumeIfPaused(prisma, scanId, deps.now?.() ?? new Date());
-        continue;
       }
       if (afterQueue.status === 'Queued') {
         // A user cancel can land between the read above and this transition.
