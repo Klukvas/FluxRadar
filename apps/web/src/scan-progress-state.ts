@@ -33,7 +33,15 @@ function workStage(scan: Scan): ProgressStage {
   const running = scan.modules.find((module) => module.status === 'Running');
   if (running !== undefined) return { kind: 'checking', module: running.module };
   const { completedModules, totalModules } = scan.progress;
+  // Also the first seconds of a section retry: the API flips Partial→Running
+  // and only enqueues, and the rows stay terminal until the worker claims the
+  // job and resets them to Pending, so the screen briefly says the report is
+  // being put together before the retried section shows up.
   if (totalModules > 0 && completedModules >= totalModules) return { kind: 'finishing' };
+  // A resumed attempt that continues its crawl also lands here: some sections
+  // settled before, none runs yet, and the headline says we are checking what
+  // was read while the crawl still reads. Accepted: it is true of the pages
+  // already read, and it never claims a stage the scan has left behind.
   if (completedModules > 0) return { kind: 'checking', module: null };
   return { kind: 'reading' };
 }
@@ -62,8 +70,7 @@ const RUNNING_SECTION_SHARE = 0.5;
  * queued → 0; reading → 5 + 35 × read/(read + 25), so 1 page ≈ 6%, 25 pages
  * ≈ 22%, 200 pages ≈ 36%; checking → 40 + 55 × (sections done + ½ for the one
  * running) / all sections; finishing → 97. Each input only grows during a run,
- * and the screen keeps the highest value it has shown (see
- * `ScanProgress.tsx`), so a retried section can never move the bar back.
+ * and `nextLiveProgress` keeps the highest value shown within one attempt.
  */
 export function liveProgressPercent(scan: Scan): number {
   const stage = scan.status === 'Paused' ? workStage(scan) : progressStage(scan);
@@ -95,6 +102,73 @@ export function finishedProgressPercent(scan: Scan): number {
   return totalModules === 0 ? 0 : (completedModules / totalModules) * 100;
 }
 
+/** Rows the API counts as settled (`TERMINAL_MODULE_STATUSES` in scan-dto.ts). */
+const SETTLED_MODULE_STATUSES: ReadonlySet<string> = new Set([
+  'Completed',
+  'Partial',
+  'Unavailable',
+  'Not applicable',
+]);
+
+/** What the screen remembers between polls to keep the bar moving forward. */
+export interface LiveProgressMark {
+  readonly scanId: string;
+  /** Highest reading/checking value shown in this attempt; never the 97. */
+  readonly highest: number;
+  readonly completedModules: number;
+  readonly allRowsSettled: boolean;
+}
+
+function allRowsSettled(scan: Scan): boolean {
+  return (
+    scan.modules.length > 0 && scan.modules.every((row) => SETTLED_MODULE_STATUSES.has(row.status))
+  );
+}
+
+/**
+ * Whether this poll belongs to a new attempt of the same scan.
+ *
+ * A section retry or a platform retry resets the rows: the settled count
+ * drops, or a Pending/Running row appears where every row had settled. The
+ * bar then starts again from what the new attempt has done, instead of
+ * sitting at the old attempt's high point.
+ */
+function startedNewAttempt(previous: LiveProgressMark, scan: Scan): boolean {
+  return (
+    scan.progress.completedModules < previous.completedModules ||
+    (previous.allRowsSettled && !allRowsSettled(scan))
+  );
+}
+
+/**
+ * The live bar's value for this poll, and what to remember for the next one.
+ *
+ * Within one attempt the bar keeps its highest reading/checking value, so a
+ * late poll cannot pull it back. The finishing value is shown but never
+ * remembered: a retry starts with every row still settled, and remembering
+ * 97 there would pin the bar at 97 for the whole retried section.
+ */
+export function nextLiveProgress(
+  previous: LiveProgressMark | null,
+  scan: Scan,
+): { readonly shown: number; readonly mark: LiveProgressMark } {
+  const live = liveProgressPercent(scan);
+  const sameAttempt =
+    previous !== null && previous.scanId === scan.id && !startedNewAttempt(previous, scan);
+  const carried = sameAttempt ? previous.highest : 0;
+  const finishing = live === FINISHING;
+  const highest = finishing ? carried : Math.max(carried, live);
+  return {
+    shown: finishing ? FINISHING : highest,
+    mark: {
+      scanId: scan.id,
+      highest,
+      completedModules: scan.progress.completedModules,
+      allRowsSettled: allRowsSettled(scan),
+    },
+  };
+}
+
 /**
  * When a scan has run long enough to say so.
  *
@@ -107,8 +181,18 @@ export function finishedProgressPercent(scan: Scan): number {
  */
 export const LONG_RUNNING_MS = 20 * 60 * 1000;
 
-/** Whether an unfinished scan has been going for longer than usual. */
+/**
+ * Whether to say an unfinished scan has been going for longer than usual.
+ *
+ * Not while it waits in the queue or while the report is put together, and
+ * not for a retried attempt: a retry keeps the scan's original `startedAt`
+ * and the API exposes no start time for the attempt itself, so a retry of an
+ * old scan would read as "running long" from its first second.
+ */
 export function isRunningLong(scan: Scan, now: number): boolean {
+  const stage = progressStage(scan).kind;
+  if (stage === 'queued' || stage === 'finishing') return false;
+  if ((scan.retry?.module ?? 0) > 0 || (scan.retry?.platform ?? 0) > 0) return false;
   const since = Date.parse(scan.startedAt ?? scan.createdAt);
   return Number.isFinite(since) && now - since > LONG_RUNNING_MS;
 }

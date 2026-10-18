@@ -212,6 +212,44 @@ describe('the progress bar', () => {
     expect(Math.max(...seen)).toBeLessThan(100);
   });
 
+  // POST /scans/:id/retry flips Partial→Running and only enqueues; the worker
+  // resets the retried row to Pending when it claims the job. The bar must
+  // not stay pinned at the finishing value through the retried section.
+  it('starts over for a section retry instead of sitting at 97', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: STARTED + 2 * MINUTE });
+    const settledBeforeClaim: Scan = {
+      ...checking('Completed', 'Partial'),
+      // The API counts a Partial row as settled.
+      progress: { completedModules: 2, totalModules: 2, scannedUrls: 30, discoveredUrls: 30 },
+      retry: { platform: 0, module: 1 },
+    };
+    const polls: Scan[] = [
+      settledBeforeClaim,
+      {
+        ...checking('Completed', 'Pending'),
+        progress: { completedModules: 1, totalModules: 2, scannedUrls: 3, discoveredUrls: 3 },
+      },
+      checking('Completed', 'Running'),
+      checking('Completed', 'Completed'),
+    ];
+    stubPolls(polls);
+    render(<Harness initial={settledBeforeClaim} language="en" onReports={() => {}} />);
+
+    // Read before any poll answers: the screen as the retry click leaves it.
+    const seen: number[] = [barValue()];
+    for (let poll = 0; poll < polls.length; poll += 1) {
+      await settle(1000);
+      seen.push(barValue());
+    }
+
+    expect(seen[0]).toBe(97);
+    const firstDrop = seen.findIndex((value) => value < 97);
+    expect(firstDrop).toBeGreaterThan(0);
+    const newAttempt = seen.slice(firstDrop);
+    expect(newAttempt).toEqual([...newAttempt].sort((a, b) => a - b));
+    expect(seen[seen.length - 1]).toBe(97);
+  });
+
   it('shows a finished scan as a full measurement', async () => {
     const done: Scan = {
       ...checking('Completed', 'Completed'),
@@ -255,6 +293,32 @@ describe('time and where to find the result', () => {
         'This check is taking longer than usual. It is still in progress, so you can close this page and come back later.',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('keeps the long-running note off while queued or putting the report together', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: STARTED + 60 * MINUTE });
+    show({ ...RUNNING, status: 'Queued', startedAt: null, modules: [] });
+    await screen.findByText('Your check is in the queue and will start shortly.');
+    expect(screen.queryByText(/taking longer than usual/)).toBeNull();
+    cleanup();
+
+    show(checking('Completed', 'Completed'));
+    await screen.findByText('Putting your report together…');
+    expect(screen.queryByText(/taking longer than usual/)).toBeNull();
+  });
+
+  // A retry keeps the scan's first startedAt and the API exposes no start
+  // time for the retried attempt, so its age cannot be told.
+  it('keeps the long-running note off for a retried attempt', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: STARTED + 60 * MINUTE });
+    show({ ...checking('Completed', 'Running'), retry: { platform: 0, module: 1 } });
+    await screen.findByText('Now checking: whether AI assistants mention you');
+    expect(screen.queryByText(/taking longer than usual/)).toBeNull();
+    cleanup();
+
+    show({ ...reading(40, 90), retry: { platform: 1, module: 0 } });
+    await screen.findByText('Reading the pages of your site');
+    expect(screen.queryByText(/taking longer than usual/)).toBeNull();
   });
 
   it('points to Reports and keeps the leave-and-come-back line', async () => {

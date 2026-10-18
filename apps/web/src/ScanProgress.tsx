@@ -12,7 +12,11 @@ import { Button, EmptyState, FieldRow, Panel, ProgressBar, StatusChip, Window } 
 import { copy, fillCopy, type Language } from './i18n';
 import { moduleStatusReasons } from './module-status';
 import { planName } from './plan-modules';
-import { finishedProgressPercent, liveProgressPercent } from './scan-progress-state';
+import {
+  finishedProgressPercent,
+  nextLiveProgress,
+  type LiveProgressMark,
+} from './scan-progress-state';
 import { ScanProgressStatus } from './ScanProgressStatus';
 import {
   displayDomain,
@@ -38,7 +42,7 @@ export function ScanScreen(props: {
   const [confirmCancel, setConfirmCancel] = useState<Scan | null>(null);
   const cancelTrigger = useRef<HTMLButtonElement>(null);
   const cancelDialog = useRef<HTMLElement>(null);
-  const highestLive = useRef<{ scanId: string; value: number } | null>(null);
+  const liveMark = useRef<LiveProgressMark | null>(null);
   useEffect(() => {
     if (confirmCancel === null) return;
     const previousOverflow = document.body.style.overflow;
@@ -133,14 +137,11 @@ export function ScanScreen(props: {
   const terminal = isTerminalScanStatus(scan.status);
   const reportFinalizing = terminal && scan.reportReady === false;
   const settled = terminal && !reportFinalizing;
-  // A live bar only ever moves forward: the highest value shown for this scan
-  // is kept, so a retried section or a late poll cannot pull it back. A
+  // A live bar only moves forward within one attempt (`nextLiveProgress`); a
   // finished scan's bar is its measurement instead and is shown as it is.
-  const live = liveProgressPercent(scan);
-  const shownLive =
-    highestLive.current?.scanId === scan.id ? Math.max(highestLive.current.value, live) : live;
-  highestLive.current = { scanId: scan.id, value: shownLive };
-  const progress = settled ? finishedProgressPercent(scan) : shownLive;
+  const live = nextLiveProgress(liveMark.current, scan);
+  liveMark.current = live.mark;
+  const progress = settled ? finishedProgressPercent(scan) : live.shown;
   const finishedAt = formatTimestamp(scan.completedAt, props.language);
   const cancel = async () => {
     setCancelBusy(true);
