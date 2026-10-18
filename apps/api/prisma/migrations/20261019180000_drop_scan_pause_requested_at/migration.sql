@@ -1,0 +1,44 @@
+-- fluxradar:contract-phase — drops Scan."pauseRequestedAt" (retired scan pausing).
+-- fluxradar:contract-requires 20261019120000_retire_paused_status
+--
+-- The contract half of retiring scan pausing. PR #75 removed pausing; PR #77
+-- removed every reader of this column and stopped declaring it in
+-- schema.prisma, so its Prisma client does not select it, and its guard
+-- (20261019120000_retire_paused_status) refused to deploy while any Paused row
+-- or any non-null "pauseRequestedAt" existed. A release before #77 still
+-- declares the column, so its client selects it on every Scan query and would
+-- fail on the first one once the column is gone.
+--
+-- SHIP ONLY when every rollback candidate the deploy keeps ships
+-- 20261019120000_retire_paused_status: the release that is live when this
+-- deploys, its recorded rollback target, and the spare release pruning keeps
+-- beside those two. That is #77's release, then at least TWO ordinary
+-- releases, then this one. The prerequisite line above is how
+-- deploy/contract-phase-gate.sh (D-230) holds that order: the backup stage
+-- refuses this migration until every rollback candidate ships the guard, i.e.
+-- no longer selects the column. If this deploy fails after `migrate deploy`,
+-- the pruning step never runs, so an older release (before #77) may still be on
+-- disk: never roll back to it by hand — the gate's rollback-target mode refuses
+-- it (docs/DEPLOYMENT.md, "Rolling back by hand").
+--
+-- If this is merged too early, the gate refuses this deploy AND every later
+-- one, because every later release carries this directory too: production
+-- stays on the last good release until it is fixed. Recovery: `git revert`
+-- this commit on main and deploy the revert. Production never applied this
+-- migration (the gate refuses before `migrate deploy`), so nothing needs
+-- undoing in the database. Re-land it later by reverting the revert, with the
+-- SAME directory name and byte-identical SQL, so any database that already
+-- applied it keeps a matching checksum.
+--
+-- There is no down.sql, on purpose. The way back is the snapshot the deploy's
+-- `backup` stage takes just before this migration
+-- (deploy/backup/pre-migration-snapshot.sh; docs/DEPLOYMENT.md, "The snapshot
+-- before a migration" and "Restoring"). A restore returns the whole database to
+-- that moment and loses everything written since, so it is disaster recovery,
+-- not a rollback — and the reason this migration must not ship with
+-- ALLOW_MIGRATION_WITHOUT_BACKUP=true.
+--
+-- Dropping loses no data: the guard proved the column NULL on every row, and
+-- nothing has written it since #77. No index or constraint references it.
+
+ALTER TABLE "Scan" DROP COLUMN "pauseRequestedAt";

@@ -299,9 +299,6 @@ model Scan {
   rulesetVersion         String
   platformRetryCount     Int       @default(0)
   moduleRetryCount       Int       @default(0)
-  // `pauseRequestedAt` stays in the database, undeclared, until the contract
-  // migration after 20261019120000_retire_paused_status drops it: the release
-  // before this one still selects it (D-230).
   /// How much of the site this run has actually read. Module counts answer
   /// "which sections are done"; these answer "how far through my site is it".
   scannedUrlCount        Int       @default(0)

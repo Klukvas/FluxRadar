@@ -128,13 +128,22 @@ describe('BILLING-007 migration rollback safety', () => {
     }
   });
 
-  // The expand half of retiring Scan.pauseRequestedAt (D-229 pattern): this
-  // release stops declaring it, so its client no longer selects it, and only a
-  // later release may drop the column — under a contract migration that names
-  // 20261019120000_retire_paused_status as its prerequisite.
+  // Retiring Scan.pauseRequestedAt (D-229 pattern): #77 stopped declaring it,
+  // so its client no longer selects it, and the column may only be dropped by a
+  // contract migration that waits for #77's guard on every rollback candidate.
   it('no longer declares pauseRequestedAt, so a later release may drop the column', () => {
     const schema = readFileSync(PRISMA_SCHEMA_PATH, 'utf8');
     expect(schema).not.toMatch(/^\s*pauseRequestedAt\s/m);
+  });
+
+  it('drops pauseRequestedAt only after every rollback candidate ships the Paused guard', () => {
+    const drop = migrationFiles().find((migration) =>
+      /DROP\s+COLUMN\s+"pauseRequestedAt"/i.test(statements(migration.sql).join('\n')),
+    );
+    expect(drop?.sql).toContain(CONTRACT_PHASE_MARKER);
+    expect(drop?.sql).toMatch(
+      /^--\s*fluxradar:contract-requires\s+20261019120000_retire_paused_status\s*$/m,
+    );
   });
 
   describe('with a database', () => {
