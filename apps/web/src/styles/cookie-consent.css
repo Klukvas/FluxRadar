@@ -158,12 +158,23 @@
    into the page flow instead: the button lands at the very foot of the page,
    under the footer, still one tab stop and one tap away. The open banner keeps
    floating — it is the choice being asked for. The doubled class outranks the
-   plain-dock padding in the 380px block below. */
-@media (max-width: 600px) {
+   plain-dock padding in the 380px block below.
+
+   The site's phone width is 699px; at 600px the launcher still floated over the
+   last lines between 601 and 699px. In the flow it no longer needs a 44px
+   floating target either, so it shrinks to a small text button that reads as
+   one more footer link rather than a second floating control. */
+@media (max-width: 699px) {
   .cookie-consent-dock.cookie-consent-dock--launcher-only {
     position: static;
     justify-content: center;
     padding: 0 var(--sp-3) max(var(--sp-3), env(safe-area-inset-bottom));
+  }
+
+  .cookie-consent-dock--launcher-only .cookie-settings-button {
+    min-height: 32px;
+    padding: 0 var(--sp-3);
+    font-size: 12px;
   }
 }
 

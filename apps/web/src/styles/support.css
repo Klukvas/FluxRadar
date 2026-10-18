@@ -1,12 +1,18 @@
 /* The launcher floats in the bottom-LEFT corner because the bottom-right one
    belongs to the cookie dock: its settings launcher stays there until every
-   preference is allowed, and two floating controls in one corner overlap on a
-   phone. It sits under .modal-backdrop (z-index 20), so an open dialog — sign-in
-   or support itself — covers it instead of offering a second modal on top, and
+   preference is allowed. On a phone the cookie launcher drops into the page
+   flow (see cookie-consent.css), so the launcher moves to the bottom-RIGHT
+   there: in the left corner the hero's left-aligned links ran under it. It
+   sits under .modal-backdrop (z-index 20), so an open dialog — sign-in or
+   support itself — covers it instead of offering a second modal on top, and
    under the mobile menu sheet (50) and the onboarding tour (60).
 
    `.button.support-launcher`, not the bare class: this file and base.css reach
    the page in module order, and the button's own padding must not win. */
+:root {
+  --support-launcher-size: 44px;
+}
+
 .button.support-launcher {
   position: fixed;
   z-index: 15;
@@ -15,7 +21,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  min-height: 44px;
+  min-height: var(--support-launcher-size);
   padding: 0 var(--sp-4);
   font: bold 13px/1 var(--ui-font);
   box-shadow:
@@ -51,15 +57,31 @@
   resize: vertical;
 }
 
-/* On a phone the label would sit over the footer links it floats above; the
-   icon alone keeps the 44px target, and the accessible name stays on the button
-   through its aria-label. */
-@media (max-width: 640px) {
+/* On a phone the label sat over the hero's links and the footer it floats
+   above; the icon alone keeps the 44px target, and the accessible name stays on
+   the button through its aria-label. The breakpoint is the site's 699px phone
+   width: between 641 and 699px the full labelled button still covered text.
+
+   A fixed control always covers whatever scrolls under it, so the page also
+   gets a strip of empty space at its foot as tall as the button and its gap:
+   scrolled to the end, the last line, the footer and the in-flow cookie
+   settings button sit above the launcher instead of under it. `:has()` keeps
+   that strip off a deployment without a support channel, where no launcher
+   renders. */
+@media (max-width: 699px) {
+  body:has(.button.support-launcher) {
+    padding-bottom: calc(
+      var(--support-launcher-size) + var(--sp-2) + max(var(--sp-2), env(safe-area-inset-bottom))
+    );
+  }
+
   .button.support-launcher {
-    left: var(--sp-2);
+    left: auto;
+    right: var(--sp-2);
     bottom: max(var(--sp-2), env(safe-area-inset-bottom));
     justify-content: center;
-    width: 44px;
+    width: var(--support-launcher-size);
+    min-height: var(--support-launcher-size);
     padding: 0;
   }
 
