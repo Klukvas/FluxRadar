@@ -12,6 +12,7 @@ import { canRetrySection, isReportReady, type Scan, type SiteProfile } from './a
 import { Button, Panel } from './components';
 import { desktopCopy, type NextStepKind } from './desktop-copy';
 import { FREE_UPSELL_PLAN } from './FreeUpsell';
+import { trackUpgradeClicked } from './funnel-analytics';
 import type { Language } from './i18n';
 import type { Plan } from './plan-modules';
 import { displayDomain, isTerminalScanStatus } from './scan-status';
@@ -110,6 +111,7 @@ export function NextStepActions(props: NextStepActionsProps) {
     }
     // The same plan the Free report's own upsell sells (FreeUpsell.tsx).
     if (kind === 'freeDone' && profile) {
+      trackUpgradeClicked(FREE_UPSELL_PLAN, 'dashboard');
       props.onNewScan(profile, FREE_UPSELL_PLAN);
       return;
     }

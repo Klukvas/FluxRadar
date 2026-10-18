@@ -110,7 +110,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 28 September 2026/);
+    expect(policy).toHaveTextContent(/Effective 19 October 2026/);
     // The merchant of record is Creem, and the policy says what FluxRadar sends
     // it before the buyer ever sees Creem's page — the account email, product
     // and checkout reference — as well as what comes back by webhook.
@@ -247,7 +247,7 @@ describe('public legal documents', () => {
       'https://creem.io/privacy',
     );
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
-    expect(policy).toHaveTextContent(/Effective 28 September 2026/);
+    expect(policy).toHaveTextContent(/Effective 19 October 2026/);
     const sections = screen.getByRole('navigation', { name: 'Document sections' });
     expect(sections).toHaveTextContent('Storage inventory');
     expect(sections).toHaveTextContent('Google Analytics');
@@ -263,6 +263,25 @@ describe('public legal documents', () => {
     expect(screen.getByRole('button', { name: 'Налаштування cookies' })).toBeInTheDocument();
   });
 
+  // The measured steps are a closed list, and it has to match what the app
+  // sends to GA4 (funnel-analytics.ts, checkout-analytics.ts, AuthScreen,
+  // ScanProgress): a step sent but not named here is undisclosed measuring.
+  it('names exactly the product steps the analytics measures, in both languages', () => {
+    const steps = {
+      en: /— sign-up and sign-in, starting a check, a finished check, viewing a report, choosing or changing a plan, starting checkout and a completed purchase \(plan and price/,
+      uk: /— реєстрація та вхід, запуск перевірки, завершена перевірка, перегляд звіту, вибір або зміна тарифу, початок оплати, завершена покупка \(тариф і ціна/,
+    };
+    for (const language of ['en', 'uk'] as const) {
+      for (const kind of ['cookies', 'privacy'] as const) {
+        render(<LegalDocumentScreen kind={kind} language={language} onLanguageChange={() => {}} />);
+        const text = screen.getByRole('article');
+        expect(text, `${kind} ${language}`).toHaveTextContent(steps[language]);
+        expect(text).not.toHaveTextContent(/starting a free check|запуск безкоштовної перевірки/);
+        cleanup();
+      }
+    }
+  });
+
   // The Ukrainian text is the controlling one, so the analytics disclosure is
   // pinned there as well as in the translation.
   it('discloses consent-based Google Analytics in the controlling Ukrainian text', () => {
@@ -276,7 +295,7 @@ describe('public legal documents', () => {
     expect(cookies).toHaveTextContent(
       /На сторінках FluxRadar Creem не завантажує скриптів і не встановлює cookies/,
     );
-    expect(cookies).toHaveTextContent(/Чинна з 28 вересня 2026 року/);
+    expect(cookies).toHaveTextContent(/Чинна з 19 жовтня 2026 року/);
     expect(screen.getByRole('navigation', { name: 'Розділи документа' })).toHaveTextContent(
       'Checkout Creem',
     );
@@ -287,7 +306,7 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 28 вересня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 19 жовтня 2026 року/);
     expect(privacy).toHaveTextContent(
       /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія\) — merchant of record і checkout provider/,
     );

@@ -61,7 +61,7 @@ describe('checkout milestones sent to analytics', () => {
   // A test-card order in GA is revenue that can never be taken out again.
   it('never reports a test-mode purchase or checkout', () => {
     trackPurchase(confirmed, config('test'));
-    trackBeginCheckout(session('test'));
+    trackBeginCheckout(session('test'), () => undefined);
 
     expect(trackEvent).not.toHaveBeenCalled();
   });
@@ -74,12 +74,16 @@ describe('checkout milestones sent to analytics', () => {
   });
 
   it('reports a live checkout start with the quoted amount', () => {
-    trackBeginCheckout(session('live'));
+    trackBeginCheckout(session('live'), () => undefined);
 
-    expect(trackEvent).toHaveBeenCalledWith('begin_checkout', {
-      currency: 'USD',
-      value: 55,
-      items: [{ item_id: 'Basic', item_name: 'FluxRadar Basic' }],
-    });
+    expect(trackEvent).toHaveBeenCalledWith(
+      'begin_checkout',
+      {
+        currency: 'USD',
+        value: 55,
+        items: [{ item_id: 'Basic', item_name: 'FluxRadar Basic' }],
+      },
+      { onDelivered: expect.any(Function) },
+    );
   });
 });

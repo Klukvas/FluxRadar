@@ -180,10 +180,31 @@ export function trackPageView(): void {
   lastLocation = page.location;
 }
 
-export function trackEvent(name: string, params: AnalyticsParams = {}): void {
-  if (!measuring()) return;
+/** How gtag delivers one event; never part of what the event says. */
+export interface DeliveryOptions {
+  /**
+   * Sent with the beacon transport, and called once gtag has handed it over —
+   * for an event sent right before the page navigates away.
+   */
+  readonly onDelivered: () => void;
+}
+
+/** Sends one event; answers whether it was sent, so a caller can report a milestone once. */
+export function trackEvent(
+  name: string,
+  params: AnalyticsParams = {},
+  delivery?: DeliveryOptions,
+): boolean {
+  if (!measuring()) return false;
   describeCurrentPage();
-  gtag('event', name, params);
+  gtag(
+    'event',
+    name,
+    delivery === undefined
+      ? params
+      : { ...params, transport_type: 'beacon', event_callback: delivery.onDelivered },
+  );
+  return true;
 }
 
 /** Starts following the visitor's consent. Safe to call more than once. */

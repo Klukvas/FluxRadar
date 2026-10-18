@@ -6,11 +6,14 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
- * Changed when the third-party checkout became Creem's hosted redirect page,
- * which loads no provider script on fluxradar.net. The previous date,
+ * Changed when the measured product steps grew to the GA4 funnel: starting a
+ * check (free or paid), a finished check, viewing a report and choosing or
+ * changing a plan joined sign-up, checkout and purchase. The previous date,
+ * 28 September 2026, made the third-party checkout Creem's hosted redirect
+ * page, which loads no provider script on fluxradar.net; before that,
  * 21 September 2026, added the analytics category and Google Analytics 4.
  */
-const COOKIES_EFFECTIVE: EffectiveDate = { uk: '28 вересня 2026 року', en: '28 September 2026' };
+const COOKIES_EFFECTIVE: EffectiveDate = { uk: '19 жовтня 2026 року', en: '19 October 2026' };
 
 /** The second cookie gtag sets is named after the stream, so the inventory names it exactly. */
 const GA_SESSION_COOKIE = `_ga_${GA_MEASUREMENT_ID.replace(/^G-/, '')}`;
@@ -146,8 +149,9 @@ function UkrainianCookiePolicy(): JSX.Element {
         <p>
           Google Analytics 4 не завантажується, доки ви не дозволите аналітику: до цього браузер
           навіть не звертається до Google. Після дозволу ми бачимо, які сторінки відвідують, звідки
-          приходять відвідувачі й на яких кроках вони зупиняються — реєстрація, запуск безкоштовної
-          перевірки, початок оплати, завершена покупка (тариф і ціна, без даних картки).
+          приходять відвідувачі й на яких кроках вони зупиняються — реєстрація та вхід, запуск
+          перевірки, завершена перевірка, перегляд звіту, вибір або зміна тарифу, початок оплати,
+          завершена покупка (тариф і ціна, без даних картки).
         </p>
         <p>
           Адреси сторінок передаються без query string та ідентифікаторів перевірок, тож посилання
@@ -330,8 +334,9 @@ function EnglishCookiePolicy(): JSX.Element {
         <p>
           Google Analytics 4 does not load until you allow analytics: before that, your browser does
           not contact Google at all. Once allowed, it shows us which pages are visited, where
-          visitors come from and which steps they stop at — sign-up, starting a free check, starting
-          checkout and a completed purchase (plan and price, never card details).
+          visitors come from and which steps they stop at — sign-up and sign-in, starting a check, a
+          finished check, viewing a report, choosing or changing a plan, starting checkout and a
+          completed purchase (plan and price, never card details).
         </p>
         <p>
           Page addresses are reported without query strings or check identifiers, so email
