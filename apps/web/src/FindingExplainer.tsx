@@ -78,7 +78,7 @@ export function ProblemExplainer(props: { ruleId: string; language: Language }) 
             <dd>{explainer.count}</dd>
           </div>
         </dl>
-        <p className="muted finding-explainer__scope">{f.explainerScope}</p>
+        <p className="muted finding-explainer__scope">{explainer.scope ?? f.explainerScope}</p>
       </details>
     </div>
   );
@@ -117,7 +117,7 @@ export function FindingExplainer(props: { ruleId: string; language: Language; op
           <dd>{explainer.count}</dd>
         </div>
       </dl>
-      <p className="muted finding-explainer__scope">{f.explainerScope}</p>
+      <p className="muted finding-explainer__scope">{explainer.scope ?? f.explainerScope}</p>
     </details>
   );
 }

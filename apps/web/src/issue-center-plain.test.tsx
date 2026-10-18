@@ -23,7 +23,9 @@ const SUMMARY: IssueSummary = {
   groups: [
     { ruleId: 'SEO-ONPAGE-001', module: 'SEO', severity: 'High', issues: 1, openIssues: 1 },
     { ruleId: 'SEO-ONPAGE-002', module: 'SEO', severity: 'Medium', issues: 1, openIssues: 1 },
-    { ruleId: 'A11Y-002', module: 'Accessibility', severity: 'Medium', issues: 1, openIssues: 1 },
+    // Informational (D-109), so it has a title and no explanation: the one kind
+    // of row left that a plain explanation does not cover.
+    { ruleId: 'A11Y-011', module: 'Accessibility', severity: 'Medium', issues: 1, openIssues: 1 },
     { ruleId: 'SEO-ONPAGE-003', module: 'SEO', severity: 'Low', issues: 1, openIssues: 1 },
   ],
 };
@@ -119,9 +121,9 @@ describe('a problem row in Ukrainian', () => {
 
   it('makes up no fix for a rule that has no plain explanation', async () => {
     stubApi();
-    const images = row(await problemRows('uk'), 2);
-    expect(within(images).queryByText('Що зробити:')).toBeNull();
-    expect(within(images).queryByText('Що саме перевіряється')).toBeNull();
+    const unexplained = row(await problemRows('uk'), 2);
+    expect(within(unexplained).queryByText('Що зробити:')).toBeNull();
+    expect(within(unexplained).queryByText('Що саме перевіряється')).toBeNull();
   });
 });
 

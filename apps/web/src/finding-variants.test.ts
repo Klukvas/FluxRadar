@@ -200,56 +200,6 @@ const REPORT_RULES = [
 ] as const;
 
 /**
- * Rules deliberately left to their technical title, evidence and
- * recommendation for now. Explaining one means moving it out of this list; a
- * new registry rule fails the coverage test until it is put on one side or the
- * other.
- */
-const INTENTIONALLY_UNEXPLAINED = [
-  'A11Y-001',
-  'A11Y-002',
-  'A11Y-004',
-  'A11Y-005',
-  'A11Y-006',
-  'A11Y-008',
-  'A11Y-009',
-  'A11Y-010',
-  'ANALYTICS-GA-001',
-  'ANALYTICS-GA-002',
-  'ANALYTICS-SC-001',
-  'ANALYTICS-SC-002',
-  'ANALYTICS-SC-004',
-  'ANALYTICS-SC-005',
-  'CONTENT-001',
-  'CONTENT-003',
-  'CONTENT-004',
-  'PRIVACY-002',
-  'PRIVACY-003',
-  'PRIVACY-004',
-  'REL-API-003',
-  'REL-API-005',
-  'REL-URL-001',
-  'REL-URL-003',
-  'REL-URL-009',
-  'SEC-ASVS-003',
-  'SEC-PASSIVE-003',
-  'SEO-ONPAGE-006',
-  'SEO-SOCIAL-001',
-  'SEO-STRUCT-001',
-  'SEO-TECH-001',
-  'SEO-TECH-002',
-  'SEO-TECH-004',
-  'SEO-TECH-005',
-  'SEO-TECH-008',
-  'SEO-TECH-009',
-  'SEO-TECH-010',
-  'SEO-TECH-013',
-  'UX-CONV-STATIC-001',
-  'UX-CONV-STATIC-002',
-  'UX-CONV-STATIC-003',
-] as const;
-
-/**
  * Header names, attribute names, markup and status codes: the developer's
  * vocabulary, which the owner-facing text leaves to the technical details.
  */
@@ -273,14 +223,12 @@ describe('the plain-language explanations', () => {
     expect(REPORT_RULES.filter((ruleId) => !EXPLAINED_RULE_IDS.includes(ruleId))).toEqual([]);
   });
 
-  it('cover every registry rule or list it as deliberately unexplained', () => {
-    const decided = new Set<string>([...EXPLAINED_RULE_IDS, ...INTENTIONALLY_UNEXPLAINED]);
-    expect(registryRules.filter((ruleId) => !decided.has(ruleId))).toEqual([]);
-    // Neither list names a rule the registry does not have, and no rule is on both.
-    expect([...decided].filter((ruleId) => !registryRules.includes(ruleId))).toEqual([]);
-    expect(
-      INTENTIONALLY_UNEXPLAINED.filter((ruleId) => EXPLAINED_RULE_IDS.includes(ruleId)),
-    ).toEqual([]);
+  // Every scored rule is explained since all 41 that were left to their
+  // technical title got an entry; a new registry rule fails here until it has
+  // one too, in both languages (the per-rule tests below).
+  it('explain every scored registry rule, and no rule the registry does not have', () => {
+    expect(registryRules.filter((ruleId) => !EXPLAINED_RULE_IDS.includes(ruleId))).toEqual([]);
+    expect(EXPLAINED_RULE_IDS.filter((ruleId) => !registryRules.includes(ruleId))).toEqual([]);
   });
 
   describe.each(EXPLAINED_RULE_IDS)('%s', (ruleId) => {
@@ -304,11 +252,13 @@ describe('the plain-language explanations', () => {
     });
   });
 
+  // A11Y-011 is informational (D-109): it never becomes an Issue row, so it has
+  // a title and no explanation, which is exactly the case this pins.
   it('degrades to the rule’s own title and id for a rule with no explanation', () => {
-    expect(findingExplainer('A11Y-002', 'en')).toBeNull();
-    expect(problemTitle('A11Y-002', 'uk')).toBe('Зображення без текстової альтернативи');
-    expect(problemTechnicalName('A11Y-002', 'en')).toBe('A11Y-002');
-    expect(findingCountsPages('A11Y-002')).toBe(false);
+    expect(findingExplainer('A11Y-011', 'en')).toBeNull();
+    expect(problemTitle('A11Y-011', 'uk')).toBe('Потрібна ручна перевірка доступності');
+    expect(problemTechnicalName('A11Y-011', 'en')).toBe('A11Y-011');
+    expect(findingCountsPages('A11Y-011')).toBe(false);
     expect(problemTitle('NEW-RULE-001', 'en')).toBe('NEW-RULE-001');
   });
 
@@ -321,6 +271,20 @@ describe('the plain-language explanations', () => {
     );
   });
 
+  // The report's general sentence says FluxRadar read the crawled pages' public
+  // responses, which is not where these findings come from.
+  it('says where the data came from for rules that do not read the crawled pages', () => {
+    for (const ruleId of ['ANALYTICS-GA-001', 'ANALYTICS-SC-004', 'REL-API-003', 'REL-API-005']) {
+      for (const language of LANGUAGES) {
+        expect(findingExplainer(ruleId, language)?.scope, `${ruleId}.${language}`).toBeTruthy();
+      }
+    }
+    expect(findingExplainer('ANALYTICS-SC-002', 'en')?.scope).toContain('Search Console');
+    // GA-002 only runs with GA connected, but reads the crawled pages' code.
+    expect(findingExplainer('ANALYTICS-GA-002', 'en')?.scope).toContain('code of the pages');
+    expect(findingExplainer('SEO-TECH-001', 'en')?.scope).toBeUndefined();
+  });
+
   it('counts pages only for rules that report at most once per page', () => {
     expect(findingCountsPages('SEC-ASVS-001')).toBe(true);
     expect(findingCountsPages('A11Y-007')).toBe(true);
@@ -329,6 +293,13 @@ describe('the plain-language explanations', () => {
     expect(findingCountsPages('SEO-TECH-006')).toBe(false);
     expect(findingCountsPages('SEO-TECH-007')).toBe(false);
     expect(findingCountsPages('UX-CONV-AI-002')).toBe(false);
+    // Per form field, per insecure file, per form, per listed check, per site.
+    expect(findingCountsPages('A11Y-004')).toBe(false);
+    expect(findingCountsPages('SEO-TECH-013')).toBe(false);
+    expect(findingCountsPages('UX-CONV-STATIC-003')).toBe(false);
+    expect(findingCountsPages('REL-API-003')).toBe(false);
+    expect(findingCountsPages('SEO-TECH-002')).toBe(false);
+    expect(findingCountsPages('ANALYTICS-SC-005')).toBe(false);
   });
 });
 
@@ -449,16 +420,16 @@ describe('the task for a developer', () => {
 
   it('keeps an unexplained rule’s technical title and adds no plain-language lines', () => {
     const text = developerTaskText({
-      ruleId: 'A11Y-002',
+      ruleId: 'A11Y-011',
       language: 'en',
-      issues: [csp(1, { ruleId: 'A11Y-002', recommendation: 'Add alt text.' })],
+      issues: [csp(1, { ruleId: 'A11Y-011', recommendation: 'Review it by hand.' })],
       allLoaded: true,
       openFindings: 1,
     });
-    expect(text?.split('\n')[0]).toBe('Task: Images without a text alternative');
+    expect(text?.split('\n')[0]).toBe('Task: Needs a manual accessibility review');
     expect(text).not.toContain('What was found:');
     expect(text).not.toContain('What to do:');
-    expect(text).toContain('Recommendation: Add alt text.');
+    expect(text).toContain('Recommendation: Review it by hand.');
   });
 
   it('says only the count when open findings exist but none is loaded', () => {
