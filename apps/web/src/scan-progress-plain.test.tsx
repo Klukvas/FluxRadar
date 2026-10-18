@@ -147,7 +147,7 @@ describe('the headline names the stage the scan is in', () => {
     show(checking('Completed', 'Running'));
 
     expect(
-      await screen.findByText('Now checking: being named by AI assistants'),
+      await screen.findByText('Now checking: whether AI assistants mention you'),
     ).toBeInTheDocument();
     // The page count belongs to the crawl and is gone once the sections run.
     expect(screen.queryByText(/pages read so far/)).toBeNull();
@@ -238,7 +238,7 @@ describe('time and where to find the result', () => {
     show(reading(4, 4), 'uk');
 
     expect(
-      await screen.findByText('Зазвичай це займає кілька хвилин. Великі сайти перевіряємо довше.'),
+      await screen.findByText('Зазвичай це триває кілька хвилин. Великі сайти перевіряємо довше.'),
     ).toBeInTheDocument();
   });
 
@@ -275,7 +275,7 @@ describe('time and where to find the result', () => {
     show(reading(4, 4), 'uk');
 
     expect(
-      await screen.findByText('Можна закрити цю сторінку — перевірка продовжиться.'),
+      await screen.findByText('Цю сторінку можна закрити: перевірка триватиме далі.'),
     ).toBeInTheDocument();
     expect(
       screen.getByText('Коли звіт буде готовий, ви знайдете його в розділі «Звіти».'),
@@ -313,7 +313,9 @@ describe('the page limit', () => {
   it('names a limit the owner set as theirs', async () => {
     show({ ...reading(4, 4), scope: { includeSubdomains: false, maxPages: 21 } }, 'uk');
 
-    expect(await screen.findByText('Ліміт, який ви задали: до 21 сторінки.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Ліміт, який ви встановили: до 21 сторінки.'),
+    ).toBeInTheDocument();
   });
 
   it('says a Free check reads the homepage only', async () => {

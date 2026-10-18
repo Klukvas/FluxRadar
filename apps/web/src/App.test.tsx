@@ -482,7 +482,7 @@ describe('refresh-safe scan routes', () => {
       '68',
     );
     // One of two sections done and none running: past the crawl, between checks.
-    expect(screen.getByText('Checking the pages we read')).toBeInTheDocument();
+    expect(screen.getByText('Checking the pages we’ve read')).toBeInTheDocument();
     // Technical internals must NOT appear anywhere on the progress screen.
     expect(screen.queryByText(/state Running/)).not.toBeInTheDocument();
     expect(screen.queryByText(/rules-v1/)).not.toBeInTheDocument();

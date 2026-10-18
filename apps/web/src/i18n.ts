@@ -1013,7 +1013,7 @@ export const copy = {
       stageQueued: 'Your check is in the queue and will start shortly.',
       stageReading: 'Reading the pages of your site',
       stageChecking: 'Now checking: {area}',
-      stageCheckingBetween: 'Checking the pages we read',
+      stageCheckingBetween: 'Checking the pages we’ve read',
       pagesRead: (count: number, shown: string) =>
         `${shown} ${count === 1 ? 'page' : 'pages'} read so far`,
       // Rough on purpose: there is no time limit on a scan to quote, and a
@@ -1030,20 +1030,20 @@ export const copy = {
         `Plan limit: up to ${shown} ${count === 1 ? 'page' : 'pages'}.`,
       scopeOwnerLimit: (count: number, shown: string) =>
         `The limit you set: up to ${shown} ${count === 1 ? 'page' : 'pages'}.`,
-      // The section being checked, as the object of "Now checking:". The plain
-      // names the example report gives the same sections, lowercased to sit
-      // mid-sentence; the developer names stay in the list below.
+      // The section being checked, as the object of "Now checking:". Plain
+      // names written for this line (they differ from the example report's
+      // section titles on purpose); the developer names stay in the list below.
       moduleAreas: {
         SEO: 'being found in search',
-        'AI SEO / GEO': 'being named by AI assistants',
-        Security: 'everyday safety settings',
+        'AI SEO / GEO': 'whether AI assistants mention you',
+        Security: 'basic security settings',
         Performance: 'how fast pages load',
         Accessibility: 'whether everyone can use the site',
         Reliability: 'whether pages work at all',
         'Content Quality': 'how your text reads',
-        Privacy: 'what the site asks of visitors',
-        'UX/Conversion': 'whether visitors get in touch',
-        Analytics: 'your own visitor numbers',
+        Privacy: 'what data the site asks visitors for',
+        'UX/Conversion': 'whether visitors can easily reach you',
+        Analytics: 'your visitor statistics',
       },
       sectionsTitle: 'What we’re checking',
       sectionsPreparing: 'The list of checks appears once your check starts.',
@@ -3023,35 +3023,35 @@ export const copy = {
       finishedAt: 'Завершено: {time}.',
       finishedUnknown: 'Перевірку завершено.',
       finalizing: 'Збираємо ваш звіт…',
-      stageQueued: 'Ваша перевірка в черзі, скоро почнемо.',
+      stageQueued: 'Ваша перевірка в черзі. Скоро почнемо.',
       stageReading: 'Читаємо сторінки вашого сайту',
       stageChecking: 'Зараз перевіряємо: {area}',
       stageCheckingBetween: 'Перевіряємо прочитані сторінки',
       pagesRead: (count: number, shown: string) => `Прочитано ${shown} ${ukPagesAccusative(count)}`,
-      typicalDuration: 'Зазвичай це займає кілька хвилин. Великі сайти перевіряємо довше.',
+      typicalDuration: 'Зазвичай це триває кілька хвилин. Великі сайти перевіряємо довше.',
       runningLong:
-        'Ця перевірка триває довше, ніж зазвичай. Вона ще не завершилася, тож можна закрити сторінку й повернутися пізніше.',
-      closePage: 'Можна закрити цю сторінку — перевірка продовжиться.',
+        'Ця перевірка триває довше, ніж зазвичай. Вона ще триває, тож можна закрити сторінку й повернутися пізніше.',
+      closePage: 'Цю сторінку можна закрити: перевірка триватиме далі.',
       whereReport: 'Коли звіт буде готовий, ви знайдете його в розділі «Звіти».',
       scopeHomepage: 'Ця перевірка читає лише головну сторінку.',
       scopePlanLimit: (count: number, shown: string) =>
         `Ліміт тарифу: до ${shown} ${ukPagesOf(count)}.`,
       scopeOwnerLimit: (count: number, shown: string) =>
-        `Ліміт, який ви задали: до ${shown} ${ukPagesOf(count)}.`,
+        `Ліміт, який ви встановили: до ${shown} ${ukPagesOf(count)}.`,
       moduleAreas: {
         SEO: 'чи вас знаходять у пошуку',
-        'AI SEO / GEO': 'чи вас називають AI-асистенти',
-        Security: 'щоденні налаштування безпеки',
+        'AI SEO / GEO': 'чи вас згадують ШІ-помічники',
+        Security: 'базові налаштування безпеки',
         Performance: 'як швидко відкриваються сторінки',
         Accessibility: 'чи всі можуть користуватися сайтом',
         Reliability: 'чи сторінки взагалі працюють',
         'Content Quality': 'як читається ваш текст',
-        Privacy: 'що сайт просить у відвідувача',
-        'UX/Conversion': 'чи відвідувачі звертаються до вас',
-        Analytics: 'ваші власні дані про відвідувачів',
+        Privacy: 'які дані сайт просить у відвідувачів',
+        'UX/Conversion': 'чи легко відвідувачу зв’язатися з вами',
+        Analytics: 'ваша статистика відвідувань',
       },
       sectionsTitle: 'Що ми перевіряємо',
-      sectionsPreparing: 'Список перевірок з’явиться, щойно перевірка почнеться.',
+      sectionsPreparing: 'Список з’явиться, щойно почнеться перевірка.',
       sectionsLabel: 'Розділи аудиту',
       openReport: 'Відкрити звіт',
       cancel: 'Скасувати перевірку',
