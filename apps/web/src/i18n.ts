@@ -113,7 +113,7 @@ export function takesUkSingular(count: number): boolean {
  * The three Ukrainian forms after a numeral — «1 річ», «2 речі», «5 речей» —
  * with the teens taking the many form however they end («11 речей»).
  */
-function ukCountForm(count: number, one: string, few: string, many: string): string {
+export function ukCountForm(count: number, one: string, few: string, many: string): string {
   const teens = Math.abs(count) % 100;
   if (teens >= 11 && teens <= 14) return many;
   if (takesUkSingular(count)) return one;

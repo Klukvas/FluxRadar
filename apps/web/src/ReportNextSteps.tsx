@@ -24,6 +24,7 @@ import type { Language } from './i18n';
 import { FreeUpsell } from './FreeUpsell';
 import { planIncludesIssueHistory, type PaidPlan } from './plan-modules';
 import { problemTitle } from './finding-explainers';
+import { ProblemEvidence } from './ProblemEvidence';
 import {
   CRAWLER_PAGE_HREF,
   nothingWasChecked,
@@ -198,7 +199,10 @@ function FixFirstRow(props: {
   return (
     <li className="fix-first__item">
       <StatusChip status={group.severity} label={labels.severity[group.severity]} />
-      <span className="fix-first__title">{title}</span>
+      <div className="fix-first__body">
+        <span className="fix-first__title">{title}</span>
+        <ProblemEvidence group={group} language={props.language} />
+      </div>
       <span className="muted fix-first__count">{labels.fixFirst.pages(group.openIssues)}</span>
       <FixFirstRowControl
         ruleId={group.ruleId}
