@@ -63,7 +63,8 @@ export async function transitionScan(
   }
   if (to === 'Running' && from === 'Queued') {
     // `startedAt` is when this run first began, not when it was last picked up.
-    // A run that was paused and resumed re-enters Queued → Running, and moving
+    // A run that re-enters Queued → Running (a platform retry, or a legacy
+    // paused scan the resume sweep put back in the queue) keeps it: moving
     // its start forward would date it after findings the earlier half already
     // recorded — which the export contract rejects outright (EXPORT-001/2).
     // The guard is a second statement rather than part of the CAS above because
@@ -86,12 +87,6 @@ function timestampChanges(
     // caller does separately; a resumed run keeps the start it already had.
     return { completedAt: null };
   }
-  if (to === 'Paused') {
-    // Not a result state. A paused run has not completed, so writing a
-    // completion time would be a plain falsehood in the report; and it has not
-    // un-started either, so its start stands.
-    return {};
-  }
   if (to === 'Queued') {
     // `startedAt` is when this *scan* first began reading the site, and both
     // queueings that reach here continue the same scan: a resume, and a
@@ -100,6 +95,11 @@ function timestampChanges(
     // the start forward would date those findings before their own scan began,
     // which the export contract rejects outright (EXPORT-001/2). The first
     // queueing has no start to keep.
+    return { completedAt: null };
+  }
+  if (to === 'Pending') {
+    // Only a legacy scan paused before it was ever queued goes back to Pending:
+    // it never started and has not finished.
     return { completedAt: null };
   }
   // Completed / Partial / Failed / Cancelled are result states.

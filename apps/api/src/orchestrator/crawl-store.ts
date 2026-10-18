@@ -1,7 +1,7 @@
-// The pages a paused scan already read.
+// The pages an interrupted scan already read.
 //
 // A checkpoint that remembered only the frontier would make "resume" a polite
-// word for "start again": the pages read before the pause would be gone, and
+// word for "start again": the pages read before the interruption would be gone, and
 // every site-level rule — duplicate titles, orphan pages, coverage — would then
 // be computed over half a site while the report still said the whole one was
 // scanned. So the snapshots are persisted, compressed, under hard bounds.

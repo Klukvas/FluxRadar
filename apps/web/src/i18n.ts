@@ -1003,11 +1003,7 @@ export const copy = {
       openReport: 'Open report',
       cancel: 'Cancel scan',
       cancelling: 'Cancelling…',
-      pause: 'Pause scan',
-      resume: 'Resume scan',
-      pauseWorking: 'Working…',
-      pausing: 'Finishing the current section, then pausing — no new pages are being read.',
-      pausedBody: 'Paused. Nothing is being read from your site; resume to continue this scan.',
+      resumingBody: 'Resuming your scan…',
       scannedUrls: '{scanned} of {discovered} pages read',
       statusPartial: 'Your report is partially ready.',
       statusFailed: 'The scan could not finish.',
@@ -1824,7 +1820,7 @@ export const copy = {
           'previous-crawl-truncated':
             'The previous scan stopped at its page limit, so part of your site was never read in it. What is missing there was not fixed; it was never checked.',
           'current-stopped-early':
-            'This scan did not finish every section — it was paused, cancelled, or a section failed — so it is a partial reading of the site rather than a picture to compare.',
+            'This scan did not finish every section — it was cancelled or a section failed — so it is a partial reading of the site rather than a picture to compare.',
           'previous-stopped-early':
             'The previous scan did not finish every section, so it is a partial reading of the site and a difference against it would not mean what it looks like.',
           'crawl-not-recorded':
@@ -2988,11 +2984,7 @@ export const copy = {
       openReport: 'Відкрити звіт',
       cancel: 'Скасувати перевірку',
       cancelling: 'Скасовуємо…',
-      pause: 'Призупинити',
-      resume: 'Продовжити',
-      pauseWorking: 'Виконуємо…',
-      pausing: 'Завершуємо поточний розділ і зупиняємось — нові сторінки вже не читаються.',
-      pausedBody: 'Призупинено. Ми нічого не читаємо з вашого сайту; натисніть «Продовжити».',
+      resumingBody: 'Відновлюємо перевірку…',
       scannedUrls: 'Прочитано {scanned} з {discovered} сторінок',
       statusPartial: 'Ваш звіт готовий частково.',
       statusFailed: 'Перевірку не вдалося завершити.',
@@ -3659,7 +3651,7 @@ export const copy = {
           'previous-crawl-truncated':
             'Попередня перевірка зупинилася на своєму лімiті сторінок, тож частину сайту в ній так і не прочитали. Те, чого там немає, не виправлено — його не перевіряли.',
           'current-stopped-early':
-            'Ця перевірка завершила не всі розділи — її поставили на паузу, скасували або розділ не вдався, — тож це часткове прочитання сайту, а не картина для порівняння.',
+            'Ця перевірка завершила не всі розділи — її скасували або розділ не вдався, — тож це часткове прочитання сайту, а не картина для порівняння.',
           'previous-stopped-early':
             'Попередня перевірка завершила не всі розділи, тож це часткове прочитання сайту, і різниця проти неї означала б не те, на що схожа.',
           'crawl-not-recorded':

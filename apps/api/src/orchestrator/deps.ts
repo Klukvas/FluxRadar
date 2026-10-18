@@ -63,7 +63,7 @@ export interface WorkerDeps {
   readonly createBingDataRunner?: () => BingDataRunner | undefined;
   readonly crawl?: WorkerCrawlOptions;
   /**
-   * How often a running attempt asks whether it has been paused or cancelled.
+   * How often a running attempt asks whether it has been cancelled.
    *
    * A poll rather than a push because the crawler asks the question before
    * every request and cannot wait for a database round trip. Tests shorten it

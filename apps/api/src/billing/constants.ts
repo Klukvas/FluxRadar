@@ -18,10 +18,11 @@ export const STATUS_REASONS = {
   /** Partial: modules usable but not all applicable checks are closed (§18). */
   incompleteChecks: 'IncompleteChecks',
   /**
-   * Paused, and what the scan was doing when it stopped. The distinction is not
-   * cosmetic: cancelling a scan paused before it was queued is still a
+   * Legacy Paused, and what the scan was doing when it stopped. The distinction
+   * is not cosmetic: cancelling a scan paused before it was queued is still a
    * pre-queue cancellation and still refunds in full (§18), which the status
-   * alone could no longer tell.
+   * alone could no longer tell. Nothing writes these any more; kept until no
+   * Paused rows remain; removed with the schema in a follow-up.
    */
   pausedPreQueue: 'UserPausedBeforeQueue',
   pausedAfterQueue: 'UserPausedAfterQueue',
@@ -51,7 +52,11 @@ export const JOB_TYPES = { scan: 'scan' } as const;
 export const JOB_STATUSES = {
   pending: 'Pending',
   claimed: 'Claimed',
-  /** Parked while its scan is paused: the drain skips it, nothing else changes. */
+  /**
+   * Parked under a legacy paused scan: the drain skips it. Nothing parks a job
+   * any more; kept until no Paused rows remain; removed with the schema in a
+   * follow-up.
+   */
   paused: 'Paused',
   done: 'Done',
 } as const;

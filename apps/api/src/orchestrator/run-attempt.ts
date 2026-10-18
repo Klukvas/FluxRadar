@@ -330,10 +330,8 @@ async function persistUxModule(
 export interface ScanAttemptFacts {
   readonly analyticsPages: readonly AnalyticsPageFact[];
   /**
-   * True when the attempt stopped because the owner asked it to, rather than
-   * because it finished. The caller decides what that means for the scan — a
-   * pause and a cancellation both stop the work, and only the scan row says
-   * which one happened.
+   * True when the attempt stopped because the owner cancelled the scan, rather
+   * than because it finished. The caller confirms it against the scan row.
    */
   readonly stopped: boolean;
 }
@@ -342,7 +340,7 @@ export interface ScanAttemptFacts {
 export const CRAWL_STAGE = 'crawl';
 
 /**
- * How an attempt is paused and resumed.
+ * How an attempt continues an interrupted run and stops on a cancellation.
  *
  * `isStopRequested` has to be synchronous and cheap — the crawler asks it
  * before every request — so the caller polls and this only reads the answer.
@@ -367,7 +365,7 @@ export interface ScanAttemptControl {
 export interface RunScanAttemptOptions {
   readonly retryModule?: string;
   /**
-   * Hard cancellation. Unlike `control.isStopRequested` — which a pause reads at
+   * Hard cancellation. Unlike `control.isStopRequested` — which is read at
    * stage boundaries — this reaches the transports, so a cancelled scan stops
    * the request already on the wire instead of paying for its answer.
    */
@@ -390,8 +388,8 @@ export async function runScanAttempt(
   const retryModule = options.retryModule;
   const signal = options.signal;
   const control = options.control;
-  // Пауза и отмена сходятся в одну проверку на границах шагов: всё, что умеет
-  // остановиться между фазами, обязано останавливаться и по отмене.
+  // Отмена проверяется на границах шагов двумя путями: опросом скана и
+  // сигналом, который уже дошёл до транспорта.
   const isStopRequested = (): boolean =>
     control?.isStopRequested() === true || signal?.aborted === true;
   const { prisma } = deps;
@@ -512,17 +510,16 @@ export async function runScanAttempt(
   }
   await progress.flush();
   // Обход отдаёт частичный результат, а не ошибку: решение о судьбе скана
-  // принимается здесь, до того как неполный обход попадёт в правила. Пауза
-  // проходит дальше — её результат сохраняется, — а отмена прекращает попытку.
+  // принимается здесь, до того как неполный обход попадёт в правила: отмена
+  // прекращает попытку.
   throwIfCancelled(scanId, signal);
   // Whether the pages a resume restored were already counted against the egress
   // allowance. The crawler hands them back inside this attempt's own result, so
   // they are what the byte count has to exclude — and only when the checkpoint
-  // says so, because an attempt paused mid-crawl never got as far as counting.
+  // says so, because an attempt stopped mid-crawl never got as far as counting.
   const countedBefore = resumedCrawl?.egressRecorded === true;
-  // The pages are persisted here, once, rather than when a pause arrives: a
-  // pause is not the only way a run stops, and a process that dies mid-module
-  // must not cost the customer a second crawl of their site.
+  // The pages are persisted here, once: a process that dies mid-module must
+  // not cost the customer a second crawl of their site.
   let crawlCheckpoint: CrawlCheckpoint =
     control === undefined
       ? EMPTY_CRAWL_CHECKPOINT
@@ -559,7 +556,7 @@ export async function runScanAttempt(
   };
   if (egress.location !== null) {
     // Counted where the crawl phase ends, before either exit below, because a
-    // pause does not give the bytes back: they crossed the proxy and are on the
+    // stop does not give the bytes back: they crossed the proxy and are on the
     // VPS's bill whether or not this attempt goes on to run a module. Counted
     // only when it actually crossed a configured location's proxy, and against
     // that location's plan, so a local fixture run and a direct crawl never
@@ -578,8 +575,7 @@ export async function runScanAttempt(
     crawlCheckpoint = { ...crawlCheckpoint, egressRecorded: true };
   }
   if (crawlResult.stoppedEarly) {
-    // Stopped before the first module: nothing was charged for, and the pages
-    // already read are stored, so resuming continues the same run.
+    // Stopped (cancelled) before the first module: nothing was charged for.
     await saveCheckpoint(CRAWL_STAGE);
     return { analyticsPages: [], stopped: true };
   }

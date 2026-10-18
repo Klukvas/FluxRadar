@@ -121,8 +121,6 @@ export function throwIfCancelled(scanId: string, signal?: AbortSignal): void {
 export type FailedAttemptDecision =
   /** Пользовательская отмена: терминализировать без refund и без retry. */
   | { readonly kind: 'cancelled' }
-  /** Пользовательская пауза: припарковать job, ничего не выбрасывая. */
-  | { readonly kind: 'paused' }
   /** Сбой платформы; retry — есть ли ещё бесплатная попытка (§18). */
   | { readonly kind: 'failure'; readonly retry: boolean };
 
@@ -130,8 +128,6 @@ export interface FailedAttemptInput {
   readonly error: unknown;
   /** Статус скана, прочитанный ПОСЛЕ исключения. */
   readonly currentStatus: string;
-  /** Запрошенная пауза, прочитанная ПОСЛЕ исключения. */
-  readonly pauseRequestedAt?: Date | null;
   readonly platformRetryCount: number;
 }
 
@@ -144,17 +140,10 @@ export interface FailedAttemptInput {
  * Отмена узнаётся двумя независимыми способами, потому что оба возможны:
  * прогон сам заметил сигнал (ScanCancelledError) либо упал по другой причине
  * уже после того, как пользователь отменил скан.
- *
- * Пауза — то же самое, но обратимое: скан, который владелец остановил, нельзя
- * ни объявить сбоем платформы, ни отправить на platform retry, потому что
- * retry стирает checkpoint — то есть ровно то, ради чего пауза и делалась.
  */
 export function decideAfterFailedAttempt(input: FailedAttemptInput): FailedAttemptDecision {
   if (input.error instanceof ScanCancelledError || input.currentStatus === 'Cancelled') {
     return { kind: 'cancelled' };
-  }
-  if (input.currentStatus === 'Paused' || (input.pauseRequestedAt ?? null) !== null) {
-    return { kind: 'paused' };
   }
   return { kind: 'failure', retry: input.platformRetryCount < 1 };
 }

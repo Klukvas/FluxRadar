@@ -2,7 +2,7 @@
 // name, and what the answer is when that record is gone.
 //
 // This is the part with no second source. A finished scan keeps no page list —
-// the stored snapshots are a paused run's evidence and every terminal path
+// the stored snapshots are an interrupted run's evidence and every terminal path
 // deletes them — so the census is read out of the re-check proof, and the tests
 // here pin both what that gives and what it cannot: a proof that was pruned, one
 // that will not decode, and one that names no page.

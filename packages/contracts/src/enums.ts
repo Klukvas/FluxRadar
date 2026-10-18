@@ -1,9 +1,10 @@
 // Canonical string values follow the export schema §16 verbatim ('Not applicable',
 // 'False Positive', 'AI SEO / GEO', ...) so that records never need re-mapping.
 
-// 'Paused' is a runtime-only state, like Pending/Queued/Running: the owner has
-// asked for the work to stop without giving up the run they already paid for.
-// It never reaches an export record (SCAN_EXPORT_STATUSES below).
+// 'Paused' is a legacy runtime-only state: scans paused before the pause feature
+// was removed. Nothing enters it any more and the resume sweep moves such rows
+// back to the queue. It never reaches an export record (SCAN_EXPORT_STATUSES
+// below). Kept until no Paused rows remain; removed with the schema in a follow-up.
 export const SCAN_RUNTIME_STATUSES = [
   'Pending',
   'Queued',
