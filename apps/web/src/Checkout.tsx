@@ -155,8 +155,13 @@ export function CheckoutPending(props: CheckoutPendingProps) {
   // without depending on the window still being there to re-render.
   const checkoutConfig = useRef<Promise<CheckoutConfig | null>>(Promise.resolve(null));
   useEffect(() => {
+    // Unreadable means no purchase report (see reportPurchaseWhenConfigReady),
+    // never a guessed price; the confirmation itself does not depend on it.
     checkoutConfig.current = apiRequest<CheckoutConfig>('/billing/checkout-config').catch(
-      () => null,
+      (error: unknown) => {
+        console.error('FluxRadar checkout config unavailable', error);
+        return null;
+      },
     );
   }, []);
 

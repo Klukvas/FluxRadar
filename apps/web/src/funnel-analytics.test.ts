@@ -443,7 +443,7 @@ describe('what a funnel step may carry', () => {
     ]);
     for (const [name, params] of funnel) {
       // How gtag delivers the event, not what it says (begin_checkout only).
-      const delivery = ['transport_type', 'event_callback'];
+      const delivery = name === 'begin_checkout' ? ['transport_type', 'event_callback'] : [];
       for (const [key, value] of Object.entries(params).filter(([k]) => !delivery.includes(k))) {
         const values = leaves(value).map(String);
         for (const text of values) {
