@@ -24,6 +24,14 @@ interface SeedIssue {
   readonly fingerprint: string;
   readonly status?: string;
   readonly module?: string;
+  readonly messagesJson?: string;
+}
+
+/** A summary group without its samples, for the tests about counting and order. */
+function countsOnly(groups: readonly Record<string, unknown>[]): Record<string, unknown>[] {
+  return groups.map((group) =>
+    Object.fromEntries(Object.entries(group).filter(([field]) => field !== 'samples')),
+  );
 }
 
 describe('issue order, rule summary and scan changes', () => {
@@ -98,6 +106,7 @@ describe('issue order, rule summary and scan changes', () => {
         rulePenalty: 0,
         scoreDelta: 0,
         observedAt: NOW,
+        messagesJson: issue.messagesJson ?? null,
       })),
     });
     await prisma.scan.update({
@@ -170,7 +179,7 @@ describe('issue order, rule summary and scan changes', () => {
       .set('Cookie', owner.cookie);
 
     expect(response.status).toBe(200);
-    expect(response.body.data).toEqual({
+    expect({ ...response.body.data, groups: countsOnly(response.body.data.groups) }).toEqual({
       total: 5,
       open: 4,
       bySeverity: { Critical: 1, High: 0, Medium: 2, Low: 1 },
@@ -185,6 +194,59 @@ describe('issue order, rule summary and scan changes', () => {
         { ruleId: 'SEO-ONPAGE-002', module: 'SEO', severity: 'Medium', issues: 3, openIssues: 2 },
         { ruleId: 'SEO-TECH-001', module: 'SEO', severity: 'Low', issues: 1, openIssues: 1 },
       ],
+    });
+  });
+
+  it("names a rule's first open findings with the evidence they recorded", async () => {
+    const app = makeApp();
+    const owner = await signUp(app, 'samples@example.com');
+    const scanId = await paidScan(owner.profileId);
+    const longTitle = 'x'.repeat(400);
+    const titleMessages = (title: string, length: number) =>
+      JSON.stringify({
+        evidence: { code: 'seo-onpage-001.evidence.too-long', params: { title, length, max: 70 } },
+        recommendation: { code: 'seo-onpage-001.recommendation', params: { min: 10, max: 70 } },
+      });
+    await seed(db.prisma, scanId, [
+      {
+        ruleId: 'SEO-ONPAGE-001',
+        severity: 'Medium',
+        fingerprint: 'd',
+        messagesJson: titleMessages('Delta', 80),
+      },
+      {
+        ruleId: 'SEO-ONPAGE-001',
+        severity: 'Medium',
+        fingerprint: 'a',
+        messagesJson: titleMessages(longTitle, 400),
+      },
+      { ruleId: 'SEO-ONPAGE-001', severity: 'Medium', fingerprint: 'b', status: 'Ignored' },
+      { ruleId: 'SEO-ONPAGE-001', severity: 'Medium', fingerprint: 'c' },
+      { ruleId: 'SEO-ONPAGE-001', severity: 'Medium', fingerprint: 'e' },
+    ]);
+
+    const response = await owner.agent
+      .get(`/scans/${scanId}/issues/summary`)
+      .set('Cookie', owner.cookie);
+
+    expect(response.status).toBe(200);
+    const [group] = response.body.data.groups;
+    // Three of the four open findings, by address; the ignored one is not work.
+    expect(
+      group.samples.map((sample: { targetUrl: string }) => sample.targetUrl.slice(-2)),
+    ).toEqual(['/a', '/c', '/d']);
+    const [first, second, third] = group.samples;
+    expect(first.messages.evidence.code).toBe('seo-onpage-001.evidence.too-long');
+    // Page text is capped: the row only shows an excerpt of it.
+    expect(first.messages.evidence.params.title).toHaveLength(300);
+    expect(first.messages.evidence.params.length).toBe(400);
+    expect(first.messages.recommendation.params).toEqual({ min: 10, max: 70 });
+    expect(third.evidence.uk).toBe('Title має довжину 80 симв. (> 70): «Delta»');
+    // A finding without codes still names its page, and nothing else.
+    expect(second).toEqual({
+      targetUrl: expect.stringMatching(/\/c$/),
+      messages: null,
+      evidence: null,
     });
   });
 
@@ -211,7 +273,7 @@ describe('issue order, rule summary and scan changes', () => {
       .get(`/scans/${scanId}/issues/summary`)
       .set('Cookie', owner.cookie);
 
-    expect(response.body.data.groups).toEqual([
+    expect(countsOnly(response.body.data.groups)).toEqual([
       {
         ruleId: 'UX-CONV-AI-002',
         module: 'UX/Conversion',
