@@ -25,20 +25,49 @@ function block(name: string): string {
   return BROWSER_LINES.slice(start, end);
 }
 
-/** Each line's code and the value names it reads (`v.text('title')`, `v.count('length')`). */
-function linesOf(name: string): ReadonlyMap<string, readonly string[]> {
+interface LineReads {
+  /** Values the line cannot do without: `v.text('title')`, `v.count('length')`. */
+  readonly required: readonly string[];
+  /** Values it uses when present: `v.optionalCount('min')`. */
+  readonly optional: readonly string[];
+}
+
+function namesRead(source: string, pattern: RegExp): readonly string[] {
+  return [...new Set([...source.matchAll(pattern)].map((match) => match[1] ?? ''))];
+}
+
+/** Each line's code and the value names it reads at its call site. */
+function linesOf(name: string): ReadonlyMap<string, LineReads> {
   const body = block(name);
   const entries = [...body.matchAll(/^ {2}'([a-z0-9.-]+)': /gm)];
   return new Map(
     entries.map((entry, index) => {
       const next = entries[index + 1]?.index ?? body.length;
       const source = body.slice(entry.index ?? 0, next);
-      const values = [...source.matchAll(/v\.(?:text|count|address)\('(\w+)'\)/g)].map(
-        (match) => match[1] ?? '',
-      );
-      return [entry[1] ?? '', [...new Set(values)]];
+      return [
+        entry[1] ?? '',
+        {
+          required: namesRead(source, /v\.(?:text|count)\('(\w+)'\)/g),
+          optional: namesRead(source, /v\.optionalCount\('(\w+)'\)/g),
+        },
+      ];
     }),
   );
+}
+
+type CatalogueCode = keyof typeof FINDING_MESSAGES;
+
+function placeholdersOfCode(code: string): readonly string[] {
+  const template = FINDING_MESSAGES[code as CatalogueCode];
+  return template === undefined ? [] : placeholdersOf(template.en);
+}
+
+/** The values of every recommendation of the same rule: where the recommended range lives. */
+function recommendationPlaceholders(evidenceCode: string): readonly string[] {
+  const rule = evidenceCode.split('.')[0] ?? '';
+  return Object.keys(FINDING_MESSAGES)
+    .filter((code) => code.startsWith(`${rule}.recommendation`))
+    .flatMap(placeholdersOfCode);
 }
 
 const EN = linesOf('EN_LINES');
@@ -50,17 +79,29 @@ describe('the plain evidence lines follow the message catalogue', () => {
     expect([...UK.keys()].sort()).toEqual([...EN.keys()].sort());
   });
 
-  it('names only codes the catalogue has', () => {
-    const unknown = [...EN.keys()].filter((code) => !(code in FINDING_MESSAGES));
+  it('names only evidence codes the catalogue has', () => {
+    const unknown = [...EN.keys()].filter(
+      (code) => !(code in FINDING_MESSAGES) || !code.split('.').includes('evidence'),
+    );
     expect(unknown).toEqual([]);
   });
 
-  it('reads only values the code is filled with', () => {
-    const misread = [...EN, ...UK].flatMap(([code, values]) => {
-      const template = FINDING_MESSAGES[code as keyof typeof FINDING_MESSAGES];
-      if (template === undefined) return [];
-      const recorded = placeholdersOf(template.en);
-      return values.filter((value) => !recorded.includes(value)).map((value) => `${code}:${value}`);
+  it('requires only values the evidence code is filled with', () => {
+    const misread = [...EN, ...UK].flatMap(([code, reads]) => {
+      const recorded = placeholdersOfCode(code);
+      return reads.required
+        .filter((value) => !recorded.includes(value))
+        .map((value) => `${code}:${value}`);
+    });
+    expect(misread).toEqual([]);
+  });
+
+  it("reads optional values only from the evidence or the rule's recommendation", () => {
+    const misread = [...EN, ...UK].flatMap(([code, reads]) => {
+      const recorded = [...placeholdersOfCode(code), ...recommendationPlaceholders(code)];
+      return reads.optional
+        .filter((value) => !recorded.includes(value))
+        .map((value) => `${code}:${value}`);
     });
     expect(misread).toEqual([]);
   });

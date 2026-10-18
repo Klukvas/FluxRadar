@@ -80,7 +80,7 @@ const CASES: readonly {
       ),
     ]),
     en: 'Name now: “Головна”, 7 characters; aim for 10–70',
-    uk: 'Назва зараз: «Головна», 7 символів, а треба 10–70',
+    uk: 'Назва зараз: «Головна», 7 символів, а треба від 10 до 70',
   },
   {
     name: 'a too-long description',
@@ -93,7 +93,7 @@ const CASES: readonly {
       ),
     ]),
     en: 'The summary is 212 characters; aim for 50–160',
-    uk: 'Опис зараз має 212 символів, а треба 50–160',
+    uk: 'Опис зараз має 212 символів, а треба від 50 до 160',
   },
   {
     name: 'a page with no H1',
@@ -122,7 +122,66 @@ const CASES: readonly {
       }),
     ]),
     en: 'Hidden from search by the meta robots tag “noindex, follow”, yet listed in the sitemap',
-    uk: 'Сторінку закрито від пошуку тегом meta robots «noindex, follow», хоча вона є в карті сайту',
+    uk: 'Сторінку приховано від пошуку тегом meta robots «noindex, follow», хоча вона є в карті сайту',
+  },
+  {
+    name: 'a canonical on another host',
+    group: groupOf('SEO-TECH-004', [
+      sample('https://mysalon.com.ua/', 'seo-tech-004.evidence.foreign-host', {
+        href: 'https://www.mysalon.com.ua/',
+        canonicalHost: 'www.mysalon.com.ua',
+        pageHost: 'mysalon.com.ua',
+      }),
+    ]),
+    en: 'The main address (canonical) points to www.mysalon.com.ua, while this page is on mysalon.com.ua',
+    uk: 'Основна адреса (canonical) вказує на www.mysalon.com.ua, а сторінка відкривається на mysalon.com.ua',
+  },
+  {
+    name: 'a broken link, named as written on the page',
+    group: groupOf('SEO-TECH-006', [
+      sample('https://mysalon.com.ua/', 'seo-tech-006.evidence', {
+        href: '/old-prices',
+        status: 404,
+        url: 'https://mysalon.com.ua/404-landing',
+      }),
+    ]),
+    en: 'The link “/old-prices” leads to error 404',
+    uk: 'Посилання «/old-prices» не працює: помилка 404',
+  },
+  {
+    name: 'a hidden page other pages link to',
+    group: groupOf('SEO-TECH-008', [
+      sample('https://mysalon.com.ua/akcii', 'seo-tech-008.evidence.header.internal-links', {
+        value: 'noindex',
+        sources: 21,
+      }),
+    ]),
+    en: 'Hidden from search by the server setting X-Robots-Tag “noindex”, yet 21 other pages link to it',
+    uk: 'Сторінку приховано від пошуку налаштуванням сервера X-Robots-Tag «noindex», хоча на неї є посилання з 21 сторінки сайту',
+  },
+  {
+    name: 'a skipped heading level',
+    group: groupOf('SEO-ONPAGE-003', [
+      sample('https://mysalon.com.ua/', 'seo-onpage-003.evidence.level-skip', {
+        from: 2,
+        to: 4,
+        outline: 'h1 → h2 → h4',
+      }),
+    ]),
+    en: 'H2 is followed straight by H4, without H3',
+    uk: 'Після H2 одразу йде H4, без H3',
+  },
+  {
+    name: 'a title shared with other pages',
+    group: groupOf('SEO-ONPAGE-004', [
+      sample('https://mysalon.com.ua/a', 'seo-onpage-004.evidence.no-canonical', {
+        count: 3,
+        pages: '/b, /c, /d',
+        title: 'Салон',
+      }),
+    ]),
+    en: 'Same name on 3 other pages: “Салон”',
+    uk: 'Така сама назва ще на 3 сторінках: «Салон»',
   },
 ];
 
@@ -244,6 +303,47 @@ describe('when the evidence cannot be read', () => {
 });
 
 describe('page text is untrusted', () => {
+  it('renders the fallback for a code that names an Object member', () => {
+    renderProblems(
+      summaryOf(
+        groupOf('SEO-ONPAGE-001', [
+          {
+            targetUrl: 'https://mysalon.com.ua/',
+            messages: {
+              evidence: { code: 'constructor', params: {} },
+              recommendation: { code: '__proto__', params: {} },
+            },
+            evidence: { en: 'Recorded sentence', uk: 'Записане речення' },
+          },
+        ]),
+      ),
+      'uk',
+    );
+
+    expect(screen.getByText('Записане речення')).toBeTruthy();
+  });
+
+  it('removes characters that draw nothing but keeps emoji joined', () => {
+    const hidden = '\u00ad\u061c\u180e\u2060\u2064\ufff9\ufffb\u{e0041}\u{e007f}';
+    renderProblems(
+      summaryOf(
+        groupOf('SEO-ONPAGE-001', [
+          sample(
+            'https://mysalon.com.ua/',
+            'seo-onpage-001.evidence.too-short',
+            { title: `Пере${hidden}карня 👩\u200d💻`, length: 9 },
+            TITLE_RANGE,
+          ),
+        ]),
+      ),
+      'en',
+    );
+
+    expect(
+      screen.getByText('Name now: “Перекарня 👩\u200d💻”, 9 characters; aim for 10–70'),
+    ).toBeTruthy();
+  });
+
   it('renders markup in a title as text', () => {
     const { container } = renderFixFirst(
       summaryOf(
@@ -287,7 +387,7 @@ describe('page text is untrusted', () => {
     expect(quoted.endsWith('…')).toBe(true);
     expect([...quoted]).toHaveLength(80);
     expect(line).not.toMatch(/[\n\u202e]/);
-    expect(line.endsWith('215 символів, а треба 10–70')).toBe(true);
+    expect(line.endsWith('215 символів, а треба від 10 до 70')).toBe(true);
   });
 
   it('keeps the full address one hover away and shows a short one', () => {
@@ -340,7 +440,7 @@ describe('the Issue Center over the real summary request', () => {
     render(<IssuesScreen scan={scan} language="uk" onError={() => {}} />);
 
     expect(
-      await screen.findByText('Назва зараз: «Головна», 7 символів, а треба 10–70'),
+      await screen.findByText('Назва зараз: «Головна», 7 символів, а треба від 10 до 70'),
     ).toBeTruthy();
     fireEvent.click(
       screen.getByRole('button', {

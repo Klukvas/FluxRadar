@@ -20,27 +20,47 @@ export const EVIDENCE_VALUE_MAX_CHARS = 80;
 export const EVIDENCE_SENTENCE_MAX_CHARS = 160;
 export const EVIDENCE_ADDRESS_MAX_CHARS = 60;
 
-// C0/C1 controls, zero-width and bidirectional formatting characters, and the
-// line/paragraph separators: none of them belongs in a one-line excerpt, and
-// the bidi ones can make an excerpt read differently from what it holds.
-const INVISIBLE_RANGES: readonly (readonly [number, number])[] = [
+// Characters that break a line or control the terminal: they become a space,
+// so "Home\nPrices" stays two words.
+const BREAKING_RANGES: readonly (readonly [number, number])[] = [
   [0x0000, 0x001f],
   [0x007f, 0x009f],
-  [0x200b, 0x200f],
-  [0x2028, 0x202e],
-  [0x2066, 0x2069],
-  [0xfeff, 0xfeff],
+  [0x2028, 0x2029],
 ];
 
-function isInvisible(character: string): boolean {
+// Characters that draw nothing: the soft hyphen, the Arabic, Mongolian and
+// word-joining format marks, zero-width spaces, bidirectional controls, the
+// BOM, interlinear annotation marks and the tag block. They are removed, not
+// spaced, so a soft hyphen inside a word leaves the word whole; the bidi ones
+// could otherwise make an excerpt read differently from what it holds. U+200D
+// (zero-width joiner) is deliberately kept: it glues emoji sequences together.
+const INVISIBLE_RANGES: readonly (readonly [number, number])[] = [
+  [0x00ad, 0x00ad],
+  [0x061c, 0x061c],
+  [0x180e, 0x180e],
+  [0x200b, 0x200c],
+  [0x200e, 0x200f],
+  [0x202a, 0x202e],
+  [0x2060, 0x2064],
+  [0x2066, 0x2069],
+  [0xfeff, 0xfeff],
+  [0xfff9, 0xfffb],
+  [0xe0000, 0xe007f],
+];
+
+function inRanges(character: string, ranges: readonly (readonly [number, number])[]): boolean {
   const codePoint = character.codePointAt(0) ?? 0;
-  return INVISIBLE_RANGES.some(([first, last]) => codePoint >= first && codePoint <= last);
+  return ranges.some(([first, last]) => codePoint >= first && codePoint <= last);
+}
+
+function visibleCharacter(character: string): string {
+  if (inRanges(character, BREAKING_RANGES)) return ' ';
+  return inRanges(character, INVISIBLE_RANGES) ? '' : character;
 }
 
 /** One line of page text: no control characters, single spaces, at most `max` characters. */
 export function cleanEvidenceText(value: string, max: number = EVIDENCE_VALUE_MAX_CHARS): string {
-  const visible = [...value].map((character) => (isInvisible(character) ? ' ' : character));
-  const flattened = visible.join('').replace(/\s+/g, ' ').trim();
+  const flattened = [...value].map(visibleCharacter).join('').replace(/\s+/g, ' ').trim();
   const codePoints = [...flattened];
   if (codePoints.length <= max) return flattened;
   return `${codePoints
@@ -133,12 +153,15 @@ function evidenceValues(params: Readonly<Record<string, string | number>>): Evid
       if (value === null) throw new MissingEvidenceValue(name);
       return value;
     },
-    address: (name) => shortAddress(text(name)),
   };
 }
 
 function plainLine(messages: NonNullable<IssueSample['messages']>, language: Language) {
-  const line = evidenceCopy[language].lines[messages.evidence.code];
+  const { lines } = evidenceCopy[language];
+  // Own keys only: a code such as "constructor" must not reach Object.prototype.
+  const line = Object.hasOwn(lines, messages.evidence.code)
+    ? lines[messages.evidence.code]
+    : undefined;
   if (line === undefined) return null;
   // The recommendation's values carry the recommended range (min–max) that the
   // evidence of a too-short or too-long value names only one end of.
