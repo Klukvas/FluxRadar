@@ -4,16 +4,19 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
- * Changed when Creem (Armitage Labs OÜ, Estonia) replaced FastSpring as
- * merchant of record and checkout provider, which also made the account email
- * travel to the provider when a checkout starts. The previous date,
+ * Changed when the measured product steps grew to the GA4 funnel: starting a
+ * check (free or paid), a finished check, viewing a report and choosing or
+ * changing a plan joined sign-up, checkout and purchase. The previous date,
+ * 28 September 2026, was Creem (Armitage Labs OÜ, Estonia) replacing FastSpring
+ * as merchant of record and checkout provider, which also made the account
+ * email travel to the provider when a checkout starts; before that,
  * 25 September 2026, was GEO's direct questions becoming closed-book and every
  * visibility answer being judged in a further request to Anthropic; before
  * that, 23 September 2026, was OpenAI becoming an active AI recipient beside
  * Anthropic, Google and Perplexity becoming opt-in recipients, the AI Action
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '28 вересня 2026 року', en: '28 September 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '19 жовтня 2026 року', en: '19 October 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -73,9 +76,10 @@ function UkrainianPrivacy(): JSX.Element {
             <strong>Аналітика сайту — лише з вашого дозволу:</strong> переглянуті сторінки
             fluxradar.net (без query string та ідентифікаторів перевірок), сайт, з якого ви
             перейшли, приблизне місцезнаходження, яке Google визначає за IP‑адресою, тип пристрою й
-            браузера та кроки в продукті — реєстрація, запуск безкоштовної перевірки, початок
-            оплати, завершена покупка (тариф і ціна). Google Analytics зберігає випадковий
-            ідентифікатор у cookies <code>_ga</code>.
+            браузера та кроки в продукті — реєстрація та вхід, запуск перевірки, завершена
+            перевірка, перегляд звіту, вибір або зміна тарифу, початок оплати, завершена покупка
+            (тариф і ціна). Google Analytics зберігає випадковий ідентифікатор у cookies{' '}
+            <code>_ga</code>.
           </li>
         </ul>
         <p>
@@ -405,8 +409,9 @@ function EnglishPrivacy(): JSX.Element {
             <strong>Site analytics, only if you allow it:</strong> pages viewed on fluxradar.net
             (without query strings or check identifiers), the referring site, an approximate
             location Google derives from your IP address, device and browser type, and product steps
-            — sign-up, starting a free check, starting checkout and a completed purchase (plan and
-            price). Google Analytics keeps a random identifier in the <code>_ga</code> cookies.
+            — sign-up and sign-in, starting a check, a finished check, viewing a report, choosing or
+            changing a plan, starting checkout and a completed purchase (plan and price). Google
+            Analytics keeps a random identifier in the <code>_ga</code> cookies.
           </li>
         </ul>
         <p>

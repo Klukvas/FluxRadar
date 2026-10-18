@@ -5,6 +5,7 @@ import type { Account } from './api';
 import { AuthScreen } from './AuthScreen';
 import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { ExampleReport } from './ExampleReport';
+import { trackFreeCheckRequested } from './funnel-analytics';
 import { HomeHero } from './HomeHero';
 import { copy, type Language } from './i18n';
 import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
@@ -118,7 +119,10 @@ export function HomeScreen(props: {
         </div>
         <HomeHero
           language={props.language}
-          onStartSite={props.onStartSite}
+          onStartSite={(site) => {
+            if (site !== null) trackFreeCheckRequested(props.signedIn);
+            props.onStartSite(site);
+          }}
           onSeePricing={() => scrollTo('pricing')}
         />
 
