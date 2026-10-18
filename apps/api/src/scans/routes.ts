@@ -26,9 +26,7 @@ import { sendOk } from '../http/envelope.ts';
 import { pageQuerySchema, pageRequestFrom } from '../http/pagination.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
-import { InvalidTransitionError } from '../billing/errors.ts';
 import { modulePlanFor } from '../orchestrator/module-plan.ts';
-import { requestScanPause, resumeScan } from '../orchestrator/pause.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 import { freeScanScope } from './free-scan-scope.ts';
@@ -68,8 +66,10 @@ const scanListQuerySchema = pageQuerySchema.extend({
 });
 const profileScanListQuerySchema = pageQuerySchema;
 
-// Paused belongs here: it is the account's in-flight scan, and the workspace
-// has to find it again after a refresh in order to offer Resume at all.
+// A legacy Paused scan belongs here: it is the account's in-flight scan until
+// the resume sweep puts it back in the queue, and the workspace has to keep
+// finding it (and offering Cancel) meanwhile. Kept until no Paused rows remain;
+// removed with the schema in a follow-up.
 const ACTIVE_SCAN_STATUSES = ['Pending', 'Queued', 'Running', 'Paused'] as const;
 // Newest first, with the id as the tie-breaker: two scans created in the same
 // millisecond must not swap places between one page and the next, which would
@@ -268,11 +268,6 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     if (scan.status === 'Completed' || scan.status === 'Cancelled') {
       throw conflict('SCAN_TERMINAL', 'scan is already terminal');
     }
-    // A paused scan has its own way back: resuming keeps the checkpoint, while
-    // re-processing here would claim a job the pause deliberately parked.
-    if (scan.status === 'Paused') {
-      throw conflict('SCAN_PAUSED', 'scan is paused; resume it instead');
-    }
     deps.enqueueScan(scan.id);
     sendOk(res, { scanId: scan.id, status: scan.status }, { status: 202 });
   });
@@ -320,64 +315,6 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     });
     deps.enqueueScan(scan.id);
     sendOk(res, { scanId: scan.id, status: 'Running', module: retryModule }, { status: 202 });
-  });
-
-  /**
-   * Stops the run without giving it up.
-   *
-   * Unlike cancelling, nothing is settled and nothing is refunded: the same
-   * scan and the same job stay in place, so resuming costs the owner nothing
-   * and grants them nothing. A running scan stops at its next stage boundary
-   * rather than mid-request, which is what keeps a half-written module from
-   * reaching the report.
-   */
-  router.post('/scans/:scanId/pause', auth, async (req, res) => {
-    const scanId = requiredParam(req.params.scanId, 'scanId');
-    const accountId = accountIdFrom(res);
-    requestRateLimiter.assertAllowedAll(
-      scanActionRules('scan-pause', accountId, req.ip ?? 'unknown'),
-    );
-    const scan = await findOwnScan(deps.prisma, accountId, scanId);
-    let paused: Awaited<ReturnType<typeof requestScanPause>>;
-    try {
-      paused = await requestScanPause(deps.prisma, scan.id, deps.now());
-    } catch (error) {
-      if (error instanceof InvalidTransitionError) {
-        throw conflict('PAUSE_NOT_ALLOWED', 'only a scan that has not finished can be paused');
-      }
-      throw error;
-    }
-    const updated = await deps.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
-    // The re-read is the authority on both halves of the answer: a worker can
-    // reach the stage boundary a running scan stops at while this request is
-    // still in flight, and `status: Paused` with `pause: pausing` would tell the
-    // owner to keep waiting for something that has already happened.
-    const state = updated.status === 'Paused' ? 'paused' : paused.state;
-    sendOk(res, { scanId: updated.id, status: updated.status, pause: state });
-  });
-
-  /** Puts a paused scan back in the queue, on the job and purchase it already has. */
-  router.post('/scans/:scanId/resume', auth, async (req, res) => {
-    const scanId = requiredParam(req.params.scanId, 'scanId');
-    const accountId = accountIdFrom(res);
-    requestRateLimiter.assertAllowedAll(
-      scanActionRules('scan-resume', accountId, req.ip ?? 'unknown'),
-    );
-    const scan = await findOwnScan(deps.prisma, accountId, scanId);
-    // Resuming is the work the purchase bought continuing, so the same paid
-    // gate applies as to starting it. No new entitlement is spent.
-    assertPaidWorkAllowed(scan, deps.now());
-    try {
-      await resumeScan(deps.prisma, scan.id, deps.now());
-    } catch (error) {
-      if (error instanceof InvalidTransitionError) {
-        throw conflict('RESUME_NOT_ALLOWED', 'only a paused scan can be resumed');
-      }
-      throw error;
-    }
-    deps.enqueueScan(scan.id);
-    const updated = await deps.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
-    sendOk(res, { scanId: updated.id, status: updated.status }, { status: 202 });
   });
 
   // DELIBERATELY NOT GUARDED by paid access. Cancelling returns no report data,

@@ -25,7 +25,8 @@ import { markResolvedAgainstPrevious } from './issue-sync.ts';
 import type { RunCoverage } from './resolution-policy.ts';
 import { loadScanCoverage, pruneCoverageProofs, type UnreadableCoverage } from './run-coverage.ts';
 import { modulePlanFor } from './module-plan.ts';
-import { ScanStopWatcher, holdJobWhilePaused, parkPausedScan } from './pause.ts';
+import { resumeIfPaused } from './legacy-paused-scans.ts';
+import { ScanStopWatcher } from './stop-watcher.ts';
 import type { WorkerDeps } from './deps.ts';
 import {
   JOB_LEASE_MS,
@@ -44,6 +45,10 @@ const activeScanIds = new Set<string>();
 export interface ScanProcessResult {
   readonly scanId: string;
   readonly status: ScanRuntimeStatus;
+  /**
+   * `Paused` only ever describes a legacy paused scan read as it is: nothing
+   * parks a run any more, and the resume sweep puts such a scan back in the queue.
+   */
   readonly outcome: 'Completed' | 'Partial' | 'Failed' | 'Cancelled' | 'Queued' | 'Paused';
   readonly refundId: string | null;
 }
@@ -155,19 +160,11 @@ async function processClaimedJob(
       }
       const status = scan.status as ScanRuntimeStatus;
       if (status === 'Pending') {
-        // A pause recorded while the scan is still Pending has to park it from
-        // Pending: §18 reads that state back out of the status reason when the
-        // scan is cancelled later, and a run queued first is parked as "paused
-        // after start", which drops the full pre-queue refund the owner is owed.
-        // The window is one write wide — requestScanPause records the flag
-        // before it parks — and this is the read that races it.
-        if (scan.pauseRequestedAt !== null) {
-          return await settleStoppedScan(deps, scanId, activeJobId, 'paused');
-        }
-        // Losing this compare-and-set means the pause parked the scan, or a
-        // cancel took it, between the read above and here. The re-read below
-        // settles the job against whatever won instead of throwing out of the
-        // loop with the job still claimed.
+        // Losing this compare-and-set means a cancel took the scan between the
+        // read above and here. The re-read below settles the job against
+        // whatever won instead of throwing out of the loop with the job still
+        // claimed. A stray `pauseRequestedAt` left by the removed pause feature
+        // is deliberately not read: the run continues.
         await tryTransitionScan(prisma, scanId, 'Pending', 'Queued', deps.now?.());
       }
       const afterQueue = await prisma.scan.findUnique({ where: { id: scanId } });
@@ -178,12 +175,13 @@ async function processClaimedJob(
         await finishJob(prisma, activeJobId);
         return resultFromExisting(scanId, afterQueue.status as ScanRuntimeStatus);
       }
-      // A pause that arrived while this job was being claimed must be honoured
-      // before any outbound work — and before the start, so the run is parked
-      // from the state it actually reached rather than from a Running it entered
-      // only to stop again.
-      if (afterQueue.status === 'Paused' || afterQueue.pauseRequestedAt !== null) {
-        return await settleStoppedScan(deps, scanId, activeJobId, 'paused');
+      if (afterQueue.status === 'Paused') {
+        // A legacy paused scan whose job was claimed anyway — lease recovery
+        // hands a crashed claim back to the drain whatever its scan's status.
+        // It is resumed here, on the job this worker already holds, and the
+        // loop re-reads it: Queued runs on, a cancel that won is settled.
+        await resumeIfPaused(prisma, scanId, deps.now?.() ?? new Date());
+        continue;
       }
       if (afterQueue.status === 'Queued') {
         // A user cancel can land between the read above and this transition.
@@ -199,8 +197,7 @@ async function processClaimedJob(
       // Two readers of the same fact, because they answer different questions.
       // The watcher owns the AbortSignal that reaches safe-fetch and the AI
       // adapters, so a cancel stops the request already on the wire; the stop
-      // watcher is what the attempt consults at stage boundaries, and it is the
-      // only one that can tell a pause from a cancel.
+      // watcher is what the attempt consults at stage boundaries.
       const stopWatcher = new ScanStopWatcher(prisma, scanId, deps.stopPollMs);
       const cancellation = watchScanCancellation(prisma, scanId, {
         onPollError: (error: unknown) =>
@@ -212,9 +209,11 @@ async function processClaimedJob(
         await cancellation.ready;
         const now = deps.now?.() ?? new Date();
         const resumeFrom = await loadScanCheckpoint(prisma, scanId, now);
-        // A checkpoint written by a process that stopped mid-run is read here,
-        // not only after an explicit pause: after a restart the job is requeued
-        // and this is what stops the finished stages being run again.
+        // A checkpoint written by a process that stopped mid-run is read here:
+        // after a restart the job is requeued and this is what stops the
+        // finished stages being run again. A legacy paused scan the resume
+        // sweep put back in the queue continues from its checkpoint the same
+        // way; an expired or missing one just means a fresh crawl.
         const facts = await runScanAttempt(deps, scanId, {
           ...(moduleFromRetryJob(jobType) !== undefined
             ? { retryModule: moduleFromRetryJob(jobType) }
@@ -237,14 +236,13 @@ async function processClaimedJob(
           },
         });
         if (facts.stopped) {
-          // Why it stopped decides everything that follows: a pause parks the
-          // job and keeps the checkpoint, a cancel is terminal and throws it
-          // away. Reading the reason before branching is what keeps a cancelled
-          // run from being parked as if it could still be resumed.
-          const stopReason = await stopWatcher.refresh();
-          return stopReason === 'cancelled'
-            ? await finishCancelledScan(prisma, scanId, activeJobId)
-            : await settleStoppedScan(deps, scanId, activeJobId, stopReason);
+          // Only a cancellation stops an attempt now. An attempt that reports a
+          // stop the scan row does not confirm is not a result to settle: it
+          // falls through to the failure branch below like any other defect.
+          if ((await stopWatcher.refresh()) || (await isCancelled(prisma, scanId))) {
+            return await finishCancelledScan(prisma, scanId, activeJobId);
+          }
+          throw new Error(`worker: attempt for ${scanId} stopped without a cancellation`);
         }
         if (await isCancelled(prisma, scanId)) {
           // The attempt finished its last phase just as the cancel landed.
@@ -299,7 +297,6 @@ async function processClaimedJob(
         const decision = decideAfterFailedAttempt({
           error,
           currentStatus: current.status,
-          pauseRequestedAt: current.pauseRequestedAt,
           platformRetryCount: current.platformRetryCount,
         });
         // A cancelled scan did exactly what the user asked for. Treating it as
@@ -309,14 +306,6 @@ async function processClaimedJob(
         if (decision.kind === 'cancelled') {
           logger.info('scan cancelled during execution', { scanId });
           return await finishCancelledScan(prisma, scanId, activeJobId);
-        }
-        // A pause is the same story with the opposite ending: the run is meant
-        // to continue later, so the failure branch below — which clears the
-        // checkpoint and spends the platform retry — would destroy exactly what
-        // the pause was for.
-        if (decision.kind === 'paused') {
-          logger.info('scan paused during execution', { scanId });
-          return await settleStoppedScan(deps, scanId, activeJobId, 'paused');
         }
         logger.error('scan execution failed', {
           scanId,
@@ -382,109 +371,7 @@ async function processClaimedJob(
   }
 }
 
-/**
- * Settles a run the owner stopped: paused, or cancelled while it was running.
- *
- * A pause is not an outcome — nothing is scored, nothing is refunded and the
- * purchase is untouched, because the run has not been given up on. The job is
- * parked rather than finished, so resuming claims the same job instead of
- * creating a second one. A cancellation is already terminal by the time the
- * attempt notices it, so there is nothing left to do but release the job.
- */
-async function settleStoppedScan(
-  deps: WorkerDeps,
-  scanId: string,
-  jobId: string,
-  stopReason: 'paused' | 'cancelled' | null,
-): Promise<ScanProcessResult> {
-  const { prisma } = deps;
-  const scan = await prisma.scan.findUnique({ where: { id: scanId } });
-  if (scan === null) {
-    throw new Error(`worker: scan ${scanId} disappeared after it was stopped`);
-  }
-  if (stopReason === 'cancelled' || scan.status === 'Cancelled') {
-    return await releaseStoppedJob(prisma, scanId, jobId, scan.status as ScanRuntimeStatus);
-  }
-  if (scan.status === 'Running' || scan.status === 'Queued' || scan.status === 'Pending') {
-    // One transaction, so a resume landing between the two writes cannot leave
-    // the job parked under a scan that is already back in the queue.
-    if (!(await tryParkPausedScan(prisma, scanId, scan.status, deps.now?.()))) {
-      // The owner's own park — `requestScanPause` parks from the same state a
-      // moment after it records the flag — or a cancel won the compare-and-set
-      // since the read above. Two writers agreeing on a stop is an ordinary
-      // outcome, not an error: throwing here left the job claimed until the
-      // lease sweep recovered it minutes later, so the run settles against
-      // whichever writer actually won instead.
-      const winner = await prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
-      deps.logger.info('scan park lost to another writer', { scanId, winner: winner.status });
-      if (winner.status === 'Cancelled') {
-        // Nothing else releases this job: `cancelScan` settles the scan and the
-        // money and does not touch the queue.
-        return await releaseStoppedJob(prisma, scanId, jobId, 'Cancelled');
-      }
-      // A pause winner parks scan and job in one transaction, so this normally
-      // changes nothing; it re-reads under a row lock, which is also what makes
-      // it a no-op for a scan a resume has already put back in the queue.
-      await holdJobWhilePaused(prisma, scanId);
-    }
-  } else {
-    // The scan already read `Paused` — the pause parked its job in the same
-    // transaction that set the status, so this normally changes nothing. It
-    // stays as the guard for a job that was claimed just before that write,
-    // and it re-checks the status under a lock because the read above is old
-    // enough for a resume to have happened since.
-    await holdJobWhilePaused(prisma, scanId);
-  }
-  const paused = await prisma.scan.findUniqueOrThrow({ where: { id: scanId } });
-  return {
-    scanId,
-    status: paused.status as ScanRuntimeStatus,
-    outcome: paused.status === 'Paused' ? 'Paused' : 'Queued',
-    refundId: null,
-  };
-}
-
-/**
- * Releases the job of a run that has already settled terminally.
- *
- * The scan is `Cancelled` — `cancelScan` owns that transition and the refund
- * that goes with it — so nothing here continues the run: the job is finished
- * rather than parked, and the checkpoint and stored pages that only a resume
- * could have used go with it.
- */
-async function releaseStoppedJob(
-  prisma: PrismaClient,
-  scanId: string,
-  jobId: string,
-  status: ScanRuntimeStatus,
-): Promise<ScanProcessResult> {
-  await finishJob(prisma, jobId);
-  await clearScanCheckpoint(prisma, scanId);
-  await clearCrawlEvidence(prisma, scanId);
-  return resultFromExisting(scanId, status);
-}
-
-/** Парковка паузы; false — гонку за переход выиграл кто-то другой. */
-async function tryParkPausedScan(
-  prisma: PrismaClient,
-  scanId: string,
-  from: 'Pending' | 'Queued' | 'Running',
-  now: Date | undefined,
-): Promise<boolean> {
-  try {
-    await parkPausedScan(prisma, scanId, from, now);
-    return true;
-  } catch (error) {
-    // Only the compare-and-set losing is expected here. A connection failure or
-    // a constraint violation is a real error and must not be read as a race.
-    if (error instanceof InvalidTransitionError) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-/** Атомарный переход; false — гонку выиграл кто-то другой (пауза или отмена). */
+/** Атомарный переход; false — гонку выиграл кто-то другой (отмена). */
 async function tryTransitionScan(
   prisma: PrismaClient,
   scanId: string,

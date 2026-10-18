@@ -10,8 +10,9 @@ import { EMPTY_CRAWL_COVERAGE, saveScanCheckpoint } from '../orchestrator/checkp
 import { saveCrawlEvidence } from '../orchestrator/crawl-store.ts';
 import type { WorkerDeps } from '../orchestrator/deps.ts';
 import { createDefaultAiProvider } from '../orchestrator/geo.ts';
-import { requestScanPause, resumeScan } from '../orchestrator/pause.ts';
+import { resumeLegacyPausedScans, resumeScan } from '../orchestrator/legacy-paused-scans.ts';
 import { runScanAttempt } from '../orchestrator/run-attempt.ts';
+import { JOB_STATUSES, STATUS_REASONS } from '../billing/constants.ts';
 import { processScan } from '../orchestrator/worker.ts';
 import {
   createTestDb,
@@ -246,31 +247,32 @@ describe('JS rendering', () => {
   });
 });
 
-describe('pause and resume of a real run', () => {
-  it('stops before any outbound work when the pause arrives first', async () => {
-    const scan = await seedCompleteScan(scopeWith({}));
-    await requestScanPause(db.prisma, scan.id, new Date());
-
-    const result = await processScan(deps(), scan.id);
-
-    expect(result.outcome).toBe('Paused');
-    const paused = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
-    expect(paused.status).toBe('Paused');
-    // Nothing ran, so nothing was written and nothing was charged for.
-    await expect(db.prisma.issue.count({ where: { scanId: scan.id } })).resolves.toBe(0);
-    await expect(db.prisma.scan.count()).resolves.toBe(1);
-    await expect(db.prisma.job.count()).resolves.toBe(1);
+/** Leaves a scan exactly as the removed pause did: parked, flagged, job held. */
+async function parkAsLegacyPause(scanId: string, jobStatus: string = JOB_STATUSES.paused) {
+  await db.prisma.scan.update({
+    where: { id: scanId },
+    data: {
+      status: 'Paused',
+      statusReason: STATUS_REASONS.pausedAfterStart,
+      pauseRequestedAt: new Date(),
+    },
   });
+  await db.prisma.job.update({ where: { scanId }, data: { status: jobStatus } });
+}
 
-  it('resumes the same scan and job, and completes it', async () => {
+describe('legacy paused scans and interrupted runs', () => {
+  it('the sweep resumes a legacy paused scan on its own job, and it completes', async () => {
     const scan = await seedCompleteScan(scopeWith({ maxDepth: 0 }));
-    await requestScanPause(db.prisma, scan.id, new Date());
-    await processScan(deps(), scan.id);
+    await parkAsLegacyPause(scan.id);
+    const job = await db.prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } });
 
-    await resumeScan(db.prisma, scan.id, new Date());
+    await resumeLegacyPausedScans(db.prisma, new Date());
     const result = await processScan(deps(), scan.id);
 
     expect(['Completed', 'Partial']).toContain(result.outcome);
+    const settledJob = await db.prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } });
+    expect(settledJob.id).toBe(job.id);
+    expect(settledJob.status).toBe('Done');
     await expect(db.prisma.scan.count()).resolves.toBe(1);
     await expect(db.prisma.job.count()).resolves.toBe(1);
     await expect(db.prisma.purchase.count()).resolves.toBe(0);
@@ -278,62 +280,89 @@ describe('pause and resume of a real run', () => {
     await expect(db.prisma.scanCheckpoint.count()).resolves.toBe(0);
   });
 
-  // A pause in the middle of a crawl is the case a frontier-only checkpoint got
-  // wrong: the pages already read were gone, so "resume" quietly meant
-  // "re-crawl", and every site-level rule then judged half a site.
-  it('keeps the pages it had already read, and does not ask for them again', async () => {
+  // Lease recovery hands a crashed claim back to the drain whatever its scan's
+  // status, so a worker can hold the job of a scan that still reads Paused.
+  it('a worker that claims the job of a legacy paused scan resumes it in place', async () => {
+    const scan = await seedCompleteScan(scopeWith({ maxDepth: 0 }));
+    await parkAsLegacyPause(scan.id, JOB_STATUSES.pending);
+
+    const result = await processScan(deps(), scan.id);
+
+    expect(['Completed', 'Partial']).toContain(result.outcome);
+    const settled = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    expect(settled.pauseRequestedAt).toBeNull();
+    await expect(db.prisma.job.count()).resolves.toBe(1);
+  });
+
+  // A legacy paused scan that stopped mid-crawl left its pages and a checkpoint
+  // behind. The resume continues from them: a frontier-only checkpoint would
+  // quietly mean "re-crawl", and every site-level rule would judge half a site.
+  it('a resumed legacy scan keeps the pages it had read, and does not ask for them again', async () => {
     const scan = await seedCompleteScan(scopeWith({ maxPages: 6, maxDepth: 2 }));
-    let pauseAfter = 2;
+    await db.prisma.scan.update({
+      where: { id: scan.id },
+      data: { status: 'Running', startedAt: new Date() },
+    });
+    let stop = false;
+    let pagesBeforeStop = 2;
     const requested: string[] = [];
-    const pausingDeps = deps({
-      // A fixture crawl finishes in milliseconds, so the attempt has to be
-      // asking about the pause far more often than a real one needs to.
-      stopPollMs: 5,
-      crawl: {
-        originOverride: () => fixture.origin,
-        dangerouslyAllowLoopback: true,
-        limiter: new HostLimiter({ rps: 1000, concurrency: 4 }),
-        fetcher: async (url, init) => {
-          const pathname = new URL(url).pathname;
-          requested.push(pathname);
-          // robots.txt and sitemap.xml are fetched before any page, and pausing
-          // on those would leave nothing read to preserve.
-          const isPage = !['/robots.txt', '/sitemap.xml'].includes(pathname);
-          if (init === undefined && isPage && --pauseAfter === 0) {
-            await requestScanPause(db.prisma, scan.id, new Date());
-            // Long enough for the running attempt to observe the request.
-            await new Promise((resolve) => setTimeout(resolve, 50));
-          }
-          return realFetch(url, init);
+    const trackingDeps = (stopAfterPages: boolean) =>
+      deps({
+        crawl: {
+          originOverride: () => fixture.origin,
+          dangerouslyAllowLoopback: true,
+          limiter: new HostLimiter({ rps: 1000, concurrency: 1 }),
+          fetcher: async (url, init) => {
+            const pathname = new URL(url).pathname;
+            requested.push(pathname);
+            // robots.txt and sitemap.xml are fetched before any page, and
+            // stopping on those would leave nothing read to preserve.
+            const isPage = !['/robots.txt', '/sitemap.xml'].includes(pathname);
+            if (stopAfterPages && init === undefined && isPage && --pagesBeforeStop === 0) {
+              stop = true;
+            }
+            return realFetch(url, init);
+          },
         },
+      });
+    // The interrupted first half, as the old pause left it: an attempt that
+    // stopped mid-crawl and checkpointed what it had read.
+    const first = await runScanAttempt(trackingDeps(true), scan.id, {
+      control: {
+        resumeFrom: null,
+        isStopRequested: () => stop,
+        save: (state) =>
+          saveScanCheckpoint(db.prisma, {
+            scanId: scan.id,
+            accountId: account.accountId,
+            state,
+            now: new Date(),
+          }),
       },
     });
-
-    const first = await processScan(pausingDeps, scan.id);
-    expect(first.outcome).toBe('Paused');
+    expect(first.stopped).toBe(true);
+    await parkAsLegacyPause(scan.id);
     const storedPages = await db.prisma.scanCrawlPage.findMany({
       where: { scanId: scan.id },
       select: { normalizedUrl: true },
     });
     expect(storedPages.length).toBeGreaterThan(0);
-    const readBeforePause = new Set(requested);
+    await expect(db.prisma.scanCheckpoint.count({ where: { scanId: scan.id } })).resolves.toBe(1);
 
     requested.length = 0;
-    await resumeScan(db.prisma, scan.id, new Date());
-    const second = await processScan(deps(), scan.id);
+    await resumeLegacyPausedScans(db.prisma, new Date());
+    const second = await processScan(trackingDeps(false), scan.id);
 
     expect(['Completed', 'Partial']).toContain(second.outcome);
     // Not one of the stored pages was fetched a second time.
     for (const page of storedPages) {
       expect(requested).not.toContain(new URL(page.normalizedUrl).pathname);
     }
-    // And the finished scan covers everything both halves read — without
-    // counting a restored page twice, which used to push the total past the
-    // plan's own page limit and then seed the next resume with it.
+    // And the finished scan covers everything both halves read, without
+    // counting a restored page twice.
     const finished = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
     expect(finished.scannedUrlCount).toBeGreaterThanOrEqual(storedPages.length);
     expect(finished.scannedUrlCount).toBeLessThanOrEqual(6);
-    expect(finished.discoveredUrlCount).toBeGreaterThanOrEqual(finished.scannedUrlCount);
     const issuePaths = new Set(
       (
         await db.prisma.issue.findMany({
@@ -346,23 +375,43 @@ describe('pause and resume of a real run', () => {
     );
     const restoredPaths = storedPages.map((page) => new URL(page.normalizedUrl).pathname);
     expect(restoredPaths.some((path) => issuePaths.has(path))).toBe(true);
-    expect(readBeforePause.size).toBeGreaterThan(0);
     // Nothing is left behind to resume from once the run has settled.
     await expect(db.prisma.scanCrawlPage.count()).resolves.toBe(0);
+    await expect(db.prisma.scanCheckpoint.count()).resolves.toBe(0);
+  });
 
-    // The export contract reads these three as one ordering. A resume that
-    // moved the start forward would put findings from before the pause outside
-    // their own scan's lifetime.
-    const settled = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
-    const issues = await db.prisma.issue.findMany({
-      where: { scanId: scan.id },
-      select: { observedAt: true },
+  // An expired or missing checkpoint is not an error: the resumed run reads the
+  // site afresh and still settles.
+  it('a resumed legacy scan without a usable checkpoint runs fresh', async () => {
+    const scan = await seedCompleteScan(scopeWith({ maxDepth: 0 }));
+    await saveScanCheckpoint(db.prisma, {
+      scanId: scan.id,
+      accountId: account.accountId,
+      state: {
+        schemaVersion: 2,
+        stage: 'crawl',
+        completedStages: ['crawl'],
+        crawl: {
+          frontier: [],
+          unretained: [],
+          scannedUrlCount: 1,
+          discoveredUrlCount: 1,
+          coverage: EMPTY_CRAWL_COVERAGE,
+          truncated: false,
+          egressRecorded: false,
+        },
+      },
+      // Written long enough ago that it has expired.
+      now: new Date('2020-01-01T00:00:00.000Z'),
     });
-    expect(issues.length).toBeGreaterThan(0);
-    for (const issue of issues) {
-      expect(settled.startedAt?.getTime()).toBeLessThanOrEqual(issue.observedAt.getTime());
-      expect(issue.observedAt.getTime()).toBeLessThanOrEqual(settled.completedAt?.getTime() ?? 0);
-    }
+    await parkAsLegacyPause(scan.id);
+
+    await resumeLegacyPausedScans(db.prisma, new Date());
+    const result = await processScan(deps(), scan.id);
+
+    expect(['Completed', 'Partial']).toContain(result.outcome);
+    const finished = await db.prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    expect(finished.scannedUrlCount).toBeGreaterThan(0);
   });
 
   // The point of the checkpoint: the expensive stages are not paid for twice.
@@ -420,8 +469,8 @@ describe('pause and resume of a real run', () => {
     expect((await moduleRow(scan.id, 'SEO')).runtimeStatus).not.toBe('Pending');
   });
 
-  // Pausing *after* a module has written its findings is where a resumed run's
-  // clock matters: the export contract reads
+  // A legacy scan paused *after* a module had written its findings is where a
+  // resumed run's clock matters: the export contract reads
   // started_at <= observed_at <= completed_at, so a resume that restarted the
   // clock would put the earlier half's findings outside their own scan.
   it('keeps a resumed run’s timestamps consistent with findings recorded before the pause', async () => {

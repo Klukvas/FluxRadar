@@ -209,43 +209,6 @@ describe('decideAfterFailedAttempt', () => {
     ).toEqual({ kind: 'cancelled' });
   });
 
-  // Пауза и отмена приехали из разных дорожек и встречаются здесь. Без этой
-  // ветки приостановленный скан, чья попытка упала после паузы, уходил в
-  // Failed → Queued, а platform retry стирает checkpoint — то есть ровно то,
-  // ради чего паузу и делали.
-  it('ошибка на приостановленном скане → пауза, а не сбой платформы', () => {
-    expect(
-      decideAfterFailedAttempt({
-        error: new Error('scan is Paused, only Running scans resolve'),
-        currentStatus: 'Paused',
-        platformRetryCount: 0,
-      }),
-    ).toEqual({ kind: 'paused' });
-  });
-
-  it('запрошенная пауза на ещё Running скане тоже не сбой платформы', () => {
-    // Пауза записана, статус ещё не переведён: попытка упала в этом окне.
-    expect(
-      decideAfterFailedAttempt({
-        error: new Error('crawl transport closed mid-flight'),
-        currentStatus: 'Running',
-        pauseRequestedAt: new Date('2026-09-23T10:00:00.000Z'),
-        platformRetryCount: 0,
-      }),
-    ).toEqual({ kind: 'paused' });
-  });
-
-  it('отмена сильнее паузы: отменённый скан не паркуется как приостановленный', () => {
-    expect(
-      decideAfterFailedAttempt({
-        error: new ScanCancelledError(SCAN_ID),
-        currentStatus: 'Cancelled',
-        pauseRequestedAt: new Date('2026-09-23T10:00:00.000Z'),
-        platformRetryCount: 0,
-      }),
-    ).toEqual({ kind: 'cancelled' });
-  });
-
   it('настоящий сбой платформы сохраняет единственный бесплатный retry', () => {
     expect(
       decideAfterFailedAttempt({

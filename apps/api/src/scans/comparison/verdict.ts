@@ -9,7 +9,7 @@
 //
 //   • a crawl that stopped at its page limit never read the rest of the site,
 //     and the addresses it did not reach are missing, not removed;
-//   • a scan that was paused, cancelled, or left a module unfinished is not a
+//   • a scan that was cancelled, a legacy paused one, or one that left a module unfinished is not a
 //     picture of the site, it is a picture of a partial run;
 //   • a changed scope is a different question asked of the same site;
 //   • a crawl nobody recorded (a scan older than `Scan.crawlSummaryJson`) cannot

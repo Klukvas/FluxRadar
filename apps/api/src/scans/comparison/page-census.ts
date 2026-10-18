@@ -1,7 +1,7 @@
 // The pages of a finished scan, and the honest limits of knowing them.
 //
 // WHERE THE PAGES OF A FINISHED SCAN LIVE. Not in `ScanCrawlPage`: those rows
-// are a paused run's evidence, and every terminal path deletes them
+// are an interrupted run's evidence, and every terminal path deletes them
 // (`clearCrawlEvidence`, orchestrator/worker.ts). A Completed scan therefore has
 // no stored page list — the only surviving per-address record is the re-check
 // proof the plans that close findings write, `RuleCoverageProof`, where every

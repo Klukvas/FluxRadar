@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { SCAN_RUNTIME_STATUSES } from './enums.js';
-import {
-  PAUSABLE_SCAN_STATUSES,
-  SCAN_TRANSITIONS,
-  canTransition,
-  isTerminalScanStatus,
-} from './statuses.js';
+import { SCAN_TRANSITIONS, canTransition, isTerminalScanStatus } from './statuses.js';
 
 describe('scan state machine §18', () => {
   it('covers every runtime status in the transition map', () => {
@@ -26,19 +21,18 @@ describe('scan state machine §18', () => {
     expect(canTransition('Failed', 'Queued')).toBe(true);
   });
 
-  // Pausing stops the work without settling the scan, so it is reachable from
-  // every pre-terminal state and leads back into the queue, never straight to a
-  // result.
-  it('allows pausing before a result and resuming into the queue', () => {
-    expect(canTransition('Pending', 'Paused')).toBe(true);
-    expect(canTransition('Queued', 'Paused')).toBe(true);
-    expect(canTransition('Running', 'Paused')).toBe(true);
+  // The pause feature is gone: no state leads into Paused any more, and a legacy
+  // paused row can only go back into the queue (the automatic resume) or be
+  // cancelled — never straight to a result.
+  it('lets nothing enter Paused, and lets a legacy paused scan leave only to the queue or Cancelled', () => {
+    expect(canTransition('Pending', 'Paused')).toBe(false);
+    expect(canTransition('Queued', 'Paused')).toBe(false);
+    expect(canTransition('Running', 'Paused')).toBe(false);
     expect(canTransition('Paused', 'Queued')).toBe(true);
     expect(canTransition('Paused', 'Cancelled')).toBe(true);
-    expect(PAUSABLE_SCAN_STATUSES).toEqual(['Pending', 'Queued', 'Running']);
   });
 
-  it('never lets a pause settle a scan by itself', () => {
+  it('never lets a legacy pause settle a scan by itself', () => {
     expect(canTransition('Paused', 'Completed')).toBe(false);
     expect(canTransition('Paused', 'Partial')).toBe(false);
     expect(canTransition('Paused', 'Failed')).toBe(false);

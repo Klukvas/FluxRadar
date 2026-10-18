@@ -1,6 +1,6 @@
 import type { PrismaClient, RefundRecord } from '@prisma/client';
 
-import { pausedFromReason } from '../orchestrator/pause.ts';
+import { pausedFromReason } from '../orchestrator/legacy-paused-scans.ts';
 import { STATUS_REASONS } from './constants.ts';
 import { BillingNotFoundError, InvalidTransitionError } from './errors.ts';
 import { requestRefund } from './refund.ts';
@@ -46,8 +46,9 @@ export async function cancelScan(prisma: PrismaClient, scanId: string): Promise<
 }
 
 /**
- * Cancels a paused scan, refunding exactly as the state it was paused from
- * would have.
+ * Cancels a legacy paused scan, refunding exactly as the state it was paused
+ * from would have. Kept until no Paused rows remain; removed with the schema in
+ * a follow-up.
  *
  * Pausing does not consume the run, so a scan paused before it was ever queued
  * is still a pre-queue cancellation and still refunds in full (§18). The state

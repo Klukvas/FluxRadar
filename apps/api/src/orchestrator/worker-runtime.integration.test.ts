@@ -16,7 +16,6 @@ import type { SafeFetchResult } from '@fluxradar/safe-fetch';
 import { scanScopeSchema } from '@fluxradar/contracts';
 
 import { cancelScan } from '../billing/cancel-scan.ts';
-import { requestScanPause } from './pause.ts';
 import { silentLogger } from '../http/logger.ts';
 import { captureExecutionConfig } from '../profiles/execution-config.ts';
 import { fakePerformanceRunner } from '../test-utils/performance-fixtures.ts';
@@ -500,14 +499,11 @@ describe('cancelling a running scan', () => {
 });
 
 /**
- * Pause and cancellation were built in two different lanes, and the worker is
- * where they meet. Both stop a run in flight; everything after that differs,
- * and getting it wrong is silent in each direction — a paused run terminalized
- * as a platform failure loses the checkpoint the owner paid to keep, and a
- * cancelled run parked as paused leaves evidence behind for a run that will
- * never resume.
+ * The pause feature is gone; cancellation is the only way the owner stops a run.
+ * A `pauseRequestedAt` left behind by the old code must not stop anything: the
+ * worker no longer reads it, and a run that carries one settles like any other.
  */
-describe('stopping a running scan: pause and cancellation do not become each other', () => {
+describe('stopping a running scan: only a cancellation stops it', () => {
   let db: TestDb | undefined;
 
   afterEach(async () => {
@@ -515,53 +511,28 @@ describe('stopping a running scan: pause and cancellation do not become each oth
     db = undefined;
   });
 
-  it('a pause mid-crawl parks the run and never reads as a platform failure', async () => {
+  // A whole Complete run, unlike the stopped ones around it: under a full
+  // suite's load it outlasts the default five seconds.
+  it('a stray pause flag neither parks the run nor stops it', async () => {
     db = await createTestDb();
     const prisma = db.prisma;
     const account = await seedAccountWithProfile(prisma);
     const scan = await queueCompleteScan(prisma, account, { withPurchase: true });
+    await prisma.scan.update({ where: { id: scan.id }, data: { pauseRequestedAt: new Date() } });
 
-    // The owner pauses while the crawl is still reading pages. The stop watcher
-    // polls, so the interval is shortened rather than waited out.
     const shape: SiteShape = { policyLink: true, robotsTxt: true, pricing: true };
-    const site = siteFetcher(shape);
-    let paused = false;
-    const result = await processScan(
-      workerDeps(prisma, shape, {
-        stopPollMs: 5,
-        crawl: {
-          fetcher: async (url, init) => {
-            if (!paused && new URL(url).pathname !== '/robots.txt') {
-              paused = true;
-              await requestScanPause(prisma, scan.id, new Date());
-            }
-            return site(url, init);
-          },
-        },
-      }),
-      scan.id,
-    );
+    const result = await processScan(workerDeps(prisma, shape, { stopPollMs: 5 }), scan.id);
 
-    expect(result).toMatchObject({ outcome: 'Paused', status: 'Paused', refundId: null });
-    const stopped = await prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
-    // A pause is not an outcome: nothing is scored, nothing is refunded, and the
-    // one free platform retry is not spent on the owner's own decision.
-    expect(stopped.completedAt).toBeNull();
-    expect(stopped.platformRetryCount).toBe(0);
-    // The job is parked, not finished, so resuming claims the same one.
-    expect((await prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } })).status).not.toBe(
+    expect(['Completed', 'Partial']).toContain(result.outcome);
+    const settled = await prisma.scan.findUniqueOrThrow({ where: { id: scan.id } });
+    expect(settled.status).not.toBe('Paused');
+    expect(settled.completedAt).not.toBeNull();
+    expect((await prisma.job.findUniqueOrThrow({ where: { scanId: scan.id } })).status).toBe(
       'Done',
     );
-    // What the run got to is still there to continue from.
-    expect(await prisma.scanCheckpoint.count({ where: { scanId: scan.id } })).toBe(1);
-    // And the defect this pins: the core lane's terminalizer defaults to
-    // `PlatformFailureBeforeCompletion`, which would describe the owner's pause
-    // as a crash and take the checkpoint with it on the retry that follows.
-    const modules = await prisma.scanModule.findMany({ where: { scanId: scan.id } });
-    expect(modules.map((module) => module.statusReason)).not.toContain(
-      'PlatformFailureBeforeCompletion',
-    );
-  });
+    // A settled run leaves nothing behind to continue from.
+    expect(await prisma.scanCheckpoint.count({ where: { scanId: scan.id } })).toBe(0);
+  }, 30_000);
 
   it('a cancel after the crawl is terminal and leaves no evidence behind to resume from', async () => {
     db = await createTestDb();

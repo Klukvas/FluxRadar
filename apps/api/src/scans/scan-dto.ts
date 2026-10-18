@@ -36,7 +36,6 @@ export function toScanDto(
       scannedUrls: scan.scannedUrlCount,
       discoveredUrls: scan.discoveredUrlCount,
     },
-    pauseRequestedAt: scan.pauseRequestedAt?.toISOString() ?? null,
     startedAt: scan.startedAt?.toISOString() ?? null,
     completedAt: scan.completedAt?.toISOString() ?? null,
     createdAt: scan.createdAt.toISOString(),

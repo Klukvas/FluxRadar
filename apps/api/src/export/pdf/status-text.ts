@@ -68,6 +68,8 @@ interface StatusCopy {
     readonly cancelledBeforeQueue: string;
     readonly cancelledAfterQueue: string;
     readonly cancelledAfterStart: string;
+    // Legacy Paused reasons. Kept until no Paused rows remain; removed with the
+    // schema in a follow-up.
     readonly pausedBeforeQueue: string;
     readonly pausedAfterQueue: string;
     readonly pausedAfterStart: string;
@@ -147,9 +149,9 @@ const EN: StatusCopy = {
     cancelledAfterStart: 'cancelled after the scan had started',
     scanCancelled:
       'you stopped this audit before the section finished, so it was stopped where it stood',
-    pausedBeforeQueue: 'paused by you before the scan was queued; it can be resumed',
-    pausedAfterQueue: 'paused by you after the scan was queued; it can be resumed',
-    pausedAfterStart: 'paused by you after the scan had started; it continues where it stopped',
+    pausedBeforeQueue: 'paused before the scan was queued',
+    pausedAfterQueue: 'paused after the scan was queued',
+    pausedAfterStart: 'paused after the scan had started',
     noUsableOutput: 'no section produced a usable result',
     externalModuleFailure: 'an external service cost this scan at least one section',
     incompleteChecks: 'not every applicable check could be closed',
@@ -222,9 +224,9 @@ const UK: StatusCopy = {
     cancelledAfterStart: 'скасовано після початку перевірки',
     scanCancelled:
       'ви зупинили цю перевірку до завершення розділу, тож її спинено там, де вона була',
-    pausedBeforeQueue: 'ви призупинили її до постановки в чергу; перевірку можна продовжити',
-    pausedAfterQueue: 'ви призупинили її після постановки в чергу; перевірку можна продовжити',
-    pausedAfterStart: 'ви призупинили її після початку; перевірка продовжиться з того ж місця',
+    pausedBeforeQueue: 'призупинено до постановки в чергу',
+    pausedAfterQueue: 'призупинено після постановки в чергу',
+    pausedAfterStart: 'призупинено після початку',
     noUsableOutput: 'жоден розділ не дав придатного результату',
     externalModuleFailure: 'через зовнішній сервіс ця перевірка втратила щонайменше один розділ',
     incompleteChecks: 'вдалося закрити не всі застосовні перевірки',

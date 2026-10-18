@@ -1,6 +1,8 @@
-// What a paused run remembers, and the bounds it remembers it within.
+// What an interrupted run remembers, and the bounds it remembers it within.
 //
-// The checkpoint is the *index* of a paused scan: which stages finished, what
+// The checkpoint is the *index* of a run that stopped before it settled — a
+// process that died mid-run, or a legacy paused scan the resume sweep put back
+// in the queue: which stages finished, what
 // the crawl had left to do, and what it had already learned about the site that
 // cannot be read off a page — URLs skipped over the tariff limit, URLs robots
 // closed, errors, duplicate-URL groups. The pages themselves are not here; they
