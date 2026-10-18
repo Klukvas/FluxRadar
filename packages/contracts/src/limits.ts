@@ -86,9 +86,9 @@ export const MEDIA_PROBE_LIMITS = {
 } as const;
 
 /**
- * What a paused scan may persist so it can continue after a process restart.
+ * What an unfinished scan may persist so it can continue after a process restart.
  *
- * The checkpoint is the *index* of a paused run: which stages finished, what
+ * The checkpoint is the *index* of an interrupted run: which stages finished, what
  * was left in the frontier, and which already-read pages could not be kept.
  * The pages themselves live in the evidence store below, because a JSON column
  * is the wrong place for a site's worth of HTML.
@@ -101,7 +101,7 @@ export const SCAN_CHECKPOINT_LIMITS = {
    * a record of work already done.
    */
   maxUnretainedUrls: 2000,
-  /** Duplicate-URL groups carried across a pause (input for SEO-TECH-007). */
+  /** Duplicate-URL groups carried across an interruption (input for SEO-TECH-007). */
   maxUrlVariantGroups: 500,
   /** Per-list cap for the coverage lists: skipped, robots-blocked, errors. */
   maxCoverageEntries: 1000,
@@ -111,16 +111,16 @@ export const SCAN_CHECKPOINT_LIMITS = {
 } as const;
 
 /**
- * The pages a paused run keeps, so resuming does not re-read the site.
+ * The pages an interrupted run keeps, so resuming does not re-read the site.
  *
- * This is the expensive half of a pause and the reason it has hard bounds. A
+ * This is the expensive half of a checkpoint and the reason it has hard bounds. A
  * page that does not fit is not stored *and not silently forgotten*: its URL
  * goes back on the frontier, so the resumed scan re-reads it. The alternative —
  * keeping the URL as "done" with its evidence gone — would quietly turn a
  * resume into a partial scan wearing a full scan's label.
  */
 export const SCAN_EVIDENCE_LIMITS = {
-  /** Pages kept per paused scan. */
+  /** Pages kept per interrupted scan. */
   maxPages: 1000,
   /** Compressed size of one stored page; a larger page is re-fetched instead. */
   maxPageBytes: 512 * 1024,
