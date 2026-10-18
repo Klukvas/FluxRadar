@@ -184,4 +184,58 @@ describe('PRIVACY-002/004 consent and policy signals', () => {
     });
     expect(runRule('Privacy', 'PRIVACY-004', external)).toHaveLength(1);
   });
+
+  function homepageWith(link: string) {
+    return siteContext({
+      pages: [
+        {
+          path: '/',
+          html:
+            '<!doctype html><html lang="uk"><head><title>Головна</title></head>' +
+            `<body><main><h1>Головна</h1></main><footer>${link}</footer></body></html>`,
+        },
+      ],
+    });
+  }
+
+  it.each([
+    ['en text', '<a href="/legal">Privacy Policy</a>'],
+    ['en cookie text', '<a href="/legal/2">Cookie Policy</a>'],
+    ['en slug only', '<a href="/privacy">Read more</a>'],
+    ['en confidentiality', '<a href="/legal">Confidentiality notice</a>'],
+    ['uk конфіденційності', '<a href="/page/12">Політика конфіденційності</a>'],
+    ['uk конфіденційність', '<a href="/page/12">Конфіденційність</a>'],
+    ['uk конфіденційності та cookie', '<a href="/page/12">Політика конфіденційності та cookie</a>'],
+    ['uk приватності', '<a href="/page/12">Політика приватності</a>'],
+    ['uk приватність', '<a href="/page/12">Приватність</a>'],
+    ['uk персональних даних', '<a href="/page/12">Захист персональних&nbsp;даних</a>'],
+    ['uk кукі', '<a href="/page/12">Використання кукі</a>'],
+    ['uk slug', '<a href="/polityka-konfidentsiinosti">Документ</a>'],
+    ['uk short slug', '<a href="/konfidentsiinist/">Документ</a>'],
+    ['uk pryvatnist slug', '<a href="/pryvatnist">Документ</a>'],
+    [
+      'uk percent-encoded slug',
+      '<a href="/%D0%BF%D0%BE%D0%BB%D1%96%D1%82%D0%B8%D0%BA%D0%B0-%D0%BA%D0%BE%D0%BD%D1%84%D1%96%D0%B4%D0%B5%D0%BD%D1%86%D1%96%D0%B9%D0%BD%D0%BE%D1%81%D1%82%D1%96">Документ</a>',
+    ],
+    ['uk aria-label', '<a href="/page/12" aria-label="Політика конфіденційності">i</a>'],
+    ['uk title', '<a href="/page/12" title="Політика конфіденційності">i</a>'],
+    ['ru конфиденциальности', '<a href="/page/12">Политика конфиденциальности</a>'],
+    ['ru персональных данных', '<a href="/page/12">Обработка персональных данных</a>'],
+    ['ru slug', '<a href="/politika-konfidencialnosti">Документ</a>'],
+    ['ru personal data slug', '<a href="/personalnye-dannye">Документ</a>'],
+  ])('accepts a %s policy link', (_variant, link) => {
+    expect(runRule('Privacy', 'PRIVACY-004', homepageWith(link))).toEqual([]);
+  });
+
+  it.each([
+    ['uk refund policy', '<a href="/page/3">Політика повернення</a>'],
+    ['ru refund policy', '<a href="/page/3">Политика возврата</a>'],
+    ['ru company policy', '<a href="/politika">Политика компании</a>'],
+    ['uk private lessons', '<a href="/page/4">Приватні уроки</a>'],
+    ['uk confidential consultation', '<a href="/page/5">Конфіденційна консультація</a>'],
+    ['uk terms', '<a href="/umovy">Умови використання</a>'],
+    ['ru external policy', '<a href="https://example.net/privacy">Политика конфиденциальности</a>'],
+  ])('still reports a homepage with only a %s link', (_variant, link) => {
+    expect(runRule('Privacy', 'PRIVACY-004', homepageWith(link))).toHaveLength(1);
+  });
 });
