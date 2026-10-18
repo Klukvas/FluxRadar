@@ -100,7 +100,7 @@ export const checksCopyEn: ChecksCopy = {
         },
         {
           term: 'When the three above are reported',
-          body: 'only when the crawl finished reading the pages it set out to read. A crawl cut short by the page limit, a pause or a page that never answered cannot tell an unlinked page from an unread one, and each check then says so instead of guessing. A link the scan’s own scope excluded — another host, an excluded path, a hop past the depth limit — is not a gap: that page was never in scope to begin with.',
+          body: 'only when the crawl finished reading the pages it set out to read. A crawl cut short by the page limit or a page that never answered cannot tell an unlinked page from an unread one, and each check then says so instead of guessing. A link the scan’s own scope excluded — another host, an excluded path, a hop past the depth limit — is not a gap: that page was never in scope to begin with.',
         },
         {
           term: 'Mixed content',

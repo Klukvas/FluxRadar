@@ -344,8 +344,6 @@ export interface Scan {
     readonly scannedUrls?: number;
     readonly discoveredUrls?: number;
   };
-  /** Set while a pause has been asked for but the run has not stopped yet. */
-  readonly pauseRequestedAt?: string | null;
   /**
    * Retries already used. A Partial scan may retry one unfinished section once
    * (`moduleRetryCount < 1` on the server); absent from an older API.

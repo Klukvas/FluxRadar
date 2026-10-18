@@ -34,7 +34,6 @@ export function ScanScreen(props: {
   const t = copy[props.language].scanProgress;
   const [cancelBusy, setCancelBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState<Scan | null>(null);
-  const [pauseBusy, setPauseBusy] = useState(false);
   const cancelTrigger = useRef<HTMLButtonElement>(null);
   const cancelDialog = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -135,8 +134,10 @@ export function ScanScreen(props: {
   const terminal = isTerminalScanStatus(scan.status);
   const reportFinalizing = terminal && scan.reportReady === false;
   const finishedAt = formatTimestamp(scan.completedAt, props.language);
-  const paused = scan.status === 'Paused';
-  const pausing = !paused && scan.pauseRequestedAt != null && !terminal;
+  // A legacy paused scan, from before the pause feature was removed: the server
+  // puts it back in the queue on its own, so it reads as resuming rather than
+  // as a state the owner has to act on. Kept until no Paused rows remain.
+  const resuming = scan.status === 'Paused';
   const cancel = async () => {
     setCancelBusy(true);
     try {
@@ -168,32 +169,6 @@ export function ScanScreen(props: {
       props.onError(caught instanceof Error ? caught.message : 'Cancel failed');
     } finally {
       setCancelBusy(false);
-    }
-  };
-  /**
-   * Stops the run, or starts it again — on the same scan.
-   *
-   * Neither call creates anything: a pause parks the work that has already been
-   * paid for and a resume picks it up where the last one stopped, so the button
-   * pair is deliberately separate from Cancel, which ends the run for good. The
-   * response is not the scan, so the screen re-reads it rather than guessing
-   * what the new state is.
-   */
-  const setPaused = async (next: 'pause' | 'resume') => {
-    setPauseBusy(true);
-    try {
-      await apiRequest(`/scans/${scan.id}/${next}`, { method: 'POST' });
-      props.onUpdate(await apiRequest<Scan>(`/scans/${scan.id}`));
-    } catch (caught) {
-      props.onError(
-        caught instanceof Error
-          ? caught.message
-          : next === 'pause'
-            ? 'Pause failed'
-            : 'Resume failed',
-      );
-    } finally {
-      setPauseBusy(false);
     }
   };
   return (
@@ -228,8 +203,8 @@ export function ScanScreen(props: {
             <p className="muted">
               {/* Before the sections are planned there is nothing to count, and
                   "0 of 0 audit sections done" read like a scan with no work. */}
-              {paused
-                ? t.pausedBody
+              {resuming
+                ? t.resumingBody
                 : scan.progress.totalModules === 0
                   ? t.runningPreparing
                   : fillCopy(t.running, {
@@ -261,7 +236,6 @@ export function ScanScreen(props: {
                 ? 'Можна закрити цю сторінку — перевірка продовжиться.'
                 : 'You can close this page; the scan continues.'}
             </p>
-            {pausing ? <p className="muted">{t.pausing}</p> : null}
           </>
         )}
       </Panel>
@@ -300,15 +274,6 @@ export function ScanScreen(props: {
           </Button>
         ) : (
           <>
-            {/* Pause before Cancel, and visually quieter: one of them can be
-                undone and the other cannot. */}
-            <Button
-              onClick={() => void setPaused(paused ? 'resume' : 'pause')}
-              variant={paused ? 'primary' : undefined}
-              disabled={pauseBusy || pausing}
-            >
-              {pauseBusy ? t.pauseWorking : paused ? t.resume : t.pause}
-            </Button>
             <details className="scan-secondary-actions">
               <summary className="button">
                 {props.language === 'uk' ? 'Інші дії' : 'More actions'}
@@ -369,7 +334,7 @@ export function ScanScreen(props: {
   );
 }
 
-/** The cancellation policy follows the state a paused scan was paused from. */
+/** The cancellation policy follows the state a legacy paused scan was paused from. */
 function cancellationRefundCategory(scan: Scan): 'pre-queue' | 'after-queue' {
   return scan.status === 'Pending' || scan.statusReason === 'UserPausedBeforeQueue'
     ? 'pre-queue'
