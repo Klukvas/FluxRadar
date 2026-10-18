@@ -125,6 +125,21 @@ function ukCountForm(count: number, one: string, few: string, many: string): str
 export const ukProblemsAccusative = (count: number): string =>
   ukCountForm(count, 'проблему', 'проблеми', 'проблем');
 
+/** Genitive, after «з» or «до»: «з 21 сторінки», «до 5 000 сторінок». */
+export const ukPagesOf = (count: number): string =>
+  takesUkSingular(count) ? 'сторінки' : 'сторінок';
+
+/**
+ * Accusative, as the direct object of a verb: «копіює 1 сторінку», «2
+ * сторінки», «5 сторінок».
+ *
+ * Three forms, not two: 2–4 take «сторінки» where 5 and up take «сторінок»,
+ * and the teens are the exception to both — 11–14 are «сторінок» however they
+ * end, while 21 is «сторінку» again.
+ */
+export const ukPagesAccusative = (count: number): string =>
+  ukCountForm(count, 'сторінку', 'сторінки', 'сторінок');
+
 /** «річ» after a numeral, as the subject of «перевірено»: «1 річ», «2 речі», «5 речей». */
 const ukThings = (count: number): string => ukCountForm(count, 'річ', 'речі', 'речей');
 

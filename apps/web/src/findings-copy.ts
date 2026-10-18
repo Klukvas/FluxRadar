@@ -6,7 +6,13 @@
 // shared file is already far past the size anyone can review, and these screens
 // are read together.
 
-import { takesUkSingular, ukProblemsAccusative, type Language } from './i18n';
+import {
+  takesUkSingular,
+  ukPagesAccusative,
+  ukPagesOf,
+  ukProblemsAccusative,
+  type Language,
+} from './i18n';
 import { BASIC_PRICE } from './tariff-prices';
 
 export type FindingsCopy = {
@@ -226,24 +232,8 @@ const enFindings = (count: number): string => (count === 1 ? 'finding' : 'findin
 
 /** Locative, after «на»: «на 1 сторінці», «на 61 сторінці», «на 5 сторінках». */
 const ukPagesOn = (count: number): string => (takesUkSingular(count) ? 'сторінці' : 'сторінках');
-/** Genitive, after «з»: «з 21 сторінки», «з 59 сторінок». */
-const ukPagesOf = (count: number): string => (takesUkSingular(count) ? 'сторінки' : 'сторінок');
-/**
- * Accusative, as the direct object of a verb: «копіює 1 сторінку», «2
- * сторінки», «5 сторінок».
- *
- * Three forms, not two: 2–4 take «сторінки» where 5 and up take «сторінок»,
- * and the teens are the exception to both — 11–14 are «сторінок» however they
- * end, while 21 is «сторінку» again.
- */
-export const ukPagesAccusative = (count: number): string => {
-  const teens = Math.abs(count) % 100;
-  if (teens >= 11 && teens <= 14) return 'сторінок';
-  const last = Math.abs(count) % 10;
-  if (last === 1) return 'сторінку';
-  return last >= 2 && last <= 4 ? 'сторінки' : 'сторінок';
-};
 
+export { ukPagesAccusative };
 export const findingsCopy: Record<Language, FindingsCopy> = {
   en: {
     severity: { Critical: 'Critical', High: 'High', Medium: 'Medium', Low: 'Low' },
