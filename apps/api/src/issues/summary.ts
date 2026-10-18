@@ -26,6 +26,7 @@ import {
 } from '../integrations/crawl-egress-locations.ts';
 import { recordedEgressLocation } from '../profiles/execution-config.ts';
 import { findPreviousReadableScan } from '../scans/previous-scan.ts';
+import { openIssueSamples, sampleKey, type IssueSample } from './summary-samples.ts';
 
 /** Statuses that still ask the owner for work. The rest are settled. */
 export const OPEN_ISSUE_STATUSES = ['New', 'Acknowledged', 'Reopened'] as const;
@@ -36,6 +37,8 @@ export interface RuleGroup {
   readonly severity: string;
   readonly issues: number;
   readonly openIssues: number;
+  /** The rule's first open findings, so a row can name the page and what was found there. */
+  readonly samples: readonly IssueSample[];
 }
 
 export interface IssueSummary {
@@ -117,7 +120,7 @@ function toCountedRow(row: {
 }
 
 export async function summarizeIssues(prisma: PrismaClient, scanId: string): Promise<IssueSummary> {
-  const [all, open] = await Promise.all([
+  const [all, open, samples] = await Promise.all([
     prisma.issue.groupBy({
       by: ['ruleId', 'module', 'severity'],
       where: { scanId },
@@ -128,6 +131,7 @@ export async function summarizeIssues(prisma: PrismaClient, scanId: string): Pro
       where: { scanId, status: { in: [...OPEN_ISSUE_STATUSES] } },
       _count: { _all: true },
     }),
+    openIssueSamples(prisma, scanId, OPEN_ISSUE_STATUSES),
   ]);
   const openByKey = foldByRule(open.map(toCountedRow));
   const groups = [...foldByRule(all.map(toCountedRow)).values()]
@@ -137,6 +141,7 @@ export async function summarizeIssues(prisma: PrismaClient, scanId: string): Pro
       severity: row.severity,
       issues: row.count,
       openIssues: openByKey.get(groupKey(row))?.count ?? 0,
+      samples: samples.get(sampleKey(row.ruleId, row.module)) ?? [],
     }))
     .sort(compareGroups);
   // Counted from the findings' own severities, not from the folded rows: a rule

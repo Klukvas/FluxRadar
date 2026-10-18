@@ -31,7 +31,10 @@ export interface LocalizedFindingText {
 
 export type LocalizedFindingTexts = Readonly<Record<FindingLanguage, LocalizedFindingText>>;
 
-export function localizedFindingTexts(messagesJson: string | null): LocalizedFindingTexts | null {
+export type StoredFindingMessages = z.infer<typeof messagesSchema>;
+
+/** The message codes and values stored with a finding, or null when there are none to read. */
+export function storedFindingMessages(messagesJson: string | null): StoredFindingMessages | null {
   if (messagesJson === null) return null;
   let raw: unknown;
   try {
@@ -42,8 +45,13 @@ export function localizedFindingTexts(messagesJson: string | null): LocalizedFin
     return null;
   }
   const parsed = messagesSchema.safeParse(raw);
-  if (!parsed.success) return null;
-  const { evidence, recommendation } = parsed.data;
+  return parsed.success ? parsed.data : null;
+}
+
+export function localizedFindingTexts(messagesJson: string | null): LocalizedFindingTexts | null {
+  const messages = storedFindingMessages(messagesJson);
+  if (messages === null) return null;
+  const { evidence, recommendation } = messages;
   return Object.fromEntries(
     FINDING_LANGUAGES.map((language) => {
       const evidenceText = renderFindingMessage(evidence, language);

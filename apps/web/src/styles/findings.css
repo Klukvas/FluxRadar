@@ -283,6 +283,24 @@
 .fix-first__count {
   white-space: nowrap;
 }
+/* The title and, under it, the pages the problem was found on. min-width: 0
+   lets a long address wrap inside the grid track instead of widening it. */
+.fix-first__body {
+  min-width: 0;
+}
+.problem-evidence {
+  margin: var(--sp-1) 0 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 400;
+}
+.problem-evidence__item,
+.problem-evidence__more {
+  overflow-wrap: anywhere;
+}
+.problem-evidence__page {
+  margin-right: var(--sp-2);
+}
 
 .changes-grid {
   display: grid;

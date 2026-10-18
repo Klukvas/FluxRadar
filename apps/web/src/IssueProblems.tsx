@@ -10,6 +10,7 @@ import type { IssueSummary } from './api';
 import { Button, DataTable, EmptyState, StatusChip } from './components';
 import { findingCountsPages, problemSupportCode, problemTitle } from './finding-explainers';
 import { ProblemExplainer } from './FindingExplainer';
+import { ProblemEvidence } from './ProblemEvidence';
 import { findingsCopy } from './findings-copy';
 import { copy, type Language } from './i18n';
 import { moduleLabel } from './rule-titles';
@@ -77,6 +78,9 @@ export function IssueProblems(props: {
                 {/* Why it matters and what to do, in view: they are what the
                     owner reads the list for. What the check measured is one
                     click down, under "Technical details". */}
+                {/* The pages it was found on and what each one has now, so the
+                    row is about this site before it is about the rule. */}
+                <ProblemEvidence group={group} language={props.language} />
                 <ProblemExplainer ruleId={group.ruleId} language={props.language} />
               </td>
               <td data-label={f.issues.columnPages}>
