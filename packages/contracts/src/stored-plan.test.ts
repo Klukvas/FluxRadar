@@ -8,6 +8,7 @@ import {
   isLegacyPlan,
   readStoredPlan,
   storedPlanLabel,
+  storedPlanRetentionDays,
   storedPlanScoreWeights,
 } from './stored-plan.js';
 import { TARIFFS, planSupports } from './tariffs.js';
@@ -83,5 +84,11 @@ describe('stored plan read model', () => {
       readable: false,
     });
     expect(parsed.success).toBe(true);
+  });
+
+  it('keeps a legacy report as long as the longest-kept current one', () => {
+    expect(storedPlanRetentionDays('WebsiteAudit')).toBe(365);
+    expect(storedPlanRetentionDays('Legacy')).toBe(TARIFFS.Complete.retentionDays);
+    expect(storedPlanRetentionDays('Basic')).toBe(TARIFFS.Basic.retentionDays);
   });
 });

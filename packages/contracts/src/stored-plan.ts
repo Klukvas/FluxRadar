@@ -76,3 +76,16 @@ export function storedPlanScoreWeights(
   if (!isLegacyPlan(plan)) return TARIFFS[plan].scoreWeights;
   return normalizeScoreWeights(COMPLETE_SCORE_WEIGHTS, storedModules);
 }
+
+/**
+ * How long a stored scan's report is kept.
+ *
+ * A legacy plan has no tariff row, so it is kept as long as the longest-kept
+ * current report (Complete's 365 days, which is also what Website Audit
+ * promised): never purged earlier than it was sold with, and never kept forever
+ * just because its plan string is no longer known.
+ */
+export function storedPlanRetentionDays(plan: StoredPlan): number {
+  if (!isLegacyPlan(plan)) return TARIFFS[plan].retentionDays;
+  return Math.max(...Object.values(TARIFFS).map((tariff) => tariff.retentionDays));
+}
