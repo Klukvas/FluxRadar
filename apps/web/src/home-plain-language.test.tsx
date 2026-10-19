@@ -188,10 +188,10 @@ describe('example report on the home page', () => {
 
 // A standard's name means nothing to an owner until it has been said in their
 // words. On the home page the plain name comes first and the standard follows in
-// parentheses. The SEO card's foot is the one exception: its wording is matched
-// verbatim by apps/api/src/export/check-count-parity.test.ts.
+// parentheses. There is no exception any more: the SEO card's foot, which the
+// check-count parity test matches, is a plain phrase too.
 describe('home page names standards after plain words', () => {
-  const STANDARDS = /OWASP ASVS|ASVS|WCAG|canonical|JSON-LD|GEO/g;
+  const STANDARDS = /OWASP ASVS|ASVS|OWASP|WCAG|canonical|JSON-LD|GEO/g;
 
   function homeSentences(language: Language): readonly string[] {
     const home = copy[language].home;
@@ -200,17 +200,7 @@ describe('home page names standards after plain words', () => {
       home.hero.lede,
       home.hero.note,
       ...home.hero.example.findings.flatMap((finding) => [finding.problem, finding.action]),
-      home.capabilities.seo.title,
-      home.capabilities.seo.body,
-      home.capabilities.ai.title,
-      home.capabilities.ai.body,
-      home.capabilities.integrity.body,
-      home.coverageEntry.body,
-      copy[language].pricing.cards.basic.included,
-      copy[language].pricing.cards.websiteAudit.notIncluded,
-      copy[language].pricing.cards.complete.included,
-      copy[language].pricing.explainer.rows.included.basic,
-      copy[language].pricing.explainer.rows.notIncluded.websiteAudit,
+      ...belowHeroSentences(language),
     ];
   }
 
@@ -229,5 +219,104 @@ describe('home page names standards after plain words', () => {
   // The hero lede is the first thing an owner reads under the title.
   it.each(LANGUAGES)('drops "operating picture" from the hero lede (%s)', (language) => {
     expect(copy[language].home.hero.lede).not.toMatch(/operating picture|картину/i);
+  });
+});
+
+/** Every string leaf of a copy object, in source order. */
+function leaves(value: unknown): readonly string[] {
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.flatMap(leaves);
+  if (value !== null && typeof value === 'object') return Object.values(value).flatMap(leaves);
+  return [];
+}
+
+/**
+ * Everything the home page says below the hero and the example report: what
+ * the report shows, what we check, how it works, the pricing block and the last
+ * call. A persona review of salon, clinic and law-office owners still tripped
+ * over each term the next test bans, all of them in these sections.
+ */
+function belowHeroSentences(language: Language): readonly string[] {
+  const home = copy[language].home;
+  return [
+    ...leaves(home.capabilities),
+    ...leaves(home.coverageEntry),
+    ...leaves(home.workflow),
+    ...leaves(home.lastCall),
+    home.pricingTitle,
+    home.pricingLead,
+    home.pricingEyebrow,
+    ...leaves(copy[language].pricing),
+  ];
+}
+
+describe('home page below the hero, in an owner’s words', () => {
+  // Words an owner cannot act on. Standards that still help (OWASP, WCAG) are
+  // allowed, in parentheses, by the test above; these are not allowed at all.
+  const JARGON =
+    /canonical|JSON-LD|robots\.txt|meta description|structured data|структурован|click depth|глибин\S* клік|internal link|перелінков|deterministic|детермінован|ASVS|2\.2 AA|EN 301 549|Section 508|false certainty|фальшив|UX\/|Issue Center|crawler|краулер|AI-асистент|AI-робот|crawl/i;
+
+  it.each(LANGUAGES)('uses none of the terms owners tripped over (%s)', (language) => {
+    const hits = belowHeroSentences(language).filter((sentence) => JARGON.test(sentence));
+    expect(hits).toEqual([]);
+  });
+
+  it('says “ШІ” rather than “AI” in Ukrainian', () => {
+    const hits = belowHeroSentences('uk').filter((sentence) => /\bAI\b/.test(sentence));
+    expect(hits).toEqual([]);
+  });
+
+  // Owner rule: a headline is a sentence, a verb or a colon, never “X — Y”.
+  it.each(LANGUAGES)('keeps dash constructions out of the headlines (%s)', (language) => {
+    const home = copy[language].home;
+    const pricing = copy[language].pricing;
+    const headlines = [
+      home.capabilities.title,
+      home.capabilities.seo.title,
+      home.capabilities.ai.title,
+      home.capabilities.integrity.title,
+      home.coverageEntry.title,
+      home.workflow.title,
+      home.workflow.step1Title,
+      home.workflow.step2Title,
+      home.workflow.step3Title,
+      `${home.lastCall.titleLine1} ${home.lastCall.titleEm}`,
+      home.pricingTitle,
+      pricing.explainer.title,
+    ];
+    expect(headlines.filter((headline) => /\s[—–-]\s/.test(headline))).toEqual([]);
+  });
+
+  // The visitors could not tell Basic from Website Audit. Each card now opens
+  // with one line on who it is for, and the three lines say three things.
+  it.each(LANGUAGES)('gives every plan one short line on who it is for (%s)', (language) => {
+    const cards = copy[language].pricing.cards;
+    const lines = [cards.basic, cards.websiteAudit, cards.complete].map((card) => card.description);
+    for (const line of lines) expect(line.length).toBeLessThanOrEqual(120);
+    expect(new Set(lines).size).toBe(3);
+    expect(cards.basic.description).toMatch(/Google/);
+    expect(cards.websiteAudit.description).not.toMatch(/Google/);
+  });
+
+  // The coverage entry is a list now; the full technical one stays a link away.
+  it.each(LANGUAGES)('lists what we check and links to every check (%s)', (language) => {
+    const home = copy[language].home.coverageEntry;
+    expect(home.items.length).toBeGreaterThanOrEqual(5);
+    expect(copy[language].pricing.coverageLink).toMatch(/→$/);
+  });
+
+  // Prices are read from the tariff table, never written into the copy.
+  it.each(LANGUAGES)('writes no price by hand below the hero (%s)', (language) => {
+    const pricing = copy[language].pricing;
+    const priced = new Set([
+      pricing.cards.basic.price,
+      pricing.cards.websiteAudit.price,
+      pricing.cards.complete.price,
+    ]);
+    const handWritten = belowHeroSentences(language)
+      .filter((sentence) => !priced.has(sentence))
+      .flatMap((sentence) => sentence.match(/\$\d+/g) ?? [])
+      .filter((price) => ![...priced].some((tariff) => tariff.startsWith(price)));
+    expect(handWritten).toEqual([]);
   });
 });
