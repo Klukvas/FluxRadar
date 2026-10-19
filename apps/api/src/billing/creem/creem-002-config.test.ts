@@ -80,48 +80,40 @@ describe('CREEM-002 configuration', () => {
     expect(overridden.config.apiBaseUrl).toBe('http://127.0.0.1:4010');
   });
 
-  // A plan whose product does not exist at the provider yet must not take the
-  // deployment — or the plans that do exist — down with it.
-  describe('an optional product id', () => {
-    it('boots, and keeps selling the existing plans, without the Website Audit product', () => {
+  // Every paid plan's product id is required; only the return URL may be absent.
+  describe('product ids', () => {
+    it('sells Basic and Complete, and only the return URL is optional', () => {
       const result = readCreemConfig(COMPLETE_ENV);
       expect(result.state).toBe('configured');
       if (result.state !== 'configured') return;
-      expect(result.config.productIds.WebsiteAudit).toBeUndefined();
       expect(isCreemPlanPurchasable(result.config, 'Basic')).toBe(true);
       expect(isCreemPlanPurchasable(result.config, 'Complete')).toBe(true);
-      expect(isCreemPlanPurchasable(result.config, 'WebsiteAudit')).toBe(false);
-      expect(OPTIONAL_CREEM_ENV_VARS).toContain(CREEM_ENV_VARS.productIdWebsiteAudit);
-      expect(OPTIONAL_CREEM_ENV_VARS).toContain(CREEM_ENV_VARS.returnUrl);
+      expect(OPTIONAL_CREEM_ENV_VARS).toEqual([CREEM_ENV_VARS.returnUrl]);
     });
 
-    it('never resolves an unmapped plan from a foreign or empty product id', () => {
+    it('never resolves a plan from a foreign or empty product id', () => {
       const result = readCreemConfig(COMPLETE_ENV);
       if (result.state !== 'configured') throw new Error('expected a configured environment');
-      // The bug this guards: `config.productIds.WebsiteAudit` is `undefined`,
-      // and an order that names no product would match it by `=== undefined`.
       expect(creemPlanForProductId(result.config, '')).toBeNull();
       expect(creemPlanForProductId(result.config, '   ')).toBeNull();
       expect(creemPlanForProductId(result.config, 'prod_someone_elses')).toBeNull();
     });
 
-    it('sells the plan once the product id is configured', () => {
+    // The retired Website Audit product id is no longer read: a deployment that
+    // still sets it neither sells the plan nor matches an order to it.
+    it('ignores the retired Website Audit product id', () => {
       const result = readCreemConfig({
         ...COMPLETE_ENV,
         CREEM_PRODUCT_ID_WEBSITE_AUDIT: 'prod_website_audit',
       });
       expect(result.state).toBe('configured');
       if (result.state !== 'configured') return;
-      expect(isCreemPlanPurchasable(result.config, 'WebsiteAudit')).toBe(true);
-      expect(creemPlanForProductId(result.config, 'prod_website_audit')).toBe('WebsiteAudit');
+      expect(Object.keys(result.config.productIds).sort()).toEqual(['Basic', 'Complete']);
+      expect(creemPlanForProductId(result.config, 'prod_website_audit')).toBeNull();
     });
 
-    it('still refuses a half-set environment that omits a required product', () => {
-      const result = readCreemConfig({
-        ...COMPLETE_ENV,
-        CREEM_PRODUCT_ID_COMPLETE: '',
-        CREEM_PRODUCT_ID_WEBSITE_AUDIT: 'prod_website_audit',
-      });
+    it('refuses a half-set environment that omits a required product', () => {
+      const result = readCreemConfig({ ...COMPLETE_ENV, CREEM_PRODUCT_ID_COMPLETE: '' });
       expect(result.state).toBe('invalid');
       if (result.state !== 'invalid') return;
       expect(result.missing).toEqual([CREEM_ENV_VARS.productIdComplete]);
@@ -139,7 +131,6 @@ describe('CREEM-002 configuration', () => {
     expect(result.missing).toContain(CREEM_ENV_VARS.webhookSecret);
     expect(result.missing).toContain(CREEM_ENV_VARS.productIdBasic);
     expect(result.missing).toContain(CREEM_ENV_VARS.productIdComplete);
-    expect(result.missing).not.toContain(CREEM_ENV_VARS.productIdWebsiteAudit);
     expect(result.missing).not.toContain(CREEM_ENV_VARS.returnUrl);
     expect(result.reason).not.toContain('creem-api-key-value');
     expect(result.reason).toContain(CREEM_ENV_VARS.webhookSecret);

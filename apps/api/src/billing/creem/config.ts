@@ -71,7 +71,6 @@ export const CREEM_ENV_VARS = {
   returnUrl: 'CREEM_RETURN_URL',
   productIdBasic: 'CREEM_PRODUCT_ID_BASIC',
   productIdComplete: 'CREEM_PRODUCT_ID_COMPLETE',
-  productIdWebsiteAudit: 'CREEM_PRODUCT_ID_WEBSITE_AUDIT',
 } as const;
 
 /** The web app's origin; the return URL is derived from it when none is stated. */
@@ -79,19 +78,8 @@ export const FRONTEND_ORIGIN_ENV = 'FRONTEND_ORIGIN';
 
 const PRODUCT_ID_VARS: Readonly<Record<PaidPlan, string>> = {
   Basic: CREEM_ENV_VARS.productIdBasic,
-  WebsiteAudit: CREEM_ENV_VARS.productIdWebsiteAudit,
   Complete: CREEM_ENV_VARS.productIdComplete,
 };
-
-/**
- * The plans whose product id this deployment refuses to boot without.
- *
- * Basic and Complete have been sold from the start, so an environment that
- * configures Creem at all and forgets one of them is misconfigured rather than
- * deliberately narrowed. Website Audit is newer, so its absence is a plan that
- * cannot be bought yet, not a broken checkout.
- */
-const REQUIRED_PRODUCT_ID_PLANS: readonly PaidPlan[] = ['Basic', 'Complete'];
 
 /**
  * Creem variable names this deployment may be missing and still boot.
@@ -100,16 +88,12 @@ const REQUIRED_PRODUCT_ID_PLANS: readonly PaidPlan[] = ['Basic', 'Complete'];
  * CREEM_* variable present turns the provider from "not configured" into a set
  * that is judged as a whole — which is why the deploy wiring test insists every
  * name it knows is forwarded into the release. These names are the exception
- * the reader itself makes: absent, they do not invalidate anything. A missing
- * product id only means the plan behind it cannot be bought here yet, and a
- * missing return URL is derived from FRONTEND_ORIGIN.
+ * the reader itself makes: absent, they do not invalidate anything. Every paid
+ * plan's product id is required — an environment that configures Creem at all
+ * and forgets one is misconfigured — so only the return URL, derived from
+ * FRONTEND_ORIGIN, is left.
  */
-export const OPTIONAL_CREEM_ENV_VARS: readonly string[] = [
-  ...PAID_PLANS.filter((plan) => !REQUIRED_PRODUCT_ID_PLANS.includes(plan)).map(
-    (plan) => PRODUCT_ID_VARS[plan],
-  ),
-  CREEM_ENV_VARS.returnUrl,
-];
+export const OPTIONAL_CREEM_ENV_VARS: readonly string[] = [CREEM_ENV_VARS.returnUrl];
 
 const LIVE_API_BASE_URL = 'https://api.creem.io';
 const TEST_API_BASE_URL = 'https://test-api.creem.io';
@@ -144,10 +128,8 @@ export function readCreemConfig(env: NodeJS.ProcessEnv = process.env): CreemConf
   const webhookSecret = require(CREEM_ENV_VARS.webhookSecret);
   const productIds = Object.fromEntries(
     PAID_PLANS.flatMap((plan) => {
-      const value = REQUIRED_PRODUCT_ID_PLANS.includes(plan)
-        ? require(PRODUCT_ID_VARS[plan])
-        : trimmed(env[PRODUCT_ID_VARS[plan]]);
-      return value === null || value === '' ? [] : [[plan, value] as const];
+      const value = require(PRODUCT_ID_VARS[plan]);
+      return value === '' ? [] : [[plan, value] as const];
     }),
   ) as Readonly<Partial<Record<PaidPlan, string>>>;
 

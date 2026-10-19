@@ -24,6 +24,7 @@
 // same tokens in both languages and are what a reader would search the
 // provider's own console for.
 
+import type { LegacyPlan } from '@fluxradar/contracts';
 import type { FindingLanguage } from '@fluxradar/rules';
 
 import type { IncomparableCode } from '../../integrations/performance/index.ts';
@@ -33,6 +34,8 @@ export interface ReportCopy {
   readonly preparedFor: (domain: string) => string;
   readonly generated: (timestamp: string) => string;
   readonly plan: string;
+  /** A retired plan's name on an old report (stored-plan.ts). */
+  readonly legacyPlans: Readonly<Record<LegacyPlan, string>>;
   readonly scanned: string;
   readonly score: string;
   readonly noScore: string;
@@ -145,6 +148,7 @@ const EN: ReportCopy = {
   preparedFor: (domain) => `Website report for ${domain}`,
   generated: (timestamp) => `Generated ${timestamp}`,
   plan: 'Plan',
+  legacyPlans: { WebsiteAudit: 'Website Audit (archived)', Legacy: 'Archived plan' },
   scanned: 'Scanned',
   score: 'Score',
   noScore: 'Not scored',
@@ -245,6 +249,7 @@ const UK: ReportCopy = {
   preparedFor: (domain) => `Звіт про сайт ${domain}`,
   generated: (timestamp) => `Сформовано ${timestamp}`,
   plan: 'Тариф',
+  legacyPlans: { WebsiteAudit: 'Website Audit (архів)', Legacy: 'Архівний тариф' },
   scanned: 'Проскановано',
   score: 'Оцінка',
   noScore: 'Без оцінки',

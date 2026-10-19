@@ -206,8 +206,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
       unavailableReason: null,
       optInAiProviders: [],
     });
-    // Exactly the two plans on sale. Website Audit is still honoured for what
-    // was bought, and is not listed even where its product is configured (below).
+    // Exactly the two paid plans there are.
     expect(config.body.data.plans).toEqual([
       { plan: 'Basic', priceUsd: 39, currency: 'USD', available: true },
       { plan: 'Complete', priceUsd: 87, currency: 'USD', available: true },
@@ -635,11 +634,13 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(await db.prisma.checkoutSession.count({ where: { status: 'rejected' } })).toBe(2);
   });
 
-  it('lists no Website Audit even on a deployment that still has its product', async () => {
+  // A deployment may still forward the retired Website Audit product id
+  // (deploy.yml); the reader ignores it, so the catalogue does not grow.
+  it('lists exactly Basic and Complete even where a retired product id is still set', async () => {
     const app = buildApp({
       creem: readCreemConfig({ ...CONFIG_ENV, CREEM_PRODUCT_ID_WEBSITE_AUDIT: 'prod_wa' }),
     });
-    const { agent, cookie } = await signIn(app, 'config-wa@example.com');
+    const { agent, cookie } = await signIn(app, 'config-retired@example.com');
     const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
     expect(config.status).toBe(200);
     expect(config.body.data.plans.map((entry: { plan: string }) => entry.plan)).toEqual([
@@ -648,31 +649,30 @@ describe('CREEM-004 checkout HTTP surface', () => {
     ]);
   });
 
-  // Withdrawn from sale on 2026-10-19. The refusal is the documented 409
-  // PLAN_NOT_OFFERED, before a session row exists or Creem is called — with or
-  // without a Website Audit product configured.
-  it.each([
-    ['without', CONFIG_ENV],
-    ['with', { ...CONFIG_ENV, CREEM_PRODUCT_ID_WEBSITE_AUDIT: 'prod_wa' }],
-  ])('refuses a new Website Audit checkout %s its product configured', async (_label, env) => {
-    const calls: StubCall[] = [];
-    const app = buildApp({
-      creem: readCreemConfig(env),
-      fetchImpl: stubCreem({ body: pendingCheckout('ch_never') }, calls),
-    });
-    const { agent, cookie, profileId } = await signIn(app, `wa-${_label}@example.com`);
-    const refused = await agent
-      .post('/billing/checkout-session')
-      .set('Cookie', cookie)
-      .send({ siteProfileId: profileId, plan: 'WebsiteAudit', scope: SCOPE });
+  // A plan that is not sold — the retired Website Audit, or any other string —
+  // is not a plan the request schema knows: a 400 before a session row exists
+  // or Creem is called.
+  it.each(['WebsiteAudit', 'Enterprise'])(
+    'refuses a checkout for the unknown plan %s at the request schema',
+    async (plan) => {
+      const calls: StubCall[] = [];
+      const app = buildApp({
+        creem: readCreemConfig({ ...CONFIG_ENV, CREEM_PRODUCT_ID_WEBSITE_AUDIT: 'prod_wa' }),
+        fetchImpl: stubCreem({ body: pendingCheckout('ch_never') }, calls),
+      });
+      const { agent, cookie, profileId } = await signIn(app, `unknown-${plan}@example.com`);
+      const refused = await agent
+        .post('/billing/checkout-session')
+        .set('Cookie', cookie)
+        .send({ siteProfileId: profileId, plan, scope: SCOPE });
 
-    expect(refused.status).toBe(409);
-    expect(refused.body.error.code).toBe('PLAN_NOT_OFFERED');
-    expect(refused.body.error.message).toMatch(/no longer offered/);
-    expect(JSON.stringify(refused.body)).not.toContain('CREEM_');
-    expect(calls).toHaveLength(0);
-    expect(await db.prisma.checkoutSession.count()).toBe(0);
-  });
+      expect(refused.status).toBe(400);
+      expect(refused.body.error.code).toBe('VALIDATION');
+      expect(JSON.stringify(refused.body)).not.toContain('CREEM_');
+      expect(calls).toHaveLength(0);
+      expect(await db.prisma.checkoutSession.count()).toBe(0);
+    },
+  );
 
   it('refuses another account profile and a scope beyond the plan limit', async () => {
     const calls: StubCall[] = [];

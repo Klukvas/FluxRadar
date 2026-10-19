@@ -205,7 +205,7 @@ describeDb('the previous scan of a scan', () => {
     });
   });
 
-  it('sees an earlier scan of another plan without letting it become the previous one', async () => {
+  it('sees an earlier legacy scan without letting it become the previous one', async () => {
     db = await createTestDb();
     const account = await seedAccountWithProfile(db.prisma);
     await completed(

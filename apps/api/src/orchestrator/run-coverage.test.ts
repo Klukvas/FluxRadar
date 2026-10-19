@@ -319,10 +319,8 @@ describe('чтение чужой записи', () => {
 describe('какие сканы вообще пишут доказательство', () => {
   it('те, кому разрешено закрывать находки (§515)', () => {
     expect(writesCoverageProof('Complete')).toBe(true);
-    // Website Audit ведёт историю issues внутри своего плана, поэтому обязан
-    // оставить доказательство: без него следующий скан того же плана не закроет
-    // ничего.
-    expect(writesCoverageProof('WebsiteAudit')).toBe(true);
+    // Архивный Website Audit больше не тариф: история issues ему не положена.
+    expect(writesCoverageProof('WebsiteAudit')).toBe(false);
     expect(writesCoverageProof('Basic')).toBe(false);
     expect(writesCoverageProof('Free')).toBe(false);
     expect(writesCoverageProof('NotAPlan')).toBe(false);

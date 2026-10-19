@@ -11,6 +11,7 @@
 // entirely rather than rendered empty.
 
 import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
+import { isLegacyPlan, readStoredPlan } from '@fluxradar/contracts';
 import type { FindingLanguage } from '@fluxradar/rules';
 
 import type { BingDataSnapshot } from '../../integrations/bing/types.ts';
@@ -171,9 +172,15 @@ function coverPage(
   doc.text('FluxRadar', { font: 'bold', size: 9, colour: 'accent' });
   doc.heading(copy.preparedFor(domain), 1);
   doc.paragraph(copy.generated(timestamp(now)), { colour: 'muted', size: 9 });
-  doc.fact(copy.plan, header.scan.plan);
+  doc.fact(copy.plan, planText(header.scan.plan, copy));
   doc.fact(copy.scanned, timestamp(header.scan.completedAt ?? header.scan.createdAt));
   doc.fact(copy.status, scanStatusText(header.scan, language));
+}
+
+/** The plan as the report names it; a retired plan is named as archived. */
+function planText(storedPlan: string, copy: ReportCopy): string {
+  const plan = readStoredPlan(storedPlan);
+  return isLegacyPlan(plan) ? copy.legacyPlans[plan] : plan;
 }
 
 function summarySection(doc: ReportDocument, header: PdfReportHeader, copy: ReportCopy): void {

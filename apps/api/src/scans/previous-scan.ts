@@ -3,10 +3,11 @@
 // "The previous scan" is a product rule, not a query detail (§14, D-110): it is
 // the scan of the same site profile, on the SAME plan, that COMPLETED most
 // recently before this one completed. Same plan because two plans read different
-// module sets — Website Audit never runs SEO — so a finding missing from the
-// other plan's report is not a fix, and comparing across plans would call every
-// SEO finding of a Complete scan "resolved" the moment a Website Audit ran
-// after it.
+// module sets — Basic never runs Security — so a finding missing from the other
+// plan's report is not a fix, and comparing across plans would call findings
+// "resolved" that the other plan simply never checked. A stored scan of a
+// retired plan (stored-plan.ts) is only ever compared with scans of that same
+// retired plan, never with a current one.
 //
 // WHY COMPLETION TIME AND NOT CREATION TIME. A Partial scan can be retried
 // module by module, and the retry re-terminalizes it: scan A ends Partial, the

@@ -4,7 +4,7 @@
 // replaced by a separate worker process without changing scan semantics.
 
 import type { ScanRuntimeStatus } from '@fluxradar/contracts';
-import { parsePlan } from '@fluxradar/contracts';
+import { isPlan, parsePlan } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
 
 import { InvalidTransitionError } from '../billing/errors.ts';
@@ -150,6 +150,14 @@ async function processClaimedJob(
       if (await isBillingBlocked(prisma, scan.purchaseId, deps.now?.() ?? new Date())) {
         // A refund/dispute overlay must not consume the paid job. The scan is
         // left in its current state for the billing/admin reconciliation flow.
+        await finishJob(prisma, activeJobId);
+        return resultFromExisting(scanId, scan.status as ScanRuntimeStatus);
+      }
+      if (!isPlan(scan.plan)) {
+        // A retired plan (stored-plan.ts) is read-only: it has no tariff or
+        // module plan to run against, so the job is closed and the scan is left
+        // exactly as it was rather than started, resumed or failed.
+        logger.warn('scan of a retired plan is not run', { scanId, plan: scan.plan });
         await finishJob(prisma, activeJobId);
         return resultFromExisting(scanId, scan.status as ScanRuntimeStatus);
       }

@@ -66,8 +66,8 @@ describe('DEPLOY-019 Creem env wiring', () => {
 
   // Pinned, so the exemption above stays a short, deliberate list rather than
   // the place a forgotten required variable quietly ends up.
-  it('exempts only the product id of a plan not sold everywhere and the derived return URL', () => {
-    expect(OPTIONAL_CREEM_ENV_VARS).toEqual(['CREEM_PRODUCT_ID_WEBSITE_AUDIT', 'CREEM_RETURN_URL']);
+  it('exempts only the derived return URL', () => {
+    expect(OPTIONAL_CREEM_ENV_VARS).toEqual(['CREEM_RETURN_URL']);
     expect(DEPLOYED_VARS).toContain(CREEM_ENV_VARS.productIdBasic);
     expect(DEPLOYED_VARS).toContain(CREEM_ENV_VARS.productIdComplete);
     expect(DEPLOYED_VARS).toContain(CREEM_ENV_VARS.webhookSecret);

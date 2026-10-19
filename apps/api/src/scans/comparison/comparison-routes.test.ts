@@ -70,13 +70,27 @@ describe('comparing a report with the previous scan', () => {
     return { agent, cookie, profileId: profile.body.data.id as string };
   }
 
-  async function buy(profileId: string, plan: 'Basic' | 'Complete' | 'WebsiteAudit' = 'Complete') {
+  async function buy(profileId: string, plan: 'Basic' | 'Complete' = 'Complete') {
     const { scanId } = await purchaseScan(db.prisma, {
       siteProfileId: profileId,
       plan,
       scope: SCOPE,
     });
     return scanId;
+  }
+
+  /** Rewrites a bought scan into a stored row of the retired Website Audit plan. */
+  async function asLegacyWebsiteAudit(scanId: string): Promise<void> {
+    const scan = await db.prisma.scan.update({
+      where: { id: scanId },
+      data: { plan: 'WebsiteAudit' },
+    });
+    if (scan.purchaseId !== null) {
+      await db.prisma.purchase.update({
+        where: { id: scan.purchaseId },
+        data: { plan: 'WebsiteAudit' },
+      });
+    }
   }
 
   /** Reverses the purchase behind a scan, as a chargeback webhook would. */
@@ -158,11 +172,14 @@ describe('comparing a report with the previous scan', () => {
     expect(response.body.error.code).toBe('REPORT_NOT_READY');
   });
 
-  it('names the other plan when every earlier scan of the site ran on one', async () => {
+  // The earlier scan is a stored row of the retired Website Audit plan: it is
+  // never the previous scan of a Complete report, and naming it does not crash.
+  it('names the other plan when every earlier scan of the site ran on a legacy one', async () => {
     const app = makeApp();
     const owner = await signUp(app, 'other-plan@example.com');
-    const earlier = await buy(owner.profileId, 'WebsiteAudit');
+    const earlier = await buy(owner.profileId, 'Complete');
     await finishScan(db.prisma, earlier, { modules: [{ module: 'Security', score: 60 }] });
+    await asLegacyWebsiteAudit(earlier);
     const current = await buy(owner.profileId, 'Complete');
     await finishScan(db.prisma, current);
 
