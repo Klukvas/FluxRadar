@@ -142,10 +142,6 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
         name: 'Basic',
         line: 'Why you are not found in Google and AI assistants: broken links, pages with no description, duplicates, what ChatGPT sees.',
       },
-      WebsiteAudit: {
-        name: 'Website Audit',
-        line: 'Whether the site itself is in good shape: security, speed, accessibility, privacy. No search.',
-      },
       Complete: {
         name: 'Complete',
         line: 'Everything together: search, AI and site health in one report.',
@@ -171,7 +167,6 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
       checksByPlan: {
         Free: 'your homepage',
         Basic: 'Google and AI assistants',
-        WebsiteAudit: 'the health of the site itself',
         Complete: 'everything together',
       },
       total: 'Total, one-time',
@@ -250,10 +245,6 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
         name: 'Basic',
         line: 'Чому вас не знаходять у Google і ШІ-помічниках: биті посилання, сторінки без опису, дублікати, що бачить ChatGPT.',
       },
-      WebsiteAudit: {
-        name: 'Website Audit',
-        line: 'Чи все гаразд із самим сайтом: безпека, швидкість, доступність, приватність. Без пошуку.',
-      },
       Complete: {
         name: 'Complete',
         line: 'Усе разом: пошук, ШІ і стан сайту в одному звіті.',
@@ -279,7 +270,6 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
       checksByPlan: {
         Free: 'головну сторінку',
         Basic: 'Google і ШІ-помічники',
-        WebsiteAudit: 'стан самого сайту',
         Complete: 'усе разом',
       },
       total: 'Разом, один раз',

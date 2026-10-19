@@ -1221,7 +1221,7 @@ describe('home pricing and workspace onboarding', () => {
     if (basic === null || complete === null) {
       throw new Error('expected both product cards');
     }
-    // Website Audit is no longer sold (2026-10-19), so it has no card.
+    // The retired Website Audit package has no card.
     expect(within(pricing).queryByRole('heading', { name: 'Website Audit' })).toBeNull();
     expect(within(pricing).getAllByRole('article')).toHaveLength(2);
 

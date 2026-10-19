@@ -7,10 +7,7 @@
 // contract file and fails if the two ever drift apart. A price that lives in one
 // place cannot be raised in the tariff table and left stale in the copy.
 
-// Website Audit is no longer sold (2026-10-19) and no copy names its price; it
-// stays here so its row is still checked against the contract that charges and
-// refunds the orders already paid for it.
-export const TARIFF_PRICES_USD = { Basic: 39, WebsiteAudit: 79, Complete: 87 } as const;
+export const TARIFF_PRICES_USD = { Basic: 39, Complete: 87 } as const;
 
 export const BASIC_PRICE = `$${TARIFF_PRICES_USD.Basic}`;
 export const COMPLETE_PRICE = `$${TARIFF_PRICES_USD.Complete}`;
@@ -33,6 +30,5 @@ export type PricedPlan = 'Free' | keyof typeof TARIFF_PRICES_USD;
 export const PLAN_PRICE: Readonly<Record<PricedPlan, string>> = {
   Free: '$0',
   Basic: BASIC_PRICE,
-  WebsiteAudit: `$${TARIFF_PRICES_USD.WebsiteAudit}`,
   Complete: COMPLETE_PRICE,
 };

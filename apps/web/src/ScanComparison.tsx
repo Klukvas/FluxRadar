@@ -110,7 +110,7 @@ function ComparisonBody(props: {
       <p className="muted" role="status">
         {comparison.comparable.ok === false && comparison.comparable.reason !== 'no-previous-scan'
           ? t.reason[comparison.comparable.reason]
-          : fillCopy(t.firstReport, { plan: planName(comparison.current.plan) })}
+          : fillCopy(t.firstReport, { plan: planName(comparison.current.plan, props.language) })}
       </p>
     );
   }
@@ -168,7 +168,7 @@ function ComparedWith(props: {
     <>
       <p className="muted">
         {fillCopy(t.since, {
-          plan: planName(previous.plan),
+          plan: planName(previous.plan, props.language),
           date: formatDate(previous.completedAt, props.language),
         })}
       </p>

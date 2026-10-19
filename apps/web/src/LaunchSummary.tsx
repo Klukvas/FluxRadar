@@ -25,9 +25,7 @@ type NewScanCopy = (typeof copy)[Language]['newScan'];
 /** What the AI row says for one plan: which AI work it buys, if any. */
 function aiValue(plan: Plan, t: NewScanCopy): string {
   const modules = PLAN_MODULES[plan];
-  if (modules.includes('AI SEO / GEO')) return t.launchSummaryEnabled;
-  if (modules.includes('UX/Conversion')) return t.launchSummaryAiUxOnly;
-  return t.launchSummaryDisabled;
+  return modules.includes('AI SEO / GEO') ? t.launchSummaryEnabled : t.launchSummaryDisabled;
 }
 
 export function LaunchSummary(props: {
@@ -90,11 +88,7 @@ export function LaunchSummary(props: {
           }
         />
       )}
-      {/* What this plan actually asks a provider, not "AI: on". Website Audit
-            runs no AI SEO / GEO at all, so calling its AI visibility "enabled"
-            would promise a section the report will not contain — while its UX
-            review does send evidence to Anthropic, so "off" would be just as
-            wrong. Each plan says its own truth. */}
+      {/* Whether this plan runs AI visibility (AI SEO / GEO) at all. */}
       <FieldRow label={t.launchSummaryAi} value={aiValue(props.plan, t)} />
       {PLAN_MODULES[props.plan].includes('Performance') ? (
         <FieldRow label={t.launchSummaryPerformance} value={t.launchSummaryPerformanceValue} />

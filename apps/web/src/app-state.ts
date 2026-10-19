@@ -7,7 +7,7 @@
 
 import { useCallback, useState } from 'react';
 
-import type { Account, Scan, SiteProfile } from './api';
+import type { Account, CurrentPlan, Scan, SiteProfile } from './api';
 import { readInitialRoute, type InitialRoute, type Screen } from './app-routes';
 import type { ChosenPlan } from './Pricing';
 
@@ -84,9 +84,7 @@ function useSelectionState() {
   // The plan the scan form opens on: chosen on the pricing cards, or from a
   // report's upgrade button (Basic from a Free report, Complete from the Action
   // Plan's locked block).
-  const [newScanPlan, setNewScanPlan] = useState<
-    'Free' | 'Basic' | 'WebsiteAudit' | 'Complete' | null
-  >(null);
+  const [newScanPlan, setNewScanPlan] = useState<CurrentPlan | null>(null);
   return {
     selectedProfile,
     setSelectedProfile,

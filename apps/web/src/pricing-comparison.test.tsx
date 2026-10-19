@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { PricingExplainer } from './Pricing';
 import { copy, type Language } from './i18n';
 import { PLAN_CAPABILITIES, PLAN_MODULES } from './plan-modules';
-import { BASIC_PRICE, COMPLETE_PRICE, TARIFF_PRICES_USD } from './tariff-prices';
+import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 
 const BASE_CSS = readFileSync(join(resolve(process.cwd()), 'src', 'styles', 'base.css'), 'utf8');
 
@@ -117,8 +117,6 @@ describe('the plain-language pricing comparison', () => {
       expect(
         within(row).getByText(new RegExp(BASIC_PRICE.replace('$', '\\$'))),
       ).toBeInTheDocument();
-      // Website Audit is no longer sold, and its price is nowhere in the comparison.
-      expect(row.textContent).not.toContain(`$${TARIFF_PRICES_USD.WebsiteAudit}`);
       expect(
         within(row).getByText(new RegExp(COMPLETE_PRICE.replace('$', '\\$'))),
       ).toBeInTheDocument();
@@ -184,13 +182,11 @@ describe('the plain-language pricing comparison', () => {
     },
   );
 
-  // Website Audit is no longer sold (2026-10-19): no card, column or answer
-  // offers it, though the mirror still knows the plan for existing reports.
+  // The retired Website Audit package has no card, column or answer.
   it.each<Language>(['en', 'uk'])('offers no Website Audit anywhere in %s', (language) => {
     const pricing = copy[language].pricing;
     expect(Object.keys(pricing.cards)).toEqual(['basic', 'complete']);
     expect(JSON.stringify(pricing)).not.toMatch(/Website Audit/);
-    expect(PLAN_MODULES.WebsiteAudit).not.toContain('SEO');
   });
 
   it('promises scan history, export and the Action Plan only where the tariff carries them', () => {
@@ -199,12 +195,6 @@ describe('the plain-language pricing comparison', () => {
       actionPlan: false,
       issueHistory: false,
     });
-    expect(PLAN_CAPABILITIES.WebsiteAudit).toEqual({
-      export: true,
-      actionPlan: true,
-      issueHistory: true,
-    });
-    expect(PLAN_CAPABILITIES.Complete).toEqual(PLAN_CAPABILITIES.WebsiteAudit);
     expect(PLAN_CAPABILITIES.Complete).toEqual({
       export: true,
       actionPlan: true,

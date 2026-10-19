@@ -53,8 +53,7 @@ export function AdvancedSection(props: { form: NewScanForm; language: Language }
         {props.form.paidScopeControls ? (
           <AdvancedCrawlRules form={props.form} language={props.language} />
         ) : null}
-        {props.form.usingSavedProfile &&
-        (props.form.plan === 'WebsiteAudit' || props.form.plan === 'Complete') ? (
+        {props.form.usingSavedProfile && props.form.plan === 'Complete' ? (
           <GoogleLaunchContext profileId={props.form.target} language={props.language} />
         ) : null}
         <SaveSettings form={props.form} language={props.language} />

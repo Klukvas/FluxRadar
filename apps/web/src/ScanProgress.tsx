@@ -177,7 +177,10 @@ export function ScanScreen(props: {
     }
   };
   return (
-    <Window title={`${t.windowTitle} · ${planName(scan.plan)}`} showInertClose={false}>
+    <Window
+      title={`${t.windowTitle} · ${planName(scan.plan, props.language)}`}
+      showInertClose={false}
+    >
       <Panel title={t.panelTitle}>
         <p className="muted">{fillCopy(t.reviewing, { domain: displayDomain(scan.domain) })}</p>
         {/* A finished scan's bar is a measurement, not a running one: the

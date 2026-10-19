@@ -149,7 +149,7 @@ export const faqCopyEn: FaqCopy = {
           question: 'Where do reports live and how long do they stay?',
           answer: [
             'Finished and in-progress scans are in Reports. A report is a snapshot of a moment: a site that changes after the scan will not match it, which is why every finding records what was seen and when.',
-            'Basic results are kept for 30 days; Complete results are kept for 365 days, and so are Website Audit results bought before that package was withdrawn.',
+            'Basic results are kept for 30 days; Complete results are kept for 365 days.',
           ],
         },
         {
@@ -200,7 +200,7 @@ export const faqCopyEn: FaqCopy = {
           answer: [
             'Basic and Complete include provider-backed AI visibility checks. FluxRadar first asks the provider to generate neutral discovery questions from the saved industry, offerings, region, audience and language settings without showing it the brand or domain; it then asks those questions and checks whether the answers mention or cite the site. Separate awareness questions do name the brand and official address.',
             'A paid audit that runs them asks both Anthropic (Claude) and OpenAI (ChatGPT), and each answers with its own web search enabled, so the report also lists the sources each one used. Google (Gemini) and Perplexity are offered as an optional extra before you buy: they are off by default and receive nothing at all unless you select them. A prominent notice before purchase names every recipient and explains what project context and public-page evidence is sent. The free homepage check never sends data to an AI provider.',
-            'On a Complete report (and on a Website Audit report bought before that package was withdrawn) you can also ask Anthropic’s Claude for an AI Action Plan: an ordered list of changes with an overview for your client. It is written only when you press its button. Sent are the site’s domain, each section’s status, score and coverage, and for each rule with open issues its name, severity, number of open issues, up to three page addresses without query strings or fragments, and the rule’s recommendations. Evidence excerpts, screenshots, traces and anything from the Analytics section are not sent.',
+            'On a Complete report you can also ask Anthropic’s Claude for an AI Action Plan: an ordered list of changes with an overview for your client. It is written only when you press its button. Sent are the site’s domain, each section’s status, score and coverage, and for each rule with open issues its name, severity, number of open issues, up to three page addresses without query strings or fragments, and the rule’s recommendations. Evidence excerpts, screenshots, traces and anything from the Analytics section are not sent.',
             'It is also not a ranking guarantee. It reflects what a provider answered at that moment through its API; the same question can be answered differently tomorrow.',
           ],
         },
@@ -365,7 +365,6 @@ export const faqCopyEn: FaqCopy = {
             `Basic (${BASIC_PRICE}) answers the visibility question: the full SEO analysis plus AI crawler readiness, up to 5,000 crawled URLs, results kept for 30 days.`,
             `Complete (${COMPLETE_PRICE}) adds the state of the site itself to everything in Basic: security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics, every module FluxRadar runs, with scan history, JSON/CSV export and the AI Action Plan, up to 50,000 crawled URLs, results kept for 365 days.`,
             'Complete contains everything in Basic. There is no extra "full audit" item to buy on top of Complete: it already contains every module, at one price, with nothing added later at the checkout.',
-            'Website Audit, the package with the site-health modules alone, is no longer sold. A Website Audit report you already bought keeps its history, export and AI Action Plan as before.',
           ],
         },
         {
@@ -475,7 +474,7 @@ export const faqCopyUk: FaqCopy = {
           question: 'Де зберігаються звіти і як довго?',
           answer: [
             'Завершені та поточні перевірки — у розділі «Звіти». Звіт — це знімок конкретного моменту: сайт, який змінився після перевірки, вже не збігатиметься зі звітом, тому кожен висновок фіксує, що і коли було побачено.',
-            'Результати Basic зберігаються 30 днів, результати Complete — 365 днів, як і результати Website Audit, купленого до того, як цей пакет перестали продавати.',
+            'Результати Basic зберігаються 30 днів, результати Complete — 365 днів.',
           ],
         },
         {
@@ -526,7 +525,7 @@ export const faqCopyUk: FaqCopy = {
           answer: [
             'Перевірки видимості у відповідях ШІ входять до Basic і Complete. Спочатку FluxRadar просить зовнішнього постачальника створити нейтральні пошукові запитання з налаштувань галузі, пропозицій, регіону, аудиторії та мов, не називаючи бренд чи адресу сайту; потім ставить ці запитання й перевіряє, чи згадує або цитує відповідь сайт. Окремі запитання про впізнаваність прямо називають бренд і офіційну адресу.',
             'Платний аудит, який їх запускає, запитує і Anthropic (Claude), і OpenAI (ChatGPT), кожен зі своїм вебпошуком, тому звіт також показує джерела, якими скористалася кожна модель. Google (Gemini) і Perplexity доступні як необовʼязкове доповнення перед оплатою: вони вимкнені за замовчуванням і не отримують нічого, доки ви їх не оберете. Помітне повідомлення перед оплатою називає кожного отримувача й пояснює, який контекст проєкту та докази з публічних сторінок передаються. Безкоштовна перевірка головної ніколи не надсилає дані AI-провайдеру.',
-            'У звіті Complete (а також у звіті Website Audit, купленому до того, як цей пакет перестали продавати) можна також попросити Claude від Anthropic скласти план дій від ШІ: упорядкований список змін з оглядом для вашого клієнта. План складається лише після натискання кнопки. Надсилаються домен сайту, статус, оцінка й покриття кожного розділу, а для кожного правила з відкритими проблемами — його назва, критичність, кількість відкритих проблем, до трьох адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана, трасування й будь-що з розділу «Аналітика» не надсилаються.',
+            'У звіті Complete можна також попросити Claude від Anthropic скласти план дій від ШІ: упорядкований список змін з оглядом для вашого клієнта. План складається лише після натискання кнопки. Надсилаються домен сайту, статус, оцінка й покриття кожного розділу, а для кожного правила з відкритими проблемами — його назва, критичність, кількість відкритих проблем, до трьох адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана, трасування й будь-що з розділу «Аналітика» не надсилаються.',
             'Це також не гарантія видимості. Результат відображає те, що провайдер відповів через свій API у той момент; завтра відповідь може бути іншою.',
           ],
         },
@@ -691,7 +690,6 @@ export const faqCopyUk: FaqCopy = {
             `Basic (${BASIC_PRICE}) відповідає на питання видимості: повний SEO-аналіз плюс готовність до AI-роботів, до 5 000 сторінок обходу, результати зберігаються 30 днів.`,
             `Complete (${COMPLETE_PRICE}) додає до всього, що є в Basic, стан самого сайту: безпеку, швидкість, доступність, надійність, якість текстів, приватність, зручність і конверсію, аналітику, тобто усі модулі FluxRadar, з історією перевірок, експортом JSON/CSV і планом дій від ШІ, до 50 000 сторінок; результати зберігаються 365 днів.`,
             'Complete містить усе, що є в Basic. Доплачувати за окремий «повний аудит» не потрібно: Complete уже містить усі модулі за одну ціну, і під час оплати нічого не додається.',
-            'Website Audit, пакет лише з модулями про стан сайту, більше не продається. Звіт Website Audit, який ви вже купили, зберігає історію, експорт і план дій від ШІ, як і раніше.',
           ],
         },
         {

@@ -93,8 +93,8 @@ function stubServer(options: ServerOptions = {}): Server {
           available: sells,
           mode: 'live',
           unavailableReason: sells ? null : 'not-configured',
-          // Website Audit is listed as an older server would list it; the form
-          // still draws only the plans on sale.
+          // A retired plan is listed as an older server would list it; the form
+          // still draws only the plans it knows.
           plans: sells
             ? ['Basic', 'WebsiteAudit', 'Complete'].map((plan) => ({ plan, available: true }))
             : [],
@@ -212,7 +212,7 @@ describe('the plan cards', () => {
     renderScreen();
     await paidCardsOffered();
 
-    // Website Audit is no longer sold (2026-10-19), even where a server lists it.
+    // Never a card for a plan this app does not sell, even where a server lists it.
     expect(offeredPlans()).toEqual(['Free', 'Basic', 'Complete']);
     for (const plan of ['Free', 'Basic', 'Complete'] as const) {
       const card = planRadio(plan).closest('label') as HTMLElement;
@@ -512,23 +512,6 @@ describe('the saved-settings status', () => {
     },
     scanConfigVersion: 3,
   } as SiteProfile;
-
-  // Saved on Website Audit before it was withdrawn (2026-10-19): the form
-  // opens on Complete, the plan on sale that still runs every section the
-  // owner chose, priced on its card, and says the settings changed.
-  it('opens a site saved on Website Audit on Complete', async () => {
-    const savedOnWebsiteAudit = {
-      ...SAVED,
-      scanConfig: { ...SAVED.scanConfig, plan: 'WebsiteAudit' },
-    } as SiteProfile;
-    stubApi({ stored: { [SALON.id]: REACHABLE } });
-    renderScreen({ profiles: [savedOnWebsiteAudit] });
-    await waitFor(() => expect(checkedPlan()).toBe('Complete'));
-    expect(offeredPlans()).toEqual(['Free', 'Basic', 'Complete']);
-    expect(
-      screen.getByRole('button', { name: `Pay ${PLAN_PRICE.Complete} and start` }),
-    ).toBeInTheDocument();
-  });
 
   it('stays inside the fold while the settings are the saved ones', async () => {
     stubApi({ stored: { [SALON.id]: REACHABLE } });

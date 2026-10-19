@@ -1,6 +1,6 @@
 import { apiRequest, type Scan, type SiteProfile } from './api';
 import { copy, fillCopy, type Language } from './i18n';
-import { OFFERED_PAID_PLAN_ORDER, type Plan } from './plan-modules';
+import type { Plan } from './plan-modules';
 import {
   clampScopeToPlan,
   profileScanConfigFingerprint,
@@ -110,7 +110,7 @@ export function restoredProfileForm(
 ): RestoredProfileForm {
   const savedConfig = profile.scanConfig;
   if (savedConfig == null) throw new Error('restoredProfileForm needs a saved configuration');
-  const plan = offeredPlanFor(savedConfig.plan);
+  const plan = savedConfig.plan;
   const scope = clampScopeToPlan(scopeFormFromProfileConfig(savedConfig), plan);
   return {
     plan: paidAvailable ? plan : 'Free',
@@ -118,22 +118,9 @@ export function restoredProfileForm(
     fingerprint: profileScanConfigFingerprint(savedConfig),
     version: profile.scanConfigVersion ?? 1,
     // Assigned rather than only raised: loading a profile's settings is not an
-    // edit, so a clean load clears the flag. A withdrawn plan moved to its
-    // successor differs from what is saved, so the panel says so.
+    // edit, so a clean load clears the flag.
     hasUnsavedChanges:
       profileScanConfigFingerprint(profileScanConfigFromForm(scope, plan)) !==
       profileScanConfigFingerprint(savedConfig),
   };
-}
-
-/**
- * The plan a saved configuration opens on now.
- *
- * A site saved on Website Audit before it was withdrawn (2026-10-19) opens on
- * Complete, the one plan on sale that still runs every section the owner chose
- * — with its own price on the card before anything is paid. Without this the
- * form held a plan no card draws and the checkout refuses.
- */
-export function offeredPlanFor(plan: Plan): Plan {
-  return plan === 'Free' || OFFERED_PAID_PLAN_ORDER.includes(plan) ? plan : 'Complete';
 }
