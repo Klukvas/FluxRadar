@@ -345,13 +345,25 @@ describe('Free upsell → where it is not shown', () => {
 });
 
 describe('Action Plan upgrade', () => {
-  it('still opens the upgrade on Complete from a Basic report', async () => {
+  // Basic includes the plan since 2026-10-19; only an archived report is
+  // still locked, and only Complete re-checks every section it covered.
+  it('opens the upgrade on Complete from an archived Website Audit report', async () => {
     stubFetch(summaryWithOpenProblems(2));
     const onUpgrade = vi.fn();
-    renderNextSteps({ scan: { ...FREE_SCAN, plan: 'Basic' }, onUpgrade });
+    renderNextSteps({ scan: { ...FREE_SCAN, plan: 'WebsiteAudit' }, onUpgrade });
 
     fireEvent.click(await screen.findByRole('button', { name: 'Run a Complete scan' }));
 
     expect(onUpgrade).toHaveBeenCalledWith('Complete');
+  });
+
+  it('sells nothing from a Basic report, which includes the plan', async () => {
+    stubFetch(summaryWithOpenProblems(2));
+    const onUpgrade = vi.fn();
+    renderNextSteps({ scan: { ...FREE_SCAN, plan: 'Basic' }, onUpgrade });
+
+    expect(await screen.findByRole('heading', { name: 'Fix these first' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Run a Complete scan' })).toBeNull();
+    expect(onUpgrade).not.toHaveBeenCalled();
   });
 });

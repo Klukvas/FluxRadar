@@ -38,6 +38,18 @@ const NO_CAPABILITIES: TariffCapabilities = {
   actionPlan: false,
 };
 
+/**
+ * Basic includes the AI Action Plan (owner decision, 2026-10-19) and nothing
+ * else Complete adds: no history, no issue lifecycle, no JSON/CSV export. The
+ * plan's own spend caps (D-232) apply to it unchanged.
+ */
+const BASIC_CAPABILITIES: TariffCapabilities = {
+  scanHistory: false,
+  issueHistory: false,
+  export: false,
+  actionPlan: true,
+};
+
 const FULL_REPORT_CAPABILITIES: TariffCapabilities = {
   scanHistory: true,
   issueHistory: true,
@@ -129,7 +141,7 @@ export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
     urlLimit: 5000,
     aiRequestLimit: 50,
     retentionDays: 30,
-    capabilities: NO_CAPABILITIES,
+    capabilities: BASIC_CAPABILITIES,
   },
   Complete: {
     plan: 'Complete',

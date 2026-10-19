@@ -180,6 +180,9 @@ export function ActionPlan(props: ActionPlanProps) {
     return () => clearTimeout(timer);
   }, [windowEndsAt, now]);
 
+  // Free has no plan and no locked block either: its own upsell already sells
+  // Basic, the cheapest plan that includes one. What still reaches the locked
+  // block is a retired plan's report, which is read-only.
   if (props.scan.plan === 'Free') return null;
   const nothingChecked = props.nothingChecked === true;
   if (!hasActionPlan) {

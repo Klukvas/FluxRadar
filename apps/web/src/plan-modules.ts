@@ -84,7 +84,7 @@ export const PLAN_CAPABILITIES: Readonly<
   >
 > = {
   Free: { export: false, actionPlan: false, issueHistory: false },
-  Basic: { export: false, actionPlan: false, issueHistory: false },
+  Basic: { export: false, actionPlan: true, issueHistory: false },
   Complete: { export: true, actionPlan: true, issueHistory: true },
 };
 
