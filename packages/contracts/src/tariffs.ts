@@ -123,14 +123,33 @@ export function normalizeScoreWeights(
   weights: Readonly<Partial<Record<ModuleName, number>>>,
   modules: readonly ModuleName[],
 ): Readonly<Partial<Record<ModuleName, number>>> {
-  const kept = Object.entries(weights).filter(([module]) =>
-    modules.includes(module as ModuleName),
-  );
+  const kept = Object.entries(weights).filter(([module]) => modules.includes(module as ModuleName));
   const total = kept.reduce((sum, [, weight]) => sum + (weight ?? 0), 0);
   if (total <= 0) {
     return {};
   }
   return Object.fromEntries(kept.map(([module, weight]) => [module, (weight ?? 0) / total]));
+}
+
+/** A plan that costs money, whether or not it is still sold. */
+export type PaidPlan = Exclude<Plan, 'Free'>;
+
+/**
+ * The paid plans a new buyer can choose, in the order they are shown.
+ *
+ * Narrower than the paid plans `TARIFFS` knows: Website Audit was withdrawn
+ * from sale on 2026-10-19, but an order already paid for it is still a real
+ * purchase whose webhook, refund, report and export must keep working. So
+ * "is this a paid plan" and "may this plan be sold now" are separate
+ * questions, and every place that offers or opens a sale asks this one.
+ */
+export const OFFERED_PAID_PLANS = ['Basic', 'Complete'] as const satisfies readonly PaidPlan[];
+
+export type OfferedPaidPlan = (typeof OFFERED_PAID_PLANS)[number];
+
+/** Whether a new checkout may be opened for this plan; false for Free and unknown strings. */
+export function isOfferedForPurchase(plan: string): plan is OfferedPaidPlan {
+  return (OFFERED_PAID_PLANS as readonly string[]).includes(plan);
 }
 
 export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
@@ -148,7 +167,7 @@ export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
   Basic: {
     plan: 'Basic',
     label: 'Basic Scan',
-    priceUsd: 55,
+    priceUsd: 39,
     modules: ['SEO', 'AI SEO / GEO'],
     scoreWeights: { SEO: 0.6, 'AI SEO / GEO': 0.4 },
     urlLimit: 5000,
@@ -157,8 +176,9 @@ export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
     capabilities: NO_CAPABILITIES,
   },
   // The eight non-search modules at $79: everything Complete reads about a site
-  // except how search engines and AI systems read it. A sibling of Basic, not a
-  // step between it and Complete — neither package contains the other.
+  // except how search engines and AI systems read it. No longer sold to new
+  // buyers (see OFFERED_PAID_PLANS), and kept whole here because the purchases,
+  // scans, reports, exports and refunds already made on it still read this row.
   WebsiteAudit: {
     plan: 'WebsiteAudit',
     label: 'Website Audit Scan',
@@ -184,7 +204,7 @@ export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
   Complete: {
     plan: 'Complete',
     label: 'Complete Scan',
-    priceUsd: 120,
+    priceUsd: 87,
     modules: [
       'SEO',
       'AI SEO / GEO',

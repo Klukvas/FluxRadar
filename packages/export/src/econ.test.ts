@@ -39,38 +39,42 @@ describe('validateEconForecast', () => {
     const result = validateEconForecast(VALID);
     expect(result.pass).toBe(true);
     if (!result.pass) return;
-    // Creem 3.9% + $0.40: Basic $2.55, Complete $5.08.
-    // margin: Basic 55−2.55−23.30=29.15, Complete 120−5.08−51.97=62.95 → 0.8/0.2 = 35.91.
-    expect(result.report.weightedContributionMarginUsd).toBe(35.91);
-    // break-even: ceil((1000+500+68+17+50)/35.91) = ceil(45.53) = 46 <= 50 прогонов.
-    expect(result.report.breakEvenScans).toBe(46);
-    expect(result.report.forecastGrossRevenueUsd).toBe(3400);
+    // Creem 3.9% + $0.40: Basic $39 → $1.92, Complete $87 → $3.79.
+    // margin: Basic 39−1.92−15.93=21.15, Complete 87−3.79−36.76=46.45 → 0.8/0.2 = 26.21.
+    expect(result.report.weightedContributionMarginUsd).toBe(26.21);
+    // break-even: ceil((1000+500+68.04+17.01+50)/26.21) = ceil(62.38) = 63 <= 70 прогонов.
+    expect(result.report.breakEvenScans).toBe(63);
+    // 70 × (0.8 × 39 + 0.2 × 87) = 70 × 48.60.
+    expect(result.report.forecastGrossRevenueUsd).toBe(3402);
     expect(result.report.supportReserveFloorUsd).toBe(500);
     expect(result.report.operationalFloorScans).toBe(ECON_OPERATIONAL_FLOOR_SCANS);
   });
 
-  it('операционный stress-case плана §18 (45 прогонов) сходится ровно на floor под потолком Creem', () => {
-    // §18 inputs at the Creem p95 cost ceiling, not VALID's fixture numbers:
-    // Basic 55 − 2.55 − 24.95 = 27.50, Complete 120 − 5.08 − 54.92 = 60.00,
-    // margin 0.8×27.50 + 0.2×60.00 = 34. fixed 1000 + reserve 500 → break-even
-    // ceil(1500/34) = ceil(44.12) = 45 — the plan converges exactly at the
-    // operational floor of 45 scans, not with headroom above break-even.
-    const stress = {
+  // At $39 / $87 the §18 stress case no longer converges at the operational
+  // floor: with costs at the Creem p95 ceiling the margins are Basic
+  // 39 − 1.92 − 17.58 = 19.50 and Complete 87 − 3.79 − 39.71 = 43.50, so
+  // 0.8×19.50 + 0.2×43.50 = 24.30, and fixed 1000 + reserve 500 needs
+  // ceil(1500/24.30) = ceil(61.73) = 62 scans. Pinned as a finding, not hidden:
+  // 45 scans now fails break-even, 62 is the first forecast that passes.
+  it('операционный stress-case плана §18 под потолком Creem: 45 прогонов мало, 62 — хватает', () => {
+    const stress = (scans: number, grossUsd: number) => ({
       ...VALID,
       fixed_costs: 1000,
-      forecast_scans: 45,
-      forecast_gross_revenue: 45 * (0.8 * 55 + 0.2 * 120),
+      forecast_scans: scans,
+      forecast_gross_revenue: grossUsd,
       expected_refund_loss: 0,
       expected_chargeback_loss: 0,
       fx_buffer: 0,
       variable_cost_basic_p95: VARIABLE_COST_CEILING_USD.basic,
       variable_cost_complete_p95: VARIABLE_COST_CEILING_USD.complete,
-      weighted_average_contribution_margin: 34,
-    };
-    const result = validateEconForecast(stress);
+      weighted_average_contribution_margin: 24.3,
+    });
+    // 45 × 48.60 = 2187; 62 × 48.60 = 3013.20.
+    expect(failureCodes(stress(45, 2187))).toEqual(['break-even']);
+    const result = validateEconForecast(stress(62, 3013.2));
     expect(result.pass).toBe(true);
     if (!result.pass) return;
-    expect(result.report.breakEvenScans).toBe(45);
+    expect(result.report.breakEvenScans).toBe(62);
     expect(result.report.operationalFloorScans).toBe(ECON_OPERATIONAL_FLOOR_SCANS);
   });
 
@@ -79,8 +83,8 @@ describe('validateEconForecast', () => {
     expect(result.pass).toBe(false);
     if (result.pass) return;
     expect(result.failures.map((failure) => failure.code)).toEqual(['reserve-floor']);
-    // floor = 10% × $14 400 = $1 440 > $500 — отчёт это показывает.
-    expect(result.report?.supportReserveFloorUsd).toBe(1440);
+    // floor = 10% × $10 440 (120 × $87) = $1 044 > $500 — отчёт это показывает.
+    expect(result.report?.supportReserveFloorUsd).toBe(1044);
   });
 
   it('mix, не суммирующийся в 1, отклоняется', () => {
@@ -92,13 +96,13 @@ describe('validateEconForecast', () => {
   });
 
   it('потолки p95 — то, что остаётся от цены после комиссии Creem и маржи 50%', () => {
-    // 55 − (2.15 + 0.40) − 27.50 и 120 − (4.68 + 0.40) − 60.00, в центах без float.
-    expect(VARIABLE_COST_CEILING_USD).toEqual({ basic: 24.95, complete: 54.92 });
+    // 39 − (1.52 + 0.40) − 19.50 и 87 − (3.39 + 0.40) − 43.50, в центах без float.
+    expect(VARIABLE_COST_CEILING_USD).toEqual({ basic: 17.58, complete: 39.71 });
   });
 
   it('p95 variable cost выше hard ceiling отклоняется', () => {
-    expect(failureCodes({ ...VALID, variable_cost_complete_p95: 54.93 })).toContain('cost-ceiling');
-    expect(failureCodes({ ...VALID, variable_cost_basic_p95: 24.96 })).toContain('cost-ceiling');
+    expect(failureCodes({ ...VALID, variable_cost_complete_p95: 39.72 })).toContain('cost-ceiling');
+    expect(failureCodes({ ...VALID, variable_cost_basic_p95: 17.59 })).toContain('cost-ceiling');
   });
 
   it('нулевая или отрицательная contribution margin отклоняется', () => {
@@ -106,8 +110,8 @@ describe('validateEconForecast', () => {
       ...omitKey(VALID, 'weighted_average_contribution_margin'),
       basic_mix: 1,
       complete_mix: 0,
-      forecast_gross_revenue: 50 * 55,
-      variable_cost_basic_p95: 53,
+      forecast_gross_revenue: 70 * 39,
+      variable_cost_basic_p95: 38,
     });
     expect(codes).toContain('margin');
     expect(codes).toContain('cost-ceiling');
@@ -126,11 +130,11 @@ describe('validateEconForecast', () => {
   });
 
   it('forecast ниже risk-adjusted break-even отклоняется', () => {
-    // 45 прогонов ≥ floor 45, но break-even по рискам = 46.
+    // 62 прогона ≥ floor 45, но break-even по рискам = 63.
     const codes = failureCodes({
       ...VALID,
-      forecast_scans: 45,
-      forecast_gross_revenue: 45 * 68,
+      forecast_scans: 62,
+      forecast_gross_revenue: 3013.2,
     });
     expect(codes).toEqual(['break-even']);
   });
@@ -139,26 +143,24 @@ describe('validateEconForecast', () => {
     const codes = failureCodes({
       ...VALID,
       forecast_scans: 44,
-      forecast_gross_revenue: 44 * 68,
+      forecast_gross_revenue: 2138.4,
     });
     expect(codes).toContain('operational-floor');
   });
 
   it('tax_treatment=expense требует tax_expense_per_scan и уменьшает margin', () => {
     expect(failureCodes({ ...VALID, tax_treatment: 'expense' })).toContain('tax');
-    // margin 35.91 − $2 налога = 33.91 → break-even ceil(1635/33.91) = 49; прогноз 55 покрывает.
+    // margin 26.21 − $2 налога = 24.21 → break-even ceil(1635.05/24.21) = 68; прогноз 70 покрывает.
     const withTax = validateEconForecast({
       ...VALID,
-      forecast_scans: 55,
-      forecast_gross_revenue: 55 * 68,
       tax_treatment: 'expense',
       tax_expense_per_scan: 2,
-      weighted_average_contribution_margin: 33.91,
+      weighted_average_contribution_margin: 24.21,
     });
     expect(withTax.pass).toBe(true);
     if (!withTax.pass) return;
-    expect(withTax.report.weightedContributionMarginUsd).toBe(33.91);
-    expect(withTax.report.breakEvenScans).toBe(49);
+    expect(withTax.report.weightedContributionMarginUsd).toBe(24.21);
+    expect(withTax.report.breakEvenScans).toBe(68);
   });
 
   it('pass-through налог с ненулевым tax_expense_per_scan отклоняется', () => {

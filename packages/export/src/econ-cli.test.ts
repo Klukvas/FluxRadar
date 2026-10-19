@@ -35,7 +35,7 @@ describe('runEconValidate', () => {
     const code = runEconValidate([join(FIXTURES_DIR, 'forecast-valid.json')], io);
     expect(code).toBe(0);
     expect(io.outLines[0]).toBe('ECON-001: PASS');
-    expect(io.outLines.join('\n')).toContain('break-even scans:          46');
+    expect(io.outLines.join('\n')).toContain('break-even scans:          63');
     expect(io.errLines).toEqual([]);
   });
 
