@@ -4,6 +4,10 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
+ * 19 October 2026 also extended the AI Action Plan passages from Complete to
+ * Basic and Complete (owner decision of that day): the plan sends the same
+ * rule metadata to Anthropic, only when its button is pressed.
+ *
  * 19 October 2026 also removed the Website Audit package from the AI and
  * retention passages: Basic and Complete are the paid audits.
  *
@@ -182,7 +186,7 @@ function UkrainianPrivacy(): JSX.Element {
           до AI‑запиту.
         </p>
         <p>
-          AI‑план дій (Complete) надсилає до Anthropic лише метадані правил цього звіту:
+          AI‑план дій (Basic і Complete) надсилає до Anthropic лише метадані правил цього звіту:
           ідентифікатор і назву правила, розділ, найвищу відкриту серйозність, кількість відкритих
           знахідок, до трьох адрес сторінок без query та fragment, рекомендації правила й статуси
           розділів. Уривки доказів, знімки екрана та будь‑що з розділу «Аналітика» (дані Google) не
@@ -203,15 +207,15 @@ function UkrainianPrivacy(): JSX.Element {
           неможливо відкликати.
         </p>
         <p>
-          У звіті Complete власник може також попросити AI‑план дій: короткий упорядкований список
-          змін, який Claude від Anthropic складає за цим звітом. Нічого не надсилається, доки
-          власник не натисне кнопку, а рядок під нею пояснює, що саме передається: домен сайту,
-          статус, оцінку й покриття кожного розділу, а для кожного правила з відкритими проблемами —
-          його назву, критичність, кількість відкритих проблем, до трьох адрес сторінок без
-          параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана й
-          трасування не надсилаються, як і будь‑що з розділу «Аналітика» (дані Google Search Console
-          і GA4). План зберігається разом зі звітом і видаляється з ним; до експорту JSON чи CSV він
-          не входить.
+          У звіті Basic або Complete власник може також попросити AI‑план дій: короткий
+          упорядкований список змін, який Claude від Anthropic складає за цим звітом. Нічого не
+          надсилається, доки власник не натисне кнопку, а рядок під нею пояснює, що саме
+          передається: домен сайту, статус, оцінку й покриття кожного розділу, а для кожного правила
+          з відкритими проблемами — його назву, критичність, кількість відкритих проблем, до трьох
+          адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів,
+          знімки екрана й трасування не надсилаються, як і будь‑що з розділу «Аналітика» (дані
+          Google Search Console і GA4). План зберігається разом зі звітом і видаляється з ним; до
+          експорту JSON чи CSV він не входить.
         </p>
         <p>
           Ми не продаємо персональні дані й не передаємо їх рекламним партнерам. Дозволено
@@ -507,11 +511,11 @@ function EnglishPrivacy(): JSX.Element {
           not AI inputs.
         </p>
         <p>
-          The AI Action Plan (Complete) sends Anthropic the report’s rule metadata only: the rule id
-          and title, the section, the highest open severity, the number of open findings, up to
-          three page addresses with query and fragment removed, the rule’s recommendations and the
-          section statuses. It never sends evidence excerpts, screenshots, or anything from the
-          Analytics section, which is Google data.
+          The AI Action Plan (Basic and Complete) sends Anthropic the report’s rule metadata only:
+          the rule id and title, the section, the highest open severity, the number of open
+          findings, up to three page addresses with query and fragment removed, the rule’s
+          recommendations and the section statuses. It never sends evidence excerpts, screenshots,
+          or anything from the Analytics section, which is Google data.
         </p>
         <p>
           On Basic and Complete, GEO can send neutralized context to generate discovery questions
@@ -528,11 +532,11 @@ function EnglishPrivacy(): JSX.Element {
           request already sent to a provider cannot be recalled.
         </p>
         <p>
-          On a Complete report the owner may also ask for an AI Action Plan: a short, ordered list
-          of changes that Anthropic’s Claude writes from that report. Nothing is sent until the
-          owner presses the button, and a line under it says what is sent: the site’s domain, each
-          section’s status, score and coverage, and for each rule with open issues its name,
-          severity, number of open issues, up to three page addresses without query strings or
+          On a Basic or Complete report the owner may also ask for an AI Action Plan: a short,
+          ordered list of changes that Anthropic’s Claude writes from that report. Nothing is sent
+          until the owner presses the button, and a line under it says what is sent: the site’s
+          domain, each section’s status, score and coverage, and for each rule with open issues its
+          name, severity, number of open issues, up to three page addresses without query strings or
           fragments, and the rule’s recommendations. Evidence excerpts, screenshots and traces are
           not sent, and neither is anything from the Analytics section (Google Search Console and
           GA4 data). The plan is kept with the report and deleted with it; it is not part of the
