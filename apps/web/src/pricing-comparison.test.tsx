@@ -137,37 +137,121 @@ describe('the plain-language pricing comparison', () => {
   // The answers are read as a commitment, so they are checked against the
   // tariff matrix the API charges from rather than proof-read by eye. Basic's
   // "not included" used to list six of the eight modules it does not run,
-  // leaving out UX/Conversion and Analytics.
-  it('names every module Basic does not run in its "not included" answer', () => {
-    const beyondBasic = PLAN_MODULES.Complete.filter(
-      (module) => !PLAN_MODULES.Basic.includes(module),
-    );
-    const answer = copy.en.pricing.explainer.rows.notIncluded.basic.toLowerCase();
+  // leaving out UX/Conversion and Analytics. The home page now names each
+  // module in an owner's words, so the check goes through this map: every
+  // module the tariff table has must have a plain name in both languages, and
+  // that plain name must be in the answer.
+  const PLAIN_MODULE_NAMES: Readonly<Record<string, { en: string; uk: string }>> = {
+    Security: { en: 'security', uk: 'безпека' },
+    Performance: { en: 'speed', uk: 'швидкість' },
+    Accessibility: {
+      en: 'ease of use for people with disabilities',
+      uk: 'зручність для людей з інвалідністю',
+    },
+    Reliability: { en: 'reliability', uk: 'стабільність роботи' },
+    'Content Quality': { en: 'text quality', uk: 'якість текстів' },
+    Privacy: { en: 'privacy', uk: 'приватність' },
+    // The module reads the entry page's heading, the path to the main action,
+    // form submission, and how clear the offer and the main action are.
+    'UX/Conversion': {
+      en: 'whether visitors understand what to do next',
+      uk: 'чи зрозуміло відвідувачу, що робити далі',
+    },
+    // Its rules read Google Analytics / Search Console data, so the plain name
+    // has to say the owner connects it.
+    Analytics: {
+      en: 'visitor statistics (if you connect google)',
+      uk: 'статистика відвідувань (якщо підключите google)',
+    },
+  };
 
-    expect(beyondBasic).toHaveLength(8);
-    for (const module of beyondBasic) expect(answer).toContain(module.toLowerCase());
-    // The Ukrainian column names the same eight in its own words; these two are
-    // the ones the English row was missing.
-    const ukrainian = copy.uk.pricing.explainer.rows.notIncluded.basic;
-    expect(ukrainian).toContain('UX/Конверсія');
-    expect(ukrainian).toContain('Аналітика');
-  });
+  it.each<Language>(['en', 'uk'])(
+    'names every module Basic does not run, in plain words, in %s',
+    (language) => {
+      const beyondBasic = PLAN_MODULES.Complete.filter(
+        (module) => !PLAN_MODULES.Basic.includes(module),
+      );
+      const rows = copy[language].pricing.explainer.rows;
+      const cards = copy[language].pricing.cards;
+
+      expect(beyondBasic).toEqual(PLAN_MODULES.WebsiteAudit);
+      expect(beyondBasic).toHaveLength(8);
+      for (const module of beyondBasic) {
+        const plain = PLAIN_MODULE_NAMES[module]?.[language];
+        if (plain === undefined) throw new Error(`${module} has no plain ${language} name`);
+        // What Basic leaves out is exactly what Website Audit runs, on the
+        // table and on both cards.
+        for (const answer of [
+          rows.notIncluded.basic,
+          rows.included.websiteAudit,
+          cards.basic.notIncluded,
+          cards.websiteAudit.included,
+        ]) {
+          expect(answer.toLowerCase()).toContain(plain);
+        }
+      }
+    },
+  );
+
+  // Website Audit runs neither search module, and the SEO check count is the
+  // one Basic sells, so the count must never sit on a Website Audit answer.
+  it.each<Language>(['en', 'uk'])(
+    'keeps the search checks on Basic and Complete only in %s',
+    (language) => {
+      expect(PLAN_MODULES.WebsiteAudit).not.toContain('SEO');
+      expect(PLAN_MODULES.WebsiteAudit).not.toContain('AI SEO / GEO');
+      const rows = copy[language].pricing.explainer.rows;
+      const cards = copy[language].pricing.cards;
+      // "Google" alone is allowed: the visitor statistics come from a Google
+      // account the owner connects. Google *search* is not.
+      const SEARCH = /Google search|пошуку Google/;
+      for (const answer of [rows.included.websiteAudit, cards.websiteAudit.included]) {
+        expect(answer).not.toMatch(SEARCH);
+      }
+      expect(rows.notIncluded.websiteAudit).toMatch(SEARCH);
+      expect(cards.websiteAudit.notIncluded).toMatch(SEARCH);
+    },
+  );
 
   it('promises scan history, export and the Action Plan only where the tariff carries them', () => {
-    const rows = copy.en.pricing.explainer.rows;
     expect(PLAN_CAPABILITIES.Basic).toEqual({
       export: false,
       actionPlan: false,
       issueHistory: false,
     });
+    expect(PLAN_CAPABILITIES.WebsiteAudit).toEqual({
+      export: true,
+      actionPlan: true,
+      issueHistory: true,
+    });
+    expect(PLAN_CAPABILITIES.Complete).toEqual(PLAN_CAPABILITIES.WebsiteAudit);
 
-    for (const answer of [rows.included.websiteAudit, rows.included.complete]) {
-      expect(answer).toMatch(/scan history/i);
-      expect(answer).toMatch(/JSON\/CSV export/i);
-      expect(answer).toMatch(/AI Action Plan/i);
+    const PROMISES = {
+      en: [/scan history/i, /export to a file/i, /AI action plan/i],
+      uk: [/історі\S+ перевірок/, /вивантаже\S+ у файл/, /план\S* дій від ШІ/],
+    } as const;
+    for (const language of ['en', 'uk'] as const) {
+      const rows = copy[language].pricing.explainer.rows;
+      const cards = copy[language].pricing.cards;
+      for (const answer of [
+        rows.included.websiteAudit,
+        rows.included.complete,
+        cards.websiteAudit.included,
+        cards.complete.included,
+        rows.notIncluded.basic,
+      ]) {
+        for (const promise of PROMISES[language]) expect(answer).toMatch(promise);
+      }
+      // Broader than the promises above on purpose: Basic must not name any
+      // of the three, in any wording.
+      const NEVER_ON_BASIC = {
+        en: /scan history|export|action plan/i,
+        uk: /історі|вивантаж|експорт|план дій/i,
+      } as const;
+      for (const answer of [rows.included.basic, cards.basic.included]) {
+        expect(answer).not.toMatch(NEVER_ON_BASIC[language]);
+      }
     }
-    expect(rows.included.basic).not.toMatch(/scan history|export|Action Plan/i);
-    expect(rows.notIncluded.basic).toMatch(/scan history, export and AI Action Plan/i);
   });
 
   it('keeps the links and the notes the section closed with', () => {

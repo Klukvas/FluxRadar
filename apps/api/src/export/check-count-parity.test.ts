@@ -71,20 +71,20 @@ describe('the SEO check count the public pages promise', () => {
 
   it('matches in the home page, pricing and package copy in both languages', () => {
     const counts = claimedCounts('i18n.ts', [
-      /(\d+) deterministic checks · JSON-LD/g,
-      /(\d+) SEO checks, AI crawler readiness/g,
-      /The full SEO analysis — (\d+) checks/g,
-      /(\d+) детермінован[а-яіїєґ']+ перевірк[а-яіїєґ']+ · перевірки JSON-LD/g,
-      /(\d+) SEO-перевірк[а-яіїєґ']+, готовність до AI-краулерів/g,
-      /Повний SEO-аналіз — (\d+) перевірк[а-яіїєґ']*/g,
+      /'(\d+) checks for Google search/g,
+      /'(\d+) перевірк[а-яіїєґ']* для пошуку Google/g,
     ]);
     // Pinned exactly, not as a floor: a reworded sentence stops matching its
     // pattern, and a floor would let that pass while the guard on it quietly
-    // disappeared. Eight — four per language: the SEO capability card's foot,
-    // the package description and its short form (which repeat one phrase),
-    // and the full-analysis line. The home hero's terminal preview also claimed
-    // the figure until it was removed with the plain-language hero, which is
-    // why this was ten. If this fails after a copy edit, the phrase moved —
+    // disappeared. Eight — four per language, all one plain phrase opening a
+    // string ("21 checks for Google search" / «21 перевірка для пошуку
+    // Google»): the SEO capability card's foot, the first item of the coverage
+    // list, the Basic card's "what you get" and the Basic column of the
+    // comparison table. The plain-language rewrite of the home page replaced
+    // the four older phrasings (the "deterministic checks · JSON-LD" foot, the
+    // "SEO checks, AI crawler readiness" coverage sentence and the "full SEO
+    // analysis" card and table lines) with this one, so the set and the count
+    // are unchanged. If this fails after a copy edit, the phrase moved —
     // update the pattern, do not lower the number.
     expect(counts).toHaveLength(8);
     expect([...new Set(counts)]).toEqual([expected]);
