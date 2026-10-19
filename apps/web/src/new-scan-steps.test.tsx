@@ -344,6 +344,40 @@ describe('the pre-purchase disclosures', () => {
     const performance = screen.getByRole('group', { name: copy.en.newScan.performanceInfoTitle });
     expect(within(performance).getByText(/You do not connect a Google account/)).toBeVisible();
   });
+
+  // Basic includes the AI Action Plan since 2026-10-19, so its buyer reads what
+  // the plan would send before paying, as a Complete buyer does.
+  it.each([
+    ['Basic', 'en'],
+    ['Complete', 'en'],
+    ['Basic', 'uk'],
+  ] as const)('opens the Action Plan disclosure on %s in %s', async (plan, language) => {
+    stubApi({ stored: { [SALON.id]: REACHABLE } });
+    renderScreen({ language });
+    await paidCardsOffered();
+    choosePlanCard(plan);
+
+    const t = copy[language].newScan;
+    const disclosure = screen.getByRole('group', { name: t.actionPlanInfoTitle });
+    const body = within(disclosure).getByText(t.actionPlanInfoBody);
+    expect(body).toBeVisible();
+    expect(body.textContent).toMatch(language === 'en' ? /Basic and Complete/ : /Basic і Complete/);
+    expect(body.textContent).toMatch(/Anthropic/);
+    expect(body.textContent).toMatch(
+      language === 'en' ? /Only when you press its button/ : /Лише коли ви натиснете його кнопку/,
+    );
+    // Added beside the versioned notice, never into it.
+    expect(t.aiConsentBody).not.toMatch(/Action Plan|план дій/i);
+  });
+
+  it('does not show the Action Plan disclosure on Free, which has no plan', async () => {
+    stubApi();
+    renderScreen();
+    await paidCardsOffered();
+    await screen.findByText(newScanCopy.en.reach.freeNote);
+
+    expect(screen.queryByText(copy.en.newScan.actionPlanInfoBody)).toBeNull();
+  });
 });
 
 describe('the reachability step', () => {

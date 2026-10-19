@@ -6,7 +6,7 @@ import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import type { NewScanForm } from './new-scan-form';
 import { NewScanStep } from './NewScanSteps';
-import { PLAN_MODULES, type Plan } from './plan-modules';
+import { PLAN_MODULES, planIncludesActionPlan, type Plan } from './plan-modules';
 import { ScanCallout } from './ScanCallout';
 import { PLAN_PRICE } from './tariff-prices';
 
@@ -142,6 +142,20 @@ export function PlanStep(props: {
               ))}
             </>
           )}
+          {/* Open for the same reason as the notice above: it says what leaves
+              the site and who receives it, and it is read before paying. Shown
+              on every plan the tariff gives the Action Plan to, Basic included. */}
+          {planIncludesActionPlan(plan) ? (
+            <ScanCallout
+              eyebrow="AI ACTION PLAN · ON REQUEST"
+              title={t.newScan.actionPlanInfoTitle}
+              titleId="action-plan-info-title"
+              mode={t.newScan.actionPlanInfoMode}
+              defaultOpen
+            >
+              {t.newScan.actionPlanInfoBody}
+            </ScanCallout>
+          ) : null}
           {PLAN_MODULES[plan].includes('Performance') ? (
             <ScanCallout
               eyebrow="PERFORMANCE · GOOGLE"
