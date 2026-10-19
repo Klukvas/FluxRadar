@@ -4,6 +4,11 @@
 // plan goes through the SAME signed-order, exactly-once, amount-checked path as
 // the two that existed — and that nothing about adding it loosened that path for
 // an order naming the wrong product or the wrong amount.
+//
+// Since 2026-10-19 Website Audit is no longer sold. `openCheckout` opens its
+// session through `createCreemCheckoutSession` directly, which stands for a
+// checkout opened before the withdrawal: those orders must still settle,
+// refund and render, while the HTTP route refuses a new one (last block).
 
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -12,6 +17,14 @@ import { TARIFFS } from '@fluxradar/contracts';
 import { createApp } from '../index.ts';
 import { silentLogger } from '../http/logger.ts';
 import { PURCHASE_STATUSES } from './constants.ts';
+import { readCreemConfig } from './creem/config.ts';
+import { CREEM_EVENT_TYPES } from './creem/events.ts';
+import { CREEM_SIGNATURE_HEADER } from './creem/signature.ts';
+import {
+  TEST_CREEM_SECRET,
+  checkoutCompletedObject,
+  signedCreemDelivery,
+} from './creem/test-payloads.ts';
 import { createTestDb, type TestDb } from '../test-utils/test-db.ts';
 import {
   deliverOrder,
@@ -132,7 +145,7 @@ describe('buying a Website Audit', () => {
       productId: WEBSITE_AUDIT_PRODUCT,
       // The Basic price against the Website Audit product: the amount is real
       // money somebody paid, and it is not this plan's money.
-      amountCents: 5500,
+      amountCents: 3900,
     });
     expect(delivered.createdScanIds).toHaveLength(0);
     expect(await db.prisma.scan.count()).toBe(0);
@@ -198,5 +211,79 @@ describe('buying a Website Audit', () => {
     const history = await agent.get('/scans?history=true').set('Cookie', cookie);
     expect(history.status).toBe(403);
     expect(history.body.error.code).toBe('HISTORY_REQUIRES_COMPLETE');
+  });
+
+  // The deployment as it runs after the withdrawal, with the Website Audit
+  // product still mapped so orders already paid for it can be matched.
+  function deployedApp() {
+    return createApp({
+      prisma: db.prisma,
+      autoProcess: false,
+      logger: silentLogger,
+      optInAiProviders: [],
+      creem: readCreemConfig({
+        CREEM_MODE: 'test',
+        CREEM_API_KEY: 'creem-api-key-value',
+        CREEM_WEBHOOK_SECRET: TEST_CREEM_SECRET,
+        FRONTEND_ORIGIN: 'https://fluxradar.test',
+        CREEM_PRODUCT_ID_BASIC: 'prod_basic',
+        CREEM_PRODUCT_ID_COMPLETE: 'prod_complete',
+        CREEM_PRODUCT_ID_WEBSITE_AUDIT: WEBSITE_AUDIT_PRODUCT,
+      }),
+    });
+  }
+
+  it('refuses a new Website Audit checkout over HTTP as no longer offered', async () => {
+    const app = deployedApp();
+    const { agent, cookie, profileId } = await buyer(app, 'wa-withdrawn@example.com');
+    const refused = await agent
+      .post('/billing/checkout-session')
+      .set('Cookie', cookie)
+      .send({
+        siteProfileId: profileId,
+        plan: 'WebsiteAudit',
+        scope: { includeSubdomains: false },
+      });
+
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe('PLAN_NOT_OFFERED');
+    expect(await db.prisma.checkoutSession.count()).toBe(0);
+  });
+
+  it('still settles, over the webhook, a Website Audit opened before it was withdrawn', async () => {
+    const app = deployedApp();
+    const { agent, cookie, profileId } = await buyer(app, 'wa-legacy@example.com');
+    const opened = await openCheckout(db.prisma, {
+      siteProfileId: profileId,
+      plan: 'WebsiteAudit',
+      scope: { maxPages: 15 },
+    });
+    const { rawBody, signature } = signedCreemDelivery({
+      id: 'evt_wa_legacy',
+      eventType: CREEM_EVENT_TYPES.checkoutCompleted,
+      object: checkoutCompletedObject({
+        checkoutId: 'ch_wa_legacy',
+        orderId: 'ord_wa_legacy',
+        reference: opened.reference,
+        productId: WEBSITE_AUDIT_PRODUCT,
+        amountCents: 7900,
+      }),
+    });
+
+    const delivered = await request(app)
+      .post('/webhooks/creem')
+      .set('Content-Type', 'application/json')
+      .set(CREEM_SIGNATURE_HEADER, signature)
+      .send(rawBody);
+
+    expect(delivered.status).toBe(200);
+    expect(delivered.body.data.results[0]).toMatchObject({ outcome: 'processed', reason: null });
+    const scanId = delivered.body.data.results[0].scanId as string;
+    const scan = await agent.get(`/scans/${scanId}`).set('Cookie', cookie);
+    expect(scan.status).toBe(200);
+    expect(scan.body.data.plan).toBe('WebsiteAudit');
+    const purchase = await db.prisma.purchase.findFirstOrThrow({ where: { plan: 'WebsiteAudit' } });
+    expect(purchase.amountUsd).toBe(79);
+    expect(purchase.status).toBe(PURCHASE_STATUSES.paid);
   });
 });

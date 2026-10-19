@@ -1,6 +1,6 @@
 // Can we read this site? — asked on the scan form, before the pay button.
 //
-// A customer could buy a $120 audit of a site that refuses our crawler, wait
+// A customer could buy a paid audit of a site that refuses our crawler, wait
 // for the scan and get a refund instead of a report. The server now refuses
 // that sale (`createCreemCheckoutSession`), and this panel is how the buyer finds
 // out before they meet the refusal: it runs the same probe, shows what the site

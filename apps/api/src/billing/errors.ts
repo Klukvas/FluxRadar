@@ -95,6 +95,25 @@ export class PlanNotPurchasableError extends BillingError {
 }
 
 /**
+ * The plan exists and is still honoured, but is no longer sold to new buyers.
+ *
+ * Website Audit was withdrawn from sale on 2026-10-19: its purchases, scans,
+ * refunds and webhooks keep working, and a new checkout for it is refused here
+ * — 409, like a plan this deployment cannot sell — before a session row exists
+ * or the provider is called. `PLAN_NOT_OFFERED` is distinct from
+ * `PLAN_NOT_AVAILABLE` because the answer is permanent, not a setup gap.
+ */
+export class PlanNotOfferedError extends BillingError {
+  constructor(plan: string) {
+    super(
+      'PLAN_NOT_OFFERED',
+      'this plan is no longer offered for new purchases; choose Basic or Complete',
+      `plan "${plan}" is not in OFFERED_PAID_PLANS`,
+    );
+  }
+}
+
+/**
  * A billing provider is not configured (or only partially): fail closed, 503.
  *
  * `reason` is the same closed code `/billing/checkout-config` reports, so a

@@ -21,8 +21,8 @@ import { checkoutCompletedObject, type CheckoutCompletedOptions } from './test-p
 // counted is not worth the plan.
 
 const BASIC_PRODUCT = 'prod_basic';
-const BASIC_PRICE = 55;
-const BASIC_CENTS = 5500;
+const BASIC_PRICE = 39;
+const BASIC_CENTS = 3900;
 
 function session(overrides: Partial<CheckoutSession> = {}): CheckoutSession {
   const now = new Date('2026-01-01T00:00:00.000Z');
@@ -102,24 +102,24 @@ describe('CREEM-006 order amount', () => {
     });
   });
 
-  // Exclusive tax charges $60.50 for the $55 plan. The extra is tax, not a
+  // Exclusive tax charges $42.90 for the $39 plan. The extra is tax, not a
   // catalogue that disagrees with the tariff, so nothing is flagged.
   it('accepts an exclusive-tax order charged above the tariff, recording what was charged', () => {
     const verdict = resolveCreemOrderAmount(
       session(),
-      orderOf({ taxCents: 550, taxMode: 'exclusive' }),
+      orderOf({ taxCents: 390, taxMode: 'exclusive' }),
       'Basic',
     );
     expect(verdict).toEqual({
       kind: 'accepted',
-      amountUsd: 60.5,
-      settledAmount: 60.5,
+      amountUsd: 42.9,
+      settledAmount: 42.9,
       settledCurrency: 'USD',
       unverifiedReason: null,
     });
   });
 
-  // Inclusive tax charges exactly $55 and reports $49.70 of it as the price.
+  // Inclusive tax charges exactly $39 and reports $33.70 of it as the price.
   // Reading that figure as "what was paid" would refuse a buyer who paid in full.
   it('accepts an inclusive-tax order whose price before tax is below the tariff', () => {
     const verdict = resolveCreemOrderAmount(
@@ -137,16 +137,16 @@ describe('CREEM-006 order amount', () => {
   });
 
   it('rejects a discounted exclusive-tax order even when tax lifts the charge over the tariff', () => {
-    // $55 list, $27.50 off, $30 tax on top: $57.50 charged, $27.50 worth.
+    // $39 list, $19.50 off, $30 tax on top: $49.50 charged, $19.50 worth.
     const verdict = resolveCreemOrderAmount(
       session(),
-      orderOf({ discountCents: 2750, taxCents: 3000, taxMode: 'exclusive' }),
+      orderOf({ discountCents: 1950, taxCents: 3000, taxMode: 'exclusive' }),
       'Basic',
     );
     expect(verdict.kind).toBe('rejected');
     if (verdict.kind !== 'rejected') return;
-    expect(verdict.reason).toContain('27.5 USD before tax');
-    expect(verdict.reason).toContain('57.5 USD charged');
+    expect(verdict.reason).toContain('19.5 USD before tax');
+    expect(verdict.reason).toContain('49.5 USD charged');
     expect(verdict.reason).toContain('after a discount');
     expect(verdict.reason).toContain(`below the ${BASIC_PRICE} USD Basic plan price`);
   });
@@ -154,7 +154,7 @@ describe('CREEM-006 order amount', () => {
   it('rejects a discounted inclusive-tax order', () => {
     const verdict = resolveCreemOrderAmount(
       session(),
-      orderOf({ discountCents: 2750, taxCents: 530, taxMode: 'inclusive' }),
+      orderOf({ discountCents: 1950, taxCents: 530, taxMode: 'inclusive' }),
       'Basic',
     );
     expect(verdict.kind).toBe('rejected');
@@ -167,7 +167,7 @@ describe('CREEM-006 order amount', () => {
   it('derives a discount from a sub-total below the list price', () => {
     const verdict = resolveCreemOrderAmount(
       session(),
-      orderWith({ amount: 5500, sub_total: 2750, tax_amount: 2750, amount_paid: 5500 }),
+      orderWith({ amount: 3900, sub_total: 1950, tax_amount: 1950, amount_paid: 3900 }),
       'Basic',
     );
     expect(verdict.kind).toBe('rejected');
@@ -193,7 +193,7 @@ describe('CREEM-006 order amount', () => {
     it('rejects a minimal order that carries a discount object, whatever the list price says', () => {
       const verdict = resolveCreemOrderAmount(
         session(),
-        orderOf({ minimalOrder: true, discountCents: 2750 }),
+        orderOf({ minimalOrder: true, discountCents: 1950 }),
         'Basic',
       );
       expect(verdict.kind).toBe('rejected');
@@ -204,7 +204,7 @@ describe('CREEM-006 order amount', () => {
     it('rejects an order whose only discount figure is discount_amount and that states no charge', () => {
       const verdict = resolveCreemOrderAmount(
         session(),
-        orderWith({ amount: 5500, discount_amount: 2750 }),
+        orderWith({ amount: 3900, discount_amount: 1950 }),
         'Basic',
       );
       expect(verdict.kind).toBe('rejected');
@@ -214,7 +214,7 @@ describe('CREEM-006 order amount', () => {
       expect(
         resolveCreemOrderAmount(
           session(),
-          orderOf({ discountCents: 2750, omitPaidFields: true }),
+          orderOf({ discountCents: 1950, omitPaidFields: true }),
           'Basic',
         ).kind,
       ).toBe('rejected');
@@ -223,13 +223,13 @@ describe('CREEM-006 order amount', () => {
     it('reads discount_amount as the discount and says so when the remainder still covers the plan', () => {
       const verdict = resolveCreemOrderAmount(
         session(),
-        orderWith({ amount: 6000, discount_amount: 500, sub_total: 5500, amount_paid: 5500 }),
+        orderWith({ amount: 4400, discount_amount: 500, sub_total: 3900, amount_paid: 3900 }),
         'Basic',
       );
       expect(verdict).toMatchObject({ kind: 'accepted', amountUsd: BASIC_PRICE });
       if (verdict.kind !== 'accepted') return;
       expect(verdict.unverifiedReason).toContain('carries a 5 USD discount');
-      expect(verdict.unverifiedReason).toContain('still covers the 55 USD Basic plan price');
+      expect(verdict.unverifiedReason).toContain('still covers the 39 USD Basic plan price');
     });
   });
 
@@ -244,7 +244,7 @@ describe('CREEM-006 order amount', () => {
   });
 
   it('rejects an order below the tariff, by a cent or by a lot', () => {
-    const byACent = resolveCreemOrderAmount(session(), orderOf({ amountCents: 5498 }), 'Basic');
+    const byACent = resolveCreemOrderAmount(session(), orderOf({ amountCents: 3898 }), 'Basic');
     expect(byACent.kind).toBe('rejected');
     const byALot = resolveCreemOrderAmount(session(), orderOf({ amountCents: 100 }), 'Basic');
     expect(byALot.kind).toBe('rejected');
@@ -263,23 +263,23 @@ describe('CREEM-006 order amount', () => {
 
   it('reads the charge from amount_paid, then amount_due, then sub_total, then amount', () => {
     expect(
-      resolveCreemOrderAmount(session(), orderWith({ amount: 100, amount_paid: 5500 }), 'Basic')
+      resolveCreemOrderAmount(session(), orderWith({ amount: 100, amount_paid: 3900 }), 'Basic')
         .kind,
     ).toBe('accepted');
     expect(
-      resolveCreemOrderAmount(session(), orderWith({ amount: 100, amount_due: 5500 }), 'Basic')
+      resolveCreemOrderAmount(session(), orderWith({ amount: 100, amount_due: 3900 }), 'Basic')
         .kind,
     ).toBe('accepted');
     expect(
-      resolveCreemOrderAmount(session(), orderWith({ amount: 5500, sub_total: 5500 }), 'Basic')
+      resolveCreemOrderAmount(session(), orderWith({ amount: 3900, sub_total: 3900 }), 'Basic')
         .kind,
     ).toBe('accepted');
-    expect(resolveCreemOrderAmount(session(), orderWith({ amount: 5500 }), 'Basic').kind).toBe(
+    expect(resolveCreemOrderAmount(session(), orderWith({ amount: 3900 }), 'Basic').kind).toBe(
       'accepted',
     );
     // The list price alone never stands in for a stated charge.
     expect(
-      resolveCreemOrderAmount(session(), orderWith({ amount: 5500, amount_paid: 100 }), 'Basic')
+      resolveCreemOrderAmount(session(), orderWith({ amount: 3900, amount_paid: 100 }), 'Basic')
         .kind,
     ).toBe('rejected');
   });
@@ -327,18 +327,18 @@ describe('CREEM-006 order amount', () => {
   describe('the expected amount stored on the session', () => {
     it('is the floor when it is below the tariff', () => {
       const verdict = resolveCreemOrderAmount(
-        session({ expectedAmountUsd: 50 }),
-        orderOf({ amountCents: 5000 }),
+        session({ expectedAmountUsd: 35 }),
+        orderOf({ amountCents: 3500 }),
         'Basic',
       );
       expect(verdict.kind).toBe('accepted');
       if (verdict.kind !== 'accepted') return;
-      expect(verdict.amountUsd).toBe(50);
+      expect(verdict.amountUsd).toBe(35);
       expect(verdict.unverifiedReason).toBeNull();
       expect(
         resolveCreemOrderAmount(
-          session({ expectedAmountUsd: 50 }),
-          orderOf({ amountCents: 4998 }),
+          session({ expectedAmountUsd: 35 }),
+          orderOf({ amountCents: 3498 }),
           'Basic',
         ).kind,
       ).toBe('rejected');
@@ -357,7 +357,7 @@ describe('CREEM-006 order amount', () => {
       for (const expectedAmountUsd of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
         const verdict = resolveCreemOrderAmount(
           session({ expectedAmountUsd }),
-          orderOf({ amountCents: 5000 }),
+          orderOf({ amountCents: 3500 }),
           'Basic',
         );
         expect(verdict.kind, String(expectedAmountUsd)).toBe('rejected');

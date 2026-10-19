@@ -18,10 +18,16 @@ import { buildExportRecords, type ExportScan } from './export/build-records.ts';
 import { errorHandler } from './http/error-handler.ts';
 import { silentLogger } from './http/logger.ts';
 import { modulePlanFor } from './orchestrator/module-plan.ts';
-import { planUrlLimit, planPriceUsd, isPaidPlan } from './billing/plans.ts';
+import {
+  OFFERED_PAID_PLANS,
+  assertPlanOfferedForPurchase,
+  isPaidPlan,
+  planPriceUsd,
+  planUrlLimit,
+} from './billing/plans.ts';
 import { readCreemConfig } from './billing/creem/config.ts';
 import { createCreemCheckoutSession } from './billing/creem/checkout-session.ts';
-import { PlanNotPurchasableError } from './billing/errors.ts';
+import { PlanNotOfferedError, PlanNotPurchasableError } from './billing/errors.ts';
 
 describe('Website Audit — what the plan runs', () => {
   const plan = modulePlanFor('WebsiteAudit');
@@ -139,6 +145,20 @@ describe('Website Audit — what the buyer may ask for', () => {
     expect(isPaidPlan('WebsiteAudit')).toBe(true);
     expect(planPriceUsd('WebsiteAudit')).toBe(79);
     expect(planUrlLimit('WebsiteAudit')).toBe(50_000);
+  });
+
+  // Withdrawn on 2026-10-19: still a paid plan (webhooks, refunds and reports
+  // accept it), no longer one a new checkout may be opened for.
+  it('is no longer offered for a new purchase, with a closed 409 code', () => {
+    expect(OFFERED_PAID_PLANS).toEqual(['Basic', 'Complete']);
+    expect(() => assertPlanOfferedForPurchase('Basic')).not.toThrow();
+    expect(() => assertPlanOfferedForPurchase('Complete')).not.toThrow();
+    expect(() => assertPlanOfferedForPurchase('WebsiteAudit')).toThrow(PlanNotOfferedError);
+    try {
+      assertPlanOfferedForPurchase('WebsiteAudit');
+    } catch (error) {
+      expect((error as PlanNotOfferedError).code).toBe('PLAN_NOT_OFFERED');
+    }
   });
 
   it('refuses a checkout before any row is written when the product is unmapped', async () => {

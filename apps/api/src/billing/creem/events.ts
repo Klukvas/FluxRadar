@@ -12,8 +12,8 @@ import { CREEM_LIVE_MODE } from './client.ts';
 // must never turn a real payment into a rejected event. Where a field has both
 // an expanded (object) and a bare (id string) spelling, both are read.
 //
-// MONEY IS IN CENTS. Every Creem amount is an integer minor unit — 5500 is
-// $55.00 — and is left that way here. `order-amount.ts` and `refund-line.ts`
+// MONEY IS IN CENTS. Every Creem amount is an integer minor unit — 3900 is
+// $39.00 — and is left that way here. `order-amount.ts` and `refund-line.ts`
 // are where cents become the dollar figures the rest of billing works in.
 
 /** Checkout metadata key that carries our server-issued checkout reference. */

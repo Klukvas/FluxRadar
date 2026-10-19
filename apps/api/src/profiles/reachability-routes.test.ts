@@ -16,7 +16,7 @@ import { REACHABILITY_PROBE_TTL_MS } from './reachability-routes.ts';
 
 // Whether a site will let our crawler in, asked before the owner pays.
 //
-// Without this a customer could buy a $120 audit of a site that refuses us,
+// Without this a customer could buy a paid audit of a site that refuses us,
 // wait for the scan, and get a refund instead of a report. The endpoint is the
 // answer; `creem-008-reachability-gate.test.ts` is the refusal it feeds.
 
