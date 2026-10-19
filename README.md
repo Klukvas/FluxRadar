@@ -6,13 +6,13 @@ is going, not what runs today; read its status header before quoting it. Day-to-
 are kept outside the repository.
 
 Two one-time packages are on sale: **Basic** ($39 — SEO and AI SEO / GEO) and **Complete** ($87
-— all ten modules). **Website Audit** ($79 — the eight non-search modules) was withdrawn from sale
-on 2026-10-19: no new checkout is opened for it (`OFFERED_PAID_PLANS`), while purchases, scans,
-reports, exports, refunds and webhooks already made on it keep working. A free one-off homepage check (four SEO rules, no
+— all ten modules). The earlier Website Audit package was removed on 2026-10-19; rows stored
+with that plan are read through `packages/contracts/src/stored-plan.ts` and render as an archived,
+read-only report. A free one-off homepage check (four SEO rules, no
 score) is available to anyone with an account; it is not a prerequisite for buying a scan. The
 tariff matrix in `packages/contracts/src/tariffs.ts` is the one place that defines them: prices,
-module lists, URL and AI-request limits, retention (30 days for Free and Basic, 365 for Website
-Audit and Complete) and the capabilities each package carries — scan history, issue history,
+module lists, URL and AI-request limits, retention (30 days for Free and Basic, 365 for
+Complete) and the capabilities each package carries — scan history, issue history,
 export and the AI Action Plan.
 
 ## Structure
@@ -105,7 +105,7 @@ without a signed Creem order, in every environment (D-229):
    (comma-separated for several; matching ignores case).
 2. Restart the API, then register or sign in with that email.
 3. The new-scan screen now offers **Basic · internal free** and **Complete · internal free**
-   (Website Audit is refused here too, as on the paid checkout). Launching one calls `POST /billing/internal-checkout`,
+   Launching one calls `POST /billing/internal-checkout`,
    which queues the scan straight away.
 
 Such a scan writes no `Purchase` or `Entitlement` (the response says
