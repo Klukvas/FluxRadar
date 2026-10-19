@@ -680,6 +680,7 @@ export const copy = {
             '21 checks for Google search across the whole site: page names and descriptions, headings, picture descriptions, broken links and redirects, pages that repeat each other, pages hidden from search, the site map and your business details for Google',
             'Whether AI assistants like ChatGPT may read your pages',
             'Whether two AI assistants mention you in their answers (two more if you choose)',
+            'An AI action plan: what to fix first, with steps your developer can follow',
           ],
           limits: 'One check of one website · up to 5,000 pages · results kept for 30 days.',
         },
@@ -721,14 +722,14 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Reword the rest
             // of this answer freely; leave that opening clause alone.
             basic:
-              '21 checks for Google search, plus whether AI assistants like ChatGPT may read your pages, and whether two AI assistants mention you in their answers (two more if you choose).',
+              '21 checks for Google search, plus whether AI assistants like ChatGPT may read your pages, and whether two AI assistants mention you in their answers (two more if you choose). With the AI action plan: what to fix first, step by step.',
             complete:
               'Everything in Basic, plus eight sections about the site itself: security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). With scan history, export to a file and the AI action plan.',
           },
           notIncluded: {
             label: 'What is not included',
             basic:
-              'Security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). Also the scan history, export to a file and AI action plan. Complete has all of them.',
+              'Security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). Also the scan history and export to a file. Complete has all of them.',
             complete:
               'Nothing: everything FluxRadar checks is already in this price, with nothing extra to pay at checkout. It still looks only at pages anyone can open.',
           },
@@ -850,6 +851,19 @@ export const copy = {
         google: 'Also ask Google (Gemini)',
         perplexity: 'Also ask Perplexity',
       },
+      // Its own callout, not a sentence added to the notice above: that body is
+      // the versioned pre-purchase notice (core-ai-processing-notice-v5), and
+      // the plan is not part of the AI work the price runs. It is consented to
+      // at its own button (action-plan-notice-v1, D-232); this says so before
+      // payment, on every plan that includes the plan.
+      aiConsentEyebrow: 'AI SEO / GEO · UX',
+      aiConsentOptInEyebrow: 'AI SEO / GEO · OPTIONAL',
+      actionPlanInfoEyebrow: 'AI ACTION PLAN · ON REQUEST',
+      performanceInfoEyebrow: 'PERFORMANCE · GOOGLE',
+      actionPlanInfoTitle: 'AI Action Plan: only when you ask',
+      actionPlanInfoMode: 'On request',
+      actionPlanInfoBody:
+        'Basic and Complete reports can also write an AI Action Plan: an ordered list of fixes with a short overview you can forward to a client. Nothing is sent for it when you pay or while the scan runs. Only when you press its button in the report does FluxRadar send Anthropic (Claude) the site’s domain, each section’s status, score and coverage, and, for each rule with open findings, its id and title, its section, the highest open severity, the number of open findings, up to three page addresses without query strings or fragments, and the rule’s recommendations as the report shows them. Evidence excerpts, screenshots, traces and anything from the Analytics section are never sent. Pressing the button is your consent.',
       aiConsentPrivacy: 'Privacy policy',
       aiConsentTerms: 'Terms of service',
       performanceInfoTitle: 'External performance measurement',
@@ -2696,6 +2710,7 @@ export const copy = {
             '21 перевірка для пошуку Google на всьому сайті: назви й описи сторінок, підзаголовки, описи зображень, биті посилання й переадресації, сторінки, що повторюють одна одну, сторінки, закриті від пошуку, мапа сайту і дані про ваш бізнес для Google',
             'Чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки',
             'Чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором)',
+            'План дій від ШІ: що виправити першим, з кроками, які може виконати ваш розробник',
           ],
           limits:
             'Одна перевірка одного сайту · до 5 000 сторінок · результати зберігаються 30 днів.',
@@ -2737,14 +2752,14 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Решту відповіді
             // можна переписувати; початок речення — ні.
             basic:
-              '21 перевірка для пошуку Google, а також чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки і чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором).',
+              '21 перевірка для пошуку Google, а також чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки і чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором). З планом дій від ШІ: що виправити першим, крок за кроком.',
             complete:
               'Усе з Basic, а ще вісім розділів звіту про сам сайт: безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). До цього додаються історія перевірок, вивантаження у файл і план дій від ШІ.',
           },
           notIncluded: {
             label: 'Що не входить',
             basic:
-              'Безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). А також історія перевірок, вивантаження у файл і план дій від ШІ. Усе це є в Complete.',
+              'Безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). А також історія перевірок і вивантаження у файл. Усе це є в Complete.',
             complete:
               'Нічого: усе, що перевіряє FluxRadar, уже входить у цю ціну, і доплачувати під час оплати нічого не треба. Звіт так само охоплює лише сторінки, відкриті для всіх.',
           },
@@ -2854,6 +2869,14 @@ export const copy = {
         google: 'Запитати також Google (Gemini)',
         perplexity: 'Запитати також Perplexity',
       },
+      aiConsentEyebrow: 'AI SEO / GEO · UX',
+      aiConsentOptInEyebrow: 'AI SEO / GEO · НЕОБОВʼЯЗКОВО',
+      actionPlanInfoEyebrow: 'AI-ПЛАН ДІЙ · ЗА ЗАПИТОМ',
+      performanceInfoEyebrow: 'ШВИДКІСТЬ · GOOGLE',
+      actionPlanInfoTitle: 'AI-план дій: лише на ваш запит',
+      actionPlanInfoMode: 'За запитом',
+      actionPlanInfoBody:
+        'У звітах Basic і Complete можна також скласти AI-план дій: упорядкований список правок із коротким оглядом, який можна переслати клієнту. Під час оплати й поки триває перевірка для нього нічого не надсилається. Лише коли ви натиснете кнопку цього плану у звіті, FluxRadar надішле до Anthropic (Claude) домен сайту, статус, оцінку й покриття кожного розділу, а для кожного правила з відкритими знахідками: ідентифікатор і назву, розділ, найвищу відкриту серйозність, кількість відкритих знахідок, до трьох адрес сторінок без параметрів запиту й фрагментів і рекомендації правила так, як їх показує звіт. Уривки доказів, знімки екрана, трасування й будь-що з розділу «Аналітика» ніколи не надсилаються. Натискання кнопки означає вашу згоду.',
       aiConsentPrivacy: 'Політика приватності',
       aiConsentTerms: 'Умови користування',
       performanceInfoTitle: 'Зовнішнє вимірювання швидкодії',

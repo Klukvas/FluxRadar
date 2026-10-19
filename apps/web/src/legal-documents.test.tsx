@@ -93,7 +93,7 @@ describe('public legal documents', () => {
       /Google \(Gemini\) and Perplexity are opt-in recipients.*receive nothing unless you select them/is,
     );
     expect(policy).toHaveTextContent(
-      /AI Action Plan \(Complete\) sends Anthropic the report’s rule metadata only/i,
+      /AI Action Plan \(Basic and Complete\) sends Anthropic the report’s rule metadata only/i,
     );
     expect(policy).toHaveTextContent(
       /never sends evidence excerpts, screenshots, or anything from the Analytics section/i,

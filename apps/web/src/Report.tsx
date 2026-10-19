@@ -67,7 +67,7 @@ export function ResultsScreen(props: {
   onOpenProblem?: (ruleId: string) => void;
   /**
    * Opens the scan form for the same site on `plan`: Basic from a Free report's
-   * upsell, Complete from a Basic report's locked Action Plan.
+   * upsell, Complete from an archived report's locked Action Plan.
    */
   onUpgrade?: (scan: Scan, plan: PaidPlan) => void;
   /** Opens the printable client report. */

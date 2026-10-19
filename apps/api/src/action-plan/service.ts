@@ -87,10 +87,11 @@ export async function assertPlanGenerationAllowed(
   scan: Scan & ActionPlanScanState,
   now: Date,
 ): Promise<void> {
-  // The Action Plan is bought with the report, not with one plan literal. Free
-  // and Basic are still refused — neither tariff includes it.
+  // The Action Plan is bought with the report, not with one plan literal: Basic
+  // and Complete include it (2026-10-19). Free is refused, and so is a retired
+  // plan, which has no tariff row and therefore no capability.
   if (!planSupports(scan.plan, 'actionPlan')) {
-    throw forbidden('ACTION_PLAN_COMPLETE_ONLY', 'the AI Action Plan is not included in this plan');
+    throw forbidden('ACTION_PLAN_NOT_INCLUDED', 'the AI Action Plan is not included in this plan');
   }
   const job = await prisma.job.findUnique({ where: { scanId: scan.id }, select: { status: true } });
   // The worker writes the Analytics module after the scan outcome is resolved,

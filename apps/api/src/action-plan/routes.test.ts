@@ -121,13 +121,40 @@ async function seedPlannableScan(
     readonly jobStatus?: string;
     readonly openIssue?: boolean;
     readonly analyticsIssueOnly?: boolean;
+    /** A Free check is bought by nobody: no purchase, no entitlement. */
+    readonly unpaid?: boolean;
   } = {},
 ): Promise<ScanFixture> {
+  const purchaseId =
+    overrides.unpaid === true ? null : await seedPurchase(prisma, account, overrides.plan);
+  const completedAt = overrides.completedAt ?? new Date();
+  const scan = await prisma.scan.create({
+    data: {
+      purchaseId,
+      accountId: account.accountId,
+      siteProfileId: account.siteProfileId,
+      plan: overrides.plan ?? 'Complete',
+      domain: account.domain,
+      status: 'Completed',
+      scopeJson: JSON.stringify({ includeSubdomains: false }),
+      rulesetVersion: 'rules-mvp-0.1',
+      completedAt,
+    },
+  });
+  await seedScanRows(prisma, account, scan.id, completedAt, overrides);
+  return { scanId: scan.id };
+}
+
+async function seedPurchase(
+  prisma: PrismaClient,
+  account: SeededAccount,
+  plan: string | undefined,
+): Promise<string> {
   const purchase = await prisma.purchase.create({
     data: {
       accountId: account.accountId,
       siteProfileId: account.siteProfileId,
-      plan: overrides.plan ?? 'Complete',
+      plan: plan ?? 'Complete',
       provider: 'paddle',
       providerTransactionId: `txn_${Math.random().toString(36).slice(2)}`,
       amountUsd: 49,
@@ -141,34 +168,35 @@ async function seedPlannableScan(
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   });
-  const completedAt = overrides.completedAt ?? new Date();
-  const scan = await prisma.scan.create({
-    data: {
-      purchaseId: purchase.id,
-      accountId: account.accountId,
-      siteProfileId: account.siteProfileId,
-      plan: overrides.plan ?? 'Complete',
-      domain: account.domain,
-      status: 'Completed',
-      scopeJson: JSON.stringify({ includeSubdomains: false }),
-      rulesetVersion: 'rules-mvp-0.1',
-      completedAt,
-    },
-  });
+  return purchase.id;
+}
+
+/** The job, consent, modules and the one open issue a plannable scan carries. */
+async function seedScanRows(
+  prisma: PrismaClient,
+  account: SeededAccount,
+  scanId: string,
+  completedAt: Date,
+  overrides: {
+    readonly jobStatus?: string;
+    readonly openIssue?: boolean;
+    readonly analyticsIssueOnly?: boolean;
+  },
+): Promise<void> {
   await prisma.job.create({
-    data: { scanId: scan.id, type: 'scan', status: overrides.jobStatus ?? 'Done' },
+    data: { scanId, type: 'scan', status: overrides.jobStatus ?? 'Done' },
   });
   await prisma.aiConsent.create({
     data: {
       accountId: account.accountId,
-      scanId: scan.id,
+      scanId,
       providersJson: JSON.stringify(['anthropic', 'openai']),
       noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
     },
   });
   await prisma.scanModule.create({
     data: {
-      scanId: scan.id,
+      scanId,
       module: 'SEO',
       runtimeStatus: 'Completed',
       coverage: 1,
@@ -178,7 +206,7 @@ async function seedPlannableScan(
   });
   await prisma.scanModule.create({
     data: {
-      scanId: scan.id,
+      scanId,
       module: 'Performance',
       runtimeStatus: 'Partial',
       coverage: 0.5,
@@ -190,10 +218,10 @@ async function seedPlannableScan(
     await prisma.issue.createMany({
       data: [
         {
-          scanId: scan.id,
+          scanId,
           ruleId: overrides.analyticsIssueOnly === true ? 'ANALYTICS-SC-001' : 'SEO-TECH-001',
           module: overrides.analyticsIssueOnly === true ? 'Analytics' : 'SEO',
-          fingerprint: `fp-${scan.id}-1`,
+          fingerprint: `fp-${scanId}-1`,
           severity: 'High',
           severityRank: 1,
           category: 'seo',
@@ -217,7 +245,6 @@ async function seedPlannableScan(
       ],
     });
   }
-  return { scanId: scan.id };
 }
 
 describe('Action Plan routes', () => {
@@ -348,20 +375,79 @@ describe('Action Plan routes', () => {
 
   // A stored row of the retired Website Audit plan is read-only: it entitles
   // nothing, so no AI request is spent on it (stored-plan.ts).
-  it('refuses a legacy Website Audit scan as it refuses Basic, and writes nothing', async () => {
+  it('refuses a legacy Website Audit scan as it refuses Free, and writes nothing', async () => {
     const { scanId } = await seedPlannableScan(db.prisma, account, { plan: 'WebsiteAudit' });
 
     const response = await generate(scanId);
 
     expect(response.status).toBe(403);
-    expect(response.body.error.code).toBe('ACTION_PLAN_COMPLETE_ONLY');
+    expect(response.body.error.code).toBe('ACTION_PLAN_NOT_INCLUDED');
     expect(await db.prisma.actionPlanAttempt.count({ where: { scanId } })).toBe(0);
   });
 
-  it('refuses a Basic scan, an unfinished one and a closed window', async () => {
-    const basic = await seedPlannableScan(db.prisma, account, { plan: 'Basic' });
-    expect((await generate(basic.scanId)).body.error.code).toBe('ACTION_PLAN_COMPLETE_ONLY');
+  // Read-only means read: a plan stored while Website Audit was still on sale
+  // stays readable, the way every other part of that report does.
+  it('still reads a plan stored on a legacy Website Audit scan', async () => {
+    const { scanId } = await seedPlannableScan(db.prisma, account, { plan: 'WebsiteAudit' });
+    await db.prisma.actionPlan.create({
+      data: {
+        scanId,
+        language: 'en',
+        contentJson: JSON.stringify(VALID_PLAN),
+        promptText: 'stored prompt',
+        promptVersion: 'action-plan-v1',
+        modelId: 'claude-opus-5',
+        requestId: 'msg_legacy',
+        usageJson: '{}',
+        noticeVersion: ACTION_PLAN_NOTICE_VERSION,
+        generatedAt: new Date(),
+      },
+    });
 
+    const read = await agent.get(`/scans/${scanId}/action-plan?language=en`);
+
+    expect(read.status).toBe(200);
+    expect(read.body.data.plan).toMatchObject({ language: 'en', overview: VALID_PLAN.overview });
+  });
+
+  // Owner decision 2026-10-19: Basic includes the plan, exactly as Complete does.
+  it('writes and reads a plan for a Basic scan exactly as for Complete', async () => {
+    const { scanId } = await seedPlannableScan(db.prisma, account, { plan: 'Basic' });
+
+    const response = await generate(scanId);
+    expect(response.status).toBe(202);
+
+    const read = await agent.get(`/scans/${scanId}/action-plan?language=en`);
+    expect(read.status).toBe(200);
+    expect(read.body.data.plan).toMatchObject({
+      language: 'en',
+      overview: VALID_PLAN.overview,
+      noticeVersion: ACTION_PLAN_NOTICE_VERSION,
+    });
+    expect(read.body.data.languages).toEqual(['en']);
+    expect(read.body.data.remaining).toEqual({
+      successes: ACTION_PLAN_LIMITS.maxSuccessesPerScan - 1,
+      attempts: ACTION_PLAN_LIMITS.maxAttemptsPerScan - 1,
+    });
+    expect(
+      await db.prisma.actionPlanAttempt.count({ where: { scanId, status: 'Succeeded' } }),
+    ).toBe(1);
+  });
+
+  it('refuses a Free check, and writes nothing', async () => {
+    const { scanId } = await seedPlannableScan(db.prisma, account, {
+      plan: 'Free',
+      unpaid: true,
+    });
+
+    const response = await generate(scanId);
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('ACTION_PLAN_NOT_INCLUDED');
+    expect(await db.prisma.actionPlanAttempt.count({ where: { scanId } })).toBe(0);
+  });
+
+  it('refuses an unfinished scan and a closed window', async () => {
     const unfinished = await seedPlannableScan(db.prisma, account, { jobStatus: 'Claimed' });
     expect((await generate(unfinished.scanId)).body.error.code).toBe('ACTION_PLAN_NOT_READY');
 
@@ -471,43 +557,73 @@ describe('Action Plan routes', () => {
     expect(response.status).toBe(202);
   });
 
-  it('stops after three successes and after six attempts', async () => {
-    const { scanId } = await seedPlannableScan(db.prisma, account);
-    await db.prisma.scan.update({
-      where: { id: scanId },
-      data: { actionPlanSuccesses: ACTION_PLAN_LIMITS.maxSuccessesPerScan },
-    });
-    const exhaustedSuccesses = await generate(scanId);
-    expect(exhaustedSuccesses.status).toBe(429);
-    expect(exhaustedSuccesses.body.error.code).toBe('ACTION_PLAN_LIMIT');
+  // The per-scan caps are the spend guard (D-232); Basic gets the plan under
+  // exactly the same ones.
+  it.each(['Basic', 'Complete'])(
+    'stops a %s scan after three successes and six attempts',
+    async (plan) => {
+      const { scanId } = await seedPlannableScan(db.prisma, account, { plan });
+      await db.prisma.scan.update({
+        where: { id: scanId },
+        data: { actionPlanSuccesses: ACTION_PLAN_LIMITS.maxSuccessesPerScan },
+      });
+      const exhaustedSuccesses = await generate(scanId);
+      expect(exhaustedSuccesses.status).toBe(429);
+      expect(exhaustedSuccesses.body.error.code).toBe('ACTION_PLAN_LIMIT');
 
-    await db.prisma.scan.update({
-      where: { id: scanId },
-      data: {
-        actionPlanSuccesses: 0,
-        actionPlanAttempts: ACTION_PLAN_LIMITS.maxAttemptsPerScan,
-      },
-    });
-    expect((await generate(scanId)).body.error.code).toBe('ACTION_PLAN_LIMIT');
-  });
+      await db.prisma.scan.update({
+        where: { id: scanId },
+        data: {
+          actionPlanSuccesses: 0,
+          actionPlanAttempts: ACTION_PLAN_LIMITS.maxAttemptsPerScan,
+        },
+      });
+      expect((await generate(scanId)).body.error.code).toBe('ACTION_PLAN_LIMIT');
+    },
+  );
 
-  it('answers busy when the product-wide daily cap is reached', async () => {
-    const { scanId } = await seedPlannableScan(db.prisma, account);
+  // The account's hourly cap is counted in the database, across its scans and
+  // whatever their plan: Basic starts spend the same allowance as Complete's.
+  it('holds a Basic scan to the account’s hourly cap counted in the database', async () => {
+    const earlier = await seedPlannableScan(db.prisma, account, { plan: 'Complete' });
     await db.prisma.actionPlanAttempt.createMany({
-      data: Array.from({ length: ACTION_PLAN_LIMITS.maxGenerationsPerProductPerDay }, () => ({
-        scanId,
+      data: Array.from({ length: ACTION_PLAN_LIMITS.maxStartsPerAccountPerHour }, () => ({
+        scanId: earlier.scanId,
         accountId: account.accountId,
         language: 'en',
         noticeVersion: ACTION_PLAN_NOTICE_VERSION,
         status: 'Succeeded',
       })),
     });
+    const { scanId } = await seedPlannableScan(db.prisma, account, { plan: 'Basic' });
 
     const response = await generate(scanId);
 
-    expect(response.status).toBe(503);
-    expect(response.body.error.code).toBe('ACTION_PLAN_BUSY');
+    expect(response.status).toBe(429);
+    expect(response.body.error.code).toBe('ACTION_PLAN_RATE_LIMITED');
+    expect(await db.prisma.actionPlanAttempt.count({ where: { scanId } })).toBe(0);
   });
+
+  it.each(['Basic', 'Complete'])(
+    'answers busy on %s when the product-wide daily cap is reached',
+    async (plan) => {
+      const { scanId } = await seedPlannableScan(db.prisma, account, { plan });
+      await db.prisma.actionPlanAttempt.createMany({
+        data: Array.from({ length: ACTION_PLAN_LIMITS.maxGenerationsPerProductPerDay }, () => ({
+          scanId,
+          accountId: account.accountId,
+          language: 'en',
+          noticeVersion: ACTION_PLAN_NOTICE_VERSION,
+          status: 'Succeeded',
+        })),
+      });
+
+      const response = await generate(scanId);
+
+      expect(response.status).toBe(503);
+      expect(response.body.error.code).toBe('ACTION_PLAN_BUSY');
+    },
+  );
 
   it('keeps the previous plan when a regeneration fails, and records a code only', async () => {
     const { scanId } = await seedPlannableScan(db.prisma, account);

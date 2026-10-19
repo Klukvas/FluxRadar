@@ -39,7 +39,7 @@ const EN: ActionPlanCopy = {
   heading: 'AI Action Plan',
   aiLabel: 'AI-generated',
   lockedTitle: 'AI Action Plan',
-  lockedBody: 'An AI Action Plan is written from a Complete scan of this site.',
+  lockedBody: 'An AI Action Plan comes with a new Basic or Complete scan of this site.',
   lockedAction: 'Run a Complete scan',
   // True of both reports that reach this state: the one with nothing open at
   // all, and the one whose only open findings are Analytics — which are still
@@ -78,7 +78,7 @@ const UK: ActionPlanCopy = {
   heading: 'AI-план дій',
   aiLabel: 'Згенеровано AI',
   lockedTitle: 'AI-план дій',
-  lockedBody: 'AI-план дій пишеться за результатами перевірки Complete для цього сайту.',
+  lockedBody: 'AI-план дій є в новій перевірці Basic або Complete цього сайту.',
   lockedAction: 'Запустити перевірку Complete',
   nothingToPlan:
     'Жодна відкрита знахідка цього звіту не може потрапити до плану — знахідки розділу «Аналітика» беруться з ваших даних Google і ніколи до нього не входять.',

@@ -6,7 +6,7 @@ import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import type { NewScanForm } from './new-scan-form';
 import { NewScanStep } from './NewScanSteps';
-import { PLAN_MODULES, type Plan } from './plan-modules';
+import { PLAN_MODULES, planIncludesActionPlan, type Plan } from './plan-modules';
 import { ScanCallout } from './ScanCallout';
 import { PLAN_PRICE } from './tariff-prices';
 
@@ -86,7 +86,7 @@ export function PlanStep(props: {
           {/* Every paid plan runs AI SEO / GEO, so one disclosure covers both;
               the body says what the UX review adds on Complete. */}
           <ScanCallout
-            eyebrow="AI SEO / GEO · UX"
+            eyebrow={t.newScan.aiConsentEyebrow}
             title={t.newScan.aiConsentTitle}
             titleId="ai-consent-title"
             mode={t.newScan.aiConsentOptional}
@@ -121,7 +121,7 @@ export function PlanStep(props: {
           !PLAN_MODULES[plan].includes('AI SEO / GEO') ? null : (
             <>
               <ScanCallout
-                eyebrow="AI SEO / GEO · OPTIONAL"
+                eyebrow={t.newScan.aiConsentOptInEyebrow}
                 title={t.newScan.aiConsentOptInTitle}
                 titleId="ai-consent-opt-in-title"
                 mode={t.newScan.aiConsentOptInMode}
@@ -142,9 +142,23 @@ export function PlanStep(props: {
               ))}
             </>
           )}
+          {/* Open for the same reason as the notice above: it says what leaves
+              the site and who receives it, and it is read before paying. Shown
+              on every plan the tariff gives the Action Plan to, Basic included. */}
+          {planIncludesActionPlan(plan) ? (
+            <ScanCallout
+              eyebrow={t.newScan.actionPlanInfoEyebrow}
+              title={t.newScan.actionPlanInfoTitle}
+              titleId="action-plan-info-title"
+              mode={t.newScan.actionPlanInfoMode}
+              defaultOpen
+            >
+              {t.newScan.actionPlanInfoBody}
+            </ScanCallout>
+          ) : null}
           {PLAN_MODULES[plan].includes('Performance') ? (
             <ScanCallout
-              eyebrow="PERFORMANCE · GOOGLE"
+              eyebrow={t.newScan.performanceInfoEyebrow}
               title={t.newScan.performanceInfoTitle}
               titleId="performance-info-title"
               mode={t.newScan.performanceInfoMode}

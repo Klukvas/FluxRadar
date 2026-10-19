@@ -192,7 +192,7 @@ describe('the plain-language pricing comparison', () => {
   it('promises scan history, export and the Action Plan only where the tariff carries them', () => {
     expect(PLAN_CAPABILITIES.Basic).toEqual({
       export: false,
-      actionPlan: false,
+      actionPlan: true,
       issueHistory: false,
     });
     expect(PLAN_CAPABILITIES.Complete).toEqual({
@@ -201,10 +201,11 @@ describe('the plain-language pricing comparison', () => {
       issueHistory: true,
     });
 
-    const PROMISES = {
-      en: [/scan history/i, /export to a file/i, /AI action plan/i],
-      uk: [/історі\S+ перевірок/i, /вивантаже\S+ у файл/i, /план\S* дій від ШІ/i],
+    const HISTORY_AND_EXPORT = {
+      en: [/scan history/i, /export to a file/i],
+      uk: [/історі\S+ перевірок/i, /вивантаже\S+ у файл/i],
     } as const;
+    const ACTION_PLAN = { en: /AI action plan/i, uk: /план\S* дій від ШІ/i } as const;
     for (const language of ['en', 'uk'] as const) {
       const rows = copy[language].pricing.explainer.rows;
       const cards = copy[language].pricing.cards;
@@ -213,13 +214,24 @@ describe('the plain-language pricing comparison', () => {
         cards.complete.checks.join(' '),
         rows.notIncluded.basic,
       ]) {
-        for (const promise of PROMISES[language]) expect(answer).toMatch(promise);
+        for (const promise of HISTORY_AND_EXPORT[language]) expect(answer).toMatch(promise);
       }
-      // Broader than the promises above on purpose: Basic must not name any
-      // of the three, in any wording.
+      // Both plans sell the Action Plan (2026-10-19), and Basic's "not
+      // included" answer must no longer list it.
+      for (const answer of [
+        rows.included.basic,
+        cards.basic.checks.join(' '),
+        rows.included.complete,
+        cards.complete.checks.join(' '),
+      ]) {
+        expect(answer).toMatch(ACTION_PLAN[language]);
+      }
+      expect(rows.notIncluded.basic).not.toMatch(ACTION_PLAN[language]);
+      // Broader than the promises above on purpose: Basic must not name history
+      // or export, in any wording.
       const NEVER_ON_BASIC = {
-        en: /scan history|export|action plan/i,
-        uk: /історі|вивантаж|експорт|план дій/i,
+        en: /scan history|export/i,
+        uk: /історі|вивантаж|експорт/i,
       } as const;
       for (const answer of [rows.included.basic, cards.basic.checks.join(' ')]) {
         expect(answer).not.toMatch(NEVER_ON_BASIC[language]);

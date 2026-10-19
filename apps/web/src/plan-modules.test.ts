@@ -232,13 +232,16 @@ describe('the plan/capability mirror', () => {
     expect(planIncludesIssueHistory('Complete')).toBe(true);
     expect(planIncludesIssueHistory('Basic')).toBe(false);
     expect(planIncludesIssueHistory('Free')).toBe(false);
-    // The comparison is sold with the same entitlement as the rest of the full
-    // report, and a plan that gains one without the others is a product decision
-    // this test should be updated for deliberately.
+    // The comparison is sold with the same entitlement as export, and a plan
+    // that gains one without the other is a product decision this test should be
+    // updated for deliberately. The Action Plan is the exception that decision
+    // already made: Basic has it without history or export (2026-10-19).
     for (const plan of PLAN_ORDER) {
       expect(planIncludesIssueHistory(plan)).toBe(planIncludesExport(plan));
-      expect(planIncludesIssueHistory(plan)).toBe(planIncludesActionPlan(plan));
     }
+    expect(planIncludesActionPlan('Free')).toBe(false);
+    expect(planIncludesActionPlan('Basic')).toBe(true);
+    expect(planIncludesActionPlan('Complete')).toBe(true);
   });
 });
 

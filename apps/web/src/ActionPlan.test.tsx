@@ -9,6 +9,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ActionPlan } from './ActionPlan';
+import { actionPlanCopy } from './action-plan-copy';
 import { ACTION_PLAN_NOTICE_VERSION } from './ai-processing-notice';
 import type { ActionPlanState, Scan } from './api';
 
@@ -350,12 +351,41 @@ describe('the Action Plan block', () => {
     expect(screen.queryByRole('button', { name: 'Write the Action Plan' })).toBeNull();
   });
 
-  it('locks a Basic report with open findings behind a Complete scan, and asks for no AI', async () => {
-    const fetchMock = stubFetch({ state: stateOf() });
+  // Owner decision 2026-10-19: Basic includes the plan.
+  it.each(['en', 'uk'] as const)(
+    'offers the real plan on a Basic report in %s, with no upsell',
+    async (language) => {
+      stubFetch({ state: stateOf() });
+      renderPlan({ scan: { ...SCAN, plan: 'Basic' }, language });
+
+      const t = actionPlanCopy[language];
+      expect(await screen.findByRole('button', { name: t.generate })).toBeTruthy();
+      expect(screen.getByText(t.consent)).toBeTruthy();
+      expect(screen.queryByText(t.lockedBody)).toBeNull();
+      expect(screen.queryByRole('button', { name: t.lockedAction })).toBeNull();
+    },
+  );
+
+  it('sends a Basic report’s click with the click notice, like Complete', async () => {
+    const posted: unknown[] = [];
+    stubFetch({ state: stateOf(), onPost: (body) => posted.push(body) });
     renderPlan({ scan: { ...SCAN, plan: 'Basic' } });
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Write the Action Plan' }));
+
+    await waitFor(() =>
+      expect(posted).toEqual([{ language: 'en', noticeVersion: ACTION_PLAN_NOTICE_VERSION }]),
+    );
+  });
+
+  it('locks an archived Website Audit report behind a Complete scan, and asks for no AI', async () => {
+    const fetchMock = stubFetch({ state: stateOf() });
+    renderPlan({ scan: { ...SCAN, plan: 'WebsiteAudit' } });
+
     expect(
-      await screen.findByText('An AI Action Plan is written from a Complete scan of this site.'),
+      await screen.findByText(
+        'An AI Action Plan comes with a new Basic or Complete scan of this site.',
+      ),
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Run a Complete scan' })).toBeTruthy();
     expect(
@@ -363,11 +393,16 @@ describe('the Action Plan block', () => {
     ).toBe(false);
   });
 
-  it('shows nothing at all on a Free report', async () => {
-    stubFetch({ state: stateOf() });
+  it('shows nothing at all on a Free report: no plan, no button, no locked block', async () => {
+    const fetchMock = stubFetch({ state: stateOf() });
     const { container } = renderPlan({ scan: { ...SCAN, plan: 'Free' } });
 
     await waitFor(() => expect(container.querySelector('.report-block')).toBeNull());
+    expect(screen.queryByRole('button', { name: 'Write the Action Plan' })).toBeNull();
+    expect(screen.queryByText('Run a Complete scan')).toBeNull();
+    expect(
+      fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST'),
+    ).toBe(false);
   });
 });
 
@@ -398,7 +433,11 @@ describe('the Action Plan block on a report that checked nothing', () => {
 
   it('does not sell a Complete scan from a report that checked nothing', async () => {
     stubFetch({ state: stateOf() });
-    renderPlan({ scan: { ...SCAN, plan: 'Basic' }, hasOpenIssues: true, nothingChecked: true });
+    renderPlan({
+      scan: { ...SCAN, plan: 'WebsiteAudit' },
+      hasOpenIssues: true,
+      nothingChecked: true,
+    });
 
     await waitFor(() => expect(screen.queryByText('Run a Complete scan')).toBeNull());
     expect(screen.queryByText('AI Action Plan')).toBeNull();

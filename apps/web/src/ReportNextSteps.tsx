@@ -40,8 +40,11 @@ import { displayDomain } from './scan-status';
 import './styles/findings.css';
 
 /**
- * What the Action Plan's locked block sells: the plan is a Complete feature, so
- * a Basic report's "get the plan" button opens the form on Complete.
+ * What the Action Plan's locked block sells. Basic and Complete both include
+ * the plan, and Free shows no locked block (its own upsell sells Basic), so the
+ * only report left behind the lock is a retired plan's: an archived Website
+ * Audit report covered security, speed and the other site sections, and only
+ * Complete checks them again.
  */
 const ACTION_PLAN_UPGRADE_PLAN: PaidPlan = 'Complete';
 

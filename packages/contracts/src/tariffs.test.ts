@@ -89,11 +89,15 @@ describe('tariff matrix §18', () => {
     }
   });
 
-  it('gives Complete every report entitlement, and Basic and Free none', () => {
+  it('gives Complete every report entitlement, Basic the Action Plan alone, and Free none', () => {
     for (const capability of ['scanHistory', 'issueHistory', 'export', 'actionPlan'] as const) {
       expect(planSupports('Complete', capability)).toBe(true);
-      expect(planSupports('Basic', capability)).toBe(false);
       expect(planSupports('Free', capability)).toBe(false);
+    }
+    // Owner decision 2026-10-19: Basic includes the AI Action Plan, and only it.
+    expect(planSupports('Basic', 'actionPlan')).toBe(true);
+    for (const capability of ['scanHistory', 'issueHistory', 'export'] as const) {
+      expect(planSupports('Basic', capability)).toBe(false);
     }
   });
 

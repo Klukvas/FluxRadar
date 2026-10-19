@@ -479,7 +479,8 @@ describe('upgrade_clicked from its three buttons', () => {
 
   it('reports the locked Action Plan button', async () => {
     allowAnalytics();
-    const onUpgrade = renderNextSteps(scanOf('Basic'));
+    // Only an archived report still has the locked block (Basic includes the plan).
+    const onUpgrade = renderNextSteps(scanOf('WebsiteAudit'));
     fireEvent.click(await screen.findByRole('button', { name: 'Run a Complete scan' }));
 
     expect(onUpgrade).toHaveBeenCalledWith('Complete');
