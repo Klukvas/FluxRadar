@@ -78,7 +78,7 @@ const UK: ActionPlanCopy = {
   heading: 'AI-план дій',
   aiLabel: 'Згенеровано AI',
   lockedTitle: 'AI-план дій',
-  lockedBody: 'AI-план дій входить у нову перевірку Basic або Complete для цього сайту.',
+  lockedBody: 'AI-план дій є в новій перевірці Basic або Complete цього сайту.',
   lockedAction: 'Запустити перевірку Complete',
   nothingToPlan:
     'Жодна відкрита знахідка цього звіту не може потрапити до плану — знахідки розділу «Аналітика» беруться з ваших даних Google і ніколи до нього не входять.',

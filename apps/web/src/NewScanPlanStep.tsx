@@ -86,7 +86,7 @@ export function PlanStep(props: {
           {/* Every paid plan runs AI SEO / GEO, so one disclosure covers both;
               the body says what the UX review adds on Complete. */}
           <ScanCallout
-            eyebrow="AI SEO / GEO · UX"
+            eyebrow={t.newScan.aiConsentEyebrow}
             title={t.newScan.aiConsentTitle}
             titleId="ai-consent-title"
             mode={t.newScan.aiConsentOptional}
@@ -121,7 +121,7 @@ export function PlanStep(props: {
           !PLAN_MODULES[plan].includes('AI SEO / GEO') ? null : (
             <>
               <ScanCallout
-                eyebrow="AI SEO / GEO · OPTIONAL"
+                eyebrow={t.newScan.aiConsentOptInEyebrow}
                 title={t.newScan.aiConsentOptInTitle}
                 titleId="ai-consent-opt-in-title"
                 mode={t.newScan.aiConsentOptInMode}
@@ -147,7 +147,7 @@ export function PlanStep(props: {
               on every plan the tariff gives the Action Plan to, Basic included. */}
           {planIncludesActionPlan(plan) ? (
             <ScanCallout
-              eyebrow="AI ACTION PLAN · ON REQUEST"
+              eyebrow={t.newScan.actionPlanInfoEyebrow}
               title={t.newScan.actionPlanInfoTitle}
               titleId="action-plan-info-title"
               mode={t.newScan.actionPlanInfoMode}
@@ -158,7 +158,7 @@ export function PlanStep(props: {
           ) : null}
           {PLAN_MODULES[plan].includes('Performance') ? (
             <ScanCallout
-              eyebrow="PERFORMANCE · GOOGLE"
+              eyebrow={t.newScan.performanceInfoEyebrow}
               title={t.newScan.performanceInfoTitle}
               titleId="performance-info-title"
               mode={t.newScan.performanceInfoMode}

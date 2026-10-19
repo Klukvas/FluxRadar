@@ -364,8 +364,19 @@ describe('the pre-purchase disclosures', () => {
     expect(body.textContent).toMatch(language === 'en' ? /Basic and Complete/ : /Basic і Complete/);
     expect(body.textContent).toMatch(/Anthropic/);
     expect(body.textContent).toMatch(
-      language === 'en' ? /Only when you press its button/ : /Лише коли ви натиснете його кнопку/,
+      language === 'en'
+        ? /Only when you press its button/
+        : /Лише коли ви натиснете кнопку цього плану/,
     );
+    // The consented button line (action-plan-notice-v1) does not list everything
+    // sent, so the callout must not claim that it repeats the list.
+    expect(body.textContent).not.toMatch(/line under the button|Рядок під кнопкою/i);
+    expect(within(disclosure).getByText(t.actionPlanInfoEyebrow)).toBeInTheDocument();
+    if (language === 'uk') {
+      for (const eyebrow of ['ON REQUEST', 'OPTIONAL', 'PERFORMANCE']) {
+        expect(screen.queryByText(new RegExp(eyebrow))).toBeNull();
+      }
+    }
     // Added beside the versioned notice, never into it.
     expect(t.aiConsentBody).not.toMatch(/Action Plan|план дій/i);
   });

@@ -188,9 +188,9 @@ function UkrainianPrivacy(): JSX.Element {
         <p>
           AI‑план дій (Basic і Complete) надсилає до Anthropic лише метадані правил цього звіту:
           ідентифікатор і назву правила, розділ, найвищу відкриту серйозність, кількість відкритих
-          знахідок, до трьох адрес сторінок без query та fragment, рекомендації правила й статуси
-          розділів. Уривки доказів, знімки екрана та будь‑що з розділу «Аналітика» (дані Google) не
-          надсилаються.
+          знахідок, до трьох адрес сторінок без параметрів запиту й фрагментів, рекомендації правила
+          й статуси розділів. Уривки доказів, знімки екрана та будь‑що з розділу «Аналітика» (дані
+          Google) не надсилаються.
         </p>
         <p>
           У Basic і Complete GEO може надсилати нейтралізований контекст для створення discovery
@@ -209,9 +209,9 @@ function UkrainianPrivacy(): JSX.Element {
         <p>
           У звіті Basic або Complete власник може також попросити AI‑план дій: короткий
           упорядкований список змін, який Claude від Anthropic складає за цим звітом. Нічого не
-          надсилається, доки власник не натисне кнопку, а рядок під нею пояснює, що саме
-          передається: домен сайту, статус, оцінку й покриття кожного розділу, а для кожного правила
-          з відкритими проблемами — його назву, критичність, кількість відкритих проблем, до трьох
+          надсилається, доки власник не натисне кнопку. Натискання кнопки надсилає до Anthropic
+          домен сайту, статус, оцінку й покриття кожного розділу, а для кожного правила з відкритими
+          проблемами надсилаються його назва, серйозність, кількість відкритих проблем, до трьох
           адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів,
           знімки екрана й трасування не надсилаються, як і будь‑що з розділу «Аналітика» (дані
           Google Search Console і GA4). План зберігається разом зі звітом і видаляється з ним; до
@@ -534,9 +534,9 @@ function EnglishPrivacy(): JSX.Element {
         <p>
           On a Basic or Complete report the owner may also ask for an AI Action Plan: a short,
           ordered list of changes that Anthropic’s Claude writes from that report. Nothing is sent
-          until the owner presses the button, and a line under it says what is sent: the site’s
-          domain, each section’s status, score and coverage, and for each rule with open issues its
-          name, severity, number of open issues, up to three page addresses without query strings or
+          until the owner presses the button. Pressing it sends Anthropic the site’s domain, each
+          section’s status, score and coverage, and for each rule with open issues its name,
+          severity, number of open issues, up to three page addresses without query strings or
           fragments, and the rule’s recommendations. Evidence excerpts, screenshots and traces are
           not sent, and neither is anything from the Analytics section (Google Search Console and
           GA4 data). The plan is kept with the report and deleted with it; it is not part of the
