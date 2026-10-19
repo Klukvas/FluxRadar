@@ -77,10 +77,11 @@ function UkrainianTerms(): JSX.Element {
         <h2>Разові аудити, строк виконання та повернення</h2>
         <p>
           Basic і Complete — разові аудити без підписки й автоматичного продовження. Website Audit
-          більше не продається; уже оплачені аудити Website Audit надаються на цих самих умовах.
-          Ціна, конфігурація, обсяг, вибір <code>robots.txt</code>, зовнішні провайдери та обмеження
-          показуються до відкриття checkout. Аудит запускається лише після серверного підтвердження
-          платежу Creem і має бути наданий протягом 24 годин після такого підтвердження.
+          більше не продається; аудити Website Audit, оплачені раніше, надаються на тих самих
+          умовах. Ціна, конфігурація, обсяг, вибір <code>robots.txt</code>, зовнішні провайдери та
+          обмеження показуються до відкриття checkout. Аудит запускається лише після серверного
+          підтвердження платежу Creem і має бути наданий протягом 24 годин після такого
+          підтвердження.
         </p>
         <p>
           FluxRadar не надає добровільних повернень, крім випадку ненадання оплаченого аудиту або
@@ -246,10 +247,11 @@ function EnglishTerms(): JSX.Element {
         <h2>One-time audits, delivery and refunds</h2>
         <p>
           Basic and Complete are one-time audits with no subscription or automatic renewal. Website
-          Audit is no longer sold; Website Audit audits already paid for are provided on these same
-          terms. The price, configuration, scope, <code>robots.txt</code> choice, external providers
-          and known limitations are shown before checkout opens. An audit starts only after Creem’s
-          server confirmation of payment and will be delivered within 24 hours of that confirmation.
+          Audit is no longer sold; audits already paid for under Website Audit are provided on these
+          same terms. The price, configuration, scope, <code>robots.txt</code> choice, external
+          providers and known limitations are shown before checkout opens. An audit starts only
+          after Creem’s server confirmation of payment and will be delivered within 24 hours of that
+          confirmation.
         </p>
         <p>
           FluxRadar offers no voluntary refunds except for non-delivery of a paid audit or a

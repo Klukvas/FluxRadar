@@ -1321,7 +1321,7 @@ describe('home pricing and workspace onboarding', () => {
       screen.getByRole('heading', { name: 'Два разові звіти. Без підписки.' }),
     ).toBeInTheDocument();
     expect(screen.getAllByText('Що перевіряє')).toHaveLength(2);
-    expect(screen.getByText('РАДИМО ПОЧАТИ З НЬОГО')).toBeInTheDocument();
+    expect(screen.getByText('РАДИМО ПОЧАТИ З ЦЬОГО')).toBeInTheDocument();
     expect(screen.getByText(/до 5 000 сторінок/)).toBeInTheDocument();
     expect(screen.getAllByText(/до 50 000 сторінок/)).toHaveLength(1);
     expect(screen.queryByRole('heading', { name: 'Website Audit' })).not.toBeInTheDocument();
