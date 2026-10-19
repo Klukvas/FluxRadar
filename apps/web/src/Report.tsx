@@ -444,7 +444,7 @@ function PlanScope(props: {
   return (
     <details className="plan-scope">
       <summary className="plan-scope__summary">
-        {fillCopy(t.scopeSummary, { plan: props.plan })}
+        {fillCopy(t.scopeSummary, { plan: planName(props.plan) })}
       </summary>
       <p className="muted plan-scope__lead">{t.scopeLead}</p>
       <div className="plan-scope__columns">
