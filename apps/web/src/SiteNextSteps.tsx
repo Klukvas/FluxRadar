@@ -14,6 +14,7 @@ import { Button, FieldRow, SkeletonRows, StatusChip } from './components';
 import { desktopCopy } from './desktop-copy';
 import { copy, type Language } from './i18n';
 import { NextStepActions, nextStepFor, type NewScanPlan } from './NextStep';
+import { planName } from './plan-modules';
 import { displayDomain, formatTimestamp, scanStateLabel } from './scan-status';
 import './styles/site-next-steps.css';
 
@@ -277,7 +278,7 @@ function ScanFacts(props: { readonly scan: Scan; readonly language: Language }) 
           <StatusChip status={scan.status} label={scanStateLabel(scan.status, props.language)} />
         }
       />
-      <FieldRow label={t.lastPlan} value={scan.plan} />
+      <FieldRow label={t.lastPlan} value={planName(scan.plan, props.language)} />
       <FieldRow
         label={finished === null ? t.startedLabel : t.finishedLabel}
         value={finished ?? started ?? t.unknownTime}

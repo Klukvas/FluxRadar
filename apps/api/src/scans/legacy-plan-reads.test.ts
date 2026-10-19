@@ -161,6 +161,25 @@ describe('a stored scan of a retired plan', () => {
     expect(listed?.plan).toBe('WebsiteAudit');
   });
 
+  // Legacy plans are in neither history set (scan-history.ts): they neither
+  // unlock nor gate the history, so an account with only legacy scans sees
+  // all of its own reports, and a Basic scan beside them still gates it.
+  it('lists every legacy report on the history request, and lets Basic still gate it', async () => {
+    const first = await seedStoredScan({ createdAt: '2026-09-01T10:00:00Z' });
+    const second = await seedStoredScan({ plan: 'Enterprise' });
+
+    const history = await get('/scans?history=true');
+    expect(history.status).toBe(200);
+    expect((history.body.data as { id: string }[]).map((scan) => scan.id).sort()).toEqual(
+      [first, second].sort(),
+    );
+
+    await seedStoredScan({ plan: 'Basic', createdAt: '2026-09-12T10:00:00Z' });
+    const gated = await get('/scans?history=true');
+    expect(gated.status).toBe(403);
+    expect(gated.body.error.code).toBe('HISTORY_REQUIRES_COMPLETE');
+  });
+
   it('serves the issue summary and compares with the previous scan of the same plan', async () => {
     const earlier = await seedStoredScan({
       createdAt: '2026-09-01T10:00:00Z',

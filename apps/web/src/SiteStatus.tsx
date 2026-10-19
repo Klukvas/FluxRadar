@@ -25,6 +25,7 @@ import {
 } from './api';
 import { Button, FieldRow, Panel, SkeletonRows, StatusChip } from './components';
 import { copy, type Language } from './i18n';
+import { planName } from './plan-modules';
 import { displayDomain, formatTimestamp, scanStateLabel } from './scan-status';
 
 /** What the panel knows once both requests have settled. */
@@ -157,7 +158,7 @@ function SiteStatusBody(props: {
           <StatusChip status={scan.status} label={scanStateLabel(scan.status, props.language)} />
         }
       />
-      <FieldRow label={t.lastPlan} value={scan.plan} />
+      <FieldRow label={t.lastPlan} value={planName(scan.plan, props.language)} />
       <FieldRow
         label={finished === null ? t.startedLabel : t.finishedLabel}
         value={finished ?? started ?? t.unknownTime}
