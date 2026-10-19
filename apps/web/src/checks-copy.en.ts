@@ -340,7 +340,7 @@ export const checksCopyEn: ChecksCopy = {
         { term: 'The next step', body: 'a recommended remediation step.' },
       ],
       outro: [
-        'The JSON and CSV export (Website Audit and Complete plans) contains the full raw evidence for every finding so you can reproduce the check independently.',
+        'The JSON and CSV export (Complete plan) contains the full raw evidence for every finding so you can reproduce the check independently.',
       ],
     },
     limits: {

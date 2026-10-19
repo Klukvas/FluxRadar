@@ -83,8 +83,8 @@ const liveConfig: CheckoutConfig = {
   mode: 'live',
   unavailableReason: null,
   plans: [
-    { plan: 'Basic', priceUsd: 55, currency: 'USD' },
-    { plan: 'Complete', priceUsd: 120, currency: 'USD' },
+    { plan: 'Basic', priceUsd: 39, currency: 'USD' },
+    { plan: 'Complete', priceUsd: 87, currency: 'USD' },
   ],
 };
 
@@ -93,7 +93,7 @@ const liveSession = {
   sessionId: 'sess_live_1',
   checkoutUrl: 'https://www.creem.io/checkout/sess_live_1',
   plan: 'Complete',
-  amount: 120,
+  amount: 87,
   currency: 'USD',
   mode: 'live' as const,
   expiresAt: null,
@@ -238,7 +238,7 @@ describe('scan_started and begin_checkout from the scan request', () => {
     expect(eventsNamed('begin_checkout')).toEqual([
       {
         currency: 'USD',
-        value: 120,
+        value: 87,
         items: [{ item_id: 'Complete', item_name: 'FluxRadar Complete' }],
         transport_type: 'beacon',
         event_callback: expect.any(Function),
@@ -340,7 +340,7 @@ describe('purchase and scan_started from the payment confirmation', () => {
       {
         transaction_id: PURCHASE_ID,
         currency: 'USD',
-        value: 120,
+        value: 87,
         items: [{ item_id: 'Complete', item_name: 'FluxRadar Complete' }],
       },
     ]);
@@ -366,7 +366,7 @@ describe('purchase and scan_started from the payment confirmation', () => {
     expect(eventsNamed('purchase')[0]).toMatchObject({
       transaction_id: PURCHASE_ID,
       currency: 'USD',
-      value: 120,
+      value: 87,
     });
   });
 
@@ -559,7 +559,7 @@ describe('plan_selected and begin_checkout on the new-scan screen', () => {
     await waitFor(() => expect(eventsNamed('plan_selected')).toEqual([{ plan: 'Complete' }]), {
       timeout: 3000,
     });
-    const pay = screen.getByRole('button', { name: 'Pay $120 and start' });
+    const pay = screen.getByRole('button', { name: 'Pay $87 and start' });
     await waitFor(() => expect(pay).toBeEnabled());
     fireEvent.click(pay);
     await waitFor(() => expect(eventsNamed('begin_checkout')).toHaveLength(1));

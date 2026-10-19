@@ -67,7 +67,7 @@ const liveConfig: CheckoutConfig = {
   available: true,
   mode: 'live',
   unavailableReason: null,
-  plans: [{ plan: 'Basic', priceUsd: 55, currency: 'USD' }],
+  plans: [{ plan: 'Basic', priceUsd: 39, currency: 'USD' }],
 };
 
 const liveSession: CheckoutSession = {
@@ -75,7 +75,7 @@ const liveSession: CheckoutSession = {
   sessionId: 'sess_live_1',
   checkoutUrl: 'https://www.creem.io/checkout/sess_live_1',
   plan: 'Basic',
-  amount: 55,
+  amount: 39,
   currency: 'USD',
   mode: 'live',
   expiresAt: null,
@@ -216,7 +216,7 @@ describe('each step, once, with its fixed parameters', () => {
       {
         transaction_id: PURCHASE_ID,
         currency: 'USD',
-        value: 55,
+        value: 39,
         items: [{ item_id: 'Basic', item_name: 'FluxRadar Basic' }],
       },
     ]);
@@ -297,7 +297,7 @@ describe('purchase once the store config is known', () => {
     await config;
     await Promise.resolve();
 
-    expect(eventsNamed('purchase')).toEqual([expect.objectContaining({ value: 55 })]);
+    expect(eventsNamed('purchase')).toEqual([expect.objectContaining({ value: 39 })]);
   });
 
   it('sends no purchase when the config could not be read', async () => {

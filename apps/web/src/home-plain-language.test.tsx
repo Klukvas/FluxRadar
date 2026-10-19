@@ -287,17 +287,19 @@ describe('home page below the hero, in an owner’s words', () => {
     expect(headlines.filter((headline) => /\s[—–-]\s/.test(headline))).toEqual([]);
   });
 
-  // The visitors could not tell Basic from Website Audit. Each card now opens
-  // with one line on who it is for, and the three lines say three things.
+  // Each card opens with one line on who it is for, and the two lines say two
+  // things; a short list of what the plan checks follows.
   it.each(LANGUAGES)('gives every plan one short line on who it is for (%s)', (language) => {
     const cards = copy[language].pricing.cards;
-    const lines = [cards.basic, cards.websiteAudit, cards.complete].map((card) => card.description);
-    // One sentence a visitor reads at a glance; 140 fits the editor’s
-    // Website Audit line, which spells out accessibility in plain words.
+    const lines = [cards.basic, cards.complete].map((card) => card.description);
+    // One sentence a visitor reads at a glance.
     for (const line of lines) expect(line.length).toBeLessThanOrEqual(140);
-    expect(new Set(lines).size).toBe(3);
+    expect(new Set(lines).size).toBe(2);
     expect(cards.basic.description).toMatch(/Google/);
-    expect(cards.websiteAudit.description).not.toMatch(/Google/);
+    for (const card of [cards.basic, cards.complete]) {
+      expect(card.checks.length).toBeGreaterThanOrEqual(3);
+      expect(card.checks.length).toBeLessThanOrEqual(6);
+    }
   });
 
   // The coverage entry is a list now; the full technical one stays a link away.
@@ -310,11 +312,7 @@ describe('home page below the hero, in an owner’s words', () => {
   // Prices are read from the tariff table, never written into the copy.
   it.each(LANGUAGES)('writes no price by hand below the hero (%s)', (language) => {
     const pricing = copy[language].pricing;
-    const priced = new Set([
-      pricing.cards.basic.price,
-      pricing.cards.websiteAudit.price,
-      pricing.cards.complete.price,
-    ]);
+    const priced = new Set([pricing.cards.basic.price, pricing.cards.complete.price]);
     const handWritten = belowHeroSentences(language)
       .filter((sentence) => !priced.has(sentence))
       .flatMap((sentence) => sentence.match(/\$\d+/g) ?? [])

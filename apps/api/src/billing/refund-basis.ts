@@ -26,7 +26,7 @@ import type { Purchase } from '@prisma/client';
  * to the buyer's currency, the refund to the same, and the cumulative sum here to
  * cents — so an exact equality test would leave a genuinely full refund a cent
  * short and hand the buyer a readable report. One percent of the smallest plan
- * ($55) is 55 cents, far above any rounding this arithmetic can produce and far
+ * ($39) is 39 cents, far above any rounding this arithmetic can produce and far
  * below any partial refund a seller would actually issue. Widening it would start
  * suspending real partial refunds; narrowing it would start missing full ones,
  * which is the failure that costs money.

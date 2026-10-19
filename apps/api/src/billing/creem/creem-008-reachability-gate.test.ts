@@ -23,7 +23,7 @@ import { readCreemConfig, type CreemConfig } from './config.ts';
 
 // CREEM-008: a scan of a site we cannot read is not for sale.
 //
-// A customer could buy a $120 audit of a site behind a WAF that refuses our
+// A customer could buy a paid audit of a site behind a WAF that refuses our
 // crawler, wait for the scan to run, and receive a refund instead of a report.
 // Nothing before the pay button had ever tried to fetch the site.
 //

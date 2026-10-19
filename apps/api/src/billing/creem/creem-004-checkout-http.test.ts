@@ -206,10 +206,11 @@ describe('CREEM-004 checkout HTTP surface', () => {
       unavailableReason: null,
       optInAiProviders: [],
     });
+    // Exactly the two plans on sale. Website Audit is still honoured for what
+    // was bought, and is not listed even where its product is configured (below).
     expect(config.body.data.plans).toEqual([
-      { plan: 'Basic', priceUsd: 55, currency: 'USD', available: true },
-      { plan: 'WebsiteAudit', priceUsd: 79, currency: 'USD', available: false },
-      { plan: 'Complete', priceUsd: 120, currency: 'USD', available: true },
+      { plan: 'Basic', priceUsd: 39, currency: 'USD', available: true },
+      { plan: 'Complete', priceUsd: 87, currency: 'USD', available: true },
     ]);
     // Kept for one release so a tab still running the previous (FastSpring-era)
     // bundle reads a 'redirect' flow and a null popup, not a blocked popup tab
@@ -246,7 +247,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
       sessionId: 'ch_abc123',
       checkoutUrl: 'https://www.creem.io/test/checkout/prod_basic/ch_abc123',
       plan: 'Basic',
-      amount: 55,
+      amount: 39,
       currency: 'USD',
       mode: 'test',
     });
@@ -278,7 +279,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(stored.providerSessionId).toBe('ch_abc123');
     expect(stored.productPath).toBe('prod_basic');
     expect(stored.plan).toBe('Basic');
-    expect(stored.expectedAmountUsd).toBe(55);
+    expect(stored.expectedAmountUsd).toBe(39);
     expect(stored.liveMode).toBe(false);
     expect(stored.status).toBe('created');
     // Creem quotes nothing back; the tariff is the only price.
@@ -315,7 +316,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
         orderId: 'ord_http_paid',
         reference,
         productId: 'prod_basic',
-        amountCents: 5500,
+        amountCents: 3900,
       }),
     });
     const delivered = await postWebhook(app, rawBody, signature);
@@ -353,7 +354,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
         orderId: 'ord_unsigned',
         reference: 'frcs_x',
         productId: 'prod_basic',
-        amountCents: 5500,
+        amountCents: 3900,
       }),
     });
     const forged = await postWebhook(app, rawBody, 'forged');
@@ -389,7 +390,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
     const { rawBody, signature } = signedCreemDelivery({
       id: 'evt_http_pending_refund',
       eventType: CREEM_EVENT_TYPES.refundCreated,
-      object: refundCreatedObject('ord_http_unknown', 5500),
+      object: refundCreatedObject('ord_http_unknown', 3900),
     });
 
     const delivered = await postWebhook(app, rawBody, signature);
@@ -423,7 +424,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
     const { rawBody, signature } = signedCreemDelivery({
       id: 'evt_unconfigured',
       eventType: CREEM_EVENT_TYPES.refundCreated,
-      object: refundCreatedObject('ord_x', 5500),
+      object: refundCreatedObject('ord_x', 3900),
     });
     const webhook = await postWebhook(app, rawBody, signature);
     expect(webhook.status).toBe(503);
@@ -467,7 +468,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
     const { rawBody, signature } = signedCreemDelivery({
       id: 'evt_partial',
       eventType: CREEM_EVENT_TYPES.refundCreated,
-      object: refundCreatedObject('ord_x', 5500),
+      object: refundCreatedObject('ord_x', 3900),
     });
     const webhook = await postWebhook(app, rawBody, signature);
     expect(webhook.status).toBe(503);
@@ -572,8 +573,11 @@ describe('CREEM-004 checkout HTTP surface', () => {
   it('refuses a checkout whose expanded product is not priced at the tariff', async () => {
     for (const product of [
       { id: 'prod_basic', price: 100, currency: 'USD' },
-      { id: 'prod_basic', price: 5500, currency: 'EUR' },
-      { id: 'prod_other', price: 5500, currency: 'USD' },
+      { id: 'prod_basic', price: 3900, currency: 'EUR' },
+      { id: 'prod_other', price: 3900, currency: 'USD' },
+      // The price before 2026-10-19: a product not yet repriced in Creem is
+      // refused until it matches the tariff, rather than charging $55 for $39.
+      { id: 'prod_basic', price: 5500, currency: 'USD' },
     ]) {
       const calls: StubCall[] = [];
       const app = buildApp({
@@ -592,7 +596,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
       expect(failed.body.error.code, label).toBe('CREEM_API');
       expect(failed.body.error.message, label).toBe('Paid checkout is temporarily unavailable');
     }
-    expect(await db.prisma.checkoutSession.count({ where: { status: 'rejected' } })).toBe(3);
+    expect(await db.prisma.checkoutSession.count({ where: { status: 'rejected' } })).toBe(4);
 
     // The product at the tariff, expanded, is what a working catalogue answers.
     const app = buildApp({
@@ -600,7 +604,7 @@ describe('CREEM-004 checkout HTTP surface', () => {
         {
           body: {
             ...pendingCheckout('ch_priced'),
-            product: { id: 'prod_basic', price: 5500, currency: 'usd' },
+            product: { id: 'prod_basic', price: 3900, currency: 'usd' },
           },
         },
         [],
@@ -631,17 +635,40 @@ describe('CREEM-004 checkout HTTP surface', () => {
     expect(await db.prisma.checkoutSession.count({ where: { status: 'rejected' } })).toBe(2);
   });
 
-  it('refuses a plan this deployment has no Creem product for, before calling Creem', async () => {
+  it('lists no Website Audit even on a deployment that still has its product', async () => {
+    const app = buildApp({
+      creem: readCreemConfig({ ...CONFIG_ENV, CREEM_PRODUCT_ID_WEBSITE_AUDIT: 'prod_wa' }),
+    });
+    const { agent, cookie } = await signIn(app, 'config-wa@example.com');
+    const config = await agent.get('/billing/checkout-config').set('Cookie', cookie);
+    expect(config.status).toBe(200);
+    expect(config.body.data.plans.map((entry: { plan: string }) => entry.plan)).toEqual([
+      'Basic',
+      'Complete',
+    ]);
+  });
+
+  // Withdrawn from sale on 2026-10-19. The refusal is the documented 409
+  // PLAN_NOT_OFFERED, before a session row exists or Creem is called — with or
+  // without a Website Audit product configured.
+  it.each([
+    ['without', CONFIG_ENV],
+    ['with', { ...CONFIG_ENV, CREEM_PRODUCT_ID_WEBSITE_AUDIT: 'prod_wa' }],
+  ])('refuses a new Website Audit checkout %s its product configured', async (_label, env) => {
     const calls: StubCall[] = [];
-    const app = buildApp({ fetchImpl: stubCreem({ body: pendingCheckout('ch_never') }, calls) });
-    const { agent, cookie, profileId } = await signIn(app, 'noproduct@example.com');
+    const app = buildApp({
+      creem: readCreemConfig(env),
+      fetchImpl: stubCreem({ body: pendingCheckout('ch_never') }, calls),
+    });
+    const { agent, cookie, profileId } = await signIn(app, `wa-${_label}@example.com`);
     const refused = await agent
       .post('/billing/checkout-session')
       .set('Cookie', cookie)
       .send({ siteProfileId: profileId, plan: 'WebsiteAudit', scope: SCOPE });
 
     expect(refused.status).toBe(409);
-    expect(refused.body.error.code).toBe('PLAN_NOT_AVAILABLE');
+    expect(refused.body.error.code).toBe('PLAN_NOT_OFFERED');
+    expect(refused.body.error.message).toMatch(/no longer offered/);
     expect(JSON.stringify(refused.body)).not.toContain('CREEM_');
     expect(calls).toHaveLength(0);
     expect(await db.prisma.checkoutSession.count()).toBe(0);

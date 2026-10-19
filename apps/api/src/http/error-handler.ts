@@ -11,6 +11,7 @@ import {
   CreemApiError,
   InvalidSignatureError,
   InvalidTransitionError,
+  PlanNotOfferedError,
   PlanNotPurchasableError,
   RefundPolicyError,
   SitePreconditionError,
@@ -36,6 +37,8 @@ function billingErrorStatus(error: BillingError): number {
   if (error instanceof SitePreconditionError) return 409;
   // The plan is real and the request is valid; this deployment cannot sell it.
   if (error instanceof PlanNotPurchasableError) return 409;
+  // Still honoured for what was already bought; refused for a new sale.
+  if (error instanceof PlanNotOfferedError) return 409;
   if (error instanceof BillingUnavailableError) return 503;
   // The provider refused or was unreachable: this side of the call is healthy.
   if (error instanceof CreemApiError) return error.status === 429 ? 429 : 502;

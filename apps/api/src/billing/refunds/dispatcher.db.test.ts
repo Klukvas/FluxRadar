@@ -40,7 +40,7 @@ import { REFUND_DISPATCH_STATES } from './states.ts';
 
 const NOW = new Date('2026-09-22T12:00:00.000Z');
 const BASIC_PRODUCT = 'prod_basic';
-const BASIC_PRICE = 55;
+const BASIC_PRICE = 39;
 const ACTIVE_ENV = {
   [REFUND_DISPATCH_ENV]: 'auto',
   [REFUND_DISPATCH_ACK_ENV]: 'creem',
@@ -319,8 +319,8 @@ describe('the refund outbox', () => {
           provider: 'creem',
           providerRefundId: 'ret_earlier',
           eventType: 'refund.created',
-          amountCharged: 27.5,
-          amountUsd: 27.5,
+          amountCharged: 19.5,
+          amountUsd: 19.5,
           currency: 'USD',
         },
       });
@@ -334,7 +334,7 @@ describe('the refund outbox', () => {
       expect(summary.handedToOperator).toBe(1);
       const dispatch = await dispatchFor(purchaseId);
       expect(dispatch.state).toBe(REFUND_DISPATCH_STATES.manual);
-      expect(dispatch.stateReason).toContain('27.5 USD');
+      expect(dispatch.stateReason).toContain('19.5 USD');
     });
 
     it('does not submit against a disputed purchase', async () => {
@@ -471,7 +471,7 @@ describe('the refund outbox', () => {
       expect(
         await notePartialProviderRefund(db.prisma, {
           purchaseId,
-          reason: 'provider returned 27.5 of 55 USD',
+          reason: 'provider returned 19.5 of 39 USD',
           now: NOW,
         }),
       ).toEqual({
@@ -530,14 +530,14 @@ describe('the refund outbox', () => {
 
       const outcome = await notePartialProviderRefund(db.prisma, {
         purchaseId,
-        reason: 'provider returned 27.5 of 55 USD; the remainder has to be issued by hand',
+        reason: 'provider returned 19.5 of 39 USD; the remainder has to be issued by hand',
         now: NOW,
       });
 
       expect(outcome).toEqual({ outcome: 'handed-to-operator' });
       const dispatch = await dispatchFor(purchaseId);
       expect(dispatch.state).toBe(REFUND_DISPATCH_STATES.manual);
-      expect(dispatch.stateReason).toContain('27.5 of 55 USD');
+      expect(dispatch.stateReason).toContain('19.5 of 39 USD');
       expect(dispatch.settledAt).toBeNull();
     });
 

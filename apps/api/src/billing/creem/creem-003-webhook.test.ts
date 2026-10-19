@@ -25,8 +25,8 @@ import { handleCreemWebhook } from './webhook-handler.ts';
 // account nor network access.
 
 const BASIC_PRODUCT = 'prod_basic';
-const BASIC_PRICE = 55;
-const BASIC_CENTS = 5500;
+const BASIC_PRICE = 39;
+const BASIC_CENTS = 3900;
 
 describe('CREEM-003 webhook', () => {
   let db: TestDb;
@@ -240,7 +240,7 @@ describe('CREEM-003 webhook', () => {
         delivery: paidOrder(session.reference, 'ord_bad_amount', 'evt_bad_amount', {
           amountCents: 100,
         }),
-        reason: /below the 55 USD Basic plan price/,
+        reason: /below the 39 USD Basic plan price/,
       },
       {
         name: 'no amount at all',
@@ -266,7 +266,7 @@ describe('CREEM-003 webhook', () => {
       where: { providerEventId: 'evt_bad_amount' },
     });
     expect(rejectedEvent.outcome).toBe(WEBHOOK_OUTCOMES.rejected);
-    expect(rejectedEvent.outcomeReason).toMatch(/below the 55 USD/);
+    expect(rejectedEvent.outcomeReason).toMatch(/below the 39 USD/);
     expect(rejectedEvent.accountId).toBe(account.accountId);
   });
 
@@ -308,12 +308,12 @@ describe('CREEM-003 webhook', () => {
   it('marks the session rejected when the charge is below the tariff', async () => {
     const session = await seedCheckoutSession();
     const { rawBody, signature } = paidOrder(session.reference, 'ord_short', 'evt_short', {
-      discountCents: 2750,
+      discountCents: 1950,
     });
     const result = await deliver(rawBody, signature);
     expect(result.results[0]?.outcome).toBe(WEBHOOK_OUTCOMES.rejected);
     expect(result.results[0]?.reason).toMatch(
-      /after a discount, below the 55 USD Basic plan price/,
+      /after a discount, below the 39 USD Basic plan price/,
     );
     const stored = await db.prisma.checkoutSession.findUniqueOrThrow({ where: { id: session.id } });
     expect(stored.status).toBe('rejected');
@@ -328,7 +328,7 @@ describe('CREEM-003 webhook', () => {
     const session = await seedCheckoutSession();
     const { rawBody, signature } = paidOrder(session.reference, 'ord_minimal', 'evt_minimal', {
       minimalOrder: true,
-      discountCents: 2750,
+      discountCents: 1950,
     });
     const result = await deliver(rawBody, signature);
     expect(result.results[0]?.outcome).toBe(WEBHOOK_OUTCOMES.rejected);

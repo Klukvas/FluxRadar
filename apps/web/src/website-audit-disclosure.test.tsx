@@ -261,19 +261,16 @@ describe('the optional GEO recipients are offered only where GEO runs', () => {
     },
   );
 
+  // Website Audit, the one plan without GEO, is no longer sold (2026-10-19):
+  // the form draws no card for it even when a server still lists it, so the
+  // UX-only disclosure path is reached only by reports bought earlier.
   it.each(['en', 'uk'] as const)(
-    'offers none of them on Website Audit in %s, which runs no AI SEO / GEO',
+    'draws no Website Audit card in %s, even where the server lists it',
     async (language) => {
       const { choosePlan } = renderNewScan(language);
       await choosePlan('Complete');
-      await waitFor(() => expect(optInBlockShown(language)).toBe(true));
-
-      await choosePlan('WebsiteAudit');
-
+      expect(queryPlanRadio('WebsiteAudit', document.body)).toBeNull();
       expect(PLAN_MODULES.WebsiteAudit).not.toContain('AI SEO / GEO');
-      expect(optInBlockShown(language)).toBe(false);
-      // The UX-only notice is still there: the block went, the disclosure did not.
-      expect(screen.getByText(copy[language].newScan.aiConsentTitle)).toBeInTheDocument();
     },
   );
 
@@ -306,23 +303,6 @@ describe('what a Website Audit checkout records as AI consent', () => {
     const pay = language === 'en' ? /^Pay \$\d+ and start$/ : /^Оплатити \$\d+ і запустити$/;
     fireEvent.click(await screen.findByRole('button', { name: pay }));
   }
-
-  it('drops a tick made on Complete when the buyer switches to Website Audit', async () => {
-    const { fetchMock, choosePlan } = renderNewScan('en');
-    await choosePlan('Complete');
-    const google = await screen.findByLabelText(copy.en.newScan.aiConsentOptIn.google);
-    fireEvent.click(google);
-    expect(google).toBeChecked();
-
-    await choosePlan('WebsiteAudit');
-    await launch();
-
-    await waitFor(() =>
-      expect(aiConsentProvidersOf(fetchMock)).toEqual([...AI_PROCESSING_PROVIDERS]),
-    );
-    // The selection the screen stopped showing is not consent this scan carries.
-    expect(aiConsentProvidersOf(fetchMock)).not.toContain('google');
-  });
 
   it('still records the tick on Complete, which does ask those questions', async () => {
     const { fetchMock, choosePlan } = renderNewScan('en');

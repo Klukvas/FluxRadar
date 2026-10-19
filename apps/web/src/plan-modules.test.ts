@@ -14,6 +14,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  OFFERED_PAID_PLAN_ORDER,
   PAID_PLAN_ORDER,
   PLAN_CAPABILITIES,
   PLAN_MODULES,
@@ -111,24 +112,43 @@ describe('the plan/module mirror', () => {
   });
 });
 
+describe('the plans on sale', () => {
+  it('matches OFFERED_PAID_PLANS in the tariff table', () => {
+    const declared = /OFFERED_PAID_PLANS = \[([^\]]*)\]/.exec(TARIFFS)?.[1];
+    if (declared === undefined) throw new Error('tariffs.ts declares no OFFERED_PAID_PLANS');
+    const plans = [...declared.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+    expect(plans).toEqual(['Basic', 'Complete']);
+    expect(OFFERED_PAID_PLAN_ORDER).toEqual(plans);
+  });
+});
+
 describe('what a plan leaves out', () => {
-  it('names the cheapest plan that adds each missing section', () => {
+  it('names the cheapest plan on sale that adds each missing section', () => {
     expect(modulesBeyondPlan('Free')).toEqual([
       { module: 'AI SEO / GEO', plan: 'Basic' },
-      { module: 'Security', plan: 'WebsiteAudit' },
-      { module: 'Performance', plan: 'WebsiteAudit' },
-      { module: 'Accessibility', plan: 'WebsiteAudit' },
-      { module: 'Reliability', plan: 'WebsiteAudit' },
-      { module: 'Content Quality', plan: 'WebsiteAudit' },
-      { module: 'Privacy', plan: 'WebsiteAudit' },
-      { module: 'UX/Conversion', plan: 'WebsiteAudit' },
-      { module: 'Analytics', plan: 'WebsiteAudit' },
+      { module: 'Security', plan: 'Complete' },
+      { module: 'Performance', plan: 'Complete' },
+      { module: 'Accessibility', plan: 'Complete' },
+      { module: 'Reliability', plan: 'Complete' },
+      { module: 'Content Quality', plan: 'Complete' },
+      { module: 'Privacy', plan: 'Complete' },
+      { module: 'UX/Conversion', plan: 'Complete' },
+      { module: 'Analytics', plan: 'Complete' },
     ]);
   });
 
+  // Website Audit is no longer sold (2026-10-19): no upgrade prompt may name it.
+  it('never offers a plan that is no longer sold', () => {
+    for (const plan of PLAN_ORDER) {
+      for (const entry of modulesBeyondPlan(plan)) {
+        expect(OFFERED_PAID_PLAN_ORDER).toContain(entry.plan);
+      }
+    }
+  });
+
   // The ladder assumption the old walk encoded: it offered the *next dearer*
-  // plan, which for a Website Audit report missing SEO would have been Complete
-  // at $120 — for a section Basic sells at $55.
+  // plan, which for a Website Audit report missing SEO would have been
+  // Complete, for a section the cheaper Basic sells.
   it('offers a cheaper sibling when that is the plan which adds the section', () => {
     expect(modulesBeyondPlan('WebsiteAudit')).toEqual([
       { module: 'SEO', plan: 'Basic' },

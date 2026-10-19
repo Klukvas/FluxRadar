@@ -27,10 +27,10 @@ import { handleCreemWebhook } from './webhook-handler.ts';
 // terminal: whichever is written first stays.
 
 const BASIC_PRODUCT = 'prod_basic';
-const BASIC_PRICE = 55;
-const BASIC_CENTS = 5500;
-const HALF_PRICE = 27.5;
-const HALF_CENTS = 2750;
+const BASIC_PRICE = 39;
+const BASIC_CENTS = 3900;
+const HALF_PRICE = 19.5;
+const HALF_CENTS = 1950;
 
 describe('CREEM-007 refunds and disputes', () => {
   let db: TestDb;
@@ -195,7 +195,7 @@ describe('CREEM-007 refunds and disputes', () => {
     const replay = await deliverRefund('evt_second', orderId, BASIC_CENTS, 'ref_once');
 
     expect(replay.results[0]?.outcome).toBe(WEBHOOK_OUTCOMES.deduplicated);
-    expect(replay.results[0]?.reason).toMatch(/refund ref_once was already counted; 55 of 55 USD/);
+    expect(replay.results[0]?.reason).toMatch(/refund ref_once was already counted; 39 of 39 USD/);
     const after = await purchaseAfter(orderId);
     expect(after.refundLines).toHaveLength(1);
     expect(await db.prisma.refundRecord.count()).toBe(1);
@@ -208,7 +208,7 @@ describe('CREEM-007 refunds and disputes', () => {
 
     const first = await deliverRefund('evt_half_one', orderId, HALF_CENTS, 'ref_half_one');
     expect(first.results[0]?.outcome).toBe(WEBHOOK_OUTCOMES.processed);
-    expect(first.results[0]?.reason).toMatch(/partial refund recorded; 27.5 of 55 USD/);
+    expect(first.results[0]?.reason).toMatch(/partial refund recorded; 19.5 of 39 USD/);
     const afterFirst = await purchaseAfter(orderId);
     expect(afterFirst.status).toBe('paid');
     expect(afterFirst.entitlement?.suspended).toBe(false);

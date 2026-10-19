@@ -1214,36 +1214,35 @@ describe('home pricing and workspace onboarding', () => {
     });
 
     const pricing = screen.getByRole('region', {
-      name: 'Three one-time reports. No subscription.',
+      name: 'Two one-time reports. No subscription.',
     });
     const basic = within(pricing).getByRole('heading', { name: 'Basic' }).closest('article');
-    const websiteAudit = within(pricing)
-      .getByRole('heading', { name: 'Website Audit' })
-      .closest('article');
     const complete = within(pricing).getByRole('heading', { name: 'Complete' }).closest('article');
-    if (basic === null || websiteAudit === null || complete === null) {
-      throw new Error('expected all three product cards');
+    if (basic === null || complete === null) {
+      throw new Error('expected both product cards');
     }
+    // Website Audit is no longer sold (2026-10-19), so it has no card.
+    expect(within(pricing).queryByRole('heading', { name: 'Website Audit' })).toBeNull();
+    expect(within(pricing).getAllByRole('article')).toHaveLength(2);
 
     // The currency is stated, not implied: the checkout localises, so a bare "$"
     // is a figure the buyer may not see again.
-    expect(within(basic).getByText('$55 USD')).toBeInTheDocument();
-    expect(within(websiteAudit).getByText('$79 USD')).toBeInTheDocument();
-    expect(within(complete).getByText('$120 USD')).toBeInTheDocument();
+    expect(within(basic).getByText('$39 USD')).toBeInTheDocument();
+    expect(within(complete).getByText('$87 USD')).toBeInTheDocument();
 
-    // Each card says what it does, who it is for and where it stops.
-    expect(within(basic).getByText('What you get')).toBeInTheDocument();
-    expect(within(basic).getByText('Best for')).toBeInTheDocument();
-    expect(within(basic).getByText('Not covered')).toBeInTheDocument();
+    // Basic is the recommended start, and its button is the primary one.
+    expect(within(basic).getByText('RECOMMENDED START')).toBeInTheDocument();
+    expect(within(complete).queryByText('RECOMMENDED START')).toBeNull();
+    expect(within(basic).getByRole('button', { name: 'Start with Basic' })).toHaveClass(
+      'button--primary',
+    );
+
+    // Each card says who it is for, lists what it checks and where it stops.
+    expect(within(basic).getByRole('list', { name: 'What it checks' })).toBeInTheDocument();
+    expect(within(complete).getByRole('list', { name: 'What it checks' })).toBeInTheDocument();
     expect(within(basic).getByText(/up to 5,000 pages/i)).toBeInTheDocument();
-    expect(within(websiteAudit).getByText(/up to 50,000 pages/i)).toBeInTheDocument();
     expect(within(complete).getByText(/up to 50,000 pages/i)).toBeInTheDocument();
-
-    // The middle card is the one that has to say what it does not run, because
-    // that is the only thing separating it from the dearest package.
-    expect(
-      within(websiteAudit).getByText(/The checks for Google search and AI assistants/i),
-    ).toBeInTheDocument();
+    expect(within(complete).getByText('Everything in Basic')).toBeInTheDocument();
   });
 
   it('presents Complete as one price with every module and no add-on', async () => {
@@ -1252,15 +1251,11 @@ describe('home pricing and workspace onboarding', () => {
       name: 'We check your website and show what keeps customers from finding you',
     });
 
-    const complete = screen
-      .getByRole('heading', { name: 'Complete' })
-      .closest('article') as HTMLElement;
-    // No "not covered" row: the point of Complete is that nothing is held back.
-    expect(within(complete).queryByText('Not covered')).not.toBeInTheDocument();
+    const comparison = screen.getByRole('table', { name: /The two packages side by side/ });
     expect(
-      within(complete).getByText(/Everything FluxRadar checks is already in this price/i),
+      within(comparison).getByText(/everything FluxRadar checks is already in this price/i),
     ).toBeInTheDocument();
-    expect(within(complete).getByText(/nothing extra to pay at checkout/i)).toBeInTheDocument();
+    expect(within(comparison).getByText(/nothing extra to pay at checkout/i)).toBeInTheDocument();
     // The old "unified audit" line item must not read as a separate purchase.
     expect(screen.queryByText(/unified audit/i)).not.toBeInTheDocument();
   });
@@ -1276,7 +1271,7 @@ describe('home pricing and workspace onboarding', () => {
     ).toBeInTheDocument();
     // The choice is a comparison, and it is laid out as one — the structure of
     // the table is pinned in pricing-comparison.test.tsx.
-    const comparison = screen.getByRole('table', { name: /The three packages side by side/ });
+    const comparison = screen.getByRole('table', { name: /The two packages side by side/ });
     expect(
       within(comparison).getByRole('rowheader', { name: 'The question it answers' }),
     ).toBeInTheDocument();
@@ -1292,19 +1287,19 @@ describe('home pricing and workspace onboarding', () => {
   });
 
   // "Which one is right for you?" is the question a visitor reaches the pricing
-  // block with, so it is answered before the three cards they would otherwise
-  // have to choose between first and understand afterwards.
-  it('puts the plain-language comparison above the three cards', async () => {
+  // block with, so it is answered before the cards they would otherwise have to
+  // choose between first and understand afterwards.
+  it('puts the plain-language comparison above the two cards', async () => {
     renderHome();
     await screen.findByRole('heading', {
       name: 'We check your website and show what keeps customers from finding you',
     });
 
     const pricing = screen.getByRole('region', {
-      name: 'Three one-time reports. No subscription.',
+      name: 'Two one-time reports. No subscription.',
     });
     const comparison = within(pricing).getByRole('table', {
-      name: /The three packages side by side/,
+      name: /The two packages side by side/,
     });
     const card = within(pricing).getByRole('heading', { name: 'Basic' }).closest('article');
     if (card === null) throw new Error('expected the Basic card');
@@ -1323,16 +1318,15 @@ describe('home pricing and workspace onboarding', () => {
     switchLanguageToUkrainian();
 
     expect(
-      screen.getByRole('heading', { name: 'Три разові звіти. Без підписки.' }),
+      screen.getByRole('heading', { name: 'Два разові звіти. Без підписки.' }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText('Що ви отримуєте')).toHaveLength(3);
+    expect(screen.getAllByText('Що перевіряє')).toHaveLength(2);
+    expect(screen.getByText('РАДИМО ПОЧАТИ З ЦЬОГО')).toBeInTheDocument();
     expect(screen.getByText(/до 5 000 сторінок/)).toBeInTheDocument();
-    // Website Audit and Complete share the 50,000-URL limit, so the sentence
-    // appears once per card rather than once on the page.
-    expect(screen.getAllByText(/до 50 000 сторінок/)).toHaveLength(2);
-    expect(screen.getByRole('heading', { name: 'Website Audit' })).toBeInTheDocument();
+    expect(screen.getAllByText(/до 50 000 сторінок/)).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Website Audit' })).not.toBeInTheDocument();
     expect(
-      screen.getByText(/Усе, що перевіряє FluxRadar, уже входить у цю ціну/),
+      screen.getByText(/усе, що перевіряє FluxRadar, уже входить у цю ціну/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Єдиний аудит/i)).not.toBeInTheDocument();
   });
@@ -1345,7 +1339,7 @@ describe('home pricing and workspace onboarding', () => {
       name: 'We check your website and show what keeps customers from finding you',
     });
     expect(
-      screen.getByRole('region', { name: 'Three one-time reports. No subscription.' }),
+      screen.getByRole('region', { name: 'Two one-time reports. No subscription.' }),
     ).toBeInTheDocument();
     // The URL is cleaned by a passive effect of the home screen, which React
     // flushes after the heading is already in the DOM; on a slow CI runner the
@@ -2183,7 +2177,7 @@ describe('NewScanScreen — paid availability and i18n', () => {
     // The paid cards are offered, priced as internal rather than in dollars.
     expect(screen.getByRole('radio', { name: /^Basic.*internal/ })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /^Complete internal/ })).toBeInTheDocument();
-    expect(screen.queryByRole('radio', { name: /\$120/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /\$87/ })).not.toBeInTheDocument();
 
     // Default plan is Complete for internal users → submit label is Run internal scan.
     expect(screen.getByRole('button', { name: 'Run internal scan' })).toBeInTheDocument();

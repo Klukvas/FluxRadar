@@ -25,8 +25,8 @@ const checkoutConfig = {
   mode: 'test' as const,
   unavailableReason: null,
   plans: [
-    { plan: 'Basic', priceUsd: 55, currency: 'USD' },
-    { plan: 'Complete', priceUsd: 120, currency: 'USD' },
+    { plan: 'Basic', priceUsd: 39, currency: 'USD' },
+    { plan: 'Complete', priceUsd: 87, currency: 'USD' },
   ],
 };
 
@@ -35,7 +35,7 @@ const session = {
   sessionId: 'ch_1',
   checkoutUrl: 'https://checkout.creem.io/checkout/ch_1',
   plan: 'Complete',
-  amount: 120,
+  amount: 87,
   currency: 'USD',
   mode: 'test' as const,
   expiresAt: null,
@@ -173,9 +173,9 @@ async function payForCompleteScan(): Promise<void> {
   await screen.findByRole('radio', { name: /^Complete/ });
   choosePlanCard('Complete');
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Pay $120 and start' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Pay $87 and start' })).toBeEnabled(),
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Pay $87 and start' }));
 }
 
 afterEach(() => {

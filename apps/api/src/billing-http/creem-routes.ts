@@ -43,7 +43,13 @@ import { BillingUnavailableError } from '../billing/errors.ts';
 import type { FetchLike } from '../billing/fetch-like.ts';
 import { WEBHOOK_OUTCOMES } from '../billing/webhook-outcomes.ts';
 import { assertOptInProvidersAvailable } from '../billing/opt-in-consent.ts';
-import { PAID_PLANS, planPriceUsd, planUrlLimit } from '../billing/plans.ts';
+import {
+  OFFERED_PAID_PLANS,
+  PAID_PLANS,
+  assertPlanOfferedForPurchase,
+  planPriceUsd,
+  planUrlLimit,
+} from '../billing/plans.ts';
 import { sendOk } from '../http/envelope.ts';
 import { validationError } from '../http/errors.ts';
 import { requiredParam } from '../http/params.ts';
@@ -158,7 +164,11 @@ export function creemRouter(deps: CreemRouterDeps): Router {
       // one plan and not another. A plan without one is still listed with its
       // price and marked unavailable, so the UI can say it cannot be bought here
       // rather than silently dropping a product the catalogue advertises.
-      plans: PAID_PLANS.map((plan) => ({
+      //
+      // Only the plans on sale are listed: Website Audit is still honoured for
+      // what was bought, but a catalogue entry for it would advertise a plan
+      // the checkout below refuses.
+      plans: OFFERED_PAID_PLANS.map((plan) => ({
         plan,
         priceUsd: planPriceUsd(plan),
         currency: 'USD',
@@ -171,6 +181,9 @@ export function creemRouter(deps: CreemRouterDeps): Router {
   router.post('/billing/checkout-session', auth, async (req, res) => {
     const config = requireConfig(deps.creem);
     const input = parseInput(checkoutSessionInputSchema, req.body);
+    // A withdrawn plan is still a known plan, so the schema accepts it and the
+    // refusal says what happened instead of "invalid enum value".
+    assertPlanOfferedForPurchase(input.plan);
     // Before the session exists, and long before a card is charged.
     assertOptInProvidersAvailable(input.aiConsent, optInAiProviders);
     const accountId = accountIdFrom(res);

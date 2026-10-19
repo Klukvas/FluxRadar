@@ -22,8 +22,8 @@ const checkoutConfig = {
   mode: 'test' as const,
   unavailableReason: null,
   plans: [
-    { plan: 'Basic', priceUsd: 55, currency: 'USD' },
-    { plan: 'Complete', priceUsd: 120, currency: 'USD' },
+    { plan: 'Basic', priceUsd: 39, currency: 'USD' },
+    { plan: 'Complete', priceUsd: 87, currency: 'USD' },
   ],
 };
 
@@ -32,7 +32,7 @@ const session = {
   sessionId: 'sess_abc',
   checkoutUrl: 'https://www.creem.io/test/checkout/sess_abc',
   plan: 'Complete',
-  amount: 120,
+  amount: 87,
   currency: 'USD',
   mode: 'test' as const,
   expiresAt: null,
@@ -111,7 +111,7 @@ function selectPlan(plan: string): void {
  */
 async function awaitPayable(): Promise<void> {
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Pay $120 and start' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Pay $87 and start' })).toBeEnabled(),
   );
 }
 
@@ -170,7 +170,7 @@ describe('paid checkout flow', () => {
     await screen.findByRole('radio', { name: /^Complete/ });
     selectPlan('Complete');
     await awaitPayable();
-    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $87 and start' }));
     await screen.findByText('Payment — confirming');
 
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
@@ -218,7 +218,7 @@ describe('paid checkout flow', () => {
     await awaitPayable();
     const legalNotice = screen.getByRole('note', { name: 'Purchase terms' });
     expect(legalNotice).toHaveTextContent(
-      'By selecting “Pay $120 and start”, you agree to the Terms of service and acknowledge the Privacy policy · Cookie policy.',
+      'By selecting “Pay $87 and start”, you agree to the Terms of service and acknowledge the Privacy policy · Cookie policy.',
     );
     expect(within(legalNotice).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
       'href',
@@ -233,7 +233,7 @@ describe('paid checkout flow', () => {
       '/cookies?lang=en',
     );
     expect(screen.queryByRole('checkbox', { name: /Anthropic/i })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $87 and start' }));
 
     expect(await screen.findByText('Payment — confirming')).toBeInTheDocument();
     await waitFor(() => expect(locationAssignSpy).toHaveBeenCalledWith(session.checkoutUrl));
@@ -287,7 +287,7 @@ describe('paid checkout flow', () => {
     await screen.findByRole('radio', { name: /^Complete/ });
     selectPlan('Complete');
     await awaitPayable();
-    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $87 and start' }));
 
     expect(
       await screen.findByText(/The payment provider reported a problem with this checkout/),
@@ -417,7 +417,7 @@ describe('paid checkout flow', () => {
     await screen.findByRole('radio', { name: /^Complete/ });
     selectPlan('Complete');
     await awaitPayable();
-    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $87 and start' }));
     await screen.findByText('Payment — confirming');
 
     // A reload: everything React held is gone, only storage survives.
@@ -676,7 +676,7 @@ describe('optional AI recipients at checkout', () => {
     const fetchMock = await openPaidForm(['google', 'perplexity']);
     await screen.findByRole('checkbox', { name: OPT_IN_LABEL });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $87 and start' }));
     await waitFor(() => expect(called(fetchMock, '/billing/checkout-session')).toBe(true));
 
     expect(submittedConsent(fetchMock)).toEqual({
@@ -692,7 +692,7 @@ describe('optional AI recipients at checkout', () => {
     fireEvent.click(google);
     fireEvent.click(screen.getByRole('checkbox', { name: 'Also ask Perplexity' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Also ask Perplexity' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Pay $120 and start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $87 and start' }));
     await waitFor(() => expect(called(fetchMock, '/billing/checkout-session')).toBe(true));
 
     expect(submittedConsent(fetchMock)).toEqual({

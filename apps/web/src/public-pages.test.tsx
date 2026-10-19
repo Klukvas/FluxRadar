@@ -150,12 +150,22 @@ describe('public page metadata', () => {
     expect(data.mainEntity[0]?.acceptedAnswer.text).toContain(visible[0]?.answer[0]);
   });
 
+  // The home description is what search results quote; it said "three
+  // reports" for a week after Website Audit left sale (2026-10-19).
+  it('describes the home page as two one-time reports in both languages', () => {
+    expect(copy.en.seo.home.description).toMatch(/Two one-time reports, no subscription\.$/);
+    expect(copy.uk.seo.home.description).toMatch(/Два разові звіти, без підписки\.$/);
+    for (const language of ['en', 'uk'] as const) {
+      expect(copy[language].seo.home.description).not.toMatch(/three |три |трьох /i);
+    }
+  });
+
   it('publishes only the two products it actually sells, at the printed prices', () => {
     const data = pageStructuredData('home', 'en') as {
       '@graph': { name: string; offers: { price: string; priceCurrency: string } }[];
     };
     expect(data['@graph']).toHaveLength(2);
-    expect(data['@graph'].map((product) => product.offers.price)).toEqual(['55', '120']);
+    expect(data['@graph'].map((product) => product.offers.price)).toEqual(['39', '87']);
     expect(data['@graph'].every((product) => product.offers.priceCurrency === 'USD')).toBe(true);
   });
 

@@ -25,7 +25,7 @@ describe('public legal documents', () => {
       /Creem \(Armitage Labs OÜ, Таллінн, Естонія\) є окремим merchant of record/,
     );
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
-    expect(terms).toHaveTextContent(/Чинна з 28 вересня 2026 року/);
+    expect(terms).toHaveTextContent(/Чинна з 19 жовтня 2026 року/);
     expect(screen.getByText(/юридично пріоритетна українська версія/i)).toBeInTheDocument();
   });
 
@@ -65,7 +65,7 @@ describe('public legal documents', () => {
       'https://creem.io/buyer-terms',
     );
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
-    expect(terms).toHaveTextContent(/Effective 28 September 2026/);
+    expect(terms).toHaveTextContent(/Effective 19 October 2026/);
     expect(terms).not.toHaveTextContent(/all sales are final|no refunds/i);
   });
 

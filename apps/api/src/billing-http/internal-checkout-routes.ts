@@ -18,7 +18,7 @@ import { createInternalFreeScan } from '../billing/internal-checkout.ts';
 import { aiConsentSchema } from '../billing/checkout-metadata.ts';
 import { assertOptInProvidersAvailable } from '../billing/opt-in-consent.ts';
 import { availableOptInAiProviders } from '../integrations/opt-in-ai-config.ts';
-import { PAID_PLANS } from '../billing/plans.ts';
+import { PAID_PLANS, assertPlanOfferedForPurchase } from '../billing/plans.ts';
 import { sendOk } from '../http/envelope.ts';
 import { paymentRequired, unauthorized } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
@@ -66,6 +66,9 @@ export function internalCheckoutRouter(deps: InternalCheckoutRouterDeps): Router
 
   router.post('/billing/internal-checkout', auth, async (req, res) => {
     const input = parseInput(internalCheckoutInputSchema, req.body);
+    // The same catalogue as the paid checkout: an internal scan of a plan the
+    // site no longer sells would exercise a path no buyer can reach.
+    assertPlanOfferedForPurchase(input.plan);
     // No payment on this path, but the same promise: a scan that named an
     // unconfigured recipient would run every one of its requests into a closed
     // provider and report Partial. Say so instead.

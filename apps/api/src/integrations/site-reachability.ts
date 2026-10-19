@@ -1,6 +1,6 @@
 // Can we read this site at all — asked before the owner pays, not after.
 //
-// A customer could buy a $120 audit of a site that refuses our crawler, wait
+// A customer could buy a paid audit of a site that refuses our crawler, wait
 // for it to run, and get a refund and no report. Nothing before the pay button
 // had ever tried to fetch the site. This probe does, and the checkout refuses
 // to open without a fresh successful one.

@@ -4,9 +4,11 @@ import { PLANS } from './enums.js';
 import {
   ENTITLEMENT_DAYS,
   FREE_CHECK_RULE_IDS,
+  OFFERED_PAID_PLANS,
   SEARCH_MODULES,
   SIDE_SCORE_MODULES,
   TARIFFS,
+  isOfferedForPurchase,
   normalizeScoreWeights,
   planRunsModule,
   planSupports,
@@ -64,14 +66,14 @@ describe('tariff matrix §18', () => {
       retentionDays: 30,
     });
     expect(TARIFFS.Basic).toMatchObject({
-      priceUsd: 55,
+      priceUsd: 39,
       urlLimit: 5000,
       aiRequestLimit: 50,
       retentionDays: 30,
       label: 'Basic Scan',
     });
     expect(TARIFFS.Complete).toMatchObject({
-      priceUsd: 120,
+      priceUsd: 87,
       urlLimit: 50_000,
       aiRequestLimit: 500,
       retentionDays: 365,
@@ -79,7 +81,7 @@ describe('tariff matrix §18', () => {
     });
   });
 
-  it('sells Website Audit as the eight non-search modules at $79', () => {
+  it('keeps Website Audit as the eight non-search modules at $79', () => {
     expect(TARIFFS.WebsiteAudit).toMatchObject({
       priceUsd: 79,
       urlLimit: 50_000,
@@ -99,6 +101,18 @@ describe('tariff matrix §18', () => {
     ]);
   });
 
+  // Withdrawn from sale on 2026-10-19, not deleted: the row above still prices
+  // and entitles every Website Audit already bought.
+  it('offers only Basic and Complete to new buyers', () => {
+    expect(OFFERED_PAID_PLANS).toEqual(['Basic', 'Complete']);
+    expect(isOfferedForPurchase('Basic')).toBe(true);
+    expect(isOfferedForPurchase('Complete')).toBe(true);
+    expect(isOfferedForPurchase('WebsiteAudit')).toBe(false);
+    expect(isOfferedForPurchase('Free')).toBe(false);
+    expect(isOfferedForPurchase('Enterprise')).toBe(false);
+    expect(PLANS).toContain('WebsiteAudit');
+  });
+
   it('is exactly Complete without the search modules', () => {
     expect(TARIFFS.WebsiteAudit.modules).toEqual(
       TARIFFS.Complete.modules.filter((module) => !SEARCH_MODULES.includes(module)),
@@ -107,9 +121,7 @@ describe('tariff matrix §18', () => {
 
   it('weights every scored module the plan runs, and only those', () => {
     for (const plan of ['Basic', 'Complete', 'WebsiteAudit'] as const) {
-      const scored = TARIFFS[plan].modules.filter(
-        (module) => !SIDE_SCORE_MODULES.includes(module),
-      );
+      const scored = TARIFFS[plan].modules.filter((module) => !SIDE_SCORE_MODULES.includes(module));
       expect(Object.keys(TARIFFS[plan].scoreWeights).sort()).toEqual([...scored].sort());
     }
   });
@@ -135,8 +147,8 @@ describe('tariff matrix §18', () => {
   });
 
   it('leaves Basic and Complete untouched by the third package', () => {
-    expect(TARIFFS.Basic.priceUsd).toBe(55);
-    expect(TARIFFS.Complete.priceUsd).toBe(120);
+    expect(TARIFFS.Basic.priceUsd).toBe(39);
+    expect(TARIFFS.Complete.priceUsd).toBe(87);
     expect(TARIFFS.Complete.modules).toHaveLength(10);
     expect(TARIFFS.Basic.modules).toEqual(['SEO', 'AI SEO / GEO']);
   });

@@ -28,8 +28,8 @@ const CHECKOUT_CONFIG = {
   mode: 'test' as const,
   unavailableReason: null,
   plans: [
-    { plan: 'Basic', priceUsd: 55, currency: 'USD' },
-    { plan: 'Complete', priceUsd: 120, currency: 'USD' },
+    { plan: 'Basic', priceUsd: 39, currency: 'USD' },
+    { plan: 'Complete', priceUsd: 87, currency: 'USD' },
   ],
 };
 const SHOP = { id: 'profile-shop', name: 'Bloom Shop', domain: 'https://shop.bloom.example' };
