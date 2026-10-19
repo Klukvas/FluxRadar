@@ -39,10 +39,9 @@ describe('the page census rule lists', () => {
     expect(CANONICAL_PAGE_RULE_IDS.length).toBeGreaterThan(0);
   });
 
-  it('offers a document-address census to both plans that compare scans', () => {
-    // Complete runs SEO and Content Quality; Website Audit runs Content Quality
-    // without SEO. A canonical census that existed only in SEO would leave every
-    // Website Audit page diff on the weaker address identity.
+  it('offers a document-address census from both SEO and Content Quality', () => {
+    // A canonical census that existed only in SEO would leave the page diff of
+    // any scan whose SEO module did not run on the weaker address identity.
     const canonical = new Set(CANONICAL_PAGE_RULE_IDS);
     for (const module of ['SEO', 'Content Quality'] as const) {
       const ids = rulesForModule(module).map((rule) => rule.descriptor.ruleId);

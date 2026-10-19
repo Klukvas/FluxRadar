@@ -77,10 +77,7 @@ export const FREE_CHECK_RULE_IDS = [
   'SEO-TECH-008',
 ] as const;
 
-/** The two search-facing modules. Website Audit is defined by running neither. */
-export const SEARCH_MODULES: readonly ModuleName[] = ['SEO', 'AI SEO / GEO'];
-
-const COMPLETE_SCORE_WEIGHTS: Readonly<Partial<Record<ModuleName, number>>> = {
+export const COMPLETE_SCORE_WEIGHTS: Readonly<Partial<Record<ModuleName, number>>> = {
   SEO: 0.2,
   'AI SEO / GEO': 0.15,
   Security: 0.2,
@@ -92,32 +89,12 @@ const COMPLETE_SCORE_WEIGHTS: Readonly<Partial<Record<ModuleName, number>>> = {
 };
 
 /**
- * Complete without the two search modules: the eight Website Audit runs.
+ * The same relative importance the modules carry in `weights`, rescaled to sum
+ * to 1.0 over the ones in `modules`.
  *
- * Written out rather than derived, because the tariff table is the readable
- * statement of what each package is — and `apps/web/src/plan-modules.test.ts`
- * reads this file as text to keep the UI's mirror honest. `tariffs.test.ts`
- * pins it against Complete so the two lists cannot drift.
- */
-const WEBSITE_AUDIT_MODULES: readonly ModuleName[] = [
-  'Security',
-  'Performance',
-  'Accessibility',
-  'Reliability',
-  'Content Quality',
-  'Privacy',
-  'UX/Conversion',
-  'Analytics',
-];
-
-/**
- * The same relative importance the modules carry on Complete, rescaled to sum
- * to 1.0 over the ones the plan keeps.
- *
- * Derived rather than written out: Website Audit drops SEO (.20) and
- * AI SEO / GEO (.15), leaving .65 of Complete's weight, and hand-copied
- * quotients of .65 would be both unreadable and free to drift from the table
- * they came from.
+ * Used for a stored scan of a retired plan (stored-plan.ts): its overall score
+ * is read from the modules it actually stored, weighted as Complete weights
+ * them, rather than from a tariff row that no longer exists.
  */
 export function normalizeScoreWeights(
   weights: Readonly<Partial<Record<ModuleName, number>>>,
@@ -129,27 +106,6 @@ export function normalizeScoreWeights(
     return {};
   }
   return Object.fromEntries(kept.map(([module, weight]) => [module, (weight ?? 0) / total]));
-}
-
-/** A plan that costs money, whether or not it is still sold. */
-export type PaidPlan = Exclude<Plan, 'Free'>;
-
-/**
- * The paid plans a new buyer can choose, in the order they are shown.
- *
- * Narrower than the paid plans `TARIFFS` knows: Website Audit was withdrawn
- * from sale on 2026-10-19, but an order already paid for it is still a real
- * purchase whose webhook, refund, report and export must keep working. So
- * "is this a paid plan" and "may this plan be sold now" are separate
- * questions, and every place that offers or opens a sale asks this one.
- */
-export const OFFERED_PAID_PLANS = ['Basic', 'Complete'] as const satisfies readonly PaidPlan[];
-
-export type OfferedPaidPlan = (typeof OFFERED_PAID_PLANS)[number];
-
-/** Whether a new checkout may be opened for this plan; false for Free and unknown strings. */
-export function isOfferedForPurchase(plan: string): plan is OfferedPaidPlan {
-  return (OFFERED_PAID_PLANS as readonly string[]).includes(plan);
 }
 
 export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
@@ -174,32 +130,6 @@ export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
     aiRequestLimit: 50,
     retentionDays: 30,
     capabilities: NO_CAPABILITIES,
-  },
-  // The eight non-search modules at $79: everything Complete reads about a site
-  // except how search engines and AI systems read it. No longer sold to new
-  // buyers (see OFFERED_PAID_PLANS), and kept whole here because the purchases,
-  // scans, reports, exports and refunds already made on it still read this row.
-  WebsiteAudit: {
-    plan: 'WebsiteAudit',
-    label: 'Website Audit Scan',
-    priceUsd: 79,
-    modules: [
-      'Security',
-      'Performance',
-      'Accessibility',
-      'Reliability',
-      'Content Quality',
-      'Privacy',
-      'UX/Conversion',
-      'Analytics',
-    ],
-    scoreWeights: normalizeScoreWeights(COMPLETE_SCORE_WEIGHTS, WEBSITE_AUDIT_MODULES),
-    urlLimit: 50_000,
-    // Complete's ceiling, kept deliberately: GEO — which spends most of it on
-    // Complete — never runs here, so the plan spends far less than it may.
-    aiRequestLimit: 500,
-    retentionDays: 365,
-    capabilities: FULL_REPORT_CAPABILITIES,
   },
   Complete: {
     plan: 'Complete',

@@ -5,8 +5,13 @@
 // 0.80 / 0.50 одинаковы для Complete и Basic (D-017). UX/Conversion и Analytics
 // не имеют tariff weight (SIDE_SCORE_MODULES) и в общий score не входят.
 
-import type { ModuleExportStatus, ModuleName, Plan } from '@fluxradar/contracts';
-import { MODULE_NAMES, SIDE_SCORE_MODULES, TARIFFS } from '@fluxradar/contracts';
+import type { ModuleExportStatus, ModuleName, Plan, StoredPlan } from '@fluxradar/contracts';
+import {
+  MODULE_NAMES,
+  SIDE_SCORE_MODULES,
+  TARIFFS,
+  storedPlanScoreWeights,
+} from '@fluxradar/contracts';
 
 import { round2 } from './round2.js';
 
@@ -48,7 +53,33 @@ export function computeOverallScore(
   plan: Plan,
   modules: readonly ModuleScoreSummary[],
 ): OverallScoreResult {
-  const scoreWeights = TARIFFS[plan].scoreWeights;
+  return scoreWithWeights(plan, TARIFFS[plan].scoreWeights, modules);
+}
+
+/**
+ * The overall score of a stored scan, whose plan may be a retired one.
+ *
+ * A current plan scores exactly as `computeOverallScore`. A legacy plan has no
+ * tariff row, so its weights come from the modules the scan stored
+ * (`storedPlanScoreWeights`) — a read of an old report never throws for want of
+ * a tariff.
+ */
+export function computeStoredScanOverallScore(
+  plan: StoredPlan,
+  modules: readonly ModuleScoreSummary[],
+): OverallScoreResult {
+  const weights = storedPlanScoreWeights(
+    plan,
+    modules.map((summary) => summary.module),
+  );
+  return scoreWithWeights(plan, weights, modules);
+}
+
+function scoreWithWeights(
+  plan: string,
+  scoreWeights: Readonly<Partial<Record<ModuleName, number>>>,
+  modules: readonly ModuleScoreSummary[],
+): OverallScoreResult {
   const summaryByModule = indexByModule(plan, modules, scoreWeights);
   const moduleWeights = buildModuleWeights(scoreWeights, summaryByModule);
   const tariffWeightTotal = sumBy(moduleWeights, (entry) => entry.tariffWeight);
@@ -78,7 +109,7 @@ function verdictFor(weightedCoverage: number): OverallVerdict {
 }
 
 function indexByModule(
-  plan: Plan,
+  plan: string,
   modules: readonly ModuleScoreSummary[],
   scoreWeights: Readonly<Partial<Record<ModuleName, number>>>,
 ): ReadonlyMap<ModuleName, ModuleScoreSummary> {

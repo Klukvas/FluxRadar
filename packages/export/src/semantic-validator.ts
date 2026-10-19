@@ -70,8 +70,7 @@ function recordViolations(record: ExportRecord, index: number): readonly Semanti
  * Инвариант 1: известная schema_version и plan, который эта версия допускает.
  *
  * Версия 1.0 по определению Complete-only, поэтому пара «версия + plan»
- * проверяется вместе: 1.0 с любым другим планом — нарушение, как и раньше,
- * а Website Audit допустим только в 1.1.
+ * проверяется вместе: 1.0 с любым другим планом — нарушение.
  */
 function planViolations(record: ExportRecord, index: number): readonly SemanticViolation[] {
   const allowedPlans = planLabelsForSchemaVersion(record.schema_version);

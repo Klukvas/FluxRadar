@@ -16,6 +16,7 @@ export {
   WEIGHTED_COVERAGE_NORMAL_MIN,
   WEIGHTED_COVERAGE_PROVISIONAL_MIN,
   computeOverallScore,
+  computeStoredScanOverallScore,
 } from './overall-score.js';
 export type {
   ModuleScoreSummary,
