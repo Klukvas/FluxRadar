@@ -99,6 +99,18 @@
   letter-spacing: 0.04em;
 }
 
+/* What we check, as a list an owner can scan rather than one long sentence.
+   Same colour and size as the coverage paragraph under it. */
+.home__coverage-list {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding-left: 20px;
+  color: #c8d5e8;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
 @media (max-width: 699px) {
   .home-example__finding {
     padding: 14px 14px 16px;

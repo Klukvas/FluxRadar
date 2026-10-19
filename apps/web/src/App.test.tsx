@@ -851,14 +851,15 @@ describe('public /checks — audit coverage page', () => {
       name: 'We check your website and show what keeps customers from finding you',
     });
     expect(
-      screen.getByRole('heading', { name: 'Every check. Every standard. No surprises.' }),
+      screen.getByRole('heading', { name: 'The full list of checks is public.' }),
     ).toBeInTheDocument();
     const coverage = screen.getByRole('region', {
-      name: 'Every check. Every standard. No surprises.',
+      name: 'The full list of checks is public.',
     });
-    expect(
-      within(coverage).getByRole('link', { name: /Read the full audit coverage/i }),
-    ).toHaveAttribute('href', '/checks');
+    expect(within(coverage).getByRole('link', { name: /See every check/i })).toHaveAttribute(
+      'href',
+      '/checks',
+    );
   });
 
   it('opens the home page in Ukrainian on /uk with no consent and only the home reads', async () => {
@@ -906,10 +907,12 @@ describe('public /checks — audit coverage page', () => {
     await screen.findByRole('heading', {
       name: 'We check your website and show what keeps customers from finding you',
     });
-    const capabilities = screen.getByRole('heading', { name: 'A website is more than a ranking.' });
+    const capabilities = screen.getByRole('heading', {
+      name: 'Three questions the report answers.',
+    });
     const example = screen.getByRole('figure', { name: 'Example report for a made-up website' });
     const coverage = screen.getByRole('heading', {
-      name: 'Every check. Every standard. No surprises.',
+      name: 'The full list of checks is public.',
     });
     expect(
       capabilities.compareDocumentPosition(example) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -1232,16 +1235,14 @@ describe('home pricing and workspace onboarding', () => {
     expect(within(basic).getByText('What you get')).toBeInTheDocument();
     expect(within(basic).getByText('Best for')).toBeInTheDocument();
     expect(within(basic).getByText('Not covered')).toBeInTheDocument();
-    expect(within(basic).getByText(/up to 5,000 crawled pages/i)).toBeInTheDocument();
-    expect(within(websiteAudit).getByText(/up to 50,000 crawled pages/i)).toBeInTheDocument();
-    expect(within(complete).getByText(/up to 50,000 crawled pages/i)).toBeInTheDocument();
+    expect(within(basic).getByText(/up to 5,000 pages/i)).toBeInTheDocument();
+    expect(within(websiteAudit).getByText(/up to 50,000 pages/i)).toBeInTheDocument();
+    expect(within(complete).getByText(/up to 50,000 pages/i)).toBeInTheDocument();
 
     // The middle card is the one that has to say what it does not run, because
     // that is the only thing separating it from the dearest package.
     expect(
-      within(websiteAudit).getByText(
-        /The SEO analysis and visibility in AI answers \(AI SEO \/ GEO\)/i,
-      ),
+      within(websiteAudit).getByText(/The checks for Google search and AI assistants/i),
     ).toBeInTheDocument();
   });
 
@@ -1257,9 +1258,9 @@ describe('home pricing and workspace onboarding', () => {
     // No "not covered" row: the point of Complete is that nothing is held back.
     expect(within(complete).queryByText('Not covered')).not.toBeInTheDocument();
     expect(
-      within(complete).getByText(/Every module FluxRadar runs is already in this price/i),
+      within(complete).getByText(/Everything FluxRadar checks is already in this price/i),
     ).toBeInTheDocument();
-    expect(within(complete).getByText(/nothing extra to add at checkout/i)).toBeInTheDocument();
+    expect(within(complete).getByText(/nothing extra to pay at checkout/i)).toBeInTheDocument();
     // The old "unified audit" line item must not read as a separate purchase.
     expect(screen.queryByText(/unified audit/i)).not.toBeInTheDocument();
   });
@@ -1280,13 +1281,13 @@ describe('home pricing and workspace onboarding', () => {
       within(comparison).getByRole('rowheader', { name: 'The question it answers' }),
     ).toBeInTheDocument();
     expect(
-      within(comparison).getByText('Why is my site not being found — in search, or in AI answers?'),
+      within(comparison).getByText('Why do people not find me on Google or in AI assistants?'),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/It is a first look at the report format, not a product of its own/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/the scan starts once the payment provider confirms/i),
+      screen.getByText(/the check starts as soon as the payment goes through/i),
     ).toBeInTheDocument();
   });
 
@@ -1325,13 +1326,13 @@ describe('home pricing and workspace onboarding', () => {
       screen.getByRole('heading', { name: 'Три разові звіти. Без підписки.' }),
     ).toBeInTheDocument();
     expect(screen.getAllByText('Що ви отримуєте')).toHaveLength(3);
-    expect(screen.getByText(/до 5 000 сторінок обходу/)).toBeInTheDocument();
+    expect(screen.getByText(/до 5 000 сторінок/)).toBeInTheDocument();
     // Website Audit and Complete share the 50,000-URL limit, so the sentence
     // appears once per card rather than once on the page.
-    expect(screen.getAllByText(/до 50 000 сторінок обходу/)).toHaveLength(2);
+    expect(screen.getAllByText(/до 50 000 сторінок/)).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'Website Audit' })).toBeInTheDocument();
     expect(
-      screen.getByText(/Усі модулі, які запускає FluxRadar, уже входять у цю ціну/),
+      screen.getByText(/Усе, що перевіряє FluxRadar, уже входить у цю ціну/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Єдиний аудит/i)).not.toBeInTheDocument();
   });
@@ -1436,23 +1437,23 @@ describe('home pricing and workspace onboarding', () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Сайт — це більше, ніж позиція в рейтингу.' }),
+      screen.getByRole('heading', { name: 'Три питання, на які відповідає звіт.' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('figure', { name: 'Приклад звіту для вигаданого сайту' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Кожна перевірка. Кожен стандарт. Без сюрпризів.' }),
+      screen.getByRole('heading', { name: 'Повний список перевірок відкритий.' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Від публічної адреси до пріоритезованих завдань.' }),
+      screen.getByRole('heading', { name: 'Від адреси сайту до списку, що виправити.' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Почніть із сайту/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Перевірити сайт' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Запустити перевірку/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Перевірте свій сайт' })).toBeInTheDocument();
     expect(screen.getByText('FLUXRADAR / ВІД FLUXLAB')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Політика приватності' })).toBeInTheDocument();
-    expect(screen.queryByText('A website is more than a ranking.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Three questions the report answers.')).not.toBeInTheDocument();
   });
 
   it('routes a newly registered owner into workspace tour without creating a profile or scan', async () => {

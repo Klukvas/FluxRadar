@@ -160,6 +160,11 @@ export function HomeScreen(props: {
           <div className="home__coverage-entry-inner">
             <div className="home__eyebrow">{t.home.coverageEntry.eyebrow}</div>
             <h2 id="coverage-entry-title">{t.home.coverageEntry.title}</h2>
+            <ul className="home__coverage-list">
+              {t.home.coverageEntry.items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
             <p>{t.home.coverageEntry.body}</p>
             <a className="home__coverage-link" href="/checks">
               {t.pricing.coverageLink}
