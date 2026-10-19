@@ -1443,10 +1443,10 @@ describe('home pricing and workspace onboarding', () => {
       screen.getByRole('figure', { name: 'Приклад звіту для вигаданого сайту' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Повний список перевірок відкритий.' }),
+      screen.getByRole('heading', { name: 'Повний список перевірок у відкритому доступі.' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Від адреси сайту до списку, що виправити.' }),
+      screen.getByRole('heading', { name: 'Від адреси сайту до списку, що треба виправити.' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Почніть із сайту/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Перевірити сайт' })).toBeInTheDocument();

@@ -292,7 +292,9 @@ describe('home page below the hero, in an owner’s words', () => {
   it.each(LANGUAGES)('gives every plan one short line on who it is for (%s)', (language) => {
     const cards = copy[language].pricing.cards;
     const lines = [cards.basic, cards.websiteAudit, cards.complete].map((card) => card.description);
-    for (const line of lines) expect(line.length).toBeLessThanOrEqual(120);
+    // One sentence a visitor reads at a glance; 140 fits the editor’s
+    // Website Audit line, which spells out accessibility in plain words.
+    for (const line of lines) expect(line.length).toBeLessThanOrEqual(140);
     expect(new Set(lines).size).toBe(3);
     expect(cards.basic.description).toMatch(/Google/);
     expect(cards.websiteAudit.description).not.toMatch(/Google/);

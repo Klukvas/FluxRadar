@@ -151,8 +151,18 @@ describe('the plain-language pricing comparison', () => {
     Reliability: { en: 'reliability', uk: 'стабільність роботи' },
     'Content Quality': { en: 'text quality', uk: 'якість текстів' },
     Privacy: { en: 'privacy', uk: 'приватність' },
-    'UX/Conversion': { en: 'how easy it is to get in touch', uk: 'чи легко з вами звʼязатися' },
-    Analytics: { en: 'site analytics', uk: 'аналітика сайту' },
+    // The module reads the entry page's heading, the path to the main action,
+    // form submission, and how clear the offer and the main action are.
+    'UX/Conversion': {
+      en: 'whether visitors understand what to do next',
+      uk: 'чи зрозуміло відвідувачу, що робити далі',
+    },
+    // Its rules read Google Analytics / Search Console data, so the plain name
+    // has to say the owner connects it.
+    Analytics: {
+      en: 'visitor statistics (if you connect google)',
+      uk: 'статистика відвідувань (якщо підключите google)',
+    },
   };
 
   it.each<Language>(['en', 'uk'])(
@@ -192,11 +202,14 @@ describe('the plain-language pricing comparison', () => {
       expect(PLAN_MODULES.WebsiteAudit).not.toContain('AI SEO / GEO');
       const rows = copy[language].pricing.explainer.rows;
       const cards = copy[language].pricing.cards;
+      // "Google" alone is allowed: the visitor statistics come from a Google
+      // account the owner connects. Google *search* is not.
+      const SEARCH = /Google search|пошуку Google/;
       for (const answer of [rows.included.websiteAudit, cards.websiteAudit.included]) {
-        expect(answer).not.toMatch(/Google/);
+        expect(answer).not.toMatch(SEARCH);
       }
-      expect(rows.notIncluded.websiteAudit).toMatch(/Google/);
-      expect(cards.websiteAudit.notIncluded).toMatch(/Google/);
+      expect(rows.notIncluded.websiteAudit).toMatch(SEARCH);
+      expect(cards.websiteAudit.notIncluded).toMatch(SEARCH);
     },
   );
 
@@ -229,8 +242,14 @@ describe('the plain-language pricing comparison', () => {
       ]) {
         for (const promise of PROMISES[language]) expect(answer).toMatch(promise);
       }
+      // Broader than the promises above on purpose: Basic must not name any
+      // of the three, in any wording.
+      const NEVER_ON_BASIC = {
+        en: /scan history|export|action plan/i,
+        uk: /історі|вивантаж|експорт|план дій/i,
+      } as const;
       for (const answer of [rows.included.basic, cards.basic.included]) {
-        for (const promise of PROMISES[language]) expect(answer).not.toMatch(promise);
+        expect(answer).not.toMatch(NEVER_ON_BASIC[language]);
       }
     }
   });
