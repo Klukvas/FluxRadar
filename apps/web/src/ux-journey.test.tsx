@@ -384,7 +384,7 @@ describe('a Free report', () => {
           available: true,
           mode: 'test',
           unavailableReason: null,
-          plans: [{ plan: 'Basic', priceUsd: 55, currency: 'USD' }],
+          plans: [{ plan: 'Basic', priceUsd: 39, currency: 'USD' }],
         });
       if (path === `/scans/${freeScan.id}/issues`)
         return envelope([], 200, { total: 0, page: 1, limit: 50 });

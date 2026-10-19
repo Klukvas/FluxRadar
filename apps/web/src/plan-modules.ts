@@ -29,8 +29,17 @@ export type PaidPlan = Exclude<Plan, 'Free'>;
  */
 export const PLAN_ORDER: readonly Plan[] = ['Free', 'Basic', 'WebsiteAudit', 'Complete'];
 
-/** The plans a buyer can actually pay for, in the order the pricing page shows. */
+/** Every plan somebody may have paid for, Website Audit included. */
 export const PAID_PLAN_ORDER: readonly Plan[] = ['Basic', 'WebsiteAudit', 'Complete'];
+
+/**
+ * The plans a new buyer can choose, in the order the pricing page shows.
+ *
+ * Mirrors `OFFERED_PAID_PLANS` in `packages/contracts/src/tariffs.ts` (pinned by
+ * `plan-modules.test.ts`). Website Audit left it on 2026-10-19: its reports
+ * still render, but no card, form or upgrade prompt offers it any more.
+ */
+export const OFFERED_PAID_PLAN_ORDER: readonly Plan[] = ['Basic', 'Complete'];
 
 /** `TARIFFS[plan].modules`, in the tariff table's own order. */
 export const PLAN_MODULES: Readonly<Record<Plan, readonly string[]>> = {
@@ -149,7 +158,7 @@ export function planName(plan: string): string {
   return PLAN_DISPLAY_NAME[plan as Plan] ?? plan;
 }
 
-/** One section this plan does not run, and the cheapest plan that does. */
+/** One section this plan does not run, and the cheapest offered plan that does. */
 export interface LockedModule {
   readonly module: string;
   readonly plan: Plan;
@@ -162,15 +171,15 @@ export interface LockedModule {
  * Empty for Complete, which runs every section there is — a report on that plan
  * says so rather than showing an empty list that reads like missing data.
  *
- * The "cheapest plan that runs it" is now looked up across the paid plans rather
- * than taken from the next rung of a ladder: a Website Audit report is missing
- * SEO, and the plan that adds it is Basic — which is *cheaper*, not dearer. A
- * ladder walk would have offered Complete for it and asked the owner for $120
- * to get back something $55 sells.
+ * The "cheapest plan that runs it" is looked up across the plans still on sale
+ * rather than taken from the next rung of a ladder: a Website Audit report is
+ * missing SEO, and the plan that adds it is Basic — which is *cheaper*, not
+ * dearer. A plan no longer sold is never the answer, so a Basic report's
+ * missing site-health sections point at Complete.
  */
 export function modulesBeyondPlan(plan: Plan): readonly LockedModule[] {
   const covered = new Set(PLAN_MODULES[plan]);
-  const cheapestFirst = PAID_PLAN_ORDER.filter((candidate) => candidate !== plan);
+  const cheapestFirst = OFFERED_PAID_PLAN_ORDER.filter((candidate) => candidate !== plan);
   const locked: LockedModule[] = [];
   for (const module of PLAN_MODULES.Complete) {
     if (covered.has(module)) continue;

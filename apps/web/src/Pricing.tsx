@@ -2,90 +2,82 @@ import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { Button } from './components';
 import { copy, type Language } from './i18n';
 
-// The three one-time products live on the home page: there is no separate plans
-// screen to navigate to, so everything a buyer needs to choose between Basic,
-// Website Audit and Complete has to be readable in one place.
+// The two one-time products live on the home page: there is no separate plans
+// screen to navigate to, so everything a buyer needs to choose between Basic
+// and Complete has to be readable in one place. Website Audit was withdrawn
+// from sale on 2026-10-19 and is not offered here; its existing reports still
+// render everywhere else.
 
 /** A plan chosen on the pricing cards, carried through sign-up to the scan form. */
-export type ChosenPlan = 'Basic' | 'WebsiteAudit' | 'Complete';
+export type ChosenPlan = 'Basic' | 'Complete';
 
+type PricingCopy = (typeof copy)[Language]['pricing'];
+type PlanCardCopy = PricingCopy['cards'][keyof PricingCopy['cards']];
+
+function PlanCard(props: {
+  plan: ChosenPlan;
+  card: PlanCardCopy;
+  checksTitle: string;
+  chooseLabel: string;
+  /** The badge text, on the one card a first-time buyer is pointed to. */
+  recommended: string | null;
+  onChoose: (plan: ChosenPlan) => void;
+}) {
+  const modifier = props.plan === 'Basic' ? 'basic' : 'complete';
+  const checksId = `pricing-${modifier}-checks`;
+  return (
+    <article className={`home__plan home__plan--${modifier}`}>
+      <span className="home__card-index">{props.card.eyebrow}</span>
+      {props.recommended === null ? null : (
+        <span className="home__plan-badge">{props.recommended}</span>
+      )}
+      <h3>{props.card.title}</h3>
+      <div className="home__price">{props.card.price}</div>
+      <p>{props.card.description}</p>
+      <p className="home__plan-checks-title" id={checksId}>
+        {props.checksTitle}
+      </p>
+      <ul className="home__plan-checks" aria-labelledby={checksId}>
+        {props.card.checks.map((check) => (
+          <li key={check}>{check}</li>
+        ))}
+      </ul>
+      <p className="home__plan-limits">{props.card.limits}</p>
+      <Button
+        variant={props.recommended === null ? 'default' : 'primary'}
+        onClick={() => props.onChoose(props.plan)}
+      >
+        {props.chooseLabel}
+      </Button>
+    </article>
+  );
+}
+
+/**
+ * Two cards: Basic, the recommended start, and Complete. Each says in one line
+ * who it is for and lists what it checks; prices come from the tariff source
+ * through the dictionary, never from this file.
+ */
 export function PricingCards(props: { language: Language; onChoose: (plan: ChosenPlan) => void }) {
   const t = copy[props.language].pricing;
   return (
     <div className="home__pricing-grid">
-      <article className="home__plan home__plan--basic">
-        <span className="home__card-index">{t.cards.basic.eyebrow}</span>
-        <h3>{t.cards.basic.title}</h3>
-        <div className="home__price">{t.cards.basic.price}</div>
-        <p>{t.cards.basic.description}</p>
-        <dl className="plan-card__details">
-          <div>
-            <dt>{t.included}</dt>
-            <dd>{t.cards.basic.included}</dd>
-          </div>
-          <div>
-            <dt>{t.bestFor}</dt>
-            <dd>{t.cards.basic.bestFor}</dd>
-          </div>
-          <div>
-            <dt>{t.notIncluded}</dt>
-            <dd>{t.cards.basic.notIncluded}</dd>
-          </div>
-          <div>
-            <dt>{t.limits}</dt>
-            <dd>{t.cards.basic.limits}</dd>
-          </div>
-        </dl>
-        <Button onClick={() => props.onChoose('Basic')}>{t.chooseBasic}</Button>
-      </article>
-      <article className="home__plan home__plan--website-audit">
-        <span className="home__card-index">{t.cards.websiteAudit.eyebrow}</span>
-        <h3>{t.cards.websiteAudit.title}</h3>
-        <div className="home__price">{t.cards.websiteAudit.price}</div>
-        <p>{t.cards.websiteAudit.description}</p>
-        <dl className="plan-card__details">
-          <div>
-            <dt>{t.included}</dt>
-            <dd>{t.cards.websiteAudit.included}</dd>
-          </div>
-          <div>
-            <dt>{t.bestFor}</dt>
-            <dd>{t.cards.websiteAudit.bestFor}</dd>
-          </div>
-          <div>
-            <dt>{t.notIncluded}</dt>
-            <dd>{t.cards.websiteAudit.notIncluded}</dd>
-          </div>
-          <div>
-            <dt>{t.limits}</dt>
-            <dd>{t.cards.websiteAudit.limits}</dd>
-          </div>
-        </dl>
-        <Button onClick={() => props.onChoose('WebsiteAudit')}>{t.chooseWebsiteAudit}</Button>
-      </article>
-      <article className="home__plan home__plan--complete">
-        <span className="home__card-index">{t.cards.complete.eyebrow}</span>
-        <h3>{t.cards.complete.title}</h3>
-        <div className="home__price">{t.cards.complete.price}</div>
-        <p>{t.cards.complete.description}</p>
-        <dl className="plan-card__details">
-          <div>
-            <dt>{t.included}</dt>
-            <dd>{t.cards.complete.included}</dd>
-          </div>
-          <div>
-            <dt>{t.bestFor}</dt>
-            <dd>{t.cards.complete.bestFor}</dd>
-          </div>
-          <div>
-            <dt>{t.limits}</dt>
-            <dd>{t.cards.complete.limits}</dd>
-          </div>
-        </dl>
-        <Button variant="primary" onClick={() => props.onChoose('Complete')}>
-          {t.chooseComplete}
-        </Button>
-      </article>
+      <PlanCard
+        plan="Basic"
+        card={t.cards.basic}
+        checksTitle={t.checksTitle}
+        chooseLabel={t.chooseBasic}
+        recommended={t.recommended}
+        onChoose={props.onChoose}
+      />
+      <PlanCard
+        plan="Complete"
+        card={t.cards.complete}
+        checksTitle={t.checksTitle}
+        chooseLabel={t.chooseComplete}
+        recommended={null}
+        onChoose={props.onChoose}
+      />
     </div>
   );
 }
@@ -105,9 +97,8 @@ const COMPARISON_ROWS = [
 ] as const;
 
 /**
- * The three packages as a table rather than three paragraphs, because the
- * reader's question is a comparison and prose makes them hold all of it in their
- * head.
+ * The two packages as a table rather than two paragraphs, because the reader's
+ * question is a comparison and prose makes them hold all of it in their head.
  *
  * It stays a real table — caption, column headers, a row header per question —
  * so the relationship survives being read out. Below the phone breakpoint the
@@ -129,7 +120,6 @@ export function PricingExplainer(props: { language: Language }) {
             <tr>
               <th scope="col">{t.explainer.aspect}</th>
               <th scope="col">{t.explainer.basicColumn}</th>
-              <th scope="col">{t.explainer.websiteAuditColumn}</th>
               <th scope="col">{t.explainer.completeColumn}</th>
             </tr>
           </thead>
@@ -138,9 +128,6 @@ export function PricingExplainer(props: { language: Language }) {
               <tr key={row}>
                 <th scope="row">{t.explainer.rows[row].label}</th>
                 <td data-label={t.explainer.basicColumn}>{t.explainer.rows[row].basic}</td>
-                <td data-label={t.explainer.websiteAuditColumn}>
-                  {t.explainer.rows[row].websiteAudit}
-                </td>
                 <td data-label={t.explainer.completeColumn}>{t.explainer.rows[row].complete}</td>
               </tr>
             ))}

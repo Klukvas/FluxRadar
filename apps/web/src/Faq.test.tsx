@@ -227,7 +227,7 @@ describe('/faq content — what each check does', () => {
     expect(screen.getByText(/GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot/)).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Basic and Complete include provider-backed AI visibility checks; Website Audit does not run them at all/i,
+        /Basic and Complete include provider-backed AI visibility checks\. FluxRadar first asks/i,
       ),
     ).toBeInTheDocument();
     expect(
@@ -322,8 +322,8 @@ describe('/faq content — what each check does', () => {
     renderFaq();
     await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
 
-    expect(screen.getByText(/Basic \(\$55\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Complete \(\$120\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Basic \(\$39\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Complete \(\$87\)/)).toBeInTheDocument();
     expect(
       screen.getByText(/no extra "full audit" item to buy on top of Complete/i),
     ).toBeInTheDocument();

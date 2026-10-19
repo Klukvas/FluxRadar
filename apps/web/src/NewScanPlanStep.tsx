@@ -30,7 +30,7 @@ function paidUnavailableCopy(t: (typeof copy)[Language], config: CheckoutConfig 
  * with the chosen one.
  *
  * Cards rather than a dropdown: four persona reviews could not tell the plans
- * apart from "Basic · $55" alone. Each card is a real radio named `scan-plan`,
+ * apart from "Basic · $39" alone. Each card is a real radio named `scan-plan`,
  * so the form's choice is still one value, and only the plans the form offers
  * (`planOptions`: Free always, paid ones only where a checkout can sell them)
  * are drawn. Prices come from `tariff-prices.ts`, never from this file.
@@ -183,7 +183,7 @@ function PlanCard(props: {
       : PLAN_PRICE[props.plan];
   const id = useId();
   const recommended = props.plan === 'Basic';
-  // Named "Basic $55 recommended" and described by its line, rather than
+  // Named "Basic $39 recommended" and described by its line, rather than
   // named by everything the label wraps: a screen reader read the badge in
   // capitals and the whole sentence as the option's name.
   const labelledBy = [`${id}-name`, `${id}-price`, ...(recommended ? [`${id}-recommended`] : [])];

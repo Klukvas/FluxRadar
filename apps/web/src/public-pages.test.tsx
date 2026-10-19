@@ -155,7 +155,7 @@ describe('public page metadata', () => {
       '@graph': { name: string; offers: { price: string; priceCurrency: string } }[];
     };
     expect(data['@graph']).toHaveLength(2);
-    expect(data['@graph'].map((product) => product.offers.price)).toEqual(['55', '120']);
+    expect(data['@graph'].map((product) => product.offers.price)).toEqual(['39', '87']);
     expect(data['@graph'].every((product) => product.offers.priceCurrency === 'USD')).toBe(true);
   });
 

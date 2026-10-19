@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { PricingExplainer } from './Pricing';
 import { copy, type Language } from './i18n';
 import { PLAN_CAPABILITIES, PLAN_MODULES } from './plan-modules';
-import { BASIC_PRICE, COMPLETE_PRICE, WEBSITE_AUDIT_PRICE } from './tariff-prices';
+import { BASIC_PRICE, COMPLETE_PRICE, TARIFF_PRICES_USD } from './tariff-prices';
 
 const BASE_CSS = readFileSync(join(resolve(process.cwd()), 'src', 'styles', 'base.css'), 'utf8');
 
@@ -47,7 +47,7 @@ function comparisonTable(language: Language): HTMLElement {
 }
 
 describe('the plain-language pricing comparison', () => {
-  it.each<Language>(['en', 'uk'])('compares the three products in %s', (language) => {
+  it.each<Language>(['en', 'uk'])('compares the two products on sale in %s', (language) => {
     const explainer = copy[language].pricing.explainer;
     const table = comparisonTable(language);
 
@@ -56,12 +56,7 @@ describe('the plain-language pricing comparison', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual([
-      explainer.aspect,
-      explainer.basicColumn,
-      explainer.websiteAuditColumn,
-      explainer.completeColumn,
-    ]);
+    ).toEqual([explainer.aspect, explainer.basicColumn, explainer.completeColumn]);
 
     // One row per question, each headed by the question it answers.
     expect(
@@ -87,9 +82,10 @@ describe('the plain-language pricing comparison', () => {
       for (const row of Object.values(rows)) {
         const line = within(table).getByRole('rowheader', { name: row.label }).closest('tr');
         if (line === null) throw new Error(`${row.label} has no row`);
-        const [basic, websiteAudit, complete] = Array.from(line.querySelectorAll('td'));
+        const cells = Array.from(line.querySelectorAll('td'));
+        expect(cells).toHaveLength(2);
+        const [basic, complete] = cells;
         expect(basic?.textContent).toBe(row.basic);
-        expect(websiteAudit?.textContent).toBe(row.websiteAudit);
         expect(complete?.textContent).toBe(row.complete);
       }
     },
@@ -103,9 +99,7 @@ describe('the plain-language pricing comparison', () => {
     const labels = Array.from(table.querySelectorAll('tbody td')).map((cell) =>
       cell.getAttribute('data-label'),
     );
-    expect(new Set(labels)).toEqual(
-      new Set([explainer.basicColumn, explainer.websiteAuditColumn, explainer.completeColumn]),
-    );
+    expect(new Set(labels)).toEqual(new Set([explainer.basicColumn, explainer.completeColumn]));
   });
 
   // The two things a buyer must not have to guess: this is one payment for one
@@ -123,9 +117,8 @@ describe('the plain-language pricing comparison', () => {
       expect(
         within(row).getByText(new RegExp(BASIC_PRICE.replace('$', '\\$'))),
       ).toBeInTheDocument();
-      expect(
-        within(row).getByText(new RegExp(WEBSITE_AUDIT_PRICE.replace('$', '\\$'))),
-      ).toBeInTheDocument();
+      // Website Audit is no longer sold, and its price is nowhere in the comparison.
+      expect(row.textContent).not.toContain(`$${TARIFF_PRICES_USD.WebsiteAudit}`);
       expect(
         within(row).getByText(new RegExp(COMPLETE_PRICE.replace('$', '\\$'))),
       ).toBeInTheDocument();
@@ -174,18 +167,16 @@ describe('the plain-language pricing comparison', () => {
       const rows = copy[language].pricing.explainer.rows;
       const cards = copy[language].pricing.cards;
 
-      expect(beyondBasic).toEqual(PLAN_MODULES.WebsiteAudit);
       expect(beyondBasic).toHaveLength(8);
       for (const module of beyondBasic) {
         const plain = PLAIN_MODULE_NAMES[module]?.[language];
         if (plain === undefined) throw new Error(`${module} has no plain ${language} name`);
-        // What Basic leaves out is exactly what Website Audit runs, on the
-        // table and on both cards.
+        // What Basic leaves out is exactly what Complete adds, on the table
+        // and on the Complete card's list.
         for (const answer of [
           rows.notIncluded.basic,
-          rows.included.websiteAudit,
-          cards.basic.notIncluded,
-          cards.websiteAudit.included,
+          rows.included.complete,
+          cards.complete.checks.join(' '),
         ]) {
           expect(answer.toLowerCase()).toContain(plain);
         }
@@ -193,25 +184,14 @@ describe('the plain-language pricing comparison', () => {
     },
   );
 
-  // Website Audit runs neither search module, and the SEO check count is the
-  // one Basic sells, so the count must never sit on a Website Audit answer.
-  it.each<Language>(['en', 'uk'])(
-    'keeps the search checks on Basic and Complete only in %s',
-    (language) => {
-      expect(PLAN_MODULES.WebsiteAudit).not.toContain('SEO');
-      expect(PLAN_MODULES.WebsiteAudit).not.toContain('AI SEO / GEO');
-      const rows = copy[language].pricing.explainer.rows;
-      const cards = copy[language].pricing.cards;
-      // "Google" alone is allowed: the visitor statistics come from a Google
-      // account the owner connects. Google *search* is not.
-      const SEARCH = /Google search|пошуку Google/;
-      for (const answer of [rows.included.websiteAudit, cards.websiteAudit.included]) {
-        expect(answer).not.toMatch(SEARCH);
-      }
-      expect(rows.notIncluded.websiteAudit).toMatch(SEARCH);
-      expect(cards.websiteAudit.notIncluded).toMatch(SEARCH);
-    },
-  );
+  // Website Audit is no longer sold (2026-10-19): no card, column or answer
+  // offers it, though the mirror still knows the plan for existing reports.
+  it.each<Language>(['en', 'uk'])('offers no Website Audit anywhere in %s', (language) => {
+    const pricing = copy[language].pricing;
+    expect(Object.keys(pricing.cards)).toEqual(['basic', 'complete']);
+    expect(JSON.stringify(pricing)).not.toMatch(/Website Audit/);
+    expect(PLAN_MODULES.WebsiteAudit).not.toContain('SEO');
+  });
 
   it('promises scan history, export and the Action Plan only where the tariff carries them', () => {
     expect(PLAN_CAPABILITIES.Basic).toEqual({
@@ -225,19 +205,22 @@ describe('the plain-language pricing comparison', () => {
       issueHistory: true,
     });
     expect(PLAN_CAPABILITIES.Complete).toEqual(PLAN_CAPABILITIES.WebsiteAudit);
+    expect(PLAN_CAPABILITIES.Complete).toEqual({
+      export: true,
+      actionPlan: true,
+      issueHistory: true,
+    });
 
     const PROMISES = {
       en: [/scan history/i, /export to a file/i, /AI action plan/i],
-      uk: [/історі\S+ перевірок/, /вивантаже\S+ у файл/, /план\S* дій від ШІ/],
+      uk: [/історі\S+ перевірок/i, /вивантаже\S+ у файл/i, /план\S* дій від ШІ/i],
     } as const;
     for (const language of ['en', 'uk'] as const) {
       const rows = copy[language].pricing.explainer.rows;
       const cards = copy[language].pricing.cards;
       for (const answer of [
-        rows.included.websiteAudit,
         rows.included.complete,
-        cards.websiteAudit.included,
-        cards.complete.included,
+        cards.complete.checks.join(' '),
         rows.notIncluded.basic,
       ]) {
         for (const promise of PROMISES[language]) expect(answer).toMatch(promise);
@@ -248,7 +231,7 @@ describe('the plain-language pricing comparison', () => {
         en: /scan history|export|action plan/i,
         uk: /історі|вивантаж|експорт|план дій/i,
       } as const;
-      for (const answer of [rows.included.basic, cards.basic.included]) {
+      for (const answer of [rows.included.basic, cards.basic.checks.join(' ')]) {
         expect(answer).not.toMatch(NEVER_ON_BASIC[language]);
       }
     }

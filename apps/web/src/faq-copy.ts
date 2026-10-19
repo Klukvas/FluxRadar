@@ -1,5 +1,5 @@
 import { SUPPORT_EMAIL } from './brand';
-import { BASIC_PRICE, COMPLETE_PRICE, WEBSITE_AUDIT_PRICE } from './tariff-prices';
+import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 
 // Public FAQ content, kept out of `i18n.ts` so the answer copy can grow without
 // turning the shared translation file into a wall of prose. Every locale builds
@@ -149,7 +149,7 @@ export const faqCopyEn: FaqCopy = {
           question: 'Where do reports live and how long do they stay?',
           answer: [
             'Finished and in-progress scans are in Reports. A report is a snapshot of a moment: a site that changes after the scan will not match it, which is why every finding records what was seen and when.',
-            'Basic results are kept for 30 days; Website Audit and Complete results are kept for 365 days.',
+            'Basic results are kept for 30 days; Complete results are kept for 365 days, and so are Website Audit results bought before that package was withdrawn.',
           ],
         },
         {
@@ -198,9 +198,9 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'Do you check whether ChatGPT or Perplexity mention my brand?',
           answer: [
-            'Basic and Complete include provider-backed AI visibility checks; Website Audit does not run them at all, because it runs no AI SEO / GEO. FluxRadar first asks the provider to generate neutral discovery questions from the saved industry, offerings, region, audience and language settings without showing it the brand or domain; it then asks those questions and checks whether the answers mention or cite the site. Separate awareness questions do name the brand and official address.',
-            'A paid audit that runs them asks both Anthropic (Claude) and OpenAI (ChatGPT), and each answers with its own web search enabled, so the report also lists the sources each one used. Google (Gemini) and Perplexity are offered as an optional extra before you buy: they are off by default and receive nothing at all unless you select them. A prominent notice before purchase names every recipient and explains what project context and public-page evidence is sent. The free homepage check never sends data to an AI provider, and neither does a Website Audit scan for visibility — its only AI request is the UX/Conversion review, which goes to Anthropic.',
-            'On a Website Audit or Complete report you can also ask Anthropic’s Claude for an AI Action Plan: an ordered list of changes with an overview for your client. It is written only when you press its button. Sent are the site’s domain, each section’s status, score and coverage, and for each rule with open issues its name, severity, number of open issues, up to three page addresses without query strings or fragments, and the rule’s recommendations. Evidence excerpts, screenshots, traces and anything from the Analytics section are not sent.',
+            'Basic and Complete include provider-backed AI visibility checks. FluxRadar first asks the provider to generate neutral discovery questions from the saved industry, offerings, region, audience and language settings without showing it the brand or domain; it then asks those questions and checks whether the answers mention or cite the site. Separate awareness questions do name the brand and official address.',
+            'A paid audit that runs them asks both Anthropic (Claude) and OpenAI (ChatGPT), and each answers with its own web search enabled, so the report also lists the sources each one used. Google (Gemini) and Perplexity are offered as an optional extra before you buy: they are off by default and receive nothing at all unless you select them. A prominent notice before purchase names every recipient and explains what project context and public-page evidence is sent. The free homepage check never sends data to an AI provider.',
+            'On a Complete report (and on a Website Audit report bought before that package was withdrawn) you can also ask Anthropic’s Claude for an AI Action Plan: an ordered list of changes with an overview for your client. It is written only when you press its button. Sent are the site’s domain, each section’s status, score and coverage, and for each rule with open issues its name, severity, number of open issues, up to three page addresses without query strings or fragments, and the rule’s recommendations. Evidence excerpts, screenshots, traces and anything from the Analytics section are not sent.',
             'It is also not a ranking guarantee. It reflects what a provider answered at that moment through its API; the same question can be answered differently tomorrow.',
           ],
         },
@@ -357,15 +357,15 @@ export const faqCopyEn: FaqCopy = {
     buying: {
       nav: 'What it costs',
       label: '10 / BUYING',
-      title: 'The three reports, and what is free',
+      title: 'The two reports, and what is free',
       entries: [
         {
-          question: 'What is the difference between Basic, Website Audit and Complete?',
+          question: 'What is the difference between Basic and Complete?',
           answer: [
             `Basic (${BASIC_PRICE}) answers the visibility question: the full SEO analysis plus AI crawler readiness, up to 5,000 crawled URLs, results kept for 30 days.`,
-            `Website Audit (${WEBSITE_AUDIT_PRICE}) answers the other question — the state of the site itself: security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics, with scan history and JSON/CSV export, up to 50,000 crawled URLs, results kept for 365 days. It runs no SEO and no AI SEO / GEO.`,
-            `Complete (${COMPLETE_PRICE}) is both halves in one report: every module FluxRadar runs, with the same scan history and export, up to 50,000 crawled URLs, results kept for 365 days.`,
-            'Basic and Website Audit are separate packages — neither includes the other, and neither is a step towards Complete. There is no extra "full audit" item to buy on top of Complete: it already contains every module, at one price, with nothing added later at the checkout.',
+            `Complete (${COMPLETE_PRICE}) adds the state of the site itself to everything in Basic: security, performance, accessibility, reliability, content quality, privacy, UX/Conversion and Analytics, every module FluxRadar runs, with scan history, JSON/CSV export and the AI Action Plan, up to 50,000 crawled URLs, results kept for 365 days.`,
+            'Complete contains everything in Basic. There is no extra "full audit" item to buy on top of Complete: it already contains every module, at one price, with nothing added later at the checkout.',
+            'Website Audit, the package with the site-health modules alone, is no longer sold. A Website Audit report you already bought keeps its history, export and AI Action Plan as before.',
           ],
         },
         {
@@ -475,7 +475,7 @@ export const faqCopyUk: FaqCopy = {
           question: 'Де зберігаються звіти і як довго?',
           answer: [
             'Завершені та поточні перевірки — у розділі «Звіти». Звіт — це знімок конкретного моменту: сайт, який змінився після перевірки, вже не збігатиметься зі звітом, тому кожен висновок фіксує, що і коли було побачено.',
-            'Результати Basic зберігаються 30 днів, результати Website Audit і Complete — 365 днів.',
+            'Результати Basic зберігаються 30 днів, результати Complete — 365 днів, як і результати Website Audit, купленого до того, як цей пакет перестали продавати.',
           ],
         },
         {
@@ -524,9 +524,9 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Чи перевіряєте ви, чи згадують мій бренд ChatGPT або Perplexity?',
           answer: [
-            'Перевірки AI-видимості через зовнішнього провайдера включають Basic і Complete; у Website Audit вони не запускаються взагалі, бо він не виконує AI SEO / GEO. Спочатку FluxRadar просить провайдера створити нейтральні discovery-запитання з налаштувань галузі, пропозицій, регіону, аудиторії та мов, не показуючи бренд або домен; потім ставить ці запитання й перевіряє, чи згадує або цитує відповідь сайт. Окремі awareness-запитання прямо називають бренд і офіційну адресу.',
-            'Платний аудит, який їх запускає, запитує і Anthropic (Claude), і OpenAI (ChatGPT), кожен — із увімкненим власним вебпошуком, тому звіт також показує джерела, якими скористалася кожна модель. Google (Gemini) і Perplexity доступні як необовʼязкове доповнення перед оплатою: вони вимкнені за замовчуванням і не отримують нічого, доки ви їх не оберете. Помітне повідомлення перед оплатою називає кожного отримувача й пояснює, який контекст проєкту та докази з публічних сторінок передаються. Безкоштовна перевірка головної ніколи не надсилає дані AI-провайдеру; перевірка Website Audit теж не надсилає запитів про видимість — її єдиний AI-запит це аналіз UX/Конверсії, який іде до Anthropic.',
-            'У звіті Website Audit або Complete можна також попросити Claude від Anthropic скласти AI-план дій: упорядкований список змін з оглядом для вашого клієнта. Його складають лише після натискання кнопки. Надсилаються домен сайту, статус, оцінка й покриття кожного розділу, а для кожного правила з відкритими проблемами — його назва, критичність, кількість відкритих проблем, до трьох адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана, трасування й будь-що з розділу «Аналітика» не надсилаються.',
+            'Перевірки AI-видимості через зовнішнього провайдера включають Basic і Complete. Спочатку FluxRadar просить провайдера створити нейтральні discovery-запитання з налаштувань галузі, пропозицій, регіону, аудиторії та мов, не показуючи бренд або домен; потім ставить ці запитання й перевіряє, чи згадує або цитує відповідь сайт. Окремі awareness-запитання прямо називають бренд і офіційну адресу.',
+            'Платний аудит, який їх запускає, запитує і Anthropic (Claude), і OpenAI (ChatGPT), кожен — із увімкненим власним вебпошуком, тому звіт також показує джерела, якими скористалася кожна модель. Google (Gemini) і Perplexity доступні як необовʼязкове доповнення перед оплатою: вони вимкнені за замовчуванням і не отримують нічого, доки ви їх не оберете. Помітне повідомлення перед оплатою називає кожного отримувача й пояснює, який контекст проєкту та докази з публічних сторінок передаються. Безкоштовна перевірка головної ніколи не надсилає дані AI-провайдеру.',
+            'У звіті Complete (а також у звіті Website Audit, купленому до того, як цей пакет перестали продавати) можна також попросити Claude від Anthropic скласти AI-план дій: упорядкований список змін з оглядом для вашого клієнта. Його складають лише після натискання кнопки. Надсилаються домен сайту, статус, оцінка й покриття кожного розділу, а для кожного правила з відкритими проблемами — його назва, критичність, кількість відкритих проблем, до трьох адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана, трасування й будь-що з розділу «Аналітика» не надсилаються.',
             'Це також не гарантія видимості. Результат відображає те, що провайдер відповів через свій API у той момент; завтра відповідь може бути іншою.',
           ],
         },
@@ -683,15 +683,15 @@ export const faqCopyUk: FaqCopy = {
     buying: {
       nav: 'Скільки це коштує',
       label: '10 / ОПЛАТА',
-      title: 'Три звіти і що безкоштовно',
+      title: 'Два звіти і що безкоштовно',
       entries: [
         {
-          question: 'Чим відрізняються Basic, Website Audit і Complete?',
+          question: 'Чим відрізняються Basic і Complete?',
           answer: [
             `Basic (${BASIC_PRICE}) відповідає на питання видимості: повний SEO-аналіз плюс готовність до AI-роботів, до 5 000 сторінок обходу, результати зберігаються 30 днів.`,
-            `Website Audit (${WEBSITE_AUDIT_PRICE}) відповідає на інше питання — стан самого сайту: безпека, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсія та Аналітика, разом з історією перевірок та експортом JSON/CSV, до 50 000 сторінок обходу, результати зберігаються 365 днів. SEO та AI SEO / GEO у ньому не запускаються.`,
-            `Complete (${COMPLETE_PRICE}) — це обидві половини в одному звіті: усі модулі FluxRadar, з тією самою історією перевірок та експортом, до 50 000 сторінок обходу, результати зберігаються 365 днів.`,
-            'Basic і Website Audit — окремі пакети: жоден не входить в інший і жоден не є сходинкою до Complete. Жодного окремого «повного аудиту» доплачувати не треба — Complete уже містить усі модулі за одну ціну, нічого не додається на етапі оплати.',
+            `Complete (${COMPLETE_PRICE}) додає до всього, що є в Basic, стан самого сайту: безпеку, продуктивність, доступність, надійність, якість контенту, приватність, UX/Конверсію та Аналітику, тобто усі модулі FluxRadar, з історією перевірок, експортом JSON/CSV і AI-планом дій, до 50 000 сторінок обходу, результати зберігаються 365 днів.`,
+            'Complete містить усе, що є в Basic. Жодного окремого «повного аудиту» доплачувати не треба: Complete уже містить усі модулі за одну ціну, нічого не додається на етапі оплати.',
+            'Website Audit, пакет лише з модулями про стан сайту, більше не продається. Звіт Website Audit, який ви вже купили, зберігає історію, експорт і AI-план дій, як і раніше.',
           ],
         },
         {

@@ -43,7 +43,7 @@ function stubApi(provider: string): void {
             available: true,
             mode: 'test',
             unavailableReason: null,
-            plans: [{ plan: 'Complete', priceUsd: 120, currency: 'USD', available: true }],
+            plans: [{ plan: 'Complete', priceUsd: 87, currency: 'USD', available: true }],
             optInAiProviders: [],
           }),
         );

@@ -13,8 +13,8 @@ function config(mode: 'test' | 'live'): CheckoutConfig {
     mode,
     unavailableReason: null,
     plans: [
-      { plan: 'Basic', priceUsd: 55, currency: 'USD' },
-      { plan: 'Complete', priceUsd: 120, currency: 'USD' },
+      { plan: 'Basic', priceUsd: 39, currency: 'USD' },
+      { plan: 'Complete', priceUsd: 87, currency: 'USD' },
     ],
   };
 }
@@ -35,7 +35,7 @@ function session(mode: 'test' | 'live'): CheckoutSession {
     sessionId: 'session_1',
     checkoutUrl: 'https://example.test/checkout',
     plan: 'Basic',
-    amount: 55,
+    amount: 39,
     currency: 'USD',
     mode,
     expiresAt: null,
@@ -53,7 +53,7 @@ describe('checkout milestones sent to analytics', () => {
     expect(trackEvent).toHaveBeenCalledWith('purchase', {
       transaction_id: 'purchase_1',
       currency: 'USD',
-      value: 120,
+      value: 87,
       items: [{ item_id: 'Complete', item_name: 'FluxRadar Complete' }],
     });
   });
@@ -80,7 +80,7 @@ describe('checkout milestones sent to analytics', () => {
       'begin_checkout',
       {
         currency: 'USD',
-        value: 55,
+        value: 39,
         items: [{ item_id: 'Basic', item_name: 'FluxRadar Basic' }],
       },
       { onDelivered: expect.any(Function) },

@@ -2,13 +2,7 @@ import { botCopyEn, botCopyUk } from './bot-copy';
 import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
-import {
-  BASIC_PRICE_USD,
-  COMPLETE_PRICE_USD,
-  PLAN_PRICE,
-  WEBSITE_AUDIT_PRICE_USD,
-  type PricedPlan,
-} from './tariff-prices';
+import { BASIC_PRICE_USD, COMPLETE_PRICE_USD, PLAN_PRICE, type PricedPlan } from './tariff-prices';
 import { tourStepCopy } from './tour-steps';
 
 export type Language = 'en' | 'uk';
@@ -447,7 +441,7 @@ export const copy = {
       createAccount: 'Create account',
       openWorkspace: 'Open workspace',
       startPublicSite: 'Start with a public site',
-      pricingTitle: 'Three one-time reports. No subscription.',
+      pricingTitle: 'Two one-time reports. No subscription.',
       pricingLead:
         'Pay once for one check of one website, and the report stays yours. Nothing renews, there is no monthly quota, and everything in the package is already in the price.',
       hero: {
@@ -656,12 +650,9 @@ export const copy = {
     bot: botCopyEn,
     pricing: {
       publicOnly: 'Only pages anyone can open. No passwords to your site needed.',
-      included: 'What you get',
-      bestFor: 'Best for',
-      notIncluded: 'Not covered',
-      limits: 'Limits',
+      checksTitle: 'What it checks',
+      recommended: 'RECOMMENDED START',
       chooseBasic: 'Start with Basic',
-      chooseWebsiteAudit: 'Start with Website Audit',
       chooseComplete: 'Start with Complete',
       startInWorkspace:
         'You buy a report after signing in: choose your site and a package, and the check starts as soon as the payment goes through.',
@@ -670,51 +661,42 @@ export const copy = {
       coverageLink: 'See every check →',
       faqLink: 'Read the FAQ →',
       // Beside the two links the pricing block already ends on: somebody
-      // choosing between three packages is choosing between three reports, and
+      // choosing between two packages is choosing between two reports, and
       // this is the one place they can read one before paying.
       exampleLink: 'See a finished example report →',
-      // Each card's `description` is its one-line "who it is for", in the
-      // owner's words; the plan names stay product names. Module names follow
-      // the plain phrases in pricing-comparison.test.tsx, which checks them
-      // against the tariff table.
+      // Each card's `description` is its one plain line on who it is for; the
+      // plan names stay product names. `checks` is the short list under it.
+      // Module names follow the plain phrases in pricing-comparison.test.tsx,
+      // which checks them against the tariff table. The first Basic item opens
+      // with the SEO check count, matched verbatim by
+      // apps/api/src/export/check-count-parity.test.ts: leave that clause alone.
       cards: {
         basic: {
-          eyebrow: 'BASIC / GOOGLE AND AI ASSISTANTS',
+          eyebrow: 'BASIC / WHY PEOPLE DO NOT FIND ME',
           title: 'Basic',
           price: BASIC_PRICE_USD,
           description: 'Why people do not find you on Google or in AI assistants.',
-          included:
-            '21 checks for Google search, among them: the page names and descriptions Google shows, headings, picture descriptions, broken links and redirects, pages that repeat each other, pages hidden from search or hard to reach, the site map, your business details for Google and how your links look when shared. Plus whether AI assistants may read your pages, and whether two AI assistants mention you in their answers (two more if you choose).',
-          bestFor:
-            'Owners who want to know why customers do not find them in search or in AI answers.',
-          notIncluded:
-            'Security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). Website Audit checks those.',
+          checks: [
+            '21 checks for Google search across the whole site: page names and descriptions, headings, picture descriptions, broken links and redirects, pages that repeat each other, pages hidden from search, the site map and your business details for Google',
+            'Whether AI assistants like ChatGPT may read your pages',
+            'Whether two AI assistants mention you in their answers (two more if you choose)',
+          ],
           limits: 'One check of one website · up to 5,000 pages · results kept for 30 days.',
         },
-        websiteAudit: {
-          eyebrow: 'WEBSITE AUDIT / THE SITE ITSELF',
-          title: 'Website Audit',
-          price: WEBSITE_AUDIT_PRICE_USD,
-          description:
-            'Whether the site itself is in good shape: security, speed, accessibility and privacy. No search checks.',
-          included:
-            'Security (against the public OWASP security standard), speed, ease of use for people with disabilities (the WCAG accessibility standard), reliability, text quality, privacy and cookie consent, whether visitors understand what to do next, and visitor statistics (if you connect Google). With scan history, export to a file and the AI action plan.',
-          bestFor:
-            'Owners and whoever builds their site, before a launch, a handover or a redesign, when search is not the question today.',
-          notIncluded:
-            'The checks for Google search and AI assistants. Basic has those, and Complete has everything together.',
-          limits: 'One check of one website · up to 50,000 pages · results kept for 365 days.',
-        },
         complete: {
-          eyebrow: 'COMPLETE / EVERYTHING TOGETHER',
+          eyebrow: 'COMPLETE / THE FULL CHECK',
           title: 'Complete',
           price: COMPLETE_PRICE_USD,
           description:
             'Everything together: Google, AI assistants and the site itself, in one report.',
-          included:
-            'Everything in Basic and everything in Website Audit, with scan history, export to a file and the AI action plan. Everything FluxRadar checks is already in this price; there is nothing extra to pay at checkout.',
-          bestFor:
-            'Anyone who wants the whole picture before a redesign, a launch, a handover or a report for a client.',
+          checks: [
+            'Everything in Basic',
+            'Security (against the public OWASP security standard) and privacy, with cookie consent',
+            'Speed, reliability and text quality',
+            'Ease of use for people with disabilities (the WCAG accessibility standard)',
+            'Whether visitors understand what to do next, and visitor statistics (if you connect Google)',
+            'Scan history, export to a file and the AI action plan',
+          ],
           limits: 'One check of one website · up to 50,000 pages · results kept for 365 days.',
         },
       },
@@ -722,17 +704,15 @@ export const copy = {
         kicker: 'IN PLAIN LANGUAGE',
         title: 'Which one is right for you?',
         tableCaption:
-          'The three packages side by side: the question each report answers, what it covers, what it leaves out and when to choose it.',
+          'The two packages side by side: the question each report answers, what it covers, what it leaves out and when to choose it.',
         aspect: 'What you are comparing',
         basicColumn: 'Basic',
-        websiteAuditColumn: 'Website Audit',
         completeColumn: 'Complete',
         rows: {
           question: {
             label: 'The question it answers',
             basic: 'Why do people not find me on Google or in AI assistants?',
-            websiteAudit: 'Is the site itself in good shape?',
-            complete: 'Both questions, in one report.',
+            complete: 'That question, and whether the site itself is in good shape, in one report.',
           },
           included: {
             label: 'What is included',
@@ -742,41 +722,35 @@ export const copy = {
             // of this answer freely; leave that opening clause alone.
             basic:
               '21 checks for Google search, plus whether AI assistants like ChatGPT may read your pages, and whether two AI assistants mention you in their answers (two more if you choose).',
-            websiteAudit:
-              'Eight sections about the site itself: security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). With scan history, export to a file and the AI action plan.',
             complete:
-              'Everything in Basic and everything in Website Audit, all ten sections, with scan history, export to a file and the AI action plan.',
+              'Everything in Basic, plus eight sections about the site itself: security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). With scan history, export to a file and the AI action plan.',
           },
           notIncluded: {
             label: 'What is not included',
             basic:
-              'Security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). Also the scan history, export to a file and AI action plan that come with them.',
-            websiteAudit: 'The checks for Google search and AI assistants. Those two are in Basic.',
+              'Security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). Also the scan history, export to a file and AI action plan. Complete has all of them.',
             complete:
-              'Nothing: everything is in this one. It still looks only at pages anyone can open.',
+              'Nothing: everything FluxRadar checks is already in this price, with nothing extra to pay at checkout. It still looks only at pages anyone can open.',
           },
           chooseWhen: {
             label: 'Choose it when',
             basic: 'Being found is what worries you, and nothing else is urgent yet.',
-            websiteAudit:
-              'The state of the site is the question (a launch, a handover, a redesign) and search can wait.',
-            complete: 'You want everything in one report, under one overall score.',
+            complete:
+              'You want everything in one report, under one overall score: before a redesign, a launch, a handover or a report for a client.',
           },
           price: {
             label: 'What you pay',
             basic: `${BASIC_PRICE_USD}, once, for one check of one website.`,
-            websiteAudit: `${WEBSITE_AUDIT_PRICE_USD}, once, for one check of one website.`,
             complete: `${COMPLETE_PRICE_USD}, once, for one check of one website.`,
           },
           difference: {
             label: 'The difference in one line',
             basic: 'Search only: how people find you.',
-            websiteAudit: 'The site itself, without search.',
             complete: 'Everything FluxRadar checks.',
           },
         },
         footnote:
-          'All three look only at pages anyone can open, ask for no password to your site, and check only the part of the site you choose before the start. Basic and Website Audit do not overlap, and Complete is the two of them together. Each card below says how many pages it covers and how long the results are kept.',
+          'Both look only at pages anyone can open, ask for no password to your site, and check only the part of the site you choose before the start. Complete contains everything in Basic. Each card says how many pages it covers and how long the results are kept.',
       },
     },
     newScan: {
@@ -1272,7 +1246,7 @@ export const copy = {
       issuesCta:
         'The Issue Center lists every finding with its evidence and a recommended fix, so you can decide what to work on first.',
       openIssues: 'Open Issue Center',
-      exportComplete: 'Export is included with Website Audit and Complete scans.',
+      exportComplete: 'Export is included with Complete scans.',
       // A plan with no tariff score weights. The scoring engine answers
       // `insufficient_data` with a weighted coverage of 0 for it — the same
       // verdict a paid scan gets when it could not read the site — so a Free
@@ -2525,7 +2499,7 @@ export const copy = {
       createAccount: 'Створити акаунт',
       openWorkspace: 'Відкрити робочий простір',
       startPublicSite: 'Почати з публічного сайту',
-      pricingTitle: 'Три разові звіти. Без підписки.',
+      pricingTitle: 'Два разові звіти. Без підписки.',
       pricingLead:
         'Ви платите один раз за одну перевірку одного сайту, і звіт залишається у вас. Нічого не поновлюється, щомісячних платежів немає, а все, що входить у пакет, уже є в ціні.',
       hero: {
@@ -2712,12 +2686,9 @@ export const copy = {
     bot: botCopyUk,
     pricing: {
       publicOnly: 'Лише сторінки, відкриті для всіх. Паролі від сайту не потрібні.',
-      included: 'Що ви отримуєте',
-      bestFor: 'Кому підходить',
-      notIncluded: 'Не входить',
-      limits: 'Обмеження',
+      checksTitle: 'Що перевіряє',
+      recommended: 'РАДИМО ПОЧАТИ З НЬОГО',
       chooseBasic: 'Почати з Basic',
-      chooseWebsiteAudit: 'Почати з Website Audit',
       chooseComplete: 'Почати з Complete',
       startInWorkspace:
         'Купити звіт можна після входу: оберіть свій сайт і пакет, і щойно пройде оплата, перевірка почнеться.',
@@ -2728,43 +2699,31 @@ export const copy = {
       exampleLink: 'Подивитися готовий приклад звіту →',
       cards: {
         basic: {
-          eyebrow: 'BASIC / GOOGLE І ШІ-ПОМІЧНИКИ',
+          eyebrow: 'BASIC / ЧОМУ МЕНЕ НЕ ЗНАХОДЯТЬ',
           title: 'Basic',
           price: BASIC_PRICE_USD,
           description: 'Чому вас не знаходять у Google і у відповідях ШІ-помічників.',
-          included:
-            '21 перевірка для пошуку Google, серед них: назви й описи сторінок, які показує Google, підзаголовки, описи зображень, биті посилання й переадресації, сторінки, що повторюють одна одну, сторінки, закриті від пошуку або до яких важко дістатися, мапа сайту, дані про ваш бізнес для Google і вигляд ваших посилань у соцмережах. А ще: чи дозволяє ваш сайт ШІ-помічникам читати його сторінки і чи згадують вас у своїх відповідях два ШІ-помічники (і ще два, якщо оберете).',
-          bestFor:
-            'Власникам, які хочуть зрозуміти, чому клієнти не знаходять їх у пошуку чи у відповідях ШІ.',
-          notIncluded:
-            'Безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). Це перевіряє Website Audit.',
+          checks: [
+            '21 перевірка для пошуку Google по всьому сайту: назви й описи сторінок, підзаголовки, описи зображень, биті посилання й переадресації, сторінки, що повторюють одна одну, сторінки, закриті від пошуку, мапа сайту і дані про ваш бізнес для Google',
+            'Чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки',
+            'Чи згадують вас у своїх відповідях два ШІ-помічники (і ще два, якщо оберете)',
+          ],
           limits:
             'Одна перевірка одного сайту · до 5 000 сторінок · результати зберігаються 30 днів.',
         },
-        websiteAudit: {
-          eyebrow: 'WEBSITE AUDIT / САМ САЙТ',
-          title: 'Website Audit',
-          price: WEBSITE_AUDIT_PRICE_USD,
-          description:
-            'Чи все гаразд із самим сайтом: безпека, швидкість, зручність для людей з інвалідністю, приватність. Без перевірок для пошуку.',
-          included:
-            'Безпека (за відкритим стандартом безпеки OWASP), швидкість, зручність для людей з інвалідністю (стандарт доступності WCAG), стабільність роботи, якість текстів, приватність і згода на cookie, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). Разом з історією перевірок, вивантаженням у файл і планом дій від ШІ.',
-          bestFor:
-            'Власникам і тим, хто робить для них сайт: перед запуском, переробкою або передачею сайту іншій команді, коли пошук зараз не головне.',
-          notIncluded:
-            'Перевірки для пошуку Google і ШІ-помічників. Вони є в Basic, а в Complete є все разом.',
-          limits:
-            'Одна перевірка одного сайту · до 50 000 сторінок · результати зберігаються 365 днів.',
-        },
         complete: {
-          eyebrow: 'COMPLETE / УСЕ РАЗОМ',
+          eyebrow: 'COMPLETE / ПОВНА ПЕРЕВІРКА',
           title: 'Complete',
           price: COMPLETE_PRICE_USD,
           description: 'Усе разом: Google, ШІ-помічники і сам сайт в одному звіті.',
-          included:
-            'Усе з Basic і все з Website Audit, з історією перевірок, вивантаженням у файл і планом дій від ШІ. Усе, що перевіряє FluxRadar, уже входить у цю ціну; нічого доплачувати не треба.',
-          bestFor:
-            'Тим, кому потрібна повна картина перед переробкою, запуском, передачею сайту або для звіту клієнту.',
+          checks: [
+            'Усе, що є в Basic',
+            'Безпека (за відкритим стандартом безпеки OWASP) і приватність, зокрема згода на cookie',
+            'Швидкість, стабільність роботи і якість текстів',
+            'Зручність для людей з інвалідністю (стандарт доступності WCAG)',
+            'Чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google)',
+            'Історія перевірок, вивантаження у файл і план дій від ШІ',
+          ],
           limits:
             'Одна перевірка одного сайту · до 50 000 сторінок · результати зберігаються 365 днів.',
         },
@@ -2773,17 +2732,15 @@ export const copy = {
         kicker: 'ПРОСТОЮ МОВОЮ',
         title: 'Що обрати саме вам?',
         tableCaption:
-          'Три пакети поруч: на яке питання відповідає кожен звіт, що входить, що не входить і коли його брати.',
+          'Два пакети поруч: на яке питання відповідає кожен звіт, що входить, що не входить і коли його брати.',
         aspect: 'Що порівнюємо',
         basicColumn: 'Basic',
-        websiteAuditColumn: 'Website Audit',
         completeColumn: 'Complete',
         rows: {
           question: {
             label: 'На яке питання відповідає',
             basic: 'Чому мене не знаходять у Google і у відповідях ШІ-помічників?',
-            websiteAudit: 'Чи все гаразд із самим сайтом?',
-            complete: 'Обидва питання в одному звіті.',
+            complete: 'Це питання, а ще чи все гаразд із самим сайтом, в одному звіті.',
           },
           included: {
             label: 'Що входить',
@@ -2792,41 +2749,35 @@ export const copy = {
             // можна переписувати; початок речення — ні.
             basic:
               '21 перевірка для пошуку Google, а також чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки і чи згадують вас у своїх відповідях два ШІ-помічники (і ще два, якщо оберете).',
-            websiteAudit:
-              'Вісім розділів звіту про сам сайт: безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). Разом з історією перевірок, вивантаженням у файл і планом дій від ШІ.',
             complete:
-              'Усе з Basic і все з Website Audit, тобто усі десять розділів, з історією перевірок, вивантаженням у файл і планом дій від ШІ.',
+              'Усе з Basic, а ще вісім розділів звіту про сам сайт: безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). Разом з історією перевірок, вивантаженням у файл і планом дій від ШІ.',
           },
           notIncluded: {
             label: 'Що не входить',
             basic:
-              'Безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). А також історія перевірок, вивантаження у файл і план дій від ШІ, які йдуть разом із ними.',
-            websiteAudit: 'Перевірки для пошуку Google і ШІ-помічників. Вони входять до Basic.',
+              'Безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). А також історія перевірок, вивантаження у файл і план дій від ШІ. Усе це є в Complete.',
             complete:
-              'Нічого: тут є все. І він так само дивиться лише на сторінки, відкриті для всіх.',
+              'Нічого: усе, що перевіряє FluxRadar, уже входить у цю ціну, і доплачувати під час оплати нічого не треба. І він так само дивиться лише на сторінки, відкриті для всіх.',
           },
           chooseWhen: {
             label: 'Коли обирати',
             basic: 'Вам важливо, щоб вас знаходили, а решта поки може зачекати.',
-            websiteAudit:
-              'Вам важливий стан сайту (запуск, передача сайту іншій команді, переробка), а пошук може зачекати.',
-            complete: 'Хочете все в одному звіті з однією загальною оцінкою.',
+            complete:
+              'Хочете все в одному звіті з однією загальною оцінкою: перед переробкою, запуском, передачею сайту або для звіту клієнту.',
           },
           price: {
             label: 'Скільки коштує',
             basic: `${BASIC_PRICE_USD}, один раз, за одну перевірку одного сайту.`,
-            websiteAudit: `${WEBSITE_AUDIT_PRICE_USD}, один раз, за одну перевірку одного сайту.`,
             complete: `${COMPLETE_PRICE_USD}, один раз, за одну перевірку одного сайту.`,
           },
           difference: {
             label: 'Різниця в одному рядку',
             basic: 'Лише пошук: як вас знаходять.',
-            websiteAudit: 'Лише сам сайт, без пошуку.',
             complete: 'Усе, що перевіряє FluxRadar.',
           },
         },
         footnote:
-          'Усі три пакети дивляться лише на сторінки, відкриті для всіх, не просять пароля до сайту і перевіряють ту частину сайту, яку ви оберете перед стартом. Basic і Website Audit не перетинаються, а Complete поєднує їх обидва. На картках нижче вказано, скільки сторінок входить і як довго зберігаються результати.',
+          'Обидва пакети дивляться лише на сторінки, відкриті для всіх, не просять пароля до сайту і перевіряють ту частину сайту, яку ви оберете перед стартом. Complete містить усе, що є в Basic. На кожній картці вказано, скільки сторінок входить і як довго зберігаються результати.',
       },
     },
     newScan: {
@@ -3262,7 +3213,7 @@ export const copy = {
       issuesCta:
         'Центр проблем показує кожну знахідку з доказом і рекомендованим виправленням, щоб ви вирішили, з чого почати.',
       openIssues: 'Відкрити Центр проблем',
-      exportComplete: 'Експорт входить у тарифи Website Audit і Complete.',
+      exportComplete: 'Експорт входить у тариф Complete.',
       unscoredLabel: 'Цей тариф не оцінюється',
       unscoredChecks: 'виконано перевірок: {completed}/{applicable}',
       unscoredChecksNone: 'не вдалося прочитати головну сторінку',

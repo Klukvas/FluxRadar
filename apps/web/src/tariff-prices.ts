@@ -7,10 +7,12 @@
 // contract file and fails if the two ever drift apart. A price that lives in one
 // place cannot be raised in the tariff table and left stale in the copy.
 
-export const TARIFF_PRICES_USD = { Basic: 55, WebsiteAudit: 79, Complete: 120 } as const;
+// Website Audit is no longer sold (2026-10-19) and no copy names its price; it
+// stays here so its row is still checked against the contract that charges and
+// refunds the orders already paid for it.
+export const TARIFF_PRICES_USD = { Basic: 39, WebsiteAudit: 79, Complete: 87 } as const;
 
 export const BASIC_PRICE = `$${TARIFF_PRICES_USD.Basic}`;
-export const WEBSITE_AUDIT_PRICE = `$${TARIFF_PRICES_USD.WebsiteAudit}`;
 export const COMPLETE_PRICE = `$${TARIFF_PRICES_USD.Complete}`;
 
 // The same prices with the currency spelled out, for the places a buyer decides
@@ -18,20 +20,19 @@ export const COMPLETE_PRICE = `$${TARIFF_PRICES_USD.Complete}`;
 // charged in USD, so this is also what a payment provider's activation check
 // verifies: the prices on the website match the catalogue.
 export const BASIC_PRICE_USD = `${BASIC_PRICE} USD`;
-export const WEBSITE_AUDIT_PRICE_USD = `${WEBSITE_AUDIT_PRICE} USD`;
 export const COMPLETE_PRICE_USD = `${COMPLETE_PRICE} USD`;
 
 /** A plan identifier the price list knows, Free included. */
 export type PricedPlan = 'Free' | keyof typeof TARIFF_PRICES_USD;
 
 /**
- * "$55" for each plan, keyed by the identifier the scan form holds. Free is
+ * "$39" for each plan, keyed by the identifier the scan form holds. Free is
  * "$0": the plan cards show a price on every card, and the free one costs
  * nothing rather than having no price at all.
  */
 export const PLAN_PRICE: Readonly<Record<PricedPlan, string>> = {
   Free: '$0',
   Basic: BASIC_PRICE,
-  WebsiteAudit: WEBSITE_AUDIT_PRICE,
+  WebsiteAudit: `$${TARIFF_PRICES_USD.WebsiteAudit}`,
   Complete: COMPLETE_PRICE,
 };

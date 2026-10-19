@@ -2450,6 +2450,41 @@ code,
   margin-top: auto;
   color: var(--plat-900);
 }
+/* The recommended start is said once, on Basic, as a badge above its name. */
+.home__plan-badge {
+  align-self: flex-start;
+  margin-top: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--plat-900);
+  background: var(--plat-100);
+  color: var(--plat-900);
+  font: bold 10px var(--mono-font);
+  letter-spacing: 0.08em;
+}
+.home__plan .home__plan-checks-title {
+  margin-top: 20px;
+  color: var(--plat-600);
+  font: 10px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.home__plan-checks {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 16px;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.home__plan .home__plan-limits {
+  margin-bottom: 20px;
+  font-size: 12px;
+}
+.home__plan--complete .home__plan-checks {
+  color: #d5e9d9;
+}
+.home__plan--complete .home__plan-checks-title {
+  color: #8db69a;
+}
 .home__pricing-explainer {
   margin-top: 28px;
   padding: 26px 28px;
