@@ -284,4 +284,22 @@ describe('a stored scan of a retired plan', () => {
     expect(await db.prisma.scan.findUnique({ where: { id: old } })).toBeNull();
     expect(await db.prisma.scan.findUnique({ where: { id: recent } })).not.toBeNull();
   });
+
+  it('opens a site saved on the retired plan on Complete, keeping its saved scope', async () => {
+    await db.prisma.siteProfile.update({
+      where: { id: owner.siteProfileId },
+      data: {
+        scanConfigJson: JSON.stringify({
+          plan: 'WebsiteAudit',
+          scope: { includeSubdomains: false, maxPages: 40 },
+        }),
+      },
+    });
+
+    const response = await get(`/profiles/${owner.siteProfileId}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.scanConfig.plan).toBe('Complete');
+    expect(response.body.data.scanConfig.scope.maxPages).toBe(40);
+  });
 });
