@@ -32,7 +32,13 @@ import { copy, fillCopy, type Language } from './i18n';
 import { asRecord, numberValue } from './module-metadata';
 import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
 import { moduleResponsibilities, moduleStatusReasons } from './module-status';
-import { modulesBeyondPlan, planIncludesExport, planName, type PaidPlan } from './plan-modules';
+import {
+  isLegacyPlan,
+  modulesBeyondPlan,
+  planIncludesExport,
+  planName,
+  type PaidPlan,
+} from './plan-modules';
 import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import {
   checksSummary,
@@ -444,7 +450,7 @@ function PlanScope(props: {
   return (
     <details className="plan-scope">
       <summary className="plan-scope__summary">
-        {fillCopy(t.scopeSummary, { plan: planName(props.plan) })}
+        {fillCopy(t.scopeSummary, { plan: planName(props.plan, props.language) })}
       </summary>
       <p className="muted plan-scope__lead">{t.scopeLead}</p>
       <div className="plan-scope__columns">
@@ -462,14 +468,16 @@ function PlanScope(props: {
         <section aria-label={t.scopeLockedTerm}>
           <h4 className="plan-scope__term">{t.scopeLockedTerm}</h4>
           {locked.length === 0 ? (
-            <p className="muted plan-scope__detail">{t.scopeLockedNone}</p>
+            <p className="muted plan-scope__detail">
+              {isLegacyPlan(props.plan) ? t.scopeLockedArchived : t.scopeLockedNone}
+            </p>
           ) : (
             <ul className="plan-scope__list">
               {locked.map((entry) => (
                 <li key={entry.module}>
                   <strong>{entry.module}</strong>
                   <span className="plan-scope__detail">
-                    {fillCopy(t.scopeUnlock, { plan: planName(entry.plan) })}
+                    {fillCopy(t.scopeUnlock, { plan: planName(entry.plan, props.language) })}
                   </span>
                 </li>
               ))}

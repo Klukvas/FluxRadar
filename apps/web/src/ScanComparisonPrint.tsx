@@ -23,12 +23,14 @@ export function ComparisonPrintBlock(props: {
     <section className="print-section print-comparison">
       <h2>{t.heading}</h2>
       {previous === null ? (
-        <p>{fillCopy(t.firstReport, { plan: planName(comparison.current.plan) })}</p>
+        <p>
+          {fillCopy(t.firstReport, { plan: planName(comparison.current.plan, props.language) })}
+        </p>
       ) : (
         <>
           <p>
             {fillCopy(t.since, {
-              plan: planName(previous.plan),
+              plan: planName(previous.plan, props.language),
               date: formatDate(previous.completedAt, props.language),
             })}
           </p>

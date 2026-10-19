@@ -74,13 +74,10 @@ describe('public legal documents', () => {
 
     const policy = screen.getByRole('article');
     expect(policy).toHaveTextContent(
-      /Basic includes AI SEO \/ GEO, Website Audit includes UX\/Conversion only, and Complete includes AI SEO \/ GEO and UX\/Conversion/is,
+      /Basic includes AI SEO \/ GEO, and Complete includes AI SEO \/ GEO and UX\/Conversion/is,
     );
-    // Website Audit runs the UX review but no GEO: the policy must not let a
-    // reader infer a discovery or brand-awareness transfer it never makes.
-    expect(policy).toHaveTextContent(
-      /Website Audit does not run AI SEO \/ GEO, so no discovery or brand-awareness question is sent/is,
-    );
+    // The retired Website Audit package is not described as a current plan.
+    expect(policy).not.toHaveTextContent(/Website Audit/);
     // Only the discovery questions search; a direct question naming the brand
     // is asked closed-book, so the policy may not claim search for both.
     expect(policy).toHaveTextContent(
@@ -96,7 +93,7 @@ describe('public legal documents', () => {
       /Google \(Gemini\) and Perplexity are opt-in recipients.*receive nothing unless you select them/is,
     );
     expect(policy).toHaveTextContent(
-      /AI Action Plan \(Website Audit and Complete\) sends Anthropic the report’s rule metadata only/i,
+      /AI Action Plan \(Complete\) sends Anthropic the report’s rule metadata only/i,
     );
     expect(policy).toHaveTextContent(
       /never sends evidence excerpts, screenshots, or anything from the Analytics section/i,
@@ -130,7 +127,7 @@ describe('public legal documents', () => {
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
     expect(policy).toHaveTextContent(/PageSpeed Insights and CrUX.*public URL or origin/is);
     expect(policy).toHaveTextContent(
-      /Free and Basic reports.*30 days.*Website Audit and Complete reports.*365 days/is,
+      /Free and Basic reports.*30 days.*Complete reports.*365 days/is,
     );
     expect(policy).toHaveTextContent(/account-deletion request.*within 30 days/is);
     // Site analytics is disclosed as consent-based, with the settings the

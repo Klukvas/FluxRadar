@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
-import { ACTION_PLAN_LIMITS, TARIFFS } from '@fluxradar/contracts';
+import { ACTION_PLAN_LIMITS, readStoredPlan, storedPlanRetentionDays } from '@fluxradar/contracts';
 
 import {
   CHECKOUT_STATUS_REASONS,
@@ -144,10 +144,7 @@ export async function purgeExpiredScans(
   let deletedScanCount = 0;
   const objectKeys: string[] = [];
   for (const scan of candidates) {
-    const retentionDays = TARIFFS[scan.plan as keyof typeof TARIFFS]?.retentionDays;
-    if (retentionDays === undefined) {
-      continue;
-    }
+    const retentionDays = storedPlanRetentionDays(readStoredPlan(scan.plan));
     const expiresAt = scan.createdAt.getTime() + retentionDays * DAY_MS;
     if (expiresAt <= now.getTime()) {
       objectKeys.push(...(await deleteScanResult(prisma, scan.id)));

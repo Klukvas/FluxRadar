@@ -422,7 +422,7 @@ describe('what a funnel step may carry', () => {
     trackUpgradeClicked('Basic', 'free_report');
     trackUpgradeClicked('Basic', 'dashboard');
     trackUpgradeClicked('Complete', 'action_plan');
-    renderHook(() => usePlanSelected('WebsiteAudit', true));
+    renderHook(() => usePlanSelected('Complete', true));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PLAN_SETTLE_MS);
     });

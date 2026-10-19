@@ -4,7 +4,7 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 // Bumped when the merchant of record changed from FastSpring to Creem.
-// 19 October 2026: Website Audit withdrawn from sale; Basic and Complete are the paid audits.
+// 19 October 2026: Basic and Complete are the paid audits; the earlier Website Audit package was removed.
 const TERMS_EFFECTIVE: EffectiveDate = { uk: '19 жовтня 2026 року', en: '19 October 2026' };
 
 export function TermsOfService({ language }: { readonly language: Language }): JSX.Element {
@@ -76,12 +76,10 @@ function UkrainianTerms(): JSX.Element {
         <span className="legal-section__label">04 / ПОКУПКИ</span>
         <h2>Разові аудити, строк виконання та повернення</h2>
         <p>
-          Basic і Complete — разові аудити без підписки й автоматичного продовження. Website Audit
-          більше не продається; аудити Website Audit, оплачені раніше, надаються на тих самих
-          умовах. Ціна, конфігурація, обсяг, вибір <code>robots.txt</code>, зовнішні провайдери та
-          обмеження показуються до відкриття checkout. Аудит запускається лише після серверного
-          підтвердження платежу Creem і має бути наданий протягом 24 годин після такого
-          підтвердження.
+          Basic і Complete — разові аудити без підписки й автоматичного продовження. Ціна,
+          конфігурація, обсяг, вибір <code>robots.txt</code>, зовнішні провайдери та обмеження
+          показуються до відкриття checkout. Аудит запускається лише після серверного підтвердження
+          платежу Creem і має бути наданий протягом 24 годин після такого підтвердження.
         </p>
         <p>
           FluxRadar не надає добровільних повернень, крім випадку ненадання оплаченого аудиту або
@@ -246,12 +244,10 @@ function EnglishTerms(): JSX.Element {
         <span className="legal-section__label">04 / PURCHASES</span>
         <h2>One-time audits, delivery and refunds</h2>
         <p>
-          Basic and Complete are one-time audits with no subscription or automatic renewal. Website
-          Audit is no longer sold; audits already paid for under Website Audit are provided on these
-          same terms. The price, configuration, scope, <code>robots.txt</code> choice, external
-          providers and known limitations are shown before checkout opens. An audit starts only
-          after Creem’s server confirmation of payment and will be delivered within 24 hours of that
-          confirmation.
+          Basic and Complete are one-time audits with no subscription or automatic renewal. The
+          price, configuration, scope, <code>robots.txt</code> choice, external providers and known
+          limitations are shown before checkout opens. An audit starts only after Creem’s server
+          confirmation of payment and will be delivered within 24 hours of that confirmation.
         </p>
         <p>
           FluxRadar offers no voluntary refunds except for non-delivery of a paid audit or a

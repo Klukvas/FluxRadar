@@ -17,7 +17,13 @@
 // scans/previous-scan.ts and is shared with the Resolved/Reopened pass and the
 // comparison endpoint.
 
-import { SEVERITIES, severityRank, type Severity } from '@fluxradar/contracts';
+import {
+  SEVERITIES,
+  readStoredPlan,
+  severityRank,
+  type Severity,
+  type StoredPlan,
+} from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
 
 import {
@@ -184,7 +190,7 @@ export type EgressComparison = 'same' | 'different' | 'unrecorded';
 export interface ScanChanges {
   readonly previous: {
     readonly id: string;
-    readonly plan: string;
+    readonly plan: StoredPlan;
     readonly completedAt: string | null;
     readonly egressLocation: EgressLocationView | null;
   } | null;
@@ -266,7 +272,7 @@ export async function scanChanges(prisma: PrismaClient, scan: Scan): Promise<Sca
   return {
     previous: {
       id: previous.id,
-      plan: previous.plan,
+      plan: readStoredPlan(previous.plan),
       completedAt: previous.completedAt?.toISOString() ?? null,
       egressLocation: egressLocationView(previousLocation),
     },

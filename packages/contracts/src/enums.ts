@@ -47,9 +47,10 @@ export type IssueStatus = (typeof ISSUE_STATUSES)[number];
 export const SEVERITIES = ['Critical', 'High', 'Medium', 'Low'] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
-// 'WebsiteAudit' is the stable identifier stored in the database and sent over
-// the wire; 'Website Audit' is only ever its display name (§18 tariff matrix).
-export const PLANS = ['Free', 'Basic', 'Complete', 'WebsiteAudit'] as const;
+// The plans that exist today: every one can be priced, bought and scanned. A
+// stored row may still carry a retired plan; that is read through
+// `readStoredPlan` (stored-plan.ts), never narrowed to this union.
+export const PLANS = ['Free', 'Basic', 'Complete'] as const;
 export type Plan = (typeof PLANS)[number];
 
 export function isPlan(value: string): value is Plan {
@@ -59,10 +60,11 @@ export function isPlan(value: string): value is Plan {
 /**
  * The plan literal a stored row carries, refused rather than cast.
  *
- * `plan` is a string column, so a row written by a deployment that knows a plan
- * this one does not is possible. Treating it as a known plan would read a
- * tariff of `undefined` and fail somewhere far away; this fails where the value
- * is read.
+ * For the paths that act on a plan — run a scan, retry a module. `plan` is a
+ * string column, so a row of a retired plan (or one written by a deployment
+ * that knows a plan this one does not) is possible; treating it as a known plan
+ * would read a tariff of `undefined` and fail somewhere far away. A path that
+ * only reads a stored report uses `readStoredPlan` instead, which never throws.
  */
 export function parsePlan(value: string): Plan {
   if (!isPlan(value)) {

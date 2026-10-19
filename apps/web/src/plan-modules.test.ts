@@ -14,7 +14,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-  OFFERED_PAID_PLAN_ORDER,
+  LEGACY_PLAN_NAME,
   PAID_PLAN_ORDER,
   PLAN_CAPABILITIES,
   PLAN_MODULES,
@@ -25,6 +25,7 @@ import {
   planIncludesActionPlan,
   planIncludesExport,
   planIncludesIssueHistory,
+  planName,
 } from './plan-modules';
 
 // Vitest runs with `apps/web` as its working directory (see blog-page.test.ts).
@@ -76,14 +77,11 @@ function tariffUrlLimit(plan: string): number {
 }
 
 describe('the plan/module mirror', () => {
-  it.each(['Free', 'Basic', 'WebsiteAudit', 'Complete'])(
-    'matches the %s tariff module by module',
-    (plan) => {
-      const declared = tariffModules(plan);
-      expect(declared.length).toBeGreaterThan(0);
-      expect(PLAN_MODULES[plan as keyof typeof PLAN_MODULES]).toEqual(declared);
-    },
-  );
+  it.each(['Free', 'Basic', 'Complete'])('matches the %s tariff module by module', (plan) => {
+    const declared = tariffModules(plan);
+    expect(declared.length).toBeGreaterThan(0);
+    expect(PLAN_MODULES[plan as keyof typeof PLAN_MODULES]).toEqual(declared);
+  });
 
   // §15 keeps these two sections out of the overall score, and the mirror is
   // what the report screens and the example fixture ask. A section added to the
@@ -107,18 +105,55 @@ describe('the plan/module mirror', () => {
     // every assertion above comparing nothing to nothing.
     expect(tariffModules('Free')).toEqual(['SEO']);
     expect(tariffModules('Complete')).toContain('Accessibility');
-    expect(tariffModules('WebsiteAudit')).not.toContain('SEO');
-    expect(tariffModules('WebsiteAudit')).not.toContain('AI SEO / GEO');
+    expect(tariffModules('Basic')).toEqual(['SEO', 'AI SEO / GEO']);
   });
 });
 
-describe('the plans on sale', () => {
-  it('matches OFFERED_PAID_PLANS in the tariff table', () => {
-    const declared = /OFFERED_PAID_PLANS = \[([^\]]*)\]/.exec(TARIFFS)?.[1];
-    if (declared === undefined) throw new Error('tariffs.ts declares no OFFERED_PAID_PLANS');
-    const plans = [...declared.matchAll(/'([^']+)'/g)].map((match) => match[1]);
-    expect(plans).toEqual(['Basic', 'Complete']);
-    expect(OFFERED_PAID_PLAN_ORDER).toEqual(plans);
+describe('the paid plans', () => {
+  it('lists every paid tariff the table declares, and nothing it does not', () => {
+    const declared = [...TARIFFS.matchAll(/\n {2}(\w+): \{\n {4}plan: '(\w+)'/g)].map(
+      (match) => match[2],
+    );
+    expect(declared).toEqual(['Free', 'Basic', 'Complete']);
+    expect(PAID_PLAN_ORDER).toEqual(declared.filter((plan) => plan !== 'Free'));
+    expect(PLAN_ORDER).toEqual(declared);
+  });
+});
+
+/**
+ * A stored scan may carry a retired plan (stored-plan.ts). The report names it
+ * as archived, sells nothing against it, and offers it nothing.
+ */
+describe('a retired plan on an old report', () => {
+  const STORED_PLAN = readFileSync(
+    resolve(process.cwd(), '..', '..', 'packages', 'contracts', 'src', 'stored-plan.ts'),
+    'utf8',
+  );
+
+  it('mirrors the archived names the contracts package gives the API', () => {
+    const english = /LEGACY_PLAN_LABELS[^=]*= \{([^}]*)\}/.exec(STORED_PLAN)?.[1] ?? '';
+    const labels = Object.fromEntries(
+      [...english.matchAll(/(\w+): '([^']+)'/g)].map((match) => [match[1], match[2]]),
+    );
+    expect(labels).toEqual(LEGACY_PLAN_NAME.en);
+  });
+
+  it.each([
+    ['WebsiteAudit', 'en', 'Website Audit (archived)'],
+    ['WebsiteAudit', 'uk', 'Website Audit (архів)'],
+    ['Legacy', 'en', 'Archived plan'],
+    ['Legacy', 'uk', 'Архівний тариф'],
+  ] as const)('names %s in %s as %s', (plan, language, name) => {
+    expect(planName(plan, language)).toBe(name);
+  });
+
+  it('includes no report feature and offers no upgrade', () => {
+    for (const plan of ['WebsiteAudit', 'Legacy'] as const) {
+      expect(planIncludesExport(plan)).toBe(false);
+      expect(planIncludesIssueHistory(plan)).toBe(false);
+      expect(planIncludesActionPlan(plan)).toBe(false);
+      expect(modulesBeyondPlan(plan)).toEqual([]);
+    }
   });
 });
 
@@ -137,29 +172,11 @@ describe('what a plan leaves out', () => {
     ]);
   });
 
-  // Website Audit is no longer sold (2026-10-19): no upgrade prompt may name it.
-  it('never offers a plan that is no longer sold', () => {
+  it('only ever offers a paid plan', () => {
     for (const plan of PLAN_ORDER) {
       for (const entry of modulesBeyondPlan(plan)) {
-        expect(OFFERED_PAID_PLAN_ORDER).toContain(entry.plan);
+        expect(PAID_PLAN_ORDER).toContain(entry.plan);
       }
-    }
-  });
-
-  // The ladder assumption the old walk encoded: it offered the *next dearer*
-  // plan, which for a Website Audit report missing SEO would have been
-  // Complete, for a section the cheaper Basic sells.
-  it('offers a cheaper sibling when that is the plan which adds the section', () => {
-    expect(modulesBeyondPlan('WebsiteAudit')).toEqual([
-      { module: 'SEO', plan: 'Basic' },
-      { module: 'AI SEO / GEO', plan: 'Basic' },
-    ]);
-  });
-
-  it('leaves out nothing a Website Audit report already ran', () => {
-    const locked = modulesBeyondPlan('WebsiteAudit').map((entry) => entry.module);
-    for (const ran of PLAN_MODULES.WebsiteAudit) {
-      expect(locked).not.toContain(ran);
     }
   });
 
@@ -192,7 +209,7 @@ describe('what a plan leaves out', () => {
  * the report that can only ever say "unavailable".
  */
 describe('the plan/capability mirror', () => {
-  it.each(['Free', 'Basic', 'WebsiteAudit', 'Complete'])(
+  it.each(['Free', 'Basic', 'Complete'])(
     'matches the %s tariff capability by capability',
     (plan) => {
       const declared = tariffCapabilities(plan);
@@ -213,7 +230,6 @@ describe('the plan/capability mirror', () => {
 
   it('answers the three questions the screens ask', () => {
     expect(planIncludesIssueHistory('Complete')).toBe(true);
-    expect(planIncludesIssueHistory('WebsiteAudit')).toBe(true);
     expect(planIncludesIssueHistory('Basic')).toBe(false);
     expect(planIncludesIssueHistory('Free')).toBe(false);
     // The comparison is sold with the same entitlement as the rest of the full
@@ -230,14 +246,11 @@ describe('the plan/capability mirror', () => {
 // than the form will ask for is a product the owner cannot buy what they paid
 // for; one that sells fewer is a 400 in front of a buyer.
 describe('the plan/URL-limit mirror', () => {
-  it.each(['Free', 'Basic', 'WebsiteAudit', 'Complete'])(
-    'matches the %s tariff URL limit',
-    (plan) => {
-      const declared = tariffUrlLimit(plan);
-      expect(declared).toBeGreaterThan(0);
-      expect(PLAN_URL_LIMIT[plan as keyof typeof PLAN_URL_LIMIT]).toBe(declared);
-    },
-  );
+  it.each(['Free', 'Basic', 'Complete'])('matches the %s tariff URL limit', (plan) => {
+    const declared = tariffUrlLimit(plan);
+    expect(declared).toBeGreaterThan(0);
+    expect(PLAN_URL_LIMIT[plan as keyof typeof PLAN_URL_LIMIT]).toBe(declared);
+  });
 
   it('never lets a cheaper plan crawl more than a dearer one', () => {
     const limits = PLAN_ORDER.map((plan) => PLAN_URL_LIMIT[plan]);

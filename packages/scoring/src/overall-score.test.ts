@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ModuleScoreSummary } from './index.js';
-import { computeOverallScore } from './index.js';
+import { computeOverallScore, computeStoredScanOverallScore } from './index.js';
 
 function moduleSummary(overrides: Partial<ModuleScoreSummary>): ModuleScoreSummary {
   return {
@@ -291,5 +291,51 @@ describe('computeOverallScore — валидация входа', () => {
     expect(() =>
       computeOverallScore('Basic', [moduleSummary({ module: 'SEO', score: 120 })]),
     ).toThrow(/score/);
+  });
+});
+
+describe('computeStoredScanOverallScore — scan of a retired plan', () => {
+  const legacyModules: readonly ModuleScoreSummary[] = [
+    moduleSummary({ module: 'Security', score: 80 }),
+    moduleSummary({ module: 'Performance', score: 100 }),
+    moduleSummary({ module: 'Accessibility', score: 100 }),
+    moduleSummary({ module: 'Reliability', score: 100 }),
+    moduleSummary({ module: 'Content Quality', score: 100 }),
+    moduleSummary({ module: 'Privacy', score: 100 }),
+    moduleSummary({ module: 'UX/Conversion', score: 40 }),
+    unavailable('Analytics'),
+  ];
+
+  it('scores a Website Audit row over the modules it stored, without a tariff', () => {
+    const result = computeStoredScanOverallScore('WebsiteAudit', legacyModules);
+    // Complete's weights over the six scored modules: .65 in all, Security .20.
+    // overall = (80·.20 + 100·.45) / .65 = 61 / .65 = 93.85
+    expect(result.verdict).toBe('normal');
+    expect(result.score).toBe(93.85);
+    expect(result.moduleWeights.map((entry) => entry.module)).toEqual([
+      'Security',
+      'Performance',
+      'Accessibility',
+      'Reliability',
+      'Content Quality',
+      'Privacy',
+    ]);
+  });
+
+  it('answers insufficient data, not an exception, for an unknown plan with no modules', () => {
+    expect(computeStoredScanOverallScore('Legacy', [])).toMatchObject({
+      verdict: 'insufficient_data',
+      score: null,
+    });
+  });
+
+  it('scores a current plan exactly as computeOverallScore', () => {
+    const modules = [
+      moduleSummary({ module: 'SEO', score: 70 }),
+      moduleSummary({ module: 'AI SEO / GEO', score: 90 }),
+    ];
+    expect(computeStoredScanOverallScore('Basic', modules)).toEqual(
+      computeOverallScore('Basic', modules),
+    );
   });
 });

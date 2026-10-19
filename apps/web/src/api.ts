@@ -206,8 +206,19 @@ export interface ApiCheckConfig {
   readonly expectedStatus?: readonly number[];
 }
 
+/** A plan that exists today: it can be priced, bought and scanned. */
+export type CurrentPlan = 'Free' | 'Basic' | 'Complete';
+
+/**
+ * A plan a stored row may carry that is no longer a tariff — the retired
+ * Website Audit, or `Legacy` for any string the API does not know. Mirrors
+ * `LEGACY_PLANS` in `packages/contracts/src/stored-plan.ts`. Read-only: a
+ * report of one renders, but nothing offers, prices or launches it.
+ */
+export type LegacyPlan = 'WebsiteAudit' | 'Legacy';
+
 export interface ProfileScanConfig {
-  readonly plan: 'Free' | 'Basic' | 'WebsiteAudit' | 'Complete';
+  readonly plan: CurrentPlan;
   readonly scope: {
     readonly includeSubdomains: boolean;
     readonly maxPages?: number;
@@ -302,7 +313,7 @@ export interface CrawlSummary {
 export interface Scan {
   readonly id: string;
   readonly profileId: string;
-  readonly plan: 'Free' | 'Basic' | 'WebsiteAudit' | 'Complete';
+  readonly plan: CurrentPlan | LegacyPlan;
   readonly domain: string;
   readonly status: string;
   /** False while post-scan report finalization is still running. */
@@ -489,7 +500,7 @@ export interface ScanChanges {
 /** One purchase on the account screen. `amount` is what the card was charged. */
 export interface Purchase {
   readonly id: string;
-  readonly plan: 'Basic' | 'WebsiteAudit' | 'Complete' | string;
+  readonly plan: CurrentPlan | LegacyPlan;
   readonly status: string;
   readonly amount: number;
   readonly currency: string;

@@ -34,7 +34,7 @@ const CATALOGUES = {
  */
 const SAME_IN_BOTH_LANGUAGES: readonly RegExp[] = [
   // Plan names are the product's own: "Basic" is Basic on a Ukrainian invoice.
-  /^newScanCopy\.planCards\.(?:Basic|WebsiteAudit|Complete)\.name$/,
+  /^newScanCopy\.planCards\.(?:Basic|Complete)\.name$/,
   // The wire values the chip colours and the API's filters are keyed by.
   /^findingsCopy\.severity\.[A-Za-z ]+$/,
   /^findingsCopy\.status\.[A-Za-z ]+$/,

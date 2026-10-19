@@ -11,7 +11,7 @@ import type {
   ModuleRecord,
   SummaryRecord,
 } from '@fluxradar/contracts';
-import { exportSchemaVersionFor } from '@fluxradar/contracts';
+import { EXPORT_SCHEMA_VERSION } from '@fluxradar/contracts';
 import { computeFingerprint } from '@fluxradar/fingerprint';
 
 import type {
@@ -276,9 +276,9 @@ function identityFields(context: ScanExportContext, observedAt: string | undefin
     );
   }
   return {
-    // §16: version 1.0 is Complete-only by definition, so a record of any other
-    // plan is written under the version that admits it (D-108 расширен).
-    schema_version: exportSchemaVersionFor(context.plan),
+    // §16: version 1.0 is Complete-only by definition, and Complete is the only
+    // plan that exports.
+    schema_version: EXPORT_SCHEMA_VERSION,
     scan_id: context.scanId,
     domain: context.domain,
     plan: context.plan,

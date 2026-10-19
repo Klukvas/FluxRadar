@@ -15,7 +15,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ResultsScreen } from './Report';
-import type { Language } from './i18n';
+import { copy, type Language } from './i18n';
 import type { Dashboard, Scan, ScanModule } from './api';
 
 const FREE_CHECK_TITLES = ['title', 'H1-H6 structure', 'meta description', 'index/noindex'];
@@ -160,9 +160,7 @@ describe('the plan-scope disclosure', () => {
       .getAllByRole('listitem')
       .map((item) => item.textContent);
 
-    // Each section names the cheapest plan still on sale that runs it.
-    // Website Audit is no longer sold (2026-10-19), so the site-health
-    // sections point at Complete.
+    // Each section names the cheapest paid plan that runs it.
     expect(entries).toEqual([
       'AI SEO / GEOIncluded in Basic',
       'SecurityIncluded in Complete',
@@ -176,15 +174,17 @@ describe('the plan-scope disclosure', () => {
     ]);
   });
 
-  // A Website Audit bought before the withdrawal still renders, and still
-  // names what it left out by display name, never the API identifier.
-  it('still describes an existing Website Audit report and what it did not run', async () => {
-    await openReport(dashboardOf('WebsiteAudit', [moduleOf({ module: 'Security' })]));
+  // A stored scan of the retired Website Audit plan still renders: named as
+  // archived, never by the API identifier, and with nothing sold against it.
+  it.each([
+    ['en', 'What the Website Audit (archived) check covered', copy.en.report.scopeLockedArchived],
+    ['uk', 'Що охопила перевірка Website Audit (архів)', copy.uk.report.scopeLockedArchived],
+  ] as const)('describes a legacy Website Audit report in %s', async (language, summary, none) => {
+    await openReport(dashboardOf('WebsiteAudit', [moduleOf({ module: 'Security' })]), language);
 
-    const entries = within(screen.getByRole('region', { name: 'Only on paid plans' }))
-      .getAllByRole('listitem')
-      .map((item) => item.textContent);
-    expect(entries).toEqual(['SEOIncluded in Basic', 'AI SEO / GEOIncluded in Basic']);
+    expect(screen.getByText(summary)).toBeInTheDocument();
+    expect(screen.getByText(none)).toBeInTheDocument();
+    expect(screen.queryByText(/Included in|Входить у/)).toBeNull();
     expect(document.body.textContent).not.toContain('WebsiteAudit');
   });
 

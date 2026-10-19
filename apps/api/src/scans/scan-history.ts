@@ -6,6 +6,11 @@ import { forbidden } from '../http/errors.ts';
 import { pageMetaFrom, type PageMeta, type PageRequest } from '../http/pagination.ts';
 
 const ORDER = [{ createdAt: 'desc' }, { id: 'desc' }] as const;
+// Both sets are built from current plans only, so a stored scan of a retired
+// plan (stored-plan.ts) is in neither: it neither unlocks history nor gates it.
+// An account whose only paid scans are legacy therefore sees its whole list —
+// deliberately, because the list holds nothing but the owner's own reports.
+// Any current paid scan without history (Basic) still gates it as before.
 const HISTORY_PLANS = PLANS.filter((plan) => planSupports(plan, 'scanHistory'));
 const PAID_PLANS_WITHOUT_HISTORY = PLANS.filter(
   (plan) => !planSupports(plan, 'scanHistory') && TARIFFS[plan].priceUsd > 0,

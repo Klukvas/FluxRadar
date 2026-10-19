@@ -62,7 +62,6 @@ function testCheckoutConfig(): CreemConfig {
     FRONTEND_ORIGIN: 'https://fluxradar.test',
     CREEM_PRODUCT_ID_BASIC: 'prod_basic',
     CREEM_PRODUCT_ID_COMPLETE: 'prod_complete',
-    CREEM_PRODUCT_ID_WEBSITE_AUDIT: 'prod_website_audit',
   });
   if (result.state !== 'configured') {
     throw new Error(`creem-008: the test Creem config is ${result.state}`);

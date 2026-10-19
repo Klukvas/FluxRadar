@@ -4,9 +4,7 @@ import { copy, type Language } from './i18n';
 
 // The two one-time products live on the home page: there is no separate plans
 // screen to navigate to, so everything a buyer needs to choose between Basic
-// and Complete has to be readable in one place. Website Audit was withdrawn
-// from sale on 2026-10-19 and is not offered here; its existing reports still
-// render everywhere else.
+// and Complete has to be readable in one place.
 
 /** A plan chosen on the pricing cards, carried through sign-up to the scan form. */
 export type ChosenPlan = 'Basic' | 'Complete';

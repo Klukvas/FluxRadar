@@ -8,7 +8,9 @@ import {
   competitorsListProblem,
   defaultProfileScanConfig,
   httpsOriginSchema,
+  isLegacyPlan,
   profileScanConfigSchema,
+  readStoredPlan,
   siteProfileInputSchema,
   siteProfilePatchInputSchema,
 } from '@fluxradar/contracts';
@@ -102,11 +104,24 @@ function toProfileDto(profile: SiteProfile): Record<string, unknown> {
 
 function profileScanConfigFromJson(value: string): unknown {
   try {
-    const parsed = profileScanConfigSchema.safeParse(JSON.parse(value));
+    const parsed = profileScanConfigSchema.safeParse(withCurrentPlan(JSON.parse(value)));
     return parsed.success ? parsed.data : defaultProfileScanConfig;
   } catch {
     return defaultProfileScanConfig;
   }
+}
+
+/**
+ * A site saved on a retired plan (stored-plan.ts) opens on Complete — the one
+ * plan that runs every section the owner chose — with the rest of its saved
+ * scope kept, instead of losing the whole configuration to the default.
+ */
+function withCurrentPlan(stored: unknown): unknown {
+  if (typeof stored !== 'object' || stored === null) return stored;
+  const plan = (stored as { plan?: unknown }).plan;
+  return typeof plan === 'string' && isLegacyPlan(readStoredPlan(plan))
+    ? { ...stored, plan: 'Complete' }
+    : stored;
 }
 
 /**

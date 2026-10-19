@@ -1,5 +1,5 @@
 import type { Scan, ScanModule } from '@prisma/client';
-import { parseCrawlSummary, scanScopeSchema } from '@fluxradar/contracts';
+import { parseCrawlSummary, readStoredPlan, scanScopeSchema } from '@fluxradar/contracts';
 
 import { egressLocationView } from '../integrations/crawl-egress-locations.ts';
 import { recordedEgressLocation, storedExecutionConfig } from '../profiles/execution-config.ts';
@@ -18,7 +18,7 @@ export function toScanDto(
   return {
     id: scan.id,
     profileId: scan.siteProfileId,
-    plan: scan.plan,
+    plan: readStoredPlan(scan.plan),
     domain: scan.domain,
     status: scan.status,
     reportReady: isReportSnapshotReady(scan, scan.job),

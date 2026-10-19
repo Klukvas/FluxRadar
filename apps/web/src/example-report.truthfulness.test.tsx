@@ -28,7 +28,7 @@ import {
 import { hasFindingExplainer, problemTitle } from './finding-explainers';
 import { findingsCopy } from './findings-copy';
 import { copy } from './i18n';
-import { PLAN_MODULES, PLAN_URL_LIMIT, SIDE_SCORE_MODULES } from './plan-modules';
+import { PLAN_MODULES, PLAN_URL_LIMIT, isLegacyPlan, SIDE_SCORE_MODULES } from './plan-modules';
 
 afterEach(cleanupExamplePage);
 
@@ -205,7 +205,9 @@ describe('the report it shows is truthful about the product', () => {
   it('would still blame a limit on whoever the product would blame it on', () => {
     const summary = EXAMPLE_DASHBOARD.scan.crawlSummary;
     if (summary == null) throw new Error('expected the crawl summary');
-    const planLimit = PLAN_URL_LIMIT[EXAMPLE_DASHBOARD.scan.plan];
+    const plan = EXAMPLE_DASHBOARD.scan.plan;
+    if (isLegacyPlan(plan)) throw new Error('the example report is on a current plan');
+    const planLimit = PLAN_URL_LIMIT[plan];
     if (summary.maxPages < planLimit && summary.urlsOverLimit > 0) {
       expect(summary.limitedBy).toBe('owner');
     } else {

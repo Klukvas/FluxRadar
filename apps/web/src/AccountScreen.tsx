@@ -268,7 +268,7 @@ function PurchasesPanel(props: { language: Language; onOpenScan: (scanId: string
                 <td data-label={t.site} className="technical">
                   {displayDomain(purchase.domain)}
                 </td>
-                <td data-label={t.plan}>{planName(purchase.plan)}</td>
+                <td data-label={t.plan}>{planName(purchase.plan, props.language)}</td>
                 <td data-label={t.amount}>
                   {formatAmount(purchase.amount, purchase.currency, props.language)}
                 </td>

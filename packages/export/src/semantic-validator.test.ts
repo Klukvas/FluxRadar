@@ -52,17 +52,6 @@ describe('validateExportSemantics', () => {
     expectViolation([{ ...summary, plan: 'Basic Scan' }], 'EXPORT-001/1');
   });
 
-  it('инвариант 1: Website Audit допустим только в своей версии схемы', () => {
-    const summary = fixtureOfType<SummaryRecord>('summary');
-    // 1.0 — Complete-only по определению, поэтому пара «версия + план» проверяется вместе.
-    expectViolation([{ ...summary, plan: 'Website Audit Scan' }], 'EXPORT-001/1');
-    expect(
-      validateExportSemantics([
-        { ...summary, plan: 'Website Audit Scan', schema_version: '1.1' },
-      ]),
-    ).toEqual({ ok: true });
-  });
-
   it('инвариант 1: неизвестная версия схемы отклоняется', () => {
     const summary = fixtureOfType<SummaryRecord>('summary');
     expectViolation(
@@ -76,7 +65,7 @@ describe('validateExportSemantics', () => {
     const [first, ...rest] = records;
     if (first === undefined) throw new Error('фикстура обязана содержать records');
     expectViolation(
-      [{ ...first, plan: 'Website Audit Scan', schema_version: '1.1' }, ...rest],
+      [{ ...first, plan: 'Basic Scan' } as unknown as typeof first, ...rest],
       'EXPORT-001/13',
     );
   });

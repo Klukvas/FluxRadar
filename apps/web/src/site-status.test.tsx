@@ -273,4 +273,21 @@ describe('site status panel', () => {
     // The panel it replaced, in either language.
     expect(screen.queryByText('Subscription model')).not.toBeInTheDocument();
   });
+
+  // A stored scan of the retired Website Audit plan is named as archived, never
+  // by the identifier the API speaks.
+  it('names a legacy plan as archived, never by its raw identifier', async () => {
+    const legacyScan = { ...lastScan, plan: 'WebsiteAudit' };
+    renderProfiles(
+      stubWorkspace({
+        '/scans': () => envelope([legacyScan], { total: 1, page: 1, limit: 1 }),
+      }),
+      'uk',
+    );
+    await screen.findByText('Мої сайти', { selector: '.window__titlebar > span' });
+
+    const body = screen.getByText('Стан сайтів').closest('.panel') as HTMLElement;
+    expect(await within(body).findByText('Website Audit (архів)')).toBeInTheDocument();
+    expect(body.textContent).not.toContain('WebsiteAudit');
+  });
 });

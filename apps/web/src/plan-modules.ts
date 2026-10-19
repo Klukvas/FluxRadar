@@ -11,50 +11,25 @@
 // `tariffs.ts` and fails if the two ever disagree, which is what stops the
 // report from advertising a capability the product does not sell.
 
-import type { Scan } from './api';
+import type { CurrentPlan, LegacyPlan } from './api';
+import type { Language } from './i18n';
 
-export type Plan = Scan['plan'];
+/** A plan that exists today. A stored scan may also carry a `LegacyPlan`. */
+export type Plan = CurrentPlan;
 
 /** A plan a buyer pays for: the one a report's upgrade button preselects. */
 export type PaidPlan = Exclude<Plan, 'Free'>;
 
-/**
- * The plans, cheapest first.
- *
- * Deliberately no longer a ladder. Basic and Website Audit are siblings — one
- * answers how the site is found, the other what is wrong with it, and neither
- * contains the other — so "the next plan up adds this section" stopped being
- * true the moment the third package existed. The order is still what a price
- * list is sorted by; it is not what decides which plan unlocks a section.
- */
-export const PLAN_ORDER: readonly Plan[] = ['Free', 'Basic', 'WebsiteAudit', 'Complete'];
+/** The plans, cheapest first: the order a price list is sorted by. */
+export const PLAN_ORDER: readonly Plan[] = ['Free', 'Basic', 'Complete'];
 
-/** Every plan somebody may have paid for, Website Audit included. */
-export const PAID_PLAN_ORDER: readonly Plan[] = ['Basic', 'WebsiteAudit', 'Complete'];
-
-/**
- * The plans a new buyer can choose, in the order the pricing page shows.
- *
- * Mirrors `OFFERED_PAID_PLANS` in `packages/contracts/src/tariffs.ts` (pinned by
- * `plan-modules.test.ts`). Website Audit left it on 2026-10-19: its reports
- * still render, but no card, form or upgrade prompt offers it any more.
- */
-export const OFFERED_PAID_PLAN_ORDER: readonly Plan[] = ['Basic', 'Complete'];
+/** The plans a buyer pays for, in the order the pricing page shows. */
+export const PAID_PLAN_ORDER: readonly PaidPlan[] = ['Basic', 'Complete'];
 
 /** `TARIFFS[plan].modules`, in the tariff table's own order. */
 export const PLAN_MODULES: Readonly<Record<Plan, readonly string[]>> = {
   Free: ['SEO'],
   Basic: ['SEO', 'AI SEO / GEO'],
-  WebsiteAudit: [
-    'Security',
-    'Performance',
-    'Accessibility',
-    'Reliability',
-    'Content Quality',
-    'Privacy',
-    'UX/Conversion',
-    'Analytics',
-  ],
   Complete: [
     'SEO',
     'AI SEO / GEO',
@@ -91,7 +66,6 @@ export const SIDE_SCORE_MODULES: readonly string[] = ['UX/Conversion', 'Analytic
 export const PLAN_URL_LIMIT: Readonly<Record<Plan, number>> = {
   Free: 1,
   Basic: 5000,
-  WebsiteAudit: 50_000,
   Complete: 50_000,
 };
 
@@ -111,12 +85,15 @@ export const PLAN_CAPABILITIES: Readonly<
 > = {
   Free: { export: false, actionPlan: false, issueHistory: false },
   Basic: { export: false, actionPlan: false, issueHistory: false },
-  WebsiteAudit: { export: true, actionPlan: true, issueHistory: true },
   Complete: { export: true, actionPlan: true, issueHistory: true },
 };
 
-export function planIncludesExport(plan: Plan): boolean {
-  return PLAN_CAPABILITIES[plan]?.export ?? false;
+/**
+ * A stored scan's plan may be a retired one (`LegacyPlan`): it has no tariff
+ * row here, and so no capability — the server refuses all three for it too.
+ */
+export function planIncludesExport(plan: Plan | LegacyPlan): boolean {
+  return PLAN_CAPABILITIES[plan as Plan]?.export ?? false;
 }
 
 /**
@@ -129,36 +106,44 @@ export function planIncludesExport(plan: Plan): boolean {
  * is what keeps the report from offering the panel to a plan that would be
  * refused.
  */
-export function planIncludesIssueHistory(plan: Plan): boolean {
-  return PLAN_CAPABILITIES[plan]?.issueHistory ?? false;
+export function planIncludesIssueHistory(plan: Plan | LegacyPlan): boolean {
+  return PLAN_CAPABILITIES[plan as Plan]?.issueHistory ?? false;
 }
 
-export function planIncludesActionPlan(plan: Plan): boolean {
-  return PLAN_CAPABILITIES[plan]?.actionPlan ?? false;
+export function planIncludesActionPlan(plan: Plan | LegacyPlan): boolean {
+  return PLAN_CAPABILITIES[plan as Plan]?.actionPlan ?? false;
 }
 
-/**
- * What each plan is called on screen.
- *
- * The identifier and the name are not the same string for every plan:
- * `WebsiteAudit` is what the database stores and the API speaks, `Website Audit`
- * is what a buyer reads. Rendering the identifier gave "Included in
- * WebsiteAudit" on the report. The plans whose identifier already reads as a
- * name map to themselves, so every surface can call this unconditionally.
- */
+export function isLegacyPlan(plan: string): plan is LegacyPlan {
+  return plan === 'WebsiteAudit' || plan === 'Legacy';
+}
+
+/** What each plan is called on screen; the identifier already reads as a name. */
 export const PLAN_DISPLAY_NAME: Readonly<Record<Plan, string>> = {
   Free: 'Free',
   Basic: 'Basic',
-  WebsiteAudit: 'Website Audit',
   Complete: 'Complete',
 };
 
+/**
+ * What a retired plan is called on an old report, per language.
+ *
+ * Mirrors `LEGACY_PLAN_LABELS` in `packages/contracts/src/stored-plan.ts`
+ * (pinned by `plan-modules.test.ts`): the API reads a stored row's plan into
+ * one of these, and a report must name it rather than show the identifier.
+ */
+export const LEGACY_PLAN_NAME: Readonly<Record<Language, Readonly<Record<LegacyPlan, string>>>> = {
+  en: { WebsiteAudit: 'Website Audit (archived)', Legacy: 'Archived plan' },
+  uk: { WebsiteAudit: 'Website Audit (архів)', Legacy: 'Архівний тариф' },
+};
+
 /** The display name of a plan literal; unknown strings are shown as they are. */
-export function planName(plan: string): string {
+export function planName(plan: string, language: Language): string {
+  if (isLegacyPlan(plan)) return LEGACY_PLAN_NAME[language][plan];
   return PLAN_DISPLAY_NAME[plan as Plan] ?? plan;
 }
 
-/** One section this plan does not run, and the cheapest offered plan that does. */
+/** One section this plan does not run, and the cheapest plan that does. */
 export interface LockedModule {
   readonly module: string;
   readonly plan: Plan;
@@ -171,15 +156,17 @@ export interface LockedModule {
  * Empty for Complete, which runs every section there is — a report on that plan
  * says so rather than showing an empty list that reads like missing data.
  *
- * The "cheapest plan that runs it" is looked up across the plans still on sale
- * rather than taken from the next rung of a ladder: a Website Audit report is
- * missing SEO, and the plan that adds it is Basic — which is *cheaper*, not
- * dearer. A plan no longer sold is never the answer, so a Basic report's
- * missing site-health sections point at Complete.
+ * The "cheapest plan that runs it" is looked up across the paid plans rather
+ * than taken from the next rung of a ladder, so a plan added between two others
+ * cannot quietly change what an upgrade prompt names.
+ *
+ * Empty for a retired plan too: its report shows the sections it stored, and
+ * nothing is sold against it.
  */
-export function modulesBeyondPlan(plan: Plan): readonly LockedModule[] {
+export function modulesBeyondPlan(plan: Plan | LegacyPlan): readonly LockedModule[] {
+  if (isLegacyPlan(plan)) return [];
   const covered = new Set(PLAN_MODULES[plan]);
-  const cheapestFirst = OFFERED_PAID_PLAN_ORDER.filter((candidate) => candidate !== plan);
+  const cheapestFirst = PAID_PLAN_ORDER.filter((candidate) => candidate !== plan);
   const locked: LockedModule[] = [];
   for (const module of PLAN_MODULES.Complete) {
     if (covered.has(module)) continue;

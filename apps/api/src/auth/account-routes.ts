@@ -8,7 +8,7 @@
 
 import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
-import { registerInputSchema } from '@fluxradar/contracts';
+import { readStoredPlan, registerInputSchema } from '@fluxradar/contracts';
 import { z } from 'zod';
 
 import { readCookie } from '../http/cookies.ts';
@@ -94,7 +94,7 @@ export function accountRouter(deps: AccountRouterDeps): Router {
       res,
       purchases.map((purchase) => ({
         id: purchase.id,
-        plan: purchase.plan,
+        plan: readStoredPlan(purchase.plan),
         status: purchase.status,
         // What the card was charged: the settled amount when the provider
         // localised the currency, otherwise the list price.

@@ -346,16 +346,16 @@ describe('Action Plan routes', () => {
     expect(await db.prisma.actionPlanAttempt.count({ where: { scanId } })).toBe(0);
   });
 
-  it('writes a plan for a Website Audit scan: the package includes it', async () => {
+  // A stored row of the retired Website Audit plan is read-only: it entitles
+  // nothing, so no AI request is spent on it (stored-plan.ts).
+  it('refuses a legacy Website Audit scan as it refuses Basic, and writes nothing', async () => {
     const { scanId } = await seedPlannableScan(db.prisma, account, { plan: 'WebsiteAudit' });
 
     const response = await generate(scanId);
 
-    expect(response.status).toBe(202);
-    const stored = await db.prisma.actionPlan.findUniqueOrThrow({
-      where: { scanId_language: { scanId, language: 'en' } },
-    });
-    expect(stored.promptVersion).toBe('action-plan-v1');
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('ACTION_PLAN_COMPLETE_ONLY');
+    expect(await db.prisma.actionPlanAttempt.count({ where: { scanId } })).toBe(0);
   });
 
   it('refuses a Basic scan, an unfinished one and a closed window', async () => {

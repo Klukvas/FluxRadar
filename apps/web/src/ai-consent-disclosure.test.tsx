@@ -1,11 +1,8 @@
-// What a Website Audit buyer is told before paying.
+// What a buyer is told about AI before paying, and what the request records.
 //
-// The plan runs UX/Conversion — which sends bounded page evidence to Anthropic
-// — and no AI SEO / GEO at all. Both halves are claims a buyer acts on, and the
-// screen used to make exactly one statement for every paid plan: "AI visibility:
-// Enabled", under a notice describing brand and domain questions this plan never
-// asks. Neither sentence is true here, and both are the kind of accuracy that is
-// worth a test rather than a careful reading.
+// Both paid plans run AI SEO / GEO, so both get the GEO notice and the optional
+// recipients; Free sends nothing to a provider. These claims are what a buyer
+// acts on, so they are worth a test rather than a careful reading.
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -16,7 +13,6 @@ import { LaunchSummary } from './LaunchSummary';
 import { NewScanScreen } from './NewScanScreen';
 import { copy, type Language } from './i18n';
 import { DEFAULT_SCOPE_FORM } from './scan-scope';
-import { PLAN_MODULES } from './plan-modules';
 import { checkedPlan, choosePlanCard, queryPlanRadio } from './new-scan-test-support';
 
 afterEach(() => {
@@ -24,7 +20,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function launchSummaryFor(plan: 'Free' | 'Basic' | 'WebsiteAudit' | 'Complete') {
+function launchSummaryFor(plan: 'Free' | 'Basic' | 'Complete') {
   render(
     <LaunchSummary
       language="en"
@@ -47,88 +43,31 @@ describe('what the launch summary promises about AI', () => {
     expect(launchSummaryFor('Basic')).toContain(copy.en.newScan.launchSummaryEnabled);
   });
 
-  it('does not promise AI visibility on Website Audit, which never runs it', () => {
-    const row = launchSummaryFor('WebsiteAudit');
-    expect(PLAN_MODULES.WebsiteAudit).not.toContain('AI SEO / GEO');
-    expect(row).toContain(copy.en.newScan.launchSummaryAiUxOnly);
-    expect(row).not.toBe(copy.en.newScan.launchSummaryAi + copy.en.newScan.launchSummaryEnabled);
-  });
-
-  it('does not call Website Audit AI-free either: the UX review is AI-assisted', () => {
-    expect(PLAN_MODULES.WebsiteAudit).toContain('UX/Conversion');
-    expect(launchSummaryFor('WebsiteAudit')).not.toContain(copy.en.newScan.launchSummaryDisabled);
-  });
-
   it('says AI is off on Free, which sends nothing to a provider', () => {
     expect(launchSummaryFor('Free')).toContain(copy.en.newScan.launchSummaryDisabled);
   });
 });
 
-describe('the AI processing notice, per plan', () => {
-  // The GEO notice describes two transfers — neutralized discovery questions and
-  // brand/domain awareness questions — that a plan without AI SEO / GEO never
-  // makes. Disclosing processing that does not happen is worse than not
-  // disclosing it: the buyer is told their brand went somewhere it did not.
-  //
-  // The UX-only notice may still *name* those questions, because the accurate
-  // sentence is "none of them is sent" — so what is pinned is the denial, not
-  // the absence of the words.
-  const DENIES_GEO_TRANSFER = {
-    en: /runs no AI SEO \/ GEO, so no discovery or brand-awareness question about your site is sent/i,
-    uk: /не запускає AI SEO \/ GEO, тому жодного discovery- чи brand-запиту про ваш сайт[^.]*не надсилається/i,
-  } as const;
-
-  it.each(['en', 'uk'] as const)('denies any GEO transfer in the %s UX-only notice', (language) => {
-    const uxOnly = copy[language].newScan.aiConsentBodyUxOnly;
-    expect(uxOnly).toMatch(/UX/);
-    expect(uxOnly).toMatch(DENIES_GEO_TRANSFER[language]);
+describe('the AI processing notice', () => {
+  it.each(['en', 'uk'] as const)('describes the GEO discovery questions in %s', (language) => {
+    const geoNotice = copy[language].newScan.aiConsentBody;
+    expect(geoNotice).toMatch(language === 'en' ? /discovery questions/i : /discovery-запит/i);
   });
 
-  it.each(['en', 'uk'] as const)(
-    'keeps the %s GEO notice for the plans that do send those questions',
-    (language) => {
-      // The two notices have to stay distinguishable: the plans that run
-      // AI SEO / GEO must keep the disclosure that describes the transfer.
-      const geoNotice = copy[language].newScan.aiConsentBody;
-      expect(geoNotice).not.toMatch(DENIES_GEO_TRANSFER[language]);
-      expect(geoNotice).toMatch(language === 'en' ? /discovery questions/i : /discovery-запит/i);
-    },
-  );
-
-  it.each(['en', 'uk'] as const)('still names Anthropic and the evidence in %s', (language) => {
-    const uxOnly = copy[language].newScan.aiConsentBodyUxOnly;
-    expect(uxOnly).toMatch(/Anthropic/);
-    // The two promises the GEO notice makes and this one must keep.
-    expect(uxOnly).toMatch(/Google\/Bing/);
-  });
-
-  // The plain summary over each notice has to count the same recipients the
-  // notice does. It used to say "an AI helper" on a plan whose disclosure names
-  // two providers, which is the one thing a summary of a consent notice may
-  // never do.
+  // The plain summary over the notice has to count the same recipients the
+  // notice does.
   it.each(['en', 'uk'] as const)('counts the recipients the %s notice names', (language) => {
     const t = copy[language].newScan;
     expect(t.aiConsentSummary).toMatch(/Anthropic/);
     expect(t.aiConsentSummary).toMatch(/OpenAI/);
     expect(t.aiConsentBody).toMatch(/OpenAI/);
-
-    // The UX-only plans send to one provider and offer no optional recipient,
-    // so its summary names that one and nobody else.
-    expect(t.aiConsentSummaryUxOnly).toMatch(/Anthropic/);
-    expect(t.aiConsentSummaryUxOnly).not.toMatch(/OpenAI/);
-    expect(t.aiConsentBodyUxOnly).not.toMatch(/OpenAI/);
   });
 });
 
 // The optional recipients, on the screen and in the request.
 //
 // Gemini and Perplexity are offered to answer AI SEO / GEO's visibility
-// questions, and Website Audit asks none of them. The offer used to be gated on
-// the deployment's keys alone, so it rendered directly under the notice that had
-// just said no such question is sent — a choice with nothing behind it. The
-// selection also survived a plan change, so a tick made on Complete was still in
-// the request after switching to Website Audit: consent recorded for a recipient
-// that scan never contacts.
+// questions, which every paid plan asks.
 //
 // These render the screen and read the request, rather than asserting on the
 // copy constants: what is being pinned is the gate and the payload, and neither
@@ -144,8 +83,8 @@ const CHECKOUT_SESSION = {
   reference: 'ref-1',
   sessionId: 'session-1',
   checkoutUrl: 'https://checkout.example/session-1',
-  plan: 'WebsiteAudit',
-  amount: 4900,
+  plan: 'Complete',
+  amount: 8700,
   currency: 'USD',
   mode: 'test' as const,
   expiresAt: null,
@@ -175,7 +114,7 @@ function stubApi(): ReturnType<typeof vi.fn> {
           available: true,
           mode: 'test',
           unavailableReason: null,
-          plans: ['Basic', 'WebsiteAudit', 'Complete'].map((plan) => ({
+          plans: ['Basic', 'Complete'].map((plan) => ({
             plan,
             priceUsd: 49,
             currency: 'USD',
@@ -246,7 +185,7 @@ function optInBlockShown(language: Language): boolean {
   );
 }
 
-describe('the optional GEO recipients are offered only where GEO runs', () => {
+describe('the optional GEO recipients', () => {
   it.each(['en', 'uk'] as const)(
     'offers them on Basic and Complete in %s, where the questions are asked',
     async (language) => {
@@ -261,19 +200,6 @@ describe('the optional GEO recipients are offered only where GEO runs', () => {
     },
   );
 
-  // Website Audit, the one plan without GEO, is no longer sold (2026-10-19):
-  // the form draws no card for it even when a server still lists it, so the
-  // UX-only disclosure path is reached only by reports bought earlier.
-  it.each(['en', 'uk'] as const)(
-    'draws no Website Audit card in %s, even where the server lists it',
-    async (language) => {
-      const { choosePlan } = renderNewScan(language);
-      await choosePlan('Complete');
-      expect(queryPlanRadio('WebsiteAudit', document.body)).toBeNull();
-      expect(PLAN_MODULES.WebsiteAudit).not.toContain('AI SEO / GEO');
-    },
-  );
-
   it('keeps offering them when the deployment names only one recipient', async () => {
     // The plan gate is an extra condition, not a replacement for the old one.
     const { choosePlan } = renderNewScan('en');
@@ -285,7 +211,7 @@ describe('the optional GEO recipients are offered only where GEO runs', () => {
   });
 });
 
-describe('what a Website Audit checkout records as AI consent', () => {
+describe('what a checkout records as AI consent', () => {
   function aiConsentProvidersOf(fetchMock: ReturnType<typeof vi.fn>): readonly string[] {
     const call = fetchMock.mock.calls.find(
       ([input]) => new URL(String(input)).pathname === '/billing/checkout-session',

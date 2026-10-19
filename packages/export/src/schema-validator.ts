@@ -13,7 +13,7 @@ import type { ErrorObject, ValidateFunction } from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 import { EXPORT_RECORD_FIELDS } from './fields.js';
-import { EXPORT_RECORD_SCHEMA, EXPORT_RECORD_SCHEMA_1_1 } from './schema.js';
+import { EXPORT_RECORD_SCHEMA } from './schema.js';
 
 export interface SchemaViolation {
   /** JSON Pointer внутри record ('' — сам record). */
@@ -34,7 +34,6 @@ const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true });
 // Компиляция на загрузке модуля: сломанная схема падает при импорте, не в проде.
 const VALIDATORS: Readonly<Record<string, ValidateFunction>> = {
   '1.0': ajv.compile(EXPORT_RECORD_SCHEMA),
-  '1.1': ajv.compile(EXPORT_RECORD_SCHEMA_1_1),
 };
 
 /**

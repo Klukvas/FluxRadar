@@ -100,7 +100,7 @@ describe('the comparison verdict', () => {
   it('counts a Not applicable module as finished', () => {
     // A section the plan deliberately does not run is a terminal fact, not an
     // unfinished run, and refusing the whole comparison for it would make every
-    // Website Audit report incomparable.
+    // report with such a section incomparable.
     const current = side({}, [
       completed(),
       completed({

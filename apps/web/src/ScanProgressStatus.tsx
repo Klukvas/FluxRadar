@@ -9,7 +9,7 @@
 import type { Scan } from './api';
 import { formatCount } from './format-count';
 import { copy, fillCopy, type Language } from './i18n';
-import { PLAN_URL_LIMIT } from './plan-modules';
+import { PLAN_URL_LIMIT, isLegacyPlan } from './plan-modules';
 import { moduleLabel } from './rule-titles';
 import { isRunningLong, progressStage, type ProgressStage } from './scan-progress-state';
 
@@ -71,7 +71,8 @@ function moduleArea(module: string, t: ProgressCopy, language: Language): string
  */
 function scopeLine(scan: Scan, t: ProgressCopy, language: Language): string {
   if (scan.plan === 'Free') return t.scopeHomepage;
-  const planLimit = PLAN_URL_LIMIT[scan.plan];
+  // A retired plan has no tariff row; Website Audit crawled to Complete's ceiling.
+  const planLimit = PLAN_URL_LIMIT[isLegacyPlan(scan.plan) ? 'Complete' : scan.plan];
   const owner = scan.scope.maxPages;
   if (owner !== undefined && owner < planLimit)
     return t.scopeOwnerLimit(owner, formatCount(owner, language));

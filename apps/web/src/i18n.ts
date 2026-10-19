@@ -838,18 +838,8 @@ export const copy = {
       // agree to one.
       aiConsentSummary:
         'In short: this report includes two AI services — Anthropic and OpenAI. Both answer questions about how your site is found; only Anthropic also reads the public pages of your site and the details you saved about it. Your password, your card details and your Google or Bing access are never sent to either.',
-      // The UX-only plans run one AI check and send it to one provider
-      // (`aiConsentBodyUxOnly`), and no optional recipient is offered on them,
-      // so this variant names that provider rather than counting to two.
-      aiConsentSummaryUxOnly:
-        'In short: one part of this report — the review of how your pages read to a visitor — is written by one AI service, Anthropic. It reads the public pages of your site and the details you saved about it, and no other AI service is sent anything. Your password, your card details and your Google or Bing access are never sent to it.',
       aiConsentBody:
         'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain; both providers answer those discovery questions with their own web search enabled. Separate direct questions name the brand or domain, go to both providers and are asked closed-book, without browsing or tools. Each answer is then checked by Anthropic, in its own request, against a bounded snapshot of this audit’s evidence: the profile fields you saved and text from the public pages that were crawled. On Complete, UX review can include the same saved context and bounded public-page evidence and goes to Anthropic only. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
-      // The same disclosure for a plan that runs UX/Conversion but no AI SEO /
-      // GEO: no discovery or awareness question is ever sent, so nothing here
-      // may claim a brand or domain transfer that does not happen.
-      aiConsentBodyUxOnly:
-        'By starting this paid audit, you instruct FluxRadar to use Anthropic for one AI check: the UX/Conversion review. It receives the site context you saved on the profile and bounded evidence from the public pages that were crawled — headings, visible text, links, form fields and calls to action. This plan runs no AI SEO / GEO, so no discovery or brand-awareness question about your site is sent to any AI provider. AI can be wrong or be temporarily unavailable; its findings are advisory and stay outside the overall score. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
       aiConsentOptInTitle: 'Optional: ask Gemini and Perplexity too',
       aiConsentOptInMode: 'Off by default',
       aiConsentOptInBody:
@@ -910,8 +900,6 @@ export const copy = {
       launchSummaryEgress: 'Checked from',
       launchSummaryEgressDefault: 'default for Free',
       launchSummaryEnabled: 'Enabled',
-      // Website Audit runs no AI SEO / GEO, but its UX review is AI-assisted.
-      launchSummaryAiUxOnly: 'Not in this plan · AI is used for the UX review',
       launchSummaryDisabled: 'Off',
       launchSummaryIncluded: 'Included',
       launchSummaryIgnored: 'Ignored',
@@ -1270,6 +1258,7 @@ export const copy = {
       scopeIncludedTerm: 'Ran in this report',
       scopeLockedTerm: 'Only on paid plans',
       scopeLockedNone: 'This plan runs every audit section FluxRadar offers.',
+      scopeLockedArchived: 'This plan is no longer offered. The report shows the sections it ran.',
       scopeUnlock: 'Included in {plan}',
       scopeChecks: '{completed} of {applicable} checks',
       // ── The score area ────────────────────────────────────────────────────
@@ -2855,12 +2844,8 @@ export const copy = {
       aiConsentOptional: 'Включено',
       aiConsentSummary:
         'Коротко: у цей звіт входять два AI-сервіси — Anthropic і OpenAI. Обидва відповідають на запитання про те, як знаходять ваш сайт; і лише Anthropic додатково читає публічні сторінки вашого сайту й ті дані про нього, які ви зберегли. Ваш пароль, дані картки та доступ до Google чи Bing не надсилають жодному з них.',
-      aiConsentSummaryUxOnly:
-        'Коротко: одну частину цього звіту — огляд того, як ваші сторінки читаються відвідувачем, — пише один AI-сервіс, Anthropic. Він читає публічні сторінки вашого сайту й ті дані про нього, які ви зберегли, а іншим AI-сервісам не надсилають нічого. Ваш пароль, дані картки та доступ до Google чи Bing йому ніколи не надсилають.',
       aiConsentBody:
         'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) і OpenAI (ChatGPT) для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену; на ці discovery-запитання обидва провайдери відповідають із увімкненим власним вебпошуком. Окремі прямі запитання містять бренд або домен, ідуть до обох провайдерів і ставляться «із закритою книгою» — без пошуку в мережі та без інструментів. Потім кожну відповідь Anthropic окремим запитом звіряє з обмеженим набором доказів цього аудиту: полями профілю, які ви зберегли, і текстом публічних сторінок, які було обійдено. У Complete UX-аналіз може включати той самий збережений контекст та обмежені докази з публічних сторінок і йде лише до Anthropic. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
-      aiConsentBodyUxOnly:
-        'Починаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic для однієї AI-перевірки — огляду UX/Конверсії. Він отримує контекст сайту, збережений у профілі, і обмежені свідчення з публічних сторінок, які були обійдені: заголовки, видимий текст, посилання, поля форм і заклики до дії. Цей тариф не запускає AI SEO / GEO, тому жодного discovery- чи brand-запиту про ваш сайт до AI-провайдерів не надсилається. AI може помилятися або бути тимчасово недоступним; його висновки є рекомендаційними і не входять у загальний бал. Не вводьте конфіденційні, чутливі або незаконно отримані персональні дані. Дані акаунта, платежів і токени доступу Google/Bing не надсилаються ніколи.',
       aiConsentOptInTitle: 'Необовʼязково: запитати також Gemini і Perplexity',
       aiConsentOptInMode: 'Вимкнено за замовчуванням',
       aiConsentOptInBody:
@@ -2915,7 +2900,6 @@ export const copy = {
       launchSummaryEgress: 'Країна перевірки',
       launchSummaryEgressDefault: 'за замовчуванням для Free',
       launchSummaryEnabled: 'Увімкнено',
-      launchSummaryAiUxOnly: 'Не входить у цей тариф · AI використовується для UX-огляду',
       launchSummaryDisabled: 'Вимкнено',
       launchSummaryIncluded: 'Включено',
       launchSummaryIgnored: 'Ігноруються',
@@ -3226,6 +3210,8 @@ export const copy = {
       scopeIncludedTerm: 'Виконувалося в цьому звіті',
       scopeLockedTerm: 'Лише в платних тарифах',
       scopeLockedNone: 'Цей тариф виконує всі розділи аудиту, які пропонує FluxRadar.',
+      scopeLockedArchived:
+        'Цей тариф більше не пропонується. Звіт показує розділи, які він перевірив.',
       scopeUnlock: 'Входить у тариф {plan}',
       scopeChecks: 'перевірок: {completed} з {applicable}',
       scoreValueLabel: 'Оцінка {score}',

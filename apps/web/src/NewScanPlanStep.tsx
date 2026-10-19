@@ -83,29 +83,20 @@ export function PlanStep(props: {
                 disclosure below say what leaves the site and who processes it,
                 and the buyer agrees to both by paying. Folding them would trade
                 a guarantee for height. */}
-          {/* The disclosure names the AI work THIS plan does. A plan without
-              AI SEO / GEO sends no brand or domain to a provider for discovery
-              or awareness questions, so it must not be shown a notice that says
-              it does — and it is not AI-free either: its UX review still sends
-              bounded page evidence. */}
+          {/* Every paid plan runs AI SEO / GEO, so one disclosure covers both;
+              the body says what the UX review adds on Complete. */}
           <ScanCallout
-            eyebrow={PLAN_MODULES[plan].includes('AI SEO / GEO') ? 'AI SEO / GEO · UX' : 'UX'}
+            eyebrow="AI SEO / GEO · UX"
             title={t.newScan.aiConsentTitle}
             titleId="ai-consent-title"
             mode={t.newScan.aiConsentOptional}
             // The plain sentence first, the full disclosure under it and still
             // open: the paragraph is what the buyer agrees to by paying, so the
             // summary is added above it and nothing is folded away.
-            lead={
-              PLAN_MODULES[plan].includes('AI SEO / GEO')
-                ? t.newScan.aiConsentSummary
-                : t.newScan.aiConsentSummaryUxOnly
-            }
+            lead={t.newScan.aiConsentSummary}
             defaultOpen
           >
-            {PLAN_MODULES[plan].includes('AI SEO / GEO')
-              ? t.newScan.aiConsentBody
-              : t.newScan.aiConsentBodyUxOnly}{' '}
+            {t.newScan.aiConsentBody}{' '}
             <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
             {' · '}
             <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>

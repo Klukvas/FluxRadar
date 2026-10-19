@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { MODULE_NAMES, PLANS } from './enums.js';
+import { STORED_PLANS } from './stored-plan.js';
 import { API_CHECK_LIMITS, CRAWL_LIMITS, CRAWL_SEED_LIMITS } from './limits.js';
 import { TARIFFS } from './tariffs.js';
 
@@ -646,7 +647,8 @@ export type CrawlScopeFacts = z.infer<typeof crawlScopeFactsSchema>;
  */
 const comparedScanIdentity = {
   id: z.string(),
-  plan: z.enum(PLANS),
+  // A stored scan, so a retired plan is possible here (stored-plan.ts).
+  plan: z.enum(STORED_PLANS),
   completedAt: z.string().nullable(),
 } as const;
 

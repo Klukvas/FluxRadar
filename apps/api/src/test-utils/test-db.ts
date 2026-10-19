@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { describe } from 'vitest';
 import type { PrismaClient, Purchase, Scan } from '@prisma/client';
-import { RULESET_VERSION, TARIFFS } from '@fluxradar/contracts';
-import type { Plan } from '@fluxradar/contracts';
+import { RULESET_VERSION, TARIFFS, isPlan } from '@fluxradar/contracts';
+import type { LegacyPlan, Plan } from '@fluxradar/contracts';
 import type { ScanRuntimeStatus } from '@fluxradar/contracts';
 
 import { createPrismaClient } from '../db.ts';
@@ -84,7 +84,8 @@ export async function seedAccountWithProfile(prisma: PrismaClient): Promise<Seed
 export interface SeedScanParams {
   readonly account: SeededAccount;
   readonly status: ScanRuntimeStatus;
-  readonly plan?: Plan;
+  /** A legacy plan seeds a stored row of a retired plan (stored-plan.ts). */
+  readonly plan?: Plan | LegacyPlan;
   readonly withPurchase?: boolean;
   readonly statusReason?: string;
   readonly moduleRetryCount?: number;
@@ -114,6 +115,9 @@ const RESULT_STATUSES: ReadonlySet<string> = new Set([
   'Cancelled',
 ]);
 
+/** What a legacy row's purchase was charged; Website Audit sold at $79. */
+const LEGACY_FIXTURE_PRICE_USD = 79;
+
 export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Promise<SeededScan> {
   const plan = params.plan ?? 'Basic';
   const purchase =
@@ -126,7 +130,7 @@ export async function seedScan(prisma: PrismaClient, params: SeedScanParams): Pr
             plan,
             provider: CREEM_PROVIDER,
             providerTransactionId: `ord_${randomUUID()}`,
-            amountUsd: TARIFFS[plan].priceUsd,
+            amountUsd: isPlan(plan) ? TARIFFS[plan].priceUsd : LEGACY_FIXTURE_PRICE_USD,
             currency: 'USD',
             status: PURCHASE_STATUSES.paid,
           },

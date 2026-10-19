@@ -241,7 +241,7 @@ function PrintCover(props: { dashboard: Dashboard; language: Language }) {
       <dl className="print-facts">
         <div>
           <dt>{f.print.plan}</dt>
-          <dd>{planName(scan.plan)}</dd>
+          <dd>{planName(scan.plan, props.language)}</dd>
         </div>
         <div>
           <dt>{f.print.scanned}</dt>

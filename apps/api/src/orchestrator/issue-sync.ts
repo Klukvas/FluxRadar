@@ -8,9 +8,8 @@
 // (resolution-policy.ts).
 //
 // Сравнение ограничено одним планом, потому что планы читают разные наборы
-// модулей: Website Audit не запускает SEO и GEO вовсе, поэтому отсутствие
-// SEO-находки в нём — не исправление, а другой набор проверок. Сравнение
-// Complete → Website Audit пометило бы каждую SEO/GEO-находку как Resolved.
+// модулей: отсутствие находки в скане плана, который этот модуль не запускает,
+// — не исправление, а другой набор проверок.
 
 import type { PrismaClient, Scan } from '@prisma/client';
 import type { IssueStatus } from '@fluxradar/contracts';

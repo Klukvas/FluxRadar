@@ -23,10 +23,10 @@
 // `previous-not-readable`, `previous` carries its identity alone, and the
 // previous side is never even loaded.
 
-import { computeOverallScore } from '@fluxradar/scoring';
+import { computeStoredScanOverallScore } from '@fluxradar/scoring';
 import {
   COMPARISON_SAMPLE_LIMIT,
-  parsePlan,
+  readStoredPlan,
   type Comparability,
   type ComparedScan,
   type ComparisonIncomparableReason,
@@ -76,7 +76,7 @@ async function sideOf(prisma: PrismaClient, scan: Scan): Promise<ComparisonSide>
 function identityOf(side: ComparisonSide): ReadableComparedScan {
   return {
     id: side.scan.id,
-    plan: parsePlan(side.scan.plan),
+    plan: readStoredPlan(side.scan.plan),
     status: side.scan.status,
     completedAt: side.scan.completedAt?.toISOString() ?? null,
     pagesRead: side.summary?.pagesRead ?? null,
@@ -100,7 +100,7 @@ function identityOf(side: ComparisonSide): ReadableComparedScan {
 function unreadableIdentityOf(identity: PreviousScanIdentity): UnreadableComparedScan {
   return {
     id: identity.id,
-    plan: parsePlan(identity.plan),
+    plan: readStoredPlan(identity.plan),
     completedAt: identity.completedAt?.toISOString() ?? null,
     readable: false,
   };
@@ -108,7 +108,10 @@ function unreadableIdentityOf(identity: PreviousScanIdentity): UnreadableCompare
 
 /** The weighted score of one scan, computed exactly as its report computes it. */
 function overallScoreOf(side: ComparisonSide): number | null {
-  return computeOverallScore(parsePlan(side.scan.plan), scorableModules(side.modules)).score;
+  return computeStoredScanOverallScore(
+    readStoredPlan(side.scan.plan),
+    scorableModules(side.modules),
+  ).score;
 }
 
 function round2(value: number): number {

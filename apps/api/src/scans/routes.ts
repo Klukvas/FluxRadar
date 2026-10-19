@@ -3,9 +3,9 @@
 
 import { Router } from 'express';
 import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
-import { computeOverallScore } from '@fluxradar/scoring';
+import { computeOverallScore, computeStoredScanOverallScore } from '@fluxradar/scoring';
 import { RULESET_VERSION, scanRequestInputSchema, scanScopeSchema } from '@fluxradar/contracts';
-import { isModuleName, parsePlan } from '@fluxradar/contracts';
+import { isModuleName, isPlan, parsePlan, readStoredPlan } from '@fluxradar/contracts';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
 
@@ -236,7 +236,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     const overall =
       scan.plan === 'Free'
         ? computeOverallScore('Free', [])
-        : computeOverallScore(parsePlan(scan.plan), moduleSummaries);
+        : computeStoredScanOverallScore(readStoredPlan(scan.plan), moduleSummaries);
     // The claim validator and the DTO must judge against the same snapshot, so
     // it is parsed once here rather than twice below.
     const geoEvidence = geoEvidenceFrom(geoModule?.metadataJson);
@@ -261,6 +261,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     // one may not re-trigger it. The worker refuses the job as well; this is the
     // answer the caller gets instead of a 202 for work that will never run.
     assertPaidWorkAllowed(scan, deps.now());
+    assertCurrentPlan(scan);
     if (scan.status === 'Completed' || scan.status === 'Cancelled') {
       throw conflict('SCAN_TERMINAL', 'scan is already terminal');
     }
@@ -282,6 +283,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     // not expired. The rule now lives beside the one the read paths apply, so
     // the two can no longer drift apart.
     assertPaidWorkAllowed(scan, deps.now());
+    assertCurrentPlan(scan);
     const input = z
       .object({ module: z.string().min(1).optional() })
       .optional()
@@ -470,6 +472,18 @@ export async function findOwnReportScan(
   const scan = await findOwnScan(prisma, accountId, scanId);
   assertPaidReportAccess(scan);
   return scan;
+}
+
+/**
+ * Refuses to run, resume or retry a scan of a retired plan.
+ *
+ * Its report stays readable (stored-plan.ts), but there is no tariff or module
+ * plan left to execute it against.
+ */
+function assertCurrentPlan(scan: Scan): void {
+  if (!isPlan(scan.plan)) {
+    throw conflict('PLAN_RETIRED', 'this scan belongs to a plan that is no longer available');
+  }
 }
 
 /** Modules are report data, so a scan whose payment came back lists none. */

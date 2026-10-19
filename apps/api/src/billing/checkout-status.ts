@@ -1,3 +1,4 @@
+import { readStoredPlan, type StoredPlan } from '@fluxradar/contracts';
 import type { PrismaClient } from '@prisma/client';
 
 import { checkoutReasonCode, type CheckoutReasonCode } from './checkout-status-reason.ts';
@@ -12,7 +13,7 @@ import { BillingNotFoundError } from './errors.ts';
 
 export interface CheckoutStatusView {
   readonly reference: string;
-  readonly plan: string;
+  readonly plan: StoredPlan;
   /** 'created' — no confirmed payment yet; 'completed' — webhook granted access. */
   readonly status: string;
   /**
@@ -40,7 +41,7 @@ export async function findCheckoutStatus(
   }
   return {
     reference: row.reference,
-    plan: row.plan,
+    plan: readStoredPlan(row.plan),
     status: row.status,
     reasonCode: checkoutReasonCode(row.status, row.statusReason),
     scanId: row.purchase?.scan?.id ?? null,

@@ -35,7 +35,7 @@ export function ReportHeaderMeta(props: { scan: Scan; language: Language }) {
         </div>
         <div>
           <dt>{t.plan}</dt>
-          <dd>{planName(scan.plan)}</dd>
+          <dd>{planName(scan.plan, props.language)}</dd>
         </div>
         <div>
           <dt>{t.checkedOn}</dt>
@@ -149,7 +149,7 @@ export function ReportHelp(props: {
           <dt>{t.helpScoreTerm}</dt>
           <dd>
             {props.unscoredPlan
-              ? fillCopy(t.unscoredScoreBody, { plan: planName(props.plan) })
+              ? fillCopy(t.unscoredScoreBody, { plan: planName(props.plan, props.language) })
               : t.helpScoreBody}
           </dd>
         </div>

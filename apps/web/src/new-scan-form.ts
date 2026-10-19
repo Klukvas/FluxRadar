@@ -25,14 +25,13 @@ import { expertSettingsChanged, useFollowSelectedProfile } from './new-scan-form
 import {
   configurationStateOf,
   configurationStatusLabel,
-  offeredPlanFor,
   restoredProfileForm,
   scopeFromLastScan,
   type ConfigurationState,
 } from './new-scan-configuration';
 import { usePlanSelected } from './funnel-analytics';
 import { requestScan } from './new-scan-request';
-import { OFFERED_PAID_PLAN_ORDER, PLAN_MODULES, type Plan } from './plan-modules';
+import { PAID_PLAN_ORDER, PLAN_MODULES, type Plan } from './plan-modules';
 import {
   DEFAULT_SCOPE_FORM,
   clampScopeToPlan,
@@ -243,11 +242,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // Complete so they can exercise the full report without a payment.
   const profilePlan = props.selectedProfile?.scanConfig?.plan;
   const [plan, setPlan] = useState<Plan>(
-    profilePlan != null
-      ? offeredPlanFor(profilePlan)
-      : props.internalFreeAccess
-        ? 'Complete'
-        : 'Free',
+    profilePlan != null ? profilePlan : props.internalFreeAccess ? 'Complete' : 'Free',
   );
   // Legacy profile fixtures and profiles created before the migration still
   // fall back to the last scan while their saved config is absent. Keep the
@@ -640,7 +635,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         // than sent to a checkout that refuses it.
         //
         // A plan without AI SEO / GEO drops them all: the selection is only ever
-        // offered beside that module, so on Website Audit it can only be a
+        // offered beside that module, so on such a plan it can only be a
         // leftover from a plan the owner switched away from. Sending it would
         // record consent to a recipient this scan never asks — the same
         // inaccuracy as the notice promising a transfer that does not happen.
@@ -674,9 +669,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   );
   const offersPlan = (value: string): boolean =>
     props.internalFreeAccess || listedPlans.length === 0 || sellablePlans.has(value);
-  // Only plans still on sale are drawn, whatever an older server lists: a card
-  // for a withdrawn plan would end at a checkout that refuses it.
-  const paidPlanOptions = OFFERED_PAID_PLAN_ORDER.filter((paidPlan) => offersPlan(paidPlan));
+  // Only the plans this app knows are drawn, whatever an older server lists.
+  const paidPlanOptions = PAID_PLAN_ORDER.filter((paidPlan) => offersPlan(paidPlan));
   const planOptions: readonly Plan[] = ['Free', ...(paidAvailable ? paidPlanOptions : [])];
   usePlanSelected(plan, planOptions.includes(plan));
   // Free is the fixed homepage check: the crawl controls below do not reach it,
