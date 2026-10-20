@@ -1,3 +1,5 @@
+import { secPassive007MailDns } from './sec-passive-007.js';
+import { secPassive001Tls } from './sec-passive-001.js';
 // Security-модуль rules-mvp-0.1 (T-09): passive-проверки поверх снимков
 // обхода. Порядок — по ruleId реестра.
 
@@ -10,6 +12,8 @@ import { secPassive003Hsts } from './sec-passive-003.js';
 import { secPassive005CookieAttributes } from './sec-passive-005.js';
 
 export const SECURITY_RULES: readonly Rule[] = [
+  secPassive007MailDns,
+  secPassive001Tls,
   secPassive002SecurityHeaders,
   secPassive003Hsts,
   secPassive005CookieAttributes,

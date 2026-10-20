@@ -52,8 +52,8 @@ describe('runModuleRules: движок', () => {
     // (TECH-009), а страница с fetchError делает граф ссылок неполным
     // (TECH-010/011). Плюс один: недочитанная страница остаётся незавершённой
     // проверкой и у TECH-010 — снимка, по которому можно было бы судить, нет.
-    expect(result.applicableChecks).toBe(34);
-    expect(result.completedApplicableChecks).toBe(18);
+    expect(result.applicableChecks).toBe(38);
+    expect(result.completedApplicableChecks).toBe(20);
   });
 
   it('site-level: normalizedUrl пуст, fingerprint по D-019, агрегаты 1/1', () => {

@@ -180,3 +180,6 @@ export const EVIDENCE_EXCERPT_MAX_CHARS = 2048;
 
 // CONTENT-003 boundary: a page with fewer visible text characters is empty/low-value.
 export const CONTENT_LOW_VALUE_MIN_VISIBLE_CHARS = 200;
+
+/** Separate from media: CSS/JS/fonts cannot consume image probes. */
+export const RENDER_RESOURCE_PROBE_LIMITS = { ...MEDIA_PROBE_LIMITS, maxProbes: 100 } as const;

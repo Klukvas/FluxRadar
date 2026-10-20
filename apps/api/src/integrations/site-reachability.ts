@@ -31,6 +31,8 @@ const PROBE_MAX_BODY_BYTES = 512 * 1024;
 
 export interface SiteReachabilityProbeResult {
   readonly state: SiteReachKind;
+  readonly searchEnginesBlocked?: boolean;
+  readonly blockedSearchEngines?: readonly ('Google' | 'Bing')[];
   /** The start page's status, or null when no response arrived. */
   readonly startStatus: number | null;
   /** safe-fetch's reason when nothing came back at all. */
@@ -56,13 +58,26 @@ export async function probeSiteReachability(
   const now = options.now ?? ((): Date => new Date());
   const fetcher = options.fetcher ?? defaultProbeFetcher(options);
   const startUrl = new URL(origin);
-  const robotsAllows = await robotsAllowsRoot(fetcher, startUrl);
+  const robotsTxt = await fetchRobots(fetcher, startUrl);
+  const robotsAllows =
+    robotsTxt === undefined ||
+    isPathAllowed(
+      parseRobotsTxt(robotsTxt),
+      CRAWLER_USER_AGENT,
+      startUrl.pathname + startUrl.search,
+    );
 
   if (!robotsAllows) {
     // The site told us not to read it. We do not fetch the page to confirm —
     // asking anyway would be the one thing this product promises not to do.
     return verdict(
-      assessSiteReach(crawlResultOf(origin, [], [safeNormalize(startUrl.href)]), origin),
+      assessSiteReach(
+        {
+          ...crawlResultOf(origin, [], [safeNormalize(startUrl.href)]),
+          ...(robotsTxt === undefined ? {} : { robotsTxt }),
+        },
+        origin,
+      ),
       now(),
     );
   }
@@ -77,7 +92,13 @@ function verdict(
 ): SiteReachabilityProbeResult {
   return {
     state: reach.kind,
+    ...(reach.searchEnginesBlocked !== undefined
+      ? { searchEnginesBlocked: reach.searchEnginesBlocked }
+      : {}),
     startStatus: reach.startStatus,
+    ...(reach.blockedSearchEngines === undefined
+      ? {}
+      : { blockedSearchEngines: reach.blockedSearchEngines }),
     fetchError: reach.startFetchError,
     accessControlSignals: reach.accessControlSignals,
     checkedAt,
@@ -91,16 +112,15 @@ function verdict(
  * including a network failure, leaves the host open — the probe's job is to
  * report what the start page does, and a missing robots.txt is not a refusal.
  */
-async function robotsAllowsRoot(
+async function fetchRobots(
   fetcher: (url: string) => Promise<SafeFetchResult>,
   origin: URL,
-): Promise<boolean> {
+): Promise<string | undefined> {
   try {
     const response = await fetcher(`${origin.protocol}//${origin.host}/robots.txt`);
-    if (response.status !== 200) return true;
-    return isPathAllowed(parseRobotsTxt(response.body), CRAWLER_USER_AGENT, '/');
+    return response.status === 200 ? response.body : undefined;
   } catch {
-    return true;
+    return undefined;
   }
 }
 

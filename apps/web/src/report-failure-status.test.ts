@@ -176,3 +176,44 @@ describe('which answers the block says out loud', () => {
     expect(t.kinds['blocked-by-robots']).not.toBe(t.statusMeanings.answeredNotAPage);
   });
 });
+
+it.each(['en', 'uk'] as const)(
+  'names only the blocked search engines in %s and preserves legacy boolean rows',
+  async (language) => {
+    const { searchEngineBlockCopy } = await import('./report-failure-copy');
+    expect(
+      searchEngineBlockCopy(language, {
+        blockedSearchEngines: ['Google'],
+        searchEnginesBlocked: true,
+      }),
+    ).toContain('Google');
+    expect(
+      searchEngineBlockCopy(language, {
+        blockedSearchEngines: ['Google'],
+        searchEnginesBlocked: true,
+      }),
+    ).not.toContain('Bing');
+    expect(
+      searchEngineBlockCopy(language, {
+        blockedSearchEngines: ['Bing'],
+        searchEnginesBlocked: true,
+      }),
+    ).toContain('Bing');
+    expect(
+      searchEngineBlockCopy(language, {
+        blockedSearchEngines: ['Bing'],
+        searchEnginesBlocked: true,
+      }),
+    ).not.toContain('Google');
+    const both = searchEngineBlockCopy(language, {
+      blockedSearchEngines: ['Google', 'Bing'],
+      searchEnginesBlocked: true,
+    });
+    expect(both).toContain('Google');
+    expect(both).toContain('Bing');
+    const legacy = searchEngineBlockCopy(language, { searchEnginesBlocked: true });
+    expect(legacy).not.toMatch(/Google|Bing/);
+    expect(legacy).toContain(language === 'uk' ? 'пошуковим системам' : 'search engines');
+    expect(searchEngineBlockCopy(language, { searchEnginesBlocked: false })).toBeNull();
+  },
+);

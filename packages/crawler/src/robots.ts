@@ -155,3 +155,32 @@ function parseDirective(line: string): { readonly name: string; readonly value: 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+/** Search engines whose entry-page access matters to the audit. */
+export function blockedSearchEngines(content: string, entryUrl: string): readonly string[] {
+  const robots = parseRobotsTxt(content);
+  const url = new URL(entryUrl);
+  return ['Bingbot', 'Googlebot'].filter(
+    (agent) => !isPathAllowed(robots, agent, url.pathname + url.search),
+  );
+}
+
+/** The winning disallow and its selected group, for reproducible evidence. */
+export function robotsBlockEvidence(content: string, agent: string, entryUrl: string): string {
+  const robots = parseRobotsTxt(content);
+  const url = new URL(entryUrl);
+  const selected = selectRules(robots, agent);
+  const rule = selected
+    .filter(
+      (candidate) =>
+        candidate.type === 'disallow' &&
+        matchesPattern(candidate.pattern, url.pathname + url.search),
+    )
+    .sort((left, right) => right.pattern.length - left.pattern.length)[0];
+  const groups = robots.groups.filter((group) =>
+    group.rules.some((candidate) => candidate === rule),
+  );
+  return groups
+    .map((group) => `User-agent: ${group.userAgents.join(', ')}; Disallow: ${rule?.pattern ?? ''}`)
+    .join('; ');
+}

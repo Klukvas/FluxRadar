@@ -3,6 +3,60 @@
 import { type ExplainedRule } from './types';
 
 export const SEO_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
+  'SEO-ONPAGE-007': {
+    countsPages: true,
+    en: {
+      title: 'Page is not set up for phone screens',
+      what: 'The page does not tell a phone to use its screen width.',
+      why: 'Visitors may need to scroll sideways or read tiny text.',
+      fix: 'Ask your developer to make the page adapt to narrow screens.',
+      count: 'One finding for each affected page.',
+    },
+    uk: {
+      title: 'Сторінка не налаштована для екранів телефонів',
+      what: 'Сторінка не вказує телефону використовувати ширину його екрана.',
+      why: 'Відвідувачам може доводитися прокручувати вбік або читати дрібний текст.',
+      fix: 'Попросіть розробника адаптувати сторінку до вузьких екранів.',
+      count: 'Одна знахідка на кожну сторінку з проблемою.',
+    },
+  },
+
+  'SEO-TECH-016': {
+    countsPages: false,
+    en: {
+      title: 'Files needed to display the page do not load',
+      what: 'A file used to display the page returned an error when checked.',
+      why: 'Missing styles, scripts or fonts can prevent the page from looking or working as intended.',
+      fix: 'Ask your developer to restore the file or correct its address.',
+      count: 'One finding per failed file on each page that uses it.',
+    },
+    uk: {
+      title: 'Не завантажуються файли для відображення сторінки',
+      what: 'Файл, потрібний для відображення сторінки, повернув помилку під час перевірки.',
+      why: 'Відсутні стилі, скрипти чи шрифти можуть заважати сторінці виглядати або працювати належним чином.',
+      fix: 'Попросіть розробника відновити файл або виправити його адресу.',
+      count: 'Одна знахідка на кожен недоступний файл на сторінці, яка його використовує.',
+    },
+  },
+
+  'SEO-TECH-015': {
+    countsPages: false,
+    en: {
+      title: 'Search engines cannot read the entry page',
+      what: 'The site’s crawler policy blocks Google or Bing from the entry page.',
+      why: 'Search engines need to read public pages to discover their content.',
+      fix: 'Ask your developer to allow search engines to read the public site.',
+      count: 'One finding for the site.',
+    },
+    uk: {
+      title: 'Пошуковики не можуть прочитати стартову сторінку',
+      what: 'Політика сайту забороняє Google або Bing читати стартову сторінку.',
+      why: 'Пошуковикам потрібно читати публічні сторінки, щоб знаходити їхній зміст.',
+      fix: 'Попросіть розробника дозволити пошуковикам читати публічний сайт.',
+      count: 'Одна знахідка на сайт.',
+    },
+  },
+
   'SEO-TECH-003': {
     countsPages: true,
     en: {

@@ -1,3 +1,4 @@
+import { content011Placeholder } from './content-011.js';
 // Content Quality-модуль rules-mvp-0.1 (T-09). Порядок — по ruleId реестра.
 
 import type { Rule } from '../engine/types.js';
@@ -7,6 +8,7 @@ import { content004BrokenMedia } from './content-004.js';
 import { content005LowReadability } from './content-005.js';
 
 export const CONTENT_RULES: readonly Rule[] = [
+  content011Placeholder,
   content001DuplicateContent,
   content003LowValuePages,
   content004BrokenMedia,

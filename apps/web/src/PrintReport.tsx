@@ -1,3 +1,4 @@
+import { searchEngineBlockCopy } from './report-failure-copy';
 // The client report: one finished scan as a document to print or save as PDF.
 //
 // The only thing a buyer could hand to a client or a developer was a JSON or CSV
@@ -284,9 +285,12 @@ function PrintSiteUnread(props: { dashboard: Dashboard; language: Language }) {
   const failure = siteReadFailureOf(props.dashboard.scan, props.dashboard.modules);
   if (failure === null) return null;
   const t = reportFailureCopy[props.language];
+  const searchWarning =
+    failure.kind === 'blocked-by-robots' ? searchEngineBlockCopy(props.language, failure) : null;
   return (
     <p>
       <strong>{t.heading}.</strong> {t.kinds[failure.kind]}
+      {searchWarning === null ? null : ` ${searchWarning}`}
       {/* The status only, for the developer this document is handed to; the
           reason code is an internal word and stays off the page. */}
       {failure.startStatus === null ? null : ` (${t.httpStatus(failure.startStatus)})`}

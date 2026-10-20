@@ -3,6 +3,15 @@
 import type { FindingMessageCatalog } from './catalog.js';
 
 export const CONTENT_MESSAGES = {
+  'content-011.evidence': {
+    en: 'Published placeholder text: “{excerpt}”',
+    uk: 'Опублікований текст-заглушка: «{excerpt}»',
+  },
+  'content-011.recommendation': {
+    en: 'Replace the placeholder with the page’s intended content, or unpublish the unfinished page.',
+    uk: 'Замініть заглушку змістом сторінки або зніміть незавершену сторінку з публікації.',
+  },
+
   // Текст страницы в evidence целиком не влезает и не нужен: читателю хватает
   // его начала, длины и адресов, по которым лежит то же самое. Список адресов
   // ограничен тремя, и текст это говорит: счёт и перечисление расходятся на

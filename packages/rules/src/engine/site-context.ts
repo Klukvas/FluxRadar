@@ -1,3 +1,4 @@
+import type { TlsCertificateSnapshot } from '@fluxradar/safe-fetch';
 // Сборка SiteContext из результата обхода: domain — нормализованный origin
 // (scheme+host+port без path), как его ожидает поле `domain` fingerprint-v1
 // (golden-векторы T-03 используют форму `https://example.com`).
@@ -6,7 +7,7 @@ import type { Plan } from '@fluxradar/contracts';
 import type { CrawlResult } from '@fluxradar/crawler';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
-import type { ApiCheck, SiteContext } from './types.js';
+import type { ApiCheck, SiteContext, MailDnsSnapshot } from './types.js';
 
 export interface SiteContextInput {
   readonly origin: string;
@@ -15,6 +16,8 @@ export interface SiteContextInput {
   readonly robotsTxt?: string;
   /** Явно добавленные API-endpoints (§9, T-09); опционален для T-08-путей. */
   readonly apiChecks?: readonly ApiCheck[];
+  readonly tls?: readonly TlsCertificateSnapshot[];
+  readonly mailDns?: MailDnsSnapshot;
 }
 
 export function normalizedOrigin(origin: string): string {
@@ -24,6 +27,8 @@ export function normalizedOrigin(origin: string): string {
 export function createSiteContext(input: SiteContextInput): SiteContext {
   return {
     origin: input.origin,
+    ...(input.tls === undefined ? {} : { tls: input.tls }),
+    ...(input.mailDns === undefined ? {} : { mailDns: input.mailDns }),
     domain: normalizedOrigin(input.origin),
     crawl: input.crawl,
     ...(input.robotsTxt !== undefined ? { robotsTxt: input.robotsTxt } : {}),

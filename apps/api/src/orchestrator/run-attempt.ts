@@ -38,6 +38,7 @@ import { logEgressUsage, recordEgressUsage } from '../integrations/crawl-egress-
 import { competitorsFromJson } from '../profiles/competitors.ts';
 import { executionProfile } from '../profiles/execution-config.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
+import { collectSiteSecurityFacts } from './site-security-facts.ts';
 import { runApiChecks } from './api-checks.ts';
 import { throwIfCancelled } from './cancellation.ts';
 import {
@@ -618,7 +619,20 @@ export async function runScanAttempt(
           shouldStop: isStopRequested,
         })
       : { checks: [], results: [] };
+  throwIfCancelled(scanId, signal);
+  const securityFacts = modulesToRun.includes('Security')
+    ? await (deps.collectSiteSecurityFacts ?? collectSiteSecurityFacts)(origin, modulesToRun, {
+        ...(egress.proxy === null ? {} : { proxy: egress.proxy }),
+        signal,
+        now,
+        ...(deps.crawl?.dangerouslyAllowLoopback === true
+          ? { dangerouslyAllowLoopback: true }
+          : {}),
+      })
+    : {};
+  throwIfCancelled(scanId, signal);
   const ctx: SiteContext = createSiteContext({
+    ...securityFacts,
     origin,
     crawl: crawlResult,
     plan,

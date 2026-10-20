@@ -17,6 +17,34 @@ export interface RuleTitle {
 }
 
 export const RULE_TITLES: Readonly<Record<string, RuleTitle>> = {
+  'SEO-TECH-015': {
+    en: 'Search engines blocked by robots.txt',
+    uk: 'Пошуковики заблоковані в robots.txt',
+  },
+  'SEO-TECH-016': {
+    en: 'Broken stylesheet, script or font',
+    uk: 'Биті таблиця стилів, скрипт або шрифт',
+  },
+  'SEO-ONPAGE-007': {
+    en: 'Page is not configured for mobile screens',
+    uk: 'Сторінка не налаштована для мобільних екранів',
+  },
+  'SEC-PASSIVE-001': {
+    en: 'TLS certificate is invalid or expires soon',
+    uk: 'TLS-сертифікат недійсний або скоро спливає',
+  },
+  'SEC-PASSIVE-007': {
+    en: 'SPF or DMARC protection is missing or unsafe',
+    uk: 'Захист SPF або DMARC відсутній чи небезпечний',
+  },
+  'A11Y-012': {
+    en: 'Page prevents visitors from zooming in',
+    uk: 'Сторінка забороняє відвідувачам збільшувати вміст',
+  },
+  'CONTENT-011': {
+    en: 'Placeholder text is still published',
+    uk: 'На сторінці залишився текст-заглушка',
+  },
   'SEO-TECH-001': {
     en: 'robots.txt is missing or unreachable',
     uk: 'robots.txt відсутній або недоступний',

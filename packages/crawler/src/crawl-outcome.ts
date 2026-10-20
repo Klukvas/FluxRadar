@@ -15,6 +15,8 @@
 
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
+import { blockedSearchEngines } from './robots.js';
+
 import type { CrawlResult, PageSnapshot } from './types.js';
 
 /**
@@ -80,6 +82,8 @@ export type SiteReachKind =
 
 export interface SiteReach {
   readonly kind: SiteReachKind;
+  readonly searchEnginesBlocked?: boolean;
+  readonly blockedSearchEngines?: readonly ('Google' | 'Bing')[];
   /** Normalized start address the verdict is about. */
   readonly startUrl: string;
   /** Status of the start page; null when no response arrived at all. */
@@ -147,6 +151,19 @@ export function assessSiteReach(result: CrawlResult, origin: string): SiteReach 
     return {
       ...base,
       kind: result.blockedByRobots.includes(startUrl) ? 'blocked-by-robots' : 'unreachable',
+      ...(result.blockedByRobots.includes(startUrl)
+        ? {
+            searchEnginesBlocked:
+              result.robotsTxt !== undefined &&
+              blockedSearchEngines(result.robotsTxt, origin).length > 0,
+            blockedSearchEngines:
+              result.robotsTxt === undefined
+                ? []
+                : blockedSearchEngines(result.robotsTxt, origin).map((agent): 'Google' | 'Bing' =>
+                    agent === 'Googlebot' ? 'Google' : 'Bing',
+                  ),
+          }
+        : {}),
     };
   }
   if (startPage.fetchError !== undefined || startPage.status === 0) {

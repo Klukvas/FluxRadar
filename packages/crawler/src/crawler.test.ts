@@ -75,7 +75,9 @@ describe('crawl: fixture-сайт', () => {
     const origin = site.origin;
     const expected = [
       `${origin}/`,
+      `${origin}/broken-css.html`,
       `${origin}/broken-image.html`,
+      `${origin}/broken-js.html`,
       `${origin}/broken-link.html`,
       `${origin}/deep/`,
       `${origin}/deep/level2/page.html`,

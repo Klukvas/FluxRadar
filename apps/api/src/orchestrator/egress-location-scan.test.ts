@@ -99,6 +99,7 @@ describe('a scan crawls from the location it recorded', () => {
       createAiProvider: (scan, profile) =>
         createDefaultAiProvider(profile.name, new URL(scan.domain).hostname),
       createPerformanceRunner: () => undefined,
+      collectSiteSecurityFacts: async () => ({}),
       egressLocations: [KYIV, FRANKFURT],
       crawl: {
         fetcher: async (url) => {

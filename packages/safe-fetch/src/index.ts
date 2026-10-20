@@ -26,3 +26,6 @@ export {
   safeFetch,
   validatePublicUrl,
 } from './safe-fetch.js';
+
+export { inspectTlsCertificate } from './tls-certificate.js';
+export type { TlsCertificateSnapshot, InspectTlsOptions } from './tls-certificate.js';

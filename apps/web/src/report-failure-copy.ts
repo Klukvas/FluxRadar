@@ -21,6 +21,8 @@ export type SiteReadFailureKind =
 
 export interface SiteReadFailure {
   readonly kind: SiteReadFailureKind;
+  readonly searchEnginesBlocked?: boolean;
+  readonly blockedSearchEngines?: readonly ('Google' | 'Bing')[];
   /** The raw reason, kept for the "technical details" line only. */
   readonly reasonCode: string | null;
   /** What the start page answered; null when no response arrived at all. */
@@ -102,6 +104,12 @@ export function siteReadFailureOf(
   const reasonCode = scan.statusReason?.trim() || moduleReason?.trim() || null;
   return {
     kind: kindOf(summary, reasonCode),
+    ...(summary?.searchEnginesBlocked === undefined
+      ? {}
+      : { searchEnginesBlocked: summary.searchEnginesBlocked }),
+    ...(summary?.blockedSearchEngines === undefined
+      ? {}
+      : { blockedSearchEngines: summary.blockedSearchEngines }),
     reasonCode,
     startStatus: realStatusOf(summary),
     accessControlSignals: summary?.accessControlSignals ?? [],
@@ -544,4 +552,25 @@ export function technicalDetailsOf(failure: SiteReadFailure, language: Language)
     failure.accessControlSignals.length === 0 ? null : failure.accessControlSignals.join(', '),
   ].filter((part): part is string => part !== null && part !== '');
   return parts.length === 0 ? null : t.technicalDetails(parts.join(' · '));
+}
+
+/** Old rows carry only the boolean; never invent which search engines they blocked. */
+export function searchEngineBlockCopy(
+  language: Language,
+  value: {
+    readonly searchEnginesBlocked?: boolean;
+    readonly blockedSearchEngines?: readonly ('Google' | 'Bing')[];
+  },
+): string | null {
+  const names = [...new Set(value.blockedSearchEngines ?? [])];
+  if (names.length === 0 && value.searchEnginesBlocked !== true) return null;
+  const agents =
+    names.length === 0
+      ? language === 'uk'
+        ? 'пошуковим системам'
+        : 'search engines'
+      : names.join(language === 'uk' ? ' і ' : ' and ');
+  return language === 'uk'
+    ? `Цей robots.txt забороняє ${agents} читати сайт, через що його сторінки можуть не з’являтися в пошуку.`
+    : `This robots.txt prevents ${agents} from crawling the site, which can keep its pages out of search results.`;
 }

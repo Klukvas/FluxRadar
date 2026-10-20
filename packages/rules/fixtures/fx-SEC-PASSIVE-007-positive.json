@@ -1,0 +1,15 @@
+{
+  "pages": [],
+  "mailDns": {
+    "domain": "fixture.test",
+    "observedAt": "2026-10-19T00:00:00Z",
+    "spf": {
+      "status": "checked",
+      "records": []
+    },
+    "dmarc": {
+      "status": "checked",
+      "records": []
+    }
+  }
+}

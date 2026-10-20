@@ -3,6 +3,24 @@
 import { type ExplainedRule } from './types';
 
 export const ACCESSIBILITY_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
+  'A11Y-012': {
+    countsPages: true,
+    en: {
+      title: 'Visitors cannot enlarge the page enough',
+      what: 'The page limits how much a visitor can enlarge it.',
+      why: 'People with low vision may be unable to make the text readable.',
+      fix: 'Ask your developer to allow visitors to enlarge the page at least twofold.',
+      count: 'One finding for each affected page.',
+    },
+    uk: {
+      title: 'Відвідувачі не можуть достатньо збільшити сторінку',
+      what: 'Сторінка обмежує збільшення її вмісту відвідувачем.',
+      why: 'Людям зі слабким зором може бути важко зробити текст читабельним.',
+      fix: 'Попросіть розробника дозволити збільшення сторінки щонайменше вдвічі.',
+      count: 'Одна знахідка на кожну сторінку з проблемою.',
+    },
+  },
+
   'A11Y-003': {
     countsPages: true,
     en: {

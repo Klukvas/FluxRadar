@@ -1,3 +1,4 @@
+import type { collectSiteSecurityFacts } from './site-security-facts.ts';
 // Зависимости worker-а. Всё внешнее инъектируется: AI-провайдер (mock/real),
 // crawl-параметры (loopback-режим и подмена origin — только для тестов на
 // fixture-сайте) и часы. Продовые дефолты собирает main.ts.
@@ -34,6 +35,8 @@ export interface WorkerCrawlOptions {
 }
 
 export interface WorkerDeps {
+  /** Deterministic passive network facts when the crawl transport is injected. */
+  readonly collectSiteSecurityFacts?: typeof collectSiteSecurityFacts;
   readonly prisma: PrismaClient;
   readonly logger: ApiLogger;
   /** Фабрика AI-провайдера скана: мок собирается под brand/домен профиля. */

@@ -70,3 +70,6 @@ export function isCloudflareEmailObfuscationUrl(url: URL): boolean {
  * set of files a report calls broken is exactly the set the crawl asked about.
  */
 export const MEDIA_SELECTOR = 'img[src], source[src], video[src], audio[src]';
+
+export const RENDER_RESOURCE_SELECTOR =
+  'link[rel~=stylesheet][href], script[src], link[rel=preload][as=font][href]';

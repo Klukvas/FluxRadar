@@ -78,7 +78,9 @@ function findingPathsByRule(module: ModuleName): Readonly<Record<string, readonl
 
 const ALL_HTML_PAGES = [
   '/',
+  '/broken-css.html',
   '/broken-image.html',
+  '/broken-js.html',
   '/broken-link.html',
   '/deep/',
   '/deep/level2/page.html',
@@ -122,9 +124,9 @@ describe('passive-модули на fixture-сайте краулера', () => 
     const byRule = new Map(
       moduleResult('Reliability').evaluations.map((entry) => [entry.ruleId, entry]),
     );
-    expect(byRule.get('REL-URL-001')?.applicableTargets).toBe(20);
-    expect(byRule.get('REL-URL-003')?.applicableTargets).toBe(20);
-    expect(byRule.get('REL-URL-009')?.applicableTargets).toBe(20);
+    expect(byRule.get('REL-URL-001')?.applicableTargets).toBe(22);
+    expect(byRule.get('REL-URL-003')?.applicableTargets).toBe(22);
+    expect(byRule.get('REL-URL-009')?.applicableTargets).toBe(22);
     expect(byRule.get('REL-API-003')?.applicableTargets).toBe(0);
     expect(byRule.get('REL-API-005')?.applicableTargets).toBe(0);
   });
@@ -134,7 +136,9 @@ describe('passive-модули на fixture-сайте краулера', () => 
       'A11Y-002': ['/broken-image.html'],
       'A11Y-003': ['/empty.html'],
       'A11Y-004': ['/form.html'],
-      'A11Y-010': ALL_HTML_PAGES,
+      'A11Y-010': ALL_HTML_PAGES.filter(
+        (path) => !['/broken-css.html', '/broken-js.html'].includes(path),
+      ),
     });
     const unlabelled = moduleResult('Accessibility').findings.find(
       (finding) => finding.ruleId === 'A11Y-004',
@@ -161,7 +165,14 @@ describe('passive-модули на fixture-сайте краулера', () => 
       // настоящий. Остаётся /dup-b.html, которая делит текст ни с кем не
       // связавшись.
       'CONTENT-001': ['/dup-b.html'],
-      'CONTENT-003': ['/deep/level2/page.html', '/empty.html', '/orphan.html', '/trackers.html'],
+      'CONTENT-003': [
+        '/broken-css.html',
+        '/broken-js.html',
+        '/deep/level2/page.html',
+        '/empty.html',
+        '/orphan.html',
+        '/trackers.html',
+      ],
       // Ровно одна страница: та, чью media проба обхода застала битой. Ни одна
       // из остальных за непроверенный ресурс не штрафуется.
       'CONTENT-004': ['/broken-image.html'],
@@ -205,16 +216,16 @@ describe('passive-модули на fixture-сайте краулера', () => 
   });
 
   it('coverage: снимков без fetchError 20 → все checks каждого модуля завершены', () => {
-    expect(crawlResult.pages).toHaveLength(20);
+    expect(crawlResult.pages).toHaveLength(22);
     const expectedChecks: Readonly<Record<string, number>> = {
       // SEC-PASSIVE-002×19 + SEC-PASSIVE-005×20 + ASVS-001×19 + ASVS-002×19 +
       // ASVS-003×20 + SEC-PASSIVE-003×0 (HSTS is Not applicable on loopback
       // http, see the module header) = 19+20+19+19+20+0 = 97.
-      Security: 97,
+      Security: 107,
       // REL-URL-001/003/009×20; api-правила без ctx.apiChecks — 0.
-      Reliability: 60,
+      Reliability: 66,
       // A11Y-001..010 ×19 HTML pages + A11Y-011 site report contract ×1.
-      Accessibility: 191,
+      Accessibility: 232,
       // CONTENT-001/003/004×19 + CONTENT-005×2. hard-prose.html and
       // easy-prose.html clear MIN_PROSE_SENTENCES (5) and MIN_PROSE_WORDS (100)
       // on their own single <p>. Every other page — including / — stays
@@ -225,9 +236,9 @@ describe('passive-модули на fixture-сайте краулера', () => 
       // both floors. form.html and wrong-canonical.html are the same shape:
       // a heading plus one short paragraph, still under MIN_PROSE_WORDS.
       // 19+19+19+2 = 59.
-      'Content Quality': 59,
+      'Content Quality': 86,
       // PRIVACY-001×20 + PRIVACY-002×19 + PRIVACY-003×19 + PRIVACY-004×1.
-      Privacy: 59,
+      Privacy: 65,
     };
     for (const module of PASSIVE_MODULES) {
       const result = moduleResult(module);

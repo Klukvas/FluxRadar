@@ -3,6 +3,31 @@
 import type { FindingMessageCatalog } from './catalog.js';
 
 export const SEO_MESSAGES = {
+  'seo-tech-016.evidence': {
+    en: 'Render resource {url} failed: {detail}',
+    uk: 'Ресурс відображення {url} недоступний: {detail}',
+  },
+  'seo-tech-016.recommendation': {
+    en: 'Fix the resource URL or restore the stylesheet, script or font file.',
+    uk: 'Виправте URL ресурсу або відновіть файл стилів, скрипту чи шрифту.',
+  },
+
+  'seo-tech-015.evidence': {
+    en: 'robots.txt blocks {agents}: {directives}',
+    uk: 'robots.txt блокує {agents}: {directives}',
+  },
+  'seo-tech-015.recommendation': {
+    en: 'Allow search engines to crawl the public entry page in robots.txt.',
+    uk: 'Дозвольте пошуковикам обходити публічну точку входу в robots.txt.',
+  },
+  'seo-onpage-007.evidence': {
+    en: 'Viewport does not declare width=device-width: {value}',
+    uk: 'Viewport не містить width=device-width: {value}',
+  },
+  'seo-onpage-007.recommendation': {
+    en: 'Use a responsive layout and <meta name="viewport" content="width=device-width, initial-scale=1">.',
+    uk: 'Використовуйте адаптивну верстку та <meta name="viewport" content="width=device-width, initial-scale=1">.',
+  },
   'seo-tech-001.evidence': {
     en: 'GET {url} did not return HTTP 200, so robots.txt is missing or unreachable',
     uk: 'GET {url} не повернув HTTP 200 — robots.txt відсутній або недоступний',

@@ -5,7 +5,7 @@
 // can be healthy in one run and gone in the next — which is exactly the
 // difference between "the owner fixed it" and "we stopped looking".
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient, Scan } from '@prisma/client';
 import { AiRequestAbortedError, CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import type { AiProvider, MockAiFixture } from '@fluxradar/ai';
@@ -189,6 +189,7 @@ function workerDeps(
     logger: silentLogger,
     createAiProvider: () => aiProvider(),
     createPerformanceRunner: performanceRunner(),
+    collectSiteSecurityFacts: async () => ({}),
     crawl: { fetcher: siteFetcher(shape) },
     ...overrides,
   };
@@ -554,6 +555,79 @@ describe('stopping a running scan: only a cancellation stops it', () => {
 
 describe('a finished Complete run', () => {
   let db: TestDb | undefined;
+
+  it('stops after cancellation during passive security collection before running any module', async () => {
+    db = await createTestDb();
+    const prisma = db.prisma;
+    const account = await seedAccountWithProfile(prisma);
+    const scan = await queueCompleteScan(prisma, account);
+    const result = await processScan(
+      workerDeps(
+        prisma,
+        { policyLink: true, robotsTxt: true, pricing: true },
+        {
+          stopPollMs: 5,
+          collectSiteSecurityFacts: async (origin, modules, options) => {
+            expect(origin).toBe(account.domain);
+            expect(modules).toContain('Security');
+            await cancelScan(prisma, scan.id);
+            await waitUntilAborted(options?.signal);
+            return {};
+          },
+        },
+      ),
+      scan.id,
+    );
+    expect(result.outcome).toBe('Cancelled');
+    expect(
+      await prisma.scanModule.count({ where: { scanId: scan.id, runtimeStatus: 'Completed' } }),
+    ).toBe(0);
+  });
+
+  it.each(['Free', 'Basic', 'Complete'] as const)(
+    'collects passive network facts only when %s runs Security',
+    async (plan) => {
+      db = await createTestDb();
+      const account = await seedAccountWithProfile(db.prisma);
+      const scan = await queueCompleteScan(db.prisma, account);
+      await db.prisma.scan.update({ where: { id: scan.id }, data: { plan } });
+      const collect = vi.fn<NonNullable<WorkerDeps['collectSiteSecurityFacts']>>(async () => ({}));
+      const proxy = { host: 'proxy.fixture.invalid', port: 8080, credentials: null };
+      await processScan(
+        workerDeps(
+          db.prisma,
+          { policyLink: true, robotsTxt: true, pricing: true },
+          {
+            collectSiteSecurityFacts: collect,
+            crawl: {
+              fetcher: siteFetcher({ policyLink: true, robotsTxt: true, pricing: true }),
+              egressProxy: proxy,
+            },
+            probeEgress: async () => ({
+              state: 'healthy',
+              observedIp: null,
+              expectedIp: null,
+              latencyMs: 1,
+              detail: null,
+              checkedAt: new Date(),
+            }),
+          },
+        ),
+        scan.id,
+      );
+      if (plan !== 'Complete') {
+        expect(collect).not.toHaveBeenCalled();
+        return;
+      }
+      expect(collect).toHaveBeenCalledOnce();
+      expect(collect).toHaveBeenCalledWith(
+        account.domain,
+        expect.arrayContaining(['Security']),
+        expect.objectContaining({ signal: expect.any(AbortSignal), now: expect.any(Function) }),
+      );
+      expect(collect.mock.calls[0]?.[2]?.proxy).toEqual(proxy);
+    },
+  );
 
   afterEach(async () => {
     await db?.cleanup();

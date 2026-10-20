@@ -291,3 +291,31 @@ describe('the site reachability panel', () => {
     expect(await screen.findByText(/Дозвольте FluxRadarBot/)).toBeInTheDocument();
   });
 });
+
+it.each(['en', 'uk'] as const)(
+  'preflight shows concrete search-engine names in %s',
+  async (language) => {
+    stubApi({
+      get: {
+        ...BLOCKED,
+        state: 'blocked-by-robots',
+        startStatus: null,
+        accessControlSignals: [],
+        searchEnginesBlocked: true,
+        blockedSearchEngines: ['Google'],
+      },
+    });
+    render(
+      <SiteReachabilityPanel
+        language={language}
+        profileId="blocked"
+        resolveProfileId={async () => 'blocked'}
+        onResult={() => {}}
+      />,
+    );
+    const phrase = await screen.findByText(
+      language === 'uk' ? /забороняє Google читати сайт/ : /prevents Google from crawling/,
+    );
+    expect(phrase).not.toHaveTextContent('Bing');
+  },
+);

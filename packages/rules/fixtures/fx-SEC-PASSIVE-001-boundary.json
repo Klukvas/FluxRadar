@@ -1,0 +1,12 @@
+{
+  "pages": [],
+  "tls": [
+    {
+      "hostname": "fixture.test",
+      "observedAt": "2026-10-19T00:00:00Z",
+      "status": "checked",
+      "authorized": true,
+      "validTo": "2026-11-02T00:00:00Z"
+    }
+  ]
+}

@@ -1555,3 +1555,93 @@ describe('the Analytics card', () => {
     expect(screen.getByText('Дані Google')).toBeTruthy();
   });
 });
+
+it.each(['en', 'uk'] as const)(
+  'groups AI search separately from neutral training blocks in %s',
+  async (language) => {
+    const geo = moduleOf({
+      module: 'AI SEO / GEO',
+      score: null,
+      metadata: {
+        robots: {
+          status: 'available',
+          agents: [
+            { userAgent: 'OAI-SearchBot', purpose: 'search', status: 'blocked' },
+            { userAgent: 'Claude-User', purpose: 'user-fetch', status: 'allowed' },
+            { userAgent: 'GPTBot', purpose: 'training', status: 'blocked' },
+          ],
+        },
+      },
+    });
+    await openReport(dashboardOf([geo]), language);
+    fireEvent.click(card(language === 'uk' ? 'AI SEO / GEO' : 'AI SEO / GEO'));
+    expect(
+      screen.getByText(language === 'uk' ? 'AI-пошук і відповіді' : 'AI search and answers'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(language === 'uk' ? 'Навчання моделей' : 'Model training'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        language === 'uk'
+          ? /не впливає на появу в AI-пошуку/
+          : /does not affect appearance in AI search/,
+      ),
+    ).toBeInTheDocument();
+    const trainingRow = screen.getByText('GPTBot').closest('li');
+    expect(trainingRow?.querySelector('.module-checks__result--skipped')).not.toBeNull();
+    expect(trainingRow?.querySelector('.module-checks__result--failed')).toBeNull();
+  },
+);
+
+it.each(['en', 'uk'] as const)('localizes the seven added checks in %s', async (language) => {
+  const titles =
+    language === 'en'
+      ? [
+          'Search engines blocked by robots.txt',
+          'Broken stylesheet, script or font',
+          'Page is not configured for mobile screens',
+          'TLS certificate is invalid or expires soon',
+          'SPF or DMARC protection is missing or unsafe',
+          'Page prevents visitors from zooming in',
+          'Placeholder text is still published',
+        ]
+      : [
+          'Пошуковики заблоковані в robots.txt',
+          'Биті таблиця стилів, скрипт або шрифт',
+          'Сторінка не налаштована для мобільних екранів',
+          'TLS-сертифікат недійсний або скоро спливає',
+          'Захист SPF або DMARC відсутній чи небезпечний',
+          'Сторінка забороняє відвідувачам збільшувати вміст',
+          'На сторінці залишився текст-заглушка',
+        ];
+  const ids = [
+    'SEO-TECH-015',
+    'SEO-TECH-016',
+    'SEO-ONPAGE-007',
+    'SEC-PASSIVE-001',
+    'SEC-PASSIVE-007',
+    'A11Y-012',
+    'CONTENT-011',
+  ];
+  await openReport(
+    dashboardOf([
+      moduleOf({
+        module: 'SEO',
+        metadata: {
+          ruleChecks: ids.map((ruleId) => ({
+            ruleId,
+            title: ruleId,
+            targetKind: 'page',
+            scoring: 'scored',
+            applicableTargets: 1,
+            affectedTargets: 0,
+          })),
+        },
+      }),
+    ]),
+    language,
+  );
+  fireEvent.click(card('SEO'));
+  for (const title of titles) expect(screen.getByText(title, { exact: true })).toBeInTheDocument();
+});

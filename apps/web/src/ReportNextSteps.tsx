@@ -1,3 +1,4 @@
+import { searchEngineBlockCopy } from './report-failure-copy';
 // What a report asks the owner to do next.
 //
 // The dashboard ended in section cards and a button to a flat list: nothing
@@ -533,6 +534,9 @@ export function SiteUnreadBlock(props: {
       {props.plan === 'Free' ? null : <p>{t.paidNotDelivered}</p>}
       <h4>{t.whatWeSaw}</h4>
       <p>{t.kinds[props.failure.kind]}</p>
+      {props.failure.kind === 'blocked-by-robots' ? (
+        <p>{searchEngineBlockCopy(props.language, props.failure)}</p>
+      ) : null}
       {statusClass === null ? null : <p>{t.statusMeanings[statusClass]}</p>}
       {guidance.causes.length === 0 ? null : (
         <>

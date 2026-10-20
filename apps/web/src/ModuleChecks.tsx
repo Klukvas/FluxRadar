@@ -683,16 +683,36 @@ function CrawlerAccess(props: { checks: GeoChecks; language: Language }) {
       {props.checks.robotsReadable && props.checks.crawlers.length > 0 ? (
         <>
           <p className="muted">{t.geoCrawlersLead}</p>
-          <ul className="module-checks__list">
-            {props.checks.crawlers.map((crawler) => (
-              <CheckRow
-                key={crawler.userAgent}
-                resultClass={CRAWLER_CLASS[crawler.status]}
-                resultLabel={labels[crawler.status]}
-                title={crawler.userAgent}
-              />
-            ))}
-          </ul>
+          {(['search', 'training'] as const).map((group) => {
+            const crawlers = props.checks.crawlers.filter((crawler) =>
+              group === 'training'
+                ? crawler.purpose === 'training'
+                : crawler.purpose !== 'training',
+            );
+            if (crawlers.length === 0) return null;
+            return (
+              <div key={group}>
+                <h5 className="module-checks__subheading">
+                  {group === 'training' ? t.geoTrainingHeading : t.geoSearchHeading}
+                </h5>
+                {group === 'training' ? <p className="muted">{t.geoTrainingNote}</p> : null}
+                <ul className="module-checks__list">
+                  {crawlers.map((crawler) => (
+                    <CheckRow
+                      key={crawler.userAgent}
+                      resultClass={
+                        group === 'training' && crawler.status === 'blocked'
+                          ? 'skipped'
+                          : CRAWLER_CLASS[crawler.status]
+                      }
+                      resultLabel={labels[crawler.status]}
+                      title={crawler.userAgent}
+                    />
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </>
       ) : (
         <p className="muted">{t.geoRobotsUnavailable}</p>

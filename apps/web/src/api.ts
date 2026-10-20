@@ -285,6 +285,8 @@ export interface SiteReachability {
   readonly state:
     'reachable' | 'access-denied' | 'blocked-by-robots' | 'unreachable' | 'bad-response' | null;
   readonly startStatus?: number | null;
+  readonly searchEnginesBlocked?: boolean;
+  readonly blockedSearchEngines?: readonly ('Google' | 'Bing')[];
   readonly accessControlSignals?: readonly string[];
   readonly checkedAt: string | null;
   readonly expired?: boolean;
@@ -297,6 +299,8 @@ export type MentionSignal =
 
 /** Mirrors `crawlSummarySchema` in @fluxradar/contracts. */
 export interface CrawlSummary {
+  readonly searchEnginesBlocked?: boolean;
+  readonly blockedSearchEngines?: readonly ('Google' | 'Bing')[];
   readonly reach:
     'reachable' | 'access-denied' | 'blocked-by-robots' | 'unreachable' | 'bad-response';
   readonly startStatus: number | null;

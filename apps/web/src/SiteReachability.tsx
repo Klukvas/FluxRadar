@@ -1,3 +1,4 @@
+import { searchEngineBlockCopy } from './report-failure-copy';
 // Can we read this site? — asked on the scan form, before the pay button.
 //
 // A customer could buy a paid audit of a site that refuses our crawler, wait
@@ -223,6 +224,11 @@ function Body(props: { language: Language; state: PanelState }) {
       <div className="reach-verdict__text">
         <strong className="reach-verdict__label">{verdict.label}</strong>
         <p className="reach-verdict__body">{verdict.body}</p>
+        {!expired &&
+        result.state === 'blocked-by-robots' &&
+        searchEngineBlockCopy(props.language, result) !== null ? (
+          <p className="reach-verdict__body">{searchEngineBlockCopy(props.language, result)}</p>
+        ) : null}
         {result.startStatus === null || result.canPurchase ? null : (
           <p className="reach-verdict__meta">
             {fillCopy(t.answeredWith, { status: String(result.startStatus) })}

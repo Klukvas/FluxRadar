@@ -225,3 +225,24 @@ describe('assessSiteReach', () => {
     expect(reach.kind).toBe('reachable');
   });
 });
+
+it.each([
+  ['User-agent: *\nDisallow: /', true],
+  ['User-agent: FluxRadarBot\nDisallow: /', false],
+  ['User-agent: *\nDisallow: /\nUser-agent: Googlebot\nAllow: /', true],
+])('robots refusal search-engine flag %s', (robotsTxt, blocked) => {
+  const reach = assessSiteReach(result({ blockedByRobots: [`${ORIGIN}/`], robotsTxt }), ORIGIN);
+  expect(reach).toMatchObject({ kind: 'blocked-by-robots', searchEnginesBlocked: blocked });
+});
+
+it.each([
+  ['Googlebot', ['Google']],
+  ['Bingbot', ['Bing']],
+  ['*', ['Bing', 'Google']],
+] as const)('names blocked search engines for %s', (agent, names) => {
+  const robotsTxt = `User-agent: FluxRadarBot\nDisallow: /\nUser-agent: ${agent}\nDisallow: /`;
+  expect(
+    assessSiteReach(result({ blockedByRobots: [`${ORIGIN}/`], robotsTxt }), ORIGIN)
+      .blockedSearchEngines,
+  ).toEqual(names);
+});

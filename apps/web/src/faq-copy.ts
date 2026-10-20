@@ -81,7 +81,7 @@ function faqSections(sections: Record<FaqSectionId, FaqSectionText>): readonly F
 
 export const faqCopyEn: FaqCopy = {
   kicker: 'FLUXRADAR / FREQUENTLY ASKED QUESTIONS',
-  meta: ['Updated 2026-09-27', 'No account needed to read this'],
+  meta: ['Updated 2026-10-19', 'No account needed to read this'],
   title: 'Every check, explained in plain language',
   lede: 'What each FluxRadar check looks at, what the report can prove, and where the honest limits are. Written for site owners, not only for engineers.',
   back: '← Back to home',
@@ -169,7 +169,7 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'What does the SEO check look at?',
           answer: [
-            'Twenty-one rule-based checks, split between the technical side and the page side. Technical: robots.txt, the XML sitemap, HTTP status codes, canonical tags, redirect chains, broken internal links, duplicate URLs, noindex signals, mixed content on HTTPS pages, pages the sitemap lists that nothing links to, how many link hops separate a page from the entry URL, and pages held by a single internal link.',
+            'Twenty-four rule-based checks, split between the technical side and the page side. Technical: robots.txt, the XML sitemap, HTTP status codes, canonical tags, redirect chains, broken internal links, duplicate URLs, noindex signals, mixed content on HTTPS pages, pages the sitemap lists that nothing links to, how many link hops separate a page from the entry URL, and pages held by a single internal link, search-engine blocks in robots.txt, broken same-site CSS/JS/fonts, and mobile viewport configuration.',
             'On the page: the title and the meta description — each for presence, length and uniqueness across the crawled pages — the heading structure, image alt text, JSON-LD structured data (both its syntax and whether the required properties are there) and the social preview tags. A title or description another crawled page already uses is reported unless a canonical link ties the two pages together.',
             'These are deterministic rules, not opinions: the same page produces the same findings every time.',
           ],
@@ -191,7 +191,7 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'What does AI SEO mean here?',
           answer: [
-            'Two practical things. First, whether AI crawlers are allowed to fetch your pages at all: your robots.txt is parsed for the known agents — GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended and Bytespider — and each is reported as allowed, blocked or simply not mentioned.',
+            'Two practical things. First, whether AI crawlers are allowed to fetch your pages at all: your robots.txt is parsed for the known agents — OAI-SearchBot, Claude-SearchBot, PerplexityBot, ChatGPT-User, Claude-User and Perplexity-User for AI search and answers; GPTBot, ClaudeBot, Google-Extended, Applebot-Extended, CCBot and Bytespider for training. Blocking training does not affect appearance in AI search — and each is reported as allowed, blocked or simply not mentioned.',
             'Second, whether a machine that does fetch a page can understand it: is there real extractable text rather than an empty shell, is there structured data describing what the page is about, and is there a social preview so a shared link is not blank.',
           ],
         },
@@ -406,7 +406,7 @@ export const faqCopyEn: FaqCopy = {
 
 export const faqCopyUk: FaqCopy = {
   kicker: 'FLUXRADAR / ЧАСТІ ПИТАННЯ',
-  meta: ['Оновлено 2026-09-27', 'Акаунт для читання не потрібен'],
+  meta: ['Оновлено 2026-10-19', 'Акаунт для читання не потрібен'],
   title: 'Кожна перевірка простими словами',
   lede: 'Що саме дивиться кожна перевірка FluxRadar, що звіт може довести, а де проходять чесні межі. Написано для власників сайтів, а не лише для інженерів.',
   back: '← Назад на головну',
@@ -494,7 +494,7 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Що саме перевіряє SEO-модуль?',
           answer: [
-            'Двадцять одне правило, поділене на технічну та сторінкову частини. Технічна: robots.txt, XML-мапа сайту, коди HTTP-статусів, канонічні теги, ланцюжки редиректів, биті внутрішні посилання, дублікати адрес, сигнали noindex, змішаний контент на HTTPS-сторінках, сторінки з мапи сайту, на які ніщо не посилається, кількість переходів за посиланнями від точки входу та сторінки, які тримає єдине внутрішнє посилання.',
+            'Двадцять чотири правила, поділене на технічну та сторінкову частини. Технічна: robots.txt, XML-мапа сайту, коди HTTP-статусів, канонічні теги, ланцюжки редиректів, биті внутрішні посилання, дублікати адрес, сигнали noindex, змішаний контент на HTTPS-сторінках, сторінки з мапи сайту, на які ніщо не посилається, кількість переходів за посиланнями від точки входу та сторінки, які тримає єдине внутрішнє посилання, блокування пошуковиків у robots.txt, биті CSS/JS/шрифти свого сайту та мобільний viewport.',
             'Сторінкова: заголовок і meta description — кожен на наявність, довжину та унікальність серед обійдених сторінок, — структура заголовків, alt-тексти зображень, структуровані дані JSON-LD (і синтаксис, і наявність обовʼязкових властивостей) та теги соціального прев’ю. Заголовок або опис, який уже має інша обійдена сторінка, потрапляє у звіт, якщо канонічне посилання не пов’язує ці дві сторінки.',
             'Це детерміновані правила, а не оцінки на смак: та сама сторінка щоразу дає той самий результат.',
           ],
@@ -516,7 +516,7 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Що тут означає AI SEO?',
           answer: [
-            'Дві практичні речі. Перша: чи взагалі дозволено AI-роботам завантажувати ваші сторінки — robots.txt розбирається на відомі агенти (GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended, Bytespider), і кожен позначається як дозволений, заблокований або просто не згаданий.',
+            'Дві практичні речі. Перша: чи взагалі дозволено AI-роботам завантажувати ваші сторінки — robots.txt розбирається на відомі агенти (OAI-SearchBot, Claude-SearchBot, PerplexityBot, ChatGPT-User, Claude-User, Perplexity-User для AI-пошуку й відповідей; GPTBot, ClaudeBot, Google-Extended, Applebot-Extended, CCBot, Bytespider для навчання. Блокування навчання не впливає на появу в AI-пошуку), і кожен позначається як дозволений, заблокований або просто не згаданий.',
             'Друга: чи зможе машина, яка все ж завантажила сторінку, її зрозуміти — чи є реальний текст, який можна витягти, чи є структуровані дані про суть сторінки, чи є соціальне прев’ю, щоб надіслане посилання не виглядало порожнім.',
           ],
         },

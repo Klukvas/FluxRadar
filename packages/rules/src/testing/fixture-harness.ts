@@ -98,6 +98,28 @@ const FixtureScopeSchema = z
 const FIXTURE_MAX_PAGES = 1000;
 
 const SiteFixtureSchema = z.object({
+  tls: z
+    .array(
+      z.object({
+        hostname: z.string(),
+        observedAt: z.string(),
+        status: z.enum(['checked', 'unverified']),
+        authorized: z.boolean(),
+        validFrom: z.string().optional(),
+        validTo: z.string().optional(),
+        authorizationError: z.string().optional(),
+        issuer: z.string().optional(),
+      }),
+    )
+    .optional(),
+  mailDns: z
+    .object({
+      domain: z.string(),
+      observedAt: z.string(),
+      spf: z.object({ status: z.enum(['checked', 'unverified']), records: z.array(z.string()) }),
+      dmarc: z.object({ status: z.enum(['checked', 'unverified']), records: z.array(z.string()) }),
+    })
+    .optional(),
   origin: z.string().default(FIXTURE_ORIGIN),
   scope: FixtureScopeSchema,
   robotsTxt: z.string().optional(),
@@ -185,6 +207,8 @@ function siteContextFromFixture(fixture: z.output<typeof SiteFixtureSchema>): Si
     origin: fixture.origin,
     crawl,
     plan: 'Complete',
+    ...(fixture.tls === undefined ? {} : { tls: fixture.tls }),
+    ...(fixture.mailDns === undefined ? {} : { mailDns: fixture.mailDns }),
     ...(fixture.apiChecks.length > 0 ? { apiChecks: fixture.apiChecks } : {}),
   });
 }

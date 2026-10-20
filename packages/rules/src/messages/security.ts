@@ -3,6 +3,64 @@
 import type { FindingMessageCatalog } from './catalog.js';
 
 export const SECURITY_MESSAGES = {
+  'sec-passive-007.evidence.spf-missing-monitoring': {
+    en: 'No SPF record for {domain}. DMARC is in monitoring mode (p=none); spoofed messages are not blocked.',
+    uk: 'Для {domain} немає запису SPF. DMARC у режимі спостереження (p=none); підроблені листи не блокуються.',
+  },
+  'sec-passive-007.evidence.spf-multiple-monitoring': {
+    en: 'Multiple SPF records for {domain} cause a permanent SPF error. DMARC is in monitoring mode (p=none); spoofed messages are not blocked.',
+    uk: 'Кілька записів SPF для {domain} спричиняють постійну помилку SPF. DMARC у режимі спостереження (p=none); підроблені листи не блокуються.',
+  },
+  'sec-passive-007.evidence.spf-all-monitoring': {
+    en: 'SPF for {domain} permits every sender (+all). DMARC is in monitoring mode (p=none); spoofed messages are not blocked.',
+    uk: 'SPF для {domain} дозволяє всіх відправників (+all). DMARC у режимі спостереження (p=none); підроблені листи не блокуються.',
+  },
+
+  'sec-passive-001.evidence.mismatch': {
+    en: 'TLS certificate does not cover {hostname}. Issuer: {issuer}; expires: {expires}. {detail}',
+    uk: 'TLS-сертифікат не відповідає хосту {hostname}. Видавець: {issuer}; завершення: {expires}. {detail}',
+  },
+
+  'sec-passive-001.evidence.untrusted': {
+    en: 'TLS certificate for {hostname} is not valid for this host or has an untrusted/incomplete chain. Issuer: {issuer}; expires: {expires}. {detail}',
+    uk: 'TLS-сертифікат для {hostname} не відповідає цьому хосту або має недовірений/неповний ланцюжок. Видавець: {issuer}; завершення: {expires}. {detail}',
+  },
+  'sec-passive-001.evidence.not-yet-valid': {
+    en: 'TLS certificate for {hostname} is not yet valid. Issuer: {issuer}; expires: {expires}. {detail}',
+    uk: 'TLS-сертифікат для {hostname} ще не набув чинності. Видавець: {issuer}; завершення: {expires}. {detail}',
+  },
+  'sec-passive-001.evidence.expired': {
+    en: 'TLS certificate for {hostname} has expired. Issuer: {issuer}; expires: {expires}. {detail}',
+    uk: 'TLS-сертифікат для {hostname} прострочений. Видавець: {issuer}; завершення: {expires}. {detail}',
+  },
+  'sec-passive-001.evidence.expiring': {
+    en: 'TLS certificate for {hostname} expires in fewer than 14 days. Issuer: {issuer}; expires: {expires}. {detail}',
+    uk: 'TLS-сертифікат для {hostname} спливає менш ніж за 14 днів. Видавець: {issuer}; завершення: {expires}. {detail}',
+  },
+  'sec-passive-001.recommendation': {
+    en: 'Renew the certificate and serve a valid certificate for this hostname with its complete trusted chain.',
+    uk: 'Оновіть сертифікат і налаштуйте чинний сертифікат для цього хоста з повним довіреним ланцюжком.',
+  },
+  'sec-passive-007.evidence.spf-missing': {
+    en: 'No SPF record for {domain}.',
+    uk: 'Для {domain} немає запису SPF.',
+  },
+  'sec-passive-007.evidence.spf-multiple': {
+    en: 'Multiple SPF records for {domain} cause a permanent SPF error.',
+    uk: 'Кілька записів SPF для {domain} спричиняють постійну помилку SPF.',
+  },
+  'sec-passive-007.evidence.spf-all': {
+    en: 'SPF for {domain} permits every sender (+all).',
+    uk: 'SPF для {domain} дозволяє всіх відправників (+all).',
+  },
+  'sec-passive-007.evidence.dmarc-missing': {
+    en: 'No DMARC record for {domain}.',
+    uk: 'Для {domain} немає запису DMARC.',
+  },
+  'sec-passive-007.recommendation': {
+    en: 'Publish one SPF record authorizing your mail senders and a DMARC record. A p=none policy monitors spoofed mail without blocking it.',
+    uk: 'Опублікуйте один запис SPF із дозволеними поштовими відправниками та запис DMARC. Політика p=none лише спостерігає за підробленими листами, не блокуючи їх.',
+  },
   'sec-passive-002.evidence': {
     en: 'The HTML response is missing security headers ({count}): {headers}',
     uk: 'HTML-відповідь не містить заголовків безпеки ({count}): {headers}',
