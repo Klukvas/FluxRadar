@@ -116,7 +116,7 @@ describe('the home page carries what the visitor asked for through sign-up', () 
     });
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Your website address' }), {
@@ -145,7 +145,7 @@ describe('the home page carries what the visitor asked for through sign-up', () 
     stubApi((path) => (path === '/auth/me' ? failure(401, 'UNAUTHORIZED', 'no') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Your website address' }), {
@@ -171,7 +171,7 @@ describe('the home page carries what the visitor asked for through sign-up', () 
     });
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Start with Basic' }));

@@ -17,7 +17,7 @@ describe('language preference requires optional storage permission', () => {
   });
 
   it('honours a language link in memory without writing optional storage', () => {
-    window.history.replaceState(null, '', '/privacy?lang=uk');
+    window.history.replaceState(null, '', '/uk/privacy');
     expect(readInitialLanguage()).toBe('uk');
     expect(localStorage.getItem('fluxradar.language')).toBeNull();
   });
@@ -30,13 +30,14 @@ describe('language preference requires optional storage permission', () => {
     expect(localStorage.getItem('fluxradar.language')).toBeNull();
   });
 
-  it('lets ?lang= overrule the /uk address', () => {
+  it('keeps the canonical public path language over a query alias', () => {
     window.history.replaceState(null, '', '/uk?lang=en');
-    expect(readInitialLanguage()).toBe('en');
+    expect(readInitialLanguage()).toBe('uk');
   });
 
-  it('reads only the exact /uk path as Ukrainian', () => {
-    expect(readLanguagePath('/')).toBeNull();
+  it('recognizes public path languages and ignores unrelated paths', () => {
+    expect(readLanguagePath('/')).toBe('en');
+    expect(readLanguagePath('/uk/checks')).toBe('uk');
     expect(readLanguagePath('/ukraine')).toBeNull();
     expect(readLanguagePath('/blog/uk')).toBeNull();
   });

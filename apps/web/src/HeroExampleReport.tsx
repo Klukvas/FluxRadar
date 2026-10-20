@@ -1,3 +1,4 @@
+import { publicPagePath } from './public-page-routing';
 // The window beside the hero form: what a report on a small business's site
 // reads like, before the visitor has typed anything. It is a picture of the
 // product, so it is static — but it is real text in a labelled region, not an
@@ -6,7 +7,6 @@
 
 import { useId } from 'react';
 
-import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { copy, type Language } from './i18n';
 
 export function HeroExampleReport(props: { language: Language }) {
@@ -43,7 +43,7 @@ export function HeroExampleReport(props: { language: Language }) {
       </ul>
       <div className="home-hero__window-foot">
         <span>{t.disclaimer}</span>
-        <a href={EXAMPLE_REPORT_PATH}>
+        <a href={publicPagePath('exampleReport', props.language)}>
           {t.link} <span aria-hidden="true">→</span>
         </a>
       </div>

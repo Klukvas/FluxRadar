@@ -178,7 +178,7 @@ describe('what a reported location may contain', () => {
   it('drops the query from any referrer and cleans our own paths', () => {
     const origin = 'https://fluxradar.net';
     expect(analyticsReferrer('https://mail.example/inbox?user=a@b.c', origin)).toBe(
-      'https://mail.example/inbox',
+      'https://mail.example/',
     );
     expect(analyticsReferrer('https://fluxradar.net/scans/x?verify_email=t', origin)).toBe(
       'https://fluxradar.net/scans/:id',

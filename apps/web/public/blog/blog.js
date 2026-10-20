@@ -294,6 +294,7 @@
   function applyLanguage(language, options) {
     currentLanguage = language;
     translateChrome(language);
+    window.fluxradarPublicLinks?.(language);
     syncWorkspaceTabs(language);
     if (!isIndex) {
       renderCookieControls(language);
@@ -471,7 +472,7 @@
     body.appendChild(options.element);
     appendParagraph(body, text.duration);
     var details = document.createElement('a');
-    details.href = '/cookies?lang=' + language;
+    details.href = language === 'uk' ? '/uk/cookies' : '/cookies';
     details.textContent = text.details;
     body.appendChild(details);
     if (cookieError !== null) {
@@ -567,13 +568,22 @@
     if (analyticsLoaded) return;
     analyticsLoaded = true;
     gtag('js', new Date());
-    gtag('config', GA_MEASUREMENT_ID, {
-      send_page_view: false,
-      allow_google_signals: false,
-      allow_ad_personalization_signals: false,
-      cookie_expires: CONSENT_TTL_MS / 1000,
-      cookie_flags: 'SameSite=Lax;Secure',
-    });
+    gtag(
+      'config',
+      GA_MEASUREMENT_ID,
+      Object.assign(
+        {
+          send_page_view: false,
+          allow_google_signals: false,
+          allow_ad_personalization_signals: false,
+          cookie_expires: CONSENT_TTL_MS / 1000,
+          cookie_flags: 'SameSite=Lax;Secure',
+          page_location: window.location.origin + window.location.pathname,
+          page_referrer: cleanReferrer(document.referrer) || '',
+        },
+        window.fluxradarApprovedAttribution?.(window.location.search),
+      ),
+    );
     var script = document.createElement('script');
     script.id = GA_SCRIPT_ID;
     script.async = true;
@@ -581,18 +591,11 @@
     document.head.appendChild(script);
   }
 
-  function cleanReferrer(referrer) {
-    try {
-      var url = new window.URL(referrer);
-      var path =
-        url.origin === window.location.origin
-          ? url.pathname.replace(/^\/scans\/[^/]+/, '/scans/:id')
-          : url.pathname;
-      return url.origin + path;
-    } catch {
+  var cleanReferrer =
+    window.fluxradarCleanReferrer ||
+    function () {
       return null;
-    }
-  }
+    };
 
   function sendPageView() {
     var page = {

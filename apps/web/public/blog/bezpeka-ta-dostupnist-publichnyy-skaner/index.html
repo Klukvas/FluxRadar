@@ -4,49 +4,120 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Безпека та доступність: що бачать сканери без логіну — FluxRadar</title>
-    <meta name="description" content="HTTP-заголовки безпеки, HTTPS-конфігурація та базова доступність — публічні сигнали, які будь-який сканер перевірить без облікового запису." />
-    <link rel="canonical" href="https://fluxradar.net/blog/bezpeka-ta-dostupnist-publichnyy-skaner" />
+    <meta
+      name="description"
+      content="HTTP-заголовки безпеки, HTTPS-конфігурація та базова доступність — публічні сигнали, які будь-який сканер перевірить без облікового запису."
+    />
+    <link
+      rel="canonical"
+      href="https://fluxradar.net/blog/bezpeka-ta-dostupnist-publichnyy-skaner"
+    />
     <meta name="robots" content="noindex, follow" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Безпека та доступність: що бачать сканери без логіну — FluxRadar" />
-    <meta property="og:description" content="HTTP-заголовки безпеки, HTTPS та доступність — публічні сигнали, що перевіряються без облікового запису." />
-    <meta property="og:url" content="https://fluxradar.net/blog/bezpeka-ta-dostupnist-publichnyy-skaner" />
+    <meta
+      property="og:title"
+      content="Безпека та доступність: що бачать сканери без логіну — FluxRadar"
+    />
+    <meta
+      property="og:description"
+      content="HTTP-заголовки безпеки, HTTPS та доступність — публічні сигнали, що перевіряються без облікового запису."
+    />
+    <meta
+      property="og:url"
+      content="https://fluxradar.net/blog/bezpeka-ta-dostupnist-publichnyy-skaner"
+    />
     <meta property="og:site_name" content="FluxRadar Field Notes" />
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Article",
-      "headline": "Безпека та доступність: що бачать сканери без логіну",
-      "description": "HTTP-заголовки безпеки, HTTPS-конфігурація та базова доступність — публічні сигнали, які будь-який сканер перевірить без облікового запису.",
-      "datePublished": "2026-09-05",
-      "dateModified": "2026-09-05",
-      "author": {"@type": "Organization", "name": "FluxLab", "url": "https://fluxradar.net"},
-      "publisher": {"@type": "Organization", "name": "FluxLab", "url": "https://fluxradar.net"},
-      "mainEntityOfPage": "https://fluxradar.net/blog/bezpeka-ta-dostupnist-publichnyy-skaner",
-      "inLanguage": "uk"
-    }
+      {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Безпека та доступність: що бачать сканери без логіну",
+        "description": "HTTP-заголовки безпеки, HTTPS-конфігурація та базова доступність — публічні сигнали, які будь-який сканер перевірить без облікового запису.",
+        "datePublished": "2026-09-05",
+        "dateModified": "2026-09-05",
+        "author": { "@type": "Organization", "name": "FluxLab", "url": "https://fluxradar.net" },
+        "publisher": { "@type": "Organization", "name": "FluxLab", "url": "https://fluxradar.net" },
+        "mainEntityOfPage": "https://fluxradar.net/blog/bezpeka-ta-dostupnist-publichnyy-skaner",
+        "inLanguage": "uk"
+      }
     </script>
     <link rel="stylesheet" href="/blog/blog.css" />
-    <noscript><style>[data-article-lang] { display: block !important; }</style></noscript>
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
     <style>
-      h1 { font-size: 2.4rem; line-height: 1.08; margin-bottom: 8px; }
-      h2 { font-size: 1.2rem; margin-top: 2rem; border-left: 3px solid #333399; padding-left: 10px; }
-      .kicker, time { color: #555; font: 12px monospace; letter-spacing: .08em; text-transform: uppercase; }
-      li { margin: 10px 0; }
-      .cta { margin-top: 32px; padding: 18px 24px; background: #d7dff0; border: 1px solid #333399; border-radius: 2px; }
-      .lang-badge { font: 11px monospace; background: #333399; color: #fff; padding: 2px 7px; border-radius: 2px; letter-spacing: .06em; }
-      figure { margin: 2rem 0; }
-      figcaption { font: 13px monospace; color: #555; margin-top: 8px; text-align: center; }
-      code { background: #e0e0e0; padding: 1px 5px; border-radius: 2px; font-size: 0.9em; }
-      @media (max-width: 699px) { main { padding: 20px 16px; } h1 { font-size: 1.8rem; } }
-
+      h1 {
+        font-size: 2.4rem;
+        line-height: 1.08;
+        margin-bottom: 8px;
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin-top: 2rem;
+        border-left: 3px solid #333399;
+        padding-left: 10px;
+      }
+      .kicker,
+      time {
+        color: #555;
+        font: 12px monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      li {
+        margin: 10px 0;
+      }
+      .cta {
+        margin-top: 32px;
+        padding: 18px 24px;
+        background: #d7dff0;
+        border: 1px solid #333399;
+        border-radius: 2px;
+      }
+      .lang-badge {
+        font: 11px monospace;
+        background: #333399;
+        color: #fff;
+        padding: 2px 7px;
+        border-radius: 2px;
+        letter-spacing: 0.06em;
+      }
+      figure {
+        margin: 2rem 0;
+      }
+      figcaption {
+        font: 13px monospace;
+        color: #555;
+        margin-top: 8px;
+        text-align: center;
+      }
+      code {
+        background: #e0e0e0;
+        padding: 1px 5px;
+        border-radius: 2px;
+        font-size: 0.9em;
+      }
+      @media (max-width: 699px) {
+        main {
+          padding: 20px 16px;
+        }
+        h1 {
+          font-size: 1.8rem;
+        }
+      }
     </style>
   </head>
   <body data-blog-page="article">
-    <nav class="menubar" aria-label="Site menu">
-      <a class="menubar__apple" href="/">
-        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" /></svg>
+    <nav class="menubar" aria-label="Меню сайту">
+      <a class="menubar__apple" href="/uk">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
         FluxRadar
       </a>
       <button
@@ -54,44 +125,90 @@
         type="button"
         data-menu-toggle
         data-t-label="nav.openMenu"
-        aria-label="Open menu"
+        aria-label="Відкрити меню"
         aria-expanded="false"
         aria-controls="menubar-links"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" /></svg>
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
       </button>
       <div id="menubar-links" class="menubar__links">
         <div class="menubar__sheet-head">
           <span class="menubar__sheet-brand">
-            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" /></svg>
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
             FluxRadar
           </span>
-          <span class="menubar__sheet-status" data-t="nav.systemStatus">PUBLIC WEB AUDIT STATION · v0.1</span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          >
           <button
             class="menubar__close"
             type="button"
             data-menu-close
             data-t-label="nav.closeMenu"
-            aria-label="Close menu"
+            aria-label="Закрити меню"
           >
-            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" /></svg>
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
           </button>
         </div>
         <div class="menubar__nav">
-          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
-          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
-          <button class="menubar__item" type="button" disabled title="Your saved sites and their check history." data-t="nav.profiles" data-t-title="nav.profilesHint">My sites</button>
-          <button class="menubar__item" type="button" disabled title="Set up and start a new audit." data-t="nav.scan" data-t-title="nav.scanHint">Scan</button>
-          <button class="menubar__item" type="button" disabled title="Completed and in-progress audit results." data-t="nav.reports" data-t-title="nav.reportsHint">Reports</button>
-          <button class="menubar__item" type="button" disabled title="Optional data connections. The public-site scan works without them." data-t="nav.integrations" data-t-title="nav.integrationsHint">Integrations</button>
-          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
-          <a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog">Blog</a>
+          <span class="menubar__group-label" data-t="nav.navigate">Навігація</span>
+          <a class="menubar__item" href="/uk" data-t="nav.home">Головна</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Ваші збережені сайти та історія їхніх перевірок."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            Мої сайти
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Налаштуйте та запустіть нову перевірку."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Перевірка
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Готові та поточні результати перевірок."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Звіти
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Необовʼязкові підключення даних. Публічна перевірка працює без них."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Інтеграції
+          </button>
+          <a class="menubar__item" href="/uk/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog"
+            >Блог</a
+          >
           <span class="menubar__spacer"></span>
         </div>
         <div class="menubar__meta">
-          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <span class="menubar__group-label" data-t="nav.system">Система</span>
           <div class="menubar__language" data-language>
-            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <span id="menubar-language-label" data-t="nav.language">Мова</span>
             <button
               type="button"
               role="combobox"
@@ -102,8 +219,10 @@
               aria-controls="menubar-language-listbox"
               aria-labelledby="menubar-language-label"
             >
-              <span data-language-current>English</span>
-              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" /></svg>
+              <span data-language-current>Українська</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
             </button>
             <ul
               id="menubar-language-listbox"
@@ -112,158 +231,266 @@
               aria-labelledby="menubar-language-label"
               hidden
             >
-              <li class="menubar__language-option is-active" role="option" data-language-option="en" aria-selected="true">English</li>
-              <li class="menubar__language-option" role="option" data-language-option="uk" aria-selected="false">Українська</li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="en"
+                aria-selected="false"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="uk"
+                aria-selected="true"
+              >
+                Українська
+              </li>
             </ul>
           </div>
-          <span class="menubar__system" data-t="nav.systemStatus">PUBLIC WEB AUDIT STATION · v0.1</span>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          >
         </div>
       </div>
     </nav>
 
     <div class="blog-page">
       <main id="blog-main">
-
-      <div class="kicker">
-        БЕЗПЕКА · ДОСТУПНІСТЬ · <time datetime="2026-09-05">5 ВЕРЕСНЯ 2026</time>
-        &nbsp;<span class="lang-badge">🇺🇦 UK</span>
-      </div>
-      <h1>Безпека та доступність: що бачать сканери без логіну</h1>
-      <p>Безпека та доступність сайту — не тільки внутрішні справи. Значна частина цих сигналів видима публічно: через HTTP-відповіді, заголовки та HTML-структуру. Будь-який автоматизований сканер — чи то Google, чи то зловмисний бот — бачить саме це.</p>
-
-      <!-- SVG: Security headers radar/checklist diagram -->
-      <figure role="img" aria-labelledby="security-diagram-title" aria-describedby="security-diagram-desc">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 300" width="100%" style="max-width:680px;display:block;margin:0 auto;background:#fff;border:1px solid #ccc;border-radius:2px;">
-          <title id="security-diagram-title">Публічні сигнали безпеки та доступності сайту</title>
-          <desc id="security-diagram-desc">Схема у вигляді двох колонок: ліворуч — заголовки безпеки HTTP (HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy), праворуч — сигнали доступності (HTTPS редирект, lang атрибут, alt тексти зображень, контраст кольорів, семантичні заголовки). Кожен пункт позначений кольоровим індикатором: зелений — добре, жовтий — попередження, червоний — проблема.</desc>
-
-          <!-- Column headers -->
-          <rect x="20"  y="16" width="300" height="30" rx="3" fill="#333399"/>
-          <rect x="360" y="16" width="300" height="30" rx="3" fill="#333399"/>
-          <text x="170" y="36" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">Заголовки безпеки HTTP</text>
-          <text x="510" y="36" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">Доступність (публічна)</text>
-
-          <!-- Security items -->
-          <!-- HSTS ✓ -->
-          <circle cx="42" cy="72" r="9" fill="#4caf50"/>
-          <text x="42" cy="72" font-size="11" fill="#fff" text-anchor="middle" dy="4">✓</text>
-          <text x="58" y="77" font-size="12" fill="#111">Strict-Transport-Security (HSTS)</text>
-
-          <!-- CSP ⚠ -->
-          <circle cx="42" cy="106" r="9" fill="#ff9800"/>
-          <text x="42" y="110" font-size="11" fill="#fff" text-anchor="middle">!</text>
-          <text x="58" y="111" font-size="12" fill="#111">Content-Security-Policy</text>
-
-          <!-- X-Content-Type-Options ✓ -->
-          <circle cx="42" cy="140" r="9" fill="#4caf50"/>
-          <text x="42" y="144" font-size="11" fill="#fff" text-anchor="middle">✓</text>
-          <text x="58" y="145" font-size="12" fill="#111">X-Content-Type-Options</text>
-
-          <!-- X-Frame-Options ✗ -->
-          <circle cx="42" cy="174" r="9" fill="#e53935"/>
-          <text x="42" y="178" font-size="11" fill="#fff" text-anchor="middle">✗</text>
-          <text x="58" y="179" font-size="12" fill="#111">X-Frame-Options</text>
-
-          <!-- Referrer-Policy ⚠ -->
-          <circle cx="42" cy="208" r="9" fill="#ff9800"/>
-          <text x="42" y="212" font-size="11" fill="#fff" text-anchor="middle">!</text>
-          <text x="58" y="213" font-size="12" fill="#111">Referrer-Policy</text>
-
-          <!-- Accessibility items -->
-          <!-- HTTPS redirect ✓ -->
-          <circle cx="382" cy="72" r="9" fill="#4caf50"/>
-          <text x="382" y="76" font-size="11" fill="#fff" text-anchor="middle">✓</text>
-          <text x="398" y="77" font-size="12" fill="#111">HTTPS-редирект</text>
-
-          <!-- lang attr ✓ -->
-          <circle cx="382" cy="106" r="9" fill="#4caf50"/>
-          <text x="382" y="110" font-size="11" fill="#fff" text-anchor="middle">✓</text>
-          <text x="398" y="111" font-size="12" fill="#111">lang-атрибут у &lt;html&gt;</text>
-
-          <!-- alt texts ⚠ -->
-          <circle cx="382" cy="140" r="9" fill="#ff9800"/>
-          <text x="382" y="144" font-size="11" fill="#fff" text-anchor="middle">!</text>
-          <text x="398" y="145" font-size="12" fill="#111">Alt-тексти зображень</text>
-
-          <!-- color contrast ✗ -->
-          <circle cx="382" cy="174" r="9" fill="#e53935"/>
-          <text x="382" y="178" font-size="11" fill="#fff" text-anchor="middle">✗</text>
-          <text x="398" y="179" font-size="12" fill="#111">Контраст кольорів (WCAG AA)</text>
-
-          <!-- semantic headings ✓ -->
-          <circle cx="382" cy="208" r="9" fill="#4caf50"/>
-          <text x="382" y="212" font-size="11" fill="#fff" text-anchor="middle">✓</text>
-          <text x="398" y="213" font-size="12" fill="#111">Семантична структура заголовків</text>
-
-          <!-- divider -->
-          <line x1="340" y1="50" x2="340" y2="240" stroke="#ddd" stroke-width="1.5" stroke-dasharray="4,4"/>
-
-          <!-- legend -->
-          <circle cx="60"  cy="258" r="7" fill="#4caf50"/>
-          <text x="72"  y="263" font-size="11" fill="#555">Присутній</text>
-          <circle cx="150" cy="258" r="7" fill="#ff9800"/>
-          <text x="162" y="263" font-size="11" fill="#555">Попередження</text>
-          <circle cx="260" cy="258" r="7" fill="#e53935"/>
-          <text x="272" y="263" font-size="11" fill="#555">Відсутній</text>
-          <text x="340" y="285" font-size="10" fill="#888" text-anchor="middle">Ілюстративний приклад звіту FluxRadar</text>
-        </svg>
-        <figcaption>Рис. 1 — Приклад публічних сигналів безпеки та доступності (ілюстративний)</figcaption>
-      </figure>
-
-      <h2>HTTP-заголовки безпеки: публічна частина</h2>
-      <p>Заголовки відповіді — перша лінія захисту і перше, що бачить будь-який клієнт. Найважливіші для публічного аудиту:</p>
-      <ul>
-        <li><code>Strict-Transport-Security</code> (HSTS) — вказує браузеру завжди використовувати HTTPS. Без нього можлива атака downgrade.</li>
-        <li><code>Content-Security-Policy</code> (CSP) — обмежує джерела скриптів, стилів та медіа. Відсутній або занадто ліберальний CSP видно у відкритому тексті заголовка.</li>
-        <li><code>X-Content-Type-Options: nosniff</code> — забороняє браузеру «вгадувати» MIME-тип. Простий однорядковий заголовок, відсутність якого — легка мішень.</li>
-        <li><code>X-Frame-Options</code> або <code>frame-ancestors</code> у CSP — захист від clickjacking. Легко перевірити публічно.</li>
-        <li><code>Referrer-Policy</code> — контролює, скільки інформації передається зовнішнім сайтам при переходах.</li>
-      </ul>
-
-      <h2>HTTPS-конфігурація</h2>
-      <p>Наявність HTTPS — необхідна умова, але не достатня. Перевірте:</p>
-      <ul>
-        <li>Чи перенаправляє <code>http://</code> на <code>https://</code> з кодом 301, а не 302.</li>
-        <li>Чи чинний сертифікат і чи не закінчується він найближчим часом.</li>
-        <li>Чи немає змішаного контенту (mixed content) — зображень або скриптів, що вантажаться по HTTP.</li>
-      </ul>
-
-      <h2>Базова доступність як публічний сигнал</h2>
-      <p>Доступність (accessibility) — не лише юридична вимога, а й сигнал якості для пошукових систем. Публічно перевіряється без жодного облікового запису:</p>
-      <ul>
-        <li><strong>lang-атрибут</strong> у тегу <code>&lt;html&gt;</code> — допомагає читалкам екрана та перекладачам визначити мову.</li>
-        <li><strong>Alt-тексти</strong> до зображень — без них пошуковий робот і користувач із читалкою екрана не розуміють, що зображено.</li>
-        <li><strong>Контраст тексту</strong> — відповідність WCAG AA (4.5:1 для основного тексту) можна перевірити за кольорами у CSS.</li>
-        <li><strong>Семантична структура</strong> — один <code>&lt;h1&gt;</code>, логічна ієрархія заголовків, наявність <code>&lt;main&gt;</code>, <code>&lt;nav&gt;</code>, <code>&lt;footer&gt;</code>.</li>
-      </ul>
-
-      <h2>Чому це важливо для SEO та AI-краулерів</h2>
-      <p>Пошукові системи та AI-краулери розглядають безпеку і доступність як ознаки якісного ресурсу. Сайт із сильними заголовками безпеки та семантичним HTML легше обробити, легше зрозуміти і, як правило, він отримує вищу оцінку якості. Крім того, проблеми з HTTPS негативно впливають на позиції напряму — Google відкрито про це заявляє.</p>
-
-      <div class="cta">
-        <strong>Перевірте заголовки безпеки та доступність у FluxRadar →</strong><br>
-        FluxRadar аналізує HTTP-заголовки, HTTPS-конфігурацію та базові сигнали доступності у кожному скані. Без реєстрації для першого сканування. <a href="/">Спробувати зараз</a>.
-      </div>
-
-      <footer class="site-footer">
-        <a href="/blog/tekhnichnyy-seo-publichnyy-audyt">← Попередня: Технічний SEO: публічний аудит сайту</a>
-        <a href="/blog">Всі нотатки</a>
-        <span class="powered-by">
-          <a
-            class="powered-by__link"
-            href="https://flux-lab.dev"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-t-label="blog.poweredByAria"
-            aria-label="Створено FluxLab (відкривається в новій вкладці)"
+        <div class="kicker">
+          БЕЗПЕКА · ДОСТУПНІСТЬ · <time datetime="2026-09-05">5 ВЕРЕСНЯ 2026</time> &nbsp;<span
+            class="lang-badge"
+            >🇺🇦 UK</span
           >
-            <span class="powered-by__mark" aria-hidden="true">◈</span>
-            <span data-t="blog.poweredBy">Створено FluxLab</span>
-          </a>
-        </span>
-      </footer>
+        </div>
+        <h1>Безпека та доступність: що бачать сканери без логіну</h1>
+        <p>
+          Безпека та доступність сайту — не тільки внутрішні справи. Значна частина цих сигналів
+          видима публічно: через HTTP-відповіді, заголовки та HTML-структуру. Будь-який
+          автоматизований сканер — чи то Google, чи то зловмисний бот — бачить саме це.
+        </p>
+
+        <!-- SVG: Security headers radar/checklist diagram -->
+        <figure
+          role="img"
+          aria-labelledby="security-diagram-title"
+          aria-describedby="security-diagram-desc"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 680 300"
+            width="100%"
+            style="
+              max-width: 680px;
+              display: block;
+              margin: 0 auto;
+              background: #fff;
+              border: 1px solid #ccc;
+              border-radius: 2px;
+            "
+          >
+            <title id="security-diagram-title">Публічні сигнали безпеки та доступності сайту</title>
+            <desc id="security-diagram-desc">
+              Схема у вигляді двох колонок: ліворуч — заголовки безпеки HTTP (HSTS, CSP,
+              X-Content-Type-Options, X-Frame-Options, Referrer-Policy), праворуч — сигнали
+              доступності (HTTPS редирект, lang атрибут, alt тексти зображень, контраст кольорів,
+              семантичні заголовки). Кожен пункт позначений кольоровим індикатором: зелений — добре,
+              жовтий — попередження, червоний — проблема.
+            </desc>
+
+            <!-- Column headers -->
+            <rect x="20" y="16" width="300" height="30" rx="3" fill="#333399" />
+            <rect x="360" y="16" width="300" height="30" rx="3" fill="#333399" />
+            <text x="170" y="36" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">
+              Заголовки безпеки HTTP
+            </text>
+            <text x="510" y="36" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">
+              Доступність (публічна)
+            </text>
+
+            <!-- Security items -->
+            <!-- HSTS ✓ -->
+            <circle cx="42" cy="72" r="9" fill="#4caf50" />
+            <text x="42" cy="72" font-size="11" fill="#fff" text-anchor="middle" dy="4">✓</text>
+            <text x="58" y="77" font-size="12" fill="#111">Strict-Transport-Security (HSTS)</text>
+
+            <!-- CSP ⚠ -->
+            <circle cx="42" cy="106" r="9" fill="#ff9800" />
+            <text x="42" y="110" font-size="11" fill="#fff" text-anchor="middle">!</text>
+            <text x="58" y="111" font-size="12" fill="#111">Content-Security-Policy</text>
+
+            <!-- X-Content-Type-Options ✓ -->
+            <circle cx="42" cy="140" r="9" fill="#4caf50" />
+            <text x="42" y="144" font-size="11" fill="#fff" text-anchor="middle">✓</text>
+            <text x="58" y="145" font-size="12" fill="#111">X-Content-Type-Options</text>
+
+            <!-- X-Frame-Options ✗ -->
+            <circle cx="42" cy="174" r="9" fill="#e53935" />
+            <text x="42" y="178" font-size="11" fill="#fff" text-anchor="middle">✗</text>
+            <text x="58" y="179" font-size="12" fill="#111">X-Frame-Options</text>
+
+            <!-- Referrer-Policy ⚠ -->
+            <circle cx="42" cy="208" r="9" fill="#ff9800" />
+            <text x="42" y="212" font-size="11" fill="#fff" text-anchor="middle">!</text>
+            <text x="58" y="213" font-size="12" fill="#111">Referrer-Policy</text>
+
+            <!-- Accessibility items -->
+            <!-- HTTPS redirect ✓ -->
+            <circle cx="382" cy="72" r="9" fill="#4caf50" />
+            <text x="382" y="76" font-size="11" fill="#fff" text-anchor="middle">✓</text>
+            <text x="398" y="77" font-size="12" fill="#111">HTTPS-редирект</text>
+
+            <!-- lang attr ✓ -->
+            <circle cx="382" cy="106" r="9" fill="#4caf50" />
+            <text x="382" y="110" font-size="11" fill="#fff" text-anchor="middle">✓</text>
+            <text x="398" y="111" font-size="12" fill="#111">lang-атрибут у &lt;html&gt;</text>
+
+            <!-- alt texts ⚠ -->
+            <circle cx="382" cy="140" r="9" fill="#ff9800" />
+            <text x="382" y="144" font-size="11" fill="#fff" text-anchor="middle">!</text>
+            <text x="398" y="145" font-size="12" fill="#111">Alt-тексти зображень</text>
+
+            <!-- color contrast ✗ -->
+            <circle cx="382" cy="174" r="9" fill="#e53935" />
+            <text x="382" y="178" font-size="11" fill="#fff" text-anchor="middle">✗</text>
+            <text x="398" y="179" font-size="12" fill="#111">Контраст кольорів (WCAG AA)</text>
+
+            <!-- semantic headings ✓ -->
+            <circle cx="382" cy="208" r="9" fill="#4caf50" />
+            <text x="382" y="212" font-size="11" fill="#fff" text-anchor="middle">✓</text>
+            <text x="398" y="213" font-size="12" fill="#111">Семантична структура заголовків</text>
+
+            <!-- divider -->
+            <line
+              x1="340"
+              y1="50"
+              x2="340"
+              y2="240"
+              stroke="#ddd"
+              stroke-width="1.5"
+              stroke-dasharray="4,4"
+            />
+
+            <!-- legend -->
+            <circle cx="60" cy="258" r="7" fill="#4caf50" />
+            <text x="72" y="263" font-size="11" fill="#555">Присутній</text>
+            <circle cx="150" cy="258" r="7" fill="#ff9800" />
+            <text x="162" y="263" font-size="11" fill="#555">Попередження</text>
+            <circle cx="260" cy="258" r="7" fill="#e53935" />
+            <text x="272" y="263" font-size="11" fill="#555">Відсутній</text>
+            <text x="340" y="285" font-size="10" fill="#888" text-anchor="middle">
+              Ілюстративний приклад звіту FluxRadar
+            </text>
+          </svg>
+          <figcaption>
+            Рис. 1 — Приклад публічних сигналів безпеки та доступності (ілюстративний)
+          </figcaption>
+        </figure>
+
+        <h2>HTTP-заголовки безпеки: публічна частина</h2>
+        <p>
+          Заголовки відповіді — перша лінія захисту і перше, що бачить будь-який клієнт.
+          Найважливіші для публічного аудиту:
+        </p>
+        <ul>
+          <li>
+            <code>Strict-Transport-Security</code> (HSTS) — вказує браузеру завжди використовувати
+            HTTPS. Без нього можлива атака downgrade.
+          </li>
+          <li>
+            <code>Content-Security-Policy</code> (CSP) — обмежує джерела скриптів, стилів та медіа.
+            Відсутній або занадто ліберальний CSP видно у відкритому тексті заголовка.
+          </li>
+          <li>
+            <code>X-Content-Type-Options: nosniff</code> — забороняє браузеру «вгадувати» MIME-тип.
+            Простий однорядковий заголовок, відсутність якого — легка мішень.
+          </li>
+          <li>
+            <code>X-Frame-Options</code> або <code>frame-ancestors</code> у CSP — захист від
+            clickjacking. Легко перевірити публічно.
+          </li>
+          <li>
+            <code>Referrer-Policy</code> — контролює, скільки інформації передається зовнішнім
+            сайтам при переходах.
+          </li>
+        </ul>
+
+        <h2>HTTPS-конфігурація</h2>
+        <p>Наявність HTTPS — необхідна умова, але не достатня. Перевірте:</p>
+        <ul>
+          <li>
+            Чи перенаправляє <code>http://</code> на <code>https://</code> з кодом 301, а не 302.
+          </li>
+          <li>Чи чинний сертифікат і чи не закінчується він найближчим часом.</li>
+          <li>
+            Чи немає змішаного контенту (mixed content) — зображень або скриптів, що вантажаться по
+            HTTP.
+          </li>
+        </ul>
+
+        <h2>Базова доступність як публічний сигнал</h2>
+        <p>
+          Доступність (accessibility) — не лише юридична вимога, а й сигнал якості для пошукових
+          систем. Публічно перевіряється без жодного облікового запису:
+        </p>
+        <ul>
+          <li>
+            <strong>lang-атрибут</strong> у тегу <code>&lt;html&gt;</code> — допомагає читалкам
+            екрана та перекладачам визначити мову.
+          </li>
+          <li>
+            <strong>Alt-тексти</strong> до зображень — без них пошуковий робот і користувач із
+            читалкою екрана не розуміють, що зображено.
+          </li>
+          <li>
+            <strong>Контраст тексту</strong> — відповідність WCAG AA (4.5:1 для основного тексту)
+            можна перевірити за кольорами у CSS.
+          </li>
+          <li>
+            <strong>Семантична структура</strong> — один <code>&lt;h1&gt;</code>, логічна ієрархія
+            заголовків, наявність <code>&lt;main&gt;</code>, <code>&lt;nav&gt;</code>,
+            <code>&lt;footer&gt;</code>.
+          </li>
+        </ul>
+
+        <h2>Чому це важливо для SEO та AI-краулерів</h2>
+        <p>
+          Пошукові системи та AI-краулери розглядають безпеку і доступність як ознаки якісного
+          ресурсу. Сайт із сильними заголовками безпеки та семантичним HTML легше обробити, легше
+          зрозуміти і, як правило, він отримує вищу оцінку якості. Крім того, проблеми з HTTPS
+          негативно впливають на позиції напряму — Google відкрито про це заявляє.
+        </p>
+
+        <div class="cta">
+          <strong>Перевірте заголовки безпеки та доступність у FluxRadar →</strong><br />
+          FluxRadar аналізує HTTP-заголовки, HTTPS-конфігурацію та базові сигнали доступності у
+          кожному скані. Без реєстрації для першого сканування. <a href="/uk">Спробувати зараз</a>.
+        </div>
+
+        <footer class="site-footer">
+          <a href="/blog/tekhnichnyy-seo-publichnyy-audyt"
+            >← Попередня: Технічний SEO: публічний аудит сайту</a
+          >
+          <a href="/blog">Всі нотатки</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
       </main>
     </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
     <script src="/blog/blog.js"></script>
   </body>
 </html>

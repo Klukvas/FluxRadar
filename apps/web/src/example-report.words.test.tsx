@@ -138,7 +138,7 @@ describe('the words on it', () => {
       expect(notice.textContent).toContain(t.planNote);
       const link = within(notice).getByRole('link', { name: t.planLink });
       // The home page's pricing section, by the route that scrolls to it.
-      expect(link).toHaveAttribute('href', '/plans');
+      expect(link).toHaveAttribute('href', language === 'uk' ? '/uk#pricing' : '/#pricing');
       // What each report includes — not what it costs, and nothing that starts a
       // purchase. This page may not price anything.
       for (const text of [t.planNote, t.planLink]) {

@@ -68,7 +68,9 @@ describe('blog pages share one header with the app', () => {
     expect(html).toContain('class="menubar"');
     expect(html).toContain('class="menubar__apple"');
     expect(html).toContain('id="menubar-links"');
-    expect(html).toContain('href="/faq"');
+    expect(html).toContain(
+      `href="${readPage(name).includes('<html lang="uk">') ? '/uk/faq' : '/faq'}"`,
+    );
   });
 
   it.each(PAGES)('%s offers the full-screen burger sheet on a narrow viewport', (name) => {
@@ -242,22 +244,22 @@ describe('blog header renders the same way on every page variant', () => {
   // every other page listed the workspace tabs too, so the navigation changed
   // shape under a reader who followed the Blog link out of the product.
   it.each(PAGES)('%s lists the destinations the product header lists', (name) => {
-    expect(destinations(name)).toEqual([
-      'Home',
-      'My sites',
-      'Scan',
-      'Reports',
-      'Integrations',
-      'FAQ',
-      'Blog',
-    ]);
+    expect(destinations(name)).toEqual(
+      readPage(name).includes('<html lang="uk">')
+        ? ['Головна', 'Мої сайти', 'Перевірка', 'Звіти', 'Інтеграції', 'FAQ', 'Блог']
+        : ['Home', 'My sites', 'Scan', 'Reports', 'Integrations', 'FAQ', 'Blog'],
+    );
   });
 
   it.each(PAGES)('%s keeps the public destinations as real links', (name) => {
     const hrefs = [...headerOf(name).querySelectorAll('a.menubar__item')].map((element) =>
       element.getAttribute('href'),
     );
-    expect(hrefs).toEqual(['/', '/faq', '/blog']);
+    expect(hrefs).toEqual(
+      readPage(name).includes('<html lang="uk">')
+        ? ['/uk', '/uk/faq', '/blog']
+        : ['/', '/faq', '/blog'],
+    );
   });
 
   // The pages ship the tabs the way the product renders them for a reader who
@@ -447,7 +449,9 @@ describe('blog footer is one shape, pinned to the bottom of a short page', () =>
 });
 
 describe('blog language filter', () => {
-  const source = readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
+  const source =
+    readFileSync(resolve(BLOG_ROOT, 'attribution.js'), 'utf8') +
+    readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
 
   function bootIndex(search = ''): void {
     const html = readPage('index.html');
@@ -572,7 +576,9 @@ describe('blog language filter', () => {
 });
 
 describe('blog cookie choices', () => {
-  const source = readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
+  const source =
+    readFileSync(resolve(BLOG_ROOT, 'attribution.js'), 'utf8') +
+    readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
 
   function bootIndex(): void {
     const html = readPage('index.html');
@@ -631,7 +637,7 @@ describe('blog cookie choices', () => {
       ['preferences', false],
       ['analytics', false],
     ]);
-    expect(region?.querySelector('a')?.getAttribute('href')).toBe('/cookies?lang=en');
+    expect(region?.querySelector('a')?.getAttribute('href')).toBe('/cookies');
   });
 
   it('stores the current language only after preference permission and lets it be withdrawn', () => {
@@ -734,7 +740,7 @@ describe('blog cookie choices', () => {
     const region = document.querySelector('[data-cookie-consent]');
     expect(region?.textContent).toContain('Cookies і сховище');
     expect(region?.textContent).toContain('Лише необхідні');
-    expect(region?.querySelector('a')?.getAttribute('href')).toBe('/cookies?lang=uk');
+    expect(region?.querySelector('a')?.getAttribute('href')).toBe('/uk/cookies');
   });
 
   it('shows the choice on article pages as well as the blog index', () => {
@@ -754,7 +760,9 @@ describe('blog cookie choices', () => {
 });
 
 describe('blog header controls', () => {
-  const source = readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
+  const source =
+    readFileSync(resolve(BLOG_ROOT, 'attribution.js'), 'utf8') +
+    readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
 
   function bootIndex(): void {
     const html = readPage('index.html');

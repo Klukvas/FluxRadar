@@ -37,8 +37,8 @@
     <link rel="stylesheet" href="/blog/content.css" />
   </head>
   <body data-blog-page="article" data-content-section="knowledge-base">
-    <nav class="menubar" aria-label="Site menu">
-      <a class="menubar__apple" href="/">
+    <nav class="menubar" aria-label="Меню сайту">
+      <a class="menubar__apple" href="/uk">
         <svg viewBox="0 0 12 12" aria-hidden="true">
           <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
         </svg>
@@ -49,7 +49,7 @@
         type="button"
         data-menu-toggle
         data-t-label="nav.openMenu"
-        aria-label="Open menu"
+        aria-label="Відкрити меню"
         aria-expanded="false"
         aria-controls="menubar-links"
       >
@@ -66,14 +66,14 @@
             FluxRadar
           </span>
           <span class="menubar__sheet-status" data-t="nav.systemStatus"
-            >PUBLIC WEB AUDIT STATION · v0.1</span
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
           >
           <button
             class="menubar__close"
             type="button"
             data-menu-close
             data-t-label="nav.closeMenu"
-            aria-label="Close menu"
+            aria-label="Закрити меню"
           >
             <svg viewBox="0 0 12 12" aria-hidden="true">
               <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
@@ -81,56 +81,56 @@
           </button>
         </div>
         <div class="menubar__nav">
-          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
-          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <span class="menubar__group-label" data-t="nav.navigate">Навігація</span>
+          <a class="menubar__item" href="/uk" data-t="nav.home">Головна</a>
           <button
             class="menubar__item"
             type="button"
             disabled
-            title="Your saved sites and their check history."
+            title="Ваші збережені сайти та історія їхніх перевірок."
             data-t="nav.profiles"
             data-t-title="nav.profilesHint"
           >
-            My sites
+            Мої сайти
           </button>
           <button
             class="menubar__item"
             type="button"
             disabled
-            title="Set up and start a new audit."
+            title="Налаштуйте та запустіть нову перевірку."
             data-t="nav.scan"
             data-t-title="nav.scanHint"
           >
-            Scan
+            Перевірка
           </button>
           <button
             class="menubar__item"
             type="button"
             disabled
-            title="Completed and in-progress audit results."
+            title="Готові та поточні результати перевірок."
             data-t="nav.reports"
             data-t-title="nav.reportsHint"
           >
-            Reports
+            Звіти
           </button>
           <button
             class="menubar__item"
             type="button"
             disabled
-            title="Optional data connections. The public-site scan works without them."
+            title="Необовʼязкові підключення даних. Публічна перевірка працює без них."
             data-t="nav.integrations"
             data-t-title="nav.integrationsHint"
           >
-            Integrations
+            Інтеграції
           </button>
-          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
-          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <a class="menubar__item" href="/uk/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Блог</a>
           <span class="menubar__spacer"></span>
         </div>
         <div class="menubar__meta">
-          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <span class="menubar__group-label" data-t="nav.system">Система</span>
           <div class="menubar__language" data-language>
-            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <span id="menubar-language-label" data-t="nav.language">Мова</span>
             <button
               type="button"
               role="combobox"
@@ -141,7 +141,7 @@
               aria-controls="menubar-language-listbox"
               aria-labelledby="menubar-language-label"
             >
-              <span data-language-current>English</span>
+              <span data-language-current>Українська</span>
               <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
                 <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
               </svg>
@@ -154,25 +154,25 @@
               hidden
             >
               <li
-                class="menubar__language-option is-active"
+                class="menubar__language-option"
                 role="option"
                 data-language-option="en"
-                aria-selected="true"
+                aria-selected="false"
               >
                 English
               </li>
               <li
-                class="menubar__language-option"
+                class="menubar__language-option is-active"
                 role="option"
                 data-language-option="uk"
-                aria-selected="false"
+                aria-selected="true"
               >
                 Українська
               </li>
             </ul>
           </div>
           <span class="menubar__system" data-t="nav.systemStatus"
-            >PUBLIC WEB AUDIT STATION · v0.1</span
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
           >
         </div>
       </div>
@@ -180,7 +180,7 @@
     <div class="blog-page content-page">
       <main id="blog-main">
         <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
-          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a>
+          <a href="/uk">Головна</a> / <a href="/knowledge-base">База знань</a>
         </nav>
         <header>
           <p class="kicker">ПРАКТИЧНА ІНСТРУКЦІЯ · УКРАЇНСЬКОЮ</p>
@@ -447,7 +447,7 @@
           <section class="article-sources">
             <h2>Джерела</h2>
             <ul>
-              <li><a href="/checks?lang=uk">Поточне покриття FluxRadar</a></li>
+              <li><a href="/uk/checks">Поточне покриття FluxRadar</a></li>
               <li>
                 <a href="https://developers.google.com/search/docs/crawling-indexing/robots/intro"
                   >Google: призначення robots.txt</a
@@ -468,7 +468,7 @@
           </section>
         </article>
         <p class="content-cta">
-          <a href="/?lang=uk">Перевірте свій сайт</a> · <a href="/knowledge-base">База знань</a> ·
+          <a href="/uk">Перевірте свій сайт</a> · <a href="/knowledge-base">База знань</a> ·
           <a href="/blog?lang=uk">Статті</a>
         </p>
         <footer class="site-footer">
@@ -490,6 +490,8 @@
         </footer>
       </main>
     </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
     <script src="/blog/blog.js"></script>
   </body>
 </html>

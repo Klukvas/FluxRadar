@@ -7,6 +7,7 @@ import { defineConfig, runnerImport } from 'vite';
 
 // Keep the runtime-style `.js` suffix: TypeScript resolves it to the `.ts`
 // source, while Vite's native config loader gets an explicit ESM import.
+import { legacyPublicRedirect, publicRequestRewrite } from './src/public-page-routing.js';
 import { blogIndexUrl } from './src/blog-routing.js';
 
 /**
@@ -46,6 +47,15 @@ import { blogIndexUrl } from './src/blog-routing.js';
 function blogIndexRewritePlugin() {
   const rewrite: Connect.NextHandleFunction = (req, _res, next) => {
     if (req.url) {
+      const redirect = legacyPublicRedirect(req.url);
+      if (redirect !== null) {
+        _res.statusCode = 308;
+        _res.setHeader('Location', redirect);
+        _res.end();
+        return;
+      }
+      const normalizedPublic = publicRequestRewrite(req.url);
+      if (normalizedPublic !== null) req.url = normalizedPublic;
       const rewritten = blogIndexUrl(req.url);
       if (rewritten !== null) {
         req.url = rewritten;
@@ -94,11 +104,26 @@ function staticPageHeadsPlugin(): Plugin {
       }
       const template =
         typeof entry.source === 'string' ? entry.source : new TextDecoder().decode(entry.source);
-      const { module } = await runnerImport<typeof import('./src/static-page-heads')>(
-        './src/static-page-heads.ts',
-        { root, configFile: false },
+      const { module } = await runnerImport<typeof import('./src/static-public-render')>(
+        './src/static-public-render.tsx',
+        {
+          root,
+          configFile: false,
+          plugins: [
+            {
+              name: 'prerender-style-imports',
+              enforce: 'pre',
+              resolveId(id) {
+                return id.endsWith('.css') ? `\0prerender-style:${id.replaceAll('.', '_')}` : null;
+              },
+              load(id) {
+                return id.startsWith('\0prerender-style:') ? '' : null;
+              },
+            },
+          ],
+        },
       );
-      for (const file of module.staticPageHeadFiles(template)) {
+      for (const file of module.staticPublicFiles(template)) {
         const target = join(options.dir, file.fileName);
         await mkdir(dirname(target), { recursive: true });
         await writeFile(target, file.html);

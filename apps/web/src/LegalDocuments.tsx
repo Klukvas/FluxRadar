@@ -1,3 +1,4 @@
+import { publicPagePath } from './public-page-routing';
 import { useEffect } from 'react';
 import type { JSX, MouseEvent } from 'react';
 
@@ -23,12 +24,6 @@ const DOCUMENT_MARKS: Readonly<Record<LegalDocumentKind, string>> = {
   privacy: 'P',
   terms: 'T',
   cookies: 'C',
-};
-
-const DOCUMENT_PATHS: Readonly<Record<LegalDocumentKind, string>> = {
-  privacy: '/privacy',
-  terms: '/terms',
-  cookies: '/cookies',
 };
 
 function LegalBody(props: {
@@ -88,7 +83,11 @@ export function LegalDocumentScreen(props: LegalDocumentScreenProps): JSX.Elemen
             <h1>{documentCopy.title}</h1>
             <p className="legal-lede">{documentCopy.lede}</p>
           </div>
-          <a className="legal-back" href="/" onClick={handleHomeClick}>
+          <a
+            className="legal-back"
+            href={publicPagePath('home', props.language)}
+            onClick={handleHomeClick}
+          >
             {t.back}
           </a>
         </header>
@@ -104,7 +103,7 @@ export function LegalDocumentScreen(props: LegalDocumentScreenProps): JSX.Elemen
             {(['privacy', 'terms', 'cookies'] as const)
               .filter((kind) => kind !== props.kind)
               .map((kind) => (
-                <a key={kind} href={`${DOCUMENT_PATHS[kind]}?lang=${props.language}`}>
+                <a key={kind} href={publicPagePath(kind, props.language)}>
                   {t[kind].crossLink}
                 </a>
               ))}

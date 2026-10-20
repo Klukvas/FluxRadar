@@ -1,3 +1,4 @@
+import { publicPagePath } from './public-page-routing';
 // The public example report (/example-report).
 //
 // A visitor who has not paid cannot see a report, and nothing on the site let
@@ -96,10 +97,7 @@ interface ProblemAsk {
 function useProblemFromHash(
   ruleIds: readonly string[],
 ): readonly [ProblemAsk | null, (ruleId: string) => void] {
-  const [asked, setAsked] = useState<ProblemAsk | null>(() => {
-    const named = problemInHash(window.location.hash, ruleIds);
-    return named === null ? null : { ruleId: named, jump: 0 };
-  });
+  const [asked, setAsked] = useState<ProblemAsk | null>(null);
   const ask = useCallback((ruleId: string): void => {
     setAsked((previous) => ({ ruleId, jump: (previous?.jump ?? 0) + 1 }));
   }, []);
@@ -108,6 +106,7 @@ function useProblemFromHash(
       const named = problemInHash(window.location.hash, ruleIds);
       if (named !== null) ask(named);
     };
+    follow();
     window.addEventListener('hashchange', follow);
     return () => window.removeEventListener('hashchange', follow);
   }, [ruleIds, ask]);
@@ -115,7 +114,6 @@ function useProblemFromHash(
 }
 
 /** Where the page's own pricing link goes: the home page's pricing section. */
-const PLANS_PATH = '/plans';
 
 export function ExampleReportScreen(props: {
   language: Language;
@@ -158,7 +156,7 @@ function PageHeader({ language }: { language: Language }) {
         <h1 id="example-report-page-title">{t.title}</h1>
         <p className="legal-lede">{t.lead}</p>
       </div>
-      <a className="legal-back" href="/">
+      <a className="legal-back" href={publicPagePath('home', language)}>
         {t.back}
       </a>
     </header>
@@ -171,8 +169,12 @@ function PageFooter({ language }: { language: Language }) {
     <footer className="legal-footer">
       <span>{t.footerBrand}</span>
       <span>
-        <a href="/">{t.footerHome}</a> · <a href="/checks">{copy[language].checks.title}</a> ·{' '}
-        <a href="/faq">{copy[language].nav.faq}</a>
+        <a href={publicPagePath('home', language)}>{t.footerHome}</a> ·{' '}
+        <a href={publicPagePath('checks', language)}>{copy[language].checks.title}</a> ·{' '}
+        <a href={publicPagePath('faq', language)}>{copy[language].nav.faq}</a> ·{' '}
+        <a href="/knowledge-base/prochytaty-zvit">
+          {language === 'uk' ? 'Як читати власний звіт' : 'Read your own report (Ukrainian)'}
+        </a>
       </span>
       <CreatedByFluxLab language={language} />
     </footer>
@@ -225,7 +227,7 @@ function DocumentNotice({ language }: { language: Language }) {
         <strong>{t.planLabel}</strong> · {t.planValue}
       </span>
       <span>
-        {t.planNote} <a href={PLANS_PATH}>{t.planLink}</a>
+        {t.planNote} <a href={`${publicPagePath('home', language)}#pricing`}>{t.planLink}</a>
       </span>
       <span>
         <strong>{t.dateLabel}</strong> · {t.dateValue}
@@ -669,11 +671,11 @@ function CallToActionBlock({ language }: { language: Language }) {
       <h2 id="example-cta-heading">{t.ctaHeading}</h2>
       <p>{t.ctaBody}</p>
       <p className="example-cta__links">
-        <a className="button button--primary" href="/">
+        <a className="button button--primary" href={publicPagePath('home', language)}>
           {t.ctaFree}
         </a>
-        <a href="/checks">{t.ctaCoverage}</a>
-        <a href="/faq">{t.ctaFaq}</a>
+        <a href={publicPagePath('checks', language)}>{t.ctaCoverage}</a>
+        <a href={publicPagePath('faq', language)}>{t.ctaFaq}</a>
       </p>
     </section>
   );

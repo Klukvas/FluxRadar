@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як ми відкрили текст FluxRadar для читання без JavaScript — FluxRadar</title>
+    <meta
+      name="description"
+      content="Власний технічний кейс FluxRadar: порівняння початкового HTML, українських адрес і навігації до та після prerender. Без обіцянок зростання позицій."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/uk/fluxradar-html-bez-javascript" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Як ми відкрили текст FluxRadar для читання без JavaScript" />
+    <meta
+      property="og:description"
+      content="Власний технічний кейс FluxRadar: порівняння початкового HTML, українських адрес і навігації до та після prerender. Без обіцянок зростання позицій."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/uk/fluxradar-html-bez-javascript" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Як ми відкрили текст FluxRadar для читання без JavaScript",
+        "description": "Власний технічний кейс FluxRadar: порівняння початкового HTML, українських адрес і навігації до та після prerender. Без обіцянок зростання позицій.",
+        "inLanguage": "uk",
+        "datePublished": "2026-10-20",
+        "dateModified": "2026-10-20",
+        "author": { "@type": "Organization", "name": "FluxLab" },
+        "publisher": { "@type": "Organization", "name": "FluxLab" },
+        "mainEntityOfPage": "https://fluxradar.net/blog/uk/fluxradar-html-bez-javascript"
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Меню сайту">
+      <a class="menubar__apple" href="/uk">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Відкрити меню"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Закрити меню"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Навігація</span>
+          <a class="menubar__item" href="/uk" data-t="nav.home">Головна</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Ваші збережені сайти та історія їхніх перевірок."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            Мої сайти
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Налаштуйте та запустіть нову перевірку."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Перевірка
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Готові та поточні результати перевірок."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Звіти
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Необовʼязкові підключення даних. Публічна перевірка працює без них."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Інтеграції
+          </button>
+          <a class="menubar__item" href="/uk/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog"
+            >Блог</a
+          >
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">Система</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Мова</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>Українська</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="en"
+                aria-selected="false"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="uk"
+                aria-selected="true"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/uk">Головна</a> / <a href="/blog?lang=uk">Блог</a>
+        </nav>
+        <header>
+          <p class="kicker">ОНОВЛЕННЯ FLUXRADAR · УКРАЇНСЬКОЮ</p>
+          <h1>Як ми відкрили текст FluxRadar для читання без JavaScript</h1>
+          <p class="lede">
+            Власний технічний кейс FluxRadar: порівняння початкового HTML, українських адрес і
+            навігації до та після prerender. Без обіцянок зростання позицій.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Сторінка може добре працювати в браузері й водночас віддавати роботу лише порожню
+            оболонку. На власному сайті FluxRadar ми перевірили саме початкову HTTP-відповідь: текст
+            до виконання JavaScript, посилання та метадані. Це кейс нашого продукту, а не історія
+            клієнта.
+          </p>
+          <section>
+            <h2>Що ми побачили до зміни</h2>
+            <p>
+              20 жовтня 2026 року головна сторінка, перелік перевірок і приклад звіту відповідали
+              HTTP 200. Але в початковому HTML усіх трьох було 0 елементів H1, 0 посилань і порожній
+              контейнер застосунку. Текст з’являвся після запуску JavaScript.
+            </p>
+            <p>
+              Українські адреси з параметром мови віддавали англійський початковий HTML і
+              англійський canonical. Клієнтський застосунок змінював їх після завантаження.
+              Натомість база знань уже віддавала повний український текст без JavaScript.
+            </p>
+            <p>
+              Ці спостереження не доводять, що Google не міг прочитати сайт: Google виконує
+              JavaScript. Вони показують залежність від рендерингу та різницю між першим документом
+              і тим, що бачить людина після завантаження.
+            </p>
+          </section>
+          <section>
+            <h2>Що змінили в HTML</h2>
+            <p>
+              Під час збірки тепер створюється повний документ кожної публічної сторінки англійською
+              та українською. Текст береться з тих самих компонентів, що й у застосунку. Після
+              завантаження JavaScript браузер додає інтерактивність до готової розмітки.
+            </p>
+            <p>
+              Англійські сторінки залишилися за звичними адресами, українські отримали адреси
+              <code>/uk</code>, <code>/uk/checks</code> і <code>/uk/example-report</code>. Мова
+              документа, заголовок, опис, canonical і мовні альтернативи узгоджені з адресою. Старі
+              однозначні публічні посилання з <code>lang=uk</code> перенаправляються; посилання для
+              входу та відновлення доступу мають окремий захищений сценарій.
+            </p>
+          </section>
+          <section>
+            <h2>Що можна перевірити після зміни</h2>
+            <p>
+              У локальній production-збірці кожна з трьох сторінок уже містить один головний H1,
+              текст і звичайні посилання в першій відповіді. Той самий результат є в українських
+              версіях. Без JavaScript можна прочитати умови, склад аудиту, методику та приклад
+              результату; для входу й запуску перевірки JavaScript потрібен.
+            </p>
+            <table>
+              <caption>
+                Технічне порівняння першої відповіді, 20 жовтня 2026
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Сигнал</th>
+                  <th scope="col">До: публічний сайт</th>
+                  <th scope="col">Після: локальна збірка</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">H1 на головній, /checks і /example-report</th>
+                  <td>0 на кожній</td>
+                  <td>1 на кожній</td>
+                </tr>
+                <tr>
+                  <th scope="row">Звичайні посилання в HTML</th>
+                  <td>0 на кожній</td>
+                  <td>Є на кожній</td>
+                </tr>
+                <tr>
+                  <th scope="row">Початковий український текст</th>
+                  <td>З’являвся після JavaScript</td>
+                  <td>У першій HTTP-відповіді /uk</td>
+                </tr>
+                <tr>
+                  <th scope="row">Приклад звіту без JavaScript</th>
+                  <td>Порожня оболонка</td>
+                  <td>Готовий документ вигаданого сайту</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Це не вимірювання швидкості завантаження, конверсії чи позицій. На момент підготовки
+              матеріалу зміни перевірено локально; повторний обхід та оцінка пошуковими системами ще
+              попереду.
+            </p>
+          </section>
+          <section>
+            <h2>Як повторити перевірку на своєму сайті</h2>
+            <ol>
+              <li>Відкрийте вихідний код відповіді, а не лише інспектор готової сторінки.</li>
+              <li>
+                Знайдіть основний заголовок, важливий текст і посилання. Порівняйте їх із видимою
+                сторінкою.
+              </li>
+              <li>Перевірте кожну мовну адресу окремо: мову, title, опис і canonical.</li>
+              <li>Вимкніть JavaScript і пройдіть публічну навігацію на телефоні.</li>
+              <li>
+                Після публікації перевірте фактичну відповідь і стан у Search Console. Дайте системі
+                час на повторний обхід.
+              </li>
+            </ol>
+            <p>
+              Повний HTML прибирає технічну залежність читання від JavaScript. Він не гарантує
+              індексацію, зростання трафіку чи цитування AI-помічником: корисність матеріалу,
+              доступність обходу та рішення конкретної системи залишаються окремими чинниками.
+            </p>
+          </section>
+          <aside class="article-sources">
+            <h2>Джерела та наступні кроки</h2>
+            <ul>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics"
+                  >Google: як пошук обробляє JavaScript</a
+                >
+              </li>
+              <li><a href="/uk/checks#methodology">Методика й межі аудиту FluxRadar</a></li>
+              <li>
+                <a href="/knowledge-base/javascript-audyt"
+                  >Як читати результат перевірки JavaScript-сайту</a
+                >
+              </li>
+              <li><a href="/uk/example-report">Приклад звіту для вигаданого сайту</a></li>
+            </ul>
+          </aside>
+        </article>
+        <p class="content-cta">
+          <a href="/uk">Перевірте свій сайт</a> · <a href="/knowledge-base">База знань</a> ·
+          <a href="/blog?lang=uk">Статті</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

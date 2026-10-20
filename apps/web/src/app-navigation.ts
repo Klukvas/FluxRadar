@@ -1,6 +1,8 @@
 // How the app moves between screens: opening a scan on the screen it has,
 // pushing a screen onto the history, and following Back and Forward.
 
+import { publicPageRoute, publicPagePath } from './public-page-routing';
+import type { Language } from './i18n';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { apiRequest, type Account, type Scan } from './api';
@@ -62,52 +64,61 @@ export function useOpenScanById({
   );
 }
 
-export function useNavigate({
-  setScreen,
-  setTourOpen,
-}: Pick<AppState, 'setScreen' | 'setTourOpen'>): Navigate {
+export function useNavigate(
+  { setScreen, setTourOpen }: Pick<AppState, 'setScreen' | 'setTourOpen'>,
+  language: Language,
+): Navigate {
   // `search` rides along for the one screen that reads a query: the print view's
   // plan language.
-  return useCallback((next: string, scanId?: string, search = '') => {
-    if (next === 'styleguide') {
-      window.location.hash = 'styleguide';
-      setScreen('styleguide');
-      return;
-    }
-    // 'onboarding' is a virtual route: it opens the tour and lands on desktop.
-    if (next === 'onboarding') setTourOpen(true);
-    const requested = next === 'onboarding' ? 'desktop' : next;
-    const valid: Screen = [
-      'home',
-      'auth',
-      'desktop',
-      'new-scan',
-      'reports',
-      'scan',
-      'results',
-      'issues',
-      'integrations',
-      'checks',
-      'account',
-      'admin-stats',
-      'print',
-    ].includes(requested)
-      ? (requested as Screen)
-      : 'desktop';
-    const path = pathForScreen(valid, scanId ?? null);
-    // Pushed, not replaced, so that Back returns to the previous screen instead
-    // of leaving the workspace entirely. Re-entering the screen you are already
-    // on replaces instead, so a repeated tab click does not fill the history.
-    if (path === window.location.pathname) window.history.replaceState(null, '', path + search);
-    else window.history.pushState(null, '', path + search);
-    setScreen(valid);
-  }, []);
+  return useCallback(
+    (next: string, scanId?: string, search = '') => {
+      if (next === 'styleguide') {
+        window.location.hash = 'styleguide';
+        setScreen('styleguide');
+        return;
+      }
+      // 'onboarding' is a virtual route: it opens the tour and lands on desktop.
+      if (next === 'onboarding') setTourOpen(true);
+      const requested = next === 'onboarding' ? 'desktop' : next;
+      const valid: Screen = [
+        'home',
+        'auth',
+        'desktop',
+        'new-scan',
+        'reports',
+        'scan',
+        'results',
+        'issues',
+        'integrations',
+        'checks',
+        'account',
+        'admin-stats',
+        'print',
+      ].includes(requested)
+        ? (requested as Screen)
+        : 'desktop';
+      const path =
+        valid === 'home' || valid === 'auth'
+          ? publicPagePath('home', language)
+          : valid === 'checks'
+            ? publicPagePath('checks', language)
+            : pathForScreen(valid, scanId ?? null);
+      // Pushed, not replaced, so that Back returns to the previous screen instead
+      // of leaving the workspace entirely. Re-entering the screen you are already
+      // on replaces instead, so a repeated tab click does not fill the history.
+      if (path === window.location.pathname) window.history.replaceState(null, '', path + search);
+      else window.history.pushState(null, '', path + search);
+      setScreen(valid);
+    },
+    [language],
+  );
 }
 
 /** Keeps Back and Forward inside the app, on the screen each address names. */
 export function useBackAndForward(
   { account, selectedScan, setScreen }: Pick<AppState, 'account' | 'selectedScan' | 'setScreen'>,
   openScanById: OpenScanById,
+  onLanguageChange: (language: Language) => void,
 ): void {
   // Read by the history listener below, which is registered once and must not
   // see the account and scan as they were when it was registered.
@@ -126,6 +137,8 @@ export function useBackAndForward(
   useEffect(() => {
     function onPopState(): void {
       const route = readInitialRoute();
+      const publicRoute = publicPageRoute(window.location.pathname);
+      if (publicRoute !== null) onLanguageChange(publicRoute.language);
       if (accountRef.current === null && isWorkspaceScreen(route.screen)) {
         setScreen('home');
         return;
@@ -152,5 +165,5 @@ export function useBackAndForward(
     }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [openScanById]);
+  }, [openScanById, onLanguageChange]);
 }

@@ -1,3 +1,4 @@
+import { publicPagePath } from './public-page-routing';
 import { type ReactNode } from 'react';
 
 import { MenuBar, CreatedByFluxLab } from './components';
@@ -47,7 +48,7 @@ export function BotScreen(props: {
             <h1 id="bot-title">{t.title}</h1>
             <p className="legal-lede">{t.lede}</p>
           </div>
-          <a className="legal-back" href="/">
+          <a className="legal-back" href={publicPagePath('home', props.language)}>
             {t.back}
           </a>
         </header>
@@ -85,9 +86,10 @@ export function BotScreen(props: {
         <footer className="legal-footer">
           <span>{t.footerBrand}</span>
           <span>
-            <a href="/">{t.footerHome}</a> · <a href="/privacy">{t.footerPrivacy}</a> ·{' '}
-            <a href="/terms">{t.footerTerms}</a> ·{' '}
-            <a href={`/cookies?lang=${props.language}`}>
+            <a href={publicPagePath('home', props.language)}>{t.footerHome}</a> ·{' '}
+            <a href={publicPagePath('privacy', props.language)}>{t.footerPrivacy}</a> ·{' '}
+            <a href={publicPagePath('terms', props.language)}>{t.footerTerms}</a> ·{' '}
+            <a href={publicPagePath('cookies', props.language)}>
               {copy[props.language].legal.cookies.title}
             </a>
           </span>

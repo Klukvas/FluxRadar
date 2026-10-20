@@ -49,8 +49,8 @@ function hero(): HTMLElement {
 
 describe('home hero', () => {
   it.each<[Language, string]>([
-    ['en', 'We check your website and show what keeps customers from finding you'],
-    ['uk', 'Перевіримо ваш сайт і покажемо, що заважає клієнтам вас знайти'],
+    ['en', 'Online website audit: SEO, AI visibility and what to fix first'],
+    ['uk', 'Онлайн-аудит сайту: SEO, видимість для ШІ та що виправити першим'],
   ])('titles the page in plain words (%s)', (language, title) => {
     renderHome(language);
     const heading = screen.getByRole('heading', { level: 1, name: title });
@@ -142,7 +142,7 @@ describe('home hero', () => {
     expect(within(window).getByText(t.disclaimer)).toBeInTheDocument();
     expect(within(window).getByRole('link', { name: new RegExp(linkName) })).toHaveAttribute(
       'href',
-      EXAMPLE_REPORT_PATH,
+      language === 'uk' ? '/uk/example-report' : EXAMPLE_REPORT_PATH,
     );
   });
 
@@ -167,7 +167,7 @@ describe('home hero', () => {
       'placeholder',
       'наприклад, mysalon.com.ua',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Перевірити сайт' }));
+    fireEvent.click(within(hero()).getByRole('button', { name: 'Перевірте свій сайт' }));
     expect(onStartSite).toHaveBeenCalledWith(null);
   });
 
@@ -186,10 +186,10 @@ describe('home hero', () => {
     ['uk', 'Ціни та що входить у звіт'],
   ])('scrolls to the pricing block from the hero (%s)', (language, name) => {
     renderHome(language);
-    const pricing = document.getElementById('pricing') as HTMLElement;
-    const scroll = vi.fn();
-    pricing.scrollIntoView = scroll;
-    fireEvent.click(within(hero()).getByRole('button', { name: new RegExp(name) }));
-    expect(scroll).toHaveBeenCalled();
+    expect(within(hero()).getByRole('link', { name: new RegExp(name) })).toHaveAttribute(
+      'href',
+      '#pricing',
+    );
+    expect(document.getElementById('pricing')).not.toBeNull();
   });
 });

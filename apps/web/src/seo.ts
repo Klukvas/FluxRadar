@@ -1,44 +1,12 @@
-// Per-page metadata for the public surfaces of the single-page app.
-//
-// Each public page needs its own title, description, canonical and social
-// cards: a page that inherits the home page's canonical tells a crawler that
-// /faq, /checks, /privacy, /terms and /cookies are all the same document and
-// that only one deserves to be indexed.
-//
-// The first response already carries the English head of the page it was asked
-// for: the production build writes `dist/<path>/index.html` for every public
-// page from these same functions (see `static-page-heads.ts`), because link
-// previews and most AI crawlers read only that response and never run this
-// script. At runtime `applyPageMetadata` then keeps the head right for the
-// language and the screen actually shown, replacing the static tags in place
-// rather than adding second copies.
-//
-// The language variants are real URLs, not a guess: `?lang=uk` is read on entry
-// (see `readInitialLanguage`), so an `hreflang` alternate pointing at it renders
-// the language it promises.
-
-import { EXAMPLE_REPORT_PATH } from './app-routes';
+// Shared metadata for prerendered public documents and client navigation.
+import { publicPagePath, type PublicPageId } from './public-page-routing';
+export { PUBLIC_PAGE_PATHS, type PublicPageId } from './public-page-routing';
 import { copy, type Language } from './i18n';
 
 export const SITE_ORIGIN = 'https://fluxradar.net';
 
-/** Public pages that have their own URL, title and canonical. */
-export type PublicPageId =
-  'home' | 'faq' | 'checks' | 'bot' | 'exampleReport' | 'privacy' | 'terms' | 'cookies';
-
 /** Everything else is behind sign-in and is deliberately not indexable. */
 export type SeoPageId = PublicPageId | 'workspace';
-
-export const PUBLIC_PAGE_PATHS: Readonly<Record<PublicPageId, string>> = {
-  home: '/',
-  faq: '/faq',
-  checks: '/checks',
-  bot: '/bot',
-  exampleReport: EXAMPLE_REPORT_PATH,
-  privacy: '/privacy',
-  terms: '/terms',
-  cookies: '/cookies',
-};
 
 export const OG_LOCALES: Readonly<Record<Language, string>> = { en: 'en_US', uk: 'uk_UA' };
 
@@ -52,13 +20,10 @@ function isPublicPage(page: SeoPageId): page is PublicPageId {
 /**
  * The absolute URL a public page has in one language.
  *
- * English is served at the bare path and Ukrainian at `?lang=uk`, which keeps
- * the default URL clean and gives the second language an address that can be
- * linked, shared and listed in the sitemap.
+ * English uses the bare path; Ukrainian uses /uk and /uk/<page>.
  */
 export function publicPageUrl(page: PublicPageId, language: Language): string {
-  const path = PUBLIC_PAGE_PATHS[page];
-  return language === 'en' ? `${SITE_ORIGIN}${path}` : `${SITE_ORIGIN}${path}?lang=${language}`;
+  return `${SITE_ORIGIN}${publicPagePath(page, language)}`;
 }
 
 export interface PageMetadata {
@@ -132,16 +97,16 @@ function faqPageStructuredData(language: Language): object {
 function homeStructuredData(language: Language): object {
   const t = copy[language].pricing;
   const products = [t.cards.basic, t.cards.complete].map((card) => ({
-    '@type': 'Product',
+    '@type': 'Service',
     name: `FluxRadar ${card.title}`,
     description: card.description,
-    brand: { '@type': 'Brand', name: 'FluxRadar' },
+    provider: { '@id': `${SITE_ORIGIN}/#organization` },
+    serviceType: 'Public website audit',
     offers: {
       '@type': 'Offer',
       price: card.price.replace(/[^\d.]/g, ''),
       priceCurrency: 'USD',
       url: publicPageUrl('home', language),
-      availability: 'https://schema.org/InStock',
     },
   }));
   return { '@context': 'https://schema.org', '@graph': products };

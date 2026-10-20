@@ -45,9 +45,9 @@ export function HomeHero(props: {
             </li>
           ))}
         </ul>
-        <button className="home__text-action" type="button" onClick={props.onSeePricing}>
+        <a className="home__text-action" href="#pricing">
           {t.pricingLink} <span aria-hidden="true">↓</span>
-        </button>
+        </a>
       </div>
       <HeroExampleReport language={props.language} />
     </section>
