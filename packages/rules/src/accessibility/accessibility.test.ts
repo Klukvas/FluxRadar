@@ -168,6 +168,66 @@ describe('WCAG 2.2 AA static checks', () => {
     expect(finding.evidenceExcerpt).toContain('aria-labelledby=missing');
   });
 
+  // The role whitelist used to hold 57 of the 82 non-abstract roles of
+  // WAI-ARIA 1.2, so correct markup became a finding: a production scan of
+  // fluxradar.net reported `<button role="combobox">` as an unknown role on 18
+  // pages. These are the roles that were missing, one per spec category.
+  it.each([
+    [
+      'combobox on a button, as the reported page writes it',
+      '<button role="combobox">Lang</button>',
+    ],
+    ['group', '<div role="group" aria-label="Filters"></div>'],
+    ['separator', '<div role="separator"></div>'],
+    ['searchbox', '<input role="searchbox" aria-label="Search" />'],
+    ['generic', '<span role="generic"></span>'],
+    ['paragraph', '<div role="paragraph">Text</div>'],
+    ['menuitemcheckbox', '<div role="menuitemcheckbox" aria-checked="false">Wrap</div>'],
+  ])('A11Y-007 accepts the valid ARIA 1.2 role %s', (_case, body) => {
+    expect(
+      runRule(
+        'Accessibility',
+        'A11Y-007',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>ARIA</title></head><body>' +
+            `<main><h1>Page</h1>${body}</main></body></html>`,
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  // The 12 abstract roles of WAI-ARIA 1.2 §5.3.1 are defined for the taxonomy
+  // only: the spec forbids authors to put them in markup, so role="widget" is
+  // as much a mistake as a typo and has to stay reported.
+  it.each([
+    'command',
+    'composite',
+    'input',
+    'landmark',
+    'range',
+    'roletype',
+    'section',
+    'sectionhead',
+    'select',
+    'structure',
+    'widget',
+    'window',
+    'buton',
+  ])('A11Y-007 still reports role="%s"', (role) => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-007',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>ARIA</title></head><body>' +
+            `<main><h1>Page</h1><div role="${role}">Content</div></main></body></html>`,
+        ),
+      ),
+    );
+    expect(finding.messages?.evidence.code).toBe('a11y-007.evidence.unknown-role');
+    expect(finding.messages?.evidence.params).toMatchObject({ role });
+  });
+
   // aria-hidden hides an element from screen readers but not from the Tab key.
   // The check for it could never fire: the focusability helper treated every
   // aria-hidden element as unfocusable before A11Y-007 asked about it.
