@@ -2,42 +2,42 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <!-- Public app pages. Each one is served in English at its bare path and in
-       Ukrainian at ?lang=uk, which the app reads on entry, so every alternate
-       below renders the language it declares. -->
+       Ukrainian at /uk paths. Each alternate receives its declared
+       language in the initial HTML response. -->
   <url>
     <loc>https://fluxradar.net/</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/"/>
   </url>
   <url>
-    <loc>https://fluxradar.net/?lang=uk</loc>
+    <loc>https://fluxradar.net/uk</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/"/>
   </url>
   <url>
     <loc>https://fluxradar.net/faq</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/faq"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/faq?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/faq"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/faq"/>
   </url>
   <url>
-    <loc>https://fluxradar.net/faq?lang=uk</loc>
+    <loc>https://fluxradar.net/uk/faq</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/faq"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/faq?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/faq"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/faq"/>
   </url>
   <url>
     <loc>https://fluxradar.net/bot</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/bot"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/bot?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/bot"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/bot"/>
   </url>
   <url>
-    <loc>https://fluxradar.net/bot?lang=uk</loc>
+    <loc>https://fluxradar.net/uk/bot</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/bot"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/bot?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/bot"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/bot"/>
   </url>
   <!-- The public example report: a finished report for a made-up site, readable
@@ -46,61 +46,61 @@
   <url>
     <loc>https://fluxradar.net/example-report</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/example-report"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/example-report?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/example-report"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/example-report"/>
   </url>
   <url>
-    <loc>https://fluxradar.net/example-report?lang=uk</loc>
+    <loc>https://fluxradar.net/uk/example-report</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/example-report"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/example-report?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/example-report"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/example-report"/>
   </url>
   <url>
     <loc>https://fluxradar.net/checks</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/checks"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/checks?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/checks"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/checks"/>
   </url>
   <url>
-    <loc>https://fluxradar.net/checks?lang=uk</loc>
+    <loc>https://fluxradar.net/uk/checks</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/checks"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/checks?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/checks"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/checks"/>
   </url>
   <url>
     <loc>https://fluxradar.net/privacy</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/privacy"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/privacy?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/privacy"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/privacy"/>
   </url>
   <url>
-    <loc>https://fluxradar.net/privacy?lang=uk</loc>
+    <loc>https://fluxradar.net/uk/privacy</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/privacy"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/privacy?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/privacy"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/privacy"/>
   </url>
   <url>
     <loc>https://fluxradar.net/terms</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/terms"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/terms?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/terms"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/terms"/>
   </url>
   <url>
-    <loc>https://fluxradar.net/terms?lang=uk</loc>
+    <loc>https://fluxradar.net/uk/terms</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/terms"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/terms?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/terms"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/terms"/>
   </url>
   <url>
     <loc>https://fluxradar.net/cookies</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/cookies"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/cookies?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/cookies"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/cookies"/>
   </url>
   <url>
-    <loc>https://fluxradar.net/cookies?lang=uk</loc>
+    <loc>https://fluxradar.net/uk/cookies</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/cookies"/>
-    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/cookies?lang=uk"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/cookies"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/cookies"/>
   </url>
   <!-- Blog index. One page with a client-side language filter, so it has a
@@ -157,4 +157,5 @@
 <url><loc>https://fluxradar.net/knowledge-base/strukturovani-dani</loc><lastmod>2026-10-20</lastmod><xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/knowledge-base/strukturovani-dani"/></url>
 <url><loc>https://fluxradar.net/knowledge-base/title-opysy-zaholovky</loc><lastmod>2026-10-20</lastmod><xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/knowledge-base/title-opysy-zaholovky"/></url>
 <url><loc>https://fluxradar.net/knowledge-base/vybir-paketa</loc><lastmod>2026-10-20</lastmod><xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/knowledge-base/vybir-paketa"/></url>
+  <url><loc>https://fluxradar.net/blog/uk/fluxradar-html-bez-javascript</loc><lastmod>2026-10-20</lastmod></url>
 </urlset>

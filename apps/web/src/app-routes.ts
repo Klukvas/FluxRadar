@@ -5,6 +5,7 @@
 // rules agreeing with each other, so they sit together here rather than
 // spread through the component that renders the screens.
 
+import { publicPageRoute, hasPrivateEntry, type PublicPageRoute } from './public-page-routing';
 import { ADMIN_STATS_PATH } from './admin-stats';
 import { isReportReady, type Scan } from './api';
 import { isTerminalScanStatus } from './scan-status';
@@ -249,9 +250,21 @@ function fallbackRoute(emailAction: InitialRoute['emailAction'], hash: string): 
   };
 }
 
+export function initialPublicRoute(route: PublicPageRoute): InitialRoute {
+  return plainRoute(route.page === 'exampleReport' ? 'example-report' : route.page);
+}
+
 export function readInitialRoute(): InitialRoute {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   const emailAction = emailActionFrom(window.location.search);
+  const publicRoute = publicPageRoute(path);
+  if (
+    publicRoute !== null &&
+    !hasPrivateEntry(window.location.search) &&
+    window.location.hash !== '#styleguide' &&
+    window.location.hash !== '#integrations'
+  )
+    return initialPublicRoute(publicRoute);
   if (path === '/privacy') return plainRoute('privacy');
   if (path === '/terms') return plainRoute('terms');
   if (path === '/cookies') return plainRoute('cookies');

@@ -196,7 +196,7 @@ describe('/faq header is the platform header', () => {
       'FAQ',
       'Блог',
     ]);
-    expect(within(nav).getByRole('link', { name: 'Головна' })).toHaveAttribute('href', '/');
+    expect(within(nav).getByRole('link', { name: 'Головна' })).toHaveAttribute('href', '/uk');
     expect(within(nav).getByRole('link', { name: 'Блог' })).toHaveAttribute('href', '/blog');
   });
 });

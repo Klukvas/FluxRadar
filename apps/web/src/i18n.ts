@@ -1,3 +1,4 @@
+import { hasPrivateEntry, publicPageRoute } from './public-page-routing';
 import { botCopyEn, botCopyUk } from './bot-copy';
 import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
@@ -31,7 +32,9 @@ export function readStoredLanguage(): Language {
 /** `?lang=uk` / `?lang=en` on the current URL, or null when it is absent or unknown. */
 export function readLanguageParam(search: string = window.location.search): Language | null {
   try {
-    const value = new URLSearchParams(search).get(LANGUAGE_QUERY_PARAM);
+    const params = new URLSearchParams(search);
+    const value =
+      params.getAll(LANGUAGE_QUERY_PARAM).length === 1 ? params.get(LANGUAGE_QUERY_PARAM) : null;
     return value === 'uk' || value === 'en' ? value : null;
   } catch {
     return null;
@@ -41,23 +44,30 @@ export function readLanguageParam(search: string = window.location.search): Lang
 /** The Ukrainian home address that Instagram bios and other Ukrainian links point at. */
 export const UKRAINIAN_HOME_PATH = '/uk';
 
-/** `uk` on `/uk` (with or without a trailing slash), or null on every other path. */
+/** The explicit locale of a known public path; null for workspace and unknown paths. */
 export function readLanguagePath(pathname: string = window.location.pathname): Language | null {
-  return pathname.replace(/\/+$/, '') === UKRAINIAN_HOME_PATH ? 'uk' : null;
+  return publicPageRoute(pathname)?.language ?? null;
 }
 
 /**
  * The language a session opens in.
  *
- * `?lang=` wins over everything, then the `/uk` address, then the stored
- * preference. The first two are written back only when preference storage was
- * allowed, because they are what the blog's language filter, the sitemap's
- * `hreflang` alternates, the Instagram bio and any shared link carry: following
- * one of those has to land in the language it promised — even for a visitor who
- * has not answered the cookie banner — and stay there for the rest of the visit.
+ * A canonical public path wins over query aliases and stored preferences, so
+ * the first client render agrees with the document returned for that URL.
+ * Workspace language queries and the stored preference remain fallbacks on
+ * non-public paths. Token and legacy hash entries retain query → legacy /uk
+ * path → stored preference, without treating the public English root as a default.
+ * Preferences are written only with storage consent.
  */
 export function readInitialLanguage(): Language {
-  const requested = readLanguageParam() ?? readLanguagePath();
+  const isPrivate =
+    hasPrivateEntry(window.location.search) ||
+    ['#styleguide', '#integrations'].includes(window.location.hash);
+  const legacyUkrainianPath =
+    window.location.pathname.replace(/\/+$/, '') === UKRAINIAN_HOME_PATH ? 'uk' : null;
+  const requested = isPrivate
+    ? (readLanguageParam() ?? legacyUkrainianPath)
+    : (readLanguagePath() ?? readLanguageParam());
   if (requested === null) return readStoredLanguage();
   storeLanguage(requested);
   return requested;
@@ -445,12 +455,12 @@ export const copy = {
       pricingLead:
         'Pay once for one check of one website, and the report stays yours. Nothing renews, there is no monthly quota, and everything in the package is already in the price.',
       hero: {
-        title: 'We check your website and show what keeps customers from finding you',
-        lede: 'We look at your site the way Google, AI assistants like ChatGPT and your visitors see it. You get a list of problems in plain words — and what to fix first.',
+        title: 'Online website audit: SEO, AI visibility and what to fix first',
+        lede: 'Check public pages for technical SEO, AI crawler access and site health. See the evidence, the limits of each check and practical next steps in one report.',
         formLabel: 'Your website address',
         formPlaceholder: 'e.g. mysalon.com',
         submit: 'Check my site',
-        note: 'We start with your homepage: whether Google can show it and how it looks in search. A full report on the whole site starts at {price}, paid once.',
+        note: 'Basic and Complete are one-time audits, from {price}. Compare their coverage in the plans below.',
         trust: ['No passwords or site access', 'No subscription', 'Report in English or Ukrainian'],
         pricingLink: 'Prices and what the report includes',
         example: {
@@ -2527,12 +2537,12 @@ export const copy = {
       pricingLead:
         'Ви платите один раз за одну перевірку одного сайту, і звіт залишається у вас. Нічого не поновлюється, щомісячних платежів немає, а все, що входить у пакет, уже є в ціні.',
       hero: {
-        title: 'Перевіримо ваш сайт і покажемо, що заважає клієнтам вас знайти',
-        lede: 'Дивимося на сайт так, як його бачать Google, ШІ-помічники на кшталт ChatGPT і ваші відвідувачі. Ви отримуєте список проблем простими словами — і що виправити першим.',
+        title: 'Онлайн-аудит сайту: SEO, видимість для ШІ та що виправити першим',
+        lede: 'Перевірте публічні сторінки: технічне SEO, доступ для AI-краулерів і стан сайту. Отримайте докази, межі кожної перевірки та практичні наступні кроки в одному звіті.',
         formLabel: 'Адреса вашого сайту',
         formPlaceholder: 'наприклад, mysalon.com.ua',
-        submit: 'Перевірити сайт',
-        note: 'Спершу перевіримо головну сторінку: чи показує її Google і як вона виглядає в пошуку. Повний звіт по всьому сайту — від {price}, оплата один раз.',
+        submit: 'Перевірте свій сайт',
+        note: 'Basic і Complete — разові аудити від {price}. Порівняйте їхній обсяг у пакетах нижче.',
         trust: ['Без паролів і доступу до сайту', 'Без підписки', 'Звіт українською'],
         pricingLink: 'Ціни та що входить у звіт',
         example: {

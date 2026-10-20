@@ -118,7 +118,7 @@ async function renderUnauthenticated(
   const fetchMock = stubApi(handler);
   render(<App />);
   await screen.findByRole('heading', {
-    name: 'We check your website and show what keeps customers from finding you',
+    name: 'Online website audit: SEO, AI visibility and what to fix first',
   });
   return fetchMock;
 }
@@ -140,9 +140,13 @@ describe('authentication UI', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('FluxRadar is unavailable')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(
+      await screen.findByText('Your session could not be checked. This public page is available.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: copy.en.home.hero.title }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
   // The form used to ask whether to be remembered for 7 days. It no longer
@@ -274,7 +278,7 @@ describe('authentication UI', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(
       screen.getByRole('heading', {
-        name: 'We check your website and show what keeps customers from finding you',
+        name: 'Online website audit: SEO, AI visibility and what to fix first',
       }),
     ).toBeInTheDocument();
   });
@@ -346,7 +350,7 @@ describe('authentication UI', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'We check your website and show what keeps customers from finding you',
+        name: 'Online website audit: SEO, AI visibility and what to fix first',
       }),
     ).toBeInTheDocument();
     expect(screen.getByText(account.email)).toBeInTheDocument();
@@ -359,7 +363,7 @@ describe('authentication UI', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Home' }));
     expect(
       screen.getByRole('heading', {
-        name: 'We check your website and show what keeps customers from finding you',
+        name: 'Online website audit: SEO, AI visibility and what to fix first',
       }),
     ).toBeInTheDocument();
   });
@@ -384,7 +388,7 @@ describe('public legal pages', () => {
     expect(screen.getByText('Connected Google account data')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Terms of service →' })).toHaveAttribute(
       'href',
-      '/terms?lang=en',
+      '/terms',
     );
     // The second read is the site-wide support launcher asking whether to show
     // itself; like the session read, it never holds the document back.
@@ -404,7 +408,7 @@ describe('public legal pages', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Privacy policy →' })).toHaveAttribute(
       'href',
-      '/privacy?lang=en',
+      '/privacy',
     );
   });
 
@@ -418,7 +422,7 @@ describe('public legal pages', () => {
     expect(screen.getByRole('heading', { name: 'What is stored' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Privacy policy →' })).toHaveAttribute(
       'href',
-      '/privacy?lang=en',
+      '/privacy',
     );
     // The second read is the site-wide support launcher asking whether to show
     // itself; like the session read, it never holds the document back.
@@ -838,7 +842,7 @@ describe('public /checks — audit coverage page', () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     expect(screen.getByRole('link', { name: 'Audit coverage' })).toHaveAttribute('href', '/checks');
   });
@@ -848,7 +852,7 @@ describe('public /checks — audit coverage page', () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     expect(
       screen.getByRole('heading', { name: 'The full list of checks is public.' }),
@@ -893,7 +897,7 @@ describe('public /checks — audit coverage page', () => {
     render(<App />);
     const title = await screen.findByRole('heading', {
       level: 1,
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     expect(title).toHaveAttribute('id', 'home-title');
     expect(screen.queryByText('FLUXRADAR / PUBLIC WEB AUDIT STATION')).not.toBeInTheDocument();
@@ -905,7 +909,7 @@ describe('public /checks — audit coverage page', () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     const capabilities = screen.getByRole('heading', {
       name: 'Three questions the report answers.',
@@ -933,7 +937,7 @@ describe('public /checks — audit coverage page', () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'session required') : envelope(null)));
     const view = render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     const footer = view.container.querySelector('footer');
     const launcher = view.container.querySelector('.cookie-consent-dock--launcher-only');
@@ -1175,7 +1179,7 @@ describe('/blog routing — SPA does not intercept static pages', () => {
     // static layer before React ever loads in a correctly-configured server).
     expect(
       await screen.findByRole('heading', {
-        name: 'We check your website and show what keeps customers from finding you',
+        name: 'Online website audit: SEO, AI visibility and what to fix first',
       }),
     ).toBeInTheDocument();
 
@@ -1191,7 +1195,7 @@ describe('/blog routing — SPA does not intercept static pages', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'We check your website and show what keeps customers from finding you',
+        name: 'Online website audit: SEO, AI visibility and what to fix first',
       }),
     ).toBeInTheDocument();
     expect(window.location.pathname).toBe('/blog/ai-crawler-readiness');
@@ -1210,7 +1214,7 @@ describe('home pricing and workspace onboarding', () => {
   it('describes every one-time product on the home page with its price', async () => {
     renderHome();
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     const pricing = screen.getByRole('region', {
@@ -1248,7 +1252,7 @@ describe('home pricing and workspace onboarding', () => {
   it('presents Complete as one price with every module and no add-on', async () => {
     renderHome();
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     const comparison = screen.getByRole('table', { name: /The two packages side by side/ });
@@ -1263,7 +1267,7 @@ describe('home pricing and workspace onboarding', () => {
   it('explains in plain language which product to choose and what stays free', async () => {
     renderHome();
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     expect(
@@ -1292,7 +1296,7 @@ describe('home pricing and workspace onboarding', () => {
   it('puts the plain-language comparison above the two cards', async () => {
     renderHome();
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     const pricing = screen.getByRole('region', {
@@ -1312,7 +1316,7 @@ describe('home pricing and workspace onboarding', () => {
   it('describes every product in Ukrainian after switching language', async () => {
     renderHome();
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     switchLanguageToUkrainian();
@@ -1336,7 +1340,7 @@ describe('home pricing and workspace onboarding', () => {
     renderHome();
 
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     expect(
       screen.getByRole('region', { name: 'Two one-time reports. No subscription.' }),
@@ -1354,7 +1358,7 @@ describe('home pricing and workspace onboarding', () => {
   it('opens registration from a product CTA for a signed-out visitor', async () => {
     renderHome();
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Start with Complete' }));
@@ -1368,19 +1372,21 @@ describe('home pricing and workspace onboarding', () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     switchLanguageToUkrainian();
     expect(screen.getByRole('button', { name: 'Увійти' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Перевірити сайт' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Перевірте свій сайт' }).length).toBeGreaterThan(
+      0,
+    );
     expect(window.localStorage.getItem('fluxradar.language')).toBe('uk');
 
     cleanup();
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'Перевіримо ваш сайт і покажемо, що заважає клієнтам вас знайти',
+      name: 'Онлайн-аудит сайту: SEO, видимість для ШІ та що виправити першим',
     });
     expect(screen.getByRole('combobox', { name: 'Мова' })).toHaveTextContent('Українська');
     expect(screen.getByRole('button', { name: 'Увійти' })).toBeInTheDocument();
@@ -1390,7 +1396,7 @@ describe('home pricing and workspace onboarding', () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Language' }));
@@ -1405,7 +1411,7 @@ describe('home pricing and workspace onboarding', () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Language' }));
@@ -1420,14 +1426,14 @@ describe('home pricing and workspace onboarding', () => {
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     switchLanguageToUkrainian();
 
     expect(
       await screen.findByRole('heading', {
-        name: 'Перевіримо ваш сайт і покажемо, що заважає клієнтам вас знайти',
+        name: 'Онлайн-аудит сайту: SEO, видимість для ШІ та що виправити першим',
       }),
     ).toBeInTheDocument();
     expect(
@@ -1443,8 +1449,7 @@ describe('home pricing and workspace onboarding', () => {
       screen.getByRole('heading', { name: 'Від адреси сайту до списку, що треба виправити.' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Почніть із сайту/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Перевірити сайт' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Перевірте свій сайт' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Перевірте свій сайт' })).toHaveLength(2);
     expect(screen.getByText('FLUXRADAR / ВІД FLUXLAB')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Політика приватності' })).toBeInTheDocument();
     expect(screen.queryByText('Three questions the report answers.')).not.toBeInTheDocument();
@@ -1739,7 +1744,7 @@ describe('self-explanatory workflow copy', () => {
     for (const link of links) expect(link).toHaveAttribute('href', '/faq');
 
     switchLanguageToUkrainian();
-    expect(screen.getAllByRole('link', { name: 'FAQ' })[0]).toHaveAttribute('href', '/faq');
+    expect(screen.getAllByRole('link', { name: 'FAQ' })[0]).toHaveAttribute('href', '/uk/faq');
   });
 
   it('describes the navigation tabs in Ukrainian after switching language', async () => {
@@ -1866,7 +1871,7 @@ describe('MenuBar navigation (signed in)', () => {
     render(<App />);
 
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     expect(screen.getByRole('button', { name: 'My sites' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'My sites' }));
@@ -1879,7 +1884,7 @@ describe('MenuBar navigation (signed in)', () => {
     render(<App />);
 
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     fireEvent.click(screen.getByRole('button', { name: 'Integrations' }));
 

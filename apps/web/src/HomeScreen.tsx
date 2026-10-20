@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { Button, CreatedByFluxLab, MenuBar } from './components';
 import type { Account } from './api';
 import { AuthScreen } from './AuthScreen';
-import { EXAMPLE_REPORT_PATH } from './app-routes';
+import { publicPagePath } from './public-page-routing';
 import { ExampleReport } from './ExampleReport';
 import { trackFreeCheckRequested } from './funnel-analytics';
 import { HomeHero } from './HomeHero';
@@ -55,7 +55,8 @@ export function HomeScreen(props: {
   // and keep a clean URL, not stay on a path the app no longer serves.
   useEffect(() => {
     if (entrySection === null) return;
-    if (window.location.pathname !== '/') window.history.replaceState(null, '', '/');
+    if (window.location.pathname === '/plans')
+      window.history.replaceState(null, '', publicPagePath('home', props.language));
     document.getElementById(entrySection)?.scrollIntoView({ block: 'start' });
   }, [entrySection]);
   useEffect(() => {
@@ -166,7 +167,7 @@ export function HomeScreen(props: {
               ))}
             </ul>
             <p>{t.home.coverageEntry.body}</p>
-            <a className="home__coverage-link" href="/checks">
+            <a className="home__coverage-link" href={publicPagePath('checks', props.language)}>
               {t.pricing.coverageLink}
             </a>
           </div>
@@ -237,13 +238,23 @@ export function HomeScreen(props: {
         <footer className="home__footer">
           <span>{t.home.footer.brand}</span>
           <span className="home__footer-links">
-            <a href="/checks">{t.home.footer.coverageLink}</a>
-            <a href={EXAMPLE_REPORT_PATH}>{t.home.footer.exampleLink}</a>
-            <a href="/faq">{t.nav.faq}</a>
-            <a href="/privacy">{t.home.footer.privacyLink}</a>
-            <a href="/terms">{t.home.footer.termsLink}</a>
-            <a href="/terms#terms-paid">{t.home.footer.refundLink}</a>
-            <a href="/cookies">{t.legal.cookies.title}</a>
+            <a href={publicPagePath('checks', props.language)}>{t.home.footer.coverageLink}</a>
+            <a href={publicPagePath('exampleReport', props.language)}>
+              {t.home.footer.exampleLink}
+            </a>
+            <a href={publicPagePath('faq', props.language)}>{t.nav.faq}</a>
+            <a href={publicPagePath('privacy', props.language)}>{t.home.footer.privacyLink}</a>
+            <a href={publicPagePath('terms', props.language)}>{t.home.footer.termsLink}</a>
+            <a href={publicPagePath('terms', props.language) + '#terms-paid'}>
+              {t.home.footer.refundLink}
+            </a>
+            <a href={publicPagePath('cookies', props.language)}>{t.legal.cookies.title}</a>
+            <a href={publicPagePath('checks', props.language) + '#methodology'}>
+              {props.language === 'uk' ? 'Як ми перевіряємо' : 'How we audit'}
+            </a>
+            <a href="/knowledge-base">
+              {props.language === 'uk' ? 'База знань' : 'Knowledge base (Ukrainian)'}
+            </a>
             <a href="/blog">{t.home.footer.fieldNotes}</a>
           </span>
           <CreatedByFluxLab language={props.language} />

@@ -293,7 +293,7 @@ describe('a plan the visitor chose on a pricing card', () => {
     stub(profiles);
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     fireEvent.click(
       await screen.findByRole('button', {
@@ -464,7 +464,7 @@ describe('the first site, from an account that has none', () => {
     );
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     // The plan is chosen the way a visitor chooses it: on a pricing card.

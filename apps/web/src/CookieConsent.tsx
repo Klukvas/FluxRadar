@@ -1,3 +1,4 @@
+import { publicPagePath } from './public-page-routing';
 import { useEffect, useId, useState } from 'react';
 
 import {
@@ -213,7 +214,7 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
                 </p>
               </fieldset>
               <p>{text.duration}</p>
-              <a href={`/cookies?lang=${language}`}>{text.details}</a>
+              <a href={publicPagePath('cookies', language)}>{text.details}</a>
               {error !== null && (
                 <p className="cookie-consent__error" role="alert">
                   {text[error]}

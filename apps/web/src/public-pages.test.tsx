@@ -79,9 +79,9 @@ afterEach(() => {
 describe('public page metadata', () => {
   it('gives every public page its own English and Ukrainian URL', () => {
     expect(publicPageUrl('home', 'en')).toBe('https://fluxradar.net/');
-    expect(publicPageUrl('home', 'uk')).toBe('https://fluxradar.net/?lang=uk');
+    expect(publicPageUrl('home', 'uk')).toBe('https://fluxradar.net/uk');
     expect(publicPageUrl('faq', 'en')).toBe('https://fluxradar.net/faq');
-    expect(publicPageUrl('faq', 'uk')).toBe('https://fluxradar.net/faq?lang=uk');
+    expect(publicPageUrl('faq', 'uk')).toBe('https://fluxradar.net/uk/faq');
   });
 
   it('gives each public page a distinct title and description in both languages', () => {
@@ -98,7 +98,7 @@ describe('public page metadata', () => {
     // The user agent every request carries points here, so the address has to
     // resolve to a page a stranger can read and a crawler can index.
     expect(publicPageUrl('bot', 'en')).toBe('https://fluxradar.net/bot');
-    expect(publicPageUrl('bot', 'uk')).toBe('https://fluxradar.net/bot?lang=uk');
+    expect(publicPageUrl('bot', 'uk')).toBe('https://fluxradar.net/uk/bot');
     expect(pageMetadata('bot', 'en').indexable).toBe(true);
   });
 
@@ -133,7 +133,7 @@ describe('public page metadata', () => {
   it('declares both languages and an x-default for every public page', () => {
     expect(pageMetadata('checks', 'uk').alternates).toEqual({
       en: 'https://fluxradar.net/checks',
-      uk: 'https://fluxradar.net/checks?lang=uk',
+      uk: 'https://fluxradar.net/uk/checks',
       'x-default': 'https://fluxradar.net/checks',
     });
   });
@@ -192,7 +192,7 @@ describe('public page metadata in the rendered app', () => {
     expect(metaContent('meta[property="og:url"]')).toBe('https://fluxradar.net/faq');
     expect(alternates()).toEqual({
       en: 'https://fluxradar.net/faq',
-      uk: 'https://fluxradar.net/faq?lang=uk',
+      uk: 'https://fluxradar.net/uk/faq',
       'x-default': 'https://fluxradar.net/faq',
     });
     expect(structuredData()).toHaveLength(1);
@@ -208,14 +208,14 @@ describe('public page metadata in the rendered app', () => {
     expect(document.title).toBe(copy.en.seo.checks.title);
   });
 
-  it('opens in Ukrainian from ?lang=uk and points the canonical at that URL', async () => {
-    window.history.replaceState(null, '', '/faq?lang=uk');
+  it('opens in Ukrainian from /uk/faq and points the canonical at that URL', async () => {
+    window.history.replaceState(null, '', '/uk/faq');
     stubApi(signedOut);
     render(<App />);
     await screen.findByRole('heading', { name: copy.uk.faq.title });
 
     expect(document.documentElement.lang).toBe('uk');
-    expect(canonical()).toBe('https://fluxradar.net/faq?lang=uk');
+    expect(canonical()).toBe('https://fluxradar.net/uk/faq');
     expect(document.title).toBe(copy.uk.seo.faq.title);
     expect(metaContent('meta[property="og:locale"]')).toBe('uk_UA');
   });
@@ -224,14 +224,14 @@ describe('public page metadata in the rendered app', () => {
     stubApi(signedOut);
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
     expect(canonical()).toBe('https://fluxradar.net/');
 
     switchLanguageToUkrainian();
 
     expect(document.title).toBe(copy.uk.seo.home.title);
-    expect(canonical()).toBe('https://fluxradar.net/?lang=uk');
+    expect(canonical()).toBe('https://fluxradar.net/uk');
   });
 });
 
@@ -248,7 +248,7 @@ describe('audit coverage page in Ukrainian', () => {
     for (const section of copy.uk.checks.sections) {
       expect(screen.getByRole('heading', { name: section.title })).toBeInTheDocument();
     }
-    expect(screen.getByRole('link', { name: copy.uk.checks.back })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: copy.uk.checks.back })).toHaveAttribute('href', '/uk');
     expect(screen.queryByRole('heading', { name: 'Audit coverage' })).not.toBeInTheDocument();
   });
 
@@ -260,7 +260,7 @@ describe('audit coverage page in Ukrainian', () => {
 
     const index = screen.getByRole('navigation', { name: copy.en.checks.contents });
     const anchors = Array.from(index.querySelectorAll('a'));
-    expect(anchors.length).toBe(copy.en.checks.sections.length);
+    expect(anchors.length).toBe(copy.en.checks.sections.length + 1);
     for (const anchor of anchors) {
       const id = anchor.getAttribute('href')?.slice(1) ?? '';
       expect(document.getElementById(id)).not.toBeNull();
@@ -297,7 +297,7 @@ describe('legal pages', () => {
     expect(
       await screen.findByRole('heading', { name: 'Політика приватності' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: copy.uk.legal.back })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: copy.uk.legal.back })).toHaveAttribute('href', '/uk');
     expect(screen.getByText(copy.uk.legal.languageNotice)).toBeInTheDocument();
     expect(
       screen.getByRole('navigation', { name: copy.uk.legal.contentsLabel }),

@@ -60,7 +60,7 @@ describe('cookie choices', () => {
     expect(document.activeElement).toBe(browsing);
     expect(within(banner).getByRole('link', { name: 'Cookie details' })).toHaveAttribute(
       'href',
-      '/cookies?lang=en',
+      '/cookies',
     );
   });
 
@@ -87,7 +87,7 @@ describe('cookie choices', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Налаштування cookies' }));
     expect(screen.getByRole('link', { name: 'Докладніше про cookies' })).toHaveAttribute(
       'href',
-      '/cookies?lang=uk',
+      '/uk/cookies',
     );
     expect(screen.getByRole('checkbox', { name: 'Налаштування' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Аналітика' })).toBeChecked();

@@ -1,3 +1,4 @@
+import { publicPagePath } from './public-page-routing';
 import { MenuBar, CreatedByFluxLab } from './components';
 import { copy, type Language } from './i18n';
 
@@ -44,7 +45,7 @@ export function FaqScreen(props: {
             <h1 id="faq-title">{t.title}</h1>
             <p className="legal-lede">{t.lede}</p>
           </div>
-          <a className="legal-back" href="/">
+          <a className="legal-back" href={publicPagePath('home', props.language)}>
             {t.back}
           </a>
         </header>
@@ -93,8 +94,19 @@ export function FaqScreen(props: {
         <footer className="legal-footer">
           <span>{t.footerBrand}</span>
           <span>
-            <a href="/">{t.footerHome}</a> · <a href="/checks">{t.footerCoverage}</a> ·{' '}
-            <a href="/privacy">{t.footerPrivacy}</a> · <a href="/terms">{t.footerTerms}</a>
+            <a href="/knowledge-base">
+              {props.language === 'uk'
+                ? 'База знань: як працювати зі звітом'
+                : 'Knowledge base: use your report (Ukrainian)'}
+            </a>{' '}
+            ·{' '}
+            <a href={publicPagePath('checks', props.language) + '#methodology'}>
+              {props.language === 'uk' ? 'Методика' : 'Methodology'}
+            </a>{' '}
+            · <a href={publicPagePath('home', props.language)}>{t.footerHome}</a> ·{' '}
+            <a href={publicPagePath('checks', props.language)}>{t.footerCoverage}</a> ·{' '}
+            <a href={publicPagePath('privacy', props.language)}>{t.footerPrivacy}</a> ·{' '}
+            <a href={publicPagePath('terms', props.language)}>{t.footerTerms}</a>
           </span>
           <CreatedByFluxLab language={props.language} />
         </footer>

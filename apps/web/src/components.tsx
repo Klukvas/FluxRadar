@@ -1,3 +1,5 @@
+import { PublicLanguageLinks } from './PublicLanguageLinks';
+import { publicPagePath, type PublicPageId } from './public-page-routing';
 import {
   useEffect,
   useId,
@@ -159,6 +161,12 @@ const MENU_LABELS: Record<Language, { site: string; app: string; open: string; c
 
 export function MenuBar(props: MenuBarProps) {
   const isPublic = props.variant === 'public';
+  const publicPage: PublicPageId | null =
+    props.active === 'example-report'
+      ? 'exampleReport'
+      : ['home', 'faq', 'checks', 'bot', 'privacy', 'terms', 'cookies'].includes(props.active)
+        ? (props.active as PublicPageId)
+        : null;
   // A public page learns about a session after it renders; until it does, its
   // workspace tabs look the way they do for a signed-out visitor on the home page.
   const isSignedIn = props.variant === 'public' ? (props.signedIn ?? false) : props.signedIn;
@@ -189,8 +197,12 @@ export function MenuBar(props: MenuBarProps) {
       aria-label={isPublic ? menuLabels.site : menuLabels.app}
       data-tour-target={tourTargets.workspaceHeader}
     >
-      {isPublic ? (
-        <a className="menubar__apple" href="/" onClick={() => setMenuOpen(false)}>
+      {isPublic || publicPage === 'home' ? (
+        <a
+          className="menubar__apple"
+          href={publicPagePath('home', props.language)}
+          onClick={() => setMenuOpen(false)}
+        >
           <svg viewBox="0 0 12 12" aria-hidden="true">
             <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
           </svg>
@@ -244,7 +256,7 @@ export function MenuBar(props: MenuBarProps) {
           {isPublic ? (
             <a
               className={props.active === 'home' ? 'menubar__item is-active' : 'menubar__item'}
-              href="/"
+              href={publicPagePath('home', props.language)}
               aria-current={props.active === 'home' ? 'page' : undefined}
               onClick={() => setMenuOpen(false)}
             >
@@ -291,7 +303,7 @@ export function MenuBar(props: MenuBarProps) {
           })}
           <a
             className={props.active === 'faq' ? 'menubar__item is-active' : 'menubar__item'}
-            href="/faq"
+            href={publicPagePath('faq', props.language)}
             title={labels.descriptions.faq}
             aria-current={props.active === 'faq' ? 'page' : undefined}
             onClick={() => setMenuOpen(false)}
@@ -322,6 +334,9 @@ export function MenuBar(props: MenuBarProps) {
           />
         </div>
       </div>
+      {publicPage !== null ? (
+        <PublicLanguageLinks page={publicPage} language={props.language} />
+      ) : null}
     </nav>
   );
 }

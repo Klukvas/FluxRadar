@@ -1,3 +1,4 @@
+import { publicPagePath } from './public-page-routing';
 // What a finished report reads like, shown before anyone pays for one.
 //
 // A salon owner who read the home page could not picture the product: the hero
@@ -15,7 +16,6 @@
 // (`example-home-preview.ts`) rather than from a second set written here. Both
 // described one made-up salon and disagreed about it.
 
-import { EXAMPLE_REPORT_PATH } from './app-routes';
 import {
   homePreviewFindings,
   homePreviewLead,
@@ -57,7 +57,7 @@ export function ExampleReport(props: { language: Language }) {
           answer "what do I get". The whole report does, and it needs no
           account to read. */}
       <p className="home-example__more">
-        <a href={EXAMPLE_REPORT_PATH}>
+        <a href={publicPagePath('exampleReport', props.language)}>
           {t.fullLink} <span aria-hidden="true">→</span>
         </a>
       </p>

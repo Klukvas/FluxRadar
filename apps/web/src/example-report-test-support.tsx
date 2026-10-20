@@ -87,8 +87,8 @@ export async function openExample(
   hash = '',
 ): Promise<ReturnType<typeof vi.fn>> {
   const fetchMock = stubSignedOut();
-  const query = language === 'uk' ? '?lang=uk' : '';
-  window.history.replaceState(null, '', `${EXAMPLE_REPORT_PATH}${query}${hash}`);
+  const prefix = language === 'uk' ? '/uk' : '';
+  window.history.replaceState(null, '', `${prefix}${EXAMPLE_REPORT_PATH}${hash}`);
   render(<App />);
   await screen.findByRole('heading', { name: exampleReportCopy[language].title });
   return fetchMock;

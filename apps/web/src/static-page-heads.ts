@@ -1,23 +1,4 @@
-// The static <head> of every public page, written into the production build.
-//
-// nginx serves `dist/<path>/index.html` for `/<path>` before it falls back to
-// the shared `dist/index.html` (`try_files $uri $uri/index.html /index.html` in
-// deploy/nginx.conf, the same rule the blog relies on). Without a file of its
-// own, every public page answered with the home page's title, description and
-// canonical, and only a client that runs JavaScript ever saw the page's real
-// head. Link previews (Slack, Telegram, WhatsApp, X cards) and most AI crawlers
-// read the first response and nothing else, so for them /faq was a copy of the
-// home page that pointed its canonical at `/`.
-//
-// The values come from `pageMetadata` and `pageStructuredData`, the functions
-// the runtime uses, so `seo.ts` stays the single source of truth. Every managed
-// tag carries the runtime's marker, so `applyPageMetadata` replaces these tags
-// in place instead of stacking a second copy next to them.
-//
-// The file is English. A static file cannot vary by query string, so
-// `?lang=uk` is served the English head and the app switches it to Ukrainian
-// on load, exactly as it did for every page before this file existed.
-
+// Metadata transformer shared by the full public prerender and head tests.
 import type { Language } from './i18n';
 import {
   MANAGED_ATTRIBUTE,
@@ -27,8 +8,6 @@ import {
   pageStructuredData,
   type PublicPageId,
 } from './seo';
-
-const STATIC_HEAD_LANGUAGE: Language = 'en';
 
 /** `/` keeps `index.html` itself, which is already the home page's head. */
 export type StaticHeadPageId = Exclude<PublicPageId, 'home'>;
@@ -81,8 +60,12 @@ export function staticPageHeadFiles(template: string): readonly StaticPageHeadFi
  * template that is missing a tag this function must replace fails the build
  * instead of shipping a page with half a head.
  */
-export function renderStaticPageHead(template: string, page: StaticHeadPageId): string {
-  const meta = pageMetadata(page, STATIC_HEAD_LANGUAGE);
+export function renderStaticPageHead(
+  template: string,
+  page: PublicPageId,
+  language: Language = 'en',
+): string {
+  const meta = pageMetadata(page, language);
   if (meta.canonical === null) {
     throw new Error(`static page heads: ${page} has no canonical URL`);
   }
@@ -102,10 +85,14 @@ export function renderStaticPageHead(template: string, page: StaticHeadPageId): 
   html = replaceMeta(html, 'property', 'og:title', meta.title);
   html = replaceMeta(html, 'property', 'og:description', meta.description);
   html = replaceMeta(html, 'property', 'og:url', meta.canonical);
-  html = replaceMeta(html, 'property', 'og:locale', OG_LOCALES[STATIC_HEAD_LANGUAGE]);
+  html = replaceMeta(html, 'property', 'og:locale', OG_LOCALES[language]);
   html = replaceMeta(html, 'name', 'twitter:title', meta.title);
   html = replaceMeta(html, 'name', 'twitter:description', meta.description);
-  return replaceStructuredData(html, page);
+  return replaceStructuredData(
+    html.replace(/<html lang="[^"]+">/, `<html lang="${language}">`),
+    page,
+    language,
+  );
 }
 
 /**
@@ -116,8 +103,8 @@ export function renderStaticPageHead(template: string, page: StaticHeadPageId): 
  * a session that enters on such a page still has the site-wide block after it
  * navigates to `/`.
  */
-function replaceStructuredData(html: string, page: StaticHeadPageId): string {
-  const structuredData = pageStructuredData(page, STATIC_HEAD_LANGUAGE);
+function replaceStructuredData(html: string, page: PublicPageId, language: Language): string {
+  const structuredData = pageStructuredData(page, language);
   if (structuredData === null) return html;
   // `<` is escaped so no string in the copy can close the script element early.
   const json = JSON.stringify(structuredData).replace(/</g, '\\u003c');

@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 // Several of these modules bring their own stylesheet, and stylesheets cascade in
 // the order they are first imported, all of them ahead of base.css below. Moving
@@ -8,7 +8,8 @@ import type { Account } from './api';
 import { AccountRoute, PasswordResetRoute } from './AccountRoutes';
 import { AdminStatsScreen } from './AdminStats';
 import { useAppModel, type AppModel, type AppModelProps } from './app-model';
-import { isPublicDocument } from './app-routes';
+import { publicPageRoute, publicPagePath, hasPrivateEntry } from './public-page-routing';
+import { isPublicDocument, type InitialRoute } from './app-routes';
 import { accountCopy } from './account-copy';
 import { CookieConsent } from './CookieConsent';
 import { DesktopRoute, IntegrationsRoute, ReportsRoute } from './SiteRoutes';
@@ -32,11 +33,29 @@ import './styles/base.css';
 import './styles/account.css';
 import './styles/narrow-screens.css';
 
-export function App() {
-  const [language, setLanguage] = useState<Language>(readInitialLanguage);
+export function App({
+  initialRoute,
+  initialLanguage,
+}: { readonly initialRoute?: InitialRoute; readonly initialLanguage?: Language } = {}) {
+  const [language, setLanguage] = useState<Language>(
+    () => initialLanguage ?? readInitialLanguage(),
+  );
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const changeLanguage = useCallback((next: Language) => {
     setLanguage(next);
     storeLanguage(next);
+    const route = publicPageRoute(window.location.pathname);
+    if (route !== null && !hasPrivateEntry(window.location.search) && route.language !== next) {
+      const params = new URLSearchParams(window.location.search);
+      params.delete('lang');
+      const search = params.toString();
+      window.history.pushState(
+        null,
+        '',
+        publicPagePath(route.page, next) + (search ? '?' + search : '') + window.location.hash,
+      );
+    }
   }, []);
   // The support form floats over every screen, so it lives beside the screens
   // rather than in each of them; all it needs from the session is whose
@@ -48,12 +67,13 @@ export function App() {
   return (
     <>
       <AppContent
+        initialRoute={initialRoute}
         language={language}
         changeLanguage={changeLanguage}
         onAccountChange={changeAccount}
       />
       <SupportWidget language={language} accountEmail={accountEmail} />
-      <CookieConsent language={language} />
+      {mounted ? <CookieConsent language={language} /> : null}
     </>
   );
 }
@@ -96,6 +116,31 @@ function SessionScreen({ app }: { readonly app: AppModel }) {
     selectedScan,
     sessionError,
   } = app;
+  if (screen === 'home' && entryRoute.emailAction === null && entryRoute.checkoutReturn === null) {
+    return (
+      <>
+        {notice ? (
+          <Notice
+            message={notice}
+            onClose={clearNotice}
+            closeLabel={accountCopy[language].banner.dismiss}
+          />
+        ) : null}
+        {sessionError ? (
+          <Notice
+            message={
+              language === 'uk'
+                ? 'Не вдалося перевірити сеанс. Публічна сторінка доступна.'
+                : 'Your session could not be checked. This public page is available.'
+            }
+            onClose={retrySession}
+            closeLabel={language === 'uk' ? 'Повторити' : 'Retry'}
+          />
+        ) : null}
+        <HomeRoute app={app} />
+      </>
+    );
+  }
   if (booting) {
     return (
       <AppFrame app={app} className="app-shell" active="desktop" signedIn={false}>

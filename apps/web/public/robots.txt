@@ -1,3 +1,5 @@
+# Public HTML is available to search, user-requested and training crawlers.
+# No crawler-specific group overrides the private-route exclusions below.
 User-agent: *
 Allow: /
 
@@ -8,6 +10,10 @@ Disallow: /scan
 Disallow: /scans/
 Disallow: /reports
 Disallow: /integrations
+Disallow: /account
+Disallow: /checkout/
+Disallow: /api/
+Disallow: /admin/
 
 # What our own crawler is, for anyone who met FluxRadarBot in their access log
 # and came here first: https://fluxradar.net/bot

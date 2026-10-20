@@ -18,8 +18,8 @@ export interface VisitorIntent {
 }
 
 /** Where the app is, and the sign-in dialog a visitor may have open over it. */
-function useRouteState() {
-  const [entryRoute] = useState<InitialRoute>(readInitialRoute);
+function useRouteState(initialRoute?: InitialRoute) {
+  const [entryRoute] = useState<InitialRoute>(() => initialRoute ?? readInitialRoute());
   const [screen, setScreen] = useState<Screen>(entryRoute.screen);
   const [emailAction, setEmailAction] = useState(entryRoute.emailAction);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -110,8 +110,8 @@ function useFeedbackState() {
   return { error, setError, notice, setNotice, clearNotice };
 }
 
-export function useAppState() {
-  const route = useRouteState();
+export function useAppState(initialRoute?: InitialRoute) {
+  const route = useRouteState(initialRoute);
   const session = useSessionState();
   const selection = useSelectionState();
   const feedback = useFeedbackState();

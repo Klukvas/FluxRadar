@@ -82,10 +82,10 @@ describe('the header of a public document', () => {
     }
   });
 
-  // Without the language in the link, a reader on /terms?lang=uk who had not
+  // Without the language in the link, a reader on /uk/terms who had not
   // allowed preference storage landed in an English workspace.
   it('keeps the reader’s language in the links into the workspace', async () => {
-    openAs('/terms?lang=uk', true);
+    openAs('/uk/terms', true);
 
     expect(
       await within(siteMenu()).findByRole('link', { name: copy.uk.nav.profiles }),

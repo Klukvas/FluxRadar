@@ -13,12 +13,14 @@ import type { Account } from './api';
 import { appActions, type ActionContext, type AppActions } from './app-actions';
 import { useBackAndForward, useNavigate, useOpenScanById } from './app-navigation';
 import { useConfirmEmailSignedIn, useSessionBoot } from './app-session';
+import type { InitialRoute } from './app-routes';
 import { useAppState } from './app-state';
 import type { Language } from './i18n';
 import { usePageMetadata } from './page-metadata';
 import { usePendingCheckout, type PendingCheckoutState } from './pending-checkout';
 
 export interface AppModelProps {
+  readonly initialRoute?: InitialRoute;
   readonly language: Language;
   readonly changeLanguage: (language: Language) => void;
   readonly onAccountChange: (account: Account | null) => void;
@@ -33,8 +35,9 @@ export function useAppModel({
   language,
   changeLanguage,
   onAccountChange,
+  initialRoute,
 }: AppModelProps): AppModel {
-  const state = useAppState();
+  const state = useAppState(initialRoute);
   const { account, screen, selectedScan } = state;
   const confirmEmailSignedIn = useConfirmEmailSignedIn(language, state);
 
@@ -46,8 +49,8 @@ export function useAppModel({
   const openScanById = useOpenScanById(state);
   useSessionBoot({ ...state, openScanById, confirmEmailSignedIn });
   const checkout = usePendingCheckout(state);
-  const navigate = useNavigate(state);
-  useBackAndForward(state, openScanById);
+  const navigate = useNavigate(state, language);
+  useBackAndForward(state, openScanById, changeLanguage);
 
   const context: ActionContext = { ...state, language, navigate, openScanById };
   return { ...context, ...checkout, changeLanguage, ...appActions(context) };

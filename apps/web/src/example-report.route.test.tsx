@@ -142,7 +142,7 @@ describe('the links that lead to it', () => {
     stubSignedOut();
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     const links = Array.from(
@@ -159,7 +159,7 @@ describe('the links that lead to it', () => {
     const fetchMock = stubSignedOut();
     render(<App />);
     await screen.findByRole('heading', {
-      name: 'We check your website and show what keeps customers from finding you',
+      name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
 
     expect(requestedPaths(fetchMock)).toEqual(PUBLIC_PAGE_REQUESTS);

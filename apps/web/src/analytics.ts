@@ -15,6 +15,7 @@
 // - Signals and ad personalisation are off in the tag as well as in the
 //   property, and the `_ga` cookies end with the consent that allowed them.
 
+import { approvedAttribution } from './analytics-attribution';
 import { ANALYTICS_HOSTNAME, GA_MEASUREMENT_ID, GA_SCRIPT_ORIGIN } from './analytics-config';
 import {
   COOKIE_CONSENT_CHANGE_EVENT,
@@ -64,11 +65,12 @@ export function analyticsPath(pathname: string): string {
   return pathname.replace(SCAN_PATH, '/scans/:id');
 }
 
-/** A referrer without its query, and with our own paths cleaned the same way. */
+/** External referrers need only an HTTP(S) origin; private paths never leave the browser. */
 export function analyticsReferrer(referrer: string, origin: string): string | undefined {
   try {
     const url = new URL(referrer);
-    const path = url.origin === origin ? analyticsPath(url.pathname) : url.pathname;
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+    const path = url.origin === origin ? analyticsPath(url.pathname) : '/';
     return `${url.origin}${path}`;
   } catch {
     return undefined;
@@ -105,6 +107,9 @@ function loadTag(): void {
   gtag('js', new Date());
   gtag('config', GA_MEASUREMENT_ID, {
     send_page_view: false,
+    ...approvedAttribution(window.location.search),
+    page_location: `${window.location.origin}${analyticsPath(window.location.pathname)}`,
+    page_referrer: analyticsReferrer(document.referrer, window.location.origin) ?? '',
     allow_google_signals: false,
     allow_ad_personalization_signals: false,
     // GA's default is two years; the cookie should not outlive the consent.
