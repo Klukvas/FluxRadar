@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як підключити й перевірити дані Search Console та GA4 | FluxRadar</title>
+    <meta
+      name="description"
+      content="Необовʼязкові інтеграції: відповідна властивість, права, період даних та межі аналітичних висновків."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/google-dani" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Як підключити й перевірити дані Search Console та GA4" />
+    <meta
+      property="og:description"
+      content="Необовʼязкові інтеграції: відповідна властивість, права, період даних та межі аналітичних висновків."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/google-dani" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Як підключити й перевірити дані Search Console та GA4",
+            "description": "Необовʼязкові інтеграції: відповідна властивість, права, період даних та межі аналітичних висновків.",
+            "inLanguage": "uk",
+            "datePublished": "2026-10-20",
+            "dateModified": "2026-10-20",
+            "mainEntityOfPage": "https://fluxradar.net/knowledge-base/google-dani",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "База знань",
+                "item": "https://fluxradar.net/knowledge-base"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Як підключити й перевірити дані Search Console та GA4",
+                "item": "https://fluxradar.net/knowledge-base/google-dani"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a> /
+          <span>Як підключити й перевірити дані Search Console та GA4</span>
+        </nav>
+        <header>
+          <p class="kicker">AI та вимірювання · УКРАЇНСЬКОЮ</p>
+          <h1>Як підключити й перевірити дані Search Console та GA4</h1>
+          <p class="lede">
+            Необовʼязкові інтеграції: відповідна властивість, права, період даних та межі
+            аналітичних висновків.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Публічний аудит працює без підключення Google. Search Console і GA4 додають контекст,
+            який має ваш акаунт: пошукову ефективність та відвідування. Це не заміна технічного
+            обходу й не одна універсальна цифра здоровʼя сайту.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Підготуйте права та потрібну властивість</a></li>
+              <li><a href="#section-2">Підключіть акаунт і привʼяжіть ресурс</a></li>
+              <li><a href="#section-3">Прочитайте джерело й період</a></li>
+              <li><a href="#section-4">Якщо даних немає</a></li>
+              <li><a href="#section-5">Використайте дані для дії</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Підготуйте права та потрібну властивість</h2>
+            <p>
+              Перевірте, що ваш Google-акаунт має доступ до відповідних ресурсів. Запишіть домен
+              профілю, Search Console property і GA4 property. Схожа назва не доводить, що дані
+              належать потрібному сайту. Врахуйте www, піддомени, протокол і межі URL-prefix
+              властивості.
+            </p>
+            <p>
+              Для аналітичного модуля потрібен Complete. Для перегляду зовнішніх даних перевірте
+              актуальні можливості пакета й інтеграції в інтерфейсі, а не очікуйте їх у будь-якому
+              звіті.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Підключіть акаунт і привʼяжіть ресурс</h2>
+            <ol>
+              <li>Відкрийте «Інтеграції» й виберіть підключення Google.</li>
+              <li>
+                Пройдіть штатну авторизацію потрібним акаунтом та прочитайте запитувані дозволи.
+              </li>
+              <li>Виберіть відповідні ресурси для конкретного профілю сайту.</li>
+              <li>Перевірте, чи інтерфейс показує активне підключення й обрані властивості.</li>
+              <li>Запустіть потрібний аудит після перевірки налаштувань.</li>
+            </ol>
+            <p>
+              Сам факт підключення акаунта не означає, що кожному профілю вже призначено його
+              властивість.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Прочитайте джерело й період</h2>
+            <p>
+              У звіті відкрийте Аналітику та прочитайте стан отримання даних. Search Console показує
+              пошукові покази й кліки, GA4 — інший набір подій і сеансів. Ці значення не мають
+              збігатися один до одного. Період, фільтри, згода, блокувальники й часові зони можуть
+              пояснювати різницю.
+            </p>
+            <p>
+              Приклад: Search Console бачить кліки на сайт, але GA4 фіксує менше сеансів. Перевірте
+              період і налаштування збору, перш ніж оголошувати одну систему несправною. Не
+              складайте різні одиниці вимірювання в один «загальний трафік».
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Якщо даних немає</h2>
+            <p>
+              Спочатку перевірте звʼязок профілю з ресурсом. Потім права акаунта, стан підключення й
+              наявність даних у самій системі Google. Якщо підключення втратило чинність,
+              перепідключіть через штатний інтерфейс; не копіюйте токени вручну в профіль чи
+              повідомлення підтримці.
+            </p>
+            <p>
+              Очікуваний результат — дані потрібного сайту з поясненим джерелом. Відсутність даних
+              не доводить відсутність відвідувачів: можливі неправильна властивість, обмежені права
+              або недоступність сервісу.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Використайте дані для дії</h2>
+            <p>
+              Зіставте популярні сторінки з доведеними проблемами того самого аудиту. Так можна
+              пріоритезувати виправлення там, де є відвідування. Результати Аналітики не входять у
+              загальний бал FluxRadar. Для твердження про причинний вплив виправлення на продажі
+              потрібні додаткові вимірювання й контроль інших змін.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Наступний крок</h2>
+            <ul>
+              <li>
+                <a href="/knowledge-base/priorytety-vypravlen">Врахувати контекст у плані робіт</a>
+              </li>
+              <li><a href="/knowledge-base/google-dani">Обрати показники для рішення</a></li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a href="https://support.google.com/webmasters/answer/7576553"
+                  >Google: звіт ефективності Search Console</a
+                >
+              </li>
+              <li>
+                <a href="https://support.google.com/analytics/answer/9304153"
+                  >Google: знайомство з GA4</a
+                >
+              </li>
+              <li>
+                <a href="https://fluxradar.net/privacy?lang=uk">FluxRadar: дані інтеграцій</a>
+              </li>
+            </ul>
+            <p>
+              Приклади в матеріалі навчальні. Можливості FluxRadar звірено з поточною тарифною
+              матрицею та інтерфейсом. Зовнішні посилання ведуть до документації відповідних
+              постачальників.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

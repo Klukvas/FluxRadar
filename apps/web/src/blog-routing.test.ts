@@ -29,7 +29,17 @@ describe('blogIndexUrl', () => {
     expect(blogIndexUrl('/blog/blog.js?v=2')).toBeNull();
   });
 
-  it('claims nothing outside the blog', () => {
+  it('serves knowledge-base documents before the SPA fallback', () => {
+    expect(blogIndexUrl('/knowledge-base')).toBe('/knowledge-base/index.html');
+    expect(blogIndexUrl('/knowledge-base/?lang=uk')).toBe('/knowledge-base/index.html?lang=uk');
+    expect(blogIndexUrl('/knowledge-base/novi-perevirky-saitu/')).toBe(
+      '/knowledge-base/novi-perevirky-saitu/index.html',
+    );
+    expect(blogIndexUrl('/knowledge-base/example.pdf')).toBeNull();
+    expect(blogIndexUrl('/knowledge-based')).toBeNull();
+  });
+
+  it('claims nothing outside the content sections', () => {
     expect(blogIndexUrl('/')).toBeNull();
     expect(blogIndexUrl('/faq')).toBeNull();
     expect(blogIndexUrl('/blogging')).toBeNull();

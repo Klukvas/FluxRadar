@@ -9,7 +9,7 @@ import { checksSections, type ChecksCopy } from './checks-copy-sections';
 
 export const checksCopyEn: ChecksCopy = {
   kicker: 'FLUXRADAR',
-  meta: ['Updated 2026-10-19', 'No login required to read this'],
+  meta: ['Updated 2026-10-20', 'No login required to read this'],
   title: 'Audit coverage',
   lede: 'Exactly what FluxRadar inspects, why, and what it cannot certify — with no customer credentials required for the core public audit.',
   back: '← Back to home',
@@ -17,7 +17,7 @@ export const checksCopyEn: ChecksCopy = {
   documentLabel: 'Audit coverage detail',
   noticeLabel: 'READ-ONLY AUDIT',
   notice:
-    'FluxRadar fetches only public HTTP responses. No CMS login, SSH access, database credentials or source-code access is required or requested.',
+    'FluxRadar inspects public HTTP responses and DOM; Complete Security also observes public TLS certificates and DNS TXT policies. No CMS login, SSH access, database credentials or source-code access is required or requested.',
   noticeTag: 'Applies to all scan tiers',
   contact: 'Questions about coverage or evidence:',
   contactEmail: SUPPORT_EMAIL,
@@ -31,7 +31,7 @@ export const checksCopyEn: ChecksCopy = {
       label: '00 / HOW IT WORKS',
       title: 'What the scanner does',
       intro: [
-        'FluxRadar makes ordinary HTTP(S) requests to your public website — the same requests a browser or search-engine crawler would make — and records the responses. It does not guess, estimate or infer. Every finding traces back to a byte in a real HTTP response.',
+        'FluxRadar makes HTTP(S) requests to your public website and records the responses and DOM. Complete Security also inspects TLS certificates and public DNS TXT policies. Findings point to the observed evidence; unavailable inputs remain incomplete rather than being treated as a pass.',
         'The scanner respects `robots.txt` directives. For the free homepage check only the root URL is fetched. Paid scans extend coverage to linked public pages within the configured scope.',
       ],
       bullets: [],

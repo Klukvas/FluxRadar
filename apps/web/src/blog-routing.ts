@@ -1,7 +1,7 @@
 /**
- * Clean `/blog` URLs → the static file that actually answers them.
+ * Clean blog and knowledge-base URLs → the static file that actually answers them.
  *
- * The blog is plain HTML in `public/blog`, so a request for `/blog` or
+ * The content sections are plain HTML in `public/blog` and `public/knowledge-base`, so a request for `/blog` or
  * `/blog/<slug>` has to be resolved to that directory's `index.html` before the
  * SPA fallback claims it. Production nginx does this with
  * `try_files $uri $uri/index.html /index.html`, and the dev/preview middleware
@@ -17,8 +17,11 @@ export function blogIndexUrl(url: string): string | null {
   const path = query === -1 ? url : url.slice(0, query);
   const search = query === -1 ? '' : url.slice(query);
 
-  if (path === '/blog' || path === '/blog/') return `/blog/index.html${search}`;
-  if (!path.startsWith('/blog/') || path.length === '/blog/'.length) return null;
+  const section = ['/blog', '/knowledge-base'].find(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+  if (section === undefined) return null;
+  if (path === section || path === `${section}/`) return `${section}/index.html${search}`;
 
   const clean = path.endsWith('/') ? path.slice(0, -1) : path;
   if (hasFileExtension(clean)) return null;

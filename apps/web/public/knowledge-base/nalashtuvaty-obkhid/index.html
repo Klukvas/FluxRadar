@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як налаштувати область і глибину обходу | FluxRadar</title>
+    <meta
+      name="description"
+      content="Ліміти сторінок, глибина, параметри URL, шаблони шляхів і початкові адреси для контрольованого аудиту."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/nalashtuvaty-obkhid" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Як налаштувати область і глибину обходу" />
+    <meta
+      property="og:description"
+      content="Ліміти сторінок, глибина, параметри URL, шаблони шляхів і початкові адреси для контрольованого аудиту."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/nalashtuvaty-obkhid" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Як налаштувати область і глибину обходу",
+            "description": "Ліміти сторінок, глибина, параметри URL, шаблони шляхів і початкові адреси для контрольованого аудиту.",
+            "inLanguage": "uk",
+            "datePublished": "2026-10-20",
+            "dateModified": "2026-10-20",
+            "mainEntityOfPage": "https://fluxradar.net/knowledge-base/nalashtuvaty-obkhid",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "База знань",
+                "item": "https://fluxradar.net/knowledge-base"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Як налаштувати область і глибину обходу",
+                "item": "https://fluxradar.net/knowledge-base/nalashtuvaty-obkhid"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a> /
+          <span>Як налаштувати область і глибину обходу</span>
+        </nav>
+        <header>
+          <p class="kicker">Початок роботи · УКРАЇНСЬКОЮ</p>
+          <h1>Як налаштувати область і глибину обходу</h1>
+          <p class="lede">
+            Ліміти сторінок, глибина, параметри URL, шаблони шляхів і початкові адреси для
+            контрольованого аудиту.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Область обходу визначає, які докази зʼявляться у звіті. Якщо перевірити тільки один
+            розділ, висновки стосуватимуться цього розділу. Перед запуском намалюйте просту карту:
+            головна, категорії, товари чи послуги, інформаційні сторінки та мовні версії.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Підготуйте список важливих адрес</a></li>
+              <li><a href="#section-2">Встановіть ліміт і глибину</a></li>
+              <li><a href="#section-3">Керуйте шляхами й параметрами</a></li>
+              <li><a href="#section-4">Додайте початкові URL й перевірте результат</a></li>
+              <li><a href="#section-5">Коли треба змінити налаштування</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Підготуйте список важливих адрес</h2>
+            <p>
+              Візьміть приклади кожного шаблону: категорія, товар, стаття, контакти. Додайте
+              сторінки, які отримують трафік або ведуть до заявки. За можливості звірте список із
+              sitemap та власним переліком у CMS. Карта сайту може бути застарілою, а сторінка без
+              внутрішніх посилань не обовʼязково потрапить у звичайний обхід.
+            </p>
+            <p>
+              Для перевірки нового мовного розділу збережіть кілька адрес саме цієї мови. Головна
+              може перенаправляти на іншу локаль, що змінить початок обходу.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Встановіть ліміт і глибину</h2>
+            <ol>
+              <li>У «Перевірка» виберіть профіль і пакет.</li>
+              <li>У «Глибина аудиту» задайте «Максимум сторінок» цілим числом у межах пакета.</li>
+              <li>
+                Задайте «Максимальна глибина обходу». Глибина описує переходи за посиланнями від
+                початкової адреси, а не кількість сегментів у URL.
+              </li>
+              <li>
+                Перевірте, чи потрібні піддомени. Не включайте чужі або закриті середовища лише
+                через схожість назви.
+              </li>
+            </ol>
+            <p>
+              Низький ліміт зручний для першої перевірки налаштувань. Якщо досягнуто ліміту, це не
+              доводить, що решта сайту не має проблем.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Керуйте шляхами й параметрами</h2>
+            <p>
+              Використайте поля включення та виключення шляхів для потрібного розділу. Перевірте
+              підказки синтаксису в інтерфейсі; не переносіть регулярні вирази з іншого краулера без
+              перевірки. Сторінки сортування й фільтрації можуть створювати багато адрес однакового
+              контенту.
+            </p>
+            <p>
+              «Ігнорувати параметри» зменшує дублювання через UTM. «Включати параметри» потрібне,
+              коли вони справді визначають контент. Наприклад,
+              <code>?utm_source=email</code> зазвичай описує джерело переходу, а
+              <code>?category=shoes</code> може міняти сторінку. Рішення приймайте після відкриття
+              обох варіантів.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Додайте початкові URL й перевірте результат</h2>
+            <p>
+              У «Початкові URL» вставте повні адреси по одній на рядок. Вони допоможуть перевірити
+              сторінки без вхідних посилань, але все одно підкоряються області, robots.txt та
+              ліміту. Додавання URL не скасовує блокування й не робить сторінку публічною.
+            </p>
+            <p>
+              Після аудиту зіставте прочитані адреси з початковим списком. Для кожної пропущеної
+              сторінки встановіть причину: виключений шлях, robots.txt, редирект на інший домен,
+              ліміт чи помилка доступу. Очікуваний результат — пояснений набір сторінок, а не просто
+              велика кількість.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Коли треба змінити налаштування</h2>
+            <p>
+              Якщо каталог заповнився варіантами фільтрів, спочатку перегляньте політику параметрів,
+              а не підвищуйте ліміт. Якщо важливі сторінки залишилися поза обходом, додайте їх до
+              початкових адрес і перевірте внутрішню навігацію. Для повторного вимірювання збережіть
+              ті самі правила, щоб різницю результатів не пояснювала випадкова зміна вибірки.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Наступний крок</h2>
+            <ul>
+              <li>
+                <a href="/knowledge-base/robots-ta-noindex">Перевірити robots.txt та noindex</a>
+              </li>
+              <li><a href="/knowledge-base/povtornyi-audyt">Порівняти повторні перевірки</a></li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a href="https://developers.google.com/search/docs/crawling-indexing/url-structure"
+                  >Google: структура URL</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview"
+                  >Google: карти сайту</a
+                >
+              </li>
+            </ul>
+            <p>
+              Приклади в матеріалі навчальні. Можливості FluxRadar звірено з поточною тарифною
+              матрицею та інтерфейсом. Зовнішні посилання ведуть до документації відповідних
+              постачальників.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

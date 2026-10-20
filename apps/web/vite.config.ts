@@ -10,7 +10,7 @@ import { defineConfig, runnerImport } from 'vite';
 import { blogIndexUrl } from './src/blog-routing.js';
 
 /**
- * Serve the standalone blog HTML for clean /blog paths in `vite dev` and
+ * Serve standalone content HTML for clean /blog and /knowledge-base paths in `vite dev` and
  * `vite preview`, instead of falling through to the React SPA shell.
  *
  * Paths handled

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як знайти й виправити суперечливі canonical URL | FluxRadar</title>
+    <meta
+      name="description"
+      content="Перевірка канонічних адрес, мовних версій, параметрів і дублів із контрольним прикладом."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/canonical-ta-dublikaty" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Як знайти й виправити суперечливі canonical URL" />
+    <meta
+      property="og:description"
+      content="Перевірка канонічних адрес, мовних версій, параметрів і дублів із контрольним прикладом."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/canonical-ta-dublikaty" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Як знайти й виправити суперечливі canonical URL",
+            "description": "Перевірка канонічних адрес, мовних версій, параметрів і дублів із контрольним прикладом.",
+            "inLanguage": "uk",
+            "datePublished": "2026-10-20",
+            "dateModified": "2026-10-20",
+            "mainEntityOfPage": "https://fluxradar.net/knowledge-base/canonical-ta-dublikaty",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "База знань",
+                "item": "https://fluxradar.net/knowledge-base"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Як знайти й виправити суперечливі canonical URL",
+                "item": "https://fluxradar.net/knowledge-base/canonical-ta-dublikaty"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a> /
+          <span>Як знайти й виправити суперечливі canonical URL</span>
+        </nav>
+        <header>
+          <p class="kicker">SEO та індексація · УКРАЇНСЬКОЮ</p>
+          <h1>Як знайти й виправити суперечливі canonical URL</h1>
+          <p class="lede">
+            Перевірка канонічних адрес, мовних версій, параметрів і дублів із контрольним прикладом.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Canonical повідомляє бажану основну адресу для однакового або дуже схожого контенту.
+            Його потрібно читати разом із редиректами, внутрішніми посиланнями й sitemap. Наявність
+            тега сама по собі не доводить, що ціль правильна або що пошуковик її прийме.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Підготуйте представників дублів</a></li>
+              <li><a href="#section-2">Перевірте ціль canonical</a></li>
+              <li><a href="#section-3">Розберіть параметри й мови</a></li>
+              <li><a href="#section-4">Приклад виправлення шаблону</a></li>
+              <li><a href="#section-5">Якщо пошуковик вибрав іншу адресу</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Підготуйте представників дублів</h2>
+            <p>
+              Потрібен SEO-звіт Basic або Complete. Візьміть основну сторінку, її варіант із
+              параметром, версію з іншим слешем та мовні аналоги. Відкрийте кожну адресу й запишіть
+              кінцевий URL. Не оголошуйте дві сторінки дублями лише через однакові заголовки: вони
+              можуть відповідати різним запитам.
+            </p>
+            <p>
+              У «Центрі проблем» знайдіть знахідки canonical і дублювання. Перевірте докази на
+              кількох сторінках одного шаблону, щоб відрізнити локальну помилку від системної.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Перевірте ціль canonical</h2>
+            <ol>
+              <li>Перегляньте <code>link rel="canonical"</code> у вихідному HTML та DOM.</li>
+              <li>Звірте абсолютну адресу, протокол, хост і мовний шлях.</li>
+              <li>
+                Відкрийте ціль: вона має відповідати потрібному контенту та бути доступною для
+                індексації.
+              </li>
+              <li>Перевірте, чи немає кількох суперечливих canonical.</li>
+              <li>Зіставте вибір із внутрішніми посиланнями та sitemap.</li>
+            </ol>
+            <p>
+              Canonical на 404, закриту сторінку або інший продукт не є корисним способом обʼєднання
+              сигналів.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Розберіть параметри й мови</h2>
+            <p>
+              Якщо <code>/services?utm_source=mail</code> має той самий зміст, canonical на
+              <code>/services</code> може бути логічним. Якщо параметр перемикає на іншу категорію з
+              власним корисним контентом, таке обʼєднання потребує іншого рішення. Спочатку
+              порівняйте зміст, потім задайте правило шаблону.
+            </p>
+            <p>
+              Для української та англійської версій не ставте автоматично canonical всіх сторінок на
+              одну мову. Переклад є окремою мовною сторінкою; потрібні відповідні канонічні адреси
+              та коректні мовні звʼязки там, де вони застосовні.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Приклад виправлення шаблону</h2>
+            <p>
+              На <code>/uk/services/design</code> тег помилково веде на <code>/services</code>.
+              Спочатку визначте, чи перша сторінка має самостійний зміст і повинна індексуватися.
+              Якщо так, встановіть її власну канонічну адресу, виправте генератор тегів і перевірте
+              інші послуги того самого шаблону.
+            </p>
+            <p>
+              Очікуваний результат — один узгоджений canonical, доступна ціль і посилання на
+              правильну адресу. Search Console може показувати обрану Google канонічну сторінку із
+              затримкою після повторного обходу.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Якщо пошуковик вибрав іншу адресу</h2>
+            <p>
+              Перевірте дублікати контенту, редиректи, карту сайту й внутрішню навігацію. Canonical
+              є сигналом, а не наказом. Не додавайте noindex до кожного варіанта без аналізу: це
+              окремий механізм, який може забрати потрібні сторінки з пошуку. Після зміни повторіть
+              перевірку тих самих URL і запишіть фактичні відповіді.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Наступний крок</h2>
+            <ul>
+              <li><a href="/knowledge-base/sitemap-perevirka">Узгодити canonical із sitemap</a></li>
+              <li><a href="/knowledge-base/redyrekty-ta-404">Перевірити редиректи й 404</a></li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls"
+                  >Google: канонізація</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/specialty/international/localized-versions"
+                  >Google: мовні версії</a
+                >
+              </li>
+            </ul>
+            <p>
+              Приклади в матеріалі навчальні. Можливості FluxRadar звірено з поточною тарифною
+              матрицею та інтерфейсом. Зовнішні посилання ведуть до документації відповідних
+              постачальників.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Що означають покриття та бал у звіті FluxRadar | FluxRadar</title>
+    <meta
+      name="description"
+      content="Як відрізнити якість результату від повноти перевірок і не плутати покриття з часткою обійденого сайту."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/pokryttia-ta-bal" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Що означають покриття та бал у звіті FluxRadar" />
+    <meta
+      property="og:description"
+      content="Як відрізнити якість результату від повноти перевірок і не плутати покриття з часткою обійденого сайту."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/pokryttia-ta-bal" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Що означають покриття та бал у звіті FluxRadar",
+            "description": "Як відрізнити якість результату від повноти перевірок і не плутати покриття з часткою обійденого сайту.",
+            "inLanguage": "uk",
+            "datePublished": "2026-10-20",
+            "dateModified": "2026-10-20",
+            "mainEntityOfPage": "https://fluxradar.net/knowledge-base/pokryttia-ta-bal",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "База знань",
+                "item": "https://fluxradar.net/knowledge-base"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Що означають покриття та бал у звіті FluxRadar",
+                "item": "https://fluxradar.net/knowledge-base/pokryttia-ta-bal"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a> /
+          <span>Що означають покриття та бал у звіті FluxRadar</span>
+        </nav>
+        <header>
+          <p class="kicker">Звіти та пріоритети · УКРАЇНСЬКОЮ</p>
+          <h1>Що означають покриття та бал у звіті FluxRadar</h1>
+          <p class="lede">
+            Як відрізнити якість результату від повноти перевірок і не плутати покриття з часткою
+            обійденого сайту.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Бал відповідає на питання про виявлені проблеми, а покриття — про доступність доказів
+            для застосовних перевірок. Це різні виміри. Високий бал із малою кількістю даних не дає
+            такого самого рівня впевненості, як результат із достатнім покриттям.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Знайдіть покриття у потрібному контексті</a></li>
+              <li><a href="#section-2">Прочитайте стан оцінки</a></li>
+              <li><a href="#section-3">Розберіть причину відсутніх даних</a></li>
+              <li><a href="#section-4">Приклад із двома звітами</a></li>
+              <li><a href="#section-5">Зафіксуйте висновок для команди</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Знайдіть покриття у потрібному контексті</h2>
+            <p>
+              Відкрийте завершений звіт у «Звіти». Перегляньте загальний стан і показники окремих
+              модулів. Покриття визначається виконаними застосовними перевірками відносно всіх
+              застосовних перевірок; воно не є відношенням прочитаних URL до всіх URL у CMS.
+            </p>
+            <p>
+              Окремо оцініть область обходу. Можна мати добре покриття перевірок на невеликій
+              вибірці сторінок, але ще не знати стан решти каталогу. У передачі результатів клієнту
+              називайте обидві межі: що перевірялося і скільки доказів вдалося отримати.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Прочитайте стан оцінки</h2>
+            <ul>
+              <li>За зваженого покриття від 80% загальний результат має звичайний стан.</li>
+              <li>
+                Від 50% до менш ніж 80% оцінка попередня: даних вистачає для орієнтира, але її
+                потрібно читати з обмеженнями.
+              </li>
+              <li>
+                Нижче 50% стан означає недостатність даних; надійний загальний бал не показується.
+              </li>
+            </ul>
+            <p>
+              Ці пороги описують поведінку FluxRadar, а не універсальний стандарт аудиту. Вони не є
+              процентами ймовірності індексації, продажів або безпеки.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Розберіть причину відсутніх даних</h2>
+            <p>
+              Перейдіть до модуля з низьким покриттям. Зовнішній сервіс може не відповісти, сайт
+              може блокувати краулер, а певний тип даних може бути відсутнім. CrUX, наприклад, не
+              має польових вимірювань для кожної адреси. Незапущений через пакет модуль слід
+              відрізняти від тимчасово недоступного.
+            </p>
+            <p>
+              Запишіть причину й наступну дію: відновити публічну доступність, перевірити
+              інтеграцію, повторити вимірювання після збою або прийняти, що такого джерела зараз
+              немає. Не покращуйте цифру виключенням складних сторінок без пояснення зміни області.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Приклад із двома звітами</h2>
+            <p>
+              У першій перевірці сайт отримав 92 бали, але кілька зовнішніх перевірок не виконалися.
+              У другій — 86 балів із повнішими доказами. Це навчальні числа, не результати клієнта.
+              Не можна автоматично сказати, що сайт погіршився: другий запуск міг побачити проблеми,
+              яких перший не міг оцінити.
+            </p>
+            <p>
+              Порівняйте однакові застосовні модулі, конкретні знахідки та доступність джерел.
+              Аналітика й UX/Конверсія не входять до загального бала, хоча можуть містити важливі
+              рекомендації.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Зафіксуйте висновок для команди</h2>
+            <p>
+              У підсумку напишіть: пакет, область, стан оцінки, зважене покриття та перелік
+              обмежень. Після цього вкажіть доведені проблеми. Якщо стан — недостатність даних,
+              спочатку відновіть умови перевірки або використайте ручний контроль. Вигадувати бал
+              для презентації не потрібно: чесна невизначеність допомагає обрати правильну наступну
+              дію.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Наступний крок</h2>
+            <ul>
+              <li><a href="/knowledge-base/prochytaty-zvit">Перевірити докази знахідок</a></li>
+              <li>
+                <a href="/knowledge-base/pokryttia-ta-bal"
+                  >Як не робити хибних висновків з аудиту</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li><a href="https://fluxradar.net/checks?lang=uk">FluxRadar: покриття аудиту</a></li>
+              <li>
+                <a href="https://developer.chrome.com/docs/crux/methodology"
+                  >Chrome: методологія CrUX</a
+                >
+              </li>
+            </ul>
+            <p>
+              Приклади в матеріалі навчальні. Можливості FluxRadar звірено з поточною тарифною
+              матрицею та інтерфейсом. Зовнішні посилання ведуть до документації відповідних
+              постачальників.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>
