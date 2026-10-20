@@ -774,6 +774,8 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
             return runner(auditRequest);
           };
         },
+        // The HTTP fixture has no TLS/DNS service; those collectors have isolated tests.
+        collectSiteSecurityFacts: async () => ({}),
         crawl: { originOverride: () => fixture.origin, dangerouslyAllowLoopback: true },
       },
       scanId,
@@ -955,6 +957,8 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         logger: silentLogger,
         createAiProvider,
         createPerformanceRunner: () => undefined,
+        // The HTTP fixture has no TLS/DNS service; those collectors have isolated tests.
+        collectSiteSecurityFacts: async () => ({}),
         crawl: { originOverride: () => origin, dangerouslyAllowLoopback: true },
         ...(createGoogleDataRunner === undefined ? {} : { createGoogleDataRunner }),
       },
