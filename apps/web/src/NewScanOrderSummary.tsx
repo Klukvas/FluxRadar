@@ -5,6 +5,7 @@ import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import type { NewScanForm } from './new-scan-form';
 import { PLAN_URL_LIMIT, type Plan } from './plan-modules';
+import { publicPagePath } from './public-page-routing';
 import { RobotsConfirmation } from './RobotsConfirmation';
 import { siteAddress } from './site-address';
 import { PLAN_PRICE } from './tariff-prices';
@@ -147,11 +148,11 @@ function PurchaseTerms(props: { form: NewScanForm; language: Language }) {
   return (
     <p className="muted checkout-legal-note" role="note" aria-label={t.newScan.purchaseTermsLabel}>
       {t.newScan.purchaseTermsPrefix(plan)}{' '}
-      <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>{' '}
+      <a href={publicPagePath('terms', props.language)}>{t.newScan.aiConsentTerms}</a>{' '}
       {t.newScan.purchaseTermsJoin}{' '}
-      <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
+      <a href={publicPagePath('privacy', props.language)}>{t.newScan.aiConsentPrivacy}</a>
       {' · '}
-      <a href={`/cookies?lang=${props.language}`}>{t.legal.cookies.title}</a>
+      <a href={publicPagePath('cookies', props.language)}>{t.legal.cookies.title}</a>
       {'.'}
       {merchant === null ? null : ` ${merchant}`}
     </p>

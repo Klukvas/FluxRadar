@@ -166,15 +166,15 @@ describe('authentication UI', () => {
     expect(within(dialog).queryByRole('checkbox', { name: /Remember me/ })).not.toBeInTheDocument();
     expect(within(dialog).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
       'href',
-      '/terms?lang=en',
+      '/terms',
     );
     expect(within(dialog).getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
       'href',
-      '/privacy?lang=en',
+      '/privacy',
     );
     expect(within(dialog).getByRole('link', { name: 'Cookie policy' })).toHaveAttribute(
       'href',
-      '/cookies?lang=en',
+      '/cookies',
     );
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Email' }), {
       target: { value: account.email },

@@ -333,7 +333,7 @@ function UkrainianPrivacy(): JSX.Element {
           завантажує Google Analytics 4. До дозволу вона не запускається, а відкликання зупиняє її й
           видаляє її cookies. Google Signals, ads personalization і remarketing вимкнені, а user та
           event data зберігаються 2 місяці. Рекламних trackers FluxRadar не використовує. Повний
-          перелік, строки й керування наведено в <a href="/cookies?lang=uk">Політиці cookies</a>.
+          перелік, строки й керування наведено в <a href="/uk/cookies">Політиці cookies</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">
@@ -658,8 +658,7 @@ function EnglishPrivacy(): JSX.Element {
           loads Google Analytics 4. It does not start before you allow it, and withdrawing stops it
           and deletes its cookies. Google Signals, ads personalization and remarketing are disabled,
           and user and event data are kept for 2 months. FluxRadar uses no advertising trackers. See
-          the full inventory, durations and controls in the{' '}
-          <a href="/cookies?lang=en">Cookie Policy</a>.
+          the full inventory, durations and controls in the <a href="/cookies">Cookie Policy</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">

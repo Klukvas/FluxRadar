@@ -1,0 +1,60 @@
+<!-- Source of public/og-image.png; regenerate from apps/web with: /opt/homebrew/bin/rsvg-convert -w 1200 -h 630 og/og-image.svg -o public/og-image.png -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#182219" stroke-width="1" />
+    </pattern>
+    <!-- One 8° slice of the sweep trail, pointing along +x; the trail is this slice rotated and faded. -->
+    <path id="slice" d="M0 0L220 0A220 220 0 0 0 217.86 -30.62Z" fill="#33ff66" />
+    <line id="tick" x1="226" y1="0" x2="238" y2="0" stroke="#1d824a" stroke-width="2" />
+  </defs>
+
+  <rect width="1200" height="630" fill="#101410" />
+  <rect width="1200" height="630" fill="url(#grid)" />
+  <rect x="24" y="24" width="1152" height="582" fill="none" stroke="#1d824a" stroke-opacity="0.55" stroke-width="2" />
+
+  <g transform="translate(75 133.5) scale(2.5)">
+    <path d="M10 13h44v8H31v8h17v8H31v14h-9V29H10z" fill="#33ff66" />
+    <path d="M45 39h9v12h-9z" fill="#4dd0e1" />
+  </g>
+  <text x="94" y="388" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="700" font-size="104" letter-spacing="-2" fill="#efefef">Flux<tspan fill="#33ff66">Radar</tspan></text>
+  <text x="100" y="462" font-family="Monaco, Menlo, monospace" font-size="34" fill="#cccccc">fluxradar.net</text>
+
+  <g transform="translate(930 315)">
+    <circle r="220" fill="#0c120d" />
+    <use xlink:href="#slice" transform="rotate(-35)" fill-opacity="0.34" />
+    <use xlink:href="#slice" transform="rotate(-43)" fill-opacity="0.27" />
+    <use xlink:href="#slice" transform="rotate(-51)" fill-opacity="0.21" />
+    <use xlink:href="#slice" transform="rotate(-59)" fill-opacity="0.16" />
+    <use xlink:href="#slice" transform="rotate(-67)" fill-opacity="0.12" />
+    <use xlink:href="#slice" transform="rotate(-75)" fill-opacity="0.08" />
+    <use xlink:href="#slice" transform="rotate(-83)" fill-opacity="0.05" />
+    <use xlink:href="#slice" transform="rotate(-91)" fill-opacity="0.03" />
+    <g fill="none" stroke="#1d824a">
+      <circle r="220" stroke-width="2.5" />
+      <circle r="165" stroke-width="1.5" stroke-opacity="0.75" />
+      <circle r="110" stroke-width="1.5" stroke-opacity="0.75" />
+      <circle r="55" stroke-width="1.5" stroke-opacity="0.75" />
+      <path d="M-220 0H220M0 -220V220" stroke-width="1.5" stroke-opacity="0.6" />
+    </g>
+    <use xlink:href="#tick" />
+    <use xlink:href="#tick" transform="rotate(30)" />
+    <use xlink:href="#tick" transform="rotate(60)" />
+    <use xlink:href="#tick" transform="rotate(90)" />
+    <use xlink:href="#tick" transform="rotate(120)" />
+    <use xlink:href="#tick" transform="rotate(150)" />
+    <use xlink:href="#tick" transform="rotate(180)" />
+    <use xlink:href="#tick" transform="rotate(210)" />
+    <use xlink:href="#tick" transform="rotate(240)" />
+    <use xlink:href="#tick" transform="rotate(270)" />
+    <use xlink:href="#tick" transform="rotate(300)" />
+    <use xlink:href="#tick" transform="rotate(330)" />
+    <line x1="0" y1="0" x2="180.2" y2="-126.2" stroke="#33ff66" stroke-width="3" />
+    <circle cx="92.3" cy="-118.2" r="15" fill="none" stroke="#33ff66" stroke-opacity="0.4" stroke-width="2" />
+    <rect x="86.3" y="-124.2" width="12" height="12" fill="#33ff66" />
+    <rect x="92.3" y="62.8" width="12" height="12" fill="#4dd0e1" />
+    <rect x="-170.4" y="53.9" width="12" height="12" fill="#1d824a" />
+    <rect x="-70.1" y="-59.6" width="10" height="10" fill="#33ff66" fill-opacity="0.55" />
+    <rect x="-5" y="-5" width="10" height="10" fill="#33ff66" />
+  </g>
+</svg>
