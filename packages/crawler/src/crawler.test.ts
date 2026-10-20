@@ -458,3 +458,116 @@ describe('crawl: кооперативная отмена (мок-fetcher)', () =
     expect(result.pages).toEqual([]);
   });
 });
+
+describe('crawl: urlVariants и ссылки-якоря (мок-fetcher)', () => {
+  const MOCK_ORIGIN = 'http://anchors-host.test';
+
+  function htmlResponse(url: string, body: string, status = 200): SafeFetchResult {
+    return {
+      finalUrl: url,
+      status,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      body,
+      redirectChain: [],
+      timingMs: 1,
+      truncated: false,
+    };
+  }
+
+  /** Главная со заданным списком ссылок; robots.txt и sitemap.xml отсутствуют. */
+  function linkingFetcher(links: readonly string[]): CrawlFetcher {
+    return (url) => {
+      const pathname = new URL(url).pathname;
+      if (pathname === '/robots.txt' || pathname === '/sitemap.xml') {
+        return Promise.resolve(htmlResponse(url, '', 404));
+      }
+      if (pathname !== '/') {
+        return Promise.resolve(htmlResponse(url, '<html><body>page</body></html>'));
+      }
+      const anchors = links.map((href) => `<a href="${href}">x</a>`).join('');
+      return Promise.resolve(htmlResponse(url, `<html><body>${anchors}</body></html>`));
+    };
+  }
+
+  function anchorScope(overrides: Partial<CrawlScope> = {}): CrawlScope {
+    return { origin: MOCK_ORIGIN, includeSubdomains: false, maxPages: 20, ...overrides };
+  }
+
+  const emptyCoverage = {
+    skippedOverLimit: [],
+    blockedByRobots: [],
+    errors: [],
+    rejectedSeeds: [],
+    urlVariants: {},
+  } as const;
+
+  it('ссылки-якоря на одну страницу не дают группы дублей URL', async () => {
+    // Боевой скан fluxradar.net сообщал о 13 «вариантах» /faq ровно из-за его
+    // table of contents: fragment на сервер не уходит, поэтому /page, /page#a,
+    // /page#b и /page# — один адрес, а не четыре raw-формы одного адреса.
+    const result = await crawl(
+      anchorScope(),
+      fastOptions({
+        fetcher: linkingFetcher(['/page', '/page#a', '/page#b', '/page#']),
+        probeMedia: false,
+      }),
+    );
+
+    expect(result.pages.map((page) => page.normalizedUrl)).toContain(`${MOCK_ORIGIN}/page`);
+    expect(result.urlVariants[`${MOCK_ORIGIN}/page`]).toBeUndefined();
+  });
+
+  it('настоящий вариант с query остаётся группой, и fragment-форм в ней нет', async () => {
+    // queryPolicy 'ignore' склеивает /page и /page?lang=uk в один normalizedUrl:
+    // это дубль, о котором SEO-TECH-007 обязан сказать и после починки якорей.
+    const result = await crawl(
+      anchorScope({ queryPolicy: 'ignore' }),
+      fastOptions({
+        fetcher: linkingFetcher(['/page', '/page#a', '/page#b', '/page#', '/page?lang=uk']),
+        probeMedia: false,
+      }),
+    );
+
+    expect(result.urlVariants[`${MOCK_ORIGIN}/page`]).toEqual([
+      `${MOCK_ORIGIN}/page`,
+      `${MOCK_ORIGIN}/page?lang=uk`,
+    ]);
+  });
+
+  it('варианты восстановленной попытки тоже теряют fragment, осиротевшая группа исчезает', async () => {
+    // Покрытие прошлой попытки записано прежним кодом и уже несёт #-формы.
+    // Пересобранный список обязан совпасть с тем, что дал бы свежий обход, —
+    // иначе пауза сохраняла бы находку, которой у непрерывного скана нет.
+    const result = await crawl(
+      anchorScope({ queryPolicy: 'ignore' }),
+      fastOptions({
+        fetcher: linkingFetcher([]),
+        probeMedia: false,
+        restored: {
+          pages: [],
+          coverage: {
+            ...emptyCoverage,
+            urlVariants: {
+              [`${MOCK_ORIGIN}/faq`]: [
+                `${MOCK_ORIGIN}/faq`,
+                `${MOCK_ORIGIN}/faq#q1`,
+                `${MOCK_ORIGIN}/faq#q2`,
+              ],
+              [`${MOCK_ORIGIN}/blog`]: [
+                `${MOCK_ORIGIN}/blog`,
+                `${MOCK_ORIGIN}/blog#top`,
+                `${MOCK_ORIGIN}/blog?lang=uk`,
+              ],
+            },
+          },
+        },
+      }),
+    );
+
+    expect(result.urlVariants[`${MOCK_ORIGIN}/faq`]).toBeUndefined();
+    expect(result.urlVariants[`${MOCK_ORIGIN}/blog`]).toEqual([
+      `${MOCK_ORIGIN}/blog`,
+      `${MOCK_ORIGIN}/blog?lang=uk`,
+    ]);
+  });
+});

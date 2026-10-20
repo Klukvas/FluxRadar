@@ -466,12 +466,13 @@ class CrawlRun {
 
   /** Дубли не фетчатся, но их raw-формы копятся — вход SEO-TECH-007 (T-08). */
   private recordVariant(normalized: string, discoveredUrl: string): void {
+    const rawForm = stripFragment(discoveredUrl);
     const existing = this.variantsByNormalized.get(normalized);
     if (existing === undefined) {
-      this.variantsByNormalized.set(normalized, new Set([discoveredUrl]));
+      this.variantsByNormalized.set(normalized, new Set([rawForm]));
       return;
     }
-    existing.add(discoveredUrl);
+    existing.add(rawForm);
   }
 
   private async processEntry(entry: QueueEntry): Promise<void> {
@@ -720,6 +721,25 @@ class CrawlRun {
       release();
     }
   }
+}
+
+/**
+ * Raw-форма без fragment-а: `/faq` и `/faq#q1` — один ресурс, а не дубль URL.
+ *
+ * Fragment вообще не уходит на сервер — он разыменовывается клиентом уже после
+ * получения ресурса (RFC 3986 §3.5), поэтому table of contents страницы давал
+ * SEO-TECH-007 по «варианту» на каждый якорь.
+ *
+ * Срез по первой `#`, а не `url.hash = ''`: на входе здесь строки — и свежие
+ * ссылки, и варианты восстановленной попытки, прочитанные из записанного
+ * покрытия, — а срез чистит их все одинаково, без повторного разбора и без
+ * мутации чужого объекта URL. Пустой fragment (`href="/faq#"`) он тоже
+ * убирает. `#` внутри path или query сериализованного URL хранится как %23,
+ * так что обрезать больше нужного срез не может.
+ */
+function stripFragment(rawUrl: string): string {
+  const hashAt = rawUrl.indexOf('#');
+  return hashAt === -1 ? rawUrl : rawUrl.slice(0, hashAt);
 }
 
 /** Только ключи с ≥2 raw-вариантами; варианты отсортированы для детерминизма. */
