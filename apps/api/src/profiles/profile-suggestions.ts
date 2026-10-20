@@ -1,4 +1,4 @@
-import { parse } from 'node-html-parser';
+import { parseHtml } from '@fluxradar/crawler';
 import { safeFetch } from '@fluxradar/safe-fetch';
 
 import {
@@ -105,7 +105,7 @@ export const PROFILE_SUGGESTIONS_FETCH_OPTIONS = {
  * public evidence to the single structured AI extraction.
  */
 function evidenceFromHomepage(html: string): string {
-  const root = parse(html);
+  const root = parseHtml(html);
   const nodes = readJsonLdNodes(root);
   const metadata = root
     .querySelectorAll(
@@ -175,7 +175,7 @@ export async function suggestProfileFromSite(
 }
 
 export function extractProfileSuggestions(html: string): ProfileSuggestions {
-  const root = parse(html);
+  const root = parseHtml(html);
   // The structured metadata is read first: it lives in `script` elements, which
   // the text pass below removes so that no markup the browser never shows —
   // inline scripts, styles, unrendered templates — reaches the owner as a

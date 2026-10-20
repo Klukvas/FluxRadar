@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { IssueCandidate } from '../engine/run-module.js';
 import type { SiteContext } from '../engine/types.js';
 import { renderFindingMessage } from '../messages/index.js';
+import { parsePage } from '../seo/dom.js';
 import { htmlContext, loadFixtureContext, runRule } from '../testing/fixture-harness.js';
 
 function single(candidates: readonly IssueCandidate[]): IssueCandidate {
@@ -385,6 +386,55 @@ describe('WCAG 2.2 AA static checks', () => {
       ),
     );
     expect(result).toEqual([]);
+  });
+});
+
+// Страница целиком — копия apps/web/public/blog/index.html, какой её отдаёт
+// production.
+//
+// В её <head> стоит `<noscript\n  ><style>…</style></noscript\n    >`:
+// node-html-parser искал буквальную строку `</noscript>`, не находил её и
+// забирал ВЕСЬ остаток документа в raw text элемента. Скан fluxradar.net от
+// 2026-10-20 сообщал про каждую страницу блога «0 <h1>», «нет main landmark» и
+// «на странице вообще нет заголовков» — при том что страница отдаёт один
+// <h1>, один <main id="blog-main"> и девять <h2>. Фикстура держится на
+// parseHtml (packages/crawler/src/html-parse.ts): с прямым `parse` все три
+// finding возвращаются.
+describe('страница с перенесённым </noscript> разбирается целиком', () => {
+  const blogPage = (): SiteContext => loadFixtureContext('fx-raw-text-end-tag-negative.html');
+
+  it.each([
+    ['Accessibility', 'A11Y-003', 'a11y-003.evidence.h1-count'],
+    ['Accessibility', 'A11Y-010', 'a11y-010.evidence.missing-main'],
+    ['SEO', 'SEO-ONPAGE-003', 'seo-onpage-003.evidence.no-headings'],
+    ['Accessibility', 'A11Y-007', 'a11y-007.evidence.unknown-role'],
+  ] as const)('%s / %s не сообщает %s', (module, ruleId, evidenceCode) => {
+    const codes = runRule(module, ruleId, blogPage()).map(
+      (finding) => finding.messages?.evidence.code,
+    );
+    expect(codes).not.toContain(evidenceCode);
+  });
+
+  it('видит <main>, <h1> и роли меню, которые отдаёт страница', () => {
+    const page = blogPage().crawl.pages[0];
+    if (page === undefined) {
+      throw new Error('фикстура должна отдавать одну страницу');
+    }
+    const root = parsePage(page);
+    expect(root.querySelectorAll('main').map((main) => main.getAttribute('id'))).toEqual([
+      'blog-main',
+    ]);
+    expect(root.querySelectorAll('h1')).toHaveLength(1);
+    expect(root.querySelectorAll('h2')).toHaveLength(9);
+    expect(root.querySelectorAll('[role]').map((node) => node.getAttribute('role'))).toEqual([
+      'combobox',
+      'listbox',
+      'option',
+      'option',
+      'group',
+    ]);
+    // Содержимое <noscript> осталось raw text, а не разобранным <style>.
+    expect(root.querySelectorAll('style')).toHaveLength(0);
   });
 });
 

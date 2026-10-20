@@ -18,9 +18,9 @@ import {
   type DomainVerificationMethod,
   type DomainVerificationStatus,
 } from '@fluxradar/contracts';
+import { parseHtml } from '@fluxradar/crawler';
 import { SafeFetchError, safeFetch } from '@fluxradar/safe-fetch';
 import type { DomainVerification, PrismaClient, SiteProfile } from '@prisma/client';
-import { parse } from 'node-html-parser';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -292,7 +292,7 @@ async function metaProof(
     if (response.status !== 200) {
       return { found: false, reason: `HomepageStatus${response.status}` };
     }
-    const meta = parse(response.body).querySelector(
+    const meta = parseHtml(response.body).querySelector(
       `meta[name="${DOMAIN_VERIFICATION_TOKEN_NAME}"]`,
     );
     const content = meta?.getAttribute('content')?.trim();

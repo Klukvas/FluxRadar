@@ -4,7 +4,7 @@
 // на CONTENT-004, чтобы правило и проверка не расходились в том, что считается
 // media страницы.
 
-import { parse } from 'node-html-parser';
+import { parseHtml } from './html-parse.js';
 
 /**
  * Возвращает абсолютные http(s)-URL из href всех <a> документа в порядке
@@ -14,7 +14,7 @@ import { parse } from 'node-html-parser';
  * (isCloudflareEmailObfuscationUrl) пропускаются.
  */
 export function extractLinks(html: string, baseUrl: string): readonly string[] {
-  const root = parse(html);
+  const root = parseHtml(html);
   return root
     .querySelectorAll('a')
     .map((anchor) => anchor.getAttribute('href'))
