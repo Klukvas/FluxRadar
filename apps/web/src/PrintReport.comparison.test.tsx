@@ -402,3 +402,43 @@ describe('the printable report and the comparison', () => {
     expect(screen.getByText('Checked for the first time: 4')).toBeInTheDocument();
   });
 });
+
+it.each(['en', 'uk'] as const)(
+  'separates the printed robots warning sentences in %s',
+  async (language) => {
+    const dashboard = dashboardOf();
+    stubFetch({
+      dashboard: {
+        ...dashboard,
+        scan: {
+          ...dashboard.scan,
+          status: 'Failed',
+          statusReason: 'SiteBlockedByRobots',
+          crawlSummary: {
+            reach: 'blocked-by-robots',
+            startStatus: null,
+            accessControlSignals: [],
+            searchEnginesBlocked: true,
+            blockedSearchEngines: ['Google'],
+            pagesRead: 0,
+            pagesFetched: 0,
+            urlsDiscovered: 0,
+            urlsOverLimit: 0,
+            urlsBlockedByRobots: 1,
+            limitedBy: null,
+            maxPages: 50,
+          },
+        },
+      },
+    });
+    render(
+      <PrintReport scanId="scan-print" language={language} onBack={() => {}} onError={() => {}} />,
+    );
+    const warning = await screen.findByText(
+      language === 'en' ? /prevents Google from crawling/ : /забороняє Google читати сайт/,
+    );
+    expect(warning.textContent).toContain(
+      language === 'en' ? 'that. This robots.txt' : 'поважаємо. Цей robots.txt',
+    );
+  },
+);

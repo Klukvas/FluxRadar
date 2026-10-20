@@ -190,9 +190,12 @@ function uxAiReviewOf(value: unknown): UxAiReview | null {
   };
 }
 
+export type AiCrawlerPurpose = 'search' | 'user-fetch' | 'training';
+
 export type AiCrawlerStatus = 'allowed' | 'blocked' | 'unknown';
 
 export interface AiCrawlerAccess {
+  readonly purpose: AiCrawlerPurpose;
   readonly userAgent: string;
   readonly status: AiCrawlerStatus;
 }
@@ -242,7 +245,21 @@ function crawlerAccessOf(entry: unknown): AiCrawlerAccess[] {
   ) {
     return [];
   }
-  return [{ userAgent: record.userAgent, status }];
+  const legacyPurpose: Readonly<Record<string, AiCrawlerPurpose>> = {
+    GPTBot: 'training',
+    'OAI-SearchBot': 'search',
+    ClaudeBot: 'training',
+    PerplexityBot: 'search',
+    'Google-Extended': 'training',
+    Bytespider: 'training',
+  };
+  const purpose =
+    record.purpose === 'search' || record.purpose === 'user-fetch' || record.purpose === 'training'
+      ? record.purpose
+      : record.purpose === undefined
+        ? legacyPurpose[record.userAgent]
+        : undefined;
+  return purpose === undefined ? [] : [{ userAgent: record.userAgent, status, purpose }];
 }
 
 function pageReadinessOf(value: unknown): PageReadiness | null {

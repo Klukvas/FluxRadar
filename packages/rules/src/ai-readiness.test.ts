@@ -68,3 +68,18 @@ describe('public AI crawler readiness', () => {
     expect(unknown.robots.agents.every((agent) => agent.status === 'unknown')).toBe(true);
   });
 });
+
+it('separates twelve agents by their documented purpose', () => {
+  const report = assessAiCrawlerReadiness({
+    ...htmlContext('<html><body>Page</body></html>').crawl,
+    robotsTxt: 'User-agent: *\nDisallow: /',
+  });
+  expect(
+    report.robots.agents
+      .filter((agent) => agent.purpose === 'search')
+      .map((agent) => agent.userAgent),
+  ).toEqual(['OAI-SearchBot', 'Claude-SearchBot', 'PerplexityBot']);
+  expect(report.robots.agents.filter((agent) => agent.purpose === 'user-fetch')).toHaveLength(3);
+  expect(report.robots.agents.filter((agent) => agent.purpose === 'training')).toHaveLength(6);
+  expect(report.robots.agents.every((agent) => agent.status === 'blocked')).toBe(true);
+});

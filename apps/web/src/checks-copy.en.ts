@@ -9,7 +9,7 @@ import { checksSections, type ChecksCopy } from './checks-copy-sections';
 
 export const checksCopyEn: ChecksCopy = {
   kicker: 'FLUXRADAR',
-  meta: ['Updated 2026-10-02', 'No login required to read this'],
+  meta: ['Updated 2026-10-19', 'No login required to read this'],
   title: 'Audit coverage',
   lede: 'Exactly what FluxRadar inspects, why, and what it cannot certify — with no customer credentials required for the core public audit.',
   back: '← Back to home',
@@ -42,9 +42,17 @@ export const checksCopyEn: ChecksCopy = {
       label: '01 / SEO VISIBILITY',
       title: 'SEO — what FluxRadar checks',
       intro: [
-        'The SEO module runs up to **21 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
+        'The SEO module runs up to **24 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
       ],
       bullets: [
+        {
+          term: 'Mobile viewport',
+          body: 'Missing viewport or a viewport without width=device-width is reported from static HTML.',
+        },
+        {
+          term: 'Render resources',
+          body: 'Broken same-site stylesheets, scripts and preloaded fonts are probed independently of media, up to 100 requests. External CDNs and fonts inside CSS are excluded; unverified resources are not findings.',
+        },
         {
           term: 'Title tag',
           body: 'presence, length — reported below 10 or above 70 characters — and uniqueness across crawled pages: a title another crawled page already uses is reported unless a `<link rel="canonical">` ties the two together.',
@@ -67,7 +75,7 @@ export const checksCopyEn: ChecksCopy = {
         },
         {
           term: 'robots.txt',
-          body: 'reachable at all. Only a missing or unreachable file is reported; the contents are not validated, because a crawler reads a robots.txt that does not answer 200 as “everything allowed”.',
+          body: 'reachable at all, and whether it blocks Googlebot or Bingbot from the entry page. A missing file is separate from a file that blocks search engines.',
         },
         {
           term: 'XML sitemap',
@@ -119,7 +127,7 @@ export const checksCopyEn: ChecksCopy = {
       bullets: [
         {
           term: 'AI crawler access',
-          body: '`robots.txt` is parsed for six AI crawler user-agent strings — GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended and Bytespider. Each is reported as allowed, blocked, or unknown when the site serves no `robots.txt` at all. What a crawler is permitted to do is the site’s policy, not evidence that it indexed or cited anything.',
+          body: '`robots.txt` policies are checked for twelve agents. AI search and answers: OAI-SearchBot, Claude-SearchBot, PerplexityBot, ChatGPT-User, Claude-User and Perplexity-User. Model training: GPTBot, ClaudeBot, Google-Extended, Applebot-Extended, CCBot and Bytespider. Blocking training does not affect appearance in AI search. This is policy, not proof of access, indexing or citation; user-initiated fetchers may ignore robots.txt.',
         },
         {
           term: 'Social preview tags',
@@ -154,9 +162,17 @@ export const checksCopyEn: ChecksCopy = {
       title: 'Security — OWASP ASVS public profile',
       intro: [
         'FluxRadar reads the **OWASP Application Security Verification Standard (ASVS) public profile**: the subset of ASVS signals observable in a public HTTP response. It does not attempt to exploit vulnerabilities, probe authenticated surfaces or run active attack techniques.',
-        'These six checks are the whole Security module. A signal that is not on this list — the negotiated TLS version, DNS records, exposed files, directory listings, debug endpoints, secrets in client code, dependency versions — is not inspected, and the report says nothing about it either way.',
+        'These eight checks are the whole Security module. A signal that is not on this list — the negotiated TLS version, DKIM selectors, exposed files, directory listings, debug endpoints, secrets in client code, dependency versions — is not inspected, and the report says nothing about it either way.',
       ],
       bullets: [
+        {
+          term: 'TLS certificates',
+          body: 'Certificate validity, hostname, trust chain and expiry in fewer than 14 days, for the scan host and its resolvable www/apex pair. Timeouts are unverified.',
+        },
+        {
+          term: 'SPF and DMARC',
+          body: 'The registrable mail domain has one SPF record without +all and a DMARC record. p=none is monitoring and is not a finding; DNS timeouts and SERVFAIL are unverified. DKIM is not checked.',
+        },
         {
           term: 'HSTS',
           body: '`Strict-Transport-Security` present with a positive `max-age` on an HTTPS origin. A missing header, or `max-age=0`, is a finding; the rule does not require a particular `max-age` length or the `includeSubDomains` flag, and the TLS version itself is not inspected.',
@@ -195,6 +211,10 @@ export const checksCopyEn: ChecksCopy = {
         'Automated DOM checks cover the machine-verifiable subset of **WCAG 2.2 Level AA**. WCAG 2.2 AA is a superset of the WCAG chapters referenced by **EN 301 549** (EU, chapter 9 references WCAG 2.1) and **Section 508** (US federal, incorporates WCAG 2.0 AA). Note that both standards include non-WCAG functional requirements that automated DOM scanning does not cover. Automated tools can verify approximately 30–40 % of WCAG criteria; the remaining criteria require human judgement or assistive-technology testing.',
       ],
       bullets: [
+        {
+          term: 'Zoom (WCAG 1.4.4)',
+          body: 'Viewport user-scalable=no/0 or maximum-scale below 2 prevents at least 200% zoom.',
+        },
         {
           term: 'Perceivable (WCAG 2.2 Principle 1)',
           body: 'missing image alt text (1.1.1), and colour contrast below 4.5:1 for normal text or 3:1 for large text (1.4.3). Contrast is judged **only on a `color`/`background-color` pair written in an inline `style` attribute**: without a browser laying the page out, the effective colour from an external stylesheet cannot be computed, so those stay honest manual review rather than a false pass.',
@@ -275,6 +295,10 @@ export const checksCopyEn: ChecksCopy = {
         'The Content Quality module reads the text and media the page already serves. It judges what is measurably there — how much text, whether the media loads, whether another crawled page carries the same text — and never how good the writing is.',
       ],
       bullets: [
+        {
+          term: 'Placeholder text',
+          body: 'Canonical lorem ipsum and WordPress defaults in English, Ukrainian and Russian; sample titles count only in title/H1. Code, pre and textarea examples are excluded.',
+        },
         {
           term: 'Duplicate page content',
           body: 'two crawled pages whose visible text is identical, character for character. A page whose `<link rel="canonical">` points at another page in the group is not reported: naming the canonical version is the fix, and the check passes over both the page that declares it and the page it names. Only exact matches are reported; near-duplicates are not.',

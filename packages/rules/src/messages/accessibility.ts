@@ -3,6 +3,14 @@
 import type { FindingMessageCatalog } from './catalog.js';
 
 export const ACCESSIBILITY_MESSAGES = {
+  'a11y-012.evidence': {
+    en: 'Viewport restricts zooming: {value}',
+    uk: 'Viewport обмежує масштабування: {value}',
+  },
+  'a11y-012.recommendation': {
+    en: 'Allow user scaling and at least 200% zoom; remove user-scalable=no and restrictive maximum-scale.',
+    uk: 'Дозвольте масштабування щонайменше до 200%; приберіть user-scalable=no та обмеження maximum-scale.',
+  },
   'a11y-001.evidence': {
     en: '{selector} sets inline color/background-color with a contrast ratio of {ratio}:1, below the {threshold}:1 threshold.',
     uk: '{selector} задає inline color/background-color з контрастом {ratio}:1 — це нижче за поріг {threshold}:1.',

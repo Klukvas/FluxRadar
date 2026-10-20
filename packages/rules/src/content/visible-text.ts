@@ -53,16 +53,16 @@ export function visibleText(page: PageSnapshot): string {
   return text;
 }
 
-function collectText(node: Node): string {
+function collectText(node: Node, excluded: ReadonlySet<string> = INVISIBLE_TAGS): string {
   if (node instanceof TextNode) {
     // .text, а не .rawText: `&amp;` — это один видимый символ, а не пять.
     return node.text;
   }
   if (node instanceof HTMLElement) {
-    if (INVISIBLE_TAGS.has(node.rawTagName?.toLowerCase() ?? '')) {
+    if (excluded.has(node.rawTagName?.toLowerCase() ?? '')) {
       return '';
     }
-    return node.childNodes.map(collectText).join('');
+    return node.childNodes.map((child) => collectText(child, excluded)).join('');
   }
   return '';
 }
@@ -184,4 +184,17 @@ function collectProseBlockText(node: Node): string {
     return collectProseText(node);
   }
   return node.childNodes.map(collectProseBlockText).join('');
+}
+
+/** Placeholder checks ignore examples without changing other content metrics. */
+export function placeholderNodeText(node: Node): string {
+  return collectText(node, new Set(['script', 'style', 'code', 'pre', 'textarea']))
+    .replace(/\s+/g, ' ')
+    .trim()
+    .normalize('NFC');
+}
+
+export function placeholderVisibleText(page: PageSnapshot): string {
+  const root = parsePage(page);
+  return placeholderNodeText(root.querySelector('body') ?? root);
 }

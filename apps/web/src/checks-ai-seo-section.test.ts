@@ -90,3 +90,23 @@ describe('the AI SEO / GEO section of the coverage page', () => {
     expect(bullet?.body ?? '').toContain('ніколи не надсилаються AI-провайдеру');
   });
 });
+
+it.each(LOCALES)('names all twelve crawler policies in %s', (_language, copy) => {
+  const body = aiSeoSection(copy).bullets[0]?.body ?? '';
+  for (const agent of [
+    'OAI-SearchBot',
+    'Claude-SearchBot',
+    'PerplexityBot',
+    'ChatGPT-User',
+    'Claude-User',
+    'Perplexity-User',
+    'GPTBot',
+    'ClaudeBot',
+    'Google-Extended',
+    'Applebot-Extended',
+    'CCBot',
+    'Bytespider',
+  ])
+    expect(body).toContain(agent);
+  expect(body).toMatch(/does not affect appearance in AI search|не впливає на появу в AI-пошуку/);
+});

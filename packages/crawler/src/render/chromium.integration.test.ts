@@ -144,7 +144,7 @@ describe.skipIf(runtime === null)('render runtime: real chromium on a real SPA',
         {
           origin: site.origin,
           includeSubdomains: false,
-          maxPages: 20,
+          maxPages: 50,
           maxDepth: 1,
           renderJs: true,
           seedUrls: [`${site.origin}/spa.html`],

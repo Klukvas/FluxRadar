@@ -396,3 +396,35 @@ describe('media probes across a resume', () => {
     expect(result.resources).toEqual(carried);
   });
 });
+
+describe('render-resource probe budget', () => {
+  it('probes CSS, JS, preloaded fonts; deduplicates across pages and ignores external hosts', async () => {
+    const head = vi.fn(async (url: string) => response(url));
+    const html =
+      '<link rel="alternate stylesheet" href="/style.css"><script src="/app.js"></script><link rel="preload" as="font" href="/font.woff2"><script src="https://cdn.example.com/no.js"></script>';
+    const resources = await probeMediaResources(
+      [page('/one', html), page('/two', html)],
+      options({ head }),
+    );
+    expect(resources.map((resource) => resource.normalizedUrl)).toEqual([
+      `${ORIGIN}/style.css`,
+      `${ORIGIN}/app.js`,
+      `${ORIGIN}/font.woff2`,
+    ]);
+    expect(head).toHaveBeenCalledTimes(3);
+  });
+  it('keeps the media budget independent from the 100 render probes', async () => {
+    const html =
+      Array.from(
+        { length: MEDIA_PROBE_LIMITS.maxProbes },
+        (_, index) => `<img src="/image${index}.png">`,
+      ).join('') +
+      Array.from({ length: 101 }, (_, index) => `<script src="/app${index}.js"></script>`).join('');
+    const head = vi.fn(async (url: string) => response(url));
+    const resources = await probeMediaResources([page('/one', html)], options({ head }));
+    expect(head).toHaveBeenCalledTimes(300);
+    expect(
+      resources.filter((resource) => resource.unverifiedReason === 'BudgetExhausted'),
+    ).toHaveLength(1);
+  });
+});

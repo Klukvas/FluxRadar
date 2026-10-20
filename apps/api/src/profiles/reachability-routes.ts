@@ -118,7 +118,15 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
       state: result.state,
       startStatus: result.startStatus,
       fetchError: result.fetchError,
-      signalsJson: JSON.stringify(result.accessControlSignals),
+      signalsJson: JSON.stringify({
+        signals: result.accessControlSignals,
+        ...(result.blockedSearchEngines === undefined
+          ? {}
+          : { blockedSearchEngines: result.blockedSearchEngines }),
+        ...(result.searchEnginesBlocked === undefined
+          ? {}
+          : { searchEnginesBlocked: result.searchEnginesBlocked }),
+      }),
       checkedAt: result.checkedAt,
     };
     const stored = await prisma.siteReachabilityProbe.upsert({
@@ -180,21 +188,43 @@ function toDto(
   return {
     state: probe.state,
     startStatus: probe.startStatus,
-    accessControlSignals: parseSignals(probe.signalsJson),
+    ...parseReachabilityEvidence(probe.signalsJson),
     checkedAt: probe.checkedAt.toISOString(),
     expired: isExpired(probe.checkedAt, now),
     canPurchase: isProbeUsable(probe, expectedOrigin, expectedEgressLocation, now),
   };
 }
 
-function parseSignals(json: string): readonly string[] {
+export function parseReachabilityEvidence(json: string): {
+  accessControlSignals: readonly string[];
+  searchEnginesBlocked?: boolean;
+  blockedSearchEngines?: readonly ('Google' | 'Bing')[];
+} {
   try {
-    const parsed = JSON.parse(json) as unknown;
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === 'string')
-      : [];
+    const parsed: unknown = JSON.parse(json);
+    if (Array.isArray(parsed))
+      return {
+        accessControlSignals: parsed.filter((item): item is string => typeof item === 'string'),
+      };
+    if (parsed === null || typeof parsed !== 'object') return { accessControlSignals: [] };
+    const record = parsed as Record<string, unknown>;
+    return {
+      ...(Array.isArray(record.blockedSearchEngines) &&
+      record.blockedSearchEngines.every((name) => name === 'Google' || name === 'Bing')
+        ? {
+            blockedSearchEngines: [...new Set(record.blockedSearchEngines)] as (
+              'Google' | 'Bing'
+            )[],
+          }
+        : {}),
+      accessControlSignals: Array.isArray(record.signals)
+        ? record.signals.filter((item): item is string => typeof item === 'string')
+        : [],
+      ...(typeof record.searchEnginesBlocked === 'boolean'
+        ? { searchEnginesBlocked: record.searchEnginesBlocked }
+        : {}),
+    };
   } catch {
-    // Evidence we cannot read is evidence we do not show.
-    return [];
+    return { accessControlSignals: [] };
   }
 }

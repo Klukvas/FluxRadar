@@ -1,3 +1,4 @@
+import { a11y012Zoom } from './a11y-012.js';
 // Accessibility-модуль rules-mvp-0.1 (T-09). Порядок — по ruleId реестра.
 
 import type { Rule } from '../engine/types.js';
@@ -14,6 +15,7 @@ import { a11y010ScreenReaderEvidence } from './a11y-010.js';
 import { a11y011ReportTransparency } from './a11y-011.js';
 
 export const ACCESSIBILITY_RULES: readonly Rule[] = [
+  a11y012Zoom,
   a11y001Contrast,
   a11y002ImageAlt,
   a11y003DocumentStructure,

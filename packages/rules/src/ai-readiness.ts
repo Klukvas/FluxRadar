@@ -10,19 +10,37 @@ import { hasSocialPreview } from './seo/social-preview.js';
 import { hasCompleteJsonLd } from './seo/structured-data.js';
 import { visibleText } from './content/visible-text.js';
 
+export type AiCrawlerPurpose = 'search' | 'user-fetch' | 'training';
+// Vendor purpose references, verified 2026-10-19. These are robots policies,
+// not a claim every user fetcher obeys robots.txt (Perplexity-User generally does not).
+// OpenAI: https://developers.openai.com/api/docs/bots
+// Anthropic: https://support.claude.com/en/articles/8896518
+// Perplexity: https://docs.perplexity.ai/docs/resources/perplexity-crawlers
+// Google: https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers#google-extended
+// Apple: https://support.apple.com/en-us/119829
+// Common Crawl: https://commoncrawl.org/ccbot (public corpus; also used for training).
+// Bytespider retains the existing training classification; ByteDance has no public
+// bot-purpose documentation comparable to the vendors above.
+// Google-Extended also controls some Gemini grounding uses; it does not control Google Search.
 export const AI_CRAWLER_USER_AGENTS = [
-  'GPTBot',
-  'OAI-SearchBot',
-  'ClaudeBot',
-  'PerplexityBot',
-  'Google-Extended',
-  'Bytespider',
+  ...['OAI-SearchBot', 'Claude-SearchBot', 'PerplexityBot'].map((userAgent) => ({
+    userAgent,
+    purpose: 'search' as const,
+  })),
+  ...['ChatGPT-User', 'Claude-User', 'Perplexity-User'].map((userAgent) => ({
+    userAgent,
+    purpose: 'user-fetch' as const,
+  })),
+  ...['GPTBot', 'ClaudeBot', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'Bytespider'].map(
+    (userAgent) => ({ userAgent, purpose: 'training' as const }),
+  ),
 ] as const;
 
 export type AiCrawlerAgentStatus = 'allowed' | 'blocked' | 'unknown';
 
 export interface AiCrawlerAgentCheck {
   readonly userAgent: string;
+  readonly purpose: AiCrawlerPurpose;
   readonly status: AiCrawlerAgentStatus;
 }
 
@@ -60,8 +78,9 @@ export function assessAiCrawlerReadiness(crawl: CrawlResult): AiCrawlerReadiness
     providerTokenRequired: false,
     robots: {
       status: robots === null ? 'unavailable' : 'available',
-      agents: AI_CRAWLER_USER_AGENTS.map((userAgent) => ({
+      agents: AI_CRAWLER_USER_AGENTS.map(({ userAgent, purpose }) => ({
         userAgent,
+        purpose,
         status: robots === null ? 'unknown' : crawlerStatus(robots, userAgent),
       })),
     },

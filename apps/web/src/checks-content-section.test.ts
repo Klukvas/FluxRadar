@@ -41,11 +41,11 @@ describe('the Content Quality section of the coverage page', () => {
     expect(section.intro.length).toBeGreaterThan(0);
     // One bullet per rule the module runs: duplicate content, low-value pages,
     // broken media, readability.
-    expect(section.bullets).toHaveLength(4);
+    expect(section.bullets).toHaveLength(5);
   });
 
   it.each(LOCALES)('names the duplicate-content check and its canonical rule in %s', (_l, copy) => {
-    const [duplicate] = contentSection(copy).bullets;
+    const [, duplicate] = contentSection(copy).bullets;
     expect(duplicate?.term.trim()).not.toBe('');
     // The two things a reader has to be able to learn before buying: the match
     // is exact, and declaring a canonical is what makes the check pass.

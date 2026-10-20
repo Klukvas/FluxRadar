@@ -134,7 +134,7 @@ describe('geoChecksOf', () => {
 
     expect(checks).toEqual({
       robotsReadable: true,
-      crawlers: [{ userAgent: 'GPTBot', status: 'allowed' }],
+      crawlers: [{ userAgent: 'GPTBot', status: 'allowed', purpose: 'training' }],
       pages: { checked: 4, extractableContent: 3, structuredData: 1, socialPreview: 0 },
       queryGeneration: { status: 'Completed', questions: ['Which clinics offer implants?'] },
     });
@@ -147,4 +147,22 @@ describe('geoChecksOf', () => {
       queryGeneration: null,
     });
   });
+});
+
+it('validates crawler purposes and supports the original six legacy agents', () => {
+  const checks = geoChecksOf({
+    robots: {
+      status: 'available',
+      agents: [
+        { userAgent: 'Claude-User', status: 'allowed', purpose: 'user-fetch' },
+        { userAgent: 'GPTBot', status: 'blocked' },
+        { userAgent: 'GPTBot', status: 'allowed', purpose: 'invented' },
+        { userAgent: 'Unknown', status: 'allowed' },
+      ],
+    },
+  });
+  expect(checks?.crawlers).toEqual([
+    { userAgent: 'Claude-User', status: 'allowed', purpose: 'user-fetch' },
+    { userAgent: 'GPTBot', status: 'blocked', purpose: 'training' },
+  ]);
 });

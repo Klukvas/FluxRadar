@@ -61,10 +61,33 @@ function findingPathsByRule(): Readonly<Record<string, readonly string[]>> {
 describe('SEO-модуль на fixture-сайте краулера', () => {
   it('даёт точный ожидаемый набор {ruleId → normalizedUrl[]}', () => {
     expect(findingPathsByRule()).toEqual({
-      // robots.txt и sitemap.xml на fixture-сайте есть → TECH-001/002 молчат.
+      'SEO-TECH-016': ['/broken-css.html', '/broken-js.html'],
+      'SEO-ONPAGE-007': [
+        '/',
+        '/broken-image.html',
+        '/broken-link.html',
+        '/deep/',
+        '/deep/level2/page.html',
+        '/dup-a.html',
+        '/dup-b.html',
+        '/dup-c.html',
+        '/easy-prose.html',
+        '/empty.html',
+        '/form.html',
+        '/hard-prose.html',
+        '/mixed-content.html',
+        '/no-title.html',
+        '/noindex.html',
+        '/orphan.html',
+        '/redirect-a',
+        '/trackers.html',
+        '/wrong-canonical.html',
+      ],
       'SEO-TECH-003': ['/missing'],
       'SEO-TECH-004': [
+        '/broken-css.html',
         '/broken-image.html',
+        '/broken-js.html',
         '/broken-link.html',
         '/deep/',
         '/deep/level2/page.html',
@@ -86,18 +109,11 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
       'SEO-TECH-006': ['/broken-link.html'],
       'SEO-TECH-007': [''],
       'SEO-TECH-008': ['/noindex.html'],
-      // Единственная страница sitemap без входящих ссылок (TECH-009); на /
-      // и /no-title.html ссылки есть, и точка входа кандидатом не бывает.
       'SEO-TECH-009': ['/orphan.html'],
-      // Fixture-сайт — «звезда» из главной: каждую страницу держит ровно одна
-      // ссылка. /orphan.html здесь нет (нулю ссылок место в TECH-009), / — точка
-      // входа, /missing — не 2xx, а /private/secret.html закрыт robots.txt.
-      // /redirect-final.html в списке есть: своего снимка у него в обходе нет,
-      // поэтому единственный снимок (/redirect-a, 301) судится под адресом
-      // назначения — и называется им же, а не адресом редиректа. Его тоже держит
-      // ровно одна ссылка с главной.
       'SEO-TECH-011': [
+        '/broken-css.html',
         '/broken-image.html',
+        '/broken-js.html',
         '/broken-link.html',
         '/deep/',
         '/deep/level2/page.html',
@@ -118,6 +134,8 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
       'SEO-TECH-013': ['/mixed-content.html'],
       'SEO-ONPAGE-001': ['/no-title.html'],
       'SEO-ONPAGE-002': [
+        '/broken-css.html',
+        '/broken-js.html',
         '/deep/level2/page.html',
         '/dup-a.html',
         '/dup-b.html',
@@ -130,17 +148,15 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
         '/orphan.html',
         '/redirect-a',
       ],
-      // Единственная страница без h1 — почти пустой /empty.html.
       'SEO-ONPAGE-003': ['/empty.html'],
-      // Дубли метаданных: три страницы делят title и description, но /dup-c.html
-      // объявила canonical-ом /dup-a.html — и молчат обе. Остаётся /dup-b.html:
-      // она делит значения и canonical-ом ни с кем не связана.
       'SEO-ONPAGE-004': ['/dup-b.html'],
       'SEO-ONPAGE-005': ['/broken-image.html'],
       'SEO-ONPAGE-006': ['/dup-b.html'],
       'SEO-SOCIAL-001': [
         '/',
+        '/broken-css.html',
         '/broken-image.html',
+        '/broken-js.html',
         '/broken-link.html',
         '/deep/',
         '/deep/level2/page.html',
@@ -167,26 +183,26 @@ describe('SEO-модуль на fixture-сайте краулера', () => {
     expect(duplicate?.normalizedParameter).toBe(`${origin}/dup-a.html`);
     const fingerprints = result.findings.map((finding) => finding.fingerprint);
     expect(new Set(fingerprints).size).toBe(fingerprints.length);
-    expect(result.findings).toHaveLength(76);
+    expect(result.findings).toHaveLength(105);
   });
 
   it('агрегаты и coverage: 20 снимков без fetchError → все checks завершены', () => {
-    expect(crawlResult.pages).toHaveLength(20);
+    expect(crawlResult.pages).toHaveLength(22);
     // 14 default page-rules × 19 (2xx HTML) + TECH-003/005 × 20 + 3 site-rules +
     // TECH-009 × 2 (страницы sitemap, кроме точки входа: адрес редиректа среди
     // них не считается — это предмет TECH-005) + TECH-011 × 18 (2xx HTML без
     // точки входа). Граф ссылок полон, поэтому применимы все три правила
     // перелинковки, включая TECH-010 (в «14 page-rules»); там же ONPAGE-004/006,
     // применимые к каждой прочитанной странице.
-    expect(result.applicableChecks).toBe(329);
-    expect(result.completedApplicableChecks).toBe(329);
+    expect(result.applicableChecks).toBe(406);
+    expect(result.completedApplicableChecks).toBe(406);
     const canonical = result.evaluations.find((entry) => entry.ruleId === 'SEO-TECH-004');
-    expect(canonical?.applicableTargets).toBe(19);
+    expect(canonical?.applicableTargets).toBe(21);
     // /dup-c.html из находок выпала: её canonical указывает на страницу того же
     // host-а, а это законная канонизация дубля, а не проблема. hard-prose.html и
     // easy-prose.html canonical не объявляют вовсе, как большинство фикстурных
     // страниц, — и остаются среди affected вместе с ними.
-    expect(canonical?.affectedTargets).toBe(17);
+    expect(canonical?.affectedTargets).toBe(19);
   });
 
   it('severity Issue-кандидатов приходит из реестра contracts', () => {
@@ -291,7 +307,7 @@ describe('перелинковка на настоящем обходе fixture-
     expect(rulePaths(withoutSitemap, 'SEO-TECH-009')).toEqual([]);
     expect(ruleRun(withoutSitemap, 'SEO-TECH-009').applicableTargets).toBe(0);
     // Слабая связность от sitemap не зависит и продолжает работать.
-    expect(ruleRun(withoutSitemap, 'SEO-TECH-011').applicableTargets).toBe(18);
+    expect(ruleRun(withoutSitemap, 'SEO-TECH-011').applicableTargets).toBe(20);
   });
 
   it('обход, усечённый лимитом страниц, не выдаёт ложных orphan и слабых связей', async () => {
@@ -329,7 +345,7 @@ describe('перелинковка на настоящем обходе fixture-
       },
       crawlOptions(),
     );
-    expect(withQueryLink.pages).toHaveLength(21);
+    expect(withQueryLink.pages).toHaveLength(23);
     expect(withQueryLink.pages.map((page) => page.normalizedUrl)).toContain(
       `${origin}/query-links.html`,
     );
@@ -421,17 +437,17 @@ describe('дубли метаданных на настоящем обходе f
       const evaluation = ruleRun(result, ruleId);
       expect({ ruleId, applicable: evaluation.applicableTargets }).toEqual({
         ruleId,
-        applicable: 19,
+        applicable: 21,
       });
       expect({ ruleId, checked: evaluation.checkedTargets.length }).toEqual({
         ruleId,
-        checked: 19,
+        checked: 21,
       });
       // Дубли URL (/dup-a.html найден ещё и с utm) в знаменателе не удваиваются:
       // группа SEO-TECH-007 — это один адрес и один снимок.
       expect({ ruleId, unique: new Set(evaluation.checkedTargets).size }).toEqual({
         ruleId,
-        unique: 19,
+        unique: 21,
       });
     }
   });

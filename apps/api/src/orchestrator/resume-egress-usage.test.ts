@@ -106,6 +106,7 @@ function deps(onPageRead: () => void = (): void => {}): WorkerDeps {
     createAiProvider: (scan, profile) =>
       createDefaultAiProvider(profile.name, new URL(scan.domain).hostname),
     createPerformanceRunner: () => undefined,
+    collectSiteSecurityFacts: async () => ({}),
     egressLocations: [KYIV],
     probeEgress: () => Promise.resolve(HEALTHY),
     crawl: {

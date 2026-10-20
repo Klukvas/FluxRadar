@@ -2,6 +2,27 @@ import type { RuleDescriptor } from './ruleset-types.js';
 
 const SEO_TECHNICAL_RULES: readonly RuleDescriptor[] = [
   {
+    ruleId: 'SEO-TECH-016',
+    module: 'SEO',
+    title: 'Broken stylesheet, script or font',
+    category: 'technical',
+    targetKind: 'page',
+    severity: 'High',
+    scoring: 'scored',
+    oracle:
+      'same-site referenced CSS, JavaScript or preloaded font has a verified HTTP or transport failure',
+  },
+  {
+    ruleId: 'SEO-TECH-015',
+    module: 'SEO',
+    title: 'Search engines blocked by robots.txt',
+    category: 'technical',
+    targetKind: 'site',
+    severity: 'High',
+    scoring: 'scored',
+    oracle: 'robots.txt disallows the entry path for Googlebot or Bingbot',
+  },
+  {
     ruleId: 'SEO-TECH-001',
     module: 'SEO',
     title: 'robots.txt',
@@ -125,6 +146,16 @@ const SEO_TECHNICAL_RULES: readonly RuleDescriptor[] = [
 ];
 
 const SEO_ONPAGE_RULES: readonly RuleDescriptor[] = [
+  {
+    ruleId: 'SEO-ONPAGE-007',
+    module: 'SEO',
+    title: 'Page is not configured for mobile screens',
+    category: 'on-page',
+    targetKind: 'page',
+    severity: 'High',
+    scoring: 'scored',
+    oracle: 'viewport is missing or does not declare width=device-width',
+  },
   {
     ruleId: 'SEO-ONPAGE-001',
     module: 'SEO',
@@ -282,6 +313,26 @@ const GEO_RULES: readonly RuleDescriptor[] = [
 
 const SECURITY_RULES: readonly RuleDescriptor[] = [
   {
+    ruleId: 'SEC-PASSIVE-007',
+    module: 'Security',
+    title: 'SPF or DMARC protection is missing or unsafe',
+    category: 'passive',
+    targetKind: 'site',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'SPF is absent, duplicated or permits +all, or DMARC is absent',
+  },
+  {
+    ruleId: 'SEC-PASSIVE-001',
+    module: 'Security',
+    title: 'TLS certificate is invalid or expires soon',
+    category: 'passive',
+    targetKind: 'site',
+    severity: 'High',
+    scoring: 'scored',
+    oracle: 'certificate is unauthorized or expires in fewer than 14 days',
+  },
+  {
     ruleId: 'SEC-PASSIVE-002',
     module: 'Security',
     title: 'security headers',
@@ -401,6 +452,16 @@ const RELIABILITY_RULES: readonly RuleDescriptor[] = [
 
 const ACCESSIBILITY_RULES: readonly RuleDescriptor[] = [
   {
+    ruleId: 'A11Y-012',
+    module: 'Accessibility',
+    title: 'Page prevents zooming',
+    category: 'wcag-1.4.4',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'viewport disables user scaling or limits maximum-scale below 2',
+  },
+  {
     ruleId: 'A11Y-001',
     module: 'Accessibility',
     title: 'text contrast',
@@ -515,6 +576,16 @@ const ACCESSIBILITY_RULES: readonly RuleDescriptor[] = [
 ];
 
 const CONTENT_RULES: readonly RuleDescriptor[] = [
+  {
+    ruleId: 'CONTENT-011',
+    module: 'Content Quality',
+    title: 'Placeholder text is still published',
+    category: 'quality',
+    targetKind: 'page',
+    severity: 'Medium',
+    scoring: 'scored',
+    oracle: 'visible text or title contains a known placeholder template',
+  },
   {
     ruleId: 'CONTENT-001',
     module: 'Content Quality',

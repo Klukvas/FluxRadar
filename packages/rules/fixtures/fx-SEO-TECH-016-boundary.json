@@ -1,0 +1,15 @@
+{
+  "pages": [
+    {
+      "path": "/page.html",
+      "html": "<link rel=\"stylesheet\" href=\"/bad.css\">"
+    }
+  ],
+  "resources": [
+    {
+      "path": "/bad.css",
+      "status": 0,
+      "unverifiedReason": "BudgetExhausted"
+    }
+  ]
+}

@@ -64,3 +64,7 @@ export type {
   RestoredCrawlCoverage,
   RestoredCrawlState,
 } from './types.js';
+
+export { blockedSearchEngines, robotsBlockEvidence } from './robots.js';
+
+export { RENDER_RESOURCE_SELECTOR } from './link-extractor.js';

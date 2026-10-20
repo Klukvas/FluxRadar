@@ -13,12 +13,12 @@
 // the site being audited. And anything not actually checked is recorded as
 // *unverified*, with the reason — never as working, never as broken.
 
-import { MEDIA_PROBE_LIMITS } from '@fluxradar/contracts';
+import { MEDIA_PROBE_LIMITS, RENDER_RESOURCE_PROBE_LIMITS } from '@fluxradar/contracts';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 import { SafeFetchError } from '@fluxradar/safe-fetch';
 import { parse } from 'node-html-parser';
 
-import { MEDIA_SELECTOR } from './link-extractor.js';
+import { MEDIA_SELECTOR, RENDER_RESOURCE_SELECTOR } from './link-extractor.js';
 import type {
   CrawlFetcher,
   PageSnapshot,
@@ -75,7 +75,27 @@ export async function probeMediaResources(
   pages: readonly PageSnapshot[],
   options: ProbeMediaOptions,
 ): Promise<readonly ResourceSnapshot[]> {
-  const candidates = collectCandidates(pages, options.isInScope);
+  const media = await probeResources(pages, options, MEDIA_SELECTOR, MEDIA_PROBE_LIMITS);
+  const render = await probeResources(
+    pages,
+    { ...options, known: [...(options.known ?? []), ...media] },
+    RENDER_RESOURCE_SELECTOR,
+    RENDER_RESOURCE_PROBE_LIMITS,
+  );
+  return [
+    ...new Map(
+      [...media, ...render].map((resource) => [resource.normalizedUrl, resource]),
+    ).values(),
+  ];
+}
+
+async function probeResources(
+  pages: readonly PageSnapshot[],
+  options: ProbeMediaOptions,
+  selector: string,
+  limits: { readonly maxProbes: number; readonly maxRecorded: number },
+): Promise<readonly ResourceSnapshot[]> {
+  const candidates = collectCandidates(pages, options.isInScope, selector);
   const answered = new Map(
     (options.known ?? [])
       .filter(isAnswered)
@@ -84,7 +104,7 @@ export async function probeMediaResources(
   const results: ResourceSnapshot[] = [];
   let probes = 0;
   for (const candidate of candidates) {
-    if (results.length >= MEDIA_PROBE_LIMITS.maxRecorded) break;
+    if (results.length >= limits.maxRecorded) break;
     const alreadyAnswered = answered.get(candidate.normalizedUrl);
     if (alreadyAnswered !== undefined) {
       results.push(alreadyAnswered);
@@ -94,7 +114,7 @@ export async function probeMediaResources(
       results.push(unverified(candidate, 'Stopped'));
       continue;
     }
-    if (probes >= MEDIA_PROBE_LIMITS.maxProbes) {
+    if (probes >= limits.maxProbes) {
       results.push(unverified(candidate, 'BudgetExhausted'));
       continue;
     }
@@ -112,6 +132,7 @@ export async function probeMediaResources(
 function collectCandidates(
   pages: readonly PageSnapshot[],
   isInScope: (url: URL) => boolean,
+  selector: string,
 ): readonly MediaCandidate[] {
   const seen = new Set<string>();
   const candidates: MediaCandidate[] = [];
@@ -119,8 +140,8 @@ function collectCandidates(
   for (const page of pages) {
     if (page.html === null || page.fetchError !== undefined) continue;
     if (page.status < 200 || page.status >= 300) continue;
-    for (const element of parse(page.html).querySelectorAll(MEDIA_SELECTOR)) {
-      const raw = element.getAttribute('src')?.trim() ?? '';
+    for (const element of parse(page.html).querySelectorAll(selector)) {
+      const raw = (element.getAttribute('src') ?? element.getAttribute('href'))?.trim() ?? '';
       const url = resolveHttpUrl(raw, page.finalUrl);
       if (url === null || !isInScope(url)) continue;
       let normalizedUrl: string;

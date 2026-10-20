@@ -13,8 +13,18 @@ import type { SiteReachability } from './api';
  */
 export function readSiteReachability(value: unknown): SiteReachability | null {
   if (typeof value !== 'object' || value === null) return null;
-  const { state, canPurchase } = value as Record<string, unknown>;
+  const { state, canPurchase, searchEnginesBlocked, blockedSearchEngines } = value as Record<
+    string,
+    unknown
+  >;
   if (typeof canPurchase !== 'boolean') return null;
+  if (searchEnginesBlocked !== undefined && typeof searchEnginesBlocked !== 'boolean') return null;
   if (state !== null && (typeof state !== 'string' || state.length === 0)) return null;
+  if (
+    blockedSearchEngines !== undefined &&
+    (!Array.isArray(blockedSearchEngines) ||
+      !blockedSearchEngines.every((name) => name === 'Google' || name === 'Bing'))
+  )
+    return null;
   return value as SiteReachability;
 }

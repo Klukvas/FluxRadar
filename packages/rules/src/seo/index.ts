@@ -1,3 +1,6 @@
+import { seoTech016RenderResources } from './seo-tech-016.js';
+import { seoOnpage007Viewport } from './seo-onpage-007.js';
+import { seoTech015SearchRobots } from './seo-tech-015.js';
 // SEO-модуль rules-mvp-0.1 (T-08): технические, on-page, structured data и
 // social preview правила. Порядок — по реестру contracts.
 // Порядок — по ruleId реестра; движок сохраняет его в результатах.
@@ -25,6 +28,9 @@ import { seoSocial001Preview } from './social-preview.js';
 import { seoStruct001JsonLdSyntax, seoStruct002JsonLdCompleteness } from './structured-data.js';
 
 export const SEO_RULES: readonly Rule[] = [
+  seoTech016RenderResources,
+  seoOnpage007Viewport,
+  seoTech015SearchRobots,
   seoTech001RobotsTxt,
   seoTech002Sitemap,
   seoTech003HttpStatus,

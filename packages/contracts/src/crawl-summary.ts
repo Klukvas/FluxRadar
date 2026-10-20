@@ -38,6 +38,11 @@ export type CrawlLimitedBy = (typeof CRAWL_LIMITED_BY)[number];
 
 export const crawlSummarySchema = z.object({
   reach: z.enum(SITE_REACH_KINDS),
+  searchEnginesBlocked: z.boolean().optional(),
+  blockedSearchEngines: z
+    .array(z.enum(['Google', 'Bing']))
+    .max(2)
+    .optional(),
   /** Status of the start page; null when no response arrived at all. */
   startStatus: z.number().int().nullable(),
   /**

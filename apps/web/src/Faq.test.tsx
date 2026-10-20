@@ -209,7 +209,7 @@ describe('/faq content — what each check does', () => {
     const section = screen.getByRole('heading', {
       name: 'SEO — being found by search engines',
     }).parentElement as HTMLElement;
-    expect(within(section).getByText(/Twenty-one rule-based checks/i)).toBeInTheDocument();
+    expect(within(section).getByText(/Twenty-four rule-based checks/i)).toBeInTheDocument();
     expect(within(section).getByText(/canonical tags/i)).toBeInTheDocument();
     // The internal-linking checks are part of the count, so the answer names them.
     expect(
@@ -224,7 +224,7 @@ describe('/faq content — what each check does', () => {
     renderFaq();
     await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
 
-    expect(screen.getByText(/GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot/)).toBeInTheDocument();
+    expect(screen.getByText(/OAI-SearchBot, Claude-SearchBot, PerplexityBot/)).toBeInTheDocument();
     expect(
       screen.getByText(
         /Basic and Complete include provider-backed AI visibility checks\. FluxRadar first asks/i,
@@ -346,10 +346,10 @@ describe('/faq content — Ukrainian', () => {
     expect(
       screen.getByRole('heading', { name: 'Доступність — WCAG 2.2, EN 301 549, Section 508' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Двадцять одне правило/)).toBeInTheDocument();
+    expect(screen.getByText(/Двадцять чотири правила/)).toBeInTheDocument();
     expect(screen.getByText(/Не власним обходом/)).toBeInTheDocument();
     expect(screen.getAllByText(/Google Search Console або Bing Webmaster Tools/)).toHaveLength(2);
     // The Ukrainian page must be a real translation, not English fallback text.
-    expect(screen.queryByText(/Twenty-one rule-based checks/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Twenty-four rule-based checks/i)).not.toBeInTheDocument();
   });
 });

@@ -3,6 +3,24 @@
 import { type ExplainedRule } from './types';
 
 export const CONTENT_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
+  'CONTENT-011': {
+    countsPages: true,
+    en: {
+      title: 'Unfinished example text is published',
+      what: 'The page still contains a known placeholder or a default publishing-system title.',
+      why: 'Example text can confuse visitors and make the page look unfinished.',
+      fix: 'Replace it with the intended content or take the unfinished page offline.',
+      count: 'One finding for each affected page.',
+    },
+    uk: {
+      title: 'Опубліковано незавершений текст-заглушку',
+      what: 'На сторінці залишився відомий текст-заглушка або типовий заголовок системи публікації.',
+      why: 'Приклади замість змісту можуть заплутати відвідувачів і створити враження незавершеності.',
+      fix: 'Замініть їх потрібним змістом або зніміть незавершену сторінку з публікації.',
+      count: 'Одна знахідка на кожну сторінку з проблемою.',
+    },
+  },
+
   'CONTENT-005': {
     countsPages: true,
     en: {

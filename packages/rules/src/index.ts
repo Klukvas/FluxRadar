@@ -71,3 +71,5 @@ export type {
   AiReadinessPageCheck,
 } from './ai-readiness.js';
 export { CANONICAL_PAGE_RULE_IDS, PAGE_RULE_IDS } from './page-census.js';
+
+export type { MailDnsSnapshot } from './engine/types.js';

@@ -147,3 +147,39 @@ describe('probeSiteReachability', () => {
     expect(seen).toEqual([`${ORIGIN}/robots.txt`, `${ORIGIN}/`]);
   });
 });
+
+it.each([
+  ['User-agent: *\nDisallow: /', true],
+  ['User-agent: FluxRadarBot\nDisallow: /', false],
+  ['User-agent: *\nDisallow: /\nUser-agent: Googlebot\nAllow: /', true],
+])('preflight propagates search-engine block flag %s', async (body, expected) => {
+  const result = await probeSiteReachability(ORIGIN, {
+    fetcher: fetcher({
+      robots: response({
+        url: `${ORIGIN}/robots.txt`,
+        headers: { 'content-type': 'text/plain' },
+        body,
+      }),
+    }),
+  });
+  expect(result.searchEnginesBlocked).toBe(expected);
+});
+
+it.each([
+  ['Googlebot', ['Google']],
+  ['Bingbot', ['Bing']],
+  ['*', ['Bing', 'Google']],
+] as const)('preflight preserves exact blocked names for %s', async (agent, names) => {
+  const body = `User-agent: FluxRadarBot\nDisallow: /\nUser-agent: ${agent}\nDisallow: /`;
+  const result = await probeSiteReachability(ORIGIN, {
+    fetcher: fetcher({
+      robots: response({
+        url: `${ORIGIN}/robots.txt`,
+        headers: { 'content-type': 'text/plain' },
+        body,
+      }),
+    }),
+  });
+  expect(result.searchEnginesBlocked).toBe(true);
+  expect(result.blockedSearchEngines).toEqual(names);
+});

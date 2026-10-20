@@ -492,7 +492,7 @@ export const copy = {
           title: 'Can people find you on Google?',
           body: 'What Google shows for each page (its name and short description), whether a page is hidden from search, broken links, pages that repeat each other, and whether the hidden description of your business that Google reads is in order.',
           // The count is matched verbatim by apps/api/src/export/check-count-parity.test.ts.
-          foot: '21 checks for Google search',
+          foot: '24 checks for Google search',
         },
         ai: {
           index: 'B / AI ASSISTANTS',
@@ -572,7 +572,7 @@ export const copy = {
         // carries the SEO check count that
         // apps/api/src/export/check-count-parity.test.ts matches.
         items: [
-          '21 checks for Google search',
+          '24 checks for Google search',
           'Whether AI assistants like ChatGPT may read your site',
           'Site security (against the public OWASP security standard)',
           'Ease of use for people with disabilities (the WCAG accessibility standard)',
@@ -677,7 +677,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'Why people do not find you on Google or in AI assistants.',
           checks: [
-            '21 checks for Google search across the whole site: page names and descriptions, headings, picture descriptions, broken links and redirects, pages that repeat each other, pages hidden from search, the site map and your business details for Google',
+            '24 checks for Google search across the whole site: page names and descriptions, headings, picture descriptions, broken links and redirects, pages that repeat each other, pages hidden from search, the site map and your business details for Google',
             'Whether AI assistants like ChatGPT may read your pages',
             'Whether two AI assistants mention you in their answers (two more if you choose)',
             'An AI action plan: what to fix first, with steps your developer can follow',
@@ -722,7 +722,7 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Reword the rest
             // of this answer freely; leave that opening clause alone.
             basic:
-              '21 checks for Google search, plus whether AI assistants like ChatGPT may read your pages, and whether two AI assistants mention you in their answers (two more if you choose). With the AI action plan: what to fix first, step by step.',
+              '24 checks for Google search, plus whether AI assistants like ChatGPT may read your pages, and whether two AI assistants mention you in their answers (two more if you choose). With the AI action plan: what to fix first, step by step.',
             complete:
               'Everything in Basic, plus eight sections about the site itself: security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). With scan history, export to a file and the AI action plan.',
           },
@@ -1553,6 +1553,16 @@ export const copy = {
         // the three duplicate checks need a second page to compare against, and
         // the Analytics ones read Google data rather than pages.
         notApplicableReasons: {
+          'SEO-TECH-015': 'No readable robots.txt was available',
+          'SEO-TECH-015:no-robots': 'No readable robots.txt was available',
+          'SEC-PASSIVE-001': 'No TLS certificate snapshot was available',
+          'SEC-PASSIVE-001:no-tls': 'No TLS certificate snapshot was available',
+          'SEC-PASSIVE-007': 'No mail DNS snapshot was available',
+          'SEC-PASSIVE-007:no-mail-dns': 'No mail DNS snapshot was available',
+          'SEO-ONPAGE-007': 'No successful HTML page was read',
+          'SEO-TECH-016': 'No successful HTML page was read',
+          'A11Y-012': 'No successful HTML page was read',
+          'CONTENT-011': 'No successful HTML page was read',
           // Keyed by rule id, and by `ruleId:reason` where the rule named why it
           // had nothing to judge. The bare rule id stays as what a report
           // recorded before rules said so, and names every possibility rather
@@ -1628,6 +1638,13 @@ export const copy = {
           'ANALYTICS-LINK-001': 'No page had search impressions in the period',
         },
         titles: {
+          'SEO-TECH-015': 'Search engines blocked by robots.txt',
+          'SEO-TECH-016': 'Broken stylesheet, script or font',
+          'SEO-ONPAGE-007': 'Page is not configured for mobile screens',
+          'SEC-PASSIVE-001': 'TLS certificate is invalid or expires soon',
+          'SEC-PASSIVE-007': 'SPF or DMARC protection is missing or unsafe',
+          'A11Y-012': 'Page prevents visitors from zooming in',
+          'CONTENT-011': 'Placeholder text is still published',
           // The four Free checks, which a Free report names on its SEO card.
           'SEO-ONPAGE-001': 'Page title',
           'SEO-ONPAGE-002': 'Page description for search (meta description)',
@@ -1659,6 +1676,10 @@ export const copy = {
           'ANALYTICS-GA-002': 'Google tag on every page',
           'ANALYTICS-LINK-001': 'Findings on the pages with the most search impressions',
         },
+        geoSearchHeading: 'AI search and answers',
+        geoTrainingHeading: 'Model training',
+        geoTrainingNote:
+          'Blocking training does not affect appearance in AI search. Robots policies do not prove actual access; some user-requested fetchers may ignore robots.txt.',
         geoCrawlersHeading: 'AI crawler access · robots.txt',
         geoCrawlersLead:
           'What robots.txt lets each AI crawler read. This is the site’s own policy, not proof that a provider has indexed or cited it.',
@@ -2552,7 +2573,7 @@ export const copy = {
           title: 'Чи знаходять вас у Google?',
           body: 'Що Google показує про кожну сторінку (назву й короткий опис), чи не закрита сторінка від пошуку, чи немає битих посилань і сторінок, що повторюють одна одну, і чи в порядку прихований опис вашого бізнесу, який читає Google.',
           // The count is matched verbatim by apps/api/src/export/check-count-parity.test.ts.
-          foot: '21 перевірка для пошуку Google',
+          foot: '24 перевірки для пошуку Google',
         },
         ai: {
           index: 'B / ШІ-ПОМІЧНИКИ',
@@ -2613,7 +2634,7 @@ export const copy = {
         // Перший пункт містить кількість SEO-перевірок, яку звіряє
         // apps/api/src/export/check-count-parity.test.ts.
         items: [
-          '21 перевірка для пошуку Google',
+          '24 перевірки для пошуку Google',
           'Чи можуть ШІ-помічники на кшталт ChatGPT читати ваш сайт',
           'Безпека сайту (за відкритим стандартом безпеки OWASP)',
           'Зручність для людей з інвалідністю (стандарт доступності WCAG)',
@@ -2707,7 +2728,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'Чому вас не знаходять у Google і у відповідях ШІ-помічників.',
           checks: [
-            '21 перевірка для пошуку Google на всьому сайті: назви й описи сторінок, підзаголовки, описи зображень, биті посилання й переадресації, сторінки, що повторюють одна одну, сторінки, закриті від пошуку, мапа сайту і дані про ваш бізнес для Google',
+            '24 перевірки для пошуку Google на всьому сайті: назви й описи сторінок, підзаголовки, описи зображень, биті посилання й переадресації, сторінки, що повторюють одна одну, сторінки, закриті від пошуку, мапа сайту і дані про ваш бізнес для Google',
             'Чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки',
             'Чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором)',
             'План дій від ШІ: що виправити першим, з кроками, які може виконати ваш розробник',
@@ -2752,7 +2773,7 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Решту відповіді
             // можна переписувати; початок речення — ні.
             basic:
-              '21 перевірка для пошуку Google, а також чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки і чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором). З планом дій від ШІ: що виправити першим, крок за кроком.',
+              '24 перевірки для пошуку Google, а також чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки і чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором). З планом дій від ШІ: що виправити першим, крок за кроком.',
             complete:
               'Усе з Basic, а ще вісім розділів звіту про сам сайт: безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). До цього додаються історія перевірок, вивантаження у файл і план дій від ШІ.',
           },
@@ -3457,6 +3478,16 @@ export const copy = {
         detailNoted: 'Спостереження зафіксовано',
         detailNotApplicable: 'На прочитаних сторінках немає нічого, що підпадає під цю перевірку',
         notApplicableReasons: {
+          'SEO-TECH-015': 'Не вдалося прочитати robots.txt',
+          'SEO-TECH-015:no-robots': 'Не вдалося прочитати robots.txt',
+          'SEC-PASSIVE-001': 'Немає знімка TLS-сертифіката',
+          'SEC-PASSIVE-001:no-tls': 'Немає знімка TLS-сертифіката',
+          'SEC-PASSIVE-007': 'Немає знімка поштових DNS-записів',
+          'SEC-PASSIVE-007:no-mail-dns': 'Немає знімка поштових DNS-записів',
+          'SEO-ONPAGE-007': 'Не прочитано жодної успішної HTML-сторінки',
+          'SEO-TECH-016': 'Не прочитано жодної успішної HTML-сторінки',
+          'A11Y-012': 'Не прочитано жодної успішної HTML-сторінки',
+          'CONTENT-011': 'Не прочитано жодної успішної HTML-сторінки',
           'SEO-TECH-009':
             'Sitemap не прочитано, у sitemap немає жодної сторінки, яку ця перевірка може судити, або обхід не дочитав сторінки, які збирався прочитати',
           'SEO-TECH-009:link-graph-gap':
@@ -3517,6 +3548,13 @@ export const copy = {
           'ANALYTICS-LINK-001': 'За період жодна сторінка не мала показів у пошуку',
         },
         titles: {
+          'SEO-TECH-015': 'Пошуковики заблоковані в robots.txt',
+          'SEO-TECH-016': 'Биті таблиця стилів, скрипт або шрифт',
+          'SEO-ONPAGE-007': 'Сторінка не налаштована для мобільних екранів',
+          'SEC-PASSIVE-001': 'TLS-сертифікат недійсний або скоро спливає',
+          'SEC-PASSIVE-007': 'Захист SPF або DMARC відсутній чи небезпечний',
+          'A11Y-012': 'Сторінка забороняє відвідувачам збільшувати вміст',
+          'CONTENT-011': 'На сторінці залишився текст-заглушка',
           'SEO-ONPAGE-001': 'Заголовок сторінки (title)',
           'SEO-ONPAGE-002': 'Опис сторінки для пошуку (meta description)',
           'SEO-ONPAGE-003': 'Структура заголовків (H1–H6)',
@@ -3547,6 +3585,10 @@ export const copy = {
           'ANALYTICS-GA-002': 'Тег Google на кожній сторінці',
           'ANALYTICS-LINK-001': 'Знахідки на сторінках із найбільшою кількістю показів',
         },
+        geoSearchHeading: 'AI-пошук і відповіді',
+        geoTrainingHeading: 'Навчання моделей',
+        geoTrainingNote:
+          'Блокування навчання не впливає на появу в AI-пошуку. Політика robots не доводить фактичний доступ; деякі запити користувачів можуть ігнорувати robots.txt.',
         geoCrawlersHeading: 'Доступ AI-роботів · robots.txt',
         geoCrawlersLead:
           'Що robots.txt дозволяє читати кожному AI-роботу. Це політика самого сайту, а не доказ того, що постачальник його проіндексував чи цитує.',

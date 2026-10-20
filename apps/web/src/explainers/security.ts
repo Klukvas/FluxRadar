@@ -3,6 +3,42 @@
 import { ASK_DEVELOPER_SERVER_EN, ASK_DEVELOPER_SERVER_UK, type ExplainedRule } from './types';
 
 export const SECURITY_EXPLAINERS: Readonly<Record<string, ExplainedRule>> = {
+  'SEC-PASSIVE-007': {
+    countsPages: false,
+    en: {
+      title: 'Mail sender protection needs attention',
+      what: 'A public mail protection record is missing, duplicated or allows any sender.',
+      why: 'Mail services use these records to check whether messages really come from your domain.',
+      fix: 'Ask whoever manages your domain and email to configure the sender protection records.',
+      count: 'One finding for each affected type of mail protection.',
+    },
+    uk: {
+      title: 'Захист поштових відправників потребує уваги',
+      what: 'Публічний запис захисту пошти відсутній, дубльований або дозволяє будь-якого відправника.',
+      why: 'Поштові сервіси використовують ці записи, щоб перевірити, чи листи походять із вашого домену.',
+      fix: 'Попросіть адміністратора домену й пошти налаштувати записи захисту відправників.',
+      count: 'Одна знахідка на кожен тип поштового захисту з проблемою.',
+    },
+  },
+
+  'SEC-PASSIVE-001': {
+    countsPages: false,
+    en: {
+      title: 'The secure connection certificate needs attention',
+      what: 'The certificate is invalid for this host, not trusted or expires in fewer than fourteen days.',
+      why: 'Browsers may warn visitors or refuse to open the site when the certificate is invalid.',
+      fix: 'Ask your hosting provider to install a valid certificate and its complete trust chain.',
+      count: 'One finding for each affected hostname.',
+    },
+    uk: {
+      title: 'Сертифікат захищеного з’єднання потребує уваги',
+      what: 'Сертифікат недійсний для цього хоста, недовірений або спливає менш ніж за чотирнадцять днів.',
+      why: 'Браузери можуть попереджати відвідувачів або відмовлятися відкривати сайт із недійсним сертифікатом.',
+      fix: 'Попросіть хостинг-провайдера встановити чинний сертифікат із повним довіреним ланцюжком.',
+      count: 'Одна знахідка на кожне доменне ім’я з проблемою.',
+    },
+  },
+
   'SEC-ASVS-001': {
     countsPages: true,
     en: {

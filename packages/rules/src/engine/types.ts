@@ -1,3 +1,4 @@
+import type { TlsCertificateSnapshot } from '@fluxradar/safe-fetch';
 // Контракты rule engine (T-08): контекст сайта, finding и интерфейсы правил.
 // Правило само сообщает applicable/affected targets (D-121) — движок только
 // агрегирует, дедупит по fingerprint и ведёт coverage-счётчики.
@@ -27,6 +28,9 @@ export type NotApplicableReason =
   | 'no-sitemap'
   /** Обход не оставил ни одной цели, о которой это правило вправе судить. */
   | 'no-candidates'
+  | 'no-robots'
+  | 'no-tls'
+  | 'no-mail-dns'
   /** CONTENT-005: страница не объявила `<html lang>` вовсе. */
   | 'no-declared-language'
   /** CONTENT-005: `<html lang>` объявлен, но это не английский и не украинский. */
@@ -84,6 +88,16 @@ export interface ApiCheckUnavailable {
   readonly applicable: boolean;
 }
 
+export interface MailDnsSnapshot {
+  readonly domain: string;
+  readonly observedAt: string;
+  readonly spf: { readonly status: 'checked' | 'unverified'; readonly records: readonly string[] };
+  readonly dmarc: {
+    readonly status: 'checked' | 'unverified';
+    readonly records: readonly string[];
+  };
+}
+
 /** Вход движка: результат обхода + идентичность сайта и тариф скана. */
 export interface SiteContext {
   /** Origin, как он задан в профиле сайта (до нормализации). */
@@ -96,6 +110,8 @@ export interface SiteContext {
   readonly plan: Plan;
   /** Явно добавленные API-endpoints (§9); нет поля — Reliability/api молчит. */
   readonly apiChecks?: readonly ApiCheck[];
+  readonly tls?: readonly TlsCertificateSnapshot[];
+  readonly mailDns?: MailDnsSnapshot;
 }
 
 /**

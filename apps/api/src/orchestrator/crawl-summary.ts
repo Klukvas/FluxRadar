@@ -25,6 +25,12 @@ export function buildCrawlSummary(
   return {
     reach: reach.kind,
     startStatus: reach.startStatus,
+    ...(reach.blockedSearchEngines === undefined
+      ? {}
+      : { blockedSearchEngines: [...reach.blockedSearchEngines] }),
+    ...(reach.searchEnginesBlocked !== undefined
+      ? { searchEnginesBlocked: reach.searchEnginesBlocked }
+      : {}),
     accessControlSignals: reach.accessControlSignals.slice(0, MAX_ACCESS_CONTROL_SIGNALS),
     pagesRead: coverage.pagesRead,
     pagesFetched: coverage.pagesFetched,

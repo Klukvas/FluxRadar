@@ -39,6 +39,7 @@ const WRITTEN_NUMBERS: Readonly<Record<string, number>> = {
   Nineteen: 19,
   Twenty: 20,
   'Twenty-one': 21,
+  'Twenty-four': 24,
   'Twenty-two': 22,
   'Twenty-three': 23,
 };
@@ -47,6 +48,7 @@ const UK_WRITTEN_NUMBERS: Readonly<Record<string, number>> = {
   'Дев’ятнадцять': 19,
   Двадцять: 20,
   'Двадцять одне': 21,
+  'Двадцять чотири': 24,
   'Двадцять два': 22,
   'Двадцять три': 23,
 };
@@ -63,7 +65,7 @@ describe('the SEO check count the public pages promise', () => {
     // count has to be claimed in both, so each pattern is asserted separately.
     const english = claimedCounts('checks-copy.en.ts', [/\*\*(\d+) deterministic checks\*\*/g]);
     const ukrainian = claimedCounts('checks-copy.uk.ts', [
-      /\*\*(\d+) детермінован[а-яіїєґ']+ перевірк[а-яіїєґ']+\*\*/g,
+      /\*\*(\d+) детермінован[а-яіїєґ']+ перевір[а-яіїєґ']+\*\*/g,
     ]);
     expect(english).toEqual([expected]);
     expect(ukrainian).toEqual([expected]);
@@ -93,7 +95,9 @@ describe('the SEO check count the public pages promise', () => {
   it('matches in the FAQ in both languages, where the figure is spelled out', () => {
     const source = webSource('faq-copy.ts');
     const english = /'([A-Z][a-z]+(?:-[a-z]+)?) rule-based checks/.exec(source)?.[1];
-    const ukrainian = /'(Дев’ятнадцять|Двадцять(?: одне| два| три)?) правил/.exec(source)?.[1];
+    const ukrainian = /'(Дев’ятнадцять|Двадцять(?: одне| два| три| чотири)?) правил/.exec(
+      source,
+    )?.[1];
 
     expect(english === undefined ? undefined : WRITTEN_NUMBERS[english]).toBe(expected);
     expect(ukrainian === undefined ? undefined : UK_WRITTEN_NUMBERS[ukrainian]).toBe(expected);
