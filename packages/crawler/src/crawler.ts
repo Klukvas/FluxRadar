@@ -442,7 +442,11 @@ class CrawlRun {
     let discovered: URL;
     try {
       discovered = new URL(rawUrl);
-      parsed = applyQueryPolicy(new URL(rawUrl), this.scope.queryPolicy);
+      // В очередь кладётся форма без fragment-а (причина — см. stripFragment):
+      // дедуп идёт по normalized, поэтому первая же найденная ссылка-якорь
+      // иначе закрепляла бы `/faq#q1` как запрошенный адрес страницы — в
+      // requestedUrl снимка, в frontier паузы и в тексте находок.
+      parsed = applyQueryPolicy(withoutFragment(discovered), this.scope.queryPolicy);
       normalized = normalizeUrl(parsed.href);
     } catch {
       return; // мусорные обнаруженные ссылки (userinfo и пр.) — не ошибка обхода
@@ -740,6 +744,11 @@ class CrawlRun {
 function stripFragment(rawUrl: string): string {
   const hashAt = rawUrl.indexOf('#');
   return hashAt === -1 ? rawUrl : rawUrl.slice(0, hashAt);
+}
+
+/** Тот же срез для URL-объекта: возвращается новая копия, аргумент не меняется. */
+function withoutFragment(url: URL): URL {
+  return new URL(stripFragment(url.href));
 }
 
 /** Только ключи с ≥2 raw-вариантами; варианты отсортированы для детерминизма. */

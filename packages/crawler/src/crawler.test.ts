@@ -534,6 +534,94 @@ describe('crawl: urlVariants и ссылки-якоря (мок-fetcher)', () =>
     ]);
   });
 
+  describe('страница, найденная по ссылке-якорю, запрашивается без fragment-а', () => {
+    /** linkingFetcher + журнал запрошенных URL: проверяем, что именно ушло в транспорт. */
+    function recordingFetcher(links: readonly string[], requested: string[]): CrawlFetcher {
+      const inner = linkingFetcher(links);
+      return (url, init) => {
+        requested.push(url);
+        return inner(url, init);
+      };
+    }
+
+    it('единственная ссылка на страницу — якорь: в фетчер и в requestedUrl идёт чистый URL', async () => {
+      // Дедуп идёт по normalizedUrl, поэтому #-форма, найденная ПЕРВОЙ, раньше
+      // становилась rawUrl записи очереди — и requestedUrl снимка.
+      const requested: string[] = [];
+      const result = await crawl(
+        anchorScope(),
+        fastOptions({ fetcher: recordingFetcher(['/page#toc'], requested), probeMedia: false }),
+      );
+
+      expect(requested).toContain(`${MOCK_ORIGIN}/page`);
+      expect(requested.filter((url) => url.includes('#'))).toEqual([]);
+      const page = result.pages.find((entry) => entry.normalizedUrl === `${MOCK_ORIGIN}/page`);
+      expect(page?.requestedUrl).toBe(`${MOCK_ORIGIN}/page`);
+    });
+
+    it('упавший запрос такой страницы даёт снимок без fragment-а в requestedUrl и finalUrl', async () => {
+      // finalUrl у ошибки — это entry.rawUrl: правила (REL-URL-001, SEO-TECH-005)
+      // печатают эти поля владельцу, и `#toc` в них выглядел бы как адрес,
+      // который обход действительно просил у сайта.
+      const result = await crawl(
+        anchorScope(),
+        fastOptions({
+          probeMedia: false,
+          fetcher: (url, init) => {
+            if (new URL(url).pathname === '/page') {
+              return Promise.reject(new Error('safe-fetch: connection reset'));
+            }
+            return linkingFetcher(['/page#toc'])(url, init);
+          },
+        }),
+      );
+
+      const failed = result.pages.find((entry) => entry.fetchError !== undefined);
+      expect(failed?.requestedUrl).toBe(`${MOCK_ORIGIN}/page`);
+      expect(failed?.finalUrl).toBe(`${MOCK_ORIGIN}/page`);
+    });
+
+    it('frontier приостановленного обхода отдаёт такую запись без fragment-а', async () => {
+      // pendingQueue уходит в checkpoint паузы и возвращается оттуда seed-ом:
+      // #-форма закрепилась бы в скане на всё время его жизни.
+      let stop = false;
+      const result = await crawl(
+        anchorScope(),
+        fastOptions({
+          probeMedia: false,
+          shouldStop: () => stop,
+          fetcher: (url, init) => {
+            // Стоп только после главной: очередь к этому моменту уже держит якорь.
+            if (new URL(url).pathname === '/') stop = true;
+            return linkingFetcher(['/page#toc'])(url, init);
+          },
+        }),
+      );
+
+      expect(result.stoppedEarly).toBe(true);
+      expect(result.pendingQueue.map((entry) => entry.url)).toEqual([`${MOCK_ORIGIN}/page`]);
+    });
+
+    it('frontier прошлой попытки с #-формой запрашивается чистым', async () => {
+      // Чекпоинты, записанные до починки, уже несут `#`-формы: resume обязан
+      // просить у сайта тот же адрес, что попросил бы непрерывный обход.
+      const requested: string[] = [];
+      const result = await crawl(
+        anchorScope(),
+        fastOptions({
+          fetcher: recordingFetcher([], requested),
+          probeMedia: false,
+          resumeSeeds: [{ url: `${MOCK_ORIGIN}/faq#q1`, depth: 1 }],
+        }),
+      );
+
+      expect(requested).toContain(`${MOCK_ORIGIN}/faq`);
+      expect(requested.filter((url) => url.includes('#'))).toEqual([]);
+      const page = result.pages.find((entry) => entry.normalizedUrl === `${MOCK_ORIGIN}/faq`);
+      expect(page?.requestedUrl).toBe(`${MOCK_ORIGIN}/faq`);
+    });
+  });
+
   it('варианты восстановленной попытки тоже теряют fragment, осиротевшая группа исчезает', async () => {
     // Покрытие прошлой попытки записано прежним кодом и уже несёт #-формы.
     // Пересобранный список обязан совпасть с тем, что дал бы свежий обход, —
