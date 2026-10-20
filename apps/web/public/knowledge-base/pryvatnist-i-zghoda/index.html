@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як перевірити публічні сигнали приватності та згоди | FluxRadar</title>
+    <meta
+      name="description"
+      content="Від банера до мережевих запитів: початковий стан, категорії, відмова й відкликання вибору."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/pryvatnist-i-zghoda" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Як перевірити публічні сигнали приватності та згоди" />
+    <meta
+      property="og:description"
+      content="Від банера до мережевих запитів: початковий стан, категорії, відмова й відкликання вибору."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/pryvatnist-i-zghoda" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Як перевірити публічні сигнали приватності та згоди",
+            "description": "Від банера до мережевих запитів: початковий стан, категорії, відмова й відкликання вибору.",
+            "inLanguage": "uk",
+            "datePublished": "2026-10-20",
+            "dateModified": "2026-10-20",
+            "mainEntityOfPage": "https://fluxradar.net/knowledge-base/pryvatnist-i-zghoda",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "База знань",
+                "item": "https://fluxradar.net/knowledge-base"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Як перевірити публічні сигнали приватності та згоди",
+                "item": "https://fluxradar.net/knowledge-base/pryvatnist-i-zghoda"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a> /
+          <span>Як перевірити публічні сигнали приватності та згоди</span>
+        </nav>
+        <header>
+          <p class="kicker">Якість сайту · УКРАЇНСЬКОЮ</p>
+          <h1>Як перевірити публічні сигнали приватності та згоди</h1>
+          <p class="lede">
+            Від банера до мережевих запитів: початковий стан, категорії, відмова й відкликання
+            вибору.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Наявність cookie-банера не доводить, що необовʼязкові трекери чекають дозволу. Публічний
+            аудит бачить сигнали й підказує місця для перевірки. Юридична відповідність залежить від
+            реального оброблення даних, аудиторії та застосовних вимог; її не можна підтвердити
+            одним скануванням.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Підготуйте чистий браузер</a></li>
+              <li><a href="#section-2">Перевірте початковий стан</a></li>
+              <li><a href="#section-3">Перевірте вибір і його відкликання</a></li>
+              <li><a href="#section-4">Зіставте ручний контроль зі звітом</a></li>
+              <li><a href="#section-5">Як зафіксувати дефект</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Підготуйте чистий браузер</h2>
+            <p>
+              Для модуля приватності оберіть Complete. Для ручного контролю відкрийте новий
+              приватний сеанс без попередньої згоди. Запишіть країну, мову та час. Сайт може
+              показувати різні банери для різних регіонів; ваш особистий збережений вибір приховує
+              початкову поведінку.
+            </p>
+            <p>
+              Відкрийте Network і сховище браузера до взаємодії з банером. Не публікуйте в журналі
+              перевірки ідентифікатори відвідувача чи значення cookies.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Перевірте початковий стан</h2>
+            <ol>
+              <li>Завантажте сторінку, не натискаючи жодної опції.</li>
+              <li>Подивіться, які сторонні запити й записи сховища вже виникли.</li>
+              <li>Прочитайте пояснення категорій і перевірте початкові прапорці.</li>
+              <li>Знайдіть зрозумілий спосіб відмовитися від необовʼязкового.</li>
+              <li>Відкрийте політику приватності та cookies і зіставте опис із поведінкою.</li>
+            </ol>
+            <p>
+              Не класифікуйте кожен сторонній запит як трекер автоматично. Шрифт, платіжна функція й
+              аналітика мають різні цілі; потрібен аналіз конкретного сервісу.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Перевірте вибір і його відкликання</h2>
+            <p>
+              В окремих чистих сеансах порівняйте відмову, вибрані категорії та повний дозвіл.
+              Переконайтеся, що зміна категорії справді змінює запити й записи. Потім знайдіть
+              налаштування для повторного відкриття банера та відкличте необовʼязковий дозвіл.
+            </p>
+            <p>
+              Навчальний приклад: після «Лише необхідні» аналітичний скрипт усе одно завантажується
+              зі шаблону. Потрібно перевірити інтеграцію банера з менеджером тегів і пряму вставку
+              скрипту, а не тільки змінити текст кнопки.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Зіставте ручний контроль зі звітом</h2>
+            <p>
+              У розділі приватності прочитайте докази банера, політик і можливих трекерів. Публічне
+              читання без особистого сеансу має обмеження: скрипти можуть активуватися тільки після
+              взаємодії. Позначте, що перевірено автоматично, а що вручну.
+            </p>
+            <p>
+              Очікуваний результат — зрозумілий вибір, документовані категорії та поведінка, яка
+              відповідає зробленому вибору. Якщо потрібна правова оцінка, передайте опис потоків
+              даних компетентному спеціалісту; сам звіт не є юридичним висновком.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Як зафіксувати дефект</h2>
+            <p>
+              Запишіть стан до вибору, дію, сервіс і спостереження без секретних значень. Наприклад:
+              «Новий сеанс → відмова від аналітики → скрипт аналітики завантажився». Після
+              виправлення повторіть усі варіанти вибору, включно з відкликанням, на мобільному й
+              десктопі. Видалення одного видимого банера не виправляє приховані сторонні запити.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Наступний крок</h2>
+            <ul>
+              <li>
+                <a href="/knowledge-base/javascript-audyt"
+                  >Врахувати контент після виконання скриптів</a
+                >
+              </li>
+              <li>
+                <a href="/knowledge-base/google-dani"
+                  >Розрізняти підключення даних і аналітику сайту</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a href="https://fluxradar.net/checks?lang=uk"
+                  >FluxRadar: межі модуля приватності</a
+                >
+              </li>
+              <li>
+                <a href="https://developer.chrome.com/docs/devtools/network"
+                  >Chrome: перевірка мережевих запитів</a
+                >
+              </li>
+            </ul>
+            <p>
+              Приклади в матеріалі навчальні. Можливості FluxRadar звірено з поточною тарифною
+              матрицею та інтерфейсом. Зовнішні посилання ведуть до документації відповідних
+              постачальників.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

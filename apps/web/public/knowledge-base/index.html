@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>База знань FluxRadar — інструкції з аудиту сайту</title>
+    <meta
+      name="description"
+      content="21 покрокова інструкція: запуск аудиту, звіти, SEO, AI-краулери, швидкодія, доступність, приватність та аналітика."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:title" content="База знань FluxRadar" />
+    <meta property="og:description" content="Практичні інструкції з аудиту публічного сайту." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "name": "База знань FluxRadar",
+        "description": "Практичні інструкції з аудиту публічного сайту",
+        "url": "https://fluxradar.net/knowledge-base",
+        "inLanguage": "uk",
+        "mainEntity": {
+          "@type": "ItemList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Як запустити перший аудит сайту у FluxRadar",
+              "url": "https://fluxradar.net/knowledge-base/pershyi-audyt"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Як обрати Basic або Complete",
+              "url": "https://fluxradar.net/knowledge-base/vybir-paketa"
+            },
+            {
+              "@type": "ListItem",
+              "position": 3,
+              "name": "Як налаштувати область і глибину обходу",
+              "url": "https://fluxradar.net/knowledge-base/nalashtuvaty-obkhid"
+            },
+            {
+              "@type": "ListItem",
+              "position": 4,
+              "name": "Як читати звіт аудиту та перевіряти докази",
+              "url": "https://fluxradar.net/knowledge-base/prochytaty-zvit"
+            },
+            {
+              "@type": "ListItem",
+              "position": 5,
+              "name": "Що означають покриття та бал у звіті FluxRadar",
+              "url": "https://fluxradar.net/knowledge-base/pokryttia-ta-bal"
+            },
+            {
+              "@type": "ListItem",
+              "position": 6,
+              "name": "Як перетворити знахідки на пріоритетний план виправлень",
+              "url": "https://fluxradar.net/knowledge-base/priorytety-vypravlen"
+            },
+            {
+              "@type": "ListItem",
+              "position": 7,
+              "name": "Як експортувати звіт і передати його підряднику",
+              "url": "https://fluxradar.net/knowledge-base/eksport-zvitu"
+            },
+            {
+              "@type": "ListItem",
+              "position": 8,
+              "name": "Як повторити аудит і перевірити результат виправлень",
+              "url": "https://fluxradar.net/knowledge-base/povtornyi-audyt"
+            },
+            {
+              "@type": "ListItem",
+              "position": 9,
+              "name": "Як перевірити robots.txt, noindex і доступність сторінки",
+              "url": "https://fluxradar.net/knowledge-base/robots-ta-noindex"
+            },
+            {
+              "@type": "ListItem",
+              "position": 10,
+              "name": "Як знайти й виправити суперечливі canonical URL",
+              "url": "https://fluxradar.net/knowledge-base/canonical-ta-dublikaty"
+            },
+            {
+              "@type": "ListItem",
+              "position": 11,
+              "name": "Як перевірити sitemap і знайти зайві або пропущені URL",
+              "url": "https://fluxradar.net/knowledge-base/sitemap-perevirka"
+            },
+            {
+              "@type": "ListItem",
+              "position": 12,
+              "name": "Як перевірити редиректи, биті посилання та 404",
+              "url": "https://fluxradar.net/knowledge-base/redyrekty-ta-404"
+            },
+            {
+              "@type": "ListItem",
+              "position": 13,
+              "name": "Як перевірити title, опис і структуру заголовків",
+              "url": "https://fluxradar.net/knowledge-base/title-opysy-zaholovky"
+            },
+            {
+              "@type": "ListItem",
+              "position": 14,
+              "name": "Як перевірити структуровані дані на сторінці",
+              "url": "https://fluxradar.net/knowledge-base/strukturovani-dani"
+            },
+            {
+              "@type": "ListItem",
+              "position": 15,
+              "name": "Як перевірити сайт, який рендерить контент JavaScript",
+              "url": "https://fluxradar.net/knowledge-base/javascript-audyt"
+            },
+            {
+              "@type": "ListItem",
+              "position": 16,
+              "name": "Як перевірити доступ для AI-краулерів без хибних обіцянок",
+              "url": "https://fluxradar.net/knowledge-base/ai-kraulery"
+            },
+            {
+              "@type": "ListItem",
+              "position": 17,
+              "name": "Як підключити й перевірити дані Search Console та GA4",
+              "url": "https://fluxradar.net/knowledge-base/google-dani"
+            },
+            {
+              "@type": "ListItem",
+              "position": 18,
+              "name": "Як виправляти сім нових сигналів аудиту",
+              "url": "https://fluxradar.net/knowledge-base/novi-perevirky-saitu"
+            },
+            {
+              "@type": "ListItem",
+              "position": 19,
+              "name": "Як перевірити швидкодію й правильно прочитати Core Web Vitals",
+              "url": "https://fluxradar.net/knowledge-base/shvydkist-saitu"
+            },
+            {
+              "@type": "ListItem",
+              "position": 20,
+              "name": "Як перевірити доступність форми заявки",
+              "url": "https://fluxradar.net/knowledge-base/dostupnist-form"
+            },
+            {
+              "@type": "ListItem",
+              "position": 21,
+              "name": "Як перевірити публічні сигнали приватності та згоди",
+              "url": "https://fluxradar.net/knowledge-base/pryvatnist-i-zghoda"
+            }
+          ]
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <header>
+          <p class="kicker">БАЗА ЗНАНЬ · 21 ІНСТРУКЦІЯ</p>
+          <h1>Від перевірки до зрозумілої дії.</h1>
+          <p class="lede">
+            Почніть з запуску аудиту, прочитайте докази й оберіть конкретне виправлення. Кожна
+            інструкція пояснює умови, кроки та перевірку результату.
+          </p>
+        </header>
+        <nav
+          class="resource-switch"
+          aria-label="Розділи матеріалів"
+          data-t-label="content.sections"
+        >
+          <a href="/knowledge-base" aria-current="page">База знань</a
+          ><a href="/blog">Блог для власників сайтів</a
+          ><a href="/blog?lang=en">Попередні статті англійською</a>
+        </nav>
+        <p class="content-note">
+          Нові інструкції виходять українською. Для поточного складу перевірок звіряйтеся з
+          <a href="/checks?lang=uk">покриттям аудиту</a>.
+        </p>
+        <div class="content-search" data-content-controls hidden>
+          <label for="content-search" data-t="content.search">Знайти матеріал</label
+          ><input
+            id="content-search"
+            type="search"
+            placeholder="Наприклад: canonical, форма, покриття"
+          /><label for="content-category" data-t="content.category">Тема</label
+          ><select id="content-category">
+            <option value="" data-t="content.all">Усі теми</option>
+            <option value="Початок роботи" data-content-language="uk">Початок роботи</option>
+            <option value="Звіти та пріоритети" data-content-language="uk">
+              Звіти та пріоритети
+            </option>
+            <option value="SEO та індексація" data-content-language="uk">SEO та індексація</option>
+            <option value="AI та вимірювання" data-content-language="uk">AI та вимірювання</option>
+            <option value="Якість сайту" data-content-language="uk">Якість сайту</option></select
+          ><button type="button" data-content-reset data-t="content.reset">Скинути фільтри</button>
+          <p data-content-results role="status" aria-live="polite"></p>
+        </div>
+        <section class="content-category" data-content-category="Початок роботи">
+          <h2>Початок роботи</h2>
+          <div class="content-grid">
+            <article data-content-card data-category="Початок роботи">
+              <p class="kicker">Початок роботи</p>
+              <h3>
+                <a href="/knowledge-base/pershyi-audyt"
+                  >Як запустити перший аудит сайту у FluxRadar</a
+                >
+              </h3>
+              <p>
+                Від адреси публічного сайту до готового звіту: профіль, вибір пакета, область обходу
+                та перевірка результату.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="Початок роботи">
+              <p class="kicker">Початок роботи</p>
+              <h3><a href="/knowledge-base/vybir-paketa">Як обрати Basic або Complete</a></h3>
+              <p>
+                Порівняння пакетів за завданням, модулями, історією, експортом та межами зберігання
+                результатів.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="Початок роботи">
+              <p class="kicker">Початок роботи</p>
+              <h3>
+                <a href="/knowledge-base/nalashtuvaty-obkhid"
+                  >Як налаштувати область і глибину обходу</a
+                >
+              </h3>
+              <p>
+                Ліміти сторінок, глибина, параметри URL, шаблони шляхів і початкові адреси для
+                контрольованого аудиту.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+          </div>
+        </section>
+        <section class="content-category" data-content-category="Звіти та пріоритети">
+          <h2>Звіти та пріоритети</h2>
+          <div class="content-grid">
+            <article data-content-card data-category="Звіти та пріоритети">
+              <p class="kicker">Звіти та пріоритети</p>
+              <h3>
+                <a href="/knowledge-base/prochytaty-zvit"
+                  >Як читати звіт аудиту та перевіряти докази</a
+                >
+              </h3>
+              <p>
+                Послідовність роботи зі звітом: область, статуси модулів, покриття, знахідки й
+                відтворення проблем.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="Звіти та пріоритети">
+              <p class="kicker">Звіти та пріоритети</p>
+              <h3>
+                <a href="/knowledge-base/pokryttia-ta-bal"
+                  >Що означають покриття та бал у звіті FluxRadar</a
+                >
+              </h3>
+              <p>
+                Як відрізнити якість результату від повноти перевірок і не плутати покриття з
+                часткою обійденого сайту.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="Звіти та пріоритети">
+              <p class="kicker">Звіти та пріоритети</p>
+              <h3>
+                <a href="/knowledge-base/priorytety-vypravlen"
+                  >Як перетворити знахідки на пріоритетний план виправлень</a
+                >
+              </h3>
+              <p>
+                Порядок роботи з Центром проблем: перевірити вплив, згрупувати шаблони та визначити
+                критерії приймання.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="Звіти та пріоритети">
+              <p class="kicker">Звіти та пріоритети</p>
+              <h3>
+                <a href="/knowledge-base/eksport-zvitu"
+                  >Як експортувати звіт і передати його підряднику</a
+                >
+              </h3>
+              <p>JSON і CSV у Complete: що передати, як пояснити область і перевірити файл.</p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="Звіти та пріоритети">
+              <p class="kicker">Звіти та пріоритети</p>
+              <h3>
+                <a href="/knowledge-base/povtornyi-audyt"
+                  >Як повторити аудит і перевірити результат виправлень</a
+                >
+              </h3>
+              <p>
+                Контроль до й після змін: однакова область, налаштування, модулі, докази та
+                пояснення розбіжностей.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+          </div>
+        </section>
+        <section class="content-category" data-content-category="SEO та індексація">
+          <h2>SEO та індексація</h2>
+          <div class="content-grid">
+            <article data-content-card data-category="SEO та індексація">
+              <p class="kicker">SEO та індексація</p>
+              <h3>
+                <a href="/knowledge-base/robots-ta-noindex"
+                  >Як перевірити robots.txt, noindex і доступність сторінки</a
+                >
+              </h3>
+              <p>
+                Покрокове розрізнення обмежень обходу й індексації та перевірка суперечливих
+                директив.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="SEO та індексація">
+              <p class="kicker">SEO та індексація</p>
+              <h3>
+                <a href="/knowledge-base/canonical-ta-dublikaty"
+                  >Як знайти й виправити суперечливі canonical URL</a
+                >
+              </h3>
+              <p>
+                Перевірка канонічних адрес, мовних версій, параметрів і дублів із контрольним
+                прикладом.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="SEO та індексація">
+              <p class="kicker">SEO та індексація</p>
+              <h3>
+                <a href="/knowledge-base/sitemap-perevirka"
+                  >Як перевірити sitemap і знайти зайві або пропущені URL</a
+                >
+              </h3>
+              <p>
+                Контроль карти сайту: формат, доступність, канонічні адреси, noindex і правдивий
+                lastmod.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="SEO та індексація">
+              <p class="kicker">SEO та індексація</p>
+              <h3>
+                <a href="/knowledge-base/redyrekty-ta-404"
+                  >Як перевірити редиректи, биті посилання та 404</a
+                >
+              </h3>
+              <p>
+                Від знахідки до виправлення: кінцевий URL, HTTP-статус, ланцюжок переходів і
+                контроль навігації.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="SEO та індексація">
+              <p class="kicker">SEO та індексація</p>
+              <h3>
+                <a href="/knowledge-base/title-opysy-zaholovky"
+                  >Як перевірити title, опис і структуру заголовків</a
+                >
+              </h3>
+              <p>
+                Перевірка метаданих на різних шаблонах: дублікати, зміст сторінки та читабельна
+                ієрархія.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="SEO та індексація">
+              <p class="kicker">SEO та індексація</p>
+              <h3>
+                <a href="/knowledge-base/strukturovani-dani"
+                  >Як перевірити структуровані дані на сторінці</a
+                >
+              </h3>
+              <p>
+                Знайти JSON-LD, зіставити його з видимим контентом і перевірити синтаксис та
+                підтримуваний тип.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="SEO та індексація">
+              <p class="kicker">SEO та індексація</p>
+              <h3>
+                <a href="/knowledge-base/javascript-audyt"
+                  >Як перевірити сайт, який рендерить контент JavaScript</a
+                >
+              </h3>
+              <p>
+                Вихідний HTML і DOM після виконання скриптів: налаштування рендерингу, обмеження та
+                контроль SEO-сигналів.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+          </div>
+        </section>
+        <section class="content-category" data-content-category="AI та вимірювання">
+          <h2>AI та вимірювання</h2>
+          <div class="content-grid">
+            <article data-content-card data-category="AI та вимірювання">
+              <p class="kicker">AI та вимірювання</p>
+              <h3>
+                <a href="/knowledge-base/ai-kraulery"
+                  >Як перевірити доступ для AI-краулерів без хибних обіцянок</a
+                >
+              </h3>
+              <p>
+                Розділити пошукових, навчальних і користувацьких роботів, перевірити robots.txt та
+                межі AI-видимості.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="AI та вимірювання">
+              <p class="kicker">AI та вимірювання</p>
+              <h3>
+                <a href="/knowledge-base/google-dani"
+                  >Як підключити й перевірити дані Search Console та GA4</a
+                >
+              </h3>
+              <p>
+                Необовʼязкові інтеграції: відповідна властивість, права, період даних та межі
+                аналітичних висновків.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+          </div>
+        </section>
+        <section class="content-category" data-content-category="Якість сайту">
+          <h2>Якість сайту</h2>
+          <div class="content-grid">
+            <article data-content-card data-category="Якість сайту">
+              <p class="kicker">Якість сайту</p>
+              <h3>
+                <a href="/knowledge-base/novi-perevirky-saitu"
+                  >Як виправляти сім нових сигналів аудиту</a
+                >
+              </h3>
+              <p>
+                Robots.txt, viewport, zoom, CSS/JS/шрифти, TLS, SPF/DMARC і заглушки: докази,
+                виправлення та контроль.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="Якість сайту">
+              <p class="kicker">Якість сайту</p>
+              <h3>
+                <a href="/knowledge-base/shvydkist-saitu"
+                  >Як перевірити швидкодію й правильно прочитати Core Web Vitals</a
+                >
+              </h3>
+              <p>
+                Лабораторні та польові дані, LCP, INP, CLS і контроль після оптимізації без
+                вигаданих вимірювань.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="Якість сайту">
+              <p class="kicker">Якість сайту</p>
+              <h3>
+                <a href="/knowledge-base/dostupnist-form">Як перевірити доступність форми заявки</a>
+              </h3>
+              <p>
+                Автоматичні сигнали та ручний сценарій: підписи, клавіатура, помилки, фокус і
+                повідомлення про результат.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+            <article data-content-card data-category="Якість сайту">
+              <p class="kicker">Якість сайту</p>
+              <h3>
+                <a href="/knowledge-base/pryvatnist-i-zghoda"
+                  >Як перевірити публічні сигнали приватності та згоди</a
+                >
+              </h3>
+              <p>
+                Від банера до мережевих запитів: початковий стан, категорії, відмова й відкликання
+                вибору.
+              </p>
+              <time datetime="2026-10-20">20 жовтня 2026</time>
+            </article>
+          </div>
+        </section>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+    <script src="/blog/content.js"></script>
+  </body>
+</html>

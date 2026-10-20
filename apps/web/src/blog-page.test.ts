@@ -22,6 +22,8 @@ const ARTICLE_PAGES = [
   'tekhnichnyy-seo-publichnyy-audyt/index.html',
   'uk/pryvachnist-ta-cookie/index.html',
   'uk/tekhnichne-seo-audyt/index.html',
+  'uk/novi-perevirky-saitu/index.html',
+  'uk/ai-boty-poshuk-i-navchannia/index.html',
 ];
 
 const PAGES = [
@@ -32,6 +34,8 @@ const PAGES = [
   'tekhnichnyy-seo-publichnyy-audyt/index.html',
   'uk/pryvachnist-ta-cookie/index.html',
   'uk/tekhnichne-seo-audyt/index.html',
+  'uk/novi-perevirky-saitu/index.html',
+  'uk/ai-boty-poshuk-i-navchannia/index.html',
 ];
 
 function readPage(name: string): string {
@@ -102,9 +106,8 @@ describe('blog pages share one header with the app', () => {
   // Without JavaScript the language filter cannot be changed, so the page must
   // not ship pre-filtered and strand half the articles.
   it.each(PAGES)('%s shows every article when JavaScript is off', (name) => {
-    expect(readPage(name)).toContain(
-      '<noscript><style>[data-article-lang] { display: block !important; }</style></noscript>',
-    );
+    const style = readPage(name).match(/<noscript\s*>\s*<style>([\s\S]*?)<\/style>/)?.[1];
+    expect(style?.replace(/\s/g, '')).toContain('[data-article-lang]{display:block!important;}');
   });
 
   it.each(PAGES)('%s localizes the system status line with the rest of the chrome', (name) => {
@@ -223,10 +226,15 @@ describe('blog header renders the same way on every page variant', () => {
   }
 
   /** Every destination the static header offers, in the order it offers them. */
+  function headerOf(name: string): HTMLDivElement {
+    const root = document.createElement('div');
+    root.innerHTML = readPage(name);
+    return root;
+  }
+
   function destinations(name: string): string[] {
-    return Array.from(
-      readPage(name).matchAll(/<(a|button) class="menubar__item[^"]*"[^>]*>([^<]+)<\/\1>/g),
-      (match) => match[2]?.trim() ?? '',
+    return [...headerOf(name).querySelectorAll('.menubar__item')].map(
+      (element) => element.textContent?.trim() ?? '',
     );
   }
 
@@ -246,9 +254,8 @@ describe('blog header renders the same way on every page variant', () => {
   });
 
   it.each(PAGES)('%s keeps the public destinations as real links', (name) => {
-    const hrefs = Array.from(
-      readPage(name).matchAll(/class="menubar__item[^"]*" href="([^"]+)"/g),
-      (match) => match[1],
+    const hrefs = [...headerOf(name).querySelectorAll('a.menubar__item')].map((element) =>
+      element.getAttribute('href'),
     );
     expect(hrefs).toEqual(['/', '/faq', '/blog']);
   });
@@ -256,12 +263,9 @@ describe('blog header renders the same way on every page variant', () => {
   // The pages ship the tabs the way the product renders them for a reader who
   // is not signed in; blog.js turns them into links only once a session answers.
   it.each(PAGES)('%s shows the workspace tabs in the signed-out state', (name) => {
-    const tabs = Array.from(
-      readPage(name).matchAll(/<button class="menubar__item"[^>]*>/g),
-      (match) => match[0],
-    );
+    const tabs = [...headerOf(name).querySelectorAll('button.menubar__item')];
     expect(tabs).toHaveLength(4);
-    for (const tab of tabs) expect(tab).toContain(' disabled ');
+    for (const tab of tabs) expect(tab.hasAttribute('disabled')).toBe(true);
   });
 
   it.each(PAGES)('%s marks the blog as the section the reader is in', (name) => {
@@ -306,6 +310,12 @@ describe('blog header renders the same way on every page variant', () => {
   // rules at 700px. Only the header switches earlier, because only its row is
   // too wide for a tablet.
   it.each(ARTICLE_PAGES)('%s keeps its own responsive rules on the page width', (name) => {
+    if (readPage(name).includes('class="blog-page content-page"')) {
+      expect(readFileSync(resolve(BLOG_ROOT, 'content.css'), 'utf8')).toMatch(
+        /@media\s*\(max-width:\s*699px\)[\s\S]*?\.content-page h1/,
+      );
+      return;
+    }
     const inline = readPage(name).match(/@media\s*\(max-width:\s*\d+px\)/g) ?? [];
     expect(inline.length).toBeGreaterThan(0);
     for (const query of inline) {

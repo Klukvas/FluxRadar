@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як виправляти сім нових сигналів аудиту — FluxRadar</title>
+    <meta
+      name="description"
+      content="Robots.txt, мобільний viewport, масштабування, CSS/JS/шрифти, TLS, SPF/DMARC і текстові заглушки: доказ, виправлення та повторна перевірка."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/novi-perevirky-saitu" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Як виправляти сім нових сигналів аудиту" />
+    <meta
+      property="og:description"
+      content="Robots.txt, мобільний viewport, масштабування, CSS/JS/шрифти, TLS, SPF/DMARC і текстові заглушки: доказ, виправлення та повторна перевірка."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/novi-perevirky-saitu" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Як виправляти сім нових сигналів аудиту",
+        "description": "Robots.txt, мобільний viewport, масштабування, CSS/JS/шрифти, TLS, SPF/DMARC і текстові заглушки: доказ, виправлення та повторна перевірка.",
+        "inLanguage": "uk",
+        "datePublished": "2026-10-20",
+        "dateModified": "2026-10-20",
+        "author": { "@type": "Organization", "name": "FluxLab" },
+        "publisher": { "@type": "Organization", "name": "FluxLab" },
+        "mainEntityOfPage": "https://fluxradar.net/knowledge-base/novi-perevirky-saitu"
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a>
+        </nav>
+        <header>
+          <p class="kicker">ПРАКТИЧНА ІНСТРУКЦІЯ · УКРАЇНСЬКОЮ</p>
+          <h1>Як виправляти сім нових сигналів аудиту</h1>
+          <p class="lede">
+            Robots.txt, мобільний viewport, масштабування, CSS/JS/шрифти, TLS, SPF/DMARC і текстові
+            заглушки: доказ, виправлення та повторна перевірка.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Це інструкція для роботи з доказами, які додано 20 жовтня 2026 року. Спочатку звірте
+            пакет, область і час перевірки. Basic включає три нові SEO-правила та AI readiness;
+            Complete — усі сім нових правил. Free має власні чотири фіксовані SEO-перевірки й до
+            цієї таблиці не належить.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>Знайдіть правило зі звіту</h2>
+            <ul>
+              <li><a href="#seo-tech-015">SEO-TECH-015: Пошуковики заблоковані в robots.txt</a></li>
+              <li>
+                <a href="#seo-onpage-007"
+                  >SEO-ONPAGE-007: Сторінка не налаштована для мобільних екранів</a
+                >
+              </li>
+              <li>
+                <a href="#a11y-012">A11Y-012: Сторінка забороняє відвідувачам збільшувати вміст</a>
+              </li>
+              <li>
+                <a href="#seo-tech-016">SEO-TECH-016: Биті таблиця стилів, скрипт або шрифт</a>
+              </li>
+              <li>
+                <a href="#sec-passive-001"
+                  >SEC-PASSIVE-001: TLS-сертифікат недійсний або скоро спливає</a
+                >
+              </li>
+              <li>
+                <a href="#sec-passive-007"
+                  >SEC-PASSIVE-007: Захист SPF або DMARC відсутній чи небезпечний</a
+                >
+              </li>
+              <li><a href="#content-011">CONTENT-011: На сторінці залишився текст-заглушка</a></li>
+            </ul>
+          </nav>
+          <section id="seo-tech-015">
+            <h2>SEO-TECH-015: Пошуковики заблоковані в robots.txt</h2>
+            <p><strong>Де доступно:</strong> Basic і Complete · SEO.</p>
+            <h3>Навіщо</h3>
+            <p>
+              Випадкова заборона для Googlebot або Bingbot може завадити обходу точки входу.
+              Robots.txt керує читанням URL і не гарантує вилучення з пошуку.
+            </p>
+            <h3>Що знайти у звіті</h3>
+            <p>
+              FluxRadar перевіряє шлях точки входу для кожного з цих двох агентів. У попередженні
+              названо Google, Bing або обох; блокування тільки FluxRadar саме по собі не означає
+              блокування пошуковиків.
+            </p>
+            <h3>Як виправити</h3>
+            <p>
+              Відкрийте robots.txt потрібного хоста, звірте групу агента та правила Allow/Disallow.
+              Якщо заборона випадкова, виправте конкретний шлях або групу після погодження з
+              власником. Збережіть обмеження для службових розділів.
+            </p>
+            <h3>Як перевірити повторно та які межі</h3>
+            <p>
+              Прочитайте опублікований robots.txt повторно й повторіть аудит тієї самої точки входу.
+              Окремо перевірте URL у відповідному інструменті пошуковика. Дозволений обхід не
+              гарантує індексацію.
+            </p>
+          </section>
+          <section id="seo-onpage-007">
+            <h2>SEO-ONPAGE-007: Сторінка не налаштована для мобільних екранів</h2>
+            <p><strong>Де доступно:</strong> Basic і Complete · SEO.</p>
+            <h3>Навіщо</h3>
+            <p>
+              Без коректного viewport мобільний браузер може показувати зменшений широкий макет.
+            </p>
+            <h3>Що знайти у звіті</h3>
+            <p>
+              Знахідка виникає, коли meta viewport відсутній або не задає width=device-width.
+              Перевіряється HTML/DOM успішно прочитаної сторінки, а не якість її вигляду на кожному
+              пристрої.
+            </p>
+            <h3>Як виправити</h3>
+            <p>
+              Перевірте шаблон сторінки. Типовий початок —
+              <code>&lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;</code
+              >. Приберіть суперечливі дублікати; сам тег не виправляє негнучку верстку.
+            </p>
+            <h3>Як перевірити повторно та які межі</h3>
+            <p>
+              Звірте опублікований meta-тег, відкрийте сторінку на вузькому екрані й повторіть
+              аудит. Перевірте читання тексту та основну дію вручну.
+            </p>
+          </section>
+          <section id="a11y-012">
+            <h2>A11Y-012: Сторінка забороняє відвідувачам збільшувати вміст</h2>
+            <p><strong>Де доступно:</strong> Complete · Accessibility.</p>
+            <h3>Навіщо</h3>
+            <p>
+              Людям може бути потрібен більший текст, щоб прочитати сторінку та скористатися формою.
+            </p>
+            <h3>Що знайти у звіті</h3>
+            <p>
+              Сигналом є <code>user-scalable=no</code>, <code>user-scalable=0</code> або числовий
+              <code>maximum-scale</code> менше 2. Це статичне обмеження viewport, а не повний
+              висновок про відповідність WCAG.
+            </p>
+            <h3>Як виправити</h3>
+            <p>
+              Приберіть заборону масштабування та надто низьку верхню межу. Не замінюйте її іншою
+              забороною у скрипті. Перевірте, що кнопки й поля залишаються доступними після
+              збільшення.
+            </p>
+            <h3>Як перевірити повторно та які межі</h3>
+            <p>
+              Збільште текст або сторінку до 200% у підтримуваному браузері й перевірте втрату
+              вмісту та функцій. Повторний аудит підтверджує зміну директиви; ручний сценарій
+              перевіряє реальний результат.
+            </p>
+          </section>
+          <section id="seo-tech-016">
+            <h2>SEO-TECH-016: Биті таблиця стилів, скрипт або шрифт</h2>
+            <p><strong>Де доступно:</strong> Basic і Complete · SEO.</p>
+            <h3>Навіщо</h3>
+            <p>
+              Недоступний ресурс може зламати оформлення, завантаження інтерфейсу або відображення
+              тексту.
+            </p>
+            <h3>Що знайти у звіті</h3>
+            <p>
+              Звіт пов’язує сторінку з перевіреним CSS, JavaScript або попередньо завантаженим
+              шрифтом того самого сайту. Знахідка спирається на HTTP 4xx/5xx або підтверджену
+              транспортну помилку.
+            </p>
+            <h3>Як виправити</h3>
+            <p>
+              Відкрийте адресу ресурсу з доказу, перевірте статус та шлях після публікації.
+              Відновіть потрібний файл або виправте посилання в шаблоні; видаліть посилання, якщо
+              ресурс більше не потрібен.
+            </p>
+            <h3>Як перевірити повторно та які межі</h3>
+            <p>
+              Перевірте мережеві запити у браузері та повторіть аудит. Окремий бюджет — до 100
+              render-ресурсів за обхід, незалежно від медіа-бюджету 200. Зовнішні CDN і шрифти,
+              знайдені лише всередині CSS через @font-face, цей збір не охоплює; пропущене через
+              бюджет не оголошується справним.
+            </p>
+          </section>
+          <section id="sec-passive-001">
+            <h2>SEC-PASSIVE-001: TLS-сертифікат недійсний або скоро спливає</h2>
+            <p><strong>Де доступно:</strong> Complete · Security.</p>
+            <h3>Навіщо</h3>
+            <p>
+              Невідповідний або недійсний сертифікат заважає довіреному HTTPS-з’єднанню; близьке
+              завершення строку потребує перевірки поновлення.
+            </p>
+            <h3>Що знайти у звіті</h3>
+            <p>
+              Перевіряються основний хост та варіант www/apex, якщо він резолвиться: довіра,
+              відповідність імені й строк. Попередження про завершення виникає строго менше ніж за
+              14 днів. Для HTTP-адреси перевіряється TLS на 443; для HTTPS з явним портом
+              використовується цей порт.
+            </p>
+            <h3>Як виправити</h3>
+            <p>
+              Звірте ім’я хоста, строки та ланцюжок сертифіката з доказом. Поновіть сертифікат для
+              потрібних імен і встановіть повний ланцюжок за процедурою хостингу. Перевірте
+              автоматичне поновлення.
+            </p>
+            <h3>Як перевірити повторно та які межі</h3>
+            <p>
+              Відкрийте точний хост із перевіркою сертифіката та повторіть Complete. Таймаут або
+              неперевірений хост не дорівнює справному сертифікату. Якщо основний HTTPS взагалі не
+              дозволяє прочитати сайт, обхід може припинитися ще до цього правила.
+            </p>
+          </section>
+          <section id="sec-passive-007">
+            <h2>SEC-PASSIVE-007: Захист SPF або DMARC відсутній чи небезпечний</h2>
+            <p><strong>Де доступно:</strong> Complete · Security.</p>
+            <h3>Навіщо</h3>
+            <p>
+              Публічні поштові політики допомагають пояснити, хто може надсилати листи від домену та
+              як одержувач має обробляти невідповідність.
+            </p>
+            <h3>Що знайти у звіті</h3>
+            <p>
+              Для реєстрованого домену читаються TXT-записи SPF та _dmarc. Позначаються відсутній
+              SPF, кілька SPF-записів, SPF із <code>+all</code> або відсутній DMARC. Піддомен сайту
+              може використовувати політику домену вищого рівня.
+            </p>
+            <h3>Як виправити</h3>
+            <p>
+              Зіставте записи з реальними відправниками пошти й документацією поштового сервісу. Не
+              додавайте другий SPF-запис: об’єднайте потрібні дозволи в одну узгоджену політику.
+              Узгодьте DMARC із відповідальним за пошту перед посиленням політики.
+            </p>
+            <h3>Як перевірити повторно та які межі</h3>
+            <p>
+              Після поширення DNS повторно прочитайте TXT та запустіть Complete.
+              <code>p=none</code> є режимом спостереження й не створює окремої проблеми. DKIM, MX,
+              надсилання тестових листів і доставляння цей модуль не перевіряє. Помилка DNS може
+              залишити перевірку неповною.
+            </p>
+          </section>
+          <section id="content-011">
+            <h2>CONTENT-011: На сторінці залишився текст-заглушка</h2>
+            <p><strong>Де доступно:</strong> Complete · Content Quality.</p>
+            <h3>Навіщо</h3>
+            <p>
+              Шаблонний текст у готовому матеріалі може заплутати читача й показувати незавершений
+              запуск.
+            </p>
+            <h3>Що знайти у звіті</h3>
+            <p>
+              Перевірка шукає відомі шаблонні фрази у видимому тексті, title та H1, зокрема
+              локалізовані типові тексти WordPress. Це обмежений набір шаблонів, а не оцінка всього
+              змісту.
+            </p>
+            <h3>Як виправити</h3>
+            <p>
+              Перейдіть до URL та уривка з доказу. Замініть випадкову заглушку змістовним текстом
+              або приберіть незавершений матеріал із публічного сайту. Якщо це доречна звичайна
+              цитата, перевірте контекст і занотуйте обґрунтований виняток для ручного перегляду.
+              Розмітка code/pre призначена лише для справжніх кодових прикладів, а не для
+              приховування тексту від перевірки.
+            </p>
+            <h3>Як перевірити повторно та які межі</h3>
+            <p>
+              Перевірте живу сторінку, кеш, title й H1, потім повторіть Complete. Приклади в
+              <code>code</code>, <code>pre</code> і <code>textarea</code> не враховуються;
+              наприклад, <code>Lorem ipsum</code> у кодовому прикладі не має стати доказом
+              незавершеної статті.
+            </p>
+          </section>
+          <section>
+            <h2>Коли відсутність знахідки ще нічого не доводить</h2>
+            <p>
+              Модуль має прочитати застосовні дані, перш ніж зробити висновок. Недоступна сторінка,
+              DNS-помилка або вичерпаний бюджет — причина переглянути покриття. Порівнюйте повторні
+              запуски з тією самою областю та параметрами. Жоден із цих сигналів не є активним
+              тестом на проникнення, сертифікацією доступності чи гарантією позицій або доставляння
+              пошти.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Пов’язані інструкції</h2>
+            <ul>
+              <li><a href="/knowledge-base/prochytaty-zvit">Прочитати докази у звіті</a></li>
+              <li>
+                <a href="/knowledge-base/ai-kraulery">Окремо налаштувати політику AI-ботів</a>
+              </li>
+              <li>
+                <a href="/knowledge-base/povtornyi-audyt"
+                  >Перевірити виправлення після публікації</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела</h2>
+            <ul>
+              <li><a href="/checks?lang=uk">Поточне покриття FluxRadar</a></li>
+              <li>
+                <a href="https://developers.google.com/search/docs/crawling-indexing/robots/intro"
+                  >Google: призначення robots.txt</a
+                >
+              </li>
+              <li>
+                <a href="https://www.w3.org/WAI/WCAG22/Understanding/resize-text.html"
+                  >W3C: збільшення тексту</a
+                >
+              </li>
+              <li><a href="https://www.rfc-editor.org/rfc/rfc7208.html">RFC 7208: SPF</a></li>
+              <li><a href="https://www.rfc-editor.org/rfc/rfc7489.html">RFC 7489: DMARC</a></li>
+            </ul>
+            <p>
+              Межі автоматичних перевірок звірено з поточною реалізацією FluxRadar; зовнішні джерела
+              переглянуто 20 жовтня 2026 року.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> · <a href="/knowledge-base">База знань</a> ·
+          <a href="/blog?lang=uk">Статті</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

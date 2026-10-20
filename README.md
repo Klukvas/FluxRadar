@@ -36,7 +36,7 @@ apps/
 
 Cloudflare and WordPress are intentionally deferred; report artifacts use Hetzner S3.
 
-The deterministic audit modules are public-only: they read nothing but public HTTP responses, and
+The deterministic audit modules are public-only: they inspect public HTTP responses and DOM, with passive TLS and DNS observations in Security, and
 no customer API token is required. This includes JSON-LD/social preview, the OWASP ASVS public
 security profile, Privacy & Consent signals and the WCAG 2.2 AA accessibility rules in
 `packages/rules/src/accessibility/`, where each rule states what it can decide from the page and
@@ -53,13 +53,13 @@ what it leaves to manual review. Two parts of a paid scan are not public-only:
 
 | Module          | What ships today                                                                                          | Source                                                   |
 | --------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| SEO             | 21 deterministic rules (technical, on-page, JSON-LD, social preview)                                      | `packages/rules/src/seo/`                                |
+| SEO             | 24 deterministic rules (technical, on-page, JSON-LD, social preview)                                      | `packages/rules/src/seo/`                                |
 | AI SEO / GEO    | AI-crawler readiness read from `robots.txt` and the crawl, plus per-provider visibility questions         | `packages/rules/src/ai-readiness.ts`, `packages/ai/`     |
-| Security        | 6 passive response rules: security headers, HSTS, cookie attributes, CSP, Permissions-Policy, CORS        | `packages/rules/src/security/`                           |
+| Security        | 8 passive rules: TLS, SPF/DMARC, security headers, HSTS, cookie attributes, CSP, Permissions-Policy, CORS | `packages/rules/src/security/`                           |
 | Performance     | PageSpeed Insights (Lighthouse lab) + CrUX field data; up to 5 URLs × 2 devices × 2 runs, median reported | `apps/api/src/integrations/performance/`                 |
-| Accessibility   | 11 static-DOM WCAG rules                                                                                  | `packages/rules/src/accessibility/`                      |
+| Accessibility   | 12 static-DOM accessibility rules                                                                         | `packages/rules/src/accessibility/`                      |
 | Reliability     | 5 rules: URL availability, 4xx/5xx verdict, response time, API expected status, API no-credentials policy | `packages/rules/src/reliability/`                        |
-| Content Quality | 4 rules: duplicate content, empty/low-value pages, broken media, readability                              | `packages/rules/src/content/`                            |
+| Content Quality | 5 rules: duplicate content, empty/low-value pages, broken media, readability, placeholder text            | `packages/rules/src/content/`                            |
 | Privacy         | 4 rules: cookies, consent signal, third-party scripts, privacy-policy discoverability                     | `packages/rules/src/privacy/`                            |
 | UX/Conversion   | 3 static rules plus 3 AI readings of the page; a side score, outside the overall score                    | `packages/rules/src/ux/`, `packages/ai/src/ux-module.ts` |
 | Analytics       | Search Console, Google Analytics and Bing Webmaster checks, when connected                                | `apps/api/src/integrations/`                             |

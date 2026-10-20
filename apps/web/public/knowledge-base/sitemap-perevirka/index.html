@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як перевірити sitemap і знайти зайві або пропущені URL | FluxRadar</title>
+    <meta
+      name="description"
+      content="Контроль карти сайту: формат, доступність, канонічні адреси, noindex і правдивий lastmod."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/sitemap-perevirka" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Як перевірити sitemap і знайти зайві або пропущені URL" />
+    <meta
+      property="og:description"
+      content="Контроль карти сайту: формат, доступність, канонічні адреси, noindex і правдивий lastmod."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/sitemap-perevirka" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Як перевірити sitemap і знайти зайві або пропущені URL",
+            "description": "Контроль карти сайту: формат, доступність, канонічні адреси, noindex і правдивий lastmod.",
+            "inLanguage": "uk",
+            "datePublished": "2026-10-20",
+            "dateModified": "2026-10-20",
+            "mainEntityOfPage": "https://fluxradar.net/knowledge-base/sitemap-perevirka",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "База знань",
+                "item": "https://fluxradar.net/knowledge-base"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Як перевірити sitemap і знайти зайві або пропущені URL",
+                "item": "https://fluxradar.net/knowledge-base/sitemap-perevirka"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a> /
+          <span>Як перевірити sitemap і знайти зайві або пропущені URL</span>
+        </nav>
+        <header>
+          <p class="kicker">SEO та індексація · УКРАЇНСЬКОЮ</p>
+          <h1>Як перевірити sitemap і знайти зайві або пропущені URL</h1>
+          <p class="lede">
+            Контроль карти сайту: формат, доступність, канонічні адреси, noindex і правдивий
+            lastmod.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Sitemap допомагає повідомити пошуковику про важливі сторінки, але не гарантує їхню
+            індексацію. Корисна карта містить адреси, які ви справді хочете показувати в пошуку. Її
+            потрібно узгоджувати з реальною навігацією та директивами сторінок.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Знайдіть джерело карти</a></li>
+              <li><a href="#section-2">Перевірте формат і відповіді</a></li>
+              <li><a href="#section-3">Приберіть суперечливі записи</a></li>
+              <li><a href="#section-4">Підтримуйте правдивий lastmod</a></li>
+              <li><a href="#section-5">Як пояснити різницю з обходом</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Знайдіть джерело карти</h2>
+            <p>
+              Потрібні публічна адреса сайту та SEO-модуль Basic або Complete. Почніть із
+              robots.txt: там може бути вказана адреса sitemap. Якщо її немає, перевірте
+              налаштування CMS або відому адресу карти. Не вважайте довільний
+              <code>/sitemap.xml</code> єдино можливим місцем.
+            </p>
+            <p>
+              Для великого сайту карта може бути індексом кількох файлів. Відкрийте дочірні карти;
+              справний індекс не доводить, що кожен його файл доступний і містить коректні адреси.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Перевірте формат і відповіді</h2>
+            <ol>
+              <li>Відкрийте файл і переконайтеся, що сервер повертає карту, а не HTML помилки.</li>
+              <li>
+                Звірте абсолютні HTTPS-URL, правильний домен і відсутність адрес тестового
+                середовища.
+              </li>
+              <li>
+                Виберіть представників основних шаблонів із карти та перевірте їхні HTTP-відповіді.
+              </li>
+              <li>Зіставте URL із canonical і директивами індексації.</li>
+              <li>Подивіться знахідки sitemap у звіті й перевірте конкретні приклади.</li>
+            </ol>
+            <p>
+              Відповідь 200 із текстом «не знайдено» також потребує перевірки; код не замінює зміст.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Приберіть суперечливі записи</h2>
+            <p>
+              До карти індексації не варто включати 404, ланцюжки редиректів, сторінки noindex та
+              неканонічні дублікати. Якщо нова послуга доступна й потрібна в пошуку, але відсутня в
+              карті, виправте джерело генерації. Додавання в sitemap не виправляє відсутні внутрішні
+              посилання.
+            </p>
+            <p>
+              Навчальний приклад: карта містить <code>/old-price</code>, що перенаправляє на
+              <code>/prices</code>. Замініть запис на кінцеву канонічну адресу й перевірте, що вона
+              має правильний зміст. Окремо виправте посилання на старий URL у навігації.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Підтримуйте правдивий lastmod</h2>
+            <p>
+              Дата lastmod має описувати значущу зміну сторінки. Щоденне переписування всіх дат без
+              реальних змін не є доказом свіжості. Якщо CMS не може надати правдиву дату, краще не
+              вигадувати її. Публікація нової статті та зміна цифри в футері — різні події.
+            </p>
+            <p>
+              Після виправлення відкрийте карту ще раз і перевірте, що кеш не повертає старий файл.
+              За доступу до Search Console можна подати карту та прочитати повідомлення про обробку.
+              Успішне отримання карти не дорівнює індексації кожного URL.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Як пояснити різницю з обходом</h2>
+            <p>
+              Карта й звіт можуть мати різні кількості адрес через ліміти, виключені шляхи чи
+              недоступні сторінки. Зіставте конкретні URL, а не тільки підсумкові числа. Пропущену
+              важливу адресу додайте до «Початкові URL» для контрольного запуску, зберігши інші
+              правила обходу.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Наступний крок</h2>
+            <ul>
+              <li>
+                <a href="/knowledge-base/nalashtuvaty-obkhid">Узгодити карту з областю обходу</a>
+              </li>
+              <li>
+                <a href="/knowledge-base/canonical-ta-dublikaty">Перевірити канонічні адреси</a>
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap"
+                  >Google: створення карти сайту</a
+                >
+              </li>
+              <li><a href="https://www.sitemaps.org/protocol.html">Sitemaps.org: протокол</a></li>
+            </ul>
+            <p>
+              Приклади в матеріалі навчальні. Можливості FluxRadar звірено з поточною тарифною
+              матрицею та інтерфейсом. Зовнішні посилання ведуть до документації відповідних
+              постачальників.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

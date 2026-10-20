@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як читати звіт аудиту та перевіряти докази | FluxRadar</title>
+    <meta
+      name="description"
+      content="Послідовність роботи зі звітом: область, статуси модулів, покриття, знахідки й відтворення проблем."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/prochytaty-zvit" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Як читати звіт аудиту та перевіряти докази" />
+    <meta
+      property="og:description"
+      content="Послідовність роботи зі звітом: область, статуси модулів, покриття, знахідки й відтворення проблем."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/prochytaty-zvit" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Як читати звіт аудиту та перевіряти докази",
+            "description": "Послідовність роботи зі звітом: область, статуси модулів, покриття, знахідки й відтворення проблем.",
+            "inLanguage": "uk",
+            "datePublished": "2026-10-20",
+            "dateModified": "2026-10-20",
+            "mainEntityOfPage": "https://fluxradar.net/knowledge-base/prochytaty-zvit",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "База знань",
+                "item": "https://fluxradar.net/knowledge-base"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Як читати звіт аудиту та перевіряти докази",
+                "item": "https://fluxradar.net/knowledge-base/prochytaty-zvit"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a> /
+          <span>Як читати звіт аудиту та перевіряти докази</span>
+        </nav>
+        <header>
+          <p class="kicker">Звіти та пріоритети · УКРАЇНСЬКОЮ</p>
+          <h1>Як читати звіт аудиту та перевіряти докази</h1>
+          <p class="lede">
+            Послідовність роботи зі звітом: область, статуси модулів, покриття, знахідки й
+            відтворення проблем.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Звіт — це знімок доступних сигналів на момент перевірки. Він допомагає визначити
+            наступну дію, коли ви спочатку оцінюєте якість і межі доказів. Починати лише з
+            найбільшого числа на екрані небезпечно: частина джерел могла бути недоступна.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Перевірте, що саме досліджено</a></li>
+              <li><a href="#section-2">Розрізняйте стани модулів</a></li>
+              <li><a href="#section-3">Відкрийте знахідку з доказом</a></li>
+              <li><a href="#section-4">Приклад правильного висновку</a></li>
+              <li><a href="#section-5">Підготуйте перелік дій</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Перевірте, що саме досліджено</h2>
+            <p>
+              У «Звіти» відкрийте потрібну перевірку. Зіставте домен, дату, пакет і область з вашим
+              завданням. Подивіться фактичний набір прочитаних сторінок, досягнення ліміту та
+              причини пропусків. Перевірка українського розділу не описує автоматично весь
+              міжнародний сайт.
+            </p>
+            <p>
+              Врахуйте країну обходу та режим JavaScript. Сайт може віддавати різні мови, редиректи
+              або блокування залежно від середовища. Якщо ці умови змінилися, результат іншого
+              запуску не є точним контролем.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Розрізняйте стани модулів</h2>
+            <p>
+              Відкрийте розділи модулів і прочитайте їхні повідомлення. Перевірка, яку не вдалося
+              виконати, відрізняється від перевірки, що виконалася та не знайшла проблеми. Модуль,
+              який не входить у пакет, також не є «зеленим» результатом.
+            </p>
+            <p>
+              Зверніть увагу на покриття й доступність зовнішніх даних. Відсутність CrUX або Search
+              Console може пояснювати обмежений висновок. Не підставляйте нуль чи сто відсотків
+              замість відсутнього значення у власний клієнтський звіт.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Відкрийте знахідку з доказом</h2>
+            <ol>
+              <li>Натисніть «Відкрити Центр проблем» у звіті.</li>
+              <li>Знайдіть перевірку за модулем, рівнем серйозності чи її ідентифікатором.</li>
+              <li>
+                Прочитайте пояснення, URL і фактичний доказ: заголовок, відповідь сервера, елемент
+                сторінки або інший зафіксований сигнал.
+              </li>
+              <li>Відкрийте адресу у браузері та перевірте, чи умови досі такі самі.</li>
+              <li>Сформулюйте виправлення й спосіб його приймання.</li>
+            </ol>
+            <p>
+              Для метатегів перевірте вихідний HTML і DOM: тег, який додає JavaScript, може не
+              існувати в початковій відповіді.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Приклад правильного висновку</h2>
+            <p>
+              Знахідка «немає опису» для <code>/services/delivery</code> означає, що в зафіксованому
+              матеріалі не було відповідного description. Перевірте, чи це окремий шаблон, чи
+              помилка всього розділу. Додайте змістовний опис у CMS, перевірте HTML після публікації
+              та повторіть контроль.
+            </p>
+            <p>
+              Фраза «через це ми втратили половину заявок» із такого доказу не випливає. Для оцінки
+              бізнес-впливу потрібні дані про відвідування, попит, поведінку й часовий звʼязок із
+              зміною.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Підготуйте перелік дій</h2>
+            <p>
+              Випишіть URL, симптом, доказ, відповідального й критерій готовності. Групуйте
+              однотипні знахідки за шаблоном: одне виправлення компонента може стосуватися багатьох
+              сторінок. Окремо позначайте те, що потребує ручної перевірки. Зберігайте обмеження
+              звіту поруч із висновками, щоб підрядник не сприймав неповні дані як повну перевірку
+              сайту.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Наступний крок</h2>
+            <ul>
+              <li>
+                <a href="/knowledge-base/pokryttia-ta-bal">Прочитати покриття та загальний бал</a>
+              </li>
+              <li>
+                <a href="/knowledge-base/priorytety-vypravlen">Визначити пріоритет виправлень</a>
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li><a href="https://fluxradar.net/checks?lang=uk">Межі перевірок FluxRadar</a></li>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/monitor-debug/debugging-search-traffic-drops"
+                  >Google: перевірка пошукових проблем</a
+                >
+              </li>
+            </ul>
+            <p>
+              Приклади в матеріалі навчальні. Можливості FluxRadar звірено з поточною тарифною
+              матрицею та інтерфейсом. Зовнішні посилання ведуть до документації відповідних
+              постачальників.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

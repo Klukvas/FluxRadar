@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як перевірити структуровані дані на сторінці | FluxRadar</title>
+    <meta
+      name="description"
+      content="Знайти JSON-LD, зіставити його з видимим контентом і перевірити синтаксис та підтримуваний тип."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/strukturovani-dani" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Як перевірити структуровані дані на сторінці" />
+    <meta
+      property="og:description"
+      content="Знайти JSON-LD, зіставити його з видимим контентом і перевірити синтаксис та підтримуваний тип."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/strukturovani-dani" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Як перевірити структуровані дані на сторінці",
+            "description": "Знайти JSON-LD, зіставити його з видимим контентом і перевірити синтаксис та підтримуваний тип.",
+            "inLanguage": "uk",
+            "datePublished": "2026-10-20",
+            "dateModified": "2026-10-20",
+            "mainEntityOfPage": "https://fluxradar.net/knowledge-base/strukturovani-dani",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "База знань",
+                "item": "https://fluxradar.net/knowledge-base"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Як перевірити структуровані дані на сторінці",
+                "item": "https://fluxradar.net/knowledge-base/strukturovani-dani"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a> /
+          <span>Як перевірити структуровані дані на сторінці</span>
+        </nav>
+        <header>
+          <p class="kicker">SEO та індексація · УКРАЇНСЬКОЮ</p>
+          <h1>Як перевірити структуровані дані на сторінці</h1>
+          <p class="lede">
+            Знайти JSON-LD, зіставити його з видимим контентом і перевірити синтаксис та
+            підтримуваний тип.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Структуровані дані описують контент у машинному форматі. Вони повинні відповідати
+            сторінці, яку бачить людина. Синтаксично коректний JSON-LD із вигаданими відгуками,
+            авторами чи цінами залишається неправдивим описом.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Підготуйте сторінку та правильний тип</a></li>
+              <li><a href="#section-2">Знайдіть розмітку й перевірте дані</a></li>
+              <li><a href="#section-3">Використайте два види перевірки</a></li>
+              <li><a href="#section-4">Приклад із датами статті</a></li>
+              <li><a href="#section-5">Якщо тест і звіт розходяться</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Підготуйте сторінку та правильний тип</h2>
+            <p>
+              Оберіть реальний товар, статтю або сторінку з навігаційним ланцюжком. Для знахідок SEO
+              потрібен Basic або Complete. Визначте, що на сторінці фактично є: Article для статті,
+              Product для товару, BreadcrumbList для видимої структури навігації.
+            </p>
+            <p>
+              Не додавайте тип лише заради бажаного вигляду Google. Підтримка пошукових функцій
+              змінюється; перевіряйте актуальну документацію саме вашого типу перед реалізацією.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Знайдіть розмітку й перевірте дані</h2>
+            <ol>
+              <li>Перегляньте скрипти <code>application/ld+json</code> у вихідному HTML.</li>
+              <li>Перевірте DOM, якщо дані додає JavaScript.</li>
+              <li>Зіставте назву, адресу, мову, дати й ціну з видимою сторінкою.</li>
+              <li>Перевірте посилання на зображення та сутності.</li>
+              <li>Знайдіть повторні блоки від CMS і плагіна, які суперечать один одному.</li>
+            </ol>
+            <p>
+              Якщо стаття не має названого автора, не вигадуйте Person. Якщо публікація відбулася
+              сьогодні, не ставте стару дату, щоб імітувати історію.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Використайте два види перевірки</h2>
+            <p>
+              Schema.org Validator допомагає перевіряти словник і структуру. Google Rich Results
+              Test перевіряє підтримувані Google типи та вимоги відповідних функцій. Відсутність
+              певного rich result у тесті не означає, що будь-яка розмітка сторінки некоректна.
+            </p>
+            <p>
+              Для живого URL перевірка враховує доступність ресурсу. Для фрагмента коду можна швидко
+              знайти помилку синтаксису, але він не доводить, що саме такий код опублікований на
+              сайті. Після правки обовʼязково тестуйте живу адресу.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Приклад із датами статті</h2>
+            <p>
+              У CMS заголовок і дата статті правильні, але JSON-LD досі описує шаблонну публікацію.
+              Виправте джерело генерації, щоб headline збігався з H1, URL — з canonical, а
+              datePublished — з видимою датою. DateModified змінюйте після значущого оновлення
+              матеріалу.
+            </p>
+            <p>
+              Очікуваний результат — валідна й правдива розмітка. Google не зобовʼязаний показувати
+              розширений результат навіть за дотримання вимог. Не включайте його появу як
+              гарантований критерій приймання роботи підрядника.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Якщо тест і звіт розходяться</h2>
+            <p>
+              Порівняйте час, вихідний HTML і відрендерений DOM. Плагін міг додавати розмітку із
+              затримкою або лише для певної мови. Знахідка сканера потребує перевірки на актуальному
+              URL. Зберігайте приклад помилки й результат повторного тесту, щоб команда бачила, що
+              саме змінилося.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Наступний крок</h2>
+            <ul>
+              <li>
+                <a href="/knowledge-base/title-opysy-zaholovky">Узгодити розмітку з заголовком</a>
+              </li>
+              <li><a href="/knowledge-base/nalashtuvaty-obkhid">Перевіряти товарні шаблони</a></li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/appearance/structured-data/sd-policies"
+                  >Google: правила структурованих даних</a
+                >
+              </li>
+              <li><a href="https://validator.schema.org/">Schema.org Validator</a></li>
+              <li>
+                <a href="https://search.google.com/test/rich-results">Google Rich Results Test</a>
+              </li>
+            </ul>
+            <p>
+              Приклади в матеріалі навчальні. Можливості FluxRadar звірено з поточною тарифною
+              матрицею та інтерфейсом. Зовнішні посилання ведуть до документації відповідних
+              постачальників.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

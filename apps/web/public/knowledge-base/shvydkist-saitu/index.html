@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Як перевірити швидкодію й правильно прочитати Core Web Vitals | FluxRadar</title>
+    <meta
+      name="description"
+      content="Лабораторні та польові дані, LCP, INP, CLS і контроль після оптимізації без вигаданих вимірювань."
+    />
+    <link rel="canonical" href="https://fluxradar.net/knowledge-base/shvydkist-saitu" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta
+      property="og:title"
+      content="Як перевірити швидкодію й правильно прочитати Core Web Vitals"
+    />
+    <meta
+      property="og:description"
+      content="Лабораторні та польові дані, LCP, INP, CLS і контроль після оптимізації без вигаданих вимірювань."
+    />
+    <meta property="og:url" content="https://fluxradar.net/knowledge-base/shvydkist-saitu" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Як перевірити швидкодію й правильно прочитати Core Web Vitals",
+            "description": "Лабораторні та польові дані, LCP, INP, CLS і контроль після оптимізації без вигаданих вимірювань.",
+            "inLanguage": "uk",
+            "datePublished": "2026-10-20",
+            "dateModified": "2026-10-20",
+            "mainEntityOfPage": "https://fluxradar.net/knowledge-base/shvydkist-saitu",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "База знань",
+                "item": "https://fluxradar.net/knowledge-base"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Як перевірити швидкодію й правильно прочитати Core Web Vitals",
+                "item": "https://fluxradar.net/knowledge-base/shvydkist-saitu"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="article" data-content-section="knowledge-base">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item" href="/blog" data-t="nav.blog">Blog</a>
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/?lang=uk">Головна</a> / <a href="/knowledge-base">База знань</a> /
+          <span>Як перевірити швидкодію й правильно прочитати Core Web Vitals</span>
+        </nav>
+        <header>
+          <p class="kicker">Якість сайту · УКРАЇНСЬКОЮ</p>
+          <h1>Як перевірити швидкодію й правильно прочитати Core Web Vitals</h1>
+          <p class="lede">
+            Лабораторні та польові дані, LCP, INP, CLS і контроль після оптимізації без вигаданих
+            вимірювань.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-10-20">20 жовтня 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Швидкодію потрібно оцінювати за джерелом даних і типом сторінки. Лабораторний тест
+            відтворює задані умови, а польові дані описують досвід реальних відвідувань. Вони можуть
+            розходитися без помилки: це різні способи вимірювання.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Підготуйте сторінки та модуль</a></li>
+              <li><a href="#section-2">Розрізняйте лабораторію та поле</a></li>
+              <li><a href="#section-3">Знайдіть основну причину</a></li>
+              <li><a href="#section-4">Перевірте зміну під однаковими умовами</a></li>
+              <li><a href="#section-5">Якщо результати нестабільні</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Підготуйте сторінки та модуль</h2>
+            <p>
+              Виберіть Complete і представників ключових шаблонів: головну, категорію, послугу та
+              сторінку заявки. Запишіть пристрій і умови контролю. Одна швидка головна не доводить,
+              що повільна категорія також працює добре.
+            </p>
+            <p>
+              Продуктивність використовує Google PageSpeed Insights. Країна, обрана для обходу
+              FluxRadar, не змінює місце вимірювання Google. Підключення особистого Google-акаунта
+              для цього публічного вимірювання не потрібне.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Розрізняйте лабораторію та поле</h2>
+            <ol>
+              <li>Відкрийте розділ продуктивності у завершеному звіті.</li>
+              <li>Знайдіть лабораторні показники Lighthouse й доступні польові CrUX.</li>
+              <li>Перевірте, чи польові дані стосуються конкретної адреси або всього джерела.</li>
+              <li>Прочитайте повідомлення про недоступність даних.</li>
+              <li>Не порівнюйте результати різних пристроїв як однакове вимірювання.</li>
+            </ol>
+            <p>
+              Якщо CrUX не має достатніх даних, це не означає нульової якості. Якщо PageSpeed не
+              відповів, результат потрібно повторити або перевірити іншим способом.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Знайдіть основну причину</h2>
+            <p>
+              LCP описує появу найбільшого видимого елемента, INP — відгук на взаємодії, CLS — зсуви
+              компонування. Перевірте, який елемент чи сценарій стоїть за проблемою. Велике
+              зображення, блокувальний скрипт і банер без зарезервованого місця потребують різних
+              виправлень.
+            </p>
+            <p>
+              Наприклад, головний банер може погіршувати LCP, якщо завантажується із затримкою.
+              Перевірте розмір, формат, порядок виявлення й пріоритет. Не застосовуйте lazy-loading
+              до основного LCP-зображення автоматично. Для CLS перевірте задані розміри медіа та
+              місце для динамічних блоків.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Перевірте зміну під однаковими умовами</h2>
+            <p>
+              Внесіть одну групу змін, опублікуйте її та повторіть лабораторний тест на тих самих
+              URL і пристрої. Запишіть дату й умови. Польове вікно не оновлюється миттєво після
+              нового релізу, тому збережіть окремо ранній лабораторний контроль і пізнішу перевірку
+              поля.
+            </p>
+            <p>
+              Очікуваний результат — доведене покращення конкретного вузького місця. Високий
+              лабораторний бал не є гарантією зростання заявок. Перевірте також працездатність форми
+              після видалення чи відкладення скриптів.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Якщо результати нестабільні</h2>
+            <p>
+              Повторіть тест кілька разів і дослідіть доступність сервера, сторонні ресурси та кеш.
+              Не вибирайте лише найкращий запуск для звіту. Якщо проблема повʼязана з реальними
+              взаємодіями, використайте ручний сценарій та інструменти профілювання браузера.
+              Запишіть невизначеність, коли джерела ще не дозволяють надійного висновку.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Наступний крок</h2>
+            <ul>
+              <li>
+                <a href="/knowledge-base/dostupnist-form">Перевірити форму після оптимізації</a>
+              </li>
+              <li><a href="/knowledge-base/shvydkist-saitu">Зіставляти швидкість і заявки</a></li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li><a href="https://web.dev/articles/vitals">web.dev: Core Web Vitals</a></li>
+              <li><a href="https://web.dev/articles/optimize-lcp">web.dev: оптимізація LCP</a></li>
+              <li>
+                <a href="https://developer.chrome.com/docs/crux/methodology"
+                  >Chrome: польові дані CrUX</a
+                >
+              </li>
+            </ul>
+            <p>
+              Приклади в матеріалі навчальні. Можливості FluxRadar звірено з поточною тарифною
+              матрицею та інтерфейсом. Зовнішні посилання ведуть до документації відповідних
+              постачальників.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/?lang=uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a>
+          <a href="/knowledge-base">База знань</a>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Створено FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>
