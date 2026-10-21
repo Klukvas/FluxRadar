@@ -42,7 +42,7 @@ export const checksCopyEn: ChecksCopy = {
       label: '01 / SEO VISIBILITY',
       title: 'SEO — what FluxRadar checks',
       intro: [
-        'The SEO module runs up to **24 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
+        'The SEO module runs up to **27 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
       ],
       bullets: [
         {
@@ -83,7 +83,15 @@ export const checksCopyEn: ChecksCopy = {
         },
         {
           term: 'Structured data / JSON-LD',
-          body: 'every `<script type="application/ld+json">` block parses as JSON, and at least one block carries both an `@context` and a `@type`. Individual schema.org types and their required properties are not validated.',
+          body: 'every `<script type="application/ld+json">` block parses as JSON, and at least one block carries both an `@context` and a `@type`. General schema.org type validation is outside this check; local business properties have a separate informational check below.',
+        },
+        {
+          term: 'Local business contacts and markup',
+          body: 'informational observations of local contacts, telephone links, opening hours and NAP consistency for an explicitly identified business or unique matching name/address. LocalBusiness and recognized subtypes distinguish required name/physical address from recommended telephone/hours/geo. Use the most specific applicable type. Branches, aliases and alternative phones are preserved; incomplete crawls do not justify absence claims.',
+        },
+        {
+          term: 'Local review-star eligibility',
+          body: 'informational notice when local markup carries reviews or ratings. If this is the business’s own site, self-serving LocalBusiness/Organization ratings do not qualify for Google review stars, including third-party widgets. Same-host markup alone does not prove ownership. Missing ratings never fail.',
         },
         {
           term: 'Social preview tags',
@@ -320,7 +328,9 @@ export const checksCopyEn: ChecksCopy = {
           body: 'a page whose `<html lang>` declares English or Ukrainian (regional subtags like `en-GB` count) and that carries at least 200 characters of visible text gets a readability score on a 0–100 scale (higher is easier to read) — Flesch Reading Ease for English text; for Ukrainian text, the Oborneva adaptation of the same formula, calibrated on Russian and applied to Ukrainian as an approximation. Readability is measured over paragraph text (`<p>`, `<blockquote>` and `<dd>` elements, outside navigation, lists and tables) that has this language\'s script in at least 70% of its letters; a page needs at least 5 sentences and 100 words of that paragraph text to be scored. It is flagged below 30 on either scale ("very confusing"). This is a mechanical measure of sentence and word length, not a judgement of the writing itself, and a page without a declared English or Ukrainian language, whose paragraph text\'s script does not clear that 70% bar, or whose copy is not laid out in paragraph elements at all (some page builders) is not scored. The AI SEO / GEO section links here for the same score.',
         },
       ],
-      outro: [],
+      outro: [
+        'Article transparency is informational: the primary article needs a named author OR medical reviewer and publication date; modification dates are optional. Medical-business transparency records observed doctor profiles, qualification descriptions, about/contact and license information in a complete readable crawl. These checks do not verify credentials or legal validity, deduct score, or promise Google trust, rankings or GEO improvements.',
+      ],
     },
     privacy: {
       nav: 'Privacy & consent',

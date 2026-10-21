@@ -169,7 +169,7 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'What does the SEO check look at?',
           answer: [
-            'Twenty-four rule-based checks, split between the technical side and the page side. Technical: robots.txt, the XML sitemap, HTTP status codes, canonical tags, redirect chains, broken internal links, duplicate URLs, noindex signals, mixed content on HTTPS pages, pages the sitemap lists that nothing links to, how many link hops separate a page from the entry URL, and pages held by a single internal link, search-engine blocks in robots.txt, broken same-site CSS/JS/fonts, and mobile viewport configuration.',
+            'Twenty-seven rule-based checks, split between the technical side and the page side. Technical: robots.txt, the XML sitemap, HTTP status codes, canonical tags, redirect chains, broken internal links, duplicate URLs, noindex signals, mixed content on HTTPS pages, pages the sitemap lists that nothing links to, how many link hops separate a page from the entry URL, and pages held by a single internal link, search-engine blocks in robots.txt, broken same-site CSS/JS/fonts, and mobile viewport configuration.',
             'On the page: the title and the meta description — each for presence, length and uniqueness across the crawled pages — the heading structure, image alt text, JSON-LD structured data (both its syntax and whether the required properties are there) and the social preview tags. A title or description another crawled page already uses is reported unless a canonical link ties the two pages together.',
             'These are deterministic rules, not opinions: the same page produces the same findings every time.',
           ],
@@ -495,7 +495,7 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Що саме перевіряє SEO-модуль?',
           answer: [
-            'Двадцять чотири правила, поділене на технічну та сторінкову частини. Технічна: robots.txt, XML-мапа сайту, коди HTTP-статусів, канонічні теги, ланцюжки редиректів, биті внутрішні посилання, дублікати адрес, сигнали noindex, змішаний контент на HTTPS-сторінках, сторінки з мапи сайту, на які ніщо не посилається, кількість переходів за посиланнями від точки входу та сторінки, які тримає єдине внутрішнє посилання, блокування пошуковиків у robots.txt, биті CSS/JS/шрифти свого сайту та мобільний viewport.',
+            'Двадцять сім правил, поділених на технічну та сторінкову частини. Технічна: robots.txt, XML-мапа сайту, коди HTTP-статусів, канонічні теги, ланцюжки редиректів, биті внутрішні посилання, дублікати адрес, сигнали noindex, змішаний контент на HTTPS-сторінках, сторінки з мапи сайту, на які ніщо не посилається, кількість переходів за посиланнями від точки входу та сторінки, які тримає єдине внутрішнє посилання, блокування пошуковиків у robots.txt, биті CSS/JS/шрифти свого сайту та мобільний viewport.',
             'Сторінкова: заголовок і meta description — кожен на наявність, довжину та унікальність серед обійдених сторінок, — структура заголовків, alt-тексти зображень, структуровані дані JSON-LD (і синтаксис, і наявність обовʼязкових властивостей) та теги соціального прев’ю. Заголовок або опис, який уже має інша обійдена сторінка, потрапляє у звіт, якщо канонічне посилання не пов’язує ці дві сторінки.',
             'Це детерміновані правила, а не оцінки на смак: та сама сторінка щоразу дає той самий результат.',
           ],

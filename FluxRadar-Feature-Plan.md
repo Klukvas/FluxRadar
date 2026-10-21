@@ -68,13 +68,13 @@ Basic и Website Audit — равноправные пакеты (ни один 
 
 | Модуль | Реализованные ID | Где | ID закрытого inventory раздела 25, которых нет в реестре под этим номером |
 |---|---|---|---|
-| SEO | `SEO-TECH-001..011`, `SEO-TECH-013`, `SEO-ONPAGE-001..006`, `SEO-STRUCT-001/002`, `SEO-SOCIAL-001` — всего 21 | `packages/rules/src/seo/` | `SEO-TECH-012` (hreflang), `SEO-TECH-014`, `SEO-ONPAGE-007..009`, все `SEO-CONTENT-*`, все `SEO-ADV-*` |
+| SEO | `SEO-TECH-001..011/013/015/016`, `SEO-ONPAGE-001..007`, `SEO-STRUCT-001..004`, `SEO-SOCIAL-001`, `SEO-ADV-001` — всего 27 | `packages/rules/src/seo/` | `SEO-TECH-012` (hreflang), `SEO-TECH-014`, `SEO-ONPAGE-008/009`, все `SEO-CONTENT-*`, `SEO-ADV-002..005` |
 | AI SEO / GEO | `GEO-PROVIDER-001`, `GEO-VIS-003`, `GEO-VIS-004`, `GEO-METHOD-002`, `GEO-METHOD-005`; плюс отчёт AI crawler readiness вне реестра | `packages/ai/`, `packages/rules/src/ai-readiness.ts` | `GEO-READY-*`, `GEO-VIS-001/002/005..008`, `GEO-REC-*`, `GEO-PROVIDER-002/003`, `GEO-METHOD-001/003/004/006` |
 | Security | `SEC-PASSIVE-002/003/005`, `SEC-ASVS-001/002/003` — всего 6 | `packages/rules/src/security/` | `SEC-PASSIVE-001` (TLS), `004`, `006..014`, все `SEC-ACTIVE-*` |
 | Performance | `PERF-LAB-TTFB/LCP/CLS/TBT`, `PERF-FIELD-INP/LCP`, `PERF-RES-WEIGHT/REQUESTS/UNUSED-JS/COMPRESSION/IMAGES`, `PERF-CACHE-TTL`, `PERF-RENDER-BLOCKING`, `PERF-MEASUREMENT-UNSTABLE` — всего 14 | `apps/api/src/integrations/performance/findings.ts` | `PERF-RULE-001..015` и `PERF-ENV-001..006` не существуют: нумерация полностью другая (см. раздел 7) |
 | Accessibility | `A11Y-001..011` — всего 11 | `packages/rules/src/accessibility/` | — |
 | Reliability | `REL-URL-001/003/009`, `REL-API-003/005` — всего 5 | `packages/rules/src/reliability/` | `REL-URL-002`, `004..008`, `010`, `REL-API-001/002/004` |
-| Content Quality | `CONTENT-001/003/004/005` — всего 4 | `packages/rules/src/content/` | `CONTENT-002`, `006..010` |
+| Content Quality | `CONTENT-001/003/004/005/008/011/012` — всего 7 | `packages/rules/src/content/` | `CONTENT-002`, `006/007/009/010` |
 | Privacy | `PRIVACY-001..004` — всего 4 | `packages/rules/src/privacy/` | `PRIVACY-005..009` |
 | UX/Conversion | `UX-CONV-STATIC-001..003` и `UX-CONV-AI-001..003` | `packages/rules/src/ux/`, `packages/ai/src/ux-module.ts` | нумерации `UX-STATIC-001..007` не существует: реализованы три статические проверки под префиксом `UX-CONV-STATIC` и три AI-прочтения страницы под `UX-CONV-AI` |
 | Analytics | `ANALYTICS-SC-001..005`, `ANALYTICS-GA-001/002`, `ANALYTICS-LINK-001` | `apps/api/src/integrations/` | нумерации `ANALYTICS-001..009` не существует: проверки разделены по источнику данных (`SC`, `GA`, `LINK`) |
@@ -83,6 +83,23 @@ Basic и Website Audit — равноправные пакеты (ни один 
 Последний столбец — про номера, а не про функциональность. Отсутствие ID раздела 25 в реестре означает ровно одно: правила с таким идентификатором нет. Сама проверка при этом может существовать под другим префиксом или входить в другое правило, а может не существовать вовсе — это видно только по реализации, не по номеру.
 
 Часть ID раздела 25 уехала под другой префикс, и это не опечатка реестра: Open Graph/social metadata живёт как `SEO-SOCIAL-001`, структурированные данные — как `SEO-STRUCT-001/002`, а освободившиеся номера `SEO-ONPAGE-004/006` заняли дубли title и meta description. `SEO-TECH-009/010/011` — это orphan pages, click depth и weakly linked pages, а не pagination/orphan/crawl depth из раздела 4. **Сопоставление ID из раздела 25 нельзя использовать как карту реализации**; источник истины — `packages/contracts/src/ruleset-scanning.ts`.
+
+Локальное дополнение от 2026-10-21: `SEO-ADV-001` проверяет наблюдаемые контакты/NAP
+в пределах сайта с явной идентичностью или однозначным совпадением имени/адреса; филиалы,
+языки, alternateName и пересекающиеся наборы телефонов не смешиваются. `SEO-STRUCT-003`
+отделяет обязательные name/физический PostalAddress от рекомендуемых telephone/hours/geo и
+советует наиболее конкретный применимый тип; `SEO-STRUCT-004` объясняет, почему собственный
+AggregateRating клиники не даёт права на Google stars (отсутствие рейтинга не ошибка).
+`CONTENT-008` применяется к основной статье: автор ИЛИ медицинский рецензент и дата публикации;
+дата изменения необязательна. `CONTENT-012` фиксирует доступные профили врачей, описания
+квалификации, информацию о клинике/контактах/лицензии. Все пять правил informational, без штрафа
+score, обещаний доверия Google, позиций или GEO; лицензии и квалификация не подтверждаются.
+Неполный/нечитаемый обход, JS shell и превышение безопасных границ JSON-LD не дают основания
+для выводов об отсутствии сведений на всём сайте или автоматического закрытия прежних cross-page
+findings. Доступные schema-поля отдельной страницы при этом проверяются.
+Источники: [Google LocalBusiness](https://developers.google.com/search/docs/appearance/structured-data/local-business),
+[Review snippets](https://developers.google.com/search/docs/appearance/structured-data/review-snippet),
+[Helpful content](https://developers.google.com/search/docs/fundamentals/creating-helpful-content).
 
 ### Чего в коде нет
 

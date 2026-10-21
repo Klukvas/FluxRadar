@@ -502,7 +502,7 @@ export const copy = {
           title: 'Can people find you on Google?',
           body: 'What Google shows for each page (its name and short description), whether a page is hidden from search, broken links, pages that repeat each other, and whether the hidden description of your business that Google reads is in order.',
           // The count is matched verbatim by apps/api/src/export/check-count-parity.test.ts.
-          foot: '24 checks for Google search',
+          foot: '27 checks for Google search',
         },
         ai: {
           index: 'B / AI ASSISTANTS',
@@ -582,7 +582,7 @@ export const copy = {
         // carries the SEO check count that
         // apps/api/src/export/check-count-parity.test.ts matches.
         items: [
-          '24 checks for Google search',
+          '27 checks for Google search',
           'Whether AI assistants like ChatGPT may read your site',
           'Site security (against the public OWASP security standard)',
           'Ease of use for people with disabilities (the WCAG accessibility standard)',
@@ -687,7 +687,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'Why people do not find you on Google or in AI assistants.',
           checks: [
-            '24 checks for Google search across the whole site: page names and descriptions, headings, picture descriptions, broken links and redirects, pages that repeat each other, pages hidden from search, the site map and your business details for Google',
+            '27 checks for Google search across the whole site: page names and descriptions, headings, picture descriptions, broken links and redirects, pages that repeat each other, pages hidden from search, the site map and your business details for Google',
             'Whether AI assistants like ChatGPT may read your pages',
             'Whether two AI assistants mention you in their answers (two more if you choose)',
             'An AI action plan: what to fix first, with steps your developer can follow',
@@ -732,7 +732,7 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Reword the rest
             // of this answer freely; leave that opening clause alone.
             basic:
-              '24 checks for Google search, plus whether AI assistants like ChatGPT may read your pages, and whether two AI assistants mention you in their answers (two more if you choose). With the AI action plan: what to fix first, step by step.',
+              '27 checks for Google search, plus whether AI assistants like ChatGPT may read your pages, and whether two AI assistants mention you in their answers (two more if you choose). With the AI action plan: what to fix first, step by step.',
             complete:
               'Everything in Basic, plus eight sections about the site itself: security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). With scan history, export to a file and the AI action plan.',
           },
@@ -2583,7 +2583,7 @@ export const copy = {
           title: 'Чи знаходять вас у Google?',
           body: 'Що Google показує про кожну сторінку (назву й короткий опис), чи не закрита сторінка від пошуку, чи немає битих посилань і сторінок, що повторюють одна одну, і чи в порядку прихований опис вашого бізнесу, який читає Google.',
           // The count is matched verbatim by apps/api/src/export/check-count-parity.test.ts.
-          foot: '24 перевірки для пошуку Google',
+          foot: '27 перевірок для пошуку Google',
         },
         ai: {
           index: 'B / ШІ-ПОМІЧНИКИ',
@@ -2644,7 +2644,7 @@ export const copy = {
         // Перший пункт містить кількість SEO-перевірок, яку звіряє
         // apps/api/src/export/check-count-parity.test.ts.
         items: [
-          '24 перевірки для пошуку Google',
+          '27 перевірок для пошуку Google',
           'Чи можуть ШІ-помічники на кшталт ChatGPT читати ваш сайт',
           'Безпека сайту (за відкритим стандартом безпеки OWASP)',
           'Зручність для людей з інвалідністю (стандарт доступності WCAG)',
@@ -2738,7 +2738,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'Чому вас не знаходять у Google і у відповідях ШІ-помічників.',
           checks: [
-            '24 перевірки для пошуку Google на всьому сайті: назви й описи сторінок, підзаголовки, описи зображень, биті посилання й переадресації, сторінки, що повторюють одна одну, сторінки, закриті від пошуку, мапа сайту і дані про ваш бізнес для Google',
+            '27 перевірок для пошуку Google на всьому сайті: назви й описи сторінок, підзаголовки, описи зображень, биті посилання й переадресації, сторінки, що повторюють одна одну, сторінки, закриті від пошуку, мапа сайту і дані про ваш бізнес для Google',
             'Чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки',
             'Чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором)',
             'План дій від ШІ: що виправити першим, з кроками, які може виконати ваш розробник',
@@ -2783,7 +2783,7 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Решту відповіді
             // можна переписувати; початок речення — ні.
             basic:
-              '24 перевірки для пошуку Google, а також чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки і чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором). З планом дій від ШІ: що виправити першим, крок за кроком.',
+              '27 перевірок для пошуку Google, а також чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки і чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором). З планом дій від ШІ: що виправити першим, крок за кроком.',
             complete:
               'Усе з Basic, а ще вісім розділів звіту про сам сайт: безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). До цього додаються історія перевірок, вивантаження у файл і план дій від ШІ.',
           },

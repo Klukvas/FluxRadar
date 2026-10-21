@@ -55,6 +55,27 @@ export const RULE_TITLES: Readonly<Record<string, LocalizedName>> = {
     en: 'Placeholder text is still published',
     uk: 'На сторінці залишився текст-заглушка',
   },
+  'SEO-ADV-001': {
+    en: 'Review local contact information',
+    uk: 'Звірте локальні контактні дані',
+  },
+  'SEO-STRUCT-003': {
+    en: 'Review local business structured data',
+    uk: 'Перевірте структуровані дані локального бізнесу',
+  },
+  'SEO-STRUCT-004': {
+    en: 'Review local review-star eligibility',
+    uk: 'Перевірте право на зірочки відгуків Google',
+  },
+  'CONTENT-008': {
+    en: 'Review article attribution and dates',
+    uk: 'Перевірте автора та дати статті',
+  },
+  'CONTENT-012': {
+    en: 'Review medical business transparency',
+    uk: 'Перевірте прозорість медичного закладу',
+  },
+
   'SEO-TECH-001': {
     en: 'robots.txt is missing or unreachable',
     uk: 'robots.txt відсутній або недоступний',
