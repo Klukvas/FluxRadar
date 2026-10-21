@@ -253,6 +253,65 @@ const SEO_DISCOVERY_RULES: readonly RuleDescriptor[] = [
   },
 ];
 
+// Observational local/medical checks do not assert ranking, legal validity or rich-result eligibility.
+const LOCAL_TRUST_RULES: readonly RuleDescriptor[] = [
+  {
+    ruleId: 'SEO-ADV-001',
+    module: 'SEO',
+    title: 'on-site local contact consistency',
+    category: 'local-seo',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle:
+      'explicit local contacts: observed address, telephone links, hours and same-entity NAP differences within the crawl',
+  },
+  {
+    ruleId: 'SEO-STRUCT-003',
+    module: 'SEO',
+    title: 'local business structured data',
+    category: 'structured-data',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle:
+      'observed local business markup: required name/address versus recommended telephone/hours/geo; use the most specific applicable type',
+  },
+  {
+    ruleId: 'SEO-STRUCT-004',
+    module: 'SEO',
+    title: 'self-serving local review markup',
+    category: 'structured-data',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle:
+      'on-site LocalBusiness review/aggregateRating markup warrants an eligibility notice; missing ratings never produce a finding',
+  },
+  {
+    ruleId: 'CONTENT-008',
+    module: 'Content Quality',
+    title: 'article attribution and dates',
+    category: 'transparency',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle:
+      'explicit primary article: observed author OR medical reviewer and publication date; truthful modification date is optional',
+  },
+  {
+    ruleId: 'CONTENT-012',
+    module: 'Content Quality',
+    title: 'medical business transparency',
+    category: 'transparency',
+    targetKind: 'page',
+    severity: null,
+    scoring: 'informational',
+    oracle:
+      'explicit medical business: doctor profiles, qualification descriptions, about/contact and license information observed in a complete readable crawl; no credential verification',
+  },
+];
+
 // GEO rules are informational in v0.1: the module is assessed via readiness practices
 // on normalized provider responses without score penalties (score_delta = 0,
 // §15/GEO-METHOD-005). Production uses the configured provider; tests use mocks.
@@ -870,6 +929,7 @@ export const RULES_MVP_01: readonly RuleDescriptor[] = [
   ...SEO_TECHNICAL_RULES,
   ...SEO_ONPAGE_RULES,
   ...SEO_DISCOVERY_RULES,
+  ...LOCAL_TRUST_RULES,
   ...GEO_RULES,
   ...SECURITY_RULES,
   ...RELIABILITY_RULES,
