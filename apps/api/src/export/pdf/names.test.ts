@@ -33,8 +33,13 @@ const BROWSER_RULE = /^ {2}'([A-Z0-9-]+)': \{\n {4}en: '(.*)',\n {4}uk: '(.*)',\
 /** `Security: { en: 'Security', uk: 'Безпека' },` — quoted when the name has a space. */
 const BROWSER_MODULE = /^ {2}('?)([^:']+)\1: \{ en: '(.*)', uk: '(.*)' \},$/gm;
 
-/** Rules whose findings become report problems. GEO rules are informational (D-109). */
-const FINDING_RULE = /ruleId: '((?:SEO|SEC|REL|A11Y|CONTENT|PRIVACY|UX)-[A-Z0-9-]+)'/g;
+/**
+ * Rules whose findings become report problems, plus the two informational GEO
+ * rules (D-109) the report's AI summary and the Action Plan name: GEO-VIS-007
+ * and GEO-VIS-009. The other GEO rules are never shown by title.
+ */
+const FINDING_RULE =
+  /ruleId: '((?:SEO|SEC|REL|A11Y|CONTENT|PRIVACY|UX)-[A-Z0-9-]+|GEO-VIS-00[79])'/g;
 
 type Catalogue = Readonly<Record<string, { readonly en: string; readonly uk: string }>>;
 

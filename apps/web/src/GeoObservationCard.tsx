@@ -6,9 +6,12 @@
 // specific to the checks panel: the card reads one `GeoObservation` and the
 // report copy, and nothing else.
 
-import type { GeoEvidence, GeoObservation, MentionSignal } from './api';
+import type { GeoEvaluation, GeoEvidence, GeoObservation, MentionSignal } from './api';
+import { TONE_BADGE_CLASS } from './GeoDigest';
 import { GeoEvaluationBlock, safeHttpUrl } from './GeoEvaluation';
+import { geoDigestCopy } from './geo-digest-copy';
 import { copy, type Language } from './i18n';
+import { answerPositionOf, answerToneOf } from './module-metadata';
 
 /**
  * Prompt-level GEO evidence, not a claim about a model's memory or training.
@@ -75,6 +78,93 @@ function purposeLabel(observation: GeoObservation, language: Language): string {
   }
 }
 
+/**
+ * The tone the evaluator gave this answer, or why there is none.
+ *
+ * "Not evaluated" and "no description" are different sentences on purpose: a
+ * tone that was never asked for is not a neutral one, and an answer that
+ * described nothing has no tone to have.
+ */
+function ToneLine(props: { evaluation: GeoEvaluation | null; language: Language }) {
+  const t = geoDigestCopy[props.language];
+  const { evaluation } = props;
+  const tone = answerToneOf(evaluation);
+  if (tone !== null) {
+    return (
+      <p className="geo-observation__tone">
+        <strong>{t.cardTone}:</strong>{' '}
+        <span className={TONE_BADGE_CLASS[tone.label]}>{t.toneLabels[tone.label]}</span> “
+        {tone.quote}”
+      </p>
+    );
+  }
+  return (
+    <p className="muted geo-observation__tone">{missingToneNote(evaluation, props.language)}</p>
+  );
+}
+
+function missingToneNote(evaluation: GeoEvaluation | null, language: Language): string {
+  const t = geoDigestCopy[language];
+  if (evaluation?.status !== 'Completed' || evaluation.toneEvaluated !== true) {
+    return t.cardToneNotEvaluated;
+  }
+  return evaluation.toneAdjusted === true ? t.cardToneUnconfirmed : t.cardToneNone;
+}
+
+/** The tone, the brand's place and the quoted mention, under the verdict block. */
+function AnswerVerdictLines(props: { observation: GeoObservation; language: Language }) {
+  const t = copy[props.language].report;
+  const { observation } = props;
+  const position = answerPositionOf(observation);
+  return (
+    <>
+      {/* Only beside a verdict: an answer with no evaluation, or an
+          unavailable one, already says so in the block above. */}
+      {observation.evaluation?.status === 'Completed' ? (
+        <ToneLine evaluation={observation.evaluation} language={props.language} />
+      ) : null}
+      {position === null ? null : (
+        <p className="geo-observation__position">
+          {geoDigestCopy[props.language].cardPosition(position)}
+        </p>
+      )}
+      {!observation.mentionContext ? null : (
+        <p className="geo-observation__mention-context">
+          <strong>{t.geoMentionContextLabel}:</strong> “{observation.mentionContext}”
+        </p>
+      )}
+    </>
+  );
+}
+
+/** The sources the provider cited; only validated HTTP(S) addresses become links. */
+function CitationList(props: { citations: readonly string[]; language: Language }) {
+  const t = copy[props.language].report;
+  const citations = [
+    ...new Map(
+      props.citations.flatMap((citation) => {
+        const href = safeHttpUrl(citation);
+        return href === null ? [] : [[href, { label: citation, href }] as const];
+      }),
+    ).values(),
+  ];
+  if (citations.length === 0) return null;
+  return (
+    <div className="geo-observation__citations">
+      <strong>{t.geoCitations}</strong>
+      <ul>
+        {citations.map((citation) => (
+          <li key={citation.href}>
+            <a href={citation.href} target="_blank" rel="noreferrer">
+              {citation.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function GeoObservationCard(props: {
   observation: GeoObservation;
   evidence: GeoEvidence | null;
@@ -82,14 +172,6 @@ export function GeoObservationCard(props: {
 }) {
   const t = copy[props.language].report;
   const { observation } = props;
-  const citations = [
-    ...new Map(
-      observation.citations.flatMap((citation) => {
-        const href = safeHttpUrl(citation);
-        return href === null ? [] : [[href, { label: citation, href }] as const];
-      }),
-    ).values(),
-  ];
   return (
     <article className="geo-observation">
       <div className="split geo-observation__header">
@@ -134,25 +216,8 @@ export function GeoObservationCard(props: {
               language={props.language}
             />
           )}
-          {!observation.mentionContext ? null : (
-            <p className="geo-observation__mention-context">
-              <strong>{t.geoMentionContextLabel}:</strong> “{observation.mentionContext}”
-            </p>
-          )}
-          {citations.length === 0 ? null : (
-            <div className="geo-observation__citations">
-              <strong>{t.geoCitations}</strong>
-              <ul>
-                {citations.map((citation) => (
-                  <li key={citation.href}>
-                    <a href={citation.href} target="_blank" rel="noreferrer">
-                      {citation.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <AnswerVerdictLines observation={observation} language={props.language} />
+          <CitationList citations={observation.citations} language={props.language} />
         </>
       ) : (
         <p className="muted geo-observation__unavailable">{t.geoUnavailable}</p>

@@ -7,7 +7,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AI_PROCESSING_PROVIDERS } from './ai-processing-notice';
+import { AI_PROCESSING_NOTICE_VERSION, AI_PROCESSING_PROVIDERS } from './ai-processing-notice';
 import type { SiteProfile } from './api';
 import { LaunchSummary } from './LaunchSummary';
 import { NewScanScreen } from './NewScanScreen';
@@ -52,6 +52,18 @@ describe('the AI processing notice', () => {
   it.each(['en', 'uk'] as const)('describes the GEO discovery questions in %s', (language) => {
     const geoNotice = copy[language].newScan.aiConsentBody;
     expect(geoNotice).toMatch(language === 'en' ? /discovery questions/i : /discovery-запит/i);
+  });
+
+  // core-ai-processing-notice-v6: the evaluator request also judges tone. The
+  // notice is the disclosure that authorises it, so the purpose is named there.
+  it.each(['en', 'uk'] as const)('names the tone judgement of the v6 notice in %s', (language) => {
+    const geoNotice = copy[language].newScan.aiConsentBody;
+    expect(geoNotice).toMatch(
+      language === 'en'
+        ? /Anthropic also judges the tone in which the answer describes your business/
+        : /Anthropic також оцінює, яким тоном відповідь описує ваш бізнес/,
+    );
+    expect(AI_PROCESSING_NOTICE_VERSION).toBe('core-ai-processing-notice-v6');
   });
 
   // The plain summary over the notice has to count the same recipients the

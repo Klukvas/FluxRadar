@@ -31,6 +31,12 @@ function scoreBullet(copy: ChecksCopy) {
   return bullets[bullets.length - 2];
 }
 
+/** The "what AI says about your business" bullet: right before the score. */
+function digestBullet(copy: ChecksCopy) {
+  const { bullets } = aiSeoSection(copy);
+  return bullets[bullets.length - 3];
+}
+
 /** The share-of-voice bullet (T7): the last bullet, added after the score. */
 function shareOfVoiceBullet(copy: ChecksCopy) {
   const { bullets } = aiSeoSection(copy);
@@ -40,8 +46,30 @@ function shareOfVoiceBullet(copy: ChecksCopy) {
 describe('the AI SEO / GEO section of the coverage page', () => {
   it.each(LOCALES)('carries one bullet per published check in %s', (_language, copy) => {
     // Crawler access, social preview tags, structured data, content clarity,
-    // provider visibility, the visibility score, and share of voice.
-    expect(aiSeoSection(copy).bullets).toHaveLength(7);
+    // provider visibility, what AI says about the business, the visibility
+    // score, and share of voice.
+    expect(aiSeoSection(copy).bullets).toHaveLength(8);
+  });
+
+  // The summary above the answer cards: differences from the site, tone and
+  // place. A buyer reads here that a difference is not a verdict on the model,
+  // and that the summary is one run, not a model's memory.
+  it('describes the facts, tone and place summary, with its limits (en)', () => {
+    const body = digestBullet(checksCopyEn)?.body ?? '';
+    expect(body).toContain('**differs from your site**');
+    expect(body).toContain('tone');
+    expect(body).toContain('named first');
+    expect(body).toContain('snapshot of one run');
+    expect(body).toContain('never changes your score');
+  });
+
+  it('describes the facts, tone and place summary, with its limits (uk)', () => {
+    const body = digestBullet(checksCopyUk)?.body ?? '';
+    expect(body).toContain('**розходиться з вашим сайтом**');
+    expect(body).toContain('тоном');
+    expect(body).toContain('названо першим');
+    expect(body).toContain('знімок одного запуску');
+    expect(body).toContain('на вашу оцінку це не впливає');
   });
 
   it.each(LOCALES)('publishes the score formula and its weights in %s', (_language, copy) => {

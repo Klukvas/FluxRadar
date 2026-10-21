@@ -273,6 +273,17 @@ export const RULE_TITLES: Readonly<Record<string, RuleTitle>> = {
     en: 'Friction or missing trust signals',
     uk: 'Тертя або бракує сигналів довіри',
   },
+  // Informational GEO rules (D-109) that reach the report's AI summary and,
+  // for GEO-VIS-009, the Action Plan. The wording is "differs from your site",
+  // never "AI is wrong": the site is the evidence, and it can be the stale side.
+  'GEO-VIS-007': {
+    en: 'An AI answer describes your business negatively',
+    uk: 'Відповідь ШІ описує ваш бізнес негативно',
+  },
+  'GEO-VIS-009': {
+    en: 'AI answers differ from your site',
+    uk: 'Відповіді ШІ розходяться з вашим сайтом',
+  },
 };
 
 /** The rule's title in the report language, or its id when the rule is unknown. */

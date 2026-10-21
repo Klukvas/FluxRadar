@@ -645,6 +645,8 @@ type ReportNextStepsProps = {
   siteFailure?: SiteReadFailure | null;
   /** Whether the scan checked nothing; derived from the scan when absent. */
   nothingChecked?: boolean;
+  /** GEO-VIS-009 lives in the module's fact digest rather than Issue rows. */
+  hasGeoFactFindings?: boolean;
 };
 
 /** The blocks on their own, fetching the report's issue summary themselves. */
@@ -671,9 +673,20 @@ export function ReportNextStepsWithSummary(
   // A ready plan in the selected language takes FixFirst's place: it says the
   // same thing in more useful words, and two "start here" lists would compete.
   const [planReady, setPlanReady] = useState(false);
-  // Null until the summary arrives: "this report has nothing left to plan" is a
-  // statement, and the plan block must not make it while it is still loading.
-  const hasOpenIssues = summary === null ? null : hasPlannableOpenIssues(summary);
+  // A recorded GEO difference already proves there is something to plan;
+  // otherwise wait for the issue summary before declaring the report empty.
+  const hasOpenIssues =
+    props.hasGeoFactFindings === true
+      ? true
+      : summary === null
+        ? null
+        : hasPlannableOpenIssues(summary);
+  // A facts-only report has no Issue Center problems for FixFirst to list;
+  // its clean-report sentence would contradict the GEO findings below.
+  const onlyGeoFindings =
+    props.hasGeoFactFindings === true &&
+    summary !== null &&
+    openProblemGroups(summary).length === 0;
   return (
     <>
       {siteFailure === null ? null : (
@@ -704,7 +717,7 @@ export function ReportNextStepsWithSummary(
           onPlanReadyChange={setPlanReady}
         />
       )}
-      {summary === null || planReady ? null : (
+      {summary === null || planReady || onlyGeoFindings ? null : (
         <FixFirst
           summary={summary}
           language={props.language}

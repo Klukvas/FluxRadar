@@ -7,14 +7,23 @@ import { ConsentMissingError } from './errors.js';
 import { isOptInProvider } from './types.js';
 import type { AiProviderName } from './types.js';
 
-// v5 adds one data flow to AI SEO / GEO: each answer is checked against a
+// v5 added one data flow to AI SEO / GEO: each answer is checked against a
 // bounded snapshot of the owner-entered profile and text from the public pages
 // this scan crawled. A plan that ran GEO alone previously sent no page content
 // at all, so a record written under an earlier notice — including v4, which
 // disclosed the second provider and web search and nothing about evidence —
 // cannot establish that the disclosure for *that* processing was shown before
 // purchase.
-export const CURRENT_AI_PROCESSING_NOTICE_VERSION = 'core-ai-processing-notice-v5';
+//
+// v6 (owner decision; D-234 in the local, untracked docs/DECISIONS.md, so it is
+// restated here): the same evaluator request now also judges the tone in
+// which the answer describes the business. No new request, no new recipient and
+// no new data — but a new purpose of an existing request, which v5's "checks it
+// against the evidence" does not name. So a v5 record keeps everything v5
+// disclosed, evidence evaluation included, and its answers are judged without
+// tone; only a v6 record lets the evaluator be asked about tone. v5 stays in the
+// accepted list for the transition period, as v3/v4 did before it.
+export const CURRENT_AI_PROCESSING_NOTICE_VERSION = 'core-ai-processing-notice-v6';
 
 /**
  * Notices a stored record may carry and still authorise work.
@@ -25,15 +34,17 @@ export const CURRENT_AI_PROCESSING_NOTICE_VERSION = 'core-ai-processing-notice-v
  * the direct and discovery questions, the UX review; v3 named only Anthropic,
  * so such a retry runs the Anthropic requests and records every other provider
  * as `ConsentMissing`. A v4 scan adds the second provider and web search, and
- * still no evidence evaluation. Anything outside this list (a retired notice,
- * an unknown string, a downgrade written by hand) is treated as no consent at
- * all.
+ * still no evidence evaluation. A v5 scan adds evidence evaluation and no tone
+ * judgement. Anything outside this list (a retired notice, an unknown string, a
+ * downgrade written by hand) is treated as no consent at all.
  *
- * Remove `…-v3` 30 days after the release that introduced v4 shipped.
+ * Remove `…-v3` 30 days after the release that introduced v4 shipped, and
+ * `…-v5` 30 days after the release that introduced v6.
  */
 export const ACCEPTED_AI_PROCESSING_NOTICE_VERSIONS: readonly string[] = [
   'core-ai-processing-notice-v3',
   'core-ai-processing-notice-v4',
+  'core-ai-processing-notice-v5',
   CURRENT_AI_PROCESSING_NOTICE_VERSION,
 ];
 
@@ -47,6 +58,26 @@ export const ACCEPTED_AI_PROCESSING_NOTICE_VERSIONS: readonly string[] = [
  */
 const NOTICES_NAMING_OPT_IN_PROVIDERS: readonly string[] = [
   'core-ai-processing-notice-v4',
+  'core-ai-processing-notice-v5',
+  CURRENT_AI_PROCESSING_NOTICE_VERSION,
+];
+
+/** The notices that disclosed the evidence evaluation (v5 introduced it). */
+const NOTICES_COVERING_GEO_EVIDENCE: readonly string[] = [
+  'core-ai-processing-notice-v5',
+  CURRENT_AI_PROCESSING_NOTICE_VERSION,
+];
+
+/**
+ * The notices that disclosed the tone judgement (v6 introduced it).
+ *
+ * v6 is written out rather than read from the current version, so the next
+ * notice bump cannot quietly stop judging tone on every v6 scan still inside
+ * its retry window; the current notice is listed as well, as the evidence list
+ * does — a later notice that drops the tone purpose must take it out here.
+ */
+const NOTICES_COVERING_GEO_TONE: readonly string[] = [
+  'core-ai-processing-notice-v6',
   CURRENT_AI_PROCESSING_NOTICE_VERSION,
 ];
 
@@ -57,13 +88,24 @@ export function isAcceptedNoticeVersion(version: string): boolean {
 /**
  * Whether this scan's disclosure covered sending the site's own evidence.
  *
- * Only the v5 notice states that each answer is checked, in its own request,
+ * The v5 and v6 notices state that each answer is checked, in its own request,
  * against the saved profile fields and text from the crawled public pages.
  * Under an earlier notice that request is never built, so no profile field and
  * no page text leaves the machine for evaluation.
  */
 export function noticeCoversGeoEvidence(noticeVersion: string): boolean {
-  return noticeVersion === CURRENT_AI_PROCESSING_NOTICE_VERSION;
+  return NOTICES_COVERING_GEO_EVIDENCE.includes(noticeVersion);
+}
+
+/**
+ * Whether this scan's disclosure covered asking the evaluator about tone.
+ *
+ * Only v6 says that the evaluator also judges the tone in which an answer
+ * describes the business. Under v5 the same evaluator request runs without
+ * that question, and the report says the tone was not judged in that scan.
+ */
+export function noticeCoversGeoTone(noticeVersion: string): boolean {
+  return NOTICES_COVERING_GEO_TONE.includes(noticeVersion);
 }
 
 /**

@@ -107,7 +107,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 19 October 2026/);
+    expect(policy).toHaveTextContent(/Effective 21 October 2026/);
     // The merchant of record is Creem, and the policy says what FluxRadar sends
     // it before the buyer ever sees Creem's page — the account email, product
     // and checkout reference — as well as what comes back by webhook.
@@ -164,6 +164,14 @@ describe('public legal documents', () => {
       /Anthropic.*judges every visibility answer.*other providers produced/is,
     );
     expect(policy).not.toHaveTextContent(/further request to the same provider/i);
+    // v6: tone is a purpose of that same request, named where the request is.
+    expect(policy).toHaveTextContent(
+      /core-ai-processing-notice-v6.*same request also judges the tone.*no data and no recipient/is,
+    );
+    // A v5 audit does make the evaluator request — only without the tone.
+    expect(policy).toHaveTextContent(
+      'An audit bought under a notice earlier than v5 does not make that request; one bought under v5 makes it without the tone judgement.',
+    );
 
     cleanup();
     render(<LegalDocumentScreen kind="privacy" language="uk" onLanguageChange={() => {}} />);
@@ -177,6 +185,12 @@ describe('public legal documents', () => {
       /discovery questions.*вебпошуком.*«із закритою книгою»/is,
     );
     expect(controlling).not.toHaveTextContent(/до того самого провайдера/i);
+    expect(controlling).toHaveTextContent(
+      /core-ai-processing-notice-v6.*оцінює, яким тоном відповідь описує ваш бізнес/is,
+    );
+    expect(controlling).toHaveTextContent(
+      'Перевірка, куплена за повідомленням до v5, цього запиту не робить; куплена за v5 робить його без оцінки тону.',
+    );
   });
 
   // Google's OAuth verification rejects a policy that does not say how Google
@@ -303,7 +317,7 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 19 жовтня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 21 жовтня 2026 року/);
     expect(privacy).toHaveTextContent(
       /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія\) — merchant of record і checkout provider/,
     );

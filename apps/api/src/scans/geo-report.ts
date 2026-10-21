@@ -7,10 +7,18 @@ import {
   MENTION_SIGNALS,
   deriveGeoVerdict,
   quoteOccursIn,
+  type GeoAnswerPosition,
   type GeoClaimVerdict,
   type GeoEvaluationVerdict,
   type MentionSignal,
 } from '@fluxradar/ai';
+
+import {
+  storedPositionFrom,
+  storedToneFrom,
+  TONE_NOT_EVALUATED,
+  type GeoToneDto,
+} from './geo-answer-dto.ts';
 
 export interface GeoAiResponse {
   readonly aiRequestKey: string;
@@ -62,7 +70,7 @@ interface GeoEvaluatedClaimDto {
  * Absent entirely on a scan that ran before this release: the report then says
  * the answer was not evaluated, which is true, instead of showing a pass.
  */
-interface GeoEvaluationDto {
+interface GeoEvaluationDto extends GeoToneDto {
   readonly status: 'Completed' | 'Unavailable';
   readonly reason: string | null;
   readonly overall: GeoEvaluationVerdict | null;
@@ -83,6 +91,11 @@ interface GeoObservation {
   readonly citations: readonly string[];
   readonly mentions: GeoMentions | null;
   readonly evaluation: GeoEvaluationDto | null;
+  /**
+   * Where the brand sits in this answer — a discovery answer that names it.
+   * Null for every other answer and for scans recorded before it was stored.
+   */
+  readonly position: GeoAnswerPosition | null;
 }
 
 /** One piece of what the scan observed about the site, as the report cites it. */
@@ -159,21 +172,31 @@ export function geoObservationsFrom(
         unavailableGeoObservation(observationPurpose, question, 'EvidenceUnavailable', provider),
       ];
     }
-    return [
-      {
-        purpose: observationPurpose,
-        question,
-        status: 'answered',
-        reason: null,
-        provider: response.provider,
-        modelId: response.modelId,
-        answer: response.rawText,
-        citations: stringArrayFromJson(response.citationsJson),
-        mentions: mentionsFrom(request.mentions),
-        evaluation: evaluationFrom(request.evaluation, response.rawText, evidence),
-      },
-    ];
+    return [answeredGeoObservation(observationPurpose, question, request, response, evidence)];
   });
+}
+
+/** An asked question whose answer is on record, with what the scan stored beside it. */
+function answeredGeoObservation(
+  purpose: GeoObservationPurpose,
+  question: string,
+  request: Readonly<Record<string, unknown>>,
+  response: GeoAiResponse,
+  evidence: GeoEvidenceDto | null,
+): GeoObservation {
+  return {
+    purpose,
+    question,
+    status: 'answered',
+    reason: null,
+    provider: response.provider,
+    modelId: response.modelId,
+    answer: response.rawText,
+    citations: stringArrayFromJson(response.citationsJson),
+    mentions: mentionsFrom(request.mentions),
+    evaluation: evaluationFrom(request.evaluation, response.rawText, evidence),
+    position: storedPositionFrom(request.position),
+  };
 }
 
 function unavailableGeoObservation(
@@ -193,6 +216,25 @@ function unavailableGeoObservation(
     citations: [],
     mentions: null,
     evaluation: null,
+    position: null,
+  };
+}
+
+/** A stored record of a judge that did not run, with the reason it gave. */
+function storedUnavailableEvaluation(
+  record: Readonly<Record<string, unknown>>,
+  provider: string | null,
+  modelId: string | null,
+): GeoEvaluationDto {
+  return {
+    status: 'Unavailable',
+    reason: typeof record.reason === 'string' ? record.reason : null,
+    overall: null,
+    answerDescribesSubject: null,
+    claims: [],
+    provider,
+    modelId,
+    ...TONE_NOT_EVALUATED,
   };
 }
 
@@ -206,6 +248,7 @@ function unreadableEvaluation(reason: string): GeoEvaluationDto {
     claims: [],
     provider: null,
     modelId: null,
+    ...TONE_NOT_EVALUATED,
   };
 }
 
@@ -237,17 +280,7 @@ function evaluationFrom(
   }
   const provider = typeof record.provider === 'string' ? record.provider : null;
   const modelId = typeof record.modelId === 'string' ? record.modelId : null;
-  if (status === 'Unavailable') {
-    return {
-      status,
-      reason: typeof record.reason === 'string' ? record.reason : null,
-      overall: null,
-      answerDescribesSubject: null,
-      claims: [],
-      provider,
-      modelId,
-    };
-  }
+  if (status === 'Unavailable') return storedUnavailableEvaluation(record, provider, modelId);
   if (
     typeof record.answerDescribesSubject !== 'boolean' ||
     typeof record.overall !== 'string' ||
@@ -273,6 +306,7 @@ function evaluationFrom(
     claims,
     provider,
     modelId,
+    ...storedToneFrom(record, answer, record.answerDescribesSubject),
   };
 }
 

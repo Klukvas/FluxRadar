@@ -23,10 +23,20 @@
 
 import type { AiRequestCapsShape } from '@fluxradar/contracts';
 
+import { noticeCoversGeoTone } from './consent.js';
 import type { AiConsent } from './consent.js';
 import { AiModuleError, AiRequestCancelledError, RedactionBlockedError } from './errors.js';
 import { renderGeoEvidence, evidenceSourceById, type GeoEvidenceSnapshot } from './geo-evidence.js';
+import {
+  GEO_TONE_NOT_JUDGED,
+  GEO_TONE_RESPONSE_SCHEMA,
+  geoToneContract,
+  geoToneRubric,
+  parseGeoTone,
+} from './geo-tone.js';
+import type { GeoToneVerdict } from './geo-tone.js';
 import { buildPrompt, capsFor } from './prompt-builder.js';
+import { quoteOccursIn } from './quote-match.js';
 import type { AiQuotaTracker } from './quota.js';
 import { redact } from './redaction.js';
 import type { RedactionOptions } from './redaction.js';
@@ -34,7 +44,23 @@ import { runAiRequest } from './run-request.js';
 import type { AiRequestOutcome, AiUnavailableReason } from './run-request.js';
 import type { AiProvider, AiRequest, NormalizedAiUsage } from './types.js';
 
-export const GEO_EVALUATION_PROMPT_VERSION = 'geo-answer-evaluation-v1';
+/**
+ * The rubric version an evaluation ran under.
+ *
+ * v2 asks the same request to judge the tone of the answer as well. v1 is still
+ * the version an answer is judged under when the scan's notice did not disclose
+ * the tone judgement (v5): the request, its recipient and its data are the same,
+ * and the tone question is simply not put.
+ */
+export const GEO_EVALUATION_PROMPT_VERSION = 'geo-answer-evaluation-v2';
+export const GEO_EVALUATION_PROMPT_VERSION_WITHOUT_TONE = 'geo-answer-evaluation-v1';
+
+export function geoEvaluationPromptVersion(judgeTone: boolean): string {
+  return judgeTone ? GEO_EVALUATION_PROMPT_VERSION : GEO_EVALUATION_PROMPT_VERSION_WITHOUT_TONE;
+}
+
+// Re-exported: callers that check a stored quote read it from here.
+export { quoteOccursIn };
 
 /**
  * Evaluator sequence numbers start far above the answers'.
@@ -112,6 +138,8 @@ export interface GeoEvaluationPayload {
   readonly overall: GeoEvaluationVerdict;
   /** True when the model's own overall disagreed with its claims and was replaced. */
   readonly overallAdjusted: boolean;
+  /** The tone of the answer, validated; `judged: false` when the request did not ask. */
+  readonly tone: GeoToneVerdict;
 }
 
 /**
@@ -172,7 +200,7 @@ const FINISH_REFUSAL_DETAIL: Readonly<Record<string, string>> = {
   error: 'the provider reported an error while producing the evaluation',
 };
 
-const GEO_EVALUATION_RESPONSE_SCHEMA = {
+const GEO_EVALUATION_RESPONSE_SCHEMA_V1 = {
   type: 'object',
   properties: {
     answerDescribesSubject: { type: 'boolean' },
@@ -206,6 +234,13 @@ const GEO_EVALUATION_RESPONSE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/** v2: the same object with a required `tone`, which may be null. */
+const GEO_EVALUATION_RESPONSE_SCHEMA_V2 = {
+  ...GEO_EVALUATION_RESPONSE_SCHEMA_V1,
+  properties: { ...GEO_EVALUATION_RESPONSE_SCHEMA_V1.properties, tone: GEO_TONE_RESPONSE_SCHEMA },
+  required: [...GEO_EVALUATION_RESPONSE_SCHEMA_V1.required, 'tone'],
+} as const;
+
 export const GEO_EVALUATION_SYSTEM_INSTRUCTIONS =
   'You verify one AI answer against supplied evidence about one website. ' +
   'Use only the supplied evidence: you have no other knowledge of this business, you may not ' +
@@ -225,13 +260,19 @@ export const GEO_EVALUATION_SYSTEM_INSTRUCTIONS =
   'the claim. ' +
   'Output valid JSON only.';
 
-function rubric(purpose: GeoAnswerPurpose, siteDomain: string): string {
+function rubric(purpose: GeoAnswerPurpose, siteDomain: string, judgeTone: boolean): string {
   if (purpose === 'closed-book') {
+    const scope = judgeTone
+      ? 'Judge three things and nothing else: whether the answer is about this business at all, ' +
+        'whether each statement it makes is supported by the evidence, and the tone described ' +
+        'below. '
+      : 'Judge two things and nothing else: whether the answer is about this business at all, ' +
+        'and whether each statement it makes is supported by the evidence. ';
     return (
       `The answer below was produced without any access to ${siteDomain}: the model was asked ` +
       'what it already knows about the business, and was told that "I have no information" is a ' +
-      'complete answer. Judge two things and nothing else: whether the answer is about this ' +
-      'business at all, and whether each statement it makes is supported by the evidence. ' +
+      'complete answer. ' +
+      scope +
       'If the answer declines, says it does not recognise the subject, or describes only what a ' +
       'site with such a name might typically offer, set answerDescribesSubject to false and ' +
       'return an empty claims array.'
@@ -285,6 +326,14 @@ export interface GeoEvaluationRequestInput {
    */
   readonly evidence: GeoEvidenceSnapshot;
   /**
+   * Whether this request also asks for the tone of the answer.
+   *
+   * Decided by the notice the scan was bought under (`noticeCoversGeoTone`);
+   * `evaluateGeoAnswer` always sets it from the consent record. Required, so no
+   * caller can put the tone question without saying it was disclosed.
+   */
+  readonly judgeTone: boolean;
+  /**
    * The answer's own request sequence, so the judge's key is stable.
    *
    * Not the position in the list of answers that happened to succeed: a retry
@@ -295,10 +344,11 @@ export interface GeoEvaluationRequestInput {
 }
 
 export function buildGeoEvaluationRequest(input: GeoEvaluationRequestInput): AiRequest {
+  const { judgeTone } = input;
   return {
     scanId: input.scanId,
     provider: 'anthropic',
-    promptVersion: GEO_EVALUATION_PROMPT_VERSION,
+    promptVersion: geoEvaluationPromptVersion(judgeTone),
     sequence: GEO_EVALUATION_SEQUENCE_BASE + input.index,
     // One key per judged answer. The judge always runs on one provider, so the
     // key's own provider field cannot separate the verdict on an Anthropic
@@ -306,8 +356,10 @@ export function buildGeoEvaluationRequest(input: GeoEvaluationRequestInput): AiR
     // can, and it is as stable across a retry as the answer it names.
     keyIdentity: input.parentAiRequestKey,
     question: [
-      rubric(input.purpose, input.evidence.siteDomain),
+      rubric(input.purpose, input.evidence.siteDomain, judgeTone),
+      ...(judgeTone ? [geoToneRubric(input.evidence.siteDomain)] : []),
       OUTPUT_CONTRACT,
+      ...(judgeTone ? [geoToneContract(GEO_EVALUATION_MAX_QUOTE_CHARS)] : []),
       `[evidence-limits]\n${input.evidence.limits.map((limit) => `- ${limit}`).join('\n')}`,
       `[evidence]\n${renderGeoEvidence(input.evidence).join('\n')}`,
       `[question-asked]\n<<<${input.question}>>>`,
@@ -319,27 +371,11 @@ export function buildGeoEvaluationRequest(input: GeoEvaluationRequestInput): AiR
     // Bounded classification against supplied text: adaptive thinking would only
     // take budget from the JSON the parser needs to see in full.
     reasoningMode: 'disabled',
-    responseSchema: GEO_EVALUATION_RESPONSE_SCHEMA,
+    responseSchema: judgeTone
+      ? GEO_EVALUATION_RESPONSE_SCHEMA_V2
+      : GEO_EVALUATION_RESPONSE_SCHEMA_V1,
     caps: GEO_EVALUATION_CAPS,
   };
-}
-
-function normalizeForQuoteMatch(text: string): string {
-  return text
-    .normalize('NFKC')
-    .replace(/[‘’‛′]/g, "'")
-    .replace(/[“”‟″]/g, '"')
-    .replace(/[‐-―−]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-/** A quote counts only if the text really contains it; punctuation style may differ. */
-export function quoteOccursIn(haystack: string, quote: string): boolean {
-  const needle = normalizeForQuoteMatch(quote).replace(/^[.…\s]+|[.…\s]+$/g, '');
-  if (needle === '') return false;
-  return normalizeForQuoteMatch(haystack).includes(needle);
 }
 
 function jsonPayload(rawText: string): unknown {
@@ -441,10 +477,16 @@ export const GEO_EVALUATION_SCOPE =
   'not guaranteed to be everything the answer said, and evidence that is silent about a claim ' +
   'neither supports nor disproves it.';
 
+export interface ParseGeoEvaluationOptions {
+  /** Whether the request asked for tone; a response to a v1 request has none to read. */
+  readonly judgeTone?: boolean;
+}
+
 export function parseGeoEvaluation(
   rawText: string,
   answer: string,
   evidence: GeoEvidenceSnapshot,
+  options: ParseGeoEvaluationOptions = {},
 ): GeoEvaluationPayload {
   const payload = jsonPayload(rawText);
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
@@ -478,11 +520,31 @@ export function parseGeoEvaluation(
     claims,
     overall,
     overallAdjusted: stated !== overall,
+    tone:
+      (options.judgeTone ?? true)
+        ? parseGeoTone(record, answer, describesSubject, GEO_EVALUATION_MAX_QUOTE_CHARS)
+        : GEO_TONE_NOT_JUDGED,
   };
 }
 
-export interface EvaluateGeoAnswerInput extends GeoEvaluationRequestInput {
+/** The tone question is never the caller's to set: the consent record decides it. */
+export interface EvaluateGeoAnswerInput extends Omit<GeoEvaluationRequestInput, 'judgeTone'> {
   readonly consent: AiConsent | null;
+}
+
+/** Whether the notice behind this scan disclosed the tone judgement. */
+function judgesTone(consent: AiConsent | null): boolean {
+  return consent !== null && noticeCoversGeoTone(consent.noticeVersion);
+}
+
+/** The request for one already-redacted answer, asking about tone only if the notice allows. */
+function evaluationRequestFor(input: EvaluateGeoAnswerInput, answer: string): AiRequest {
+  return buildGeoEvaluationRequest({ ...input, answer, judgeTone: judgesTone(input.consent) });
+}
+
+/** A response is read for tone exactly when its request asked for one. */
+function toneOptionsFor(request: AiRequest): ParseGeoEvaluationOptions {
+  return { judgeTone: request.promptVersion === GEO_EVALUATION_PROMPT_VERSION };
 }
 
 export interface EvaluateGeoAnswerOptions {
@@ -520,7 +582,7 @@ function unavailable(
     aiRequestKey: null,
     provider: null,
     modelId: null,
-    promptVersion: GEO_EVALUATION_PROMPT_VERSION,
+    promptVersion: geoEvaluationPromptVersion(judgesTone(input.consent)),
     usage: null,
     ...fields,
   };
@@ -595,7 +657,7 @@ async function evaluateOneAnswer(
     throw error;
   }
 
-  const request = buildGeoEvaluationRequest({ ...input, answer });
+  const request = evaluationRequestFor(input, answer);
   // Checked before anything is sent: a prompt cut at the input cap can lose the
   // excerpt a verdict rests on and still come back looking perfectly valid.
   if (buildPrompt(request).truncated) {
@@ -673,7 +735,7 @@ async function evaluateOneAnswer(
 
   let payload: GeoEvaluationPayload;
   try {
-    payload = parseGeoEvaluation(response.rawText, answer, input.evidence);
+    payload = parseGeoEvaluation(response.rawText, answer, input.evidence, toneOptionsFor(request));
   } catch (error) {
     return {
       evaluation: unavailable(
@@ -695,7 +757,7 @@ async function evaluateOneAnswer(
       reason: null,
       detail: null,
       payload,
-      promptVersion: GEO_EVALUATION_PROMPT_VERSION,
+      promptVersion: request.promptVersion,
       ...provenance,
     },
     outcome: result.outcome,

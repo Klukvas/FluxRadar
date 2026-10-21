@@ -365,6 +365,18 @@ describe('base.css layout rules', () => {
     expect(BASE_CSS).toMatch(/\.google-panel__scroll \{[^}]*overflow-x: auto;/);
   });
 
+  // The GEO summary quotes answers and prints page addresses. Without the same
+  // guard as the panel's groups, one long address in a digest part, or one long
+  // quote in a card's tone line, widened the GEO section past a 375px screen.
+  it('keeps the GEO summary and the tone line inside a phone-width panel', () => {
+    expect(BASE_CSS).toMatch(/\.geo-digest__part \{[^}]*minmax\(0, 1fr\)/);
+    expect(BASE_CSS).toMatch(/\.geo-digest__part \{[^}]*min-width: 0;/);
+    expect(BASE_CSS).toMatch(/\.geo-digest p \{[^}]*overflow-wrap: anywhere;/);
+    expect(BASE_CSS).toMatch(
+      /\.geo-observation__tone,\s*\.geo-observation__position \{[^}]*overflow-wrap: anywhere;/,
+    );
+  });
+
   // `border-color` on the opened card would repaint the status accent on its
   // left edge, and a failed section would stop reading as failed while open.
   it('marks the opened card without repainting its status edge', () => {

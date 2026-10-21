@@ -6,9 +6,10 @@
 
 import type { ModuleName, ModuleRuntimeStatus, Plan } from '@fluxradar/contracts';
 
+import { noticeCoversGeoTone } from './consent.js';
 import type { AiConsent } from './consent.js';
 import { AiModuleError, AiRequestCancelledError } from './errors.js';
-import { evaluateGeoAnswer, GEO_EVALUATION_PROMPT_VERSION } from './geo-evaluation.js';
+import { evaluateGeoAnswer, geoEvaluationPromptVersion } from './geo-evaluation.js';
 import type {
   GeoAnswerEvaluation,
   GeoAnswerPurpose,
@@ -18,7 +19,7 @@ import { redactGeoEvidenceSnapshot } from './geo-evidence.js';
 import type { GeoEvidenceSnapshot } from './geo-evidence.js';
 import type { GeoFinding } from './geo-findings.js';
 import { evaluateGeoRules, geoMentionSignals } from './geo-rules.js';
-import type { GeoMentionSignals, GeoRuleEvaluation } from './geo-rules.js';
+import type { GeoMentionSignals, GeoRuleEvaluation, GeoRuleInput } from './geo-rules.js';
 import { AiQuotaTracker } from './quota.js';
 import type { RedactionOptions } from './redaction.js';
 import { runAiRequest } from './run-request.js';
@@ -202,7 +203,11 @@ function evaluationsBlocked(
   responses: readonly AiResponseOutcome[],
   reason: GeoEvaluationUnavailableReason,
   detail: string,
+  consent: AiConsent | null,
 ): ReadonlyMap<string, GeoAnswerEvaluation> {
+  const promptVersion = geoEvaluationPromptVersion(
+    consent !== null && noticeCoversGeoTone(consent.noticeVersion),
+  );
   return new Map(
     responses.map((answer) => [
       answer.aiRequestKey,
@@ -216,11 +221,19 @@ function evaluationsBlocked(
         aiRequestKey: null,
         provider: null,
         modelId: null,
-        promptVersion: GEO_EVALUATION_PROMPT_VERSION,
+        promptVersion,
         usage: null,
       },
     ]),
   );
+}
+
+/** The verdict every answer the cancellation reached before its judge gets. */
+function cancelledVerdicts(
+  responses: readonly AiResponseOutcome[],
+  consent: AiConsent | null,
+): ReadonlyMap<string, GeoAnswerEvaluation> {
+  return evaluationsBlocked(responses, GEO_CANCELLED_REASON, CANCELLED_EVALUATION_DETAIL, consent);
 }
 
 /**
@@ -248,7 +261,7 @@ async function evaluateAnswers(
     // уже нечего и некому, поэтому evidence здесь — null, а не текст, который
     // никто не прочитал.
     return {
-      evaluations: evaluationsBlocked(responses, GEO_CANCELLED_REASON, CANCELLED_EVALUATION_DETAIL),
+      evaluations: cancelledVerdicts(responses, input.consent),
       outcomes: [],
       evidence: null,
       quota: startingQuota,
@@ -268,6 +281,7 @@ async function evaluateAnswers(
         responses,
         'RedactionBlocked',
         error instanceof Error ? error.message : 'the evidence could not be redacted',
+        input.consent,
       ),
       outcomes: [],
       evidence: null,
@@ -326,15 +340,31 @@ async function evaluateAnswers(
 
   if (cancelled) {
     const unjudged = responses.filter((answer) => !evaluations.has(answer.aiRequestKey));
-    for (const [key, evaluation] of evaluationsBlocked(
-      unjudged,
-      GEO_CANCELLED_REASON,
-      CANCELLED_EVALUATION_DETAIL,
-    )) {
+    for (const [key, evaluation] of cancelledVerdicts(unjudged, input.consent)) {
       evaluations.set(key, evaluation);
     }
   }
   return { evaluations, outcomes, evidence, quota, cancelled };
+}
+
+/**
+ * What the GEO rules read. GEO-VIS-007 and GEO-VIS-009 also read what the
+ * evaluators made of each answer, against the one snapshot they were judged
+ * with.
+ */
+function geoRuleInput(
+  input: GeoModuleInput,
+  outcomes: readonly AiRequestOutcome[],
+  evaluated: EvaluationPass,
+): GeoRuleInput {
+  return {
+    domain: input.siteDomain.trim().toLowerCase(),
+    siteUrl: input.siteOrigin,
+    brand: input.brand,
+    outcomes,
+    answerEvaluations: evaluated.evaluations,
+    evidence: evaluated.evidence,
+  };
 }
 
 /**
@@ -401,12 +431,7 @@ export async function runGeoModule(
 
   // Unavailable-модуль — только module record со status_reason (§5): без issue-
   // findings; GEO-METHOD-005 документирует пропуски в Completed/Partial-ветке.
-  const ruleInput = {
-    domain: input.siteDomain.trim().toLowerCase(),
-    siteUrl: input.siteOrigin,
-    brand: input.brand,
-    outcomes,
-  };
+  const ruleInput = geoRuleInput(input, outcomes, evaluated);
   const evaluations = status === 'Unavailable' ? [] : evaluateGeoRules(ruleInput);
 
   return {
