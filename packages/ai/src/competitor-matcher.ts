@@ -117,6 +117,24 @@ export function competitorMentioned(input: {
   return competitorSpansExcludingBrand(input).length > 0;
 }
 
+/**
+ * Where `competitor` is first named in `answer`, by the same word-boundary
+ * rule and the same brand exclusion as `competitorMentioned` — or null when it
+ * is not named at all.
+ *
+ * The offset is into `foldForMatching(answer)`, not into the raw answer: the
+ * fold can change the length of the text before it, so a caller comparing it
+ * with another position must measure that one in the folded text too.
+ */
+export function competitorFirstOffset(input: {
+  readonly answer: string;
+  readonly competitor: string;
+  readonly brand: string;
+}): number | null {
+  const [first] = competitorSpansExcludingBrand(input);
+  return first === undefined ? null : first[0];
+}
+
 export interface ShareOfVoiceMentions {
   /**
    * Whether the brand itself was mentioned at a span not entirely covered by

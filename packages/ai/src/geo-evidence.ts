@@ -368,3 +368,38 @@ export function evidenceSourceById(
 ): GeoEvidenceSource | null {
   return snapshot.sources.find((source) => source.id === id) ?? null;
 }
+
+/**
+ * One spelling per page address: lower-case scheme and host, no fragment, no
+ * trailing slash on a path other than the root. A value that is not a URL is
+ * returned trimmed, so a source is still keyed by what it said.
+ */
+export function normalizeEvidenceUrl(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    parsed.hash = '';
+    const path = parsed.pathname.length > 1 ? parsed.pathname.replace(/\/+$/, '') : '/';
+    return `${parsed.protocol}//${parsed.host}${path}${parsed.search}`;
+  } catch {
+    return url.trim();
+  }
+}
+
+/**
+ * A key for "where on the site this fact lives" that survives a re-scan.
+ *
+ * A source's `id` cannot be that key: ids are handed out last, in order, per
+ * kind (`withIds`), so `profile-2` is whichever field happened to be the second
+ * one filled in and `page-3` whichever page the crawl read third. A finding
+ * fingerprinted on them would close and reopen between two scans of an
+ * unchanged site. The page address and the profile field name do not move:
+ * a page's text and its JSON-LD share one key, `page:<address>`, and a profile
+ * field is `profile:<field>`.
+ */
+export function geoEvidenceSourceKey(source: GeoEvidenceSource): string {
+  if (source.kind === 'profile' || source.url === null) {
+    const field = PROFILE_FIELDS.find(([, label]) => label === source.label)?.[0];
+    return `profile:${field ?? source.label.trim().toLowerCase()}`;
+  }
+  return `page:${normalizeEvidenceUrl(source.url)}`;
+}

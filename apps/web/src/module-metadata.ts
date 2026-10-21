@@ -6,6 +6,15 @@
 // answers null or an empty list for anything it does not recognise, so an old
 // or malformed row renders less rather than throwing.
 
+import {
+  GEO_PROSE_POSITIONS,
+  GEO_TONE_LABELS,
+  type GeoAnswerPosition,
+  type GeoAnswerTone,
+  type GeoEvaluation,
+  type GeoObservation,
+} from './api';
+
 type Metadata = Readonly<Record<string, unknown>> | undefined;
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
@@ -403,4 +412,268 @@ function stringList(value: unknown): readonly string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string')
     : [];
+}
+
+// --- What AI says about the business: the stored answer digest ---------------
+//
+// Written once by the scan beside the answers (`providerVisibility.answerDigest`)
+// and read here with the same fail-soft rule as everything above: a part that
+// does not have its shape is null, and the report says "not evaluated in this
+// scan" for it rather than drawing an empty result as a clean one.
+
+export type GeoToneName = (typeof GEO_TONE_LABELS)[number];
+
+export interface GeoFactDifference {
+  readonly claim: string;
+  readonly providers: readonly string[];
+  readonly answerQuote: string;
+  readonly sourceQuote: string;
+}
+
+export interface GeoFactGroup {
+  readonly source: {
+    readonly key: string;
+    readonly kind: 'page' | 'profile';
+    readonly label: string;
+    readonly url: string | null;
+  };
+  readonly differences: readonly GeoFactDifference[];
+}
+
+export interface GeoFactDigest {
+  readonly answersChecked: number;
+  readonly differenceCount: number;
+  readonly groups: readonly GeoFactGroup[];
+}
+
+export interface GeoProviderTone {
+  readonly provider: string;
+  readonly answers: number;
+  readonly counts: Readonly<Record<GeoToneName, number>>;
+  readonly noDescription: number;
+  /** Judged, but the offered tone was refused. Absent on digests written before it existed: 0. */
+  readonly unconfirmed: number;
+  readonly notEvaluated: number;
+}
+
+export interface GeoNegativeTone {
+  readonly provider: string;
+  readonly question: string;
+  readonly quote: string;
+}
+
+export interface GeoToneDigest {
+  readonly judged: boolean;
+  readonly providers: readonly GeoProviderTone[];
+  readonly negativeQuotes: readonly GeoNegativeTone[];
+}
+
+export interface GeoProviderPosition {
+  readonly provider: string;
+  readonly discoveryAnswers: number;
+  readonly placedAnswers: number;
+  readonly firstPlace: number;
+  readonly inList: number;
+  readonly medianListRank: number | null;
+  readonly afterCompetitors: number;
+}
+
+export interface GeoPositionDigest {
+  readonly competitorsConfigured: boolean;
+  readonly providers: readonly GeoProviderPosition[];
+}
+
+export interface GeoAnswerDigest {
+  readonly facts: GeoFactDigest | null;
+  readonly tone: GeoToneDigest | null;
+  readonly position: GeoPositionDigest | null;
+}
+
+function textOf(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+function factDifferenceOf(value: unknown): GeoFactDifference[] {
+  const record = asRecord(value);
+  const claim = textOf(record?.claim);
+  const answerQuote = textOf(record?.answerQuote);
+  const sourceQuote = textOf(record?.sourceQuote);
+  const providers = record?.providers;
+  if (claim === null || answerQuote === null || sourceQuote === null || !Array.isArray(providers)) {
+    return [];
+  }
+  return [{ claim, answerQuote, sourceQuote, providers: stringList(providers) }];
+}
+
+function factGroupOf(value: unknown): GeoFactGroup[] {
+  const record = asRecord(value);
+  const source = asRecord(record?.source);
+  const key = textOf(source?.key);
+  const label = textOf(source?.label);
+  const kind = source?.kind;
+  const differences = Array.isArray(record?.differences)
+    ? record.differences.flatMap(factDifferenceOf)
+    : [];
+  if (key === null || label === null || (kind !== 'page' && kind !== 'profile')) return [];
+  if (differences.length === 0) return [];
+  const url = typeof source?.url === 'string' ? source.url : null;
+  return [{ source: { key, kind, label, url }, differences }];
+}
+
+function factDigestOf(value: unknown): GeoFactDigest | null {
+  const record = asRecord(value);
+  if (record === null || !isCount(record.answersChecked) || !Array.isArray(record.groups)) {
+    return null;
+  }
+  const groups = record.groups.flatMap(factGroupOf);
+  return {
+    answersChecked: record.answersChecked,
+    differenceCount: groups.reduce((sum, group) => sum + group.differences.length, 0),
+    groups,
+  };
+}
+
+function toneCountsOf(value: unknown): Readonly<Record<GeoToneName, number>> | null {
+  const record = asRecord(value);
+  if (record === null || !GEO_TONE_LABELS.every((label) => isCount(record[label]))) return null;
+  return Object.fromEntries(GEO_TONE_LABELS.map((label) => [label, record[label]])) as Record<
+    GeoToneName,
+    number
+  >;
+}
+
+function providerToneOf(value: unknown): GeoProviderTone[] {
+  const record = asRecord(value);
+  const provider = textOf(record?.provider);
+  const counts = toneCountsOf(record?.counts);
+  if (
+    provider === null ||
+    counts === null ||
+    !isCount(record?.answers) ||
+    !isCount(record?.noDescription) ||
+    !isCount(record?.notEvaluated)
+  ) {
+    return [];
+  }
+  return [
+    {
+      provider,
+      counts,
+      answers: record.answers,
+      noDescription: record.noDescription,
+      unconfirmed: isCount(record.unconfirmed) ? record.unconfirmed : 0,
+      notEvaluated: record.notEvaluated,
+    },
+  ];
+}
+
+function negativeToneOf(value: unknown): GeoNegativeTone[] {
+  const record = asRecord(value);
+  const provider = textOf(record?.provider);
+  const question = textOf(record?.question);
+  const quote = textOf(record?.quote);
+  return provider === null || question === null || quote === null
+    ? []
+    : [{ provider, question, quote }];
+}
+
+function toneDigestOf(value: unknown): GeoToneDigest | null {
+  const record = asRecord(value);
+  if (
+    record === null ||
+    typeof record.judged !== 'boolean' ||
+    !Array.isArray(record.providers) ||
+    !Array.isArray(record.negativeQuotes)
+  ) {
+    return null;
+  }
+  return {
+    judged: record.judged,
+    providers: record.providers.flatMap(providerToneOf),
+    negativeQuotes: record.negativeQuotes.flatMap(negativeToneOf),
+  };
+}
+
+function providerPositionOf(value: unknown): GeoProviderPosition[] {
+  const record = asRecord(value);
+  const provider = textOf(record?.provider);
+  if (record === null || provider === null) return [];
+  const { discoveryAnswers, placedAnswers, firstPlace, inList, afterCompetitors } = record;
+  const median = record.medianListRank === null ? null : numberValue(record.medianListRank);
+  if (
+    !isCount(discoveryAnswers) ||
+    !isCount(placedAnswers) ||
+    !isCount(firstPlace) ||
+    !isCount(inList) ||
+    !isCount(afterCompetitors) ||
+    (record.medianListRank !== null && median === null)
+  ) {
+    return [];
+  }
+  return [
+    {
+      provider,
+      discoveryAnswers,
+      placedAnswers,
+      firstPlace,
+      inList,
+      afterCompetitors,
+      medianListRank: median,
+    },
+  ];
+}
+
+function positionDigestOf(value: unknown): GeoPositionDigest | null {
+  const record = asRecord(value);
+  if (
+    record === null ||
+    typeof record.competitorsConfigured !== 'boolean' ||
+    !Array.isArray(record.providers)
+  ) {
+    return null;
+  }
+  return {
+    competitorsConfigured: record.competitorsConfigured,
+    providers: record.providers.flatMap(providerPositionOf),
+  };
+}
+
+/**
+ * The stored summary of what AI answers say about the business, or null for a
+ * scan recorded before it existed. A part that does not parse is null on its
+ * own; the other two are still shown.
+ */
+export function geoAnswerDigestOf(metadata: Metadata): GeoAnswerDigest | null {
+  const digest = asRecord(asRecord(metadata?.providerVisibility)?.answerDigest);
+  if (digest === null) return null;
+  return {
+    facts: factDigestOf(digest.facts),
+    tone: toneDigestOf(digest.tone),
+    position: positionDigestOf(digest.position),
+  };
+}
+
+/** One answer's tone as the API returned it, re-checked; null when there is none to show. */
+export function answerToneOf(evaluation: GeoEvaluation | null | undefined): GeoAnswerTone | null {
+  const tone = asRecord(evaluation?.tone);
+  const label = tone?.label;
+  const quote = textOf(tone?.quote);
+  const known = GEO_TONE_LABELS.find((name) => name === label);
+  return known === undefined || quote === null ? null : { label: known, quote };
+}
+
+/** One answer's place as the API returned it, re-checked; null when it has none. */
+export function answerPositionOf(observation: GeoObservation): GeoAnswerPosition | null {
+  const record = asRecord(observation.position);
+  if (record === null || !isCount(record.competitorsBefore)) return null;
+  const competitorsBefore = record.competitorsBefore;
+  if (record.kind === 'list' && isCount(record.rank) && isCount(record.listSize)) {
+    return record.rank >= 1 && record.rank <= record.listSize
+      ? { kind: 'list', rank: record.rank, listSize: record.listSize, competitorsBefore }
+      : null;
+  }
+  const bucket = GEO_PROSE_POSITIONS.find((name) => name === record.bucket);
+  return record.kind === 'prose' && bucket !== undefined
+    ? { kind: 'prose', bucket, competitorsBefore }
+    : null;
 }

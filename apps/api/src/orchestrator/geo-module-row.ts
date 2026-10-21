@@ -29,13 +29,23 @@ import type {
   GeoVisibilityPurpose,
 } from '@fluxradar/ai';
 import {
+  computeGeoAnswerPositions,
+  computeGeoFactDigest,
   computeGeoMentionContexts,
+  computeGeoToneDigest,
   computeGeoVisibilitySummaries,
   GEO_VISIBILITY_BRAND_WEIGHT,
   GEO_VISIBILITY_DOMAIN_WEIGHT,
   GEO_VISIBILITY_MIN_MEASURED_FOR_SIGNAL,
   geoVisibilityPurposeOf,
   isMeasured,
+  summarizeGeoPositions,
+} from '@fluxradar/ai';
+import type {
+  AiRequestOutcome,
+  GeoAnswerPosition,
+  GeoPositionInput,
+  GeoToneVerdict,
 } from '@fluxradar/ai';
 import { computeCoverage } from '@fluxradar/scoring';
 import type { assessAiCrawlerReadiness } from '@fluxradar/rules';
@@ -150,6 +160,19 @@ export function geoObservations(
   );
 }
 
+/**
+ * The tone fields of a stored verdict — present only when the evaluator was
+ * asked about tone. Their absence is what tells a reader of the row that the
+ * tone was not judged in this scan, so they are never written as a default.
+ */
+function toneRecord(tone: GeoToneVerdict): Record<string, unknown> {
+  if (!tone.judged) return {};
+  return {
+    tone: tone.tone === null ? null : redactEvidence(tone.tone),
+    toneAdjusted: tone.adjusted,
+  };
+}
+
 /** One answer's verdict, or the honest reason it has none. */
 function evaluationRecord(
   evaluation: GeoAnswerEvaluation | undefined,
@@ -174,6 +197,7 @@ function evaluationRecord(
           overallAdjusted: evaluation.payload.overallAdjusted,
           answerDescribesSubject: evaluation.payload.answerDescribesSubject,
           claims: redactEvidence(evaluation.payload.claims),
+          ...toneRecord(evaluation.payload.tone),
         }),
   };
 }
@@ -327,6 +351,92 @@ function visibilitySummaryRecord(
   };
 }
 
+/**
+ * "What AI says about your business", keyed for `metadataJson`: where the
+ * answers differ from the site, the tone they describe it in, and where the
+ * brand sits in discovery answers. Computed once here, at scan time, from the
+ * validated verdicts and the snapshot they were judged against — never
+ * recomputed while a report is read.
+ */
+function answerDigestRecord(
+  geo: GeoModuleResult,
+  positions: ReadonlyMap<string, GeoAnswerPosition>,
+  positionInput: GeoPositionInput,
+): unknown {
+  const digestInput = {
+    outcomes: geo.outcomes,
+    answerEvaluations: geo.answerEvaluations,
+    evidence: geo.evaluatedEvidence,
+  };
+  return redactEvidence({
+    facts: computeGeoFactDigest(digestInput),
+    tone: computeGeoToneDigest(digestInput),
+    position: summarizeGeoPositions(positionInput, positions),
+  });
+}
+
+/** What each answer carries besides its verdict, computed once per row. */
+interface AnswerExtras {
+  /** The sentence around the first brand mention, per answer that has one. */
+  readonly mentionContexts: ReadonlyMap<string, string>;
+  /** Where the brand sits in each discovery answer that names it — a metric only. */
+  readonly positions: ReadonlyMap<string, GeoAnswerPosition>;
+  readonly positionInput: GeoPositionInput;
+}
+
+function answerExtras(
+  geo: GeoModuleResult,
+  brand: string,
+  competitors: readonly string[],
+): AnswerExtras {
+  // Competitors are matched locally against the stored answers only.
+  const positionInput = { outcomes: geo.outcomes, mentions: geo.mentions, brand, competitors };
+  return {
+    mentionContexts: computeGeoMentionContexts({
+      outcomes: geo.outcomes,
+      mentions: geo.mentions,
+      brand,
+    }),
+    positions: computeGeoAnswerPositions(positionInput),
+    positionInput,
+  };
+}
+
+/** One asked question as the row stores it: the ledger entry, and for an answer its signals. */
+function requestRecord(
+  geo: GeoModuleResult,
+  extras: AnswerExtras,
+  outcome: AiRequestOutcome,
+): Record<string, unknown> {
+  const key = outcome.kind === 'response' ? outcome.aiRequestKey : null;
+  const mentionContext = key === null ? undefined : extras.mentionContexts.get(key);
+  const position = key === null ? undefined : extras.positions.get(key);
+  return {
+    purpose: geoVisibilityPurposeOf(outcome.request.promptVersion),
+    promptVersion: outcome.request.promptVersion,
+    // On the ledger entry as well as on the response row, so an
+    // unavailable observation can still say which provider was asked.
+    provider: outcome.request.provider,
+    sequence: outcome.request.sequence,
+    status: outcome.kind,
+    question: redactEvidence(outcome.request.question),
+    ...(outcome.kind === 'response'
+      ? {
+          aiRequestKey: outcome.aiRequestKey,
+          usage: outcome.response.usage,
+          mentions: mentionSignals(geo, outcome.aiRequestKey),
+          evaluation: evaluationRecord(geo.answerEvaluations.get(outcome.aiRequestKey)),
+          ...(position === undefined ? {} : { position }),
+          // The sentence around the first brand mention, a quote only —
+          // absent when the brand was not mentioned (computeGeoMentionContexts).
+          ...(mentionContext === undefined
+            ? {}
+            : { mentionContext: redactEvidence(mentionContext) }),
+        }
+      : { reason: outcome.reason }),
+  };
+}
+
 /** Строка ScanModule для GEO; побочных эффектов нет — запись делает вызывающий. */
 export function geoModuleRow(
   geo: GeoModuleResult,
@@ -359,11 +469,7 @@ export function geoModuleRow(
       geo.responses.length + generation.completedApplicableChecks + tally.completed,
     ...(reasonParts.length > 0 ? { statusReason: reasonParts.join('; ') } : {}),
   });
-  const mentionContexts = computeGeoMentionContexts({
-    outcomes: geo.outcomes,
-    mentions: geo.mentions,
-    brand,
-  });
+  const extras = answerExtras(geo, brand, competitors);
   return {
     runtimeStatus: coverage.status,
     statusReason: coverage.statusReason,
@@ -399,33 +505,8 @@ export function geoModuleRow(
         // T6: per-engine score, shares and "who got cited instead" — computed
         // once here from the same outcomes/mentions above, never re-derived.
         visibilitySummary: visibilitySummaryRecord(geo, siteDomain, brand, competitors),
-        requests: geo.outcomes.map((outcome) => ({
-          purpose: geoVisibilityPurposeOf(outcome.request.promptVersion),
-          promptVersion: outcome.request.promptVersion,
-          // On the ledger entry as well as on the response row, so an
-          // unavailable observation can still say which provider was asked.
-          provider: outcome.request.provider,
-          sequence: outcome.request.sequence,
-          status: outcome.kind,
-          question: redactEvidence(outcome.request.question),
-          ...(outcome.kind === 'response'
-            ? {
-                aiRequestKey: outcome.aiRequestKey,
-                usage: outcome.response.usage,
-                mentions: mentionSignals(geo, outcome.aiRequestKey),
-                evaluation: evaluationRecord(geo.answerEvaluations.get(outcome.aiRequestKey)),
-                // The sentence around the first brand mention, a quote only —
-                // absent when the brand was not mentioned (computeGeoMentionContexts).
-                ...(mentionContexts.has(outcome.aiRequestKey)
-                  ? {
-                      mentionContext: redactEvidence(
-                        mentionContexts.get(outcome.aiRequestKey) ?? '',
-                      ),
-                    }
-                  : {}),
-              }
-            : { reason: outcome.reason }),
-        })),
+        answerDigest: answerDigestRecord(geo, extras.positions, extras.positionInput),
+        requests: geo.outcomes.map((outcome) => requestRecord(geo, extras, outcome)),
       },
     }),
   };

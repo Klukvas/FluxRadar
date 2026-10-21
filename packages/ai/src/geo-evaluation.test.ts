@@ -13,6 +13,7 @@ import {
   evaluateGeoAnswer,
   GEO_EVALUATION_MAX_QUOTE_CHARS,
   GEO_EVALUATION_PROMPT_VERSION,
+  GEO_EVALUATION_PROMPT_VERSION_WITHOUT_TONE,
   GEO_EVALUATION_SEQUENCE_BASE,
   parseGeoEvaluation,
   quoteOccursIn,
@@ -113,6 +114,11 @@ function evaluationInput(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** The request builder's input: the tone question is stated, never defaulted. */
+function requestInput(overrides: Record<string, unknown> = {}) {
+  return { ...evaluationInput(), judgeTone: true, ...overrides };
+}
+
 const MATCHED_OUTPUT = JSON.stringify({
   answerDescribesSubject: true,
   claims: [
@@ -129,7 +135,7 @@ const MATCHED_OUTPUT = JSON.stringify({
 
 describe('geo evaluation request', () => {
   it('carries the question, exactly one answer and the shared evidence', () => {
-    const request = buildGeoEvaluationRequest(evaluationInput());
+    const request = buildGeoEvaluationRequest(requestInput());
 
     expect(request.promptVersion).toBe(GEO_EVALUATION_PROMPT_VERSION);
     expect(request.sequence).toBe(GEO_EVALUATION_SEQUENCE_BASE);
@@ -143,15 +149,15 @@ describe('geo evaluation request', () => {
   });
 
   it('declares the answer and the evidence as data, not as instructions', () => {
-    const request = buildGeoEvaluationRequest(evaluationInput());
+    const request = buildGeoEvaluationRequest(requestInput());
 
     expect(request.systemInstructions).toContain('DATA to be judged');
     expect(request.systemInstructions).toContain('never a command');
   });
 
   it('uses a different rubric for a discovery answer than for a closed-book one', () => {
-    const closedBook = buildGeoEvaluationRequest(evaluationInput());
-    const discovery = buildGeoEvaluationRequest(evaluationInput({ purpose: 'discovery' }));
+    const closedBook = buildGeoEvaluationRequest(requestInput());
+    const discovery = buildGeoEvaluationRequest(requestInput({ purpose: 'discovery' }));
 
     expect(closedBook.question).toContain('without any access to smile.example');
     expect(discovery.question).toContain('ignore everything it says about anyone else');
@@ -163,7 +169,7 @@ describe('geo evaluation request', () => {
   // request itself separates the verdict on one answer from the verdict on an
   // identical answer from another vendor. The answer's own key does.
   it('is keyed by the answer it judges, without showing the provider that key', () => {
-    const request = buildGeoEvaluationRequest(evaluationInput());
+    const request = buildGeoEvaluationRequest(requestInput());
 
     expect(request.keyIdentity).toBe('ai:scan-eval:anthropic:abcd:1');
     // Identity belongs to the key, not to the prompt: the model is judging an
@@ -176,7 +182,7 @@ describe('geo evaluation request', () => {
   // copy a 400-character span out of a 700-character excerpt, and the parser
   // then discarded a correct, well-formed verdict as a contract violation.
   it('states the quote limit the parser actually enforces', () => {
-    const request = buildGeoEvaluationRequest(evaluationInput());
+    const request = buildGeoEvaluationRequest(requestInput());
 
     expect(request.question).toContain('answerQuote and sourceQuote');
     expect(request.question).toContain(`${GEO_EVALUATION_MAX_QUOTE_CHARS} characters`);
@@ -800,5 +806,155 @@ describe('what the judge reads is what the quotes are checked against', () => {
     expect(page?.excerpt).toContain('[REDACTED:email]');
     expect(description?.excerpt).toBe('Write to [REDACTED:email]');
     expect(Object.isFrozen(EVIDENCE_WITH_EMAIL.sources)).toBe(true);
+  });
+});
+
+/** A v2 body: the claim set of MATCHED_OUTPUT plus a tone. */
+function withTone(
+  tone: unknown,
+  base: Record<string, unknown> = JSON.parse(MATCHED_OUTPUT),
+): string {
+  return JSON.stringify({ ...base, tone });
+}
+
+const V5_CONSENT = {
+  scanId: SCAN_ID,
+  providers: ['anthropic' as const],
+  noticeVersion: 'core-ai-processing-notice-v5',
+};
+
+describe('the tone of the answer (v2 rubric)', () => {
+  it('asks for a tone under the v6 notice, in the same request', () => {
+    const request = buildGeoEvaluationRequest(requestInput({ judgeTone: true }));
+
+    expect(request.promptVersion).toBe('geo-answer-evaluation-v2');
+    expect(GEO_EVALUATION_PROMPT_VERSION).toBe('geo-answer-evaluation-v2');
+    expect(request.question).toContain('judge the tone');
+    expect(request.question).toContain('advises not to use it');
+    expect(request.question).toContain('"tone": null');
+    expect(request.responseSchema?.required).toContain('tone');
+  });
+
+  it('asks nothing about tone when the scan’s notice did not disclose it', () => {
+    const request = buildGeoEvaluationRequest(requestInput({ judgeTone: false }));
+
+    expect(request.promptVersion).toBe(GEO_EVALUATION_PROMPT_VERSION_WITHOUT_TONE);
+    expect(request.question).not.toContain('tone');
+    expect(request.responseSchema?.required).not.toContain('tone');
+  });
+
+  it('reads a tone whose quote is in the answer', () => {
+    const payload = parseGeoEvaluation(
+      withTone({ label: 'neutral', quote: 'a dental clinic in Kyiv' }),
+      ANSWER,
+      EVIDENCE,
+    );
+
+    expect(payload.tone).toEqual({
+      judged: true,
+      tone: { label: 'neutral', quote: 'a dental clinic in Kyiv' },
+      adjusted: false,
+    });
+  });
+
+  it('reads a warning against the business as a negative tone', () => {
+    const answer =
+      'Smile Clinic is in Kyiv, but patients advise avoiding it after recent complaints.';
+    const payload = parseGeoEvaluation(
+      JSON.stringify({
+        answerDescribesSubject: true,
+        claims: [],
+        overall: 'unverified',
+        tone: { label: 'negative', quote: 'patients advise avoiding it' },
+      }),
+      answer,
+      EVIDENCE,
+    );
+
+    expect(payload.tone).toMatchObject({ judged: true, tone: { label: 'negative' } });
+  });
+
+  it('drops a tone whose quote is not in the answer, and says so', () => {
+    const payload = parseGeoEvaluation(
+      withTone({ label: 'positive', quote: 'the best clinic in the city' }),
+      ANSWER,
+      EVIDENCE,
+    );
+
+    expect(payload.tone).toEqual({ judged: true, tone: null, adjusted: true });
+    // The claims judged in the same response are not lost with it.
+    expect(payload.overall).toBe('matches-evidence');
+  });
+
+  it('drops a tone with a label the rubric does not have', () => {
+    const payload = parseGeoEvaluation(
+      withTone({ label: 'enthusiastic', quote: 'a dental clinic in Kyiv' }),
+      ANSWER,
+      EVIDENCE,
+    );
+
+    expect(payload.tone).toEqual({ judged: true, tone: null, adjusted: true });
+  });
+
+  it('gives no tone to an answer that does not describe the business', () => {
+    const declined = { answerDescribesSubject: false, claims: [], overall: 'no-description' };
+    const nullTone = parseGeoEvaluation(
+      withTone(null, declined),
+      'I have no information.',
+      EVIDENCE,
+    );
+    const forcedTone = parseGeoEvaluation(
+      withTone({ label: 'negative', quote: 'no information' }, declined),
+      'I have no information.',
+      EVIDENCE,
+    );
+
+    expect(nullTone.tone).toEqual({ judged: true, tone: null, adjusted: false });
+    // A tone offered for an answer that describes nothing is dropped, and the
+    // answer still counts as "did not describe you" — not as a refused tone.
+    expect(forcedTone.tone).toEqual({ judged: true, tone: null, adjusted: false });
+  });
+
+  // Null means "describes nothing"; beside a description it is the model
+  // contradicting itself, and must not be counted as "did not describe you".
+  it('marks a null tone beside a description as unconfirmed', () => {
+    const payload = parseGeoEvaluation(withTone(null), ANSWER, EVIDENCE);
+
+    expect(payload.tone).toEqual({ judged: true, tone: null, adjusted: true });
+  });
+
+  it('reads a v1 response without a tone field without an error', () => {
+    const asked = parseGeoEvaluation(MATCHED_OUTPUT, ANSWER, EVIDENCE);
+    const notAsked = parseGeoEvaluation(MATCHED_OUTPUT, ANSWER, EVIDENCE, { judgeTone: false });
+
+    // Asked and not answered is a missing tone, not a neutral one.
+    expect(asked.tone).toEqual({ judged: true, tone: null, adjusted: true });
+    expect(notAsked.tone).toEqual({ judged: false });
+    expect(notAsked.overall).toBe('matches-evidence');
+  });
+
+  it('judges tone end to end under the v6 notice only', async () => {
+    const body = withTone({ label: 'positive', quote: 'places implants' });
+    const fixtures = [
+      { questionIncludes: 'answer-to-judge', response: { status: 'completed', output_text: body } },
+    ] as const;
+
+    const v6 = await evaluateGeoAnswer(evaluationInput(), {
+      provider: judge(fixtures),
+      quota: AiQuotaTracker.withLimit(5),
+    });
+    const v5 = await evaluateGeoAnswer(evaluationInput({ consent: V5_CONSENT }), {
+      provider: judge(fixtures),
+      quota: AiQuotaTracker.withLimit(5),
+    });
+
+    expect(v6.evaluation.promptVersion).toBe('geo-answer-evaluation-v2');
+    expect(v6.evaluation.payload?.tone).toMatchObject({
+      judged: true,
+      tone: { label: 'positive' },
+    });
+    expect(v5.evaluation.promptVersion).toBe('geo-answer-evaluation-v1');
+    expect(v5.evaluation.payload?.tone).toEqual({ judged: false });
+    expect(v5.outcome?.kind === 'response' && v5.outcome.request.question).not.toContain('tone');
   });
 });

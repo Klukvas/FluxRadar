@@ -81,7 +81,7 @@ function faqSections(sections: Record<FaqSectionId, FaqSectionText>): readonly F
 
 export const faqCopyEn: FaqCopy = {
   kicker: 'FLUXRADAR / FREQUENTLY ASKED QUESTIONS',
-  meta: ['Updated 2026-10-19', 'No account needed to read this'],
+  meta: ['Updated 2026-10-21', 'No account needed to read this'],
   title: 'Every check, explained in plain language',
   lede: 'What each FluxRadar check looks at, what the report can prove, and where the honest limits are. Written for site owners, not only for engineers.',
   back: '← Back to home',
@@ -200,6 +200,7 @@ export const faqCopyEn: FaqCopy = {
           answer: [
             'Basic and Complete include provider-backed AI visibility checks. FluxRadar first asks the provider to generate neutral discovery questions from the saved industry, offerings, region, audience and language settings without showing it the brand or domain; it then asks those questions and checks whether the answers mention or cite the site. Separate awareness questions do name the brand and official address.',
             'A paid audit that runs them asks both Anthropic (Claude) and OpenAI (ChatGPT), and each answers with its own web search enabled, so the report also lists the sources each one used. Google (Gemini) and Perplexity are offered as an optional extra before you buy: they are off by default and receive nothing at all unless you select them. A prominent notice before purchase names every recipient and explains what project context and public-page evidence is sent. The free homepage check never sends data to an AI provider.',
+            'Each answer is then checked by Anthropic against what this scan read from your site, and the top of the section sums it up: where an answer differs from your site, page by page, with both quotes side by side; the tone in which each assistant describes your business; and where your brand comes up in answers to neutral questions — named first or not, its place in a list, and whether a competitor from your profile came before you. Your site is the evidence, so a difference is a prompt to check that page. All of it is a snapshot of one run and never changes your score.',
             'On a Basic or Complete report you can also ask Anthropic’s Claude for an AI Action Plan: an ordered list of changes with an overview for your client. It is written only when you press its button. Sent are the site’s domain, each section’s status, score and coverage, and for each rule with open issues its name, severity, number of open issues, up to three page addresses without query strings or fragments, and the rule’s recommendations. Evidence excerpts, screenshots, traces and anything from the Analytics section are not sent.',
             'It is also not a ranking guarantee. It reflects what a provider answered at that moment through its API; the same question can be answered differently tomorrow.',
           ],
@@ -406,7 +407,7 @@ export const faqCopyEn: FaqCopy = {
 
 export const faqCopyUk: FaqCopy = {
   kicker: 'FLUXRADAR / ЧАСТІ ПИТАННЯ',
-  meta: ['Оновлено 2026-10-19', 'Акаунт для читання не потрібен'],
+  meta: ['Оновлено 2026-10-21', 'Акаунт для читання не потрібен'],
   title: 'Кожна перевірка простими словами',
   lede: 'Що саме дивиться кожна перевірка FluxRadar, що звіт може довести, а де проходять чесні межі. Написано для власників сайтів, а не лише для інженерів.',
   back: '← Назад на головну',
@@ -525,6 +526,7 @@ export const faqCopyUk: FaqCopy = {
           answer: [
             'Перевірки видимості у відповідях ШІ входять до Basic і Complete. Спочатку FluxRadar просить зовнішнього постачальника створити нейтральні пошукові запитання з налаштувань галузі, пропозицій, регіону, аудиторії та мов, не називаючи бренд чи адресу сайту; потім ставить ці запитання й перевіряє, чи згадує або цитує відповідь сайт. Окремі запитання про впізнаваність прямо називають бренд і офіційну адресу.',
             'Платний аудит, який їх запускає, запитує і Anthropic (Claude), і OpenAI (ChatGPT), кожен зі своїм вебпошуком, тому звіт також показує джерела, якими скористалася кожна модель. Google (Gemini) і Perplexity доступні як необовʼязкове доповнення перед оплатою: вони вимкнені за замовчуванням і не отримують нічого, доки ви їх не оберете. Помітне повідомлення перед оплатою називає кожного отримувача й пояснює, який контекст проєкту та докази з публічних сторінок передаються. Безкоштовна перевірка головної ніколи не надсилає дані AI-провайдеру.',
+            'Потім Anthropic звіряє кожну відповідь із тим, що ця перевірка прочитала на вашому сайті, а початок розділу підсумовує результат: де відповідь розходиться з вашим сайтом, сторінка за сторінкою, з обома цитатами поруч; яким тоном кожен асистент описує ваш бізнес; і де ваш бренд з’являється у відповідях на нейтральні запитання — чи названо його першим, яке в нього місце у списку і чи назвали раніше конкурента з вашого профілю. Доказом є ваш сайт, тож розбіжність — привід перевірити саме цю сторінку. Усе це знімок одного запуску, і на вашу оцінку це не впливає.',
             'У звіті Basic або Complete можна також попросити Claude від Anthropic скласти AI-план дій: упорядкований список змін з оглядом для вашого клієнта. План складається лише після натискання кнопки. Надсилаються домен сайту, статус, оцінка й покриття кожного розділу, а для кожного правила з відкритими проблемами надсилаються його назва, серйозність, кількість відкритих проблем, до трьох адрес сторінок без параметрів запиту й фрагментів і рекомендації правила. Уривки доказів, знімки екрана, трасування й будь-що з розділу «Аналітика» не надсилаються.',
             'Це також не гарантія видимості. Результат відображає те, що провайдер відповів через свій API у той момент; завтра відповідь може бути іншою.',
           ],

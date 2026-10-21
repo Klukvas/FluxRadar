@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 
 import { accountCopy } from './account-copy';
 import { findingsCopy } from './findings-copy';
+import { geoDigestCopy } from './geo-digest-copy';
 import { newScanCopy } from './new-scan-copy';
 import { reportFailureCopy } from './report-failure-copy';
 
@@ -23,6 +24,7 @@ const CATALOGUES = {
   findingsCopy,
   accountCopy,
   reportFailureCopy,
+  geoDigestCopy,
 } as const;
 
 /**
@@ -48,6 +50,9 @@ const SAME_IN_BOTH_LANGUAGES: readonly RegExp[] = [
   // Step ids (`checkInBrowser`, `allowInRobots`), not sentences: the component
   // draws each one, because two of them carry a link.
   /^reportFailureCopy\.guidance\.[a-z-]+\.steps\[\d+\]$/,
+  // A format, "{tone}: {count}": the tone word it is given comes translated
+  // from `toneLabels`, which is checked above like any other prose.
+  /^geoDigestCopy\.toneCount$/,
 ];
 
 /** Arguments to call a copy function with: one of each shape it may want. */

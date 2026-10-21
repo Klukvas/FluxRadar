@@ -153,7 +153,8 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
               provider: 'anthropic',
               evaluation: expect.objectContaining({
                 status: 'Completed',
-                promptVersion: 'geo-answer-evaluation-v1',
+                // A v6 purchase: the evaluator is asked about tone as well.
+                promptVersion: 'geo-answer-evaluation-v2',
               }),
             }),
             expect.objectContaining({ purpose: 'discovery', provider: 'anthropic' }),
@@ -176,7 +177,7 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
       select: { aiRequestKey: true, promptVersion: true },
     });
     expect(
-      ledger.filter((record) => record.promptVersion === 'geo-answer-evaluation-v1').length,
+      ledger.filter((record) => record.promptVersion === 'geo-answer-evaluation-v2').length,
     ).toBeGreaterThan(0);
     for (const record of ledger) {
       if (record.promptVersion.startsWith('geo-questions-')) {
@@ -385,9 +386,9 @@ describe('backend E2E: Complete UX/Conversion flow', () => {
         select: { promptVersion: true },
       });
       expect(ledger.some((record) => record.promptVersion.startsWith('geo-questions-'))).toBe(true);
-      expect(ledger.some((record) => record.promptVersion === 'geo-answer-evaluation-v1')).toBe(
-        false,
-      );
+      expect(
+        ledger.some((record) => record.promptVersion.startsWith('geo-answer-evaluation-')),
+      ).toBe(false);
       // The UX review is a v3 flow too, and it still runs.
       const ux = scan.body.data.modules.find(
         (module: { module: string }) => module.module === 'UX/Conversion',

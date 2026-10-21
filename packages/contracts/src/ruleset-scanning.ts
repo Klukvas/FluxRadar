@@ -256,6 +256,13 @@ const SEO_DISCOVERY_RULES: readonly RuleDescriptor[] = [
 // GEO rules are informational in v0.1: the module is assessed via readiness practices
 // on normalized provider responses without score penalties (score_delta = 0,
 // §15/GEO-METHOD-005). Production uses the configured provider; tests use mocks.
+//
+// Where the two newest ids come from (2026-10-20, plan "GEO — wrong facts, tone and
+// place in the answer"): GEO-VIS-007 is the id the product plan's ruleset mapping
+// already reserves for "mention position/context" — here the tone of the mention is
+// the finding and the brand's place in the answer is a metric beside it. GEO-VIS-009
+// is new: the plan has no meaning for it, and GEO-VIS-008 stays reserved for the
+// comparison with the previous Complete scan.
 const GEO_RULES: readonly RuleDescriptor[] = [
   {
     ruleId: 'GEO-PROVIDER-001',
@@ -287,6 +294,30 @@ const GEO_RULES: readonly RuleDescriptor[] = [
     severity: null,
     scoring: 'informational',
     oracle: 'normalized AI response contains a link to the site domain',
+  },
+  {
+    ruleId: 'GEO-VIS-007',
+    module: 'AI SEO / GEO',
+    title: 'mention tone and position',
+    category: 'visibility',
+    targetKind: 'site',
+    severity: null,
+    scoring: 'informational',
+    oracle:
+      'an evaluated AI answer describes the business in a negative tone, quoted from the answer; ' +
+      "the brand's place in discovery answers is reported as a metric, not a finding",
+  },
+  {
+    ruleId: 'GEO-VIS-009',
+    module: 'AI SEO / GEO',
+    title: 'answer differs from site facts',
+    category: 'visibility',
+    targetKind: 'site',
+    severity: null,
+    scoring: 'informational',
+    oracle:
+      'a statement in an AI answer is contradicted by a quoted excerpt of the site profile or a ' +
+      'crawled page; one finding per page or profile field',
   },
   {
     ruleId: 'GEO-METHOD-002',

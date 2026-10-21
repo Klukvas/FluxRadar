@@ -20,7 +20,7 @@ describe('@fluxradar/ai — публичный API', () => {
     expect(api.geoVisibilityFixtures).toBeTypeOf('function');
   });
 
-  it('покрывает все 5 GEO-дескрипторов реестра rules-mvp-0.1', () => {
+  it('покрывает все 7 GEO-дескрипторов реестра rules-mvp-0.1', () => {
     const registryIds = rulesForModule('AI SEO / GEO').map((descriptor) => descriptor.ruleId);
     const evaluated = api
       .evaluateGeoRules({

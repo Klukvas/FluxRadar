@@ -1,5 +1,7 @@
-// GEO-правила ×5 (T-10, D-171): детерминированные функции над итогами
+// GEO-правила ×7 (T-10, D-171): детерминированные функции над итогами
 // AI-запросов (NormalizedAiResponse + метаданные), не над PageSnapshot.
+// GEO-VIS-007 и GEO-VIS-009 читают ещё и вердикты оценщика (тон, утверждения)
+// против снимка доказательств этого скана.
 // Все правила informational (severity null, D-109); findings документируют
 // наблюдения и возможности, score не штрафуют (scoreDelta = 0, GEO-METHOD-005).
 // Метаданные правила — только из реестра contracts (как в packages/rules).
@@ -8,6 +10,12 @@ import { ruleById } from '@fluxradar/contracts';
 import type { RuleDescriptor } from '@fluxradar/contracts';
 
 import { AiModuleError } from './errors.js';
+import type { GeoAnswerEvaluation } from './geo-evaluation.js';
+import { geoEvidenceSourceKey } from './geo-evidence.js';
+import type { GeoEvidenceSnapshot } from './geo-evidence.js';
+import { computeGeoFactDigest, GEO_FACT_ADVICE } from './geo-fact-digest.js';
+import type { GeoFactGroup } from './geo-fact-digest.js';
+import type { GeoAnswerTone } from './geo-tone.js';
 import { geoFinding } from './geo-findings.js';
 import { brandSignal, domainSignal, isMeasured, type MentionSignal } from './geo-measurability.js';
 import type { GeoFinding } from './geo-findings.js';
@@ -22,6 +30,14 @@ export interface GeoRuleInput {
   readonly siteUrl: string;
   readonly brand: string;
   readonly outcomes: readonly AiRequestOutcome[];
+  /**
+   * What the evaluator made of each answer, by its `aiRequestKey`. Absent or
+   * empty when no answer was evaluated — GEO-VIS-007 and GEO-VIS-009 then
+   * have nothing to apply to, which is not the same as a clean result.
+   */
+  readonly answerEvaluations?: ReadonlyMap<string, GeoAnswerEvaluation>;
+  /** The snapshot those evaluations were judged against. */
+  readonly evidence?: GeoEvidenceSnapshot | null;
 }
 
 /** One answer's verdict on both visibility signals, with why each was skipped. */
@@ -253,6 +269,104 @@ export function evaluateGeoVis004(input: GeoRuleInput): GeoRuleEvaluation {
   };
 }
 
+// --- GEO-VIS-007 — как ИИ говорит о бизнесе: тон (site) -----------------------
+// Оракул: оценщик (geo-answer-evaluation-v2) определил тон ответа и подкрепил
+// его цитатой, которая есть в ответе. Finding — на каждый ответ с тоном
+// `negative`. Место бренда в ответе (geo-position.ts) — только метрика, без
+// finding-а. Тексты этой и GEO-VIS-009 — английские: это первые GEO-находки,
+// чьи слова уходят за пределы модуля (рекомендация GEO-VIS-009 — строка
+// AI-плана, а план читает английские рекомендации и переводит сам).
+function toneOf(input: GeoRuleInput, key: string): GeoAnswerTone | null {
+  const evaluation = input.answerEvaluations?.get(key);
+  const tone = evaluation?.status === 'Completed' ? evaluation.payload?.tone : undefined;
+  return tone !== undefined && tone.judged ? tone.tone : null;
+}
+
+export function evaluateGeoVis007(input: GeoRuleInput): GeoRuleEvaluation {
+  const descriptor = requireGeoDescriptor('GEO-VIS-007');
+  // Applicable: answers the evaluator gave a tone to. An answer it was not
+  // asked about, or one that describes nothing, has no tone to be negative.
+  const applicable = responses(input).filter(
+    (outcome) => toneOf(input, outcome.aiRequestKey) !== null,
+  );
+  const findings = applicable.flatMap((outcome): readonly GeoFinding[] => {
+    const tone = toneOf(input, outcome.aiRequestKey);
+    if (tone?.label !== 'negative') return [];
+    return [
+      geoFinding(descriptor, {
+        targetUrl: input.siteUrl,
+        evidenceType: 'trace',
+        evidence:
+          `question "${outcome.request.question}": the ${outcome.response.provider}/` +
+          `${outcome.response.modelId} answer describes the business in a negative tone: ` +
+          `"${tone.quote}"`,
+        recommendation:
+          'Read the answer and the sources it cites. If they repeat an outdated or one-sided ' +
+          'account, publish the current facts plainly on your site; a model can only cite what it ' +
+          'finds.',
+        resource: outcome.response.provider,
+        parameter: questionParameter(outcome),
+        aiRequestKey: outcome.aiRequestKey,
+      }),
+    ];
+  });
+  return {
+    ruleId: descriptor.ruleId,
+    applicableTargets: applicable.length,
+    affectedTargets: findings.length,
+    findings,
+  };
+}
+
+// --- GEO-VIS-009 — ответ ИИ расходится с фактами сайта (site) -----------------
+// Оракул: утверждение ответа помечено `contradicted` против цитаты из профиля
+// или страницы, и обе цитаты проверены кодом. Finding — один на источник
+// (страница или поле профиля), а не на ответ: владелец исправляет страницу, а
+// не ответ модели. Parameter — `geoEvidenceSourceKey`: адрес страницы или имя
+// поля, но никогда id источника (`page-3`), который выдаётся по порядку обхода
+// и между сканами не стабилен.
+function factEvidence(group: GeoFactGroup): string {
+  const statements = group.differences
+    .map(
+      (difference) =>
+        `"${difference.claim}" (${difference.providers.join(', ')}; answer: ` +
+        `"${difference.answerQuote}"; site: "${difference.sourceQuote}")`,
+    )
+    .join('; ');
+  return `${group.differences.length} statement(s) in AI answers differ from ${group.source.label}: ${statements}`;
+}
+
+export function evaluateGeoVis009(input: GeoRuleInput): GeoRuleEvaluation {
+  const descriptor = requireGeoDescriptor('GEO-VIS-009');
+  const evidence = input.evidence ?? null;
+  const digest = computeGeoFactDigest({
+    outcomes: input.outcomes,
+    answerEvaluations: input.answerEvaluations ?? new Map(),
+    evidence,
+  });
+  // The sources the answers were checked against — but only when at least one
+  // check completed; an unread snapshot was not compared with anything.
+  const checkedSources =
+    digest.answersChecked === 0 || evidence === null
+      ? 0
+      : new Set(evidence.sources.map(geoEvidenceSourceKey)).size;
+  const findings = digest.groups.map((group) =>
+    geoFinding(descriptor, {
+      targetUrl: group.source.url ?? input.siteUrl,
+      evidenceType: 'trace',
+      evidence: factEvidence(group),
+      recommendation: GEO_FACT_ADVICE[group.source.kind].en,
+      parameter: group.source.key,
+    }),
+  );
+  return {
+    ruleId: descriptor.ruleId,
+    applicableTargets: checkedSources,
+    affectedTargets: findings.length,
+    findings,
+  };
+}
+
 // --- GEO-METHOD-002 — фиксация метаданных запроса (environment) ---------------
 // Оракул: каждый сохранённый ответ несёт provider/model/promptVersion/requestId/
 // createdAt/source (вопрос). Регион/язык в v0.1 фиксируются версией библиотеки
@@ -329,12 +443,14 @@ export function evaluateGeoMethod005(input: GeoRuleInput): GeoRuleEvaluation {
   };
 }
 
-/** Все 5 GEO-правил в фиксированном порядке реестра. */
+/** Все 7 GEO-правил в фиксированном порядке реестра. */
 export function evaluateGeoRules(input: GeoRuleInput): readonly GeoRuleEvaluation[] {
   return [
     evaluateGeoProvider001(input),
     evaluateGeoVis003(input),
     evaluateGeoVis004(input),
+    evaluateGeoVis007(input),
+    evaluateGeoVis009(input),
     evaluateGeoMethod002(input),
     evaluateGeoMethod005(input),
   ];

@@ -1,5 +1,5 @@
 // Публичный API @fluxradar/ai (T-10): adapter-контракт §5, MockAiProvider,
-// caps/quota/consent/redaction и GEO-модуль с informational-правилами ×5.
+// caps/quota/consent/redaction и GEO-модуль с informational-правилами ×7.
 
 export * from './types.js';
 export * from './errors.js';
@@ -21,9 +21,12 @@ export * from './competitor-matcher.js';
 export * from './geo-findings.js';
 export * from './geo-measurability.js';
 export * from './geo-evidence.js';
+export * from './geo-tone.js';
 export * from './geo-evaluation.js';
 export * from './geo-rules.js';
 export * from './geo-module.js';
 export * from './geo-visibility-summary.js';
+export * from './geo-position.js';
+export * from './geo-fact-digest.js';
 export * from './ux-module.js';
 export * from './action-plan-module.js';

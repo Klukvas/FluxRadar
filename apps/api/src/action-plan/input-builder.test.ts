@@ -154,6 +154,87 @@ describe('the Action Plan input', () => {
     expect(prompt).not.toContain('SECRET-EVIDENCE-STRING-DO-NOT-SEND');
   });
 
+  // GEO findings never become Issue rows (D-109), so GEO-VIS-009 reaches the
+  // plan from the GEO module's stored digest — as a count and page addresses,
+  // never the statements or quotes the report shows beside them.
+  it('sends GEO-VIS-009 as one rule row from the GEO digest, without quotes', async () => {
+    const scanId = await seedScanWithIssues(db.prisma, account, [
+      {
+        ruleId: 'SEO-TECH-001',
+        module: 'SEO',
+        severity: 'High',
+        severityRank: 1,
+        targetUrl: 'https://example.com/',
+        recommendation: 'Publish a robots.txt at the site root.',
+      },
+    ]);
+    await db.prisma.scanModule.create({
+      data: {
+        scanId,
+        module: 'AI SEO / GEO',
+        runtimeStatus: 'Completed',
+        coverage: 1,
+        usableOutput: true,
+        metadataJson: JSON.stringify({
+          providerVisibility: {
+            answerDigest: {
+              facts: {
+                answersChecked: 4,
+                differenceCount: 2,
+                groups: [
+                  {
+                    source: {
+                      key: 'page:https://example.com/prices',
+                      kind: 'page',
+                      label: 'Prices',
+                      url: 'https://example.com/prices?ref=SECRET',
+                    },
+                    differences: [
+                      {
+                        claim: 'CLAIM-TEXT-DO-NOT-SEND',
+                        providers: ['openai'],
+                        answerQuote: 'ANSWER-QUOTE-DO-NOT-SEND',
+                        sourceQuote: 'SITE-QUOTE-DO-NOT-SEND',
+                      },
+                    ],
+                  },
+                  {
+                    source: {
+                      key: 'profile:offerings',
+                      kind: 'profile',
+                      label: 'Services or products',
+                      url: null,
+                    },
+                    differences: [
+                      {
+                        claim: 'PROFILE-CLAIM-DO-NOT-SEND',
+                        providers: ['anthropic'],
+                        answerQuote: 'quote',
+                        sourceQuote: 'quote',
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      },
+    });
+
+    const input = await buildActionPlanScanInput(db.prisma, scanId, 'en');
+    const prompt = await promptFor(scanId);
+
+    expect(input.rules.map((rule) => rule.ruleId)).toEqual(['SEO-TECH-001', 'GEO-VIS-009']);
+    expect(input.rules[1]).toMatchObject({
+      module: 'AI SEO / GEO',
+      openIssues: 2,
+      sampleUrls: ['https://example.com/prices'],
+    });
+    expect(prompt).toContain('AI answers differ from your site');
+    expect(prompt).not.toMatch(/DO-NOT-SEND|SECRET/);
+  });
+
   it('never sends an Analytics rule, because those findings are Google data', async () => {
     const scanId = await seedScanWithIssues(db.prisma, account, [
       {

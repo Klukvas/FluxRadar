@@ -16,6 +16,7 @@
 import { shareOfVoiceMentions, textNames } from './competitor-matcher.js';
 import { isMeasured } from './geo-measurability.js';
 import type { GeoMentionSignals } from './geo-rules.js';
+import { sentenceAround } from './geo-sentences.js';
 import { redact } from './redaction.js';
 import type { RedactionOptions } from './redaction.js';
 import type { AiRequestOutcome, AiResponseOutcome } from './run-request.js';
@@ -597,76 +598,6 @@ function boundedExcerpt(text: string, maxChars: number): string {
   const codePoints = [...text];
   if (codePoints.length <= maxChars) return text;
   return `${codePoints.slice(0, maxChars - 1).join('')}…`;
-}
-
-/**
- * What separates two sentences in a model's answer.
- *
- * Group 1 is terminal punctuation together with any closing quote or bracket
- * that trails it, so `said "hi."` is not cut between the dot and the quote.
- * Group 3 is a line break, which model answers use as a sentence end far more
- * often than a full stop — they are list-heavy. Both sides of the quote read
- * the same pattern, so a break that starts a sentence also ends one.
- */
-const SENTENCE_BREAK = String.raw`([.!?]["'”’»)\]]*)(\s+|$)|(\n+)`;
-
-/**
- * Words whose full stop does not end a sentence. A short, fixed list on
- * purpose: a longer one starts guessing, and a wrong guess here only ever
- * shows a customer a quote that begins mid-clause.
- */
-const ABBREVIATIONS: readonly string[] = ['dr', 'mr', 'mrs', 'ms', 'st', 'vs', 'e.g', 'i.e', 'etc'];
-
-/** Whether the text ending at a candidate break ends with one of those words. */
-function endsWithAbbreviation(textThroughBreak: string): boolean {
-  const word = /([A-Za-z.]+)\.$/.exec(textThroughBreak)?.[1];
-  return word !== undefined && ABBREVIATIONS.includes(word.toLowerCase());
-}
-
-/** A break is real unless the dot belongs to an abbreviation; a line break always is. */
-function isSentenceBreak(text: string, match: RegExpExecArray): boolean {
-  if (match[3] !== undefined) return true;
-  return !endsWithAbbreviation(text.slice(0, match.index + (match[1]?.length ?? 0)));
-}
-
-/** Where the sentence containing `index` starts — after the last break before it. */
-function sentenceStart(text: string, index: number): number {
-  const pattern = new RegExp(SENTENCE_BREAK, 'g');
-  let start = 0;
-  let match = pattern.exec(text);
-  while (match !== null && match.index < index) {
-    const breakEnd = match.index + match[0].length;
-    if (breakEnd > index) break;
-    if (isSentenceBreak(text, match)) start = breakEnd;
-    match = pattern.exec(text);
-  }
-  return start;
-}
-
-/** Where it ends — at the first real break from `index` on, punctuation included. */
-function sentenceEnd(text: string, index: number): number {
-  const pattern = new RegExp(SENTENCE_BREAK, 'g');
-  pattern.lastIndex = index;
-  let match = pattern.exec(text);
-  while (match !== null) {
-    if (isSentenceBreak(text, match)) {
-      // A line break is not part of the sentence; terminal punctuation is.
-      return match[3] === undefined ? match.index + (match[1]?.length ?? 0) : match.index;
-    }
-    match = pattern.exec(text);
-  }
-  return text.length;
-}
-
-/** The list marker a bullet line opens with — never part of the sentence quoted. */
-const LEADING_LIST_MARKER = /^(?:[-*•‣]|\d+[.)])\s+/;
-
-/** The sentence around `index` in `text` — bounded by the nearest sentence break. */
-function sentenceAround(text: string, index: number): string {
-  return text
-    .slice(sentenceStart(text, index), sentenceEnd(text, index))
-    .trim()
-    .replace(LEADING_LIST_MARKER, '');
 }
 
 /**

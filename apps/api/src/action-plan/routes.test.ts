@@ -457,6 +457,69 @@ describe('Action Plan routes', () => {
     expect((await generate(stale.scanId)).body.error.code).toBe('ACTION_PLAN_WINDOW_CLOSED');
   });
 
+  it('writes a plan when GEO differences are the only findings, without sending quotes', async () => {
+    await signIn(
+      planFixtures({
+        ...VALID_PLAN,
+        actions: [{ ...VALID_PLAN.actions[0], ruleIds: ['GEO-VIS-009'] }],
+      }),
+    );
+    const { scanId } = await seedPlannableScan(db.prisma, account, { openIssue: false });
+    await db.prisma.scanModule.create({
+      data: {
+        scanId,
+        module: 'AI SEO / GEO',
+        runtimeStatus: 'Completed',
+        coverage: 1,
+        usableOutput: true,
+        metadataJson: JSON.stringify({
+          providerVisibility: {
+            answerDigest: {
+              facts: {
+                answersChecked: 1,
+                differenceCount: 1,
+                groups: [
+                  {
+                    source: {
+                      key: 'page:https://example.com/prices',
+                      kind: 'page',
+                      label: 'Prices',
+                      url: 'https://example.com/prices',
+                    },
+                    differences: [
+                      {
+                        claim: 'CLAIM-DO-NOT-SEND',
+                        providers: ['openai'],
+                        answerQuote: 'ANSWER-QUOTE-DO-NOT-SEND',
+                        sourceQuote: 'SITE-QUOTE-DO-NOT-SEND',
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      },
+    });
+
+    expect(await db.prisma.issue.count({ where: { scanId } })).toBe(0);
+    expect((await generate(scanId)).status).toBe(202);
+
+    const read = await agent.get(`/scans/${scanId}/action-plan?language=en`);
+    expect(read.body.data.plan.actions[0]).toMatchObject({
+      ruleIds: ['GEO-VIS-009'],
+      openIssues: 1,
+      totalIssues: 1,
+      settled: false,
+    });
+    const stored = await db.prisma.actionPlan.findUniqueOrThrow({
+      where: { scanId_language: { scanId, language: 'en' } },
+    });
+    expect(stored.promptText).toContain('GEO-VIS-009');
+    expect(stored.promptText).not.toContain('DO-NOT-SEND');
+  });
+
   it('refuses a scan with nothing to plan, counting Analytics as nothing', async () => {
     const empty = await seedPlannableScan(db.prisma, account, { openIssue: false });
     expect((await generate(empty.scanId)).body.error.code).toBe('ACTION_PLAN_NOTHING_TO_PLAN');
@@ -465,6 +528,7 @@ describe('Action Plan routes', () => {
     // report whose only open issue is one has nothing a plan could be written from.
     const analytics = await seedPlannableScan(db.prisma, account, { analyticsIssueOnly: true });
     expect((await generate(analytics.scanId)).body.error.code).toBe('ACTION_PLAN_NOTHING_TO_PLAN');
+    expect(await db.prisma.actionPlanAttempt.count()).toBe(0);
   });
 
   it('refuses a language the picker does not offer', async () => {

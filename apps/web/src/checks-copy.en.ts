@@ -9,7 +9,7 @@ import { checksSections, type ChecksCopy } from './checks-copy-sections';
 
 export const checksCopyEn: ChecksCopy = {
   kicker: 'FLUXRADAR',
-  meta: ['Updated 2026-10-20', 'No login required to read this'],
+  meta: ['Updated 2026-10-21', 'No login required to read this'],
   title: 'Audit coverage',
   lede: 'Exactly what FluxRadar inspects, why, and what it cannot certify — with no customer credentials required for the core public audit.',
   back: '← Back to home',
@@ -144,6 +144,10 @@ export const checksCopyEn: ChecksCopy = {
         {
           term: 'Provider visibility (paid, disclosed before purchase)',
           body: "on a paid audit the AI SEO module puts the same questions to Claude (Anthropic) and ChatGPT (OpenAI) and checks whether the answers mention your brand or cite your site; the report lists the sources each model used. Discovery questions — the ones about your market — are answered with the model’s own web search enabled. The fixed direct questions about your brand are asked closed-book, with no search and no tools, so the answer shows what the model already knows rather than what it just read on your site. Gemini (Google) and Perplexity are an opt-in extra chosen before purchase and receive nothing otherwise. This never runs in the free homepage check. Provider API calls are subject to the providers' own terms.",
+        },
+        {
+          term: 'What AI says about your business (paid, informational only)',
+          body: "each answer is checked by Anthropic, in its own request, against this scan's evidence — the profile fields you saved and text from the public pages the crawl read. The report gathers the result at the top of the section: where an answer **differs from your site**, grouped by the page or profile field that says otherwise, with the answer's words beside your site's; the tone in which each assistant describes your business (positive, neutral, negative or mixed, always with the quote it rests on); and where your brand comes up in answers to neutral questions — named first, its place in a list, and whether a competitor from your profile was named before you. The place is counted by FluxRadar itself, not by a model. Your site is the evidence here, and it can be the out-of-date side, so a difference is a prompt to check the page, not a verdict on the assistant. It is a snapshot of one run, not what a model knows about you in general, and it never changes your score.",
         },
         {
           term: 'Visibility score per engine (paid, informational only)',
