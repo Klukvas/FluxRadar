@@ -29,7 +29,8 @@ import { checkCopyTitle } from './check-titles';
 import { findingsCopy } from './findings-copy';
 import { geoVisibilitySummaryOf } from './geo-visibility';
 import { copy, fillCopy, type Language } from './i18n';
-import { asRecord, numberValue } from './module-metadata';
+import { asRecord, geoAnswerDigestOf, numberValue } from './module-metadata';
+import { geoAwareProblemOpener, GEO_SUMMARY_MODULE } from './geo-summary-rules';
 import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
 import { moduleResponsibilities, moduleStatusReasons } from './module-status';
 import {
@@ -187,6 +188,11 @@ export function ResultsScreen(props: {
   // and a row offering an export of a report whose own blocks say nothing was
   // checked is the contradiction this answers.
   const checkedNothing = nothingWasChecked(scan, dashboard.modules);
+  const hasGeoFactFindings = dashboard.modules.some(
+    (module) =>
+      module.module === GEO_SUMMARY_MODULE &&
+      (geoAnswerDigestOf(module.metadata)?.facts?.groups.length ?? 0) > 0,
+  );
   return (
     <div className="stack">
       <Window title={`${t.windowTitle} · ${displayDomain(scan.domain)}`}>
@@ -222,12 +228,13 @@ export function ResultsScreen(props: {
           summary={issueSummary}
           language={props.language}
           targetLanguages={props.targetLanguages}
-          onOpenProblem={props.onOpenProblem ?? (() => props.onIssues())}
+          onOpenProblem={geoAwareProblemOpener(props, scan.id, setOpenChecks)}
           onAllProblems={props.onIssues}
           onUpgrade={(plan) => props.onUpgrade?.(scan, plan)}
           onRetry={onRetry === undefined ? undefined : () => onRetry(scan)}
           siteFailure={siteFailure}
           nothingChecked={checkedNothing}
+          hasGeoFactFindings={hasGeoFactFindings}
         />
         <ReportHelp unscoredPlan={unscoredPlan} plan={scan.plan} language={props.language} />
         {/* Before the section cards, because every coverage figure on them is

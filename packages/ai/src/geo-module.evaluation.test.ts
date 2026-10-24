@@ -585,3 +585,75 @@ describe('cancelling the evaluation pass', () => {
     expect(result.interrupted).toBe(true);
   });
 });
+
+// A verdict that never ran still records which rubric it would have run under,
+// and that is decided by the notice: v5 never asks about tone (v1), v6 does (v2).
+describe('the rubric version of a verdict that did not run', () => {
+  const NOTICES = [
+    ['core-ai-processing-notice-v5', 'geo-answer-evaluation-v1'],
+    [CURRENT_AI_PROCESSING_NOTICE_VERSION, 'geo-answer-evaluation-v2'],
+  ] as const;
+
+  function consentUnder(noticeVersion: string): Partial<GeoModuleInput> {
+    return { consent: { scanId: SCAN_ID, providers: ['anthropic'], noticeVersion } };
+  }
+
+  it.each(NOTICES)(
+    'is recorded under %s when the snapshot cannot be redacted',
+    async (notice, version) => {
+      const { provider } = recordingProvider();
+      let answersSent = 0;
+      let tick = 0;
+      const counting: AiProvider = {
+        config: provider.config,
+        send: async (request, promptText) => {
+          const response = await provider.send(request, promptText);
+          answersSent += 1;
+          return response;
+        },
+      };
+
+      const result = await runGeoModule(moduleInput(consentUnder(notice)), {
+        provider: counting,
+        quota: AiQuotaTracker.withLimit(10),
+        redaction: { now: () => (answersSent < 2 ? 0 : (tick += 10_000)) },
+      });
+
+      expect(
+        [...result.answerEvaluations.values()].map((value) => [value.reason, value.promptVersion]),
+      ).toEqual([
+        ['RedactionBlocked', version],
+        ['RedactionBlocked', version],
+      ]);
+    },
+  );
+
+  it.each(NOTICES)(
+    'is recorded under %s when the scan is cancelled before the judges',
+    async (notice, version) => {
+      const controller = new AbortController();
+      const { provider, prompts } = recordingProvider();
+      const cancelling: AiProvider = {
+        config: provider.config,
+        send: async (request, promptText, signal) => {
+          const response = await provider.send(request, promptText, signal);
+          if (prompts().length === 2) controller.abort();
+          return response;
+        },
+      };
+
+      const result = await runGeoModule(moduleInput(consentUnder(notice)), {
+        provider: cancelling,
+        quota: AiQuotaTracker.withLimit(10),
+        signal: controller.signal,
+      });
+
+      expect(
+        [...result.answerEvaluations.values()].map((value) => [value.reason, value.promptVersion]),
+      ).toEqual([
+        ['ScanCancelled', version],
+        ['ScanCancelled', version],
+      ]);
+    },
+  );
+});

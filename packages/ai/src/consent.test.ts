@@ -14,6 +14,7 @@ import {
   ensureConsent,
   isAcceptedNoticeVersion,
   noticeCoversGeoEvidence,
+  noticeCoversGeoTone,
   type AiConsent,
 } from './consent.js';
 import { ConsentMissingError } from './errors.js';
@@ -21,6 +22,8 @@ import { ConsentMissingError } from './errors.js';
 const LEGACY_NOTICE_VERSION = 'core-ai-processing-notice-v3';
 /** The notice that named Gemini and Perplexity, and nothing about evidence. */
 const OPT_IN_NOTICE_VERSION = 'core-ai-processing-notice-v4';
+/** The notice that disclosed evidence evaluation, and nothing about tone. */
+const EVIDENCE_NOTICE_VERSION = 'core-ai-processing-notice-v5';
 
 function consentOf(overrides: Partial<AiConsent> = {}): AiConsent {
   return {
@@ -32,6 +35,22 @@ function consentOf(overrides: Partial<AiConsent> = {}): AiConsent {
 }
 
 describe('accepted notice versions', () => {
+  it('makes v6 the notice a new purchase is made under', () => {
+    expect(CURRENT_AI_PROCESSING_NOTICE_VERSION).toBe('core-ai-processing-notice-v6');
+  });
+
+  // v6 only adds a purpose to an existing request. A scan bought under v5 keeps
+  // its retry entitlement for the transition period, as v3 and v4 did.
+  it('still honours v5, v4 and v3 for the transition period', () => {
+    expect(ACCEPTED_AI_PROCESSING_NOTICE_VERSIONS).toEqual([
+      'core-ai-processing-notice-v3',
+      'core-ai-processing-notice-v4',
+      'core-ai-processing-notice-v5',
+      'core-ai-processing-notice-v6',
+    ]);
+    expect(isAcceptedNoticeVersion(EVIDENCE_NOTICE_VERSION)).toBe(true);
+  });
+
   it('honours the current notice and the one still inside its retry entitlement', () => {
     expect(ACCEPTED_AI_PROCESSING_NOTICE_VERSIONS).toContain(CURRENT_AI_PROCESSING_NOTICE_VERSION);
     expect(ACCEPTED_AI_PROCESSING_NOTICE_VERSIONS).toContain(LEGACY_NOTICE_VERSION);
@@ -100,6 +119,16 @@ describe('ensureConsent', () => {
     expect(() => ensureConsent(optedIn, 'perplexity')).not.toThrow();
     expect(() => ensureConsent(optedIn, 'openai')).not.toThrow();
   });
+
+  // The v6 bump must not revoke the opt-in providers a v5 buyer chose either.
+  it('keeps the opt-in providers a v5 record named', () => {
+    const optedIn = consentOf({
+      providers: ['anthropic', 'openai', 'google', 'perplexity'],
+      noticeVersion: EVIDENCE_NOTICE_VERSION,
+    });
+    expect(() => ensureConsent(optedIn, 'google')).not.toThrow();
+    expect(() => ensureConsent(optedIn, 'perplexity')).not.toThrow();
+  });
 });
 
 describe('noticeCoversGeoEvidence', () => {
@@ -107,9 +136,27 @@ describe('noticeCoversGeoEvidence', () => {
   // provider, and only v5 disclosed it. If an earlier accepted notice ever
   // returned true here, a customer's site content would leave the machine under
   // a disclosure that never mentioned it.
-  it('covers the current notice and no earlier one', () => {
+  it('covers v5 and the current notice, and no earlier one', () => {
     expect(noticeCoversGeoEvidence(CURRENT_AI_PROCESSING_NOTICE_VERSION)).toBe(true);
+    expect(noticeCoversGeoEvidence(EVIDENCE_NOTICE_VERSION)).toBe(true);
     expect(noticeCoversGeoEvidence(OPT_IN_NOTICE_VERSION)).toBe(false);
     expect(noticeCoversGeoEvidence(LEGACY_NOTICE_VERSION)).toBe(false);
+  });
+});
+
+describe('noticeCoversGeoTone', () => {
+  // Tone is a new purpose of the evaluator request. Only the notice that names
+  // it lets the evaluator be asked; a v5 scan is judged without the question.
+  // Pinned to the literal v6, not to whatever the current notice is: a bump to
+  // v7 must not silently stop judging tone for the v6 scans it still accepts.
+  it('covers v6 by name, independently of the current notice', () => {
+    expect(noticeCoversGeoTone('core-ai-processing-notice-v6')).toBe(true);
+  });
+
+  it('covers only the v6 notice', () => {
+    expect(noticeCoversGeoTone(CURRENT_AI_PROCESSING_NOTICE_VERSION)).toBe(true);
+    expect(noticeCoversGeoTone(EVIDENCE_NOTICE_VERSION)).toBe(false);
+    expect(noticeCoversGeoTone(OPT_IN_NOTICE_VERSION)).toBe(false);
+    expect(noticeCoversGeoTone(LEGACY_NOTICE_VERSION)).toBe(false);
   });
 });

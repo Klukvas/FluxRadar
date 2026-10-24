@@ -4,6 +4,11 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
+ * 21 October 2026: the processing notice became core-ai-processing-notice-v6 —
+ * the evaluator request that checks each GEO answer against the audit's
+ * evidence now also judges the tone in which the answer describes the
+ * business. Same request, same recipient, same data; a new purpose of it.
+ *
  * 19 October 2026 also extended the AI Action Plan passages from Complete to
  * Basic and Complete (owner decision of that day): the plan sends the same
  * rule metadata to Anthropic, only when its button is pressed.
@@ -23,7 +28,7 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * Anthropic, Google and Perplexity becoming opt-in recipients, the AI Action
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '19 жовтня 2026 року', en: '19 October 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '21 жовтня 2026 року', en: '21 October 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -199,12 +204,14 @@ function UkrainianPrivacy(): JSX.Element {
           того, який провайдер її дав — додатково перевіряють окремим запитом до Anthropic: єдиним
           оцінювачем завжди є <strong>Anthropic</strong>. У цьому запиті передають саму відповідь і
           обмежений набір доказів цієї перевірки — збережені поля профілю та уривки тексту з
-          публічних сторінок, які обійшов сканер. Тому відповідь OpenAI, Gemini чи Perplexity для
-          такої перевірки передається до Anthropic. Перевірка, куплена за попереднім повідомленням,
-          цього запиту не робить. У Complete UX/Conversion може включати обмежені публічні докази:
-          URL, titles, headings, calls to action, links і form information. Автоматичне приховування
-          секретів не гарантує видалення всіх персональних даних. Уже надісланий провайдеру запит
-          неможливо відкликати.
+          публічних сторінок, які обійшов сканер. За повідомленням core-ai-processing-notice-v6 той
+          самий запит також оцінює, яким тоном відповідь описує ваш бізнес; нових даних і нових
+          отримувачів це не додає. Тому відповідь OpenAI, Gemini чи Perplexity для такої перевірки
+          передається до Anthropic. Перевірка, куплена за повідомленням до v5, цього запиту не
+          робить; куплена за v5 робить його без оцінки тону. У Complete UX/Conversion може включати
+          обмежені публічні докази: URL, titles, headings, calls to action, links і form
+          information. Автоматичне приховування секретів не гарантує видалення всіх персональних
+          даних. Уже надісланий провайдеру запит неможливо відкликати.
         </p>
         <p>
           У звіті Basic або Complete власник може також попросити AI‑план дій: короткий
@@ -524,12 +531,15 @@ function EnglishPrivacy(): JSX.Element {
           whichever provider produced it — is then checked in a further request to{' '}
           <strong>Anthropic</strong>, which is always the sole judge; that request carries that one
           answer and a bounded set of this audit’s own evidence: the profile fields you saved and
-          excerpts of text from the public pages the crawl read. An answer from OpenAI, Gemini or
-          Perplexity is therefore transferred to Anthropic for that check. An audit bought under an
-          earlier notice does not make that request. On Complete, UX/Conversion can include limited
-          public evidence such as URLs, titles, headings, calls to action, links and form
-          information. Automated secret redaction cannot guarantee removal of all personal data. A
-          request already sent to a provider cannot be recalled.
+          excerpts of text from the public pages the crawl read. Under the
+          core-ai-processing-notice-v6 disclosure the same request also judges the tone in which the
+          answer describes the business; it adds no data and no recipient. An answer from OpenAI,
+          Gemini or Perplexity is therefore transferred to Anthropic for that check. An audit bought
+          under a notice earlier than v5 does not make that request; one bought under v5 makes it
+          without the tone judgement. On Complete, UX/Conversion can include limited public evidence
+          such as URLs, titles, headings, calls to action, links and form information. Automated
+          secret redaction cannot guarantee removal of all personal data. A request already sent to
+          a provider cannot be recalled.
         </p>
         <p>
           On a Basic or Complete report the owner may also ask for an AI Action Plan: a short,

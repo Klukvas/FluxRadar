@@ -22,14 +22,15 @@ describe('rules-mvp-0.1 registry', () => {
   it('contains every enumerated group of IMPLEMENTATION_PLAN §3 in full', () => {
     expect(countByPrefix('SEO-TECH-')).toBe(14);
     expect(countByPrefix('SEO-ONPAGE-')).toBe(7);
-    expect(countByPrefix('SEO-STRUCT-')).toBe(2);
+    expect(countByPrefix('SEO-STRUCT-')).toBe(4);
     expect(countByPrefix('SEO-SOCIAL-')).toBe(1);
-    expect(countByPrefix('GEO-')).toBe(5);
+    expect(countByPrefix('SEO-ADV-')).toBe(1);
+    expect(countByPrefix('GEO-')).toBe(7);
     expect(countByPrefix('SEC-PASSIVE-')).toBe(5);
     expect(countByPrefix('SEC-ASVS-')).toBe(3);
     expect(countByPrefix('REL-')).toBe(5);
     expect(countByPrefix('A11Y-')).toBe(12);
-    expect(countByPrefix('CONTENT-')).toBe(5);
+    expect(countByPrefix('CONTENT-')).toBe(7);
     expect(countByPrefix('PRIVACY-')).toBe(4);
     expect(countByPrefix('UX-CONV-')).toBe(6);
     expect(countByPrefix('ANALYTICS-')).toBe(8);
@@ -45,11 +46,12 @@ describe('rules-mvp-0.1 registry', () => {
   // D-219 adds the eight Analytics rules, and the internal-linking pass adds the
   // three SEO-TECH rules that read the crawl graph (009/010/011). The
   // cross-page duplicate pass adds three more: SEO-ONPAGE-004/006 and CONTENT-001.
-  // CONTENT-005 (readability, T9) adds one more scanning rule.
-  it('splits into 77 scanning+GEO+UX+Analytics rules and 10 platform contracts, 87 in total', () => {
-    expect(RULES_MVP_01).toHaveLength(77);
+  // CONTENT-005 (readability, T9) adds one more scanning rule. GEO-VIS-007 (tone of
+  // the mention) and GEO-VIS-009 (answer differs from the site) add two GEO rules.
+  it('splits into 84 scanning+GEO+UX+Analytics rules and 10 platform contracts, 94 in total', () => {
+    expect(RULES_MVP_01).toHaveLength(84);
     expect(PLATFORM_CONTRACTS).toHaveLength(10);
-    expect(RULESET_ALL).toHaveLength(87);
+    expect(RULESET_ALL).toHaveLength(94);
   });
 
   it('has a unique ruleId for every descriptor', () => {
@@ -78,9 +80,9 @@ describe('rules-mvp-0.1 registry', () => {
     }
   });
 
-  it('marks all five GEO rules informational (no score penalty in v0.1)', () => {
+  it('marks all seven GEO rules informational (no score penalty in v0.1)', () => {
     const geoRules = rulesForModule('AI SEO / GEO');
-    expect(geoRules).toHaveLength(5);
+    expect(geoRules).toHaveLength(7);
     for (const rule of geoRules) {
       expect(rule.scoring).toBe('informational');
       expect(rule.severity).toBeNull();
@@ -123,7 +125,7 @@ describe('rules-mvp-0.1 registry', () => {
   });
 
   it('filters rules by module', () => {
-    expect(rulesForModule('SEO')).toHaveLength(24);
+    expect(rulesForModule('SEO')).toHaveLength(27);
     expect(rulesForModule('platform')).toHaveLength(10);
     expect(rulesForModule('Performance')).toHaveLength(0);
   });

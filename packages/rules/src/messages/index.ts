@@ -15,6 +15,7 @@ import {
   type FindingMessageRef,
 } from './catalog.js';
 import { CONTENT_MESSAGES } from './content.js';
+import { LOCAL_TRUST_MESSAGES } from './local-trust.js';
 import { PRIVACY_MESSAGES } from './privacy.js';
 import { RELIABILITY_MESSAGES } from './reliability.js';
 import { SECURITY_MESSAGES } from './security.js';
@@ -40,6 +41,7 @@ export const MODULE_MESSAGE_CATALOGS: readonly FindingMessageCatalog[] = [
   RELIABILITY_MESSAGES,
   ACCESSIBILITY_MESSAGES,
   CONTENT_MESSAGES,
+  LOCAL_TRUST_MESSAGES,
   PRIVACY_MESSAGES,
   UX_MESSAGES,
   ANALYTICS_MESSAGES,
@@ -51,6 +53,7 @@ export const FINDING_MESSAGES = {
   ...RELIABILITY_MESSAGES,
   ...ACCESSIBILITY_MESSAGES,
   ...CONTENT_MESSAGES,
+  ...LOCAL_TRUST_MESSAGES,
   ...PRIVACY_MESSAGES,
   ...UX_MESSAGES,
   ...ANALYTICS_MESSAGES,

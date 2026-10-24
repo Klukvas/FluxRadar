@@ -26,6 +26,8 @@ import { lockScanRow } from '../scans/scan-row-lock.ts';
 import { isReportSnapshotReady } from '../scans/report-readiness.ts';
 import { ACTION_PLAN_EXCLUDED_MODULE } from '@fluxradar/ai';
 
+import { readGeoFactCount } from './geo-fact-rule.ts';
+
 /** Scan runtime statuses whose snapshot is finished enough to plan from. */
 const PLANNABLE_SCAN_STATUSES = new Set(['Completed', 'Partial', 'Failed', 'Cancelled']);
 
@@ -114,7 +116,9 @@ export async function assertPlanGenerationAllowed(
     },
     select: { id: true },
   });
-  if (plannable === null) {
+  // GEO-VIS-009 is informational and has no Issue rows. Use the same stored
+  // digest the prompt builder reads, so a facts-only report can start a plan.
+  if (plannable === null && (await readGeoFactCount(prisma, scan.id)) === 0) {
     throw conflict('ACTION_PLAN_NOTHING_TO_PLAN', 'this scan has no open issue left to plan');
   }
 }

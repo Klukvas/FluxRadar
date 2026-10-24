@@ -1,5 +1,6 @@
-// What the Action Plan sends: one row per rule with an open issue, and the
-// status line of each module. Nothing else leaves the product.
+// What the Action Plan sends: one row per rule with an open issue, one row for
+// the AI answers that differ from the site (GEO-VIS-009), and the status line of
+// each module. Nothing else leaves the product.
 //
 // The size of what is read is bounded by the RULESET, not by the crawl: counts
 // come from one grouped query, and each rule contributes a handful of sample
@@ -13,8 +14,9 @@ import { ACTION_PLAN_EXCLUDED_MODULE } from '@fluxradar/ai';
 
 import { OPEN_ISSUE_STATUSES } from '../issues/summary.ts';
 import { localizedFindingTexts } from '../issues/localized-text.ts';
+import { readGeoFactRule } from './geo-fact-rule.ts';
+import { MAX_SAMPLE_URLS, pathOnly, takeDistinct } from './plan-sample.ts';
 
-const MAX_SAMPLE_URLS = 3;
 const MAX_RECOMMENDATIONS = 4;
 
 /**
@@ -40,29 +42,6 @@ interface IssueSampleRow {
   readonly messagesJson: string | null;
 }
 
-/**
- * The URL as it may be shown to a provider: origin and path only.
- *
- * Query and fragment are noise for a plan and routinely carry personal data
- * (session ids, emails in unsubscribe links, tracking parameters). Credentials
- * embedded in the URL are worse — `https://user:pass@host/` is a password, and
- * crawlers do meet such links — so a URL carrying them is dropped rather than
- * cleaned: the point is that it never reaches a prompt. Anything that is not
- * http(s) (`javascript:`, `data:`, `mailto:`) is not a page and is dropped too.
- */
-function pathOnly(targetUrl: string): string | null {
-  try {
-    const url = new URL(targetUrl);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-    if (url.username !== '' || url.password !== '') return null;
-    url.search = '';
-    url.hash = '';
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 function higherSeverity(left: string, right: string): string {
   return severityRank(left) <= severityRank(right) ? left : right;
 }
@@ -85,16 +64,6 @@ interface RuleTotals {
   readonly module: string;
   readonly severity: string;
   readonly openIssues: number;
-}
-
-function takeDistinct(values: readonly string[], limit: number): readonly string[] {
-  const seen = new Set<string>();
-  for (const value of values) {
-    if (value === '' || seen.has(value)) continue;
-    seen.add(value);
-    if (seen.size === limit) break;
-  }
-  return [...seen];
 }
 
 export interface ActionPlanScanInput {
@@ -218,18 +187,23 @@ export async function buildActionPlanScanInput(
   scanId: string,
   language: string,
 ): Promise<ActionPlanScanInput> {
-  const [modules, ruleTotals] = await Promise.all([
+  const [modules, ruleTotals, geoFactRule] = await Promise.all([
     prisma.scanModule.findMany({
       where: { scanId },
       select: { module: true, runtimeStatus: true, score: true, coverage: true },
       orderBy: { module: 'asc' },
     }),
     readRuleTotals(prisma, scanId),
+    readGeoFactRule(prisma, scanId, language),
   ]);
 
-  const rules = await Promise.all(
+  const issueRules = await Promise.all(
     ruleTotals.map((rule) => readRuleSamples(prisma, scanId, rule, language)),
   );
+  // GEO findings are informational and never become Issue rows (D-109), so the
+  // one GEO rule the plan acts on is read from the GEO module's stored digest
+  // and goes last, after every rule with a severity.
+  const rules = geoFactRule === null ? issueRules : [...issueRules, geoFactRule];
 
   const planModules = modules
     .filter((module) => module.module !== ACTION_PLAN_EXCLUDED_MODULE)

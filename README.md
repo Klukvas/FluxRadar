@@ -53,16 +53,34 @@ what it leaves to manual review. Two parts of a paid scan are not public-only:
 
 | Module          | What ships today                                                                                          | Source                                                   |
 | --------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| SEO             | 24 deterministic rules (technical, on-page, JSON-LD, social preview)                                      | `packages/rules/src/seo/`                                |
+| SEO             | 27 deterministic rules (technical, on-page, JSON-LD, social preview, local observations)                                      | `packages/rules/src/seo/`                                |
 | AI SEO / GEO    | AI-crawler readiness read from `robots.txt` and the crawl, plus per-provider visibility questions         | `packages/rules/src/ai-readiness.ts`, `packages/ai/`     |
 | Security        | 8 passive rules: TLS, SPF/DMARC, security headers, HSTS, cookie attributes, CSP, Permissions-Policy, CORS | `packages/rules/src/security/`                           |
 | Performance     | PageSpeed Insights (Lighthouse lab) + CrUX field data; up to 5 URLs × 2 devices × 2 runs, median reported | `apps/api/src/integrations/performance/`                 |
 | Accessibility   | 12 static-DOM accessibility rules                                                                         | `packages/rules/src/accessibility/`                      |
 | Reliability     | 5 rules: URL availability, 4xx/5xx verdict, response time, API expected status, API no-credentials policy | `packages/rules/src/reliability/`                        |
-| Content Quality | 5 rules: duplicate content, empty/low-value pages, broken media, readability, placeholder text            | `packages/rules/src/content/`                            |
+| Content Quality | 7 rules: duplicates, low-value pages, broken media, readability, placeholders, article/medical transparency            | `packages/rules/src/content/`                            |
 | Privacy         | 4 rules: cookies, consent signal, third-party scripts, privacy-policy discoverability                     | `packages/rules/src/privacy/`                            |
 | UX/Conversion   | 3 static rules plus 3 AI readings of the page; a side score, outside the overall score                    | `packages/rules/src/ux/`, `packages/ai/src/ux-module.ts` |
 | Analytics       | Search Console, Google Analytics and Bing Webmaster checks, when connected                                | `apps/api/src/integrations/`                             |
+
+Local observations (`SEO-ADV-001`, `SEO-STRUCT-003/004`) and transparency observations
+(`CONTENT-008/012`) are informational and do not deduct score. NAP comparisons need an explicit
+shared identity or a unique matching name/address in the same language; aliases, overlapping
+phone sets and separate branches are preserved. They inspect this site's crawl, not external
+business listings. Unreadable/partial crawls, script shells and bounded-out JSON-LD do not justify
+site-wide absence findings or closing earlier cross-page observations. Available page-owned schema
+properties can still be inspected.
+
+Local markup distinguishes required name/physical address from recommended telephone/hours/geo,
+and recommends the most specific applicable business subtype. Self-serving clinic ratings do not
+qualify for Google review stars; missing ratings never fail. Article attribution accepts an author
+OR medical reviewer plus a publication date; modification dates are optional. Medical observations
+record on-site profiles, qualification descriptions, about/contact and license information, without
+verifying credentials or legal validity. These checks promise no Google trust score, rankings or
+GEO gains. References: [Google local business](https://developers.google.com/search/docs/appearance/structured-data/local-business),
+[review snippets](https://developers.google.com/search/docs/appearance/structured-data/review-snippet),
+[helpful content](https://developers.google.com/search/docs/fundamentals/creating-helpful-content).
 
 Not implemented, and not promised anywhere in the product UI: active security testing, scheduled
 monitoring, notifications, team workspaces, and the deferred SEO/Privacy/Content rules the plan
