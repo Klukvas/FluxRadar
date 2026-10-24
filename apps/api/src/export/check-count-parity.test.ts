@@ -40,6 +40,7 @@ const WRITTEN_NUMBERS: Readonly<Record<string, number>> = {
   Twenty: 20,
   'Twenty-one': 21,
   'Twenty-four': 24,
+  'Twenty-seven': 27,
   'Twenty-two': 22,
   'Twenty-three': 23,
 };
@@ -49,6 +50,7 @@ const UK_WRITTEN_NUMBERS: Readonly<Record<string, number>> = {
   Двадцять: 20,
   'Двадцять одне': 21,
   'Двадцять чотири': 24,
+  'Двадцять сім': 27,
   'Двадцять два': 22,
   'Двадцять три': 23,
 };
@@ -74,7 +76,7 @@ describe('the SEO check count the public pages promise', () => {
   it('matches in the home page, pricing and package copy in both languages', () => {
     const counts = claimedCounts('i18n.ts', [
       /'(\d+) checks for Google search/g,
-      /'(\d+) перевірк[а-яіїєґ']* для пошуку Google/g,
+      /'(\d+) перевір(?:к[а-яіїєґ']*|ок) для пошуку Google/g,
     ]);
     // Pinned exactly, not as a floor: a reworded sentence stops matching its
     // pattern, and a floor would let that pass while the guard on it quietly
@@ -95,7 +97,7 @@ describe('the SEO check count the public pages promise', () => {
   it('matches in the FAQ in both languages, where the figure is spelled out', () => {
     const source = webSource('faq-copy.ts');
     const english = /'([A-Z][a-z]+(?:-[a-z]+)?) rule-based checks/.exec(source)?.[1];
-    const ukrainian = /'(Дев’ятнадцять|Двадцять(?: одне| два| три| чотири)?) правил/.exec(
+    const ukrainian = /'(Дев’ятнадцять|Двадцять(?: одне| два| три| чотири| сім)?) правил/.exec(
       source,
     )?.[1];
 

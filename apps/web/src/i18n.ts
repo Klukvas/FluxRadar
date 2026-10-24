@@ -502,7 +502,7 @@ export const copy = {
           title: 'Can people find you on Google?',
           body: 'What Google shows for each page (its name and short description), whether a page is hidden from search, broken links, pages that repeat each other, and whether the hidden description of your business that Google reads is in order.',
           // The count is matched verbatim by apps/api/src/export/check-count-parity.test.ts.
-          foot: '24 checks for Google search',
+          foot: '27 checks for Google search',
         },
         ai: {
           index: 'B / AI ASSISTANTS',
@@ -582,7 +582,7 @@ export const copy = {
         // carries the SEO check count that
         // apps/api/src/export/check-count-parity.test.ts matches.
         items: [
-          '24 checks for Google search',
+          '27 checks for Google search',
           'Whether AI assistants like ChatGPT may read your site',
           'Site security (against the public OWASP security standard)',
           'Ease of use for people with disabilities (the WCAG accessibility standard)',
@@ -687,7 +687,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'Why people do not find you on Google or in AI assistants.',
           checks: [
-            '24 checks for Google search across the whole site: page names and descriptions, headings, picture descriptions, broken links and redirects, pages that repeat each other, pages hidden from search, the site map and your business details for Google',
+            '27 checks for Google search across the whole site: page names and descriptions, headings, picture descriptions, broken links and redirects, pages that repeat each other, pages hidden from search, the site map and your business details for Google',
             'Whether AI assistants like ChatGPT may read your pages',
             'Whether two AI assistants mention you in their answers (two more if you choose)',
             'An AI action plan: what to fix first, with steps your developer can follow',
@@ -732,7 +732,7 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Reword the rest
             // of this answer freely; leave that opening clause alone.
             basic:
-              '24 checks for Google search, plus whether AI assistants like ChatGPT may read your pages, and whether two AI assistants mention you in their answers (two more if you choose). With the AI action plan: what to fix first, step by step.',
+              '27 checks for Google search, plus whether AI assistants like ChatGPT may read your pages, and whether two AI assistants mention you in their answers (two more if you choose). With the AI action plan: what to fix first, step by step.',
             complete:
               'Everything in Basic, plus eight sections about the site itself: security, speed, ease of use for people with disabilities, reliability, text quality, privacy, whether visitors understand what to do next, and visitor statistics (if you connect Google). With scan history, export to a file and the AI action plan.',
           },
@@ -850,7 +850,7 @@ export const copy = {
       aiConsentSummary:
         'In short: this report includes two AI services — Anthropic and OpenAI. Both answer questions about how your site is found; only Anthropic also reads the public pages of your site and the details you saved about it. Your password, your card details and your Google or Bing access are never sent to either.',
       aiConsentBody:
-        'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain; both providers answer those discovery questions with their own web search enabled. Separate direct questions name the brand or domain, go to both providers and are asked closed-book, without browsing or tools. Each answer is then checked by Anthropic, in its own request, against a bounded snapshot of this audit’s evidence: the profile fields you saved and text from the public pages that were crawled. On Complete, UX review can include the same saved context and bounded public-page evidence and goes to Anthropic only. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
+        'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain; both providers answer those discovery questions with their own web search enabled. Separate direct questions name the brand or domain, go to both providers and are asked closed-book, without browsing or tools. Each answer is then checked by Anthropic, in its own request, against a bounded snapshot of this audit’s evidence: the profile fields you saved and text from the public pages that were crawled. In that same request Anthropic also judges the tone in which the answer describes your business. On Complete, UX review can include the same saved context and bounded public-page evidence and goes to Anthropic only. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
       aiConsentOptInTitle: 'Optional: ask Gemini and Perplexity too',
       aiConsentOptInMode: 'Off by default',
       aiConsentOptInBody:
@@ -862,7 +862,7 @@ export const copy = {
         perplexity: 'Also ask Perplexity',
       },
       // Its own callout, not a sentence added to the notice above: that body is
-      // the versioned pre-purchase notice (core-ai-processing-notice-v5), and
+      // the versioned pre-purchase notice (core-ai-processing-notice-v6), and
       // the plan is not part of the AI work the price runs. It is consented to
       // at its own button (action-plan-notice-v1, D-232); this says so before
       // payment, on every plan that includes the plan.
@@ -2583,7 +2583,7 @@ export const copy = {
           title: 'Чи знаходять вас у Google?',
           body: 'Що Google показує про кожну сторінку (назву й короткий опис), чи не закрита сторінка від пошуку, чи немає битих посилань і сторінок, що повторюють одна одну, і чи в порядку прихований опис вашого бізнесу, який читає Google.',
           // The count is matched verbatim by apps/api/src/export/check-count-parity.test.ts.
-          foot: '24 перевірки для пошуку Google',
+          foot: '27 перевірок для пошуку Google',
         },
         ai: {
           index: 'B / ШІ-ПОМІЧНИКИ',
@@ -2644,7 +2644,7 @@ export const copy = {
         // Перший пункт містить кількість SEO-перевірок, яку звіряє
         // apps/api/src/export/check-count-parity.test.ts.
         items: [
-          '24 перевірки для пошуку Google',
+          '27 перевірок для пошуку Google',
           'Чи можуть ШІ-помічники на кшталт ChatGPT читати ваш сайт',
           'Безпека сайту (за відкритим стандартом безпеки OWASP)',
           'Зручність для людей з інвалідністю (стандарт доступності WCAG)',
@@ -2738,7 +2738,7 @@ export const copy = {
           price: BASIC_PRICE_USD,
           description: 'Чому вас не знаходять у Google і у відповідях ШІ-помічників.',
           checks: [
-            '24 перевірки для пошуку Google на всьому сайті: назви й описи сторінок, підзаголовки, описи зображень, биті посилання й переадресації, сторінки, що повторюють одна одну, сторінки, закриті від пошуку, мапа сайту і дані про ваш бізнес для Google',
+            '27 перевірок для пошуку Google на всьому сайті: назви й описи сторінок, підзаголовки, описи зображень, биті посилання й переадресації, сторінки, що повторюють одна одну, сторінки, закриті від пошуку, мапа сайту і дані про ваш бізнес для Google',
             'Чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки',
             'Чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором)',
             'План дій від ШІ: що виправити першим, з кроками, які може виконати ваш розробник',
@@ -2783,7 +2783,7 @@ export const copy = {
             // apps/api/src/export/check-count-parity.test.ts. Решту відповіді
             // можна переписувати; початок речення — ні.
             basic:
-              '24 перевірки для пошуку Google, а також чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки і чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором). З планом дій від ШІ: що виправити першим, крок за кроком.',
+              '27 перевірок для пошуку Google, а також чи дозволяє ваш сайт ШІ-помічникам на кшталт ChatGPT читати його сторінки і чи згадують вас у відповідях двох ШІ-помічників (ще двох можна додати за вибором). З планом дій від ШІ: що виправити першим, крок за кроком.',
             complete:
               'Усе з Basic, а ще вісім розділів звіту про сам сайт: безпека, швидкість, зручність для людей з інвалідністю, стабільність роботи, якість текстів, приватність, чи зрозуміло відвідувачу, що робити далі, і статистика відвідувань (якщо підключите Google). До цього додаються історія перевірок, вивантаження у файл і план дій від ШІ.',
           },
@@ -2891,7 +2891,7 @@ export const copy = {
       aiConsentSummary:
         'Коротко: у цей звіт входять два AI-сервіси — Anthropic і OpenAI. Обидва відповідають на запитання про те, як знаходять ваш сайт; і лише Anthropic додатково читає публічні сторінки вашого сайту й ті дані про нього, які ви зберегли. Ваш пароль, дані картки та доступ до Google чи Bing не надсилають жодному з них.',
       aiConsentBody:
-        'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) і OpenAI (ChatGPT) для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену; на ці discovery-запитання обидва провайдери відповідають із увімкненим власним вебпошуком. Окремі прямі запитання містять бренд або домен, ідуть до обох провайдерів і ставляться «із закритою книгою» — без пошуку в мережі та без інструментів. Потім кожну відповідь Anthropic окремим запитом звіряє з обмеженим набором доказів цього аудиту: полями профілю, які ви зберегли, і текстом публічних сторінок, які було обійдено. У Complete UX-аналіз може включати той самий збережений контекст та обмежені докази з публічних сторінок і йде лише до Anthropic. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
+        'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) і OpenAI (ChatGPT) для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену; на ці discovery-запитання обидва провайдери відповідають із увімкненим власним вебпошуком. Окремі прямі запитання містять бренд або домен, ідуть до обох провайдерів і ставляться «із закритою книгою» — без пошуку в мережі та без інструментів. Потім кожну відповідь Anthropic окремим запитом звіряє з обмеженим набором доказів цього аудиту: полями профілю, які ви зберегли, і текстом публічних сторінок, які було обійдено. У тому самому запиті Anthropic також оцінює, яким тоном відповідь описує ваш бізнес. У Complete UX-аналіз може включати той самий збережений контекст та обмежені докази з публічних сторінок і йде лише до Anthropic. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
       aiConsentOptInTitle: 'Необовʼязково: запитати також Gemini і Perplexity',
       aiConsentOptInMode: 'Вимкнено за замовчуванням',
       aiConsentOptInBody:

@@ -15,8 +15,13 @@ const REGISTRY = readFileSync(
   'utf8',
 );
 
-/** Rules whose findings become Issue Center rows. GEO rules are informational (D-109). */
-const FINDING_RULE = /ruleId: '((?:SEO|SEC|REL|A11Y|CONTENT|PRIVACY|UX)-[A-Z0-9-]+)'/g;
+/**
+ * Rules whose findings become Issue Center rows, plus the two informational GEO
+ * rules (D-109) the report's AI summary and the Action Plan name: GEO-VIS-007
+ * and GEO-VIS-009. The other GEO rules are never shown by title.
+ */
+const FINDING_RULE =
+  /ruleId: '((?:SEO|SEC|REL|A11Y|CONTENT|PRIVACY|UX)-[A-Z0-9-]+|GEO-VIS-00[79])'/g;
 
 const findingRules = [...REGISTRY.matchAll(FINDING_RULE)].map((match) => match[1] as string);
 

@@ -25,12 +25,15 @@ import { BingDataPanel, bingSectionIn } from './BingDataPanel';
 import { localizedCheckTitle } from './check-titles';
 import { CheckRow } from './CheckRow';
 import { geoEvaluationSummary } from './GeoEvaluation';
+import { GeoDigest } from './GeoDigest';
 import { GeoObservationCard } from './GeoObservationCard';
+import { geoProviderLabel } from './geo-provider-label';
 import { GeoVisibilityByEngine } from './GeoVisibility';
 import { GoogleDataPanel, googleSnapshotIn } from './GoogleDataPanel';
 import { copy, fillCopy, type Language } from './i18n';
 import {
   apiCheckOutcomesOf,
+  geoAnswerDigestOf,
   geoChecksOf,
   renderingStateOf,
   ruleCheckResult,
@@ -156,7 +159,7 @@ function ModuleChecksBody(props: {
     case GEO_MODULE:
       return (
         <GeoChecksBody
-          checks={geoChecksOf(metadata)}
+          metadata={metadata}
           observations={props.observations}
           evidence={props.evidence}
           visibilitySummary={props.visibilitySummary}
@@ -495,14 +498,45 @@ function checkDetail(check: RuleCheck, result: RuleCheckOutcome, language: Langu
 }
 
 function GeoChecksBody(props: {
-  checks: GeoChecks | null;
+  metadata: ScanModule['metadata'];
   observations: readonly GeoObservation[];
   evidence: GeoEvidence | null;
   visibilitySummary: GeoVisibilitySummary | null;
   language: Language;
 }) {
+  const checks = geoChecksOf(props.metadata);
+  const digest = geoAnswerDigestOf(props.metadata);
+  const answered = props.observations.some((observation) => observation.status === 'answered');
+  return (
+    <>
+      {/* First in the section: the owner's question is "what does AI say about
+          us", and the checks below are how that was measured. */}
+      {answered || digest !== null ? <GeoDigest digest={digest} language={props.language} /> : null}
+      {checks === null ? null : <CrawlerAccess checks={checks} language={props.language} />}
+      {checks?.pages ? <PageReadinessList pages={checks.pages} language={props.language} /> : null}
+      {/* Before the answer cards: a reader deciding whether to read every
+          answer benefits from the per-engine summary first. */}
+      {props.observations.length === 0 ? null : (
+        <GeoVisibilityByEngine summary={props.visibilitySummary} language={props.language} />
+      )}
+      <GeoQuestionsGroup
+        generation={checks?.queryGeneration ?? null}
+        observations={props.observations}
+        evidence={props.evidence}
+        language={props.language}
+      />
+    </>
+  );
+}
+
+/** The questions the section asked, and every answer, grouped by assistant. */
+function GeoQuestionsGroup(props: {
+  generation: QueryGeneration | null;
+  observations: readonly GeoObservation[];
+  evidence: GeoEvidence | null;
+  language: Language;
+}) {
   const report = copy[props.language].report;
-  const generation = props.checks?.queryGeneration ?? null;
   // Only answered questions can have been evaluated, so only those are counted.
   const evaluationSummary = geoEvaluationSummary(
     props.observations
@@ -511,41 +545,28 @@ function GeoChecksBody(props: {
     props.language,
   );
   return (
-    <>
-      {props.checks === null ? null : (
-        <CrawlerAccess checks={props.checks} language={props.language} />
+    <div className="module-checks__group">
+      <h4 className="module-checks__subheading">{report.checks.geoQuestionsHeading}</h4>
+      {props.generation === null ? null : (
+        <p className="muted">{generationNote(props.generation, props.language)}</p>
       )}
-      {props.checks?.pages ? (
-        <PageReadinessList pages={props.checks.pages} language={props.language} />
-      ) : null}
-      {/* Before the answer cards: a reader deciding whether to read every
-          answer benefits from the per-engine summary first. */}
-      {props.observations.length === 0 ? null : (
-        <GeoVisibilityByEngine summary={props.visibilitySummary} language={props.language} />
+      {props.observations.length === 0 ? (
+        <p className="muted">{report.checks.geoQuestionsNone}</p>
+      ) : (
+        <>
+          <p className="muted">{report.geoObservationsLead}</p>
+          {evaluationSummary === null ? null : <p className="muted">{evaluationSummary}</p>}
+          {geoProviderGroups(props.observations).map((group) => (
+            <GeoProviderGroup
+              key={group.provider ?? 'unnamed'}
+              group={group}
+              evidence={props.evidence}
+              language={props.language}
+            />
+          ))}
+        </>
       )}
-      <div className="module-checks__group">
-        <h4 className="module-checks__subheading">{report.checks.geoQuestionsHeading}</h4>
-        {generation === null ? null : (
-          <p className="muted">{generationNote(generation, props.language)}</p>
-        )}
-        {props.observations.length === 0 ? (
-          <p className="muted">{report.checks.geoQuestionsNone}</p>
-        ) : (
-          <>
-            <p className="muted">{report.geoObservationsLead}</p>
-            {evaluationSummary === null ? null : <p className="muted">{evaluationSummary}</p>}
-            {geoProviderGroups(props.observations).map((group) => (
-              <GeoProviderGroup
-                key={group.provider ?? 'unnamed'}
-                group={group}
-                evidence={props.evidence}
-                language={props.language}
-              />
-            ))}
-          </>
-        )}
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -588,19 +609,6 @@ function geoProviderRank(provider: string | null): number {
   if (provider === null) return GEO_PROVIDER_ORDER.length + 1;
   const known = GEO_PROVIDER_ORDER.indexOf(provider);
   return known === -1 ? GEO_PROVIDER_ORDER.length : known;
-}
-
-function geoProviderLabel(provider: string | null, language: Language): string {
-  const t = copy[language].report;
-  const names: Readonly<Record<string, string>> = {
-    openai: t.geoProviderOpenai,
-    anthropic: t.geoProviderAnthropic,
-    google: t.geoProviderGoogle,
-    perplexity: t.geoProviderPerplexity,
-  };
-  if (provider === null) return t.geoProviderUnknown;
-  // An unknown name is shown as recorded rather than translated into a guess.
-  return names[provider] ?? provider;
 }
 
 /**

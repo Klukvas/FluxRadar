@@ -6,6 +6,8 @@ import { seoTech015SearchRobots } from './seo-tech-015.js';
 // Порядок — по ruleId реестра; движок сохраняет его в результатах.
 
 import type { Rule } from '../engine/types.js';
+import { seoAdv001LocalContacts } from './local-contacts.js';
+import { seoStruct003LocalBusiness, seoStruct004LocalReviews } from './local-schema.js';
 import { seoOnpage001Title } from './seo-onpage-001.js';
 import { seoOnpage002MetaDescription } from './seo-onpage-002.js';
 import { seoOnpage003Headings } from './seo-onpage-003.js';
@@ -52,4 +54,7 @@ export const SEO_RULES: readonly Rule[] = [
   seoStruct001JsonLdSyntax,
   seoStruct002JsonLdCompleteness,
   seoSocial001Preview,
+  seoAdv001LocalContacts,
+  seoStruct003LocalBusiness,
+  seoStruct004LocalReviews,
 ];

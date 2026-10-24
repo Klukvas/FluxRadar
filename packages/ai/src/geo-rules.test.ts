@@ -1,4 +1,4 @@
-// GEO-правила ×5 (T-10): обе ветки каждого правила; все выводы informational
+// GEO-правила ×7 (T-10): обе ветки каждого правила; все выводы informational
 // (severity null, scoreDelta 0 — D-109/GEO-METHOD-005).
 
 import { describe, expect, it } from 'vitest';
@@ -11,6 +11,8 @@ import {
   evaluateGeoRules,
   evaluateGeoVis003,
   evaluateGeoVis004,
+  evaluateGeoVis007,
+  evaluateGeoVis009,
 } from './geo-rules.js';
 import type { GeoRuleInput } from './geo-rules.js';
 import {
@@ -22,6 +24,19 @@ import {
   makeUnavailableOutcome,
   ORIGIN,
 } from './testing/harness.js';
+import {
+  ABOUT_PAGE,
+  answerOutcome,
+  completedEvaluation,
+  contradicted,
+  evidenceWith,
+  judgedTone,
+  PRICING_PAGE,
+  unavailableEvaluation,
+  unverified,
+} from './testing/geo-answer-fixtures.js';
+import type { GeoAnswerEvaluation } from './geo-evaluation.js';
+import { GEO_FACT_ADVICE } from './geo-fact-digest.js';
 
 function input(overrides: Partial<GeoRuleInput> = {}): GeoRuleInput {
   return {
@@ -254,14 +269,146 @@ describe('GEO-METHOD-005 — Unavailable без штрафа', () => {
 });
 
 describe('evaluateGeoRules', () => {
-  it('возвращает все 5 правил в порядке реестра', () => {
+  it('возвращает все 7 правил в порядке реестра', () => {
     const evaluations = evaluateGeoRules(input());
     expect(evaluations.map((evaluation) => evaluation.ruleId)).toEqual([
       'GEO-PROVIDER-001',
       'GEO-VIS-003',
       'GEO-VIS-004',
+      'GEO-VIS-007',
+      'GEO-VIS-009',
       'GEO-METHOD-002',
       'GEO-METHOD-005',
     ]);
+  });
+});
+
+function byParent(
+  entries: readonly GeoAnswerEvaluation[],
+): ReadonlyMap<string, GeoAnswerEvaluation> {
+  return new Map(entries.map((entry) => [entry.parentAiRequestKey, entry]));
+}
+
+const PRICE_QUOTE = 'A Basic audit costs $39';
+const answered = [answerOutcome('a1', 'anthropic'), answerOutcome('o1', 'openai')];
+
+describe('GEO-VIS-009 — the answer differs from the site', () => {
+  const evaluations = byParent([
+    completedEvaluation('a1', [
+      contradicted('A Basic audit costs $99.', 'page-1', PRICE_QUOTE),
+      contradicted('FluxRadar is a design agency.', 'profile-2', 'Pay-per-scan website audits'),
+    ]),
+    completedEvaluation('o1', [contradicted('A Basic audit costs $99', 'page-1', PRICE_QUOTE)]),
+  ]);
+
+  it('raises one informational finding per source, not per answer', () => {
+    const evaluation = evaluateGeoVis009(
+      input({
+        outcomes: answered,
+        answerEvaluations: evaluations,
+        evidence: evidenceWith([PRICING_PAGE, ABOUT_PAGE]),
+      }),
+    );
+
+    expect(evaluation.affectedTargets).toBe(2);
+    expect(evaluation.findings.map((finding) => finding.normalizedParameter)).toEqual([
+      `page:https://${DOMAIN}/pricing`,
+      'profile:businessDescription',
+    ]);
+    for (const finding of evaluation.findings) {
+      expect(finding).toMatchObject({
+        ruleId: 'GEO-VIS-009',
+        targetKind: 'site',
+        severity: null,
+        scoreDelta: 0,
+      });
+    }
+    expect(evaluation.findings[0]?.targetUrl).toBe(PRICING_PAGE.url);
+    expect(evaluation.findings[1]?.targetUrl).toBe(ORIGIN);
+    expect(evaluation.findings[0]?.evidenceExcerpt).toContain('anthropic, openai');
+    // The finding recommends what the report shows for that kind of source.
+    expect(evaluation.findings[0]?.recommendation).toBe(GEO_FACT_ADVICE.page.en);
+    expect(evaluation.findings[1]?.recommendation).toBe(GEO_FACT_ADVICE.profile.en);
+  });
+
+  // Source ids are handed out in crawl order: the same pricing page is `page-1`
+  // in one scan and `page-2` in the next. The fingerprint must not follow them.
+  it('keeps the same parameter when the crawl reads the pages in another order', () => {
+    const reordered = evaluateGeoVis009(
+      input({
+        outcomes: answered,
+        answerEvaluations: byParent([
+          completedEvaluation('a1', [
+            contradicted('A Basic audit costs $99.', 'page-2', PRICE_QUOTE),
+          ]),
+        ]),
+        evidence: evidenceWith([ABOUT_PAGE, PRICING_PAGE]),
+      }),
+    );
+
+    expect(reordered.findings.map((finding) => finding.normalizedParameter)).toEqual([
+      `page:https://${DOMAIN}/pricing`,
+    ]);
+  });
+
+  it('finds nothing in statements the evidence is merely silent about', () => {
+    const evaluation = evaluateGeoVis009(
+      input({
+        outcomes: answered,
+        answerEvaluations: byParent([completedEvaluation('a1', [unverified('It has 40 staff.')])]),
+        evidence: evidenceWith([PRICING_PAGE]),
+      }),
+    );
+
+    expect(evaluation.findings).toEqual([]);
+    expect(evaluation.applicableTargets).toBeGreaterThan(0);
+  });
+
+  it('applies to nothing when no answer was evaluated', () => {
+    const evaluation = evaluateGeoVis009(input({ outcomes: answered }));
+
+    expect(evaluation).toMatchObject({ applicableTargets: 0, affectedTargets: 0, findings: [] });
+  });
+});
+
+describe('GEO-VIS-007 — the tone of the mention', () => {
+  it('raises a finding for each answer judged negative, and only for those', () => {
+    const outcomes = [...answered, answerOutcome('o2', 'openai'), answerOutcome('o3', 'openai')];
+    const evaluation = evaluateGeoVis007(
+      input({
+        outcomes,
+        answerEvaluations: byParent([
+          completedEvaluation('a1', [], judgedTone('negative', 'avoid it for now')),
+          completedEvaluation('o1', [], judgedTone('mixed', 'good but slow')),
+          completedEvaluation('o2', [], judgedTone('positive', 'a solid option')),
+          unavailableEvaluation('o3'),
+        ]),
+      }),
+    );
+
+    expect(evaluation.applicableTargets).toBe(3);
+    expect(evaluation.affectedTargets).toBe(1);
+    expect(evaluation.findings[0]).toMatchObject({
+      ruleId: 'GEO-VIS-007',
+      severity: null,
+      scoreDelta: 0,
+      normalizedResource: 'anthropic',
+      aiRequestKey: 'a1',
+    });
+    expect(evaluation.findings[0]?.evidenceExcerpt).toContain('avoid it for now');
+  });
+
+  it('does not apply to answers whose tone was not judged or that describe nothing', () => {
+    const evaluation = evaluateGeoVis007(
+      input({
+        outcomes: answered,
+        answerEvaluations: byParent([
+          completedEvaluation('a1', []),
+          completedEvaluation('o1', [], judgedTone(null)),
+        ]),
+      }),
+    );
+
+    expect(evaluation).toMatchObject({ applicableTargets: 0, affectedTargets: 0, findings: [] });
   });
 });

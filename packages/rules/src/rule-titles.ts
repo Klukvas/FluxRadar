@@ -46,6 +46,27 @@ export const RULE_TITLES: Readonly<Record<string, RuleTitle>> = {
     en: 'Placeholder text is still published',
     uk: 'На сторінці залишився текст-заглушка',
   },
+  'SEO-ADV-001': {
+    en: 'Review local contact information',
+    uk: 'Звірте локальні контактні дані',
+  },
+  'SEO-STRUCT-003': {
+    en: 'Review local business structured data',
+    uk: 'Перевірте структуровані дані локального бізнесу',
+  },
+  'SEO-STRUCT-004': {
+    en: 'Review local review-star eligibility',
+    uk: 'Перевірте право на зірочки відгуків Google',
+  },
+  'CONTENT-008': {
+    en: 'Review article attribution and dates',
+    uk: 'Перевірте автора та дати статті',
+  },
+  'CONTENT-012': {
+    en: 'Review medical business transparency',
+    uk: 'Перевірте прозорість медичного закладу',
+  },
+
   'SEO-TECH-001': {
     en: 'robots.txt is missing or unreachable',
     uk: 'robots.txt відсутній або недоступний',
@@ -273,6 +294,17 @@ export const RULE_TITLES: Readonly<Record<string, RuleTitle>> = {
   'UX-CONV-AI-003': {
     en: 'Friction or missing trust signals',
     uk: 'Тертя або бракує сигналів довіри',
+  },
+  // Informational GEO rules (D-109) that reach the report's AI summary and,
+  // for GEO-VIS-009, the Action Plan. The wording is "differs from your site",
+  // never "AI is wrong": the site is the evidence, and it can be the stale side.
+  'GEO-VIS-007': {
+    en: 'An AI answer describes your business negatively',
+    uk: 'Відповідь ШІ описує ваш бізнес негативно',
+  },
+  'GEO-VIS-009': {
+    en: 'AI answers differ from your site',
+    uk: 'Відповіді ШІ розходяться з вашим сайтом',
   },
 };
 

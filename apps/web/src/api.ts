@@ -554,7 +554,44 @@ export interface GeoEvaluation {
   readonly claims: readonly GeoEvaluatedClaim[];
   readonly provider: string | null;
   readonly modelId: string | null;
+  /**
+   * Whether the evaluator was asked about tone. Absent on responses from older
+   * API versions and false for a verdict written without the question — both
+   * read as "not evaluated in this scan", never as a neutral tone.
+   */
+  readonly toneEvaluated?: boolean;
+  /** Verified by the API: the quote occurs in the answer. Null when there is no tone to show. */
+  readonly tone?: GeoAnswerTone | null;
+  /** The evaluator offered a tone that did not survive validation. */
+  readonly toneAdjusted?: boolean;
 }
+
+/** Mirrors `GeoToneLabel` in @fluxradar/ai. */
+export const GEO_TONE_LABELS = ['positive', 'neutral', 'negative', 'mixed'] as const;
+export type GeoToneLabel = (typeof GEO_TONE_LABELS)[number];
+
+export interface GeoAnswerTone {
+  readonly label: GeoToneLabel;
+  readonly quote: string;
+}
+
+/** Mirrors `GeoProsePosition` in @fluxradar/ai. */
+export const GEO_PROSE_POSITIONS = ['first-sentence', 'early', 'late'] as const;
+export type GeoProsePosition = (typeof GEO_PROSE_POSITIONS)[number];
+
+/** Mirrors `GeoAnswerPosition` in @fluxradar/ai: where the brand sits in one discovery answer. */
+export type GeoAnswerPosition =
+  | {
+      readonly kind: 'list';
+      readonly rank: number;
+      readonly listSize: number;
+      readonly competitorsBefore: number;
+    }
+  | {
+      readonly kind: 'prose';
+      readonly bucket: GeoProsePosition;
+      readonly competitorsBefore: number;
+    };
 
 export interface GeoEvidenceSource {
   readonly id: string;
@@ -610,6 +647,11 @@ export interface GeoObservation {
    * on every response recorded before this field existed.
    */
   readonly mentionContext?: string | null;
+  /**
+   * Where the brand sits in this answer: only on a discovery answer that names
+   * it, and only on responses recorded after the field existed.
+   */
+  readonly position?: GeoAnswerPosition | null;
 }
 
 /** Mirrors `GeoVisibilityPurpose` in @fluxradar/contracts. */

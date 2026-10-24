@@ -10,6 +10,7 @@ import { ACTION_PLAN_EXCLUDED_MODULE } from '@fluxradar/ai';
 import type { PrismaClient } from '@prisma/client';
 
 import { OPEN_ISSUE_STATUSES } from '../issues/summary.ts';
+import { GEO_FACT_RULE_ID, readGeoFactCount } from './geo-fact-rule.ts';
 
 /**
  * The rules an Action can name: never Analytics, whose findings are Google data
@@ -58,6 +59,13 @@ export interface RuleIssueCounts {
   readonly total: ReadonlyMap<string, number>;
   /** Every open issue of the scan, Analytics included: Reach's denominator. */
   readonly totalOpen: number;
+  /**
+   * Findings of informational rules a plan may name, which are not Issue rows:
+   * GEO-VIS-009's differences between AI answers and the site. They count for
+   * the Action that names the rule — it is not settled while they stand — but
+   * not for Reach, which is a share of the scan's issues.
+   */
+  readonly informational: ReadonlyMap<string, number>;
 }
 
 export async function readRuleIssueCounts(
@@ -65,7 +73,7 @@ export async function readRuleIssueCounts(
   scanId: string,
 ): Promise<RuleIssueCounts> {
   const openStatuses = { status: { in: [...OPEN_ISSUE_STATUSES] } };
-  const [all, open, totalOpen] = await Promise.all([
+  const [all, open, totalOpen, geoFacts] = await Promise.all([
     prisma.issue.groupBy({
       by: ['ruleId'],
       where: { scanId, ...PLANNABLE_ISSUES },
@@ -77,11 +85,13 @@ export async function readRuleIssueCounts(
       _count: { _all: true },
     }),
     prisma.issue.count({ where: { scanId, ...openStatuses } }),
+    readGeoFactCount(prisma, scanId),
   ]);
   return {
     open: new Map(open.map((row) => [row.ruleId, row._count._all])),
     total: new Map(all.map((row) => [row.ruleId, row._count._all])),
     totalOpen,
+    informational: new Map(geoFacts === 0 ? [] : [[GEO_FACT_RULE_ID, geoFacts]]),
   };
 }
 
@@ -89,14 +99,18 @@ export function overlayFor(
   actions: readonly { readonly ruleIds: readonly string[] }[],
   counts: RuleIssueCounts,
 ): ActionPlanOverlay {
+  const informational = (ruleId: string): number => counts.informational.get(ruleId) ?? 0;
   const actionOverlays = actions.map((action): ActionOverlay => {
     const openIssues = action.ruleIds.reduce(
-      (sum, ruleId) => sum + (counts.open.get(ruleId) ?? 0),
+      (sum, ruleId) => sum + (counts.open.get(ruleId) ?? 0) + informational(ruleId),
       0,
     );
     return {
       openIssues,
-      totalIssues: action.ruleIds.reduce((sum, ruleId) => sum + (counts.total.get(ruleId) ?? 0), 0),
+      totalIssues: action.ruleIds.reduce(
+        (sum, ruleId) => sum + (counts.total.get(ruleId) ?? 0) + informational(ruleId),
+        0,
+      ),
       settled: openIssues === 0,
     };
   });

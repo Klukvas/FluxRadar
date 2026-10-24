@@ -9,7 +9,7 @@ import { checksSections, type ChecksCopy } from './checks-copy-sections';
 
 export const checksCopyEn: ChecksCopy = {
   kicker: 'FLUXRADAR',
-  meta: ['Updated 2026-10-20', 'No login required to read this'],
+  meta: ['Updated 2026-10-21', 'No login required to read this'],
   title: 'Audit coverage',
   lede: 'Exactly what FluxRadar inspects, why, and what it cannot certify — with no customer credentials required for the core public audit.',
   back: '← Back to home',
@@ -42,7 +42,7 @@ export const checksCopyEn: ChecksCopy = {
       label: '01 / SEO VISIBILITY',
       title: 'SEO — what FluxRadar checks',
       intro: [
-        'The SEO module runs up to **24 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
+        'The SEO module runs up to **27 deterministic checks** derived from documented search-engine guidance (Google Search Central, Bing Webmaster Guidelines, schema.org). All checks are rule-based; no model inference is involved.',
       ],
       bullets: [
         {
@@ -83,7 +83,15 @@ export const checksCopyEn: ChecksCopy = {
         },
         {
           term: 'Structured data / JSON-LD',
-          body: 'every `<script type="application/ld+json">` block parses as JSON, and at least one block carries both an `@context` and a `@type`. Individual schema.org types and their required properties are not validated.',
+          body: 'every `<script type="application/ld+json">` block parses as JSON, and at least one block carries both an `@context` and a `@type`. General schema.org type validation is outside this check; local business properties have a separate informational check below.',
+        },
+        {
+          term: 'Local business contacts and markup',
+          body: 'informational observations of local contacts, telephone links, opening hours and NAP consistency for an explicitly identified business or unique matching name/address. LocalBusiness and recognized subtypes distinguish required name/physical address from recommended telephone/hours/geo. Use the most specific applicable type. Branches, aliases and alternative phones are preserved; incomplete crawls do not justify absence claims.',
+        },
+        {
+          term: 'Local review-star eligibility',
+          body: 'informational notice when local markup carries reviews or ratings. If this is the business’s own site, self-serving LocalBusiness/Organization ratings do not qualify for Google review stars, including third-party widgets. Same-host markup alone does not prove ownership. Missing ratings never fail.',
         },
         {
           term: 'Social preview tags',
@@ -144,6 +152,10 @@ export const checksCopyEn: ChecksCopy = {
         {
           term: 'Provider visibility (paid, disclosed before purchase)',
           body: "on a paid audit the AI SEO module puts the same questions to Claude (Anthropic) and ChatGPT (OpenAI) and checks whether the answers mention your brand or cite your site; the report lists the sources each model used. Discovery questions — the ones about your market — are answered with the model’s own web search enabled. The fixed direct questions about your brand are asked closed-book, with no search and no tools, so the answer shows what the model already knows rather than what it just read on your site. Gemini (Google) and Perplexity are an opt-in extra chosen before purchase and receive nothing otherwise. This never runs in the free homepage check. Provider API calls are subject to the providers' own terms.",
+        },
+        {
+          term: 'What AI says about your business (paid, informational only)',
+          body: "each answer is checked by Anthropic, in its own request, against this scan's evidence — the profile fields you saved and text from the public pages the crawl read. The report gathers the result at the top of the section: where an answer **differs from your site**, grouped by the page or profile field that says otherwise, with the answer's words beside your site's; the tone in which each assistant describes your business (positive, neutral, negative or mixed, always with the quote it rests on); and where your brand comes up in answers to neutral questions — named first, its place in a list, and whether a competitor from your profile was named before you. The place is counted by FluxRadar itself, not by a model. Your site is the evidence here, and it can be the out-of-date side, so a difference is a prompt to check the page, not a verdict on the assistant. It is a snapshot of one run, not what a model knows about you in general, and it never changes your score.",
         },
         {
           term: 'Visibility score per engine (paid, informational only)',
@@ -316,7 +328,9 @@ export const checksCopyEn: ChecksCopy = {
           body: 'a page whose `<html lang>` declares English or Ukrainian (regional subtags like `en-GB` count) and that carries at least 200 characters of visible text gets a readability score on a 0–100 scale (higher is easier to read) — Flesch Reading Ease for English text; for Ukrainian text, the Oborneva adaptation of the same formula, calibrated on Russian and applied to Ukrainian as an approximation. Readability is measured over paragraph text (`<p>`, `<blockquote>` and `<dd>` elements, outside navigation, lists and tables) that has this language\'s script in at least 70% of its letters; a page needs at least 5 sentences and 100 words of that paragraph text to be scored. It is flagged below 30 on either scale ("very confusing"). This is a mechanical measure of sentence and word length, not a judgement of the writing itself, and a page without a declared English or Ukrainian language, whose paragraph text\'s script does not clear that 70% bar, or whose copy is not laid out in paragraph elements at all (some page builders) is not scored. The AI SEO / GEO section links here for the same score.',
         },
       ],
-      outro: [],
+      outro: [
+        'Article transparency is informational: the primary article needs a named author OR medical reviewer and publication date; modification dates are optional. Medical-business transparency records observed doctor profiles, qualification descriptions, about/contact and license information in a complete readable crawl. These checks do not verify credentials or legal validity, deduct score, or promise Google trust, rankings or GEO improvements.',
+      ],
     },
     privacy: {
       nav: 'Privacy & consent',

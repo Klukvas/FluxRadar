@@ -8,8 +8,10 @@ import { describe, expect, it } from 'vitest';
 import type {
   AiRequest,
   GeoAnswerEvaluation,
+  GeoEvaluatedClaim,
   GeoEvidenceSnapshot,
   GeoModuleResult,
+  GeoToneVerdict,
   MentionSignal,
 } from '@fluxradar/ai';
 
@@ -867,5 +869,188 @@ describe('T6 — visibility summary in metadata', () => {
     );
     const [request] = requestsOf(row);
     expect(request).not.toHaveProperty('mentionContext');
+  });
+});
+
+describe('what AI says about the business, stored at scan time', () => {
+  const PRICES_URL = `https://${SITE_DOMAIN}/prices/`;
+  const DIGEST_EVIDENCE: GeoEvidenceSnapshot = {
+    siteDomain: SITE_DOMAIN,
+    sources: [
+      {
+        id: 'page-1',
+        kind: 'page',
+        label: 'Prices',
+        url: PRICES_URL,
+        excerpt: 'Prices — Implants from $500.',
+        provenance: 'text read from the public page during this scan',
+      },
+    ],
+    limits: [],
+    sufficiency: 'substantive',
+  };
+
+  function discovery(sequence: number, provider: 'anthropic' | 'openai', rawText: string) {
+    const base = answered(sequence, 'discovery');
+    return {
+      ...base,
+      request: { ...base.request, provider, promptVersion: 'geo-questions-v5-discovery' },
+      response: { ...base.response, provider, rawText },
+    };
+  }
+
+  function judged(
+    parentAiRequestKey: string,
+    tone: GeoToneVerdict,
+    claims: readonly GeoEvaluatedClaim[] = [],
+  ): GeoAnswerEvaluation {
+    return {
+      parentAiRequestKey,
+      purpose: 'discovery',
+      status: 'Completed',
+      reason: null,
+      detail: null,
+      payload: {
+        answerDescribesSubject: true,
+        claims,
+        overall: claims.length > 0 ? 'contradicts-evidence' : 'unverified',
+        overallAdjusted: false,
+        tone,
+      },
+      aiRequestKey: `judge-${parentAiRequestKey}`,
+      provider: 'anthropic',
+      modelId: 'claude-sonnet-5',
+      promptVersion: tone.judged ? 'geo-answer-evaluation-v2' : 'geo-answer-evaluation-v1',
+      usage: null,
+    };
+  }
+
+  const CONTRADICTION: GeoEvaluatedClaim = {
+    claim: 'Implants cost $2,000.',
+    verdict: 'contradicted',
+    answerQuote: 'implants from $2,000',
+    sourceId: 'page-1',
+    sourceQuote: 'Implants from $500.',
+  };
+
+  function rowWith(evaluations: ReadonlyMap<string, GeoAnswerEvaluation>) {
+    return buildRow(
+      geoResult({
+        outcomes: [
+          discovery(1, 'anthropic', '1. Rival Dental\n2. Acme Clinic — implants from $2,000'),
+          discovery(2, 'openai', 'Acme Clinic is known for slow replies.'),
+        ],
+        mentions: mentions({
+          'key-1': ['mentioned', 'not-mentioned'],
+          'key-2': ['mentioned', 'not-mentioned'],
+        }),
+        answerEvaluations: evaluations,
+        evaluatedEvidence: DIGEST_EVIDENCE,
+      }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+      DIGEST_EVIDENCE,
+      SITE_DOMAIN,
+      SITE_BRAND,
+      ['Rival Dental'],
+    );
+  }
+
+  it('stores the fact digest, the tone and the brand position in the metadata', () => {
+    const row = rowWith(
+      new Map([
+        ['key-1', judged('key-1', { judged: true, tone: null, adjusted: false }, [CONTRADICTION])],
+        [
+          'key-2',
+          judged('key-2', {
+            judged: true,
+            tone: { label: 'negative', quote: 'known for slow replies' },
+            adjusted: false,
+          }),
+        ],
+      ]),
+    );
+    const visibility = visibilityOf(row) as unknown as {
+      answerDigest: Record<string, unknown>;
+      requests: readonly Record<string, unknown>[];
+    };
+
+    expect(visibility.answerDigest.facts).toEqual({
+      answersChecked: 2,
+      differenceCount: 1,
+      groups: [
+        {
+          source: {
+            key: `page:https://${SITE_DOMAIN}/prices`,
+            kind: 'page',
+            label: 'Prices',
+            url: PRICES_URL,
+          },
+          differences: [
+            {
+              claim: 'Implants cost $2,000.',
+              providers: ['anthropic'],
+              answerQuote: 'implants from $2,000',
+              sourceQuote: 'Implants from $500.',
+            },
+          ],
+        },
+      ],
+    });
+    expect(visibility.answerDigest.tone).toMatchObject({
+      judged: true,
+      negativeQuotes: [{ provider: 'openai', quote: 'known for slow replies' }],
+    });
+    expect(visibility.answerDigest.position).toMatchObject({
+      competitorsConfigured: true,
+      providers: [
+        { provider: 'anthropic', placedAnswers: 1, firstPlace: 0, inList: 1, afterCompetitors: 1 },
+        { provider: 'openai', placedAnswers: 1, firstPlace: 1, inList: 0, afterCompetitors: 0 },
+      ],
+    });
+    expect(visibility.requests[0]?.position).toEqual({
+      kind: 'list',
+      rank: 2,
+      listSize: 2,
+      competitorsBefore: 1,
+    });
+    expect(visibility.requests[1]?.position).toEqual({
+      kind: 'prose',
+      bucket: 'first-sentence',
+      competitorsBefore: 0,
+    });
+    expect(visibility.requests[1]?.evaluation).toMatchObject({
+      tone: { label: 'negative', quote: 'known for slow replies' },
+      toneAdjusted: false,
+    });
+  });
+
+  // Absence is the signal: a verdict written without the tone question must
+  // read as "not judged", never as a null tone.
+  it('writes no tone field for a verdict that was not asked about tone', () => {
+    const row = rowWith(new Map([['key-1', judged('key-1', { judged: false }, [CONTRADICTION])]]));
+    const visibility = visibilityOf(row) as unknown as {
+      answerDigest: { tone: { judged: boolean } };
+      requests: readonly { evaluation: Record<string, unknown> | null }[];
+    };
+
+    expect(visibility.requests[0]?.evaluation).not.toHaveProperty('tone');
+    expect(visibility.requests[0]?.evaluation).not.toHaveProperty('toneAdjusted');
+    expect(visibility.answerDigest.tone.judged).toBe(false);
+  });
+
+  it('stores an empty fact digest when nothing was evaluated', () => {
+    const row = buildRow(
+      geoResult({ outcomes: [answered(1, 'discovery')] }),
+      generationResult(),
+      AI_CRAWLER_READINESS,
+    );
+    const visibility = visibilityOf(row) as unknown as { answerDigest: { facts: unknown } };
+
+    expect(visibility.answerDigest.facts).toEqual({
+      answersChecked: 0,
+      differenceCount: 0,
+      groups: [],
+    });
   });
 });

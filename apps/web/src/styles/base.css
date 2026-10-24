@@ -1582,6 +1582,32 @@ code,
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+/* The tone and the brand's place in the answer: two short lines that belong to
+   the verdict above them, so no rule of their own — set like the quote beside
+   them, and wrapped anywhere because the tone line carries a quote from the
+   answer. */
+.geo-observation__tone,
+.geo-observation__position {
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+/* "What AI says about your business", first in the GEO section. Each of its
+   three parts is spaced like a group of the panel and separated by a rule, and
+   keeps the panel's phone-width guard: a long quote or address must wrap, not
+   widen the section. */
+.geo-digest__part {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+  min-width: 0;
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--plat-300);
+}
+.geo-digest p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 /* One card per engine, at the top of the GEO section, before the answer cards. */
 .geo-visibility__grid {
   display: grid;
