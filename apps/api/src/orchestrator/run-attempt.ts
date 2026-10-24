@@ -548,11 +548,15 @@ export async function runScanAttempt(
       // running twice. Failing the attempt over it would escalate a transient
       // database error into a platform retry — the one path that *does* discard
       // the run — so it is recorded and the attempt continues.
-      deps.logger.error('scan checkpoint could not be written; the run continues without it', {
-        scanId,
-        stage,
-        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-      });
+      deps.logger.error(
+        'scan checkpoint could not be written; the run continues without it',
+        {
+          scanId,
+          stage,
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+        },
+        error,
+      );
     }
   };
   if (egress.location !== null) {

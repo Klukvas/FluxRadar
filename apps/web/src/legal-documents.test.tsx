@@ -107,7 +107,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 21 October 2026/);
+    expect(policy).toHaveTextContent(/Effective 23 October 2026/);
     // The merchant of record is Creem, and the policy says what FluxRadar sends
     // it before the buyer ever sees Creem's page — the account email, product
     // and checkout reference — as well as what comes back by webhook.
@@ -274,6 +274,62 @@ describe('public legal documents', () => {
     expect(screen.getByRole('button', { name: 'Налаштування cookies' })).toBeInTheDocument();
   });
 
+  // Error monitoring is a recipient like any other: who it is, where the data
+  // sits, what a report carries — scrubbed as error-monitoring-scrub.ts and the
+  // API's report-scrub.ts scrub it — and that it stores nothing in the browser.
+  it('discloses Sentry error monitoring, in both languages', () => {
+    render(<LegalDocumentScreen kind="privacy" language="en" onLanguageChange={() => {}} />);
+
+    const policy = screen.getByRole('article');
+    expect(policy).toHaveTextContent(
+      /Sentry \(Functional Software, Inc\.\) provides error monitoring for the site and the service, with data stored in Sentry’s EU region \(Germany\)/,
+    );
+    expect(policy).toHaveTextContent(
+      /error message and stack trace, the app release, the browser and operating-system version, the page address without query parameters/,
+    );
+    expect(policy).toHaveTextContent(
+      /for server errors, the operation, the request path and internal identifiers/,
+    );
+    expect(policy).toHaveTextContent(
+      /Before a report is sent, the email addresses, tokens and passwords recognised in it are removed automatically/,
+    );
+    expect(policy).toHaveTextContent(
+      /Sentry sets no cookies and stores nothing in the browser, IP addresses are not stored, and reports are kept for up to 90 days/,
+    );
+    expect(policy).toHaveTextContent(/Error reports from the site and the service go to Sentry/);
+    expect(policy).toHaveTextContent(/Error reports in Sentry: up to 90 days/);
+    expect(screen.getByRole('link', { name: 'Sentry Privacy Policy' })).toHaveAttribute(
+      'href',
+      'https://sentry.io/privacy/',
+    );
+
+    cleanup();
+    render(<LegalDocumentScreen kind="privacy" language="uk" onLanguageChange={() => {}} />);
+
+    const controlling = screen.getByRole('article');
+    expect(controlling).toHaveTextContent(
+      /Sentry \(Functional Software, Inc\.\) — моніторинг помилок сайту й сервісу; дані зберігаються в європейському регіоні Sentry \(Німеччина\)/,
+    );
+    expect(controlling).toHaveTextContent(
+      /текст помилки та stack trace, версію застосунку, версію браузера й операційної системи, адресу сторінки без query‑параметрів/,
+    );
+    expect(controlling).toHaveTextContent(
+      /для помилок сервера — назву операції, шлях запиту та внутрішні ідентифікатори/,
+    );
+    expect(controlling).toHaveTextContent(
+      /Перед надсиланням зі звіту автоматично вилучаються email‑адреси, токени й паролі, які в ньому розпізнано/,
+    );
+    expect(controlling).toHaveTextContent(
+      /Sentry не встановлює cookies і нічого не зберігає в браузері, IP‑адреси не зберігаються, а звіти видаляються не пізніше ніж через 90 днів/,
+    );
+    expect(controlling).toHaveTextContent(/Звіти про помилки сайту й сервісу надходять до Sentry/);
+    expect(controlling).toHaveTextContent(/Звіти про помилки в Sentry — до 90 днів/);
+    expect(screen.getByRole('link', { name: 'Privacy Policy Sentry' })).toHaveAttribute(
+      'href',
+      'https://sentry.io/privacy/',
+    );
+  });
+
   // The measured steps are a closed list, and it has to match what the app
   // sends to GA4 (funnel-analytics.ts, checkout-analytics.ts, AuthScreen,
   // ScanProgress): a step sent but not named here is undisclosed measuring.
@@ -317,7 +373,7 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 21 жовтня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 23 жовтня 2026 року/);
     expect(privacy).toHaveTextContent(
       /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія\) — merchant of record і checkout provider/,
     );

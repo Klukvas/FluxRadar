@@ -5,6 +5,7 @@ import { App } from './App';
 import { initialPublicRoute } from './app-routes';
 import { matchingPublicSnapshot } from './public-page-routing';
 import { startAnalytics } from './analytics';
+import { rootErrorHandlers, startErrorMonitoring } from './error-monitoring';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -14,6 +15,8 @@ if (!rootElement) {
 // Before the first render, so the first screen's page view finds the tag ready
 // when the visitor has already allowed analytics.
 startAnalytics();
+// A no-op unless this build was given a Sentry DSN (error-monitoring.ts).
+startErrorMonitoring();
 
 const snapshot = matchingPublicSnapshot(
   rootElement.getAttribute('data-public-snapshot'),
@@ -32,5 +35,5 @@ const app = (
 );
 if (snapshot === null) {
   rootElement.replaceChildren();
-  createRoot(rootElement).render(app);
-} else hydrateRoot(rootElement, app);
+  createRoot(rootElement, rootErrorHandlers()).render(app);
+} else hydrateRoot(rootElement, app, rootErrorHandlers());

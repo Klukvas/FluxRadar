@@ -186,10 +186,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # A `--build-arg NAME` without a value takes NAME's value from the
+          # step's environment below, so nothing here is interpolated into the
+          # command line. The web DSN goes to the web image only.
           - service: api
-            build-args: ''
+            build-args: --build-arg SENTRY_RELEASE
           - service: web
-            build-args: --build-arg VITE_API_URL=/api
+            build-args: >-
+              --build-arg VITE_API_URL=/api --build-arg VITE_SENTRY_DSN
+              --build-arg VITE_SENTRY_RELEASE
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -205,6 +210,18 @@ jobs:
           RELEASE_ID: ${{ github.sha }}
           SERVICE: ${{ matrix.service }}
           BUILD_ARGS: ${{ matrix.build-args }}
+          # Sentry error reports name the commit they came from. Both images
+          # bake it in; nothing else reads these names.
+          SENTRY_RELEASE: ${{ github.sha }}
+          VITE_SENTRY_RELEASE: ${{ github.sha }}
+          # The browser's DSN is public by design — every page that reports
+          # carries it — so it is a production environment VARIABLE, not a
+          # secret. Empty builds a site that loads no Sentry code at all
+          # (apps/web/src/error-monitoring.ts); an unusable one fails this build
+          # by name (apps/web/src/sentry-dsn.ts). Enable "Prevent Storing of IP
+          # Addresses" (Project Settings → Security & Privacy) on both Sentry
+          # projects before setting the DSN; the Privacy Policy relies on it.
+          VITE_SENTRY_DSN: ${{ vars.PRODUCTION_SENTRY_WEB_DSN }}
         run: |
           set -euo pipefail
           # BUILD_ARGS is deliberately unquoted: it is zero or more flags.
@@ -334,6 +351,15 @@ jobs:
           # PRODUCTION_ENV_FILE cannot be read back, so without this override
           # adding one address would mean retyping every other variable.
           PRODUCTION_ADMIN_EMAILS: ${{ secrets.PRODUCTION_ADMIN_EMAILS }}
+          # Error reports from the API (Sentry, EU region). A secret: the DSN
+          # lets whoever holds it file events into the project. Empty keeps
+          # what PRODUCTION_ENV_FILE defines, and with neither present errors
+          # are only logged; a value that is present but not an https DSN of the
+          # EU region fails the boot by name (observability/sentry-config.ts).
+          # Enable "Prevent Storing of IP Addresses" (Project Settings → Security
+          # & Privacy) on both Sentry projects before setting the DSN; the
+          # Privacy Policy relies on it.
+          PRODUCTION_SENTRY_DSN: ${{ secrets.PRODUCTION_SENTRY_DSN }}
           PRODUCTION_HETZNER_S3_ACCESS_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_ACCESS_KEY }}
           PRODUCTION_HETZNER_S3_SECRET_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_SECRET_KEY }}
           PRODUCTION_HETZNER_S3_ENDPOINT: ${{ secrets.PRODUCTION_HETZNER_S3_ENDPOINT }}
@@ -419,6 +445,7 @@ jobs:
 
           upsert_env FLUXRADAR_INTERNAL_FREE_EMAILS INTERNAL_FREE_EMAILS
           upsert_env FLUXRADAR_ADMIN_EMAILS PRODUCTION_ADMIN_EMAILS
+          upsert_env SENTRY_DSN PRODUCTION_SENTRY_DSN
           upsert_env FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS PRODUCTION_FREE_CHECK_ALLOWED_ORIGINS
           upsert_env INTEGRATION_ENCRYPTION_KEY PRODUCTION_INTEGRATION_ENCRYPTION_KEY
           upsert_env BING_OAUTH_CLIENT_ID PRODUCTION_BING_OAUTH_CLIENT_ID

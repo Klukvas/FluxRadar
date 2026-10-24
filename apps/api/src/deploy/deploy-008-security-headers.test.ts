@@ -95,6 +95,13 @@ const GA_COLLECTION_SOURCES = [
   'https://*.analytics.google.com',
   'https://*.googletagmanager.com',
 ];
+/**
+ * Where the browser SDK sends error reports: Sentry's EU (Germany) ingest. The
+ * organisation's subdomain is part of the DSN, so this is a pattern too — and,
+ * like the GA hosts, it is confined to `connect-src`: the SDK itself is
+ * bundled with the site's own scripts and needs no script source.
+ */
+const SENTRY_INGEST_SOURCE = 'https://*.ingest.de.sentry.io';
 const policyText = caddyHeader(CSP_FIELD) ?? '';
 const policy = parsePolicy(policyText);
 
@@ -161,7 +168,11 @@ describe('the Content-Security-Policy', () => {
   it('grants Creem no CSP source at all, and frames nothing', () => {
     expect(policy.get('frame-src')).toEqual(["'none'"]);
     expect(policy.get('style-src')).toEqual(["'self'", "'unsafe-inline'"]);
-    expect(policy.get('connect-src')).toEqual(["'self'", ...GA_COLLECTION_SOURCES]);
+    expect(policy.get('connect-src')).toEqual([
+      "'self'",
+      ...GA_COLLECTION_SOURCES,
+      SENTRY_INGEST_SOURCE,
+    ]);
     for (const [, sources] of policy) {
       for (const source of sources) {
         expect(source.toLowerCase()).not.toContain('onfastspring.com');
@@ -193,6 +204,21 @@ describe('the Content-Security-Policy', () => {
       'https://*.google-analytics.com',
       'https://*.googletagmanager.com',
     ]);
+  });
+});
+
+describe('the Sentry ingest source', () => {
+  // Only the EU region, which is where the privacy policy says reports are
+  // stored, and only as a destination for requests.
+  it('is granted to connect-src alone, in the EU region only', () => {
+    const withSentry = [...policy]
+      .filter(([, sources]) => sources.some((source) => source.includes('sentry')))
+      .map(([directive]) => directive);
+
+    expect(withSentry).toEqual(['connect-src']);
+    expect((policy.get('connect-src') ?? []).filter((source) => source.includes('sentry'))).toEqual(
+      [SENTRY_INGEST_SOURCE],
+    );
   });
 });
 
