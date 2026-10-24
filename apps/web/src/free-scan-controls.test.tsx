@@ -234,11 +234,11 @@ describe('paid plan controls', () => {
     ).toBeInTheDocument();
     expect(within(callout).getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
       'href',
-      '/privacy?lang=en',
+      '/privacy',
     );
     expect(within(callout).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
       'href',
-      '/terms?lang=en',
+      '/terms',
     );
     expect(within(callout).queryByRole('checkbox')).not.toBeInTheDocument();
   });
@@ -311,7 +311,7 @@ describe('paid plan controls', () => {
     const callout = screen.getByRole('group', { name: 'AI-обробка включена в цей аудит' });
     expect(within(callout).getByRole('link', { name: 'Політика приватності' })).toHaveAttribute(
       'href',
-      '/privacy?lang=uk',
+      '/uk/privacy',
     );
   });
 

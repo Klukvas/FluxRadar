@@ -21,6 +21,7 @@ import { apiRequest, type Account } from './api';
 import { authCopy } from './auth-copy';
 import { AlertDialog, Button, Checkbox, Field, Window } from './components';
 import { copy, type Language } from './i18n';
+import { publicPagePath } from './public-page-routing';
 
 export type AuthMode = 'login' | 'register';
 export type EmailAction = { readonly kind: 'verify' | 'reset'; readonly token: string };
@@ -189,11 +190,11 @@ export function AuthScreen(props: {
           <>
             <p className="muted">
               {mode === 'login' ? t.cookieNote : t.consentNote}
-              <a href={`/terms?lang=${props.language}`}>{legal.terms.title}</a>
+              <a href={publicPagePath('terms', props.language)}>{legal.terms.title}</a>
               {' · '}
-              <a href={`/privacy?lang=${props.language}`}>{legal.privacy.title}</a>
+              <a href={publicPagePath('privacy', props.language)}>{legal.privacy.title}</a>
               {' · '}
-              <a href={`/cookies?lang=${props.language}`}>{legal.cookies.title}</a>
+              <a href={publicPagePath('cookies', props.language)}>{legal.cookies.title}</a>
             </p>
           </>
         ) : null}

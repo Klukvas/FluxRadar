@@ -7,6 +7,7 @@ import { newScanCopy } from './new-scan-copy';
 import type { NewScanForm } from './new-scan-form';
 import { NewScanStep } from './NewScanSteps';
 import { PLAN_MODULES, planIncludesActionPlan, type Plan } from './plan-modules';
+import { publicPagePath } from './public-page-routing';
 import { ScanCallout } from './ScanCallout';
 import { PLAN_PRICE } from './tariff-prices';
 
@@ -97,9 +98,9 @@ export function PlanStep(props: {
             defaultOpen
           >
             {t.newScan.aiConsentBody}{' '}
-            <a href={`/privacy?lang=${props.language}`}>{t.newScan.aiConsentPrivacy}</a>
+            <a href={publicPagePath('privacy', props.language)}>{t.newScan.aiConsentPrivacy}</a>
             {' · '}
-            <a href={`/terms?lang=${props.language}`}>{t.newScan.aiConsentTerms}</a>
+            <a href={publicPagePath('terms', props.language)}>{t.newScan.aiConsentTerms}</a>
           </ScanCallout>
           {/* Separate from the notice above, because it is a choice and that
               one is not. Both providers stay off until one of these is ticked,
