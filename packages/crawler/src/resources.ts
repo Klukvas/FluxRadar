@@ -16,8 +16,8 @@
 import { MEDIA_PROBE_LIMITS, RENDER_RESOURCE_PROBE_LIMITS } from '@fluxradar/contracts';
 import { normalizeUrl } from '@fluxradar/fingerprint';
 import { SafeFetchError } from '@fluxradar/safe-fetch';
-import { parse } from 'node-html-parser';
 
+import { parseHtml } from './html-parse.js';
 import { MEDIA_SELECTOR, RENDER_RESOURCE_SELECTOR } from './link-extractor.js';
 import type {
   CrawlFetcher,
@@ -140,7 +140,7 @@ function collectCandidates(
   for (const page of pages) {
     if (page.html === null || page.fetchError !== undefined) continue;
     if (page.status < 200 || page.status >= 300) continue;
-    for (const element of parse(page.html).querySelectorAll(selector)) {
+    for (const element of parseHtml(page.html).querySelectorAll(selector)) {
       const raw = (element.getAttribute('src') ?? element.getAttribute('href'))?.trim() ?? '';
       const url = resolveHttpUrl(raw, page.finalUrl);
       if (url === null || !isInScope(url)) continue;

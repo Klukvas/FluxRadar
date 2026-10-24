@@ -16,25 +16,54 @@ import {
 import { parsePage } from '../seo/dom.js';
 
 const descriptor = requireDescriptor('A11Y-007');
+
+// Непустые значения role сверяются с полным набором НЕабстрактных ролей
+// WAI-ARIA 1.2 (W3C Recommendation, https://www.w3.org/TR/wai-aria-1.2/,
+// §5.4 «Definition of Roles»; абстрактность каждой роли — строка
+// «Is Abstract» её определения). Список взят из текста спецификации, а не
+// по памяти: неполный набор превращал корректную разметку в finding —
+// production-скан fluxradar.net сообщал «unknown ARIA role» про
+// <button role="combobox"> на 18 страницах.
+//
+// 12 абстрактных ролей (§5.3.1: command, composite, input, landmark, range,
+// roletype, section, sectionhead, select, structure, widget, window) здесь
+// намеренно отсутствуют: спецификация запрещает авторам использовать их в
+// разметке, поэтому role="widget" — такая же ошибка, как опечатка.
+//
+// Роли DPUB-ARIA (doc-*) и Graphics-ARIA (graphics-*) живут в отдельных
+// спецификациях и в этот набор не входят.
 const KNOWN_ROLES = new Set([
   'alert',
   'alertdialog',
   'application',
   'article',
   'banner',
+  'blockquote',
   'button',
+  'caption',
   'cell',
   'checkbox',
+  'code',
+  'columnheader',
+  'combobox',
   'complementary',
+  'contentinfo',
+  'definition',
+  'deletion',
   'dialog',
+  'directory',
   'document',
+  'emphasis',
   'feed',
   'figure',
   'form',
+  'generic',
   'grid',
   'gridcell',
+  'group',
   'heading',
   'img',
+  'insertion',
   'link',
   'list',
   'listbox',
@@ -42,13 +71,18 @@ const KNOWN_ROLES = new Set([
   'log',
   'main',
   'marquee',
+  'math',
   'menu',
   'menubar',
   'menuitem',
+  'menuitemcheckbox',
+  'menuitemradio',
   'meter',
   'navigation',
   'none',
+  'note',
   'option',
+  'paragraph',
   'presentation',
   'progressbar',
   'radio',
@@ -56,11 +90,17 @@ const KNOWN_ROLES = new Set([
   'region',
   'row',
   'rowgroup',
+  'rowheader',
   'scrollbar',
   'search',
+  'searchbox',
+  'separator',
   'slider',
   'spinbutton',
   'status',
+  'strong',
+  'subscript',
+  'superscript',
   'switch',
   'tab',
   'table',
@@ -68,6 +108,7 @@ const KNOWN_ROLES = new Set([
   'tabpanel',
   'term',
   'textbox',
+  'time',
   'timer',
   'toolbar',
   'tooltip',

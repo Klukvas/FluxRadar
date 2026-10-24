@@ -16,6 +16,38 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // One parse entry point for HTML (packages/crawler/src/html-parse.ts).
+    //
+    // node-html-parser finds the end of a raw text element (script, noscript,
+    // style, pre) by literal `indexOf('</tag>')`, so spec-valid spellings like
+    // `</noscript\n>` are never matched and the rest of the document silently
+    // becomes raw text of that element. `parseHtml` normalises those end tags
+    // first; a direct `parse` import brings the bug back for that call site
+    // only, which is exactly the kind of regression nobody notices.
+    //
+    // Every TypeScript file in the repository, not only the three packages that
+    // parse HTML today: a `parse` import added in packages/ai or apps/web would
+    // bring the truncation back somewhere nobody is looking. Tests may use the
+    // raw parser — several assert on HTML they wrote themselves.
+    files: ['**/*.ts', '**/*.tsx'],
+    ignores: ['**/*.test.ts', '**/*.test.tsx', 'packages/crawler/src/html-parse.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'node-html-parser',
+              importNames: ['parse', 'default'],
+              message: 'Use parseHtml from @fluxradar/crawler (see html-parse.ts).',
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Static browser scripts under `public/`: shipped verbatim, no bundler and
     // no TypeScript, so they only get the browser globals they actually use.
     files: ['apps/web/public/**/*.js'],

@@ -2,8 +2,8 @@
 // мелкие DOM-хелперы, общие для нескольких SEO-правил.
 
 import type { PageSnapshot } from '@fluxradar/crawler';
+import { parseHtml } from '@fluxradar/crawler';
 import type { HTMLElement } from 'node-html-parser';
-import { parse } from 'node-html-parser';
 
 const documentCache = new WeakMap<PageSnapshot, HTMLElement>();
 
@@ -13,7 +13,7 @@ export function parsePage(page: PageSnapshot): HTMLElement {
   if (cached !== undefined) {
     return cached;
   }
-  const root = parse(page.html ?? '');
+  const root = parseHtml(page.html ?? '');
   documentCache.set(page, root);
   return root;
 }

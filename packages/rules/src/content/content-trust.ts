@@ -1,5 +1,4 @@
-import type { PageSnapshot } from '@fluxradar/crawler';
-import { parse } from 'node-html-parser';
+import { parseHtml, type PageSnapshot } from '@fluxradar/crawler';
 
 import { requireDescriptor } from '../engine/descriptor.js';
 import { pageFinding } from '../engine/finding.js';
@@ -112,7 +111,7 @@ function articleFacts(page: PageSnapshot): ArticleFacts {
     (primaryDomArticles.length === 1 ? primaryDomArticles[0] : undefined);
   const source = primaryArticle ?? root.querySelector('main');
   // Work on a detached copy: DOM parsing is shared with the other rules.
-  const articleBody = source === null || source === undefined ? null : parse(source.outerHTML);
+  const articleBody = source === null || source === undefined ? null : parseHtml(source.outerHTML);
   articleBody
     ?.querySelectorAll(
       primaryArticle === undefined
