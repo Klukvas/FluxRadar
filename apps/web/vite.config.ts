@@ -9,6 +9,7 @@ import { defineConfig, runnerImport } from 'vite';
 // source, while Vite's native config loader gets an explicit ESM import.
 import { legacyPublicRedirect, publicRequestRewrite } from './src/public-page-routing.js';
 import { blogIndexUrl } from './src/blog-routing.js';
+import { sentryDsnProblem } from './src/sentry-dsn.js';
 
 /**
  * Serve standalone content HTML for clean /blog and /knowledge-base paths in `vite dev` and
@@ -132,6 +133,29 @@ function staticPageHeadsPlugin(): Plugin {
   };
 }
 
+/**
+ * Refuses to build a site whose error reports could never arrive: a
+ * VITE_SENTRY_DSN that is set but unusable (src/sentry-dsn.ts) fails the image
+ * build here, instead of shipping a site that only warns in the console. An
+ * empty value builds without error monitoring. The DSN is never printed.
+ */
+function sentryDsnCheckPlugin(): Plugin {
+  return {
+    name: 'sentry-dsn-check',
+    apply: 'build',
+    configResolved(config) {
+      const dsn = String(config.env.VITE_SENTRY_DSN ?? '').trim();
+      const problem = dsn === '' ? null : sentryDsnProblem(dsn, config.mode);
+      if (problem !== null) {
+        throw new Error(
+          `VITE_SENTRY_DSN is set but unusable: ${problem}. Fix the PRODUCTION_SENTRY_WEB_DSN ` +
+            'variable, or leave it empty to build without error monitoring.',
+        );
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), blogIndexRewritePlugin(), staticPageHeadsPlugin()],
+  plugins: [react(), blogIndexRewritePlugin(), staticPageHeadsPlugin(), sentryDsnCheckPlugin()],
 });

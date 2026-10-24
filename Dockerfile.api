@@ -61,6 +61,12 @@ RUN mkdir -p /data && chown -R node:node /app /data /ms-playwright
 
 USER node
 
+# The commit this image was built from, so an error report names its deploy
+# (apps/api/src/observability/sentry-config.ts). It turns nothing on by itself.
+# Declared last, so a new SHA invalidates no layer above it.
+ARG SENTRY_RELEASE=
+ENV SENTRY_RELEASE=$SENTRY_RELEASE
+
 EXPOSE 3310
 
 CMD ["node", "apps/api/dist/index.js"]

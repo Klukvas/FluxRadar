@@ -213,9 +213,13 @@ export async function sweepProviderPendingRefunds(
     const result = await reconcileProviderPendingRefunds(prisma, now, sweep);
     logger.info('pending refund sweep completed', { provider: sweep.provider, ...result });
   } catch (error) {
-    logger.error('pending refund sweep failed', {
-      provider: sweep.provider,
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    });
+    logger.error(
+      'pending refund sweep failed',
+      {
+        provider: sweep.provider,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      },
+      error,
+    );
   }
 }
