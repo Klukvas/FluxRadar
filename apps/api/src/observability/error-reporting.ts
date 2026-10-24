@@ -26,9 +26,9 @@ export const SHUTDOWN_FLUSH_TIMEOUT_MS = 2_000;
 
 export interface ErrorReporter {
   /**
-   * Files one event for one logged error, grouped by `message`. With an Error
-   * as `cause` the event carries that error's own stack; without one it is a
-   * message event. Never throws.
+   * Files one event for one logged error. With an Error as `cause` the event
+   * carries that error's own stack and is grouped by it within `message`;
+   * without one it is a message event grouped by `message` alone. Never throws.
    */
   report(
     message: string,
@@ -99,16 +99,19 @@ export type SentryCapture = Pick<typeof Sentry, 'captureException' | 'captureMes
 export function createSentryReporter(sdk: SentryCapture): ErrorReporter {
   return {
     report(message, context, cause) {
-      const captureContext = {
-        level: 'error' as const,
-        // One issue per log line, however many different errors arrive under it.
-        fingerprint: [message],
-        contexts: { api_log: { message, ...context } },
-      };
+      const base = { level: 'error' as const, contexts: { api_log: { message, ...context } } };
       if (cause instanceof Error) {
-        sdk.captureException(cause, captureContext);
+        // Sentry's own stack grouping, within the log line: every 500 is logged
+        // as "unhandled API error", and a TypeError in one route and a Prisma
+        // error in another are two problems, not one issue. The same exception
+        // under two different log lines stays two issues as well.
+        // `{{ default }}` is a server-side grouping variable; the SDK sends the
+        // fingerprint as given.
+        sdk.captureException(cause, { ...base, fingerprint: ['{{ default }}', message] });
       } else {
-        sdk.captureMessage(message, captureContext);
+        // No stack to group by: an operator alert such as "refund dispatches
+        // need an operator" is one issue however often it fires.
+        sdk.captureMessage(message, { ...base, fingerprint: [message] });
       }
     },
     flush: (timeoutMs) => sdk.flush(timeoutMs),

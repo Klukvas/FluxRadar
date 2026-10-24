@@ -107,7 +107,7 @@ describe('the reporter', () => {
     };
   }
 
-  it('files the logged error with its own stack, grouped by the log message', () => {
+  it('files the logged error with its own stack, grouped by that stack within the log message', () => {
     const sdk = fakeSdk();
     const cause = new Error('connection reset');
 
@@ -116,25 +116,38 @@ describe('the reporter', () => {
     expect(sdk.captureException).toHaveBeenCalledTimes(1);
     expect(sdk.captureException).toHaveBeenCalledWith(cause, {
       level: 'error',
-      fingerprint: ['queue drain failed'],
+      fingerprint: ['{{ default }}', 'queue drain failed'],
       contexts: { api_log: { message: 'queue drain failed', scanId: 's1' } },
     });
     expect(sdk.captureMessage).not.toHaveBeenCalled();
   });
 
-  it('files a message event when there is no Error to carry a stack', () => {
+  it('files a message event, grouped by the log message alone, when there is no Error', () => {
     const sdk = fakeSdk();
 
     createSentryReporter(sdk).report('refund dispatches need an operator', { count: 2 }, undefined);
-    createSentryReporter(sdk).report('thrown string', undefined, 'not an error');
 
     expect(sdk.captureException).not.toHaveBeenCalled();
-    expect(sdk.captureMessage).toHaveBeenNthCalledWith(1, 'refund dispatches need an operator', {
+    expect(sdk.captureMessage).toHaveBeenCalledWith('refund dispatches need an operator', {
       level: 'error',
       fingerprint: ['refund dispatches need an operator'],
       contexts: { api_log: { message: 'refund dispatches need an operator', count: 2 } },
     });
-    expect(sdk.captureMessage).toHaveBeenCalledTimes(2);
+  });
+
+  // Something other than an Error carries no stack, so there is nothing for
+  // the default grouping to tell apart.
+  it('takes the message path for a thrown string', () => {
+    const sdk = fakeSdk();
+
+    createSentryReporter(sdk).report('background scan failed', { scanId: 's1' }, 'not an error');
+
+    expect(sdk.captureException).not.toHaveBeenCalled();
+    expect(sdk.captureMessage).toHaveBeenCalledWith('background scan failed', {
+      level: 'error',
+      fingerprint: ['background scan failed'],
+      contexts: { api_log: { message: 'background scan failed', scanId: 's1' } },
+    });
   });
 
   it('flushes through the SDK with the timeout it is given', async () => {
@@ -210,7 +223,8 @@ describe('the real SDK, with these options', () => {
     expect(bodies).toHaveLength(1);
     expect(events).toHaveLength(1);
     const [event] = events;
-    expect(event?.fingerprint).toEqual(['queue drain failed']);
+    // Sent as given: Sentry expands `{{ default }}` on its side.
+    expect(event?.fingerprint).toEqual(['{{ default }}', 'queue drain failed']);
     expect(event?.exception?.values?.at(-1)?.value).toBe(
       'mail to [email] failed at https://x.example/',
     );
