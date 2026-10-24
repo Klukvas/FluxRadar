@@ -41,7 +41,7 @@
     "pdfkit": "^0.20.2",
     "playwright": "^1.63.0",
     "tldts": "^7.4.18",
-    "zod": "^4.5.4"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
