@@ -25,6 +25,13 @@ COPY packages packages
 
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
+# Browser error reports (Sentry). The DSN is public by design; empty — the
+# default, and what the CI image check builds — leaves every Sentry byte out of
+# the bundle (apps/web/src/error-monitoring.ts). The release is the git SHA.
+ARG VITE_SENTRY_DSN=
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
+ARG VITE_SENTRY_RELEASE=
+ENV VITE_SENTRY_RELEASE=$VITE_SENTRY_RELEASE
 
 RUN pnpm --filter @fluxradar/web build
 

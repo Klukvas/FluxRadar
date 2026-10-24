@@ -189,10 +189,14 @@ export function reportPdfRouter(deps: PdfRouterDeps): Router {
     void archivePdf(deps, logger, accountId, scanId, rendered.bytes)
       .then((outcome) => deps.onArchived?.(outcome))
       .catch((error: unknown) => {
-        logger.error('report pdf archive failed', {
-          scanId,
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-        });
+        logger.error(
+          'report pdf archive failed',
+          {
+            scanId,
+            error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          },
+          error,
+        );
       });
   });
 
@@ -232,11 +236,15 @@ async function archivePdf(
     });
     return 'stored';
   } catch (error) {
-    logger.error('report pdf archive failed', {
-      scanId,
-      objectKey,
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    });
+    logger.error(
+      'report pdf archive failed',
+      {
+        scanId,
+        objectKey,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      },
+      error,
+    );
     return 'failed';
   }
 }

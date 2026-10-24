@@ -1,6 +1,7 @@
 import { readCreemConfig } from '../billing/creem/config.ts';
 import { REFUND_DISPATCH_ENV, readRefundDispatchConfig } from '../billing/refunds/config.ts';
 import { MOCK_EMAIL_ENV, isMockEmailOptIn } from '../email/mock-email.ts';
+import { readSentryConfig } from '../observability/sentry-config.ts';
 import { DEFAULT_ANTHROPIC_MODEL, readAnthropicConfig } from './anthropic-config.ts';
 import { readCrawlEgressConfig } from './crawl-egress-config.ts';
 import { readIntegrationEncryptionKey } from './encryption-key.ts';
@@ -124,6 +125,9 @@ function partialIntegrationFailures(env: NodeJS.ProcessEnv): readonly string[] {
     readGeminiConfig(env),
     readPerplexityConfig(env),
     readCrawlEgressConfig(env),
+    // Absent is fine — errors are then only logged. A DSN that is present but
+    // unusable would read as "monitoring is on" while nothing ever arrives.
+    readSentryConfig(env),
   ];
   return results.flatMap((result) => (result.state === 'invalid' ? [result.reason] : []));
 }

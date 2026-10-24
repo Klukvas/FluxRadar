@@ -300,10 +300,14 @@ async function processClaimedJob(
           logger.info('scan cancelled during execution', { scanId });
           return await finishCancelledScan(prisma, scanId, activeJobId);
         }
-        logger.error('scan execution failed', {
-          scanId,
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-        });
+        logger.error(
+          'scan execution failed',
+          {
+            scanId,
+            error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          },
+          error,
+        );
         if (current.status === 'Running') {
           await transitionScan(prisma, scanId, 'Running', 'Failed', {
             statusReason: 'PlatformFailure',

@@ -65,23 +65,31 @@ export function errorHandler(
       // variables, what the provider objected to. It belongs in the log, and
       // the response carries the neutral message and the code alone.
       if (error.detail !== null) {
-        logger.error('billing request failed', {
-          method: req.method,
-          path: req.path,
-          code: error.code,
-          detail: error.detail,
-        });
+        logger.error(
+          'billing request failed',
+          {
+            method: req.method,
+            path: req.path,
+            code: error.code,
+            detail: error.detail,
+          },
+          error,
+        );
       }
       res.status(billingErrorStatus(error)).json(errorEnvelope(error.code, error.message));
       return;
     }
     // Неизвестная ошибка: полный контекст в лог, наружу — нейтральный ответ.
-    logger.error('unhandled API error', {
-      method: req.method,
-      path: req.path,
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    });
+    logger.error(
+      'unhandled API error',
+      {
+        method: req.method,
+        path: req.path,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      error,
+    );
     res.status(500).json(errorEnvelope('INTERNAL', 'internal server error'));
   };
 }

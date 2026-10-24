@@ -55,6 +55,7 @@ describe('startup integration diagnostics', () => {
       'google',
       'bing',
       'creem',
+      'sentry',
     ]);
     expect(statusOf({}, 'pagespeed')).toBe('configured');
     expect(
@@ -138,6 +139,25 @@ describe('startup integration diagnostics', () => {
     expect(summary?.context.configured).toContain('pagespeed');
     expect(summary?.context.disabled).toContain('bing');
     expect(summary?.context.invalid).toContain('storage');
+  });
+
+  // Error reports are optional, and an unusable DSN is reported by name: the
+  // DSN itself never reaches a log line.
+  it('reports Sentry as disabled, configured or invalid, never by value', () => {
+    const dsn = 'https://0123456789abcdef0123456789abcdef@o1.ingest.de.sentry.io/42';
+    const { lines, logger } = recordingLogger();
+
+    expect(statusOf({}, 'sentry')).toBe('not_configured');
+    expect(statusOf({ SENTRY_DSN: dsn }, 'sentry')).toBe('configured');
+    logIntegrationStatuses(logger, readIntegrationStatuses({ SENTRY_DSN: 'not a dsn' }));
+
+    expect(lines.find((line) => line.level === 'error')?.context).toEqual({
+      integration: 'sentry',
+      missing: ['SENTRY_DSN'],
+    });
+    logIntegrationStatuses(logger, readIntegrationStatuses({ SENTRY_DSN: dsn }));
+    expect(JSON.stringify(lines)).not.toContain('0123456789abcdef0123456789abcdef');
+    expect(JSON.stringify(lines)).not.toContain('not a dsn');
   });
 
   // "pagespeed: configured" is true either way — the provider answers keyless

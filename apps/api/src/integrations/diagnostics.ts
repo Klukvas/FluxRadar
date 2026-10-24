@@ -9,6 +9,7 @@
 import { readCreemConfig } from '../billing/creem/config.ts';
 import { readResendConfig } from '../email/resend-config.ts';
 import type { ApiLogger } from '../http/logger.ts';
+import { readSentryConfig } from '../observability/sentry-config.ts';
 import { readTelegramConfig } from '../support/telegram-config.ts';
 import { readAnthropicConfig } from './anthropic-config.ts';
 import { readObjectStorageConfig } from './object-storage-config.ts';
@@ -73,6 +74,8 @@ export function readIntegrationStatuses(
     status('google', readOAuthConfig('google', env)),
     status('bing', readOAuthConfig('bing', env)),
     status('creem', readCreemConfig(env)),
+    // Error reports. Disabled is a supported state: errors are then only logged.
+    status('sentry', readSentryConfig(env)),
   ];
 }
 

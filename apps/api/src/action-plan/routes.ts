@@ -166,11 +166,15 @@ export function actionPlanRouter(deps: ActionPlanRouterDeps): Router {
           signal,
         ),
       (error: unknown) => {
-        deps.logger.error('action plan generation failed', {
-          scanId,
-          language,
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-        });
+        deps.logger.error(
+          'action plan generation failed',
+          {
+            scanId,
+            language,
+            error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          },
+          error,
+        );
       },
     );
     sendOk(res, { scanId, language, status: 'Running' }, { status: 202 });
