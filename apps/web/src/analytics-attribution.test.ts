@@ -32,6 +32,31 @@ afterEach(() => {
 });
 
 describe('bounded consented campaign attribution', () => {
+  it.each(['ua_search_audit_test', 'ua_attribution_check'])(
+    'accepts the fixed public Google Ads campaign %s in the SPA',
+    (campaign) => {
+      expect(
+        approvedAttribution(`?utm_source=google&utm_medium=cpc&utm_campaign=${campaign}`),
+      ).toEqual({
+        campaign_source: 'google',
+        campaign_medium: 'cpc',
+        campaign_name: campaign,
+      });
+    },
+  );
+  it.each([
+    '?utm_source=google&utm_medium=cpc',
+    '?utm_source=google&utm_medium=cpc&utm_campaign=',
+    '?utm_source=google&utm_medium=cpc&utm_campaign=person%40example.com',
+    '?utm_source=google&utm_medium=cpc&utm_campaign=customer-site.example',
+    '?utm_source=google&utm_medium=cpc&utm_campaign=ua_search_audit_test&utm_campaign=ua_search_audit_test',
+    '?utm_source=google&utm_source=google&utm_medium=cpc&utm_campaign=ua_search_audit_test',
+    '?utm_source=google&utm_medium=cpc&utm_medium=cpc&utm_campaign=ua_search_audit_test',
+    '?utm_source=google&utm_medium=cpc&utm_campaign=UA_SEARCH_AUDIT_TEST',
+  ])('rejects missing, ambiguous or private paid campaign labels %s', (query) => {
+    expect(approvedAttribution(query)).toBeNull();
+  });
+
   it.each(Object.entries(APPROVED_CAMPAIGN_PAIRS))(
     'accepts only the published %s pair in both runtimes',
     (source, medium) => {

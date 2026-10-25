@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   GA_SCRIPT_ID,
@@ -48,6 +48,61 @@ afterEach(() => {
 });
 
 describe('consent-gated Google Analytics', () => {
+  it('reports the approved paid campaign without putting the query in page metadata', () => {
+    visit(
+      'https://fluxradar.net/uk?utm_source=google&utm_medium=cpc&utm_campaign=ua_search_audit_test&gclid=private-click&reset_token=private-token#private-fragment',
+    );
+    saveCookieConsent(EVERYTHING_ALLOWED);
+    startAnalytics();
+    trackPageView();
+    const calls = gtagCalls();
+    const configIndex = calls.findIndex((call) => call[0] === 'config');
+    expect(calls[configIndex]?.[2]).toMatchObject({
+      campaign_source: 'google',
+      campaign_medium: 'cpc',
+      campaign_name: 'ua_search_audit_test',
+      page_location: 'https://fluxradar.net/uk',
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+    });
+    expect(calls.slice(0, configIndex)).toContainEqual([
+      'set',
+      { page_location: 'https://fluxradar.net/uk', page_title: 'FluxRadar' },
+    ]);
+    expect(sentEvents('page_view')[0]?.page_location).toBe('https://fluxradar.net/uk');
+    expect(JSON.stringify(calls)).not.toMatch(/private-|utm_|gclid|reset_token/);
+  });
+
+  it('keeps only approved labels in memory for consent after SPA navigation', () => {
+    visit(
+      'https://fluxradar.net/uk?utm_source=google&utm_medium=cpc&utm_campaign=ua_attribution_check&verify_email=private-email',
+    );
+    const localWrites = vi.spyOn(window.localStorage, 'setItem');
+    const sessionWrites = vi.spyOn(window.sessionStorage, 'setItem');
+    startAnalytics();
+    visit('https://fluxradar.net/scans/private-scan/report?token=private-token');
+    document.title = 'FluxRadar report — customer-site.example';
+    trackPageView();
+    expect(window.dataLayer).toBeUndefined();
+    expect(document.getElementById(GA_SCRIPT_ID)).toBeNull();
+    expect(localWrites).not.toHaveBeenCalled();
+    expect(sessionWrites).not.toHaveBeenCalled();
+    localWrites.mockRestore();
+    sessionWrites.mockRestore();
+    saveCookieConsent(EVERYTHING_ALLOWED);
+    expect(gtagCalls().find((call) => call[0] === 'config')?.[2]).toMatchObject({
+      campaign_source: 'google',
+      campaign_medium: 'cpc',
+      campaign_name: 'ua_attribution_check',
+      page_location: 'https://fluxradar.net/scans/:id/report',
+    });
+    expect(sentEvents('page_view')[0]).toMatchObject({
+      page_location: 'https://fluxradar.net/scans/:id/report',
+      page_title: 'FluxRadar scan',
+    });
+    expect(JSON.stringify(gtagCalls())).not.toMatch(/private-|customer-site|utm_|token/);
+  });
+
   it('requests nothing from Google before the visitor allows analytics', () => {
     saveCookieConsent({ preferences: true, analytics: false });
     startAnalytics();

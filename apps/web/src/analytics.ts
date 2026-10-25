@@ -47,6 +47,8 @@ let active = false;
 let tagLoaded = false;
 let lastPathname: string | null = null;
 let lastLocation: string | null = null;
+// Approved public labels only, held in memory for consent after SPA navigation.
+let landingAttribution: ReturnType<typeof approvedAttribution> = null;
 
 // gtag.js only reads dataLayer entries that are `arguments` objects; an array
 // built from a rest parameter is silently ignored. Google's own snippet is
@@ -105,9 +107,11 @@ function loadTag(): void {
   if (tagLoaded) return;
   tagLoaded = true;
   gtag('js', new Date());
+  // Config can schedule automatic events, so establish safe page defaults first.
+  describeCurrentPage();
   gtag('config', GA_MEASUREMENT_ID, {
     send_page_view: false,
-    ...approvedAttribution(window.location.search),
+    ...(landingAttribution ?? approvedAttribution(window.location.search)),
     page_location: `${window.location.origin}${analyticsPath(window.location.pathname)}`,
     page_referrer: analyticsReferrer(document.referrer, window.location.origin) ?? '',
     allow_google_signals: false,
@@ -124,7 +128,10 @@ function loadTag(): void {
 }
 
 function stop(): void {
-  if (active) setDisabled(true);
+  if (active) {
+    setDisabled(true);
+    landingAttribution = null;
+  }
   active = false;
   lastPathname = null;
   lastLocation = null;
@@ -183,6 +190,7 @@ export function trackPageView(): void {
   });
   lastPathname = pathname;
   lastLocation = page.location;
+  landingAttribution = null;
 }
 
 /** How gtag delivers one event; never part of what the event says. */
@@ -216,6 +224,7 @@ export function trackEvent(
 export function startAnalytics(): void {
   if (started) return;
   started = true;
+  if (isAnalyticsHost()) landingAttribution = approvedAttribution(window.location.search);
   window.addEventListener(COOKIE_CONSENT_CHANGE_EVENT, onConsentChange);
   window.addEventListener('storage', onStorage);
   sync(false);
@@ -230,6 +239,7 @@ export function resetAnalyticsForTests(): void {
   tagLoaded = false;
   lastPathname = null;
   lastLocation = null;
+  landingAttribution = null;
   delete window.dataLayer;
   document.getElementById(GA_SCRIPT_ID)?.remove();
 }
