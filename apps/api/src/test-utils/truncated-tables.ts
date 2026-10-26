@@ -13,6 +13,7 @@ export const TRUNCATED_TABLES = [
   'FreeCheckClaim',
   'Session',
   'EmailToken',
+  'GoogleLoginState',
   'EmailNotification',
   'Account',
   'SiteProfile',

@@ -343,6 +343,8 @@ jobs:
           # which nothing in this repository can check: an unverified sender is
           # an HTTP error on the first send, reported to the user as an
           # emailVerification status of "provider-error" (email/resend-config.ts).
+          # Nonsecret emergency switch; empty keeps the base configuration.
+          PRODUCTION_GOOGLE_LOGIN_ENABLED: ${{ vars.GOOGLE_LOGIN_ENABLED }}
           PRODUCTION_RESEND_API_KEY: ${{ secrets.PRODUCTION_RESEND_API_KEY }}
           PRODUCTION_RESEND_FROM_EMAIL: ${{ secrets.PRODUCTION_RESEND_FROM_EMAIL }}
           # Owner dashboard (/admin/stats). A secret for the same reason as the
@@ -467,6 +469,7 @@ jobs:
           upsert_env PAGESPEED_API_KEY PRODUCTION_PAGESPEED_API_KEY
           upsert_env CRUX_API_KEY PRODUCTION_CRUX_API_KEY
           upsert_env CRAWL_EGRESS_PROXY_URL PRODUCTION_CRAWL_EGRESS_PROXY_URL
+          upsert_env GOOGLE_LOGIN_ENABLED PRODUCTION_GOOGLE_LOGIN_ENABLED
           upsert_env RESEND_API_KEY PRODUCTION_RESEND_API_KEY
           upsert_env RESEND_FROM_EMAIL PRODUCTION_RESEND_FROM_EMAIL
           upsert_env HETZNER_S3_ACCESS_KEY PRODUCTION_HETZNER_S3_ACCESS_KEY

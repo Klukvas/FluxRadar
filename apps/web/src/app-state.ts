@@ -5,10 +5,11 @@
 // which React does not observe: a state hook is matched to its call position,
 // and that position is the same on every render.
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import type { Account, CurrentPlan, Scan, SiteProfile } from './api';
 import { readInitialRoute, type InitialRoute, type Screen } from './app-routes';
+import { googleRetryIntent, rememberGoogleIntent } from './google-auth-return';
 import type { ChosenPlan } from './Pricing';
 
 /** What a visitor asked for before they had an account. */
@@ -23,10 +24,8 @@ function useRouteState(initialRoute?: InitialRoute) {
   const [screen, setScreen] = useState<Screen>(entryRoute.screen);
   const [emailAction, setEmailAction] = useState(entryRoute.emailAction);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  // What a visitor asked for before they had an account — the site typed on the
-  // home page, or a plan picked on its pricing cards. Kept in memory only:
-  // registration happens in a dialog over the same page, so nothing is stored.
-  const [intent, setIntent] = useState<VisitorIntent | null>(null);
+  const [intent, setIntent] = useState<VisitorIntent | null>(googleRetryIntent);
+  useEffect(() => rememberGoogleIntent(intent), [intent]);
   return {
     entryRoute,
     screen,

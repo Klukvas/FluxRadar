@@ -75,6 +75,10 @@ FLUXRADAR_ROLLBACK_API_UPSTREAM=""
 FLUXRADAR_ROLLBACK_WEB_UPSTREAM=""
 FLUXRADAR_ROLLBACK_API_CONTAINER=""
 FLUXRADAR_ROLLBACK_WEB_CONTAINER=""
+FLUXRADAR_ROLLBACK_API_IMAGE=""
+FLUXRADAR_ROLLBACK_WEB_IMAGE=""
+FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_ENV_FILE=""
+FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_REQUIRED=false
 if [ -f "$TARGET_FILE" ]; then
   # shellcheck disable=SC1090
   . "$TARGET_FILE"
@@ -125,6 +129,20 @@ if [ -n "$failed_id" ] && [ "$failed_id" = "$TARGET_ID" ]; then
   echo "To go further back, deploy a known-good commit: revert it on main and push." >&2
   exit 4
 fi
+
+# The release gate verified these immutable images, including any host patch.
+TARGET_API_IMAGE="${FLUXRADAR_ROLLBACK_API_IMAGE:-fluxradar-api:$TARGET_ID}"
+TARGET_WEB_IMAGE="${FLUXRADAR_ROLLBACK_WEB_IMAGE:-fluxradar-web:$TARGET_ID}"
+if [ -n "$FLUXRADAR_ROLLBACK_API_IMAGE" ] || [ -n "$FLUXRADAR_ROLLBACK_WEB_IMAGE" ]; then
+  if ! [[ "$TARGET_API_IMAGE" =~ ^sha256:[a-f0-9]{64}$ && "$TARGET_WEB_IMAGE" =~ ^sha256:[a-f0-9]{64}$ ]] \
+    || ! docker image inspect "$TARGET_API_IMAGE" >/dev/null 2>&1 \
+    || ! docker image inspect "$TARGET_WEB_IMAGE" >/dev/null 2>&1; then
+    echo 'ROLLBACK FAILED: recorded immutable images are unavailable; no tag fallback' >&2; exit 1
+  fi
+fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/google-login-env.sh" || exit 1
+load_google_login_env "${FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_ENV_FILE:-$APP_DIR/auth-patches/google-login-20261026-v1/google-login.env}" "$FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_REQUIRED" || exit 1
 
 # From here a target exists, so the failed release is genuinely being replaced
 # and its containers go first, whatever else this script can do. They run with
@@ -199,14 +217,19 @@ render_caddyfile() {
 # that was removed, from the image the rollback gate proved is still on the host.
 ensure_container() {
   name="$1"
-  shift
+  expected_image="$2"
+  refresh_environment="$3"
+  shift 3
   if docker container inspect "$name" >/dev/null 2>&1; then
-    if [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" = "true" ]; then
-      return 0
+    if [[ "$expected_image" = sha256:* ]] && [ "$(docker inspect --format '{{.Image}}' "$name")" != "$expected_image" ]; then
+      echo 'ROLLBACK FAILED: existing target container image differs from the verified image' >&2; return 1
     fi
-    docker start "$name" >/dev/null && return 0
-    echo "ROLLBACK: could not start the existing container $name; recreating it." >&2
-    docker rm -f "$name" >/dev/null 2>&1 || true
+    if [ "$refresh_environment" != true ]; then
+      if [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" = "true" ]; then return 0; fi
+      docker start "$name" >/dev/null && return 0
+    fi
+    # Google login's nonsecret kill switch must also apply to an existing target.
+    docker rm -f "$name" >/dev/null 2>&1 || return 1
   fi
   docker run -d --name "$name" --restart unless-stopped --network-alias "$name" "$@" >/dev/null
 }
@@ -216,8 +239,8 @@ web_upstream=""
 state_api_container="$FLUXRADAR_ROLLBACK_API_CONTAINER"
 state_web_container="$FLUXRADAR_ROLLBACK_WEB_CONTAINER"
 if [ -n "$TARGET_ID" ] \
-  && docker image inspect "fluxradar-api:$TARGET_ID" >/dev/null 2>&1 \
-  && docker image inspect "fluxradar-web:$TARGET_ID" >/dev/null 2>&1; then
+  && docker image inspect "$TARGET_API_IMAGE" >/dev/null 2>&1 \
+  && docker image inspect "$TARGET_WEB_IMAGE" >/dev/null 2>&1; then
   postgres_container="$(cd "$compose_dir" && docker compose --env-file .env.production -p fluxradar ps -q postgres 2>/dev/null || true)"
   network=""
   if [ -n "$postgres_container" ]; then
@@ -238,25 +261,27 @@ if [ -n "$TARGET_ID" ] \
   if [ -n "$FAILED_RELEASE" ] && [ -f "$FAILED_RELEASE/.env.production" ]; then
     api_env_file="$FAILED_RELEASE/.env.production"
   fi
-  ensure_container "fluxradar-api-$TARGET_ID" \
+  state_api_container="${state_api_container:-fluxradar-api-$TARGET_ID}"
+  state_web_container="${state_web_container:-fluxradar-web-$TARGET_ID}"
+  # Recreate the API with the same environment the rollback gate verified.
+  ensure_container "$state_api_container" "$TARGET_API_IMAGE" true \
     --network "$network" \
     --env-file "$api_env_file" \
+    ${GOOGLE_LOGIN_ENV_ARGS[@]+"${GOOGLE_LOGIN_ENV_ARGS[@]}"} \
     --env NODE_ENV=production \
     --env PORT=3310 \
     --env FRONTEND_ORIGIN=https://fluxradar.net \
-    "fluxradar-api:$TARGET_ID" \
+    "$TARGET_API_IMAGE" \
     || { echo "ROLLBACK FAILED: the previous release's API container could not be started." >&2; exit 1; }
-  ensure_container "fluxradar-web-$TARGET_ID" \
+  ensure_container "$state_web_container" "$TARGET_WEB_IMAGE" false \
     --network "$network" \
-    "fluxradar-web:$TARGET_ID" \
+    "$TARGET_WEB_IMAGE" \
     || { echo "ROLLBACK FAILED: the previous release's web container could not be started." >&2; exit 1; }
   # Docker's user-defined network resolves container names and aliases. Keep
   # the rollback on those stable identities rather than recording an
   # ephemeral IP that can become stale as soon as a container is recreated.
-  api_upstream="fluxradar-api-$TARGET_ID:3310"
-  web_upstream="fluxradar-web-$TARGET_ID:80"
-  state_api_container="fluxradar-api-$TARGET_ID"
-  state_web_container="fluxradar-web-$TARGET_ID"
+  api_upstream="$state_api_container:3310"
+  web_upstream="$state_web_container:80"
 fi
 
 if [ -z "$api_upstream" ] || [ -z "$web_upstream" ]; then
@@ -396,6 +421,8 @@ FLUXRADAR_API_UPSTREAM=$api_upstream
 FLUXRADAR_WEB_UPSTREAM=$web_upstream
 FLUXRADAR_API_CONTAINER=$state_api_container
 FLUXRADAR_WEB_CONTAINER=$state_web_container
+FLUXRADAR_GOOGLE_LOGIN_ENV_FILE=$GOOGLE_LOGIN_ENV_FILE
+FLUXRADAR_GOOGLE_LOGIN_REQUIRED=$GOOGLE_LOGIN_REQUIRED
 STATE
 chmod 600 "$STATE_FILE"
 

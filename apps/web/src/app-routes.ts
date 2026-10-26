@@ -257,6 +257,7 @@ export function initialPublicRoute(route: PublicPageRoute): InitialRoute {
 export function readInitialRoute(): InitialRoute {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   const emailAction = emailActionFrom(window.location.search);
+  if (new URLSearchParams(window.location.search).has('google_auth_error')) return plainRoute('auth');
   const publicRoute = publicPageRoute(path);
   if (
     publicRoute !== null &&

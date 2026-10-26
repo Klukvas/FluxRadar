@@ -15,7 +15,8 @@ datasource db {
 model Account {
   id                    String    @id @default(cuid())
   email                 String    @unique
-  passwordHash          String
+  passwordHash          String?
+  googleSubject         String?   @unique
   emailVerifiedAt       DateTime?
   onboardingCompletedAt DateTime?
   onboardingSkippedAt   DateTime?
@@ -44,6 +45,19 @@ model Account {
   crawlPages         ScanCrawlPage[]
   crawlResourceSets  ScanCrawlResourceSet[]
   domainVerifications DomainVerification[]
+}
+
+// Short-lived login attempts; no Google access/refresh tokens are retained.
+model GoogleLoginState {
+  stateHash   String   @id
+  bindingHash String
+  nonceHash   String
+  codeVerifier String
+  rememberMe Boolean @default(false)
+  language String?
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }
 
 model EmailToken {

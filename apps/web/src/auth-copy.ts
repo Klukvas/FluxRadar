@@ -51,6 +51,14 @@ export type AuthCopy = {
   readonly forgotLink: string;
   readonly failed: string;
   readonly verificationFailed: string;
+  readonly googleContinue: string;
+  readonly googleOrEmail: string;
+  readonly googleUnavailable: string;
+  readonly googleFailed: string;
+  readonly googleCancelled: string;
+  readonly googleEmailExists: string;
+  readonly googleUseEmail: string;
+  readonly googleEmailChanged: string;
 };
 
 export const authCopy: Record<Language, AuthCopy> = {
@@ -107,6 +115,18 @@ export const authCopy: Record<Language, AuthCopy> = {
     forgotLink: 'Forgot password?',
     failed: 'Authentication failed',
     verificationFailed: 'Verification failed',
+    googleEmailChanged:
+      'Your Google email has changed. For account security, use your FluxRadar password or contact support to recover access.',
+    googleUseEmail:
+      'For this Google account, please register or sign in by email. Google cannot confirm current ownership of this address.',
+    googleContinue: 'Continue with Google',
+    googleOrEmail: 'Or continue with email',
+    googleUnavailable: 'Google sign-in is currently unavailable. You can use email.',
+    googleFailed:
+      'Google sign-in could not finish. Try again or use email. For a non-Gmail address, use your Google Workspace account or register by email.',
+    googleCancelled: 'Google sign-in was cancelled. You can try again or use email.',
+    googleEmailExists:
+      'Google sign-in could not finish because this email already has a FluxRadar account. Sign in with your password, or reset it by email. Accounts are never linked automatically.',
   },
   uk: {
     titles: {
@@ -163,5 +183,17 @@ export const authCopy: Record<Language, AuthCopy> = {
     forgotLink: 'Забули пароль?',
     failed: 'Не вдалося увійти',
     verificationFailed: 'Не вдалося підтвердити email',
+    googleEmailChanged:
+      'Email вашого Google-акаунта змінився. Для безпеки увійдіть із паролем FluxRadar або зверніться до підтримки для відновлення доступу.',
+    googleUseEmail:
+      'Для цього Google-акаунта зареєструйтеся або увійдіть через email. Google не може підтвердити поточного власника цієї адреси.',
+    googleContinue: 'Продовжити з Google',
+    googleOrEmail: 'Або продовжте через email',
+    googleUnavailable: 'Вхід через Google наразі недоступний. Скористайтеся email.',
+    googleFailed:
+      'Не вдалося завершити вхід через Google. Спробуйте ще раз або скористайтеся email. Для адреси поза Gmail потрібен акаунт Google Workspace; інакше зареєструйтеся через email.',
+    googleCancelled: 'Вхід через Google скасовано. Спробуйте ще раз або скористайтеся email.',
+    googleEmailExists:
+      'Не вдалося увійти через Google: для цього email уже є акаунт FluxRadar. Увійдіть із паролем або скиньте його через email. Акаунти ніколи не об’єднуються автоматично.',
   },
 };

@@ -78,6 +78,29 @@ function withTimeout(promise) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+async function assertGoogleAccountShape(client, prismaModule) {
+  // An arbitrary existing account may have a password even after Google-only
+  // accounts become possible. Inspect generated types rather than customer rows.
+  const googleMigrationApplied = await withTimeout(client.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+    const [mode] = await tx.$queryRawUnsafe('SHOW transaction_read_only');
+    if (mode?.transaction_read_only !== 'on') throw new Error('Read-only guard failed');
+    const [row] = await tx.$queryRawUnsafe(
+      'SELECT EXISTS (SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1 AND finished_at IS NOT NULL AND rolled_back_at IS NULL) AS applied',
+      '20261026120000_google_login',
+    );
+    return row?.applied === true;
+  }));
+  if (googleMigrationApplied) {
+    const account = prismaModule.Prisma?.dmmf?.datamodel?.models?.find((model) => model.name === 'Account');
+    const password = account?.fields?.find((field) => field.name === 'passwordHash');
+    const subject = account?.fields?.find((field) => field.name === 'googleSubject');
+    if (password?.isRequired !== false || password?.type !== 'String' || subject?.type !== 'String' || subject?.isRequired !== false) {
+      throw new Error('Google login migration requires a nullable passwordHash and googleSubject client; refusing incompatible rollback');
+    }
+  }
+}
+
 async function main() {
   const prismaModule = loadPrismaModule();
   const names = modelNames(prismaModule);
@@ -92,6 +115,7 @@ async function main() {
   const failures = [];
   let checked = 0;
   try {
+    await assertGoogleAccountShape(client, prismaModule);
     for (const name of names) {
       const delegate = delegateFor(client, name);
       if (delegate === null) {

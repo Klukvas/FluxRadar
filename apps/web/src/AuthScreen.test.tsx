@@ -10,14 +10,32 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthScreen } from './AuthScreen';
+
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { enabled: false },
+            error: null,
+          }),
+        ),
+    ),
+  );
+});
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  window.history.replaceState(null, '', '/');
+  sessionStorage.clear();
 });
 
 function renderAuth(props: Partial<Parameters<typeof AuthScreen>[0]> = {}) {
@@ -146,5 +164,85 @@ describe('the password-reset control’s own colour', () => {
   it('is readable on the window face the dialog is drawn on', () => {
     // AA body text asks for 4.5:1; this is the pair that used to be 1.4:1.
     expect(contrast(token('selection'), token('plat-100'))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('Google authentication entry', () => {
+  it('offers a localized Google button when configured', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ success: true, data: { enabled: true }, error: null })),
+        ),
+    );
+    renderAuth({ language: 'uk' });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Продовжити з Google' })).toBeEnabled(),
+    );
+  });
+
+  it('keeps unavailable Google sign-in disabled and explains the email alternative', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ success: true, data: { enabled: false }, error: null })),
+        ),
+    );
+    renderAuth();
+    await waitFor(() =>
+      expect(
+        screen.getByText('Google sign-in is currently unavailable. You can use email.'),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeDisabled();
+  });
+
+  it('localizes start failures and leaves password login available', async () => {
+    const onError = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementation((url: string) =>
+          url.endsWith('/auth/google/status')
+            ? Promise.resolve(
+                new Response(
+                  JSON.stringify({ success: true, data: { enabled: true }, error: null }),
+                ),
+              )
+            : Promise.reject(new Error('network unavailable')),
+        ),
+    );
+    renderAuth({ onError, language: 'uk' });
+    const button = screen.getByRole('button', { name: 'Продовжити з Google' });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(onError).toHaveBeenLastCalledWith(
+        expect.stringContaining('Не вдалося завершити вхід через Google'),
+      ),
+    );
+    expect(screen.getByLabelText('Пароль')).toBeInTheDocument();
+  });
+
+  it('shows the safe collision guidance and removes only the callback flag', async () => {
+    window.history.replaceState(null, '', '/?google_auth_error=email_exists&lang=uk');
+    const onError = vi.fn();
+    renderAuth({ onError, language: 'uk' });
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(
+        expect.stringContaining('Акаунти ніколи не об’єднуються автоматично'),
+      ),
+    );
+    expect(window.location.search).toBe('?lang=uk');
+  });
+
+  it('does not offer Google in a password-reset form', () => {
+    renderAuth({ emailAction: { kind: 'reset', token: 'reset-token-0123456789' } });
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument();
   });
 });

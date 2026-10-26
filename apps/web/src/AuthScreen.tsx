@@ -18,6 +18,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { trackEvent } from './analytics';
 import { apiRequest, type Account } from './api';
+import { prepareGoogleReturn } from './google-auth-return';
+import { readInitialRoute } from './app-routes';
 import { authCopy } from './auth-copy';
 import { AlertDialog, Button, Checkbox, Field, Window } from './components';
 import { copy, type Language } from './i18n';
@@ -51,6 +53,9 @@ export function AuthScreen(props: {
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googleStatus, setGoogleStatus] = useState<'loading' | 'ready'>('loading');
+  const googleErrorHandled = useRef(false);
   const isReset = props.emailAction?.kind === 'reset';
   const isVerification = props.emailAction?.kind === 'verify';
   const { onError } = props;
@@ -65,6 +70,67 @@ export function AuthScreen(props: {
       .then(() => setVerificationStatus('verified'))
       .catch((caught) => onError(caught instanceof Error ? caught.message : t.verificationFailed));
   }, [isVerification, props.emailAction, onError, t.verificationFailed]);
+
+  useEffect(() => {
+    let active = true;
+    void apiRequest<{ enabled: boolean }>('/auth/google/status')
+      .then((status) => {
+        if (active) setGoogleEnabled(status.enabled);
+      })
+      .catch(() => {
+        if (active) setGoogleEnabled(false);
+      })
+      .finally(() => {
+        if (active) setGoogleStatus('ready');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (googleErrorHandled.current) return;
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('google_auth_error');
+    if (code === null) return;
+    googleErrorHandled.current = true;
+    url.searchParams.delete('google_auth_error');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+    onError(
+      code === 'email_exists'
+        ? t.googleEmailExists
+        : code === 'cancelled'
+          ? t.googleCancelled
+          : code === 'use_email'
+            ? t.googleUseEmail
+            : code === 'email_changed'
+              ? t.googleEmailChanged
+              : t.googleFailed,
+    );
+  }, [
+    onError,
+    t.googleEmailExists,
+    t.googleCancelled,
+    t.googleFailed,
+    t.googleUseEmail,
+    t.googleEmailChanged,
+  ]);
+
+  const startGoogle = async (): Promise<void> => {
+    setBusy(true);
+    props.onError(null);
+    try {
+      const { url } = await apiRequest<{ url: string }>('/auth/google/start', {
+        method: 'POST',
+        body: JSON.stringify({ rememberMe: false, language: props.language }),
+      });
+      prepareGoogleReturn(readInitialRoute());
+      window.location.assign(url);
+    } catch {
+      props.onError(t.googleFailed);
+      setBusy(false);
+    }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -156,6 +222,22 @@ export function AuthScreen(props: {
           </h1>
           <p className="muted">{lead}</p>
         </div>
+        {signingIn ? (
+          <div className="stack">
+            <Button
+              onClick={() => {
+                void startGoogle();
+              }}
+              disabled={busy || !googleEnabled}
+            >
+              {busy ? t.working : t.googleContinue}
+            </Button>
+            {googleStatus === 'ready' && !googleEnabled ? (
+              <p className="muted">{t.googleUnavailable}</p>
+            ) : null}
+            <p className="muted">{t.googleOrEmail}</p>
+          </div>
+        ) : null}
         {!isVerification && !isReset ? (
           <Field
             label={t.email}

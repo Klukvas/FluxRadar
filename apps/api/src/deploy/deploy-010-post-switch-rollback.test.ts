@@ -107,6 +107,11 @@ case "$1" in
     esac ;;
   inspect)
     case "$*" in
+      *"{{.Image}}"*)
+        case "$*" in
+          *fluxradar-web-*) printf 'sha256:%064d\n' 2 ;;
+          *) printf 'sha256:%064d\n' 1 ;;
+        esac ;;
       *IPAddress*)
         # One address per container, so a rollback that reads the addresses of
         # the containers that are running NOW gets the previous release's, not
@@ -247,6 +252,10 @@ function makeRelease(appDir: string, releaseId: string, caddyfile: string): stri
   // The rollback the release script runs is the one that ships, not a stand-in:
   // it is a file in the release, so the release under test carries the real one.
   copyFileSync(ROLLBACK_SCRIPT_PATH, join(releaseDir, 'deploy', 'rollback-release.sh'));
+  copyFileSync(
+    join(REPO_ROOT, 'deploy', 'google-login-env.sh'),
+    join(releaseDir, 'deploy', 'google-login-env.sh'),
+  );
   return releaseDir;
 }
 
@@ -262,6 +271,8 @@ function runDeploy(
     prunePreviousRelease?: boolean;
     /** No `current`, no state file: the very first deploy of a host. */
     firstDeploy?: boolean;
+    legacyState?: boolean;
+    customGoogleImages?: boolean;
   } = {},
 ): Deployment {
   // realpath up front: mkdtemp hands back /var/... on macOS while the script's
@@ -282,8 +293,8 @@ function runDeploy(
         `FLUXRADAR_ACTIVE_RELEASE=${previousDir}`,
         `FLUXRADAR_API_UPSTREAM=${PREVIOUS_API_UPSTREAM}`,
         `FLUXRADAR_WEB_UPSTREAM=${PREVIOUS_WEB_UPSTREAM}`,
-        `FLUXRADAR_API_CONTAINER=fluxradar-api-${PREVIOUS_ID}`,
-        `FLUXRADAR_WEB_CONTAINER=fluxradar-web-${PREVIOUS_ID}`,
+        `FLUXRADAR_API_CONTAINER=${options.customGoogleImages ? 'fluxradar-api-google-login-20261026-v1' : `fluxradar-api-${PREVIOUS_ID}`}`,
+        `FLUXRADAR_WEB_CONTAINER=${options.customGoogleImages ? 'fluxradar-web-google-login-20261026-v1' : `fluxradar-web-${PREVIOUS_ID}`}`,
         '',
       ].join('\n'),
     );
@@ -293,6 +304,17 @@ function runDeploy(
         '{$FLUXRADAR_WEB_UPSTREAM}',
         PREVIOUS_WEB_UPSTREAM,
       ),
+    );
+  }
+  if (options.legacyState)
+    writeFileSync(join(runtimeDir, 'active.env'), `FLUXRADAR_ACTIVE_RELEASE=${previousDir}\n`);
+  if (options.customGoogleImages) {
+    const directory = join(appDir, 'auth-patches/google-login-20261026-v1');
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      join(directory, 'google-login.env'),
+      'GOOGLE_LOGIN_CLIENT_ID=dummy.apps.googleusercontent.com\nGOOGLE_LOGIN_CLIENT_SECRET=test-only-placeholder\nGOOGLE_LOGIN_REDIRECT_URI=https://fluxradar.net/api/auth/google/callback\n',
+      { mode: 0o600 },
     );
   }
   // The release directory a retention sweep removed while `current` still points
@@ -306,6 +328,7 @@ function runDeploy(
   writeExecutable(join(binDir, 'curl'), CURL_RECORDER);
   writeExecutable(join(binDir, 'sleep'), SLEEP_STUB);
   writeExecutable(join(binDir, 'mv'), MV_SHIM);
+  writeExecutable(join(binDir, 'stat'), "#!/bin/sh\nprintf '0:600\\n'\n");
 
   const scriptPath = join(appDir, 'release.sh');
   writeFileSync(scriptPath, extractReleaseScript());
@@ -431,6 +454,44 @@ function expectNoRollback(deployment: Deployment): void {
   expect(cleanedUpNewContainers(deployment.dockerCalls())).toBe(true);
   expect(deployment.output).toContain('BEFORE any traffic was switched');
 }
+
+describe('Google host-patch release persistence', () => {
+  it('records actual custom image IDs and sends the overlay only to the API and inert probe', () => {
+    const deployment = runDeploy({ customGoogleImages: true });
+    expect(deployment.exitCode).toBe(0);
+    expect(deployment.rollbackTarget()).toContain(
+      `FLUXRADAR_ROLLBACK_API_IMAGE=sha256:${'1'.padStart(64, '0')}`,
+    );
+    expect(deployment.rollbackTarget()).toContain(
+      'FLUXRADAR_ROLLBACK_API_CONTAINER=fluxradar-api-google-login-20261026-v1',
+    );
+    expect(deployment.stateFile()).toContain('FLUXRADAR_GOOGLE_LOGIN_REQUIRED=true');
+    const calls = deployment.dockerCalls();
+    const overlayCalls = calls.filter(
+      (call) => call.startsWith('run ') && call.includes('google-login.env'),
+    );
+    expect(overlayCalls).toHaveLength(2);
+    expect(
+      overlayCalls.every(
+        (call) => !call.includes('migrate') && !call.includes('--name fluxradar-web-'),
+      ),
+    ).toBe(true);
+    expect(deployment.output).not.toContain('test-only-placeholder');
+  });
+
+  it('round-trips legacy compose state through release-generated rollback metadata', () => {
+    const deployment = runDeploy({ legacyState: true, failStep: 'post_cleanup_smoke' });
+    expect(deployment.exitCode).not.toBe(0);
+    expect(deployment.output).toContain('ROLLBACK OK');
+    expect(deployment.currentReleaseId()).toBe(PREVIOUS_ID);
+    expect(deployment.rollbackTarget()).not.toContain('FLUXRADAR_ROLLBACK_API_IMAGE=');
+    expect(
+      deployment
+        .dockerCalls()
+        .some((call) => call.startsWith('run -d') && call.includes(`fluxradar-api:${PREVIOUS_ID}`)),
+    ).toBe(true);
+  });
+});
 
 describe('DEPLOY-010 release switch and rollback', () => {
   // The script ships with the release, like rollback-release.sh. What the
