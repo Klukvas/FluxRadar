@@ -17,6 +17,7 @@ import {
   LEGACY_PLAN_NAME,
   PAID_PLAN_ORDER,
   PLAN_CAPABILITIES,
+  planIncludesWhiteLabel,
   PLAN_MODULES,
   PLAN_ORDER,
   PLAN_URL_LIMIT,
@@ -218,6 +219,7 @@ describe('the plan/capability mirror', () => {
       expect(mirrored.export).toBe(declared.export);
       expect(mirrored.actionPlan).toBe(declared.actionPlan);
       expect(mirrored.issueHistory).toBe(declared.issueHistory);
+      expect(mirrored.whiteLabel).toBe(declared.whiteLabel);
     },
   );
 
@@ -266,4 +268,10 @@ describe('the plan/URL-limit mirror', () => {
       expect(PLAN_MODULES[plan].length).toBeGreaterThan(0);
     }
   });
+});
+
+it('applies white-label only to Complete reports', () => {
+  expect(planIncludesWhiteLabel('Complete')).toBe(true);
+  for (const plan of ['Free', 'Basic', 'WebsiteAudit'] as const)
+    expect(planIncludesWhiteLabel(plan)).toBe(false);
 });

@@ -25,7 +25,7 @@ describe('public legal documents', () => {
       /Creem \(Armitage Labs OÜ, Таллінн, Естонія\) є окремим merchant of record/,
     );
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
-    expect(terms).toHaveTextContent(/Чинна з 19 жовтня 2026 року/);
+    expect(terms).toHaveTextContent(/Чинна з 26 жовтня 2026 року/);
     expect(screen.getByText(/юридично пріоритетна українська версія/i)).toBeInTheDocument();
   });
 
@@ -65,7 +65,7 @@ describe('public legal documents', () => {
       'https://creem.io/buyer-terms',
     );
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
-    expect(terms).toHaveTextContent(/Effective 19 October 2026/);
+    expect(terms).toHaveTextContent(/Effective 26 October 2026/);
     expect(terms).not.toHaveTextContent(/all sales are final|no refunds/i);
   });
 
@@ -107,7 +107,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 23 October 2026/);
+    expect(policy).toHaveTextContent(/Effective 26 October 2026/);
     // The merchant of record is Creem, and the policy says what FluxRadar sends
     // it before the buyer ever sees Creem's page — the account email, product
     // and checkout reference — as well as what comes back by webhook.
@@ -373,7 +373,7 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 23 жовтня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 26 жовтня 2026 року/);
     expect(privacy).toHaveTextContent(
       /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія\) — merchant of record і checkout provider/,
     );
@@ -382,4 +382,51 @@ describe('public legal documents', () => {
     );
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
   });
+});
+
+describe('report branding legal copy', () => {
+  it.each(['uk', 'en'] as const)(
+    'discloses branding fields, retention and deletion in %s',
+    (language) => {
+      render(
+        <LegalDocumentScreen kind="privacy" language={language} onLanguageChange={() => {}} />,
+      );
+      const policy = screen.getByRole('article');
+      expect(policy.querySelector('#privacy-data')).toHaveTextContent(
+        language === 'uk'
+          ? /Оформлення звітів:.*логотип, назва, колір і рядок контактів/
+          : /Report branding:.*logo, display name, colour and contact line/,
+      );
+      expect(policy.querySelector('#privacy-retention')).toHaveTextContent(
+        language === 'uk'
+          ? /Оформлення звітів зберігається, доки ви його не видалите або не видалите акаунт/
+          : /Report branding is kept until you delete it or delete the account/,
+      );
+      expect(policy.querySelector('#privacy-retention')).toHaveTextContent(
+        language === 'uk'
+          ? /активні сесії, звіти, оформлення звітів/
+          : /sessions, reports, report branding/,
+      );
+    },
+  );
+  it.each(['uk', 'en'] as const)(
+    'allows own-brand delivery without certification in %s',
+    (language) => {
+      render(<LegalDocumentScreen kind="terms" language={language} onLanguageChange={() => {}} />);
+      const rights = screen.getByRole('article').querySelector('#terms-rights');
+      expect(rights).toHaveTextContent(
+        language === 'uk'
+          ? /Complete можна передавати власним клієнтам під своїм брендом/
+          : /Complete reports may be delivered to your own clients under your own brand/,
+      );
+      expect(rights).toHaveTextContent(
+        language === 'uk'
+          ? /не можете подавати автоматичний звіт.*сертифікацію/
+          : /may not present an automated report.*certification/,
+      );
+      expect(document.querySelector('#terms-use')).toHaveTextContent(
+        language === 'uk' ? /сертифікац/ : /certification/,
+      );
+    },
+  );
 });

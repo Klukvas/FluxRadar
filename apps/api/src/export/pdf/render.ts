@@ -21,6 +21,8 @@ import {
   type PerformanceAudit,
 } from '../../integrations/performance/index.ts';
 import { bingFindingText, storedBingFindings, type StoredBingFinding } from './bing-findings.ts';
+import type { ReportBrand } from '../../branding/load.ts';
+import { brandPalette, brandedCopy, brandedCover, brandedProvenance } from './branding.ts';
 import { REPORT_COPY, type ReportCopy } from './copy.ts';
 import { ReportDocument, type ReportColour } from './document.ts';
 import { moduleLabel, ruleTitle } from './names.ts';
@@ -118,6 +120,7 @@ export interface ActionPlanRequest {
 export type ActionPlanLoader = (request: ActionPlanRequest) => Promise<ActionPlanProjection | null>;
 
 export interface RenderReportOptions {
+  readonly brand?: ReportBrand | null;
   readonly prisma: PrismaClient;
   readonly scan: Scan & { readonly modules: ScanModule[] };
   readonly language: FindingLanguage;
@@ -167,14 +170,16 @@ function coverPage(
   copy: ReportCopy,
   language: FindingLanguage,
   now: Date,
+  brand?: ReportBrand | null,
 ): void {
   const domain = displayDomain(header.scan.domain);
-  doc.text('FluxRadar', { font: 'bold', size: 9, colour: 'accent' });
+  if (brand) brandedCover(doc, brand, language);
+  else doc.text('FluxRadar', { font: 'bold', size: 9, colour: 'accent' });
   doc.heading(copy.preparedFor(domain), 1);
   doc.paragraph(copy.generated(timestamp(now)), { colour: 'muted', size: 9 });
   doc.fact(copy.plan, planText(header.scan.plan, copy));
   doc.fact(copy.scanned, timestamp(header.scan.completedAt ?? header.scan.createdAt));
-  doc.fact(copy.status, scanStatusText(header.scan, language));
+  doc.fact(copy.status, scanStatusText(header.scan, language, brand ? 'neutral' : 'fluxradar'));
 }
 
 /** The plan as the report names it; a retired plan is named as archived. */
@@ -213,6 +218,7 @@ function modulesSection(
   header: PdfReportHeader,
   copy: ReportCopy,
   language: FindingLanguage,
+  voice: 'fluxradar' | 'neutral' = 'fluxradar',
 ): void {
   doc.heading(copy.sectionsHeading, 2);
   doc.table(
@@ -232,7 +238,7 @@ function modulesSection(
       .sort((left, right) => left.label.localeCompare(right.label, language))
       .map(({ module, label }) => [
         label,
-        moduleResultText(module, language),
+        moduleResultText(module, language, voice),
         module.score === null ? copy.noScore : String(Math.round(module.score)),
         percent(module.coverage),
       ]),
@@ -407,6 +413,7 @@ function searchDataSection(
   copy: ReportCopy,
   language: FindingLanguage,
   domain: string,
+  voice: 'fluxradar' | 'neutral' = 'fluxradar',
 ): void {
   const metadata = parseMetadata(modules.find((module) => module.module === 'Analytics'));
   if (metadata === null) return;
@@ -425,7 +432,7 @@ function searchDataSection(
     doc.keyValue(
       copy.searchConsoleLabel,
       totals === undefined
-        ? googleStateText(google.searchConsole, language)
+        ? googleStateText(google.searchConsole, language, voice)
         : copy.searchConsoleTotals(
             totals.clicks,
             totals.impressions,
@@ -436,7 +443,7 @@ function searchDataSection(
     doc.keyValue(
       copy.analyticsLabel,
       analytics === null || analytics === undefined
-        ? googleStateText(google.analytics, language)
+        ? googleStateText(google.analytics, language, voice)
         : copy.analyticsTotals(analytics.users, analytics.sessions, analytics.pageViews),
     );
   }
@@ -450,7 +457,7 @@ function searchDataSection(
       // available — said from its state, in the reader's language — the traffic
       // read did not answer, or here are the numbers.
       summary === null
-        ? bingStateText(bing.webmaster, language)
+        ? bingStateText(bing.webmaster, language, voice)
         : totals === null
           ? copy.bingTrafficUnavailable
           : copy.bingTotals(totals.clicks, totals.impressions, totals.days),
@@ -609,11 +616,11 @@ async function actionPlanSection(
       { size: 8, colour: 'muted', gapAfter: 0.4 },
     );
   });
-  const provenance = [plan.metadata.modelId, plan.metadata.promptVersion, plan.metadata.generatedAt]
-    .filter((value): value is string => typeof value === 'string' && value !== '')
-    .join(' · ');
-  // Identifiers and versions only. There is no field here that could carry the
-  // prompt, which is the point of the projection type.
+  const provenance = options.brand
+    ? brandedProvenance(copy, plan.metadata.generatedAt)
+    : [plan.metadata.modelId, plan.metadata.promptVersion, plan.metadata.generatedAt]
+        .filter((value): value is string => typeof value === 'string' && value !== '')
+        .join(' · ');
   if (provenance !== '') doc.paragraph(provenance, { colour: 'muted', size: 8, font: 'mono' });
 }
 
@@ -624,17 +631,27 @@ async function actionPlanSection(
 export async function renderReportPdf(
   options: RenderReportOptions,
 ): Promise<{ readonly bytes: Buffer; readonly findingCount: number }> {
-  const copy = REPORT_COPY[options.language];
+  const copy = options.brand ? brandedCopy(options.language) : REPORT_COPY[options.language];
   const header = await loadReportHeader(options.prisma, options.scan);
-  const doc = new ReportDocument(copy.documentTitle(displayDomain(options.scan.domain)));
-
-  coverPage(doc, header, copy, options.language, options.now);
+  const title = copy.documentTitle(displayDomain(options.scan.domain));
+  const doc = new ReportDocument(
+    title,
+    undefined,
+    options.brand ? { palette: brandPalette(options.brand), info: { Title: title } } : {},
+  );
+  coverPage(doc, header, copy, options.language, options.now, options.brand);
   summarySection(doc, header, copy);
-  modulesSection(doc, header, copy, options.language);
+  modulesSection(doc, header, copy, options.language, options.brand ? 'neutral' : 'fluxradar');
   await actionPlanSection(doc, options, copy);
   performanceSection(doc, header.modules, copy, options.language);
-  searchDataSection(doc, header.modules, copy, options.language, options.scan.domain);
-
+  searchDataSection(
+    doc,
+    header.modules,
+    copy,
+    options.language,
+    options.scan.domain,
+    options.brand ? 'neutral' : 'fluxradar',
+  );
   doc.heading(copy.problemsHeading, 2);
   if (header.totalFindings === 0) {
     doc.paragraph(copy.noFindings);
@@ -650,13 +667,11 @@ export async function renderReportPdf(
       for (const finding of page) findingBlock(doc, finding, copy, options.language);
     },
   );
-
   // Last, because only now is it known whether it is needed: the document states
   // the escape convention, in its own language, exactly when it had to use one.
   if (doc.escapedCharacterCount > 0) {
     doc.heading(copy.unsupportedGlyphsHeading, 2);
     doc.paragraph(copy.unsupportedGlyphs(doc.escapedCharacterCount), { colour: 'muted', size: 9 });
   }
-
   return { bytes: await doc.finish(copy.footer), findingCount: written };
 }

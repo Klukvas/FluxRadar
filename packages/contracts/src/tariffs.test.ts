@@ -90,13 +90,19 @@ describe('tariff matrix §18', () => {
   });
 
   it('gives Complete every report entitlement, Basic the Action Plan alone, and Free none', () => {
-    for (const capability of ['scanHistory', 'issueHistory', 'export', 'actionPlan'] as const) {
+    for (const capability of [
+      'scanHistory',
+      'issueHistory',
+      'export',
+      'actionPlan',
+      'whiteLabel',
+    ] as const) {
       expect(planSupports('Complete', capability)).toBe(true);
       expect(planSupports('Free', capability)).toBe(false);
     }
     // Owner decision 2026-10-19: Basic includes the AI Action Plan, and only it.
     expect(planSupports('Basic', 'actionPlan')).toBe(true);
-    for (const capability of ['scanHistory', 'issueHistory', 'export'] as const) {
+    for (const capability of ['scanHistory', 'issueHistory', 'export', 'whiteLabel'] as const) {
       expect(planSupports('Basic', capability)).toBe(false);
     }
   });
@@ -125,4 +131,10 @@ describe('tariff matrix §18', () => {
       'SEO-TECH-008',
     ]);
   });
+});
+
+it('keeps white-label reports exclusive to Complete, including stored legacy scans', () => {
+  expect(planSupports('Complete', 'whiteLabel')).toBe(true);
+  for (const plan of ['Free', 'Basic', 'WebsiteAudit'])
+    expect(planSupports(plan, 'whiteLabel')).toBe(false);
 });

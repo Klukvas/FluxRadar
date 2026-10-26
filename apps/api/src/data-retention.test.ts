@@ -84,6 +84,25 @@ describe('unbound webhook event retention', () => {
     });
   }
 
+  it('deletes report branding and its logo with the account', async () => {
+    const account = await seedAccountWithProfile(db.prisma);
+    await db.prisma.reportBranding.create({
+      data: {
+        accountId: account.accountId,
+        enabled: true,
+        displayName: 'Studio',
+        logoPng: new Uint8Array([137, 80]),
+        logoWidth: 200,
+        logoHeight: 50,
+      },
+    });
+    await deleteAccountData(db.prisma, account.accountId, null);
+    expect(await db.prisma.reportBranding.count({ where: { accountId: account.accountId } })).toBe(
+      0,
+    );
+    expect(await db.prisma.account.count({ where: { id: account.accountId } })).toBe(0);
+  });
+
   it('deletes a rejected delivery once its retention window has passed', async () => {
     const expired = await seedEvent({
       outcome: WEBHOOK_OUTCOMES.rejected,

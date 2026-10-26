@@ -38,6 +38,7 @@ export const TRUNCATED_TABLES = [
   'SiteGoogleBinding',
   'SiteBingBinding',
   'ExportArtifact',
+  'ReportBranding',
   'WebhookEvent',
   'RefundRecord',
   'RefundDispatch',

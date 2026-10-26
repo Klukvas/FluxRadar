@@ -68,3 +68,49 @@
 .notice p {
   margin: 0;
 }
+
+.report-branding {
+  max-width: 42rem;
+}
+.branding-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.branding-fields > input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.branding-enabled {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.branding-enabled input {
+  flex: 0 0 auto;
+}
+.branding-logo {
+  display: grid;
+  gap: var(--sp-2);
+}
+.branding-thumbnail {
+  max-width: 220px;
+  max-height: 80px;
+  object-fit: contain;
+}
+.branding-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+.branding-logo:has(.branding-file:focus-visible) .branding-file-label {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.branding-file-label {
+  width: fit-content;
+}

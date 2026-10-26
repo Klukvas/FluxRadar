@@ -8,9 +8,12 @@ import { searchEngineBlockCopy } from './report-failure-copy';
 // the pages it was found on, one piece of evidence and the fix. The browser's
 // print dialog turns it into a PDF, so no PDF engine ships with the product.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
+import { fetchBranding, type BrandingView } from './report-branding-api';
+import { reportBrandingCopy } from './report-branding-copy';
+import { PrintBrand } from './PrintBrand';
+import { PrintBrandedContext, usePrintCopy, printCopyFor } from './print-branded-copy';
 
-import { actionPlanCopy } from './action-plan-copy';
 import {
   apiRequest,
   apiRequestWithMeta,
@@ -30,8 +33,8 @@ import { formatDate } from './format-date';
 import { ownNameOnlyCount, percentOf } from './GeoVisibility';
 import { geoVisibilitySummaryOf } from './geo-visibility';
 import { copy, fillCopy, type Language } from './i18n';
-import { planIncludesIssueHistory, planName } from './plan-modules';
-import { nothingWasChecked, reportFailureCopy, siteReadFailureOf } from './report-failure-copy';
+import { planIncludesIssueHistory, planIncludesWhiteLabel, planName } from './plan-modules';
+import { nothingWasChecked, siteReadFailureOf } from './report-failure-copy';
 import { ComparisonPrintBlock } from './ScanComparisonPrint';
 import { moduleLabel } from './rule-titles';
 import { displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
@@ -44,6 +47,8 @@ const PRINT_PAGE_SIZE = 100;
 const PAGES_PER_PROBLEM = 12;
 
 interface PrintData {
+  readonly brand: BrandingView | null;
+  readonly brandFailed: boolean;
   readonly dashboard: Dashboard;
   readonly summary: IssueSummary | null;
   readonly issues: readonly Issue[];
@@ -85,7 +90,7 @@ async function loadPrintData(scanId: string, planLanguage: string | null): Promi
       planIncludesIssueHistory(dashboard.scan.plan) ? fetchScanComparison(scanId) : null,
     )
     .catch(() => null);
-  const [dashboard, summary, findings, actionPlan, comparison] = await Promise.all([
+  const [dashboard, summary, findings, actionPlan, comparison, branding] = await Promise.all([
     dashboardRead,
     apiRequest<IssueSummary>(`/scans/${encodeURIComponent(scanId)}/issues/summary`).catch(
       () => null,
@@ -101,8 +106,17 @@ async function loadPrintData(scanId: string, planLanguage: string | null): Promi
           .then((value) => (isActionPlanState(value) ? value.plan : null))
           .catch(() => null),
     comparisonRead,
+    fetchBranding().catch(() => 'failed' as const),
   ]);
   return {
+    brand:
+      branding !== 'invalid' &&
+      branding !== 'failed' &&
+      branding?.enabled &&
+      planIncludesWhiteLabel(dashboard.scan.plan)
+        ? branding
+        : null,
+    brandFailed: branding === 'failed',
     dashboard,
     summary,
     issues: findings.issues,
@@ -166,6 +180,7 @@ export function PrintReport(props: {
         <Button variant="primary" onClick={() => window.print()} disabled={data === null}>
           {f.print}
         </Button>
+        <PrintBrandNotice data={data} language={props.language} />
       </div>
       {data === null ? (
         <div className="print-loading" role="status">
@@ -179,9 +194,24 @@ export function PrintReport(props: {
   );
 }
 
+function PrintBrandNotice(props: { data: PrintData | null; language: Language }) {
+  return (
+    <>
+      {props.data?.brand ? (
+        <p>
+          {reportBrandingCopy[props.language].brandApplied(props.data.brand.displayName)}{' '}
+          {reportBrandingCopy[props.language].headersHint}
+        </p>
+      ) : props.data?.brandFailed ? (
+        <p role="status">{reportBrandingCopy[props.language].brandFailed}</p>
+      ) : null}
+    </>
+  );
+}
+
 /** The written plan as document pages: Overview, then each Action with its steps. */
 function PrintActionPlan(props: { plan: ActionPlanContent; language: Language }) {
-  const t = actionPlanCopy[props.language];
+  const t = usePrintCopy(props.language).actionPlan;
   return (
     <section className="print-section print-action-plan">
       <h2>
@@ -227,14 +257,27 @@ function PrintActionPlan(props: { plan: ActionPlanContent; language: Language })
 }
 
 /** The cover: whose site, when it was scanned, the plan, the score and its coverage. */
-function PrintCover(props: { dashboard: Dashboard; language: Language }) {
+function PrintCover(props: {
+  dashboard: Dashboard;
+  language: Language;
+  brand: BrandingView | null;
+}) {
   const { scan, overall } = props.dashboard;
-  const f = findingsCopy[props.language];
+  const f = usePrintCopy(props.language).findings;
   const domain = displayDomain(scan.domain);
   const scored = overall.score !== null && overall.moduleWeights.length > 0;
   return (
-    <header className="print-cover">
-      <p className="print-kicker">FluxRadar</p>
+    <header className={`print-cover${props.brand ? ' print-cover--branded' : ''}`}>
+      {props.brand ? (
+        <>
+          <PrintBrand brand={props.brand} />
+          <p className="muted">
+            {printCopyFor(props.language, true).preparedBy(props.brand.displayName)}
+          </p>
+        </>
+      ) : (
+        <p className="print-kicker">FluxRadar</p>
+      )}
       <h1>{f.print.preparedFor(domain)}</h1>
       <p className="muted">
         {f.print.generated(formatDate(new Date().toISOString(), props.language))}
@@ -268,10 +311,11 @@ function checkedNothing(data: PrintData): boolean {
 
 /** The summary sentence: what is open, or that nothing was checked to be open. */
 function summarySentence(data: PrintData, language: Language): string {
-  const f = findingsCopy[language];
+  const f = printCopyFor(language, data.brand !== null).findings;
   const { summary, totalIssues } = data;
   const open = summary === null ? totalIssues : summary.open;
-  if (open === 0 && checkedNothing(data)) return reportFailureCopy[language].nothingChecked;
+  if (open === 0 && checkedNothing(data))
+    return printCopyFor(language, data.brand !== null).failure.nothingChecked;
   if (summary === null) return f.fixFirst.pages(totalIssues);
   if (summary.open === 0) return f.issues.summaryNone;
   return f.issues.summaryLine(
@@ -284,7 +328,7 @@ function summarySentence(data: PrintData, language: Language): string {
 function PrintSiteUnread(props: { dashboard: Dashboard; language: Language }) {
   const failure = siteReadFailureOf(props.dashboard.scan, props.dashboard.modules);
   if (failure === null) return null;
-  const t = reportFailureCopy[props.language];
+  const t = usePrintCopy(props.language).failure;
   const searchWarning =
     failure.kind === 'blocked-by-robots' ? searchEngineBlockCopy(props.language, failure) : null;
   return (
@@ -300,7 +344,7 @@ function PrintSiteUnread(props: { dashboard: Dashboard; language: Language }) {
 
 /** How much is open, and how severe. */
 function PrintSummary(props: { data: PrintData; language: Language }) {
-  const f = findingsCopy[props.language];
+  const f = usePrintCopy(props.language).findings;
   const { summary } = props.data;
   return (
     <section className="print-section">
@@ -323,7 +367,7 @@ function PrintSummary(props: { data: PrintData; language: Language }) {
 
 /** Each section's result and score. */
 function PrintSections(props: { modules: Dashboard['modules']; language: Language }) {
-  const f = findingsCopy[props.language];
+  const f = usePrintCopy(props.language).findings;
   return (
     <section className="print-section">
       <h2>{f.print.sectionsHeading}</h2>
@@ -555,7 +599,7 @@ function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language })
 
 /** Every problem in summary order, with the findings that belong to it. */
 function PrintProblems(props: { data: PrintData; language: Language }) {
-  const f = findingsCopy[props.language];
+  const f = usePrintCopy(props.language).findings;
   const { issues, totalIssues } = props.data;
   const byRule = new Map<string, Issue[]>();
   for (const issue of issues) {
@@ -568,7 +612,7 @@ function PrintProblems(props: { data: PrintData; language: Language }) {
       {groups.length === 0 ? (
         <p>
           {checkedNothing(props.data)
-            ? reportFailureCopy[props.language].printNoProblems
+            ? printCopyFor(props.language, props.data.brand !== null).failure.printNoProblems
             : f.print.noFindings}
         </p>
       ) : (
@@ -593,21 +637,34 @@ function PrintProblems(props: { data: PrintData; language: Language }) {
 }
 
 function PrintDocument(props: { data: PrintData; language: Language }) {
-  const f = findingsCopy[props.language];
   const { dashboard, actionPlan } = props.data;
   return (
-    <article className="print-document">
-      <PrintCover dashboard={dashboard} language={props.language} />
-      <PrintSummary data={props.data} language={props.language} />
-      {actionPlan === null ? null : <PrintActionPlan plan={actionPlan} language={props.language} />}
-      <PrintSections modules={dashboard.modules} language={props.language} />
-      <PrintGeoVisibility dashboard={dashboard} language={props.language} />
-      {props.data.comparison === null || !planIncludesIssueHistory(dashboard.scan.plan) ? null : (
-        <ComparisonPrintBlock comparison={props.data.comparison} language={props.language} />
-      )}
-      <PrintProblems data={props.data} language={props.language} />
-      <footer className="print-footer muted">{f.print.footer}</footer>
-    </article>
+    <PrintBrandedContext.Provider value={props.data.brand !== null}>
+      {props.data.brand ? <style>{'@page { margin: 0; }'}</style> : null}
+      <article
+        className={`print-document${props.data.brand ? ' print-document--branded' : ''}`}
+        style={
+          props.data.brand
+            ? ({ '--print-brand': props.data.brand.accentColor ?? '#111' } as CSSProperties)
+            : undefined
+        }
+      >
+        <PrintCover dashboard={dashboard} language={props.language} brand={props.data.brand} />
+        <PrintSummary data={props.data} language={props.language} />
+        {actionPlan === null ? null : (
+          <PrintActionPlan plan={actionPlan} language={props.language} />
+        )}
+        <PrintSections modules={dashboard.modules} language={props.language} />
+        <PrintGeoVisibility dashboard={dashboard} language={props.language} />
+        {props.data.comparison === null || !planIncludesIssueHistory(dashboard.scan.plan) ? null : (
+          <ComparisonPrintBlock comparison={props.data.comparison} language={props.language} />
+        )}
+        <PrintProblems data={props.data} language={props.language} />
+        <footer className="print-footer muted">
+          {printCopyFor(props.language, props.data.brand !== null).findings.print.footer}
+        </footer>
+      </article>
+    </PrintBrandedContext.Provider>
   );
 }
 
@@ -632,7 +689,7 @@ function PrintProblem(props: {
   issues: readonly Issue[];
   language: Language;
 }) {
-  const f = findingsCopy[props.language];
+  const f = usePrintCopy(props.language).findings;
   const pages = [...new Set(props.issues.map((issue) => issue.targetUrl))];
   const shown = pages.slice(0, PAGES_PER_PROBLEM);
   const { evidence, recommendation } = exampleTexts(props.issues[0], props.language);

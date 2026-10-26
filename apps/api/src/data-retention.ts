@@ -599,6 +599,7 @@ export async function deleteAccountData(
       await tx.webhookEvent.deleteMany({
         where: { OR: [{ accountId }, ...purchaseDeliveryFilters(purchases)] },
       });
+      await tx.reportBranding.deleteMany({ where: { accountId } });
       await tx.account.deleteMany({ where: { id: accountId } });
       return true;
     },

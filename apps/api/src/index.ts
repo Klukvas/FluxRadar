@@ -10,6 +10,7 @@ import { actionPlanPdfLoader } from './action-plan/pdf-loader.ts';
 import { readAdminEmails } from './admin/admin-emails.ts';
 import { adminStatsRouter } from './admin/routes.ts';
 import { LoginRateLimiter, RequestRateLimiter } from './auth/rate-limit.ts';
+import { brandingRouter } from './branding/routes.ts';
 import { accountRouter } from './auth/account-routes.ts';
 import { authRouter } from './auth/routes.ts';
 import {
@@ -289,6 +290,7 @@ export function createApp(options: CreateAppOptions): Express {
     }),
   );
   app.use(accountRouter({ prisma: options.prisma, now, requestRateLimiter }));
+  app.use(brandingRouter({ prisma: options.prisma, now, requestRateLimiter, logger }));
   app.use(
     supportRouter({
       prisma: options.prisma,
