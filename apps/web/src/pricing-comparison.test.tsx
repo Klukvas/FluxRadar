@@ -194,11 +194,13 @@ describe('the plain-language pricing comparison', () => {
       export: false,
       actionPlan: true,
       issueHistory: false,
+      whiteLabel: false,
     });
     expect(PLAN_CAPABILITIES.Complete).toEqual({
       export: true,
       actionPlan: true,
       issueHistory: true,
+      whiteLabel: true,
     });
 
     const HISTORY_AND_EXPORT = {

@@ -27,6 +27,8 @@ export interface TariffCapabilities {
   readonly export: boolean;
   /** The optional AI Action Plan, under its own quota and window. */
   readonly actionPlan: boolean;
+  /** Account branding on client-facing PDF and printable reports. */
+  readonly whiteLabel: boolean;
 }
 
 export type TariffCapability = keyof TariffCapabilities;
@@ -36,6 +38,7 @@ const NO_CAPABILITIES: TariffCapabilities = {
   issueHistory: false,
   export: false,
   actionPlan: false,
+  whiteLabel: false,
 };
 
 /**
@@ -48,6 +51,7 @@ const BASIC_CAPABILITIES: TariffCapabilities = {
   issueHistory: false,
   export: false,
   actionPlan: true,
+  whiteLabel: false,
 };
 
 const FULL_REPORT_CAPABILITIES: TariffCapabilities = {
@@ -55,6 +59,7 @@ const FULL_REPORT_CAPABILITIES: TariffCapabilities = {
   issueHistory: true,
   export: true,
   actionPlan: true,
+  whiteLabel: true,
 };
 
 export interface TariffDefinition {

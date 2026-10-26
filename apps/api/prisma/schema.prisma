@@ -35,6 +35,7 @@ model Account {
   bingBindings       SiteBingBinding[]
   reachabilityProbes SiteReachabilityProbe[]
   oauthStates        IntegrationOAuthState[]
+  reportBranding     ReportBranding?
   artifacts          ExportArtifact[]
   emailTokens        EmailToken[]
   emailNotifications EmailNotification[]
@@ -880,6 +881,27 @@ model IntegrationOAuthState {
 
 // Private report artifact stored in Hetzner Object Storage. The DB row keeps
 // the object address and tenant boundary; the object itself is never public.
+/// One brand per account for client-facing report output (white-label).
+/// Applied at render time to scans whose plan supports `whiteLabel`.
+model ReportBranding {
+  id          String   @id @default(cuid())
+  accountId   String   @unique
+  enabled     Boolean  @default(false)
+  displayName String
+  /// Lowercase #rrggbb, contrast >= 3:1 on white; null = no accent.
+  accentColor String?
+  /// One line of plain text on the cover.
+  contactLine String?
+  /// Sanitised PNG, <= 256 KiB. Prisma 6 reads Bytes as Uint8Array.
+  logoPng     Bytes?
+  logoWidth   Int?
+  logoHeight  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
 model ExportArtifact {
   id          String   @id @default(cuid())
   accountId   String

@@ -27,6 +27,7 @@ import type { Language } from './i18n';
 import { displayDomain } from './scan-status';
 import './styles/account.css';
 import { planName } from './plan-modules';
+import { ReportBrandingPanel } from './ReportBrandingPanel';
 
 function formatAmount(amount: number, currency: string, language: Language): string {
   try {
@@ -71,6 +72,7 @@ export function AccountScreen(props: {
           onError={props.onError}
         />
         <PurchasesPanel language={props.language} onOpenScan={props.onOpenScan} />
+        <ReportBrandingPanel language={props.language} />
         <Panel title={t.emails.heading}>
           <p>{t.emails.lead(props.account.email)}</p>
           <ul className="account-list">

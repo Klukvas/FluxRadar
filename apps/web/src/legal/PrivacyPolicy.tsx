@@ -33,7 +33,7 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * Anthropic, Google and Perplexity becoming opt-in recipients, the AI Action
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '23 жовтня 2026 року', en: '23 October 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '26 жовтня 2026 року', en: '26 October 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -72,6 +72,10 @@ function UkrainianPrivacy(): JSX.Element {
             сторінки й технічні сигнали, знахідки, оцінки, докази, AI‑запити та відповіді й експорт
             звіту. Назви конкурентів звіряються з AI-відповідями цього акаунта лише на наших
             серверах; вони ніколи не надсилаються AI-провайдеру.
+          </li>
+          <li>
+            <strong>Оформлення звітів:</strong> логотип, назва, колір і рядок контактів, які ви
+            додаєте для звітів своїм клієнтам.
           </li>
           <li>
             <strong>Інтеграції:</strong> зашифровані Google або Bing access/refresh tokens, дозволи,
@@ -327,6 +331,7 @@ function UkrainianPrivacy(): JSX.Element {
         <span className="legal-section__label">07 / СТРОКИ</span>
         <h2>Зберігання та видалення</h2>
         <ul>
+          <li>Оформлення звітів зберігається, доки ви його не видалите або не видалите акаунт.</li>
           <li>Free і Basic reports — 30 днів від створення scan; Complete reports — 365 днів.</li>
           <li>
             Профілі, конфігурації й інтеграції зберігаються до видалення користувачем або акаунта,
@@ -345,10 +350,10 @@ function UkrainianPrivacy(): JSX.Element {
         </ul>
         <p>
           Після підтвердженого запиту на видалення акаунта ми видаляємо пов’язані профілі, токени,
-          активні сесії, звіти та AI records протягом 30 днів, крім мінімальних записів, які
-          необхідні за законом або для fraud/dispute defense. Backups у Hetzner перезаписуються або
-          видаляються протягом 30 днів. Дані в Creem, email‑провайдера чи іншого незалежного
-          провайдера підпорядковуються його власним строкам і правовим обов’язкам.
+          активні сесії, звіти, оформлення звітів та AI records протягом 30 днів, крім мінімальних
+          записів, які необхідні за законом або для fraud/dispute defense. Backups у Hetzner
+          перезаписуються або видаляються протягом 30 днів. Дані в Creem, email‑провайдера чи іншого
+          незалежного провайдера підпорядковуються його власним строкам і правовим обов’язкам.
         </p>
       </section>
       <section id="privacy-cookies" className="legal-section">
@@ -416,6 +421,10 @@ function EnglishPrivacy(): JSX.Element {
             public pages and technical signals, findings, scores, evidence, AI inputs and responses
             and exports. Competitor names are matched against this account's own AI answers on our
             servers only; they are never sent to an AI provider.
+          </li>
+          <li>
+            <strong>Report branding:</strong> the logo, display name, colour and contact line you
+            add for reports to your own clients.
           </li>
           <li>
             <strong>Integrations:</strong> encrypted Google or Bing access and refresh tokens,
@@ -670,6 +679,7 @@ function EnglishPrivacy(): JSX.Element {
         <span className="legal-section__label">07 / RETENTION</span>
         <h2>Storage and deletion</h2>
         <ul>
+          <li>Report branding is kept until you delete it or delete the account.</li>
           <li>Free and Basic reports: 30 days from scan creation; Complete reports: 365 days.</li>
           <li>
             Profiles, configurations and integrations remain until deleted by the user or with the
@@ -687,10 +697,10 @@ function EnglishPrivacy(): JSX.Element {
         </ul>
         <p>
           After a verified account-deletion request, we remove linked profiles, tokens, active
-          sessions, reports and AI records within 30 days, except minimal records required by law or
-          for fraud/dispute defense. Hetzner backups are overwritten or deleted within 30 days.
-          Creem, email-provider and other independent provider records follow their own retention
-          and legal obligations.
+          sessions, reports, report branding and AI records within 30 days, except minimal records
+          required by law or for fraud/dispute defense. Hetzner backups are overwritten or deleted
+          within 30 days. Creem, email-provider and other independent provider records follow their
+          own retention and legal obligations.
         </p>
       </section>
       <section id="privacy-cookies" className="legal-section">

@@ -11,8 +11,8 @@
 //     renders nothing at all rather than something that looks complete.
 //   * nothing is ever dropped. A character the chosen face cannot draw is
 //     escaped so it can be read back (glyphs.ts), not laid out as `.notdef`.
-//   * no remote resource is ever referenced. There are no images, no links to
-//     fetch and no fonts to download — see fonts.ts.
+//   * no remote resource is ever referenced. Images use only in-memory PNG bytes validated at upload;
+//     no links are fetched and no fonts downloaded — see fonts.ts.
 
 import PDFDocument from 'pdfkit';
 
@@ -47,7 +47,9 @@ export const REPORT_COLOURS = {
   low: '#3f6212',
 } as const;
 
-export type ReportColour = keyof typeof REPORT_COLOURS;
+export type ReportPalette = typeof REPORT_COLOURS & { readonly brand: string };
+export type ReportInfo = { Title: string; Producer?: string; Creator?: string };
+export type ReportColour = keyof ReportPalette;
 
 export interface TextOptions {
   readonly font?: ReportFontName;
@@ -71,9 +73,16 @@ export class ReportDocument {
   private readonly glyphs: GlyphGuard;
   private escapedCharacters = 0;
 
-  constructor(title: string, glyphs: GlyphGuard = createGlyphGuard()) {
+  private readonly palette: ReportPalette;
+
+  constructor(
+    title: string,
+    glyphs: GlyphGuard = createGlyphGuard(),
+    options: { readonly palette?: ReportPalette; readonly info?: ReportInfo } = {},
+  ) {
     const fonts = resolveReportFonts();
     this.glyphs = glyphs;
+    this.palette = options.palette ?? { ...REPORT_COLOURS, brand: REPORT_COLOURS.text };
     this.doc = new PDFDocument({
       size: 'A4',
       margins: {
@@ -84,7 +93,7 @@ export class ReportDocument {
       },
       autoFirstPage: false,
       bufferPages: true,
-      info: { Title: title, Producer: 'FluxRadar', Creator: 'FluxRadar' },
+      info: options.info ?? { Title: title, Producer: 'FluxRadar', Creator: 'FluxRadar' },
     });
     for (const [name, path] of Object.entries(fonts)) {
       this.doc.registerFont(name, path);
@@ -140,7 +149,7 @@ export class ReportDocument {
     this.doc
       .font(font)
       .fontSize(options.size ?? 10)
-      .fillColor(REPORT_COLOURS[options.colour ?? 'text'])
+      .fillColor(this.palette[options.colour ?? 'text'])
       .text(this.drawable(value, font), PAGE_MARGIN + indent, this.doc.y, {
         width: CONTENT_WIDTH - indent,
         align: 'left',
@@ -157,11 +166,18 @@ export class ReportDocument {
     if (level === 1) this.rule();
   }
 
-  rule(): void {
+  image(png: Uint8Array, fit: { width: number; height: number }): void {
+    this.reserve(fit.height);
+    const y = this.doc.y;
+    this.doc.image(Buffer.from(png), PAGE_MARGIN, y, { fit: [fit.width, fit.height] });
+    this.doc.y = y + fit.height + 8;
+  }
+
+  rule(colour: ReportColour = 'rule', width = 0.75): void {
     const y = this.doc.y;
     this.doc
-      .strokeColor(REPORT_COLOURS.rule)
-      .lineWidth(0.75)
+      .strokeColor(this.palette[colour])
+      .lineWidth(width)
       .moveTo(PAGE_MARGIN, y)
       .lineTo(PAGE_MARGIN + CONTENT_WIDTH, y)
       .stroke();
@@ -246,7 +262,7 @@ export class ReportDocument {
   private tableHeader(columns: readonly TableColumn[], widths: readonly number[]): void {
     const top = this.doc.y;
     let x = PAGE_MARGIN;
-    this.doc.font('bold').fontSize(9).fillColor(REPORT_COLOURS.muted);
+    this.doc.font('bold').fontSize(9).fillColor(this.palette.muted);
     columns.forEach((column, index) => {
       const width = widths[index] ?? 0;
       this.doc.text(this.drawable(column.heading, 'bold'), x, top, {
@@ -275,7 +291,7 @@ export class ReportDocument {
   ): void {
     const top = this.doc.y;
     let x = PAGE_MARGIN;
-    this.doc.font('body').fontSize(9).fillColor(REPORT_COLOURS.text);
+    this.doc.font('body').fontSize(9).fillColor(this.palette.text);
     columns.forEach((column, index) => {
       const width = widths[index] ?? 0;
       this.doc.text(row[index] ?? '', x, top, { width, align: column.align ?? 'left' });
@@ -310,7 +326,7 @@ export class ReportDocument {
       this.doc.switchToPage(range.start + index);
       const restore = this.doc.page.margins.bottom;
       this.doc.page.margins.bottom = 0;
-      this.doc.font('body').fontSize(FOOTER_SIZE).fillColor(REPORT_COLOURS.muted);
+      this.doc.font('body').fontSize(FOOTER_SIZE).fillColor(this.palette.muted);
       const y = this.doc.page.height - PAGE_MARGIN - this.doc.currentLineHeight();
       this.doc
         .text(this.drawable(footerNote, 'body'), PAGE_MARGIN, y, {

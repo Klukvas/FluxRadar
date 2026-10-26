@@ -227,6 +227,32 @@ const UK: StatusCopy = {
 
 const STATUS_COPY: Readonly<Record<FindingLanguage, StatusCopy>> = { en: EN, uk: UK };
 
+export type ReportVoice = 'fluxradar' | 'neutral';
+
+export function neutralStatusCopy(language: FindingLanguage): StatusCopy {
+  const reason =
+    language === 'uk'
+      ? {
+          targetsUnreachable: 'жодна зі сторінок, які аудит намагався прочитати, не відповіла',
+          targetsPartiallyUnreachable:
+            'частина сторінок, які аудит намагався прочитати, не відповіла',
+          noDeterministicOracle: 'в аудиті поки немає перевірки з доказами для цієї області',
+          aiProviderContract: 'відповідь AI не пройшла контракт доказів аудиту, тому її відхилено',
+        }
+      : {
+          targetsUnreachable: 'none of the pages the audit tried to read responded',
+          targetsPartiallyUnreachable: 'some of the pages the audit tried to read did not respond',
+          noDeterministicOracle: 'this audit has no evidence-based check for this area yet',
+          aiProviderContract:
+            "the AI answer failed the audit's evidence contract and was discarded",
+        };
+  return { ...STATUS_COPY[language], reason: { ...STATUS_COPY[language].reason, ...reason } };
+}
+
+function statusCopy(language: FindingLanguage, voice: ReportVoice): StatusCopy {
+  return voice === 'neutral' ? neutralStatusCopy(language) : STATUS_COPY[language];
+}
+
 type ReasonKey = keyof StatusCopy['reason'];
 
 /** Wire reason → the clause that explains it. */
@@ -292,18 +318,20 @@ const GEO_CANCELLED = /^ScanCancelled: (\d+) of (\d+) questions answered$/;
 export function scanStatusText(
   scan: { readonly status: string; readonly statusReason: string | null },
   language: FindingLanguage,
+  voice: ReportVoice = 'fluxradar',
 ): string {
   const label = STATUS_COPY[language].scanStatus[scan.status] ?? scan.status;
-  return withReason(label, scan.statusReason, language);
+  return withReason(label, scan.statusReason, language, voice);
 }
 
 /** One audit section's result as the Sections table states it. */
 export function moduleResultText(
   module: { readonly runtimeStatus: string; readonly statusReason: string | null },
   language: FindingLanguage,
+  voice: ReportVoice = 'fluxradar',
 ): string {
   const label = STATUS_COPY[language].moduleStatus[module.runtimeStatus] ?? module.runtimeStatus;
-  return withReason(label, module.statusReason, language);
+  return withReason(label, module.statusReason, language, voice);
 }
 
 /** Where one finding stands, as the finding block states it. */
@@ -311,8 +339,13 @@ export function issueStatusText(status: string, language: FindingLanguage): stri
   return STATUS_COPY[language].issueStatus[status] ?? status;
 }
 
-function withReason(label: string, reason: string | null, language: FindingLanguage): string {
-  const stated = statusReasonText(reason, language);
+function withReason(
+  label: string,
+  reason: string | null,
+  language: FindingLanguage,
+  voice: ReportVoice,
+): string {
+  const stated = statusReasonText(reason, language, voice);
   return stated === null ? label : `${label} · ${stated}`;
 }
 
@@ -322,10 +355,14 @@ function withReason(label: string, reason: string | null, language: FindingLangu
  * Exported for the tests that hold this file to the producers' vocabulary; the
  * document itself goes through the two functions above.
  */
-export function statusReasonText(reason: string | null, language: FindingLanguage): string | null {
+export function statusReasonText(
+  reason: string | null,
+  language: FindingLanguage,
+  voice: ReportVoice = 'fluxradar',
+): string | null {
   const token = reason?.trim() ?? '';
   if (token === '') return null;
-  const copy = STATUS_COPY[language];
+  const copy = statusCopy(language, voice);
 
   const cancelled = GEO_CANCELLED.exec(token);
   if (cancelled !== null) {
@@ -336,10 +373,10 @@ export function statusReasonText(reason: string | null, language: FindingLanguag
   const counted = AI_PARTIAL.exec(token);
   if (counted !== null) {
     const [, unavailable = '', total = '', causes = ''] = counted;
-    const named = distinctCauses(causes).map((cause) => clauseFor(cause, language));
+    const named = distinctCauses(causes).map((cause) => clauseFor(cause, language, voice));
     return [copy.aiPartial(unavailable, total), ...named].join('; ');
   }
-  return clauseFor(token, language);
+  return clauseFor(token, language, voice);
 }
 
 /** The causes inside a counted GEO reason, in the order they were first seen. */
@@ -351,8 +388,8 @@ function distinctCauses(causes: string): readonly string[] {
   return [...new Set(named)];
 }
 
-function clauseFor(token: string, language: FindingLanguage): string {
-  const copy = STATUS_COPY[language];
+function clauseFor(token: string, language: FindingLanguage, voice: ReportVoice): string {
+  const copy = statusCopy(language, voice);
   const key = REASON_KEYS[token];
   if (key !== undefined) return copy.reason[key];
 

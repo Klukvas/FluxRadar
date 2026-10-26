@@ -17,6 +17,7 @@
 // two different things in two deliverables.
 
 import type { FindingLanguage } from '@fluxradar/rules';
+import type { ReportVoice } from './status-text.ts';
 
 import type { BingDataState } from '../../integrations/bing/types.ts';
 import type { GoogleDataState } from '../../integrations/google/types.ts';
@@ -95,16 +96,55 @@ export interface ProviderServiceState {
 function stated(
   catalogue: Readonly<Record<string, string | undefined>>,
   service: ProviderServiceState,
+  language: FindingLanguage,
+  voice: ReportVoice,
 ): string {
-  return catalogue[service.state] ?? service.detail;
+  return (
+    catalogue[service.state] ??
+    (voice === 'neutral' ? neutralProviderCopy(language).generic : service.detail)
+  );
 }
 
 /** Why Search Console or Analytics 4 has no figures here, in the reader's language. */
-export function googleStateText(service: ProviderServiceState, language: FindingLanguage): string {
-  return stated(GOOGLE_STATE_COPY[language], service);
+export function googleStateText(
+  service: ProviderServiceState,
+  language: FindingLanguage,
+  voice: ReportVoice = 'fluxradar',
+): string {
+  return stated(GOOGLE_STATE_COPY[language], service, language, voice);
 }
 
 /** Why the Bing section has no figures here, in the reader's language. */
-export function bingStateText(service: ProviderServiceState, language: FindingLanguage): string {
-  return stated(BING_STATE_COPY[language], service);
+export function bingStateText(
+  service: ProviderServiceState,
+  language: FindingLanguage,
+  voice: ReportVoice = 'fluxradar',
+): string {
+  return stated(
+    voice === 'neutral' ? neutralProviderCopy(language).bing : BING_STATE_COPY[language],
+    service,
+    language,
+    voice,
+  );
+}
+
+export function neutralProviderCopy(language: FindingLanguage): {
+  readonly google: StateCopy<GoogleDataState>;
+  readonly bing: StateCopy<BingDataState>;
+  readonly generic: string;
+} {
+  return {
+    google: GOOGLE_STATE_COPY[language],
+    bing: {
+      ...BING_STATE_COPY[language],
+      request_failed:
+        language === 'uk'
+          ? 'Bing не відповів або відповів даними, які аудит не зміг прочитати. Решту звіту це не змінює.'
+          : 'Bing did not answer, or answered with data the audit could not read. The rest of the report is unaffected.',
+    },
+    generic:
+      language === 'uk'
+        ? 'Сервіс не надав даних для цього періоду.'
+        : 'The service provided no data for this period.',
+  };
 }

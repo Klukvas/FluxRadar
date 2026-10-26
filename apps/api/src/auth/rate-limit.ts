@@ -41,6 +41,10 @@ export const LOGIN_IP_LIMIT = 50;
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_REFUSAL_MESSAGE = 'too many login attempts, try again later';
 
+export const BRANDING_WRITE_LIMIT = 20;
+export const BRANDING_WRITE_IP_LIMIT = 60;
+export const BRANDING_WRITE_WINDOW_MS = 10 * 60 * 1000;
+
 export const REGISTER_LIMIT = 5;
 export const REGISTER_WINDOW_MS = 60 * 60 * 1000;
 /**
