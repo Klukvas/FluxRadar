@@ -199,7 +199,7 @@ describe('Google login deployment persistence', () => {
   it('keeps the nonsecret false switch effective despite overlay credentials', () => {
     expect(fakeProbe({ config: true, enabled: 'false', redirect: 'invalid' }).status).toBe(0);
     const workflow = readFileSync(join(ROOT, '.github/workflows/deploy.yml'), 'utf8');
-    expect(workflow).toContain('PRODUCTION_GOOGLE_LOGIN_ENABLED: ${{ vars.GOOGLE_LOGIN_ENABLED }}');
+    expect(workflow).toContain('PRODUCTION_GOOGLE_LOGIN_ENABLED: ${{ vars.PRODUCTION_GOOGLE_LOGIN_ENABLED }}');
     expect(workflow).toContain('upsert_env GOOGLE_LOGIN_ENABLED PRODUCTION_GOOGLE_LOGIN_ENABLED');
   });
 });

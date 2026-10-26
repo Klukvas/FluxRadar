@@ -209,7 +209,7 @@ The overlay is optional on an unconfigured installation. Once configured, its
 path and requirement are retained in runtime and rollback metadata: a missing,
 unreadable, unsafe or incomplete file stops deployment before traffic switches.
 
-The optional **nonsecret** GitHub repository variable `GOOGLE_LOGIN_ENABLED`
+The optional **nonsecret** GitHub repository variable `PRODUCTION_GOOGLE_LOGIN_ENABLED`
 accepts `true` or `false`. `false` disables new Google sign-ins while retaining
 password/email access and the compatible database/client. Empty preserves the
 base environment setting, or enables configured Google login by default.

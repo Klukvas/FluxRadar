@@ -344,7 +344,7 @@ jobs:
           # an HTTP error on the first send, reported to the user as an
           # emailVerification status of "provider-error" (email/resend-config.ts).
           # Nonsecret emergency switch; empty keeps the base configuration.
-          PRODUCTION_GOOGLE_LOGIN_ENABLED: ${{ vars.GOOGLE_LOGIN_ENABLED }}
+          PRODUCTION_GOOGLE_LOGIN_ENABLED: ${{ vars.PRODUCTION_GOOGLE_LOGIN_ENABLED }}
           PRODUCTION_RESEND_API_KEY: ${{ secrets.PRODUCTION_RESEND_API_KEY }}
           PRODUCTION_RESEND_FROM_EMAIL: ${{ secrets.PRODUCTION_RESEND_FROM_EMAIL }}
           # Owner dashboard (/admin/stats). A secret for the same reason as the
