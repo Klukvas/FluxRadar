@@ -200,11 +200,19 @@ client is not safe for those accounts.
 ### Google login across deployments
 
 Production releases reuse the human-managed Google login overlay at
-`/opt/fluxradar/auth-patches/google-login-20261026-v1/google-login.env`. It is a
-root-owned mode600 regular file containing only `GOOGLE_LOGIN_CLIENT_ID`,
+`/opt/fluxradar/runtime/google-login.env`. It is a
+mode600 regular file owned by the deploying account (root for root-run releases),
+containing only `GOOGLE_LOGIN_CLIENT_ID`,
 `GOOGLE_LOGIN_CLIENT_SECRET` and `GOOGLE_LOGIN_REDIRECT_URI`. Never commit or
 copy its values into a release. Docker receives it after the base environment
 for the API and inert rollback probe; web and migration containers do not receive it.
+The deployment account must be able to traverse its parent directories. For an
+existing root-only setup, the owner must move the credential file once to this
+stable path without overwriting an existing destination, then hand ownership to
+the deploying account while preserving mode600. Use a same-filesystem move so
+its inode and contents remain intact; do not copy, print or rewrite values or
+change unrelated parent-directory permissions. Automated releases never move
+or change ownership or permissions of this file.
 The overlay is optional on an unconfigured installation. Once configured, its
 path and requirement are retained in runtime and rollback metadata: a missing,
 unreadable, unsafe or incomplete file stops deployment before traffic switches.

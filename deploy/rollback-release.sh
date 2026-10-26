@@ -142,7 +142,7 @@ if [ -n "$FLUXRADAR_ROLLBACK_API_IMAGE" ] || [ -n "$FLUXRADAR_ROLLBACK_WEB_IMAGE
 fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/google-login-env.sh" || exit 1
-load_google_login_env "${FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_ENV_FILE:-$APP_DIR/auth-patches/google-login-20261026-v1/google-login.env}" "$FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_REQUIRED" || exit 1
+load_google_login_env "${FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_ENV_FILE:-$APP_DIR/runtime/google-login.env}" "$FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_REQUIRED" || exit 1
 
 # From here a target exists, so the failed release is genuinely being replaced
 # and its containers go first, whatever else this script can do. They run with

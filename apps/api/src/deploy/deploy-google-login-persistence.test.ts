@@ -30,20 +30,30 @@ afterEach(() => {
 });
 
 function loadOverlay(
-  options: { content?: string; required?: boolean; metadata?: string; symlink?: boolean } = {},
+  options: {
+    content?: string;
+    required?: boolean;
+    metadata?: string;
+    uid?: number;
+    symlink?: boolean;
+    unreadable?: boolean;
+  } = {},
 ) {
   const path = workspace();
   const file = join(path, 'google-login.env');
   if (options.content !== undefined) {
     writeFileSync(file, options.content, { mode: 0o600 });
+    if (options.unreadable) chmodSync(file, 0o000);
     if (options.symlink) {
       symlinkSync(file, join(path, 'link.env'));
     }
   }
-  // Production is GNU/Linux and root. Only stat metadata is simulated for
-  // non-root/macOS test hosts; key validation and symlink checks execute intact.
+  // Production is GNU/Linux. Simulate process UID/stat metadata on macOS;
+  // readability, key validation and symlink checks execute intact.
   writeFileSync(join(path, 'stat'), '#!/bin/sh\nprintf "%s\\n" "$STAT_RESULT"\n');
   chmodSync(join(path, 'stat'), 0o700);
+  writeFileSync(join(path, 'id'), '#!/bin/sh\nprintf "%s\\n" "$DEPLOY_UID"\n');
+  chmodSync(join(path, 'id'), 0o700);
   const selected = options.symlink ? join(path, 'link.env') : file;
   const result = spawnSync(
     'bash',
@@ -57,7 +67,11 @@ function loadOverlay(
     ],
     {
       encoding: 'utf8',
-      env: { PATH: `${path}:${process.env.PATH ?? ''}`, STAT_RESULT: options.metadata ?? '0:600' },
+      env: {
+        PATH: `${path}:${process.env.PATH ?? ''}`,
+        STAT_RESULT: options.metadata ?? '0:600',
+        DEPLOY_UID: String(options.uid ?? 0),
+      },
     },
   );
   return { ...result, file, selected };
@@ -147,8 +161,21 @@ describe('Google login deployment persistence', () => {
     expect(result.stderr).toContain('Required Google login overlay is missing');
   });
 
-  it.each(['0:644', '501:600'])('refuses unsafe metadata %s', (metadata) => {
-    expect(loadOverlay({ content: overlay, metadata }).status).not.toBe(0);
+  it.each([0, 1000])('accepts mode600 owned by deploying UID%s', (uid) => {
+    expect(loadOverlay({ content: overlay, uid, metadata: `${uid}:600` }).status).toBe(0);
+  });
+
+  it.each([
+    { uid: 0, metadata: '0:644' },
+    { uid: 0, metadata: '1000:600' },
+    { uid: 1000, metadata: '0:600' },
+    { uid: 1000, metadata: '1001:600' },
+  ])('refuses unsafe or mismatched ownership %j', (options) => {
+    expect(loadOverlay({ content: overlay, ...options }).status).not.toBe(0);
+  });
+
+  it.skipIf(process.getuid?.() === 0)('refuses a present but unreadable overlay', () => {
+    expect(loadOverlay({ content: overlay, required: true, unreadable: true }).status).not.toBe(0);
   });
 
   it('refuses symlinks', () => {

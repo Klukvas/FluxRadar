@@ -12,8 +12,8 @@ load_google_login_env() {
     echo 'Google login overlay must be a regular, nonsymlink file' >&2; return 1
   elif [ -e "$GOOGLE_LOGIN_ENV_FILE" ]; then
     if [ ! -f "$GOOGLE_LOGIN_ENV_FILE" ] || [ ! -r "$GOOGLE_LOGIN_ENV_FILE" ] \
-      || [ "$(stat -c '%u:%a' "$GOOGLE_LOGIN_ENV_FILE")" != '0:600' ]; then
-      echo 'Google login overlay must be readable and owned by root with mode600' >&2; return 1
+      || [ "$(stat -c '%u:%a' "$GOOGLE_LOGIN_ENV_FILE")" != "$(id -u):600" ]; then
+      echo 'Google login overlay must be readable and owned by the deploying account with mode600' >&2; return 1
     fi
     if ! awk '
       { separator=index($0,"="); key=substr($0,1,separator-1); value=substr($0,separator+1)

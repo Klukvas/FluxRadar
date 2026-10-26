@@ -88,7 +88,7 @@ fi
 GOOGLE_LOGIN_REQUIRED="${FLUXRADAR_GOOGLE_LOGIN_REQUIRED:-false}"
 if [ "$PREVIOUS_API_CONTAINER" = fluxradar-api-google-login-20261026-v1 ]; then GOOGLE_LOGIN_REQUIRED=true; fi
 . "$RELEASE_DIR/deploy/google-login-env.sh"
-load_google_login_env "${FLUXRADAR_GOOGLE_LOGIN_ENV_FILE:-$APP_DIR/auth-patches/google-login-20261026-v1/google-login.env}" "$GOOGLE_LOGIN_REQUIRED"
+load_google_login_env "${FLUXRADAR_GOOGLE_LOGIN_ENV_FILE:-$APP_DIR/runtime/google-login.env}" "$GOOGLE_LOGIN_REQUIRED"
 
 API_CONTAINER="fluxradar-api-$RELEASE_ID"
 WEB_CONTAINER="fluxradar-web-$RELEASE_ID"

@@ -309,7 +309,7 @@ function runDeploy(
   if (options.legacyState)
     writeFileSync(join(runtimeDir, 'active.env'), `FLUXRADAR_ACTIVE_RELEASE=${previousDir}\n`);
   if (options.customGoogleImages) {
-    const directory = join(appDir, 'auth-patches/google-login-20261026-v1');
+    const directory = runtimeDir;
     mkdirSync(directory, { recursive: true });
     writeFileSync(
       join(directory, 'google-login.env'),
@@ -328,7 +328,7 @@ function runDeploy(
   writeExecutable(join(binDir, 'curl'), CURL_RECORDER);
   writeExecutable(join(binDir, 'sleep'), SLEEP_STUB);
   writeExecutable(join(binDir, 'mv'), MV_SHIM);
-  writeExecutable(join(binDir, 'stat'), "#!/bin/sh\nprintf '0:600\\n'\n");
+  writeExecutable(join(binDir, 'stat'), `#!/bin/sh\nprintf '${process.getuid?.() ?? 0}:600\\n'\n`);
 
   const scriptPath = join(appDir, 'release.sh');
   writeFileSync(scriptPath, extractReleaseScript());
