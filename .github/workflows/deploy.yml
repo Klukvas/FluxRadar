@@ -15,8 +15,8 @@ name: Deploy production
 #   preflight  reclaim this workflow's own stale staging dirs on the server
 #   reclaim    free disk: release images with no release directory, dangling
 #              layers, stale build cache — before the uploads' space gate runs
-#   image      ┐ both images (a matrix: api, web) and the release bundle, built
-#   package    ┘ and shipped in parallel. None of it touches anything that serves
+#   package    the release bundle, built and shipped first
+#   image      both images (a matrix: api, web), built and shipped serially. None of it touches anything that serves
 #                traffic, so a failure here leaves the previous release untouched.
 #   backup     a snapshot BEFORE a migration that cannot be undone
 #   release    migrate, prove a rollback is possible, start, switch traffic
@@ -79,7 +79,7 @@ jobs:
         # touches releases, current, runtime, Docker data/volumes, or PostgreSQL.
         #
         # The free-space gate that used to live here has moved to the upload
-        # itself: three stages now upload in parallel and each one knows the size
+        # itself: each stage knows the size
         # of its own artifact, which is a more precise question than this stage
         # could ask before any of them had been built.
         env:
@@ -176,13 +176,15 @@ jobs:
 
   image:
     name: Build and ship the ${{ matrix.service }} image
-    needs: reclaim
+    needs: [reclaim, package]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
     strategy:
       # Each leg cleans up its own staging directory when it fails. Cancelling
       # the other leg because one failed would only interrupt that cleanup.
+      # One disk budget at a time; package finishes before either image.
+      max-parallel: 1
       fail-fast: false
       matrix:
         include:
@@ -243,8 +245,13 @@ jobs:
           release-id: ${{ github.sha }}
           stage: ${{ matrix.service }}-image
           files: ${{ runner.temp }}/fluxradar-${{ matrix.service }}.tar
+          image-archive: ${{ runner.temp }}/fluxradar-${{ matrix.service }}.tar
           install: |
-            docker load --input "$STAGE_DIR/fluxradar-${{ matrix.service }}.tar"
+            # Docker can return zero after an unpack failure; inspect alone
+            # still finds the imported image. Treat its explicit error as fatal.
+            load_output="$(docker load --input "$STAGE_DIR/fluxradar-${{ matrix.service }}.tar" 2>&1)" || { printf '%s\n' "$load_output"; exit 1; }
+            printf '%s\n' "$load_output"
+            if grep -q 'Error unpacking image' <<< "$load_output"; then exit 1; fi
             # Loading a tar that does not carry the expected tag is silent, and
             # the release script would then fail much later with "image not
             # found". Ask now, while this stage still owns the failure.

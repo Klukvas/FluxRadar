@@ -33,6 +33,16 @@ permissions:
   contents: read
 
 jobs:
+  test-image-shipping:
+    name: Test image shipping disk guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Test shipping against bounded disk fixtures
+        run: python3 -m unittest discover -s deploy/tests -v
+
   build-backend:
     name: Build workspace
     runs-on: ubuntu-latest
